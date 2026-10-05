@@ -188,7 +188,7 @@
       position: absolute;
       inset: 0;
       z-index: -1;
-      border-radius: var(--radius-card);
+      border-radius: var(--paper-radius);
       background: color-mix(in srgb, var(--paper) 82%, var(--bg-canvas));
       box-shadow: var(--shadow-md);
       transition: transform 0.5s var(--ease-out);
@@ -213,19 +213,17 @@
       display: flex;
       flex-direction: column;
       min-height: 330px;
-      padding: var(--space-4-5) var(--space-6) var(--space-6);
-      border-radius: var(--radius-card);
-      color: var(--paper-ink);
+      --paper-pad-top: var(--space-4-5);
       /* Index-card ruling under the cinnabar header rule. */
-      background:
-        repeating-linear-gradient(
-          to bottom,
-          transparent 0 31px,
-          var(--paper-rule) 31px 32px
-        )
-        0 52px / 100% calc(100% - 52px) no-repeat,
-        var(--paper);
-      box-shadow: var(--shadow-card);
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0 31px,
+        var(--paper-rule) 31px 32px
+      );
+      background-position: 0 52px;
+      background-size: 100% calc(100% - 52px);
+      background-repeat: no-repeat;
+      background-origin: border-box;
       transition: transform 0.5s var(--ease-out);
       animation: card-deal 0.55s var(--ease-out) backwards;
     }

@@ -46,14 +46,10 @@
       max-height: calc(100% - 24px);
       overflow: auto;
       pointer-events: auto;
-      padding: var(--space-4) var(--space-4-5) var(--space-3-5);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-card);
-      background: var(--bg-raised);
-      color: var(--text);
       font-family: var(--font-ui);
       font-size: var(--fs-md);
-      box-shadow: var(--shadow-lg), 0 0 0 1px var(--line-soft);
+      /* A paper card floating over the page: the lift of an overlay instead of the resting card shadow. */
+      box-shadow: var(--shadow-lg);
       overscroll-behavior: contain;
     }
     .tour-pop:focus { outline: none; }
@@ -66,8 +62,8 @@
       position: absolute;
       width: 12px;
       height: 12px;
-      background: var(--bg-raised);
-      border: 1px solid var(--line);
+      background: inherit;
+      border: 1px solid transparent;
       transform: rotate(45deg);
       display: none;
     }
@@ -84,7 +80,6 @@
       bottom: 12px;
       width: auto;
       max-height: min(58%, 440px);
-      border-radius: var(--radius-card);
     }
     .tour-pop__head {
       display: flex;

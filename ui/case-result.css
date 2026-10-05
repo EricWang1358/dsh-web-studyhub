@@ -167,10 +167,6 @@
       display: flex;
       gap: var(--space-5);
       align-items: center;
-      padding: var(--space-5);
-      border-radius: var(--radius-card);
-      background: var(--bg-surface);
-      border: 1px solid var(--line);
     }
     .case-report__hero p { margin: var(--space-1) 0 0; }
     .case-report__pending {

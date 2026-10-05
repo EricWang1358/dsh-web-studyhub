@@ -58,18 +58,9 @@
       flex-direction: column;
       gap: var(--space-2);
       min-width: 0;
-      padding: var(--space-5-5) var(--space-5-5) var(--space-5);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-card);
-      background: var(--bg-surface);
     }
-    .welcome-card--lead {
-      border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
-      background:
-        linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
-        var(--bg-raised);
-      box-shadow: var(--shadow-md);
-    }
+    /* The lead choice carries the cinnabar head rule of a card. */
+    .welcome-card--lead { border-top: 3px solid var(--accent); }
     .welcome-card__icon {
       display: grid;
       place-items: center;

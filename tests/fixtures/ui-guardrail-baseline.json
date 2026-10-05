@@ -70,7 +70,7 @@
       "ui/legacy.css": 3,
       "ui/mineru.css": 1,
       "ui/review-results.css": 2,
-      "ui/review/question.css": 13,
+      "ui/review/question.css": 11,
       "ui/shell.css": 5,
       "ui/skeleton.css": 6,
       "ui/sources-page.css": 1,
@@ -124,18 +124,7 @@
       "ui/study-map/TodayCard.jsx": 1
     },
     "busyLabelSwap": {},
-    "radiusCard": {
-      "ui/case-result.css": 1,
-      "ui/case-study.css": 1,
-      "ui/document-preview/reader/reader.css": 1,
-      "ui/exam-setup.css": 1,
-      "ui/reading-settings/reading.css": 1,
-      "ui/review-results.css": 1,
-      "ui/review/question.css": 5,
-      "ui/study-map/desk.css": 2,
-      "ui/tour/tour.css": 2,
-      "ui/welcome.css": 1
-    },
+    "radiusCard": {},
     "rawChoiceInput": {
       "ui/BlogNotes.jsx": 1,
       "ui/DailyRecap.jsx": 1,

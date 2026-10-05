@@ -18,7 +18,7 @@ The whole panel follows one idea: **the card is the only physical object; everyt
 - Composition: one focal object per page, placed asymmetrically. Library: today's paper card stack. Review: the question as an index card. Stats: the streak numeral. Exam: the exam sheet. Skeleton: the learning axis.
 - Secondary information is typographic lines under hairlines, never a grid of equal boxes.
 - Type: system sans (`--font-ui`, `--font-display`); large light numerals for counts; bold display headings; small muted labels.
-- Shape: cards use `--radius-card` (16px) and `--shadow-card`; controls use `--radius-sm`; pills only for toggles.
+- Shape: every card is the one paper card, `.sh-paper-card` (`ui/paper.css`; `<Panel tone="paper">` renders it): paper stock, `--paper-radius` (= `--radius-card`, 16px), a transparent 1px border, `--shadow-card`, and the padding scale default 20/24, `--roomy` 24/32, `--snug` 16/20, `--flush` 0. Question card, flashcard faces, today card, welcome choices, case and result cards, the exam setup sheet, summary topics, the tour popover and the reading-tone paper all use it; a feature sheet never sets its own card corner, shadow or stock (`tests/paper-card.test.mjs`, `radiusCard` ratchet at 0). Only a fixed head (a head rule, ruling) may set `--paper-pad-top` / `--paper-pad-bottom`, and the reader page keeps em padding because the reading size scales it. Desk panels use `--radius`; controls use `--radius-sm`; pills only for toggles. Dialog sheets, the setup gate and provider cards in `ui/components` keep `--radius-card` as notices on the desk, not cards.
 - Motion: the card is dealt in once; on each question the stem inks in and the head rule fills; pages cross-fade. Animate transform and opacity only. Everything honours `prefers-reduced-motion`.
 
 ## Colour roles
@@ -26,7 +26,7 @@ The whole panel follows one idea: **the card is the only physical object; everyt
 | Token | Role |
 | --- | --- |
 | `--bg-canvas` / `--bg-surface` / `--bg-raised` | Desk, flat panels, menus |
-| `--paper`, `--paper-ink`, `--paper-dim`, `--paper-rule` | Card stock. Inside a card the ink tokens are re-scoped to paper values, once, in `ui/paper.css`: give an element `.sh-paper` (a `<Panel tone="paper">`) and nothing else. |
+| `--paper`, `--paper-ink`, `--paper-dim`, `--paper-rule` | Card stock. Inside a card the ink tokens are re-scoped to paper values, once, in `ui/paper.css`: give an element `.sh-paper-card` (what `<Panel tone="paper">` renders; `.sh-paper` is the ink alone) and nothing else. |
 | `--accent` (朱砂 cinnabar) | The single primary action, the card head rule / progress, the heatmap. Nothing else. |
 | `--ok` jade | Correct, mastered |
 | `--warn` ochre | Learning, contrasts to watch |

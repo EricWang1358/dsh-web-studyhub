@@ -7,7 +7,7 @@ import { TERMS } from '../mastery-terms.js';
 export default function TodayCard({ plan, todayLabel, busy }) {
   return (
     <div className="today-stack" data-depth={plan.depth} data-tour="home-today">
-      <div className="today-card">
+      <div className="today-card sh-paper-card">
         <div className="today-card-head">
           <span>{plan.eyebrow}</span>
           <time>{todayLabel}</time>

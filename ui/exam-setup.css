@@ -16,8 +16,6 @@
     .es-sheet {
       display: flex; flex-direction: column;
       max-width: 980px; min-width: 0;
-      background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-card);
-      box-shadow: var(--shadow-card); overflow: hidden;
     }
     .es-head { padding: var(--space-5) var(--space-7) var(--space-4); border-bottom: 2px solid var(--accent); }
     .es-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-xl); line-height: var(--lh-tight); }

@@ -274,9 +274,6 @@
       max-width: calc(var(--reader-measure) + 8em);
       margin: var(--space-6) auto var(--space-8);
       padding: 3.2em 4em 3.6em;
-      border-radius: var(--radius-card);
-      background: var(--paper);
-      box-shadow: var(--shadow-card);
     }
     /* Rendered Markdown / HTML */
     .reader-html > :first-child, .reader-prose > :first-child { margin-top: 0; }

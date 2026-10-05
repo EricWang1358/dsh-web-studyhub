@@ -25,7 +25,7 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
     : step.readyNote && model?.ready && model.label ? uiFormat(step.readyNote, [model.label]) : "";
   const offerSample = step.id === "welcome" && !sampleLoaded && !!onLoadSample;
   return (
-    <div ref={popoverRef} className={cx("tour-pop", docked && "tour-pop--docked", side && `tour-pop--${side}`)} style={style}
+    <div ref={popoverRef} className={cx("tour-pop", "sh-paper-card", "sh-paper-card--snug", docked && "tour-pop--docked", side && `tour-pop--${side}`)} style={style}
       role="dialog" aria-modal="false" aria-labelledby={titleId} aria-describedby={bodyId} tabIndex={-1} onKeyDown={onKeyDown}>
       <div className="tour-pop__head">
         <span className="tour-pop__eyebrow"><Icon name="sparkle" size={16} />{ui("功能导览")}</span>

@@ -9,14 +9,14 @@ export const PANEL_TONES = Object.freeze(['plain', 'sunken', 'accent', 'dashed',
 /**
  * A flat desk surface with an optional heading row and actions.
  * tone: plain (default) | sunken (a recessed well) | accent (the one highlighted block) | dashed (an optional or
- * empty area) | paper (a physical card: the only tone with --radius-card). density: normal | compact.
+ * empty area) | paper (the physical card: renders `.sh-paper-card`, the one card look of ui/paper.css). density: normal | compact.
  * `as` swaps the element (section, article, li, div…).
  */
 export function Panel({ title, description, actions, children, tone = 'plain', density = 'normal', as: Tag = 'section', className, ...rest }) {
   useComponentCss(css);
   useComponentCss(toneCss, 'study-panel-tones');
   return (
-    <Tag className={cx('sh-panel', tone !== 'plain' && PANEL_TONES.includes(tone) && `sh-panel--${tone}`, density === 'compact' && 'sh-panel--compact', className)} {...rest}>
+    <Tag className={cx('sh-panel', tone === 'paper' ? 'sh-paper-card' : tone !== 'plain' && PANEL_TONES.includes(tone) && `sh-panel--${tone}`, density === 'compact' && 'sh-panel--compact', className)} {...rest}>
       {(title || description || actions) && <div className="sh-panel__head">
         <div className="sh-panel__heading">
           {title && <h3 className="sh-panel__title">{title}</h3>}
