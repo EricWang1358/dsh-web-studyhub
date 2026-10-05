@@ -64,7 +64,7 @@
       border-radius: var(--radius-pill);
       background: var(--warn);
     }
-    .reader-badge {
+    .reader-count {
       position: absolute;
       top: 1px;
       right: 1px;
@@ -219,6 +219,7 @@
     .reader-assist__entries li[data-depth='2'] { --entry-depth: 2; }
     .reader-assist__entries li[data-depth='3'] { --entry-depth: 3; }
     .reader-assist__entries li[data-minor] { color: var(--text-faint); }
+    .reader-assist__tag-anchor { flex: none; }
     .reader-assist__tag { flex: none; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); }
     /* Using the outline as chapters: the level, the chapters it gives, what a chapter inside a page means. */
     .reader-segment { display: grid; gap: var(--space-3); }

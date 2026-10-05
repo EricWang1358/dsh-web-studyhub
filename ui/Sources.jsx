@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
@@ -360,9 +360,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           {proposals && <div className="source-course-proposals">
             <p className="muted">{ui('建议尚未保存，可先修改课程，再确认应用。')}</p>
             {proposals.map(proposal => <div key={proposal.id}>
-              <label className="source-proposal-select"><input type="checkbox" checked={proposal.include} disabled={busy}
-                onChange={event => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, include: event.target.checked } : item))} />
-                {uiFormat('采用建议：{0}', [displayTitle(proposal.title)])}</label>
+              <Checkbox checked={proposal.include} disabled={busy} label={uiFormat('采用建议：{0}', [displayTitle(proposal.title)])}
+                onChange={include => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, include } : item))} />
               <CourseField label={displayTitle(proposal.title)} value={proposal.courseText} multiple courses={data.focus?.courses}
                 onChange={courseText => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, courseText } : item))} disabled={busy || !proposal.include} />
               <p className="muted">{proposal.reason}{experimental && proposal.decidedBy === 'jev' && <> <JevDecidedBadge scope="row" /></>}</p>
@@ -392,7 +391,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           {groups.map((g) => {
             const expanded = isOpen(g);
             return (
-              <div key={g.key} className={"source-group" + (expanded ? " open" : "")}>
+              <div key={g.key} className={"source-group" + (expanded ? " source-group--open" : "")}>
                 <button className="source-group-head" aria-expanded={expanded} onClick={() => toggle(g)}>
                   <Icon name="caret" size={14} className="sh-caret" />
                   <strong>{dayLabel(g.key)}</strong>

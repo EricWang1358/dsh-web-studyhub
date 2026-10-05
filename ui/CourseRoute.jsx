@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { TERMS } from "./mastery-terms.js";
-import { Button } from "./components/index.js";
+import { Button, Tooltip } from "./components/index.js";
 import { joinMeta, formatIndex } from './format.js';
 
 /* 课程路线：课程按题组顺序排成一章一章。进度条每一段是一章（按题量占宽），
@@ -20,7 +20,7 @@ export default function CourseRoute({ route, busy, onStartChapter }) {
         {chapter
           ? <span>{uiRich("第 {0} / {1} 章 · {2} · 本章 {3}/{4}", route.current + 1, route.chapters.length, <strong>{chapter.title}</strong>, chapter.learned, chapter.total)}</span>
           : <span>{uiFormat("{0} 章全部学过", [route.chapters.length])}</span>}
-        <span className="course-route-total" title={ui(TERMS.learned.hint)}>{uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}</span>
+        <Tooltip layer anchorClassName="course-route-total" content={ui(TERMS.learned.hint)}><span tabIndex={0}>{uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}</span></Tooltip>
       </p>
       <div className="course-route-bar" role="img" aria-label={uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}>
         {route.chapters.map((c) => (

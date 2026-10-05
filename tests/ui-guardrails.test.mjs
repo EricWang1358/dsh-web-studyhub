@@ -30,6 +30,19 @@ for (const rule of Object.keys(RULES)) {
   });
 }
 
+test('no !important outside CodeMirror overrides, reduced-motion and forced-colors blocks (#136)', () => {
+  assert.deepEqual(scan.metrics.important, {}, 'fix the cascade (layer, specificity, a Button variant) instead of forcing the value; the allow-list is isAllowedImportant in scripts/qa/guardrail-baseline.mjs');
+});
+
+test('no raw colour outside the theme token files and no CSS line over 400 characters (#156)', () => {
+  assert.deepEqual(scan.metrics.rawColor, {}, 'use a colour token or color-mix() of tokens; a PDF page is var(--pdf-page), a quote highlight var(--warn-mark)');
+  assert.deepEqual(scan.metrics.longLine, {}, 'format the stylesheet, one declaration per line');
+});
+
+test('no raw px font size, numeric font weight, px radius or 999px pill in a stylesheet, font shorthand included (#147 #148)', () => {
+  for (const rule of ['fontSizePx', 'fontWeightNumeric', 'radiusPx', 'radius999']) assert.deepEqual(scan.metrics[rule], {}, `${rule}: ${RULES[rule].fix}`);
+});
+
 test('keyframe names are unique across ui/**/*.css (#102)', () => {
   assert.deepEqual(scan.duplicateKeyframes, [], 'two @keyframes share a name, so whichever stylesheet is injected last silently wins; give each an sh- prefixed unique name');
 });
@@ -86,17 +99,23 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
   try {
     mkdirSync(join(root, 'ui', 'components'), { recursive: true });
     writeFileSync(join(root, 'ui', 'bad.css'), [
-      '.root { --fs-md: 15px; }',
+      '.root { --fs-md: 15px; --radius-card: 16px; --fw-strong: 650; --fs-xs: 12px; }',
       '.a { font-size: 15px; font-weight: 600; border-radius: 6px; z-index: 50; color: #abcdef; margin: 0 8px; }',
       '.b { border-radius: 999px; background: rgb(1 2 3); padding: 0; transition: none !important; }',
       '.c::after { content: "展开"; color: var(--nope); }',
       '.d { mask-image: linear-gradient(#000, transparent); font-size: var(--fs-md); z-index: 2; }',
+      '.k { font: 600 12px/1 ui-monospace, monospace; } .l { font: var(--fw-strong) var(--fs-xs)/1 ui-monospace; } .m { font: inherit; }',
+      '.i { border-radius: var(--radius-card); } .j { border-radius: 0 0 var(--radius-card) var(--radius-card); }',
+      '.e button, .e > label small { position: relative; }', '.f .sh-btn, .g [type="checkbox"], .h:not(button) { position: relative; }',
       '@keyframes spin { to { opacity: 1 } }', '',
     ].join('\r\n'));
     writeFileSync(join(root, 'ui', 'other.css'), '@keyframes spin { to { opacity: 0 } }\n@media (prefers-reduced-motion: reduce) { .x { animation: none !important } }\n');
     writeFileSync(join(root, 'ui', 'Bad.jsx'), [
       'export const A = () => <div><button className={`row ${on ? "primary" : ""}`}>x</button><span className="pill">y</span>',
       '<button className="link-btn">×</button><i>  ▸ </i><b>text</b></div>;',
+      'const pick = () => <label><input type="checkbox" checked /><input type="radio" /><input type="range" /></label>;',
+      'const save = () => <div><Button onClick={go}>{saving ? ui("保存中…") : ui("保存")}</Button><Button busy={saving} busyLabel={ui("保存中…")}>{ui("保存")}</Button></div>;',
+      'const tip = () => <div><span title="what this means">12</span><Button title="Open">x</Button><input title="t" /></div>;',
       'const go = () => window.confirm("sure?");',
       'const handoff = () => <div><Child call={call} busy={busy} /><Button busy={busy}>ok</Button></div>;', '',
     ].join('\n'));
@@ -104,8 +123,8 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     const found = scanUi(root);
     const total = (rule) => Object.values(found.metrics[rule]).reduce((a, b) => a + b, 0);
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
-      rawButton: 2, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 1, fontWeightNumeric: 1, radiusPx: 1, radius999: 1,
-      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2,
+      rawButton: 2, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 2, fontWeightNumeric: 2, radiusPx: 1, radius999: 1,
+      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1, hostTitle: 1,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);
     assert.equal(found.cjkContent.length, 1);

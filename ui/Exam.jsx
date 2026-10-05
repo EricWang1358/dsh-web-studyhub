@@ -262,7 +262,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
                 const chosen = curPicks.includes(o.id);
                 // An answer card, not an action button: it carries a letter and a formatted option, and toggles with aria-pressed.
                 return (
-                  <button key={o.id} className={"exam-option" + (chosen ? " picked" : "")} aria-pressed={chosen}
+                  <button key={o.id} className="exam-option" aria-pressed={chosen}
                     disabled={busy || expired} onClick={() => pick(o.id)}>
                     <span className="exam-option-letter">{String.fromCharCode(65 + i)}</span>
                     <span className="exam-option-text"><Markdown text={o.text} links={false} className="md-compact" /></span>

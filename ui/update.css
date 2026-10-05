@@ -146,7 +146,6 @@
       flex-wrap: wrap;
       gap: var(--space-2) var(--space-4);
     }
-    .update-settings .update-settings__actions .inline-check { margin: 0; }
   }
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {

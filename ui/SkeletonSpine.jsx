@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon from "./components/Icon.jsx";
-import { Button, IconButton, TabPanel, Tabs } from "./components/index.js";
+import { Button, IconButton, TabPanel, Tabs, Tooltip } from "./components/index.js";
 import { skeletonSpine, spineCounts, readSpineOpen, writeSpineOpen } from "./skeleton-spine.js";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
@@ -134,7 +134,7 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
         {!open && count > 1 && (
           <span className="spine-chip" role="group" aria-label={ui("当前站")}>
             {arrow(-1, "spine-arrow spine-chip-prev", ui("上一站"))}
-            <span className="spine-chip-text" title={station.term} aria-live="polite">{`${index + 1} / ${count} · ${station.term}`}</span>
+            <Tooltip layer anchorClassName="spine-chip-anchor" content={station.term}><span className="spine-chip-text" tabIndex={0} aria-live="polite">{`${index + 1} / ${count} · ${station.term}`}</span></Tooltip>
             {arrow(1, "spine-arrow spine-chip-next", ui("下一站"))}
           </span>
         )}

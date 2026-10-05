@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Icon, InlineMessage, Menu, Spinner } from '../../components/index.js';
+import { Badge, Button, Icon, InlineMessage, Menu, Spinner } from '../../components/index.js';
 import { useCopyFeedback } from '../../use-copy-feedback.js';
 import MathText from '../../MathText.jsx';
 import { failureKind, shortQuote, versionOf } from './model.js';
@@ -57,11 +57,11 @@ function Bar({ open, onToggle, target, item, menu, preview, copied }) {
       icon={<Icon name="chevron-down" size={16} className="tr-glyph" />}>
       <span className="tr-block__tag" aria-hidden="true">{targetTag(target)}</span>
     </Button>
-    {selection && <span className="tr-chip tr-chip--quote" title={item.quote}>{shortQuote(item.quote, 40)}</span>}
-    {version && <span className="tr-chip" title={version.comment || undefined}>{version.comment ? uiFormat('v{0} · 意见：{1}', [version.version, shortQuote(version.comment, 36)]) : uiFormat('v{0}', [version.version])}</span>}
-    {item?.outdated && <span className="tr-chip tr-chip--warn" title={ui('术语表改过了，这段译文可能还没按新术语翻译；可以重新翻译。')}>{ui('术语表已改')}</span>}
+    {selection && <Badge size="sm" className="tr-meta" title={item.quote}>{shortQuote(item.quote, 40)}</Badge>}
+    {version && <Badge size="sm" className="tr-meta" title={version.comment || undefined}>{version.comment ? uiFormat('v{0} · 意见：{1}', [version.version, shortQuote(version.comment, 36)]) : uiFormat('v{0}', [version.version])}</Badge>}
+    {item?.outdated && <Badge size="sm" tone="warning" className="tr-meta" title={ui('术语表改过了，这段译文可能还没按新术语翻译；可以重新翻译。')}>{ui('术语表已改')}</Badge>}
     {!open && preview && <span className="tr-block__preview" lang={targetLang(target)}>{shortQuote(preview, 90)}</span>}
-    {copied && <span className="tr-chip" role="status">{ui('已复制')}</span>}
+    {copied && <Badge size="sm" className="tr-meta" role="status">{ui('已复制')}</Badge>}
     {menu}
   </div>;
 }

@@ -22,9 +22,8 @@
     .course-active__state { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
     .course-active.is-parked .course-active__state { color: var(--text-dim); }
     .course-active__confirm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-    .course-parked-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: 1px var(--space-2); border: 1px solid var(--line);
-      border-radius: var(--radius-pill); background: var(--bg-sunken); color: var(--text-dim); font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.6; vertical-align: middle; }
-    .course-parked-chip__error { color: var(--bad); }
+    .course-parked { flex-wrap: wrap; vertical-align: middle; }
+    .course-parked__error { color: var(--bad); }
     /* Page scope (ui/PageScope.jsx): one compact control on every page. The label is a small muted line above one fixed-width
        select (it never grows with the page or the chosen course), the path and the notes sit under it in one small style. */
     .page-scope { display: grid; gap: var(--space-1); align-content: start; width: 20rem; max-width: 100%; margin: 0; flex: 0 1 auto;
@@ -42,5 +41,9 @@
     /* A parked course in a list: dimmed, still selectable. */
     .is-parked-row { opacity: 0.72; }
     .parked-toggle { cursor: pointer; color: var(--text-dim); font-size: var(--fs-sm); }
-  }
+      .course-list__group-head > .course-active.is-compact > .course-active__row { order: 1; flex: none; }
+    .course-list__group-head > .course-active.is-compact { display: contents; }
+    .course-list__item > .course-active.is-compact > .course-active__row { order: 1; flex: none; }
+    .course-list__item > .course-active.is-compact { display: contents; }
+}
 }

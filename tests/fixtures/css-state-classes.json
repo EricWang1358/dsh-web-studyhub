@@ -1,43 +1,4 @@
 {
   "note": "Bare state classes in selectors, per file. May only fall: node scripts/qa/css-state-classes.mjs --update. Use [aria-*] / [data-state] or is-* instead.",
-  "files": {
-    "ui/appearance-themes.css": {
-      "active": 2
-    },
-    "ui/exam-setup.css": {
-      "picked": 1
-    },
-    "ui/live-class.css": {
-      "on": 1,
-      "selected": 1
-    },
-    "ui/review/question.css": {
-      "selected": 2
-    },
-    "ui/shell.css": {
-      "active": 4,
-      "current": 1,
-      "on": 1
-    },
-    "ui/skeleton.css": {
-      "picked": 1,
-      "on": 2,
-      "selected": 1,
-      "current": 3
-    },
-    "ui/sources-page.css": {
-      "open": 1,
-      "active": 1
-    },
-    "ui/study-map/catalog.css": {
-      "selected": 2,
-      "current": 1
-    },
-    "ui/views.css": {
-      "picked": 2
-    },
-    "ui/workflows.css": {
-      "done": 1
-    }
-  }
+  "files": {}
 }

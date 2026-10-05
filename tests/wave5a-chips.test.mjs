@@ -11,7 +11,8 @@ const sources = walk('ui', ['.jsx', '.js', '.css']).map(file => ({ file, text: r
 const stripped = ({ file, text }) => ({ file, text: file.endsWith('.css') ? text.replace(/\/\*[\s\S]*?\*\//g, '') : text });
 
 test('the migrated chip classes are gone from markup and styles', () => {
-  const names = ['case-chip', 'exam-chip', 'sk-chip', 'sk-badge', 'nb-chip', 'usage-chip', 'audio-chip'];
+  const names = ['case-chip', 'exam-chip', 'sk-chip', 'sk-badge', 'nb-chip', 'usage-chip', 'audio-chip', 'en-tag', 'origin-tag', 'tr-chip', 'course-parked-chip', 'skc-focus-chip',
+    'jev-chip', 'library-chip', 'result-note-badge', 'generate-chips', 'sk-chips', 'reader-badge'];
   const found = sources.map(stripped).filter(({ file }) => !/^ui\/(?:Audio|audio|MinerU|Mineru|mineru)/.test(file)).flatMap(({ file, text }) => names.filter(name => new RegExp(`(?<![\\w-])${name}(?![\\w-])`).test(text)).map(name => `${file}: ${name}`));
   assert.deepEqual(found, []);
 });
@@ -30,8 +31,9 @@ function familyClasses() {
 }
 
 // Lower only: delete a class from this list when its markup becomes a Badge or Chip. Adding to it fails the test.
-const REMAINING = ['board-chip', 'board-study-chip', 'course-parked-chip', 'en-tag', 'generate-chips', 'jev-chip', 'library-chip', 'nav-badge', 'origin-tag',
-  'reader-badge', 'result-note-badge', 'setup-chip', 'sk-chips', 'skc-focus-chip', 'spine-chip', 'tr-chip', 'update-chip'];
+// Wave 5C kept six on purpose: board-chip (a label with its own hue, plus choice buttons), board-study-chip (a removable link), nav-badge (the count
+// in a sidebar row), setup-chip (the collapsed setup checklist), spine-chip (the current step with its fold) and update-chip (a button that is the update state).
+const REMAINING = ['board-chip', 'board-study-chip', 'nav-badge', 'setup-chip', 'spine-chip', 'update-chip'];
 
 test('the chip / badge / tag base classes only shrink', () => {
   const now = familyClasses();

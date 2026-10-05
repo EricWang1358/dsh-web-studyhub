@@ -47,7 +47,7 @@ export default function AppSidebar() {
     const element = navRef.current;
     if (!element) return undefined;
     const measure = () => {
-      const active = element.querySelector('.nav.active');
+      const active = element.querySelector('.nav[aria-current="page"]');
       setNavMark((mark) => {
         const next = active ? { top: active.offsetTop, height: active.offsetHeight } : null;
         return mark?.top === next?.top && mark?.height === next?.height ? mark : next;

@@ -34,7 +34,7 @@ export default function GenerateAssist({ ready = false, phase = 'idle', result =
           {local && <p className="generate-assist__label">{ui('来自你的错题与资料目录')}</p>}
           {why && <AiHelperNote unavailable={why} fallback="先给你来自本地数据的建议" onRetry={onAsk} onSettings={onSettings} />}
           {items.length ? (
-            <div className="generate-chips" role="group" aria-label={ui('练习重点建议')}>
+            <div className="generate-presets" role="group" aria-label={ui('练习重点建议')}>
               {items.map((item) => (
                 <Chip key={item} className="generate-suggestion" selected={focusIncludes(focus, item)} title={item} onClick={() => onPick?.(item)}>{item}</Chip>
               ))}

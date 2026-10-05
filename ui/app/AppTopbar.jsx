@@ -18,7 +18,7 @@ export function libraryFolderName(root) {
 export function LibraryChip({ root, onOpen }) {
   if (!root) return null;
   return (
-    <Button variant="quiet" size="sm" className="library-chip" title={root} aria-label={uiFormat('学习库位置：{0}。打开设置可更改', [root])} onClick={onOpen}>
+    <Button variant="quiet" size="sm" className="library-location" title={root} aria-label={uiFormat('学习库位置：{0}。打开设置可更改', [root])} onClick={onOpen}>
       <Icon name="folder" size={14} />
       <span>{uiFormat('学习库：{0}', [libraryFolderName(root)])}</span>
     </Button>
@@ -43,12 +43,12 @@ export default function AppTopbar({ title }) {
       <nav className="crumbs" aria-label={ui('位置')}>
         <span className="crumb">{ui('StudyHub')}</span>
         <span className="breadcrumb" aria-hidden="true"><Icon name="arrow-right" size={12} /></span>
-        <span className="crumb current" aria-current="page">{title}</span>
+        <span className="crumb" aria-current="page">{title}</span>
       </nav>
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
         <span className={'top-status' + (idle ? ' idle' : '')} role="status" title={syncIssue || undefined}>
-          <i className={`dot ${busy || running ? 'busy' : data && !syncIssue ? 'on' : ''}`} aria-hidden="true" />
+          <i className={`dot ${busy || running ? 'busy' : data && !syncIssue ? 'is-online' : ''}`} aria-hidden="true" />
           <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data })}</span>
         </span>
         {data && (

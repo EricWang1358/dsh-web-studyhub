@@ -69,6 +69,16 @@
       font-variant-numeric: tabular-nums;
     }
     .token-estimate__quiet { color: var(--text-muted); }
+    /* Loading keeps the room of the ready line: the hidden ghost holds its width and wraps like it, the words sit over it, and the slot is the info button. */
+    .token-estimate__text { display: grid; min-width: 0; }
+    .token-estimate__text > * { grid-area: 1 / 1; min-width: 0; }
+    .token-estimate__ghost { visibility: hidden; }
+    .token-estimate__quiet { align-self: center; }
+    .token-estimate__info--slot { visibility: hidden; pointer-events: none; }
+    /* An action column right-aligns the line under its button. */
+    .token-estimate--end .token-estimate__line { justify-content: flex-end; text-align: right; }
+    .token-estimate--end .token-estimate__quiet { justify-self: end; }
+    .token-estimate--end .token-estimate__warn { text-align: right; }
     .token-estimate__info {
       display: inline-grid;
       place-items: center;
@@ -110,7 +120,10 @@
     .model-usage__name { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-variant-numeric: tabular-nums; }
     .model-usage__foot { display: flex; justify-content: flex-end; }
     .model-usage__audio { margin: 0; font-size: var(--fs-sm); }
-  }
+      .jev-usage .token-usage { min-width: 0; flex: 1 1 14em; }
+    .jev-usage .token-usage--inline .token-usage__row { justify-content: flex-start; }
+    .jev-usage .token-usage--inline .token-usage__rows { flex-direction: row; flex-wrap: wrap; gap: var(--space-half) var(--space-4); }
+}
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
       .token-usage--inline .token-usage__rows { flex-direction: column; gap: var(--space-half); }

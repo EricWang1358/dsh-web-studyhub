@@ -14,7 +14,7 @@
         jumps when a run starts or ends or the learner changes page (the busy state may insert the 为你定制 row, so
         it is only compared by height; the bottom group is compared by its distance to the bottom of the rail);
      2. rows of one kind share one height (study rows, upkeep rows, bottom rows);
-     3. exactly one row is marked aria-current, it is the row with the active class, and it is never disabled;
+     3. exactly one row is marked aria-current, it is never disabled;
      4. the gliding highlight sits on the active row of the rail.
    Screenshots (--shots) go to <out>/<width>-<lang>-<theme>-<mode>-<state>.png. */
 /* global document, getComputedStyle, localStorage -- page.evaluate callbacks run in the browser */
@@ -59,7 +59,7 @@ export async function measureSidebar(page) {
           weight: cs.fontWeight, opacity: cs.opacity, cursor: cs.cursor,
           truncated: !!label && label.scrollWidth > label.clientWidth + 1,
           disabled: !!el.disabled, ariaDisabled: el.getAttribute("aria-disabled"), ariaCurrent: el.getAttribute("aria-current"),
-          active: el.classList.contains("active"),
+          active: el.matches('[aria-current="page"]'),
           icon: sb ? { w: r1(sb.width), h: r1(sb.height), x: r1(sb.left - r.left) } : null,
           hint: (el.querySelector(".nav-count, .nav-badge") || {}).textContent || "",
         };
@@ -67,7 +67,7 @@ export async function measureSidebar(page) {
     const mark = side.querySelector(".nav-mark");
     const m = mark && mark.getBoundingClientRect();
     // The white bar on the active row's outer edge: where it is on screen and whether it is drawn at all.
-    const activeEl = side.querySelector("button.nav.active");
+    const activeEl = side.querySelector("button.nav[aria-current=\"page\"]");
     const barHost = activeEl && (activeEl.closest(".sidebar-bottom") ? activeEl : mark);
     let bar = null;
     if (barHost) {

@@ -26,7 +26,7 @@ const GUIDE_KEY = 'study-jev-guide-seen';
 const guideSeen = () => readJSON(GUIDE_KEY, 0) === 1;
 const rememberGuide = () => writeJSON(GUIDE_KEY, 1); // a private window just asks again next time
 
-const ExperimentalBadge = () => <Badge size="sm" tone="accent" className="jev-chip">{ui('实验性')}</Badge>;
+const ExperimentalBadge = () => <Badge size="sm" tone="accent" className="jev-experimental">{ui('实验性')}</Badge>;
 
 /** The privacy note and the one-time confirmation of ONE provider: what is sent, where it goes, what the provider says (and does not say). */
 export function JevPrivacy({ confirmed, onChange, disabled, privacyUrl, provider, host }) {

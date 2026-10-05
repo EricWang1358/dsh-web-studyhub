@@ -207,7 +207,7 @@ export default function Generate({
                         onBlur={(e) => setGen({ ...gen, count: clampCount(e.target.value) })} />
                       <IconButton icon="plus" size="sm" label={ui("增加题数")} disabled={clampCount(gen.count) >= COUNT_MAX} onClick={() => setGen({ ...gen, count: stepCount(gen.count, 1) })} />
                     </div>
-                    <div className="generate-chips" role="group" aria-label={ui("常用题数")}>
+                    <div className="generate-presets" role="group" aria-label={ui("常用题数")}>
                       {COUNT_PRESETS.map((preset) => (
                         <Chip key={preset} className="generate-preset" selected={Number(gen.count) === preset}
                           onClick={() => setGen({ ...gen, count: preset })}>{preset}</Chip>
