@@ -12,7 +12,7 @@ import audioDashboardCss from '../audio-dashboard.css';
 import hostCss from './studyhub.css';
 import { createStudyCall } from "../transport.js";
 import { sessionFileAddress } from '../document-preview/selection.js';
-import { openBackgroundAgent } from './open-agent.js';
+import { canOpenBackgroundAgent, openBackgroundAgent } from './open-agent.js';
 import { createPoller } from "../use-polling.js";
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
@@ -198,12 +198,14 @@ export function apply(ctx, registerDocumentLearning) {
         modelGroups: catalog?.value?.groups,
         sessionModel: current?.current || catalog?.value?.default,
         // The top-level page covers the conversation, where the assistant opens: reveal it, as askInChat does.
-        openAgent: (id) => openBackgroundAgent(ctx, id,
-          { reveal: placement === "page" ? () => {
+        // Absent when this DSH cannot open a session from the panel, so no link is drawn that would only say so when clicked;
+        // `openAgent.canOpen(id, { parentId })` says whether one particular child can be opened (the link is drawn only then).
+        openAgent: canOpenBackgroundAgent(ctx) ? Object.assign((id, options) => openBackgroundAgent(ctx, id,
+          { ...options, reveal: placement === "page" ? () => {
             const layout = ctx.get("layout");
             if (typeof layout?.selectPanel !== "function") throw new Error(ui("请从会话列表打开助手。"));
             return layout.selectPanel(null);
-          } : undefined }),
+          } : undefined }), { canOpen: (id, options) => canOpenBackgroundAgent(ctx, id, options) }) : undefined,
         // WP15: DSH's plugin manager page, scrolled to StudyHub when the host offers that.
         openPluginManager: ctx.get("layout")?.selectPanel
           ? () => {

@@ -4,6 +4,8 @@ import { Button, Hint, Icon, InlineMessage, JobRow, useNow } from "../components
 import AgentLink from "../AgentLink.jsx";
 import { dismissJobs, useQuickActions } from "../quick-actions.js";
 import { formatElapsed, joinMeta } from "../format.js";
+import { formatExactTokens, totalTokens } from "../../lib/token-usage.js";
+import { STRENGTH_LABEL } from "../../lib/model-effort.js";
 import { isActiveJob, isCancellable, JOB_STATUS, JOB_TYPES } from "../../lib/job-status.js";
 
 /* The background audio imports as cards: phase, real progress, the model tasks behind them, what they cost, and what to do next.
@@ -88,35 +90,70 @@ export function audioProgress(job, now = Date.now()) {
   return { percent, flight: Math.max(0, Math.min(WEIGHT[job.phase] / step.total * 100, 99 - percent)), eta };
 }
 
+/** The link to a sub-agent's session: drawn only when the host can open it (host.openAgent is absent otherwise) and the task has one. */
 function OpenAgent({ task, openAgent }) {
-  return <AgentLink childId={task.childId} openAgent={openAgent}
+  return <AgentLink childId={task.childId} parentId={task.parentId} openAgent={openAgent}
     ariaLabel={uiFormat('查看子代理：{0}', [taskLabel(task)])} label={ui("查看子代理")} />;
 }
+
+/**
+ * What the reasoning setting did for one task, in plain words, or '' when it did exactly what was asked (or nothing was asked).
+ * `reasoning` is the strength asked for; the model may have had no such level (lib/model-effort.js says which one it used instead).
+ */
+export function reasoningNote(task) {
+  const wanted = task.reasoning;
+  if (!wanted || wanted === 'default') return '';
+  const asked = ui(STRENGTH_LABEL[wanted] || wanted);
+  if (task.reasoningReason === 'nearest' && task.reasoningName) return uiFormat('推理强度：要求「{0}」，当前模型没有，已用「{1}」', [asked, task.reasoningName]);
+  if (task.reasoningReason === 'unsupported' || (!task.reasoningReason && task.reasoningEffort === 'default'))
+    return uiFormat('推理强度：要求「{0}」，当前模型没有可调档位，按模型默认', [asked]);
+  return '';
+}
+/** How long a finished task took. */
+const tookOf = (task) => (task.finishedAt ? formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt)) : '');
+/** What can be said about a task without opening the sub-agent: the size of its input, what it used, the start of its answer. */
+function TaskDetail({ task }) {
+  const tokens = task.tokenUsage ? totalTokens(task.tokenUsage) : 0;
+  const rows = [task.inputChars > 0 && uiFormat('提示：约 {0} 字的稿件窗口', [task.inputChars.toLocaleString()]),
+    tokens > 0 && uiFormat('用量：{0} tok', [formatExactTokens(tokens)]),
+    task.outputPreview && uiFormat('最近输出：{0}', [task.outputPreview])].filter(Boolean);
+  return rows.length ? <details className="audio-task-detail"><summary>{ui('详情')}</summary>{rows.map((row, index) => <small key={index}>{row}</small>)}</details> : null;
+}
+
+const HISTORY_PAGE = 5;
 
 function AudioTasks({ job, now, openAgent }) {
   const tasks = job.tasks || [];
   const active = isActive(job) ? tasks.filter(task => !task.finishedAt && ['starting', 'running', 'finishing'].includes(task.status)) : [];
-  const history = tasks.filter(task => !active.includes(task));
+  const history = tasks.filter(task => !active.includes(task)).reverse();
+  const [shown, setShown] = React.useState(HISTORY_PAGE);
+  // What every row of the history would say again is said once, quietly, above the list.
+  const notes = [...new Set(history.map(task => task.note).filter(Boolean))];
+  const common = notes.length === 1 && history.filter(task => task.note).length === history.length ? notes[0] : '';
+  const runtimes = [...new Set(history.map(task => task.runtime).filter(Boolean))];
+  const sameRuntime = runtimes.length === 1 ? runtimes[0] : '';
+  const visible = history.slice(0, shown), more = history.length - visible.length;
   return <>
     {active.length > 0 && <div className="audio-active-tasks">
       <small>{uiFormat('正在执行 {0} 个任务', [active.length])}</small>
       {active.map(task => <small className="audio-now" key={task.id}>
         {joinMeta([uiFormat('正在做：{0}', [taskLabel(task)]), ui(RUNTIME[task.runtime] || ''), ui(TASK_STATUS[task.status] || task.status),
-          uiFormat('已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))])])}
+          uiFormat('已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))]),
+          task.inputChars > 0 ? uiFormat('输入约 {0} 字', [task.inputChars.toLocaleString()]) : ''])}
         <OpenAgent task={task} openAgent={openAgent} />
       </small>)}
     </div>}
     {history.length > 0 && <details className="generation-trace audio-trace">
       <summary>{uiFormat('查看历史任务 · {0} 次模型任务', [history.length])}</summary>
-      <ol>{[...history].reverse().map(task => <li key={task.id}>
-        <strong>{taskLabel(task)}</strong>
-        <small>{joinMeta([ui(TASK_STATUS[task.status] || task.status), ui(RUNTIME[task.runtime] || ''),
-          task.finishedAt ? formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt)) : ''])}</small>
-        {task.note && <Hint as="small" size="xs" tone="warning">{task.note}</Hint>}
-        {task.reasoning && <small>{ui('推理：')}{task.reasoning}
-          {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
+      {(common || sameRuntime) && <Hint as="p" size="xs" className="audio-trace-note">{joinMeta([sameRuntime ? uiFormat('都由「{0}」完成', [ui(RUNTIME[sameRuntime] || sameRuntime)]) : '', common ? ui(common) : ''])}</Hint>}
+      <ol>{visible.map(task => <li key={task.id}>
+        <span className="audio-trace-line">{joinMeta([taskLabel(task), ui(TASK_STATUS[task.status] || task.status), sameRuntime ? '' : ui(RUNTIME[task.runtime] || ''), tookOf(task),
+          reasoningNote(task), task.note && task.note !== common ? ui(task.note) : ''])}</span>
         <OpenAgent task={task} openAgent={openAgent} />
+        <TaskDetail task={task} />
       </li>)}</ol>
+      {history.length > HISTORY_PAGE && <Button variant="link" size="sm" onClick={() => setShown(more > 0 ? history.length : HISTORY_PAGE)}>
+        {more > 0 ? uiFormat('再显示 {0} 条', [more]) : ui('收起')}</Button>}
     </details>}
   </>;
 }

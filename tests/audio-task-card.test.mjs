@@ -3,17 +3,18 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 /* The audio task card (WP-AU): effective parallelism (#212), and below the history, the sub-agent links (#211, #214). */
 
 const compiled = await build({
-  stdin: { contents: `export { AudioJobs, parallelNote, reuseNote } from './ui/audio/AudioJobs.jsx'; export { AudioDashboardView } from './ui/AudioDashboard.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  stdin: { contents: `export { AudioJobs, parallelNote, reuseNote, reasoningNote } from './ui/audio/AudioJobs.jsx'; export { AudioDashboardView } from './ui/AudioDashboard.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.json': 'json', '.css': 'text' },
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { AudioJobs, parallelNote, reuseNote, AudioDashboardView, setUiLanguage } = module.exports;
+const { AudioJobs, parallelNote, reuseNote, reasoningNote, AudioDashboardView, setUiLanguage } = module.exports;
 const HAN = /[㐀-鿿]/;
 const inLanguage = (language, run) => { try { setUiLanguage(language); return run(); } finally { setUiLanguage('zh'); } };
 const noop = () => {};
@@ -64,4 +65,71 @@ test('the usage console keeps the Pacific quota day apart from the local day, wi
     assert.match(english, /resets every day at 00:00 Pacific time \(15:00 your local time\)/);
     assert.doesNotMatch(english, HAN);
   });
+});
+
+/* ---- the history of model tasks (#214), the sub-agent link (#211) ---- */
+
+const NOTE = '处理结果由插件直接回收并保存，不回流主会话。';
+const finished = (n, extra = {}) => ({ id: `t${n}`, kind: 'proofread', part: n, parts: 12, stage: `校对 ${n}/12`, status: 'complete', runtime: 'subagent', childId: `child-${n}`, note: NOTE,
+  reasoning: 'medium', reasoningEffort: 'default', startedAt: '2026-10-05T01:00:00.000Z', finishedAt: `2026-10-05T01:00:${String(10 + n).padStart(2, '0')}.000Z`, ...extra });
+const history = count => Array.from({ length: count }, (_, i) => finished(i + 1));
+const withHistory = (count, extra = {}) => running({ status: 'complete', phase: 'done', tasks: history(count), ...extra });
+const openAgent = async () => {};
+const rows = html => html.match(/<li>/g)?.length || 0;
+
+test('the history shows the latest five, the rest on request, and no scroller of its own (#214)', () => {
+  const page = render(withHistory(12), { openAgent });
+  assert.match(page, /查看历史任务 · 12 次模型任务/);
+  assert.equal(rows(page), 5);
+  assert.match(page, /再显示 7 条/);
+  assert.ok(page.indexOf('校对 12/12') < page.indexOf('校对 8/12'), 'latest first');
+  assert.ok(!page.includes('校对 7/12'), 'older ones wait behind the button');
+  assert.doesNotMatch(render(withHistory(4), { openAgent }), /再显示/);
+  const css = readFileSync('ui/audio-import.css', 'utf8');
+  const rule = css.split('\n').filter(line => /\.audio-trace\b/.test(line)).join('\n');
+  assert.doesNotMatch(rule, /overflow|max-height/, 'the history list is not a nested scroller');
+});
+
+test('what every row would repeat is said once, quietly, and the rows are one line each (#214)', () => {
+  const page = render(withHistory(6), { openAgent });
+  assert.equal((page.match(new RegExp(NOTE, 'g')) || []).length, 1, 'the common note appears once');
+  assert.doesNotMatch(page.slice(page.indexOf('audio-trace-note') - 40, page.indexOf('audio-trace-note') + 60), /tone-warning|sh-hint--warning/);
+  assert.match(page, /都由「DSH 子代理」完成/);
+  assert.match(page, /校对 6\/12 · 已完成 · 16 秒/, 'one compact line per task: what, how it ended, how long');
+  assert.doesNotMatch(page, /<small[^>]*>[^<]*DSH 子代理[^<]*已完成/, 'the runtime is not repeated on each row');
+});
+
+test('the reasoning line says what happened in plain words, and only when it differs (#214, #220)', () => {
+  assert.equal(reasoningNote({ reasoning: 'default', reasoningEffort: 'default' }), '');
+  assert.equal(reasoningNote({ reasoning: 'high', reasoningEffort: 'high', reasoningApplied: 'high' }), '');
+  assert.equal(reasoningNote({ reasoning: 'medium', reasoningEffort: 'high', reasoningReason: 'nearest', reasoningName: 'High' }), '推理强度：要求「中」，当前模型没有，已用「High」');
+  assert.equal(reasoningNote({ reasoning: 'high', reasoningEffort: 'default', reasoningReason: 'unsupported' }), '推理强度：要求「高」，当前模型没有可调档位，按模型默认');
+  assert.equal(reasoningNote({ reasoning: 'medium', reasoningEffort: 'default' }), '推理强度：要求「中」，当前模型没有可调档位，按模型默认', 'older records without a reason');
+  const page = render(withHistory(1, { tasks: [finished(1, { reasoning: 'medium', reasoningEffort: 'high', reasoningReason: 'nearest', reasoningName: 'High' })] }), { openAgent });
+  assert.match(page, /推理强度：要求「中」，当前模型没有，已用「High」/);
+  assert.doesNotMatch(page, /推理：/, 'no "medium → default" arrow line any more');
+  inLanguage('en', () => {
+    const english = render(withHistory(1, { tasks: [finished(1, { reasoning: 'medium', reasoningEffort: 'high', reasoningReason: 'nearest', reasoningName: 'High' })] }), { openAgent });
+    assert.match(english, /Reasoning strength: &quot;Mid&quot; was asked for, this model has no such level, &quot;High&quot; was used/);
+    assert.match(english, /The plugin collects and saves the results directly/);
+    assert.doesNotMatch(english, HAN);
+  });
+});
+
+test('"查看子代理" is drawn only when the host can open it (#211)', () => {
+  const job = withHistory(3);
+  assert.doesNotMatch(render(job), /查看子代理/, 'no host function: no link');
+  assert.match(render(job, { openAgent }), /查看子代理/);
+  assert.equal((render(job, { openAgent }).match(/查看子代理：校对/g) || []).length, 3, 'one link per task, naming its task');
+  assert.doesNotMatch(render(running({ tasks: [{ ...finished(1), status: 'running', finishedAt: undefined }] })), /查看子代理/);
+  assert.match(render(running({ tasks: [{ ...finished(1), status: 'running', finishedAt: undefined }] }), { openAgent }), /查看子代理/);
+  assert.doesNotMatch(render(withHistory(2, { tasks: history(2).map(task => ({ ...task, childId: undefined })) }), { openAgent }), /查看子代理/, 'a task without a child has nothing to open');
+});
+
+test('what can be said about a sub-agent without opening it is on the card: input size, tokens, start of the answer (#213)', () => {
+  const task = finished(1, { inputChars: 5800, tokenUsage: { input: 7000, output: 300 }, outputPreview: '{"corrections":[]}' });
+  const page = render(withHistory(1, { tasks: [task] }), { openAgent });
+  assert.match(page, /约 5,800 字的稿件窗口/);
+  assert.match(page, /最近输出：\{&quot;corrections&quot;:\[\]\}/);
+  assert.match(render(running({ tasks: [{ ...task, status: 'running', finishedAt: undefined }] }), { openAgent }), /输入约 5,800 字/);
 });

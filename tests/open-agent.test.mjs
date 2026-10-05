@@ -12,14 +12,14 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
-  export { openBackgroundAgent } from './ui/host/open-agent.js';
+  export { openBackgroundAgent, canOpenBackgroundAgent } from './ui/host/open-agent.js';
   export { default as AgentLink, attemptOpen } from './ui/AgentLink.jsx';
   export { default as GenerationTrace } from './ui/GenerationTrace.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { openBackgroundAgent, AgentLink, attemptOpen, GenerationTrace, setUiLanguage } = module.exports;
+const { openBackgroundAgent, canOpenBackgroundAgent, AgentLink, attemptOpen, GenerationTrace, setUiLanguage } = module.exports;
 const h = React.createElement;
 
 /** A host context whose services are the given ones. */
@@ -101,6 +101,49 @@ test('the generation trace offers the assistant of a step only when the host can
   const trace = props => renderToStaticMarkup(h(GenerationTrace, { job, ...props }));
   assert.equal((trace({ openAgent() {} }).match(/查看后台助手/g) || []).length, 1, 'one button, for the step that has a child');
   assert.doesNotMatch(trace({}), /查看后台助手/);
+});
+
+/** DSH 0.2: no sessions.open; a sub-agent is opened from its parent's catalog through uiWorkspace.openSession(address). */
+function dsh02({ known = {}, loadable = {} } = {}) {
+  const opened = [], loaded = [], catalog = { ...known };
+  const sessions = { subagentAddress: id => catalog[id], refreshProjections: async parent => { loaded.push(parent); Object.assign(catalog, loadable[parent] || {}); } };
+  return { ctx: host({ sessions, uiWorkspace: { openSession: address => { opened.push(address); } } }), opened, loaded };
+}
+const address = (parent, child) => ({ parentSessionId: parent, childSessionId: child, mode: 'one-shot' });
+
+test('without sessions.open, a child in a loaded catalog opens through its address', async () => {
+  const { ctx, opened, loaded } = dsh02({ known: { c1: address('p', 'c1') } });
+  assert.equal(canOpenBackgroundAgent(ctx), true);
+  assert.equal(canOpenBackgroundAgent(ctx, 'c1'), true);
+  await openBackgroundAgent(ctx, 'c1', { reveal: () => opened.push('reveal') });
+  assert.deepEqual(opened, [address('p', 'c1'), 'reveal']);
+  assert.deepEqual(loaded, [], 'nothing needed loading');
+});
+
+test('a child that is not listed yet is found by loading its parent\'s catalog, and the link says so only when that is possible', async () => {
+  const { ctx, opened, loaded } = dsh02({ loadable: { coordinator: { c2: address('coordinator', 'c2') } } });
+  assert.equal(canOpenBackgroundAgent(ctx, 'c2'), false, 'unknown child, unknown parent: no link');
+  assert.equal(canOpenBackgroundAgent(ctx, 'c2', { parentId: 'coordinator' }), true, 'the parent is known and can be asked');
+  await openBackgroundAgent(ctx, 'c2', { parentId: 'coordinator' });
+  assert.deepEqual(loaded, ['coordinator']);
+  assert.deepEqual(opened, [address('coordinator', 'c2')]);
+  await rejects(() => openBackgroundAgent(ctx, 'ghost', { parentId: 'coordinator' }), /没能打开后台助手：DSH 的子代理列表里还没有它/);
+});
+
+test('a host with neither way offers no link at all, before anything is clicked', () => {
+  assert.equal(canOpenBackgroundAgent(host({})), false);
+  assert.equal(canOpenBackgroundAgent(host({ sessions: {} })), false);
+  assert.equal(canOpenBackgroundAgent(host({ sessions: { subagentAddress() {} } })), false, 'an address without a way to open it is no capability');
+  assert.equal(canOpenBackgroundAgent(host({ sessions: { open() {} } })), true);
+  assert.equal(canOpenBackgroundAgent(host({ sessions: { open() {} } }), 'any-child'), true, 'sessions.open takes any id');
+});
+
+test('the link asks the host about this child and is not drawn when it cannot be opened', () => {
+  const link = props => renderToStaticMarkup(h(AgentLink, { label: '查看子代理', childId: 'c1', ...props }));
+  const openAgent = Object.assign(() => {}, { canOpen: (id, options) => id === 'c1' && options.parentId === 'p' });
+  assert.match(link({ openAgent, parentId: 'p' }), /查看子代理/);
+  assert.equal(link({ openAgent, parentId: 'other' }), '');
+  assert.equal(link({ openAgent, childId: 'c9', parentId: 'p' }), '');
 });
 
 test('the assistant button prevents duplicate opens and recovers after a visible failure', { timeout: 60000 }, async t => {
