@@ -1,5 +1,6 @@
 import { getUiLanguage } from '../i18n.js';
 import { fenceData, say } from './say.js';
+import { installCommand } from '../archify.js';
 
 /* The knowledge-skeleton page's hand-offs to the conversation (ui-consistency #124): make a skeleton of picked topics, or extend a
    saved one. The tool names (study_workspace skeleton.context / skeleton.get / skeleton.save / skeleton.patch, card.search,
@@ -59,4 +60,20 @@ export function designSkeletonPrompt({ scope, lint = null, topics = [], update =
     + say(language, '3. 用 skeleton.save 保存（payload 为 {"skeleton": {{0}title, scope, overview, classNote, nodes, relations, sequences}}）。\n', [update ? `"id": "${update.id}", ` : ''])
     + say(language, '4. 按检测结果修题：只重复选项文字的解析改成「是什么 + 和谁有关、为什么对/错」；考课件页码或列表归属的题干改成考含义或关系；用 card.update 保存并写清 reason。有因果或前置关系的题用 card.link 关联。不要改动原文不支持的答案。\n')
     + say(language, '5. 最后用几句话告诉我骨架的主线，以及改了哪些题。');
+}
+
+/**
+ * Draw a saved skeleton with the open-source Archify skill (docs/companions.md). input: { skeleton ({ id, title }) }. The agent reads the
+ * skeleton, draws one self-contained HTML file in the workspace, and registers it with skeleton.diagram.attach; without the skill it says
+ * so and gives the install command instead of drawing something of its own. The skeleton's name is library data and sits in a fence.
+ */
+export function archifySkeletonPrompt({ skeleton }, language = getUiLanguage()) {
+  const id = skeleton.id;
+  return say(language, '请用 archify 技能，把知识骨架（id: {0}）画成一张可交互的 HTML 图。', [id]) + '\n'
+    + `${fenceData('骨架名称', skeleton.title, language)}\n`
+    + say(language, '做法：\n')
+    + say(language, '1. 用 study_workspace 的 skeleton.get（payload 为 {"id": "{0}"}）读骨架：概念是 nodes，前置、对比、因果等关系是 relations，时序是 sequences，每个节点挂着的题在 cards 里。骨架数据里没有掌握度；要标覆盖情况就用每个节点挂的题数，不要编造掌握度。', [id]) + '\n'
+    + say(language, '2. 用 archify 技能画图，让它挑最合适的图类型：概念画成节点，前置（prerequisite）画成带方向的箭头，对比（contrasts）和因果（causes）等画成带文字标注的关系。整张图写成一个自包含的 HTML 文件，保存到当前工作目录的 diagrams/ 下，文件名用骨架名。') + '\n'
+    + say(language, '3. 如果当前没有 archify 技能：直接告诉我「没有 archify 技能」，并把下面这条安装命令给我（命令里的 web 要换成我正在用的 profile，桌面版通常是 desktop）。不要自己画别的图来代替。\n{0}', [installCommand()]) + '\n'
+    + say(language, '4. 画好后用 skeleton.diagram.attach 登记（payload 为 {"id": "{0}", "path": "diagrams/文件名.html", "title": "图的标题"}）。StudyHub 只保存这个文件，并在隔离窗口里显示，不会运行它。最后用一两句话告诉我图画了什么、存在哪里。', [id]);
 }

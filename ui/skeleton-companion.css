@@ -1,0 +1,51 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 推荐 Archify (ui/ArchifyCard.jsx): one quiet recessed block at the end of the 知识骨架 page. Tokens only; it never grows when a copy is made. */
+    .sk-archify { display: grid; gap: var(--space-2); min-width: 0; margin-top: var(--space-4); }
+    .sk-archify__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .sk-archify__head strong { font-size: var(--fs-md); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .sk-archify__text, .sk-archify__credit, .sk-archify__note { margin: 0; line-height: var(--lh-body); overflow-wrap: anywhere; }
+    .sk-archify__credit a { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent-text); }
+    .sk-archify__install { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+    .sk-archify__label { flex: none; font-size: var(--fs-sm); color: var(--text-muted); }
+    .sk-archify__command {
+      flex: 1 1 280px; min-width: 0; padding: var(--space-1-5) var(--space-3);
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg);
+      font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-xs); line-height: var(--lh-snug);
+      white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
+    }
+    .sk-archify__command:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+
+    /* The empty state's second sentence sits on its own line instead of being glued on with a space (which is wrong in Chinese). */
+    .sk-empty-note { display: block; margin-top: var(--space-1); }
+
+    /* 交互图 (ui/SkeletonDiagrams.jsx): a list inside the open skeleton. */
+    .sk-diagrams { display: grid; gap: var(--space-2); min-width: 0; margin-block: var(--space-3); }
+    .sk-diagrams__title { margin: 0; font-size: var(--fs-md); line-height: var(--lh-snug); }
+    .sk-diagrams__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1-5); }
+    .sk-diagrams__row {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0;
+      padding: var(--space-2) var(--space-3); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface);
+    }
+    .sk-diagrams__main { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+    .sk-diagrams__name { min-width: 0; overflow-wrap: anywhere; }
+    /* The note about an outline that changed is a sentence: it wraps instead of being cut off on a narrow screen. */
+    .sk-diagrams__stale { max-width: 100%; white-space: normal; }
+    .sk-diagrams__actions { display: flex; flex: none; gap: var(--space-1-5); }
+
+    /* The viewer: the frame has a fixed height from the window (never from the diagram), so opening a long diagram moves nothing; the diagram scrolls inside it. */
+    .sk-diagram-frame {
+      display: block; width: 100%; height: calc(100dvh / var(--study-ui-scale, 1) - 17rem); min-height: 280px;
+      border: 1px solid var(--line); border-radius: var(--radius-sm); background: Canvas; color-scheme: light;
+    }
+    .sk-diagram-foot { display: flex; flex: 1 1 auto; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+    .sk-diagram-links { margin-inline-end: auto; }
+  }
+  @container study (max-width: 640px) {
+    :is(.study-app, .study-seat) {
+      .sk-diagrams__row { flex-wrap: wrap; }
+    }
+  }
+}
