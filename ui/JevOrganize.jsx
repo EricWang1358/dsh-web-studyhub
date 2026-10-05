@@ -39,7 +39,7 @@ export function JevSuggestButton({ enabled, disabled, onClick }) {
 }
 function JevSuggestControl({ disabled, onClick }) {
   useInjectCss(css, 'study-jev');
-  return <Button size="sm" className="jev-suggest-button" disabled={disabled} onClick={onClick} data-experimental="true">{ui('Jev 建议')}<Badge tone="info" size="sm" className="jev-chip">{ui('实验性')}</Badge></Button>;
+  return <Button size="sm" className="jev-suggest-button" disabled={disabled} onClick={onClick} data-experimental="true">{ui('Jev 建议')}<Badge tone="info" size="sm" className="jev-experimental">{ui('实验性')}</Badge></Button>;
 }
 
 /** Why Jev could not help, in one quiet line; the existing "请 AI 建议" and the manual field are still there. */
@@ -56,7 +56,7 @@ export function JevProbabilities({ jev }) {
   const rows = probabilityRows(jev);
   return (
     <div className="jev-probs" data-jev-probs data-filled={jev.filled ? 'true' : 'false'}>
-      <p className="jev-probs__head"><Badge tone="info" size="sm" className="jev-chip">{ui('Jev 建议')}</Badge><small>{ui('实验性')} · {lineText(jev)} · {jev.filled ? ui('已填入') : ui('把握不够，没有填入')}</small></p>
+      <p className="jev-probs__head"><Badge tone="info" size="sm" className="jev-experimental">{ui('Jev 建议')}</Badge><small>{ui('实验性')} · {lineText(jev)} · {jev.filled ? ui('已填入') : ui('把握不够，没有填入')}</small></p>
       <ul className="jev-probs__list">
         {rows.map(row => <li key={row.id} className={`jev-prob${row.picked ? ' is-picked' : ''}${row.none ? ' is-none' : ''}`}>
           <span className="jev-prob__name">{row.label}</span>

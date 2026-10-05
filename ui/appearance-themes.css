@@ -54,7 +54,7 @@
       :is(button, a, input, textarea, select):focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
       :is(button, .sh-btn) { border: 1px solid ButtonText; }
       :is(button, .sh-btn):disabled { border-color: GrayText; color: GrayText; }
-      :is([aria-pressed='true'], [aria-selected='true'], [aria-current='step'], .nav.active, .source-tab.active, .is-active, .primary, .sh-btn--primary) { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
+      :is([aria-pressed='true'], [aria-selected='true'], [aria-current='step'], .nav[aria-current="page"], .is-active, .primary, .sh-btn--primary) { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
     }
   }
 }

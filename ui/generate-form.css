@@ -70,7 +70,7 @@
     .generate-stepper input::-webkit-outer-spin-button,
     .generate-stepper input::-webkit-inner-spin-button { appearance: none; margin: 0; }
     /* ── Chips: presets, suggested count, focus suggestions ──────────────── */
-    .generate-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
+    .generate-presets { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
     .generate-preset { min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
     .generate-hint { border-style: dashed; color: var(--accent-text); }
     /* ── Focus box and its assist ─────────────────────────────────────────── */

@@ -26,7 +26,7 @@ import { useInjectCss } from './shared.js';
 import sideGroupsCss from './side-groups.css';
 import quickCss from './quick-actions.css';
 import coachCss from './coach.css';
-import libraryChipCss from './library-chip.css';
+import libraryChipCss from './library-location.css';
 import localeCss from './language.css';
 import { AppContext } from './app/app-context.js';
 import { useAppShell } from './app/use-app-shell.js';
@@ -63,7 +63,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   useInjectCss(localeCss, 'study-language');
   useInjectCss(sideGroupsCss, 'study-side-groups');
   useInjectCss(coachCss, 'study-coach');
-  useInjectCss(libraryChipCss, 'study-library-chip');
+  useInjectCss(libraryChipCss, 'study-library-location');
   useInjectCss(quickCss, 'study-quick-actions');
   const shell = useAppShell();
   const core = useAppCore(transportCall, host);

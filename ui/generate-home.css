@@ -17,9 +17,7 @@
     .home-activity .sh-job .generation-trace > summary:hover { color: var(--text); }
     .home-activity .sh-job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
     .home-activity .job-raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-xs); color: var(--text-muted); }
-    .home-activity .jobs-actions { display: flex; justify-content: flex-end; }
     .home-activity .home-drafts > .section-heading { margin-top: 0; }
-    .home-activity .draft-row:last-child { border-bottom: 0; }
     /* ── Home: a newcomer's first deck, three steps on the card ───────────── */
     .today-card .starter-steps { list-style: none; display: grid; margin: 0 0 var(--space-5); padding: 0; }
     .today-card .starter-steps li {
@@ -47,7 +45,6 @@
     }
     .today-card .starter-steps li.is-current .starter-mark { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
     .today-card .starter-steps li.is-done .starter-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); }
-    .desk.is-empty .today-card-empty { margin-bottom: var(--space-3); }
     /* ── 创建题组 ─────────────────────────────────────────────────────────── */
     .generate-page .source-mode { margin-top: var(--space-5); }
     .generate-page .source-tab strong { display: flex; align-items: center; gap: var(--space-2); }

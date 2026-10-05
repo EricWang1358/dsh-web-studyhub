@@ -114,10 +114,10 @@
       line-clamp: 2;
       overflow-wrap: anywhere;
     }
-    .nav:hover:not(:disabled):not(.active) .icon {
+    .nav:hover:not(:disabled):not([aria-current="page"]) .icon {
       transform: translateX(2px);
     }
-    .nav.active {
+    .nav[aria-current="page"] {
       background: transparent;
       color: var(--text);
       font-weight: var(--fw-strong);
@@ -143,7 +143,7 @@
       animation: mark-in var(--dur-slow) var(--ease-out);
     }
     .nav-mark::before,
-    .sidebar-bottom .nav.active::before {
+    .sidebar-bottom .nav[aria-current="page"]::before {
       content: "";
       position: absolute;
       left: calc(var(--sidebar-pad) * -1);
@@ -154,7 +154,7 @@
       background: var(--text);
     }
     /* Rows below the rail (Settings) are not on the gliding highlight; they get the same one directly. */
-    .sidebar-bottom .nav.active {
+    .sidebar-bottom .nav[aria-current="page"] {
       border-radius: var(--radius-sm);
       background: var(--nav-highlight);
     }
@@ -319,7 +319,7 @@
       color: var(--text-muted);
       white-space: nowrap;
     }
-    .crumb.current {
+    .crumb[aria-current="page"] {
       color: var(--text);
       font-weight: var(--fw-strong);
       overflow: hidden;
@@ -345,7 +345,7 @@
       background: var(--decor-faint);
       flex-shrink: 0;
     }
-    .top-status .dot.on {
+    .top-status .dot.is-online {
       background: var(--ok);
       box-shadow: 0 0 0 3px var(--ok-halo);
     }

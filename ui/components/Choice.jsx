@@ -38,7 +38,7 @@ export function Switch(props) {
  * One choice among a few that deserve a sentence each (a route, a tier, a mode). Put them in a RadioCardGroup. `badges` sit beside
  * the title; onSelect(value) fires when the card is chosen.
  */
-export function RadioCard({ name, value, checked, title, hint, badges, onSelect, disabled, className, 'aria-describedby': describedBy, ...rest }) {
+export function RadioCard({ name, value, checked, title, hint, badges, onSelect, disabled, className, children, 'aria-describedby': describedBy, ...rest }) {
   useComponentCss(css, 'study-fields');
   const uid = useId(), hintId = hint ? `${uid}-hint` : undefined;
   return (
@@ -48,6 +48,7 @@ export function RadioCard({ name, value, checked, title, hint, badges, onSelect,
       <span className="sh-radio-card__body">
         <span className="sh-radio-card__title">{title}{badges && <span className="sh-radio-card__badges">{badges}</span>}</span>
         {hint && <Hint as="span" id={hintId}>{hint}</Hint>}
+        {children}
       </span>
     </label>
   );

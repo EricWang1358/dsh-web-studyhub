@@ -158,8 +158,8 @@
     .map-deck > .map-row:hover,
     .topic-row:hover { background: var(--bg-hover); }
     .deck-row .map-name strong { font-size: var(--fs-lg); font-weight: var(--fw-strong); }
-    .map-row.selected,
-    .map-deck > .map-row.selected {
+    .map-row--selected,
+    .map-deck > .map-row--selected {
       background: color-mix(in srgb, var(--accent) 9%, transparent);
       box-shadow: inset 2px 0 0 var(--accent);
     }
@@ -427,7 +427,7 @@
     .nb-row.missing {
       opacity: 0.55;
     }
-    & li.nb-row.current {
+    & li.nb-row--current {
       cursor: default;
       background: var(--bg-sunken);
     }
@@ -483,7 +483,14 @@
     .nb-results .nb-row {
       background: var(--bg-sunken);
     }
-  }
+      .desk-mastery .mastery-bar { height: 5px; }
+    .desk-mastery .mastery-value { display: none; }
+    .desk-mastery .mastery {
+      grid-column: 1 / -1;
+      width: 100%;
+      margin: 0;
+    }
+}
 }
 
 @keyframes bar-in {

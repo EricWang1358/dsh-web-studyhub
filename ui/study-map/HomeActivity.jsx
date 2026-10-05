@@ -2,10 +2,10 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, InlineMessage } from '../components/index.js';
 import { DraftTopUp } from '../DraftShortfall.jsx';
-import { isActiveJob } from '../job-visibility.js';
+import { foldJobsByDraft, isActiveJob } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
-import { missingQuestions } from '../draft-shortfall.js';
+import { draftWork, draftWorkStatus, missingQuestions } from '../draft-shortfall.js';
 import JobCard from './JobCard.jsx';
 import { useStudy } from '../study-context.jsx';
 import { joinMeta } from '../format.js';
@@ -15,6 +15,9 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
   const qualityCount = (d.quality?.warnings?.length || 0) + (d.quality?.errors?.length || 0);
   const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
   const reviewed = reviewedCardStatus(d);
+  // Whatever works on the deck right now (a fill, the run still writing it, a repair, a publication check) is its status: not "已复审，待发布".
+  const work = draftWork(d, data.jobs);
+  const status = work ? draftWorkStatus(work) : rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查');
   return (
     <div className="draft-row">
       <button type="button" className="draft-open" onClick={() => openDraft(d)}>
@@ -22,7 +25,7 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
           <strong>{d.title}</strong>
           <small>
             {joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
-              rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查'),
+              status,
               missing > 0 ? uiFormat('还差 {0} 题', [missing]) : '',
               Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
                 ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}
@@ -43,12 +46,14 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, modelRead
   const { busy, call } = useStudy();
   const quick = useQuickActions();
   if (!jobs.length && !drafts.length) return null;
-  const finishedCount = jobs.filter((job) => !isActiveJob(job) && !job.leaving).length;
+  // One card per deck: the older jobs of a draft fold into its newest job's card.
+  const cards = foldJobsByDraft(jobs);
+  const finishedCount = cards.filter(({ job }) => !isActiveJob(job) && !job.leaving).length;
   return (
     <section className="home-activity" ref={sectionRef} aria-label={ui('出题进度与待发布草稿')}>
       {jobs.length > 0 && <div className="jobs generation-jobs">
-        {jobs.map((job) => <JobCard key={job.id} job={job} jobs={jobs} drafts={drafts} busy={busy} openDraft={openDraft}
-          openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob} retryGeneration={retryGeneration}
+        {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} earlier={earlier} jobs={jobs} drafts={drafts} busy={busy} openDraft={openDraft}
+          openAgent={openAgent} cancelJob={cancelJob} dismissJob={dismissJob && ((jobId) => dismissJob(jobId, earlier.filter((old) => !isActiveJob(old)).map((old) => old.id)))} retryGeneration={retryGeneration}
           openModelSettings={openModelSettings} openDeck={manage}
           practiceCards={(deckId, cardIds) => start({ mode: 'path', scope: cardIds.map((cardId) => ({ deckId, cardId })), fresh: true })} />)}
         {dismissJob && finishedCount > 1 && <div className="jobs-actions">

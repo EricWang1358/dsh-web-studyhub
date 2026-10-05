@@ -109,6 +109,12 @@ test('Checkbox is a labelled checkbox row with a hint the input is described by'
   assert.match(html(m.Checkbox, { label: 'x', disabled: true }), /disabled=""/);
 });
 
+test('RadioCard puts extra notes (children) after the hint inside the card body (#140)', () => {
+  const card = html(m.RadioCard, { name: 'r', value: 'a', checked: false, title: '本地', hint: '不上传', onSelect() {} }, h('span', { className: 'extra' }, '约 3 分钟'));
+  assert.ok(card.indexOf('不上传') < card.indexOf('extra'), 'children follow the hint');
+  assert.ok(card.indexOf('extra') < card.indexOf('</label>'));
+});
+
 test('Switch is the same row with role="switch"', () => {
   const out = html(m.Switch, { label: '显示实验性功能', hint: '关掉后全部隐藏。', checked: false, onChange() {} });
   const input = out.match(/<input[^>]*>/)[0];

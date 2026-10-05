@@ -44,7 +44,7 @@ export function JevCardSignals({ signal, threshold }) {
   const rows = triageRows(signal);
   return (
     <div className="jev-card-signals" data-jev-signals>
-      <p className="jev-card-signals__head"><Badge tone="info" size="sm" className="jev-chip">{ui('实验性')}</Badge>
+      <p className="jev-card-signals__head"><Badge tone="info" size="sm" className="jev-experimental">{ui('实验性')}</Badge>
         <strong>{ui('Jev 预审')}</strong>
         <small>{uiFormat('判断线 {0}；只是参考，最终以独立复审为准。', [percentText(threshold ?? 0.8)])}</small></p>
       <ul className="jev-probs__list">

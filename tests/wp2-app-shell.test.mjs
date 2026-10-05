@@ -24,7 +24,7 @@ test('the library location reads as the folder a learner recognises', () => {
 test('the top-bar chip names the library, shows the full path and opens Settings', () => {
   const root = 'C:\\Users\\me\\Documents\\CS1010\\.dsh-study';
   const html = renderToStaticMarkup(React.createElement(LibraryChip, { root, onOpen() {} }));
-  assert.match(html, /^<button type="button" class="[^"]*\blibrary-chip\b/);
+  assert.match(html, /^<button type="button" class="[^"]*\blibrary-location\b/);
   assert.ok(html.includes(`title="${root}"`), 'the tooltip is the full path');
   assert.match(html, /学习库：CS1010/);
   let opened = 0;

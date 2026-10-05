@@ -7,7 +7,7 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Banner, Button, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
+import { Badge, Banner, Button, Checkbox, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
 import { formatDateTime } from './format.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
@@ -230,9 +230,9 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
         : staleExtension ? { tone: 'warning', text: uiFormat('StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。', [staleExtension.version, staleExtension.expected]) }
           : update.checkedAt ? { tone: 'success', text: ui('已是最新版本。') } : { tone: 'hint', text: ui('还没有检查过更新。') };
   const retry = { label: ui('重试'), onClick: checkUpdates };
-  async function toggle(event) {
+  async function toggle(autoCheck) {
     setSaving(true); setSaveError('');
-    try { await savePreferences(call, { autoCheck: event.target.checked }); } catch (error) { setSaveError(errorMessage(error)); }
+    try { await savePreferences(call, { autoCheck }); } catch (error) { setSaveError(errorMessage(error)); }
     finally { setSaving(false); }
   }
   return (
@@ -253,10 +253,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
       {extension?.installed && <ExtensionUpdateNotice call={call} status={{ extension }} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>
-        <label className="inline-check">
-          <input type="checkbox" checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} />
-          {ui('自动检查更新')}
-        </label>
+        <Checkbox checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} label={ui('自动检查更新')} />
       </div>
       <p className="settings-section__lead">{ui('自动检查通常间隔 12 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
     </fieldset>

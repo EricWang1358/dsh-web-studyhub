@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
 import React, { useRef, useState } from "react";
 import CourseField, { parseCourses } from './CourseField.jsx';
-import { Button, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, useToast } from './components/index.js';
+import { Button, Checkbox, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, useToast } from './components/index.js';
 import { AudioSetupGate, requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import { TokenEstimate } from './TokenUsage.jsx';
@@ -299,10 +299,8 @@ export default function AudioImport({
             placeholder={ui("例如：partition, ACID, VARCHAR, PostgreSQL")} />
         </label>
         <CourseField courses={courses} value={course} onChange={setCourse} multiple disabled={busy} label={ui('所属课程（用它的主题词辅助校对）')} />
-        <label className="inline-check">
-          <input type="checkbox" checked={paidOnly} onChange={(e) => setPaidOnly(e.target.checked)} disabled={busy} />
-          {ui("只用付费密钥（免费额度下，Google 可能用内容改进产品）")}
-        </label>
+        <Checkbox checked={paidOnly} onChange={setPaidOnly} disabled={busy}
+          label={ui("只用付费密钥（免费额度下，Google 可能用内容改进产品）")} />
         <TokenEstimate enabled={audioMinutes > 0}
           request={{ feature: "audio", minutes: audioMinutes, language: "en", terms: termCount, subject: subject.trim() }} />
         <div className="audio-submit">

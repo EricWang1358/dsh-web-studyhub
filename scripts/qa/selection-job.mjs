@@ -127,8 +127,8 @@ export async function run(options) {
       await learning().locator("form").nth(1).waitFor({ timeout: 15000 });
       await deckSelect().selectOption({ index: 1 });
       await learning().locator('input[type="number"]').fill("2");
-      await page.locator("[data-token-estimate] .token-estimate__line").waitFor({ timeout: 15000 });
-      const estimate = await page.locator("[data-token-estimate] .token-estimate__line").innerText();
+      await page.locator("[data-token-estimate] .token-estimate__line:not(.token-estimate__line--loading)").waitFor({ timeout: 15000 });
+      const estimate = await page.locator("[data-token-estimate] .token-estimate__line:not(.token-estimate__line--loading)").innerText();
       if (!/tok/.test(estimate)) throw new Error(`no estimate line: ${estimate}`);
       await overflowCheck("form");
       await shot("form-with-estimate");

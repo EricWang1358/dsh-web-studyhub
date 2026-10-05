@@ -24,20 +24,6 @@
     .original-pathrow { display: flex; gap: var(--space-2); align-items: stretch; }
     .original-pathrow input { flex: 1 1 auto; min-width: 0; margin: 0; }
     .original-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-    /* The global label and input rules stack and stretch; these are rows of a radio (or checkbox) and its words. */
-    .original-dialog .original-modes { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
-    .original-dialog .original-modes legend { padding: 0; margin: 0 0 var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
-    .original-dialog .original-mode { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); margin: 0; padding: var(--space-3);
-      border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer; }
-    .original-dialog .original-mode:has(input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-    .original-dialog .original-mode[data-selected] { border-color: var(--line-strong); background: var(--bg-hover); }
-    .original-dialog .original-mode:has(input:disabled) { cursor: default; opacity: 0.7; }
-    .original-dialog .original-mode input, .original-dialog .original-confirm input { flex: none; width: 17px; height: 17px; margin: var(--space-half) 0 0; padding: 0; accent-color: var(--accent); }
-    .original-dialog .original-mode > span { display: grid; gap: var(--space-half); min-width: 0; }
-    .original-dialog .original-mode strong { font-size: var(--fs-md); }
-    .original-dialog .original-mode small { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    .original-dialog .original-mode .original-mode__note { color: var(--text-muted); }
-    .original-dialog .original-confirm { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); }
     .source-row-menu .source-row-menu__note { display: block; max-width: 18em; padding: var(--space-1) var(--space-2); color: var(--text-muted);
       font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .source-row-menu .source-row-menu__note[data-tone="warning"] { color: var(--warn-ink); }

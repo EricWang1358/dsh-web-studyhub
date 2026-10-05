@@ -53,6 +53,8 @@
     --paper-ink: #201b15;
     --paper-dim: #5d5448;
     --paper-rule: #20160c14;
+    /* A rendered PDF page is white paper in every theme. */
+    --pdf-page: #fff;
 
     --shadow-card: 0 0 0 1px var(--paper-rule), 0 2px 4px #00000026, var(--shadow-lg);
     --radius-card: 16px;

@@ -58,11 +58,11 @@
       min-width: 0;
     }
     .draft-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
+      /* The open action spans the row, so its arrow is one column on every row; a fill's status or button sits under the title, left aligned. */
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-1) var(--space-3);
       width: 100%;
       border: 0;
       border-bottom: 1px solid var(--line);
@@ -72,7 +72,7 @@
     }
     .draft-open {
       display: flex;
-      flex: 1;
+      flex: 1 1 14rem;
       min-width: 0;
       align-items: center;
       justify-content: space-between;
@@ -141,13 +141,6 @@
       font-size: var(--fs-md);
       color: var(--text-muted);
     }
-    .desk-mastery .mastery {
-      grid-column: 1 / -1;
-      width: 100%;
-      margin: 0;
-    }
-    .desk-mastery .mastery-value { display: none; }
-    .desk-mastery .mastery-bar { height: 5px; }
     .desk-mastery-all {
       grid-column: 1 / -1;
       margin-top: -4px;
@@ -276,8 +269,8 @@
     .today-go span { transition: transform var(--dur) var(--ease-out); }
     .today-go:hover:not(:disabled) span { transform: translateX(4px); }
     .today-card .today-go:disabled {
-      background: color-mix(in srgb, var(--paper-ink) 7%, transparent) !important;
-      color: var(--paper-dim) !important;
+      background: color-mix(in srgb, var(--paper-ink) 7%, transparent);
+      color: var(--paper-dim);
     }
   }
   @container study (max-width: 760px) {
@@ -310,7 +303,10 @@
     .desk .resume-list > summary::before { content: "▸  "; color: var(--text-faint); }
     .desk .resume-list[open] > summary::before { content: "▾  "; }
     .desk .resume-list > summary:hover { color: var(--text); }
-  }
+      .desk.is-empty .today-card-empty { margin-bottom: var(--space-3); }
+    .home-activity .draft-row:last-child { border-bottom: 0; }
+    .home-activity .jobs-actions { display: flex; justify-content: flex-end; }
+}
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .resume {
@@ -325,4 +321,37 @@
 
 @keyframes stack-in {
   from { opacity: 0; }
+}
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .desk-more .desk-also { margin-top: var(--space-2); }
+    .desk > .desk-intro { --desk-measure: 32.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); min-width: 0; }
+    .desk > .desk-intro > :is(.course-route, .role-prep, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list, .course-parked-line) { width: 100%; max-width: var(--desk-measure); margin: 0; }
+    .desk > .desk-intro > .desk-next { margin-top: var(--space-2); }
+    .today-card-head { align-items: baseline; }
+      .desk-more {
+      max-width: 560px;
+      margin: var(--space-3) 0 0;
+    }
+}
+}
+
+@layer study.features {
+  @container study (max-width: 760px) {
+    :is(.study-app, .study-seat) {
+      .desk[data-tour="home-hero"] { gap: var(--space-5) 0; padding-top: var(--space-4); }
+      .desk > .desk-intro { display: contents; }
+      .desk > .today-stack { order: 4; justify-self: stretch; max-width: none; margin: 0 14px var(--space-2) 0; }
+      .desk > .desk-intro > .desk-mastery { order: 6; }
+      .desk > .desk-intro > .desk-next { order: 7; margin-top: 0; }
+      .desk > .desk-intro > .desk-also { order: 8; }
+      .desk > .desk-intro > .resume-list { order: 10; }
+      .today-card-head { flex-wrap: wrap; column-gap: var(--space-3); }
+        .desk > .desk-intro > .desk-more { order: 9; }
+        .desk > .desk-intro > .course-route { order: 5; }
+        .desk > .desk-intro > .role-prep { order: 3; }
+        .desk > .desk-intro > .course-parked-line { order: 2; }
+}
+  }
 }

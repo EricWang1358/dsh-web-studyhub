@@ -359,7 +359,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         </>}
         {!localMode && <IconButton icon="panel" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
           data-attention={capture && !toolsOn ? 'true' : undefined} onClick={() => toggle('tools')}>
-          {groups.length > 0 && <span className="reader-badge" aria-hidden="true">{groups.length}</span>}
+          {groups.length > 0 && <span className="reader-count" aria-hidden="true">{groups.length}</span>}
         </IconButton>}
         {originalHandling(document) === 'download' && <Button size="sm" variant="quiet" icon="download" onClick={downloadOriginal}>{ui('下载原文件')}</Button>}
         {document?.preview?.kind === 'file' && host?.openDocument && <Button size="sm" variant="quiet" icon="external"

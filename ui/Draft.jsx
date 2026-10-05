@@ -14,9 +14,10 @@ import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
 import { renderRubric } from "../lib/case-study.js";
-import { DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
-import { draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
+import { DraftAddFromSources, DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
+import { canAddFromSources, draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
 import { modelReadiness } from "./generation-status.js";
+import { coverageGroups, coverageUnit } from "./coverage-groups.js";
 import LocalImagePicker from './LocalImagePicker.jsx';
 import { useStudy } from "./study-context.jsx";
 import { useSciencePreferences } from './SciencePreferences.jsx';
@@ -36,6 +37,7 @@ export default function Draft({
   setJsonMode,
   openDraft,
   continueDraft,
+  addFromSources,
   onOpenPublished,
   onStartPublished,
   clearRecovery,
@@ -71,9 +73,11 @@ export default function Draft({
     .map((source) => source.id).filter((id) => availableSources.has(id));
   const coverageSources = draft.editorial?.coverage?.sources || [];
   const coveredSources = coverageSources.filter((source) => source.accepted > 0);
-  const uncoveredSources = coverageSources.length
-    ? coverageSources.filter((source) => !source.accepted)
-    : draft.editorial?.coverage?.uncited || [];
+  // By document (#201): a book is named once with its pages under it, and the count says 页 or 份 for what it really counts.
+  const coverageDocuments = coverageGroups(coverageSources.length ? coverageSources : draft.editorial?.coverage?.uncited || [], data.sources);
+  const coverageCount = coverageUnit(coverageDocuments) === "页";
+  const uncoveredPages = coverageDocuments.map((group) => ({ ...group, rows: group.rows.filter((row) => !row.accepted) })).filter((group) => group.rows.length);
+  const uncoveredCount = uncoveredPages.reduce((sum, group) => sum + group.rows.length, 0);
   const reviewStatus = Object.keys(draft.editorial?.reviewedCards || {}).length
     ? reviewedCardStatus(draft) : null;
   const needsReview = reviewStatus ? reviewStatus.changed : draft.cards.length;
@@ -249,6 +253,11 @@ export default function Draft({
             <p>{draft.editorial.summary}</p>
           </Disclosure>}
           {experimentalShown(data) && <JevDecidedNote decided={draft.editorial.jevDecided} />}
+          {draft.editorial.repairTried > 0 && <Hint data-repair-yield>{uiFormat("修复后保留 {0} 题 · 丢弃 {1} 题（其中 {2} 题修复后仍未通过，原因见「没进入草稿的题」）",
+            [draft.editorial.repairedInRun || 0, (draft.editorial.omitted || []).length, draft.editorial.repairTried - (draft.editorial.repairedInRun || 0)])}</Hint>}
+          {draft.editorial.suggestions?.length > 0 && <Disclosure className="review-suggestions" summary={uiFormat("审阅建议（已记录，不影响通过）· {0}", [draft.editorial.suggestions.length])}>
+            <ul>{draft.editorial.suggestions.map((item, index) => <li key={index}>{item.text}</li>)}</ul>
+          </Disclosure>}
           <Hint>
             {[reviewStatus
               ? uiFormat("{0} / {1} 题与上次模型审阅时一致。", [reviewStatus.unchanged, reviewStatus.total])
@@ -309,19 +318,25 @@ export default function Draft({
       {previousLines.length > 0 && <Banner tone="warning" title={ui("之前未完成的批次")}>
         <Disclosure summary={ui("查看记录")}><ul>{previousLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
       </Banner>}
-      {draft.editorial?.coverage && <Disclosure summary={uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 份", [draft.editorial.coverage.cited, draft.editorial.coverage.selected])}>
+      {draft.editorial?.coverage && <Disclosure summary={coverageCount
+        ? uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 页", [draft.editorial.coverage.cited, draft.editorial.coverage.selected])
+        : uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 份", [draft.editorial.coverage.cited, draft.editorial.coverage.selected])}>
         <p className="muted">{ui("“规划”是模型选出的考点次数，“通过”是最终引用该资料的合格题数；即使有题，也不代表整页或全部知识点都已覆盖。")}</p>
-        {coveredSources.length > 0 && <ul>{coveredSources.map((source) => <li key={source.id}>
-          {uiFormat("{0}：规划 {1} 个考点，通过 {2} 题", [source.title, source.planned, source.accepted])}</li>)}</ul>}
-        {untestedSourceIds.length > 0 && !generating && <Button size="sm" disabled={busy}
-          onClick={() => {
-            setSelectedSources(untestedSourceIds);
-            setGenSource("files");
-            setPage("generate");
-          }}>{uiFormat("用未覆盖的 {0} 份资料补题 →", [untestedSourceIds.length])}</Button>}
-        {uncoveredSources.length > 0 && <Disclosure summary={uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredSources.length])}>
-          <ul>{uncoveredSources.map((source) => <li key={source.id}>
-            {source.title}{source.planned ? uiFormat("：规划 {0} 个考点", [source.planned]) : ""}
+        {coveredSources.length > 0 && <ul className="coverage-documents">{coverageDocuments.filter((group) => group.covered > 0).map((group) => <li key={group.key}>
+          {group.rows[0].page === null
+            ? uiFormat("{0}：规划 {1} 个考点，通过 {2} 题", [group.title, group.planned, group.accepted])
+            : <><strong>{group.title}</strong><ul>{group.rows.filter((row) => row.accepted > 0).map((row) => <li key={row.id}>
+              {uiFormat("第 {0} 页：规划 {1} 个考点，通过 {2} 题", [row.page, row.planned, row.accepted])}</li>)}</ul></>}
+        </li>)}</ul>}
+        {untestedSourceIds.length > 0 && canAddFromSources(draft) && <DraftAddFromSources draft={draft} jobs={data.jobs} sourceIds={untestedSourceIds} pages={coverageCount}
+          held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} onAdd={addFromSources}
+          onNewDeck={(ids) => { setSelectedSources(ids); setGenSource("files"); setPage("generate"); }} />}
+        {untestedSourceIds.length > 0 && canAddFromSources(draft) && unsavedDraft && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
+        {uncoveredCount > 0 && <Disclosure summary={coverageCount ? uiFormat("{0} 页本次没有合格题 · 查看清单", [uncoveredCount]) : uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredCount])}>
+          <ul className="coverage-documents">{uncoveredPages.map((group) => <li key={group.key}>
+            {group.rows[0].page === null
+              ? <>{group.title}{group.planned ? uiFormat("：规划 {0} 个考点", [group.planned]) : ""}</>
+              : <><strong>{group.title}</strong>{" · "}{uiFormat("页码：{0}", [group.rows.map((row) => row.page).join(ui("、"))])}</>}
           </li>)}</ul>
         </Disclosure>}
       </Disclosure>}

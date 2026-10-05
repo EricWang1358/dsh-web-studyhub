@@ -5,7 +5,7 @@
     /* MinerU conversion: the import entry (route panel), the local setup panel, the privacy confirmation. Tokens only; 12 px floor.
        The job card uses the audio import card's classes (style.css), so nothing here styles it. */
     .mineru-route-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; margin: var(--space-4) 0; padding: var(--space-5);
-      border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
+      border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .mineru-route-panel.is-compact { padding: var(--space-4); margin: var(--space-3) 0; }
     .mineru-route-panel__head { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
     .mineru-route-panel__head .sh-icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
@@ -24,17 +24,6 @@
     .mineru-plan__line span { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mineru-plan__why { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-    .mineru-routes { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
-    .mineru-routes > legend { padding: 0; margin: 0 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
-    .mineru-route { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4);
-      border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; }
-    .mineru-route:hover { border-color: var(--line-strong); }
-    .mineru-route.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
-    .mineru-route:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .mineru-route input { flex: none; margin: var(--space-1) 0 0; }
-    .mineru-route__body { display: grid; gap: var(--space-1); min-width: 0; }
-    .mineru-route__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
-    .mineru-route__body small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
     .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .mineru-privacy { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
@@ -53,16 +42,9 @@
   @media (max-width: 480px) {
     :is(.study-app, .study-seat) {
       .mineru-route-panel { padding: var(--space-4); }
-      .mineru-route { padding: var(--space-3); }
     }
   }
   :is(.study-app, .study-seat) {
-    /* The global input rules make radios full-width blocks; keep the route's radio beside its text (MineruRoute, not yet a RadioCard). */
-    .mineru-route input[type="radio"] { display: inline-block; width: auto; min-width: 0; height: auto; padding: 0; }
-    .mineru-route { flex-direction: row; }
-    /* Legacy chip of the conversion card and history rows (PdfConversion, PdfConvertJob). They move to Badge in the import work package; delete this block then. */
-    /* The only definition left of the old provider note: PdfConversion still writes it. It becomes a Hint there; delete this rule then. */
-    .audio-provider-note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     /* The conversion history (解析历史): the rows are the conversion job card's own markup (.job), so they look like every other background job;
        only what a finished record needs is added here. It sits in the MinerU panel and under the running cards on the Sources page. */
     .pdf-history { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }

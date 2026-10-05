@@ -24,7 +24,7 @@
     .source-picker__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* The badge line keeps its height whether or not the coverage has arrived (#205): same height as one line of the small text above it. */
     .source-picker__text small.source-picker__index { display: flex; align-items: center; min-width: 0; height: calc(var(--fs-sm) * var(--lh-snug)); }
-    .source-picker__partial { color: var(--accent-text) !important; }
+    .source-picker__text .source-picker__partial { color: var(--accent-text); }
     .source-picker__expand { flex: 0 0 auto; }
     .source-picker__expand .sh-icon:last-child { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .sh-icon:last-child { transform: rotate(90deg); }

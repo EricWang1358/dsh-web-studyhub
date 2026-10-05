@@ -23,7 +23,7 @@ export default function CatalogHeading({ count, showArchived, hasDecks, hasSourc
         {hasDecks && <Button size="sm" disabled={busy} title={ui('用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）')}
           onClick={() => onShowGraph?.(null, { canvas: true })}>{ui('查看图谱')}</Button>}
         <Menu className="map-menu-wrap" label={ui('整理与添加')} items={items} onSelect={(id) => choose[id]()}
-          trigger={({ props, ref }) => <Button ref={ref} size="sm" className="catalog-menu-toggle" {...props}>{merge.busy ? ui('整理中…') : ui('整理与添加')}</Button>} />
+          trigger={({ props, ref }) => <Button ref={ref} size="sm" className="catalog-menu-toggle" busy={!!merge.busy} busyLabel={ui('整理中…')} {...props}>{ui('整理与添加')}</Button>} />
       </div>
     </div>
   );
