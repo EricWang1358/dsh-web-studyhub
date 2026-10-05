@@ -138,7 +138,7 @@ test("the bilingual document follows the requested layout", () => {
       { titleZh: "事务管理", titleEn: "Transaction Management", english: ["Transfer."], chinese: ["转账。"] },
     ],
   });
-  const rule = "=".repeat(80), divider = "-".repeat(80);
+  const rule = "=".repeat(80), divider = "---"; // the standard thematic break (#232); transcripts saved before it keep their 80 dashes
   assert.equal(doc, [
     rule, "《SQL技术特性与应用讨论.mp3》全量中英对照逐字稿", "Full Bilingual Transcript: SQL Technical Features & Application Seminar", rule, "",
     "【第一部分：声明式语言与 ANSI 标准】", "[Part 1: Declarative Language & ANSI Standards]", "",

@@ -47,7 +47,7 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
     <ReadingBlock className="exam-report">
       <PageHeader title={ui('考试报告')} actions={<ReadingSettingsButton className="exam-reading" />}
         description={report.examRole ? uiFormat('{0} · 已判分并计入复习计划。', [report.examRole]) : ui('已判分并计入复习计划。')} />
-      <div className="result-hero">
+      <div className="result-hero sh-paper-card sh-paper-card--roomy">
         <div className="result-headline">
           <strong>{Math.round(report.scorePct ?? 0)}%</strong>
           <span>{uiFormat('本次笔试得分 · {0}/{1} 题', [report.correct ?? 0, report.total ?? 0])}</span>

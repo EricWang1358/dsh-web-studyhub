@@ -67,9 +67,11 @@ test('keyboard focus moves without changing the value; Enter and Space still sel
   assert.match(src, /\.focus\(\)/);
 });
 
-test('the thumb animates position and size only, and reduced motion removes every transition', () => {
+test('the thumb animates by transform only (position, and size through scale), and reduced motion removes every transition', () => {
   assert.match(css, /\.sh-seg__thumb\s*\{[^}]*position:\s*absolute/);
-  assert.match(css, /\.sh-seg__thumb\s*\{[^}]*transition:[^;}]*transform\s+var\(--dur\)[^;}]*width[^;}]*height/);
+  assert.match(css, /\.sh-seg__thumb\s*\{[^}]*transform-origin:\s*0 0[^}]*transition:\s*transform\s+var\(--dur\)[^;}]*opacity/);
+  assert.doesNotMatch(css.match(/\.sh-seg__thumb\s*\{[^}]*\}/)[0], /transition:[^;}]*(width|height)/, 'no width or height transition (#101)');
+  assert.match(read('ui/components/SegmentedControl.jsx'), /scale\(\$\{w0 \/ item\.offsetWidth\}/, 'a resize is a FLIP scale back from the old size');
   assert.match(css, /\.sh-seg__item\s*\{[^}]*transition:[^;}]*color/, 'text colour cross-fades');
   assert.match(css, /\.sh-seg\[data-thumb="on"\]\s+\.sh-seg__item\.is-active\s*\{[^}]*background:\s*transparent/, 'the item fill hands over to the thumb');
   assert.match(css, /\.sh-seg__item:active:not\(:disabled\)\s*\{[^}]*scale\(0\.98\)/, 'press feedback');

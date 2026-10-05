@@ -42,14 +42,19 @@ export default function SegmentedControl({ label, value, options = [], onChange,
     const on = group.getAttribute('data-thumb') === 'on';
     placed.current = active.current;
     if (on && next === rect.current) return;
+    const [x0, y0, w0, h0] = rect.current ? rect.current.split(',').map(Number) : [];
     rect.current = next;
     const instant = !animate || !on;
-    if (instant) mark.style.transition = 'none';
+    /* Only transform moves: the thumb takes the new size at once, is scaled back to the old one, then released (FLIP). */
+    mark.style.transition = 'none';
     mark.style.width = `${item.offsetWidth}px`;
     mark.style.height = `${item.offsetHeight}px`;
-    mark.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`;
+    mark.style.transform = instant || !(w0 > 0 && h0 > 0) ? `translate(${item.offsetLeft}px, ${item.offsetTop}px)`
+      : `translate(${x0}px, ${y0}px) scale(${w0 / item.offsetWidth}, ${h0 / item.offsetHeight})`;
     group.setAttribute('data-thumb', 'on');
-    if (instant) { void mark.offsetWidth; mark.style.transition = ''; }
+    void mark.offsetWidth;
+    mark.style.transition = '';
+    mark.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`;
   }, []);
 
   useLayoutEffect(() => {

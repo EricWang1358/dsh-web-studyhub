@@ -57,3 +57,18 @@ test('the model is asked in batches with the paragraph and its translation, and 
   assert.match(prompts[0][0].paragraph, /into a patient by date/); assert.equal(prompts[0][0].translation, '我们按日期把表拆成病人');
   assert.deepEqual([...decisions.keys()], [itemKey(record.skipped[0])]);
 });
+
+test('a transcript saved with the old 80-dash divider is reviewed too, and each divider is written back as it was (#232)', () => {
+  const record = corrections(), old = '-'.repeat(80);
+  const [whole] = buildDocuments({ filename: 'db.mp3', titleEn: 'Databases', parts });
+  assert.match(whole, /\n\n---\n\n/, 'a new transcript has the standard divider');
+  const legacy = whole.replace('\n\n---\n\n', `\n\n${old}\n\n`);
+  const decisions = new Map([[itemKey(record.skipped[0]), { verdict: 'apply', right: 'partition', translation: { wrong: '病人', right: '分区' } }]]);
+  for (const [name, text, divider] of [['standard', whole, '---'], ['legacy', legacy, old]]) {
+    const result = applyReview({ texts: [text], corrections: record, decisions, at: 'T' });
+    assert.equal(result.applied, 1, name);
+    assert.match(result.texts[0], /into a partition by date/, name);
+    assert.ok(result.texts[0].includes(`\n\n${divider}\n\n【第二部分`), `${name}: the divider is written back as it was`);
+    assert.deepEqual(applyReview({ texts: [text], corrections: record, decisions: new Map() }).texts, [text], `${name}: nothing decided is byte-identical`);
+  }
+});

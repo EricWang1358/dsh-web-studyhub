@@ -14,6 +14,7 @@
     "tests/nav-groups-browser.test.mjs",
     "tests/nav-layout.test.mjs",
     "tests/open-agent.test.mjs",
+    "tests/reader-chip-browser.test.mjs",
     "tests/science-settings-browser.test.mjs",
     "tests/spine-layout.test.mjs",
     "tests/study-image-cards.test.mjs",

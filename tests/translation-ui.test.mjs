@@ -229,11 +229,11 @@ test('English: the job line is English; the label the learner chose stays as it 
 /* ---------- the chip and the glossary ---------- */
 
 test('the selection chip names its action, including the shortcut, and turns into a cancel while it works', () => {
-  const chip = props => render(h(lib.SelectionChip, { left: 10, top: 20, target: 'zh', onClick: noop, onCancel: noop, ...props }));
+  const chip = props => render(h(lib.SelectionChip, { target: 'zh', onClick: noop, onCancel: noop, ...props }));
   assert.match(chip(), /aria-label="翻译选中的文字（Alt\+T）"/);
-  assert.match(chip(), /left:10px;top:20px/);
+  assert.doesNotMatch(chip(), /style=/, 'the chip carries no coordinates of its own: it is placed against the selection by the shared anchoring (#231)');
   assert.match(chip({ busy: true }), /aria-label="取消翻译"/);
-  assert.match(render(h(lib.SelectionChip, { left: 1, top: 2, target: 'en', onClick: noop }), 'en'), /aria-label="Translate the selected text \(Alt\+T\)"[^>]*>(?:<span[^>]*>)?EN/);
+  assert.match(render(h(lib.SelectionChip, { target: 'en', onClick: noop }), 'en'), /aria-label="Translate the selected text \(Alt\+T\)"[^>]*>(?:<span[^>]*>)?EN/);
 });
 
 test('the glossary dialog lists terms with their handling, asks nothing to be retranslated and carries the explanation', () => {

@@ -46,14 +46,10 @@
       max-height: calc(100% - 24px);
       overflow: auto;
       pointer-events: auto;
-      padding: var(--space-4) 18px 14px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-card);
-      background: var(--bg-raised);
-      color: var(--text);
       font-family: var(--font-ui);
       font-size: var(--fs-md);
-      box-shadow: var(--shadow-lg), 0 0 0 1px var(--line-soft);
+      /* A paper card floating over the page: the lift of an overlay instead of the resting card shadow. */
+      box-shadow: var(--shadow-lg);
       overscroll-behavior: contain;
     }
     .tour-pop:focus { outline: none; }
@@ -66,15 +62,15 @@
       position: absolute;
       width: 12px;
       height: 12px;
-      background: var(--bg-raised);
-      border: 1px solid var(--line);
+      background: inherit;
+      border: 1px solid transparent;
       transform: rotate(45deg);
       display: none;
     }
-    .tour-pop--bottom::before { display: block; top: -7px; left: var(--tour-caret, 50%); margin-left: -6px; border-right: 0; border-bottom: 0; }
-    .tour-pop--top::before { display: block; bottom: -7px; left: var(--tour-caret, 50%); margin-left: -6px; border-left: 0; border-top: 0; }
-    .tour-pop--right::before { display: block; left: -7px; top: var(--tour-caret, 50%); margin-top: -6px; border-top: 0; border-right: 0; }
-    .tour-pop--left::before { display: block; right: -7px; top: var(--tour-caret, 50%); margin-top: -6px; border-bottom: 0; border-left: 0; }
+    .tour-pop--bottom::before { display: block; top: -7px; left: var(--tour-caret, 50%); margin-left: calc(var(--space-1-5) * -1); border-right: 0; border-bottom: 0; }
+    .tour-pop--top::before { display: block; bottom: -7px; left: var(--tour-caret, 50%); margin-left: calc(var(--space-1-5) * -1); border-left: 0; border-top: 0; }
+    .tour-pop--right::before { display: block; left: -7px; top: var(--tour-caret, 50%); margin-top: calc(var(--space-1-5) * -1); border-top: 0; border-right: 0; }
+    .tour-pop--left::before { display: block; right: -7px; top: var(--tour-caret, 50%); margin-top: calc(var(--space-1-5) * -1); border-bottom: 0; border-left: 0; }
     .tour-pop:is(.tour-pop--bottom, .tour-pop--top, .tour-pop--right, .tour-pop--left) { overflow: visible; }
     /* Narrow panels (the DSH sidebar): a sheet along the bottom edge. */
     .tour-pop--docked {
@@ -84,18 +80,17 @@
       bottom: 12px;
       width: auto;
       max-height: min(58%, 440px);
-      border-radius: var(--radius-card);
     }
     .tour-pop__head {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      margin-bottom: 10px;
+      margin-bottom: var(--space-2-5);
     }
     .tour-pop__eyebrow {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-1-5);
       color: var(--accent-text);
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
@@ -107,9 +102,9 @@
       font-size: var(--fs-xs);
       font-variant-numeric: tabular-nums;
     }
-    .tour-pop__meter { height: 3px; margin-bottom: 14px; background: var(--line); box-shadow: none; }
+    .tour-pop__meter { height: 3px; margin-bottom: var(--space-3-5); background: var(--line); box-shadow: none; }
     .tour-pop__title {
-      margin: 0 0 6px;
+      margin: 0 0 var(--space-1-5);
       color: var(--text);
       font-family: var(--font-display);
       font-size: var(--fs-lg);
@@ -128,7 +123,7 @@
       align-items: flex-start;
       gap: var(--space-2);
       margin: var(--space-3) 0 0;
-      padding: var(--space-2) 10px;
+      padding: var(--space-2) var(--space-2-5);
       border-radius: var(--radius-sm);
       background: var(--info-bg);
       color: var(--text);
@@ -157,10 +152,10 @@
   @media (prefers-reduced-motion: no-preference) {
     :where(.study-app, .study-seat) {
       .tour-spot {
-        transition: left var(--dur-slow) var(--ease-out), top var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out), height var(--dur-slow) var(--ease-out);
+        transition: transform var(--dur-slow) var(--ease-out);
       }
       .tour-pop {
-        transition: left var(--dur-slow) var(--ease-out), top var(--dur-slow) var(--ease-out);
+        transition: transform var(--dur-slow) var(--ease-out);
         animation: tour-rise 0.26s var(--ease-out) both;
       }
       .tour-shade { animation: tour-fade 0.22s var(--ease) both; }

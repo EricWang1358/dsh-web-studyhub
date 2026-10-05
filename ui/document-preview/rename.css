@@ -4,7 +4,7 @@
   :is(.study-app, .study-seat) {
     /* 资料重命名: the inline editor (a 资料 row, the reader's header) and the header's name. Tokens only. */
     .rename-field { display: grid; gap: var(--space-2); min-width: 0; flex: 1 1 auto; width: 100%; max-width: 44rem; font-weight: var(--fw-regular); }
-    .rename-field__input { margin: 0; padding: var(--space-2) 10px; font-size: var(--fs-md); line-height: var(--lh-snug); }
+    .rename-field__input { margin: 0; padding: var(--space-2) var(--space-2-5); font-size: var(--fs-md); line-height: var(--lh-snug); }
     .rename-field__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .rename-field__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     /* Inside a 资料 row the generic .source-main small is one ellipsised line; the hint is a sentence. */
@@ -12,7 +12,7 @@
     .rename-field__error { margin: 0; color: var(--bad-ink); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .rename-field__input[aria-invalid="true"] { border-color: var(--bad-line); }
     .source-doc .source-main--editing { display: flex; align-items: flex-start; gap: var(--space-3); flex: 1 1 auto; min-width: 0; padding: var(--space-1); }
-    .source-doc .source-main--editing .source-doc__icon { margin-top: 10px; }
+    .source-doc .source-main--editing .source-doc__icon { margin-top: var(--space-2-5); }
     .source-doc .source-original { color: var(--text-muted); }
     .sh-dialog__title .reader-heading { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; max-width: 100%; }
     .sh-dialog__title .reader-heading__text { min-width: 0; overflow-wrap: anywhere; border-radius: var(--radius-sm); }

@@ -12,7 +12,7 @@
       border: 0;
       border-radius: var(--radius-sm);
       width: 100%;
-      padding: var(--space-3) 10px;
+      padding: var(--space-3) var(--space-2-5);
       margin-bottom: 0;
       transition: background var(--dur-fast) var(--ease);
     }
@@ -48,7 +48,7 @@
     .resume-row {
       display: flex;
       align-items: stretch;
-      gap: 10px;
+      gap: var(--space-2-5);
       margin-bottom: 0;
       border-bottom: 1px solid var(--line-soft);
     }
@@ -67,7 +67,7 @@
       border: 0;
       border-bottom: 1px solid var(--line);
       border-radius: 0;
-      padding: 10px var(--space-1);
+      padding: var(--space-2-5) var(--space-1);
       text-align: left;
     }
     .draft-open {
@@ -93,7 +93,7 @@
       color: var(--accent-soft);
     }
     .jobs {
-      margin-top: 30px;
+      margin-top: var(--space-7-less);
     }
     .jobs-dismiss-all {
       align-self: flex-end;
@@ -144,7 +144,7 @@
     }
     .desk-mastery-all {
       grid-column: 1 / -1;
-      margin-top: -4px;
+      margin-top: calc(var(--space-1) * -1);
       font-size: var(--fs-md);
       color: var(--text-muted);
     }
@@ -157,8 +157,8 @@
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
-      gap: 6px 14px;
-      margin: 30px 0 0;
+      gap: var(--space-1-5) var(--space-3-5);
+      margin: var(--space-7-less) 0 0;
       font-size: var(--fs-md);
       line-height: 1.6;
       color: var(--text-dim);
@@ -172,7 +172,7 @@
     .desk-also {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px var(--space-5);
+      gap: var(--space-1-5) var(--space-5);
       margin: var(--space-3) 0 0;
     }
     /* Today's stack. Cards behind the top one mirror how much is left. */
@@ -189,7 +189,7 @@
       position: absolute;
       inset: 0;
       z-index: -1;
-      border-radius: var(--radius-card);
+      border-radius: var(--paper-radius);
       background: color-mix(in srgb, var(--paper) 82%, var(--bg-canvas));
       box-shadow: var(--shadow-md);
       transition: transform 0.5s var(--ease-out);
@@ -214,19 +214,17 @@
       display: flex;
       flex-direction: column;
       min-height: 330px;
-      padding: 18px var(--space-6) var(--space-6);
-      border-radius: var(--radius-card);
-      color: var(--paper-ink);
+      --paper-pad-top: var(--space-4-5);
       /* Index-card ruling under the cinnabar header rule. */
-      background:
-        repeating-linear-gradient(
-          to bottom,
-          transparent 0 31px,
-          var(--paper-rule) 31px 32px
-        )
-        0 52px / 100% calc(100% - 52px) no-repeat,
-        var(--paper);
-      box-shadow: var(--shadow-card);
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0 31px,
+        var(--paper-rule) 31px 32px
+      );
+      background-position: 0 52px;
+      background-size: 100% calc(100% - 52px);
+      background-repeat: no-repeat;
+      background-origin: border-box;
       transition: transform 0.5s var(--ease-out);
       animation: card-deal 0.55s var(--ease-out) backwards;
     }
@@ -244,13 +242,13 @@
     .today-card-head time { font-variant-numeric: tabular-nums; }
     /* .today-count (the number and its caption): ui/home-tiers.css */
     .today-detail {
-      margin: 0 0 22px;
+      margin: 0 0 var(--space-5-5);
       font-size: var(--fs-md);
       line-height: 1.6;
       color: var(--paper-dim);
     }
     .today-card-empty {
-      margin: 30px 0 18px;
+      margin: var(--space-7-less) 0 var(--space-4-5);
       font-family: var(--font-display);
       font-size: var(--fs-2xl);
       font-weight: var(--fw-strong);
@@ -263,7 +261,7 @@
       align-items: center;
       width: 100%;
       margin-top: auto;
-      padding: var(--space-3) 18px;
+      padding: var(--space-3) var(--space-4-5);
       border-radius: var(--radius);
       font-size: var(--fs-lg);
     }
@@ -278,7 +276,7 @@
     :where(.study-app, .study-seat) {
       .desk {
         grid-template-columns: minmax(0, 1fr);
-        padding-top: 18px;
+        padding-top: var(--space-4-5);
         gap: 0;
       }
       /* Narrow: tabs, heading, the card, then the details (the order of every part: ui/home-tiers.css). */
@@ -292,9 +290,9 @@
       margin: 26px 0 0;
       border-top: 1px solid var(--line-soft);
     }
-    .desk .resume { padding: 10px var(--space-1); }
+    .desk .resume { padding: var(--space-2-5) var(--space-1); }
     .desk .resume-list > summary {
-      padding: 10px 0;
+      padding: var(--space-2-5) 0;
       list-style: none;
       cursor: pointer;
       font-size: var(--fs-md);
@@ -343,7 +341,7 @@
     :is(.study-app, .study-seat) {
       .desk[data-tour="home-hero"] { gap: var(--space-5) 0; padding-top: var(--space-4); }
       .desk > .desk-intro { display: contents; }
-      .desk > .today-stack { order: 4; justify-self: stretch; max-width: none; margin: 0 14px var(--space-2) 0; }
+      .desk > .today-stack { order: 4; justify-self: stretch; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
       .desk > .desk-intro > .desk-mastery { order: 6; }
       .desk > .desk-intro > .desk-next { order: 7; margin-top: 0; }
       .desk > .desk-intro > .desk-also { order: 8; }

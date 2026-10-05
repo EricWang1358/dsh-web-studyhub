@@ -11,13 +11,11 @@
     .es-format { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; }
     .es-label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .es-format .sh-seg { max-width: 100%; }
-    .es-format .sh-seg__item { min-height: 36px; padding: var(--space-1) 14px; flex: 0 1 auto; white-space: nowrap; }
+    .es-format .sh-seg__item { min-height: 36px; padding: var(--space-1) var(--space-3-5); flex: 0 1 auto; white-space: nowrap; }
     /* ── the setup card: the exam paper you are about to sit ── */
     .es-sheet {
       display: flex; flex-direction: column;
       max-width: 980px; min-width: 0;
-      background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-card);
-      box-shadow: var(--shadow-card); overflow: hidden;
     }
     .es-head { padding: var(--space-5) var(--space-7) var(--space-4); border-bottom: 2px solid var(--accent); }
     .es-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-xl); line-height: var(--lh-tight); }
@@ -53,7 +51,7 @@
     .es-count { display: grid; gap: var(--space-2); }
     .es-count__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
     .es-count__custom { display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
-    .es-count__custom input { width: 72px; padding: 6px 10px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
+    .es-count__custom input { width: 72px; padding: var(--space-1-5) var(--space-2-5); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
     /* compact deck list */
     .es-decks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 0 var(--space-5); }
     .es-decks > li { min-width: 0; }
@@ -68,7 +66,7 @@
     .es-deck input { accent-color: var(--accent); flex: none; width: 17px; height: 17px; padding: 0; margin: 0; }
     .es-times { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
     .es-times label { display: grid; gap: var(--space-1); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
-    .es-times input { width: 100%; box-sizing: border-box; padding: var(--space-2) 10px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
+    .es-times input { width: 100%; box-sizing: border-box; padding: var(--space-2) var(--space-2-5); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
     .es-empty { display: grid; gap: var(--space-2); justify-items: start; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
     .es-empty strong { font-size: var(--fs-md); }
     .es-empty p { margin: 0; color: var(--text-muted); font-size: var(--fs-md); max-width: 56ch; }
@@ -96,7 +94,7 @@
   @container study (max-width: 520px) {
     :where(.study-app, .study-seat) {
       .es-format .sh-seg { width: 100%; }
-      .es-format .sh-seg__item { flex: 1 1 0; justify-content: center; padding: var(--space-1) 6px; gap: var(--space-1); }
+      .es-format .sh-seg__item { flex: 1 1 0; justify-content: center; padding: var(--space-1) var(--space-1-5); gap: var(--space-1); }
       .es-controls { align-items: stretch; }
       .es-header .page-scope, .es-header .page-scope select { width: 100%; max-width: none; }
       .es-foot .sh-btn--primary { width: 100%; }

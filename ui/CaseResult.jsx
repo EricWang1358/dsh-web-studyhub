@@ -92,7 +92,7 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
   const graded = paper.questions.filter((question) => question.status === "graded").length;
   return (
     <div className="case-report">
-      <div className="case-report__hero">
+      <div className="case-report__hero sh-paper-card">
         <p className="rubric-score"><strong>{marks(paper.total)}</strong><span>{uiFormat("/ {0} 分", [marks(paper.max)])}</span></p>
         <div>
           <strong>{paper.pending ? uiFormat("已批改 {0}/{1} 题，其余正在后台批改", [graded, paper.questions.length]) : ui("全部批改完成")}</strong>
