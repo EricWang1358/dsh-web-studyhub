@@ -14,8 +14,8 @@
 
 | 步骤 | 状态 | 负责人 / 分支 / 文件范围 | 前置评审与已合并 PR | 验证 SHA / 证据 | 未确认项 / 下一步 |
 |---|---|---|---|---|---|
-| S1-0 | 待评审 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | P0：#239、v2.6.0；本步待评审 | aa0259254bcd587128e583070599a804485c7d06；[基线记录](s1-0-baseline.md) | 最小宿主探针已补；最终绑定、未测范围与内核负责人通过链接待审 |
-| S1-1 | 未开始 | 待领取 | 待 S1-0 通过 | 待填写 | 契约评审后实现兼容 |
+| S1-0 | 已合并 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | 所有者接受已验证范围及待核验限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) | head 6b1ecedb69308ec44078f10c24975eb2a6a2aef7；merge f091f09f830c226bfebc9af22344896733893a10；[本地及 CI 证据](s1-0-baseline.md) | 最终 StudyHub owner/controller 绑定等限制仍阻断对应实现步骤 |
+| S1-1 | 待评审 | Codex 内核负责人 / codex/unified-runtime-alpha / docs/job-contract.md、本目录接手记录；并行代理分别拥有兼容矩阵/JSON 与契约 fixture/test | [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) 已通过并合并 | 已接受基线 f091f09；同步正式 2.6.1 e61f6debe9436794cafc2bc8c65a0d0164e5ac5e；[契约验证记录](s1-1-contract-review.md) | 当前仅文档与可执行契约验证；单独评审合并后再实现兼容，未勾选 S1-1 完成 |
 | S1-2 | 未开始 | 待领取 | 待 S1-1 通过 | 待填写 | 唯一生命周期责任者 |
 | S1-3 | 未开始 | 待领取 | 待 S1-2 通过 | 待填写 | 新旧路径共享资源 |
 | S1-4 | 未开始 | 待领取 | 待 S1-3 通过 | 待填写 | 唯一执行与计量路径 |
@@ -27,8 +27,8 @@
 
 ## S1-0 基线与 DSH 能力对照（必须先做，不写生产代码）
 
-- [ ] 核验并填写文末基线记录：2.6.0 发布证据、P0 控制台验证、`docs/job-contract.md` 实际版本、`main` SHA、Node、实际安装的 DSH/相关包版本与锁文件。0.2.0-rc.2 是计划测试目标，不能代填为已核验版本。
-- [ ] **DSH 能力对照表**：读 `node_modules/@deepseek-ai/*`（cordis、dsh-llm、dsh-scope、dsh-timeout、schemastery 等）的导出与类型，以及本地 DSH 的宿主服务（`ctx.llm`、`ctx.sessions`、子代理服务 `subagents.*`、`uiWorkspace`），逐行填写下表：
+- [x] 核验并填写文末基线记录：2.6.0 发布证据、P0 控制台验证、`docs/job-contract.md` 实际版本、`main` SHA、Node、实际安装的 DSH/相关包版本与锁文件。0.2.0-rc.2 是计划测试目标，不能代填为已核验版本。
+- [x] **DSH 能力对照表**：读 `node_modules/@deepseek-ai/*`（cordis、dsh-llm、dsh-scope、dsh-timeout、schemastery 等）的导出与类型，以及本地 DSH 的宿主服务（`ctx.llm`、`ctx.sessions`、子代理服务 `subagents.*`、`uiWorkspace`），逐行填写下表：
 
 <a id="dsh-capability-map"></a>
 
@@ -46,25 +46,27 @@
 
   核验结论使用直接复用 / 部分复用 / 已核验不支持 / 待核验。类型或导出证明接口存在，最小验证证明在当前宿主作用域可用；二者分别记录。无法启动宿主、缺少权限或未拿到源码时，写明缺少的证据，保持待核验。试点实现依赖的待核验项会阻断对应步骤；后续阶段才用到的能力可注明阶段和宿主限制，不以空壳实现补齐。
 
-- [ ] 审计 `lib/runtime/tasks.js` 与调用方：列出共享 `jobs` 的来源、注册与控制入口、作用域释放、当前 extension 兼容范围、实际计量与完成通知责任者。逐项决定保留 / 演进 / 委托宿主 / 后续删除，并引用文件、符号和测试；不要先新建另一张任务表。
-- [ ] 记录资源与写入所有权：识别 `admitAudio`、`audioGate`、`lib/audio-pool.js` 各自限制的真实范围与计数实例；记录公共状态、manifest 业务字段、许可释放、重试、Call/用量、产物提交、通知的现有责任者及拟迁移责任者。不得用相似的函数名推断同一资源。
-- [ ] **单文件音频的行为清单**：锁定实际入口与“单文件”的范围，列出输入校验、步骤与回退顺序、状态值、manifest、计量点、取消、已有重试/恢复、通知和 UI 字段。按下面模板填写，每个断言对应源码与 fixture；未观察到的行为保持未确认。
+- [x] 审计 `lib/runtime/tasks.js` 与调用方：列出共享 `jobs` 的来源、注册与控制入口、作用域释放、当前 extension 兼容范围、实际计量与完成通知责任者。逐项决定保留 / 演进 / 委托宿主 / 后续删除，并引用文件、符号和测试；不要先新建另一张任务表。
+- [x] 记录资源与写入所有权：识别 `admitAudio`、`audioGate`、`lib/audio-pool.js` 各自限制的真实范围与计数实例；记录公共状态、manifest 业务字段、许可释放、重试、Call/用量、产物提交、通知的现有责任者及拟迁移责任者。不得用相似的函数名推断同一资源。
+- [x] **单文件音频的行为清单**：锁定实际入口与“单文件”的范围，列出输入校验、步骤与回退顺序、状态值、manifest、计量点、取消、已有重试/恢复、通知和 UI 字段。按下面模板填写，每个断言对应源码与 fixture；未观察到的行为保持未确认。
 
   | 行为 ID / 场景 | 现有入口与可见行为 | 状态 / 产物 / manifest / 用量 / 通知断言 | fixture 与测试 | 验证 SHA / 结果 |
   |---|---|---|---|---|
-  | 成功、无效输入、回退与失败 | 待填写 | 待填写 | 待填写 | 待填写 |
-  | 排队取消、运行取消、部分结果 | 待填写 | 待填写 | 待填写 | 待填写 |
-  | 重启后识别、既有重试/恢复 | 待填写 | 待填写 | 待填写 | 待填写 |
+  | AU-01/03/11/12：成功、无效输入、回退与失败 | [逐项旧行为](s1-0-audio-behavior.md#行为清单)；path/uploadId 校验，转写→校对→翻译→标题→资料 | 成功仅资料；失败/回退、用量与通知按已执行测试范围锁定，不推断真实 provider 质量 | 既有 audio/audio-retry/audio-pool-adaptive；新增 audio-single-characterization 第一项 | AA02592 + S1-0；[完整与定向结果](s1-0-baseline.md#已执行验证) |
+  | AU-09/12：排队取消、运行取消、部分结果 | [逐项旧行为](s1-0-audio-behavior.md#行为清单)；排队取消不调用模型，运行取消停后续窗口 | cancelled/retryable、已完成 checkpoint、partial 警告按旧断言；真实远端 stop 未确认 | audio-concurrency/audio-pool/audio-retry/audio；完整 verify 含 audio-windows | E024 定向与 AA02592 全量；[结果及限制](s1-0-baseline.md) |
+  | AU-05/14/15/16：重启识别、既有重试/恢复 | [旧 single recovery](s1-0-audio-behavior.md#行为清单)；运行中断识别为 failed+retryable，无自动调用 | 显式 retry 保持 singleId、换外部 ID；既有 checkpoint/累计用量保留 | audio-retry；新增 audio-single-characterization 真实进程退出/重启第二项 | AA02592 + S1-0，新增 2 pass；[验证记录](s1-0-baseline.md) |
 
   | 字段或操作 | 现有唯一责任者 / 源码 | 迁移后唯一责任者 | 兼容适配方式 / 验证 |
   |---|---|---|---|
-  | Job 生命周期、attempt 结算 | 待填写 | 待评审 | 待填写 |
-  | manifest 业务字段、产物提交 | 待填写 | 待评审 | 待填写 |
-  | 资源许可、传输重试、429 冷却 | 待填写 | 待评审 | 待填写 |
-  | Call、用量入账、完成事件、通知 | 待填写 | 待评审 | 待填写 |
-- [ ] **特征测试（characterization tests）**：仅新增测试、fixture 与文档，不改生产代码；固定实际可见行为，并在旧实现上通过。成功/失败、取消/部分结果、回退/计量、既有重启处理至少有对应证据；不支持的行为记录为不支持。发现缺陷另行登记，不能在此步修改业务或把目标设计写成测试预期。
+  | Job 生命周期、attempt 结算 | [领域 worker 与 tasks executor](s1-0-runtime-audit.md#4-字段操作与唯一责任者清单) | 唯一内核责任层与合法 DSH handle 组合待 S1-1/2 评审 | 同一 work.jobs，私有执行索引不增加公共表；[兼容草案](s1-1-compatibility.md#1-唯一事实来源权限与写入者) |
+  | manifest 业务字段、产物提交 | [audio-batch 与领域 store](s1-0-runtime-audit.md#4-字段操作与唯一责任者清单) | 领域业务 writer 保留，内核独占生命周期元字段；待实现审定 | 按当前 Attempt 授权提交，writer 保序/原子替换；崩溃窗口在 S1-5 验收 |
+  | 资源许可、传输重试、429 冷却 | [host audioGate、录音/批次 text pool、模型/tier retry](s1-0-runtime-audit.md#5-实际资源实例与重试分工) | 复用同一真实实例和单一策略层；待 S1-3/4 定稿 | 转写槽不等于整任务/文本配额；混跑与冷却尚未实现 |
+  | Call、用量入账、完成事件、通知 | [taskTracker、原账本、worker finally、notifier](s1-0-runtime-audit.md#4-字段操作与唯一责任者清单) | 迁移 Call 由网关写，沿用账本，唯一完成事件由生命周期写；待实现评审 | 不从旧 calls 猜 HTTP 请求；跨重启去重在 S1-4/5 验收 |
+- [x] **特征测试（characterization tests）**：仅新增测试、fixture 与文档，不改生产代码；固定实际可见行为，并在旧实现上通过。成功/失败、取消/部分结果、回退/计量、既有重启处理至少有对应证据；不支持的行为记录为不支持。发现缺陷另行登记，不能在此步修改业务或把目标设计写成测试预期。
 
 **交付物与门禁**：基线记录、能力表、任务服务审计、资源/字段所有权表、行为清单与旧实现上全绿的特征测试。记录测试命令、SHA、结果与评审通过链接。**P0 未核验、试点依赖项仍待核验、特征测试未通过或 S1-0 未获评审通过时，不进入 S1-1。** 文档上的目标接口不能作为完成证据。
+
+2026-10-05，所有者接受 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) 的已验证范围与待核验限制，授权合并并进入 S1-1 契约评审。该接受不放行相关生产实现；能力表的未确认项仍按其对应步骤补证据。
 
 
 ### 已核对的源码线索（不是 S1-0 通过记录）
@@ -77,7 +79,7 @@
 | 转写槽 | [host.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/host.js#L35-L48) 提供宿主共享 `audioGate`；[admitAudio](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/contexts/audio/worker.js#L22-L42) 在转写结束后释放槽 | 不是整段音频任务的占用，也不是文本计数器 |
 | 文本池 | [audio-job.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-job.js#L275-L278) 每录音一池；[audio-batch.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L256-L260) 每批次一池 | 原上限按录音/批次生效，不存在可直接引用的宿主统一文本计数；扩大限制作用域须独立开关 |
 | 单文件持久记录与重试 | [prepareSingleAudioRecord](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L110-L130) 已有 `kind:'single'`、输入 hash/size、参数与 job；[worker.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/contexts/audio/worker.js#L161-L190) 中断旧卡为 failed + retryable，重试换外部 job ID | S1-1 映射目标 interrupted / 稳定逻辑 Job 身份与旧状态/ID，保留兼容入口、通知和 UI 行为 |
-| 原子写与重试 | [audio-batch.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L19-L69) 有 Windows rename 重试和每 manifest 文件写入串行化；[audio-pool.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-pool.js#L41-L81) 同时拥有文本并发与限流拒绝重试 | 抽取保留写入顺序；接网关前核对 pool、传输重试、格式修复的分工，避免叠加 |
+| 原子写与重试 | [audio-batch.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-batch.js#L19-L69) 有 Windows rename 重试和每 manifest 文件写入串行化；[audio-pool.js](https://github.com/EricWang1358/dsh-web-studyhub/blob/d05588def3d43dc757b6d969885c69a0f87afe11/lib/audio-pool.js#L41-L78) 同时拥有文本并发与限流拒绝重试 | 抽取保留写入顺序；接网关前核对 pool、传输重试、格式修复的分工，避免叠加 |
 
 先检查既有 `tests/audio-concurrency.test.mjs`、`tests/host-ownership.test.mjs`、`tests/audio-pool.test.mjs`、`tests/audio-pool-adaptive.test.mjs`、`tests/audio-batch.test.mjs`；补缺口，不重复重写已有测试。
 
@@ -162,5 +164,5 @@
 | 单文件试点入口、范围、fixture | audio.import(path 或 uploadId) / 单录音；[行为与测试](s1-0-audio-behavior.md) |
 | tasks.js 审计与资源/字段所有权证据 | [审计与所有权](s1-0-runtime-audit.md)，迁移责任待契约评审 |
 | 特征测试命令 / SHA / 结果链接 | [基线记录](s1-0-baseline.md#已执行验证)：92 项基线 + 2 项新增；完整 verify 4935 pass / 0 fail / 2 skip |
-| 待核验能力与受阻步骤 | [能力表](s1-0-dsh-capabilities.md#待核验与阻断)；S1-1 仍受前置门禁约束 |
-| S1-0 评审者 / 通过评审链接 | 待填写 |
+| 待核验能力与受阻步骤 | [能力表](s1-0-dsh-capabilities.md#待核验与阻断)；S1-0 已接受的限制按 S1-2/3/4/5/6 对应门禁继续保留；本轮只进入契约评审 |
+| S1-0 评审者 / 通过评审链接 | 独立原生审查完成；所有者本轮接受范围与限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241)，merge f091f09f830c226bfebc9af22344896733893a10 |
