@@ -32,13 +32,14 @@ const effortMode = args.effort;
 const MULTIPLIER = { off: 0, low: 0.25, default: 1, high: 2, max: 4 };
 const MODEL_LEVELS = ["off", "low", "default", "high", "max"].map((id) => ({ id, name: id }));
 const effortModule = effortMode ? await load("lib/stage-effort.js") : null;
+const modelEffort = effortMode ? await load("lib/model-effort.js") : null;
 const EFFORT_STAGE = { plan: "planning", blueprint: "planning", review: "review", author: "writing", repair: "repair" };
 const note = (stage, system, prompt, reply) => {
   const input = dshSystemTokens(system) + dshUserTokens(prompt), output = dshUserTokens(reply);
   meter.calls++; meter.input += input; meter.output += output;
   if (effortModule) {
     const relative = effortMode === "stage" ? effortModule.EFFORT_DEFAULTS[EFFORT_STAGE[stage]] : "follow";
-    const level = relative === "follow" ? "high" : effortModule.resolveEffort(MODEL_LEVELS, relative, "default").id;
+    const level = relative === "follow" ? "high" : modelEffort.chooseEffort(MODEL_LEVELS, relative).id ?? "default";
     meter.reasoning += Math.round(output * MULTIPLIER[level]);
   }
   const row = (meter.byStage[stage] ||= { calls: 0, tokens: 0 }); row.calls++; row.tokens += input + output;

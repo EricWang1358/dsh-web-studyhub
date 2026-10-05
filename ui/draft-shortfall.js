@@ -42,16 +42,6 @@ export function draftWorkLabel(work, draft) {
   return progress ? uiFormat('生成中 · 草稿 {0}/{1} 题', [saved, total]) : ui('生成中…');
 }
 
-/** What the draft's status line says while something works on it (the same words as the action's label, without the progress numbers). */
-export function draftWorkStatus(work) {
-  const { kind, job } = work;
-  if (kind === 'publish') return job.status === 'queued' ? ui('发布检查排队中') : ui('发布检查中');
-  if (kind === 'repair') return job.status === 'queued' ? ui('修题排队中') : ui('后台修题中');
-  if (job.status === JOB_STATUS.CANCELLING) return ui('正在停止');
-  if (job.status === 'queued') return kind === 'topup' ? ui('补题排队中') : ui('排队中');
-  return kind === 'topup' ? ui('补题中') : ui('生成中');
-}
-
 /* ---------- why questions did not reach the draft (the reasons themselves: ui/quality-reasons.js) ---------- */
 
 const cardToken = (line) => {

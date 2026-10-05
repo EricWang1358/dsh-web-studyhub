@@ -1,6 +1,7 @@
 import { getUiLanguage, ui, uiFormat, uiMessage, useUiLanguage } from './i18n.js';
 import React, { useEffect, useRef } from 'react';
-import AudioReasoning, { EffortSelect } from './AudioReasoning.jsx';
+import AudioReasoning from './AudioReasoning.jsx';
+import { EffortSelect } from './EffortSelect.jsx';
 import { useModelEfforts } from './use-model-efforts.js';
 import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, Select, SetupRequired, SettingsSection, TextInput, useToast } from './components/index.js';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';

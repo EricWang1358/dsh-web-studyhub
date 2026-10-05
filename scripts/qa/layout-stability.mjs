@@ -62,6 +62,8 @@ export function installLayoutObserver() {
     const heights = new WeakMap();
     const sizes = new ResizeObserver((entries) => {
       for (const entry of entries) {
+        // A row that left the document (the learner went to another page) reports a height of 0: that is no shrinking.
+        if (!entry.target.isConnected) { heights.delete(entry.target); continue; }
         const height = Math.round((entry.borderBoxSize && entry.borderBoxSize[0] ? entry.borderBoxSize[0].blockSize : entry.contentRect.height) * 10) / 10;
         const before = heights.get(entry.target);
         heights.set(entry.target, height);

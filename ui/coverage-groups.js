@@ -1,5 +1,5 @@
 import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { cleanDocumentName } from '../lib/document-title.js';
+import { displayTitle } from '../lib/document-title.js';
 
 /* The per-source coverage list of a draft, by document (#201): the rows the generation recorded are one per source (one per PDF page), so a book
    shows up once per page with its whole file name. Grouped, the book is named once (as the 资料 page names it, without the file's extension or
@@ -22,10 +22,10 @@ export function coverageGroups(rows, sources) {
     if (!meta) {
       // The source is gone from the library: the page number and the document's name are still in the title it was recorded with.
       const title = String(row.title ?? ''), found = PAGE_IN_TITLE.exec(title);
-      meta = found ? { key: `title:${cleanDocumentName(title.replace(PAGE_IN_TITLE, ''))}`, title: title.replace(PAGE_IN_TITLE, ''), page: Number(found[1] || found[2]) }
+      meta = found ? { key: `title:${displayTitle(title.replace(PAGE_IN_TITLE, ''))}`, title: title.replace(PAGE_IN_TITLE, ''), page: Number(found[1] || found[2]) }
         : { key: `source:${row.id}`, title, page: null };
     }
-    if (!groups.has(meta.key)) groups.set(meta.key, { key: meta.key, title: cleanDocumentName(meta.title), rows: [], accepted: 0, planned: 0, covered: 0 });
+    if (!groups.has(meta.key)) groups.set(meta.key, { key: meta.key, title: displayTitle(meta.title), rows: [], accepted: 0, planned: 0, covered: 0 });
     const group = groups.get(meta.key), accepted = Number(row.accepted) || 0, planned = Number(row.planned) || 0;
     group.rows.push({ id: row.id, page: meta.page, planned, accepted });
     group.accepted += accepted; group.planned += planned; if (accepted > 0) group.covered += 1;

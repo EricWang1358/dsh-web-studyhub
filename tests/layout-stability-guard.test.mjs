@@ -145,3 +145,13 @@ test('a row whose slot was reserved, or that grew because of the learner\'s clic
     assert.equal(judgeLayoutStability(await drainLayoutStability(page)).ok, true, 'a click\'s own consequence is the learner\'s doing');
   });
 });
+
+test('a row that leaves the page (the learner went elsewhere) is not a row that shrank to nothing', { timeout: 120000 }, async (t) => {
+  await withPage(t, 'rows', async (page) => {
+    await page.evaluate(() => { document.getElementById('list').remove(); });
+    await frames(page, 4);
+    const verdict = judgeLayoutStability(await drainLayoutStability(page));
+    assert.equal(verdict.rowResizes, 0, 'twelve rows removed from the document report no resize');
+    assert.equal(verdict.ok, true);
+  });
+});

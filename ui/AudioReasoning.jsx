@@ -1,40 +1,13 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
-import { Field, Hint, Select } from './components/index.js';
-import { STRENGTH_LABEL, chooseEffort, effortChoices, effortNote } from '../lib/model-effort.js';
+import { Hint } from './components/index.js';
+import { EffortSelect, effortNoteText } from './EffortSelect.jsx';
+
+export { EffortSelect, effortNoteText };
 
 /* Reasoning strength of the audio text steps. One control per setting: a select whose options are the levels the model in use
-   offers (its own names) plus "model default". The saved value is a relative strength (lib/model-effort.js); when the model has
-   no level of that strength the nearest one is used and the card says so here, never silently. */
-
-/** The sentence that explains how a saved strength is met by this model, or '' when it is met exactly. */
-export function effortNoteText(note) {
-  if (!note) return '';
-  return note.reason === 'unsupported'
-    ? uiFormat('当前模型没有可调的推理强度，「{0}」不起作用，按模型默认运行', [ui(note.wanted)])
-    : uiFormat('当前模型没有「{0}」，已用「{1}」', [ui(note.wanted), note.used]);
-}
-
-/**
- * A select for one reasoning preference. `efforts` is the model's list ([{ id, name }]) or null while it is not known yet.
- * `description` is the line under the label (the measured timing, for the audio steps).
- */
-export function EffortSelect({ label, value, efforts = null, disabled = false, onChange, description, className }) {
-  const known = Array.isArray(efforts);
-  const choices = effortChoices(known ? efforts : []);
-  const options = choices.map(choice => ({ value: choice.value, label: choice.value === 'default' ? ui('模型默认') : choice.name }));
-  // A saved strength this model does not offer stays visible as what it is, so the select never shows a level that is not the one in force.
-  if (!choices.some(choice => choice.value === value)) options.push({ value, label: ui(STRENGTH_LABEL[value] || value) });
-  const note = known ? effortNote(chooseEffort(efforts, value)) : null;
-  return <div className={className}>
-    <Field label={label} hint={description}>
-      <Select value={value} disabled={disabled} onChange={event => onChange(event.target.value)}>
-        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </Select>
-    </Field>
-    {note && <Hint className="audio-effort-note" tone="warning">{effortNoteText(note)}</Hint>}
-  </div>;
-}
+   offers (its own names) plus "model default" (ui/EffortSelect.jsx, shared with the per-stage levels of 出题偏好). The saved value is a relative
+   strength (lib/model-effort.js); when the model has no level of that strength the nearest one is shown and used, and the note says so. */
 
 export default function AudioReasoning({ settings, busy, onSave, timings = [], efforts = null, modelName = '' }) {
   const proof = settings.proofreadReasoning || 'default', translation = settings.translateReasoning || 'low';

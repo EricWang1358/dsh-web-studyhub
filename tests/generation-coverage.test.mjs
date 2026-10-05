@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { cleanDocumentName } from "../lib/document-title.js";
+import { displayTitle } from "../lib/document-title.js";
 
 /* #201: the per-source coverage list names a document once and lists its pages under it, counts pages as 页 and documents as 份, and shows the
    name the 资料 page would: the file name without its extension and without the source-site noise. */
@@ -16,17 +16,17 @@ const page = (n, extra = {}) => ({ id: `pdf-${n}`, title: `${BOOK} · p.${n}`, t
 const note = (id, title) => ({ id, title, text: `${title} text.` });
 
 test("a file name loses its extension and the noise of the site it came from, and keeps what names the work", () => {
-  assert.equal(cleanDocumentName(`${BOOK}.pdf`), CLEAN);
-  assert.equal(cleanDocumentName(BOOK), CLEAN);
-  assert.equal(cleanDocumentName("Lecture 3 [Z-Library].pdf"), "Lecture 3");
-  assert.equal(cleanDocumentName("www.some-site.com - Distributed Systems.pdf"), "Distributed Systems");
-  assert.equal(cleanDocumentName("Distributed Systems (2nd Edition) (Annas Archive).epub"), "Distributed Systems (2nd Edition)");
-  assert.equal(cleanDocumentName("Lecture 3.pdf"), "Lecture 3");
-  assert.equal(cleanDocumentName("notes_week_2"), "notes_week_2", "underscores and plain names stay");
-  assert.equal(cleanDocumentName("My Notes (draft)"), "My Notes (draft)", "a bracket that is not a site tag stays");
-  assert.equal(cleanDocumentName("(z-library.sk).pdf"), "(z-library.sk)", "never an empty name");
-  assert.equal(cleanDocumentName(""), "");
-  assert.equal(cleanDocumentName(undefined), "");
+  assert.equal(displayTitle(`${BOOK}.pdf`), CLEAN);
+  assert.equal(displayTitle(BOOK), CLEAN);
+  assert.equal(displayTitle("Lecture 3 [Z-Library].pdf"), "Lecture 3");
+  assert.equal(displayTitle("www.some-site.com - Distributed Systems.pdf"), "Distributed Systems");
+  assert.equal(displayTitle("Distributed Systems (2nd Edition) (Annas Archive).epub"), "Distributed Systems (2nd Edition)");
+  assert.equal(displayTitle("Lecture 3.pdf"), "Lecture 3");
+  assert.equal(displayTitle("notes_week_2"), "notes_week_2", "underscores and plain names stay");
+  assert.equal(displayTitle("My Notes (draft)"), "My Notes (draft)", "a bracket that is not a site tag stays");
+  assert.equal(displayTitle("(z-library.sk).pdf"), "(z-library.sk)", "never an empty name");
+  assert.equal(displayTitle(""), "");
+  assert.equal(displayTitle(undefined), "");
 });
 
 const require = createRequire(import.meta.url);

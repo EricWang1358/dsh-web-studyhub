@@ -1,11 +1,7 @@
 {
-  "模型当前限流": "The model is rate-limited right now.",
-  "稍等一两分钟再点重新生成；或在设置里换一个模型。": "Wait a minute or two, then try again, or switch model in Settings.",
   "充值，或在设置里换一个模型后再试。": "Top up, or switch model in Settings, then try again.",
   "在模型设置里填好 API Key 后再试。": "Add an API key in the model settings, then try again.",
-  "模型太久没有回应": "The model took too long to respond.",
   "稍后再试一次。": "Try again in a little while.",
-  "连接模型失败": "Could not connect to the model.",
   "检查网络后重试。": "Check the network and try again.",
   "稍后再试。": "Try again later.",
   "「{0}」里没找到与「{1}」直接相关的主题，先学这门课的内容": "Nothing in “{0}” matches “{1}” directly; studying this course’s content first",

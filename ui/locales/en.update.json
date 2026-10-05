@@ -42,7 +42,6 @@
   "桌面版提示：在插件管理里操作无需退出；若改用命令行安装，必须先完全退出桌面版（包括托盘图标）。": "Desktop tip: the Plugins page works while DSH runs; a command-line install only works after DSH desktop is fully quit (including the tray icon).",
   "检查更新": "Check for updates",
   "正在下载并校验安装包，然后交给 DSH 安装…": "Downloading and verifying the package, then handing it to DSH…",
-  "每 12 小时最多向 GitHub 查询一次最新版本，不发送任何学习数据。": "Asks GitHub for the latest version at most once every 12 hours. No study data is sent.",
   "添加插件": "Add plugin",
   "确认升级": "Upgrade now",
   "确认升级？": "Upgrade now?",

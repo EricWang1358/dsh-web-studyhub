@@ -1,4 +1,4 @@
-/* node scripts/qa/layout-late.mjs --scenario picker|wrongbook|titles [--dist dist] [--lang zh|en] [--theme dark|light] [--width 1280|420]
+/* node scripts/qa/layout-late.mjs --scenario picker|sources|wrongbook|titles [--dist dist] [--lang zh|en] [--theme dark|light] [--width 1280|420]
                                    [--out output/layout-stability/<scenario>] [--label before|after]
    WP-LS (#205 #206 #207): late data on a seeded temporary library, measured in the browser preview. The preview serves the real app with the fake
    model, a library written under the OS temp dir and every key/token/base-url variable removed. The late answer (index coverage, recommendations)
@@ -6,7 +6,7 @@
    is let through, and the same elements are measured again. Prints one JSON line per scenario with positions, CLS and the longest long task, and
    writes <out>/<label>-<width>-<lang>-<theme>-{before-arrival,after-arrival}.png.
    The same functions drive tests/layout-late-*.test.mjs. */
-/* global document, requestAnimationFrame */
+/* global document, window, MutationObserver, requestAnimationFrame */
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -206,6 +206,74 @@ export async function pickerScenario({ browser, running, lang = "zh", theme = "d
   return { scenario: "picker", documents, before, after, badges, cls: verdict.cls, shifts: verdict.shifts, rowResizes: verdict.rowResizes, resizes: verdict.resizes.slice(0, 3), longestTaskMs: longestTask(log), longTasks: log.longTasks, pollLongestTaskMs: longestTask(pollLog), pollLongTasks: pollLog.longTasks.length, pollRowResizes: pollLog.resizes.length, errors };
 }
 
+/* ---------- scenario: the 资料 page with late index coverage (#229, the picker's #205 on the page that lists the same materials) ---------- */
+
+/** Count what the page redraws inside the rows: distinct rows touched and DOM mutations since the last read (`read` resets). */
+const installRowTracker = (page) => page.evaluate(() => {
+  const state = { rows: new Set(), mutations: 0 };
+  window.__rowTracker = state;
+  const root = document.querySelector(".source-groups") || document.body;
+  new MutationObserver((list) => {
+    for (const record of list) {
+      const element = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      const row = element && element.closest ? element.closest(".source-doc") : null;
+      state.mutations++;
+      if (row) state.rows.add(row.getAttribute("data-document-key"));
+    }
+  }).observe(root, { subtree: true, childList: true, characterData: true, attributes: true });
+});
+const readRowTracker = (page) => page.evaluate(() => { const state = window.__rowTracker, out = { rows: state.rows.size, mutations: state.mutations }; state.rows.clear(); state.mutations = 0; return out; });
+
+export async function sourcesScenario({ browser, running, lang = "zh", theme = "dark", width = 1280, shots = null, polls = 2 }) {
+  const { page, errors, context } = await openPage(browser, running, { lang, theme, width });
+  const hold = await holdActions(page, ["retrieval.index.coverage"]);
+  await page.goto(running.server.url);
+  await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
+  const nav = page.locator('[data-tour="nav-sources"]').first();
+  await nav.waitFor({ state: "visible" });
+  await nav.dispatchEvent("click");
+  const rows = ".sources-page .source-doc";
+  await page.locator(rows).first().waitFor({ timeout: 30000 });
+  await until(() => hold.seen("retrieval.index.coverage"), "the page to ask for index coverage");
+  await settleAnimations(page);
+  await frames(page, 4);
+  const before = await positions(page, rows, 8);
+  const documents = await page.locator(rows).count();
+  await installRowTracker(page);
+  await drainLayoutStability(page);
+  if (shots) await page.screenshot({ path: join(shots, "before-arrival.png") });
+  const snapshot = await running.api("snapshot");
+  const ids = snapshot.sources.map((source) => source.id);
+  const partial = new Set(ids.filter((id) => id.startsWith("pdf-0-p")).slice(0, 2));
+  const answer = (done) => ({ indexed: ids.filter((id) => done || !partial.has(id)), stale: [], missing: done ? [] : [...partial], hasIndex: true, canIndex: true,
+    building: done ? null : { course: "*", stage: "embedding", done: 12, total: 40 } });
+  hold.release("retrieval.index.coverage", answer(false));
+  await until(() => page.locator(".sources-page .index-badge").count(), "the index badges to appear");
+  await frames(page, 4);
+  const after = await positions(page, rows, 8);
+  const log = await drainLayoutStability(page);
+  if (shots) await page.screenshot({ path: join(shots, "after-arrival.png") });
+  const badges = await page.locator(".sources-page .index-badge").count();
+  const arrival = await readRowTracker(page);
+  // A build is running: the page asks again every few seconds and gets an answer of the same content (a new object each time): no row is rebuilt;
+  // the DOM would not show it (React writes nothing that did not change), so the long task of the answer is the measure.
+  const asked = hold.count("retrieval.index.coverage");
+  await until(() => hold.count("retrieval.index.coverage") >= asked + polls, `${polls} more coverage answers`, { timeoutMs: 30000 });
+  await frames(page, 6);
+  const pollLog = await drainLayoutStability(page);
+  const poll = await readRowTracker(page);
+  // The build finishes: the first PDF goes from "building" to "indexed", and only its row is redrawn.
+  hold.release("retrieval.index.coverage", answer(true));
+  await until(() => page.locator(`.sources-page .source-doc[data-document-key="pdf:${hash(0)}"] .index-badge[data-state="indexed"]`).count(), "the first PDF's badge to turn indexed", { timeoutMs: 30000 });
+  await frames(page, 6);
+  const change = await readRowTracker(page);
+  const verdict = judgeLayoutStability(log);
+  await context.close();
+  return { scenario: "sources", documents, before, after, badges, cls: verdict.cls, shifts: verdict.shifts, rowResizes: verdict.rowResizes, resizes: verdict.resizes.slice(0, 3),
+    longestTaskMs: longestTask(log), longTasks: log.longTasks, arrivalRowsTouched: arrival.rows, pollRowsTouched: poll.rows, pollMutations: poll.mutations, pollLongestTaskMs: longestTask(pollLog),
+    changeRowsTouched: change.rows, errors };
+}
+
 /* ---------- scenario: 错题与待巩固 with late recommendations (#206) ---------- */
 
 /** What the retrain bar and the list show right now: positions and the words that must not change under the learner. */
@@ -298,7 +366,7 @@ function parse(argv) {
     dist: values.dist ? resolve(values.dist) : resolve(repoRoot, "dist"), label: values.label ?? "run", out: values.out ? resolve(values.out) : resolve(repoRoot, "output/layout-stability") };
 }
 
-const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)], titles: [titlesScenario, (root) => seedTitlesLibrary(root)], shell: [shellScenario, () => null] };
+const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], sources: [sourcesScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)], titles: [titlesScenario, (root) => seedTitlesLibrary(root)], shell: [shellScenario, () => null] };
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invoked) {
