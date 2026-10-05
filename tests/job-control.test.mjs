@@ -286,7 +286,7 @@ test('job.control set: a running generation job takes the change, reports it bac
   const settings = running.contract.actions.set.settings;
   assert.equal(settings.find((item) => item.key === 'concurrency').value, 4, 'the contract shows what can be adjusted and its current value');
   assert.equal(settings.find((item) => item.key === 'concurrency').max, 8);
-  assert.equal(running.contract.actions.pause.reason.code, 'capability-unsupported', 'and says why it cannot be paused');
+  assert.equal(running.contract.actions.pause.reason.code, 'single-round', 'and says why it cannot be paused: one round has no boundary');
   const reply = await service.call('job.control', { jobId: started.jobId, action: 'set', patch: { concurrency: 2, effortReview: 'highest' } });
   assert.equal(reply.action, 'set');
   assert.deepEqual(reply.applied, { concurrency: 2, effortReview: 'highest' });
@@ -297,7 +297,7 @@ test('job.control set: a running generation job takes the change, reports it bac
   assert.ok(after.contract.events.some((event) => event.code === 'control'), 'the change is a line of the log');
   const legacy = await service.call('job.control', { jobId: started.jobId, patch: { concurrency: 3 } });
   assert.equal(legacy.action, 'set', 'a patch without an action is a set');
-  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'capability-unsupported' && /不支持/.test(error.message));
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'single-round' && /只出一轮/.test(error.message));
   await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'retry' }), (error) => error.code === 'capability-unsupported');
   await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'set', patch: { paused: true } }), /pause/);
   await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'explode' }), (error) => error.code === 'unknown-action');

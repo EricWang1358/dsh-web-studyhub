@@ -23,7 +23,7 @@ import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
-  DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, customCountOf, courseHasCaseExam,
+  DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam,
   NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, notationNote, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
@@ -207,7 +207,9 @@ export default function Generate({
                 </FormRow>
                 <FormRow label={ui("覆盖强度")}>
                   <CoverageStrength level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
-                    onLevel={(coverageLevel) => setGen({ ...gen, coverageLevel })} onCustom={(customCount) => setGen({ ...gen, customCount })} />
+                    onLevel={(coverageLevel) => setGen({ ...gen, coverageLevel })} onCustom={(customCount) => setGen({ ...gen, customCount })}
+                    auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })}
+                    budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
                 </FormRow>
                 <FormRow label={ui("难度")}>
                   <SegmentedControl label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}

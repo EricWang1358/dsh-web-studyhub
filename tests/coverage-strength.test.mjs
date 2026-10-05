@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STRENGTH, LEVELS, DEFAULT_LEVEL, LIMITS, strengthPlan, quotasFor, assignmentsOf, roundsOf, weightOf } from '../lib/coverage-strength.js';
 import { sectionKey } from '../lib/coverage.js';
+import { evidenceOf } from '../lib/sections.js';
 import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 
 /* The strength of a coverage (lean / standard / full): which sections must get a question, the target density, the quota of each section and the rounds they are grouped into.
@@ -142,7 +143,7 @@ test('the merged transcript (81 sections, 5 recordings): standard asks every sec
   assert.ok(lean.mustCover < 81 && lean.mustCover >= 5);
   assert.equal(full.mustCover, 81);
   assert.ok(lean.goal < standard.goal && standard.goal < full.goal, `${lean.goal} < ${standard.goal} < ${full.goal}`);
-  assert.equal(standard.goal, Math.round(6 * fx.leaves.reduce((acc, item) => acc + item.chars, 0) / 10000));
+  assert.equal(standard.goal, Math.round(6 * fx.leaves.reduce((acc, item) => acc + evidenceOf(item), 0) / 10000), 'the density counts the evidence: one language of a bilingual transcript');
   for (const recording of [1, 2, 3, 4, 5]) assert.ok(lean.quotas.some(item => leaves.find(l => keyOf(l) === item.sectionId).recording === recording), `lean has recording ${recording}`);
   assert.equal(strengthPlan(leaves, [], 'standard').goal, standard.goal, 'stable under re-computation');
 });

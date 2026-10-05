@@ -20,6 +20,7 @@
     .cjc__dot[data-state='done'] { background: var(--ok); }
     .cjc__dot[data-state='partial'] { background: var(--warn); }
     .cjc__dot[data-state='fail'] { background: var(--bad); }
+    .cjc__dot[data-state='interrupted'] { background: var(--warn); }
     .cjc__dot[data-state='queued'] { background: var(--info); }
     .cjc__main { display: grid; gap: var(--space-1); min-width: 0; }
     .cjc__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); min-width: 0; }
@@ -29,6 +30,7 @@
     .cjc__pct[data-state='done'] { color: var(--ok-ink); }
     .cjc__pct[data-state='partial'] { color: var(--warn-ink); }
     .cjc__pct[data-state='fail'] { color: var(--bad-ink); }
+    .cjc__pct[data-state='interrupted'] { color: var(--warn-ink); }
     .cjc__line { min-width: 0; overflow: hidden; font-size: var(--fs-xs); color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
     .cjc__slot { display: flex; justify-content: flex-end; min-width: 0; }
     .cjc__go { width: 100%; justify-content: center; }

@@ -46,6 +46,8 @@ Each entry of `contract.actions` is `{ available: true }` or `{ available: false
 | `not-retryable` | nothing to continue from |
 | `capability-unsupported` | this kind of job does not do that |
 | `no-safe-checkpoint` | the kind pauses only while queued, and it is running |
+| `single-round` | a question run of one round: nothing to pause between (a coverage run of several rounds pauses between them) |
+| `manual-run` | a coverage run that does not go on by itself (自动补到完整 off) ends after the round in flight: no boundary to pause at |
 | `already-paused`, `not-paused`, `already-cancelling` | the state already is (or is not) that |
 | `no-control-yet` | it has not started, so there is nothing to adjust or pause |
 | `unknown-action` | not one of the five |
@@ -55,9 +57,9 @@ Each entry of `contract.actions` is `{ available: true }` or `{ available: false
 
 A kind declares its `pause.mode` (`actions.pause.mode`):
 
-- `unsupported`: no pause. Offered nowhere it is not real: a question run keeps nothing a pause could stop at, so it is stopped (what passed review is kept) or left running; a PDF conversion cannot pause either.
+- `unsupported`: no pause. Offered nowhere it is not real: a question run of ONE round keeps nothing a pause could stop at, so it is stopped (what passed review is kept) or left running (`single-round`); a PDF conversion cannot pause either.
 - `queued-only`: a job can be held until it starts. Declared by the contract; no kind uses it yet (it needs a library queue that can skip a held job).
-- `checkpoint`: audio import and translation. Pause stops dispatching new calls and lets the admitted ones finish. The status is `pausing` (with `actions.pause.waiting = { reason: "calls-in-flight", count }`) until nothing is in flight, then `paused`; the audio batch writes its manifest at that boundary (finished windows are already kept in their checkpoints, so a restart continues from them). A pause that only blocked new calls with nothing checkpointed is never offered.
+- `checkpoint`: audio import, translation and a **coverage run** (lib/coverage-run.js: the rounds of a coverage plan on one draft; the draft keeps every round that is done, so the boundary between two rounds is a safe place). A coverage run pauses between rounds: the round in flight finishes, no new round starts (`pausing` until then, `paused` at the boundary; the console says 暂停于第 i 轮之后). Its `set` settings add the bool `autoComplete` (自动补到完整: after the round in flight it goes on by itself, or ends and waits for the learner); `retry` is 接着做 for a run the last process left running (the draft is the checkpoint: it continues at the next round that is not done); `detail.run` carries `{ rounds, round, done, left, percent, tokensUsed, projection, state, auto, pausedAfter?, stop?, list: [{ round, questions, status, fill, kept?, covered?, tokens?, ms? }] }`. Audio import and translation: Pause stops dispatching new calls and lets the admitted ones finish. The status is `pausing` (with `actions.pause.waiting = { reason: "calls-in-flight", count }`) until nothing is in flight, then `paused`; the audio batch writes its manifest at that boundary (finished windows are already kept in their checkpoints, so a restart continues from them). A pause that only blocked new calls with nothing checkpointed is never offered.
 
 ### Set
 
@@ -115,7 +117,7 @@ The text comes from the model path of this plugin: the direct streamed call, and
 | audio-import | everything: batch identity + attempt, per-file rows, grouped notices, pause (checkpoint), set, retry, calls with slots and waits, live output of host-model windows | live output of Gemini transcription and Gemini text (no stream); the stage of a batch is the batch's phase, per-file stages are in `detail.files` |
 | pdf-convert | status, stage, progress (total unknown until reported), retry, result refs, detail (route, window) | pause, set, calls (the converter reports none), live output |
 | translation | status, progress, pause (checkpoint at a wave), set concurrency, calls, live output | retry (a new translation is started, never twice) |
-| generation, supplement | status, stage, progress in questions, set (concurrency, per-stage reasoning), calls with slots and waits, live output, result refs (draft/deck) | pause (nothing is checkpointed), retry (continuing a draft is its own action) |
+| generation, supplement | status, stage, progress in questions, set (concurrency, per-stage reasoning), calls with slots and waits, live output, result refs (draft/deck); a coverage run (generation): pause between rounds, `autoComplete`, 接着做 after a restart, `detail.run` | pause of a one-round run (nothing is checkpointed), retry of a plain run (continuing a draft is its own action) |
 | draft-repair, draft-publish | status, stage, progress (repair), cancel (repair only), result refs | calls and controls (their own loops do not record them yet) |
 | extension tasks | status, stage, progress, cancel | everything else |
 | coach-daily (为你定制) | ONE row per local day (`jobId: "coach:YYYY-MM-DD"`, kept in `<library>/coach-daily.json`, the last 14 days; the snapshot shows seven): its batches as calls of kind `prep` (when, cards asked, written, kept, skipped, tokens in / out / cache, a `reason` code when a batch wrote nothing), the day's figures (`detail.metrics`: generated, passed, practised, correct, accuracy, skippedExpired; practice is read from the attempts on the 为你定制 deck, never copied), pause today (`pause`, mode `checkpoint`: no new batch starts, the one in flight finishes), resume, and `set` (`maxBatchesPerDay` 1-48, `maxReady` 1-12, `reasoning` lowest..highest; applies from the next batch). Only today's row can be adjusted; a past day is a record and `job.dismiss` removes it | cancel (a day is a record, not a run: `capability-unsupported`), retry, live output (a batch writes no stream) |

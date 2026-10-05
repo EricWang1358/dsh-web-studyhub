@@ -116,11 +116,13 @@
     .tc-dot[data-state='done'] { background: var(--ok); }
     .tc-dot[data-state='partial'] { background: var(--warn); }
     .tc-dot[data-state='fail'] { background: var(--bad); }
+    .tc-dot[data-state='interrupted'] { background: var(--warn); }
     .tc-dot[data-state='queued'] { background: var(--info); }
     .tc-num[data-state='run'] { color: var(--accent-text); }
     .tc-num[data-state='done'] { color: var(--ok-ink); }
     .tc-num[data-state='partial'] { color: var(--warn-ink); }
     .tc-num[data-state='fail'] { color: var(--bad-ink); }
+    .tc-num[data-state='interrupted'] { color: var(--warn-ink); }
     .tc-empty { padding: var(--space-6) var(--space-4); color: var(--text-muted); }
 
     /* A column, not a grid with a fixed row list: the header, metrics, controls and the optional usage line keep their own height and the body takes
@@ -298,6 +300,29 @@
       border-bottom: 1px solid var(--line);
       background: var(--bg-surface);
     }
+    /* A coverage run (lib/coverage-run.js): its line under the facts (the round, the coverage, what it has used and what is left) and the true reason when it has stopped; the toggle beside the header's buttons. */
+    .tc-run { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); }
+    .tc-run__k { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
+    .tc-run__line { min-width: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+    .tc-run__stop { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
+    .tc-run[data-run-state='interrupted'] .tc-run__line, .tc-run[data-run-state='stopped'] .tc-run__line { color: var(--warn-ink, var(--text)); }
+    .tc-head__auto { flex: none; align-self: center; margin-inline: var(--space-2); }
+    /* The rounds at the top of 资料部分: a row each, its sections on demand. */
+    .tc-rounds { border-bottom: 1px solid var(--line); }
+    .tc-rounds__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin: 0; padding: var(--space-3) var(--space-4) var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
+    .tc-rounds__head small { font-weight: var(--fw-regular); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+    .tc-rounds__head--parts { border-top: 1px solid var(--line); background: var(--bg-sunken); }
+    .tc-rounds__list { margin: 0; padding: 0; list-style: none; }
+    .tc-rounds__list > li { border-top: 1px solid var(--line-soft); }
+    .tc-round { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: start; gap: var(--space-3); padding: var(--space-3) var(--space-4); text-align: start; }
+    .tc-round .tc-dot { margin-top: 0.4em; }
+    .tc-round__name { display: flex; flex-direction: column; min-width: 0; font-size: var(--fs-sm); white-space: normal; overflow-wrap: anywhere; }
+    .tc-round__result { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.4; }
+    .tc-rounds__list > li[data-status='running'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
+    .tc-round__sections { display: grid; gap: var(--space-half); margin: 0; padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + var(--space-5)); list-style: none; }
+    .tc-round__sections li { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-xs); }
+    .tc-round__sections li[data-state='covered'] small { color: var(--ok-ink); }
+    .tc-round__sections small { color: var(--text-muted); white-space: nowrap; }
     /* What an audio import asked of its providers: ONE line of a fixed height, whatever it says; the notices are the log's. */
     .tc-usage {
       flex: none;

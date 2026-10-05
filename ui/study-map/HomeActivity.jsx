@@ -4,6 +4,7 @@ import { Badge, Button, InlineMessage } from '../components/index.js';
 import { CoverageTopUp } from '../coverage/CoverageTopUp.jsx';
 import { useCoverage } from '../coverage/use-coverage.js';
 import { coverageHead } from '../coverage/copy.js';
+import { runSummary } from '../coverage/RunPanel.jsx';
 import { foldJobsByDraft, isActiveJob } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
@@ -22,6 +23,8 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
   // The status is said once, in a Badge (#228): the work's own (with its progress, under the title) while something runs, else this one on the facts' line (it
   // adds no line: the 待发布 list arrives after a generation, and a taller list moves the page below it further); the meta text is facts.
   const work = draftWork(d, data.jobs);
+  // A draft whose plan has rounds says where its run is in the draft page's words (lib/coverage-run.js draftRunFacts: 「第 1 轮完成，还有 11 轮 · 覆盖 9%」); that line carries the coverage.
+  const run = !work && covered.view?.status === 'ok' ? runSummary(d, data.jobs, covered.view.coverage?.percentLeaves ?? null, covered.view.coverage) : null;
   const status = rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查');
   return (
     <div className="draft-row">
@@ -30,7 +33,7 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
           <strong>{d.title}</strong>
           <small className="draft-meta">
             <span className="draft-meta__facts">{joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
-              covered.view?.coverage?.leaves ? coverageHead(covered.view.coverage) : '',
+              run?.facts.total > 1 && run.facts.state !== 'complete' ? run.line : covered.view?.coverage?.leaves ? coverageHead(covered.view.coverage) : '',
               Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
                 ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}</span>
             {!work && <Badge size="sm" tone={rejectedCount ? 'warning' : 'neutral'} data-draft-status>{status}</Badge>}

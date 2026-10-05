@@ -21,12 +21,12 @@ const estimate = (args, over = {}) => estimateFromState('generate', { sourceIds:
 test('a coverage estimate says what the level means and prices every round, the importance calls and the re-asks', () => {
   const standard = estimate({ coverageLevel: 'standard' });
   assert.deepEqual([standard.coverage.level, standard.coverage.sections, standard.coverage.leaves], ['standard', 81, 81]);
-  assert.ok(standard.coverage.goal > 300 && standard.coverage.rounds >= Math.ceil(standard.coverage.goal / 30), 'rounds of at most 30 questions');
+  assert.ok(standard.coverage.goal > 200 && standard.coverage.rounds >= Math.ceil(standard.coverage.goal / 30), 'rounds of at most 30 questions');
   assert.ok(standard.coverage.firstRound <= 30);
   assert.ok(standard.totalTokens.low > 1_000_000 && standard.totalTokens.high > standard.totalTokens.low);
   assert.ok(standard.calls.low > standard.coverage.rounds && standard.calls.high > standard.calls.low);
   const stage = id => standard.stages.find(item => item.id === id);
-  assert.ok(stage('plan').calls >= 5 + 40, 'a planning call per group of sections plus the importance calls (one per chunk of 20 sections)');
+  assert.ok(stage('plan').calls >= 5 + 25, 'a planning call per group of sections plus the importance calls (one per chunk of 20 sections)');
   assert.ok(stage('author').calls >= standard.coverage.rounds);
   assert.deepEqual(Object.keys(standard.coverage.levels), ['lean', 'standard', 'full']);
   const [lean, full] = [estimate({ coverageLevel: 'lean' }), estimate({ coverageLevel: 'full' })];

@@ -1,5 +1,6 @@
 import { ui, uiFormat } from '../i18n.js';
 import { META_DOT } from '../format.js';
+import { formatCompactTokens } from '../../lib/token-usage.js';
 
 /* 覆盖: the words of coverage, written ONCE (README docs/plans/coverage-generation). The 任务 console's 资料部分, the draft page, the 资料 row, the reader's toolbar, outline and
    practice popover all say it through these functions, so one fact has one wording on every screen. Coverage is "asked" (a section has a question), mastery is "learned"
@@ -91,7 +92,8 @@ export function weightLine(weight) {
 export function planLine(spec) {
   if (!spec?.goal) return '';
   const source = spec.weightSource === 'model' ? ui('重要性由模型判断') : spec.weightSource === 'mixed' ? ui('部分按篇幅分配') : ui('按篇幅分配，没有用模型判断重要性');
-  return uiFormat('出题计划：{0}，约 {1} 题，分 {2} 轮（{3}）', [levelLabel(spec.level), spec.goal, spec.rounds, source]);
+  const line = uiFormat('出题计划：{0}，约 {1} 题，分 {2} 轮（{3}）', [levelLabel(spec.level), spec.goal, spec.rounds, source]);
+  return spec.fills > 0 ? uiFormat('{0}；另补做 {1} 轮', [line, spec.fills]) : line;
 }
 
 /** A section as a list names it: its title, else its page, else its ordinal. */
@@ -118,3 +120,104 @@ export function uncoveredInRange(r, { recorded = true, max = 4 } = {}) {
 /** One line for the reader's 做这几页的题 panel: how much of the range has no question. */
 export const rangeUncoveredLine = (uncovered, leaves, units) => (units === 'page'
   ? uiFormat('这几页里有 {0} 页还没有题（共 {1} 页）', [uncovered, leaves]) : uiFormat('其中 {0} 个小节还没有题（共 {1} 个）', [uncovered, leaves]));
+
+/* ---------- the rounds of a run (lib/coverage-run.js): what the 任务 console's header, the draft page, the home row and the log say ---------- */
+
+/** 「自动补到完整」: the one choice between a manual run (a button for each round) and a run that goes on by itself. */
+export const autoLabel = () => ui('自动补到完整');
+
+/** What the choice means, for a plan of `rounds` rounds: the line under the checkbox on the creation form and on the draft page. */
+export const autoLine = (auto, rounds) => (auto
+  ? uiFormat('先出第 1 轮，剩下的 {0} 轮一轮接一轮自动做完；可以随时暂停，或停在这里（已出的题都保留）。', [Math.max(0, rounds - 1)])
+  : uiFormat('只出第 1 轮；其余 {0} 轮在草稿页点「为没覆盖的部分补题」，一次补一轮。', [Math.max(0, rounds - 1)]));
+
+/** On the draft page, for a run that is not going on by itself: what ticking 「自动补到完整」 does. */
+export const autoStartLine = (left) => (left === 1 ? ui('勾选后，最后 1 轮会自动补完；可以随时暂停或停下。') : uiFormat('勾选后，剩下的 {0} 轮会一轮接一轮自动补完；可以随时暂停或停下。', [left]));
+
+/** 「第 3/12 轮」 */
+export const roundOfText = (round, rounds) => uiFormat('第 {0}/{1} 轮', [round, rounds]);
+
+/** 「1.2M tok」 */
+export const tokensText = (value) => uiFormat('{0} tok', [formatCompactTokens(Math.max(0, Math.round(Number(value) || 0)))]);
+
+const minutesText = (minutes) => (minutes >= 90 ? uiFormat('{0} 小时 {1} 分钟', [Math.floor(minutes / 60), minutes % 60]) : uiFormat('{0} 分钟', [minutes]));
+
+/** What is left, from the rounds done (「预计还要 2.0M tok、约 25 分钟」), or, with no history yet, from the estimate made before the run, said to be that. */
+export function projectionText(projection) {
+  if (!projection || !(projection.tokens > 0)) return '';
+  if (projection.basis === 'estimate') return uiFormat('预计还要约 {0}（出题前的估算）', [tokensText(projection.tokens)]);
+  return projection.minutes ? uiFormat('预计还要 {0}、约 {1}', [tokensText(projection.tokens), minutesText(projection.minutes)]) : uiFormat('预计还要 {0}', [tokensText(projection.tokens)]);
+}
+
+/** 「第 1 轮完成，还有 11 轮」: a run that waits for the learner. */
+export const waitingText = (facts) => uiFormat('第 {0} 轮完成，还有 {1} 轮', [facts.done, facts.left]);
+
+/**
+ * The line of a run, from `runFacts` (lib/coverage-run.js): 「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 2.0M tok、约 25 分钟」. Paused, waiting, stopped, finished and interrupted runs say
+ * where they are instead of the round that is being made. `interrupted`: the host stopped while it ran (the job is restored with 接着做).
+ */
+export function runLine(facts, { interrupted = false } = {}) {
+  if (!facts?.total) return '';
+  const cover = Number.isFinite(facts.percent) ? uiFormat('覆盖 {0}%', [facts.percent]) : '', used = facts.tokensUsed > 0 ? uiFormat('已用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : '';
+  if (interrupted) return [uiFormat('中断于第 {0} 轮', [facts.round]), cover, used, uiFormat('接着做会从第 {0} 轮继续', [facts.round])].filter(Boolean).join(META_DOT);
+  if (facts.ended) {
+    const head = facts.state === 'stopped' ? uiFormat('停在第 {0} 轮之后', [Math.max(1, facts.done)]) : uiFormat('共 {0} 轮', [facts.done]);
+    return [head, cover, facts.tokensUsed > 0 ? uiFormat('共用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : ''].filter(Boolean).join(META_DOT);
+  }
+  if (facts.waiting) return [waitingText(facts), cover, used].filter(Boolean).join(META_DOT);
+  if (facts.state === 'paused') return [uiFormat('暂停于第 {0} 轮之后', [facts.pausedAfter ?? facts.done]), cover, used, projectionText(facts.projection)].filter(Boolean).join(META_DOT);
+  return [roundOfText(facts.round, facts.rounds), cover, used, projectionText(facts.projection)].filter(Boolean).join(META_DOT);
+}
+
+/** Why a run stopped, in plain words (the stop of `runFacts`: { reason, round, left?, detail? }). */
+export function stopText(stop) {
+  if (!stop?.reason) return '';
+  const round = stop.round ?? 0, detail = stop.detail ? uiFormat('原因：{0}', [stop.detail]) : '';
+  const text = ({
+    complete: () => ui('出题计划做完了：计划里的每个部分都有题了。'),
+    target: () => ui('已达到这档覆盖强度的目标，剩下的轮次不用再做了。'),
+    learner: () => uiFormat('你在第 {0} 轮停了下来；已通过的题都保留。', [round]),
+    budget: () => uiFormat('用到了你设的花费上限，在第 {0} 轮之后停下；已通过的题都保留。', [round]),
+    'no-progress': () => uiFormat('第 {0} 轮重试后仍没有补到新的部分，为免一直重复，已经停下。', [round]),
+    'sections-left': () => uiFormat('重试了几轮，还有 {0} 个部分没出成题，已经停下。', [stop.left ?? 0]),
+    refused: () => ui('模型服务拒绝了请求（密钥或额度），已经停下；已通过的题都保留。'),
+    'round-failed': () => uiFormat('第 {0} 轮出错，已经停下；已通过的题都保留。', [round]),
+  })[stop.reason];
+  return text ? [text(), stop.reason === 'no-progress' || stop.reason === 'round-failed' || stop.reason === 'refused' ? detail : ''].filter(Boolean).join(' ') : '';
+}
+
+/** The word of a round's state in the list of rounds. */
+export const roundStatusWord = (status) => ({ pending: ui('待做'), running: ui('进行中'), done: ui('已完成'), failed: ui('没成功'), skipped: ui('已跳过') })[status] || '';
+
+/** One row of the list of rounds: 「第 3 轮 · 8 题 · 5 个部分」 (「补做」 for a round that writes again the sections that did not come out). */
+export function roundTitle(round) {
+  return [round.fill ? uiFormat('补做 · 第 {0} 轮', [round.round]) : uiFormat('第 {0} 轮', [round.round]), uiFormat('{0} 题', [round.questions]),
+    round.sections !== undefined ? countOf('part', round.sections) : round.sectionIds ? countOf('part', round.sectionIds.length) : ''].filter(Boolean).join(META_DOT);
+}
+
+/** What a round did, once it has run: 「保留 8 题，新覆盖 5 个部分 · 0.4M tok · 4 分钟」; a failed round says why. */
+export function roundResult(round) {
+  if (round.status === 'pending' || round.status === 'running') return '';
+  if (round.status === 'skipped') return ui('这一轮的部分都已经有题了');
+  const head = uiFormat('保留 {0} 题，新覆盖 {1} 个部分', [round.kept ?? 0, round.covered ?? 0]);
+  const minutes = round.ms > 0 ? minutesText(Math.max(1, Math.round(round.ms / 60000))) : '';
+  const reason = round.status === 'failed' ? (round.reason === 'timeout' ? ui('这一轮用时到限') : round.reason === 'cancelled' ? ui('被停止') : round.reason ? uiFormat('原因：{0}', [round.reason]) : '') : '';
+  return [head, round.tokens > 0 ? tokensText(round.tokens) : '', minutes, reason].filter(Boolean).join(META_DOT);
+}
+
+/** The log lines of a run (the codes the backend records, in the same words as everywhere else). */
+export function runEventText(code, a = {}) {
+  switch (code) {
+    case 'round-start': return a.fill ? uiFormat('补做第 {0} 轮开始 · {1}，{2} 题', [a.round, countOf('part', a.sections), a.questions]) : uiFormat('第 {0}/{1} 轮开始 · {2}，{3} 题', [a.round, a.rounds, countOf('part', a.sections), a.questions]);
+    case 'round-end': return a.status === 'failed'
+      ? [uiFormat('第 {0}/{1} 轮没做成：保留 {2} 题，新覆盖 {3} 个部分', [a.round, a.rounds, a.kept ?? 0, a.covered ?? 0]), a.reason ? uiFormat('原因：{0}', [a.reason === 'timeout' ? ui('这一轮用时到限') : a.reason]) : ''].filter(Boolean).join(META_DOT)
+      : uiFormat('第 {0}/{1} 轮完成：保留 {2} 题，新覆盖 {3} 个部分 · 覆盖 {4}%', [a.round, a.rounds, a.kept ?? 0, a.covered ?? 0, a.percent ?? 0]);
+    case 'round-rerun': return uiFormat('第 {0} 轮上次没有做完，这次从头重做（半成品不采用，已通过的题保留）', [a.round]);
+    case 'run-paused': return uiFormat('暂停于第 {0} 轮之后：不再开始新的一轮', [a.after]);
+    case 'run-resumed': return uiFormat('继续：开始第 {0} 轮', [a.next]);
+    case 'run-waiting': return uiFormat('第 {0} 轮完成，还有 {1} 轮：点「为没覆盖的部分补题」继续', [a.round, a.left]);
+    case 'run-interrupted': return uiFormat('上次运行在第 {0} 轮被中断；接着做会从第 {0} 轮重新开始，已通过的题保留', [a.round]);
+    case 'run-stop': return stopText(a);
+    default: return '';
+  }
+}

@@ -52,7 +52,7 @@ test('the consequence line is the real estimate in plain words: 「标准：约 
   }
   const standard = estimateOf({ coverageLevel: 'standard' });
   assert.match(lineOf(render('standard', standard)), /覆盖 81\/81 个部分/);
-  assert.match(text(render('standard', standard)), /精简约 172 题 · 标准约 343 题 · 完整约 500 题/, 'the three levels side by side for the same sources');
+  assert.match(text(render('standard', standard)), /精简约 126 题 · 标准约 251 题 · 完整约 419 题/, 'the three levels side by side for the same sources');
   const custom = estimateOf({ coverageLevel: 'standard', count: 100 });
   const html = render('standard', custom, { customCount: '100' });
   assert.equal(lineOf(html), `自定义：100 道题，覆盖 ${custom.coverage.sections}/81 个部分，分 4 轮，${text(m.estimateSummary(custom))}`);
@@ -82,10 +82,10 @@ test('before the estimate arrives and when there is nothing selected, the contro
 test('the English control has no Chinese text', () => inLanguage('en', () => {
   const standard = estimateOf({ coverageLevel: 'standard' }), html = render('standard', standard);
   assert.doesNotMatch(text(html), han, text(html).match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
-  assert.match(lineOf(html), /^Standard: about 343 questions, covering 81\/81 parts, in 12 rounds. Estimated [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ model calls$/);
+  assert.match(lineOf(html), /^Standard: about 251 questions, covering 81\/81 parts, in 9 rounds. Estimated [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ model calls$/);
   const labels = [...html.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*>(.*?)<\/button>/g)].map(match => text(match[1]));
   assert.deepEqual(labels, ['Lean', 'Standard', 'Full']);
-  assert.match(text(html), /Lean about 172 · Standard about 343 · Full about 500/);
+  assert.match(text(html), /Lean about 126 · Standard about 251 · Full about 419/);
   assert.match(text(html), /Custom number of questions/);
   const custom = render('standard', estimateOf({ coverageLevel: 'full', count: 100 }), { customCount: '100' });
   assert.doesNotMatch(text(custom), han);
@@ -121,12 +121,12 @@ test('a section row says its importance, what it is, how many questions it was p
   assert.match(why(important), /^重要性 5\/5 · 定义 · 计划 \d+ 题 — The core definition of the platform team$/);
   assert.match(why(plain), /^重要性 3\/5 · 方法 · 计划 \d+ 题 — How the teams reuse it$/);
   assert.equal([...html.matchAll(/cov-list__why/g)].length, rows.length, 'every row has its line');
-  assert.match(text(html), new RegExp(`出题计划：标准，约 343 题，分 ${spec.rounds.length} 轮（重要性由模型判断）`));
+  assert.match(text(html), new RegExp(`出题计划：标准，约 ${spec.goal} 题，分 ${spec.rounds.length} 轮（重要性由模型判断）`));
   inLanguage('en', () => {
     const english = renderToStaticMarkup(React.createElement(m.CoverageSummary, { coverage, onOpen: noop }));
     const line = text(/<small class="cov-list__why"[^>]*>([\s\S]*?)<\/small>/.exec(english)?.[1] || '');
     assert.match(line, /^Importance \d\/5 · (definition|method) · \d+ planned — /);
-    assert.match(text(english), new RegExp(`Plan: Standard, about 343 questions in ${spec.rounds.length} rounds \\(importance judged by the model\\)`));
+    assert.match(text(english), new RegExp(`Plan: Standard, about ${spec.goal} questions in ${spec.rounds.length} rounds \\(importance judged by the model\\)`));
     const visible = text(english.replace(/<span class="cov-list__name">[\s\S]*?<\/small><\/span>/g, '').replace(/<span class="cov-groups__name">[\s\S]*?<\/span>/g, ''));
     assert.doesNotMatch(visible, han, visible.match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
   });
@@ -139,7 +139,7 @@ test('without the model the rows say the questions were shared out by length, an
   const why = text(/<small class="cov-list__why"[^>]*>([\s\S]*?)<\/small>/.exec(html)?.[1] || '');
   assert.match(why, /^按篇幅分配 · 计划 \d+ 题/);
   assert.doesNotMatch(why, /重要性/);
-  assert.match(text(html), new RegExp(`出题计划：标准，约 343 题，分 ${spec.rounds.length} 轮（按篇幅分配，没有用模型判断重要性）`));
+  assert.match(text(html), new RegExp(`出题计划：标准，约 ${spec.goal} 题，分 ${spec.rounds.length} 轮（按篇幅分配，没有用模型判断重要性）`));
   assert.equal(m.copy.weightLine(null), '');
   assert.equal(m.copy.planLine(undefined), '');
 });
@@ -158,7 +158,11 @@ test('a draft with a plan says that its later rounds are planned, not "never pla
   assert.equal(coverage.scheduled, waiting.length);
   assert.ok(waiting.every(section => section.scheduled === true));
   const never = coverage.neverPlanned - waiting.length;
-  assert.equal(m.copy.coverageLine(coverage), `覆盖 1/81 个部分（1%） · ${waiting.length} 个排在后面的轮次${never ? ` · ${never} 个没有记录` : ''}`);
+  // A plan from phase 3a kept no round states: its first round was the run, so the sections of that round with no question were planned and did not come out (the plan came back short for them), never "no plan".
+  const tried = coverage.sections.filter(section => section.attempted);
+  assert.equal(tried.length, [...first].filter(key => coverage.sections.find(section => section.key === key).state !== 'covered').length, 'the sections of the first round that have no question');
+  assert.ok(tried.every(section => section.state === 'planned-failed' && section.reason === 'plan-short' && first.has(section.key)));
+  assert.equal(m.copy.coverageLine(coverage), `覆盖 1/81 个部分（1%） · ${tried.length} 个计划了没出成 · ${waiting.length} 个排在后面的轮次${never ? ` · ${never} 个没有记录` : ''}`);
   const html = renderToStaticMarkup(React.createElement(m.CoverageSummary, { coverage, onOpen: noop }));
   assert.match(text(html), new RegExp(`${waiting.length} 个排在后面的轮次`));
   const rows = [...html.matchAll(/<li[^>]*data-section="([^"]+)"[^>]*>([\s\S]*?)<\/li>/g)];

@@ -15,7 +15,9 @@ import SelectBar from './SelectBar.jsx';
 import DeleteTasksDialog from './DeleteTasksDialog.jsx';
 import { taskSummary, stateLabel } from './task-summary.js';
 import { taskFacts, taskSegments, usageLine } from './task-facts.js';
-import { headerActions } from './task-control.js';
+import { headerActions, autoToggle } from './task-control.js';
+import RunLine from './RunLine.jsx';
+import { autoLabel } from '../coverage/copy.js';
 import ControlRow from './ControlRow.jsx';
 import TaskBody from './TaskBody.jsx';
 import { readJSON, writeJSON } from '../storage.js';
@@ -27,10 +29,11 @@ import { modelReadiness } from '../generation-status.js';
 /* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads the jobs of
    the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
 
-const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败', archived: '已归档' };
+const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败/中断', archived: '已归档' };
 
 function percentWord(summary) {
   if (summary.state === 'fail') return ui('失败');
+  if (summary.state === 'interrupted') return ui('已中断');
   if (summary.state === 'queued') return ui('排队');
   return summary.percent === null ? '—' : `${summary.percent}%`;
 }
@@ -119,6 +122,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   const archive = () => settle(() => (quick ? dismissJobs(quick, task.id) : core.act('job.archive', { jobId: task.id })), ui('已放进「已归档」，之后可以取消归档或删除。'));
   const unarchive = () => settle(() => batchRun('unarchive', [key], { quick, core }), ui('已取消归档'));
   const result = openers.resultOf(task, data), usage = usageLine(task);
+  // A coverage run (lib/coverage-run.js): its header says 停在这里 (everything that passed is kept), 接着做 says which round it continues, and 自动补到完整 can be flipped while it runs.
+  const run = contract.detail?.run || null, toggle = autoToggle(task);
   const started = contract.startedAt ? formatDateTime(contract.startedAt, 'stamp') : '';
   const act = (action) => core.act('job.control', { jobId: contract.jobId, action });
   // 为没覆盖的部分补题 acts on the draft a run wrote, not on the run: so a finished run, an archived record too, offers it for as long as the draft is there.
@@ -135,11 +140,13 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
           <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>
           {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
           {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
-          {actions.retry && <Button size="sm" variant="primary" disabled={core.busy} title={ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
+          {actions.retry && <Button size="sm" variant="primary" disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
+          {toggle && live && <Checkbox className="tc-head__auto" label={autoLabel()} checked={toggle.value} disabled={core.busy} data-run-auto
+            onChange={(value) => core.act('job.control', { jobId: contract.jobId, action: 'set', patch: { autoComplete: value } })} />}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
           {draft && !live && <CoverageTopUpPopover draft={draft} view={covered.view} jobs={data?.jobs || []} modelReady={modelReadiness(data || {}).ready}
             onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
-          {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} onClick={() => act('cancel')}>{ui('停止')}</Button>}
+          {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} title={run ? ui('已通过的题都保留') : undefined} onClick={() => act('cancel')}>{run ? ui('停在这里') : ui('停止')}</Button>}
           {archived && <Button size="sm" disabled={core.busy} onClick={unarchive}>{ui('取消归档')}</Button>}
           {!live && !archived && !contract.detail.today && (day
             // A past day of 为你定制 is a record its own file ages out (fourteen days): 知道了 removes it, as it always did.
@@ -153,6 +160,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
+      <RunLine task={task} />
       {archived ? <ArchivedNote task={task} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}
       <TaskBody task={task} archived={archived} />
