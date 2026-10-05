@@ -69,7 +69,7 @@ test("pages of one document are grouped under its name, which appears once", () 
   assert.match(out, /第 21 页：规划 1 个考点，通过 2 题/);
   assert.match(out, /第 23 页：规划 2 个考点，通过 1 题/);
   assert.match(out, /3 页本次没有合格题 · 查看清单/);
-  assert.match(out, /为「T」补题：用 3 页未覆盖资料/, "the add button counts pages as pages too");
+  assert.doesNotMatch(out, /补题：用 3 页未覆盖资料|追加约/, "the per-source record lists what has no question; the one top-up (为没覆盖的部分补题, ui/coverage) is not made of it");
   assert.match(out, /页码：22、36、40/, "the uncovered pages of the book on one line");
   assert.doesNotMatch(out, /\d+ 份资料本次没有合格题/);
 });

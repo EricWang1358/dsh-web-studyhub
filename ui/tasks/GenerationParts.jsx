@@ -6,6 +6,10 @@ import { callLabel } from './call-model.js';
 import { partOpener } from './task-actions.js';
 import { useApp } from '../app/app-context.js';
 import GenerationTrace from '../GenerationTrace.jsx';
+import { coverageInRange } from '../../lib/coverage.js';
+import { useCoverage } from '../coverage/use-coverage.js';
+import { reasonWord, uncoveredInRange } from '../coverage/copy.js';
+import { PartCoverage } from '../coverage/PartCoverage.jsx';
 
 /* 资料部分: the parts a question run was split into, each with the state of its three stages (writing, review, repair) and what it kept once the run has
    reported. A selected part shows, in a strip of fixed height at the bottom, the calls it made. (The questions themselves live in the draft; the job does
@@ -15,13 +19,10 @@ import GenerationTrace from '../GenerationTrace.jsx';
 const STAGES = [['author', '出题'], ['review', '审阅'], ['repair', '修复']];
 const STATUS_WORD = { passed: '全部通过', partial: '只保留了部分', failed: '没有出题', running: '进行中', working: '进行中', waiting: '等待中' };
 const dot = (status) => (status === 'passed' ? 'done' : status === 'partial' ? 'partial' : status === 'failed' ? 'fail' : status === 'waiting' ? 'queued' : 'run');
-/* Why a part kept fewer questions than it was asked for, from the reason codes the run's report carries (lib/generation-report.js failureReason). */
-const REASON_WORD = { quote: '引用在资料里找不到', plan: '考点规划未通过检查', quality: '题没有通过质量审阅', 'review-protocol': '审阅回复格式不对，重新审阅后仍不行',
-  timeout: '模型长时间没有回应', 'rate-limit': '被模型服务限流', 'no-reply': '模型没有返回内容', quota: '模型账户余额或额度不足', credential: '模型密钥缺失或被拒绝',
-  budget: '生成用时到限', cancelled: '被停止', unavailable: '模型服务暂时不可用', other: '其他原因' };
+/* Why a part kept fewer questions than it was asked for, from the reason codes the run's report carries (lib/generation-report.js failureReason); the words are the shared ones (ui/coverage/copy.js). */
 const shortfallLine = (part) => {
   if (part.kept === undefined || !(part.kept < part.asked) || !part.reasons?.length) return '';
-  return uiFormat('原因：{0}', [part.reasons.map((code) => ui(REASON_WORD[code] || REASON_WORD.other)).join(ui('；'))]);
+  return uiFormat('原因：{0}', [part.reasons.map((code) => reasonWord(code)).join(ui('；'))]);
 };
 
 /** One line of the strip, cut with an ellipsis; what is cut is the tooltip (a title on a plain element never shows on touch or keyboard focus). */
@@ -36,7 +37,11 @@ export default function GenerationParts({ contract, task }) {
   const part = picked !== null ? parts.find((item) => item.part === picked) : null;
   const calls = part ? contract.calls.filter((call) => call.part === part.part) : [];
   const opener = part ? partOpener(part, app) : null;
-  const why = part ? joinMeta([opener && (!opener.available ? opener.reason : opener.count > 1 ? uiFormat('共 {0} 份资料，先打开第一份', [opener.count]) : ''), shortfallLine(part)]) : '';
+  // 覆盖: what each part's range of the material has, from the draft this run writes (a record whose draft is gone shows none).
+  const covered = useCoverage(contract.detail.draftId ? { draftId: contract.detail.draftId } : null, { version: `${app.data?.revision}:${task?.savedCount ?? ''}` });
+  const coverage = covered.view?.coverage || null, here = (item) => (coverage && item?.ranges?.length ? coverageInRange(coverage, item.ranges) : null);
+  const inPart = part ? here(part) : null;
+  const why = part ? joinMeta([inPart?.leaves ? uncoveredInRange({ ...inPart, sections: [...inPart.sections, ...inPart.borrowed] }, { recorded: coverage.recorded }) : '', opener && (!opener.available ? opener.reason : opener.count > 1 ? uiFormat('共 {0} 份资料，先打开第一份', [opener.count]) : ''), shortfallLine(part)]) : '';
   return (
     <div className="tc-files">
       <div className="tc-scroll">
@@ -46,7 +51,8 @@ export default function GenerationParts({ contract, task }) {
             <div key={item.part} className="tc-partrow">
               <Button variant="quiet" block className="tc-filerow" aria-pressed={picked === item.part} data-part={item.part} title={item.range || undefined} onClick={() => setPicked(picked === item.part ? null : item.part)}>
                 <span className="tc-dot" data-state={dot(item.status)} aria-hidden="true" />
-                <span className="tc-filerow__name">{uiFormat('第 {0} 部分', [item.part])}{item.range && <span className="tc-filerow__text tc-filerow__range">{item.range}</span>}</span>
+                <span className="tc-filerow__name">{uiFormat('第 {0} 部分', [item.part])}{item.range && <span className="tc-filerow__text tc-filerow__range">{item.range}</span>}
+                  <PartCoverage range={here(item)} units={coverage?.units} recorded={coverage?.recorded} /></span>
                 <span className="tc-cells" role="img" aria-label={STAGES.map(([stage, label]) => `${ui(label)} ${item.stages[stage] || '—'}`).join('，')}>
                   {STAGES.map(([stage]) => <i key={stage} data-stage={stage} data-state={item.stages[stage] || 'none'}><b /></i>)}
                 </span>

@@ -50,7 +50,7 @@ test.after(() => browser?.close());
 
 const shots = join(process.cwd(), 'output', 'wave5-c');
 
-test('the 继续补齐 button and 打开 stay put when the estimate resolves (1280 and 420)', { skip: unavailable, timeout: 240000 }, async t => {
+test('the 为没覆盖的部分补题 button and 打开 stay put when the estimate resolves (1280 and 420)', { skip: unavailable, timeout: 240000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'estimate-shift-'));
   const service = new StudyService(join(root, 'library'));
   const card = id => ({ id, kind: 'quiz', topic: 'Topic', objective: 'Recall', prompt: id, answer: 'A', hint: '', explanation: '', misconception: '', citations: [],
@@ -72,24 +72,24 @@ test('the 继续补齐 button and 打开 stay put when the estimate resolves (12
     await page.route('**/api/call', async route => { if (/usage\.estimate/.test(route.request().postData() || '')) await gate; await route.continue(); });
     await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-autopilot', 'off'); });
     await page.goto(server.url);
-    const topup = page.locator('.draft-row .draft-topup').first();
+    const topup = page.locator('.draft-row [data-coverage-topup]').first();
     await topup.waitFor({ timeout: 30000 });
-    await page.locator('.draft-topup [data-token-estimate][data-status="loading"]').waitFor({ timeout: 30000 });
+    await page.locator('[data-coverage-topup] [data-token-estimate][data-status="loading"]').waitFor({ timeout: 30000 });
     const measure = () => page.evaluate(() => {
       const box = selector => { const r = document.querySelector(selector)?.getBoundingClientRect(); return r && { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right }; };
-      return { button: box('.draft-topup .sh-btn'), open: box('.draft-open > span:last-child'), topup: box('.draft-topup'), estimate: box('.draft-topup [data-token-estimate]'),
+      return { button: box('[data-coverage-topup] .sh-btn'), open: box('.draft-open > span:last-child'), topup: box('[data-coverage-topup]'), estimate: box('[data-coverage-topup] [data-token-estimate]'),
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     });
     await page.locator('.draft-row').first().scrollIntoViewIfNeeded();
     const before = await measure();
     await page.locator('.draft-row').first().screenshot({ path: join(shots, `estimate-before-${width}.png`) });
     release();
-    await page.locator('.draft-topup .token-estimate__line:not(.token-estimate__line--loading)').waitFor({ timeout: 30000 });
+    await page.locator('[data-coverage-topup] .token-estimate__line:not(.token-estimate__line--loading)').waitFor({ timeout: 30000 });
     const after = await measure();
     await page.locator('.draft-row').first().screenshot({ path: join(shots, `estimate-after-${width}.png`) });
     const near = (a, b, what) => assert.ok(Math.abs(a - b) <= 0.5, `${width}px: ${what} moved from ${a} to ${b}`);
-    near(before.button.x, after.button.x, '继续补齐 x');
-    near(before.button.right, after.button.right, '继续补齐 right edge');
+    near(before.button.x, after.button.x, '为没覆盖的部分补题 x');
+    near(before.button.right, after.button.right, '为没覆盖的部分补题 right edge');
     near(before.open.x, after.open.x, '打开 x');
     near(before.topup.w, after.topup.w, 'the action group width');
     near(before.estimate.h, after.estimate.h, 'the estimate line height');

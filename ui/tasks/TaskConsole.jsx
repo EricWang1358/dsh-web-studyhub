@@ -19,6 +19,10 @@ import { headerActions } from './task-control.js';
 import ControlRow from './ControlRow.jsx';
 import TaskBody from './TaskBody.jsx';
 import { readJSON, writeJSON } from '../storage.js';
+import { CoverageTopUpPopover } from '../coverage/CoverageTopUp.jsx';
+import { useCoverage } from '../coverage/use-coverage.js';
+import { topUpArgs, topUpNotice } from '../coverage/top-up.js';
+import { modelReadiness } from '../generation-status.js';
 
 /* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads the jobs of
    the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
@@ -117,6 +121,9 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   const result = openers.resultOf(task, data), usage = usageLine(task);
   const started = contract.startedAt ? formatDateTime(contract.startedAt, 'stamp') : '';
   const act = (action) => core.act('job.control', { jobId: contract.jobId, action });
+  // 为没覆盖的部分补题 acts on the draft a run wrote, not on the run: so a finished run, an archived record too, offers it for as long as the draft is there.
+  const draft = contract.kind === 'generation' && contract.detail.draftId ? (data?.drafts || []).find((item) => item.id === contract.detail.draftId) || null : null;
+  const covered = useCoverage(draft ? { draftId: draft.id } : null, { version: `${data?.revision}:${draft?.draftVersion ?? ''}`, enabled: !live });
   return (
     <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
@@ -130,6 +137,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
           {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
           {actions.retry && <Button size="sm" variant="primary" disabled={core.busy} title={ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
+          {draft && !live && <CoverageTopUpPopover draft={draft} view={covered.view} jobs={data?.jobs || []} modelReady={modelReadiness(data || {}).ready}
+            onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
           {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} onClick={() => act('cancel')}>{ui('停止')}</Button>}
           {archived && <Button size="sm" disabled={core.busy} onClick={unarchive}>{ui('取消归档')}</Button>}
           {!live && !archived && !contract.detail.today && (day

@@ -361,12 +361,13 @@ test('the archived read-only detail: the name keeps its room, the actions fit an
             const m = await measureSelection(page);
             assert.ok(m.scrollWidth <= width, `${where}: no sideways scroll`);
             const names = m.head.actions.map((action) => action.text);
-            assert.equal(names.length, 4, `${where}: 全屏, 打开资料, 取消归档, 删除: ${names}`);
+            // 全屏 first, 取消归档 and 删除 last; between them whatever the task offers (打开资料 / 打开草稿, and 为没覆盖的部分补题 for a draft that still has uncovered sections).
+            assert.ok(names.length >= 4 && /^(全屏|Full screen)$/.test(names[0]) && /^(取消归档|Unarchive)$/.test(names.at(-2)) && /^(删除|Delete)$/.test(names.at(-1)), `${where}: 全屏, …, 取消归档, 删除: ${names}`);
             for (const [index, action] of m.head.actions.entries()) {
               assert.ok(action.left >= m.head.detail.left && action.right <= m.head.detail.right, `${where}: ${action.text} is inside the detail (${Math.round(action.left)}-${Math.round(action.right)} of ${Math.round(m.head.detail.left)}-${Math.round(m.head.detail.right)})`);
               if (index && Math.abs(action.top - m.head.actions[index - 1].top) < 4) assert.ok(action.left >= m.head.actions[index - 1].right - 0.5, `${where}: ${action.text} does not overlap ${m.head.actions[index - 1].text}`);
             }
-            const [unarchive, remove] = m.head.actions.slice(2);
+            const [unarchive, remove] = m.head.actions.slice(-2);
             if (Math.abs(unarchive.top - remove.top) < 4) assert.ok(remove.left - unarchive.right >= 8, `${where}: 删除 is set apart from the others (${Math.round(remove.left - unarchive.right)}px)`);
             assert.equal(await page.locator('.tc-head__actions button').last().evaluate((button) => button.classList.contains('sh-btn--danger')), true, `${where}: 删除 looks destructive`);
             assert.ok(m.head.title.width >= 160, `${where}: the name of the task has room (${Math.round(m.head.title.width)}px)`);

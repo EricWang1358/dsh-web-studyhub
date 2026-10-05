@@ -14,8 +14,11 @@ import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
 import { renderRubric } from "../lib/case-study.js";
-import { DraftAddFromSources, DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
-import { canAddFromSources, draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
+import { OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
+import { draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
+import { CoverageSummary } from "./coverage/Coverage.jsx";
+import { CoverageTopUp } from "./coverage/CoverageTopUp.jsx";
+import { useCoverage } from "./coverage/use-coverage.js";
 import { modelReadiness } from "./generation-status.js";
 import { coverageGroups, coverageUnit } from "./coverage-groups.js";
 import LocalImagePicker from './LocalImagePicker.jsx';
@@ -36,15 +39,13 @@ export default function Draft({
   jsonMode,
   setJsonMode,
   openDraft,
-  continueDraft,
-  addFromSources,
+  topUpDraft,
+  openSourceAt,
   onOpenPublished,
   onStartPublished,
   clearRecovery,
   setPage,
   setModal,
-  setSelectedSources,
-  setGenSource,
   blankCard,
   patchCard,
   parseDraft,
@@ -68,9 +69,6 @@ export default function Draft({
   const generating = incomplete && ['topup', 'generating'].includes(work?.kind);
   const missing = missingQuestions(draft);
   const shortBlock = missing > 0 && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit;
-  const availableSources = new Set(data.sources.map((source) => source.id));
-  const untestedSourceIds = (draft.editorial?.coverage?.uncited || [])
-    .map((source) => source.id).filter((id) => availableSources.has(id));
   const coverageSources = draft.editorial?.coverage?.sources || [];
   const coveredSources = coverageSources.filter((source) => source.accepted > 0);
   // By document (#201): a book is named once with its pages under it, and the count says 页 or 份 for what it really counts.
@@ -106,6 +104,8 @@ export default function Draft({
   const updatingDraft = generating || repairRunning || !!publishJob || !!work;
   const unsavedDraft = JSON.stringify(draft) !== draftLoaded ||
     (jsonMode && draftText !== JSON.stringify(draft, null, 2));
+  // 覆盖: which sections of the material have a question (the saved draft's own, asked again whenever the library or the draft changes).
+  const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id } : null, { version: `${data.revision}:${draft.draftVersion}` });
   React.useEffect(() => {
     if (staleDraft && !updatingDraft && !unsavedDraft) openDraft(latestDraft);
   }, [staleDraft, updatingDraft, unsavedDraft, latestDraft, openDraft]);
@@ -221,6 +221,11 @@ export default function Draft({
             : updatingDraft ? ui("删除草稿并停止任务") : ui("删除草稿")}
         </Button>
       </div>
+      {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}>
+        <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready}
+          onTopUp={(target, sectionIds) => topUpDraft(target, sectionIds)} />
+        {(unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
+      </CoverageSummary>}
       <div className="draft-notices">
         {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
           action={{ label: ui("载入最新草稿"), onClick: () => openDraft(latestDraft) }}>
@@ -238,11 +243,9 @@ export default function Draft({
         </Banner>}
         {activeReview && <Banner tone="warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</Banner>}
         {rejectedCount > 0 && unsavedDraft && !staleDraft && <Banner tone="warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</Banner>}
-        {shortBlock && <Banner tone="warning" role="status" className="draft-shortfall" title={uiFormat("比计划少 {0} 题", [missing])}>
+        {shortBlock && <Banner tone="warning" role="status" className="draft-shortfall" title={ui("有题没能进入草稿")}>
           <ShortfallReasons draft={draft} />
           <OmittedQuestions draft={draft} />
-          <DraftTopUp draft={draft} jobs={data.jobs} busy={busy || unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} call={call} onContinue={continueDraft} />
-          {unsavedDraft && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
         </Banner>}
       </div>
       <details className="draft-generation-details">
@@ -269,7 +272,7 @@ export default function Draft({
       {!draft.editorial && <Banner tone="info" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</Banner>}
       {selfCited > 0 && <Banner tone="warning" role="status">
         {uiFormat("{0} 道题只引用了导入的题目自身。模型可以检查题目是否自洽，但无法据此独立核实答案；如需事实依据，请把引用换成原始资料。", [selfCited])}</Banner>}
-      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && <p>{uiFormat("本次生成通过检查 {0} / {1} 题；当前草稿 {2} 题。", [draft.editorial.generated ?? draft.cards.length, draft.editorial.requested, draft.cards.length])}</p>}
+      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && (draft.editorial.generated ?? draft.cards.length) <= draft.editorial.requested && <p>{uiFormat("本次生成通过检查 {0} / {1} 题；当前草稿 {2} 题。", [draft.editorial.generated ?? draft.cards.length, draft.editorial.requested, draft.cards.length])}</p>}
       {incomplete && <Banner tone="warning" role="status">
         {uiFormat("{0}：已完成 {1} / {2} 批。当前草稿只包含已保存的题目；其余批次尚未完成检查。", [generating ? ui("仍在生成") : ui("本次生成已中断"), draft.editorial.completedParts, draft.editorial.parts])}</Banner>}
       {audits.map((audit, i) => <Disclosure key={i} summary={uiFormat("质量自查记录 · 第 {0} 批 · 主动改写 {1} 项", [audit.part || i + 1, audit.changes.length])}>
@@ -328,10 +331,6 @@ export default function Draft({
             : <><strong>{group.title}</strong><ul>{group.rows.filter((row) => row.accepted > 0).map((row) => <li key={row.id}>
               {uiFormat("第 {0} 页：规划 {1} 个考点，通过 {2} 题", [row.page, row.planned, row.accepted])}</li>)}</ul></>}
         </li>)}</ul>}
-        {untestedSourceIds.length > 0 && canAddFromSources(draft) && <DraftAddFromSources draft={draft} jobs={data.jobs} sourceIds={untestedSourceIds} pages={coverageCount}
-          held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} onAdd={addFromSources}
-          onNewDeck={(ids) => { setSelectedSources(ids); setGenSource("files"); setPage("generate"); }} />}
-        {untestedSourceIds.length > 0 && canAddFromSources(draft) && unsavedDraft && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
         {uncoveredCount > 0 && <Disclosure summary={coverageCount ? uiFormat("{0} 页本次没有合格题 · 查看清单", [uncoveredCount]) : uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredCount])}>
           <ul className="coverage-documents">{uncoveredPages.map((group) => <li key={group.key}>
             {group.rows[0].page === null

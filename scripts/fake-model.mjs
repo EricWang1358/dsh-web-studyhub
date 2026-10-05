@@ -56,7 +56,33 @@ const topicOf = (source, english) => clip(String(source?.title || "").replace(/\
 
 /* ---------- generation: evidence, concrete answers, author, review ---------- */
 
+/** An assigned plan (lib/assigned-plan.js): each assignment's quota of passages taken from its own piece, skipping the passages already planned for it. */
+function planAssigned(request, nextNumber) {
+  const covered = new Set((request.existing || []).map(norm)), targets = [];
+  for (const item of request.assignments) {
+    const piece = (request.sources || []).find((source) => source.section === item.id);
+    if (!piece) continue;
+    const used = (item.alreadyPlanned || []).map((text) => text.replace(/…$/, ""));
+    for (let at = 0, made = 0; made < Number(item.quota) && at < 12; at++) {
+      const n = nextNumber(), quote = quoteFor(piece, n - 1);
+      if (used.some((text) => quote.startsWith(text))) continue;
+      const objective = englishContent(request.language, quote)
+        ? `Target #${n}: explain what “${clip(quote, 40)}” establishes and tell it apart from a near miss`
+        : `目标 #${n}：说清「${clip(quote, 24)}」成立的机制，并与相近说法区分`;
+      if (covered.has(norm(objective))) continue;
+      covered.add(norm(objective));
+      used.push(quote);
+      made += 1;
+      targets.push({ section: item.id, objective, knowledge: quote, answerBoundary: "Only the selected evidence", comparisonAxis: "Role and conditions of the idea",
+        misconception: "Confusing the idea with a neighbouring one", contextNeeded: "The named idea and its conditions",
+        answerability: { mode: "recall", requiredContextAvailable: true, answerOnlyInSourceList: false, criteriaWouldRevealAnswer: false }, citations: [{ sourceId: piece.id, quote }] });
+    }
+  }
+  return { targets };
+}
+
 function planTargets(request, nextNumber) {
+  if (Array.isArray(request.assignments) && request.assignments.length) return planAssigned(request, nextNumber);
   const sources = Array.isArray(request.sources) && request.sources.length ? request.sources : [];
   const covered = new Set((request.existing || []).map(norm));
   return {
@@ -460,6 +486,13 @@ function dailyRecapReply(input, system) {
 /* ---------- handlers, first match wins ---------- */
 
 const HANDLERS = [
+  // The importance of each section of a material (lib/section-weights.js): a spread of ratings so a preview shows the plan telling long and important sections from filler.
+  { name: 'section.weights', match: (s) => s.startsWith('You rate how much each section of a study material matters'),
+    reply: ({ input }) => ({ sections: (input.sections || []).map((section, at) => {
+      const importance = [3, 4, 5, 2, 3, 1, 4][at % 7], kind = ['method', 'definition', 'definition', 'example', 'method', 'chatter', 'summary'][at % 7];
+      return { id: section.id, importance, kind, reason: CJK.test(section.head || section.title) ? ['讲清了这一段的做法', '给出核心概念的定义', '这一段是考点的核心', '只是举例补充', '说明具体做法', '寒暄和过渡', '小结前面的内容'][at % 7]
+        : ['Explains how it is done', 'Defines the core concept', 'The heart of what is examined', 'An example only', 'Describes the method', 'Small talk and transitions', 'Summarises what came before'][at % 7] };
+    }) }) },
   { name: 'notes.daily-recap', text: true, match: system => system.startsWith('DAILY_COURSE_RECAP:'),
     reply: ({ input, system }) => dailyRecapReply(input, system) },
   { name: 'daily.plan', match: (s) => s.startsWith('You propose a realistic daily learning plan.'),

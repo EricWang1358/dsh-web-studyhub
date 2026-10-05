@@ -102,7 +102,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 </details>
 
-默认题型、题数、内容语言、难度和侧重点可在「设置 › 出题偏好」保存；新建出题仍可单次调整。每批题数、并行批次和运行时限也在这里，初始为 5 题、3 批、20 分钟。已经开始的任务和继续补齐的原草稿保留原设置。详见[生成安排](docs/generation-agents-sidebar.zh-CN.md#出题任务怎么做)。
+默认题型、题数、内容语言、难度和侧重点可在「设置 › 出题偏好」保存；新建出题仍可单次调整。每批题数、并行批次和运行时限也在这里，初始为 5 题、3 批、20 分钟。已经开始的任务和补题的原草稿保留原设置。详见[生成安排](docs/generation-agents-sidebar.zh-CN.md#出题任务怎么做)。
 
 ### 练习与复习
 

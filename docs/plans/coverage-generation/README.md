@@ -70,6 +70,12 @@
 | 4 | 分批（wave）执行：每批存检查点，批与批之间可暂停，续跑，重启恢复，时限按批计算；证据上限随之放宽 | 3 |
 | 5 | 缓存友好的运行方式（同一小节同一会话、前缀一致、只发被引用窗口）；任务记录持久化；标题「Recovered questions」改为真实标题 | 4 |
 
+## 实现状态
+
+- 阶段 1（1a、1b）：已实现，见 `docs/generation-reliability.md`。
+- 阶段 2：已实现，见 [`docs/coverage.md`](../../coverage.md)：`lib/coverage.js` 的 `coverageOf`、`coverage.get`、四处视图（任务页「资料部分」、草稿页、资料页行和阅读器工具栏、阅读器目录）和唯一的「为没覆盖的部分补题」。
+- 阶段 3a：已实现，见 [`docs/coverage.md`](../../coverage.md)「Coverage strength and enforced planning」：`lib/coverage-strength.js`（三档、配额、轮次）、`lib/section-weights.js`（每个部分的重要性）、`lib/assigned-plan.js`（服务端强制按分配规划，补问一次，仍不够记为 `plan-short`）、创建题组的「覆盖强度」和出发前的一行说明、草稿页的出题计划与每个部分的重要性和理由。第一次运行做第一轮，后面的轮次由 3b 执行；为没覆盖的部分补题按计划的配额继续。
+
 ## 不在范围内
 
 技能化、配套 PPT/PDF 原文件和横幅、合并录音顺序的判断。它们在 2026-10-05 的审计里有记录，暂不设计。

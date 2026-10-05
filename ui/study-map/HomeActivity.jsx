@@ -1,17 +1,20 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, InlineMessage } from '../components/index.js';
-import { DraftTopUp } from '../DraftShortfall.jsx';
+import { CoverageTopUp } from '../coverage/CoverageTopUp.jsx';
+import { useCoverage } from '../coverage/use-coverage.js';
+import { coverageHead } from '../coverage/copy.js';
 import { foldJobsByDraft, isActiveJob } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
-import { canContinueDraft, draftWork, missingQuestions } from '../draft-shortfall.js';
+import { draftWork } from '../draft-shortfall.js';
 import JobCard from './JobCard.jsx';
 import { useStudy } from '../study-context.jsx';
 import { joinMeta } from '../format.js';
 
-function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueDraft }) {
-  const missing = missingQuestions(d);
+function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
+  // 覆盖: how much of its material the draft has questions for, said in the words of the draft page; the old "还差 N 题" is that fact.
+  const covered = useCoverage({ draftId: d.id }, { version: `${data.revision}:${d.draftVersion}` });
   const qualityCount = (d.quality?.warnings?.length || 0) + (d.quality?.errors?.length || 0);
   const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
   const reviewed = reviewedCardStatus(d);
@@ -20,8 +23,6 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
   // adds no line: the 待发布 list arrives after a generation, and a taller list moves the page below it further); the meta text is facts.
   const work = draftWork(d, data.jobs);
   const status = rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查');
-  // How many are missing is already the button's or the Badge's words.
-  const missingSaid = !!work || canContinueDraft(d);
   return (
     <div className="draft-row">
       <button type="button" className="draft-open" onClick={() => openDraft(d)}>
@@ -29,7 +30,7 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
           <strong>{d.title}</strong>
           <small className="draft-meta">
             <span className="draft-meta__facts">{joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
-              missing > 0 && !missingSaid ? uiFormat('还差 {0} 题', [missing]) : '',
+              covered.view?.coverage?.leaves ? coverageHead(covered.view.coverage) : '',
               Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
                 ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}</span>
             {!work && <Badge size="sm" tone={rejectedCount ? 'warning' : 'neutral'} data-draft-status>{status}</Badge>}
@@ -37,7 +38,7 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
         </span>
         <span>{ui('打开 →')}</span>
       </button>
-      <DraftTopUp draft={d} jobs={data.jobs} busy={busy} modelReady={modelReady} call={call} onContinue={continueDraft} />
+      <CoverageTopUp variant="compact" draft={d} view={covered.view} jobs={data.jobs} modelReady={modelReady} onTopUp={topUpDraft} />
     </div>
   );
 }
@@ -46,8 +47,8 @@ function DraftRow({ draft: d, data, busy, modelReady, call, openDraft, continueD
    home (P26): a job started from 创建题组 is in view when the learner lands
    here, and a failure shows up where they are looking (P15). `jobs` are the
    ones to show, running first. */
-export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, continueDraft }) {
-  const { busy, call } = useStudy();
+export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, topUpDraft }) {
+  const { busy } = useStudy();
   const quick = useQuickActions();
   if (!jobs.length && !drafts.length) return null;
   // One card per deck: the older jobs of a draft fold into its newest job's card.
@@ -71,8 +72,8 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, modelRead
           <h2>{ui('待发布')}{' '}<span>{drafts.length}</span></h2>
           <small>{ui('发布时逐题检查；问题题留在草稿')}</small>
         </div>
-        {[...drafts].reverse().map((d) => <DraftRow key={d.id} draft={d} data={data} busy={busy} modelReady={modelReady} call={call}
-          openDraft={openDraft} continueDraft={continueDraft} />)}
+        {[...drafts].reverse().map((d) => <DraftRow key={d.id} draft={d} data={data} modelReady={modelReady}
+          openDraft={openDraft} topUpDraft={topUpDraft} />)}
       </div>}
     </section>
   );

@@ -3,7 +3,7 @@ import { ui, uiFormat } from './i18n.js';
 import { kinds } from './shared.js';
 import { Button, Chip } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
-import { DIFFICULTIES, focusIncludes, hasSettings } from './generate-form.js';
+import { DIFFICULTIES, focusIncludes, hasSettings, levelLabel } from './generate-form.js';
 
 /* The 帮我想想 assist under 这次想练什么 (WP23). It only presents: Generate.jsx
    asks `generate.suggest` and keeps the result. With a model the button says
@@ -17,7 +17,7 @@ export default function GenerateAssist({ ready = false, phase = 'idle', result =
   // A learner who knowingly has no model is told by the button itself; the line is for a helper that was expected to work.
   const why = local && (ready || result?.unavailable?.reason !== 'no-model') ? result?.unavailable : null;
   const items = Array.isArray(result?.focus) ? result.focus : [];
-  const settings = [Number.isInteger(result?.count) ? uiFormat('{0} 题', [result.count]) : '',
+  const settings = [result?.coverage ? uiFormat('覆盖强度：{0}', [levelLabel(result.coverage)]) : '',
     DIFFICULTIES.find((item) => item.value === result?.difficulty)?.label || '',
     result?.kind ? kinds[result.kind] || (result.kind === 'mixed' ? ui('测验 + 闪卡') : '') : ''].filter(Boolean).join(' · ');
   return (

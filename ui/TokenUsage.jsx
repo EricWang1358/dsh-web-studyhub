@@ -62,15 +62,15 @@ const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low:
  * The estimate line above a submit button: "预计 58.3K–96.1K tok · 8–10 次模型调用", with an ⓘ button that opens the
  * stages, the same rows as ranges and what the estimate cannot know. `state`: { status, estimate }. Loading and ready draw the same box
  * (a hidden copy of the line holds the room), so nothing moves when the answer arrives; `align="end"` right-aligns it in an action column.
- * A selection over the limit says so in plain sight, not only in the panel.
+ * A selection over the limit says so in plain sight, not only in the panel. `tight` keeps the info button at the end of a long line instead of under it. `lead` is what goes before the figures (the 覆盖强度 line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，」).
  */
-export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start' }) {
+export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false }) {
   useInjectCss(css, 'study-token-usage');
   const [open, setOpen] = useState(defaultOpen);
   const panel = useId();
   const estimate = state.status === 'ready' ? state.estimate : null;
   const notes = (estimate?.notes || []).filter((code) => code !== 'over-limit').map((code) => noteText(code, estimate)).filter(Boolean);
-  return <div className={align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'} data-token-estimate data-status={state.status} aria-live="polite">
+  return <div className={`${align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'}${tight ? ' token-estimate--tight' : ''}`} data-token-estimate data-status={state.status} aria-live="polite">
     {state.status === 'loading' && <p className="token-estimate__line token-estimate__line--loading">
       <span className="token-estimate__text">
         <span className="token-estimate__ghost" aria-hidden="true">{estimateSummary(GHOST_ESTIMATE)}</span>
@@ -80,7 +80,7 @@ export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = fa
     </p>}
     {estimate && <>
       <p className="token-estimate__line">
-        <span>{estimateSummary(estimate)}</span>
+        <span>{lead}{estimateSummary(estimate)}</span>
         <IconButton icon="info" size="sm" className="token-estimate__info" aria-expanded={open} aria-controls={panel}
           label={ui('查看估算明细')} onClick={() => setOpen(!open)} />
       </p>

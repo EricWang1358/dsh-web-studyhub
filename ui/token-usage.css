@@ -75,6 +75,9 @@
     .token-estimate__ghost { visibility: hidden; }
     .token-estimate__quiet { align-self: center; }
     .token-estimate__info--slot { visibility: hidden; pointer-events: none; }
+    /* A long line (the 覆盖强度 one) wraps inside its own width and the info button stays at its end instead of dropping under it. */
+    .token-estimate--tight .token-estimate__line { flex-wrap: nowrap; align-items: flex-start; }
+    .token-estimate--tight .token-estimate__line > :first-child { flex: 1 1 auto; min-width: 0; padding-top: var(--space-1); overflow-wrap: anywhere; }
     /* An action column right-aligns the line under its button. */
     .token-estimate--end .token-estimate__line { justify-content: flex-end; text-align: right; }
     .token-estimate--end .token-estimate__quiet { justify-self: end; }

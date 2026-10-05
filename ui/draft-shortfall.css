@@ -1,4 +1,4 @@
-/* A draft that came out short: why, and the one top-up button (ui/DraftShortfall.jsx).
+/* A draft that came out short: why (ui/DraftShortfall.jsx), and the column the one top-up sits in (ui/coverage/CoverageTopUp.jsx).
    Injected by the components (useInjectCss 'study-draft-shortfall'); tokens only. */
 
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
@@ -15,15 +15,6 @@
     .shortfall__reasons { display: grid; gap: var(--space-half); margin: 0; padding-left: 1.2em; }
     .shortfall__reasons small { display: inline; margin: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .shortfall__line { color: var(--text-dim); }
-  }
-  :where(.study-app, .study-seat) {
-    /* 用未覆盖的资料补题: the target sentence, then the count, the button and the explicit new-deck choice in one row. */
-    .draft-addfrom { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); min-width: 0; max-width: 100%; margin-block: var(--space-2); }
-    /* The button names the deck: on a narrow screen it wraps instead of pushing the whole block past the edge. */
-    .draft-addfrom__button { white-space: normal; max-width: 100%; height: auto; padding-block: var(--space-2); text-align: left; overflow-wrap: anywhere; }
-    .draft-addfrom__target { margin: 0; font-size: var(--fs-sm); color: var(--text-dim); overflow-wrap: anywhere; }
-    .draft-addfrom__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-    .draft-addfrom .token-estimate { max-width: 34em; }
   }
   :where(.study-app, .study-seat) {
     /* The notices of a draft (Banners) stack with one gap; the shortfall banner lays its parts out the same way. */

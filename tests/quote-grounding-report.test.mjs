@@ -12,6 +12,7 @@ import { createJobNotifier } from "../lib/runtime/job-notice.js";
 import { describePartReport, failureReason, summarizePartOutcomes } from "../lib/generation-report.js";
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
 import { mapProps } from './helpers/study-map-props.mjs';
+import { draftView, seedView } from './helpers/coverage-view.mjs';
 
 /* The owner's report: a 36-page generation said "5 parts failed because the quoted source text could not be found", and the agent
    advised retrying by hand with fewer pages. The job and the draft now say how many parts passed or failed and why, in the learner's
@@ -91,7 +92,7 @@ const load = async (contents) => {
   return module.exports;
 };
 const m = await load(`export * from './ui/draft-shortfall.js'; export * from './ui/generation-status.js'; export { setUiLanguage } from './ui/i18n.js';`);
-const map = await load(`export { default as StudyMap } from './ui/StudyMap.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+const map = await load(`export { default as StudyMap } from './ui/StudyMap.jsx'; export { seedCoverage, forgetCoverage } from './ui/coverage/use-coverage.js'; export { setUiLanguage } from './ui/i18n.js';`);
 const han = /[㐀-鿿]/;
 const inLanguage = (language, fn) => { m.setUiLanguage(language); map.setUiLanguage(language); try { return fn(); } finally { m.setUiLanguage("zh"); map.setUiLanguage("zh"); } };
 
@@ -124,18 +125,22 @@ test("the draft reads how many parts passed or failed and why: '5 个部分的�
 const noop = () => {};
 const home = (data) => renderToStaticMarkup(React.createElement(map.StudyMap, mapProps({ data: { root: "/tmp/lib", decks: [], progress: {}, sources: [{ id: "s" }], runs: [], jobs: [], drafts: [],
   today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "", courses: [], fresh: [] }, modelReady: true, ...data },
-busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop, retryGeneration: noop, addSource: noop,
+busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, topUpDraft: noop, retryGeneration: noop, addSource: noop,
 createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop })));
 const job = { id: "a", status: "complete", stageCode: "partial", draftId: "dr", savedCount: 4, requestedTotal: 25, parts: 6, stage: "Draft ready with 4/25 questions; 5 part(s) failed" };
 
 test("the job card of a partly failed generation says why in the learner's language and offers the one top-up", () => {
+  map.forgetCoverage();
+  seedView(map, draftView({ draftId: "dr", draftVersion: 2, covered: ["r1.p1"], failed: ["r1.p2"] }));
   const html = home({ drafts: [shortDraft()], jobs: [job] });
   assert.match(html, /5 个部分的引用在资料里找不到/);
-  assert.equal((html.match(/继续补齐 21 题/g) || []).length, 1, "the retry of what is missing is offered once");
+  assert.equal((html.match(/为没覆盖的部分补题/g) || []).length, 1, "the retry of what is missing is offered once, as the one top-up");
+  assert.doesNotMatch(html, /继续补齐/);
   const english = inLanguage("en", () => home({ drafts: [{ ...shortDraft(), title: "Architecting" }], jobs: [{ ...job, deckTitle: "Architecting" }] })).replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(english, han, (english.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);
   assert.match(english, /5 part\(s\) quoted text that could not be found in the sources/);
-  assert.match(english, /Continue generation for 21 questions/);
+  assert.match(english, /Add questions for the uncovered parts/);
+  assert.doesNotMatch(english, /Continue generation for/);
 });
 
 test("the notice the chat agent receives says why parts failed and offers the top-up instead of a hand-made retry", () => {

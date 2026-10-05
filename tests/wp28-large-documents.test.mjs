@@ -9,7 +9,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 const page = (n, chars = 100, extra = {}) => ({ id: `p${n}`, title: `书 · p.${n}`, text: 'x'.repeat(chars), document: { id: 'h', page: n, totalPages: 1000, ...extra } });
 
 test('limits are the ones the importer and generation enforce', () => {
-  assert.deepEqual(LARGE_DOCUMENT_LIMITS, { pdfBytes: 8 * 1024 * 1024, pdfPages: 200, selectionChars: 600000, advisePages: 300 });
+  assert.deepEqual(LARGE_DOCUMENT_LIMITS, { pdfBytes: 8 * 1024 * 1024, pdfPages: 200, selectionChars: 600000, coverageSelectionChars: 3_000_000, advisePages: 300 });
 });
 
 test('an import failure is recognised as "too large" in every wording the importer uses', () => {

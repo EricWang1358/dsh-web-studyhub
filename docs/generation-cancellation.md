@@ -17,11 +17,14 @@ Checkpoint drafts show completed batches against planned batches. If the host
 restarts, the in-memory job disappears, but the saved draft stays visible and
 is labelled as interrupted; only its saved questions have passed review. New
 generation drafts also retain source IDs and the original settings. The learner
-can choose **继续补齐** to run the normal evidence planning and review pipeline
-for the missing count, then append approved new cards to the same draft. This
+can choose **为没覆盖的部分补题** (add questions for the uncovered parts) to run the normal evidence
+planning and review pipeline for the sections of the material that have no question
+(planned-and-failed ones are written again from their plan), then append approved new
+cards to the same draft. This
 starts a fresh model job; it does not revive the interrupted model session.
-Mixed drafts fill the missing question kinds first. If another window edits the
-draft during the job, its optimistic version check stops the checkpoint instead
+The plain `generate { resumeDraftId, draftVersion }` an agent can send fills the
+missing count instead; mixed drafts fill the missing question kinds first.
+If another window edits the draft during the job, its optimistic version check stops the checkpoint instead
 of overwriting that edit. Older drafts without stored generation settings need
 a new generation request.
 
