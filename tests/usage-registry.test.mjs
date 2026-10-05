@@ -83,7 +83,7 @@ test('CI-style: every data-usage a page marks is registered, and every registere
   }
   // template keys such as nav.${id} stand for every page of the sidebar
   const templates = [...marked.keys()].filter(key => key.includes('${'));
-  const expand = key => key.replace('${id}', '(?:library|wrongbook|workflows|notes|board|exam|dashboard|sources|generate|skeleton|audio|live)');
+  const expand = key => key.replace('${id}', '(?:library|wrongbook|workflows|notes|board|exam|dashboard|sources|generate|tasks|skeleton|audio|live)');
   for (const [key, file] of marked) {
     if (key.includes('${')) { assert.ok(USAGE_REGISTRY.some(item => new RegExp(`^${expand(key).replace('.', '\\.')}$`).test(item.key)), `${key} (${file}) matches no registered control`); continue; }
     assert.ok(usageEntry(key), `${key} is marked in ${file} but not registered`);

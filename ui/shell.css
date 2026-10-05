@@ -219,6 +219,11 @@
       color: var(--danger, var(--accent));
       font-weight: var(--fw-strong);
     }
+    /* Tasks are running: the count is live, so it reads a little brighter than a plain count. */
+    .nav-count.is-live {
+      color: var(--accent-text);
+      font-weight: var(--fw-strong);
+    }
     /* ── Collapsed rail ─────────────────────────────────────────────────────
        .is-narrow is set manually via the toggle, or automatically when the
        workspace is ≤720px (ResizeObserver in App.jsx). */

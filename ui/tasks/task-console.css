@@ -1,0 +1,148 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* The 任务 console: master-detail, as tall as the window (nothing grows the page: every list scrolls inside its own panel), in the
+   dense register of ui/dense-surface.css. Tokens only. At narrow widths the columns stack and the page scrolls instead (see the
+   container query at the end), because a phone has no height to split into panels. */
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The page fills the area under the top bar; the shell's main becomes a column so the console can take the rest of its height. */
+    & main:has(> .tc) {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .tc {
+      flex: 1 1 0;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      border-top: 1px solid var(--line);
+      background: var(--bg-canvas);
+      color: var(--text);
+    }
+    .tc[data-full='true'] { grid-template-columns: minmax(0, 1fr); }
+    .tc[data-full='true'] > .tc-list { display: none; }
+    .tc-list {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+      border-right: 1px solid var(--line);
+      background: var(--bg-sunken);
+    }
+    .tc-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      flex: none;
+      height: 44px;
+      padding: 0 var(--space-4);
+      border-bottom: 1px solid var(--line);
+    }
+    .tc-bar h1, .tc-bar h2 {
+      margin: 0;
+      min-width: 0;
+      overflow: hidden;
+      font-family: var(--font-ui);
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-strong);
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tc-filters { display: flex; flex: none; }
+    .tc-filter { margin-inline-start: calc(var(--space-half) / -2); --control-h-sm: 24px; padding-inline: var(--space-3); font-size: var(--fs-xs); }
+    .tc-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
+    .tc-row {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto;
+      gap: var(--space-half) var(--space-3);
+      align-items: center;
+      justify-content: normal;
+      width: 100%;
+      min-height: 56px;
+      padding: var(--space-3) var(--space-4);
+      border: 0;
+      border-bottom: 1px solid var(--line-soft);
+      background: transparent;
+      color: inherit;
+      font-weight: var(--fw-regular);
+      text-align: left;
+      white-space: normal;
+    }
+    .tc-row:hover { background: var(--bg-hover); }
+    .tc-row[aria-pressed='true'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
+    .tc-row:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
+    .tc-row__title { overflow: hidden; font-weight: var(--fw-medium); text-overflow: ellipsis; white-space: nowrap; }
+    .tc-row__sub { grid-column: 2 / 4; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+    .tc-num { color: var(--text-muted); font-family: var(--font-stack-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--decor-faint); }
+    .tc-dot[data-state='run'] { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .tc-dot[data-state='done'] { background: var(--ok); }
+    .tc-dot[data-state='partial'] { background: var(--warn); }
+    .tc-dot[data-state='fail'] { background: var(--bad); }
+    .tc-dot[data-state='queued'] { background: var(--info); }
+    .tc-num[data-state='run'] { color: var(--accent-text); }
+    .tc-num[data-state='done'] { color: var(--ok-ink); }
+    .tc-num[data-state='partial'] { color: var(--warn-ink); }
+    .tc-num[data-state='fail'] { color: var(--bad-ink); }
+    .tc-empty { padding: var(--space-6) var(--space-4); color: var(--text-muted); }
+
+    .tc-detail {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      min-height: 0;
+      min-width: 0;
+    }
+    .tc-head { flex-wrap: nowrap; padding: 0 var(--space-5); }
+    .tc-head__title { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
+    .tc-head__sub { color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
+    .tc-head__actions { display: flex; flex: none; gap: var(--space-2); }
+    .tc-metrics {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(0, 1fr));
+      border-bottom: 1px solid var(--line);
+    }
+    .tc-metric {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: var(--space-half);
+      min-width: 0;
+      min-height: 52px;
+      padding: var(--space-3) var(--space-4);
+      border-right: 1px solid var(--line-soft);
+    }
+    .tc-metric:last-child { border-right: 0; }
+    .tc-metric--progress { gap: var(--space-2); padding-inline: var(--space-5); }
+    .tc-metric__k { color: var(--text-muted); font-size: var(--fs-xs); }
+    .tc-metric__v { overflow: hidden; font-family: var(--font-stack-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-metric__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+    .tc-metric__pct { font-family: var(--font-stack-mono); font-size: var(--fs-lg); font-variant-numeric: tabular-nums; }
+    .tc-segments { display: flex; gap: var(--space-half); height: 5px; }
+    .tc-segment { flex-basis: 0; min-width: 6px; background: var(--line); }
+    .tc-segment > i { display: block; height: 100%; background: var(--sh-seg, var(--accent)); transform-origin: left; }
+    .tc-segment[data-stage='transcribe'], .tc-segment[data-stage='plan'] { --sh-seg: var(--info); }
+    .tc-segment[data-stage='proofread'], .tc-segment[data-stage='author'] { --sh-seg: var(--accent); }
+    .tc-segment[data-stage='translate'], .tc-segment[data-stage='review'] { --sh-seg: var(--ok); }
+    .tc-segment[data-stage='save'], .tc-segment[data-stage='repair'] { --sh-seg: var(--text-dim); }
+    .tc-body { display: grid; min-height: 0; min-width: 0; }
+  }
+
+  /* Narrow: the console is a page again. The list sits above the detail, every panel gets a height of its own, and the page scrolls. */
+  @container study (max-width: 900px) {
+    :is(.study-app, .study-seat) {
+      & main:has(> .tc) { height: auto; overflow: visible; }
+      .tc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; flex: none; }
+      .tc[data-full='true'] > .tc-list { display: none; }
+      .tc-list { border-right: 0; border-bottom: 1px solid var(--line); }
+      .tc-list > .tc-scroll { flex: none; max-height: 220px; }
+      .tc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tc-metric--progress { grid-column: 1 / -1; border-bottom: 1px solid var(--line-soft); }
+      .tc-head { height: auto; min-height: 44px; flex-wrap: wrap; padding-block: var(--space-2); }
+    }
+  }
+}

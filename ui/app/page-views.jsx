@@ -4,7 +4,7 @@ import { pageAvailable } from '../capabilities.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
-import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes } from '../workspace-views.jsx';
+import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } from '../workspace-views.jsx';
 import StudyMap from '../StudyMap.jsx';
 import Welcome, { SampleBanner } from '../Welcome.jsx';
 import Dashboard from '../Dashboard.jsx';
@@ -166,6 +166,22 @@ function AudioView() {
   );
 }
 
+/** 任务: every background job in one place. What each job's 打开结果 leads to is decided here, where the app's navigation lives. */
+function TasksView() {
+  const { data, drafts, intents, learn } = useApp();
+  const openers = {
+    resultOf: (job) => {
+      const draft = job.draftId && data.drafts.find((item) => item.id === job.draftId);
+      if (job.sourceIds?.length && ['audio-import', 'pdf-convert', 'translation'].includes(job.type) && job.status === 'complete')
+        return { label: ui('打开资料'), run: () => learn.openAudioSources(job.sourceIds) };
+      if (draft && job.status !== 'running' && job.status !== 'queued') return { label: ui('打开草稿'), run: () => drafts.openDraft(draft, { navigation: true }) };
+      if (job.publication?.deckId && data.decks.some((deck) => deck.id === job.publication.deckId)) return { label: ui('打开题组'), run: () => intents.openDeck(job.publication.deckId) };
+      return null;
+    },
+  };
+  return <TaskConsole data={data} openers={openers} />;
+}
+
 function GenerateView() {
   const { data, nav, lib, set, drafts, intents, connection, settingsEntry, canChat } = useApp();
   return (
@@ -283,7 +299,7 @@ function NotesView() {
 /** The component of each page that shows through <PageView>. Board and live class are drawn by the shell itself (they keep running or load without a snapshot). */
 export const PAGE_VIEWS = {
   library: LibraryView, workflows: WorkflowsView, skeleton: SkeletonView, dashboard: DashboardView, exam: ExamView, wrongbook: WrongBookView, graph: GraphView,
-  manage: ManageView, sources: SourcesView, audio: AudioView, generate: GenerateView, draft: DraftView, settings: SettingsView, review: ReviewView, notes: NotesView,
+  manage: ManageView, sources: SourcesView, audio: AudioView, tasks: TasksView, generate: GenerateView, draft: DraftView, settings: SettingsView, review: ReviewView, notes: NotesView,
 };
 
 /** What the learner sees when the host has switched the page's components off. */

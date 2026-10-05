@@ -4,6 +4,7 @@ import { PAGES } from '../pages.js';
 import { pageAvailable } from '../capabilities.js';
 import { countDocuments } from '../../lib/source-groups.js';
 import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from '../SideNav.jsx';
+import { runningTaskCount } from '../tasks/task-model.js';
 import { NAV_DEFAULTS, NAV_GROUPS, groupIsOpen, useNavGroups, useNavOrder } from '../nav-order.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
@@ -89,14 +90,15 @@ export default function AppSidebar() {
               {ids.map((id) => {
                 const label = ui(PAGES[id].label);
                 const due = id === 'board' && board.due.overdue + board.due.today > 0;
+                const running = id === 'tasks' ? runningTaskCount(data) : 0;
                 return (
                   <NavItem key={id} {...navOrder.bind(id)} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
                     className={navOrder.lifted === id ? 'is-dragging' : ''} upkeep={group.id === 'setup'} active={navPage === id}
                     glyph={PAGES[id].glyph} label={label} title={`${label}\n${ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）')}`}
                     onClick={() => gotoPage(nav, id)} disabled={!data && id !== 'board'}
-                    hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : undefined}
-                    hintClass={due ? 'nav-count is-due' : 'nav-count'}
-                    hintTitle={due ? uiFormat('{0} 项已逾期 · {1} 项今天截止', [board.due.overdue, board.due.today]) : undefined} />
+                    hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : running > 0 ? running : undefined}
+                    hintClass={due ? 'nav-count is-due' : running > 0 ? 'nav-count is-live' : 'nav-count'}
+                    hintTitle={due ? uiFormat('{0} 项已逾期 · {1} 项今天截止', [board.due.overdue, board.due.today]) : running > 0 ? uiFormat('{0} 个任务正在进行', [running]) : undefined} />
                 );
               })}
             </NavGroup>

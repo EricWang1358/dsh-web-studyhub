@@ -1,0 +1,38 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* Dense surface: one attribute (data-surface="dense") puts an area in the compact, square-cornered register of an operator console.
+   It rescopes the corner, spacing, type and line-height tokens for that element and everything inside it, and trims the control heights
+   to a 28-32px row (--control-h, --control-h-sm), so Button, Tabs, Badge and the rest keep their own markup and look right with no page CSS of their own. It is the
+   only place that decides what "dense" means; the 任务 console is its first user. The rest of the app is untouched. */
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    [data-surface='dense'] {
+      --radius: 0px;
+      --radius-sm: 0px;
+      --radius-xs: 0px;
+      --radius-card: 0px;
+      --radius-pill: 0px;
+      --space-1: 3px;
+      --space-2: 6px;
+      --space-3: 8px;
+      --space-4: 12px;
+      --space-5: 16px;
+      --space-6: 20px;
+      --space-7: 24px;
+      --space-8: 32px;
+      --space-9: 44px;
+      --fs-xs: 11px;
+      --fs-sm: 12px;
+      --fs-md: 13px;
+      --fs-lg: 14px;
+      --lh-tight: 1.25;
+      --lh-snug: 1.35;
+      --lh-body: 1.45;
+      /* Control rows: a button is 32px tall (28px for the small ones), a tab the same; components read these two. */
+      --control-h: 32px;
+      --control-h-sm: 28px;
+      font-size: var(--fs-md);
+      line-height: var(--lh-body);
+    }
+  }
+}
