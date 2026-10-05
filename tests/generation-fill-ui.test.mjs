@@ -69,6 +69,15 @@ test('generation details say how many questions the repair kept and how many wer
   assert.doesNotMatch(english.replaceAll('第1步 架构思维', 'TITLE'), han);
 });
 
+test('generation details list the review suggestions apart from the questions that had to be fixed (#216)', () => {
+  const suggested = draft(); suggested.editorial.suggestions = [{ cardId: 'c1', text: 'q1：建议把选项压缩为一句话。', kind: 'suggestion' }];
+  const out = text(page(suggested));
+  assert.match(out, /审阅建议（已记录，不影响通过）· 1/);
+  assert.match(out, /建议把选项压缩为一句话/);
+  assert.match(text(page(suggested, {}, {}, 'en')), /Review suggestions \(recorded, they do not reject a question\) · 1/);
+  assert.doesNotMatch(text(page(draft())), /审阅建议/);
+});
+
 test('the add button is not offered for a case paper, an edit of a published deck or an unsaved edit', () => {
   const none = (value) => assert.doesNotMatch(page(value), /data-add-from-sources/);
   none(draft({ editingDeckId: 'deck-1' }));
