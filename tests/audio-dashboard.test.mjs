@@ -128,9 +128,10 @@ test('model reasoning and quota settings validate, persist, and invalidate only 
 });
 test('native reasoning respects supported medium/high and falls back when unavailable', async () => {
   const ctx = { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: 'low' }, { id: 'medium' }, { id: 'high' }] } }) } };
-  for (const level of ['low', 'medium', 'high']) assert.equal(await correctionEffort(ctx, {}, level), level);
-  assert.equal(await correctionEffort(ctx, {}, 'default'), undefined);
-  assert.equal(await correctionEffort({ llm: {} }, {}, 'high'), undefined);
+  const route = { provider: 'test-provider', model: 'test-model' };
+  for (const level of ['low', 'medium', 'high']) assert.equal(await correctionEffort(ctx, route, level), level);
+  assert.equal(await correctionEffort(ctx, route, 'default'), undefined);
+  assert.equal(await correctionEffort({ llm: {} }, route, 'high'), undefined);
 });
 test('Groq receives high reasoning when supported and reports fallback when rejected', async () => {
   const forms = [];

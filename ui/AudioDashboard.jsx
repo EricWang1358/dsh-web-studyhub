@@ -6,6 +6,7 @@ import { Button, ErrorState, Hint, Panel, ProgressBar } from './components/index
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 import { useStudy } from './study-context.jsx';
+import { useModelEfforts } from './use-model-efforts.js';
 import { refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 
 /* 用量控制台：首次转写之前不显示（什么都没配置时由音频页的配置卡片代替），
@@ -22,7 +23,7 @@ export function dashboardVisible(settings, usage) {
   return anyKey(settings) && usage?.since !== null && usage?.since !== undefined;
 }
 
-export function AudioDashboardView({ data, settings, busy, refresh, save, error }) {
+export function AudioDashboardView({ data, settings, busy, refresh, save, error, efforts = null, modelName = '' }) {
   const providers = [...data.providers].sort((a, b) => AUDIO_TIERS.indexOf(a.tier) - AUDIO_TIERS.indexOf(b.tier));
   const sum = field => providers.reduce((n, provider) => n + provider.today[field], 0);
   const total = sum('requests');
@@ -81,7 +82,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
           {[...AUDIO_TIERS].reverse().map(tier => <i className={tier} key={tier} style={{ height: `${(day[tier] || 0) / max * 100}%` }} />)}
         </div><small>{day.date.slice(5).replace('-', '/')}</small></div>)}</div>
     </section>
-    <AudioReasoning settings={settings} busy={busy} onSave={save} timings={data.timings} />
+    <AudioReasoning settings={settings} busy={busy} onSave={save} timings={data.timings} efforts={efforts} modelName={modelName} />
     <details className="audio-quota-settings"><summary>{ui('设置 Gemini 免费每日上限')}</summary>
       <p>{ui('从 AI Studio 填入当前模型的 RPD。Gemini 同项目共享额度，这里的已用量只统计本插件；0 表示未知。')}</p>
       <form onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); const dailyLimits = { ...settings.dailyLimits };
@@ -96,16 +97,17 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
 }
 
 /** The console folded away under one line with today's count; it opens on demand. */
-export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle }) {
+export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle, efforts = null, modelName = '' }) {
   const today = data.providers.reduce((n, provider) => n + (provider.today?.requests || 0), 0);
   return <Panel as="details" className="audio-usage-panel" onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined}>
     <summary><span>{ui('用量与额度')}</span><small>{uiFormat('今日 {0} 次请求', [today])}</small></summary>
-    <AudioDashboardView data={data} settings={settings} busy={busy} refresh={refresh} save={save} error={error} />
+    <AudioDashboardView data={data} settings={settings} busy={busy} refresh={refresh} save={save} error={error} efforts={efforts} modelName={modelName} />
   </Panel>;
 }
 
 export default function AudioDashboard({  }) {
   const { call } = useStudy();
+  const model = useModelEfforts(call, { enabled: true });
   const [data, setData] = useState(null), [actionError, setError] = useState(''), [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   // The settings are the host's shared answer (ui/host-query.js), the same copy the audio settings pane saves into; this console only watches it
@@ -152,5 +154,5 @@ export default function AudioDashboard({  }) {
   };
   // Before the first transcription there is nothing to show; with nothing configured the setup card stands in for it.
   if (!data || !settings || !dashboardVisible(settings, data)) return null;
-  return <AudioDashboardPanel data={data} settings={settings} error={error} busy={busy} refresh={refresh} save={save} onToggle={setOpen} />;
+  return <AudioDashboardPanel data={data} settings={settings} error={error} busy={busy} refresh={refresh} save={save} onToggle={setOpen} efforts={model.options} modelName={model.model} />;
 }

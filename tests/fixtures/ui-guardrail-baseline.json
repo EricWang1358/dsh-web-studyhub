@@ -2,7 +2,6 @@
   "note": "Per-file counts may only fall. Regenerate with node scripts/qa/guardrail-baseline.mjs --update (lowers only; --allow-increase for the coordinator).",
   "metrics": {
     "rawButton": {
-      "ui/AudioReasoning.jsx": 1,
       "ui/BlogNotes.jsx": 2,
       "ui/CaseWorkspace.jsx": 4,
       "ui/CourseActive.jsx": 1,
