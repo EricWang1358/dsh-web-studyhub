@@ -41,7 +41,7 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
    ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
 export const KNOWN_LAYOUT = {
   "import-files": { maxCls: 0.16, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows)" },
-  "job-progress": { maxCls: 0.3, why: "a finished generation inserts the 待发布 list above the course desk and moves it down (0.044 at 1280; at 420 0.19 to 0.24, the same ~180-200 px as before, but the compact job card keeps one height from running to done where the card it replaced got shorter when it finished, so nothing offsets the insertion any more: reserve the 待发布 area while a run is going)" },
+  "job-progress": { maxCls: 0.25, why: "a finished generation inserts the 待发布 list above the course desk and moves it down (0.044 at 1280; at 420 0.19 to 0.24, the same ~180-200 px as before, but the compact job card keeps one height from running to done where the card it replaced got shorter when it finished, so nothing offsets the insertion any more: reserve the 待发布 area while a run is going)" },
 };
 
 /* ---------- steps ---------- */

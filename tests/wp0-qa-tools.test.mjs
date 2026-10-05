@@ -44,8 +44,8 @@ test("findChromium prefers PLAYWRIGHT_CHROMIUM, then the newest installed Playwr
 
 test("journey options: language, theme, width, steps and output folder", () => {
   // The core loop comes first, in order; work packages append their own step sets (WP6: audio).
-  assert.deepEqual(JOURNEY_STEPS.map((step) => step.name).slice(0, 11), ["empty-home", "add-material", "import-files", "sources", "generate",
-    "job-progress", "draft", "publish", "practice", "wrongbook", "settings"]);
+  assert.deepEqual(JOURNEY_STEPS.map((step) => step.name).slice(0, 12), ["empty-home", "add-material", "import-files", "sources", "generate",
+    "job-progress", "task-console", "draft", "publish", "practice", "wrongbook", "settings"]);
   for (const name of ["audio-gate", "audio-settings", "audio-import", "audio-long", "live-gate"]) assert.ok(JOURNEY_STEPS.some((step) => step.name === name), name);
   assert.ok(JOURNEY_STEPS.every((step) => typeof step.run === "function"));
   const defaults = parseJourneyArgs([]);
