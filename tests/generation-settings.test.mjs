@@ -44,7 +44,7 @@ test('invalid generation setting patches are refused without a partial write', a
   const before = await service.call('export');
   for (const generation of [null, [], 'fast', { concurrency: 0 }, { concurrency: 9 }, { concurrency: '3' },
     { batchSize: 6 }, { batchSize: 2.5 }, { jobTimeoutMinutes: 4 }, { jobTimeoutMinutes: 61 },
-    { count: 0 }, { count: 31 }, { kind: 'case' }, { language: 'Klingon' }, { difficulty: 'hard' },
+    { count: 0 }, { count: 501 }, { kind: 'case' }, { language: 'Klingon' }, { difficulty: 'hard' },
     { focus: 4 }, { focus: 'x'.repeat(2001) }, { phaseTimeoutMinutes: 30 }]) {
     await assert.rejects(service.call('settings', { first_interval_days: 4, generation }), /generation/i);
     assert.deepEqual(await service.call('export'), before);

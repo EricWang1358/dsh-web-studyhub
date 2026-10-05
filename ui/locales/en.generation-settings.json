@@ -12,7 +12,7 @@
   "运行时限（分钟）": "Time budget (minutes)",
   "生成安排": "Generation pace",
   "保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。": "Saved in this library as defaults for new question tasks. You can adjust each request; tasks already started keep their choices.",
-  "一次请求的总题数，与每批题数分别设置。": "The total requested questions, separate from questions per batch.",
+  "没有指定覆盖强度时（例如让助手在对话里出题）一次请求的总题数；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。": "The total number of questions when no coverage strength is given (for example when you ask the assistant in chat); the Create page works by coverage strength and does not use it. Separate from questions per batch.",
   "例如：重点解释成立条件，再比较相似概念。": "For example: explain when a rule applies, then compare similar concepts.",
   "可留空；这次出题的侧重点可以覆盖这里的默认值。": "Optional. A request's focus can override this default.",
   "同时处理更多批次通常更快；服务容易限流时可以调低。": "More parallel batches can finish sooner. Lower this if your provider limits requests.",

@@ -93,13 +93,14 @@ test("weakTopicsFor ranks the course's weak topics and ignores other courses", a
 test("normalizeSuggestion validates, clips and drops what the schema forbids", () => {
   const value = normalizeSuggestion({
     focus: [" Raft vs Paxos ", "x".repeat(200), "", 42, "Raft vs Paxos", "a", "b", "c", "d"],
-    count: 99, difficulty: "nightmare", kind: "essay", why: "w".repeat(500),
+    count: 9999, coverage: "Thorough", difficulty: "nightmare", kind: "essay", why: "w".repeat(500),
   });
   assert.equal(value.focus.length, SUGGEST_LIMITS.focus);
   assert.equal(value.focus[0], "Raft vs Paxos");
   assert.ok(value.focus.every((item) => item.length <= SUGGEST_LIMITS.focusChars));
   assert.equal(new Set(value.focus).size, value.focus.length, "duplicates removed");
-  assert.equal(value.count, 30, "count is clamped to 1-30");
+  assert.equal(value.count, 500, "an older reply's count is kept within what a request may ask for (1-500), no longer cut to 30");
+  assert.equal(value.coverage, "full", "the suggestion speaks in coverage: lean, standard or full, aliases understood");
   assert.equal(value.difficulty, undefined, "unknown difficulty dropped");
   assert.equal(value.kind, undefined, "unknown kind dropped");
   assert.ok(value.why.length <= SUGGEST_LIMITS.whyChars);

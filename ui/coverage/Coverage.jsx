@@ -4,7 +4,7 @@ import { Button, Disclosure, StackedBar, Tooltip } from '../components/index.js'
 import { useInjectCss } from '../shared.js';
 import { coverageFromDigest } from '../../lib/coverage.js';
 import css from './coverage.css';
-import { countOf, coverageChipText, coverageLine, sectionName, stateMeaning, stateWord, reasonWord, uncoveredHead } from './copy.js';
+import { countOf, coverageChipText, coverageLine, planLine, sectionName, stateMeaning, stateWord, reasonWord, uncoveredHead, weightLine } from './copy.js';
 
 /* 覆盖 on screen: the bar, the mark beside an outline entry, the chip beside the mastery mark and the summary of a draft. They are drawn from lib/coverage.js's result
    (`coverage.get`, the snapshot's materialCoverage) and say it in ui/coverage/copy.js, so every screen shows the same numbers in the same words. */
@@ -18,11 +18,15 @@ const SHAPES = {
 };
 
 /** The segments of a coverage as a stacked bar sees them. */
-export const coverageSegments = (c) => [
-  { value: c.covered, tone: 'info', label: stateWord('covered') },
-  { value: c.plannedFailed, tone: 'warning', label: stateWord('planned-failed') },
-  { value: c.neverPlanned, tone: 'neutral', label: stateWord('never-planned', c.recorded !== false) },
-];
+export const coverageSegments = (c) => {
+  const scheduled = Math.min(c.scheduled || 0, c.neverPlanned || 0);
+  return [
+    { value: c.covered, tone: 'info', label: stateWord('covered') },
+    { value: c.plannedFailed, tone: 'warning', label: stateWord('planned-failed') },
+    ...(scheduled > 0 ? [{ value: scheduled, tone: 'neutral', label: stateWord('never-planned', true, true) }] : []),
+    { value: c.neverPlanned - scheduled, tone: 'neutral', label: stateWord('never-planned', c.recorded !== false) },
+  ];
+};
 
 /** The bar of a coverage: covered, planned and failed, never planned. `legend` writes the three words under it. */
 export function CoverageBar({ coverage, legend = false, size = 'md', className = '' }) {
@@ -36,9 +40,9 @@ export function CoverageBar({ coverage, legend = false, size = 'md', className =
  * The state of one section as a small square (shape first: solid with a tick · hatched · dashed and empty), with its words in the accessible name and the tooltip.
  * `title` is what the section is called; `reason` the failure code of a planned-and-failed one.
  */
-export function CoverageMark({ state = 'never-planned', title = '', reason, recorded = true, size = 13, className = '' }) {
+export function CoverageMark({ state = 'never-planned', title = '', reason, recorded = true, scheduled = false, size = 13, className = '' }) {
   useInjectCss(css, 'study-coverage');
-  const word = state === 'planned-failed' && reason ? uiFormat('{0}：{1}', [stateWord(state), reasonWord(reason)]) : stateWord(state, recorded), meaning = stateMeaning(state, recorded);
+  const word = state === 'planned-failed' && reason ? uiFormat('{0}：{1}', [stateWord(state), reasonWord(reason)]) : stateWord(state, recorded, scheduled), meaning = stateMeaning(state, recorded, scheduled);
   const name = title ? uiFormat('{0}：{1}', [title, word]) : word;
   return <Tooltip layer placement="left-start" content={<span className="cov-mark__tip"><strong>{word}</strong><span>{meaning}</span></span>}>
     <span className={`cov-mark ${className}`.trim()} data-state={state} data-coverage-mark={state} role="img" aria-label={name}>
@@ -77,9 +81,10 @@ function UncoveredList({ coverage, onOpen }) {
       {open.map((section) => {
         const group = section.recording != null ? names.get(section.recording) : null;
         return <li key={section.key} data-section={section.key} data-state={section.state}>
-          <CoverageMark state={section.state} reason={section.reason} recorded={coverage.recorded} title={sectionName(section)} />
+          <CoverageMark state={section.state} reason={section.reason} recorded={coverage.recorded} scheduled={!!section.scheduled} title={sectionName(section)} />
           <span className="cov-list__name">{sectionName(section)}
-            <small>{[group && uiFormat('录音 {0}', [group.recording]), section.state === 'planned-failed' ? uiFormat('计划了没出成：{0}', [reasonWord(section.reason)]) : stateWord(section.state, coverage.recorded)].filter(Boolean).join(' · ')}</small>
+            <small>{[group && uiFormat('录音 {0}', [group.recording]), section.state === 'planned-failed' ? uiFormat('计划了没出成：{0}', [reasonWord(section.reason)]) : stateWord(section.state, coverage.recorded, !!section.scheduled)].filter(Boolean).join(' · ')}</small>
+            {section.weight && <small className="cov-list__why" data-section-why>{weightLine(section.weight)}</small>}
           </span>
           {onOpen && <Button size="sm" variant="quiet" className="cov-list__open" onClick={() => onOpen(section)} data-section-open={section.key}>{ui('在资料中查看')}</Button>}
         </li>;
@@ -98,6 +103,7 @@ export function CoverageSummary({ coverage, onOpen, children, className = '' }) 
   return <section className={`cov-summary ${className}`.trim()} aria-label={ui('这份草稿对资料的覆盖')} data-coverage-summary>
     <p className="cov-summary__kicker">{ui('覆盖')}</p>
     <p className="cov-summary__line" data-coverage-line>{coverageLine(coverage)}</p>
+    {coverage.spec && <p className="cov-summary__plan" data-coverage-plan>{planLine(coverage.spec)}</p>}
     <CoverageBar coverage={coverage} legend />
     {coverage.groups?.length > 1 && <ul className="cov-groups" aria-label={coverage.groups.some((group) => group.recording != null) ? ui('每段录音的覆盖') : ui('每一章的覆盖')} data-coverage-groups>
       {coverage.groups.map((group) => <li key={group.id} data-group={group.id}>

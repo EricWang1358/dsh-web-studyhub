@@ -64,6 +64,17 @@
     .reader-outline__covtoggle { display: inline-flex; align-items: center; gap: var(--space-1-5); margin: 0; color: var(--text-dim); font-size: var(--fs-xs); cursor: pointer; }
     .reader-toolbar__quality { display: grid; flex: none; align-content: center; justify-items: start; gap: var(--space-half); line-height: var(--lh-snug); }
     .reader-toolbar__coverage { display: inline-flex; align-items: center; max-width: 14em; }
+    /* ── 覆盖强度 on the 创建题组 form ─────────────────────────────────── */
+    .cov-strength { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; }
+    .cov-strength > * { min-width: 0; max-width: 100%; }
+    .cov-strength__line { display: grid; gap: var(--space-1); width: 100%; }
+    .cov-strength__levels-line { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-strength__custom { width: 100%; }
+    .cov-strength__count { margin-top: var(--space-2); }
+    .cov-strength__input { width: 8em; }
+    /* ── Why a section has the questions it has (the plan of the draft) ───── */
+    .cov-summary__plan { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-list__why { display: block; color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* ── In a part of a question run (the 任务 console) ────────────────── */
     .tc-cover { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .tc-cover .cov-meter__bar { width: 2.75em; }

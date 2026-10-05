@@ -74,6 +74,7 @@
 
 - 阶段 1（1a、1b）：已实现，见 `docs/generation-reliability.md`。
 - 阶段 2：已实现，见 [`docs/coverage.md`](../../coverage.md)：`lib/coverage.js` 的 `coverageOf`、`coverage.get`、四处视图（任务页「资料部分」、草稿页、资料页行和阅读器工具栏、阅读器目录）和唯一的「为没覆盖的部分补题」。
+- 阶段 3a：已实现，见 [`docs/coverage.md`](../../coverage.md)「Coverage strength and enforced planning」：`lib/coverage-strength.js`（三档、配额、轮次）、`lib/section-weights.js`（每个部分的重要性）、`lib/assigned-plan.js`（服务端强制按分配规划，补问一次，仍不够记为 `plan-short`）、创建题组的「覆盖强度」和出发前的一行说明、草稿页的出题计划与每个部分的重要性和理由。第一次运行做第一轮，后面的轮次由 3b 执行；为没覆盖的部分补题按计划的配额继续。
 
 ## 不在范围内
 

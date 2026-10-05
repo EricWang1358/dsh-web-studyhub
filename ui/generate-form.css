@@ -29,50 +29,11 @@
     /* Six question types wrap instead of overflowing a narrow pane. */
     .generate-form .sh-seg { max-width: 100%; }
     .generate-form .generate-kind { display: flex; flex-wrap: wrap; }
-    /* ── Count: stepper, presets, suggested count ─────────────────────────── */
+    /* ── Custom number of questions: field and presets ───────────────────── */
     .generate-count { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
-    .generate-stepper {
-      display: inline-flex;
-      align-items: stretch;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: var(--bg-sunken);
-      overflow: hidden;
-    }
-    .generate-stepper:focus-within { border-color: var(--accent-soft); box-shadow: var(--ring); }
-    .generate-stepper button {
-      width: 36px;
-      min-height: 36px;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      color: var(--text-dim);
-      font-size: var(--fs-lg);
-      line-height: 1;
-    }
-    .generate-stepper button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-    .generate-stepper input {
-      width: 3.4em;
-      padding: var(--space-1-5) var(--space-1);
-      border: 0;
-      border-inline: 1px solid var(--line);
-      border-radius: 0;
-      background: var(--bg-surface);
-      box-shadow: none;
-      text-align: center;
-      font-variant-numeric: tabular-nums;
-      font-weight: var(--fw-strong);
-      appearance: textfield;
-      -moz-appearance: textfield;
-    }
-    .generate-stepper input:focus { box-shadow: none; background: var(--bg-surface); }
-    .generate-stepper input::-webkit-outer-spin-button,
-    .generate-stepper input::-webkit-inner-spin-button { appearance: none; margin: 0; }
-    /* ── Chips: presets, suggested count, focus suggestions ──────────────── */
+    /* ── Chips: presets, focus suggestions ──────────────── */
     .generate-presets { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
     .generate-preset { min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
-    .generate-hint { border-style: dashed; color: var(--accent-text); }
     /* ── Focus box and its assist ─────────────────────────────────────────── */
     .generate-focus { min-height: 62px; padding: var(--space-2) var(--space-3); resize: none; overflow: hidden; line-height: var(--lh-snug); }
     .generate-assist { display: grid; gap: var(--space-2); width: 100%; min-width: 0; }

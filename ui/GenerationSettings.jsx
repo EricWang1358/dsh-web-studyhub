@@ -91,7 +91,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
       {choiceField('kind', GENERATION_KINDS, value => value === 'mixed' ? ui('测验 + 闪卡') : kinds[value])}
-      {numberField('count', ui('一次请求的总题数，与每批题数分别设置。'))}
+      {numberField('count', ui('没有指定覆盖强度时（例如让助手在对话里出题）一次请求的总题数；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
       {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}

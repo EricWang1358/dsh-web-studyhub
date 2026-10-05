@@ -11,10 +11,13 @@ import { DIMENSIONS, issueCode, reasonLabel } from './quality-reasons.js';
 import { classifyFailure } from '../lib/generation-failure.js';
 import { formatClauses } from './format.js';
 import { USAGE_STAGES, stageUsage } from '../lib/stage-usage.js';
+import { DEFAULT_LEVEL } from '../lib/coverage-strength.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
 export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
-  difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '' });
+  difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '',
+  // 覆盖强度 (lib/coverage-strength.js): the form plans by level; a number of questions is only sent when the learner types one (`customCount`).
+  coverageLevel: DEFAULT_LEVEL, customCount: '' });
 
 export function generationFormDefaults(saved, language = getUiLanguage()) {
   const { performance: _performance, ...content } = resolveGenerationRequest(saved, {}, { language });
@@ -34,7 +37,7 @@ export function syncGenerationDefaults(current, before, after) {
 
 /** Start another deck with saved content defaults and the learner's role. */
 export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => ({ ...gen,
-  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation }
+  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '' }
     : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined });
 
 /** Plan contract C3 first (`data.model`), then the legacy `modelReady` flag. */
@@ -306,6 +309,8 @@ export function failureRowLabel(row) {
 
 /* Causes only the generation pipeline has, named by lib/generation-failure.js: the learner's wording of each (title, the cause in one clause, what to do). */
 const OWN_FAILURES = Object.freeze({
+  'plan-short': { action: 'retry', title: '这一节能出的考点比计划的少', cause: '考点规划不够数',
+    hint: '这一节可出题的内容不多，补问一次后仍然不够。可以点「为没覆盖的部分补题」再试一次，或换成「精简」强度。' },
   'review-protocol': { action: 'retry', title: '审阅回复的格式不对，没能完成审阅', cause: '审阅回复的格式不对',
     hint: '点「继续补齐」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。' },
   'no-reply': { action: 'retry', title: '模型没有返回内容', cause: '模型没有返回内容', hint: '可能是服务暂时的问题，稍后再试。' },
@@ -409,5 +414,7 @@ export function generationStartedNotice(job = {}, gen = {}, materials = 0) {
       : uiFormat('已加入队列，前面还有 {0} 个任务。', [job.queuedBehind ?? 1])
     : title ? uiFormat('已开始生成「{0}」…完成后在这里打开草稿。', [title])
       : uiFormat('已开始用 {0} 份资料出题…完成后在这里打开草稿。', [materials]);
-  return { text, tone: 'success' };
+  // A plan of several rounds: this run makes the first (the heaviest sections); the rest is said, not left to be found out.
+  const rounds = job.plan?.rounds > 1 ? ` ${uiFormat('共分 {0} 轮、约 {1} 题；这次先出第 1 轮（约 {2} 题），其余在草稿页继续。', [job.plan.rounds, job.plan.goal, job.plan.questions])}` : '';
+  return { text: text + rounds, tone: 'success' };
 }
