@@ -9,6 +9,7 @@ import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
 import SaveAnswerAsCard from './links/SaveAnswerAsCard.jsx';
+import { JOB_STATUS } from '../../lib/job-status.js';
 
 const statusLabels = {
   ambiguous: '原文中有多处相同文字，请缩小选区或加入前后文后重新选择。',
@@ -207,7 +208,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
     setError('');
     try {
       await call('job.cancel', { jobId: job.id });
-      setJobs(list => upsertJob(list, { ...job, status: 'cancelling', stageCode: 'cancelling' }));
+      setJobs(list => upsertJob(list, { ...job, status: JOB_STATUS.CANCELLING, stageCode: JOB_STATUS.CANCELLING }));
     } catch (e) { setError(e.message); }
   }
   const shown = jobs.filter(job => !dismissed.has(job.operationId));

@@ -10,7 +10,7 @@
 import { ui, uiFormat } from './i18n.js';
 import { describeFailure } from './generation-status.js';
 import { isActiveJob } from './job-visibility.js';
-import { JOB_STATUS } from '../lib/job-status.js';
+import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { missingQuestions } from '../lib/draft-continuation.js';
 
 export { missingQuestions, canContinueDraft } from '../lib/draft-continuation.js';
@@ -23,7 +23,7 @@ export { missingQuestions, canContinueDraft } from '../lib/draft-continuation.js
 export function draftWork(draft, jobs = []) {
   const job = (jobs || []).find((item) => item.draftId === draft?.id && isActiveJob(item));
   if (!job) return null;
-  const kind = job.type === 'draft-publish' ? 'publish' : job.type === 'draft-repair' ? 'repair' : job.continued ? 'topup' : 'generating';
+  const kind = job.type === JOB_TYPES.DRAFT_PUBLISH ? 'publish' : job.type === JOB_TYPES.DRAFT_REPAIR ? 'repair' : job.continued ? 'topup' : 'generating';
   return { kind, job };
 }
 

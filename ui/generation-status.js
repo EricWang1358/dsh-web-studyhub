@@ -4,7 +4,7 @@
 import { ui, uiFormat, getUiLanguage, uiIsEnglish } from './i18n.js';
 import { stageCodeOf, stepStageCode } from '../lib/contexts/jobs/contracts.js';
 import { isActiveJob, supplementJobLabel } from './job-visibility.js';
-import { JOB_STATUS } from '../lib/job-status.js';
+import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
 
@@ -47,7 +47,7 @@ export const documentCount = countDocuments;
 
 export const jobCode = (job) => (typeof job?.stageCode === 'string' && job.stageCode) || stageCodeOf(job);
 const draftOf = (job, drafts = []) => (job?.draftId && drafts.find((draft) => draft.id === job.draftId)) || null;
-const ownProse = (job) => job?.type === 'draft-publish' || job?.type === 'draft-repair';
+const ownProse = (job) => job?.type === JOB_TYPES.DRAFT_PUBLISH || job?.type === JOB_TYPES.DRAFT_REPAIR;
 
 /** Where a job is, as a short status. */
 export function stageCodeLabel(code) {
@@ -112,7 +112,7 @@ export function stepLabel(step, job = {}) {
 }
 
 export function jobDeckName(job = {}, drafts = []) {
-  return job.deckTitle || (job.type === 'supplement' && job.targetTitle) || draftOf(job, drafts)?.title || job.targetTitle || ui('新题组');
+  return job.deckTitle || (job.type === JOB_TYPES.SUPPLEMENT && job.targetTitle) || draftOf(job, drafts)?.title || job.targetTitle || ui('新题组');
 }
 
 const incomplete = (job) => jobCode(job) === 'partial' && !ownProse(job);
@@ -127,7 +127,7 @@ function standing(job, draft) {
  * job's count is only this top-up; requestedTotal is the whole draft's target. */
 export function jobSavedProgress(job = {}, drafts = []) {
   if (ownProse(job) || !(job.requestedTotal > 0)) return null;
-  const supplement = job.type === 'supplement', draft = draftOf(job, drafts);
+  const supplement = job.type === JOB_TYPES.SUPPLEMENT, draft = draftOf(job, drafts);
   const saved = supplement ? job.savedCount ?? 0 : Math.max(job.savedCount ?? 0, draft?.cards?.length ?? 0);
   return { saved, total: job.requestedTotal,
     label: supplement ? job.publication || job.origin === 'selection' ? ui('本次已补入') : ui('本次已保存') : ui('草稿已保存'),
@@ -145,21 +145,21 @@ export function repeatedJobFailure(text = '') {
 /** The card's first line: what happened to which deck. */
 export function jobHeadline(job = {}, drafts = []) {
   const name = jobDeckName(job, drafts), named = (label) => uiFormat('{0} ·「{1}」', [label, name]);
-  if (job.type === 'supplement') {
+  if (job.type === JOB_TYPES.SUPPLEMENT) {
     const label = supplementJobLabel(job);
     return named(uiFormat(label.text, label.args || []));
   }
-  if (job.type === 'draft-publish')
+  if (job.type === JOB_TYPES.DRAFT_PUBLISH)
     return named(job.status === 'queued' ? ui('发布检查排队中') : job.status === 'running' ? ui('正在检查并发布题组')
       : job.status === 'failed' ? ui('发布未完成') : job.rejected ? job.accepted ? ui('已发布部分题目') : ui('题目未通过发布检查') : ui('题组已发布'));
-  if (job.type === 'draft-repair')
+  if (job.type === JOB_TYPES.DRAFT_REPAIR)
     return named(job.status === 'running' ? ui('后台修题中') : job.status === 'queued' ? ui('修题排队中')
       : job.status === 'failed' ? job.savedCount ? uiFormat('修题中断 · {0}/{1} 题已修好', [job.savedCount, job.count]) : ui('未修好题目')
         : job.status === 'partial' ? uiFormat('部分修好 · {0}/{1} 题', [job.savedCount, job.count])
           : job.status === JOB_STATUS.CANCELLING ? ui('正在停止修题')
             : job.status === 'cancelled' ? ui('修题已取消') : uiFormat('全部修好 · {0}/{1} 题', [job.savedCount, job.count]));
   // Case papers (WP12) read as cases; queueing and stopping read as any generation.
-  if (job.kind === 'case' && !['queued', 'cancelling', 'cancelled'].includes(jobCode(job))) {
+  if (job.kind === 'case' && !['queued', JOB_STATUS.CANCELLING, 'cancelled'].includes(jobCode(job))) {
     const code = jobCode(job);
     if (code === 'done') return job.publication ? uiFormat('案例「{0}」已导入，{1} 题已批改', [name, job.graded || 0]) : uiFormat('案例「{0}」草稿已生成', [name]);
     if (code === 'failed') return uiFormat('案例「{0}」没有生成完成', [name]);
@@ -167,7 +167,7 @@ export function jobHeadline(job = {}, drafts = []) {
   }
   switch (jobCode(job)) {
     case 'queued': return uiFormat('「{0}」排队中', [name]);
-    case 'cancelling': return uiFormat('正在停止「{0}」', [name]);
+    case JOB_STATUS.CANCELLING: return uiFormat('正在停止「{0}」', [name]);
     case 'cancelled': return uiFormat('已停止生成「{0}」', [name]);
     case 'failed': return uiFormat('「{0}」没有生成完成', [name]);
     case 'partial': {
@@ -202,7 +202,7 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
       return uiFormat('还差 {0} 题，正在补题；进度见新的任务卡。', [missing]);
     return missing > 0 ? uiFormat('少了 {0} 题；可以打开草稿补齐。', [missing]) : ui('草稿已补齐，检查后即可发布');
   }
-  if (!isActiveJob(job) || code === 'queued' || code === 'cancelling') return stageCodeLabel(code);
+  if (!isActiveJob(job) || code === 'queued' || code === JOB_STATUS.CANCELLING) return stageCodeLabel(code);
   // While running, the newest step in flight says more than the job-level stage.
   const step = [...(job.steps || [])].reverse().find((item) => ['starting', 'running', 'finishing'].includes(item.status));
   const stepCode = step && stepStageCode(step);

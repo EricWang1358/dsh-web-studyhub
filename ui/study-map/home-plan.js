@@ -3,6 +3,7 @@ import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
 import { workspaceFilePrompt } from '../agent-prompts/library.js';
 import { joinMeta, formatDateTime } from '../format.js';
+import { JOB_TYPES } from '../../lib/job-status.js';
 
 /**
  * What the home card offers. The card offers exactly one action: a newcomer's
@@ -22,7 +23,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
      (D1): add a material → generate from it → check and publish the draft.
      JSON import stays one link away for people who already have questions. */
   const materials = documentCount(data.sources || []), newestDraft = data.drafts?.at(-1);
-  const generating = activeJobs.some((job) => job.type !== 'draft-repair');
+  const generating = activeJobs.some((job) => job.type !== JOB_TYPES.DRAFT_REPAIR);
   const jsonLink = [ui('已有题目？导入 JSON 题组'), importLibrary];
   const starter = data.decks.length ? null
     : newestDraft ? { kind: 'empty', step: 2, eyebrow: ui('下一步'), headline: ui('检查草稿，就能开始练习'),

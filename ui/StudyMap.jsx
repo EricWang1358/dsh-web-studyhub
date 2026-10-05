@@ -29,6 +29,7 @@ import MergeSuggestions, { useMergeSuggestions } from "./study-map/MergeSuggesti
 import DeckTree from "./study-map/DeckTree.jsx";
 import NotebookDirectory from "./study-map/NotebookDirectory.jsx";
 import SelectionBar from "./study-map/SelectionBar.jsx";
+import { JOB_TYPES } from '../lib/job-status.js';
 
 /* The library home: the day's one card, the course heading, generation
    progress and drafts, and the catalogue of decks by course. Each part lives in
@@ -84,8 +85,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const mastery = useCourseMastery(data, progress);
   const runFor = (scope) => runs.find((run) => run.mode === "path" && sameScope(run.scope, scope));
   // Audio imports and PDF conversions report progress in the Sources page, not among question generations.
-  const jobs = (data.jobs || []).filter((job) => job.type !== "audio-import" && job.type !== "pdf-convert" && job.type !== "translation");
-  const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== "draft-publish");
+  const jobs = (data.jobs || []).filter((job) => job.type !== JOB_TYPES.AUDIO_IMPORT && job.type !== JOB_TYPES.PDF_CONVERT && job.type !== JOB_TYPES.TRANSLATION);
+  const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== JOB_TYPES.DRAFT_PUBLISH);
   // Top of the home: what is still running first, then the newest finished cards.
   const shown = visibleGenerationJobs(jobs);
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];

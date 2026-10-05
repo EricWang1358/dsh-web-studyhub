@@ -78,6 +78,15 @@ test('no inline (zh, en) helper and no { zh, en } pair of sentences: the Chinese
   assert.deepEqual(uiSources().filter(({ file, text }) => !own.has(file) && (pair.test(text) || helper.test(text))).map(({ file }) => file), []);
 });
 
+/* ---------- #128: job statuses and types come from lib/job-status.js ---------- */
+
+test("the status 'cancelling' and the job types are written only in lib/job-status.js (#128)", () => {
+  const status = /['"]cancelling['"]/;
+  const type = /\btype\s*[!=]==?\s*['"](?:audio-import|pdf-convert|translation|supplement|draft-repair|draft-publish)['"]/;
+  assert.deepEqual(uiSources().filter(({ text }) => status.test(text)).map(({ file }) => file), []);
+  assert.deepEqual(uiSources().filter(({ text }) => type.test(text)).map(({ file }) => file), []);
+});
+
 /* ---------- #126: dates, clocks, sizes and numbers are written by ui/format.js ---------- */
 
 test('padStart(2 (a clock or a two-digit number) is written only in ui/format.js and its clock (#126)', () => {
