@@ -80,7 +80,7 @@
       text-align: left;
       border: 1px solid var(--line-soft);
       background: linear-gradient(160deg, var(--accent-glow), transparent 70%), var(--bg-surface);
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-popover);
       animation: coach-rise 320ms var(--ease) both;
     }
     /* On the result page it lines up with the score card above it. */

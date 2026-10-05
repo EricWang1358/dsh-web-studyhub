@@ -36,7 +36,7 @@ test('#77 the floating panels share one surface: a feature rule for them writes 
   const surface = leafRules(overlays).find(rule => /\.shortcut-sheet/.test(rule.selector));
   for (const name of shared) assert.ok(surface.selector.includes(name), `${name} is in the shared surface rule`);
   assert.match(surface.body, /border-radius:\s*var\(--radius\)/);
-  assert.match(surface.body, /box-shadow:\s*var\(--shadow-md\)/);
+  assert.match(surface.body, /box-shadow:\s*var\(--shadow-popover\)/);
   const bad = [];
   for (const { file, css } of sheets) {
     if (file === 'ui/components/overlays.css') continue;

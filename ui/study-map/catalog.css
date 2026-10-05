@@ -335,7 +335,7 @@
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-dialog);
     }
     .selection-bar span { margin-right: auto; font-size: var(--fs-md); }
   }

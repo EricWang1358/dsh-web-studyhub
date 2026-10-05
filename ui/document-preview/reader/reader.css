@@ -445,7 +445,7 @@
         bottom: 0;
         z-index: calc(var(--z-sticky) + 1);
         width: min(340px, 88%);
-        box-shadow: var(--shadow-lg);
+        box-shadow: var(--shadow-dialog);
       }
       .reader-outline { left: 0; animation: reader-slide-left 0.18s var(--ease-out); }
       .reader-tools { right: 0; animation: reader-slide-right 0.18s var(--ease-out); }

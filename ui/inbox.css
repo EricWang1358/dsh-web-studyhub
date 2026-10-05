@@ -60,7 +60,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-dialog);
       animation: rise-in var(--dur) var(--ease);
     }
     .mailbox__head {

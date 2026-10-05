@@ -75,7 +75,7 @@
     .sh-provider-grid { min-width: 0; }
     .sh-provider-grid__items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--space-4); }
     .sh-provider-grid__items--two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
-    .sh-provider { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); }
+    .sh-provider { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--bg-surface); box-shadow: var(--shadow-panel); }
     .sh-provider.is-set { border-color: var(--ok-line); }
     .sh-provider__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
     .sh-provider__title { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }

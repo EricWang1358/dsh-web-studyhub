@@ -49,11 +49,11 @@
       font-family: var(--font-ui);
       font-size: var(--fs-md);
       /* A paper card floating over the page: the lift of an overlay instead of the resting card shadow. */
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-dialog);
       overscroll-behavior: contain;
     }
     .tour-pop:focus { outline: none; }
-    .tour-pop:focus-visible { box-shadow: var(--shadow-lg), var(--ring); }
+    .tour-pop:focus-visible { box-shadow: var(--shadow-dialog), var(--ring); }
     /* Measured before it is shown; opacity (not visibility) keeps it focusable. */
     .tour-layer.is-measuring .tour-pop { opacity: 0; pointer-events: none; }
     /* The caret points from the card to the spotlight. */
