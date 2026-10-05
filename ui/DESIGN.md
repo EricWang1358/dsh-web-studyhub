@@ -168,6 +168,8 @@ Late data also must not make the page heavy: memoize list rows so that a result 
 
 The check: `scripts/qa/layout-stability.mjs` collects `layout-shift` (shifts within 500 ms of the learner's own input are excluded by Chromium's `hadRecentInput`) and `longtask` per step. `npm run qa:journey` prints and records per step `cls` and `longestTaskMs` in `summary.json`, and fails a step whose CLS is over 0.05 (`--cls-max`), naming the elements that moved; `--longtask-max <ms>` also fails a long task. `tests/layout-stability-guard.test.mjs` proves the tool catches a deliberate late insertion and stays quiet for a reserved slot.
 
+Chromium's layout-shift score is small for a list that grows inside its own scroller (a row that is 20 px taller in a 120-row picker scored 0), so the observer also watches the rows of a `ScrollWindow` (`data-scroll-key`; any other list row can opt in with `data-stable-row`): a row whose height changes after it was first measured, other than within 500 ms of the learner's own input or a window resize, breaks the step ("list row height changed after it was shown"). `scripts/qa/layout-late.mjs` holds a late answer at the network edge on a seeded temporary library and measures the same elements before and after it arrives (picker with 132 materials, mistakes page, material names); `tests/layout-late-*.test.mjs` assert it.
+
 # Confirmations
 
 One question, one component. Pick by what the action does, not by where the button is.

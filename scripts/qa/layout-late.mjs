@@ -85,6 +85,23 @@ export async function seedWrongBookLibrary(root, { wrong = 72 } = {}) {
   return { wrong };
 }
 
+/** The evidence of #207: one lecture PDF, its text version stored under the host's attachment path, and its diagram-normalized text; stored as old libraries have them. */
+export const HOST_PATH_TITLE = "C:\\Users\\Eric1\\.dsh\\attachments\\v1\\files\\15\\15dd8b13a5318c2f6e1d\\01. Introduction to Solution Architecture v2.1.pdf";
+export async function seedTitlesLibrary(root) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  const name = "01. Introduction to Solution Architecture v2.1.pdf", at = new Date().toISOString();
+  await service.store.update((state) => {
+    state.sources.push({ id: "path-text", title: HOST_PATH_TITLE, text: "Solution architecture views: context, container, component.", createdAt: at, courses: [] });
+    state.sources.push({ id: "norm-text", title: `${name.replace(/\.pdf$/, "")} (diagram-normalized text)`, text: "Context diagram: users, system, partners; container diagram: web, api, database.", createdAt: at, courses: [] });
+    for (let page = 1; page <= 3; page++)
+      state.sources.push({ id: `pdf-p${page}`, title: `${name} · p.${page}`, text: `Page ${page} of the introduction to solution architecture lecture.`, createdAt: at, courses: [],
+        document: { id: "d".repeat(64), filename: name, page, totalPages: 3, extractionVersion: 2, format: "pdf" } });
+    state.sources.push({ id: "other", title: "Week 3 notes · replication", text: "Leaders, followers and quorum reads compared.", createdAt: at, courses: [] });
+  });
+  return { name };
+}
+
 /** The preview on a fresh library under the OS temp dir. `seed(root)` writes the library before the server starts. */
 export async function startLateServer({ distDir, seed, lang = "zh" } = {}) {
   scrubProcessEnv();
@@ -225,6 +242,25 @@ export async function wrongBookScenario({ browser, running, lang = "zh", theme =
   return { scenario: "wrongbook", before, after, cls: verdict.cls, shifts: verdict.shifts, rowResizes: verdict.rowResizes, longestTaskMs: longestTask(log), errors };
 }
 
+/* ---------- scenario: material names in the picker (#207) ---------- */
+
+export async function titlesScenario({ browser, running, lang = "zh", theme = "dark", width = 1280, shots = null }) {
+  const { page, errors, context } = await openPage(browser, running, { lang, theme, width });
+  await page.goto(running.server.url);
+  await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
+  const nav = page.locator('[data-tour="nav-generate"]').first();
+  await nav.waitFor({ state: "visible" });
+  await nav.dispatchEvent("click");
+  await page.locator('[data-tour="generate-from-sources"]').or(page.getByRole("tab", { name: lang === "en" ? "From materials" : "从资料补题" })).first().dispatchEvent("click");
+  const rows = '[data-tour="generate-sources"] .source-picker__item';
+  await page.locator(rows).first().waitFor({ timeout: 30000 });
+  await frames(page, 4);
+  const entries = await page.evaluate((sel) => [...document.querySelectorAll(sel)].map((row) => ({ title: row.querySelector("strong")?.textContent ?? "", meta: row.querySelector("small")?.textContent ?? "" })), rows);
+  if (shots) await page.locator('[data-tour="generate-sources"]').first().screenshot({ path: join(shots, "picker.png") });
+  await context.close();
+  return { scenario: "titles", entries, errors };
+}
+
 /* ---------- CLI ---------- */
 
 function parse(argv) {
@@ -238,7 +274,7 @@ function parse(argv) {
     dist: values.dist ? resolve(values.dist) : resolve(repoRoot, "dist"), label: values.label ?? "run", out: values.out ? resolve(values.out) : resolve(repoRoot, "output/layout-stability") };
 }
 
-const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)] };
+const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)], titles: [titlesScenario, (root) => seedTitlesLibrary(root)] };
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invoked) {
