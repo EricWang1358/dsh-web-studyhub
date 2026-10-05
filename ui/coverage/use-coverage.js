@@ -11,6 +11,12 @@ const remember = (key, view) => { remembered.delete(key); remembered.set(key, vi
 /** Put an answer in the memo (what a test, or a page that already has the answer, hands in). */
 export const seedCoverage = (args, version, view) => remember(keyOf(args, version), view);
 export const forgetCoverage = () => remembered.clear();
+/* One question at a time for the same (request, version): the home banner and the 待发布 row of one draft ask together, and the answer reads the whole material. */
+const asking = new Map();
+const ask = (key, call, args) => {
+  if (!asking.has(key)) asking.set(key, Promise.resolve().then(() => call('coverage.get', args)).finally(() => asking.delete(key)));
+  return asking.get(key);
+};
 
 /**
  * The coverage of a draft (`{ draftId }`) or of a document (`{ documentId }` / `{ sourceId }`) from the `coverage.get` action: { status: 'loading' | 'ready' | 'missing' | 'error', view }.
@@ -23,7 +29,7 @@ export function useCoverage(args, { version = '', enabled = true } = {}) {
   const [state, setState] = useState(() => (remembered.has(key) ? { status: 'ready', view: remembered.get(key) } : { status: 'loading', view: null }));
   useLiveEffect((live) => {
     if (!enabled || !args || typeof call !== 'function') return;
-    Promise.resolve().then(() => call('coverage.get', args)).then(
+    ask(key, call, args).then(
       (view) => {
         const ok = view?.status === 'ok';
         if (ok) remember(key, view);

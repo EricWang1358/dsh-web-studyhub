@@ -144,6 +144,7 @@
     "qa:coverage": "node scripts/qa/coverage.mjs",
     "qa:coverage-strength": "node scripts/qa/coverage-strength.mjs",
     "qa:coverage-run": "node scripts/qa/coverage-run.mjs",
+    "qa:honest-states": "node scripts/qa/honest-states.mjs",
     "qa:coverage-formats": "node scripts/qa/coverage-formats.mjs",
     "qa:reader-formulas": "node scripts/qa/reader-formulas.mjs",
     "qa:dsh": "node scripts/qa/dsh-e2e.mjs",

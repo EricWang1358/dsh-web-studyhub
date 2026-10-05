@@ -57,7 +57,7 @@ test("describeFailure gives { code, title, cause, retried, hint } in plain words
   assert.match(zh.title, /审阅回复的格式不对/);
   assert.match(zh.cause, /审阅回复的格式不对/);
   assert.match(zh.retried, /已自动重新审阅 2 次仍然格式不对/);
-  assert.match(zh.hint, /继续补齐/);
+  assert.match(zh.hint, /为没覆盖的部分补题/);
   assert.doesNotMatch([zh.title, zh.cause, zh.retried, zh.hint].join(" "), /protocol|checks|attempts/i, "no raw English");
   const en = inLanguage("en", () => m.describeFailure(OWNER_8));
   assert.equal(en.code, "review-protocol");

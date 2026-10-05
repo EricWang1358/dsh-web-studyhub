@@ -16,7 +16,7 @@ const LANE_WORD = { transcribe: '转写', slot: '槽', other: '其他', whole: '
 function laneLabel(lane) {
   if (lane.row > 1) return { text: '', title: '' };
   if (lane.kind === 'file') return { text: shortFile(lane.file), title: lane.file };
-  if (lane.kind === 'part') { const text = uiFormat('第 {0} 部分', [lane.part]); return { text, title: text }; }
+  if (lane.kind === 'part') { const text = uiFormat('第 {0} 批', [lane.part]); return { text, title: text }; }
   if (lane.kind === 'slot') { const text = uiFormat('槽 {0}', [lane.index]); return { text, title: text }; }
   const text = lane.index > 1 ? uiFormat('{0} {1}', [ui(LANE_WORD[lane.kind]), lane.index]) : ui(LANE_WORD[lane.kind]);
   return { text, title: text };

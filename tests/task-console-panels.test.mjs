@@ -53,7 +53,7 @@ test('the timeline: a lane per file in order, a dashed wait on the file whose sl
   assert.match(out, /title="校对 2\/4 · b\.mp3 · 槽 2"/, 'the bar says which slot it ran in');
   const en = html(React.createElement(m.Timeline, { calls: [{ ...contract.calls[0], file: undefined, part: 2, parts: 3 }, { ...contract.calls[0], callId: 'x', file: undefined, part: null }], running: false, family: 'generation', selected: null, onSelect: () => {} }), 'en');
   assert.match(en, />Whole run</);
-  assert.match(en, />Part 2</);
+  assert.match(en, />Batch 2</);
   const many = Array.from({ length: 30 }, (_, index) => ({ ...contract.calls[1], callId: `m${index}`, file: `f${index}.wav`, startedAt: at(index), endedAt: at(index + 1), status: 'ok' }));
   assert.match(html(React.createElement(m.Timeline, { calls: many, running: false, family: 'audio', onSelect: () => {} })), /另有 6 条/);
   assert.match(html(React.createElement(m.Timeline, { calls: many, running: false, family: 'audio', onSelect: () => {} }), 'en'), /6 more/);

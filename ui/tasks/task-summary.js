@@ -1,5 +1,5 @@
 import { ui, uiFormat } from '../i18n.js';
-import { stageCodeLabel } from '../generation-status.js';
+import { describeFailure, failureSentence, stageCodeLabel } from '../generation-status.js';
 import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
 import { contractOf, taskKindOf, isRunningTask } from './task-model.js';
@@ -73,8 +73,12 @@ export function taskLine(job) {
   if (contract.status === STATUS.PAUSING) return run ? uiFormat('正在暂停 · 第 {0} 轮做完后停下', [run.round]) : uiFormat('正在暂停 · 等 {0} 个调用结束', [contract.actions.pause.waiting?.count ?? 0]);
   if (contract.status === STATUS.PAUSED) return run ? uiFormat('暂停于第 {0} 轮之后', [run.pausedAfter ?? run.done]) : ui('已暂停');
   if (contract.status === STATUS.INTERRUPTED && run) return uiFormat('中断于第 {0} 轮 · 点「接着做」继续', [run.round]);
+  // A question run that failed says its cause in plain words, once (the provider's own English, one line per part, stays in the log and the technical detail).
+  if (state === 'fail' && ['generation', 'supplement'].includes(contract.kind) && contract.error?.message) return failureSentence(describeFailure(contract.stage.text || contract.error.message));
   if (state === 'fail' || state === 'interrupted') return contract.error?.message ? contract.stage.text || contract.error.message : stageLabel(contract.stage);
   if (run && contract.status === STATUS.COMPLETE && run.waiting) return waitingText(run);
+  // A run that ended short of its plan is 部分完成, here as in the header and the badge (not 「已完成」).
+  if (state === 'partial' && run) return ui('部分完成');
   if (run && isRunningTask(job) && run.rounds > 1) return joinMeta([roundOfText(run.round, run.rounds), stageLabel(contract.stage)]);
   return stageLabel(contract.stage);
 }

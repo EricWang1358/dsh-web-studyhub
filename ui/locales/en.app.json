@@ -7,7 +7,7 @@
   "本轮重练": "Session retry",
   "查看 {0} 份资料": "View {0} sources",
   "{0} · {1} 道题": "{0} · {1} questions",
-  "道题已掌握 / {0} 道": "questions mastered / {0}",
+  "道题答对 / {0} 道": "questions correct / {0}",
   "另有 {0} 次队尾重练": "Plus {0} retries at the end of the queue",
   "课程进度 · 已学 {0} 题": "Course progress · {0} questions explored",
   "{0} · 源自「{1}」": "{0} · from “{1}”",
@@ -28,5 +28,6 @@
   "请在 DSH 插件管理器中启用资料组件，再导入资料。": "Enable materials in the DSH plugin manager to import sources.",
   "与对话输入框选择的模型一致，切换后自动生效。生成时所选资料会发送给该模型；复习不调用模型。": "Uses the model selected in the chat input. Changes apply automatically. Selected sources are sent to this model for generation; practice does not call a model.",
   "只用于出题与讲解，不改变对话模型。生成时所选资料会发送给该模型；复习不调用模型。": "Used only for questions and explanations; the chat model is unchanged. Selected sources are sent to this model for generation; practice does not call a model.",
-  "跟随当前会话（{0}）": "Follow current session ({0})"
+  "跟随当前会话（{0}）": "Follow current session ({0})",
+  "答对了": "Correct"
 }

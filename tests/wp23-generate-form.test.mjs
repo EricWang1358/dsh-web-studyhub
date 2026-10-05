@@ -70,19 +70,19 @@ test("the form sends a coverage level and a count only when the learner typed on
 test("the three levels, their words and the line that says what a choice means for the chosen materials", () => {
   assert.deepEqual(form.COVERAGE_LEVELS.map((item) => [item.value, item.label]), [["lean", "精简"], ["standard", "标准"], ["full", "完整"]]);
   assert.equal(form.DEFAULT_LEVEL, "standard");
-  assert.match(form.levelNote("standard"), /标准：每个不少于 600 字的部分都出题.*每万字约 6 题/);
+  assert.match(form.levelNote("standard"), /标准：每个不少于 600 字的小节都出题.*每万字约 6 题/);
   assert.match(form.levelNote("lean"), /精简：.*六成.*每万字约 3 题/);
   assert.match(form.levelNote("full"), /完整：.*每万字约 10 题/);
   const coverage = { level: "standard", goal: 343, sections: 81, leaves: 81, units: "part", rounds: 12, firstRound: 30, levels: { lean: { goal: 172, sections: 48 }, standard: { goal: 343, sections: 81 }, full: { goal: 500, sections: 81 } } };
-  assert.equal(form.coverageLead(coverage), "标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，");
-  assert.equal(form.coverageLead({ ...coverage, rounds: 1, goal: 20, level: "lean", sections: 20 }), "精简：约 20 道题，覆盖 20/81 个部分，一轮出完，");
-  assert.equal(form.coverageLead({ ...coverage, custom: true, goal: 100, rounds: 4, sections: 81 }), "自定义：100 道题，覆盖 81/81 个部分，分 4 轮，");
+  assert.equal(form.coverageLead(coverage), "标准：约 343 道题，覆盖 81/81 个小节，分 12 轮，");
+  assert.equal(form.coverageLead({ ...coverage, rounds: 1, goal: 20, level: "lean", sections: 20 }), "精简：约 20 道题，覆盖 20/81 个小节，一轮出完，");
+  assert.equal(form.coverageLead({ ...coverage, custom: true, goal: 100, rounds: 4, sections: 81 }), "自定义：100 道题，覆盖 81/81 个小节，分 4 轮，");
   assert.equal(form.coverageLead({ ...coverage, units: "page", leaves: 40, sections: 40, rounds: 2 }), "标准：约 343 道题，覆盖 40/40 页，分 2 轮，");
   assert.equal(form.levelsLine(coverage), "精简约 172 题 · 标准约 343 题 · 完整约 500 题");
   assert.equal(form.coverageLead(null), "");
   try {
     setUiLanguage("en");
-    assert.equal(form.coverageLead(coverage), "Standard: about 343 questions, covering 81/81 parts, in 12 rounds. ");
+    assert.equal(form.coverageLead(coverage), "Standard: about 343 questions, covering 81/81 sections, in 12 rounds. ");
     assert.equal(form.levelsLine(coverage), "Lean about 172 · Standard about 343 · Full about 500");
     assert.doesNotMatch(form.levelNote("lean") + form.levelNote("standard") + form.levelNote("full"), han);
   } finally { setUiLanguage("zh"); }
@@ -199,10 +199,10 @@ test("02 / 学习方式 uses segmented controls (the 覆盖强度 among them) an
   assert.match(section, /<input[^>]*type="number"[^>]*min="1"[^>]*max="500"|<input[^>]*max="500"[^>]*type="number"/);
   const presets = [...section.matchAll(/<span[^>]*class="sh-chip [^"]*generate-preset[^"]*"[^>]*><button[^>]*class="sh-chip__main"[^>]*>(\d+)<\/button>/g)].map((match) => match[1]);
   assert.deepEqual(presets, ["10", "30", "60", "100"]);
-  assert.match(section, /标准：每个不少于 600 字的部分都出题/, "the level says what it means");
+  assert.match(section, /标准：每个不少于 600 字的小节都出题/, "the level says what it means");
   const full = formOf(render({}, { gen: { ...gen, coverageLevel: "full" } }));
   assert.match(full, /aria-pressed="true"[^>]*>完整</);
-  assert.match(full, /完整：每个部分都出题/);
+  assert.match(full, /完整：每个小节都出题/);
   assert.match(section, /aria-pressed="true"[^>]*>混合</, "the current difficulty is on");
 });
 

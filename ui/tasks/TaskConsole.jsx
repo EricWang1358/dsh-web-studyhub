@@ -17,12 +17,13 @@ import { taskSummary, stateLabel } from './task-summary.js';
 import { taskFacts, taskSegments, usageLine } from './task-facts.js';
 import { headerActions, autoToggle } from './task-control.js';
 import RunLine from './RunLine.jsx';
-import { autoLabel } from '../coverage/copy.js';
+import { actionLabel, autoLabel } from '../coverage/copy.js';
 import ControlRow from './ControlRow.jsx';
 import TaskBody from './TaskBody.jsx';
 import { readJSON, writeJSON } from '../storage.js';
 import { CoverageTopUpPopover } from '../coverage/CoverageTopUp.jsx';
 import { useCoverage } from '../coverage/use-coverage.js';
+import { draftShortfall } from '../coverage/use-shortfall.js';
 import { topUpArgs, topUpNotice } from '../coverage/top-up.js';
 import { modelReadiness } from '../generation-status.js';
 
@@ -109,7 +110,7 @@ function ArchivedNote({ task }) {
 }
 
 function Detail({ task, data, openers, full, onFull, onDelete }) {
-  const { core } = useApp();
+  const { core, settingsEntry } = useApp();
   const quick = useQuickActions();
   const contract = contractOf(task), summary = taskSummary(task), actions = headerActions(task), archived = isArchivedTask(task);
   const live = isRunningTask(task), now = useNow(1000, { enabled: live });
@@ -129,6 +130,10 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   // 为没覆盖的部分补题 acts on the draft a run wrote, not on the run: so a finished run, an archived record too, offers it for as long as the draft is there.
   const draft = contract.kind === 'generation' && contract.detail.draftId ? (data?.drafts || []).find((item) => item.id === contract.detail.draftId) || null : null;
   const covered = useCoverage(draft ? { draftId: draft.id } : null, { version: `${data?.revision}:${draft?.draftVersion ?? ''}`, enabled: !live });
+  // Where the draft stands (lib/shortfall.js): the same facts and words as the home row, which the strip under the header and the buttons of a refused run read.
+  // Only the run that wrote the draft's marker says where the draft stands: an older record of the same draft (a refused run that was continued since) keeps its own numbers and no actions.
+  const marker = draft?.editorial?.coverageRun, current = !marker?.jobId || marker.jobId === contract.jobId || marker.jobId === task.id || live;
+  const shortfall = draft && current ? draftShortfall(draft, { view: covered.view, jobs: data?.jobs || [] }) : null;
   return (
     <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
@@ -140,10 +145,11 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
           <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>
           {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
           {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
-          {actions.retry && <Button size="sm" variant="primary" disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
+          {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' ? undefined : 'primary'} disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
           {toggle && live && <Checkbox className="tc-head__auto" label={autoLabel()} checked={toggle.value} disabled={core.busy} data-run-auto
             onChange={(value) => core.act('job.control', { jobId: contract.jobId, action: 'set', patch: { autoComplete: value } })} />}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
+          {shortfall?.action === 'model-settings' && !live && settingsEntry?.openModelSettings && <Button size="sm" variant="primary" data-shortfall-act="model-settings" onClick={settingsEntry.openModelSettings}>{actionLabel('model-settings')}</Button>}
           {draft && !live && <CoverageTopUpPopover draft={draft} view={covered.view} jobs={data?.jobs || []} modelReady={modelReadiness(data || {}).ready}
             onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
           {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} title={run ? ui('已通过的题都保留') : undefined} onClick={() => act('cancel')}>{run ? ui('停在这里') : ui('停止')}</Button>}
@@ -160,7 +166,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
-      <RunLine task={task} />
+      <RunLine task={task} shortfall={shortfall} />
       {archived ? <ArchivedNote task={task} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}
       <TaskBody task={task} archived={archived} />

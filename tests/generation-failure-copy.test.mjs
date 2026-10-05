@@ -28,7 +28,7 @@ test("a quality-review failure never blames the sources", () => {
     assert.match(zh.title, /质量审阅/);
     assert.match(zh.hint, /提示或题干泄露了答案/, "the real categories, from the same labels as the draft page");
     assert.match(zh.hint, /选项质量不合格/);
-    assert.match(zh.hint, hasDraft ? /继续补齐/ : /重新设置/, "a next step that applies");
+    assert.match(zh.hint, hasDraft ? /为没覆盖的部分补题/ : /重新设置/, "a next step that applies");
     assert.match(zh.hint, /出题偏好/);
     const en = inLanguage("en", () => m.describeFailure(REVIEW_FAILURE, { hasDraft }));
     assert.doesNotMatch(en.title + en.hint, han);

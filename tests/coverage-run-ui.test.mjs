@@ -63,13 +63,18 @@ test('the line of a run: the round, the coverage, what it used and what is left,
 });
 
 test('every reason a run stops has plain words, in both languages', () => {
-  const reasons = { complete: /每个部分都有题了/, target: /目标/, learner: /你在第 4 轮停了下来/, budget: /花费上限.*第 4 轮之后停下/, 'no-progress': /第 4 轮重试后仍没有补到新的部分/, 'sections-left': /还有 3 个部分没出成题/, refused: /密钥或额度/, 'round-failed': /第 4 轮出错/ };
+  const reasons = { complete: /每个小节都有题了/, target: /目标/, learner: /你在第 4 轮停了下来/, budget: /花费上限.*第 4 轮之后停下/, 'no-progress': /第 4 轮重试后仍没有补到新的小节/, 'sections-left': /还有 3 个小节没出成题/, refused: /密钥无效或没有权限/, 'round-failed': /第 4 轮出错/ };
   for (const [reason, pattern] of Object.entries(reasons)) {
     const stop = { reason, round: 4, left: 3, detail: 'the model said no' };
     assert.match(m.copy.stopText(stop), pattern, reason);
     inLanguage('en', () => assert.doesNotMatch(m.copy.stopText(stop), han, reason));
   }
-  assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, detail: 'plan is short' }), /原因：plan is short/, 'a failure says what it was');
+  // A failure is said by its CODE in plain words; the provider's own English is never printed (D-5).
+  assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, code: 'plan-short' }), /原因：模型给出的考点不够数/, 'a failure says what it was');
+  assert.doesNotMatch(m.copy.stopText({ reason: 'no-progress', round: 2, detail: 'plan is short' }), /plan is short/, 'a text nothing recognises is not printed');
+  assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, left: 18 }), /还有 18 个小节没有题，可以点「为没覆盖的部分补题」再试/, 'the stop says how many are left and what to do');
+  assert.equal(m.copy.stopText({ reason: 'refused', round: 2, code: 'credential', detail: 'Part 1: 401 Unauthorized: Invalid API key; Part 2: 401 Unauthorized' }), '模型服务拒绝了请求（密钥无效或没有权限），已经停下；已通过的题都保留。', 'ONE sentence, once, not per part');
+  assert.match(m.copy.stopText({ reason: 'refused', round: 2, code: 'quota' }), /余额或额度不足/);
   assert.equal(m.copy.stopText(null), '');
   assert.equal(m.copy.stopText({ reason: 'weird' }), '');
 });
@@ -105,15 +110,15 @@ test('the rounds tab: a row per round with its state and what it did, the parts 
   assert.equal(rows.length, 12);
   assert.deepEqual(rows.slice(0, 4).map(row => [row[1], row[2]]), [['1', 'done'], ['2', 'done'], ['3', 'running'], ['4', 'pending']]);
   const first = text(rows[0][3]);
-  assert.match(first, /第 1 轮 · 24 题 · 6 个部分/);
-  assert.match(first, /保留 24 题，新覆盖 6 个部分 · 400K tok · 10 分钟/);
+  assert.match(first, /第 1 轮 · 24 题 · 6 个小节/);
+  assert.match(first, /保留 24 题，新覆盖 6 个小节 · 400K tok · 10 分钟/);
   assert.match(first, /已完成/);
-  assert.match(text(rows[2][3]), /第 3 轮 · 24 题 · 6 个部分.*进行中/);
+  assert.match(text(rows[2][3]), /第 3 轮 · 24 题 · 6 个小节.*进行中/);
   assert.match(text(rows[3][3]), /待做/);
-  assert.match(text(parts), /第 3 轮的部分/);
+  assert.match(text(parts), /第 3 轮的批次/);
   assert.match(text(parts), /2\/12 轮已完成/);
   const english = render(React.createElement(m.GenerationParts, { contract, task: job() }), { language: 'en', data: { drafts: [draft()] } });
-  assert.match(text(english), /Round 1 · 24 questions · 6 parts/);
+  assert.match(text(english), /Round 1 · 24 questions · 6 sections/);
   assert.match(text(english), /Kept 24 questions, 6 sections newly covered/);
   assert.match(text(english), /2\/12 rounds done/);
 });
@@ -158,10 +163,10 @@ test('the log: one line per round boundary and one for the reason a run stops, i
     { id: '7', at: at(7), level: 'done', code: 'run-waiting', args: { round: 1, rounds: 3, left: 2 } }];
   const contract = m.jobContract({ id: 'x', status: 'complete', startedAt: at(0), events });
   const zh = text(render(React.createElement(m.LogPanel, { contract })));
-  for (const line of ['第 1/3 轮开始 · 4 个部分，8 题', '第 1/3 轮完成：保留 8 题，新覆盖 4 个部分 · 覆盖 33%', '暂停于第 1 轮之后：不再开始新的一轮', '继续：开始第 2 轮', '第 2/3 轮没做成：保留 0 题，新覆盖 0 个部分 · 原因：这一轮用时到限',
-    '第 2 轮重试后仍没有补到新的部分，为免一直重复，已经停下。 原因：plan is short', '第 1 轮完成，还有 2 轮：点「为没覆盖的部分补题」继续']) assert.ok(zh.includes(line), line);
+  for (const line of ['第 1/3 轮开始 · 4 个小节，8 题', '第 1/3 轮完成：保留 8 题，新覆盖 4 个小节 · 覆盖 33%', '暂停于第 1 轮之后：不再开始新的一轮', '继续：开始第 2 轮', '第 2/3 轮没做成：保留 0 题，新覆盖 0 个小节 · 原因：这一轮用时到限',
+    '第 2 轮重试后仍没有补到新的小节，为免一直重复，已经停下。', '第 1 轮完成，还有 2 轮：点「为没覆盖的部分补题」继续']) assert.ok(zh.includes(line), line);
   const en = text(render(React.createElement(m.LogPanel, { contract }), { language: 'en' }));
-  for (const line of ['Round 1/3 started · 4 parts, 8 questions', 'Round 1/3 done: kept 8 questions, 4 sections newly covered · Covered 33%', 'Paused after round 1: no new round starts', 'Resumed: round 2 starts',
+  for (const line of ['Round 1/3 started · 4 sections, 8 questions', 'Round 1/3 done: kept 8 questions, 4 sections newly covered · Covered 33%', 'Paused after round 1: no new round starts', 'Resumed: round 2 starts',
     'Round 2/3 did not work: kept 0 questions, 0 sections newly covered · Reason: This round reached its time limit']) assert.ok(en.includes(line), line);
 });
 
@@ -265,6 +270,6 @@ test('a run that stopped before its plan was met is partial in the list and the 
   assert.equal(m.taskSummary(met).state, 'done');
   const html = render(React.createElement(m.TaskConsole, { data: { jobs: [stopped], drafts: [], decks: [] }, openers: { resultOf: () => null } }));
   assert.match(text(html), /停在第 5 轮之后 · 覆盖 31%/);
-  assert.match(text(html), /重试了几轮，还有 2 个部分没出成题，已经停下。/);
+  assert.match(text(html), /重试了几轮，还有 2 个小节没出成题，已经停下。/);
   assert.match(text(html), /部分完成/);
 });

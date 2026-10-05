@@ -43,8 +43,10 @@ test('the one top-up says before it starts how many sections it covers, which of
   withView();
   const out = page(draft());
   const said = text(out);
-  assert.match(said, /覆盖 2\/12 个部分（17%） · 1 个计划了没出成 · 9 个没计划到/);
-  assert.match(said, /这一轮补 10 个部分，约 10 题。 其中 1 个计划了没出成，按原来的考点重写，不重新规划。 另外 9 个从原文重新规划考点。/);
+  assert.match(said, /覆盖 2\/12 个小节（17%） · 1 个计划了没出成 · 9 个没计划到/);
+  // ONE sentence: what the next round covers (the old 「这一轮补 N 个部分，约 M 题 / 其中… / 另外…」 is gone); the draft has no round of a plan, so nothing is left after it.
+  assert.match(said, /下一轮补 10 个小节/);
+  assert.doesNotMatch(said, /这一轮补|按原来的考点重写/);
   assert.equal((out.match(/data-coverage-start/g) || []).length, 1, 'one button, not two competing controls');
   assert.ok(buttonTag(out, '为没覆盖的部分补题'), 'the button is there');
   assert.doesNotMatch(buttonTag(out, '为没覆盖的部分补题'), /disabled/, 'idle: it works');
@@ -52,8 +54,8 @@ test('the one top-up says before it starts how many sections it covers, which of
   assert.match(out, /data-token-estimate/, 'the estimate of exactly this request is under the button');
   const english = text(dropData(page(draft(), {}, {}, 'en')));
   assert.doesNotMatch(english.replaceAll('第1步 架构思维', 'TITLE'), han);
-  assert.match(english, /Covered 2\/12 parts \(17%\) · 1 planned but not produced · 9 never planned/);
-  assert.match(english, /This round covers 10 parts, about 10 questions\./);
+  assert.match(english, /Covered 2\/12 sections \(17%\) · 1 planned but not produced · 9 never planned/);
+  assert.match(english, /The next round covers 10 sections/);
   assert.match(english, /Add questions for the uncovered parts/);
 });
 
@@ -62,17 +64,17 @@ test('a round that does not reach everything says how much is left and how many 
   const view = withView(draftView({ material: big, covered: ['r1.p1'], failed: [] }));
   assert.deepEqual([view.round.sections, view.round.left, view.round.rounds], [30, 50, 3]);
   const out = page(draft());
-  assert.match(text(out), /覆盖 1\/81 个部分（1%） · 80 个没计划到/);
-  assert.match(text(out), /这一轮补 30 个部分，约 30 题。 30 个从原文规划考点。/);
-  assert.match(text(out), /还有 50 个部分一轮补不完（一轮最多 30 题），这一轮完成后再补一次，约还要 2 轮。/);
-  assert.match(text(dropData(page(draft(), {}, {}, 'en'))), /Another 50 parts do not fit in one round \(at most 30 questions a round\); run it again after this one, about 2 more rounds\./);
+  assert.match(text(out), /覆盖 1\/81 个小节（1%） · 80 个没计划到/);
+  assert.match(text(out), /下一轮补 30 个小节，还剩 50 个/);
+  assert.doesNotMatch(text(out), /一轮补不完|约还要/, 'the competing sentence about rounds is gone: the next-round sentence says what is left');
+  assert.match(text(dropData(page(draft(), {}, {}, 'en'))), /The next round covers 30 sections; 50 left after it/);
 });
 
 test('an old draft with no plans says 没有记录 instead of pretending to know what was planned', () => {
   const old = withView(draftView({ covered: ['r1.p1'], failed: [], recorded: false }));
   assert.equal(old.coverage.recorded, false);
   const out = text(page(draft()));
-  assert.match(out, /覆盖 1\/12 个部分（8%） · 11 个没有记录/);
+  assert.match(out, /覆盖 1\/12 个小节（8%） · 11 个没有记录/);
   assert.doesNotMatch(out, /没计划到/, 'nothing is said about what was planned when no plan was kept');
   const english = text(dropData(page(draft(), {}, {}, 'en')));
   assert.match(english, /11 with no plan on record/);
@@ -81,8 +83,8 @@ test('an old draft with no plans says 没有记录 instead of pretending to know
 test('every part covered: the top-up says so and offers nothing to press', () => {
   withView(draftView({ covered: small.ids }));
   const out = page(draft());
-  assert.match(text(out), /覆盖 12\/12 个部分（100%）/);
-  assert.match(text(out), /每个部分都有题了。/);
+  assert.match(text(out), /覆盖 12\/12 个小节（100%）/);
+  assert.match(text(out), /每个小节都有题了。/);
   assert.doesNotMatch(out, /data-coverage-start/);
 });
 
@@ -203,7 +205,9 @@ test('the list row says 补题中 as a Badge, not 已复审，待发布, and not
   assert.doesNotMatch(row, /<button[^>]*disabled[^>]*>[^<]*补题中/, 'not a disabled button dressed as a status');
   withView();
   const idle = home([], [shortDraft()]);
-  assert.match(text(idle), /待发布检查|已复审，待发布/);
+  // The badge says what is true: this draft is short of its sections, so it is not 「待发布」 (D-1): the badge says 待补齐, not the counts again.
+  assert.match(text(idle), /待补齐/);
+  assert.doesNotMatch(text(idle), /已复审，待发布/);
   assert.doesNotMatch(idle, /data-draft-work/);
   assert.match(idle, /<button[^>]*>[^<]*为没覆盖的部分补题/, 'the action is still a button when nothing runs');
   assert.doesNotMatch(idle, /继续补齐/);
@@ -218,12 +222,12 @@ test('the row says its status once: the meta line is the count, the Badge carrie
   withView();
   const filling = home([running], [six]), row = rowOf(filling);
   assert.equal((text(row).match(/补题中/g) || []).length, 1, 'the status is said once in the row');
-  assert.equal(text(metaOf(filling)).trim(), '6 道题 · 覆盖 2/12 个部分（17%）', 'the meta line is the facts (the count and the coverage) while the Badge shows the fill');
+  assert.equal(text(metaOf(filling)).trim(), '已出 6/10 题 · 还有 10 个小节没有题 · 覆盖 2/12 个小节（17%）', 'the meta line is the facts (the questions, the sections, the coverage: the shortfall) while the Badge shows the fill');
   assert.match(row, /sh-badge[^>]*data-draft-work[^>]*>(?:<span[^>]*><\/span>)?补题中 · 草稿 6\/10 题/);
   const idle = home([], [six]);
-  assert.equal((text(rowOf(idle)).match(/待发布检查|已复审，待发布/g) || []).length, 1, 'idle: one status too');
-  assert.match(rowOf(idle), /sh-badge[^>]*data-draft-status[^>]*>[^<]*(?:待发布检查|已复审，待发布)/, 'the idle status is a Badge as well');
-  assert.doesNotMatch(text(metaOf(idle)), /待发布检查|已复审，待发布/, 'not in the meta line');
+  assert.equal((text(rowOf(idle)).match(/待补齐/g) || []).length, 1, 'idle: one status too');
+  assert.match(rowOf(idle), /sh-badge[^>]*data-draft-status[^>]*>[^<]*待补齐/, 'the idle status is a Badge as well');
+  assert.doesNotMatch(text(metaOf(idle)), /待补齐|待发布检查|已复审，待发布/, 'not in the meta line');
   assert.doesNotMatch(text(metaOf(idle)), /还差/, 'a draft is not "short by N": what it lacks is sections, said by the coverage');
   m.setUiLanguage('en');
   const english = rowOf(home([running], [six]));
@@ -237,12 +241,14 @@ test('after a fill ends short only one 草稿待补齐 card remains: the newest 
   const newest = fillJob('b22', 'complete', { startedAt: '2026-10-05T09:30:00.000Z', savedCount: 12, steps: steps(27), stage: 'Draft ready with 12/15 questions' });
   const out = home([newest, oldest], [shortDraft()]);
   assert.equal(cardsIn(out), 1, 'two partial jobs of one deck, one card');
-  assert.equal((text(out).match(/草稿待补齐 · 12\/15 题/g) || []).length, 1, 'one headline with the draft\'s numbers');
+  assert.equal((text(out).match(/「架构的语境性」草稿待补齐/g) || []).length, 1, 'one headline; the numbers of the draft are in the line under it (the shortfall), not in the title');
+  assert.match(text(out), /已出 12\/15 题/);
   assert.equal(text(out).includes('当时草稿 7/15 题'), false, 'the older run is not on the home: it is listed in the 任务 console with its own numbers');
   m.setUiLanguage('en');
   const english = text(home([newest, oldest], [shortDraft()]));
   m.setUiLanguage('zh');
-  assert.match(english, /draft needs more questions · 12\/15/);
+  assert.match(english, /draft needs more questions/);
+  assert.match(english, /Made 12\/15 questions/);
 });
 
 test('jobs of different decks, publish and repair jobs and jobs without a draft are never folded', () => {
@@ -262,5 +268,5 @@ test('the top-up is not offered when the backend says the draft cannot be topped
   withView(draftView({ covered: ['r1.p1'], canTopUp: false }));
   const out = page(draft({ editingDeckId: 'deck-1' }));
   assert.doesNotMatch(out, /data-coverage-start|data-coverage-topup/, 'no button');
-  assert.match(text(out), /覆盖 1\/12 个部分/, 'the coverage itself is still said');
+  assert.match(text(out), /覆盖 1\/12 个小节/, 'the coverage itself is still said');
 });

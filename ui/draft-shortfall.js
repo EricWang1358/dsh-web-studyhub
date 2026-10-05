@@ -112,27 +112,27 @@ export function shortfall(draft) {
 
 /**
  * What happened to the parts of the run, in the UI language: `{ lead, reasons }` from the draft's `editorial.partReport` (lib/generation-report.js),
- * or null for a draft that has none. `reasons` is one plain sentence per reason, for example "5 个部分的引用在资料里找不到".
+ * or null for a draft that has none. `reasons` is one plain sentence per reason, for example "5 个批次的引用在资料里找不到".
  */
 export function describePartReport(report) {
   if (!report || !(report.total > 0) || report.passed === report.total) return null;
   const reasons = report.reasons || {}, line = {
-    'plan-short': (n) => uiFormat('{0} 个部分的考点规划不够数，补问一次后仍然不足', [n]),
-    quote: (n) => uiFormat('{0} 个部分的引用在资料里找不到', [n]),
-    plan: (n) => uiFormat('{0} 个部分的考点规划没有通过检查', [n]),
-    quality: (n) => uiFormat('{0} 个部分的题没有通过质量审阅', [n]),
-    'review-protocol': (n) => uiFormat('{0} 个部分的审阅回复格式不对，重新审阅后仍然不行', [n]),
-    timeout: (n) => uiFormat('{0} 个部分因模型长时间没有回应而没有完成', [n]),
-    'rate-limit': (n) => uiFormat('{0} 个部分被模型服务限流，重试后仍未完成', [n]),
-    'no-reply': (n) => uiFormat('{0} 个部分因模型没有返回内容而没有完成', [n]),
-    quota: (n) => uiFormat('{0} 个部分因模型账户余额或额度不足而没有完成', [n]),
-    credential: (n) => uiFormat('{0} 个部分因模型密钥缺失或被拒绝而没有完成', [n]),
-    budget: (n) => uiFormat('{0} 个部分因生成用时到限而没有完成', [n]),
-    cancelled: (n) => uiFormat('{0} 个部分被停止', [n]),
-    unavailable: (n) => uiFormat('{0} 个部分因模型服务暂时不可用而没有完成', [n]),
-    other: (n) => uiFormat('{0} 个部分因其他原因没有完成', [n]),
+    'plan-short': (n) => uiFormat('{0} 个批次里模型给出的考点不够数，补问一次后仍然不足', [n]),
+    quote: (n) => uiFormat('{0} 个批次的引用在资料里找不到', [n]),
+    plan: (n) => uiFormat('{0} 个批次的考点规划没有通过检查', [n]),
+    quality: (n) => uiFormat('{0} 个批次的题没有通过质量审阅', [n]),
+    'review-protocol': (n) => uiFormat('{0} 个批次的审阅回复格式不对，重新审阅后仍然不行', [n]),
+    timeout: (n) => uiFormat('{0} 个批次因模型长时间没有回应而没有完成', [n]),
+    'rate-limit': (n) => uiFormat('{0} 个批次被模型服务限流，重试后仍未完成', [n]),
+    'no-reply': (n) => uiFormat('{0} 个批次因模型没有返回内容而没有完成', [n]),
+    quota: (n) => uiFormat('{0} 个批次因模型账户余额或额度不足而没有完成', [n]),
+    credential: (n) => uiFormat('{0} 个批次因模型密钥缺失或被拒绝而没有完成', [n]),
+    budget: (n) => uiFormat('{0} 个批次因生成用时到限而没有完成', [n]),
+    cancelled: (n) => uiFormat('{0} 个批次被停止', [n]),
+    unavailable: (n) => uiFormat('{0} 个批次因模型服务暂时不可用而没有完成', [n]),
+    other: (n) => uiFormat('{0} 个批次因其他原因没有完成', [n]),
   };
-  return { lead: uiFormat('共 {0} 个部分：{1} 个全部通过，{2} 个只保留了部分题，{3} 个没有出题。', [report.total, report.passed, report.partial, report.failed]),
+  return { lead: uiFormat('共 {0} 个批次：{1} 个全部通过，{2} 个只保留了部分题，{3} 个没有出题。', [report.total, report.passed, report.partial, report.failed]),
     reasons: Object.entries(reasons).filter(([, count]) => count > 0).map(([code, count]) => (line[code] || line.other)(count)),
     ...(report.citationsRepaired ? { repaired: uiFormat('已自动重试并修正了 {0} 道题的引用。', [report.citationsRepaired]) } : {}) };
 }
