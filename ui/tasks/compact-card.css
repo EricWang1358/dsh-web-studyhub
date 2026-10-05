@@ -34,7 +34,7 @@
     .cjc__go { width: 100%; justify-content: center; }
     .cjc__problem { grid-column: 1 / -1; grid-row: 3; margin: var(--space-2) 0 0; }
     .cjc[inert] { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, var(--dur-fast)) ease-out forwards; }
-    .cjc-list { display: grid; gap: var(--space-2); }
+    .cjc-list { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
   }
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) .cjc[inert] { display: none; animation: none; }

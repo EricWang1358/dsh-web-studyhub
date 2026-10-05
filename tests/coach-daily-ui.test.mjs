@@ -15,6 +15,7 @@ const m = await loadUi(`
   export { taskFacts } from './ui/tasks/task-facts.js';
   export { coachDailyJobs, dayOf, DAILY } from './lib/coach-daily.js';
   export { jobContract, snapshotJob } from './lib/job-contract.js';
+  export { isActiveJob, isCancellable, JOB_TYPES } from './lib/job-status.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 const HAN = /[㐀-鿿]/;
@@ -94,4 +95,12 @@ test('in English no Chinese is left in the day\'s row, its facts, its panels or 
   assert.doesNotMatch(consoleOf([today, past], 'en'), HAN);
   m.setUiLanguage('en');
   try { assert.match(m.taskSummary(today).title, /^Personalised · /); } finally { m.setUiLanguage('zh'); }
+});
+
+test('the rest of the app never treats a day of 为你定制 as a job it waits for or draws a card for', () => {
+  const [today] = rows({ preparing: true });
+  assert.equal(today.status, 'running', 'a batch is in flight');
+  assert.equal(m.isActiveJob(today), false, 'the generating mark of the header and the restart check do not count it');
+  assert.equal(m.isCancellable(today), false);
+  assert.equal(today.type, m.JOB_TYPES.COACH_DAILY);
 });

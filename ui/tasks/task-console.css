@@ -265,7 +265,7 @@
     .tc-controls__applied[data-tone='success'] { color: var(--ok-ink); }
     .tc-controls__applied[data-tone='error'] { color: var(--bad-ink); }
     .tc-control { display: inline-flex; align-items: center; gap: var(--space-3); flex: none; }
-    .tc-control__label { color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
+    .tc-control__label { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
     .tc-stepper { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); }
     .tc-stepper__btn { min-width: 24px; --control-h-sm: 24px; padding-inline: 0; border-width: 0; background: var(--bg-raised); }
     .tc-stepper__value { min-width: 28px; font-family: var(--font-stack-mono); font-weight: var(--fw-medium); text-align: center; font-variant-numeric: tabular-nums; }
