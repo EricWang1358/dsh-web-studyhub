@@ -28,18 +28,24 @@ test("no sidebar row moves or changes height when a run starts, ends or the page
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split("\n")[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), "study-nav-dist-"));
   await buildPreview({ outdir: dist });
-  const running = await startNavServer({ distDir: dist });
+  // One server per combination (a walk wipes its library at the start), so the three walks run side by side in one browser.
+  const servers = [];
   try {
+    const combinations = [["zh", "dark", 1440, "expanded", true], ["en", "light", 768, "expanded", true], ["en", "dark", 1440, "collapsed", false]];
+    const results = await Promise.all(combinations.map(async ([lang, theme, width, mode, full]) => {
+      const running = await startNavServer({ distDir: dist });
+      servers.push(running);
+      return collectStates({ browser, running, lang, theme, width, mode, full });
+    }));
     const problems = [];
-    for (const [lang, theme, width, mode, full] of [["zh", "dark", 1440, "expanded", true], ["en", "light", 768, "expanded", true], ["en", "dark", 1440, "collapsed", false]]) {
-      const result = await collectStates({ browser, running, lang, theme, width, mode, full });
+    for (const result of results) {
       problems.push(...checkContract(result.states, result.label, { insertsRows: result.insertsRows }));
       assert.deepEqual(result.errors, [], `${result.label}: the page threw`);
     }
     assert.deepEqual(problems, []);
   } finally {
     await browser.close().catch(() => {});
-    await running.close();
+    await Promise.all(servers.map((running) => running.close().catch(() => {})));
     await rm(dist, { recursive: true, force: true });
   }
 });
