@@ -19,6 +19,7 @@
     "tests/wave4-menu.test.mjs",
     "tests/wave4-review-reveal.test.mjs",
     "tests/wave4-teaching-status.test.mjs",
+    "tests/wave5c-estimate.test.mjs",
     "tests/wp-b-overlays-browser.test.mjs",
     "tests/wp-e-inbox-browser.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
