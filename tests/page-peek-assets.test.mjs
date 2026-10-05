@@ -206,7 +206,8 @@ test('the asset modules in ui/document-preview/peek/assets are exactly what scri
   const modules = await assetModules();
   assert.deepEqual([...modules.keys()].sort(), ['cmaps-cns.js', 'cmaps-gb.js', 'cmaps-japan.js', 'cmaps-korea.js', 'fonts.js', 'wasm-jbig2.js', 'wasm-openjpeg.js']);
   for (const [name, expected] of modules) {
-    const actual = await readFile(new URL(`assets/${name}`, peekDir), 'utf8');
+    // A Windows checkout may turn the committed LF into CRLF (autocrlf): the content is what counts, not the line ending.
+    const actual = (await readFile(new URL(`assets/${name}`, peekDir), 'utf8')).replace(/\r\n/g, '\n');
     assert.equal(actual, expected, `${name} is out of date: run node scripts/pdf-assets.mjs --write after upgrading pdfjs-dist`);
   }
   const listed = (await readdir(new URL('assets/', peekDir))).sort();
