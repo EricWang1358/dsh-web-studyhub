@@ -39,32 +39,6 @@ function fixture(t, settings = {}) {
   return { run, controller, files, pending, calls, progress, saved, get active() { return active; }, get maximum() { return maximum; } };
 }
 
-test('one recording overlaps three windows, checkpoints out of order and assembles in source order', async t => {
-  const f = fixture(t), work = f.run();
-  work.catch(() => {});
-  await until(() => f.pending.size === 3);
-  assert.deepEqual(f.calls, ['proofread:1', 'proofread:2', 'proofread:3']);
-  f.pending.get('proofread:3').resolve(); f.pending.get('proofread:2').resolve();
-  await until(() => f.files.size === 2);
-  assert.equal(f.calls.length, 3, 'later waves wait for the shared terminology boundary');
-  assert.ok(!f.calls.some(key => key.startsWith('translate')), 'translation waits for all corrected text');
-  f.pending.get('proofread:1').resolve();
-  for (const keys of [['proofread:4', 'proofread:5', 'proofread:6'], ['proofread:7'],
-    ['translate:1', 'translate:2', 'translate:3'], ['translate:4', 'translate:5', 'translate:6'], ['translate:7']]) {
-    await until(() => keys.every(key => f.pending.has(key)));
-    for (const key of keys.toReversed()) f.pending.get(key).resolve();
-  }
-  const result = await work;
-  assert.equal(f.maximum, 3);
-  assert.equal(f.active, 0);
-  for (let i = 1; i < 7; i++) {
-    assert.ok(result.documents.join('').indexOf(`Window ${i}:`) < result.documents.join('').indexOf(`Window ${i + 1}:`));
-    assert.ok(result.documents.join('').indexOf(`Translation ${i}`) < result.documents.join('').indexOf(`Translation ${i + 1}`));
-  }
-  for (const phase of ['proofread', 'translate'])
-    assert.deepEqual(f.progress.filter(p => p.phase === phase).map(p => p.done), Array.from({ length: 8 }, (_, n) => n));
-});
-
 test('two-window mode caps active calls in both text phases', async t => {
   const f = fixture(t, { textConcurrency: 2 }), work = f.run();
   work.catch(() => {});
@@ -76,26 +50,6 @@ test('two-window mode caps active calls in both text phases', async t => {
   }
   await work;
   assert.equal(f.maximum, 2);
-});
-
-test('waves share prior terminology and translation consumes corrections in source order', async () => {
-  const contexts = { proofread: [], translate: [] };
-  const result = await finishTranscript({ paragraphs, filename: 'lecture.wav', settings: {},
-    saved: { get: async () => null, set: async () => {} }, keys: { raw: 'r', text: 't' },
-    complete: async (system, prompt, options) => {
-      if (options.kind === 'title') return answer(prompt, options);
-      const input = JSON.parse(prompt);
-      contexts[options.kind].push(input);
-      if (options.kind === 'proofread') return JSON.stringify({ corrections: [{ wrong: `Window ${options.part}`,
-        right: `Section ${options.part}`, context: `Window ${options.part}: lecture evidence`, reason: 'Correct terminology', confidence: 'high' }] });
-      return answer(prompt, options);
-    } });
-  assert.deepEqual(contexts.proofread.slice(0, 3).map(input => input.knownFixes), [[], [], []]);
-  for (const input of contexts.proofread.slice(3, 6)) assert.deepEqual(input.knownFixes.map(fix => fix.right), ['Section 1', 'Section 2', 'Section 3']);
-  assert.equal(result.corrections.applied.length, 7);
-  assert.deepEqual(contexts.translate.slice(0, 3).map(input => input.previousTitles), [[], [], []]);
-  for (const input of contexts.translate.slice(3, 6)) assert.deepEqual(input.previousTitles, ['Part 1', 'Part 2', 'Part 3']);
-  assert.deepEqual(contexts.translate.map(input => input.paragraphs[0].text.slice(0, 10)), Array.from({ length: 7 }, (_, i) => `Section ${i + 1}:`));
 });
 
 test('cancelling a recording cancels all active children and starts no later window', async t => {
@@ -118,7 +72,7 @@ test('a fatal child failure stops siblings while completed checkpoints remain re
   f.pending.get('proofread:1').reject(Object.assign(new Error('invalid key'), { fatal: true }));
   await assert.rejects(work, /校对第 1\/7 段失败：invalid key/);
   assert.equal(f.active, 0);
-  assert.equal(f.calls.length, 3);
+  assert.equal(f.calls.length, 4, 'window 2 finished, so window 4 took its slot before the failure');
   const retried = [];
   await finishTranscript({ paragraphs, filename: 'lecture.wav', settings: {}, saved: f.saved, keys: { raw: 'r', text: 't' },
     complete: async (system, prompt, options) => { retried.push(`${options.kind}:${options.part}`); return answer(prompt, options); } });
@@ -126,17 +80,20 @@ test('a fatal child failure stops siblings while completed checkpoints remain re
   assert.equal(retried.filter(key => key.startsWith('proofread')).length, 6);
 });
 
-test('legacy recording parallelism becomes serial and text parallelism is limited to two or three', async t => {
+test('a legacy recording-parallelism value is ignored and the limits of both concurrencies hold', async t => {
   const home = await mkdtemp(join(tmpdir(), 'audio-window-settings-')), previous = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
   t.after(async () => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(home, { recursive: true, force: true }); });
   await mkdir(join(home, 'study'));
   await writeFile(join(home, 'study', 'audio.json'), JSON.stringify({ audioConcurrency: 6, paidKey: 'AIzaExistingKey_0000000000001' }));
   const effective = await readAudioSettings();
-  assert.equal(effective.audioConcurrency, 1);
+  assert.equal(effective.audioConcurrency, undefined);
+  assert.equal(effective.transcribeConcurrency, 1);
   assert.equal(effective.textConcurrency, 3);
   assert.equal((await saveAudioSettings({ textConcurrency: 2 })).paidKey, effective.paidKey);
   assert.equal((await readAudioSettings()).textConcurrency, 2);
-  await assert.rejects(saveAudioSettings({ textConcurrency: 4 }), /2 或 3/);
-  await assert.rejects(saveAudioSettings({ textConcurrency: 1 }), /2 或 3/);
+  assert.equal((await saveAudioSettings({ transcribeConcurrency: 2 })).transcribeConcurrency, 2);
+  await assert.rejects(saveAudioSettings({ textConcurrency: 7 }), /1 到 6/);
+  await assert.rejects(saveAudioSettings({ textConcurrency: 0 }), /1 到 6/);
+  await assert.rejects(saveAudioSettings({ transcribeConcurrency: 4 }), /1 到 3/);
 });

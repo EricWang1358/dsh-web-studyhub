@@ -23,8 +23,16 @@
     /* The segment being worked on: it moves, because nothing says how far along one request is. */
     .audio-now button, .audio-trace button { margin-left: var(--space-2); }
     .audio-active-tasks { margin: var(--space-2) 0; padding-left: 10px; border-left: 2px solid var(--accent-soft); }
-    .audio-trace ol { max-height: 260px; margin: 0; padding: 0 var(--space-2) 0 0; list-style: none; overflow: auto; }
-    .audio-trace li { margin: var(--space-2) 0; }
+    .audio-active-tasks > small { display: block; margin: var(--space-1) 0; overflow-wrap: anywhere; }
+    /* One scroll only: the history is a short list (the latest five, the rest on request), never a scroller of its own. */
+    .audio-trace ol { margin: 0; padding: 0; list-style: none; }
+    .audio-trace li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-3); margin: var(--space-2) 0; }
+    .audio-trace li > small { display: inline; }
+    .audio-trace-line { font-size: var(--fs-sm); }
+    .audio-trace-note { margin: var(--space-2) 0; }
+    .audio-task-detail { flex-basis: 100%; font-size: var(--fs-xs); color: var(--text-muted); }
+    .audio-task-detail > summary { cursor: pointer; width: fit-content; }
+    .audio-task-detail > small { display: block; overflow-wrap: anywhere; }
     .audio-chosen { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: var(--space-3) 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); text-align: left; }
     .audio-chosen > div { flex: 1; min-width: 0; }
     .audio-chosen strong { overflow-wrap: anywhere; }

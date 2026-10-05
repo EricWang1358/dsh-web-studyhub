@@ -3,7 +3,9 @@ import { ui, uiFormat, uiMessage } from "../i18n.js";
 import { Button, Hint, Icon, InlineMessage, JobRow, useNow } from "../components/index.js";
 import AgentLink from "../AgentLink.jsx";
 import { dismissJobs, useQuickActions } from "../quick-actions.js";
-import { formatElapsed, joinMeta } from "../format.js";
+import { formatElapsed, formatNumber, joinMeta } from "../format.js";
+import { formatExactTokens, totalTokens } from "../../lib/token-usage.js";
+import { STRENGTH_LABEL } from "../../lib/model-effort.js";
 import { isActiveJob, isCancellable, JOB_STATUS, JOB_TYPES } from "../../lib/job-status.js";
 
 /* The background audio imports as cards: phase, real progress, the model tasks behind them, what they cost, and what to do next.
@@ -23,6 +25,21 @@ const savedSteps = (steps) => STEP_LABELS.filter(([phase]) => steps?.[phase]?.to
   .map(([phase, label]) => uiFormat("{0} {1}/{2}", [ui(label), steps[phase].done, steps[phase].total])).join(" · ");
 
 const requestsOf = (usage) => (usage?.free?.requests || 0) + (usage?.paid?.requests || 0); // Gemini requests; Groq and SiliconFlow have their own lines
+/** How many proofread / translate windows run at once, and, when the model pushed back, that it was lowered (and came back). */
+export function parallelNote(parallel) {
+  if (!parallel || !(parallel.limit >= 1)) return '';
+  if (parallel.effective < parallel.limit) return uiFormat('并行 {0}（已因限流从 {1} 降到 {0}）', [parallel.effective, parallel.limit]);
+  if (parallel.lowest < parallel.limit) return uiFormat('并行 {0}（曾因限流降到 {1}，已恢复）', [parallel.effective, parallel.lowest]);
+  return uiFormat('并行 {0}', [parallel.effective]);
+}
+const inTextSteps = (job) => ['proofread', 'translate'].includes(job.phase) || (job.members || []).some((member) => isActive(member) && ['proofread', 'translate'].includes(member.phase));
+/** A recording that went on from a saved transcript did not ask the transcription provider again: say so, so "0 requests" is explained. */
+export function reuseNote(steps) {
+  const step = steps?.transcribe;
+  if (!(step?.reused > 0)) return '';
+  if (step.reused >= step.total) return ui('复用已保存的转写，没有向转写服务发请求');
+  return uiFormat('复用已保存的转写 {0}/{1} 段，其余 {2} 段重新转写', [step.reused, step.total, step.total - step.reused]);
+}
 const roughly = (ms) => (ms < 45000 ? ui("不到 1 分钟") : uiFormat("约 {0} 分钟", [Math.max(1, Math.round(ms / 60000))]));
 
 /** The work in the order it happens, and how much of the whole each part usually is. */
@@ -73,35 +90,70 @@ export function audioProgress(job, now = Date.now()) {
   return { percent, flight: Math.max(0, Math.min(WEIGHT[job.phase] / step.total * 100, 99 - percent)), eta };
 }
 
+/** The link to a sub-agent's session: drawn only when the host can open it (host.openAgent is absent otherwise) and the task has one. */
 function OpenAgent({ task, openAgent }) {
-  return <AgentLink childId={task.childId} openAgent={openAgent}
+  return <AgentLink childId={task.childId} parentId={task.parentId} openAgent={openAgent}
     ariaLabel={uiFormat('查看子代理：{0}', [taskLabel(task)])} label={ui("查看子代理")} />;
 }
+
+/**
+ * What the reasoning setting did for one task, in plain words, or '' when it did exactly what was asked (or nothing was asked).
+ * `reasoning` is the strength asked for; the model may have had no such level (lib/model-effort.js says which one it used instead).
+ */
+export function reasoningNote(task) {
+  const wanted = task.reasoning;
+  if (!wanted || wanted === 'default') return '';
+  const asked = ui(STRENGTH_LABEL[wanted] || wanted);
+  if (task.reasoningReason === 'nearest' && task.reasoningName) return uiFormat('推理强度：要求「{0}」，当前模型没有，已用「{1}」', [asked, task.reasoningName]);
+  if (task.reasoningReason === 'unsupported' || (!task.reasoningReason && task.reasoningEffort === 'default'))
+    return uiFormat('推理强度：要求「{0}」，当前模型没有可调档位，按模型默认', [asked]);
+  return '';
+}
+/** How long a finished task took. */
+const tookOf = (task) => (task.finishedAt ? formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt)) : '');
+/** What can be said about a task without opening the sub-agent: the size of its input, what it used, the start of its answer. */
+function TaskDetail({ task }) {
+  const tokens = task.tokenUsage ? totalTokens(task.tokenUsage) : 0;
+  const rows = [task.inputChars > 0 && uiFormat('提示：约 {0} 字的稿件窗口', [formatNumber(task.inputChars)]),
+    tokens > 0 && uiFormat('用量：{0} tok', [formatExactTokens(tokens)]),
+    task.outputPreview && uiFormat('最近输出：{0}', [task.outputPreview])].filter(Boolean);
+  return rows.length ? <details className="audio-task-detail"><summary>{ui('详情')}</summary>{rows.map((row, index) => <small key={index}>{row}</small>)}</details> : null;
+}
+
+const HISTORY_PAGE = 5;
 
 function AudioTasks({ job, now, openAgent }) {
   const tasks = job.tasks || [];
   const active = isActive(job) ? tasks.filter(task => !task.finishedAt && ['starting', 'running', 'finishing'].includes(task.status)) : [];
-  const history = tasks.filter(task => !active.includes(task));
+  const history = tasks.filter(task => !active.includes(task)).reverse();
+  const [shown, setShown] = React.useState(HISTORY_PAGE);
+  // What every row of the history would say again is said once, quietly, above the list.
+  const notes = [...new Set(history.map(task => task.note).filter(Boolean))];
+  const common = notes.length === 1 && history.filter(task => task.note).length === history.length ? notes[0] : '';
+  const runtimes = [...new Set(history.map(task => task.runtime).filter(Boolean))];
+  const sameRuntime = runtimes.length === 1 ? runtimes[0] : '';
+  const visible = history.slice(0, shown), more = history.length - visible.length;
   return <>
     {active.length > 0 && <div className="audio-active-tasks">
       <small>{uiFormat('正在执行 {0} 个任务', [active.length])}</small>
       {active.map(task => <small className="audio-now" key={task.id}>
         {joinMeta([uiFormat('正在做：{0}', [taskLabel(task)]), ui(RUNTIME[task.runtime] || ''), ui(TASK_STATUS[task.status] || task.status),
-          uiFormat('已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))])])}
+          uiFormat('已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))]),
+          task.inputChars > 0 ? uiFormat('输入约 {0} 字', [formatNumber(task.inputChars)]) : ''])}
         <OpenAgent task={task} openAgent={openAgent} />
       </small>)}
     </div>}
     {history.length > 0 && <details className="generation-trace audio-trace">
       <summary>{uiFormat('查看历史任务 · {0} 次模型任务', [history.length])}</summary>
-      <ol>{[...history].reverse().map(task => <li key={task.id}>
-        <strong>{taskLabel(task)}</strong>
-        <small>{joinMeta([ui(TASK_STATUS[task.status] || task.status), ui(RUNTIME[task.runtime] || ''),
-          task.finishedAt ? formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt)) : ''])}</small>
-        {task.note && <Hint as="small" size="xs" tone="warning">{task.note}</Hint>}
-        {task.reasoning && <small>{ui('推理：')}{task.reasoning}
-          {task.reasoningEffort && task.reasoningEffort !== task.reasoning ? ` → ${task.reasoningEffort}` : ''}</small>}
+      {(common || sameRuntime) && <Hint as="p" size="xs" className="audio-trace-note">{joinMeta([sameRuntime ? uiFormat('都由「{0}」完成', [ui(RUNTIME[sameRuntime] || sameRuntime)]) : '', common ? ui(common) : ''])}</Hint>}
+      <ol>{visible.map(task => <li key={task.id}>
+        <span className="audio-trace-line">{joinMeta([taskLabel(task), ui(TASK_STATUS[task.status] || task.status), sameRuntime ? '' : ui(RUNTIME[task.runtime] || ''), tookOf(task),
+          reasoningNote(task), task.note && task.note !== common ? ui(task.note) : ''])}</span>
         <OpenAgent task={task} openAgent={openAgent} />
+        <TaskDetail task={task} />
       </li>)}</ol>
+      {history.length > HISTORY_PAGE && <Button variant="link" size="sm" onClick={() => setShown(more > 0 ? history.length : HISTORY_PAGE)}>
+        {more > 0 ? uiFormat('再显示 {0} 条', [more]) : ui('收起')}</Button>}
     </details>}
   </>;
 }
@@ -175,12 +227,15 @@ function AudioJob({ job, busy, act, openAgent, onOpenSources, onLegacyRetry, onO
       {progressed && (progress.eta !== null
         ? <Hint as="small">{uiFormat("本步骤预计还需{0}", [roughly(progress.eta)])}</Hint>
         : job.phase === "transcribe" && <Hint as="small">{ui("转写要等服务商处理完整段录音，长录音需要几分钟，不是卡住了；上面的「已用」时间在走。")}</Hint>)}
+      {!job.members && reuseNote(job.steps) && <Hint as="small">{reuseNote(job.steps)}</Hint>}
+      {running && job.parallel?.text && inTextSteps(job) && <Hint as="small">{parallelNote(job.parallel.text)}</Hint>}
       {job.members?.length > 0 && <ol className="audio-members">{job.members.map((member, index) => {
         const state = memberState(member, running, now);
         return <li key={index}>
           <strong>{member.filename}</strong><small className={state.reason ? 'audio-member-reason' : undefined}>{state.text}</small>
           {ORDER.filter(phase => member.steps?.[phase]?.total > 0).map(phase => <small key={phase}>
             {ui(TASK_KINDS[phase])}{uiFormat(' 已完成 {0}/{1}', [member.steps[phase].done, member.steps[phase].total])}</small>)}
+          {reuseNote(member.steps) && <Hint as="small">{reuseNote(member.steps)}</Hint>}
           <AudioTasks job={member} now={now} openAgent={openAgent} />
         </li>;
       })}</ol>}

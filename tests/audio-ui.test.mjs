@@ -64,18 +64,22 @@ test('batch audio separates three active children from thirteen historical tasks
     assert.match(html, /正在执行 3 个任务/);
     assert.match(html, /校对 已完成 10\/30/);
     assert.match(html, /查看历史任务 · 13 次模型任务/);
-    assert.match(html, /失败 · DSH 子代理/);
-    assert.match(html, /Rate limit/);
+    assert.match(html, /都由「DSH 子代理」完成/, 'the runtime every row shares is said once');
+    assert.match(html, /校对 13\/30 · 失败 · 25 秒 · Rate limit/);
     assert.equal(html.match(/class="audio-now"/g).length, 3);
     assert.equal(html.match(/class="generation-trace audio-trace"/g).length, 1);
-    for (let part = 1; part <= 16; part++) {
+    // The three running children and the latest five finished ones have a link; the older eight wait behind "再显示 8 条".
+    for (let part = 9; part <= 16; part++) {
       assert.equal(html.match(new RegExp(`aria-label="查看子代理：校对 ${part}/30"`, 'g'))?.length, 1, `one link for child ${part}`);
     }
+    for (let part = 1; part <= 8; part++) assert.equal(html.includes(`查看子代理：校对 ${part}/30`), false, `child ${part} is behind the button`);
+    assert.match(html, /再显示 8 条/);
     setUiLanguage('en');
     const english = renderBatch().replaceAll('API应用与产品策略培训.mp3', 'lecture.mp3');
     assert.doesNotMatch(english, /[㐀-鿿]/);
     assert.match(english, /3 tasks running/);
     assert.match(english, /View task history · 13 model tasks/);
+    assert.match(english, /Show 8 more/);
   } finally { setUiLanguage('zh'); }
 });
 

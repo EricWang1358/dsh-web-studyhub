@@ -1,7 +1,8 @@
 import { getUiLanguage, ui, uiFormat, uiMessage, useUiLanguage } from './i18n.js';
 import React, { useEffect, useRef } from 'react';
-import AudioReasoning from './AudioReasoning.jsx';
-import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, SegmentedControl, Select, SetupRequired, SettingsSection, TextInput, useToast } from './components/index.js';
+import AudioReasoning, { EffortSelect } from './AudioReasoning.jsx';
+import { useModelEfforts } from './use-model-efforts.js';
+import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, Select, SetupRequired, SettingsSection, TextInput, useToast } from './components/index.js';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
@@ -33,17 +34,6 @@ export const PROVIDERS = Object.freeze(Object.fromEntries(Object.entries(CARD_CO
 })));
 /** Cards in the order a learner should consider them: mainland China first gets the provider that works there. */
 export const providerOrder = (language) => providersFor(language).map((provider) => provider.tier);
-
-/** Proofreading and translation depth as three plain choices; "balanced" is the default. */
-export const PRESETS = Object.freeze({
-  fast: { proofreadReasoning: 'low', translateReasoning: 'low' },
-  balanced: { proofreadReasoning: 'default', translateReasoning: 'low' },
-  accurate: { proofreadReasoning: 'high', translateReasoning: 'medium' },
-});
-export function presetOf(settings = {}) {
-  const proof = settings.proofreadReasoning || 'default', translate = settings.translateReasoning || 'low';
-  return Object.keys(PRESETS).find((name) => PRESETS[name].proofreadReasoning === proof && PRESETS[name].translateReasoning === translate) || 'custom';
-}
 
 const RESULT = (result) => (result.ok ? ui('可用：密钥有效，网络也连得上') : uiFormat('不可用：{0}', [uiMessage(result.message || ui('没有返回原因'))]));
 
@@ -112,6 +102,7 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
   // The audio settings are the host's shared answer (ui/host-query.js): the settings page, this pane and the usage console all read the one
   // copy, and a save below writes the new copy for all of them. Loaded with call(), not act(): act is single-flight and the page already loads 陪学 through it.
   const { data: view } = useHostQuery('audio.settings.get', {}, { call, enabled: typeof call === 'function', initialData: initialView ?? undefined });
+  const model = useModelEfforts(call, { enabled: typeof call === 'function' });
   const setView = (next) => setQueryData('audio.settings.get', {}, next);
   useEffect(() => {
     if (!view || !audioFocusPending() || !section.current) return;
@@ -128,7 +119,6 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
     <TextInput key={view[field]} defaultValue={view[field]} disabled={busy}
       onBlur={(event) => event.target.value.trim() !== view[field] && save({ [field]: event.target.value.trim() })} />
   </Field>;
-  const preset = presetOf(view);
   const configured = KEY_FIELDS.filter((field) => view[field]?.set).length;
   return (
     <SettingsSection className="audio-settings" tour="settings-audio" ref={section} title={ui('音频转写')}
@@ -139,19 +129,15 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
           call={call} busy={busy} onSaved={saved} recommended={index === 0} />)}
       </ProviderGrid>
       <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}。不会进入学习库、备份或对话；请不要把密钥贴到对话里。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
-      <Disclosure className="audio-advanced settings-disclosure" summary={ui('高级')} meta={ui('校对与翻译的速度、付费密钥、模型')}>
-        <Field group label={ui('校对与翻译')} width="full"
-          hint={preset === 'custom' ? ui('当前是自定义组合（见下方「专家选项」）。') : ui('更快：推理最少；均衡：默认；更准：推理更多，耗时更长。只影响下一次处理。')}>
-          <SegmentedControl label={ui('校对与翻译')} value={preset} disabled={busy} onChange={(name) => save(PRESETS[name], ui('已切换校对与翻译的速度'))}
-            options={[{ value: 'fast', label: ui('更快') }, { value: 'balanced', label: ui('均衡') }, { value: 'accurate', label: ui('更准') }]} />
-        </Field>
+      <Disclosure className="audio-advanced settings-disclosure" summary={ui('高级')} meta={ui('校对与翻译的推理强度、付费密钥、模型')}>
+        <AudioReasoning settings={view} busy={busy} onSave={save} efforts={model.options} modelName={model.model} />
         <div className="audio-paid">
           <h4 className="settings-subtitle">{ui('Gemini 付费密钥（可选）')}</h4>
           <Hint>{ui('来自另一个开通计费并充值的 Google 项目，免费额度都用完时才用；导入时勾选「只用付费密钥」可以完全不经过免费服务。余额用完时请求会失败，不会自动降回免费。')}</Hint>
           <ProviderKeyForm provider={{ tier: 'paid', field: providerOf('paid').keyField, name: providerOf('paid').name, placeholder: '粘贴付费项目的 AI Studio 密钥' }}
             state={view.paidKey} call={call} busy={busy} primary={false} onSaved={saved} />
         </div>
-        <Disclosure className="audio-expert settings-disclosure" summary={ui('专家选项')} meta={ui('模型、并发、推理强度')}>
+        <Disclosure className="audio-expert settings-disclosure" summary={ui('专家选项')} meta={ui('模型、并发')}>
           <Field label={ui('校对与翻译用哪个模型')}>
             <Select value={view.textProvider} disabled={busy} onChange={(e) => save({ textProvider: e.target.value })}>
               <option value="auto">{ui('自动（有对话模型就用它，否则用 Gemini）')}</option>
@@ -166,15 +152,18 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
           {view.textProvider !== 'host' && modelField('groqTextModel', 'Groq 文本模型')}
           {modelField('liveModel', '课堂实时转写模型')}
           {view.textProvider !== 'host' && modelField('liveTranslateModel', '课堂实时翻译模型')}
-          <Field label={ui('上下文校正推理强度')}>
-            <Select value={view.liveCorrectionReasoning || 'low'} disabled={busy} onChange={event => save({ liveCorrectionReasoning: event.target.value })}>
-              <option value="low">{ui('低（优先速度）')}</option><option value="default">{ui('模型默认')}</option>
+          <EffortSelect label={ui('课堂实录的上下文校正推理强度')} value={view.liveCorrectionReasoning || 'low'} efforts={model.options} disabled={busy}
+            onChange={value => save({ liveCorrectionReasoning: value })} />
+          <Field label={ui('校对与翻译的并行数')}
+            hint={ui('同时发给 DSH 模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。')}>
+            <Select value={view.textConcurrency ?? 3} disabled={busy} onChange={(e) => save({ textConcurrency: Number(e.target.value) })}>
+              {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count === 3 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
             </Select>
           </Field>
-          <Field label={ui('单条录音的校对与翻译并发数')}
-            hint={ui('录音逐个处理；单条录音内同时处理 2 或 3 个校对或翻译窗口，按原顺序合并，已完成的部分可以复用。并发越高，越容易触发每分钟限流。')}>
-            <Select value={view.textConcurrency ?? 3} disabled={busy} onChange={(e) => save({ textConcurrency: Number(e.target.value) })}>
-              {[2, 3].map((count) => <option key={count} value={count}>{count === 3 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
+          <Field label={ui('转写的并行数')}
+            hint={ui('同时向转写服务商发送的录音数。免费额度和每分钟限流有限，默认 1 个；后一个录音的转写本来就会和前一个录音的校对、翻译同时进行。')}>
+            <Select value={view.transcribeConcurrency ?? 1} disabled={busy} onChange={(e) => save({ transcribeConcurrency: Number(e.target.value) })}>
+              {[1, 2, 3].map((count) => <option key={count} value={count}>{count === 1 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
             </Select>
           </Field>
           <Field label={ui('每次请求最长')}
@@ -190,7 +179,6 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
               <option value="VERBATIM">{ui('逐字（保留每个字）')}</option>
             </Select>
           </Field>
-          <AudioReasoning settings={view} busy={busy} onSave={save} />
         </Disclosure>
       </Disclosure>
     </SettingsSection>

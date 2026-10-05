@@ -25,7 +25,7 @@ const EXCEPTIONS = {
   'document-preview/peek/PagePeekView.jsx': 'resize grips (pointer-drag handles)', 'document-preview/translation/TranslationMenu.jsx': 'the floating selection chip button',
   'StudyImage.jsx': 'the image itself opens the zoom',
   // Custom geometry or semantics a Button does not model.
-  'AudioReasoning.jsx': 'cells of the level matrix', 'CaseWorkspace.jsx': 'pen toggle, highlight swatches and the paper write rows',
+  'CaseWorkspace.jsx': 'pen toggle, highlight swatches and the paper write rows',
   'CourseActive.jsx': 'role=switch', 'CourseField.jsx': 'course picks (hue, parked state, group counts)', 'Skeleton.jsx': 'node rows, tabs of the canvas and chapter picks',
   'SkeletonCanvas.jsx': 'canvas nodes and the minimap', 'ThumbFeedback.jsx': 'the two 17px thumb icon buttons of the question toolbar',
   'UpdateCenter.jsx': 'the update status chip (state-coloured pill)',

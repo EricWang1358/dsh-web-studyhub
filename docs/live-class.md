@@ -174,7 +174,7 @@ Live class uses the Gemini keys and models in **Settings › Audio transcription
 | **Model for proofreading and translation** | **Automatic (the conversation model when there is one, otherwise Gemini)** is the default. The other options are **Gemini (free first, then paid)** and **The model the conversation uses**. Live translation, context correction and historical correction follow this choice. |
 | **Live transcription model** | The Gemini live model. Default `gemini-3.5-transcribe-live`. |
 | **Live translation model** | The Gemini model for live translation and context correction. Default `gemini-3.5-flash-lite`. Hidden when **The model the conversation uses** is selected. |
-| **Context correction reasoning** | **Low (faster)** (default) or **Model default**. Applies to context correction and historical correction. |
+| **Reasoning strength of live class context correction** | The current model's own levels or **Model default**; **Low** by default. A strength the model does not offer maps to the nearest level and the list says so. Applies to context correction and historical correction. |
 | **Gemini paid key (optional)** | Directly under **Advanced**. Used when the free allowance runs out, or always with **Use paid key only**. |
 
 How the reasoning setting is applied:
