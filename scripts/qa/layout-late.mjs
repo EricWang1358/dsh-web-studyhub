@@ -146,6 +146,11 @@ export async function holdActions(page, actions) {
   };
 }
 
+/** Wait until every finite animation has ended. A page rises 10 px over 0.2 s when it opens (`page-in`, a transform), and getBoundingClientRect includes a
+ *  transform: a position read mid-animation is up to a pixel off and then "moves" when the animation ends, which is no layout shift at all. */
+export const settleAnimations = (page) => page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"
+  || animation.effect?.getTiming?.().iterations === Infinity), null, { timeout: 10000 });
+
 /** y of each element matching `selector`, relative to the viewport (rounded to 0.1 px), first `count`. */
 export const positions = (page, selector, count = 8) => page.evaluate(([sel, n]) => [...document.querySelectorAll(sel)].slice(0, n).map((element) => {
   const box = element.getBoundingClientRect();
@@ -170,6 +175,7 @@ export async function pickerScenario({ browser, running, lang = "zh", theme = "d
   const rows = '[data-tour="generate-sources"] .source-picker__item';
   await page.locator(rows).first().waitFor({ timeout: 30000 });
   await until(() => hold.seen("retrieval.index.coverage"), "the page to ask for index coverage");
+  await settleAnimations(page);
   await frames(page, 4);
   const before = await positions(page, rows, 8);
   const documents = await page.locator(rows).count();
@@ -227,6 +233,7 @@ export async function wrongBookScenario({ browser, running, lang = "zh", theme =
   await page.locator(".wb-retrain").waitFor({ timeout: 30000 });
   await page.locator(".wb-group .wb-row").first().waitFor({ timeout: 30000 });
   await until(() => hold.seen("wrongbook.recommend"), "the page to ask for recommendations");
+  await settleAnimations(page);
   await frames(page, 4);
   const before = await readWrongBook(page);
   await drainLayoutStability(page);
