@@ -326,24 +326,24 @@ test('the toggle 自动补到完整 can be flipped any time: off makes the run w
 });
 
 test('a round has its own time limit; the run has none: three rounds take longer than one round is allowed', async (t) => {
-  // Every round waits 900 ms once (its first planning call), so a round takes about a second and the three of them more than the 2.6 s one round may take.
+  // Every round waits 2.5 s once (its first planning call): a round takes 2.5 s plus the run's own overhead (up to ~3 s more on a slow Windows runner), the three of them more than the 6 s one round may take, and one round alone less.
   const slowRounds = (complete, service) => {
     const slept = new Set();
     return async (system, prompt, context = {}) => {
       if (system.startsWith(PLAN)) {
         const running = ((await service.call('export')).drafts[0]?.editorial.coverageSpec?.rounds || []).findIndex(round => round.status === 'running'), key = Math.max(0, running);
-        if (!slept.has(key)) { slept.add(key); await sleep(900); }
+        if (!slept.has(key)) { slept.add(key); await sleep(2500); }
       }
       return complete(system, prompt, context);
     };
   };
-  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 2600 }, wrap: slowRounds });
+  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 6000 }, wrap: slowRounds });
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
   const draft = await draftOf(service), spec = draft.editorial.coverageSpec;
-  assert.ok(Date.parse(spec.rounds[2].finishedAt) - Date.parse(spec.rounds[0].startedAt) > 2600, 'the run lasted longer than one round may');
-  assert.ok(spec.rounds.every(round => round.ms >= 800 && round.ms < 2600), JSON.stringify(spec.rounds.map(round => round.ms)));
+  assert.ok(Date.parse(spec.rounds[2].finishedAt) - Date.parse(spec.rounds[0].startedAt) > 6000, 'the run lasted longer than one round may');
+  assert.ok(spec.rounds.every(round => round.ms >= 2400 && round.ms < 6000), JSON.stringify(spec.rounds.map(round => round.ms)));
   const stuck = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 300 }, wrap: complete => async (system, prompt, context = {}) => {
     if (system.startsWith(PLAN) && context.signal) await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
     return complete(system, prompt, context);
