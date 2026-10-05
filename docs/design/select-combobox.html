@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Select 与 Combobox 设计稿</title>
+<!-- Real StudyHub tokens and component sheets: every colour, size and radius below resolves from them. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..700&display=swap">
+<link rel="stylesheet" href="../../ui/tokens.css">
+<link rel="stylesheet" href="../../ui/base.css">
+<link rel="stylesheet" href="../../ui/components/components.css">
+<link rel="stylesheet" href="../../ui/components/button-variants.css">
+<link rel="stylesheet" href="../../ui/components/fields.css">
+<link rel="stylesheet" href="../../ui/components/overlays.css">
+<style>
+  @layer study.overrides {
+    html, body { margin: 0; background: #0c0b0a; }
+    body { padding: 32px 16px 80px; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #d8d0c4; }
+    .doc { max-width: 1240px; margin: 0 auto; }
+    .doc > header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 650; color: #efe9df; }
+    .doc > header p { margin: 0; max-width: 78ch; color: #a59d91; font-size: 14px; line-height: 1.65; }
+    .doc h2 { margin: 48px 0 4px; font-size: 18px; font-weight: 650; color: #efe9df; }
+    .doc h2 small { margin-left: 8px; font-size: 13px; font-weight: 400; color: #958e84; }
+    .doc .lead { margin: 0 0 16px; max-width: 80ch; color: #a59d91; font-size: 13px; line-height: 1.65; }
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 20px; align-items: start; }
+
+    /* Artboard: a piece of the study panel on its desk. */
+    .board { position: relative; padding: var(--space-6); border-radius: var(--radius); background: var(--bg-canvas); outline: 1px solid #ffffff10; min-height: 120px; }
+    .board__tag { position: absolute; top: var(--space-2); right: var(--space-3); color: var(--text-faint); font-size: var(--fs-xs); letter-spacing: .04em; }
+    .board--tall { min-height: 470px; }
+    .board--narrow { width: 360px; max-width: 100%; padding: var(--space-4); }
+
+    /* ── Proposed: trigger ────────────────────────────────────────────── */
+    .ds-trigger { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 38px; padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text); font: inherit; font-size: var(--fs-md);
+      line-height: var(--lh-snug); text-align: start; cursor: pointer; }
+    .ds-trigger__value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ds-trigger__value small { margin-left: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-sm); }
+    .ds-trigger__placeholder { color: var(--text-faint); }
+    .ds-trigger svg { flex: none; color: var(--text-muted); transition: transform var(--dur-fast) var(--ease); }
+    .ds-trigger.is-hover { border-color: var(--line-strong); }
+    .ds-trigger.is-focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); }
+    .ds-trigger.is-open { border-color: var(--line-strong); background: var(--bg-surface); }
+    .ds-trigger.is-open svg { transform: rotate(180deg); }
+    .ds-trigger.is-disabled { opacity: .5; cursor: default; }
+    .ds-trigger.is-invalid { border-color: var(--bad); }
+
+    /* Heading trigger: the course heading keeps its display size; only a caret says it opens. */
+    .ds-heading { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); margin-left: calc(var(--space-2) * -1);
+      border: 0; border-radius: var(--radius-sm); background: none; color: var(--text); font: inherit; font-family: var(--font-display);
+      font-size: var(--fs-2xl); font-weight: var(--fw-strong); line-height: var(--lh-tight); cursor: pointer; }
+    .ds-heading svg { color: var(--text-muted); }
+    .ds-heading.is-open { background: var(--bg-hover); }
+    .ds-heading__meta { display: block; margin-top: var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); }
+
+    /* ── Proposed: popup (the .sh-menu surface: raised, strong line, md shadow) ── */
+    .ds-pop { position: relative; z-index: var(--z-popover); display: flex; flex-direction: column; margin-top: var(--space-1); min-width: 240px;
+      max-height: 400px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); box-shadow: var(--shadow-md);
+      color: var(--text); overflow: hidden; transform-origin: top left; animation: ds-in var(--dur-fast) var(--ease) both; }
+    .ds-pop--wide { width: 340px; }
+    .ds-pop--match { width: 100%; }
+    @keyframes ds-in { from { opacity: 0; transform: scale(.97) translateY(-2px); } }
+    .ds-pop__search { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }
+    .ds-pop__search svg { flex: none; color: var(--text-muted); }
+    .ds-pop__search input { flex: 1; min-width: 0; padding: var(--space-1) 0; border: 0; background: none; color: var(--text); font: inherit; font-size: var(--fs-md); outline: none; }
+    .ds-pop__search input::placeholder { color: var(--text-faint); }
+    .ds-pop__list { flex: 1 1 auto; overflow-y: auto; padding: var(--space-1); }
+    .ds-group { margin: 0; padding: var(--space-2) var(--space-2-5) var(--space-half); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: .03em; }
+    .ds-group:first-child { padding-top: var(--space-1); }
+    .ds-opt { display: flex; align-items: center; gap: var(--space-2); min-height: 34px; padding: var(--space-1-5) var(--space-2-5); border-radius: var(--radius-xs);
+      font-size: var(--fs-md); line-height: var(--lh-snug); cursor: pointer; }
+    .ds-opt__label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ds-opt__hint { flex: none; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .ds-opt__check { flex: none; width: 16px; color: var(--text); }
+    .ds-opt mark { background: none; color: inherit; font-weight: var(--fw-strong); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+    .ds-opt.is-active { background: var(--bg-hover); outline: 1px solid var(--line-strong); outline-offset: -1px; }
+    .ds-opt.is-selected { background: var(--bg-selected); }
+    .ds-opt.is-disabled { color: var(--text-faint); cursor: default; }
+    /* Chapters hang off their course on one hairline: the tree the old picker faked with spaces. */
+    .ds-opt--chapter { margin-left: var(--space-4); padding-left: var(--space-3); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; box-shadow: inset 1px 0 0 var(--line-strong); }
+    .ds-opt--chapter.is-selected, .ds-opt--chapter.is-active { box-shadow: inset 2px 0 0 var(--text-muted); }
+    .ds-opt--create { color: var(--text-dim); }
+    .ds-opt--create svg { color: var(--text-muted); }
+    .ds-pop__foot { padding: var(--space-1); border-top: 1px solid var(--line); }
+    .ds-pop__foot .ds-opt { color: var(--text-dim); font-size: var(--fs-sm); }
+    .ds-empty { padding: var(--space-5) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
+
+    /* ── Current (native) — drawn, since the browser's own popup cannot be captured or styled ── */
+    .native { display: grid; gap: var(--space-2); }
+    .native select { width: 100%; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text); font: inherit; }
+    .native__list { margin-top: 2px; padding: 2px 0; border: 1px solid #7a7a7a; background: Canvas; color: CanvasText; font: 13px "Segoe UI", sans-serif; color-scheme: dark; }
+    .native__list div { padding: 1px 6px; white-space: pre; }
+    .native__list .og { font-weight: 700; }
+    .native__list .hl { background: Highlight; color: HighlightText; }
+    .issues { margin: var(--space-4) 0 0; padding: 0 0 0 var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .issues b { color: var(--text); font-weight: var(--fw-medium); }
+
+    .label { display: block; margin: 0 0 var(--space-1); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+    .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--space-5) var(--space-4); }
+    .states figcaption { margin-top: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-xs); }
+    .states figure { margin: 0; }
+    .err { margin: var(--space-1) 0 0; color: var(--bad-ink); font-size: var(--fs-sm); }
+
+    .spec { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+    .spec section { padding: 16px 18px; border-radius: 12px; background: #161412; outline: 1px solid #ffffff10; }
+    .spec h3 { margin: 0 0 8px; font-size: 14px; font-weight: 650; color: #efe9df; }
+    .spec ul { margin: 0; padding-left: 18px; color: #c5bdb1; font-size: 13px; line-height: 1.7; }
+    .spec code, .doc code { padding: 1px 5px; border-radius: 4px; background: #ffffff0f; font: 12px ui-monospace, Consolas, monospace; color: #efe9df; }
+    kbd { padding: 0 5px; border: 1px solid #4a443c; border-radius: 4px; font: 11px ui-monospace, Consolas, monospace; color: #efe9df; }
+
+    /* ── ⑥ aesthetics ── */
+    .doc h3.sub { margin: 28px 0 10px; font-size: 15px; font-weight: 650; color: #efe9df; }
+    .doc h3.sub small { margin-left: 8px; font-size: 12px; font-weight: 400; color: #958e84; }
+    .note { margin: var(--space-4) 0 0; max-width: 90ch; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .note b { color: var(--text); font-weight: var(--fw-medium); }
+    .icon-table { display: grid; grid-template-columns: 150px repeat(16, minmax(28px, 1fr)); align-items: center; gap: var(--space-3) var(--space-1); color: var(--text-dim); }
+    .icon-table .set { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+    .icon-table .set small { display: block; color: var(--text-faint); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+    .icon-table svg { width: 20px; height: 20px; justify-self: center; }
+    .icon-demo { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--line); }
+    .icon-demo__col { display: grid; gap: var(--space-half); }
+    .icon-demo__col p { margin: 0 0 var(--space-1); color: var(--text-faint); font-size: var(--fs-xs); }
+    .icon-demo__item { display: flex; align-items: center; gap: var(--space-2-5); padding: var(--space-1-5) var(--space-2-5); border-radius: var(--radius-sm); color: var(--text-dim); font-size: var(--fs-md); }
+    .icon-demo__item.is-on { background: var(--bg-selected); color: var(--text); }
+    .icon-demo__item svg { width: 18px; height: 18px; flex: none; }
+    .motion-stage { position: relative; height: 150px; }
+    .motion-pop { position: absolute; top: 0; left: 0; width: 200px; transform-origin: top left; }
+    .motion-pop[hidden] { display: none; }
+    .motion-pop--both { animation: none; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+    .motion-pop--both[data-starting-style], .motion-pop--both[data-ending-style] { opacity: 0; transform: scale(.97) translateY(-2px); }
+    .numeral { color: var(--text); font-size: var(--fs-8xl); font-weight: var(--fw-light); line-height: 1; letter-spacing: -0.02em; }
+    .numeral-meta { margin-top: var(--space-2); color: var(--text-muted); font-size: var(--fs-sm); }
+    .num-table { display: grid; grid-template-columns: auto auto; justify-content: start; gap: var(--space-1) var(--space-6); margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); font-size: var(--fs-md); }
+    .num-table span { color: var(--text-muted); }
+    .num-table b { color: var(--text); font-weight: var(--fw-medium); text-align: right; }
+    .ds-pop--refined { --pop-pad: var(--space-1); border-color: var(--line); border-radius: var(--radius); box-shadow: inset 0 1px 0 var(--sheen-strong, var(--sheen)), 0 0 0 1px #0000004d, 0 1px 2px #00000059, var(--shadow-md); }
+    .ds-pop--refined .ds-opt { border-radius: calc(var(--radius) - var(--pop-pad) - 1px); }
+    @media (max-width: 900px) { .icon-table { grid-template-columns: 96px repeat(16, 28px); overflow-x: auto; padding-bottom: var(--space-2); } }
+    @media (prefers-reduced-motion: reduce) { .motion-pop--both { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .ds-pop { animation: none; } .ds-trigger svg { transition: none; } }
+  }
+  /* Unlayered: an artboard borrows the app's tokens, not its flex shell. */
+  .board.study-app { display: block; overflow: visible; height: auto; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <header>
+    <h1>下拉选择：Select 与 Combobox</h1>
+    <p style="margin-bottom:10px; color:#efe9df"><b>已定（2026-10-06）</b>：① Select / Combobox 基于 Base UI；② 图标整套换成 <b>Phosphor Light</b>；③ 内置 <b>Inter</b>，只覆盖数字和拉丁字母；④ 第 ⑥D 节的浮层细节（内高光、双层阴影、同心圆角）<b>统一推广</b>到所有浮层、卡片和对话框。</p>
+    <p>用 Base UI 的行为层（键盘、焦点、无障碍、定位、碰撞翻转）替换 16 处原生 <code>&lt;select&gt;</code>。外观全部来自现有 token：弹层就是 <code>.sh-menu</code> 那张 raised 面板，触发器就是 <code>.sh-input</code>。不新增颜色，不使用朱砂色（每屏唯一的主按钮保留给真正的主操作）。下面每块画板都是真实 token 渲染的。</p>
+  </header>
+
+  <!-- ═════════ 1. Course switcher ═════════ -->
+  <h2>① 切换当前课程 <small>CourseHeading · Combobox</small></h2>
+  <p class="lead">课程多、还有章节层级，是最需要搜索的地方。现在靠空格缩进模拟层级，"课程设置"被做成一个假选项。新方案：标题保持展示字号，点开后是可搜索的列表；章节挂在课程的一条细线上；"课程设置…"移到底部，和选项分开。在下面的搜索框里输入试试（比如 <code>矩阵</code>、<code>2040</code>）。</p>
+  <div class="row">
+    <div class="board board--tall study-app" data-theme="dark">
+      <span class="board__tag">现在 · 原生</span>
+      <div class="native">
+        <span class="label">切换当前课程</span>
+        <select aria-label="现状示意"><option>MA1522 线性代数</option></select>
+        <div class="native__list" aria-hidden="true">
+          <div class="og">MA1522 线性代数</div>
+          <div>MA1522 线性代数 · 含子课程</div>
+          <div class="hl">  第 2 章 矩阵</div>
+          <div>  第 3 章 向量空间</div>
+          <div>CS2040S 数据结构与算法</div>
+          <div>ST2131 概率论</div>
+          <div>PC1101 大学物理</div>
+          <div>课程设置…</div>
+        </div>
+      </div>
+      <ol class="issues">
+        <li><b>无法搜索</b>：课程一多只能滚动找。</li>
+        <li><b>层级是假的</b>：章节靠行首空格缩进，读屏软件会把空格读出来。</li>
+        <li><b>操作混在选项里</b>："课程设置…"是一个值为 <code>@course-settings</code> 的选项，键盘上下翻时会误触。</li>
+        <li><b>弹层由系统绘制</b>：字号、行高、配色都套不上 token，深浅主题和窄面板下都不受控。</li>
+      </ol>
+    </div>
+
+    <div class="board board--tall study-app" data-theme="dark" id="course-demo">
+      <span class="board__tag">方案 · 深色</span>
+      <button class="ds-heading is-open" type="button" aria-haspopup="listbox" aria-expanded="true">MA1522 线性代数 · 第 2 章 矩阵
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button>
+      <span class="ds-heading__meta">距考试 23 天</span>
+      <div class="ds-pop ds-pop--wide" role="listbox" aria-label="切换当前课程">
+        <div class="ds-pop__search">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+          <input id="course-q" placeholder="搜索课程或章节" autocomplete="off">
+        </div>
+        <div class="ds-pop__list" id="course-list"></div>
+        <div class="ds-pop__foot">
+          <div class="ds-opt" role="option"><svg class="ds-opt__check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4L5 11M11 5l1.4-1.4"/></svg><span class="ds-opt__label">课程设置…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════ 2. Simple select ═════════ -->
+  <h2>② 合并到题组 <small>Manage · Select</small></h2>
+  <p class="lead">选项少、不需要搜索的地方用 Select：外观和文本输入框一致，弹层宽度跟随触发器。次要信息（所在文件夹）放在右侧淡色，已选项用选中底色加勾，不用强调色。</p>
+  <div class="row">
+    <div class="board board--tall study-app" data-theme="dark">
+      <span class="board__tag">方案 · 打开</span>
+      <span class="label">合并到题组</span>
+      <div style="display:flex; gap:var(--space-2); align-items:flex-start">
+        <div style="flex:1; min-width:0">
+          <button class="ds-trigger is-open" type="button"><span class="ds-trigger__value">第 2 章 矩阵运算<small>MA1522</small></span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button>
+          <div class="ds-pop ds-pop--match" role="listbox">
+            <div class="ds-pop__list">
+              <div class="ds-opt"><span class="ds-opt__check"></span><span class="ds-opt__label">第 1 章 行列式</span><span class="ds-opt__hint">MA1522</span></div>
+              <div class="ds-opt is-selected"><svg class="ds-opt__check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-7"/></svg><span class="ds-opt__label">第 2 章 矩阵运算</span><span class="ds-opt__hint">MA1522</span></div>
+              <div class="ds-opt is-active"><span class="ds-opt__check"></span><span class="ds-opt__label">期中复习 · 错题回顾</span><span class="ds-opt__hint">顶层</span></div>
+              <div class="ds-opt"><span class="ds-opt__check"></span><span class="ds-opt__label">第 3 章 向量空间与线性无关</span><span class="ds-opt__hint">MA1522</span></div>
+              <div class="ds-opt is-disabled"><span class="ds-opt__check"></span><span class="ds-opt__label">第 4 章 特征值（当前题组）</span><span class="ds-opt__hint">MA1522</span></div>
+            </div>
+          </div>
+        </div>
+        <button class="sh-btn sh-btn--primary" type="button">合并到目标题组</button>
+      </div>
+    </div>
+
+    <!-- ═════════ 3. Combobox with create ═════════ -->
+    <div class="board board--tall study-app" data-theme="dark">
+      <span class="board__tag">③ 放进哪个题组 · Ingest · Combobox + 新建</span>
+      <span class="label">题组</span>
+      <div class="ds-trigger is-focus" style="cursor:text">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+        <span class="ds-trigger__value">特征<span style="border-left:1px solid var(--text); margin-left:1px"></span></span>
+      </div>
+      <div class="ds-pop ds-pop--match" role="listbox">
+        <div class="ds-pop__list">
+          <p class="ds-group">MA1522 线性代数</p>
+          <div class="ds-opt is-active"><span class="ds-opt__check"></span><span class="ds-opt__label">第 4 章 <mark>特征</mark>值与<mark>特征</mark>向量</span><span class="ds-opt__hint">38 题</span></div>
+          <div class="ds-opt"><span class="ds-opt__check"></span><span class="ds-opt__label">期末 · <mark>特征</mark>分解专项</span><span class="ds-opt__hint">12 题</span></div>
+        </div>
+        <div class="ds-pop__foot">
+          <div class="ds-opt ds-opt--create"><svg class="ds-opt__check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg><span class="ds-opt__label">新建题组「特征」</span></div>
+        </div>
+      </div>
+      <p class="lead" style="margin-top:var(--space-4); color:var(--text-muted)">"＋ 新建题组"不再是列表第一项，而是始终在底部、带上已输入的名字。</p>
+    </div>
+  </div>
+
+  <!-- ═════════ 4. States ═════════ -->
+  <h2>④ 触发器状态 <small>与 .sh-input 完全同一套边框、底色、焦点环</small></h2>
+  <div class="board study-app" data-theme="dark">
+    <div class="states">
+      <figure><button class="ds-trigger" type="button"><span class="ds-trigger__value ds-trigger__placeholder">选择合并目标</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button><figcaption>空 · 占位</figcaption></figure>
+      <figure><button class="ds-trigger is-hover" type="button"><span class="ds-trigger__value">第 2 章 矩阵运算</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button><figcaption>悬停 · line-strong</figcaption></figure>
+      <figure><button class="ds-trigger is-focus" type="button"><span class="ds-trigger__value">第 2 章 矩阵运算</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button><figcaption>键盘焦点 · --ring</figcaption></figure>
+      <figure><button class="ds-trigger is-open" type="button"><span class="ds-trigger__value">第 2 章 矩阵运算</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button><figcaption>打开 · 箭头翻转</figcaption></figure>
+      <figure><button class="ds-trigger is-disabled" type="button"><span class="ds-trigger__value">第 2 章 矩阵运算</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button><figcaption>禁用 · 50%</figcaption></figure>
+      <figure><button class="ds-trigger is-invalid" type="button"><span class="ds-trigger__value ds-trigger__placeholder">选择课程</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button><p class="err">请先选一门课程</p><figcaption>出错 · 由 Field 接管</figcaption></figure>
+    </div>
+  </div>
+
+  <!-- ═════════ 5. Narrow + light ═════════ -->
+  <h2>⑤ 窄面板与浅色主题</h2>
+  <p class="lead">DSH 侧栏可能只有 360px：弹层宽度跟随触发器，高度限制在剩余空间内，下方放不下就向上翻。浅色主题（含护眼纸色）不需要额外规则，全部跟随 token。搜不到时给一句话，不留白。</p>
+  <div class="row" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), max-content));">
+    <div class="board board--narrow board--tall study-app" data-theme="dark">
+      <span class="board__tag">360px · 深色 · 无结果</span>
+      <span class="label">换课程</span>
+      <div class="ds-trigger is-focus" style="cursor:text">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+        <span class="ds-trigger__value">量子</span></div>
+      <div class="ds-pop ds-pop--match" role="listbox"><div class="ds-empty">没有叫"量子"的课程</div></div>
+    </div>
+    <div class="board board--narrow board--tall study-app" data-theme="light">
+      <span class="board__tag">360px · 浅色</span>
+      <span class="label">换课程</span>
+      <button class="ds-trigger is-open" type="button"><span class="ds-trigger__value">MA1522 线性代数（当前）</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg></button>
+      <div class="ds-pop ds-pop--match" role="listbox">
+        <div class="ds-pop__list">
+          <p class="ds-group">当前</p>
+          <div class="ds-opt is-selected"><svg class="ds-opt__check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-7"/></svg><span class="ds-opt__label">MA1522 线性代数</span></div>
+          <p class="ds-group">最近使用</p>
+          <div class="ds-opt is-active"><span class="ds-opt__check"></span><span class="ds-opt__label">CS2040S 数据结构与算法</span></div>
+          <div class="ds-opt"><span class="ds-opt__check"></span><span class="ds-opt__label">ST2131 概率论</span></div>
+          <p class="ds-group">全部</p>
+          <div class="ds-opt"><span class="ds-opt__check"></span><span class="ds-opt__label">PC1101 大学物理</span></div>
+          <div class="ds-opt"><span class="ds-opt__check"></span><span class="ds-opt__label">GEA1000 数据素养</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════ 6. Aesthetics ═════════ -->
+  <h2>⑥ 美观：哪些地方值得借助成熟方案 <small>四组对比，全部真实 token 渲染</small></h2>
+  <p class="lead">Base UI 只管行为，不带任何样式。界面好不好看，取决于下面几处：前三处可以直接用成熟的开源资源，第四处要靠设计功夫。</p>
+
+  <h3 class="sub">A. 图标 <small>20px，深色桌面，同一颜色</small></h3>
+  <div class="board study-app" data-theme="dark">
+    <div class="icon-table" id="icon-table"></div>
+    <div class="icon-demo" id="icon-demo"></div>
+    <p class="note">现有 43 个手绘图标，风格统一，但数量少，新功能经常只能临时内联 SVG（页面里已有 11 处）。<b>Lucide</b> 与现有图标同为 24px 网格、圆角端点，描边设成 1.6 后几乎可以无缝替换，图标数量 1500+，ISC 许可，按需打包每个约 0.3 KB。<b>Phosphor</b> 有细、常规、双色等 6 种粗细，更有性格，但线条语言和现有图标不同，需要整套一起换。</p>
+  </div>
+
+  <h3 class="sub">B. 开关动效 <small>点按钮反复开关，注意"关"的那一下</small></h3>
+  <div class="row">
+    <div class="board study-app" data-theme="dark">
+      <span class="board__tag">现在 · 自研</span>
+      <button class="sh-btn" type="button" id="m-old-btn">整理与添加</button>
+      <div class="motion-stage"><div class="ds-pop motion-pop" id="m-old" hidden>
+        <div class="ds-pop__list"><div class="ds-opt"><span class="ds-opt__label">新建题组</span></div><div class="ds-opt"><span class="ds-opt__label">导入资料</span></div><div class="ds-opt"><span class="ds-opt__label">合并题组</span></div></div>
+      </div></div>
+      <p class="note">打开有淡入，关闭是直接卸载，瞬间消失。</p>
+    </div>
+    <div class="board study-app" data-theme="dark">
+      <span class="board__tag">Base UI · 进场 + 退场</span>
+      <button class="sh-btn" type="button" id="m-new-btn">整理与添加</button>
+      <div class="motion-stage"><div class="ds-pop motion-pop motion-pop--both" id="m-new" hidden>
+        <div class="ds-pop__list"><div class="ds-opt"><span class="ds-opt__label">新建题组</span></div><div class="ds-opt"><span class="ds-opt__label">导入资料</span></div><div class="ds-opt"><span class="ds-opt__label">合并题组</span></div></div>
+      </div></div>
+      <p class="note">Base UI 会在关闭时保留元素、打上 <code>data-ending-style</code>，等过渡结束再卸载，所以纯 CSS 就能收尾，不用引入动画库。只动 transform 和 opacity，单次 150ms。</p>
+    </div>
+  </div>
+
+  <h3 class="sub">C. 数字字体 <small>你的设计里焦点常常是一个大号细体数字</small></h3>
+  <div class="row">
+    <div class="board study-app" data-theme="dark">
+      <span class="board__tag">现在 · 系统字体（多数中文 Windows）</span>
+      <div class="numeral" style="font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif">128</div>
+      <div class="numeral-meta" style="font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif">今日待复习 · 连续 23 天</div>
+      <div class="num-table" style="font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif"><span>正确率</span><b>87.5%</b><span>用时</span><b>11:04</b><span>题数</span><b>1,140</b></div>
+    </div>
+    <div class="board study-app" data-theme="dark">
+      <span class="board__tag">内置 Inter（只含拉丁字母和数字）</span>
+      <div class="numeral" style="font-family: 'Inter', 'Microsoft YaHei', sans-serif; font-optical-sizing: auto; font-feature-settings: 'tnum', 'cv11', 'ss01'">128</div>
+      <div class="numeral-meta" style="font-family: 'Inter', 'Microsoft YaHei', sans-serif">今日待复习 · 连续 23 天</div>
+      <div class="num-table" style="font-family: 'Inter', 'Microsoft YaHei', sans-serif; font-feature-settings: 'tnum'"><span>正确率</span><b>87.5%</b><span>用时</span><b>11:04</b><span>题数</span><b>1,140</b></div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:12px">中文仍用系统字体，只为数字和字母内置一个可变字体文件（woff2 拉丁子集，约 100 KB 量级）。这样每台电脑上的大号数字粗细一致、等宽对齐。<b>注意：这会改变"不内置任何字体文件"的既有决定</b>（<code>ui/font-presets.js</code> 顶部注释），需要你拍板。此处预览从 Google Fonts 加载 Inter，若没加载出来，两边会看起来一样。</p>
+
+  <h3 class="sub">D. 浮层质感 <small>不是库，是参考成熟设计系统的细节，落到 token</small></h3>
+  <div class="row">
+    <div class="board study-app" data-theme="dark">
+      <span class="board__tag">现在 · .sh-menu</span>
+      <div class="ds-pop" style="width:260px; animation:none">
+        <div class="ds-pop__list"><div class="ds-opt"><span class="ds-opt__label">重命名</span></div><div class="ds-opt is-active"><span class="ds-opt__label">移动到…</span></div><div class="ds-opt"><span class="ds-opt__label">归档</span></div></div>
+      </div>
+    </div>
+    <div class="board study-app" data-theme="dark">
+      <span class="board__tag">细化 · 内高光 + 双层阴影 + 圆角嵌套</span>
+      <div class="ds-pop ds-pop--refined" style="width:260px; animation:none">
+        <div class="ds-pop__list"><div class="ds-opt"><span class="ds-opt__label">重命名</span></div><div class="ds-opt is-active"><span class="ds-opt__label">移动到…</span></div><div class="ds-opt"><span class="ds-opt__label">归档</span></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:12px">右边只改了三处：顶部 1px 内高光（已有的 <code>--sheen</code> token），一层贴身的接触阴影加一层远阴影，以及选项圆角 = 面板圆角 − 内边距，让内外圆角同心。差别很细，但所有浮层、卡片、对话框都统一这样处理之后，整体会更"实"。不用 blur 玻璃效果，不影响性能。</p>
+
+  <!-- ═════════ 7. Spec ═════════ -->
+  <h2>⑦ 规格</h2>
+  <div class="spec">
+    <section><h3>组件与 API</h3><ul>
+      <li><code>ui/components/Select.jsx</code>：选项少、无需搜索时用；可用 <code>items</code> 或分组。</li>
+      <li><code>ui/components/Combobox.jsx</code>：可搜索，支持分组、章节层级、底部动作（设置、新建）。</li>
+      <li>沿用 <code>Field</code> 的 label / hint / error 接线，调用方式和现在的 <code>Select</code> 一样。</li>
+      <li>Base UI 只在这两个文件里出现；其余页面只认 <code>ui/components</code>。</li>
+    </ul></section>
+    <section><h3>键盘与无障碍</h3><ul>
+      <li><kbd>↑</kbd><kbd>↓</kbd> 移动，<kbd>Enter</kbd> 选中，<kbd>Esc</kbd> 关闭并把焦点还给触发器，<kbd>Home</kbd>/<kbd>End</kbd> 跳首尾。</li>
+      <li>Select 支持直接打字跳转（type-ahead），和原生一致。</li>
+      <li>role=listbox / option / group，章节用 <code>aria-level</code> 表达层级，不再读出空格。</li>
+      <li>底部动作是独立按钮，方向键翻选项时碰不到。</li>
+    </ul></section>
+    <section><h3>动效</h3><ul>
+      <li>弹层：从触发器方向 <code>scale(.97)→1</code> + 淡入，<code>--dur-fast</code>，只动 transform 和 opacity。</li>
+      <li>箭头旋转 180°；关闭不做动画。</li>
+      <li><code>prefers-reduced-motion</code> 下全部关闭。</li>
+    </ul></section>
+    <section><h3>宿主适配</h3><ul>
+      <li>弹层挂在 <code>.study-app</code>（在对话框里时挂到打开的 <code>&lt;dialog&gt;</code>），沿用 Menu 的 <code>placeInHost</code> 处理界面缩放。</li>
+      <li>CSS 走现有 <code>useComponentCss</code> 注入，归入 <code>study.components</code> 层，过 token 守卫测试。</li>
+      <li>React 继续由宿主提供；Base UI 按需懒加载，三件合计约 65 KB gzip。</li>
+    </ul></section>
+    <section><h3>范围</h3><ul>
+      <li>Combobox：课程切换（CourseHeading、WorkflowScope 换课程）、题组选择（Ingest、JsonImport、Manage 合并）。</li>
+      <li>Select：其余 10 处短列表。</li>
+      <li>原生 date / range 本次不动。</li>
+      <li>QA 脚本里对原生 select 的 <code>selectOption</code> 改成点选，测试同步更新。</li>
+    </ul></section>
+  </div>
+</div>
+
+<script>
+  // Live filter for artboard ①: the Combobox groups, chapter tree and match highlight.
+  const courses = [
+    { group: '当前', name: 'MA1522 线性代数', chapters: ['第 1 章 行列式', '第 2 章 矩阵', '第 3 章 向量空间', '第 4 章 特征值'], selected: '第 2 章 矩阵' },
+    { group: '最近使用', name: 'CS2040S 数据结构与算法', chapters: ['图与最短路', '平衡二叉树'] },
+    { group: '最近使用', name: 'ST2131 概率论', chapters: [] },
+    { group: '全部', name: 'PC1101 大学物理', chapters: ['力学', '电磁学'] },
+    { group: '全部', name: 'GEA1000 数据素养', chapters: [] },
+  ];
+  const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const mark = (text, q) => { if (!q) return esc(text); const i = text.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? esc(text) : esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length)); };
+  const check = '<svg class="ds-opt__check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 8.5l3 3 6-7"/></svg>';
+  const blank = '<span class="ds-opt__check"></span>';
+  function render(q = '') {
+    const has = t => !q || t.toLowerCase().includes(q.toLowerCase());
+    let html = '', last = '', first = true;
+    for (const c of courses) {
+      const chapters = c.chapters.filter(ch => has(ch) || has(c.name));
+      if (!has(c.name) && !chapters.length) continue;
+      if (c.group !== last && !q) { html += `<p class="ds-group">${c.group}</p>`; last = c.group; }
+      const active = first && q ? ' is-active' : ''; first = false;
+      html += `<div class="ds-opt${active}" role="option">${blank}<span class="ds-opt__label">${mark(c.name, q)}</span>${c.chapters.length ? `<span class="ds-opt__hint">${c.chapters.length} 章</span>` : ''}</div>`;
+      for (const ch of chapters) {
+        const sel = c.selected === ch;
+        html += `<div class="ds-opt ds-opt--chapter${sel ? ' is-selected' : ''}" role="option" aria-level="2">${sel ? check : blank}<span class="ds-opt__label">${mark(ch, q)}</span></div>`;
+      }
+    }
+    document.getElementById('course-list').innerHTML = html || `<div class="ds-empty">没有叫"${esc(q)}"的课程或章节</div>`;
+  }
+  document.getElementById('course-q').addEventListener('input', e => render(e.target.value.trim()));
+  render();
+
+  // ⑥ A: icon sets side by side, then the same nav column in each set.
+  const ICONS = [{"name":"check","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m5 12.5 4.3 4.3L19 7\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M228.24,76.24l-128,128a6,6,0,0,1-8.48,0l-56-56a6,6,0,0,1,8.48-8.48L96,191.51,219.76,67.76a6,6,0,0,1,8.48,8.48Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M232,56V200a16,16,0,0,1-16,16H40a16,16,0,0,1-16-16V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56Z\" opacity=\"0.2\"/><path d=\"M205.66,85.66l-96,96a8,8,0,0,1-11.32,0l-40-40a8,8,0,0,1,11.32-11.32L104,164.69l90.34-90.35a8,8,0,0,1,11.32,11.32Z\"/></svg>"},{"name":"close","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6.5 6.5l11 11M17.5 6.5l-11 11\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 6 6 18\" />\n  <path d=\"m6 6 12 12\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M204.24,195.76a6,6,0,1,1-8.48,8.48L128,136.49,60.24,204.24a6,6,0,0,1-8.48-8.48L119.51,128,51.76,60.24a6,6,0,0,1,8.48-8.48L128,119.51l67.76-67.75a6,6,0,0,1,8.48,8.48L136.49,128Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,56V200a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40H200A16,16,0,0,1,216,56Z\" opacity=\"0.2\"/><path d=\"M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z\"/></svg>"},{"name":"plus","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 5v14M5 12h14\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\" />\n  <path d=\"M12 5v14\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M222,128a6,6,0,0,1-6,6H134v82a6,6,0,0,1-12,0V134H40a6,6,0,0,1,0-12h82V40a6,6,0,0,1,12,0v82h82A6,6,0,0,1,222,128Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,56V200a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40H200A16,16,0,0,1,216,56Z\" opacity=\"0.2\"/><path d=\"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z\"/></svg>"},{"name":"search","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"6.5\" /><path d=\"m20 20-4.2-4.2\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21 21-4.34-4.34\" />\n  <circle cx=\"11\" cy=\"11\" r=\"8\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M228.24,219.76l-51.38-51.38a86.15,86.15,0,1,0-8.48,8.48l51.38,51.38a6,6,0,0,0,8.48-8.48ZM38,112a74,74,0,1,1,74,74A74.09,74.09,0,0,1,38,112Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M192,112a80,80,0,1,1-80-80A80,80,0,0,1,192,112Z\" opacity=\"0.2\"/><path d=\"M229.66,218.34,179.6,168.28a88.21,88.21,0,1,0-11.32,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z\"/></svg>"},{"name":"upload","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 15.5V4.5M7.5 9 12 4.5 16.5 9\" /><path d=\"M4.5 14.5v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3v12\" />\n  <path d=\"m17 8-5-5-5 5\" />\n  <path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M222,144v64a6,6,0,0,1-6,6H40a6,6,0,0,1-6-6V144a6,6,0,0,1,12,0v58H210V144a6,6,0,0,1,12,0ZM92.24,76.24,122,46.49V144a6,6,0,0,0,12,0V46.49l29.76,29.75a6,6,0,0,0,8.48-8.48l-40-40a6,6,0,0,0-8.48,0l-40,40a6,6,0,0,0,8.48,8.48Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,48V208H40V48A16,16,0,0,1,56,32H200A16,16,0,0,1,216,48Z\" opacity=\"0.2\"/><path d=\"M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0ZM93.66,77.66,120,51.31V144a8,8,0,0,0,16,0V51.31l26.34,26.35a8,8,0,0,0,11.32-11.32l-40-40a8,8,0,0,0-11.32,0l-40,40A8,8,0,0,0,93.66,77.66Z\"/></svg>"},{"name":"download","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 4.5v11M7.5 11 12 15.5 16.5 11\" /><path d=\"M4.5 14.5v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 15V3\" />\n  <path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />\n  <path d=\"m7 10 5 5 5-5\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M222,144v64a6,6,0,0,1-6,6H40a6,6,0,0,1-6-6V144a6,6,0,0,1,12,0v58H210V144a6,6,0,0,1,12,0Zm-98.24,4.24a6,6,0,0,0,8.48,0l40-40a6,6,0,0,0-8.48-8.48L134,129.51V32a6,6,0,0,0-12,0v97.51L92.24,99.76a6,6,0,0,0-8.48,8.48Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,48V208H40V48A16,16,0,0,1,56,32H200A16,16,0,0,1,216,48Z\" opacity=\"0.2\"/><path d=\"M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z\"/></svg>"},{"name":"file","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z\" /><path d=\"M14 3.5V8h4.5M9 13h6M9 16.5h4\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" />\n  <path d=\"M14 2v5a1 1 0 0 0 1 1h5\" />\n  <path d=\"M10 9H8\" />\n  <path d=\"M16 13H8\" />\n  <path d=\"M16 17H8\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M212.24,83.76l-56-56A6,6,0,0,0,152,26H56A14,14,0,0,0,42,40V216a14,14,0,0,0,14,14H200a14,14,0,0,0,14-14V88A6,6,0,0,0,212.24,83.76ZM158,46.48,193.52,82H158ZM200,218H56a2,2,0,0,1-2-2V40a2,2,0,0,1,2-2h90V88a6,6,0,0,0,6,6h50V216A2,2,0,0,1,200,218Zm-34-82a6,6,0,0,1-6,6H96a6,6,0,0,1,0-12h64A6,6,0,0,1,166,136Zm0,32a6,6,0,0,1-6,6H96a6,6,0,0,1,0-12h64A6,6,0,0,1,166,168Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M208,88H152V32Z\" opacity=\"0.2\"/><path d=\"M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z\"/></svg>"},{"name":"folder","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.5 7.5a2 2 0 0 1 2-2h3.8l2.2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,74H130.49l-27.9-27.9a13.94,13.94,0,0,0-9.9-4.1H40A14,14,0,0,0,26,56V200.62A13.39,13.39,0,0,0,39.38,214H216.89A13.12,13.12,0,0,0,230,200.89V88A14,14,0,0,0,216,74ZM40,54H92.69a2,2,0,0,1,1.41.59L113.51,74H38V56A2,2,0,0,1,40,54ZM218,200.89a1.11,1.11,0,0,1-1.11,1.11H39.38A1.4,1.4,0,0,1,38,200.62V86H216a2,2,0,0,1,2,2Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M128,80H32V56a8,8,0,0,1,8-8H92.69a8,8,0,0,1,5.65,2.34Z\" opacity=\"0.2\"/><path d=\"M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM92.69,56l16,16H40V56ZM216,200H40V88H216Z\"/></svg>"},{"name":"audio","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 17.5V6l10-2v11.5\" /><circle cx=\"6.5\" cy=\"17.5\" r=\"2.5\" /><circle cx=\"16.5\" cy=\"15.5\" r=\"2.5\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 18V5l12-2v13\" />\n  <circle cx=\"6\" cy=\"18\" r=\"3\" />\n  <circle cx=\"18\" cy=\"16\" r=\"3\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M211.69,19.27a6,6,0,0,0-5.15-1.09l-128,32A6,6,0,0,0,74,56V170.11A34,34,0,1,0,86,196V108.68l116-29v58.43A34,34,0,1,0,214,164V24A6,6,0,0,0,211.69,19.27ZM52,218a22,22,0,1,1,22-22A22,22,0,0,1,52,218ZM86,96.32V60.68l116-29V67.32ZM180,186a22,22,0,1,1,22-22A22,22,0,0,1,180,186Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M208,164a28,28,0,1,1-28-28A28,28,0,0,1,208,164ZM52,168a28,28,0,1,0,28,28A28,28,0,0,0,52,168Z\" opacity=\"0.2\"/><path d=\"M212.92,17.69a8,8,0,0,0-6.86-1.45l-128,32A8,8,0,0,0,72,56V166.08A36,36,0,1,0,88,196V110.25l112-28v51.83A36,36,0,1,0,216,164V24A8,8,0,0,0,212.92,17.69ZM52,216a20,20,0,1,1,20-20A20,20,0,0,1,52,216ZM88,93.75V62.25l112-28v31.5ZM180,184a20,20,0,1,1,20-20A20,20,0,0,1,180,184Z\"/></svg>"},{"name":"sparkle","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11 4.5 12.8 9.7 18 11.5l-5.2 1.8L11 18.5l-1.8-5.2L4 11.5l5.2-1.8z\" /><path d=\"M18.5 3.5v3M17 5h3\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" />\n  <path d=\"M20 2v4\" />\n  <path d=\"M22 4h-4\" />\n  <circle cx=\"4\" cy=\"20\" r=\"2\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M196.89,130.94,144.4,111.6,125.06,59.11a13.92,13.92,0,0,0-26.12,0L79.6,111.6,27.11,130.94a13.92,13.92,0,0,0,0,26.12L79.6,176.4l19.34,52.49a13.92,13.92,0,0,0,26.12,0L144.4,176.4l52.49-19.34a13.92,13.92,0,0,0,0-26.12Zm-4.15,14.86-55.08,20.3a6,6,0,0,0-3.56,3.56l-20.3,55.08a1.92,1.92,0,0,1-3.6,0L89.9,169.66a6,6,0,0,0-3.56-3.56L31.26,145.8a1.92,1.92,0,0,1,0-3.6l55.08-20.3a6,6,0,0,0,3.56-3.56l20.3-55.08a1.92,1.92,0,0,1,3.6,0l20.3,55.08a6,6,0,0,0,3.56,3.56l55.08,20.3a1.92,1.92,0,0,1,0,3.6ZM146,40a6,6,0,0,1,6-6h18V16a6,6,0,0,1,12,0V34h18a6,6,0,0,1,0,12H182V64a6,6,0,0,1-12,0V46H152A6,6,0,0,1,146,40ZM246,88a6,6,0,0,1-6,6H230v10a6,6,0,0,1-12,0V94H208a6,6,0,0,1,0-12h10V72a6,6,0,0,1,12,0V82h10A6,6,0,0,1,246,88Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M194.82,151.43l-55.09,20.3-20.3,55.09a7.92,7.92,0,0,1-14.86,0l-20.3-55.09-55.09-20.3a7.92,7.92,0,0,1,0-14.86l55.09-20.3,20.3-55.09a7.92,7.92,0,0,1,14.86,0l20.3,55.09,55.09,20.3A7.92,7.92,0,0,1,194.82,151.43Z\" opacity=\"0.2\"/><path d=\"M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z\"/></svg>"},{"name":"refresh","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19.5 12a7.5 7.5 0 1 1-2.3-5.4\" /><path d=\"M19.5 4.5v4h-4\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\" />\n  <path d=\"M21 3v5h-5\" />\n  <path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\" />\n  <path d=\"M8 16H3v5\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M222,48V96a6,6,0,0,1-6,6H168a6,6,0,0,1,0-12h33.52L183.47,72a81.51,81.51,0,0,0-57.53-24h-.46A81.5,81.5,0,0,0,68.19,71.28a6,6,0,1,1-8.38-8.58,93.38,93.38,0,0,1,65.67-26.76H126a93.45,93.45,0,0,1,66,27.53l18,18V48a6,6,0,0,1,12,0ZM187.81,184.72a81.5,81.5,0,0,1-57.29,23.34h-.46a81.51,81.51,0,0,1-57.53-24L54.48,166H88a6,6,0,0,0,0-12H40a6,6,0,0,0-6,6v48a6,6,0,0,0,12,0V174.48l18,18.05a93.45,93.45,0,0,0,66,27.53h.52a93.38,93.38,0,0,0,65.67-26.76,6,6,0,1,0-8.38-8.58Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,128a88,88,0,1,1-88-88A88,88,0,0,1,216,128Z\" opacity=\"0.2\"/><path d=\"M224,48V96a8,8,0,0,1-8,8H168a8,8,0,0,1,0-16h28.69L182.06,73.37a79.56,79.56,0,0,0-56.13-23.43h-.45A79.52,79.52,0,0,0,69.59,72.71,8,8,0,0,1,58.41,61.27a96,96,0,0,1,135,.79L208,76.69V48a8,8,0,0,1,16,0ZM186.41,183.29a80,80,0,0,1-112.47-.66L59.31,168H88a8,8,0,0,0,0-16H40a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V179.31l14.63,14.63A95.43,95.43,0,0,0,130,222.06h.53a95.36,95.36,0,0,0,67.07-27.33,8,8,0,0,0-11.18-11.44Z\"/></svg>"},{"name":"key","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"8\" cy=\"15.5\" r=\"3.8\" /><path d=\"m10.8 12.8 8.2-8.3M15.5 8l2.6 2.6M13.4 10.1l2 2\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z\" />\n  <circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M215.15,40.85A78,78,0,0,0,86.2,121.31l-56.1,56.1a13.94,13.94,0,0,0-4.1,9.9V216a14,14,0,0,0,14,14H72a6,6,0,0,0,6-6V206H96a6,6,0,0,0,6-6V182h18a6,6,0,0,0,4.24-1.76l10.45-10.44A77.59,77.59,0,0,0,160,174h.1A78,78,0,0,0,215.15,40.85ZM226,98.16c-1.12,35.16-30.67,63.8-65.88,63.84a65.93,65.93,0,0,1-24.51-4.67,6,6,0,0,0-6.64,1.26L117.51,170H96a6,6,0,0,0-6,6v18H72a6,6,0,0,0-6,6v18H40a2,2,0,0,1-2-2V187.31a2,2,0,0,1,.58-1.41l58.83-58.83a6,6,0,0,0,1.26-6.64A65.61,65.61,0,0,1,94,95.92C94,60.71,122.68,31.16,157.83,30A66,66,0,0,1,226,98.16ZM190,76a10,10,0,1,1-10-10A10,10,0,0,1,190,76Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M232,98.36C230.73,136.92,198.67,168,160.09,168a71.68,71.68,0,0,1-26.92-5.17h0L120,176H96v24H72v24H40a8,8,0,0,1-8-8V187.31a8,8,0,0,1,2.34-5.65l58.83-58.83h0A71.68,71.68,0,0,1,88,95.91c0-38.58,31.08-70.64,69.64-71.87A72,72,0,0,1,232,98.36Z\" opacity=\"0.2\"/><path d=\"M216.57,39.43A80,80,0,0,0,83.91,120.78L28.69,176A15.86,15.86,0,0,0,24,187.31V216a16,16,0,0,0,16,16H72a8,8,0,0,0,8-8V208H96a8,8,0,0,0,8-8V184h16a8,8,0,0,0,5.66-2.34l9.56-9.57A79.73,79.73,0,0,0,160,176h.1A80,80,0,0,0,216.57,39.43ZM224,98.1c-1.09,34.09-29.75,61.86-63.89,61.9H160a63.7,63.7,0,0,1-23.65-4.51,8,8,0,0,0-8.84,1.68L116.69,168H96a8,8,0,0,0-8,8v16H72a8,8,0,0,0-8,8v16H40V187.31l58.83-58.82a8,8,0,0,0,1.68-8.84A63.72,63.72,0,0,1,96,95.92c0-34.14,27.81-62.8,61.9-63.89A64,64,0,0,1,224,98.1ZM192,76a12,12,0,1,1-12-12A12,12,0,0,1,192,76Z\"/></svg>"},{"name":"help","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"8.5\" /><path d=\"M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4M12 16.6v.1\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\" />\n  <path d=\"M12 17h.01\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M138,180a10,10,0,1,1-10-10A10,10,0,0,1,138,180ZM128,74c-21,0-38,15.25-38,34v4a6,6,0,0,0,12,0v-4c0-12.13,11.66-22,26-22s26,9.87,26,22-11.66,22-26,22a6,6,0,0,0-6,6v8a6,6,0,0,0,12,0v-2.42c18.11-2.58,32-16.66,32-33.58C166,89.25,149,74,128,74Zm102,54A102,102,0,1,1,128,26,102.12,102.12,0,0,1,230,128Zm-12,0a90,90,0,1,0-90,90A90.1,90.1,0,0,0,218,128Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z\" opacity=\"0.2\"/><path d=\"M140,180a12,12,0,1,1-12-12A12,12,0,0,1,140,180ZM128,72c-22.06,0-40,16.15-40,36v4a8,8,0,0,0,16,0v-4c0-11,10.77-20,24-20s24,9,24,20-10.77,20-24,20a8,8,0,0,0-8,8v8a8,8,0,0,0,16,0v-.72c18.24-3.35,32-17.9,32-35.28C168,88.15,150.06,72,128,72Zm104,56A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z\"/></svg>"},{"name":"list","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8.5 7h11M8.5 12h11M8.5 17h11\" /><path d=\"M4.5 7h.01M4.5 12h.01M4.5 17h.01\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 5h.01\" />\n  <path d=\"M3 12h.01\" />\n  <path d=\"M3 19h.01\" />\n  <path d=\"M8 5h13\" />\n  <path d=\"M8 12h13\" />\n  <path d=\"M8 19h13\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M82,64a6,6,0,0,1,6-6H216a6,6,0,0,1,0,12H88A6,6,0,0,1,82,64Zm134,58H88a6,6,0,0,0,0,12H216a6,6,0,0,0,0-12Zm0,64H88a6,6,0,0,0,0,12H216a6,6,0,0,0,0-12ZM44,54A10,10,0,1,0,54,64,10,10,0,0,0,44,54Zm0,128a10,10,0,1,0,10,10A10,10,0,0,0,44,182Zm0-64a10,10,0,1,0,10,10A10,10,0,0,0,44,118Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,64V192H88V64Z\" opacity=\"0.2\"/><path d=\"M80,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H88A8,8,0,0,1,80,64Zm136,56H88a8,8,0,1,0,0,16H216a8,8,0,0,0,0-16Zm0,64H88a8,8,0,1,0,0,16H216a8,8,0,0,0,0-16ZM44,52A12,12,0,1,0,56,64,12,12,0,0,0,44,52Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,116Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,180Z\"/></svg>"},{"name":"thumb-up","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7.5 10.5v9h-3v-9z\" /><path d=\"M7.5 10.5 11 4.5a2 2 0 0 1 2.6 2.4l-.9 3.1H18a2 2 0 0 1 2 2.3l-1 5.5a2 2 0 0 1-2 1.7H7.5\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z\" />\n  <path d=\"M7 10v12\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M232.49,81.44A22,22,0,0,0,216,74H158V56a38,38,0,0,0-38-38,6,6,0,0,0-5.37,3.32L76.29,98H32a14,14,0,0,0-14,14v88a14,14,0,0,0,14,14H204a22,22,0,0,0,21.83-19.27l12-96A22,22,0,0,0,232.49,81.44ZM30,200V112a2,2,0,0,1,2-2H74v92H32A2,2,0,0,1,30,200ZM225.92,97.24l-12,96A10,10,0,0,1,204,202H86V105.42l37.58-75.17A26,26,0,0,1,146,56V80a6,6,0,0,0,6,6h64a10,10,0,0,1,9.92,11.24Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M80,104V208H32a8,8,0,0,1-8-8V112a8,8,0,0,1,8-8Z\" opacity=\"0.2\"/><path d=\"M234,80.12A24,24,0,0,0,216,72H160V56a40,40,0,0,0-40-40,8,8,0,0,0-7.16,4.42L75.06,96H32a16,16,0,0,0-16,16v88a16,16,0,0,0,16,16H204a24,24,0,0,0,23.82-21l12-96A24,24,0,0,0,234,80.12ZM32,112H72v88H32ZM223.94,97l-12,96a8,8,0,0,1-7.94,7H88V105.89l36.71-73.43A24,24,0,0,1,144,56V80a8,8,0,0,0,8,8h64a8,8,0,0,1,7.94,9Z\"/></svg>"},{"name":"mail","ours":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.5 7.5A2.5 2.5 0 0 1 6 5h12a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5v-9Z\" /><path d=\"m4 7.5 8 6 8-6\" /></svg>","lucide":"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\" />\n  <rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\" /></svg>","light":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M224,50H32a6,6,0,0,0-6,6V192a14,14,0,0,0,14,14H216a14,14,0,0,0,14-14V56A6,6,0,0,0,224,50Zm-96,85.86L47.42,62H208.58ZM101.67,128,38,186.36V69.64Zm8.88,8.14L124,148.42a6,6,0,0,0,8.1,0l13.4-12.28L208.58,194H47.43ZM154.33,128,218,69.64V186.36Z\"/></svg>","duotone":"<svg viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M224,56l-96,88L32,56Z\" opacity=\"0.2\"/><path d=\"M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48Zm-96,85.15L52.57,64H203.43ZM98.71,128,40,181.81V74.19Zm11.84,10.85,12,11.05a8,8,0,0,0,10.82,0l12-11.05,58,53.15H52.57ZM157.29,128,216,74.18V181.82Z\"/></svg>"}];
+  const SETS = [['ours', '现有手绘', '43 个'], ['lucide', 'Lucide', '描边 1.6'], ['light', 'Phosphor', 'Light'], ['duotone', 'Phosphor', 'Duotone']];
+  document.getElementById('icon-table').innerHTML = SETS.map(([key, name, sub]) =>
+    `<div class="set">${name}<small>${sub}</small></div>` + ICONS.map(i => i[key]).join('')).join('');
+  const NAV = [['upload', '导入资料'], ['sparkle', '生成题目'], ['list', '题组'], ['audio', '课堂录音'], ['search', '搜索']];
+  const byName = Object.fromEntries(ICONS.map(i => [i.name, i]));
+  document.getElementById('icon-demo').innerHTML = SETS.map(([key, name, sub]) =>
+    `<div class="icon-demo__col"><p>${name} · ${sub}</p>` + NAV.map(([n, label], k) =>
+      `<div class="icon-demo__item${k === 1 ? ' is-on' : ''}">${byName[n][key]}<span>${label}</span></div>`).join('') + '</div>').join('');
+
+  // ⑥ B: the old popup unmounts at once; the Base UI one keeps the node through data-ending-style until its transition ends.
+  const oldPop = document.getElementById('m-old');
+  document.getElementById('m-old-btn').addEventListener('click', () => { oldPop.hidden = !oldPop.hidden; });
+  const pop = document.getElementById('m-new');
+  let open = false;
+  document.getElementById('m-new-btn').addEventListener('click', () => {
+    open = !open;
+    if (open) {
+      pop.removeAttribute('data-ending-style'); pop.hidden = false; pop.setAttribute('data-starting-style', '');
+      requestAnimationFrame(() => requestAnimationFrame(() => pop.removeAttribute('data-starting-style')));
+    } else {
+      pop.setAttribute('data-ending-style', '');
+      const done = () => { if (!open) pop.hidden = true; pop.removeEventListener('transitionend', done); };
+      pop.addEventListener('transitionend', done);
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) done();
+    }
+  });
+</script>
+</body>
+</html>
