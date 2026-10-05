@@ -89,16 +89,16 @@ test('the row is always there: a job that cannot be adjusted, or has ended, says
 test('English wording', () => {
   const html = render(audio(), 'en');
   assert.match(html, /aria-label="Live controls"/);
-  assert.match(html, /Proofread\/translate at once/);
-  assert.match(html, /Lower concurrency on rate limits/);
+  assert.match(html, /Proofread\/translate parallel/);
+  assert.match(html, /Auto back-off on rate limit/);
   assert.match(html, /Changes apply from the next call/);
   assert.match(html, /Save as default/);
   assert.match(html, />Pause</);
   assert.match(m.appliedText({ textConcurrency: 4 }), /已生效/, 'back in Chinese once the language is reset');
   m.setUiLanguage('en');
-  assert.equal(m.appliedText({ textConcurrency: 4 }), '✓ Applied · Proofread/translate at once → 4');
+  assert.equal(m.appliedText({ textConcurrency: 4 }), '✓ Applied · Proofread/translate parallel → 4');
   assert.equal(m.actionText('pause'), 'Paused: no new call starts, and it stops once the calls in progress finish');
-  assert.equal(m.appliedText({ proofreadReasoning: 'high' }), '✓ Applied · Reasoning for remaining proofreading → High');
+  assert.equal(m.appliedText({ proofreadReasoning: 'high' }), '✓ Applied · Proofread reasoning (rest) → High');
   m.setUiLanguage('zh');
 });
 

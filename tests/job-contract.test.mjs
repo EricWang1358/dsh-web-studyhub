@@ -212,3 +212,23 @@ test('audio detail: one row per file with its stages, and a grouped notice in ON
   assert.deepEqual([format.count, format.actualFormat], [2, 'WAV'], 'the 4 files that repeat one warning are one notice with a count');
   assert.equal(JSON.stringify(format).includes('a.mp3'), false, 'the notice does not list the files: they are marked on their own rows');
 });
+
+test('a question run lists its parts: the stages of each from its calls, and what it kept once it has reported', () => {
+  const steps = [
+    { id: 'p', stage: 'Planning evidence and learning targets', status: 'complete', startedAt: at(1), finishedAt: at(5) },
+    { id: 'a1', stage: 'Writing and self-checking questions', part: 1, status: 'complete', startedAt: at(6), finishedAt: at(20) },
+    { id: 'r1', stage: 'Reviewing ambiguity and source support', part: 1, status: 'running', startedAt: at(21) },
+    { id: 'a2', stage: 'Writing and self-checking questions', part: 2, status: 'failed', startedAt: at(6), finishedAt: at(9) }];
+  const running = jobContract(generation({ parts: 3, steps })).detail.partList;
+  assert.deepEqual(running.map((part) => [part.part, part.status, part.stages]), [[1, 'running', { author: 'ok', review: 'running' }], [2, 'working', { author: 'failed' }], [3, 'waiting', {}]]);
+  const finished = jobContract(generation({ parts: 2, steps, status: 'complete', control: undefined, partReport: { summary: 's', parts: [{ part: 1, asked: 5, kept: 5, status: 'passed' }, { part: 2, asked: 5, kept: 0, status: 'failed', reasons: ['quality'] }] } })).detail.partList;
+  assert.deepEqual(finished.map((part) => [part.part, part.status, part.asked, part.kept]), [[1, 'passed', 5, 5], [2, 'failed', 5, 0]]);
+  assert.deepEqual(finished[1].reasons, ['quality']);
+});
+
+test('a batch that is held for a file that did not pass its pre-flight names it, so the console can offer to skip it', () => {
+  const view = jobContract(audio({ status: 'failed', control: undefined, blocked: { index: 1, filename: 'b.mp3' },
+    members: [{ filename: 'a.mp3', status: 'waiting' }, { filename: 'b.mp3', status: 'blocked', stage: '文件损坏' }] }));
+  assert.deepEqual(view.detail.blocked, { index: 1, filename: 'b.mp3' });
+  assert.deepEqual(view.detail.files.map((file) => [file.status, file.stage]), [['waiting', undefined], ['blocked', '文件损坏']]);
+});

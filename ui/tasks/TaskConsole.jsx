@@ -12,6 +12,8 @@ import { taskSummary, stateLabel } from './task-summary.js';
 import { taskFacts, taskSegments } from './task-facts.js';
 import { headerActions } from './task-control.js';
 import ControlRow from './ControlRow.jsx';
+import TaskBody from './TaskBody.jsx';
+import { readJSON, writeJSON } from '../storage.js';
 
 /* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads the jobs of
    the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
@@ -70,7 +72,7 @@ function Metrics({ job, summary, now }) {
   );
 }
 
-function Detail({ task, data, openers }) {
+function Detail({ task, data, openers, full, onFull }) {
   const { core } = useApp();
   const quick = useQuickActions();
   const contract = contractOf(task), summary = taskSummary(task), actions = headerActions(task);
@@ -86,6 +88,7 @@ function Detail({ task, data, openers }) {
           <span className="tc-head__sub">{joinMeta([summary.kindLabel, started && uiFormat('{0} 开始', [started])])}</span>
         </div>
         <div className="tc-head__actions">
+          <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>
           {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
           {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
           {actions.retry && <Button size="sm" variant="primary" disabled={core.busy} title={ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
@@ -96,7 +99,7 @@ function Detail({ task, data, openers }) {
       </header>
       <Metrics job={task} summary={summary} now={now} />
       <ControlRow job={task} />
-      <div className="tc-body" />
+      <TaskBody task={task} />
     </section>
   );
 }
@@ -108,6 +111,9 @@ export default function TaskConsole({ data, openers }) {
   const focus = lib.taskFocus;
   const tasks = useMemo(() => tasksOf(data), [data]);
   const [filter, setFilter] = useState('all'), [current, setCurrent] = useState(null), seen = useRef(null);
+  // 全屏 folds the list away so the detail has the whole width; it is remembered for this viewer (and never needed for anything to work).
+  const [full, setFull] = useState(() => readJSON('study-task-console-full', false) === true);
+  const toggleFull = useCallback(() => setFull((value) => { writeJSON('study-task-console-full', !value); return !value; }), []);
   const shown = useMemo(() => filterTasks(tasks, filter), [tasks, filter]);
   const picked = pickTask({ tasks: shown, focus, current, focusSeen: seen.current });
   // A deep link is followed once; after that the learner's own selection stands.
@@ -123,7 +129,7 @@ export default function TaskConsole({ data, openers }) {
   const task = shown.find((item) => taskId(item) === picked) || null;
   const filters = taskFilters(tasks);
   return (
-    <div className="tc" data-surface="dense" data-usage-area="tasks">
+    <div className="tc" data-surface="dense" data-usage-area="tasks" data-full={full ? 'true' : 'false'}>
       <section className="tc-list" aria-label={ui('任务列表')}>
         <div className="tc-bar">
           <h1>{ui('任务')}</h1>
@@ -138,7 +144,7 @@ export default function TaskConsole({ data, openers }) {
           {shown.map((item) => <TaskRow key={taskId(item)} summary={taskSummary(item)} selected={taskId(item) === picked} onPick={pick} />)}
         </div>
       </section>
-      {task ? <Detail key={taskId(task)} task={task} data={data} openers={openers} />
+      {task ? <Detail key={taskId(task)} task={task} data={data} openers={openers} full={full} onFull={toggleFull} />
         : <section className="tc-detail" aria-label={ui('任务详情')}><p className="tc-empty">{ui('选择左边的一个任务查看详情。')}</p></section>}
     </div>
   );

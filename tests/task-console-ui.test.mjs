@@ -63,10 +63,10 @@ test('a finished or failed job can be dismissed, not stopped, and says why it fa
 
 test('English: the same surface in the other language, no Chinese left in the chrome', () => {
   const html = render({}, 'en');
-  assert.match(html, /<h1>Tasks<\/h1>/);
+  assert.match(html, /<h1>Jobs<\/h1>/, 'the learner already has "Tasks" (待办): the console of background work is "Jobs" in English');
   assert.match(html, /All 3/);
   assert.match(html, /In progress 1/);
-  assert.match(html, /Task detail/);
+  assert.match(html, /Job detail/);
   const chrome = html.replace(/API应用与产品策略培训 等 5 个录音|架构的语境性|密钥被拒（403）/g, '');
   assert.doesNotMatch(chrome.replace(/<[^>]+>/g, ' ').replace(/aria-label="[^"]*"/g, ''), /[一-鿿]/);
 });
