@@ -172,7 +172,8 @@
       box-shadow: var(--shadow-sm);
       opacity: 0;
       pointer-events: none;
-      transition: transform var(--dur) var(--ease), width var(--dur) var(--ease), height var(--dur) var(--ease), opacity 0.12s var(--ease);
+      transform-origin: 0 0;
+      transition: transform var(--dur) var(--ease), opacity 0.12s var(--ease);
     }
     .sh-seg[data-thumb="on"] > .sh-seg__thumb { opacity: 1; }
     .sh-seg__item {

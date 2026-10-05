@@ -152,10 +152,10 @@
   @media (prefers-reduced-motion: no-preference) {
     :where(.study-app, .study-seat) {
       .tour-spot {
-        transition: left var(--dur-slow) var(--ease-out), top var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out), height var(--dur-slow) var(--ease-out);
+        transition: transform var(--dur-slow) var(--ease-out);
       }
       .tour-pop {
-        transition: left var(--dur-slow) var(--ease-out), top var(--dur-slow) var(--ease-out);
+        transition: transform var(--dur-slow) var(--ease-out);
         animation: tour-rise 0.26s var(--ease-out) both;
       }
       .tour-shade { animation: tour-fade 0.22s var(--ease) both; }

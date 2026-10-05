@@ -137,9 +137,7 @@
       border-radius: var(--radius-sm);
       background: var(--nav-highlight);
       pointer-events: none;
-      transition:
-        transform 0.42s var(--ease-out),
-        height 0.42s var(--ease-out);
+      transition: transform 0.42s var(--ease-out);
       animation: mark-in var(--dur-slow) var(--ease-out);
     }
     .nav-mark::before,
