@@ -28,6 +28,13 @@ function Heading({ text }) {
   return <h4 className="reader-p reader-p--heading">{mark && <span className="reader-bracket" aria-hidden="true">{mark}</span>}{withFormulas(text.slice(mark.length))}</h4>;
 }
 
+/** A converter's page footnote (lib/footnote-html.js): a note element of React nodes, never the stored HTML and never its style. The stored tags stay in the
+   text, hidden like a heading's "# " (reader-bracket), so selection, find and citations still count exactly the stored text; the words are drawn like prose, formulas included. */
+function Footnote({ paragraph }) {
+  return <p className="reader-p reader-p--footnote reader-footnote" role="note"><span className="reader-bracket" aria-hidden="true">{paragraph.open}</span>{withFormulas(paragraph.inner, true)}
+    <span className="reader-bracket" aria-hidden="true">{paragraph.close}</span></p>;
+}
+
 /** A thematic break: a quiet rule. Its characters stay in the text, hidden like a heading's "# ", so selection, find and citations still count the stored text. */
 function Rule({ text }) {
   return <div className="reader-p reader-p--rule"><span className="reader-bracket" aria-hidden="true">{text}</span><hr className="reader-rule" /></div>;
@@ -56,6 +63,8 @@ export default function ReadingSections({ sections, labelOf, onPeek }) {
             onClick={event => onPeek(section.page, { figure: true, trigger: event.currentTarget })}>{ui('看原页')}</button></span></p>
           : paragraph.kind === 'rule'
           ? <Rule key={index} text={paragraph.text} />
+          : paragraph.kind === 'footnote'
+          ? <Footnote key={index} paragraph={paragraph} />
           : paragraph.kind === 'heading'
           ? <Heading key={index} text={paragraph.text} />
           : <p key={index} className={`reader-p reader-p--${paragraph.kind}`}>{paragraph.kind === 'layout'
