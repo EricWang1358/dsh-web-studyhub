@@ -1,6 +1,6 @@
 import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
 import { formatNumber, formatDay } from "./format.js";
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
@@ -10,7 +10,8 @@ import { Badge, Button, Checkbox, Dialog, Disclosure, Icon, InlineMessage, PageH
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
-import { chapterLabel, documentNotes, inScope, sourceFormatLabel } from './SourcePicker.jsx';
+import { chapterLabel, documentNotes, inScope, relationNote, sameIndexInfo, sourceFormatLabel } from './SourcePicker.jsx';
+import { materialRelations } from '../lib/source-relations.js';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import IndexBadge from './IndexBadge.jsx';
@@ -130,18 +131,32 @@ export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, 
   </div>;
 }
 
-function DocumentRow({ item, source, isNew, organizing, selected, onSelect, onOpen, onGenerate, onRemove, onArchive, onChangeCourse, onSegment, mastery, rename, indexInfo = null, indexCoverage = null, advice = false, retrieval = null, onOpenSettings, courses, defaultCourse }) {
+const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canSegment', 'canRename', 'actions'];
+
+/**
+ * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
+ * a coverage answer, a poll with an answer of the same content, or a click on another row leaves the other rows alone. The handlers a row calls are
+ * one stable `actions` object that reads the latest state itself.
+ */
+export function sourceRowPropsEqual(a, b) {
+  return ROW_PROPS.every(key => a[key] === b[key]) && sameIndexInfo(a.indexInfo, b.indexInfo) && sameRelation(a.relation, b.relation);
+}
+
+/* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canSegment, canRename, mastery, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse }) {
   const { busy, call } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => () => clearTimeout(opening.current), []);
   useEffect(() => { if (wasEditing.current && !editing) main.current?.focus({ preventScroll: true }); wasEditing.current = editing; }, [editing]);
-  const editor = rename ? rename(item) : null;
+  const editor = canRename ? actions.rename(item) : null;
+  const name = displayTitle(item.title);
   // A click on the title opens the reader a moment late, so a double-click on it can rename instead; everything else opens at once.
   const openRow = event => {
-    if (!editor || !event.target.closest?.('.source-title')) { onOpen(item.sourceIds[0]); return; }
+    if (!editor || !event.target.closest?.('.source-title')) { actions.open(item.sourceIds[0]); return; }
     if (event.detail > 1) return;
-    clearTimeout(opening.current); opening.current = setTimeout(() => onOpen(item.sourceIds[0]), 260);
+    clearTimeout(opening.current); opening.current = setTimeout(() => actions.open(item.sourceIds[0]), 260);
   };
   const startEditing = () => { clearTimeout(opening.current); setEditing(true); };
   const multi = item.pages.length > 1;
@@ -153,39 +168,39 @@ function DocumentRow({ item, source, isNew, organizing, selected, onSelect, onOp
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
   }, [isNew]);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
-  const details = [sourceFormatLabel(item), uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, ...documentNotes(item)].filter(Boolean);
+  const details = [sourceFormatLabel(item), uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, ...documentNotes(item), relationNote(relation)].filter(Boolean);
   return (
-    <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined}>
+    <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row="">
       <div className="source-doc__line">
-        {organizing && <input type="checkbox" aria-label={uiFormat('选择资料：{0}', [displayTitle(item.title)])}
-          checked={selected} onChange={event => onSelect(event.target.checked)} />}
+        {organizing && <input type="checkbox" aria-label={uiFormat('选择资料：{0}', [name])}
+          checked={selected} onChange={event => actions.select(item.key, event.target.checked)} />}
         {editing && editor ? <div className="source-main source-main--editing">
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
-          <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [displayTitle(item.title)])}
+          <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [name])}
             onSave={async title => { await editor.save(title); setEditing(false); }} onRestore={async () => { await editor.restore(); setEditing(false); }} onCancel={() => setEditing(false)} />
         </div> : <button ref={main} className="source-main" onClick={openRow} aria-keyshortcuts={editor ? 'F2' : undefined}
           onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{displayTitle(item.title)}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
+            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{name}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
             <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
               item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
             <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
-            {indexInfo && <small className="source-doc__index"><IndexBadge info={indexInfo} coverage={indexCoverage} /></small>}
+            {(slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} />}</small>}
             {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
-            <MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={displayTitle(item.title)} />
+            <MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} />
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
           </span>
         </button>}
         <div className="source-doc__actions">
-          {onGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => onGenerate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
+          {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {item.archived && <>
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onArchive(item)}>{ui('恢复资料')}</Button>
-            <Button size="sm" variant="danger" disabled={busy} onClick={() => onRemove(item)}>{ui('永久删除')}</Button>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
+            <Button size="sm" variant="danger" disabled={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} busy={busy} onChangeCourse={onChangeCourse}
-              onArchive={item.archived ? undefined : onArchive} onSegment={onSegment} onRename={editor ? startEditing : undefined} />
+            <RowMenuItems item={item} busy={busy} onChangeCourse={actions.changeCourse}
+              onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined} />
           </details>
         </div>
       </div>
@@ -194,10 +209,10 @@ function DocumentRow({ item, source, isNew, organizing, selected, onSelect, onOp
           onClick={() => setPagesOpen(open => !open)}>
           {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={onOpen} onGenerate={onGenerate} listId={listId} mastery={mastery} />}
+        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={actions.open} onGenerate={canGenerate ? actions.generate : undefined} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
-            <Button variant="quiet" block align="start" className="source-doc__row" onClick={() => onOpen(page.sourceId)}>
+            <Button variant="quiet" block align="start" className="source-doc__row" onClick={() => actions.open(page.sourceId)}>
               <span>{pageLabel(item, page)}</span><small>{uiFormat("{0} 字符", [formatNumber(page.chars)])}</small>
               <MasteryLine className="source-doc__mastery" summary={mastery?.pages?.[page.sourceId] ?? null} title={pageLabel(item, page)} />
             </Button>
@@ -205,12 +220,12 @@ function DocumentRow({ item, source, isNew, organizing, selected, onSelect, onOp
         </ul>}
       </div>}
       {advice && <Disclosure className="source-doc__advice" summary={uiFormat('这份资料有 {0} 页，建议按章节使用', [Math.max(item.pages.length, item.totalPages || 0)])} meta={ui('大教材建议')}>
-        <LargeDocumentCard reason="long-document" detail={{ name: displayTitle(item.title), pages: Math.max(item.pages.length, item.totalPages || 0) }}
-          retrieval={retrieval} onOpenSettings={onOpenSettings} call={call} courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} />
+        <LargeDocumentCard reason="long-document" detail={{ name, pages: Math.max(item.pages.length, item.totalPages || 0) }}
+          retrieval={retrieval} onOpenSettings={actions.openSettings} call={call} courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} />
       </Disclosure>}
     </article>
   );
-}
+}, sourceRowPropsEqual);
 
 /** Fix where one document belongs, on its own row: the same field and the same source.courses.set as 整理课程归属, for one document. */
 /** Saves the courses of a document through act(). Resolves '' when it worked, else the plain reason, so the dialog can say it where the learner is looking instead of in a notice that lands on top of its own buttons. */
@@ -271,9 +286,22 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
   // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
-  const [indexCoverage] = useIndexCoverage(call);
+  const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const { data: retrieval } = useRetrievalStatus({ enabled: bigKeys.size > 0 });
   const groups = useMemo(() => groupByDay(filtered), [filtered]);
+  // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
+  const relations = useMemo(() => materialRelations(items), [items]);
+  // One index state per document, reusing the previous object while it is unchanged: a coverage answer then touches only the rows whose badge changed (#229).
+  const infoCache = useRef(new Map());
+  const infos = useMemo(() => {
+    const next = new Map();
+    for (const item of items) {
+      const info = documentIndexState(item, indexCoverage, { big: bigKeys.has(item.key) }), before = infoCache.current.get(item.key);
+      next.set(item.key, sameIndexInfo(before, info) ? before : info);
+    }
+    infoCache.current = next;
+    return next;
+  }, [items, indexCoverage, bigKeys]);
   const fresh = useMemo(() => new Set(items.filter(item => item.sourceIds.some(id => highlight?.ids?.includes(id))).map(item => item.key)), [items, highlight]);
   // Explicit choices win; otherwise the newest day and any day holding a fresh import are open.
   const [opened, setOpened] = useState(() => new Set()), [closed, setClosed] = useState(() => new Set());
@@ -303,7 +331,18 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     setClosed(current => { const next = new Set(current); open ? next.add(group.key) : next.delete(group.key); return next; });
   };
   const allOpen = groups.length > 0 && groups.every(isOpen);
-  const openSource = id => setModal({ type: "source", source: byId.get(id) });
+  // The handlers the rows call: one object that never changes and reads the latest state itself, so a row is drawn again only for its own data (#229).
+  const latest = useRef(null);
+  latest.current = { setModal, byId, act, onGenerate, onOpenSettings, renameFor };
+  const actions = useMemo(() => ({
+    open: id => latest.current.setModal({ type: "source", source: latest.current.byId.get(id) }),
+    select: (key, on) => { setSelected(current => on ? [...current, key] : current.filter(entry => entry !== key)); setProposals(null); },
+    generate: ids => latest.current.onGenerate?.(ids),
+    archive: item => latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived }),
+    remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), segment: item => setSegmenting(item),
+    rename: item => latest.current.renameFor(item),
+    openSettings: (...args) => latest.current.onOpenSettings?.(...args),
+  }), []);
   const addButton = <Button variant="primary" icon="plus" data-tour="sources-add" data-usage="import.add"
     onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })}>{ui("添加资料")}</Button>;
   return (
@@ -395,11 +434,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                   <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
                 </button>
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
-                  isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)}
-                  onSelect={on => { setSelected(current => on ? [...current, item.key] : current.filter(key => key !== item.key)); setProposals(null); }}
-                  onOpen={openSource} onGenerate={showArchived ? undefined : onGenerate} onRemove={setRemoving}
-                  onArchive={item => act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived })} onChangeCourse={setEditingCourse} onSegment={typeof call === 'function' ? setSegmenting : undefined} rename={renameFor}
-                  mastery={data.materialMastery?.[item.key]} indexInfo={documentIndexState(item, indexCoverage, { big: bigKeys.has(item.key) })} indexCoverage={indexCoverage} advice={bigKeys.has(item.key)} retrieval={retrieval} onOpenSettings={onOpenSettings}
+                  isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
+                  canGenerate={!showArchived && !!onGenerate} canSegment={typeof call === 'function'} canRename={!!renameFor}
+                  mastery={data.materialMastery?.[item.key]} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} slot={indexStatus !== 'unavailable'}
+                  relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null}
                   courses={data.focus?.courses} defaultCourse={data.focus?.course} />)}
               </div>
             );

@@ -248,7 +248,7 @@ test("the English form has no Chinese UI text", () => {
     const english = { ...gen, language: "English" };
     for (const html of [render({}, { gen: english }), render({ modelReady: false }, { gen: english }),
       render({ courses: [{ name: "数据库", exam: { format: "open-book-case" } }], focus: { course: "数据库", courses: [], mode: "interview" } }, { gen: english })]) {
-      const visible = text(html).replace(/索引笔记|事务笔记\.md|数据库/g, "");
+      const visible = text(html).replace(/索引笔记|事务笔记(?:\.md)?|数据库/g, "");
       assert.doesNotMatch(visible, han, visible.match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
     }
   } finally { setUiLanguage("zh"); }

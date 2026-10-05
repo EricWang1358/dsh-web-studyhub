@@ -7,6 +7,7 @@
     "tests/deck-archive-browser.test.mjs",
     "tests/layout-late-picker.test.mjs",
     "tests/layout-late-shell.test.mjs",
+    "tests/layout-late-sources.test.mjs",
     "tests/layout-late-wrongbook.test.mjs",
     "tests/layout-stability-guard.test.mjs",
     "tests/local-study-image.test.mjs",

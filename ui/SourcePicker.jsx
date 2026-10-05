@@ -7,6 +7,7 @@ import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib
 import { courseScope } from '../lib/course-tree.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { materialRelations } from '../lib/source-relations.js';
+import { displayTitle } from '../lib/document-title.js';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
 import css from './source-picker.css';
@@ -102,9 +103,9 @@ const FILTER_AFTER = 6;
 
 const pageLabel = (item, page) => item.format === 'pdf' || item.format === 'pptx'
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
-  : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : page.title;
+  : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
-const sameIndexInfo = (a, b) => a === b || (!!a && !!b && a.state === b.state && a.indexed === b.indexed && a.stale === b.stale && a.total === b.total);
+export const sameIndexInfo = (a, b) => a === b || (!!a && !!b && a.state === b.state && a.indexed === b.indexed && a.stale === b.stale && a.total === b.total);
 const idSets = new WeakMap();
 const setOfIds = ids => { let set = idSets.get(ids); if (!set) idSets.set(ids, set = new Set(ids)); return set; };
 
@@ -120,6 +121,11 @@ export function documentRowPropsEqual(a, b) {
   return a.item.sourceIds.every(id => was.has(id) === now.has(id));
 }
 
+/** How a material belongs with the others made from one file (#207), as the line under its name; '' when it has no relatives. Shared by the picker and the 资料 page. */
+export const relationNote = relation => !relation ? ''
+  : relation.role === 'derived' ? uiFormat('派生自 {0}', [displayTitle(relation.of)])
+    : relation.role === 'original' ? (relation.derived ? uiFormat('另有 {0} 份派生资料', [relation.derived]) : '') : uiFormat('同一文件的 {0} 份资料', [relation.count]);
+
 /* `slot`: the index badge's line is kept even before the coverage is known, so a badge arriving later fills it instead of making the row taller (#205). */
 const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, slot = false, relation = null }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
@@ -130,8 +136,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   const multi = item.pages.length > 1;
   const picked = item.sourceIds.filter(id => chosen.has(id)).length;
   // Materials made from one original file say so (#207): "派生自 <file>" on a text version, "另有 2 份派生资料" on the file.
-  const related = !relation ? '' : relation.role === 'derived' ? uiFormat('派生自 {0}', [relation.of])
-    : relation.role === 'original' ? (relation.derived ? uiFormat('另有 {0} 份派生资料', [relation.derived]) : '') : uiFormat('同一文件的 {0} 份资料', [relation.count]);
+  const related = relationNote(relation), name = displayTitle(item.title);
   const meta = [sourceFormatLabel(item), item.courses.join(' · ') || ui('未分类'),
     uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), related];
   return (
@@ -142,7 +147,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
             ref={element => { if (element) element.indeterminate = state === 'some'; }}
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
-            <strong title={item.title}>{item.title}</strong>
+            <strong title={item.title}>{name}</strong>
             <small>{[...meta, item.coursesInferred ? ui('推断归属') : ''].filter(Boolean).join(' · ')}</small>
             {(slot || indexInfo) && <small className="source-picker__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} />}</small>}
             {state === 'some' && <small className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
@@ -154,7 +159,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
         </Button>}
       </div>
       {multi && open && chaptered && <div id={chaptersId} className="source-picker__chapters">
-        <ul className="source-picker__chapter-list" aria-label={uiFormat('「{0}」的章节', [item.title])}>
+        <ul className="source-picker__chapter-list" aria-label={uiFormat('「{0}」的章节', [name])}>
           {item.chapters.map(chapter => {
             const chapterPicked = chapterState(chapter, selected), inside = chapter.sourceIds.length === 0;
             return <li key={chapter.index} data-chapter-index={chapter.index}>
@@ -170,7 +175,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
         </ul>
         <Button variant="link" size="sm" aria-expanded={pagesOpen} aria-controls={listId} onClick={() => setPagesOpen(value => !value)}>
           {pagesOpen ? ui('收起页面列表') : ui('改为按页选择')}</Button>
-        {pagesOpen && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [item.title])}>
+        {pagesOpen && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [name])}>
         {item.pages.map(page => <li key={page.sourceId}>
           <label>
             <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}
@@ -181,7 +186,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
         </li>)}
       </ul>}
       </div>}
-      {multi && open && !chaptered && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [item.title])}>
+      {multi && open && !chaptered && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [name])}>
         {item.pages.map(page => <li key={page.sourceId}>
           <label>
             <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}

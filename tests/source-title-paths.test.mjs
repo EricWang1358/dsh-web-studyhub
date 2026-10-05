@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
-import { displayTitle } from '../lib/document-title.js';
+import { fileNameOf } from '../lib/document-title.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { materialRelations } from '../lib/source-relations.js';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -18,17 +18,17 @@ import { loadUi } from './helpers/ui-module.mjs';
 const HOST_PATH = 'C:\\Users\\Eric1\\.dsh\\attachments\\v1\\files\\15\\15dd8b13a5318c2f6e1d\\01. Introduction to Solution Architecture v2.1.pdf';
 const NAME = '01. Introduction to Solution Architecture v2.1.pdf';
 
-test('displayTitle keeps only the file name of a path, and leaves every other title alone', () => {
-  assert.equal(displayTitle(HOST_PATH), NAME);
-  assert.equal(displayTitle('\\\\server\\share\\dir\\notes.md'), 'notes.md');
-  assert.equal(displayTitle('/home/eric/.dsh/attachments/v1/files/ab/abcd/lecture 3.pdf'), 'lecture 3.pdf');
-  assert.equal(displayTitle(`${HOST_PATH} · p.3`), `${NAME} · p.3`, 'a page title keeps its page suffix');
-  assert.equal(displayTitle(`${HOST_PATH} (diagram-normalized text)`), `${NAME} (diagram-normalized text)`);
-  assert.equal(displayTitle('Week 3 / Replication'), 'Week 3 / Replication', 'a slash inside a normal title is not a path');
-  assert.equal(displayTitle('第 3 讲 一致性'), '第 3 讲 一致性');
-  assert.equal(displayTitle('C:\\'), 'C:\\', 'nothing is left of a bare root, so it stays');
-  assert.equal(displayTitle(''), '');
-  assert.equal(displayTitle(undefined), '');
+test('fileNameOf keeps only the file name of a path, and leaves every other title alone', () => {
+  assert.equal(fileNameOf(HOST_PATH), NAME);
+  assert.equal(fileNameOf('\\\\server\\share\\dir\\notes.md'), 'notes.md');
+  assert.equal(fileNameOf('/home/eric/.dsh/attachments/v1/files/ab/abcd/lecture 3.pdf'), 'lecture 3.pdf');
+  assert.equal(fileNameOf(`${HOST_PATH} · p.3`), `${NAME} · p.3`, 'a page title keeps its page suffix');
+  assert.equal(fileNameOf(`${HOST_PATH} (diagram-normalized text)`), `${NAME} (diagram-normalized text)`);
+  assert.equal(fileNameOf('Week 3 / Replication'), 'Week 3 / Replication', 'a slash inside a normal title is not a path');
+  assert.equal(fileNameOf('第 3 讲 一致性'), '第 3 讲 一致性');
+  assert.equal(fileNameOf('C:\\'), 'C:\\', 'nothing is left of a bare root, so it stays');
+  assert.equal(fileNameOf(''), '');
+  assert.equal(fileNameOf(undefined), '');
 });
 
 test('source.add stores the file name when it is given a path as the title', async (t) => {
@@ -82,6 +82,6 @@ test('the picker names the file, never the storage path, and says how related ma
   const html = renderToStaticMarkup(React.createElement(SourcePicker, { sources, selected: [], onChange() {} }));
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.doesNotMatch(text, /Users|\.dsh|attachments/, 'the storage path is not shown');
-  assert.match(text, /派生自 01\. Introduction to Solution Architecture v2\.1\.pdf/);
+  assert.match(text, /派生自 01\. Introduction to Solution Architecture v2\.1(?!\.pdf)/, 'the original is named as everywhere else: without the extension');
   assert.match(text, /另有 2 份派生资料/);
 });
