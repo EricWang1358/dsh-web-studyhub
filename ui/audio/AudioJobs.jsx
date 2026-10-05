@@ -5,7 +5,9 @@ import AgentLink from "../AgentLink.jsx";
 import { dismissJobs, useQuickActions } from "../quick-actions.js";
 import { formatElapsed, formatNumber, joinMeta } from "../format.js";
 import { formatExactTokens, totalTokens } from "../../lib/token-usage.js";
-import { STRENGTH_LABEL } from "../../lib/model-effort.js";
+import { reasoningNote } from "../EffortSelect.jsx";
+
+export { reasoningNote };
 import { isActiveJob, isCancellable, JOB_STATUS, JOB_TYPES } from "../../lib/job-status.js";
 
 /* The background audio imports as cards: phase, real progress, the model tasks behind them, what they cost, and what to do next.
@@ -96,19 +98,6 @@ function OpenAgent({ task, openAgent }) {
     ariaLabel={uiFormat('查看子代理：{0}', [taskLabel(task)])} label={ui("查看子代理")} />;
 }
 
-/**
- * What the reasoning setting did for one task, in plain words, or '' when it did exactly what was asked (or nothing was asked).
- * `reasoning` is the strength asked for; the model may have had no such level (lib/model-effort.js says which one it used instead).
- */
-export function reasoningNote(task) {
-  const wanted = task.reasoning;
-  if (!wanted || wanted === 'default') return '';
-  const asked = ui(STRENGTH_LABEL[wanted] || wanted);
-  if (task.reasoningReason === 'nearest' && task.reasoningName) return uiFormat('推理强度：要求「{0}」，当前模型没有，已用「{1}」', [asked, task.reasoningName]);
-  if (task.reasoningReason === 'unsupported' || (!task.reasoningReason && task.reasoningEffort === 'default'))
-    return uiFormat('推理强度：要求「{0}」，当前模型没有可调档位，按模型默认', [asked]);
-  return '';
-}
 /** How long a finished task took. */
 const tookOf = (task) => (task.finishedAt ? formatElapsed(Date.parse(task.finishedAt) - Date.parse(task.startedAt)) : '');
 /** What can be said about a task without opening the sub-agent: the size of its input, what it used, the start of its answer. */
