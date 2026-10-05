@@ -60,27 +60,38 @@ async function refreshedTextFixture(t) {
   return { runtime, first, current };
 }
 
-test('a refreshed material does not inherit the mastery of questions citing its retained old revision', async t => {
-  const { runtime } = await refreshedTextFixture(t);
+test('a refreshed material counts the questions of its retained old revision as part of the same document, apart from its own pages', async t => {
+  const { runtime, first, current } = await refreshedTextFixture(t);
   const snapshot = await runtime.call('snapshot');
-  assert.deepEqual(snapshot.materialMastery, {}, 'current material has no linked questions even when its old revision was mastered');
+  const [entry] = Object.values(snapshot.materialMastery);
+  assert.equal(entry.document.total, 1, 'the document has one question, written from its first revision');
+  assert.equal(entry.document.state, 'mastered');
+  assert.deepEqual(entry.pages, {}, 'the pages keep their per-source meaning: the current revision has no question of its own');
+  const reading = await runtime.call('materials.pages.cards', { documentId: first.documentId, sourceId: current.sourceIds[0] });
+  assert.deepEqual(reading.summary, entry.document, 'the reader says what the 资料 row says');
 });
 
-test('page-card links default to current evidence while an explicitly opened old source reads only its retained revision', async t => {
+test('page-card links of a document are the whole document (every revision); a page range still reads only its pages', async t => {
   const { runtime, first, current } = await refreshedTextFixture(t);
   const currentCards = await runtime.call('materials.pages.cards', { documentId: first.documentId });
   assert.equal(currentCards.status, 'ok');
   assert.deepEqual(currentCards.sourceIds, current.sourceIds);
-  assert.deepEqual(currentCards.cards, [], 'old questions never appear beside the revised claims');
+  assert.deepEqual(currentCards.cards.map(item => item.cardId), ['old-card'], 'the old questions are counted, and flagged as another version beside the revised claims');
+  assert.equal(currentCards.cards[0].otherVersion, true);
+  assert.equal(currentCards.olderCards, 1);
   const oldCards = await runtime.call('materials.pages.cards', { documentId: first.documentId, sourceId: first.sourceIds[0] });
   assert.equal(oldCards.status, 'ok');
-  assert.deepEqual(oldCards.sourceIds, first.sourceIds);
+  assert.deepEqual(oldCards.sourceIds, first.sourceIds, 'an explicitly opened old source is read as that retained revision');
   assert.deepEqual(oldCards.cards.map(item => item.cardId), ['old-card']);
+  assert.equal(oldCards.cards[0].otherVersion, undefined);
+  assert.equal(oldCards.olderCards, 0);
   assert.equal(oldCards.summary.state, 'mastered');
   const oldSourceOnly = await runtime.call('materials.pages.cards', { sourceId: first.sourceIds[0] });
   assert.deepEqual(oldSourceOnly.sourceIds, first.sourceIds);
   const oldRange = await runtime.call('materials.pages.cards', { sourceIds: first.sourceIds });
   assert.deepEqual(oldRange.cards.map(item => item.cardId), ['old-card']);
+  const currentRange = await runtime.call('materials.pages.cards', { documentId: first.documentId, sourceIds: current.sourceIds });
+  assert.deepEqual(currentRange.cards, [], 'a range of the current pages holds only what cites those pages');
 });
 
 test('materials.pages.cards lists the cards that point into the document with level, due and where they point; suspended cards are left out', async t => {

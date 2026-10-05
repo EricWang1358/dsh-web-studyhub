@@ -52,6 +52,7 @@
     .reader-practice__range:hover { background: var(--bg-hover); }
     .reader-practice__range[data-checked] { border-color: var(--line-strong); background: var(--bg-selected); }
     .reader-practice__range:has(input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+    .reader-practice__older { display: block; font-weight: normal; letter-spacing: 0; line-height: var(--lh-snug); }
     .reader-practice__scope { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .reader-practice__counts { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
     .reader-practice__mastery { display: flex; align-items: center; gap: var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }

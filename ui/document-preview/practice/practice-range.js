@@ -99,12 +99,22 @@ export function recordVisit(list, id, max = VISIT_LIMIT) {
 
 const same = (a, b) => a.size === b.size && [...a].every(id => b.has(id));
 
+/** How many of some questions were written from another version of the document (`otherVersion`, set by materials.pages.cards). */
+export const olderCount = cards => (cards || []).filter(card => card.otherVersion).length;
+
+/** What a whole-document set holds beyond the version being read: { olderCards, sameRecordingCards, partCards } (`otherVersion`, `otherMaterial`). */
+export const inclusions = cards => ({ olderCards: olderCount(cards), sameRecordingCards: (cards || []).filter(card => card.otherMaterial === 'same').length,
+  partCards: (cards || []).filter(card => card.otherMaterial === 'part').length });
+
 /**
  * The options of the range chooser, each { kind, ids, count, cards, summary }:
  *  here      the current entry (a page, or a section with its sub-sections)
  *  chapter   `chapter` (ids from chapterEntryIds), when it holds more than "here"
  *  recent    the entries visited in this session (`visited`, ids), when there are at least two and they are not just "here"/"chapter"
- *  document  the whole document, only when no entry could hold the questions (no outline), or when more questions exist than any option holds
+ *  document  the whole document, only when no entry could hold the questions (no outline), or when more questions exist than any option holds;
+ *            it counts EVERY question of the document (the 资料 row's set), also those of older versions that no section of the text being read
+ *            can hold: `olderCards` (another version of the document), `sameRecordingCards` (another material of the same recording) and
+ *            `partCards` (a material of a recording this merged one contains) say how many (the other options only hold what is placed in the visible version)
  * `all` are every question of the document (for the whole-document option).
  * With `draftAssigned` / `draftAll` (the questions still in drafts, placed like the published ones: `{ deckId: <draft id>, cardId, links }`),
  * every option also carries `draftCards` (the draft questions of its range, once each) and `draftIds` (the drafts they are in).
@@ -119,7 +129,7 @@ export function rangeOptions({ outline, activeId, visited = [], assigned, chapte
   };
   if (!outline.length) {
     const list = all.length ? all : [...assigned.values()].flatMap(map => [...map.values()]);
-    return [withDrafts({ kind: 'document', ids: null, count: 0, cards: list, summary: summarizeLinked(list) })];
+    return [withDrafts({ kind: 'document', ids: null, count: 0, cards: list, summary: summarizeLinked(list), ...inclusions(list) })];
   }
   const current = outline.some(item => item.id === activeId) ? activeId : outline[0].id;
   const here = make('here', subtreeIds(outline, current));
@@ -132,7 +142,7 @@ export function rangeOptions({ outline, activeId, visited = [], assigned, chapte
   if (known.length >= 2 && !same(seen, here.ids) && !(chapterIds && same(seen, chapterIds))) options.push({ ...make('recent', seen), count: known.length });
   const largest = Math.max(...options.map(option => option.summary.total));
   const drafted = options.map(withDrafts), largestDrafts = Math.max(0, ...drafted.map(option => option.draftCards || 0));
-  if (all.length > largest || draftAll.length > largestDrafts) drafted.push(withDrafts({ kind: 'document', ids: null, count: 0, cards: all, summary: summarizeLinked(all) }));
+  if (all.length > largest || draftAll.length > largestDrafts) drafted.push(withDrafts({ kind: 'document', ids: null, count: 0, cards: all, summary: summarizeLinked(all), ...inclusions(all) }));
   return drafted;
 }
 
