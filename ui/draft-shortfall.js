@@ -13,7 +13,7 @@ import { isActiveJob } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { missingQuestions } from '../lib/draft-continuation.js';
 
-export { missingQuestions, canContinueDraft } from '../lib/draft-continuation.js';
+export { missingQuestions, canContinueDraft, canAddFromSources } from '../lib/draft-continuation.js';
 
 /**
  * What is working on this draft right now: `{ kind, job }` with kind

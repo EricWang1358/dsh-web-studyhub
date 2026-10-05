@@ -15,6 +15,13 @@
     .shortfall__line { color: var(--text-dim); }
   }
   :where(.study-app, .study-seat) {
+    /* 用未覆盖的资料补题: the target sentence, then the count, the button and the explicit new-deck choice in one row. */
+    .draft-addfrom { display: grid; gap: var(--space-2); min-width: 0; margin-block: var(--space-2); }
+    .draft-addfrom__target { margin: 0; font-size: var(--fs-sm); color: var(--text-dim); overflow-wrap: anywhere; }
+    .draft-addfrom__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+    .draft-addfrom .token-estimate { max-width: 34em; }
+  }
+  :where(.study-app, .study-seat) {
     /* The notices of a draft (Banners) stack with one gap; the shortfall banner lays its parts out the same way. */
     .draft-notices { display: grid; gap: var(--space-3); margin-block: var(--space-4); }
     .draft-notices:empty { display: none; }

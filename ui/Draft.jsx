@@ -14,8 +14,8 @@ import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
 import { renderRubric } from "../lib/case-study.js";
-import { DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
-import { draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
+import { DraftAddFromSources, DraftTopUp, OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
+import { canAddFromSources, draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
 import { modelReadiness } from "./generation-status.js";
 import LocalImagePicker from './LocalImagePicker.jsx';
 import { useStudy } from "./study-context.jsx";
@@ -36,6 +36,7 @@ export default function Draft({
   setJsonMode,
   openDraft,
   continueDraft,
+  addFromSources,
   onOpenPublished,
   onStartPublished,
   clearRecovery,
@@ -313,12 +314,10 @@ export default function Draft({
         <p className="muted">{ui("“规划”是模型选出的考点次数，“通过”是最终引用该资料的合格题数；即使有题，也不代表整页或全部知识点都已覆盖。")}</p>
         {coveredSources.length > 0 && <ul>{coveredSources.map((source) => <li key={source.id}>
           {uiFormat("{0}：规划 {1} 个考点，通过 {2} 题", [source.title, source.planned, source.accepted])}</li>)}</ul>}
-        {untestedSourceIds.length > 0 && !generating && <Button size="sm" disabled={busy}
-          onClick={() => {
-            setSelectedSources(untestedSourceIds);
-            setGenSource("files");
-            setPage("generate");
-          }}>{uiFormat("用未覆盖的 {0} 份资料补题 →", [untestedSourceIds.length])}</Button>}
+        {untestedSourceIds.length > 0 && canAddFromSources(draft) && <DraftAddFromSources draft={draft} jobs={data.jobs} sourceIds={untestedSourceIds}
+          busy={busy || unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} call={call} onAdd={addFromSources}
+          onNewDeck={(ids) => { setSelectedSources(ids); setGenSource("files"); setPage("generate"); }} />}
+        {untestedSourceIds.length > 0 && canAddFromSources(draft) && unsavedDraft && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
         {uncoveredSources.length > 0 && <Disclosure summary={uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredSources.length])}>
           <ul>{uncoveredSources.map((source) => <li key={source.id}>
             {source.title}{source.planned ? uiFormat("：规划 {0} 个考点", [source.planned]) : ""}

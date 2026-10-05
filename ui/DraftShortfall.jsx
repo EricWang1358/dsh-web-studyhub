@@ -1,11 +1,13 @@
 import React from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
-import { Button } from "./components/index.js";
+import { Button, Field, NumberInput } from "./components/index.js";
+import { isActiveJob } from "./job-visibility.js";
 import { useInjectCss } from "./shared.js";
 import { gateTitle } from "./ModelSetupGate.jsx";
 import css from "./draft-shortfall.css";
 import { canContinueDraft, draftWork, draftWorkLabel, missingQuestions, omissionTitle, reasonLabel, shortfall } from "./draft-shortfall.js";
+import { extraQuestionDefault } from "../lib/draft-continuation.js";
 import { formatClauses, META_DOT } from './format.js';
 
 /* The two pieces every place that shows a short draft uses, so the same thing
@@ -31,6 +33,39 @@ export function DraftTopUp({ draft, jobs = [], busy = false, modelReady = true, 
       {work ? draftWorkLabel(work, draft) : uiFormat("继续补齐 {0} 题", [missing])}
     </Button>
     {!work && modelReady && call && <TokenEstimate enabled request={{ feature: "generate", resumeDraftId: draft.id, draftVersion: draft.draftVersion }} />}
+  </div>;
+}
+
+/**
+ * 用未覆盖的资料补题: add questions to THIS deck, from the sources it has not cited. It says which deck and how many up front, follows the
+ * deck's own settings, and is off while that deck has a fill or generation running. Starting a separate new deck from those sources is the
+ * other, explicit choice (`onNewDeck`).
+ */
+export function DraftAddFromSources({ draft, jobs = [], sourceIds, busy = false, modelReady = true, call, onAdd, onNewDeck }) {
+  useInjectCss(css, "study-draft-shortfall");
+  const [chosen, setChosen] = React.useState(null);
+  const fallback = extraQuestionDefault(draft, sourceIds.length), value = chosen ?? fallback;
+  const valid = Number.isInteger(value) && value >= 1 && value <= 30;
+  const work = draftWork(draft, jobs) || (() => {
+    // A fill that is publishing straight into the deck this draft merges into also owns it.
+    const job = draft.mergeTargetId && jobs.find((item) => item.mergeTargetId === draft.mergeTargetId && isActiveJob(item));
+    return job ? { kind: "topup", job } : null;
+  })();
+  const blocked = busy || !!work || !modelReady || !valid;
+  return <div className="draft-addfrom" data-add-from-sources>
+    <p className="draft-addfrom__target">{uiFormat("为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题", [draft.title, sourceIds.length, value])}</p>
+    <div className="draft-addfrom__row">
+      <Field label={ui("追加题数")} inline width="sm">
+        <NumberInput min="1" max="30" step="1" value={value} disabled={!!work} onChange={(event) => setChosen(event.target.value === "" ? NaN : Number(event.target.value))} />
+      </Field>
+      <Button size="sm" disabled={blocked}
+        title={!modelReady ? gateTitle("block") : undefined}
+        onClick={() => onAdd?.(draft, sourceIds, value)}>
+        {work ? draftWorkLabel(work, draft) : uiFormat("给「{0}」补 {1} 题 →", [draft.title, value])}
+      </Button>
+      <Button size="sm" variant="link" disabled={busy || !!work} onClick={() => onNewDeck?.(sourceIds)}>{ui("用这些资料新建题组")}</Button>
+    </div>
+    {!work && modelReady && call && valid && <TokenEstimate enabled request={{ feature: "generate", resumeDraftId: draft.id, draftVersion: draft.draftVersion, extraSourceIds: sourceIds, count: value }} />}
   </div>;
 }
 
