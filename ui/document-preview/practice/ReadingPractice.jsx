@@ -4,6 +4,8 @@ import { Button, LoadingState, Popover } from '../../components/index.js';
 import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { countsLine, draftExtraText, draftNoneText, inclusionNote, meaningLine, noneText, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
+import { rangeCoverageOf } from './coverage-outline.js';
+import { rangeUncoveredLine } from '../../coverage/copy.js';
 import css from './practice.css';
 
 /** The note about parked courses: the learner is reading this document, so those questions are offered, and said to be parked. */
@@ -28,6 +30,9 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
   const groupName = useId();
   const summary = selected?.summary, total = summary?.total || 0, ready = status === 'ready';
   const drafted = selected?.draftCards > 0 ? selected : null;
+  // 覆盖: how much of this range has no question at all (the words of the outline's header and the draft page); said only when part of it has one.
+  const covered = loop.coverage && loop.outlineCoverage ? rangeCoverageOf(loop.outlineCoverage, selected?.ids ?? null, loop.coverage) : null;
+  const coverageLine = covered && covered.covered > 0 && covered.uncovered > 0 ? rangeUncoveredLine(covered.uncovered, covered.leaves, loop.coverage.units === 'page' ? 'page' : 'section') : '';
   const openDraft = drafted && onOpenDraft && drafted.draftIds?.length ? <Button size="sm" variant="secondary" icon="arrow-right" onClick={() => onOpenDraft(drafted.draftIds)}
     data-testid="practice-open-draft">{ui('打开草稿')}</Button> : null;
   // On a narrow pane the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
@@ -57,6 +62,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <p className="reader-practice__mastery"><MasteryMark summary={summary} size={16} />
             <span>{summary.state === 'unlearned' ? stateLabel('unlearned') : `${uiFormat('掌握 {0}%', [summary.percent])} · ${stateLabel(summary.state)}`}</span></p>
           <p className="reader-practice__meaning">{meaningLine()}</p>
+          {coverageLine && <p className="reader-practice__coverage" data-testid="practice-coverage">{coverageLine}</p>}
           <InactiveNote summary={summary} courses={loop.inactiveCourses} />
           {drafted && <p className="reader-practice__drafts" data-testid="practice-drafts">{draftExtraText(drafted.draftCards)}</p>}
           {openDraft}
@@ -65,6 +71,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
         </> : <>
           <p className="reader-practice__none" data-testid="practice-none"><MasteryMark summary={null} size={16} /> {drafted ? draftNoneText(drafted.draftCards) : ui('这几页还没有题')}</p>
           {drafted && <p className="reader-practice__meaning">{ui('发布草稿后才能练习这几页的题。')}</p>}
+          {coverageLine && <p className="reader-practice__coverage" data-testid="practice-coverage">{coverageLine}</p>}
           {openDraft}
           <Button variant="primary" icon="sparkle" disabled={busy} onClick={() => onGenerate(selected)}>{ui('为这几页出题')}</Button>
         </>}

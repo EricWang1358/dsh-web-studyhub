@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { draftView, seedView } from "./helpers/coverage-view.mjs";
 
 /* The owner's report: "10/20 题少了 10 题", every step 已完成, and on the draft
    card both 已复审，待发布 and 补题中… at once, with no reason and no way to tell
@@ -17,7 +18,9 @@ const load = async (entry, exports) => {
   return module.exports;
 };
 const m = await load("status", `export * from './ui/draft-shortfall.js'; export * from './ui/generation-status.js'; export { setUiLanguage } from './ui/i18n.js';`);
-const map = await load("map", `export { default as StudyMap } from './ui/StudyMap.jsx'; export { default as Draft } from './ui/Draft.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+const map = await load("map", `export { default as StudyMap } from './ui/StudyMap.jsx'; export { default as Draft } from './ui/Draft.jsx'; export { seedCoverage, forgetCoverage } from './ui/coverage/use-coverage.js'; export { setUiLanguage } from './ui/i18n.js';`);
+/* The top-up is 为没覆盖的部分补题 (ui/coverage): the pages that offer it are rendered with a real coverage answer in their memo. */
+const seeded = (extra = {}) => { map.forgetCoverage(); return seedView(map, draftView({ draftId: "dr", draftVersion: 3, covered: ["r1.p1"], failed: [], ...extra })); };
 
 const view = await load("view", `export { OmittedQuestions } from './ui/DraftShortfall.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
 const omittedMarkup = (draft) => renderToStaticMarkup(React.createElement(view.OmittedQuestions, { draft }));
@@ -132,24 +135,29 @@ const noop = () => {};
 function home(data, props = {}) {
   return renderToStaticMarkup(React.createElement(map.StudyMap, { data: { root: "/tmp/lib", decks: [], progress: {}, sources: [{ id: "s" }], runs: [], jobs: [], drafts: [],
     today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "", courses: [], fresh: [] }, modelReady: true, ...data },
-  busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, continueDraft: noop, retryGeneration: noop, addSource: noop,
+  busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop, topUpDraft: noop, retryGeneration: noop, addSource: noop,
   createManual: noop, importLibrary: noop, askInChat: noop, notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop, ...props }));
 }
 const partialJob = { id: "a", status: "complete", stageCode: "partial", draftId: "dr", savedCount: 10, requestedTotal: 20, parts: 6, stage: "Draft ready with 10/20 questions; 2 part(s) failed" };
 
-test("home: a short draft states how many it lacks and offers one top-up; the reasons are on the draft page, not on the card", () => {
+test("home: a short draft says how much of its material has questions and offers one top-up; the reasons are on the draft page, not on the card", () => {
+  seeded();
   const html = home({ drafts: [legacyDraft()], jobs: [partialJob] });
-  assert.equal((html.match(/继续补齐 10 题/g) || []).length, 1, "the draft row says it is short once, in its one top-up action (#228: not again in the meta line)");
-  assert.doesNotMatch(/<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1], /还差/);
+  assert.equal((html.match(/为没覆盖的部分补题/g) || []).length, 1, "the draft row offers its one top-up action once");
+  const facts = /<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1];
+  assert.doesNotMatch(facts, /还差/, "not 'N short': what the draft lacks is sections");
+  assert.match(facts, /覆盖 1\/12 个部分（8%）/, "the coverage is the draft's fact");
+  assert.doesNotMatch(html, /继续补齐/);
   assert.doesNotMatch(html, /answerLeak|Assessment plan/, "no raw backend prose on the card");
   assert.doesNotMatch(html, /<details/, "the card folds nothing: the reasons and the process are in the 任务 console and on the draft page");
 });
 
 test("home: while a top-up runs the button says so, the old card stops advising it and nothing says 补题中 for publishing", () => {
+  seeded();
   const running = { id: "b", status: "running", draftId: "dr", continued: true, savedCount: 12, requestedTotal: 20, stageCode: "authoring", type: undefined };
   const html = home({ drafts: [legacyDraft()], jobs: [partialJob, running] });
   assert.match(html, /补题中 · 草稿 12\/20 题/);
-  assert.doesNotMatch(html, /继续补齐 10 题/);
+  assert.doesNotMatch(html, /为没覆盖的部分补题/, "the button gives way to the status while it runs");
   assert.doesNotMatch(html, /可以打开草稿补齐/);
   const publishing = home({ drafts: [legacyDraft()], jobs: [{ id: "p", status: "running", draftId: "dr", type: "draft-publish", stage: "x" }] });
   assert.match(publishing, /发布检查中…/);
@@ -160,10 +168,12 @@ test("home: while a top-up runs the button says so, the old card stops advising 
 });
 
 test("home: English renders without Chinese", () => {
+  seeded();
   const html = inLanguage("en", () => home({ drafts: [{ ...legacyDraft(), title: "CQRS" }], jobs: [{ ...partialJob, deckTitle: "CQRS" }] }));
   const visible = html.replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(visible, han, (visible.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);
-  assert.match(visible, /Continue generation for 10 questions/);
+  assert.match(visible, /Add questions for the uncovered parts/);
+  assert.match(visible, /Covered 1\/12 parts \(8%\)/);
 });
 
 test("home: an active top-up exposes saved progress and stop; its execution and usage are in the console", () => {
@@ -185,19 +195,21 @@ function draftPage(draft, data = {}, props = {}) {
   return renderToStaticMarkup(React.createElement(map.Draft, { data: { sources: [{ id: "s", title: "S" }], decks: [], drafts: [draft], jobs: [], modelReady: true, runs: [], ...data },
     busy: false, act: noop, call: noop, draft, draftLoaded: JSON.stringify(draft), setDraft: noop, draftText: "", setDraftText: noop, jsonMode: false, setJsonMode: noop,
     openDraft: noop, onOpenPublished: noop, onStartPublished: noop, clearRecovery: noop, setPage: noop, setNotice: noop, setError: noop, setModal: noop,
-    setSelectedSources: noop, setGenSource: noop, blankCard: noop, patchCard: noop, parseDraft: JSON.parse, continueDraft: noop, ...props }));
+    blankCard: noop, patchCard: noop, parseDraft: JSON.parse, topUpDraft: noop, ...props }));
 }
 
 test("the draft page has the same top-up button as the home card instead of sending the learner back", () => {
+  seeded();
   const html = draftPage(legacyDraft());
-  assert.match(html, /继续补齐 10 题/);
-  assert.doesNotMatch(html, /返回学习库点/);
-  assert.match(html, /比计划少 10 题/);
+  assert.match(html, /为没覆盖的部分补题/);
+  assert.doesNotMatch(html, /继续补齐|返回学习库点|比计划少/);
+  assert.match(html, /有题没能进入草稿/, "the reasons stay, under a title that is not a count of questions");
   assert.match(html, /提示或题干泄露了答案/);
   assert.doesNotMatch(html, /Part 1: retained|Assessment plan is not usable/, "the generation record is in the learner's language");
   const busy = draftPage(legacyDraft(), { jobs: [{ id: "b", status: "running", draftId: "dr", continued: true, savedCount: 12, requestedTotal: 20 }] });
   assert.match(busy, /补题中 · 草稿 12\/20 题/);
   assert.match(busy, /<button[^>]*disabled=""[^>]*>保存并校验/, "no saving over a draft that a top-up is writing");
+  map.forgetCoverage();
   const english = inLanguage("en", () => draftPage({ ...legacyDraft(), title: "CQRS", editorial: { ...legacyDraft().editorial, audits: [], failures: legacyDraft().editorial.failures, omitted: [
     { part: 1, kind: "quiz", objective: "o", prompt: "Which one?", reasons: ["q2: answerLeak failed or was not checked"] }] } }));
   assert.doesNotMatch(english.replace(/<[^>]+>/g, " "), han);

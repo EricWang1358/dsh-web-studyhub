@@ -139,6 +139,8 @@
     "qa:translation": "node scripts/qa/translation.mjs",
     "qa:reading-loop": "node scripts/qa/reading-loop.mjs",
     "qa:sections-reader": "node scripts/qa/sections-reader.mjs",
+    "qa:coverage": "node scripts/qa/coverage.mjs",
+    "qa:coverage-formats": "node scripts/qa/coverage-formats.mjs",
     "qa:reader-formulas": "node scripts/qa/reader-formulas.mjs",
     "qa:dsh": "node scripts/qa/dsh-e2e.mjs",
     "verify": "npm run lint && npm test && npm run build",

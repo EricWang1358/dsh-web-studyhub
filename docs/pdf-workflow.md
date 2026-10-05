@@ -53,7 +53,7 @@ Notes on the options:
 - Only questions that pass the review are kept. Rejected candidates are recorded with their reasons.
 - Since 1.4.6, generation does not repair, review again or write extra questions to reach the count. Repair is a separate step that you request later.
 - Each model call may take up to 10 minutes. By default, a whole job may run for up to 20 minutes; time spent waiting in the queue does not count. When the budget runs out, the accepted questions are kept.
-- Restarting DeepSeek Harness (DSH) interrupts unfinished jobs. A saved draft that is short of questions can be completed with its **Continue generation** button: a new model task uses the same sources and keeps the accepted questions. An old model conversation is not resumed.
+- Restarting DeepSeek Harness (DSH) interrupts unfinished jobs. A saved draft that does not cover all of its material can be completed with its **Add questions for the uncovered parts** button: a new model task uses the same sources, covers the sections that have no question and keeps the accepted questions. An old model conversation is not resumed.
 - Existing questions are never rewritten because the extraction or StudyHub changed.
 
 Change questions per batch, parallel batches and the task time budget in **Settings › Question defaults**. New tasks use saved defaults; continuing a draft keeps its original choices. See [Generation pace](generation-agents-sidebar.md#what-a-generation-task-does).
