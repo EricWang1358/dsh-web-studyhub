@@ -8,7 +8,7 @@
    failure lines) and from the job list, and says it in the UI language.
    Pure; the components are ui/DraftShortfall.jsx. */
 import { ui, uiFormat } from './i18n.js';
-import { describeFailure } from './generation-status.js';
+import { describeFailure, failureSentence } from './generation-status.js';
 import { isActiveJob } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { missingQuestions } from '../lib/draft-continuation.js';
@@ -99,7 +99,8 @@ export function shortfall(draft) {
     if (DUPLICATE.test(line) || line === '补题时跳过了一道与已有草稿重复的题') { duplicates++; continue; }
     if (RETAINED.test(line)) continue;
     const part = PART.exec(line);
-    if (part) partFailures.push({ part: Number(part[1]), ...describeFailure(part[2]) });
+    // The same sentence the generation record list prints (describeGenerationRecord): one description of a failure, said once.
+    if (part) { const found = describeFailure(part[2]); partFailures.push({ part: Number(part[1]), ...found, sentence: failureSentence(found) }); }
   }
   const reasons = [...counts].map(([code, count]) => ({ code, count, label: reasonLabel(code) })).sort((a, b) => b.count - a.count);
   return { missing: missingQuestions(draft), records: found, reasons, partFailures, duplicates, report: describePartReport(editorial.partReport) };
@@ -115,6 +116,15 @@ export function describePartReport(report) {
     quote: (n) => uiFormat('{0} 个部分的引用在资料里找不到', [n]),
     plan: (n) => uiFormat('{0} 个部分的考点规划没有通过检查', [n]),
     quality: (n) => uiFormat('{0} 个部分的题没有通过质量审阅', [n]),
+    'review-protocol': (n) => uiFormat('{0} 个部分的审阅回复格式不对，重新审阅后仍然不行', [n]),
+    timeout: (n) => uiFormat('{0} 个部分因模型长时间没有回应而没有完成', [n]),
+    'rate-limit': (n) => uiFormat('{0} 个部分被模型服务限流，重试后仍未完成', [n]),
+    'no-reply': (n) => uiFormat('{0} 个部分因模型没有返回内容而没有完成', [n]),
+    quota: (n) => uiFormat('{0} 个部分因模型账户余额或额度不足而没有完成', [n]),
+    credential: (n) => uiFormat('{0} 个部分因模型密钥缺失或被拒绝而没有完成', [n]),
+    budget: (n) => uiFormat('{0} 个部分因生成用时到限而没有完成', [n]),
+    cancelled: (n) => uiFormat('{0} 个部分被停止', [n]),
+    unavailable: (n) => uiFormat('{0} 个部分因模型服务暂时不可用而没有完成', [n]),
     other: (n) => uiFormat('{0} 个部分因其他原因没有完成', [n]),
   };
   return { lead: uiFormat('共 {0} 个部分：{1} 个全部通过，{2} 个只保留了部分题，{3} 个没有出题。', [report.total, report.passed, report.partial, report.failed]),
@@ -140,9 +150,9 @@ export function describeGenerationRecord(line) {
   if (text === '补题时跳过了一道与已有草稿重复的题') return ui('补题时跳过了一道与已有草稿重复的题');
   const part = PART.exec(text);
   if (part) {
-    const found = describeFailure(part[2]);
-    // A reason none of the patterns knows would read "没有完成：生成没有完成"; keep the pipeline's own words next to it.
-    return uiFormat('第 {0} 批没有完成：{1}', [part[1], found.kind === 'unknown' ? `${found.title}（${clipLine(part[2].trim(), 160)}）` : found.title]);
+    // The cause is the shared description (generation-status.js): plain words, what was already tried again, and for a cause nothing knows the first
+    // 160 characters of the pipeline's own words next to the plain headline.
+    return uiFormat('第 {0} 批没有完成：{1}', [part[1], failureSentence(describeFailure(part[2]))]);
   }
   return clipLine(text);
 }

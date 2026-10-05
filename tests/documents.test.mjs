@@ -239,7 +239,7 @@ test("mixed generation uses small batches, one draft, requested title, and repor
     const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
     if (++author === 2) return JSON.stringify({ error: "Insufficient support" });
     return JSON.stringify({ title: "Model title", cards: Array.from({ length: req.count }, () => card(++n, req.kind)) });
-  }), request);
+  }), { ...request, performance: { fillRounds: 0 } });  // no fill round: a failed part stays failed and reported (the rescue is tests/generation-rescue.test.mjs)
   assert.equal(result.title, "SWE5001");
   assert.equal(result.course, 'Architecture');
   assert.equal(result.editorial.generation.course, 'Architecture');

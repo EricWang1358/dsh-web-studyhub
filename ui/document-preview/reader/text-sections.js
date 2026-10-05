@@ -6,6 +6,7 @@
    without whitespace, keep working. Pure helpers, no DOM. */
 import { splitStudyMath } from '../../study-media.js';
 import { findFootnotes, fenceOpenAfter } from '../../../lib/footnote-html.js';
+import { sectionsOf, isSectionLabel, isTranscriptFurniture } from '../../../lib/sections.js';
 
 const SENTENCE_END = /[。．.!！?？；;:：,，、…)）”"』」\]]$/;
 const HEADING_MAX = 60;
@@ -13,9 +14,6 @@ const HEADING_MAX = 60;
 const LIST_MARK = /^\s*(?:[-*•·▪◦‣–—]\s+\S|\d{1,3}[.)]\s+\S|\d{1,3}[、．]\s*\S|[（(]\d{1,3}[)）]\s*\S|[a-zA-Z][.)]\s+\S|[一二三四五六七八九十]{1,3}[、．]\s*\S)/;
 /* Layout the line breaks of which carry meaning: tabs, wide gaps, table rules, box drawing. */
 const LAYOUT = /\t|\S {3,}\S|\|.*\||[│┃┆┊┌└├╭╰╔╚]/;
-/* A transcript part: a line that is one 【…】 label, as the transcript importer writes them. */
-const SEGMENT_MARK = /^【([^】\n]{1,80})】[ \t]*$/;
-
 /* A thematic break as Markdown writes it: three or more of one of - * _ (spaces between allowed) alone on a line. The divider an audio
    transcript keeps between its parts is one. */
 const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
@@ -66,19 +64,29 @@ function splitFootnoteLines(chunk, fenced) {
   return rest ? [...pieces, { text: rest }] : pieces;
 }
 
-/** Paragraphs split at blank lines: [{ kind: 'heading' | 'rule' | 'footnote' | 'prose' | 'lines' | 'layout', text, lines }]; a footnote also carries { open, inner, close }. */
+/** A transcript's label (【英文原句】, [Chinese translation] …) at the top of a chunk, on its own line, then the rest: the label is a paragraph of its own. */
+function splitLabelLines(chunk) {
+  const at = chunk.indexOf('\n');
+  return at > 0 && isSectionLabel(chunk.slice(0, at)) ? [chunk.slice(0, at).trimEnd(), ...splitLabelLines(chunk.slice(at + 1).replace(/^\n+/, ''))] : [chunk];
+}
+
+/** Paragraphs split at blank lines: [{ kind: 'heading' | 'label' | 'furniture' | 'rule' | 'footnote' | 'prose' | 'lines' | 'layout', text, lines }]; a footnote also carries { open, inner, close }.
+ *  A label is a line like 【英文原句】 that names what follows in a transcript part; furniture is the block a transcript writes at the start of a recording (80 "=", title lines, 80 "="). */
 export function splitParagraphs(text) {
   // A Markdown heading is its own paragraph even when the text follows on the next line.
   let fenced = false;
   const chunks = String(text || '').replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/)
     .map(chunk => chunk.replace(/^\n+/, '').replace(/\s+$/, '')).filter(chunk => chunk.trim())
     .flatMap(splitHeadingLines)
+    .flatMap(chunk => isTranscriptFurniture(chunk) ? [chunk] : splitLabelLines(chunk))
     .flatMap(chunk => { const pieces = splitFootnoteLines(chunk, fenced); fenced = fenceOpenAfter(chunk, fenced); return pieces; });
   return chunks.map((piece, index) => {
     if (piece.footnote) return { kind: 'footnote', text: piece.footnote.raw, lines: piece.footnote.raw.split('\n'), open: piece.footnote.open, inner: piece.footnote.inner, close: piece.footnote.close };
     const chunk = piece.text, lines = chunk.split('\n');
     // A line of dashes between blank lines is a break, never a heading (it is short enough to look like one) and never text.
     if (lines.length === 1 && isThematicBreak(lines[0])) return { kind: 'rule', text: chunk, lines };
+    if (lines.length === 1 && isSectionLabel(lines[0])) return { kind: 'label', text: chunk, lines };
+    if (isTranscriptFurniture(chunk)) return { kind: 'furniture', text: chunk, lines };
     const heading = lines.length === 1 && (!!headingMark(lines[0]) || (looksLikeHeading(lines[0]) && (index === 0 && chunks.length === 1 || chunks[index + 1] && !chunks[index + 1].footnote)));
     return { kind: heading ? 'heading' : classifyParagraph(lines), text: chunk, lines };
   });
@@ -105,27 +113,14 @@ export function lineBreakPieces(text) {
 }
 
 /**
- * Transcript parts: [{ title, text }] when the text has at least two titled 【…】 parts,
- * otherwise null. Text before the first label is kept as an untitled opening part.
- */
-export function splitSegments(text) {
-  const parts = [{ title: '', lines: [] }];
-  for (const line of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
-    const mark = SEGMENT_MARK.exec(line.trim());
-    if (mark) parts.push({ title: mark[1].trim(), lines: [] });
-    else parts.at(-1).lines.push(line);
-  }
-  const kept = parts.filter(part => part.title || part.lines.some(line => line.trim()));
-  return kept.filter(part => part.title).length >= 2 ? kept.map(part => ({ title: part.title, text: part.lines.join('\n') })) : null;
-}
-
-/**
  * The sections the reader shows for a text source.
- * Paged formats (PDF, PowerPoint) give one section per page or slide; any other text is
- * one section, or one per transcript part. Each section: { id, kind, page?, sourceId?, title,
- * paragraphs }. `title` is the part's own title, else the page's first heading.
+ * Paged formats (PDF, PowerPoint) give one section per page or slide. A transcript gives one section per recording (the `## N. file` heading, level 1) and per part (level 2, or 1
+ * when there are no recordings): the sections of lib/sections.js, the same ones the backend counts coverage on. The text above the first heading is a section of its own, `lead`, which has no
+ * outline entry; any other text is one section. Each section: { id, kind, level?, title, heading, paragraphs, ...} with `open` / `close` (the characters of its heading line round
+ * its title, kept in the text but not drawn), `recording`, `part`, `continued`.
+ * `sourceId` / `group` say which source the text is, and the sources of its document (a recording split across volumes finds its other volume there).
  */
-export function readingSections({ paged = false, sources = [], text = '' } = {}) {
+export function readingSections({ paged = false, sources = [], text = '', sourceId, group } = {}) {
   if (paged) {
     return sources.map((item, index) => {
       const page = item.document?.page || index + 1, paragraphs = splitParagraphs(item.text);
@@ -133,7 +128,16 @@ export function readingSections({ paged = false, sources = [], text = '' } = {})
         heading: paragraphs[0]?.kind === 'heading' ? paragraphs[0].text.slice(headingMark(paragraphs[0].text).length) : '', paragraphs };
     });
   }
-  const segments = splitSegments(text);
-  if (segments) return segments.map((part, index) => ({ id: `part-${index}`, kind: 'part', title: part.title, heading: '', paragraphs: splitParagraphs(part.text) }));
-  return [{ id: 'part-0', kind: 'part', title: '', heading: '', paragraphs: splitParagraphs(text) }];
+  const own = sourceId ?? 'text', members = Array.isArray(group) && group.some(item => item?.id === own) ? group : [{ id: own, text }];
+  const found = sectionsOf(members.map(item => item.id === own ? { ...item, text } : item), { windows: false }).filter(section => section.sourceId === own && (section.kind === 'recording' || section.kind === 'part'));
+  if (found.length < 2) return [{ id: 'part-0', kind: 'part', title: '', heading: '', paragraphs: splitParagraphs(text) }];
+  const out = [];
+  for (const section of found) {
+    const heading = section.heading, line = heading ? text.slice(heading.start, heading.end) : '', at = line.indexOf(section.title);
+    const lead = heading ? text.slice(section.start, heading.start) : '', body = text.slice(heading ? heading.end : section.start, section.end);
+    if (lead.trim()) out.push({ id: 'lead', kind: 'lead', title: '', heading: '', paragraphs: splitParagraphs(lead) });
+    out.push({ id: section.id, kind: section.kind, level: section.level, title: section.title, heading: '', ...(heading && section.title && at >= 0 ? { open: line.slice(0, at), close: line.slice(at + section.title.length) } : {}),
+      ...(section.recording != null ? { recording: section.recording } : {}), ...(section.part != null ? { part: section.part } : {}), ...(section.continued ? { continued: true } : {}), paragraphs: splitParagraphs(body) });
+  }
+  return out;
 }

@@ -2,15 +2,23 @@
    for a scroll position, the neighbours for the previous / next links, and how
    far the reader has read. Entries are { id, level, title, page? }; an element in the
    reading column carries the matching data-outline-id. A page's label ("第 3 页") is
-   made when it is drawn, so it follows the interface language. */
+   made when it is drawn, so it follows the interface language. A transcript's entries
+   come from the sections of lib/sections.js (the backend's own): recordings at level 1
+   with `kind: 'recording'` and `recording`, parts at level 2 (`kind: 'part'`). */
+import { isLabelTitle } from '../../../lib/sections.js';
 
 /** Entries for the reading sections of text sources; none when there is nothing to navigate. */
 export function outlineFromSections(sections) {
   if (sections.length < 2) return [];
-  return sections.map(section => ({ id: section.id, level: 1,
-    title: section.kind === 'page' ? section.heading : section.title, ...(section.page ? { page: section.page } : {}) }))
-    .filter(entry => entry.page || entry.title);
+  return sections.map(section => ({ id: section.id, level: section.level || 1,
+    title: section.kind === 'page' ? section.heading : section.title, ...(section.page ? { page: section.page } : {}),
+    ...(section.kind === 'recording' || section.kind === 'part' ? { kind: section.kind } : {}), ...(section.recording != null ? { recording: section.recording } : {}),
+    ...(section.continued ? { continued: true } : {}) }))
+    .filter(entry => entry.page || entry.title || entry.continued);
 }
+
+/** The entries of rendered Markdown without the labels of a bilingual transcript (### 英文原句, ### 中文对照): they are text of their part, not sections. */
+export const withoutLabels = items => items.filter(item => !isLabelTitle(item.title));
 
 const levelOf = node => Number(node.tagName[1]);
 
@@ -71,7 +79,8 @@ const labelKey = title => String(title || '').normalize('NFKC').toLowerCase().re
 /**
  * The entries with their place in the tree: `parent` (the nearest entry above with a lower heading level, else null),
  * `depth` (how many parents it has; a level that skips still nests), `children` (direct), and `minor`
- * (a repeated generic label) with `minorCount` on its parent. Order and ids are untouched. `fold: false` marks no labels
+ * (a repeated generic label) with `minorCount` on its parent. An entry that is a section of lib/sections.js (`kind`: a recording, a part) is never a
+ * label, however often its title comes back. Order and ids are untouched. `fold: false` marks no labels
  * (a kept AI outline is the learner's own choice).
  */
 export function structureOutline(items, { fold = true } = {}) {
@@ -86,13 +95,13 @@ export function structureOutline(items, { fold = true } = {}) {
   if (!fold) return tree; // an outline the learner chose has no labels to fold
   for (const node of tree) {
     const key = labelKey(node.title);
-    if (!node.parent || !key || node.children || node.title.length > LABEL_MAX_CHARS) continue;
+    if (!node.parent || !key || node.children || node.kind || node.title.length > LABEL_MAX_CHARS) continue;
     if (!parents.has(key)) parents.set(key, new Set());
     parents.get(key).add(node.parent);
   }
   const byId = new Map(tree.map(node => [node.id, node]));
   for (const node of tree) {
-    if (!node.parent || node.children || node.title.length > LABEL_MAX_CHARS || !(parents.get(labelKey(node.title))?.size >= LABEL_MIN_PARENTS)) continue;
+    if (!node.parent || node.children || node.kind || node.title.length > LABEL_MAX_CHARS || !(parents.get(labelKey(node.title))?.size >= LABEL_MIN_PARENTS)) continue;
     node.minor = true;
     byId.get(node.parent).minorCount += 1;
   }
@@ -170,6 +179,8 @@ export function chapterNeighbours(tree, id, level) {
 export function outlinePath(tree, id) {
   const node = tree.find(entry => entry.id === id);
   if (!node) return [];
+  // A part of a transcript says which recording it is in: "第一部分" comes once in each.
+  if (node.kind === 'part' && node.parent) return [tree.find(entry => entry.id === node.parent)?.title, node.title].filter(Boolean);
   if (!node.minor) return [node.title].filter(Boolean);
   return [tree.find(entry => entry.id === node.parent)?.title, node.title].filter(Boolean);
 }

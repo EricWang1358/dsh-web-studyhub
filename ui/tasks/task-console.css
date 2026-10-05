@@ -237,9 +237,11 @@
     .tc-strip__cut { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tc-strip__why { grid-column: 1 / -1; min-height: 1.4em; color: var(--text-muted); font-size: var(--fs-xs); }
     .tc-partrow { display: flex; align-items: stretch; border-bottom: 1px solid var(--line-soft); }
-    .tc-partrow > .tc-filerow { flex: 1 1 0; min-width: 0; border-bottom: 0; }
+    .tc-partrow > .tc-filerow { flex: 1 1 0; min-width: 0; border-bottom: 0; grid-template-columns: 8px minmax(0, 1fr) minmax(40px, 72px) auto; }
     .tc-partrow__open { align-self: center; flex: none; margin-inline-end: var(--space-3); }
-    .tc-filerow__range { margin-inline-start: var(--space-3); color: var(--text-muted); font-size: var(--fs-xs); }
+    /* A part's range is a line of its own under the part's name: the recording and the parts it covers (「录音 2 · 第 1–5 部分」) are the point of the row, so they get the width, not what is left of a line. */
+    .tc-partrow .tc-filerow__name { flex-direction: column; align-items: flex-start; gap: 0; white-space: normal; }
+    .tc-filerow__range { display: -webkit-box; max-width: 100%; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
     .tc-strip__problem { color: var(--bad-ink); font-size: var(--fs-xs); }
 
     /* 实时输出 */

@@ -8,6 +8,7 @@ import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
 import { DIMENSIONS, issueCode, reasonLabel } from './quality-reasons.js';
+import { classifyFailure } from '../lib/generation-failure.js';
 import { formatClauses } from './format.js';
 import { USAGE_STAGES, stageUsage } from '../lib/stage-usage.js';
 
@@ -303,12 +304,54 @@ export function failureRowLabel(row) {
   return uiFormat('{0} · {1}（必须修）', [row.question, formatClauses(row.codes.map(reasonLabel))]);
 }
 
+/* Causes only the generation pipeline has, named by lib/generation-failure.js: the learner's wording of each (title, the cause in one clause, what to do). */
+const OWN_FAILURES = Object.freeze({
+  'review-protocol': { action: 'retry', title: '审阅回复的格式不对，没能完成审阅', cause: '审阅回复的格式不对',
+    hint: '点「继续补齐」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。' },
+  'no-reply': { action: 'retry', title: '模型没有返回内容', cause: '模型没有返回内容', hint: '可能是服务暂时的问题，稍后再试。' },
+  cancelled: { action: 'retry', title: '已被停止', cause: '已被停止', hint: '已通过检查的题保存在草稿里。' },
+});
+/** The code a legacy kind of this table has in the pipeline's vocabulary (the part report, the planned targets of a draft). */
+const CODE_OF_KIND = { grounding: 'quote', rejected: 'credential' };
+const PART_BODY = /(?:^|;\s*)Part \d+:\s*/;
+/** The one cause a whole failure text names; a text that mixes causes of several parts names none (the generic table reads it). */
+function ownCause(raw) {
+  const codes = new Set(raw.split(PART_BODY).filter((piece) => piece.trim()).map((piece) => classifyFailure(piece).code));
+  return codes.size === 1 && Object.hasOwn(OWN_FAILURES, [...codes][0]) ? [...codes][0] : null;
+}
+const retriedNote = (code, retries) => (!(retries > 0) ? '' : code === 'review-protocol' ? uiFormat('已自动重新审阅 {0} 次仍然格式不对', [retries]) : uiFormat('已自动重试 {0} 次', [retries]));
+const clipRaw = (value, size = 160) => (value.length > size ? `${value.slice(0, size - 1)}…` : value);
+
 /**
- * A generation failure in plain words: { kind, title, hint, action } where
- * action is 'settings' (open the model settings), 'retry' (set the same
+ * A generation failure in plain words, THE one description every place uses (the banner's per-part lines, 查看记录, the job card, a call in the 任务 console):
+ * `{ kind, code, title, cause, retried, hint, action }`. `code` is the pipeline's cause (lib/generation-failure.js); `title` is the headline, `cause` the same
+ * in one clause (for an unknown cause: the plain headline with the first 160 characters of the raw text, never the raw English alone), `retried` what was
+ * already tried again automatically ('' when nothing was), `hint` what to do. action is 'settings' (open the model settings), 'retry' (set the same
  * materials up again) or 'open-draft' (questions were kept).
  */
-export function describeFailure(text = '', { hasDraft = false } = {}) {
+export function describeFailure(text = '', options = {}) {
+  const raw = String(text || ''), found = classifyFailure(raw), own = ownCause(raw);
+  if (own) {
+    const copy = OWN_FAILURES[own];
+    return { kind: own, code: own, action: copy.action, title: ui(copy.title), cause: ui(copy.cause), retried: retriedNote(own, found.retries), hint: ui(copy.hint) };
+  }
+  const legacy = failureKind(raw, options);
+  return { ...legacy, code: CODE_OF_KIND[legacy.kind] || legacy.kind, cause: legacy.kind === 'unknown' && raw.trim() ? uiFormat('{0}（{1}）', [legacy.title, clipRaw(raw.trim())]) : legacy.title,
+    retried: retriedNote(legacy.kind, found.retries) };
+}
+
+/** One failure as the sentence the lists print after "第 N 批没有完成：" (the cause, then what was already tried again). */
+export const failureSentence = (found) => formatClauses([found.cause, found.retried].filter(Boolean));
+
+/** A failed model call of a job (its `error` text) in plain words in the UI language; a text nothing recognises is shown as it is. */
+export function callErrorText(text = '') {
+  // The console already writes a model failure in plain Chinese (lib/model-retry.js modelFailureMessage); in a Chinese UI that is the sentence.
+  if (!uiIsEnglish() && /[㐀-鿿]/.test(String(text))) return String(text);
+  const found = describeFailure(text);
+  return found.code === 'unknown' ? String(text) : failureSentence(found);
+}
+
+function failureKind(text = '', { hasDraft = false } = {}) {
   const raw = String(text || '');
   const kind = FAILURES.find(([, pattern]) => pattern.test(raw))?.[0] || 'unknown';
   if (Object.hasOwn(FAILURE_COPY, kind)) return copyOf(kind);

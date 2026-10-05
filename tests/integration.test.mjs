@@ -1066,7 +1066,8 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   });
   // A budget of 2 plans one group at a time (the serial planning this test is about); wider budgets plan groups together (#198).
   const quiz = await service.call("generate", { sourceIds: [big.id], count: 6, kind: "quiz", performance: { concurrency: 2 } });
-  const cards = await service.call("generate", { sourceIds: [big.id], count: 6, kind: "flashcard" });
+  // No fill round: this test is about a part that fails and is reported (a part that fails once is run again in a fill round: tests/generation-rescue.test.mjs).
+  const cards = await service.call("generate", { sourceIds: [big.id], count: 6, kind: "flashcard", performance: { fillRounds: 0 } });
   assert.equal(quiz.parts, 3);
   assert.equal(cards.status, "queued");
   assert.equal(cards.queuedBehind, 1);
