@@ -34,7 +34,7 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
     </div>}
     {onAuto && <div className="cov-strength__auto" data-coverage-auto data-auto={auto ? 'on' : 'off'}>
       <Checkbox label={autoLabel()} checked={auto} disabled={disabled} onChange={onAuto} />
-      {rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(auto, rounds)}</p>}
+      {rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(auto, rounds, coverage?.leaves > 0 && Number.isFinite(coverage.firstRoundSections) ? { level: coverage.level, percent: Math.round(coverage.firstRoundSections / coverage.leaves * 100) } : undefined)}</p>}
     </div>}
     <Disclosure className="cov-strength__custom" summary={ui('自定义题数')} meta={custom ? uiFormat('{0} 题', [custom]) : ui('可选')} defaultOpen={String(customCount).trim() !== ''}>
       <div className="generate-count cov-strength__count">
@@ -46,7 +46,7 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
         </div>
         {String(customCount).trim() !== '' && <Button variant="link" size="sm" onClick={() => onCustom('')}>{ui('改回按覆盖强度')}</Button>}
       </div>
-      <p className="generate-note" id="generate-count-note">{uiFormat('填了题数就按这个数出，题仍按所选覆盖强度的规则分到各个部分；超过 30 道的会分成几轮（每轮最多 30 题），最多 {0} 题。', [COUNT_MAX])}</p>
+      <p className="generate-note" id="generate-count-note">{uiFormat('填了题数就按这个数出，题仍按所选覆盖强度的规则分到各个小节；超过 30 道的会分成几轮（每轮最多 30 题），最多 {0} 题。', [COUNT_MAX])}</p>
     </Disclosure>
     {onBudget && <Disclosure className="cov-strength__budget" summary={ui('花费上限')} meta={spend ? tokensText(spend) : ui('可选')} defaultOpen={String(budget).trim() !== ''}>
       <div className="generate-count cov-strength__count">

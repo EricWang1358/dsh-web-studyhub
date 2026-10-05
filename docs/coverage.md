@@ -20,8 +20,8 @@ Service actions: `coverage.get { draftId }` (coverage and the round a top-up wou
 
 ## Where it is shown (one wording: `ui/coverage/copy.js`)
 
-- 任务 console › 资料部分: each part says 覆盖 3/8 小节 for its range and a small bar; the strip names the sections of the part with no question and the real reason of each. A finished (or archived) run has 为没覆盖的部分补题 in the header.
-- Draft page: the summary at the top (「覆盖 7/80 个部分（9%）· 3 个计划了没出成 · 70 个没计划到」), one row per recording, the list of what has no question with the way to the reader at that section, and the one top-up.
+- 任务 console › 轮次与批次: each batch (批次) says 覆盖 3/8 小节 for its range and a small bar; the strip names the sections of the batch with no question and the real reason of each. A finished (or archived) run has 为没覆盖的部分补题 in the header.
+- Draft page: the summary at the top (「覆盖 7/80 个小节（9%）· 3 个计划了没出成 · 70 个没计划到」), one row per recording, the list of what has no question with the way to the reader at that section, and the one top-up.
 - 资料 page row and the reader's toolbar: 覆盖 9% beside the mastery mark, before anything is published (drafts count).
 - Reader outline: a square mark per section (solid with a tick · hatched · dashed), a count on every recording, 覆盖 7/80 in the header and 只看没覆盖的; the 做这几页的题 panel says in one line when part of its range has no question. Coverage is *asked*, mastery is *learned*: coverage is a square, mastery a ring, and the words never mix.
 
@@ -68,7 +68,7 @@ A failure that repeating cannot fix (a refused key, a stop) is thrown, not turne
 
 `generate { sourceIds, coverageLevel?: 'lean' | 'standard' | 'full', count? }`: `coverageLevel` plans a new draft by its level (default 标准); `count` (1–500) is a custom total; above 30 it is made in rounds of at most 30. A caller that sends only a `count` of 30 or less is planned exactly as before; a `count` above 30 alone is a custom total at the default strength. The answer carries `plan: { level, goal, sections, rounds, round: 1, questions }`. The whole-selection limit of 600,000 characters stays for a request without a plan (the whole selection is sent in calls of 60,000 characters); a request with a plan is bound per call (a call never sees more than 60,000 characters: only its assigned sections) and by a sanity bound on the whole selection of 3,000,000 characters (`LARGE_DOCUMENT_LIMITS.coverageSelectionChars`), because the work it makes is bounded by the 500-question plan, not by the text. Retrieval narrows a coverage selection only above that bound or when asked for.
 
-`usage.estimate { feature: 'generate', sourceIds, coverageLevel?, count? }` prices the plan from the real prompts of the pipeline (every round, the importance calls, the planner's re-asks at the high end of the calls) and adds `coverage: { level, goal, sections, leaves, units, rounds, firstRound, custom?, capped?, levels }`: the creation form's line 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，预计 2.2M–3.1M tok · 285–896 次模型调用」 is that answer, and the job that starts makes the plan it promised (a test and the browser journey compare the two). The old clamp of the count to 30 in the pricing is gone.
+`usage.estimate { feature: 'generate', sourceIds, coverageLevel?, count? }` prices the plan from the real prompts of the pipeline (every round, the importance calls, the planner's re-asks at the high end of the calls) and adds `coverage: { level, goal, sections, leaves, units, rounds, firstRound, custom?, capped?, levels }`: the creation form's line 「标准：约 343 道题，覆盖 81/81 个小节，分 12 轮，预计 2.2M–3.1M tok · 285–896 次模型调用」 is that answer, and the job that starts makes the plan it promised (a test and the browser journey compare the two). The old clamp of the count to 30 in the pricing is gone.
 
 ## Running the plan: rounds one after another (phase 3b, `lib/coverage-run.js`)
 
@@ -90,9 +90,9 @@ Nothing is kept in a second store:
 | the token budget the learner set is spent | stop: `budget`, at the boundary |
 | the next planned round has sections without a question | run it (a round whose sections were all covered meanwhile is `skipped`) |
 | every planned round is done and sections are still without a question | a **fill round** for them, at most `fillRounds` (2) of them per job; then stop: `sections-left` |
-| a round covered no section that had none, after its own retries | stop: `no-progress`, with the reason of the failure; the run does not ask again and again |
+| a planned round covered no section that had none, after its own retries | the next step is a fill round when the plan has no planned round left (bounded); otherwise stop: `no-progress` (how many sections are left, and the cause as a code); a fill round that gains nothing stops the same way |
 | the learner stopped it (停在这里 = cancel) | stop: `learner`; everything approved is kept, the round in flight is marked `failed` (`cancelled`) |
-| a refused key or no credit | stop: `refused`; a round that failed otherwise and covered nothing is `no-progress`; a first round that left no draft fails the job as it always did |
+| a refused key or no credit | stop: `refused` (typed: `credential` / `quota`), and the job is retryable from its next round; a round that failed otherwise and covered nothing is `no-progress`; a first round that left no draft fails the job as it always did |
 
 Each reason is a plain sentence on the job, in the log and on the draft (`ui/coverage/copy.js stopText`). The bound is the rounds the plan lists plus `fillRounds` fill rounds per job; a manual press is the learner's choice and is not bounded.
 
@@ -121,7 +121,7 @@ With it **off** the run does round 1 and waits: the draft page and the console s
 ### What the screens say (one function: `draftRunFacts` / `runFacts`, one wording set: `ui/coverage/copy.js`)
 
 - The 任务 console header: 「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 2.0M tok、约 25 分钟」. The projection is the rounds done (tokens and time per planned question times the questions still to make); with no round done yet it is the estimator's number, labelled 「预计还要约 …（出题前的估算）」, and nothing is made up when neither exists. Paused: 「暂停于第 2 轮之后」; waiting: 「第 1 轮完成，还有 11 轮」; interrupted: 「中断于第 3 轮 · 接着做会从第 3 轮继续」.
-- The 资料部分 tab lists the **rounds** (state, sections, questions, what each kept and cost; a row opens to its sections); the parts below are those of the round being made. The log has one line per round boundary and one for the reason a run stops.
+- The 轮次与批次 tab lists the **rounds** (state, sections, questions, what each kept and cost; a row opens to its sections); the batches below are those of the round being made. The log has one line per round boundary and one for the reason a run stops.
 - The draft page and the home 待发布 row say the same line; the draft page adds the choice 自动补到完整 and the true reason a run stopped.
 
 ### Tests
@@ -131,3 +131,57 @@ With it **off** the run does round 1 and waits: the draft page and the console s
 ### One language counts (`evidenceChars`)
 
 A bilingual transcript says every part twice (the original, then its translation). A question density, an importance weight and the estimate count the **evidence** only (`lib/sections.js` `evidenceChars`: the original language; the translation block, the labels and the furniture of a recording are not evidence). On the audited merged transcript (81 sections, 572 427 characters of which 419 537 are evidence) 标准 plans about 251 questions where both languages counted 343 (精简 126 instead of 172, 完整 419 instead of 500): about three quarters of the characters are the original, because the Chinese side of the fixture is shorter than the English. The planning and authoring prompts still send the translation block with the original (phase 5: send only the evidence, with the cited windows).
+
+## Honest states: one shortfall, one sentence (the evaluation of 2026-10-06)
+
+A student-side evaluation of the whole chain found screens that disagreed about the same draft (a banner at 100% over 174 of 251 questions, three numbers for one gap, a refused key printed four times in English). The rule now: **one fact, one number, one sentence, on every screen.**
+
+### The shortfall (`lib/shortfall.js`, pure and browser-safe)
+
+`shortfallOf({ draft, coverage, round, job })` is the ONE function the home banner, the 待发布 row, the 任务 console (strip and header) and the draft page read (`ui/coverage/use-shortfall.js` makes it from the draft, `coverage.get` and the jobs). It returns:
+
+| field | meaning |
+| --- | --- |
+| `questionsKept`, `questionsGoal`, `questionsMissing` | what the draft holds, what its plan (else its own request) asked for, the difference; a run that met its plan (stop `complete` / `target`) made what it was asked for |
+| `percent` | questions kept over the goal; **100 only when nothing is missing**; `lib/job-contract.js` uses the same rule for the bar of the console and of the banner |
+| `sectionsTotal`, `sectionsCovered`, `sectionsUncovered`, `sectionsUnderQuota` | the leaf sections, those with a question, those without, and those with fewer questions than the plan gave them |
+| `roundsLeft`, `nextRoundSections`, `nextRoundQuestions`, `sectionsAfterNextRound` | the round the one button runs now and what it leaves |
+| `state` | `running` · `paused` · `stopped` · `refused` · `cancelled` · `interrupted` · `done` |
+| `reason` | `paused` · `interrupted` · `refused` · `learner` · `manual` (自动补到完整 is off) · `budget` · `no-progress` · `sections-left` · `round-failed` · `no-plan` · `questions-short` · `complete` · `target` |
+| `action` | the ONE primary action: `resume` 继续 · `continue` 接着做 · `model-settings` 去配置模型 · `topup` 为没覆盖的部分补题 · none |
+| `repeating` | the sections that failed again and again (below) |
+
+The words are `ui/coverage/copy.js` (`shortfallLine`, `nextRoundText`, `shortfallWhy`, `shortfallTag`, `actionLabel`): 「已出 174/251 题 · 还有 2 个小节没有题」, 「下一轮补 15 个小节，还剩 3 个」 (the next round covering 15 of 18 is one fact stated once, not a second number). The old competing sentences (「少了 N 题」, 「这一轮补 N 个部分，约 M 题」, 「草稿待补齐 · 10/20 题」 beside the same numbers) are gone.
+
+### One primary action per state
+
+| state | banner and row |
+| --- | --- |
+| interrupted (restart, or the host closed under the run) | 接着做 |
+| paused | 继续 |
+| stopped or cancelled with sections left | 为没覆盖的部分补题 (one round; with 自动补到完整 off the page says 「精简：先出第 1 轮，覆盖 12%；点「自动补到完整」继续」, and the toggle is one click away on the draft page) |
+| refused (the key was refused, or no credit) | 去配置模型; the console header has it too, with 接着做 beside it once the key works |
+| done | none |
+
+The badge on the row says what is true: 「已复审，待发布」 only when nothing is missing; otherwise 「已复审 · 少了 N 题」, 「已停止 · …」, 「模型拒绝」, 「已中断」. An interrupted job is titled 「「Deck」已中断」, never 「正在补齐」; a console record that is not the run that wrote the draft's marker keeps its own numbers and offers no action of the draft.
+
+### A refused key is one plain sentence
+
+The failure is typed (`stop.code`, `round.code`: `lib/generation-failure.js`, `credential` / `quota`) and every screen says it in its own words: 「模型服务拒绝了请求（密钥无效或没有权限）」 (the same sentence `describeFailure` gives the job row), once, never the provider's English per part. The draft keeps what passed; the failed job stays retryable (`接着做` continues at the next round; a continuation replaces the refused record on the list).
+
+### The stop rules, bounded
+
+- A **planned** round that covers nothing no longer ends the run while a bounded fill round can still write the sections that did not come out again (the last planned round with sections left, say): the run is `no-progress` only when the round that gained nothing is followed by another planned round, or is itself a fill round. Every loop stays bounded (`FILL_ROUNDS`).
+- The stop says how many sections are left and what to do: 「第 9 轮重试后仍没有补到新的小节，为免一直重复，已经停下；还有 18 个小节没有题，可以点「为没覆盖的部分补题」再试。」
+- `plan-short` blames the model, not the section: 「模型给出的考点不够数」.
+- A section a round was asked for that still has no question has failed one more time: `editorial.coverageSpec.attempts = { [section key]: { n, reason, round } }`. From `REPEAT_LIMIT` (2: its planned round and one fill round) an automatic fill round no longer writes it again (a permanently failing review, say, would otherwise cost the same tokens every time); it is listed under 「这几个小节反复失败」 with its reason on the draft page and the console, and the default top-up round puts such sections last. A manual press may still try it.
+
+### Words: 小节 and 批次
+
+「小节」 is the coverage unit everywhere the learner sees it (a transcript part, a heading: 小节; a PDF page is 页, a chapter 章节); a generation **batch** is 「批次」 (「第 3 批」, 「共 9 个批次」, the console tab 「轮次与批次」); the material's own headings (「第六部分：…」) are left alone. English: sections / batches. The button keeps its name 「为没覆盖的部分补题」.
+
+### Checks
+
+`tests/shortfall.test.mjs` (the pure function), `tests/honest-rounds-core.test.mjs` (attempts, the fill rule, the pool order, the progress rule), `tests/honest-run-exec.test.mjs` (the executor with a fake model that refuses, flags and fails on purpose), `tests/honest-ui.test.mjs` (every surface, zh and en, no 100% for a short draft), `tests/honest-practice-feedback.test.mjs`; the browser journey `npm run qa:honest-states [-- --scenario flag|refuse|restart|manual|practise --lang zh|en --theme dark|light --width 1280|420 --accent jade]` reads the same facts off the page and compares them with the snapshot.
+
+Related: the line under a practice answer follows the mastery level (`lib/mastery.js cardLevel`, put on the answer's feedback as `level`): one correct answer is 「答对了 · 下次复习 …」, and only a question that really is 已掌握 is called that.

@@ -31,13 +31,12 @@ import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
 import { ReadingBackButton, ReadingResult, WrongAnswerSource } from "./document-preview/practice/ReadingReturn.jsx";
-import { formatDateTime } from './format.js';
+import { NextDue } from './NextDue.jsx';
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
    状态由 useReviewSession 持有（ui/review/useReviewSession.js），本组件
    只负责渲染，交互经 session.actions 转发；服务（call、act、host、导航）来自 useStudy()。 */
-const date = (v) => (v ? formatDateTime(v, "stamp") : ui("现在"));
 const CALCULATION_STAGE_LABELS = {
   conditions: "已知条件与未知量", formula: "公式与适用理由", substitution: "代入与单位",
   computation: "中间计算", verification: "结果检查与舍入",
@@ -255,7 +254,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="result-hero sh-paper-card sh-paper-card--roomy">
             <div className="result-headline">
               <strong>{run.correct}</strong>
-              <span>{uiFormat("道题已掌握 / {0} 道", [run.questions ?? run.total])}</span>
+              <span>{uiFormat("道题答对 / {0} 道", [run.questions ?? run.total])}</span>
               {run.retries > 0 && <small>{uiFormat("另有 {0} 次队尾重练", [run.retries])}</small>}
             </div>
             <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
@@ -716,12 +715,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 <Markdown text={run.card.hint} />
               </div>
             )}
-            {run.feedback && (
-              <p className={"next-due" + (run.feedback.correct ? "" : " retry")}>
-                {uiFormat("{0} · 下次复习 {1}", [run.feedback.correct ? ui("✓ 已掌握") : ui("↻ 将继续巩固"), date(run.feedback.nextDue)])}
-                {run.feedback.retryQueued && <span>{" · "}{ui("已追加到本轮队尾，稍后再练一次")}</span>}
-              </p>
-            )}
+            {run.feedback && <NextDue feedback={run.feedback} />}
             <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />
             {run.solution && (explain || !!run.feedback) && (
               <ReadingBlock measure className="explanation">

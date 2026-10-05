@@ -29,7 +29,7 @@
   "出的题都没通过质量审阅": "None of the questions passed the quality review",
   "主要原因：{0}。{1}": "Main reasons: {0}. {1}",
   "具体原因见技术详情。{0}": "See the technical details for the exact reasons. {0}",
-  "打开草稿用「继续补齐」再补一轮；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。": "Open the draft and use “Continue generation” for another round, or adjust the question type, difficulty and focus under Settings › Question defaults.",
+  "打开草稿点「为没覆盖的部分补题」再补一轮；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。": "Open the draft and press “Add questions for the uncovered parts” for another round, or adjust the question type, difficulty and focus under Settings › Question defaults.",
   "点「按原资料重新设置」再试一次；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。": "Use “Set up again from original sources” to try once more, or adjust the question type, difficulty and focus under Settings › Question defaults.",
   "{0} · {1}（必须修）": "{0} · {1} (must fix)",
   "审阅建议（已记录，不影响通过）· {0}": "Review suggestions (recorded, they do not reject a question) · {0}",

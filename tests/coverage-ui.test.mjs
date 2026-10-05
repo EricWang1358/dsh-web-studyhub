@@ -57,19 +57,19 @@ test('the coverage under every screen is the checklist', () => {
 
 test('the words of coverage, once: the line, the chip, the header, the states, in every unit and both languages', () => {
   const line = c => m.coverageLine(c);
-  assert.equal(line(cov), '覆盖 3/12 个部分（25%） · 2 个计划了没出成 · 7 个没计划到');
+  assert.equal(line(cov), '覆盖 3/12 个小节（25%） · 2 个计划了没出成 · 7 个没计划到');
   assert.equal(m.coverageChipText(cov), '覆盖 25%');
   assert.equal(m.coverageOutlineHead(cov), '覆盖 3/12');
-  assert.equal(line({ ...cov, plannedFailed: 0, neverPlanned: 9, recorded: false }), '覆盖 3/12 个部分（25%） · 9 个没有记录', 'an old draft says it has no record, not "never planned"');
+  assert.equal(line({ ...cov, plannedFailed: 0, neverPlanned: 9, recorded: false }), '覆盖 3/12 个小节（25%） · 9 个没有记录', 'an old draft says it has no record, not "never planned"');
   assert.equal(line({ covered: 80, leaves: 80, units: 'page', percentLeaves: 100, plannedFailed: 0, neverPlanned: 0, recorded: true }), '覆盖 80/80 页（100%）');
-  const units = { part: '1 个部分', page: '1 页', chapter: '1 个章节', heading: '1 个小节', window: '1 个片段', section: '1 个小节' };
+  const units = { part: '1 个小节', page: '1 页', chapter: '1 个章节', heading: '1 个小节', window: '1 个片段', section: '1 个小节' };
   for (const [unit, one] of Object.entries(units)) assert.equal(m.countOf(unit, 1), one, unit);
-  assert.equal(m.countOf('part', 81), '81 个部分');
+  assert.equal(m.countOf('part', 81), '81 个小节', '「小节」 is the coverage unit of a transcript too: a generation batch is a 批次');
   inLanguage('en', () => {
-    assert.equal(line(cov), 'Covered 3/12 parts (25%) · 2 planned but not produced · 7 never planned');
+    assert.equal(line(cov), 'Covered 3/12 sections (25%) · 2 planned but not produced · 7 never planned');
     assert.equal(m.coverageChipText(cov), 'Covered 25%');
-    assert.equal(line({ ...cov, plannedFailed: 0, neverPlanned: 9, recorded: false }), 'Covered 3/12 parts (25%) · 9 with no plan on record');
-    assert.equal(m.countOf('part', 1), '1 part');
+    assert.equal(line({ ...cov, plannedFailed: 0, neverPlanned: 9, recorded: false }), 'Covered 3/12 sections (25%) · 9 with no plan on record');
+    assert.equal(m.countOf('part', 1), '1 section');
     assert.equal(m.countOf('page', 1), '1 page');
     assert.equal(m.countOf('page', 5), '5 pages');
     assert.equal(m.countOf('heading', 2), '2 sections');
@@ -138,27 +138,27 @@ const summaryHtml = (v, language = 'zh', props) => inLanguage(language, () => re
 
 test('the draft page summary: the line, one bar, one row per recording, and every uncovered section with its state', () => {
   const out = summaryHtml(view);
-  assert.match(out, /data-coverage-line[^>]*>覆盖 3\/12 个部分（25%） · 2 个计划了没出成 · 7 个没计划到</);
-  assert.match(out, /role="img"[^>]*aria-label="覆盖 3\/12 个部分（25%）/);
+  assert.match(out, /data-coverage-line[^>]*>覆盖 3\/12 个小节（25%） · 2 个计划了没出成 · 7 个没计划到</);
+  assert.match(out, /role="img"[^>]*aria-label="覆盖 3\/12 个小节（25%）/);
   const rows = [...out.matchAll(/data-group="(r\d)"[\s\S]*?cov-groups__count">(\d+\/\d+)</g)].map(match => [match[1], match[2]]);
   assert.deepEqual(rows, [['r1', '2/4'], ['r2', '1/4'], ['r3', '0/4']], 'one row per recording, with the same numbers as the checklist');
   assert.equal((out.match(/data-section="[^"]*"/g) || []).length, FAILED.length + NEVER.length, 'nothing is left out of the list of what has no question');
   assert.equal((out.match(/data-state="planned-failed"/g) || []).length, 2 * 2 /* the list row and its mark */, 'planned-failed rows');
   assert.equal((out.match(/data-section-open=/g) || []).length, 9, 'every one has the way to the reader');
-  assert.match(text(out), /没覆盖的部分 · 9/);
+  assert.match(text(out), /没覆盖的小节 · 9/);
   assert.match(text(out), /计划了没出成：审阅回复格式不对，重新审阅后仍不行/, 'the real reason');
   assert.equal((out.match(/data-coverage-mark="covered"/g) || []).length, 0, 'covered sections are not in the list of what is missing');
   const english = inLanguage('en', () => text(withoutData(summaryHtml(view, 'en'))));
   assert.doesNotMatch(english, han);
-  assert.match(english, /Covered 3\/12 parts \(25%\) · 2 planned but not produced · 7 never planned/);
-  assert.match(english, /Uncovered parts · 9/);
+  assert.match(english, /Covered 3\/12 sections \(25%\) · 2 planned but not produced · 7 never planned/);
+  assert.match(english, /Uncovered sections · 9/);
   assert.match(english, /Planned, not produced: The review reply stayed malformed after being reviewed again/);
 });
 
 test('the summary of a draft from before plans were kept says 没有记录, and names no reason it cannot know', () => {
   const old = draftView({ covered: COVERED, recorded: false });
   const out = text(summaryHtml(old));
-  assert.match(out, /覆盖 3\/12 个部分（25%） · 9 个没有记录/);
+  assert.match(out, /覆盖 3\/12 个小节（25%） · 9 个没有记录/);
   assert.doesNotMatch(out, /没计划到|计划了没出成/);
   assert.match(out, /这份草稿生成时没有保存计划/);
   const english = inLanguage('en', () => text(withoutData(summaryHtml(old, 'en'))));
@@ -168,8 +168,8 @@ test('the summary of a draft from before plans were kept says 没有记录, and 
 test('a single recording or a book needs no per-recording rows; a material with nothing covered still shows the whole gap', () => {
   const none = draftView({ covered: [], failed: [] });
   const out = text(summaryHtml(none));
-  assert.match(out, /覆盖 0\/12 个部分（0%） · 12 个没计划到/);
-  assert.match(out, /没覆盖的部分 · 12/);
+  assert.match(out, /覆盖 0\/12 个小节（0%） · 12 个没计划到/);
+  assert.match(out, /没覆盖的小节 · 12/);
 });
 
 test('the one top-up: what it covers this round, which part it writes again, the estimate, and the single button', () => {
@@ -177,7 +177,9 @@ test('the one top-up: what it covers this round, which part it writes again, the
   const html = (v, props = {}, language = 'zh') => inLanguage(language, () => renderToStaticMarkup(inApp(m, React.createElement(m.CoverageTopUp, { draft: { id: 'd1', title: 'T', draftVersion: 3, cards: [] }, view: v, onTopUp: noop, ...props }), { data: {}, call: async () => ({}) })));
   const out = html(view);
   assert.equal((out.match(/data-coverage-start/g) || []).length, 1, 'one button');
-  assert.match(text(out), /这一轮补 9 个部分，约 9 题。 其中 2 个计划了没出成，按原来的考点重写，不重新规划。 另外 7 个从原文重新规划考点。/);
+  // ONE sentence for the next round, the same on every screen (lib/shortfall.js): what it covers; with nothing left after it, nothing is promised beyond it. The old three sentences ("这一轮补…约 N 题", "其中…", "另外…") are gone.
+  assert.match(text(out), /下一轮补 9 个小节/);
+  assert.doesNotMatch(text(out), /还剩|这一轮补|按原来的考点重写/);
   assert.doesNotMatch(out, /data-coverage-more/, 'it fits in one round: nothing is promised beyond it');
   assert.match(text(out), /为没覆盖的部分补题/);
   assert.match(out, /data-token-estimate/);
@@ -187,7 +189,7 @@ test('the one top-up: what it covers this round, which part it writes again, the
   assert.equal(html({ ...view, canTopUp: false }), '', 'a draft the backend says cannot be topped up has no button');
   assert.equal(html(null), '');
   const english = text(html(view, {}, 'en'));
-  assert.match(english, /This round covers 9 parts, about 9 questions\. 2 of them were planned and did not come out: they are written again from the same knowledge points, not planned again\. The other 7 get their knowledge points planned from the text\./);
+  assert.match(english, /The next round covers 9 sections/);
   assert.doesNotMatch(english, han);
   assert.match(english, /Add questions for the uncovered parts/);
 });
@@ -195,10 +197,10 @@ test('the one top-up: what it covers this round, which part it writes again, the
 test('the one top-up says honestly when more rounds are needed, and when nothing is left to cover', () => {
   const bigRound = { ...view, round: { ...view.round, sections: 30, questions: 30, fresh: 30, reused: 0, plannedFailed: 0, neverPlanned: 30, left: 50, rounds: 3, limit: 30, complete: false } };
   const out = text(renderToStaticMarkup(inApp(m, React.createElement(m.CoverageTopUp, { draft: { id: 'd1', title: 'T', draftVersion: 3, cards: [] }, view: bigRound, onTopUp: noop }), { data: {} })));
-  assert.match(out, /这一轮补 30 个部分，约 30 题。 30 个从原文规划考点。/);
-  assert.match(out, /还有 50 个部分一轮补不完（一轮最多 30 题），这一轮完成后再补一次，约还要 2 轮。/);
+  assert.match(out, /下一轮补 30 个小节，还剩 50 个/, 'what the round covers and what it leaves: one sentence');
+  assert.doesNotMatch(out, /一轮补不完|约还要/);
   const done = text(renderToStaticMarkup(inApp(m, React.createElement(m.CoverageTopUp, { draft: { id: 'd1', title: 'T', draftVersion: 3, cards: [] }, view: draftView({ covered: small.ids }), onTopUp: noop }), { data: {} })));
-  assert.match(done, /每个部分都有题了。/);
+  assert.match(done, /每个小节都有题了。/);
   assert.doesNotMatch(done, /为没覆盖的部分补题/);
 });
 
@@ -325,8 +327,8 @@ test('student-side: before practising, every screen tells the same story about t
   const homeData = { jobs: [], drafts: [{ id: 'd1', title: 'T', draftVersion: 3, cards: [{ id: 'c1' }], editorial: { requested: 10, generated: 1, completedParts: 1, parts: 1, failures: [], generation: { sourceIds: [small.sources[0].id], kind: 'quiz' } } }], decks: [], sources: [] };
   m.forgetCoverage(); seedView(m, view);
   const home = text(renderToStaticMarkup(React.createElement(m.HomeActivity, { jobs: [], drafts: homeData.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop, start: noop, topUpDraft: noop, modelReady: true, data: homeData })));
-  assert.match(home, /覆盖 3\/12 个部分（25%）/, 'the home 待发布 row');
-  assert.match(page, /覆盖 3\/12 个部分（25%）/, 'the draft page');
+  assert.match(home, /覆盖 3\/12 个小节（25%）/, 'the home 待发布 row');
+  assert.match(page, /覆盖 3\/12 个小节（25%）/, 'the draft page');
   assert.match(row, /覆盖 25%/, 'the 资料 row: the same percentage');
   const { sections, outline, own } = entriesOf(), oc = outlineCoverage(outline, cov, { sourceId: own.id, sections });
   assert.match(text(renderToStaticMarkup(React.createElement(m.OutlinePanel, { items: outline, activeId: 'r1.p1', onJump: noop, coverage: oc, coverageTotals: cov }))), /覆盖 3\/12/, 'the reader outline');
@@ -338,11 +340,11 @@ test('student-side: before practising, every screen tells the same story about t
 });
 
 test('the list of what has no question and "everything is covered" speak in the unit of the material (pages, chapters, sections, segments)', () => {
-  assert.deepEqual(['part', 'page', 'chapter', 'heading', 'window', 'section'].map(unit => m.uncoveredHead(unit, 4)), ['没覆盖的部分 · 4', '没覆盖的页 · 4', '没覆盖的章节 · 4', '没覆盖的小节 · 4', '没覆盖的片段 · 4', '没覆盖的小节 · 4']);
-  assert.deepEqual(['part', 'page', 'chapter', 'heading', 'window', 'section'].map(unit => m.allCoveredText(unit)), ['每个部分都有题了。', '每一页都有题了。', '每个章节都有题了。', '每个小节都有题了。', '每个片段都有题了。', '每个小节都有题了。']);
+  assert.deepEqual(['part', 'page', 'chapter', 'heading', 'window', 'section'].map(unit => m.uncoveredHead(unit, 4)), ['没覆盖的小节 · 4', '没覆盖的页 · 4', '没覆盖的章节 · 4', '没覆盖的小节 · 4', '没覆盖的片段 · 4', '没覆盖的小节 · 4']);
+  assert.deepEqual(['part', 'page', 'chapter', 'heading', 'window', 'section'].map(unit => m.allCoveredText(unit)), ['每个小节都有题了。', '每一页都有题了。', '每个章节都有题了。', '每个小节都有题了。', '每个片段都有题了。', '每个小节都有题了。']);
   inLanguage('en', () => {
-    assert.deepEqual(['part', 'page', 'chapter', 'heading', 'window'].map(unit => m.uncoveredHead(unit, 4)), ['Uncovered parts · 4', 'Uncovered pages · 4', 'Uncovered chapters · 4', 'Uncovered sections · 4', 'Uncovered segments · 4']);
-    assert.deepEqual(['part', 'page', 'window'].map(unit => m.allCoveredText(unit)), ['Every part has questions.', 'Every page has questions.', 'Every segment has questions.']);
+    assert.deepEqual(['part', 'page', 'chapter', 'heading', 'window'].map(unit => m.uncoveredHead(unit, 4)), ['Uncovered sections · 4', 'Uncovered pages · 4', 'Uncovered chapters · 4', 'Uncovered sections · 4', 'Uncovered segments · 4']);
+    assert.deepEqual(['part', 'page', 'window'].map(unit => m.allCoveredText(unit)), ['Every section has questions.', 'Every page has questions.', 'Every segment has questions.']);
   });
   assert.equal(m.uncoveredHead('unknown', 2), '没覆盖的小节 · 2', 'an unknown unit is called sections');
 });

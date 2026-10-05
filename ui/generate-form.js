@@ -27,9 +27,9 @@ export { DEFAULT_LEVEL, levelLabel };
 export function levelNote(value) {
   const level = levelOf(value), config = STRENGTH[level];
   return ({
-    lean: uiFormat('精简：只给最重要的部分出题（合计约占内容的六成，每段录音至少一处），每万字约 {0} 题，适合考前过一遍。', [config.perTenK]),
-    standard: uiFormat('标准：每个不少于 {0} 字的部分都出题，更长、更重要的部分题更多，每万字约 {1} 题。', [config.minChars, config.perTenK]),
-    full: uiFormat('完整：每个部分都出题，再短的也不漏，每万字约 {0} 题，适合要考得很细的资料。', [config.perTenK]),
+    lean: uiFormat('精简：只给最重要的小节出题（合计约占内容的六成，每段录音至少一处），每万字约 {0} 题，适合考前过一遍；默认只出第 1 轮，覆盖的小节不多是设计如此，要继续就勾选「自动补到完整」。', [config.perTenK]),
+    standard: uiFormat('标准：每个不少于 {0} 字的小节都出题，更长、更重要的小节题更多，每万字约 {1} 题。', [config.minChars, config.perTenK]),
+    full: uiFormat('完整：每个小节都出题，再短的也不漏，每万字约 {0} 题，适合要考得很细的资料。', [config.perTenK]),
   })[level];
 }
 
@@ -126,7 +126,7 @@ export const budgetNote = (text) => (String(text ?? '').trim() && !parseTokenBud
   ? ui('没看懂这个数：请写成 800K、2.5M 或 1200000（至少 1000）。')
   : ui('一轮结束后，累计用量到了这个数就停下，已出的题都保留。不填就不设上限。'));
 
-/** What a coverage estimate (`usage.estimate`'s `coverage`) says, as the first words of the line under the choice: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，」 (the estimate's tokens and calls follow). */
+/** What a coverage estimate (`usage.estimate`'s `coverage`) says, as the first words of the line under the choice: 「标准：约 343 道题，覆盖 81/81 个小节，分 12 轮，」 (the estimate's tokens and calls follow). */
 export function coverageLead(coverage) {
   if (!coverage?.goal) return '';
   const rounds = coverage.rounds > 1 ? uiFormat('分 {0} 轮', [coverage.rounds]) : ui('一轮出完');

@@ -118,13 +118,15 @@ test("the draft button says what is really happening to the draft", () => {
 test("a finished partial job card follows the draft instead of freezing at its own count", () => {
   const draft = legacyDraft();
   const job = { id: "a", status: "complete", stageCode: "partial", draftId: "dr", savedCount: 10, requestedTotal: 20 };
-  assert.match(m.jobHeadline(job, [draft]), /草稿待补齐 · 10\/20 题/);
-  assert.match(m.jobStageLabel(job, [draft], [job]), /少了 10 题/);
+  // The title says it is not complete; what the draft holds is said once, in the line under it (the shortfall: ui/coverage/copy.js), the same sentence on the 待发布 row.
+  assert.match(m.jobHeadline(job, [draft]), /草稿待补齐$/);
+  assert.doesNotMatch(m.jobHeadline(job, [draft]), /10\/20/);
+  assert.match(m.jobStageLabel(job, [draft], [job]), /已出 10\/20 题/);
   const grown = { ...draft, cards: [...draft.cards, ...Array.from({ length: 9 }, (_, i) => ({ id: `n${i}` }))] };
-  assert.match(m.jobHeadline(job, [grown]), /草稿待补齐 · 19\/20 题/, "the topped-up draft has 19, the old card must not say 10");
+  assert.match(m.jobStageLabel(job, [grown], [job]), /已出 19\/20 题/, "the topped-up draft has 19, the old card must not say 10");
   const full = { ...draft, cards: Array.from({ length: 20 }, (_, i) => ({ id: `n${i}` })) };
   assert.match(m.jobHeadline(job, [full]), /草稿已生成/);
-  assert.doesNotMatch(m.jobStageLabel(job, [full], [job]), /少了/);
+  assert.doesNotMatch(m.jobStageLabel(job, [full], [job]), /已出|少了/);
   const running = { id: "b", status: "running", draftId: "dr", continued: true };
   const label = m.jobStageLabel(job, [draft], [job, running]);
   assert.doesNotMatch(label, /可以打开草稿补齐/, "no advice to start what is already running");
@@ -145,8 +147,9 @@ test("home: a short draft says how much of its material has questions and offers
   const html = home({ drafts: [legacyDraft()], jobs: [partialJob] });
   assert.equal((html.match(/为没覆盖的部分补题/g) || []).length, 1, "the draft row offers its one top-up action once");
   const facts = /<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1];
-  assert.doesNotMatch(facts, /还差/, "not 'N short': what the draft lacks is sections");
-  assert.match(facts, /覆盖 1\/12 个部分（8%）/, "the coverage is the draft's fact");
+  assert.doesNotMatch(facts, /还差|少了/, "not 'N short': the draft says what it holds of what it was asked for, and which sections have no question");
+  assert.match(facts, /已出 10\/20 题 · 还有 11 个小节没有题/, "the shortfall: the same sentence as the banner above");
+  assert.match(facts, /覆盖 1\/12 个小节（8%）/, "the coverage is the draft's fact");
   assert.doesNotMatch(html, /继续补齐/);
   assert.doesNotMatch(html, /answerLeak|Assessment plan/, "no raw backend prose on the card");
   assert.doesNotMatch(html, /<details/, "the card folds nothing: the reasons and the process are in the 任务 console and on the draft page");
@@ -173,7 +176,8 @@ test("home: English renders without Chinese", () => {
   const visible = html.replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(visible, han, (visible.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);
   assert.match(visible, /Add questions for the uncovered parts/);
-  assert.match(visible, /Covered 1\/12 parts \(8%\)/);
+  assert.match(visible, /Covered 1\/12 sections \(8%\)/);
+  assert.match(visible, /Made 10\/20 questions · 11 sections still without a question/);
 });
 
 test("home: an active top-up exposes saved progress and stop; its execution and usage are in the console", () => {

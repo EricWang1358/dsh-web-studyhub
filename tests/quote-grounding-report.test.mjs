@@ -32,8 +32,8 @@ test("the reasons of a part are read from what the pipeline left, and counted pe
     { error: "fetch failed" }, undefined] });
   assert.deepEqual([report.total, report.passed, report.partial, report.failed, report.pending], [5, 1, 1, 3, 1]);
   assert.deepEqual(report.reasons, { quote: 3, quality: 1, other: 1 });
-  assert.match(describePartReport(report, "zh"), /共 5 个部分：1 个全部通过，1 个只保留了部分题，3 个没有出题。原因：3 个部分的引用在资料里找不到；1 个部分的题没有通过质量审阅；1 个部分因其他原因没有完成。/);
-  assert.match(describePartReport(report, "en"), /5 parts: 1 passed fully, 1 kept only some questions, 3 produced none\. Why: 3 part\(s\) quoted text that could not be found in the pages/);
+  assert.match(describePartReport(report, "zh"), /共 5 个批次：1 个全部通过，1 个只保留了部分题，3 个没有出题。原因：3 个批次的引用在资料里找不到；1 个批次的题没有通过质量审阅；1 个批次因其他原因没有完成。/);
+  assert.match(describePartReport(report, "en"), /5 batches: 1 passed fully, 1 kept only some questions, 3 produced none\. Why: 3 batch\(es\) quoted text that could not be found in the pages/);
   assert.doesNotMatch(describePartReport(report, "en"), /[㐀-鿿]/);
 });
 
@@ -113,10 +113,10 @@ test("a quote failure is told in plain words, with the way forward, not as a fai
   assert.doesNotMatch(`${english.title} ${english.hint}`, han);
 });
 
-test("the draft reads how many parts passed or failed and why: '5 个部分的引用在资料里找不到'", () => {
+test("the draft reads how many batches passed or failed and why: '5 个批次的引用在资料里找不到'", () => {
   const found = m.shortfall(shortDraft());
-  assert.match(found.report.lead, /共 6 个部分：1 个全部通过，0 个只保留了部分题，5 个没有出题。/);
-  assert.deepEqual(found.report.reasons, ["5 个部分的引用在资料里找不到"]);
+  assert.match(found.report.lead, /共 6 个批次：1 个全部通过，0 个只保留了部分题，5 个没有出题。/);
+  assert.deepEqual(found.report.reasons, ["5 个批次的引用在资料里找不到"]);
   assert.match(found.report.repaired, /2 道题/);
   assert.equal(m.shortfall({ ...shortDraft(), editorial: { ...shortDraft().editorial, partReport: undefined } }).report, null, "an older draft has no report and shows none");
   assert.equal(m.shortfall({ ...shortDraft(), editorial: { ...shortDraft().editorial, partReport: { ...partReport, passed: 6, failed: 0, reasons: {} } } }).report, null);
@@ -133,12 +133,12 @@ test("the job card of a partly failed generation says why in the learner's langu
   map.forgetCoverage();
   seedView(map, draftView({ draftId: "dr", draftVersion: 2, covered: ["r1.p1"], failed: ["r1.p2"] }));
   const html = home({ drafts: [shortDraft()], jobs: [job] });
-  assert.match(html, /5 个部分的引用在资料里找不到/);
+  assert.match(html, /5 个批次的引用在资料里找不到/);
   assert.equal((html.match(/为没覆盖的部分补题/g) || []).length, 1, "the retry of what is missing is offered once, as the one top-up");
   assert.doesNotMatch(html, /继续补齐/);
   const english = inLanguage("en", () => home({ drafts: [{ ...shortDraft(), title: "Architecting" }], jobs: [{ ...job, deckTitle: "Architecting" }] })).replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(english, han, (english.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);
-  assert.match(english, /5 part\(s\) quoted text that could not be found in the sources/);
+  assert.match(english, /5 batch\(es\) quoted text that could not be found in the sources/);
   assert.match(english, /Add questions for the uncovered parts/);
   assert.doesNotMatch(english, /Continue generation for/);
 });
@@ -150,9 +150,9 @@ test("the notice the chat agent receives says why parts failed and offers the to
     partReport: { total: 6, passed: 1, partial: 0, failed: 5, reasons: { quote: 5 } } };
   notify({ ...job, partReport: { ...job.partReport, summary: describePartReport(job.partReport, "zh") } });
   notify({ ...job, language: "en", partReport: { ...job.partReport, summary: describePartReport(job.partReport, "en") } });
-  assert.match(sent[0].text, /5 个部分的引用在资料里找不到/);
-  assert.match(sent[0].text, /继续补齐.*resumeDraftId dr/);
-  assert.match(sent[1].text, /5 part\(s\) quoted text that could not be found/);
+  assert.match(sent[0].text, /5 个批次的引用在资料里找不到/);
+  assert.match(sent[0].text, /为没覆盖的部分补题.*resumeDraftId dr/);
+  assert.match(sent[1].text, /5 batch\(es\) quoted text that could not be found/);
   assert.match(sent[1].text, /generate with resumeDraftId dr/);
   assert.match(sent[1].text, /instead of asking them to select fewer pages/);
   notify({ ...job, savedCount: 25 });

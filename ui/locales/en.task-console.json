@@ -146,14 +146,14 @@
   "还没有开始": "Not started",
   "跳过这个文件继续": "Skip this file and continue",
   "选一个文件，在这里看它每一步的进度。": "Pick a file to see its progress step by step.",
-  "资料部分": "Source parts",
+  "轮次与批次": "Rounds and batches",
   "全部通过": "All passed",
   "只保留了部分": "Only some kept",
   "没有出题": "Nothing written",
   "要 {0} 题，保留 {1} 题": "asked {0}, kept {1}",
-  "选一个部分，在这里看它做了什么。": "Pick a part to see what it did.",
+  "选一个批次，在这里看它做了什么。": "Pick a batch to see what it did.",
   "在资料中查看": "View in materials",
-  "在资料中查看第 {0} 部分": "View part {0} in materials",
+  "在资料中查看第 {0} 批": "View batch {0} in materials",
   "共 {0} 份资料，先打开第一份": "{0} sources, the first one opens",
   "这些资料已被删除，无法查看。": "These sources have been deleted, so they cannot be opened.",
   "这次运行没有记录用到的资料。": "This run did not record which sources it used.",
@@ -250,5 +250,6 @@
   "还没有归档的任务。已结束的任务点「知道了」或选中后点「归档」，会放在这里。": "Nothing archived yet. Finished jobs you mark Got it, or select and Archive, are kept here.",
   "已归档的任务不再保留模型输出。": "Archived jobs no longer keep model output.",
   "已放进「已归档」，可以在「任务」里取消归档或删除。": "Moved to Archived. Find it under Jobs, where you can unarchive or delete it.",
-  "删除这一天的记录；为你定制只保留最近 14 天。": "Removes this day's record; Personalised keeps only the last 14 days."
+  "删除这一天的记录；为你定制只保留最近 14 天。": "Removes this day's record; Personalised keeps only the last 14 days.",
+  "第 {0} 批": "Batch {0}"
 }
