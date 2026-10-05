@@ -2,6 +2,20 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.5.16 — 2026-10-05
+
+- **One-click Marker install.** Marker can be installed from Settings: StudyHub first shows the plan (location, download size and free space needed, Python version, and the package mirror — Tsinghua by default in mainland China), lets you choose a custom location, and keeps progress, cancel and uninstall in one place. When it finishes, StudyHub configures it — no path to type.
+- **A friendlier, clearer daily recap.** In the friendly tone the recap reads like a study partner who knows you: what you covered today, where you improved, where you are still stuck, then one or two concrete things for tomorrow. Internal rules and jargon no longer leak into the text.
+- **Big numbers are back.** The streak and rates on Statistics, today's count on the home card and the result headline are display-sized again instead of body-sized.
+- **Plain background-assistant failures.** A rejected key (403) or a retired model says so and offers only Open model settings instead of asking you to resubmit; rate limits and timeouts can still be resubmitted, and Edit and resubmit appears only for content problems.
+- **Review fixes.** Opening a question from the inbox no longer enters an old, fully answered round (Next no longer keeps showing the answer side); the More menu opens next to its button, also at 150% interface size; "Preparing the current step…" offers to keep answering and to cancel after 20 seconds, and failures show in place with a retry.
+- **Full text in the inbox.** The full-text card is no longer cut off, only one shows at a time, and it sits beside the inbox instead of over the list.
+- **Daily plan.** When time is almost used up, the plan no longer offers an empty "0 actions" plan to accept; it says why and offers Study a little more or Done for today. Log actual time is one compact row with a minutes unit and shows what was logged after saving.
+- **Material lists.** Page and chapter lists are full-width single-line rows again; on narrow screens a chapter title gets its own line with the size and mastery below.
+- **A more consistent interface.** One icon set; confirmations, banners, error states, progress bars, loading messages and labels share one set of components, and errors, warnings and notes no longer share one yellow style. Retrieval and MinerU status is shared across pages and updates without a reload after installing or removing; spacing follows the design scale, so a few things move by about a pixel.
+- **Quieter in the background, consistent formats.** Every timed refresh pauses while the page is hidden; dates, times, numbers and file sizes share one format (day headings use the locale's own form), and neither language shows sentences stitched from fragments any more. Unsaved flow-editor drafts kept by an older version are not restored.
+- **Release packages.** Download links and bilingual setup guides now point to 2.5.16. The release includes the complete plugin, six capability plugins, retrieval extension, two setup guides and SHA-256 checksums.
+
 ## 2.5.15 — 2026-10-05
 
 2.5.14 was withdrawn after a few problems were found in use. This release contains everything in 2.5.14 and fixes them.
