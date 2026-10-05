@@ -58,22 +58,31 @@
     .tc-filterbar { display: flex; align-items: center; flex: none; height: 36px; padding: 0 var(--space-3); overflow: hidden; border-bottom: 1px solid var(--line); }
     .tc-filters { display: flex; flex: none; }
     .tc-filter { --control-h-sm: 24px; padding-inline: var(--space-3); font-size: var(--fs-xs); }
-    .tc-pickbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex: none; height: 36px; padding: 0 var(--space-3) 0 var(--space-4); overflow: hidden; border-bottom: 1px solid var(--line); }
-    .tc-pickbar[data-active='true'] { background: var(--bg-selected); }
-    .tc-pickbar__tip { min-width: 0; }
-    .tc-pickbar__box { display: block; min-width: 0; }
-    .tc-pickbar__all { align-items: center; font-size: var(--fs-xs); white-space: nowrap; }
+    /* The bar of the selection: nothing in it clips (it has no overflow rule, so a focus ring and the tooltip of the box are never cut); the count gives way, the buttons do not.
+       With a selection it is a plain lifted strip, NOT the tint of a selected row: a tinted bar over tinted rows read as one green slab. */
+    .tc-pickbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex: none; height: 36px; padding: 0 var(--space-3) 0 var(--space-4); border-bottom: 1px solid var(--line); }
+    .tc-pickbar[data-active='true'] { background: var(--bg-surface); }
+    .tc-pickbar:focus { outline: none; }
+    .tc-pickbar__tip { flex: 1 1 0; min-width: 0; }
+    /* A count that is too long for the room is cut at the box (with 6px kept for the focus ring of the checkbox), it never pushes the buttons. */
+    .tc-pickbar__box { display: block; min-width: 0; overflow: clip; overflow-clip-margin: 6px; }
+    .tc-pickbar__all { align-items: center; gap: var(--space-3); font-size: var(--fs-xs); white-space: nowrap; }
     .tc-pickbar__actions { display: flex; align-items: center; gap: var(--space-1); flex: none; }
-    .tc-pickbar__btn { --control-h-sm: 24px; padding-inline: var(--space-3); font-size: var(--fs-xs); }
-    /* A row and the box that selects it: the column is there for every row (a running task has no box), so the rows line up. */
-    .tc-item { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--line-soft); }
-    .tc-item[data-checked='true'] { background: var(--bg-hover); }
+    .tc-pickbar__btn { --control-h-sm: 24px; padding-inline: var(--space-2); font-size: var(--fs-xs); }
+    /* 取消选择 leaves the mode, it is not one of the two things you can do: a hairline sets it apart from them (and the delete button from the edge of the bar). */
+    .tc-pickbar__btn--clear { margin-inline-start: var(--space-1); border-inline-start-color: var(--line); border-start-start-radius: 0; border-end-start-radius: 0; }
+    /* A row and the box that selects it: the column is there for every row (a running task has no box), so the rows line up. The box sits on the first line of the row, level with the
+       status dot and the title (not in the middle of the two lines), and under the box of the bar. */
+    .tc-item { --tc-line: 20px; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--line-soft); }
+    /* A ticked row is tinted like the picked one (the accent's own tint, so it reads on every accent and in both themes); the picked one also has the accent edge. */
+    .tc-item[data-checked='true'] { background: var(--bg-selected); }
     .tc-item > .tc-row { border-bottom: 0; padding-inline-start: 0; }
-    /* The hover and the picked row are painted on the whole item, the empty box column included, so the highlight and its accent edge start at the list's edge instead of 32px in (a running task has no box). */
-    .tc-item:hover { background: var(--bg-hover); }
+    /* The hover and the picked row are painted on the whole item, the empty box column included, so the highlight and its accent edge start at the list's edge instead of 40px in (a running task has no box). */
+    .tc-item:hover:not([data-checked='true']) { background: var(--bg-hover); }
     .tc-item:has(> .tc-row[aria-pressed='true']) { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
     .tc-item > .tc-row:is(:hover, [aria-pressed='true']) { background: transparent; box-shadow: none; }
-    .tc-item__check { display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; }
+    /* The box is 1.15em with a 0.1em top margin (ui/components/fields.css) in the font size of its label: the same size here as in the bar, centred on the title's line. */
+    .tc-item__check { display: flex; align-items: flex-start; justify-content: flex-start; gap: 0; min-width: 0; padding: calc(var(--space-3) + (var(--tc-line) - 1.15em) / 2 - 0.1em) 0 0 var(--space-4); font-size: var(--fs-xs); }
     .tc-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
     .tc-row {
       display: grid;
@@ -95,7 +104,7 @@
     .tc-row:hover { background: var(--bg-hover); }
     .tc-row[aria-pressed='true'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
     .tc-row:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
-    .tc-row__title { overflow: hidden; font-weight: var(--fw-medium); text-overflow: ellipsis; white-space: nowrap; }
+    .tc-row__title { overflow: hidden; font-weight: var(--fw-medium); line-height: var(--tc-line, 20px); text-overflow: ellipsis; white-space: nowrap; }
     .tc-row__sub { grid-column: 2 / 4; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
     .tc-num { color: var(--text-muted); font-family: var(--font-stack-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
     /* 批次 of a day of 为你定制: a dot, the time, one line, the state. */
@@ -125,11 +134,13 @@
     .tc-detail > * { flex: none; }
     .tc-detail > .tc-body { flex: 1 1 0; }
     .tc-head { flex-wrap: nowrap; padding: 0 var(--space-5); }
-    .tc-head__title { display: flex; flex: 1 1 0; align-items: baseline; gap: var(--space-3); min-width: 0; }
-    .tc-head__title h2 { flex: 0 1 auto; }
-    /* The actions keep their room (a long label such as the one top-up in English needs it); the title gives way, the second line of it first. */
-    .tc-head__sub { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--text-muted); font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
-    .tc-head__actions { display: flex; flex: none; gap: var(--space-2); }
+    /* The name of the task over its one line of facts (not beside it: the facts took the room and the name was cut to three letters); each is cut with an ellipsis, the actions never are. */
+    .tc-head__title { display: flex; flex: 1 1 0; flex-direction: column; justify-content: center; gap: 0; min-width: 0; }
+    .tc-head__title > h2 { line-height: var(--lh-tight, 1.25); }
+    .tc-head__sub { overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-tight, 1.25); text-overflow: ellipsis; white-space: nowrap; }
+    .tc-head__actions { display: flex; flex: none; align-items: center; gap: var(--space-2); }
+    /* 删除 is the one destructive action of the header: a gap from the others, and the danger look of the bar's. */
+    .tc-head__delete { margin-inline-start: var(--space-2); }
     .tc-metrics {
       display: grid;
       grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(0, 1fr));
@@ -330,8 +341,10 @@
       .tc-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
       .tc-col { height: 440px; }
       .tc-col + .tc-col { border-inline-start: 0; border-top: 1px solid var(--line); }
-      .tc-head { height: auto; min-height: 44px; flex-wrap: wrap; padding-block: var(--space-2); }
-      .tc-head__actions { flex: 1 1 100%; flex-wrap: wrap; row-gap: var(--space-1); }
+      .tc-head { height: auto; min-height: 44px; flex-wrap: wrap; row-gap: var(--space-2); padding-block: var(--space-2); }
+      /* The name takes a line of its own; the actions wrap onto the next and keep their size (they were squeezed against the edge and 删除 was cut). */
+      .tc-head__title { flex: 1 1 100%; }
+      .tc-head__actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; margin-inline-start: auto; }
     }
   }
 }
