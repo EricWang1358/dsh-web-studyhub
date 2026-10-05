@@ -173,12 +173,15 @@ test('the console reads the ledger incrementally: finished days are not read aga
   const line = (n, extra = {}) => JSON.stringify({ type: 'request', tier: 'paid', keyId: keyId(PAID), model: settings.transcribeModel, status: 200, at: Date.now() - n * 86400000 - 3600000, ...extra }) + '\n';
   const old = join(directory, `${day(3)}.jsonl`);
   await writeFile(old, line(3).repeat(5));
+  // A whole-second modification time, so putting it back below is exact on every file system (a sub-millisecond time can round on the way back).
+  const stamp = new Date(Math.floor(Date.now() / 1000) * 1000 - 3 * 86400000);
+  await utimes(old, stamp, stamp);
   const total = async () => (await f.usage()).providers.find(provider => provider.tier === 'paid').total.requests;
   assert.equal(await total(), 5);
   // Replace the finished day with a same-sized file and give it back its old modification time: it was not read again.
   const info = await stat(old);
   await writeFile(old, line(3, { status: 500 }).repeat(5).slice(0, info.size).padEnd(info.size, '\n'));
-  await utimes(old, info.atime, info.mtime);
+  await utimes(old, stamp, stamp);
   assert.equal((await f.usage()).providers.find(provider => provider.tier === 'paid').total.failures, 0, 'unchanged size and time: the earlier counters are reused');
   // A new line at the end of today's file is read on its own.
   await writeFile(join(directory, `${day(0)}.jsonl`), line(0).repeat(2));
