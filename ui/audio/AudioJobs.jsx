@@ -3,7 +3,7 @@ import { ui, uiFormat, uiMessage } from "../i18n.js";
 import { Button, Hint, Icon, InlineMessage, JobRow, useNow } from "../components/index.js";
 import AgentLink from "../AgentLink.jsx";
 import { dismissJobs, useQuickActions } from "../quick-actions.js";
-import { formatElapsed, joinMeta } from "../format.js";
+import { formatElapsed, formatNumber, joinMeta } from "../format.js";
 import { formatExactTokens, totalTokens } from "../../lib/token-usage.js";
 import { STRENGTH_LABEL } from "../../lib/model-effort.js";
 import { isActiveJob, isCancellable, JOB_STATUS, JOB_TYPES } from "../../lib/job-status.js";
@@ -114,7 +114,7 @@ const tookOf = (task) => (task.finishedAt ? formatElapsed(Date.parse(task.finish
 /** What can be said about a task without opening the sub-agent: the size of its input, what it used, the start of its answer. */
 function TaskDetail({ task }) {
   const tokens = task.tokenUsage ? totalTokens(task.tokenUsage) : 0;
-  const rows = [task.inputChars > 0 && uiFormat('提示：约 {0} 字的稿件窗口', [task.inputChars.toLocaleString()]),
+  const rows = [task.inputChars > 0 && uiFormat('提示：约 {0} 字的稿件窗口', [formatNumber(task.inputChars)]),
     tokens > 0 && uiFormat('用量：{0} tok', [formatExactTokens(tokens)]),
     task.outputPreview && uiFormat('最近输出：{0}', [task.outputPreview])].filter(Boolean);
   return rows.length ? <details className="audio-task-detail"><summary>{ui('详情')}</summary>{rows.map((row, index) => <small key={index}>{row}</small>)}</details> : null;
@@ -139,7 +139,7 @@ function AudioTasks({ job, now, openAgent }) {
       {active.map(task => <small className="audio-now" key={task.id}>
         {joinMeta([uiFormat('正在做：{0}', [taskLabel(task)]), ui(RUNTIME[task.runtime] || ''), ui(TASK_STATUS[task.status] || task.status),
           uiFormat('已等待 {0}', [formatElapsed(now - Date.parse(task.startedAt))]),
-          task.inputChars > 0 ? uiFormat('输入约 {0} 字', [task.inputChars.toLocaleString()]) : ''])}
+          task.inputChars > 0 ? uiFormat('输入约 {0} 字', [formatNumber(task.inputChars)]) : ''])}
         <OpenAgent task={task} openAgent={openAgent} />
       </small>)}
     </div>}

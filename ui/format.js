@@ -98,3 +98,8 @@ export function formatBytes(bytes) {
   const digits = unit === 0 || value >= 100 ? 0 : 1;
   return `${formatNumber(value, { maximumFractionDigits: digits, useGrouping: false })} ${UNITS[unit]}`;
 }
+
+/** The learner's own IANA time zone (their calendar days decide "today"); undefined when the browser cannot say. */
+export function ownTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch { return undefined; }
+}

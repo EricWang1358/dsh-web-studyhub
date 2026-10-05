@@ -32,7 +32,7 @@ async function fixture(t, { keys = { paidKey: PAID }, host = true, failFirstTran
   process.env.DSH_HOME = join(dir, 'home');
   // A ledger folder that cannot be created (a file sits where it should be): every write fails.
   if (brokenLedger) { await mkdir(join(dir, 'home', 'study'), { recursive: true }); await writeFile(join(dir, 'home', 'study', 'audio-usage'), 'not a folder'); }
-  const calls = [], flags = { breakText: false };
+  const calls = [], flags = { breakText: false, stages: [] };
   let transcribed = 0;
   const fetch = async (url, init = {}) => {
     url = String(url);
@@ -52,7 +52,8 @@ async function fixture(t, { keys = { paidKey: PAID }, host = true, failFirstTran
     if (system.startsWith('You translate')) return gemini(JSON.stringify({ titleZh: '标题', titleEn: 'Title', paragraphs: JSON.parse(prompt).paragraphs.map(p => ({ n: p.n, zh: '译文。' })) }));
     return gemini('{"titleEn":"Lecture"}');
   };
-  const complete = host ? async (system, prompt) => {
+  const complete = host ? async (system, prompt, options = {}) => {
+    flags.stages.push(options.stage);
     if (flags.breakText) throw Object.assign(new Error('the model is unreachable'), { fatal: true });
     if (system.startsWith('You proofread')) return '{"corrections":[]}';
     if (system.startsWith('You translate')) return JSON.stringify({ titleZh: '标题', titleEn: 'Title', paragraphs: JSON.parse(prompt).paragraphs.map(p => ({ n: p.n, zh: '译文。' })) });
@@ -207,4 +208,15 @@ test('the console does not take seconds on a large ledger (a month of heavy use)
   assert.ok(first.providers.find(provider => provider.tier === 'paid').total.requests > 60000);
   assert.ok(cold < 4000, `reading 62000 lines took ${Math.round(cold)} ms`);
   assert.ok(warm < 400, `a refresh with nothing new took ${Math.round(warm)} ms`);
+});
+
+test('the DSH sub-agents of an import carry a readable title: step, recording and part (#213)', async t => {
+  const f = await fixture(t);
+  const job = await settleJob(f.service, (await f.service.call('audio.import', { path: await f.file('Database Lecture.wav', 9) })).jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  assert.ok(f.flags.stages.some(stage => /^音频校对 · Database Lecture · 1\/\d+$/.test(stage)), f.flags.stages.join(' | '));
+  assert.ok(f.flags.stages.some(stage => /^音频翻译 · Database Lecture · 1\/\d+$/.test(stage)), f.flags.stages.join(' | '));
+  const { subagentTitle } = await import('../lib/audio-job.js');
+  assert.equal(subagentTitle({ filename: 'lesson.mp3', language: 'en' }, { kind: 'proofread', part: 3, parts: 31 }), 'Audio proofreading · lesson · 3/31');
+  assert.equal(subagentTitle({ filename: 'lesson.mp3' }, { kind: 'title', stage: '生成标题' }), '音频标题 · lesson');
 });

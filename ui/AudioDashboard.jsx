@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
-import { formatNumber } from './format.js';
+import { formatNumber, ownTimeZone } from './format.js';
 import { Button, ErrorState, Hint, Panel, ProgressBar } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
@@ -14,8 +14,6 @@ import { refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 
 const providerName = tier => ui(providerOf(tier).shortName);
 const fmt = value => formatNumber(value, { maximumFractionDigits: 1 });
-/** The learner's own time zone: "today" and the 7-day chart are their calendar days. */
-const ownTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } };
 const anyKey = settings => KEY_FIELDS.some(field => settings?.[field]?.set);
 
 /** Shown only once something is configured and at least one request has been recorded. */

@@ -152,7 +152,7 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
           {view.textProvider !== 'host' && modelField('groqTextModel', 'Groq 文本模型')}
           {modelField('liveModel', '课堂实时转写模型')}
           {view.textProvider !== 'host' && modelField('liveTranslateModel', '课堂实时翻译模型')}
-          <EffortSelect label={ui('课堂实录的上下文校正推理强度')} value={view.liveCorrectionReasoning || 'low'} efforts={model.options} busy={busy}
+          <EffortSelect label={ui('课堂实录的上下文校正推理强度')} value={view.liveCorrectionReasoning || 'low'} efforts={model.options} disabled={busy}
             onChange={value => save({ liveCorrectionReasoning: value })} />
           <Field label={ui('校对与翻译的并行数')}
             hint={ui('同时发给 DSH 模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。')}>

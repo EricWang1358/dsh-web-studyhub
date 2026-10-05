@@ -4,9 +4,6 @@
     "ui/appearance-themes.css": {
       "active": 2
     },
-    "ui/audio-dashboard.css": {
-      "selected": 2
-    },
     "ui/exam-setup.css": {
       "picked": 1
     },

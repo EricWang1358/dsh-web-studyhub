@@ -23,6 +23,7 @@
     /* The segment being worked on: it moves, because nothing says how far along one request is. */
     .audio-now button, .audio-trace button { margin-left: var(--space-2); }
     .audio-active-tasks { margin: var(--space-2) 0; padding-left: 10px; border-left: 2px solid var(--accent-soft); }
+    .audio-active-tasks > small { display: block; margin: var(--space-1) 0; overflow-wrap: anywhere; }
     /* One scroll only: the history is a short list (the latest five, the rest on request), never a scroller of its own. */
     .audio-trace ol { margin: 0; padding: 0; list-style: none; }
     .audio-trace li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-3); margin: var(--space-2) 0; }

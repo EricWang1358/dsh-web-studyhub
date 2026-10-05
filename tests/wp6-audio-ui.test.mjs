@@ -191,7 +191,7 @@ test("audio settings in English are complete, with Groq first", () => inLanguage
 test("each reasoning setting has one control (no presets, no matrix beside the selects)", () => {
   const page = html(AudioSettings, { busy: false, act: noop, call: noop, setNotice: noop, initialView: view });
   assert.equal((page.match(/<select/g) || []).length >= 2, true);
-  assert.equal((page.match(/校对与翻译的推理强度/g) || []).length, 1, "one reasoning section");
+  assert.equal((page.match(/id="audio-reasoning-title"/g) || []).length, 1, "one reasoning section");
   assert.doesNotMatch(page, /audio-reasoning-grid|更快|更准/);
 });
 
