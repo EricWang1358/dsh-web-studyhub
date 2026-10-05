@@ -134,7 +134,7 @@ test("each Q&A folds: the newest starts open, the rest closed, with one control 
   assert.deepEqual(items.map((tag) => / open=""/.test(tag)), [false, false, true], "only the newest is open");
   assert.match(html, /3 条问答/);
   assert.match(html, />全部展开</);
-  assert.match(html, /<summary><span class="en-tag">Q&amp;A<\/span><h4>第一个问题？<\/h4><span class="followup-state" aria-hidden="true">展开<\/span><\/summary>/, "the question is the fold's title, with its state in words (#160)");
+  assert.match(html, /<summary><span class="sh-badge sh-badge--sm en-mark" data-tone="accent">Q&amp;A<\/span><h4>第一个问题？<\/h4><span class="followup-state" aria-hidden="true">展开<\/span><\/summary>/, "the question is the fold's title, with its state in words (#160)");
   assert.match(html, /<h4>第三个问题？<\/h4><span class="followup-state" aria-hidden="true">收起<\/span>/, "the open one offers to fold");
   const single = render("quiz", true, { solution: { ...solution, followups: followups.slice(0, 1) } });
   assert.match(single, /<details class="followup-item" open="">/);

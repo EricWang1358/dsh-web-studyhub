@@ -18,7 +18,7 @@ export function libraryFolderName(root) {
 export function LibraryChip({ root, onOpen }) {
   if (!root) return null;
   return (
-    <Button variant="quiet" size="sm" className="library-chip" title={root} aria-label={uiFormat('学习库位置：{0}。打开设置可更改', [root])} onClick={onOpen}>
+    <Button variant="quiet" size="sm" className="library-location" title={root} aria-label={uiFormat('学习库位置：{0}。打开设置可更改', [root])} onClick={onOpen}>
       <Icon name="folder" size={14} />
       <span>{uiFormat('学习库：{0}', [libraryFolderName(root)])}</span>
     </Button>

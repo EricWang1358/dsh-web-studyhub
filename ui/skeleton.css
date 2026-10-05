@@ -151,7 +151,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .sk-chips {
+    .sk-picked {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
@@ -848,7 +848,7 @@
     .skc-world.is-dragging .skc-class {
       transition: none;
     }
-    .skc-focus-chip {
+    .skc-focus-note {
       padding: var(--space-half) 10px;
       border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -1057,7 +1057,7 @@
   :where(.study-app, .study-seat) {
     .skc-layout-panel select { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); }
     .skc-compact .skc-class-name { border-bottom: 0; border-radius: var(--radius-sm); }
-    .skc-focus-chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+    .skc-focus-note { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   }
   :is(.study-app, .study-seat) {
     .skc-narrow button.skc-minimap { width: 100px; height: 62px; right: 8px; bottom: 8px; }
@@ -1119,9 +1119,10 @@
       min-width: 0;
       max-width: 100%;
     }
+    .spine-chip-anchor { min-width: 0; max-width: 24ch; }
     .spine-chip-text {
       min-width: 0;
-      max-width: 24ch;
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -1409,6 +1410,7 @@
     :where(.study-app, .study-seat) {
       /* Narrow panes: the folded chip takes its own line and the points stack. */
       .spine-chip { flex: 1 1 100%; justify-content: space-between; margin-bottom: var(--space-1); }
+      .spine-chip-anchor { flex: 1 1 auto; max-width: none; }
       .spine-chip-text { flex: 1 1 auto; max-width: none; }
       .spine-all-body { padding-left: var(--space-1); }
       .wf-spine-peek { padding-inline: var(--space-3); }

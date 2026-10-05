@@ -184,12 +184,7 @@
   }
   :where(.study-app, .study-seat) {
     /* ── Settings ────────────────────────────────────────────────────────── */
-    .origin-tag {
-      border: 1px solid var(--line);
-      border-radius: var(--radius-pill);
-      padding: 1px var(--space-2);
-      color: var(--text-dim);
-      white-space: nowrap;
+    .origin-note {
       max-width: 260px;
       overflow: hidden;
       text-overflow: ellipsis;

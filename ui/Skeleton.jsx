@@ -374,7 +374,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
             )}
           </div>
           {pickedTopics.length > 0 && (
-            <div className="sk-chips">
+            <div className="sk-picked">
               {pickedTopics.slice(0, 12).map((t) => (
                 <Badge key={t} tone="info">{t}</Badge>
               ))}

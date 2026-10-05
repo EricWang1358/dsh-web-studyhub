@@ -115,6 +115,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       '<button className="link-btn">×</button><i>  ▸ </i><b>text</b></div>;',
       'const pick = () => <label><input type="checkbox" checked /><input type="radio" /><input type="range" /></label>;',
       'const save = () => <div><Button onClick={go}>{saving ? ui("保存中…") : ui("保存")}</Button><Button busy={saving} busyLabel={ui("保存中…")}>{ui("保存")}</Button></div>;',
+      'const tip = () => <div><span title="what this means">12</span><Button title="Open">x</Button><input title="t" /></div>;',
       'const go = () => window.confirm("sure?");',
       'const handoff = () => <div><Child call={call} busy={busy} /><Button busy={busy}>ok</Button></div>;', '',
     ].join('\n'));
@@ -123,7 +124,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     const total = (rule) => Object.values(found.metrics[rule]).reduce((a, b) => a + b, 0);
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
       rawButton: 2, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 2, fontWeightNumeric: 2, radiusPx: 1, radius999: 1,
-      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1,
+      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1, hostTitle: 1,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);
     assert.equal(found.cjkContent.length, 1);

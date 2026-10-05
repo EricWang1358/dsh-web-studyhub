@@ -361,19 +361,19 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 </span>
                 <div>
                   {cardNotes.map((note) => note.status === "published" && note.url
-                    ? <a key={note.noteId} className="result-note-badge" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
-                    : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-badge" disabled={!onOpenNote}
+                    ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
+                    : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link" disabled={!onOpenNote}
                       title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</Button>)}
                   {run.origin && (
-                    <span className="origin-tag" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
+                    <Badge size="sm" className="origin-note" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
                       {(() => {
                         const reason = run.origin.reason === "too-hard" ? ui("前置台阶") : run.origin.reason === "followup" ? ui("追问巩固") : ui("变式");
                         return run.origin.prompt ? uiFormat("{0} · 源自「{1}」", [reason, run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt]) : reason;
                       })()}
-                    </span>
+                    </Badge>
                   )}
-                  {run.card.importedFromJson && <span className="origin-tag">{ui("外部导入")}</span>}
-                  {run.card.sourceQa && <span className="origin-tag">{ui("问答")}</span>}
+                  {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
+                  {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
                   <span>{run.card.topic}</span>
                   {!!publicationIssues.length && !run.card.publicationUngrable &&
                     <Popover label={ui("待核对")} className="publication-mark" panelClassName="publication-mark__panel"
@@ -405,7 +405,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                     <Markdown text={run.card.prompt} />
                     {enOn && enStem?.prompt && (
                       <div className="en-block">
-                        <span className="en-tag">EN</span>
+                        <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
                         <Markdown links={false} className="md-compact" text={enStem.prompt} />
                       </div>
                     )}
@@ -504,7 +504,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   />
                   {enOn && (enStem?.clozeText || enStem?.prompt) && (
                     <div className="en-block">
-                      <span className="en-tag">EN</span>
+                      <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
                       <Markdown
                         links={false}
                         className="md-compact"
@@ -514,7 +514,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                   )}
                   {enOn && run.feedback && enAnswer?.blanks?.length > 0 && (
                     <p className="en-block en-inline-line">
-                      <span className="en-tag">EN</span>
+                      <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
                       {enAnswer.blanks.map((b) => b.value).join(" · ")}
                     </p>
                   )}
@@ -729,7 +729,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 <Markdown text={run.solution.explanation} />
                 {enOn && enAnswer?.explanation && (
                   <div className="en-block">
-                    <span className="en-tag">EN</span>
+                    <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
                     <Markdown links={false} className="md-compact" text={enAnswer.explanation} />
                   </div>
                 )}

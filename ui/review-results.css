@@ -54,7 +54,7 @@
     .exam-report .result-weak li { padding: var(--space-1) 0; }
     .exam-report .result-weak .muted { margin: 0; }
     .exam-report .result-weak button { margin-top: var(--space-4); }
-    .result-note-badge { font-size: var(--fs-md); text-decoration: none; }
+    .result-note-link { font-size: var(--fs-md); text-decoration: none; }
   }
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, SegmentedControl } from '../components/index.js';
+import { Button, SegmentedControl, Tooltip } from '../components/index.js';
 import { ParkedChip, isParked } from '../CourseActive.jsx';
 import CourseRoute from '../CourseRoute.jsx';
 import { TERMS } from '../mastery-terms.js';
@@ -64,7 +64,7 @@ export default function DeskIntro({ data, home, mastery, role, busy, start, resu
           <>
             <span className="desk-next-label">{ui('推荐下一步')}</span>
             <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
-              <small title={ui('按课程里题组和主题的顺序，这是第一个还没掌握的主题。')}>{META_DOT}{uiFormat('课程里下一个没掌握的主题 · 掌握 {0}%', [data.next.mastery])}</small></span>
+              <Tooltip layer content={ui('按课程里题组和主题的顺序，这是第一个还没掌握的主题。')}><small tabIndex={0}>{META_DOT}{uiFormat('课程里下一个没掌握的主题 · 掌握 {0}%', [data.next.mastery])}</small></Tooltip></span>
             <Button variant="link" disabled={busy} onClick={() => start({ mode: 'path', scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui('只学这个主题 →')}</Button>
           </>
         ) : starter ? starter.next : ui('所有主题都已掌握，可以提前巩固。')}

@@ -356,15 +356,7 @@
       font-size: var(--fs-md);
     }
     .en-block p { margin: 0; }
-    .en-tag {
-      display: inline-block;
-      font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
-      letter-spacing: 0.08em;
-      color: var(--accent-soft);
-      border: 1px solid var(--accent-glow);
-      border-radius: var(--radius-sm);
-      padding: 0 var(--space-1);
+    .en-mark {
       margin-right: var(--space-2);
       vertical-align: 2px;
     }

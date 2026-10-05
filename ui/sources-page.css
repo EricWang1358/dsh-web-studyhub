@@ -164,3 +164,11 @@
     }
   }
 }
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    & button.source-group-head { flex-wrap: wrap; }
+    .source-doc .source-main { align-items: flex-start; gap: var(--space-3); }
+    .source-doc__actions .source-row-actions { position: relative; max-width: none; }
+  }
+}

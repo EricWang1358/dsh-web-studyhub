@@ -25,6 +25,7 @@ export const RULES = {
   rawColor: { issue: '#156', why: 'raw #hex / rgb() / hsl() outside token definitions', fix: 'use a colour token or color-mix() of tokens (only #000 inside mask-image is allowed)' },
   spacingPx: { issue: '#148', why: 'raw px padding/margin/gap', fix: 'use var(--space-*)' },
   longLine: { issue: '#156', why: 'CSS line longer than 400 characters (minified)', fix: 'format the stylesheet (one declaration per line)' },
+  hostTitle: { issue: '#86', why: 'title="..." on a plain text element (span, div, li, small, p ...): it never shows on touch or keyboard focus', fix: '<Tooltip layer content={...}><span tabIndex={0}>...</span></Tooltip>; a title that only repeats a truncated label may stay on its Button' },
   busyLabelSwap: { issue: '#153', why: '<Button> whose label swaps to a working text without the busy prop (no spinner, no aria-busy, no held width)', fix: '<Button busy={working} busyLabel={ui(\'正在…\')}>' },
   radiusCard: { issue: '#143', why: 'border-radius: var(--radius-card) in a feature sheet (it is the physical paper card\'s corner)', fix: 'use var(--radius) for a desk panel, or <Panel> / <Panel tone="paper">; only a real paper card keeps --radius-card' },
   rawChoiceInput: { issue: '#140', why: 'hand-written <input type="checkbox|radio"> outside ui/components', fix: 'use <Checkbox>, <Switch> or <RadioCard> from ui/components' },
@@ -255,6 +256,7 @@ function scanJsxFile(file, source, metrics, found) {
     let swaps = 0;
     for (const el of buttonElements(text)) if (!/\bbusy=/.test(el.open) && LABEL_SWAP.test(el.body)) swaps++;
     bump('busyLabelSwap', swaps);
+    bump('hostTitle', (text.match(/<(?:span|div|li|small|p|td|th|strong|i|b|time|mark|em|dd|dt|section|article)(?=[\s>])[^>]*\stitle=/g) || []).length);
     bump('rawChoiceInput', (text.match(/\btype=(?:"(?:checkbox|radio)"|'(?:checkbox|radio)'|\{\s*['"](?:checkbox|radio)['"]\s*\})/g) || []).length);
   }
   const glyph = new RegExp(`>\\s*(?:[${ICON_GLYPHS}]|\\{\\s*['"\`][${ICON_GLYPHS}]['"\`]\\s*\\})\\s*<`, 'g');

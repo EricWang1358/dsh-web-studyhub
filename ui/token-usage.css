@@ -120,7 +120,10 @@
     .model-usage__name { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-variant-numeric: tabular-nums; }
     .model-usage__foot { display: flex; justify-content: flex-end; }
     .model-usage__audio { margin: 0; font-size: var(--fs-sm); }
-  }
+      .jev-usage .token-usage { min-width: 0; flex: 1 1 14em; }
+    .jev-usage .token-usage--inline .token-usage__row { justify-content: flex-start; }
+    .jev-usage .token-usage--inline .token-usage__rows { flex-direction: row; flex-wrap: wrap; gap: var(--space-half) var(--space-4); }
+}
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
       .token-usage--inline .token-usage__rows { flex-direction: column; gap: var(--space-half); }

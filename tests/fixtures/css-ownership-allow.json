@@ -9,18 +9,6 @@
       "ui/audio-dashboard.css",
       "ui/audio-settings.css"
     ],
-    "binding-actions": [
-      "ui/binding.css",
-      "ui/settings.css"
-    ],
-    "binding-panel": [
-      "ui/binding.css",
-      "ui/settings.css"
-    ],
-    "binding-row": [
-      "ui/binding.css",
-      "ui/settings.css"
-    ],
     "board-page": [
       "ui/board/board.css",
       "ui/shell.css"
@@ -41,14 +29,6 @@
       "ui/app/app-shell.css",
       "ui/shell.css"
     ],
-    "course-active": [
-      "ui/course-active.css",
-      "ui/course-settings.css"
-    ],
-    "course-active__row": [
-      "ui/course-active.css",
-      "ui/course-settings.css"
-    ],
     "course-heading": [
       "ui/course-settings.css",
       "ui/home-tiers.css",
@@ -64,43 +44,19 @@
     ],
     "course-parked-line": [
       "ui/course-active.css",
-      "ui/home-tiers.css"
+      "ui/study-map/desk.css"
     ],
     "course-route": [
       "ui/focus.css",
-      "ui/home-tiers.css"
+      "ui/study-map/desk.css"
     ],
     "daily-recap": [
       "ui/DailyRecap.css",
       "ui/blog-notes.css"
     ],
-    "desk": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
-    "desk-also": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
-    "desk-intro": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
-    "desk-mastery": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
-    "desk-next": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
     "dim": [
       "ui/review/question.css",
       "ui/skeleton.css"
-    ],
-    "draft-row": [
-      "ui/generate-home.css",
-      "ui/study-map/desk.css"
     ],
     "empty": [
       "ui/skeleton.css",
@@ -142,7 +98,7 @@
       "ui/skeleton.css"
     ],
     "is-compact": [
-      "ui/course-settings.css",
+      "ui/course-active.css",
       "ui/mineru.css",
       "ui/update.css"
     ],
@@ -194,14 +150,6 @@
       "ui/components/fields.css",
       "ui/source-picker.css"
     ],
-    "jobs-actions": [
-      "ui/generate-home.css",
-      "ui/study-map/desk.css"
-    ],
-    "library-chip": [
-      "ui/app/app-shell.css",
-      "ui/library-chip.css"
-    ],
     "local-status": [
       "ui/shell.css",
       "ui/side-groups.css"
@@ -229,18 +177,6 @@
     "map-dot": [
       "ui/review/question.css",
       "ui/study-map/catalog.css"
-    ],
-    "mastery": [
-      "ui/study-map/catalog.css",
-      "ui/study-map/desk.css"
-    ],
-    "mastery-bar": [
-      "ui/study-map/catalog.css",
-      "ui/study-map/desk.css"
-    ],
-    "mastery-value": [
-      "ui/study-map/catalog.css",
-      "ui/study-map/desk.css"
     ],
     "md": [
       "ui/markdown.css",
@@ -334,17 +270,13 @@
       "ui/oral-exam.css",
       "ui/review-results.css"
     ],
-    "resume-list": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
     "review-page": [
       "ui/review/session.css",
       "ui/shell.css"
     ],
     "role-prep": [
       "ui/focus.css",
-      "ui/home-tiers.css"
+      "ui/study-map/desk.css"
     ],
     "section-heading": [
       "ui/generate-home.css",
@@ -586,14 +518,6 @@
       "ui/document-preview/rename.css",
       "ui/sources.css"
     ],
-    "source-group-head": [
-      "ui/sources-page.css",
-      "ui/sources.css"
-    ],
-    "source-main": [
-      "ui/sources-page.css",
-      "ui/sources.css"
-    ],
     "source-md": [
       "ui/document-preview/document-preview.css",
       "ui/sources-page.css"
@@ -601,10 +525,6 @@
     "source-mode": [
       "ui/generate-home.css",
       "ui/sources-page.css"
-    ],
-    "source-row-actions": [
-      "ui/sources-page.css",
-      "ui/sources.css"
     ],
     "source-tab": [
       "ui/generate-home.css",
@@ -652,32 +572,8 @@
       "ui/coach.css",
       "ui/review/question.css"
     ],
-    "today-card-empty": [
-      "ui/generate-home.css",
-      "ui/study-map/desk.css"
-    ],
-    "today-card-head": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
-    "today-stack": [
-      "ui/home-tiers.css",
-      "ui/study-map/desk.css"
-    ],
     "token-estimate": [
       "ui/draft-shortfall.css",
-      "ui/token-usage.css"
-    ],
-    "token-usage": [
-      "ui/jev.css",
-      "ui/token-usage.css"
-    ],
-    "token-usage__row": [
-      "ui/jev.css",
-      "ui/token-usage.css"
-    ],
-    "token-usage__rows": [
-      "ui/jev.css",
       "ui/token-usage.css"
     ],
     "two-col": [

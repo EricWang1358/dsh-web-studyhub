@@ -1,6 +1,7 @@
 import { ui } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
+import { Badge } from "./components/index.js";
 
 /* 闪卡翻面。两面叠在同一个 grid 格里，默认高度取两面中较高者；答案加载
    或翻面后若背面更长，卡片会在一帧内撑高、把下面的评分区挤下去。这里改为
@@ -42,7 +43,7 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
           />
           {enOn && run.card.translation?.prompt && (
             <div className="en-block">
-              <span className="en-tag">EN</span>
+              <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
               <Markdown links={false} mediaInteractive className="md-compact" text={run.card.translation.prompt} />
             </div>
           )}
@@ -62,7 +63,7 @@ export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
               />
               {enOn && run.solution.translation?.answer && (
                 <div className="en-block">
-                  <span className="en-tag">EN</span>
+                  <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
                   <Markdown links={false} mediaInteractive className="md-compact" text={run.solution.translation.answer} />
                 </div>
               )}

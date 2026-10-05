@@ -3,7 +3,7 @@
 @layer study.features {
   :where(.study-app, .study-seat) {
     /* Top-bar library location chip (P03): quiet, one click to Settings. */
-    .library-chip {
+    .library-location {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -18,15 +18,15 @@
       line-height: 1.4;
       white-space: nowrap;
     }
-    .library-chip svg {
+    .library-location svg {
       flex-shrink: 0;
     }
-    .library-chip span {
+    .library-location span {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .library-chip:hover:not(:disabled) {
+    .library-location:hover:not(:disabled) {
       color: var(--text);
       border-color: var(--line-strong);
       background: var(--bg-hover);
@@ -35,13 +35,33 @@
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
       /* The ~420px DSH sidebar: keep the folder visible, drop the icon. */
-      .library-chip {
+      .library-location {
         max-width: 16ch;
         padding: var(--space-1) var(--space-2);
       }
-      .library-chip svg {
+      .library-location svg {
         display: none;
       }
     }
+  }
+}
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .library-location {
+          min-width: 0;
+          max-width: min(30ch, 34cqi);
+          min-height: 0;
+          padding: var(--space-1) var(--space-2);
+          border: 1px solid var(--line);
+          border-radius: var(--radius-sm);
+          background: transparent;
+          color: var(--text-muted);
+          font-size: var(--fs-sm);
+          font-weight: var(--fw-regular);
+          line-height: 1.4;
+          white-space: nowrap;
+        }
+    .library-location:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); background: var(--bg-hover); }
   }
 }

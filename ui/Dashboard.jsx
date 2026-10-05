@@ -11,7 +11,7 @@ import { useCourseActive } from './CourseActive.jsx';
 import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
-import { Button, EmptyState, ErrorState, LoadingState, PageHeader } from "./components/index.js";
+import { Button, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
@@ -133,14 +133,18 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
         <section className="dash-section dash-metrics">
           <h2>{ui("判分与自评")}<small>{" · "}{ui("近 30 天")}</small></h2>
           <div className="dash-rates">
-            <div title={ui("近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练")}>
-              <strong>{totals.gradedRate == null ? "—" : totals.gradedRate}<small>{totals.gradedRate == null ? "" : "%"}</small></strong>
-              <span><i />{uiFormat("客观题通过率 · {0} 次", [totals.gradedAttempts ?? 0])}</span>
-            </div>
-            <div title={ui("近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标")}>
-              <strong>{totals.selfRate == null ? "—" : totals.selfRate}<small>{totals.selfRate == null ? "" : "%"}</small></strong>
-              <span><i className="self" />{uiFormat("自评达标率 · {0} 次", [totals.selfAttempts ?? 0])}</span>
-            </div>
+            <Tooltip layer content={ui("近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练")}>
+              <div tabIndex={0}>
+                <strong>{totals.gradedRate == null ? "—" : totals.gradedRate}<small>{totals.gradedRate == null ? "" : "%"}</small></strong>
+                <span className="dash-rate__label"><i />{uiFormat("客观题通过率 · {0} 次", [totals.gradedAttempts ?? 0])}</span>
+              </div>
+            </Tooltip>
+            <Tooltip layer content={ui("近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标")}>
+              <div tabIndex={0}>
+                <strong>{totals.selfRate == null ? "—" : totals.selfRate}<small>{totals.selfRate == null ? "" : "%"}</small></strong>
+                <span className="dash-rate__label"><i className="self" />{uiFormat("自评达标率 · {0} 次", [totals.selfAttempts ?? 0])}</span>
+              </div>
+            </Tooltip>
           </div>
           {totals.oralAttempts > 0 && (
             <p className="dash-footnote muted">{uiFormat("口头 AI 评估 · {0} 次，其中回答扎实 {1} 次；不计入客观题通过率。", [totals.oralAttempts, totals.oralStrong ?? 0])}</p>

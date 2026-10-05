@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
-import { Button, Checkbox, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
+import { Badge, Button, Checkbox, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
@@ -335,7 +335,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
               {focusMode ? ui("显示全图") : ui("只看邻居")}
             </Button>
             {focusLayout && (
-              <span className="skc-focus-chip">{uiFormat("聚焦「{0}」· {1} 个邻居", [node?.term, focusLayout.neighbours])}</span>
+              <Badge size="sm" tone="accent" className="skc-focus-note">{uiFormat("聚焦「{0}」· {1} 个邻居", [node?.term, focusLayout.neighbours])}</Badge>
             )}
           </>
         )}
