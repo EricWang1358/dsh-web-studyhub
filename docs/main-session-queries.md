@@ -17,6 +17,7 @@ The assistant reads your library in small pages through these calls. It does not
 | Find existing questions | "Do I have questions on binary search?" | `card.search` |
 | Add questions to an existing deck | "Add 5 questions from this lecture to my binary search deck." | `supplement`, see [Add questions to an existing deck](supplementation.md) |
 | Publish a draft into an existing deck | "Merge this draft into my binary search deck." | `draft.publish` |
+| Draw a knowledge outline as an interactive diagram | "Use the archify skill to draw my reliability outline." | `skeleton.get`, then `skeleton.diagram.attach`, see [Works well with other tools](companions.md) |
 
 To import JSON deck files from your computer, see [Import files from the main chat](json-import.md#import-files-from-the-main-chat).
 

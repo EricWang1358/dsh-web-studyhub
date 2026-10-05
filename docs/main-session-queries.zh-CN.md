@@ -17,6 +17,7 @@
 | 找已有的题 | “题库里有没有二分查找的题？” | `card.search` |
 | 给已有题组补题 | “根据这份讲义，给二分查找题组补 5 道题” | `supplement`，见[向已有题组补题](supplementation.zh-CN.md) |
 | 把草稿发布到已有题组 | “把这份草稿并入二分查找题组” | `draft.publish` |
+| 把知识骨架画成可交互的图 | “用 archify 技能画我的可靠性骨架” | `skeleton.get`，再 `skeleton.diagram.attach`，见[搭配好用的工具](companions.zh-CN.md) |
 
 要从电脑导入 JSON 题组文件，见[在主对话中导入文件](json-import.zh-CN.md#在主对话中导入文件)。
 
