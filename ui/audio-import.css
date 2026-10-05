@@ -31,8 +31,8 @@
     .audio-chosen small { display: block; margin-top: var(--space-half); }
     .audio-selection { margin: 10px 0; padding: 0; list-style: none; }
     .audio-selection .audio-chosen { margin-top: var(--space-2); }
-    .audio-chosen > .audio-order-actions { flex: 0 0 auto; display: flex; gap: 5px; }
-    .audio-order-actions button { padding: 6px 9px; }
+    .audio-chosen > .audio-order-actions { flex: 0 0 auto; display: flex; gap: var(--space-1); }
+    .audio-order-actions button { padding: 6px var(--space-2); }
     .audio-add { display: flex; align-items: center; gap: var(--space-3); padding: 10px 0; }
     .audio-add.over { outline: 2px dashed var(--line); outline-offset: 4px; }
     .audio-members { margin: 10px 0; padding-left: var(--space-6); }

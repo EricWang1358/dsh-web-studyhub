@@ -10,6 +10,7 @@ import ModelSetupGate from './ModelSetupGate.jsx';
 import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
 import { useExamRun } from './exam/useExamRun.js';
+import { useStudy } from './study-context.jsx';
 
 /* 口头面试：lifecycle (restore, submit, report) in ui/exam/useExamRun.js; this file keeps the answering UI and the
    answer drafts the browser holds while the learner types. */
@@ -17,8 +18,9 @@ import { useExamRun } from './exam/useExamRun.js';
 const bandName = { strong: "回答扎实", developing: "有待补充", weak: "需要巩固" };
 const FIELDS = ['answer', 'followupAnswer'];
 
-export default function OralExam({ call, data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
+export default function OralExam({ data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
   useInjectCss(css, "study-oral-exam");
+  const { call } = useStudy();
   const exam = useExamRun({ kind: 'oral', call, initialRunId, onLocation });
   const { run, report, busy, error, loading } = exam;
   const [count, setCount] = React.useState(5);

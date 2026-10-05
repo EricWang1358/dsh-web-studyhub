@@ -5,7 +5,7 @@
     .file-input {
       font-size: var(--fs-md);
       border: 1px dashed var(--line-strong);
-      padding: 13px;
+      padding: var(--space-3);
       border-radius: var(--radius-sm);
     }
     .file-input input {
@@ -23,7 +23,7 @@
     .draft-card summary {
       display: flex;
       align-items: center;
-      gap: 13px;
+      gap: var(--space-3);
       cursor: pointer;
       line-height: 1.65;
     }
@@ -167,5 +167,12 @@
         font-size: var(--fs-md);
       }
     }
+  }
+}
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The draft card is a <Panel> (ui-consistency #143): the Panel owns border, radius and background; this only settles the spacing between neighbours. */
+    .draft-card.sh-panel { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
   }
 }

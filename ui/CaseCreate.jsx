@@ -11,6 +11,7 @@ import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
 import css from "./case-study.css";
+import { useStudy } from "./study-context.jsx";
 
 /* 创建题组 › 案例分析题 (WP12). The course comes first: its profile proposes
    the examiner-guidance material, the focus topics and the marks. Three ways
@@ -20,7 +21,8 @@ import css from "./case-study.css";
 
 const blankQuestion = () => ({ prompt: "", marks: 10, answer: "" });
 
-export default function CaseCreate({ data, busy, act, call, onStarted, openImport, openReferenceImport, openSettings, onCourseSettings, initial = {} }) {
+export default function CaseCreate({ data, onStarted, openImport, openReferenceImport, openSettings, onCourseSettings, initial = {} }) {
+  const { busy, act, call } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const model = modelReadiness(data);
   const toast = useToast();
@@ -151,7 +153,7 @@ export default function CaseCreate({ data, busy, act, call, onStarted, openImpor
             {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
           </Button>
         ) : (
-          <ModelSetupGate variant="block" feature="generate" model={model} onOpenSettings={openSettings} />
+          <ModelSetupGate variant="block" feature="case" model={model} onOpenSettings={openSettings} />
         )}
       </div>
     </form>

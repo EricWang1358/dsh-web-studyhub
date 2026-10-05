@@ -1,0 +1,21 @@
+{
+  "模型服务拒绝了请求": "The model service rejected the request",
+  "密钥失效，或这个模型已停用 / 不再支持。请在模型设置里检查密钥，或换一个模型。": "The key is no longer valid, or this model has been retired or is no longer supported. Check the key in the model settings, or switch to another model.",
+  "这个模型已经不能用了": "This model is no longer available",
+  "模型服务不再提供所选的模型。请在模型设置里换一个模型再试。": "The provider no longer serves the selected model. Switch to another model in the model settings and try again.",
+  "仍在准备，可以先继续答题": "Still preparing; you can carry on answering meanwhile",
+  "今天的学习时间快用完了": "Today's study time is almost used up",
+  "今天安排为休息日，已有待办留待之后安排。": "Today is a rest day; existing to-dos are left for later.",
+  "今天已投入约 {0} / {1} 分钟，剩下的时间不够再安排一项行动。": "About {0} of {1} min spent today; the time left is not enough for another action.",
+  "今天已投入 {0} / {1} 分钟": "{0} / {1} min spent today",
+  "今天再学一会儿": "Study a little more today",
+  "今天到此为止": "That's enough for today",
+  "没有到期复习或待学内容": "Nothing due for review and nothing new to learn",
+  "学习库里没有到期的复习，也没有待学的内容。可以导入新资料，或去学习库看看。": "Nothing in your library is due for review and nothing is waiting to be learned. Import new material, or have a look at the library.",
+  "这份建议没有新增行动": "This suggestion adds no actions",
+  "可以调整时间或意见，再请 AI 安排一次。": "Adjust the time or your feedback, then ask the AI to plan again.",
+  "回到这里，点「出一套案例题」": "Come back here and click “Write a case paper”",
+  "实际用了": "Actually spent",
+  "已记录 {0} 分钟": "{0} min recorded",
+  "没能保存用时，请再试一次。": "Could not save the time. Try again."
+}

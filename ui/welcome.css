@@ -139,3 +139,11 @@
     }
   }
 }
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The welcome cards are <Panel>s (ui-consistency #143): the Panel owns the surface; these settle the padding, the paper radius and the lead card's tint. */
+    .welcome-card.sh-panel { padding: var(--space-5); border-radius: var(--radius); }
+    .welcome-card--lead.sh-panel { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%), var(--bg-raised); }
+  }
+}

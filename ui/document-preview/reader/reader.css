@@ -206,7 +206,7 @@
     /* ── "让 AI 帮你": the flow under the outline, and its preview ───────── */
     .reader-assist { display: grid; gap: var(--space-2); }
     .reader-assist__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
-    .reader-assist__actions .sh-btn { height: auto; padding-block: 5px; line-height: var(--lh-snug); white-space: normal; text-align: left; }
+    .reader-assist__actions .sh-btn { height: auto; padding-block: var(--space-1); line-height: var(--lh-snug); white-space: normal; text-align: left; }
     .reader-assist__note, .reader-assist__status { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reader-assist__bar { position: relative; display: block; height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
     .reader-assist__bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 36%; border-radius: inherit; background: var(--accent); animation: reader-assist-run 1.4s var(--ease-out) infinite; }
@@ -214,7 +214,7 @@
     .reader-assist__columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
     .reader-assist__columns h4 { margin: 0 0 var(--space-2); font-size: var(--fs-sm); }
     .reader-assist__entries { max-height: 46vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .reader-assist__entries li { display: flex; gap: var(--space-2); align-items: baseline; padding: 3px var(--space-2) 3px calc(var(--space-2) + var(--entry-depth, 0) * var(--space-4)); overflow-wrap: anywhere; }
+    .reader-assist__entries li { display: flex; gap: var(--space-2); align-items: baseline; padding: var(--space-1) var(--space-2) var(--space-1) calc(var(--space-2) + var(--entry-depth, 0) * var(--space-4)); overflow-wrap: anywhere; }
     .reader-assist__entries li[data-depth='1'] { --entry-depth: 1; }
     .reader-assist__entries li[data-depth='2'] { --entry-depth: 2; }
     .reader-assist__entries li[data-depth='3'] { --entry-depth: 3; }
@@ -344,7 +344,8 @@
     /* A formula, one look for text and Markdown sources (formula.js): its stored text is the hidden source, the drawing a marker beside it.
        Inline sits on the baseline; display is a centred block of the document that scrolls sideways when it is wide. */
     .reader-math { position: relative; }
-    .reader-math__source { position: absolute; inset-inline-start: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: pre; }
+    /* The source carries .sh-visually-hidden; it only keeps its line breaks. */
+    .reader-math__source { white-space: pre; }
     .reader-math__view math { font-family: math, "Cambria Math", serif; font-size: 1em; font-weight: var(--fw-regular); }
     /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
     .reader-math__view math:has(mphantom) { padding-inline-end: 0.2em; }

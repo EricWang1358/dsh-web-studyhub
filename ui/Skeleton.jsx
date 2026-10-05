@@ -9,9 +9,9 @@ import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
 import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { Button, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
-import migrationCss from "./panel-migrations.css";
+import { Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
+import { useStudy } from "./study-context.jsx";
 
 /* 知识骨架页：同一主题常散在多个题组里。左边按主题名跨题组合并列出，
    多选后可以先做零 token 的质量检测，再把整组交给主会话设计骨架、
@@ -54,7 +54,7 @@ function NodeTree({ skeleton, onPractice }) {
           <span className="sk-node-meaning">{n.meaning}</span>
         </div>
         {n.cards.length > 0 && (
-          <button type="button" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{uiFormat("练 {0} 题", [n.cards.length])}</button>
+          <Button size="sm" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{uiFormat("练 {0} 题", [n.cards.length])}</Button>
         )}
         {children.has(n.id) && <ul className="sk-tree">{render(n.id, depth + 1)}</ul>}
       </li>
@@ -62,9 +62,9 @@ function NodeTree({ skeleton, onPractice }) {
   return <ul className="sk-tree sk-root">{render("", 0)}</ul>;
 }
 
-export default function Skeleton({ call, data, busy, askInChat, onPractice, focusId, onFocus }) {
+export default function Skeleton({ data, onPractice, focusId, onFocus }) {
+  const { call, busy, askInChat } = useStudy();
   useInjectCss(css, "study-skeleton");
-  useInjectCss(migrationCss, "study-panel-migrations");
   const [course, setCourse] = usePageScope(data?.root, 'skeleton', data?.focus?.course ?? '*');
   const [saved, setSaved] = useState(null);
   const [topics, setTopics] = useState(null),
@@ -369,7 +369,7 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
               {picked.size ? uiFormat("{0} 个主题 · {1} 个题组 · {2} 道题", [pickedTopics.length, pickedDecks, pickedCards]) : ui("在左边勾选主题")}
             </small>
             {picked.size > 0 && (
-              <button type="button" className="sk-link" onClick={() => toggle([...picked], false)}>{ui("清空")}</button>
+              <Button variant="link" size="sm" className="sk-link" onClick={() => toggle([...picked], false)}>{ui("清空")}</Button>
             )}
           </div>
           {pickedTopics.length > 0 && (
@@ -406,22 +406,13 @@ export default function Skeleton({ call, data, busy, askInChat, onPractice, focu
                   {lint.flagged ? uiRich("{0} / {1} 道题有散装问题", <strong>{lint.flagged}</strong>, lint.total) : uiFormat("{0} 道题都没发现散装问题", [lint.total])}
                 </span>
                 {lint.flagged > 0 && (
-                  <button type="button" className="sk-mini" disabled={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</button>
+                  <Button size="sm" className="sk-mini" disabled={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</Button>
                 )}
               </div>
               <div className="sk-filters" role="group" aria-label={ui("按问题筛选")}>
-                <button type="button" className={"sk-filter" + (!issueFilter ? " on" : "")} onClick={() => setIssueFilter("")}>{uiFormat("全部问题 {0}", [lint.flagged])}
-                </button>
+                <Chip selected={!issueFilter} onClick={() => setIssueFilter("")}>{uiFormat("全部问题 {0}", [lint.flagged])}</Chip>
                 {Object.entries(lint.counts).map(([code, n]) => (
-                  <button
-                    key={code}
-                    type="button"
-                    className={"sk-filter" + (issueFilter === code ? " on" : "")}
-                    disabled={!n}
-                    onClick={() => setIssueFilter(code)}
-                  >
-                    {lint.labels[code]} {n}
-                  </button>
+                  <Chip key={code} selected={issueFilter === code} disabled={!n} onClick={() => setIssueFilter(code)}>{lint.labels[code]} {n}</Chip>
                 ))}
               </div>
               <ul className="sk-lint-list">

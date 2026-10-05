@@ -19,3 +19,12 @@
     .sh-popover-anchor:has(> .sh-tooltip[popover]) { position: static; }
   }
 }
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* ── Interactive tooltip ─────────────────────────────────────────────────
+       <Tooltip interactive>: the pointer may rest on the card (to scroll long
+       text), so the card takes pointer events instead of letting them through. */
+    .sh-tooltip.sh-tooltip--interactive { pointer-events: auto; }
+  }
+}

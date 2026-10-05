@@ -7,6 +7,7 @@ import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { QUESTION_COUNT } from "../lib/limits.js";
 import css from "./workflows.css";
+import { useStudy } from "./study-context.jsx";
 
 /* The move buttons' arrows: the caret-chevron turned a quarter either way (the icon set has no up and down arrows). */
 const turned = (degrees) => <span className="wf-turn" style={{ display: "inline-flex", transform: `rotate(${degrees}deg)` }}><Icon name="chevron" size={16} /></span>;
@@ -215,7 +216,8 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
   </section>;
 }
 
-export default function Workflows({ call, askInChat, data, openSession, openRun, initialListing = null, renderRelated }) {
+export default function Workflows({ data, openSession, openRun, initialListing = null, renderRelated }) {
+  const { call, askInChat } = useStudy();
   const language = useUiLanguage();
   useInjectCss(css, "study-workflows");
   const [listing, setListing] = useState(initialListing), [screen, setScreen] = useState(() => openSession ? { kind: "portal", id: openSession } : { kind: "list" });
@@ -277,7 +279,7 @@ export default function Workflows({ call, askInChat, data, openSession, openRun,
   // The most recent unfinished session, so coming back is one click.
   const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && uiFormat("{0} 的核心概念", [data.focus.course])].filter(Boolean);
-  if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} call={call} askInChat={askInChat} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
+  if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
   if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <><p className="wf-error" role="alert">{error}</p><Button onClick={refresh}>{ui("重新读取")}</Button></> : <p className="muted" role="status">{ui("正在读取学习流…")}</p>}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
   if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} askInChat={askInChat} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;

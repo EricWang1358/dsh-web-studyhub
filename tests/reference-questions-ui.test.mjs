@@ -6,6 +6,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { importedReferences, referenceSelection } from '../ui/reference-questions.js';
 import { queueSteps } from '../ui/generation-path-flow.js';
+import { services as studyServices } from './helpers/study-services.mjs';
 
 const compiled = await build({ stdin: { contents: `export { default as Generate } from './ui/Generate.jsx';
   export { default as CaseCreate } from './ui/CaseCreate.jsx'; export { default as ReferenceQuestions } from './ui/ReferenceQuestions.jsx';
@@ -15,8 +16,9 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Generate, CaseCreate, ReferenceQuestions, setUiLanguage } = module.exports;
 // Exercise event closures without a browser, storage or executing effects/model calls.
+const services = { current: null }; // what useStudy() answers inside the event closures (see tests/helpers/study-services.mjs)
 const hooks = { ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
-  useInsertionEffect: () => {}, useContext: () => null, useEffect: () => {}, useCallback: callback => callback, useMemo: read => read(), useRef: initial => ({ current: initial }) };
+  useInsertionEffect: () => {}, useContext: () => services.current, useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useEffect: () => {}, useCallback: callback => callback, useMemo: read => read(), useRef: initial => ({ current: initial }) };
 const eventModule = { exports: {} };
 const require = createRequire(import.meta.url);
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : require(name), eventModule, eventModule.exports);
@@ -158,10 +160,11 @@ test('generation paths forward the same optional examples into every factual ste
 test('submit events send reference examples separately, while uploads open the reference import route', () => {
   const submitted = [], modals = [];
   const limits = { sources: 8, chars: 20000 };
-  const tree = eventComponents.Generate({ data, gen: { ...gen, referenceSourceIds: ['examples'], referenceLimits: limits, referenceFormat: 'strict' }, busy: false,
+  services.current = studyServices({ act: (operation, args) => submitted.push({ operation, args }) });
+  const tree = eventComponents.Generate({ data, gen: { ...gen, referenceSourceIds: ['examples'], referenceLimits: limits, referenceFormat: 'strict' },
     genSource: 'files', selectedSources: ['textbook'], setGen: noop, setGenSource: noop, setSelectedSources: noop,
-    setModal: modal => modals.push(modal), setNotice: noop, setPage: noop, call: noop,
-    act: (operation, args) => submitted.push({ operation, args }) });
+    setModal: modal => modals.push(modal), setPage: noop });
+  services.current = null;
   findElement(tree, node => node.type === 'form').props.onSubmit({ preventDefault: noop });
   assert.equal(submitted[0].operation, 'generate');
   assert.deepEqual(submitted[0].args.sourceIds, ['textbook']);
@@ -178,9 +181,10 @@ test('submit events send reference examples separately, while uploads open the r
 test('case submit events carry optional examples without treating them as course sources', () => {
   const submitted = [];
   const limits = { sources: 8, chars: 20000 };
-  const tree = eventComponents.CaseCreate({ data, busy: false, setNotice: noop, call: noop,
-    initial: { sourceIds: ['textbook'], referenceSourceIds: ['examples'], referenceLimits: limits, referenceFormat: 'flexible' },
-    act: (operation, args) => submitted.push({ operation, args }) });
+  services.current = studyServices({ act: (operation, args) => submitted.push({ operation, args }) });
+  const tree = eventComponents.CaseCreate({ data,
+    initial: { sourceIds: ['textbook'], referenceSourceIds: ['examples'], referenceLimits: limits, referenceFormat: 'flexible' } });
+  services.current = null;
   tree.props.onSubmit({ preventDefault: noop });
   assert.equal(submitted[0].args.kind, 'case');
   assert.deepEqual(submitted[0].args.sourceIds, ['textbook']);

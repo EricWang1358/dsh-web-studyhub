@@ -15,7 +15,7 @@ export const formulaViewHtml = ({ source, display, raw, label }) =>
   (renderStudyFormula(source, display) ?? escapeHtml(raw)) + (label ? `<span class="reader-math__label">(${escapeHtml(label)})</span>` : '');
 
 /** The whole unit as markup: the hidden source (RAW, escaped) and the drawing marker. */
-export const formulaHtml = formula => `<span class="${formulaClass(formula.display)}"><span class="reader-math__source" aria-hidden="true">${escapeHtml(formula.raw)}</span>`
+export const formulaHtml = formula => `<span class="${formulaClass(formula.display)}"><span class="sh-visually-hidden reader-math__source" aria-hidden="true">${escapeHtml(formula.raw)}</span>`
   + `<span class="reader-math__view" data-study-marker="true">${formulaViewHtml(formula)}</span></span>`;
 
 /** Moves a range end that falls inside a formula to just outside it. Whether anything moved. */

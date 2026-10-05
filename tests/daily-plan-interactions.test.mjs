@@ -72,7 +72,7 @@ test('daily plan editors preserve consent, zero minutes and keyboard focus; read
   assert.equal(await page.getByRole('textbox').count(), 0);
   assert.equal(await adjust.evaluate(node => node === document.activeElement), true);
 
-  await page.evaluate(() => window.updatePlan({ proposal: { id: 'proposal-1', method: 'ai', items: [] } }));
+  await page.evaluate(() => window.updatePlan({ proposal: { id: 'proposal-1', method: 'ai', items: [{ title: '练习概率', reason: '上次混淆', minutes: 15 }] } }));
   await page.getByRole('button', { name: '接受这份安排' }).waitFor();
   await adjust.click();
   await page.getByRole('menuitem', { name: '调整今天' }).click();

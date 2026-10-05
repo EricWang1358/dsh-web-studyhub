@@ -4,7 +4,7 @@
    An automatic check that fails is silent; a manual one says so, with a retry. The dialog upgrades in one click when the host
    reports DSH's plugin manager (`update.install`), otherwise it guides a
    reinstall from the exact package address. */
-import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Banner, Button, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
@@ -13,6 +13,7 @@ import { useCopyFeedback } from './use-copy-feedback.js';
 import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
 import { isNewerVersion } from '../lib/semver.js';
 import css from './update.css';
+import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 
 let snapshot = { update: null, checking: false };
 const listeners = new Set();
@@ -268,13 +269,13 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
 /** Connected settings section for the Settings page. */
 export function UpdateSettingsPanel({ call, host }) {
   const { update, checking } = useUpdateStore();
-  const [open, setOpen] = useState(false), [extension, setExtension] = useState();
+  const [open, setOpen] = useState(false);
   useEffect(() => { if (!snapshot.update && !snapshot.checking) refreshUpdate(call); }, [call]);
-  // Whether the search extension is behind this StudyHub rides along with the retrieval status.
-  const loadExtension = useCallback(() => Promise.resolve(call('retrieval.status', {})).then(value => setExtension(value?.extension), () => {}), [call]);
-  useEffect(() => { loadExtension(); }, [loadExtension]);
+  // Whether the search extension is behind this StudyHub rides along with the retrieval status (the shared store: an install elsewhere shows here).
+  const retrieval = useRetrievalStatus({ call });
+  const extension = retrieval.data?.extension;
   return <>
-    <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setExtension(value?.extension)} onCheck={loadExtension} />
+    <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh} />
     {open && update && <UpdateDialog update={update} call={call} host={host} onClose={() => setOpen(false)} />}
   </>;
 }

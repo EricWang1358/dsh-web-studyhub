@@ -23,18 +23,13 @@ test('a chapter row is one flex line: the title takes the room, the generate but
   assert.match(rule('.source-doc__chapters > li > .sh-btn'), /width:\s*auto/);
 });
 
-test('the full-width rule is for the plain row buttons only, not for the .sh-btn actions inside the list', () => {
-  assert.match(css, /\.source-doc__page-list button:not\(\.sh-btn\)\s*\{[^}]*width:\s*100%/);
-  assert.doesNotMatch(css, /\.source-doc__page-list button\s*\{[^}]*width:\s*100%/, 'a bare `button` selector also catches .sh-btn');
+test('no stylesheet rule is written for a raw button of the list any more: the rows are <Button> (#137)', () => {
+  assert.doesNotMatch(css, /source-doc__page-list button:not\(\.sh-btn\)|source-doc__chapters > li > button:not\(\.sh-btn\)/);
 });
 
-test('the list scrolls inside its own box and the title ellipsises instead of wrapping', () => {
+test('the list scrolls inside its own box', () => {
   const list = rule('.source-doc__page-list');
   assert.match(list, /max-height:/);
   assert.match(list, /overflow-y:\s*auto/);
   assert.match(list, /overscroll-behavior:\s*contain/);
-  const title = rule('.source-doc__page-list button:not(.sh-btn) > span');
-  assert.match(title, /text-overflow:\s*ellipsis/);
-  assert.match(title, /white-space:\s*nowrap/);
-  assert.match(title, /min-width:\s*0/);
 });

@@ -16,7 +16,8 @@ const compiled = await build({ stdin: { contents: `
   export { BackupSection } from './ui/settings/BackupSection.jsx';
   export { default as CourseSettings } from './ui/CourseSettings.jsx';
   export { default as ExtensionsSettings } from './ui/ExtensionsSettings.jsx';
-  export { DisplaySettings } from './ui/reading-settings/ReadingSettings.jsx';`, resolveDir: process.cwd() },
+  export { DisplaySettings } from './ui/reading-settings/ReadingSettings.jsx';
+  export { resetHostQueries } from './ui/host-query-store.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 const hook = (initial) => { const index = active.cursor++; if (!(index in active.slots)) active.slots[index] = initial(); return [index, active.slots[index]]; };
@@ -29,14 +30,14 @@ const effect = (callback, deps) => {
 const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = hook(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useContext: () => globalThis.__toast ?? null, useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `test-${active.cursor}`)[1],
+  useContext: () => globalThis.__toast ?? null, useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `test-${active.cursor}`)[1],
   useMemo: (create, deps) => { const [, slot] = hook(() => ({ deps: undefined, value: undefined }));
     if (!slot.deps || !deps || deps.some((value, i) => value !== slot.deps[i])) { slot.value = create(); slot.deps = deps; }
     return slot.value; },
   useEffect: effect, useLayoutEffect: effect, useInsertionEffect: () => {},
 };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : realRequire(name), module, module.exports);
-const { BackupSection, CourseSettings, ExtensionsSettings, DisplaySettings } = module.exports;
+const { BackupSection, CourseSettings, ExtensionsSettings, DisplaySettings, resetHostQueries } = module.exports;
 function renderHook(component, props) {
   const owner = { cursor: 0, slots: [], effects: [] };
   return {
@@ -143,6 +144,7 @@ test('the initial retrieval settings response preserves a URL typed while the re
   const previousDocument = globalThis.document;
   globalThis.document = { querySelector: () => ({ textContent: '' }) };
   t.after(() => { globalThis.document = previousDocument; });
+  resetHostQueries();
   const response = deferred(), view = renderHook(ExtensionsSettings, { call: () => response.promise });
   const tree = view.render(); view.effects();
   const endpoint = find(tree, node => node.props?.type === 'url');
@@ -175,11 +177,13 @@ test('untouched endpoint input still loads the saved setting and leaving ignores
   globalThis.document = { querySelector: () => ({ textContent: '' }) };
   t.after(() => { globalThis.document = previousDocument; });
   for (const leave of [false, true]) {
+    resetHostQueries();
     const response = deferred(), view = renderHook(ExtensionsSettings, { call: () => response.promise });
     view.render(); view.effects(); if (leave) view.unmount();
     response.resolve({ selected: 'builtin', effective: 'builtin', providers: [], otherTools: [], hfEndpoint: 'https://saved.example' });
     await response.promise; await Promise.resolve();
-    assert.equal(find(view.render(), node => node.props?.type === 'url').props.value, leave ? '' : 'https://saved.example');
+    // The answer is the shared store's (ui/host-query.js): a reader that left does not lose it, the next one finds it there.
+    assert.equal(find(view.render(), node => node.props?.type === 'url').props.value, 'https://saved.example');
     view.unmount();
   }
 });

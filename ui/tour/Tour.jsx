@@ -226,7 +226,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
           : undefined}
         onNext={next} onBack={() => onMove(-1)} onClose={() => onClose("close")} onSkip={() => onClose("skip")}
         onLoadSample={onLoadSample} onBrowse={onBrowse} onImport={onImport} onRemoveSample={onRemoveSample} />
-      <p className="sr-only" role="status" aria-live="polite">{uiFormat("功能导览 · 第 {0} / {1} 步：{2}", [index + 1, steps.length, ui(step.title)])}</p>
+      <p className="sh-visually-hidden" role="status" aria-live="polite">{uiFormat("功能导览 · 第 {0} / {1} 步：{2}", [index + 1, steps.length, ui(step.title)])}</p>
     </div>
   );
   return top?.dialog ? createPortal(layer, top.dialog) : layer;

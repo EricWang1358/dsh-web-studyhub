@@ -1,8 +1,7 @@
 import React from 'react';
 import { ui } from './i18n.js';
 import { SegmentedControl } from './components/index.js';
-import Icon from './Icon.jsx';
-import NavGlyph from './NavGlyph.jsx';
+import { Icon, IconBox } from './components/index.js';
 
 /* The sidebar's interface-language switch (WP14): one row the height of a nav
    item — "语言" with a small segmented control. The 62 px icon rail gets one
@@ -21,7 +20,7 @@ export default function LanguageSwitch({ language = 'zh', narrow = false, onChan
     </button>;
   }
   return <div className="study-language-switch" data-usage="nav.language">
-    <Icon><NavGlyph name="language" /></Icon>
+    <IconBox><Icon name="nav-language" /></IconBox>
     <span className="study-language-switch__label" aria-hidden="true">{ui('语言')}</span>
     <SegmentedControl size="xs" label={name} value={language} options={OPTIONS} onChange={onChange} />
   </div>;

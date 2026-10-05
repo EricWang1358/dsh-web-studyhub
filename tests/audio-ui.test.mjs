@@ -6,7 +6,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const compiled = await build({
-  stdin: { contents: `export { default as AudioImport, AudioCorrections, AudioJobs, audioProgress } from './ui/AudioImport.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  stdin: { contents: `export { default as AudioImport } from './ui/AudioImport.jsx'; export { AudioCorrections } from './ui/audio/AudioCorrections.jsx'; export { AudioJobs, audioProgress } from './ui/audio/AudioJobs.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".json": "json", ".css": "text" },
 });
 const module = { exports: {} };

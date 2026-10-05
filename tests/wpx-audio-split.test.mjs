@@ -187,9 +187,8 @@ test('AudioImport.jsx is the form: 350 lines at most, and the jobs and correctio
   for (const [file, pattern] of [['ui/audio/AudioJobs.jsx', /export function AudioJobs\b/], ['ui/audio/AudioCorrections.jsx', /export default function AudioCorrections|export function AudioCorrections/],
     ['ui/audio/useAudioUpload.js', /export function useAudioUpload/], ['ui/audio/useAudioPreflight.js', /export function useAudioPreflight/],
     ['ui/audio/audio-upload.js', /export function createAudioUploader/]]) assert.match(await read(file), pattern, file);
-  assert.match(page, /export \{[^}]*\bAudioJobs\b[^}]*\} from '\.\/audio\/AudioJobs\.jsx'/, 'a re-export for Sources and the reader until their owners switch (this wave)');
-  assert.match(page, /export \{[^}]*\bAudioCorrections\b[^}]*\} from '\.\/audio\/AudioCorrections\.jsx'/);
-  for (const name of ['audioProgress', 'textStepsRan']) assert.match(page, new RegExp(`export \\{[^}]*\\b${name}\\b`), `${name} is still importable from AudioImport`);
+  assert.doesNotMatch(page, /^export \{/m, 'the page has no re-exports: Sources and the reader import ui/audio/* directly (#124)');
+  for (const file of ['ui/Sources.jsx', 'ui/document-preview/DocumentViewer.jsx']) assert.doesNotMatch(await read(file), /AudioImport\.jsx/, file);
   assert.match(page, /preflightNotes/);
   assert.match(page, /useAudioUpload\(/);
   assert.match(page, /useAudioPreflight\(/);

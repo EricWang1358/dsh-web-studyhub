@@ -2,6 +2,7 @@
    call(action, args) and resolves a plain outcome instead of throwing, so the
    components only render it. */
 import { ui, uiFormat } from './i18n.js';
+import { refreshRetrievalStatus } from './retrieval-status.js';
 
 const message = error => error?.message || String(error);
 
@@ -10,7 +11,8 @@ export async function runInstall(call, approvedBuilds) {
   try {
     const result = await call('retrieval.extension.install', approvedBuilds?.length ? { approvedBuilds } : {});
     if (result?.status === 'needs-approval') return { phase: 'approval', pending: result.pending };
-    const status = await Promise.resolve(call('retrieval.status', {})).catch(() => null);
+    // Every part of the screen that shows the status gets the new one (ui/host-query.js).
+    const status = await refreshRetrievalStatus(call);
     return { phase: 'installed', restartRequired: !!result?.restartRequired, status };
   } catch (error) { return { phase: 'error', message: message(error) }; }
 }
@@ -19,7 +21,7 @@ export async function runInstall(call, approvedBuilds) {
 export async function runUninstall(call) {
   try {
     await call('retrieval.extension.uninstall', {});
-    return { phase: 'removed', status: await Promise.resolve(call('retrieval.status', {})).catch(() => null) };
+    return { phase: 'removed', status: await refreshRetrievalStatus(call) };
   } catch (error) { return { phase: 'error', message: message(error) }; }
 }
 

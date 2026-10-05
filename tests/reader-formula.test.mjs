@@ -41,7 +41,7 @@ const INLINE = { source: 'z = Wx + b', display: false, raw: '$z = Wx + b$' };
 const DISPLAY = { source: String.raw`\delta = x`, display: true, raw: String.raw`$$\delta = x$$` };
 
 test('a formula is a hidden source (the counted text) beside a drawn marker, escaped, with the same markup everywhere', () => {
-  assert.match(formulaHtml(INLINE), /^<span class="reader-math"><span class="reader-math__source" aria-hidden="true">\$z = Wx \+ b\$<\/span><span class="reader-math__view" data-study-marker="true"><span class="katex"><math/);
+  assert.match(formulaHtml(INLINE), /^<span class="reader-math"><span class="sh-visually-hidden reader-math__source" aria-hidden="true">\$z = Wx \+ b\$<\/span><span class="reader-math__view" data-study-marker="true"><span class="katex"><math/);
   assert.match(formulaHtml(DISPLAY), /^<span class="reader-math reader-math--display">/);
   const unsafe = formulaHtml({ source: 'x < y', display: false, raw: '$x < y$' });
   assert.match(unsafe, /aria-hidden="true">\$x &lt; y\$<\/span>/);

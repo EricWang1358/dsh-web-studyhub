@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import MathText from '../MathText.jsx';
-import { AudioCorrections } from '../AudioImport.jsx';
+import { AudioCorrections } from '../audio/AudioCorrections.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, IconButton, InlineMessage, SegmentedControl } from '../components/index.js';

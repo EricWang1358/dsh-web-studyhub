@@ -8,8 +8,7 @@ import Icon from './Icon.jsx';
 import { computePlacement, useDismiss } from './use-dismiss.js';
 
 const glyph = (icon, size) => typeof icon === 'string' ? <Icon name={icon} size={size} /> : icon || null;
-const More = <svg className="sh-icon" viewBox="0 0 24 24" width={18} height={18} fill="currentColor" aria-hidden="true" focusable="false">
-  <circle cx="6" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="18" cy="12" r="1.6" /></svg>;
+const More = <Icon name="more" size={18} />;
 
 /**
  * A small action menu behind a button (⋯ by default). In the browser the list
@@ -46,13 +45,19 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
 
   useLayoutEffect(() => {
     if (!host || !button.current || !list.current) return;
-    const fixed = host === document.body;
+    const fixed = host === document.body, element = list.current;
     const box = fixed ? { left: 0, top: 0, bottom: window.innerHeight, right: window.innerWidth } : host.getBoundingClientRect();
-    const size = list.current.getBoundingClientRect();
+    // Measure from the content origin (left/top 0 inside the host): rectangles are screen pixels, the host may be zoomed (the interface size)
+    // and scrolled, so the offset is the difference between where the list is and where it should be, divided by the zoom.
+    element.style.left = '0px';
+    element.style.top = '0px';
+    const size = element.getBoundingClientRect();
+    const scale = element.offsetWidth ? size.width / element.offsetWidth : 1;
     const result = computePlacement({ anchor: button.current.getBoundingClientRect(), size, placement: 'bottom-end',
       bounds: { left: box.left, top: box.top, right: box.right, bottom: Math.min(box.bottom, window.innerHeight) } });
-    const offsetX = fixed ? 0 : host.scrollLeft - box.left, offsetY = fixed ? 0 : host.scrollTop - box.top;
-    setPlace({ fixed, left: result.left + offsetX, top: result.top + offsetY, maxHeight: size.height > result.maxHeight ? result.maxHeight : undefined });
+    const origin = fixed ? { left: 0, top: 0 } : size;
+    setPlace({ fixed, left: (result.left - origin.left) / scale, top: (result.top - origin.top) / scale,
+      maxHeight: size.height > result.maxHeight ? result.maxHeight / scale : undefined });
   }, [host, items.length]);
 
   useDismiss({ open, onClose: () => setOpen(false), refs: [list, button], returnFocusRef: button });
@@ -81,6 +86,8 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
   const style = !inBrowser ? undefined
     : place ? { left: place.left, top: place.top, maxHeight: place.maxHeight, overflowY: place.maxHeight ? 'auto' : undefined, position: place.fixed ? 'fixed' : 'absolute' }
       : { left: 0, top: 0, visibility: 'hidden' };
+  // The icon column exists only when some item has an icon; the items without one then keep their text in line.
+  const iconColumn = items.some(item => !item.heading && item.icon);
   const menu = (
     <div ref={list} id={menuId} role="menu" aria-label={label} className="sh-menu" onKeyDown={onKey} style={style}>
       {items.map((item, index) => item.heading
@@ -88,7 +95,7 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
         : <button key={item.id} type="button" role="menuitem" disabled={item.disabled} title={item.hint} {...item.attrs}
           className={cx('sh-menu__item', item.danger && 'is-danger')}
           onClick={() => { setOpen(false); button.current?.focus(); onSelect(item.id); }}>
-          {item.icon ? glyph(item.icon, 16) : <span className="sh-menu__gap" aria-hidden="true" />}
+          {item.icon ? glyph(item.icon, 16) : iconColumn && <span className="sh-menu__gap" aria-hidden="true" />}
           <span className="sh-menu__label">{item.label}</span>
           {item.hint && <span className="sh-menu__hint">{item.hint}</span>}
         </button>)}

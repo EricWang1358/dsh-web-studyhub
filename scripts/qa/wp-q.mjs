@@ -36,7 +36,7 @@ async function open(lang, theme, width, query = '') {
   await tab.waitForSelector('.thumbs');
   return { tab, close: () => context.close() };
 }
-const tag = (tab, index) => tab.locator('.thumb-tray .coach-chip').nth(index);
+const tag = (tab, index) => tab.locator('.thumb-tray .sh-chip__main').nth(index);
 const feedbackCalls = tab => tab.evaluate(() => window.__calls.filter(call => call.action === 'coach.feedback').map(call => call.args));
 
 for (const lang of langs) for (const theme of themes) for (const width of [1280, 420]) {
@@ -60,7 +60,7 @@ for (const lang of langs) for (const theme of themes) for (const width of [1280,
     if (lang === 'zh' && theme === 'dark' && width === 1280) {
       const button = await tab.locator('button[aria-keyshortcuts="B"]').evaluate(node => ({ pressed: node.getAttribute('aria-pressed'), expanded: node.getAttribute('aria-expanded'), controls: node.getAttribute('aria-controls'), described: node.getAttribute('aria-describedby') }));
       check('the 👎 control has aria-expanded and no aria-pressed', button.pressed === null && button.expanded !== null, JSON.stringify(button));
-      const voice = await tab.locator('.thumbs .sr-only').textContent();
+      const voice = await tab.locator('.thumbs .sh-visually-hidden').textContent();
       check('the vote is conveyed as hidden text', /问题|problem/i.test(voice), voice);
     }
     await close();

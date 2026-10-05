@@ -14,6 +14,7 @@ import ModelErrorNote, { ModelSettingsContext } from "./ModelErrorNote.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./workflows.css";
 import skeletonCss from "./skeleton.css";
+import { useStudy } from "./study-context.jsx";
 
 const OUTCOME = { done: "已完成活动", needs_work: "还需巩固", skipped: "已跳过" };
 const ORAL_REPORTS = { zh: "我已口头复述（自我记录，未经过判分或掌握验证）。", en: 'I retold it aloud (self-recorded; not graded or verified for mastery).' };
@@ -132,9 +133,10 @@ export default function WorkflowPortal({ onOpenSettings, ...props }) {
   return <ModelSettingsContext.Provider value={onOpenSettings || null}><PortalBody {...props} /></ModelSettingsContext.Provider>;
 }
 
-function PortalBody({ id, libraryKey, call, askInChat, onOpenRun, onOpenSession, onBack, revision }) {
+function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision }) {
   useInjectCss(css, "study-workflows");
   useInjectCss(skeletonCss, "study-skeleton");
+  const { call, askInChat } = useStudy();
   const [session, setSession] = useState(null), [resources, setResources] = useState({ readings: [], sources: [], cardCount: 0 });
   const [output, setOutput] = useState(""), [remote, setRemote] = useState(null);
   const toast = useToast();

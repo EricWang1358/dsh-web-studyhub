@@ -19,9 +19,7 @@ export function LibraryChip({ root, onOpen }) {
   if (!root) return null;
   return (
     <Button variant="quiet" size="sm" className="library-chip" title={root} aria-label={uiFormat('学习库位置：{0}。打开设置可更改', [root])} onClick={onOpen}>
-      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <path d="M1.75 4.25a1 1 0 0 1 1-1h3.1l1.4 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z" />
-      </svg>
+      <Icon name="folder" size={14} />
       <span>{uiFormat('学习库：{0}', [libraryFolderName(root)])}</span>
     </Button>
   );

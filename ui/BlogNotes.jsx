@@ -15,13 +15,15 @@ import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
 import { Button, InlineMessage, PageHeader, useToast } from './components/index.js';
+import { useStudy } from './study-context.jsx';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 const isDailyNote = note => note?.kind?.startsWith('daily-recap');
 const writingStamp = note => JSON.stringify([note?.title, note?.markdown, isDailyNote(note) ? null : note?.cards]);
 
-export default function BlogNotes({ data, call, act, initialId, onSelect, onBack, backLabel, onOpenCard, onRecapSettings, onModelSettings, busy = false, theme = "dark" }) {
+export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel, onOpenCard, onRecapSettings, onModelSettings, theme = "dark" }) {
+  const { call, act, busy } = useStudy();
   const science = useSciencePreferences();
   const toast = useToast();
   useInjectCss(noteCss, "study-blog-notes");

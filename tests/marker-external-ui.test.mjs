@@ -21,7 +21,9 @@ function load(react) {
 const components = load(React);
 const changes = [];
 const events = load({ ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, value => changes.push(value)],
-  useInsertionEffect: () => {}, useEffect: () => {}, useId: () => 'pdf', useMemo: read => read(), useRef: initial => ({ current: initial }) });
+  useInsertionEffect: () => {}, useEffect: () => {}, useId: () => 'pdf', useMemo: read => read(), useRef: initial => ({ current: initial }),
+  // The shared host-query store (ui/host-query.js) reads through these: no services, and the store's current answer.
+  useContext: () => null, useSyncExternalStore: (_subscribe, snapshot) => snapshot() });
 function find(tree, predicate) {
   if (Array.isArray(tree)) return tree.map(item => find(item, predicate)).find(Boolean);
   if (!React.isValidElement(tree)) return undefined;
@@ -97,7 +99,7 @@ test('script download contains the generated local script and releases the objec
 function mountPdf(props, component = 'PdfConversion') {
   const states = [], refs = [], effectDependencies = [], cleanups = [];
   let stateCursor = 0, refCursor = 0, effectCursor = 0, pending = [];
-  const mounted = load({ ...React, useId: () => 'mounted-pdf',
+  const mounted = load({ ...React, useId: () => 'mounted-pdf', useContext: () => null, useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
     useState: initial => { const index = stateCursor++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }]; },
     useRef: initial => refs[refCursor++] ||= { current: initial },
     useInsertionEffect: () => {}, useEffect: (effect, dependencies) => { const index = effectCursor++; if (dependencies?.some(item => typeof item === 'string' && item.includes('{'))) return;

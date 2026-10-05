@@ -1,8 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Icon, PageHeader } from '../components/index.js';
-import headingCss from './home-headings.css';
-import { useComponentCss } from '../components/css.js';
 import { ExamCountdown } from '../CourseSettings.jsx';
 import { isParked } from '../CourseActive.jsx';
 import { groupCourseNames, rankCourses } from '../course-names.js';
@@ -15,7 +13,6 @@ import { groupCourseNames, rankCourses } from '../course-names.js';
  * from useRoleDraft. Always the page's title (h1), drawn by PageHeader.
  */
 export default function CourseHeading({ data, headline, onFocus, onCourseSettings, role }) {
-  useComponentCss(headingCss, 'study-home-headings');
   const focus = data.focus || {};
   const courses = focus.courses || [];
   const frame = (title, titleProps) => <PageHeader className="course-header" title={title} titleProps={titleProps} />;

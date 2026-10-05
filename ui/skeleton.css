@@ -18,7 +18,7 @@
     }
     .sk-warn {
       margin: 10px 0 0;
-      padding: 9px var(--space-3);
+      padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-sm);
       font-size: var(--fs-md);
       border: 1px solid var(--warn-line);
@@ -62,16 +62,9 @@
     }
   }
   :is(.study-app, .study-seat) {
-    & button.sk-link {
-      margin-left: auto;
-      padding: var(--space-half) var(--space-2);
-      border: 0;
-      background: transparent;
-      color: var(--accent-soft);
-      font-size: var(--fs-md);
-    }
+    .sk-link { margin-left: auto; }
     .sk-search {
-      padding: var(--space-2) 11px;
+      padding: var(--space-2) var(--space-3);
       font-size: var(--fs-md);
     }
   }
@@ -135,7 +128,7 @@
     }
     .sk-badge {
       flex: none;
-      padding: 1px 7px;
+      padding: 1px var(--space-2);
       border-radius: var(--radius-pill);
       background: var(--info-bg);
       color: var(--info);
@@ -172,7 +165,7 @@
       gap: 6px;
     }
     .sk-chip {
-      padding: var(--space-half) 9px;
+      padding: var(--space-half) var(--space-2);
       border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--accent) 14%, transparent);
       color: var(--accent-soft);
@@ -192,11 +185,7 @@
     }
   }
   :is(.study-app, .study-seat) {
-    & button.sk-mini {
-      flex: none;
-      padding: var(--space-1) 10px;
-      font-size: var(--fs-md);
-    }
+    .sk-mini { flex: none; }
     & button.sk-danger {
       color: var(--bad);
     }
@@ -227,16 +216,6 @@
     }
   }
   :is(.study-app, .study-seat) {
-    & button.sk-filter {
-      padding: 3px 10px;
-      border-radius: var(--radius-pill);
-      font-size: var(--fs-md);
-    }
-    & button.sk-filter.on {
-      border-color: var(--accent);
-      background: color-mix(in srgb, var(--accent) 16%, transparent);
-      color: var(--text);
-    }
   }
   :where(.study-app, .study-seat) {
     .sk-lint-list {
@@ -274,7 +253,7 @@
       max-width: 260px;
     }
     .sk-issue {
-      padding: 1px 7px;
+      padding: 1px var(--space-2);
       border-radius: var(--radius-pill);
       background: var(--warn-bg);
       color: var(--warn);
@@ -306,7 +285,7 @@
       flex-direction: column;
       gap: var(--space-1);
       width: 100%;
-      padding: 11px 14px;
+      padding: var(--space-3) 14px;
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
@@ -363,7 +342,7 @@
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: var(--space-1) 10px;
-      padding: 7px 0 7px calc(var(--depth, 0) * 18px);
+      padding: var(--space-2) 0 var(--space-2) calc(var(--depth, 0) * 18px);
       border-bottom: 1px solid var(--line-soft);
     }
     .sk-node > .sk-tree {
@@ -580,7 +559,7 @@
   }
   :where(.study-app, .study-seat) {
     .skc-class-name {
-      padding: 7px 10px;
+      padding: var(--space-2) 10px;
       border-bottom: 1px solid var(--line);
       background: color-mix(in srgb, var(--accent) 12%, transparent);
       border-radius: var(--radius-sm) var(--radius-sm) 0 0;
@@ -808,7 +787,7 @@
       place-items: center;
       width: 16px;
       height: 16px;
-      margin-right: 5px;
+      margin-right: var(--space-1);
       border-radius: 50%;
       background: var(--bg-surface);
       border: 1px solid var(--line);
@@ -999,7 +978,7 @@
     .sk-extend-row input {
       flex: 1;
       min-width: 0;
-      padding: 7px 10px;
+      padding: var(--space-2) 10px;
       font-size: var(--fs-md);
     }
     .skc-extend form button,
@@ -1466,5 +1445,12 @@
 @keyframes skc-fresh {
   50% {
     box-shadow: 0 0 0 7px var(--ok-halo), var(--shadow-md);
+  }
+}
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The skeleton desk panel is a <Panel> (ui-consistency #143): the Panel owns the surface; this keeps the desk's quieter border. */
+    .sk-panel.sh-panel { border-color: var(--line-soft); }
   }
 }

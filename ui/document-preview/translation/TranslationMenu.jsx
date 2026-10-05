@@ -1,11 +1,10 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, InlineMessage, Popover, SegmentedControl } from '../../components/index.js';
+import { Button, Icon, InlineMessage, Popover, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
 import { isCancellable } from '../../../lib/job-status.js';
-import Glyph from './Glyph.jsx';
 import { DISPLAY_MODES, jobActive, jobClock, jobFraction } from './model.js';
 
 /* The reader's controls for the bilingual reading: one row in the Aa popover (how translations are drawn), one 译 popover in
@@ -64,7 +63,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
       <div className="tr-panel__actions">
         <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onExpandAll}>{ui('展开本页全部译文')}</Button>
         <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onCollapseAll}>{ui('收起本页全部译文')}</Button>
-        <Button size="sm" variant="quiet" icon={<Glyph name="book" />} onClick={onGlossary}>{ui('术语表…')}</Button>
+        <Button size="sm" variant="quiet" icon={<Icon name="book" size={16} />} onClick={onGlossary}>{ui('术语表…')}</Button>
       </div>
       {stale?.length > 0 && <p className="tr-panel__note">{uiFormat('旧版本里还有 {0} 段译文，没有套用到这个版本；文字没变的段落会直接沿用。', [stale.reduce((total, entry) => total + entry.count, 0)])}</p>}
   </Popover>;

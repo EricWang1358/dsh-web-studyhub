@@ -14,7 +14,7 @@
     .course-field__chapters { display: flex; flex-wrap: wrap; gap: var(--space-1) 6px; margin: 0; padding: 0; min-width: 0; }
     .course-field__chapters { padding: var(--space-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken); }
     .course-field__pick { display: inline-flex; align-items: center; min-width: 0; max-width: min(100%, 22em); min-height: 30px; margin: 0;
-      padding: 3px var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--bg-surface); color: var(--text-dim);
+      padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--bg-surface); color: var(--text-dim);
       font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-tight); white-space: nowrap; cursor: pointer; }
     .course-field__pick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .course-field__pick-meta { flex: none; padding-left: 6px; color: var(--text-muted); }

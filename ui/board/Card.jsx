@@ -1,10 +1,8 @@
 import { ui, uiFormat } from '../i18n.js';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import Markdown from '../Markdown.jsx';
-import { Button, Icon } from '../components/index.js';
+import { Button, Icon, Menu } from '../components/index.js';
 import { checklistProgress, dueState, labelHue } from '../../lib/board-model.js';
-import BIcon from './icons.jsx';
-import Menu from './Menu.jsx';
 import { boardColumnLabel, dueText, dueTitle, studyRefLabel } from './meta.js';
 
 /* A note is clamped to three lines; the expand button only exists when there
@@ -35,8 +33,8 @@ export function cardMenuItems({ column, columns, index, count }) {
   return [
     ...(others.length ? [{ heading: true, label: ui('移到') }, ...others.map((entry) => ({ id: `to:${entry.id}`, label: boardColumnLabel(entry), icon: 'move' }))] : []),
     { heading: true, label: ui('排序') },
-    { id: 'up', label: ui('上移'), icon: 'up', disabled: index <= 0 },
-    { id: 'down', label: ui('下移'), icon: 'down', disabled: index >= count - 1 },
+    { id: 'up', label: ui('上移'), icon: 'arrow-up', disabled: index <= 0 },
+    { id: 'down', label: ui('下移'), icon: 'arrow-down', disabled: index >= count - 1 },
     { heading: true, label: ui('卡片') },
     { id: 'edit', label: ui('编辑'), icon: 'edit' },
     { id: 'archive', label: ui('归档'), icon: 'archive' },
@@ -79,17 +77,17 @@ export default function BoardCard({ card, column, columns, index, count, today, 
       {(!!card.labels?.length || state || progress.total > 0) && <div className="board-card__chips">
         {(card.labels || []).map((label) => <span key={label} className={`board-chip board-hue-${labelHue(label)}`}>{label}</span>)}
         {state && <span className={`board-due is-${state.kind}`} title={dueTitle(card.due, state.kind === 'done' ? null : state)}>
-          <BIcon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>}
+          <Icon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>}
         {progress.total > 0 && <span className={`board-progress${progress.done === progress.total ? ' is-complete' : ''}`}
-          title={uiFormat('清单 {0}/{1}', [progress.done, progress.total])}><BIcon name="checklist" size={13} />{progress.done}/{progress.total}</span>}
+          title={uiFormat('清单 {0}/{1}', [progress.done, progress.total])}><Icon name="checklist" size={13} />{progress.done}/{progress.total}</span>}
       </div>}
       {(origin || link) && <div className="board-meta">
         {origin && (onOrigin && card.origin?.workspace
           ? <button type="button" className="board-meta__item" title={card.origin.workspace} onClick={() => onOrigin(card.origin.workspace)}><Icon name="folder" size={13} /><span>{origin}</span></button>
           : <span className="board-meta__item" title={card.origin?.workspace}><Icon name="folder" size={13} /><span>{origin}</span></span>)}
         {link && (onStudyRef
-          ? <button type="button" className="board-meta__item" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><BIcon name="link" size={13} /><span>{link.text}</span></button>
-          : <span className="board-meta__item" title={card.studyRef.root}><BIcon name="link" size={13} /><span>{link.text}</span></span>)}
+          ? <button type="button" className="board-meta__item" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><Icon name="link" size={13} /><span>{link.text}</span></button>
+          : <span className="board-meta__item" title={card.studyRef.root}><Icon name="link" size={13} /><span>{link.text}</span></span>)}
       </div>}
     </article>
   );

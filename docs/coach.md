@@ -182,6 +182,7 @@ Autopilot's on/off state is the exception: it is kept in this browser.
 ## For developers
 
 - Server actions: `coach.nudge`, `coach.reply`, `coach.feedback`, `coach.consent`, `coach.goal`, `coach.debrief`, `coach.practice`, `coach.revert`, `coach.status`, `coach.profile`, `coach.forget`, `coach.prepare`, `coach.variants` and `coach.rewrite.retry`.
+- `coach.feedback { vote, tags, rewriteVia }`: a panel that opens its own fix-the-question box (修题) for the rewrite tags sends `rewriteVia: "assist"`. The silent coach rewrite is then not started (one visible path to the background assistant), and the result carries `fix`, the rewrite tags the panel should offer as fixes; `scheduled` has no `rewrite`. A client without the flag keeps the background rewrite and gets no `fix`.
 - Since 1.0.0 the practice page has no coach column. `coach.nudge` (a hint after an objective miss or a self-rating below 3; not in mock exams) and `coach.reply` (got it, still unclear, or an answer to the hint's check; at most 2 extra explanations per hint) remain on the server, but the panel does not call them. Concurrent identical requests share one call.
 - `coach.consent {prep: true, runId}` from a result page also queues that round's application questions.
 - `coach.forget` clears `learner` and the waiting `prepared` questions only.

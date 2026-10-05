@@ -34,7 +34,7 @@ test('trend: one wide accessible svg with legend, focusable points, a hidden dat
   assert.match(out, /自评/);
   assert.equal((out.match(/class="dash-point[ "]/g) || []).length, 4 + 3, 'one point per graded and per self value');
   assert.match(out, /<circle[^>]*class="dash-point[^"]*"[^>]*tabindex="0"[^>]*aria-label="[^"]*2026-09-25[^"]*2[^"]*3[^"]*"/, 'a point is focusable and says date, value, count');
-  const table = out.match(/<table class="dash-sr"[\s\S]*?<\/table>/)?.[0] || '';
+  const table = out.match(/<table class="sh-visually-hidden"[\s\S]*?<\/table>/)?.[0] || '';
   assert.equal((table.match(/<tr>/g) || []).length, 1 + 5, 'header + one row per studied day');
   assert.match(table, /2026-09-25/);
   const graded = out.match(/<path class="dash-line graded"[^>]*d="([^"]+)"/)?.[1] || '';
@@ -77,7 +77,7 @@ test('forecast: 14 bars, today is labelled with overdue, and a bar with cards st
 test('forecast: without a start handler nothing is clickable; the table lists all 14 days', () => {
   const out = html(ForecastPanel, { forecast });
   assert.doesNotMatch(out, /role="button"/);
-  const table = out.match(/<table class="dash-sr"[\s\S]*?<\/table>/)?.[0] || '';
+  const table = out.match(/<table class="sh-visually-hidden"[\s\S]*?<\/table>/)?.[0] || '';
   assert.equal((table.match(/<tr>/g) || []).length, 1 + 14);
   assert.match(text(out), /更远的 4 题/);
 });

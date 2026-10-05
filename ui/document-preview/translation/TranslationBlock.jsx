@@ -3,7 +3,6 @@ import { ui, uiFormat } from '../../i18n.js';
 import { Button, Icon, InlineMessage, Menu, Spinner } from '../../components/index.js';
 import { useCopyFeedback } from '../../use-copy-feedback.js';
 import MathText from '../../MathText.jsx';
-import Glyph from './Glyph.jsx';
 import { failureKind, shortQuote, versionOf } from './model.js';
 
 /* One paragraph's translation, drawn as a block right after the paragraph (逐段对照), in the right column beside it (左右分栏),
@@ -55,7 +54,7 @@ function Bar({ open, onToggle, target, item, menu, preview, copied }) {
   const version = versionOf(item), selection = item?.kind === 'selection';
   return <div className="tr-block__bar">
     <Button variant="quiet" size="sm" className="tr-fold" aria-expanded={open} aria-label={open ? ui('收起译文') : ui('展开译文')} title={open ? ui('收起译文') : ui('展开译文')} onClick={onToggle}
-      icon={<Glyph name="down" />}>
+      icon={<Icon name="chevron-down" size={16} className="tr-glyph" />}>
       <span className="tr-block__tag" aria-hidden="true">{targetTag(target)}</span>
     </Button>
     {selection && <span className="tr-chip tr-chip--quote" title={item.quote}>{shortQuote(item.quote, 40)}</span>}
@@ -91,10 +90,10 @@ export default function TranslationBlock({ state, item, target, open, pendingKin
   const busy = state === 'pending';
   const choose = { copy, again: () => setAsking(true), glossary: onGlossary, delete: onDelete };
   const menu = <Menu className="tr-menu" label={ui('这段译文的更多操作')} onSelect={id => choose[id]()} items={[
-    { id: 'copy', icon: <Glyph name="copy" />, label: ui('复制译文') },
+    { id: 'copy', icon: <Icon name="copy" size={16} />, label: ui('复制译文') },
     { id: 'again', icon: <Icon name="refresh" size={16} />, label: ui('重新翻译…'), disabled: busy },
-    { id: 'glossary', icon: <Glyph name="book" />, label: ui('术语表…') },
-    { id: 'delete', icon: <Glyph name="trash" />, label: ui('删除这段翻译'), danger: true, disabled: busy },
+    { id: 'glossary', icon: <Icon name="book" size={16} />, label: ui('术语表…') },
+    { id: 'delete', icon: <Icon name="trash" size={16} />, label: ui('删除这段翻译'), danger: true, disabled: busy },
   ]} />;
   return <div className="tr-block" role="note" aria-label={ui('译文')} lang={lang} data-state={busy ? 'busy' : 'ok'} data-open={open ? 'true' : 'false'} data-kind={item.kind}>
     <Bar open={open} onToggle={onToggle} target={target} item={item} menu={menu} preview={item.text} copied={copied} />

@@ -90,7 +90,7 @@
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
       text-align: right;
-      padding-top: 3px;
+      padding-top: var(--space-1);
     }
     .case-para__text {
       margin: 0;

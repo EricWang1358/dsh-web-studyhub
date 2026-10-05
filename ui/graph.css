@@ -47,7 +47,7 @@
     .graph-legend-item {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: var(--space-1);
       white-space: nowrap;
     }
     .graph-swatch {

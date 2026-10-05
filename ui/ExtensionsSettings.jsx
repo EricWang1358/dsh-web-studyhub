@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Disclosure, Field, InlineMessage, Select, SettingsSection, TextInput, useToast } from './components/index.js';
 import { AdvancedTools, ConverterMain, DetectionLine, providerLabel } from './LargeDocumentCard.jsx';
 import ExtensionPanel from './ExtensionPanel.jsx';
+import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useAsyncAction } from './use-async.js';
 import css from './large-documents.css';
 
@@ -22,18 +23,14 @@ const stripTool = value => String(value ?? '').replace(/^mcp:/, '');
 export default function ExtensionsSettings({ call, initialStatus = null, courses = [], defaultCourse = '', onStatus, initialPlan, initialRun }) {
   const toast = useToast();
   useInjectCss(css, 'study-large-documents');
-  const [status, setStatus] = useState(initialStatus);
+  const query = useRetrievalStatus({ call, initialData: initialStatus ?? undefined, enabled: !initialStatus });
+  const status = query.data ?? (query.error ? NOTHING : null);
   const [probe, setProbe] = useState(null);
   const { run, working, error } = useAsyncAction({ exclusive: true });
-  const [endpoint, setEndpoint] = useState(initialStatus?.hfEndpoint || '');
-  const endpointEdited = useRef(false);
-  const accept = value => { if (!value) return; setStatus(value); onStatus?.(value); };
-  useEffect(() => {
-    if (initialStatus || typeof call !== 'function') { if (!initialStatus) setStatus(NOTHING); return undefined; }
-    let live = true;
-    Promise.resolve(call('retrieval.status', {})).then(value => { if (live) { setStatus(value || NOTHING); if (!endpointEdited.current) setEndpoint(value?.hfEndpoint || ''); } }, () => { if (live) setStatus(NOTHING); });
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // The download address shows what the host saved until the learner types one (what is typed is kept when the read lands late).
+  const [typedEndpoint, setEndpoint] = useState(null);
+  const accept = value => { if (!value) return; setRetrievalStatus(value); onStatus?.(value); };
+  const endpoint = typedEndpoint ?? query.data?.hfEndpoint ?? '';
   const current = status || NOTHING;
   const choose = provider => { setProbe(null); return run('choose', async () => {
     accept(await call('retrieval.set', { provider }));
@@ -82,7 +79,7 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
           <div className="extensions-settings__endpoint">
             <Field label={ui('模型下载地址')} width="full"
               hint={ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}>
-              <TextInput type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => { endpointEdited.current = true; setEndpoint(event.target.value); }} />
+              <TextInput type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => setEndpoint(event.target.value)} />
             </Field>
             <Button size="sm" variant="secondary" busy={working === 'endpoint'} disabled={!!working} onClick={saveEndpoint}>{ui('保存下载地址')}</Button>
           </div>

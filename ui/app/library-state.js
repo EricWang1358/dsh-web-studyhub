@@ -1,4 +1,5 @@
 import { useMemo, useReducer, useRef } from 'react';
+import { resetHostQueries } from '../host-query-store.js';
 
 /* Everything the app remembers about ONE library: the page it was on, the draft it was editing, the materials it ticked,
    the generate form, an open dialog. Switching the library, restoring a backup and moving the binding all have to forget
@@ -62,6 +63,8 @@ export function createLibraryReset(deps) {
     deps.setNotice('');
     deps.setError('');
     deps.session.reset();
+    // What the host reported about the old library (search, MinerU...) is not the new library's.
+    resetHostQueries();
     refs.examLocation.current = null;
     // A directory request that was in flight belongs to the old library.
     if (refs.notebookRequest) refs.notebookRequest.current++;

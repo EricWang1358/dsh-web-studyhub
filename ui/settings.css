@@ -6,7 +6,6 @@
        components (ui/components/fields.css). Injected as <style data-study-settings>. */
     .settings-page .settings-subtitle { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .settings-page .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .settings-page .settings-actions .sh-btn { margin: 0; }
     .settings-page .settings-form { margin: 0; }
     .settings-page .binding-panel { margin: 0; }
     /* Disclosures inside a section start at the section edge (no extra indent). */

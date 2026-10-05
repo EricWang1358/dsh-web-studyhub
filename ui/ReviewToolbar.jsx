@@ -23,11 +23,12 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
   return (
     <div className="question-toolbar">
       <div className="question-tools">
-        {!run.feedback && <button className="tool-action" aria-expanded={!!expanded} onClick={onToggleHelp}>
+        {!run.feedback && <Button variant="quiet" className="tool-action" aria-expanded={!!expanded} onClick={onToggleHelp}>
           {run.revealed ? ui("讲解") : ui("提示")}
-        </button>}
+        </Button>}
         {run.mode !== "exam" && (
-          <button
+          <Button
+            variant="quiet"
             className={"tool-action" + (enOn ? " is-active" : "")}
             aria-pressed={!!enOn}
             disabled={!!enBusy && !enOn}
@@ -35,9 +36,9 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
             onClick={onToggleEn}
           >
             {enBusy ? "EN…" : "EN"}
-          </button>
+          </Button>
         )}
-        <button className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</button>
+        <Button variant="quiet" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
         <ReadingSettingsButton className="review-reading" />
         {thumbs}
       </div>

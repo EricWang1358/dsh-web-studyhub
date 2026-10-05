@@ -13,7 +13,7 @@ import { gateTitle } from './ModelSetupGate.jsx';
      nothing-usable  the model answered in a shape that could not be used: the answer, to look at and to send to the developer
    `fallback` says what the learner is left with ("先给你来自本地数据的建议"); the line is followed by 再试一次 when the helper can simply be asked again. */
 
-const SETTINGS_KINDS = new Set(['credential', 'quota']);
+const SETTINGS_KINDS = new Set(['credential', 'rejected', 'model-retired', 'quota']);
 
 /** { kind, text, detail?, sample?, settings } for an unavailable answer, or null when there is nothing to explain (no signal, or no reason). */
 export function describeAiUnavailable(unavailable, fallback) {

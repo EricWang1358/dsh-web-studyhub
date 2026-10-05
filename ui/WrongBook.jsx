@@ -10,6 +10,7 @@ import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } fr
 import { Banner, Button, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { RECS_PREVIEW, VARIANT_BATCH_CAP, groupRows, reasonText, retrainOptions, shortDeckNames, variantFailureText, variantState } from './wrongbook-model.js';
+import { useStudy } from './study-context.jsx';
 
 const PAGE_SIZE = 100;
 const POLL_MS = 2500;
@@ -380,7 +381,8 @@ export function WrongBookView({
   );
 }
 
-export default function WrongBook({ call, data, busy, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
+export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
+  const { call, busy } = useStudy();
   const [course, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
   const key = JSON.stringify(scopeArgs(course, showInactive));

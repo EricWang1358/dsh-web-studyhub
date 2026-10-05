@@ -1,7 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import { ingestPrompt } from "./agent-prompts/ingest.js";
 import { useStudy } from "./study-context.jsx";
-import generateTabsCss from "./generate-tabs.css";
 import React from "react";
 import Ingest from "./Ingest.jsx";
 import JsonImport from "./JsonImport.jsx";
@@ -21,6 +20,7 @@ import { TokenEstimate } from './TokenUsage.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
+import { useRetrievalStatus } from './retrieval-status.js';
 import {
   COUNT_MAX, COUNT_MIN, COUNT_PRESETS, DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, clampCount, courseHasCaseExam,
   NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, notationNote, roleOpenByDefault, selectionStats, stepCount, suggestCount, summaryLine,
@@ -36,10 +36,7 @@ import { referenceSelection } from './reference-questions.js';
    gated on a usable model before any effort goes into the form (P14). */
 export default function Generate({
   data,
-  busy,
   running,
-  act,
-  call,
   openDraft,
   setPage,
   genSource,
@@ -49,7 +46,6 @@ export default function Generate({
   selectedSources,
   setSelectedSources,
   setModal,
-  askInChat,
   canChat = false,
   openModelSettings,
   onStarted,
@@ -59,8 +55,7 @@ export default function Generate({
   initialRetrieval = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
-  useInjectCss(generateTabsCss, "study-generate-tabs");
-  const { notify } = useStudy();
+  const { notify, call, busy, act, askInChat } = useStudy();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
@@ -75,13 +70,7 @@ export default function Generate({
   const selectedPdfPages = stats.pages;
   const model = modelReadiness(data);
   // 大教材 (WP28): what DSH can search with, read once, and what this page does with a selection of this size.
-  const [retrieval, setRetrieval] = React.useState(initialRetrieval);
-  React.useEffect(() => {
-    if (initialRetrieval || typeof call !== 'function') return undefined;
-    let live = true;
-    Promise.resolve(call('retrieval.status', {})).then((value) => { if (live && value) setRetrieval(value); }, () => {});
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: retrieval } = useRetrievalStatus({ initialData: initialRetrieval ?? undefined, enabled: !initialRetrieval });
   const advice = generateAdvice({ sources: data.sources, selectedIds: selectedSources, focus: gen.focus, retrieval });
   // The learner's goal tells whether the target role belongs on the form; read once, quietly.
   const [goal, setGoal] = React.useState('');
@@ -154,9 +143,9 @@ export default function Generate({
         items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
       <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
       {current === "json" ? (
-        <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} setNotice={notify} />
+        <JsonImport data={data} busy={busy} act={act} call={call} openDraft={openDraft} />
       ) : current === "case" ? (
-        <CaseCreate data={data} busy={busy} act={act} call={call} setNotice={notify} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
+        <CaseCreate data={data} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
           initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
@@ -188,12 +177,12 @@ export default function Generate({
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
               {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={() => setPage?.("settings")}
-                call={call} courses={data.focus?.courses} defaultCourse={generationCourse} onRetrieval={setRetrieval} />}
+                call={call} courses={data.focus?.courses} defaultCourse={generationCourse} />}
               {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel call={call} advice={advice} sourceIds={selectedSources}
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
               <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal} call={call} askInChat={askInChat}
-                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} setNotice={notify} onSettings={openSettings}
+                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings}
                 onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, count: step.count, ...(step.focus ? { focus: step.focus } : {}) }); }}
                 onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
             </fieldset>

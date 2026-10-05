@@ -30,7 +30,7 @@ const html = (element, language = 'zh') => { m.setUiLanguage(language); try { re
 const catalogue = {};
 for (const name of readdirSync('ui/locales').filter(file => /^en(\..+)?\.json$/.test(file))) Object.assign(catalogue, JSON.parse(read(`ui/locales/${name}`)));
 
-const SAMPLES = { 'rate-limit': '429 Too Many Requests: rate limit', quota: 'insufficient_quota', credential: '401 Unauthorized: invalid api key',
+const SAMPLES = { 'rate-limit': '429 Too Many Requests: rate limit', quota: 'insufficient_quota', credential: 'NO_ADAPTER: Configure a model provider', rejected: '401 Unauthorized: invalid api key',
   timeout: 'request timed out', network: 'fetch failed', unavailable: '503 service unavailable' };
 
 test('one failure table: a generation job and the learning flow say the same thing about the same failure (#105)', () => {

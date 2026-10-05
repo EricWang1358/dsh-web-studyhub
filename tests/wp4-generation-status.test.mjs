@@ -128,7 +128,7 @@ test("generation failures become plain language with a fix", () => {
   assert.equal(credential.title, "还没有可用的模型密钥");
   assert.equal(credential.action, "settings");
   assert.equal(m.describeFailure("当前 DSH 宿主未注册模型提供方「x」（NO_ADAPTER）").kind, "credential");
-  assert.equal(m.describeFailure("401 Unauthorized: invalid api key").kind, "credential");
+  assert.equal(m.describeFailure("401 Unauthorized: invalid api key").kind, "rejected", "a key the service refuses is told apart from a missing one (#180)");
   assert.equal(m.describeFailure("Insufficient Balance (402)").kind, "quota");
   const busy = m.describeFailure("HTTP 429 Too Many Requests");
   assert.equal(busy.kind, "rate-limit");

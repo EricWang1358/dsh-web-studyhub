@@ -1,6 +1,5 @@
 import React from "react";
-import Icon from "./Icon.jsx";
-import NavGlyph from "./NavGlyph.jsx";
+import { Icon, IconBox } from "./components/index.js";
 import Tooltip from "./components/Tooltip.jsx";
 import { ui, uiFormat } from "./i18n.js";
 
@@ -15,7 +14,7 @@ export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hin
   const classes = ["nav", className, upkeep && "nav-upkeep", active && "active"].filter(Boolean).join(" ");
   const row = (
     <button type="button" {...button} className={classes} disabled={disabled} aria-current={active && !disabled ? "page" : undefined}>
-      <Icon>{icon || <NavGlyph name={glyph} />}</Icon>
+      <IconBox>{icon || <Icon name={`nav-${glyph}`} />}</IconBox>
       <span className="nav-label">{label}</span>
       {hint !== undefined && hint !== null && hint !== false && <span className={hintClass}>{hint}</span>}
     </button>

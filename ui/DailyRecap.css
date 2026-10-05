@@ -19,7 +19,7 @@
     .daily-recap-state { flex-shrink: 0; font-size: var(--fs-xs); color: var(--text-muted); }
     .daily-recap-course[data-state="running"] .daily-recap-state,
     .daily-recap-course[data-state="ready"] .daily-recap-state { color: var(--accent); }
-    .daily-recap-meta { margin: 7px 0 14px; color: var(--text-muted); font-size: var(--fs-sm); }
+    .daily-recap-meta { margin: var(--space-2) 0 14px; color: var(--text-muted); font-size: var(--fs-sm); }
     .daily-recap-hint, .daily-recap-threshold p { margin: 10px 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.7; }
     .daily-recap-threshold progress { display: block; width: min(100%, 280px); height: 5px; border: 0; border-radius: var(--radius-xs); overflow: hidden; accent-color: var(--accent); }
     .daily-recap-threshold progress::-webkit-progress-bar { background: var(--line); border-radius: var(--radius-xs); }
@@ -31,7 +31,7 @@
     .daily-recap-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
     .daily-recap-tone { display: flex; gap: 0; border: 0; padding: 0; margin: 0; min-width: 0; }
     .daily-recap-tone legend { padding: 0; margin-bottom: 6px; color: var(--text-muted); font-size: var(--fs-xs); }
-    .daily-recap-tone label { display: flex; flex-direction: row; align-items: center; gap: 6px; min-height: 44px; padding: 7px var(--space-3); margin: 0; white-space: nowrap; border: 1px solid var(--line); font-size: var(--fs-sm); cursor: pointer; background: var(--bg-sunken); }
+    .daily-recap-tone label { display: flex; flex-direction: row; align-items: center; gap: 6px; min-height: 44px; padding: var(--space-2) var(--space-3); margin: 0; white-space: nowrap; border: 1px solid var(--line); font-size: var(--fs-sm); cursor: pointer; background: var(--bg-sunken); }
     .daily-recap-tone label:first-of-type { border-radius: var(--radius-sm, var(--radius-sm)) 0 0 var(--radius-sm, var(--radius-sm)); }
     .daily-recap-tone label:last-of-type { border-radius: 0 var(--radius-sm, var(--radius-sm)) var(--radius-sm, var(--radius-sm)) 0; border-left: 0; }
     .daily-recap-tone label:has(input:checked) { background: var(--bg-hover); color: var(--text); }

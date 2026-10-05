@@ -26,9 +26,9 @@ export function ExamHeader({ courses, course, onCourse, format, onFormat, showIn
   useInjectCss(css, "study-exam-setup");
   return (
     <PageHeader title={ui("模拟考试")} className="es-header"
-      description={ui("选一种考试形式，在限定时间里完成；交卷或结束后看成绩、反馈和薄弱点。")}>
+      description={ui("选一种考试形式，在限定时间里完成；交卷或结束后看成绩、反馈和薄弱点。")}
+      scope={<PageScope courses={courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />}>
       <div className="es-controls">
-        <PageScope courses={courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />
         <div className="es-format">
           <span className="es-label">{ui("考试形式")}</span>
           <SegmentedControl label={ui("考试形式")} value={format} onChange={onFormat} options={formatOptions()} data-tour="exam-case" />

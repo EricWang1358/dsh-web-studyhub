@@ -401,7 +401,7 @@ export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRun
                   onClick={() => setActiveId(card.id)}>{activeId === card.id ? ui("正在纸上写这一题") : ui("切到这一题（计时）")}</button>
               ) : (
                 <label className="rubric-editor">
-                  <span className="sr-only">{uiFormat("第 {0} 题的回答", [index + 1])}</span>
+                  <span className="sh-visually-hidden">{uiFormat("第 {0} 题的回答", [index + 1])}</span>
                   <textarea rows={8} value={answers[card.id] || ""} readOnly={!typing} aria-readonly={!typing} maxLength={30000}
                     placeholder={typing ? ui("写出建议、案例依据、假设和取舍。") : ui("阅读结束后开放作答")}
                     onFocus={() => setActiveId(card.id)} onChange={(event) => typing && answer(card.id, event.target.value)} />

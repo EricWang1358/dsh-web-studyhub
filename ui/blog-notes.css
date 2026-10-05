@@ -28,7 +28,7 @@
     .note-preview h1:first-child { margin-top: 0; }
     .note-preview pre { padding: var(--space-3); overflow: auto; border-radius: var(--radius-sm); background: var(--bg-sunken); }
     .note-preview table { border-collapse: collapse; }
-    .note-preview th, .note-preview td { border: 1px solid var(--line); padding: 5px 9px; }
+    .note-preview th, .note-preview td { border: 1px solid var(--line); padding: var(--space-1) var(--space-2); }
     .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
     .note-preview section:has(> eqn) { overflow-x: auto; max-width: 100%; }
     .note-preview section > eqn { display: flex; width: max-content; min-width: 100%; justify-content: var(--study-formula-align, center); }
@@ -39,7 +39,7 @@
     .note-reuse-actions > details[open] { flex-basis: 100%; }
     .note-card-search { display: flex; gap: var(--space-2); margin: 10px 0; }
     .note-card-search input { flex: 1; min-width: 0; }
-    .note-search-result { display: block; width: 100%; margin: 5px 0; text-align: left; }
+    .note-search-result { display: block; width: 100%; margin: var(--space-1) 0; text-align: left; }
   }
   @container study (max-width: 800px) {
     :where(.study-app, .study-seat) {

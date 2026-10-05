@@ -12,6 +12,7 @@ import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardChart
 import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader } from "./components/index.js";
+import { useStudy } from "./study-context.jsx";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 CSS grid；三张图（每日平均分、
@@ -156,7 +157,8 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
   );
 }
 
-export default function Dashboard({ call, data, busy, onStartScope, onLibrary, onCreate, onSources, onAudioUsage }) {
+export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onSources, onAudioUsage }) {
+  const { call, busy } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(chartCss, "study-dash-charts");
   const [course, setCourse] = usePageScope(data?.root, 'dashboard', data?.focus?.course ?? '*');

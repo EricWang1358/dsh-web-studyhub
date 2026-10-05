@@ -4,6 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Badge, Button, Checkbox, Hint, Icon, InlineConfirm, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, SettingsSection, useToast } from './components/index.js';
 import { sizeLabel } from './mineru-flow.js';
 import css from './mineru.css';
+import { refreshMineruLocal, useMineruState } from './use-mineru.js';
 
 /* MinerU: PDF to text with page numbers, for scanned books, formulas, tables and long textbooks.
    Two routes, one place to set up each:
@@ -87,7 +88,7 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
   const alive = useRef(true), downloadTrigger = useRef(null);
   useEffect(() => () => { alive.current = false; }, []);
   const refresh = useCallback(async () => {
-    const next = await call('mineru.local.status', {});
+    const next = await refreshMineruLocal(call);
     if (alive.current) onStatus?.(next);
     return next;
   }, [call, onStatus]);
@@ -163,14 +164,12 @@ export function LocalMineruPanel({ call, status, onStatus, busy = false, initial
 export default function MineruSettings({ call, busy = false, initialSettings = null, initialLocal = null }) {
   const toast = useToast();
   useInjectCss(css, 'study-mineru');
-  const [settings, setSettings] = useState(initialSettings), [local, setLocal] = useState(initialLocal), [error, setError] = useState('');
-  const [acknowledging, setAcknowledging] = useState(false);
-  useEffect(() => {
-    let live = true;
-    if (!initialSettings && typeof call === 'function') Promise.resolve(call('mineru.settings.get', {})).then(value => { if (live) setSettings(value); }, () => { if (live) setError(ui('读不到 MinerU 设置。')); });
-    if (!initialLocal && typeof call === 'function') Promise.resolve(call('mineru.local.status', {})).then(value => { if (live) setLocal(value); }, () => {});
-    return () => { live = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const state = useMineruState({ call, initialSettings, initialLocal, enabled: typeof call === 'function' });
+  // A failed read keeps the form usable but says so (the shared fallback is not shown as if it were the host's answer).
+  const settings = state.settingsFailed ? null : state.settings, local = state.localFailed ? null : state.local;
+  const setSettings = state.setSettings, setLocal = state.setLocal;
+  const [error, setError] = useState(''), [acknowledging, setAcknowledging] = useState(false);
+  useEffect(() => { if (state.settingsFailed) setError(ui('读不到 MinerU 设置。')); }, [state.settingsFailed]);
   const acknowledge = async checked => {
     setAcknowledging(true); setError('');
     try { setSettings(await call('mineru.settings.set', { acknowledge: checked })); toast.success(checked ? ui('已确认：云端解析会把文档上传到 MinerU。') : ui('已撤回确认；之后用云端解析前会再问一次。')); }

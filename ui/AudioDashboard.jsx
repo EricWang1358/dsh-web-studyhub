@@ -3,10 +3,9 @@ import { ui, uiFormat, uiMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber } from './format.js';
 import { Button, Hint, Panel } from './components/index.js';
-import { useInjectCss } from './shared.js';
-import panelCss from './audio-panels.css';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
+import { useStudy } from './study-context.jsx';
 
 /* 用量控制台：首次转写之前不显示（什么都没配置时由音频页的配置卡片代替），
    显示后默认折叠；展开时才轮询。服务商按请求顺序排列：Gemini 免费 → 硅基流动 → Groq → Gemini 付费。 */
@@ -21,7 +20,6 @@ export function dashboardVisible(settings, usage) {
 }
 
 export function AudioDashboardView({ data, settings, busy, refresh, save, error }) {
-  useInjectCss(panelCss, 'study-audio-panels');
   const providers = [...data.providers].sort((a, b) => AUDIO_TIERS.indexOf(a.tier) - AUDIO_TIERS.indexOf(b.tier));
   const sum = field => providers.reduce((n, provider) => n + provider.today[field], 0);
   const total = sum('requests');
@@ -95,7 +93,6 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error 
 
 /** The console folded away under one line with today's count; it opens on demand. */
 export function AudioDashboardPanel({ data, settings, busy, refresh, save, error, onToggle }) {
-  useInjectCss(panelCss, 'study-audio-panels');
   const today = data.providers.reduce((n, provider) => n + (provider.today?.requests || 0), 0);
   return <Panel as="details" className="audio-usage-panel" onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined}>
     <summary><span>{ui('用量与额度')}</span><small>{uiFormat('今日 {0} 次请求', [today])}</small></summary>
@@ -103,7 +100,8 @@ export function AudioDashboardPanel({ data, settings, busy, refresh, save, error
   </Panel>;
 }
 
-export default function AudioDashboard({ call }) {
+export default function AudioDashboard({  }) {
+  const { call } = useStudy();
   const [data, setData] = useState(null), [settings, setSettings] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const saving = useRef(false);

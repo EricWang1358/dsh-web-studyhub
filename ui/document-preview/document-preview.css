@@ -50,7 +50,7 @@
     .selection-job small { margin: 0; }
     .selection-job__stage { font-weight: var(--fw-strong); font-size: var(--fs-sm); }
     .selection-job__meta { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-    .selection-job__phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin: 0; padding: 0; list-style: none; }
+    .selection-job__phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
     .selection-job__phases li { min-width: 0; padding: var(--space-half) 0 0; border-top: 3px solid var(--line-strong); color: var(--text-muted);
       font-size: var(--fs-xs); line-height: 1.3; overflow-wrap: anywhere; }
     .selection-job__phases li[data-state="done"] { border-top-color: var(--ok); }

@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./manage.css";
+import { useStudy } from "./study-context.jsx";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { Badge, Banner, Button, ConfirmDialog, PageHeader, Panel, useToast } from "./components/index.js";
@@ -17,9 +18,6 @@ export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
 /* 题组管理视图：编辑先进入草稿（deck.edit → openDraft），归档/暂停/标记
    与目录移动就地生效。managedDeck 由 App 在进入本视图时 deck.get 取得。 */
 export default function Manage({
-  call,
-  busy,
-  act,
   openDraft,
   setPage,
   managedDeck,
@@ -31,6 +29,7 @@ export default function Manage({
   onRemoveDeck,
 }) {
   useInjectCss(css, "study-manage");
+  const { call, busy, act } = useStudy();
   const toast = useToast();
   const [targetId, setTargetId] = useState("");
   const [merging, setMerging] = useState(false);

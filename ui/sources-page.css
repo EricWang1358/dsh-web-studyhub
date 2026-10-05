@@ -6,7 +6,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 15px;
+      gap: var(--space-4);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: 14px;
@@ -17,9 +17,9 @@
     .source-main {
       display: flex;
       align-items: center;
-      gap: 17px;
+      gap: var(--space-4);
       border: 0;
-      padding: 5px;
+      padding: var(--space-1);
       text-align: left;
       min-width: 0;
       flex: 1;
@@ -33,7 +33,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       max-width: 560px;
-      margin-top: 7px;
+      margin-top: var(--space-2);
     }
     .source-main .icon {
       color: var(--accent-soft);
@@ -78,7 +78,7 @@
       align-items: center;
       gap: 10px;
       width: 100%;
-      padding: 13px var(--space-4);
+      padding: var(--space-3) var(--space-4);
       border: 0;
       border-radius: var(--radius);
       background: transparent;
@@ -93,7 +93,7 @@
       white-space: nowrap;
     }
     .source-group-tag {
-      padding: 1px 7px;
+      padding: 1px var(--space-2);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-pill);
       color: var(--text-muted);

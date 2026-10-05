@@ -260,7 +260,7 @@ const assist = (props = {}) => renderToStaticMarkup(React.createElement(Generate
 
 test("model suggestions show as chips with an apply button and the reason", () => {
   const html = assist({ phase: "done", focus: "Replication", result: { source: "model", focus: ["Replication", "Raft vs Paxos"], count: 8, difficulty: "application", kind: "quiz", why: "Weak on Raft elections." } });
-  const chips = [...html.matchAll(/<button[^>]*class="generate-chip generate-suggestion"[^>]*>(.*?)<\/button>/g)];
+  const chips = [...html.matchAll(/<span[^>]*class="sh-chip[^"]*generate-suggestion"[^>]*>.*?<\/button><\/span>/g)];
   assert.equal(chips.length, 2);
   assert.match(chips[0][0], /aria-pressed="true"/, "a chip already in the box is marked");
   assert.match(chips[1][0], /aria-pressed="false"/);
@@ -291,8 +291,8 @@ test("a model failure says why in plain words next to the local fallback, with a
 });
 
 test("an unknown error shows its short text instead of a generic line", () => {
-  const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "model_not_found: deepseek-x" } } });
-  assert.match(text(html), /AI 调用没有成功：model_not_found: deepseek-x/);
+  const html = assist({ phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "failed", message: "boom: deepseek-x" } } });
+  assert.match(text(html), /AI 调用没有成功：boom: deepseek-x/);
   assert.doesNotMatch(html, /生成没有完成/);
 });
 

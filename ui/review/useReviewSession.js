@@ -163,11 +163,22 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
 
   /* ── the step-by-step teaching panel ── */
   const teachingFlights = useRef(createFlightSet());
+  // Each request holds a token; cancelling (or a newer request) drops the token, and a late answer carrying an old one is ignored.
+  const teachingTokens = useRef(new Map());
+  const [teachingFailure, setTeachingFailure] = useState({});
+  const endTeaching = useCallback((key) => {
+    teachingTokens.current.delete(key);
+    teachingFlights.current.end(key);
+    setTeachingPending((all) => { const rest = { ...all }; delete rest[key]; return rest; });
+  }, []);
   const teachingAct = useCallback(async (action, args = {}) => {
     const origin = runRef.current, key = reviewEntryKey(origin), draftAtStart = entryRef.current.teachAnswer;
     if (!teachingFlights.current.begin(key)) return;
+    const token = {};
+    teachingTokens.current.set(key, token);
     setTeachingPending((all) => ({ ...all, [key]: true }));
-    const isCurrent = () => isCurrentEntry(runRef.current, key, { page: pageRef.current, needPage: 'review' });
+    setTeachingFailure((all) => { const rest = { ...all }; delete rest[key]; return rest; });
+    const isCurrent = () => teachingTokens.current.get(key) === token && isCurrentEntry(runRef.current, key, { page: pageRef.current, needPage: 'review' });
     try {
       const next = await call(action, { runId: origin.id, cardId: origin.card.id, index: origin.index, queueVersion: origin.queueVersion || 0, ...args });
       if (isCurrent()) {
@@ -179,12 +190,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
         });
       }
     } catch (failure) {
-      if (isCurrent()) setError(failure.message || String(failure));
+      // Shown beside the chips (TeachingStatus), where the learner is looking, not in the page's global error.
+      if (isCurrent()) setTeachingFailure((all) => ({ ...all, [key]: { message: failure.message || String(failure), action, args } }));
     } finally {
-      teachingFlights.current.end(key);
-      setTeachingPending((all) => { const rest = { ...all }; delete rest[key]; return rest; });
+      if (teachingTokens.current.get(key) === token) endTeaching(key);
     }
-  }, [call, patch, setError]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [call, patch, endTeaching]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cancelTeaching = useCallback(() => endTeaching(reviewEntryKey(runRef.current)), [endTeaching]);
+  const retryTeaching = useCallback(() => {
+    const failed = teachingFailure[reviewEntryKey(runRef.current)];
+    if (failed) teachingAct(failed.action, failed.args);
+  }, [teachingFailure, teachingAct]);
 
   /* ── helping the learner: the background assistant, slaying, prerequisites ── */
   const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined) => {
@@ -295,14 +311,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
     canShortcut, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
   };
   const actions = useMemo(() => ({
-    reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn, askAboutCard, improveCard,
+    reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, askAboutCard, improveCard,
     toggleHelp: () => patch((value) => (runRef.current?.revealed ? { explain: !value.explain } : { hint: !value.hint })),
     showExplanation: () => patch({ explain: true }),
     setResponse: (response) => patch({ response }),
     setClozeValue: (id, value) => patch((current) => ({ clozeValues: { ...current.clozeValues, [id]: value } })),
     setTeachAnswer: (teachAnswer) => patch({ teachAnswer }),
     closeShortcutHelp: () => setShortcutHelp(false),
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn, askAboutCard, improveCard, patch]);
-  return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], autopilot, autoAdvance, advanceKey,
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, askAboutCard, improveCard, patch]);
+  return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
     shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions };
 }

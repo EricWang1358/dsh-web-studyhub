@@ -3,7 +3,6 @@ import React, { useId, useRef, useState } from 'react';
 import Markdown from '../Markdown.jsx';
 import { Button, Dialog, Icon, IconButton, InlineMessage, SegmentedControl } from '../components/index.js';
 import { CHECKLIST_MAX_ITEMS, CHECKLIST_MAX_TEXT, checklistProgress, dueState, isMeaningfulTitle, labelHue } from '../../lib/board-model.js';
-import BIcon from './icons.jsx';
 import DeleteCardDialog from './DeleteCardDialog.jsx';
 import { dueText, stamp, studyRefLabel } from './meta.js';
 
@@ -64,8 +63,8 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
   const footer = (
     <>
       <div className="board-editor__danger">
-        <Button variant="quiet" size="sm" icon={<BIcon name="archive" />} disabled={saving || readOnly} onClick={() => onArchive(card)}>{ui('归档')}</Button>
-        <Button variant="quiet" size="sm" icon={<BIcon name="trash" />} disabled={saving || readOnly} onClick={() => setConfirming(true)}>{ui('删除')}</Button>
+        <Button variant="quiet" size="sm" icon={<Icon name="archive" />} disabled={saving || readOnly} onClick={() => onArchive(card)}>{ui('归档')}</Button>
+        <Button variant="quiet" size="sm" icon={<Icon name="trash" />} disabled={saving || readOnly} onClick={() => setConfirming(true)}>{ui('删除')}</Button>
       </div>
       <div className="board-editor__main">
         <Button variant="quiet" onClick={onClose} disabled={saving}>{ui('取消')}</Button>
@@ -101,7 +100,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
             <div className="board-editor__due">
               <input type="date" aria-label={ui('截止日期')} value={draft.due} onChange={(event) => set({ due: event.target.value })} />
               {draft.due && <IconButton icon="close" size="sm" label={ui('清除截止日期')} onClick={() => set({ due: '' })} />}
-              {state && <span className={`board-due is-${state.kind}`}><BIcon name="calendar" size={13} />{dueText(state)}</span>}
+              {state && <span className={`board-due is-${state.kind}`}><Icon name="calendar" size={13} />{dueText(state)}</span>}
             </div>
           </div>
 
@@ -123,7 +122,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
           <div className="board-field">
             <div className="board-field__bar">
               <span>{ui('清单')}</span>
-              {progress.total > 0 && <span className="board-progress"><BIcon name="checklist" size={13} />{progress.done}/{progress.total}</span>}
+              {progress.total > 0 && <span className="board-progress"><Icon name="checklist" size={13} />{progress.done}/{progress.total}</span>}
             </div>
             <ul className="board-checklist">
               {draft.checklist.map((item, index) => <li key={item.id} className={item.done ? 'is-done' : ''}>
@@ -148,9 +147,9 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
             ? <button type="button" className="board-meta__item" title={card.origin.workspace} onClick={() => onOrigin(card.origin.workspace)}><Icon name="folder" size={13} /><span>{card.origin.workspaceTitle || card.origin.workspace}</span></button>
             : <span className="board-meta__item"><Icon name="folder" size={13} /><span>{card.origin.workspaceTitle || card.origin.workspace}</span></span>)}
           {link && (onStudyRef
-            ? <button type="button" className="board-meta__item" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><BIcon name="link" size={13} /><span>{link.text}</span></button>
-            : <span className="board-meta__item"><BIcon name="link" size={13} /><span>{link.text}</span></span>)}
-          <span className="board-meta__item"><BIcon name="clock" size={13} /><span>{uiFormat('创建于 {0}', [stamp(card.createdAt)])} · {uiFormat('更新于 {0}', [stamp(card.updatedAt)])}</span></span>
+            ? <button type="button" className="board-meta__item" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><Icon name="link" size={13} /><span>{link.text}</span></button>
+            : <span className="board-meta__item"><Icon name="link" size={13} /><span>{link.text}</span></span>)}
+          <span className="board-meta__item"><Icon name="clock" size={13} /><span>{uiFormat('创建于 {0}', [stamp(card.createdAt)])} · {uiFormat('更新于 {0}', [stamp(card.updatedAt)])}</span></span>
         </div>
       </form>
       {confirming && <DeleteCardDialog card={card} onClose={() => setConfirming(false)}

@@ -14,7 +14,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as Composer } from './ui/board/Composer.jsx';
   export { default as CardEditor } from './ui/board/CardEditor.jsx';
   export { default as FilterBar } from './ui/board/FilterBar.jsx';
-  export { default as Menu } from './ui/board/Menu.jsx';
+  export { Menu } from './ui/components/index.js';
   export { studyRefLabel, dueText } from './ui/board/meta.js';
   export { labelHue } from './lib/board-model.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },

@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
    first transcription, and a live class that checks its provider before asking for the microphone. */
 
 const compiled = await build({
-  stdin: { contents: `export { default as AudioImport, AudioJobs, preflightNotes, textStepsRan } from './ui/AudioImport.jsx';
+  stdin: { contents: `export { default as AudioImport } from './ui/AudioImport.jsx'; export { AudioJobs, textStepsRan } from './ui/audio/AudioJobs.jsx'; export { preflightNotes } from './ui/audio/preflight.js';
     export { default as AudioSettings, AudioSetupGate, providerOrder, PRESETS, presetOf } from './ui/AudioSettings.jsx';
     export { default as AudioDashboard, AudioDashboardPanel, dashboardVisible } from './ui/AudioDashboard.jsx';
     export { default as LiveClass } from './ui/LiveClass.jsx';

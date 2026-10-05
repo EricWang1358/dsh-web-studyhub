@@ -3,7 +3,7 @@
 
    label    the sidebar entry (Chinese source text; callers pass it through ui())
    title    the heading in the top bar; `review` has none because its title is the run's own
-   glyph    the NavGlyph shown in the sidebar
+   glyph    the icon (nav-<glyph> in components/Icon.jsx) shown in the sidebar
    group    the sidebar group (ui/nav-order.js NAV_DEFAULTS); null for pages that are reached from elsewhere
    needs    the host contexts the page is useless without (ui/capabilities.js pageAvailable)
    onEnter  what entering the page resets: onEnter(ctx, how). how is 'user' when the learner clicked its sidebar entry and
