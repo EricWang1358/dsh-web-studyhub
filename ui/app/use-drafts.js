@@ -41,7 +41,7 @@ export function useDrafts({ core, lib, nav, data }) {
     notify(uiFormat('已开始补齐「{0}」剩余 {1} 题；通过检查后会保存到同一份草稿。', [target.title, job.missing]))), [act, notify]);
   /* 用未覆盖的资料补题: the same continuation, asked for `count` more questions from `sourceIds`, added to the same draft. */
   const addFromSources = useCallback((target, sourceIds, count) => act('generate', { resumeDraftId: target.id, draftVersion: target.draftVersion, extraSourceIds: sourceIds, count }, () =>
-    notify(uiFormat('已开始为「{0}」补题：用 {1} 份未覆盖资料追加约 {2} 题；通过检查后会保存到同一份草稿。', [target.title, sourceIds.length, count]))), [act, notify]);
+    notify(uiFormat('已开始为「{0}」补题：用未覆盖的资料追加约 {1} 题；通过检查后会保存到同一份草稿。', [target.title, count]))), [act, notify]);
   const blankCard = useCallback(() => ({
     id: crypto.randomUUID(), kind: 'flashcard', topic: '', objective: '', prompt: '', answer: '', hint: '', explanation: '', misconception: '',
     citations: [{ sourceId: core.refs.dataRef.current?.sources[0]?.id || '', quote: '' }],

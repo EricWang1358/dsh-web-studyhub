@@ -45,7 +45,7 @@ export function DraftTopUp({ draft, jobs = [], busy = false, modelReady = true, 
  * deck's own settings, and is off while that deck has a fill or generation running. Starting a separate new deck from those sources is the
  * other, explicit choice (`onNewDeck`).
  */
-export function DraftAddFromSources({ draft, jobs = [], sourceIds, busy = false, modelReady = true, call, onAdd, onNewDeck }) {
+export function DraftAddFromSources({ draft, jobs = [], sourceIds, pages = false, busy = false, modelReady = true, call, onAdd, onNewDeck }) {
   useInjectCss(css, "study-draft-shortfall");
   const [chosen, setChosen] = React.useState(null);
   const fallback = extraQuestionDefault(draft, sourceIds.length), value = chosen ?? fallback;
@@ -57,7 +57,9 @@ export function DraftAddFromSources({ draft, jobs = [], sourceIds, busy = false,
   })();
   const blocked = busy || !!work || !modelReady || !valid;
   return <div className="draft-addfrom" data-add-from-sources>
-    <p className="draft-addfrom__target">{uiFormat("为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题", [draft.title, sourceIds.length, value])}</p>
+    <p className="draft-addfrom__target">{pages
+      ? uiFormat("为「{0}」补题：用 {1} 页未覆盖资料，追加约 {2} 题", [draft.title, sourceIds.length, value])
+      : uiFormat("为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题", [draft.title, sourceIds.length, value])}</p>
     <div className="draft-addfrom__row">
       <Field label={ui("追加题数")} inline width="sm">
         <NumberInput min="1" max="30" step="1" value={value} disabled={!!work} onChange={(event) => setChosen(event.target.value === "" ? NaN : Number(event.target.value))} />
