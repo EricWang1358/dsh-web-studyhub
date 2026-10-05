@@ -2,7 +2,7 @@ import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { useInjectCss } from '../../shared.js';
 import { Button, CloseButton, IconButton, LoadingState } from '../../components/index.js';
-import { ZOOMS } from './peek-logic.js';
+import { ZOOMS, peekNotice } from './peek-logic.js';
 import css from './peek.css';
 
 /* 看原页: a small floating panel that shows ONE page of the attached original PDF next to the text, on demand. It never loads the
@@ -12,8 +12,8 @@ import css from './peek.css';
    empty frame. The text has no pictures (a converted book keeps none): a figure is shown from the original page. */
 
 /** The panel as markup, for every phase: 'loading' | 'ready' | 'error' | 'none' | 'mismatch'. */
-export default function PagePeekView({ phase, page, total, zoom = 1, figure = false, busy = false, message = '', mismatch = null, issue = null,
-  panelRef, canvasRef, scrollRef, onClose, onPrev, onNext, onZoom, onFit, onAttach, onRetry, onDragStart, onResizeStart, onGripKey, onKeyDown }) {
+export default function PagePeekView({ phase, page, total, zoom = 1, figure = false, busy = false, message = '', mismatch = null, issue = null, undecoded = 0,
+  panelRef, canvasRef, scrollRef, onClose, onPrev, onNext, onZoom, onFit, onAttach, onRetry, onShowOriginal, onDragStart, onResizeStart, onGripKey, onKeyDown }) {
   useInjectCss(css, 'study-page-peek');
   const ready = phase === 'ready';
   return <div className="page-peek" role="dialog" aria-modal="false" aria-label={ui('原页预览')} tabIndex={-1} ref={panelRef} data-phase={phase} onKeyDown={onKeyDown}>
@@ -48,6 +48,10 @@ export default function PagePeekView({ phase, page, total, zoom = 1, figure = fa
       {phase === 'error' && <div className="page-peek__state page-peek__state--note" role="alert">
         <p>{uiFormat('这一页没能显示：{0}', [message])}</p>
         <Button size="sm" variant="secondary" onClick={onRetry}>{ui('重试')}</Button>
+      </div>}
+      {ready && peekNotice({ undecoded }) && <div className="page-peek__alert" role="status" data-peek-notice="undecoded-images">
+        <p>{ui('这一页的图像无法在预览中显示，请在「原始 PDF」里查看')}</p>
+        {onShowOriginal && <Button size="sm" variant="secondary" icon="file" onClick={onShowOriginal}>{ui('查看原始 PDF')}</Button>}
       </div>}
       {ready && <div className="page-peek__scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={ui('原页')} data-fit={zoom === 1 ? 'true' : 'false'}>
         <canvas ref={canvasRef} className="page-peek__canvas" role="img" aria-label={uiFormat('原文件第 {0} 页', [page])} />

@@ -49,5 +49,11 @@
   "含 {0} 道未激活课程的题": "includes {0} from inactive courses",
   "阅读资料时：做这几页的题（范围可选，做完回到阅读）": "While reading a material: practise these pages (choose the range; you come back to reading)",
   "{0} 道薄弱题": "{0} weak",
-  "{0} 道没做过": "{0} new"
+  "{0} 道没做过": "{0} new",
+  "还没发布 · 草稿里有 1 题": "Not published yet · 1 question in drafts",
+  "还没发布 · 草稿里有 {0} 题": "Not published yet · {0} questions in drafts",
+  "另有 1 题在草稿": "1 more in drafts",
+  "另有 {0} 题在草稿": "{0} more in drafts",
+  "发布草稿后才能练习这几页的题。": "Publish the draft to practise the questions of these pages.",
+  "这份草稿已经不在了，可能已发布或删除。": "That draft is gone; it may have been published or deleted."
 }

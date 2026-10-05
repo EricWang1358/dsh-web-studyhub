@@ -17,18 +17,28 @@ export const questionsWord = count => count === 1 ? ui('1 道题') : uiFormat('{
 /** The one-line meaning of the number, shown wherever the number is explained. */
 export const meaningLine = () => ui('按这几页关联的题的复习状态计算；答对并拉长复习间隔才会上升');
 
-/** "掌握 62% · 12 题", "未学 · 3 题" or "还没出题": the text of a row. */
+/* Questions still in drafts: a generation run's result is a draft until it is published, so "no published question" is not "no
+   question". `summary.draftCards` (lib/material-mastery.js) is how many draft questions the same scope has. */
+/** "还没发布 · 草稿里有 3 题": nothing published for this scope, but drafts hold questions for it. */
+export const draftNoneText = count => count === 1 ? ui('还没发布 · 草稿里有 1 题') : uiFormat('还没发布 · 草稿里有 {0} 题', [count]);
+/** "另有 3 题在草稿": the drafts beside published questions. */
+export const draftExtraText = count => count === 1 ? ui('另有 1 题在草稿') : uiFormat('另有 {0} 题在草稿', [count]);
+/** The words for a scope with no published question: 还没发布 · 草稿里有 N 题 when drafts hold some, else 还没出题. `source` is a summary or an option. */
+export const noneText = source => source?.draftCards > 0 ? draftNoneText(source.draftCards) : ui('还没出题');
+
+/** "掌握 62% · 12 题", "未学 · 3 题", "还没发布 · 草稿里有 3 题" or "还没出题": the text of a row. */
 export function masteryText(summary) {
-  if (!summary?.total) return ui('还没出题');
+  if (!summary?.total) return noneText(summary);
   if (summary.state === 'unlearned') return summary.total === 1 ? ui('未学 · 1 题') : uiFormat('未学 · {0} 题', [summary.total]);
   return summary.total === 1 ? uiFormat('掌握 {0}% · 1 题', [summary.percent]) : uiFormat('掌握 {0}% · {1} 题', [summary.percent, summary.total]);
 }
 
 /** The accessible name and tooltip of a mark: "第 3 页：学习中 · 掌握 45% · 4 题". */
 export function markLabel(title, summary) {
-  const detail = summary?.total ? `${stateLabel(summary.state)} · ${summary.state === 'unlearned' ? questionsWord(summary.total) : masteryText(summary)}` : ui('还没出题');
+  const detail = summary?.total ? `${stateLabel(summary.state)} · ${summary.state === 'unlearned' ? questionsWord(summary.total) : masteryText(summary)}` : noneText(summary);
   const inactive = summary?.inactive > 0 ? (summary.inactive === 1 ? ui('其中 1 道在未激活的课程里') : uiFormat('其中 {0} 道在未激活的课程里', [summary.inactive])) : '';
-  return [title ? `${title}：${detail}` : detail, inactive].filter(Boolean).join(' · ');
+  const drafts = summary?.total && summary.draftCards > 0 ? draftExtraText(summary.draftCards) : '';
+  return [title ? `${title}：${detail}` : detail, inactive, drafts].filter(Boolean).join(' · ');
 }
 
 /** "5 道题 · 2 道到期 · 1 道薄弱 · 1 道新题" before starting. */

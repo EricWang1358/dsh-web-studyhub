@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_CALLS, MAX_EVENTS, MAX_WAITS, unifyCall, jobCalls, recordEvent, recordWait, observeJob } from '../lib/job-calls.js';
+import { MAX_CALLS, MAX_EVENTS, MAX_WAITS, unifyCall, jobCalls, recordEvent, recordWait, observeJob, failStep } from '../lib/job-calls.js';
 import { snapshotJob } from '../lib/job-contract.js';
 import { createPool } from '../lib/audio-pool.js';
 import { generateBatched } from '../lib/batch.js';
@@ -153,4 +153,28 @@ test('every generation model call says which slot it ran in, and a 429 back-off 
   assert.equal(waits[0].reason, 'rate-limit');
   assert.equal(waits[1].phase, 'end');
   void qualityReview;
+});
+
+test('a call that failed keeps why, in words; a cancel is not a failure and keeps nothing (2.6.1)', () => {
+  const rate = Object.assign(new Error('Too many requests'), { code: 'RATE_LIMIT', status: 429 });
+  const step = { id: 's1', stage: '确定答案与情景', status: 'starting', startedAt: at(0) };
+  failStep(step, rate);
+  assert.equal(step.status, 'failed');
+  assert.match(step.error, /限流/);
+  assert.equal(unifyCall(step).error, step.error, 'the one call shape carries the reason');
+  const stopped = { id: 's2', status: 'starting', startedAt: at(0) };
+  failStep(stopped, Object.assign(new Error('aborted'), { name: 'AbortError' }));
+  assert.equal(stopped.status, 'cancelled');
+  assert.equal(stopped.error, undefined);
+  assert.equal(unifyCall({ id: 's3', status: 'complete', startedAt: at(0) }).error, undefined, 'a call that went well has no reason');
+});
+
+test('the calls of a single audio import carry its file, so the timeline has one lane for the recording (2.6.1)', () => {
+  const calls = jobCalls({ type: 'audio-import', filename: 'lecture.mp3', tasks: [
+    { id: 't', kind: 'transcribe', part: 1, parts: 2, status: 'complete', startedAt: at(0), finishedAt: at(5) },
+    { id: 'p', kind: 'proofread', part: 1, parts: 9, status: 'complete', startedAt: at(6), finishedAt: at(9) }] });
+  assert.deepEqual(calls.map((call) => call.file), ['lecture.mp3', 'lecture.mp3']);
+  const batch = jobCalls({ type: 'audio-import', filename: 'batch', members: [{ filename: 'a.mp3', tasks: [{ id: 'x', kind: 'transcribe', status: 'complete', startedAt: at(0), finishedAt: at(1) }] }] });
+  assert.deepEqual(batch.map((call) => call.file), ['a.mp3'], 'a batch keeps the own file of each member');
+  assert.equal(jobCalls({ type: 'generate', filename: 'x', steps: [{ id: 's', stage: 'planning', status: 'complete', startedAt: at(0) }] })[0].file, undefined, 'only an audio import is a recording');
 });

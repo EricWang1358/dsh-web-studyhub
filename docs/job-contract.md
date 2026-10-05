@@ -49,6 +49,7 @@ Each entry of `contract.actions` is `{ available: true }` or `{ available: false
 | `already-paused`, `not-paused`, `already-cancelling` | the state already is (or is not) that |
 | `no-control-yet` | it has not started, so there is nothing to adjust or pause |
 | `unknown-action` | not one of the five |
+| `archived` | the job is archived: a read-only record (see Archive and delete below); unarchive it first |
 
 ### Pause
 
@@ -66,6 +67,23 @@ A kind declares its `pause.mode` (`actions.pause.mode`):
 
 `retry` starts a new attempt from what is kept (`audio.retry`, `mineru.retry`). The new attempt has a new `attemptId` and the same `jobId`.
 
+## Archive and delete (2.6.1)
+
+Finished jobs (`complete`, `failed`, `cancelled`, `interrupted`) can be put away without being lost, and removed for good in batches. Nothing here changes what a job is while it runs.
+
+| operation | what it does |
+| --- | --- |
+| `job.archive {jobId \| jobIds \| all: true}` | Moves finished jobs out of the default list into a read-only record. Nothing is deleted: an audio batch's folder stays where it is, and the sources, drafts and decks a job made are untouched. Reply `{ archived, alreadyArchived, skipped, missing }`. A running, queued or stopping job is refused when it is the only id asked for (the same words as `job.dismiss`) and is `skipped: [{ id, reason: "running" }]` in a list. Archiving twice is harmless. A day of 为你定制 is skipped (`not-archivable`: its own file keeps fourteen days). At most 100 ids. |
+| `job.unarchive {jobId \| jobIds}` | Puts the record back in the list. An audio batch or a PDF conversion whose folder is still on disk is read again the way a restart reads it (retry works); anything else comes back from its record as an ended job (nothing to retry; 打开结果 works while its target exists). Reply `{ unarchived, missing }`. |
+| `job.delete {jobIds}` | Removes records for good: finished jobs and archived records. For audio the working copy of the batch is cleaned in the background (`lib/job-cleanup.js`); the imported sources, the drafts and the decks are never touched. A running job is skipped (`skipped: [{ id, reason: "running" }]`), unknown ids are `missing`. At most 100 ids per call. Deleting an archived record removes it from the archive. |
+| `job.dismiss {jobId \| jobIds \| all: true}` | Unchanged: removes finished records for good (the same removal as `job.delete`; running jobs are refused). It also removes an archived record by id. The 任务 console's 「知道了」 no longer calls it: it calls `job.archive`, so a finished task is put away, not lost. |
+
+**Where the archive lives.** One file next to the library, `<library>/job-archive.json` (`{ version: 1, records: [...] }`, written atomically and queued per library, like `coach-daily.json`; never inside an audio batch folder). A record is `{ id, ids, archivedAt, files?, legacy?, auto?, job: { id, archived: { at, auto? }, contract } }`. `id` is what survives a retry (the contract's `jobId`), `ids` is every name the job answers to, `files` is the batch folder name (only remembered, never touched), and `contract` is the job's contract as the console draws it. It is read-only (every action is `{ available: false, reason: { code: "archived" } }` and `archivedAt` is set) and bounded: no output previews, no buffers, no settings, no keys, no library path, at most the newest 60 calls and log lines, and at most 12 000 characters per record.
+
+**Limits.** The file keeps the **newest 200 records of the last 90 days**; the oldest fall off, and an audio batch's working copy falls off with its record. A finished job that the in-memory list trims (more than 100 finished jobs) is archived first (`auto: true`) instead of vanishing.
+
+**Reading it.** The library snapshot carries `archivedJobs` (newest archived first; not in the compact snapshot an agent reads), so the console needs no second data source. After a restart an archived audio batch is not brought back into the list, but its record is. `job.control` on an archived job fails with `code: "archived"`.
+
 ## Calls
 
 ```
@@ -78,9 +96,17 @@ call = { callId, jobId, attemptId?, stepKey, kind, stage, slot | null,
 
 ## Live output
 
-`job.output {jobId, callId, cursor}` returns `{ supported, live, text, nextCursor, truncated, reasoningChars, retention: { unit: "chars", limit: 8192, persisted: false } }`. `cursor` is the `nextCursor` of the previous answer (0 to start); only the text after it is returned. `truncated: true` means the cursor is older than what is kept (or from another buffer): `text` is the retained tail, the reader replaces what it shows and re-reads the snapshot; nothing depends on replaying a full log. The buffer is in memory, per running call, and gone when the call ends (`ended: true`). `supported: false` is a call that offers no text on the way (a Gemini request); a call through the host model is opened for output from its first moment, even before its first character.
+`job.output {jobId, callId, cursor}` returns `{ supported, live, text, nextCursor, truncated, reasoningChars, retention: { unit: "chars", limit: 8192, persisted: false, endedCalls: 60 } }`. `cursor` is the `nextCursor` of the previous answer (0 to start); only the text after it is returned. `truncated: true` means the cursor is older than what is kept (or from another buffer), or that the answer is a whole replacement (`source: "session"`): `text` is what to show, the reader replaces what it shows and re-reads the snapshot; nothing depends on replaying a full log. `supported: false` is a call that offers no text on the way (a Gemini request); a call through the host model is opened for output from its first moment, even before its first character.
+
+**A running call** is read from a bounded in-memory buffer (the last 8192 characters, plus a count of everything written). **An ended call keeps its tail** (2.6.1): when the call ends its buffer is marked ended and kept, together with the buffers of the 60 most recently finished calls (oldest finished first out; each is capped at 8192 characters, so the whole store stays under about half a megabyte). It is memory only: never persisted, gone when the host restarts (`retention.persisted` stays `false`). `job.output` for an ended call answers `ended: true, retained: true, source: "memory"` with that tail, readable from cursor 0 once (then nothing new); `writtenChars` is how much the call wrote in all, and `partial: true` says the tail is shorter than that.
+
+**The final reply of a DSH sub-agent is read from its session on demand.** When an ended call has a `childId` and the kept tail is shorter than what was written, or no tail is left (older than the 60, or after a restart), `job.output` reads the child's last `assistant/message` that has text blocks from the DSH session store (`ctx.get('sessionQuery').observeSession(childId)`, the same lease as the token-usage read; the jobs context gets it as the port `ports.sessions.lastReply`, `lib/session-reply.js`) and answers `source: "session"` with that text, at most 200 KB (`clipped: true` when it was longer; the beginning is kept). `retained` says whether a tail was also still in memory. A session that cannot be read is not an error: the answer keeps whatever tail there is and adds `sessionUnreadable: true`. The session is never read for a running call, for a reader that already has the text (`cursor > 0`), or for a call without a sub-agent; a call that never offered text (a Gemini request) answers `supported: false, retained: false` with an empty text.
 
 The text comes from the model path of this plugin: the direct streamed call, and, for a DSH sub-agent, the process-local `agent/assistant-stream` events DSH publishes for each model attempt (`dsh-agent-loop`, verified in DSH 0.2.0-rc.2: a listener of an unscoped context receives every agent's, and the plugin picks its child by id).
+
+## Parts of a question run
+
+`detail.partList` (generation, supplement) is one entry per part: `{ part, status, stages: { author?, review?, repair? }, sourceIds?, sourceCount?, range?, asked?, kept?, reasons? }`. `asked`, `kept` and `reasons` (codes `quote | plan | quality | other`) appear once the run has reported (`partReport`). `sourceIds` (each source once, at most 20), `sourceCount` (how many there really are) and `range` (a short label of at most 80 characters, such as "Book · 第 12–14 页", written in the job's language) say what the part covers; they come from the job's `partPlan` (`[{ part, sourceIds, sourceCount, label }]`, lib/part-plan.js), which the run writes when it plans its parts, so a part that is still waiting has them too. A job without a plan (an older run, a case paper, a translation) has parts without these three fields. The 任务 console's 在资料中查看 opens the reader on the first of `sourceIds` that is still in the library, through the app's own handler (`partOpener` in ui/tasks/task-actions.js, the handler `resultOpener` uses for transcripts and conversions).
 
 ## What each kind could and could not map
 

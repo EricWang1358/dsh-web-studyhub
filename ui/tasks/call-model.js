@@ -13,11 +13,13 @@ const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻�
 export function callLabel(call, { file = false } = {}) {
   if (!call) return '';
   const base = ui(KIND_LABEL[call.kind] || KIND_LABEL.other);
-  const label = call.kind !== 'wait' && call.part != null && call.parts ? uiFormat('{0} {1}/{2}', [base, call.part, call.parts]) : base;
+  const numbered = call.kind !== 'wait' && call.part != null && call.parts ? uiFormat('{0} {1}/{2}', [base, call.part, call.parts]) : base;
+  // A transcript taken from the saved one is a call too (drawn as a blue bar), and is called what it is.
+  const label = call.reused ? uiFormat('{0} · 复用', [numbered]) : numbered;
   return file && call.file ? joinMeta([label, call.file]) : label;
 }
 
-const RUNNER = { subagent: 'DSH 子代理', direct: '直接模型调用', gemini: 'Gemini' };
+const RUNNER = { subagent: 'DSH 子代理', direct: '直接模型调用', gemini: 'Gemini', saved: '已保存的转写' };
 /** Who runs a call, and at what reasoning level when one was asked for. */
 export function runnerLabel(call) {
   if (!call?.runner) return '';
@@ -39,7 +41,8 @@ export function runningCalls(calls) {
   return (calls || []).filter((call) => call.status === 'running' || call.status === 'waiting').sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0));
 }
 
-const WINDOW_MS = 10 * 60 * 1000, MIN_WINDOW_MS = 60 * 1000, MAX_SLOT_LANES = 8, MAX_TRANSCRIBE_LANES = 3, EDGE = 0.5;
+const WINDOW_MS = 10 * 60 * 1000, MIN_WINDOW_MS = 60 * 1000, MAX_SLOT_LANES = 8, MAX_TRANSCRIBE_LANES = 3, EDGE = 0.5, REUSED_EDGE = 1.5;
+const MAX_LANES = 24, MAX_UNIT_ROWS = 3, ATTACH_MS = 5000, NAME_CHARS = 22;
 
 /** Put intervals in the fewest lanes where none overlap (first fit), at most `limit` lanes. */
 function pack(items, limit) {
@@ -54,33 +57,93 @@ function pack(items, limit) {
   return lanes.map((lane) => lane.items);
 }
 
+/** A file name short enough for a lane label: the middle becomes "…", the extension stays (the lane's title carries the whole name). */
+export function shortFile(name, limit = NAME_CHARS) {
+  const text = String(name ?? '');
+  if (text.length <= limit) return text;
+  const dot = text.lastIndexOf('.'), ext = dot > 0 && text.length - dot <= 6 ? text.slice(dot) : '', stem = ext ? text.slice(0, dot) : text;
+  const room = Math.max(2, limit - ext.length - 1), head = Math.ceil(room * 0.6), tail = room - head;
+  return `${stem.slice(0, head)}…${tail > 0 ? stem.slice(-tail) : ''}${ext}`;
+}
+
+const WHOLE = { key: 'whole', kind: 'whole' };
+/** The unit of work a call belongs to in this run: its file (an audio import), else its part (a question run, a translation), else the whole run. */
+function unitOf(call, mode) {
+  if (mode === 'file') return call.file ? { key: `file:${call.file}`, kind: 'file', file: String(call.file) } : WHOLE;
+  return Number.isFinite(Number(call.part)) && call.part !== null ? { key: `part:${Number(call.part)}`, kind: 'part', part: Number(call.part) } : WHOLE;
+}
+
 /**
- * The parallel timeline: { lanes: [{ key, kind: 'transcribe' | 'slot' | 'other', index, bars }], windowMs, begin, end }. One lane per slot of the pool the calls ran
- * in (a rate-limit wait is drawn in the slot that was refused), transcription in lanes of its own (side by side where requests overlap), anything else in
- * one more. The window is the last ten minutes of a running job, the whole run of a finished one (at most ten minutes, at least one).
+ * The parallel timeline: { lanes: [{ key, kind, index, row, file?, part?, bars }], hiddenLanes, windowMs, begin, end }.
+ *
+ * A lane is a UNIT OF WORK, so it reads as that unit's story from left to right (every model call is a fresh sub-agent: a pool slot says nothing about order).
+ *  - A run whose calls name a file (an audio import) has one lane per file ('file'); calls of no file go to a 整体 lane ('whole'), first.
+ *  - Else, if its calls carry a part (a question run, a supplement, a translation), one lane per part, by number ('part'), 整体 ('whole') first for the rest.
+ *  - Else (为你定制 batches, anything unknown) the old slot lanes: one per pool slot ('slot'), transcription in lanes of its own ('transcribe'), the rest in 'other'.
+ *  A rate-limit wait carries a slot, not a unit: it is drawn in the lane of the unit whose call used that slot at that time (the nearest one, at most five seconds
+ *  away); a wait no call can claim goes to a lane 'other' (其他), last.
+ *  Calls of one unit that overlap in time (parallel windows of a file) get extra lanes of the same unit, at most three (`row` 2 and 3, key `<unit>~2`); a lane drawn
+ *  as a continuation has no label of its own.
+ *  At most 24 lanes: the units that were active most recently stay (a unit with a call in flight always does), still in their own order; `hiddenLanes` counts the
+ *  units left out. A unit with nothing inside the window has no lane.
+ *  A reused transcript (call.reused, no duration) is a bar of at least 1.5% of the chart, the others of at least 0.5%.
+ * The window is the last ten minutes of a running job, the whole run of a finished one (at most ten minutes, at least one).
  */
 export function timelineModel(calls, { now = Date.now(), running = false } = {}) {
   const timed = (calls || []).filter((call) => Number.isFinite(Date.parse(call.startedAt))).map((call) => ({ call, from: Date.parse(call.startedAt), to: call.endedAt ? Date.parse(call.endedAt) : null }));
-  if (!timed.length) return { lanes: [], windowMs: MIN_WINDOW_MS, begin: now, end: now };
+  if (!timed.length) return { lanes: [], hiddenLanes: 0, windowMs: MIN_WINDOW_MS, begin: now, end: now };
   const first = Math.min(...timed.map((item) => item.from)), last = Math.max(...timed.map((item) => item.to ?? item.from));
   const end = running ? now : last, span = Math.min(WINDOW_MS, Math.max(MIN_WINDOW_MS, end - first)), begin = end - span;
   const bar = ({ call, from, to }) => {
     const stop = to ?? end, left = Math.max(0, (Math.max(from, begin) - begin) / span * 100), right = Math.min(100, (Math.min(stop, end) - begin) / span * 100);
     if (right < 0 || stop < begin) return null;
-    const width = Math.max(EDGE, right - left);
-    return { callId: call.callId, kind: call.kind, status: call.status, wait: call.kind === 'wait', running: to === null, left: Math.min(left, 100 - EDGE), width: Math.min(width, 100 - Math.min(left, 100 - EDGE)),
-      label: callLabel(call, { file: true }), runner: call.runner };
+    const edge = call.reused ? REUSED_EDGE : EDGE, width = Math.max(edge, right - left);   // a reused transcript took no time but is still a visible, clickable bar
+    return { callId: call.callId, kind: call.kind, status: call.status, wait: call.kind === 'wait', running: !call.endedAt, left: Math.min(left, 100 - edge), width: Math.min(width, 100 - Math.min(left, 100 - edge)),
+      label: callLabel(call, { file: true }), runner: call.runner, slot: Number.isInteger(call.slot) ? call.slot : null };
   };
   const intervals = (items) => items.map((item) => ({ ...item, to: item.to ?? end }));
+  const real = timed.filter((item) => item.call.kind !== 'wait');
+  const mode = real.some((item) => item.call.file) ? 'file' : real.some((item) => item.call.part != null) ? 'part' : 'slot';
   const lanes = [];
-  const transcribe = timed.filter((item) => item.call.kind === 'transcribe');
-  pack(intervals(transcribe), MAX_TRANSCRIBE_LANES).forEach((items, index) => lanes.push({ key: `transcribe-${index + 1}`, kind: 'transcribe', index: index + 1, bars: items.map(bar).filter(Boolean) }));
-  const slotted = timed.filter((item) => item.call.kind !== 'transcribe' && Number.isInteger(item.call.slot) && item.call.slot >= 1 && item.call.slot <= MAX_SLOT_LANES);
-  const highest = Math.max(0, ...slotted.map((item) => item.call.slot));
-  for (let slot = 1; slot <= highest; slot++) lanes.push({ key: `slot-${slot}`, kind: 'slot', index: slot, bars: slotted.filter((item) => item.call.slot === slot).sort((a, b) => a.from - b.from).map(bar).filter(Boolean) });
-  const rest = timed.filter((item) => item.call.kind !== 'transcribe' && !slotted.includes(item));
-  pack(intervals(rest), 1).forEach((items, index) => lanes.push({ key: `other-${index + 1}`, kind: 'other', index: index + 1, bars: items.map(bar).filter(Boolean) }));
-  return { lanes, windowMs: span, begin, end };
+  if (mode === 'slot') {
+    const transcribe = timed.filter((item) => item.call.kind === 'transcribe');
+    pack(intervals(transcribe), MAX_TRANSCRIBE_LANES).forEach((items, index) => lanes.push({ key: `transcribe-${index + 1}`, kind: 'transcribe', index: index + 1, row: 1, bars: items.map(bar).filter(Boolean) }));
+    const slotted = timed.filter((item) => item.call.kind !== 'transcribe' && Number.isInteger(item.call.slot) && item.call.slot >= 1 && item.call.slot <= MAX_SLOT_LANES);
+    const highest = Math.max(0, ...slotted.map((item) => item.call.slot));
+    for (let slot = 1; slot <= highest; slot++) lanes.push({ key: `slot-${slot}`, kind: 'slot', index: slot, row: 1, bars: slotted.filter((item) => item.call.slot === slot).sort((a, b) => a.from - b.from).map(bar).filter(Boolean) });
+    const rest = timed.filter((item) => item.call.kind !== 'transcribe' && !slotted.includes(item));
+    pack(intervals(rest), 1).forEach((items, index) => lanes.push({ key: `other-${index + 1}`, kind: 'other', index: index + 1, row: 1, bars: items.map(bar).filter(Boolean) }));
+    return { lanes, hiddenLanes: 0, windowMs: span, begin, end };
+  }
+  const units = new Map();
+  const place = (unit, item) => { if (!units.has(unit.key)) units.set(unit.key, { ...unit, items: [] }); units.get(unit.key).items.push(item); };
+  const claimed = intervals(real).map((item) => ({ ...item, unit: unitOf(item.call, mode) }));
+  claimed.forEach((item) => place(item.unit, item));
+  const gap = (a, b) => Math.max(0, a.from - b.to, b.from - a.to);
+  const strays = [];
+  for (const item of intervals(timed.filter((entry) => entry.call.kind === 'wait'))) {
+    const owners = Number.isInteger(item.call.slot) ? claimed.filter((other) => other.call.slot === item.call.slot).map((other) => ({ other, away: gap(item, other) })).filter(({ away }) => away <= ATTACH_MS) : [];
+    const best = owners.sort((a, b) => a.away - b.away)[0];
+    if (best) place(best.other.unit, item); else strays.push(item);
+  }
+  const rank = (unit) => (unit.kind === 'part' ? unit.part : Math.min(...unit.items.map((item) => item.from)));
+  const drawn = [...units.values()].sort((a, b) => (b.kind === 'whole') - (a.kind === 'whole') || rank(a) - rank(b))
+    .map((unit) => ({ unit, rows: pack(unit.items, MAX_UNIT_ROWS).map((items) => items.map(bar).filter(Boolean)).filter((bars) => bars.length) })).filter(({ rows }) => rows.length);
+  const strayRows = pack(strays, MAX_UNIT_ROWS).map((items) => items.map(bar).filter(Boolean)).filter((bars) => bars.length);
+  if (strayRows.length) drawn.push({ unit: { key: 'other', kind: 'other' }, rows: strayRows });
+  // Keep the units active most recently while the lanes fit; the rest are counted, not drawn.
+  const activity = ({ unit }) => (unit.items ?? []).reduce((latest, item) => Math.max(latest, item.call.endedAt ? item.to : Infinity), 0);
+  const keep = new Set();
+  let used = 0;
+  for (const entry of [...drawn].sort((a, b) => activity(b) - activity(a) || drawn.indexOf(a) - drawn.indexOf(b))) {
+    if (used + entry.rows.length > MAX_LANES && keep.size) continue;
+    keep.add(entry); used += entry.rows.length;
+  }
+  for (const entry of drawn.filter((one) => keep.has(one))) {
+    entry.rows.forEach((bars, index) => lanes.push({ key: index ? `${entry.unit.key}~${index + 1}` : entry.unit.key, kind: entry.unit.kind, index: entry.unit.part ?? 1, row: index + 1,
+      ...(entry.unit.file !== undefined ? { file: entry.unit.file } : {}), ...(entry.unit.part !== undefined ? { part: entry.unit.part } : {}), bars }));
+  }
+  return { lanes, hiddenLanes: drawn.length - keep.size, windowMs: span, begin, end };
 }
 
 const PHASE = { transcribe: '转写', proofread: '校对', translate: '翻译' };
@@ -111,6 +174,23 @@ export function eventText(event) {
 }
 
 const LEVEL = { step: 'step', warn: 'warn', error: 'warn', done: 'done', info: 'info' };
+const sameStep = (a, b) => a.kind === b.kind && (a.file ?? '') === (b.file ?? '') && (a.part ?? null) === (b.part ?? null);
+const AUDIO_KINDS = new Set(['transcribe', 'proofread', 'translate']);
+
+/**
+ * What came of a failed call. The later calls of the same step (same kind, file and part) are its retries (only a rate limit is retried by itself).
+ * With none, say so and say how the learner goes on: questions that did not get written are added by hand with 补题, an audio import continues with 接着做.
+ */
+export function retryNote(call, calls) {
+  const later = (calls || []).filter((other) => other !== call && other.kind !== 'wait' && sameStep(call, other) && Date.parse(other.startedAt) > Date.parse(call.startedAt))
+    .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+  if (!later.length) return joinMeta([ui('没有自动重试'), AUDIO_KINDS.has(call.kind) ? ui('可点「接着做」补上') : ui('缺的题请在草稿里点「补题」')]);
+  const last = later[later.length - 1], times = later.length > 1 ? uiFormat('已重试 {0} 次', [later.length]) : ui('已重试');
+  if (last.status === 'running' || last.status === 'waiting') return ui('重试中');
+  if (last.status === 'ok') return later.length > 1 ? uiFormat('已重试 {0} 次，成功', [later.length]) : ui('已重试，成功');
+  if (last.status === 'cancelled') return uiFormat('{0}，已停止', [times]);
+  return uiFormat('已重试 {0} 次，仍失败', [later.length]);
+}
 const CALL_STATUS = (status) => ({ ok: ui('完成'), failed: ui('失败'), cancelled: ui('已取消'), skipped: ui('已跳过') })[status] || '';
 
 /**
@@ -133,8 +213,11 @@ export function logLines(contract, filter = 'all') {
   for (const call of contract?.calls || []) {
     if (call.kind === 'wait' || !call.endedAt) continue;
     const took = formatDuration(Date.parse(call.endedAt) - Date.parse(call.startedAt));
-    lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : call.status === 'failed' ? 'warn' : 'info', kind: 'call', tag: call.kind,
-      text: joinMeta([`${callLabel(call, { file: true })} ${CALL_STATUS(call.status)}`.trim(), took]) });
+    const failed = call.status === 'failed';
+    lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind,
+      text: joinMeta([`${callLabel(call, { file: true })} ${CALL_STATUS(call.status)}`.trim(), took,
+        call.reused ? ui('音频内容和转写设置与之前相同') : '',
+        failed && call.error ? uiFormat('原因：{0}', [call.error]) : '', failed ? retryNote(call, contract.calls) : '']) });
   }
   for (const line of lines) if (line.count > 1) line.text = `${line.text} ×${line.count}`;
   const ordered = lines.map((line, index) => ({ line, index })).sort((a, b) => (Date.parse(b.line.at) || 0) - (Date.parse(a.line.at) || 0) || b.index - a.index).map(({ line }) => line);

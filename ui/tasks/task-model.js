@@ -40,9 +40,20 @@ export function tasksOf(data) {
   return jobs.map((job, index) => ({ job, index })).sort((a, b) => time(b.job) - time(a.job) || a.index - b.index).map(({ job }) => job);
 }
 
-/** The list's filters with their counts: 全部 / 进行中 / 失败. */
-export function taskFilters(tasks) {
-  return [{ id: 'all', count: tasks.length }, { id: 'running', count: tasks.filter(isRunningTask).length }, { id: 'failed', count: tasks.filter(isFailed).length }];
+/** A task of the archive (data.archivedJobs): a read-only record of a finished job (lib/job-archive.js). */
+export const isArchivedTask = (job) => !!job?.archived;
+
+/** The archived tasks of the snapshot, the newest archived first. */
+export function archivedTasksOf(data) {
+  const records = Array.isArray(data?.archivedJobs) ? data.archivedJobs : [];
+  const at = (job) => Date.parse(job.archived?.at) || 0;
+  return records.map((job, index) => ({ job, index })).sort((a, b) => at(b.job) - at(a.job) || a.index - b.index).map(({ job }) => job);
+}
+
+/** The list's filters with their counts: 全部 / 进行中 / 失败 / 已归档 (the archived ones are in no other filter). */
+export function taskFilters(tasks, archived = []) {
+  return [{ id: 'all', count: tasks.length }, { id: 'running', count: tasks.filter(isRunningTask).length }, { id: 'failed', count: tasks.filter(isFailed).length },
+    { id: 'archived', count: archived.length }];
 }
 export function filterTasks(tasks, filter) {
   if (filter === 'running') return tasks.filter(isRunningTask);

@@ -107,6 +107,23 @@ const PLACEHOLDER = /^(?:\[(?:Figure|图|图片)\]|!\[[^\]]*\]\(doc:[^)\s]*\))$/
 /** A lone figure marker of the text (the converter's [Figure], or the doc: image block it names): the text has no picture there. */
 export const isFigurePlaceholder = value => typeof value === 'string' && PLACEHOLDER.test(value.trim());
 
+/**
+ * The images of a drawn page that pdf.js could not decode: when it cannot (a decoder it was not given, a damaged stream) it warns, keeps `null`
+ * for that image object and draws nothing, so the page comes out blank where the scan is. Takes the page's object stores (iterables of
+ * [id, data]: `page.objs`, `page.commonObjs`) and returns the ids that are null. A font that failed is a string there, not an image.
+ */
+export function undecodedImages(...stores) {
+  const ids = [];
+  for (const store of stores) if (store) for (const [id, data] of store) if (data === null) ids.push(id);
+  return ids;
+}
+
+/** What the popover says about a drawn page: null when all is well, else { kind: 'undecoded-images', count }. report: { undecoded } from the renderer. */
+export function peekNotice(report) {
+  const count = report?.undecoded;
+  return Number.isInteger(count) && count > 0 ? { kind: 'undecoded-images', count } : null;
+}
+
 /** The smallest the panel may be made. */
 export const PEEK_MIN = { width: 260, height: 200 };
 export const clampTo = (value, low, high) => Math.min(Math.max(value, low), Math.max(low, high));

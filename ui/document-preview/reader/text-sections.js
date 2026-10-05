@@ -5,6 +5,7 @@
    passage capture and citation highlighting, which match the rendered text
    without whitespace, keep working. Pure helpers, no DOM. */
 import { splitStudyMath } from '../../study-media.js';
+import { findFootnotes, fenceOpenAfter } from '../../../lib/footnote-html.js';
 
 const SENTENCE_END = /[。．.!！?？；;:：,，、…)）”"』」\]]$/;
 const HEADING_MAX = 60;
@@ -48,17 +49,37 @@ function splitHeadingLines(chunk) {
   return at > 0 && headingMark(chunk) ? [chunk.slice(0, at), ...splitHeadingLines(chunk.slice(at + 1))] : [chunk];
 }
 
-/** Paragraphs split at blank lines: [{ kind: 'heading' | 'rule' | 'prose' | 'lines' | 'layout', text, lines }]. */
+/** A converter's page footnote (`<small><span class="docvortex-page-footnote">…</span></small>`, lib/footnote-html.js) is a paragraph of its own,
+ * also when it is glued to body lines or to another footnote: the chunk is cut around it. The note is { footnote: match }, the rest { text }. */
+function splitFootnoteLines(chunk, fenced) {
+  const notes = findFootnotes(chunk, { fenced });
+  if (!notes.length) return [{ text: chunk }];
+  const pieces = [];
+  let at = 0;
+  for (const note of notes) {
+    const before = chunk.slice(at, note.start).replace(/^\s+/, '').replace(/\s+$/, '');
+    if (before) pieces.push({ text: before });
+    pieces.push({ footnote: note });
+    at = note.end;
+  }
+  const rest = chunk.slice(at).replace(/^\s+/, '').replace(/\s+$/, '');
+  return rest ? [...pieces, { text: rest }] : pieces;
+}
+
+/** Paragraphs split at blank lines: [{ kind: 'heading' | 'rule' | 'footnote' | 'prose' | 'lines' | 'layout', text, lines }]; a footnote also carries { open, inner, close }. */
 export function splitParagraphs(text) {
   // A Markdown heading is its own paragraph even when the text follows on the next line.
+  let fenced = false;
   const chunks = String(text || '').replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/)
     .map(chunk => chunk.replace(/^\n+/, '').replace(/\s+$/, '')).filter(chunk => chunk.trim())
-    .flatMap(splitHeadingLines);
-  return chunks.map((chunk, index) => {
-    const lines = chunk.split('\n');
+    .flatMap(splitHeadingLines)
+    .flatMap(chunk => { const pieces = splitFootnoteLines(chunk, fenced); fenced = fenceOpenAfter(chunk, fenced); return pieces; });
+  return chunks.map((piece, index) => {
+    if (piece.footnote) return { kind: 'footnote', text: piece.footnote.raw, lines: piece.footnote.raw.split('\n'), open: piece.footnote.open, inner: piece.footnote.inner, close: piece.footnote.close };
+    const chunk = piece.text, lines = chunk.split('\n');
     // A line of dashes between blank lines is a break, never a heading (it is short enough to look like one) and never text.
     if (lines.length === 1 && isThematicBreak(lines[0])) return { kind: 'rule', text: chunk, lines };
-    const heading = lines.length === 1 && (!!headingMark(lines[0]) || (looksLikeHeading(lines[0]) && (index < chunks.length - 1 || index === 0)));
+    const heading = lines.length === 1 && (!!headingMark(lines[0]) || (looksLikeHeading(lines[0]) && (index === 0 && chunks.length === 1 || chunks[index + 1] && !chunks[index + 1].footnote)));
     return { kind: heading ? 'heading' : classifyParagraph(lines), text: chunk, lines };
   });
 }

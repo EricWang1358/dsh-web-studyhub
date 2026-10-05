@@ -353,6 +353,10 @@
     .reader-math--display { display: block; margin: 0.9em 0; overflow-x: auto; overflow-y: hidden; text-align: center; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
     .reader-math--display > .reader-math__view { display: block; width: max-content; min-width: 100%; }
     .reader-math__label { margin-inline-start: 1.2em; color: var(--text-muted); }
+    /* A converter's page footnote (lib/footnote-html.js), in text and Markdown sources alike: smaller and muted, set apart from the body, a thin rule above the
+       first of a run. Its stored tags sit inside as hidden brackets (.reader-bracket), so only its words show. */
+    .reader-prose .reader-footnote, .reader-html .reader-footnote { margin: 0 0 0.3em; color: var(--text-muted); font-size: 0.86em; line-height: 1.55; text-wrap: pretty; }
+    .reader-prose :not(.reader-footnote) + .reader-footnote, .reader-html :not(.reader-footnote) + .reader-footnote { margin-top: 1.6em; padding-top: 0.7em; border-top: 1px solid var(--line); }
     .reader-p--layout {
       padding: 0.7em 1em;
       overflow-x: auto;

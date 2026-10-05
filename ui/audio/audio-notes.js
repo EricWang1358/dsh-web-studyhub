@@ -10,6 +10,9 @@ export function parallelNote(parallel) {
   return uiFormat('并行 {0}', [parallel.effective]);
 }
 
+/** Why a transcript is reused, in words: the saved one is keyed by the audio's content and the transcription model, mode and languages. */
+export const reuseWhy = () => ui('这段音频的内容和转写设置（模型、模式、语言）与之前一次相同，所以直接用了保存的转写。');
+
 /** A recording that went on from a saved transcript did not ask the transcription provider again: say so, so "0 requests" is explained. */
 export function reuseNote(steps) {
   const step = steps?.transcribe;
