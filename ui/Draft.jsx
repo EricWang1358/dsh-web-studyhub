@@ -329,7 +329,7 @@ export default function Draft({
               {uiFormat("第 {0} 页：规划 {1} 个考点，通过 {2} 题", [row.page, row.planned, row.accepted])}</li>)}</ul></>}
         </li>)}</ul>}
         {untestedSourceIds.length > 0 && canAddFromSources(draft) && <DraftAddFromSources draft={draft} jobs={data.jobs} sourceIds={untestedSourceIds} pages={coverageCount}
-          busy={busy || unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} call={call} onAdd={addFromSources}
+          held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} onAdd={addFromSources}
           onNewDeck={(ids) => { setSelectedSources(ids); setGenSource("files"); setPage("generate"); }} />}
         {untestedSourceIds.length > 0 && canAddFromSources(draft) && unsavedDraft && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
         {uncoveredCount > 0 && <Disclosure summary={coverageCount ? uiFormat("{0} 页本次没有合格题 · 查看清单", [uncoveredCount]) : uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredCount])}>

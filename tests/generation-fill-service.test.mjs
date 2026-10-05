@@ -107,7 +107,7 @@ test("a card and the earlier jobs folded into it can be dismissed together (job.
   await settleJob(service, second.jobId);
   const ids = (await service.call("snapshot")).jobs.map((job) => job.id);
   assert.ok(ids.includes(first.jobId) && ids.includes(second.jobId));
-  await assert.rejects(service.call("job.dismiss", { jobId: second.jobId, jobIds: [first.jobId] }), /Specify jobId, jobIds or all/);
+  await assert.rejects(service.call("job.dismiss", { jobId: second.jobId, jobIds: [first.jobId] }), /Specify jobId or all/);
   await service.call("job.dismiss", { jobIds: [second.jobId, first.jobId] });
   assert.deepEqual((await service.call("snapshot")).jobs.map((job) => job.id).filter((id) => [first.jobId, second.jobId].includes(id)), []);
 });

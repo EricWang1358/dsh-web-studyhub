@@ -16,7 +16,9 @@
   }
   :where(.study-app, .study-seat) {
     /* 用未覆盖的资料补题: the target sentence, then the count, the button and the explicit new-deck choice in one row. */
-    .draft-addfrom { display: grid; gap: var(--space-2); min-width: 0; margin-block: var(--space-2); }
+    .draft-addfrom { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); min-width: 0; max-width: 100%; margin-block: var(--space-2); }
+    /* The button names the deck: on a narrow screen it wraps instead of pushing the whole block past the edge. */
+    .draft-addfrom__button { white-space: normal; max-width: 100%; height: auto; padding-block: var(--space-2); text-align: left; overflow-wrap: anywhere; }
     .draft-addfrom__target { margin: 0; font-size: var(--fs-sm); color: var(--text-dim); overflow-wrap: anywhere; }
     .draft-addfrom__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
     .draft-addfrom .token-estimate { max-width: 34em; }
