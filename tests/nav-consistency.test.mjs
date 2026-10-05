@@ -35,7 +35,7 @@ test("a row is icon + label + optional trailing hint, and never a subtitle line"
 
 test("one definition of active and disabled: aria-current only on the active, enabled row", () => {
   const active = html(React.createElement(NavItem, { glyph: "library", label: "A", active: true }));
-  assert.match(active, /class="nav active"/);
+  assert.match(active, /class="nav"/);
   assert.match(active, /aria-current="page"/);
   const idle = html(React.createElement(NavItem, { glyph: "library", label: "A" }));
   assert.doesNotMatch(idle, /aria-current|active/);
@@ -43,7 +43,8 @@ test("one definition of active and disabled: aria-current only on the active, en
   assert.match(off, /disabled=""/);
   assert.doesNotMatch(off, /aria-current/, "a disabled row never claims to be the current page");
   const upkeep = html(React.createElement(NavItem, { glyph: "notes", label: "A", upkeep: true, active: true }));
-  assert.match(upkeep, /class="nav nav-upkeep active"/);
+  assert.match(upkeep, /class="nav nav-upkeep"/);
+  assert.match(upkeep, /aria-current="page"/);
   const passed = html(React.createElement(NavItem, { glyph: "board", label: "A", "data-tour": "nav-board", "data-nav-id": "board", title: "t" }));
   assert.match(passed, /data-tour="nav-board"/);
   assert.match(passed, /data-nav-id="board"/);
@@ -79,7 +80,7 @@ test("an empty library does not dim the resume row: dimmed means disabled, and t
 test("the resume row follows the active page and keeps the hint on every page", () => {
   setUiLanguage("zh");
   const on = html(React.createElement(ResumeNavItem, { lastRun, hasDecks: true, active: true }));
-  assert.match(on, /class="nav resume-nav active"/);
+  assert.match(on, /class="nav resume-nav"/);
   assert.match(on, /aria-current="page"/);
   assert.match(on, />2\/3</);
 });
@@ -126,7 +127,7 @@ test("stylesheet contract: one row height, labels clamped to the row, no second-
   assert.doesNotMatch(all, /muted-nav/, "no look of its own for a row that still works");
   assert.doesNotMatch(language.replace(/\r/g, ""), /\.nav\{[^}]*white-space:\s*normal/, "English labels truncate like Chinese ones; the tooltip has the full text");
   assert.doesNotMatch(rule(all, ".coach-nav .nav-label"), /font-weight:\s*600/, "bold means the active page, nothing else");
-  assert.match(all, /\.sidebar-bottom\s+\.nav\.active/, "Settings gets the same highlight and bar as the rows above it");
+  assert.match(all, /\.sidebar-bottom\s+\.nav\[aria-current="page"\]/, "Settings gets the same highlight and bar as the rows above it");
 });
 
 test("App uses the shared row for every sidebar entry", async () => {

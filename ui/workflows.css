@@ -137,8 +137,8 @@
     .wf-history li > div:first-child { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
     .wf-history time { margin-left: auto; color: var(--text-muted); font-size: var(--fs-md); }
     .wf-outcome { color: var(--text-muted); font-size: var(--fs-md); }
-    .wf-outcome.done { color: var(--ok); }
-    .wf-outcome.needs_work { color: var(--warn); }
+    .wf-outcome[data-outcome="done"] { color: var(--ok); }
+    .wf-outcome[data-outcome="needs_work"] { color: var(--warn); }
     .wf-completed { border-left: 3px solid var(--ok); padding: 6px 0 6px 22px; margin-block: 30px; }
     .wf-completed h2 { font-size: var(--fs-2xl); }
     .wf-completed p { font-size: var(--fs-md); line-height: 1.7; }

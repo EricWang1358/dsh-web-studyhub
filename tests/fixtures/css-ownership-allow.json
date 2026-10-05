@@ -5,10 +5,6 @@
       "ui/components/components.css",
       "ui/review/question.css"
     ],
-    "active": [
-      "ui/shell.css",
-      "ui/sources-page.css"
-    ],
     "audio-reasoning": [
       "ui/audio-dashboard.css",
       "ui/audio-settings.css"
@@ -73,11 +69,6 @@
     "course-route": [
       "ui/focus.css",
       "ui/home-tiers.css"
-    ],
-    "current": [
-      "ui/shell.css",
-      "ui/skeleton.css",
-      "ui/study-map/catalog.css"
     ],
     "daily-recap": [
       "ui/DailyRecap.css",
@@ -294,11 +285,6 @@
       "ui/app/app-shell.css",
       "ui/shell.css"
     ],
-    "on": [
-      "ui/live-class.css",
-      "ui/shell.css",
-      "ui/skeleton.css"
-    ],
     "page-heading": [
       "ui/reading-settings/reading.css",
       "ui/shell.css",
@@ -309,11 +295,6 @@
       "ui/course-active.css",
       "ui/exam-setup.css",
       "ui/source-picker.css"
-    ],
-    "picked": [
-      "ui/exam-setup.css",
-      "ui/skeleton.css",
-      "ui/views.css"
     ],
     "quality-note": [
       "ui/draft.css",
@@ -371,13 +352,6 @@
     ],
     "section-heading-actions": [
       "ui/shell.css",
-      "ui/study-map/catalog.css"
-    ],
-    "selected": [
-      "ui/audio-dashboard.css",
-      "ui/live-class.css",
-      "ui/review/question.css",
-      "ui/skeleton.css",
       "ui/study-map/catalog.css"
     ],
     "self": [

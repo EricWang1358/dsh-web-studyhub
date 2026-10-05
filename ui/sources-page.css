@@ -58,7 +58,7 @@
       background: var(--bg-surface);
       margin: 10px 0;
     }
-    .source-group.open {
+    .source-group--open {
       padding-bottom: var(--space-1);
     }
     .source-group .source-row {
@@ -118,10 +118,6 @@
     .source-tab small {
       font-size: var(--fs-md);
       color: var(--text-muted);
-    }
-    .source-tab.active {
-      background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
-      border-color: var(--accent-soft);
     }
     .source-md {
       white-space: normal;

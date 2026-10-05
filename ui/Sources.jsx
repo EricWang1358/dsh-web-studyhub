@@ -391,7 +391,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           {groups.map((g) => {
             const expanded = isOpen(g);
             return (
-              <div key={g.key} className={"source-group" + (expanded ? " open" : "")}>
+              <div key={g.key} className={"source-group" + (expanded ? " source-group--open" : "")}>
                 <button className="source-group-head" aria-expanded={expanded} onClick={() => toggle(g)}>
                   <Icon name="caret" size={14} className="sh-caret" />
                   <strong>{dayLabel(g.key)}</strong>

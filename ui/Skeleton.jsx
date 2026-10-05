@@ -207,7 +207,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
     const on = keys.filter((k) => picked.has(k)).length;
     const expanded = open.has(t.key);
     return (
-      <li key={t.key} className={on ? "picked" : ""}>
+      <li key={t.key} className={on ? "is-picked" : ""}>
         <div className="sk-topic-row">
           <DisclosureToggle open={expanded} label={foldLabel(expanded, t.topic)} onToggle={() => toggleFold(t.key)} />
           <input
@@ -321,7 +321,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                 const expanded = open.has("g:" + g.id) || (query.trim() && g.searchHit);
                 const cards = g.members.reduce((n, m) => n + m.count, 0);
                 return (
-                  <li key={g.id} className={"sk-group" + (on ? " picked" : "") + (g.loose ? " loose" : "")}>
+                  <li key={g.id} className={"sk-group" + (on ? " is-picked" : "") + (g.loose ? " loose" : "")}>
                     <div className="sk-topic-row">
                       <DisclosureToggle open={!!expanded} label={foldLabel(!!expanded, g.title)} onToggle={() => toggleFold("g:" + g.id)} />
                       <input
@@ -446,7 +446,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
           <ul className="sk-saved-list">
             {listedSkeletons.map((k) => (
               <li key={k.id}>
-                <button type="button" className={"sk-saved-item" + (k.id === focusId ? " on" : "")} onClick={() => { setStale(false); onFocus(k.id === focusId ? null : k.id); }}>
+                <button type="button" className={"sk-saved-item" + (k.id === focusId ? " sk-saved-item--selected" : "")} onClick={() => { setStale(false); onFocus(k.id === focusId ? null : k.id); }}>
                   <strong>{k.title}</strong>
                   <small className="muted">
                     {[uiFormat("{0} 个概念 · {1} 条关系", [k.nodes, k.relations]), k.sequences ? uiFormat("{0} 条时序", [k.sequences]) : "", uiFormat("{0} 题", [k.cardIds.length]), uiFormat("{0} 个题组", [k.decks]), ago(k.updatedAt)].filter(Boolean).join(" · ")}

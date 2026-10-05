@@ -108,7 +108,7 @@ const History = React.memo(function History({ session }) {
       <div><strong>{ui("这次学习换了课程")}</strong><time>{stamp(event.at)}</time></div>
       <p>{event.output}</p>
     </li> : <li key={event.requestId || index}>
-      <div><strong>{title(event.stepId)}</strong><span className={`wf-outcome ${event.outcome}`}>{ui(OUTCOME[event.outcome])}</span><time>{stamp(event.at)}</time></div>
+      <div><strong>{title(event.stepId)}</strong><span className="wf-outcome" data-outcome={event.outcome}>{ui(OUTCOME[event.outcome])}</span><time>{stamp(event.at)}</time></div>
       {event.output && <Markdown text={event.output} />}
     </li>)}</ol>}
   </details>;

@@ -194,7 +194,7 @@
       font-size: var(--fs-md);
       font-weight: var(--fw-strong);
     }
-    .option.selected .option-letter {
+    .option--selected .option-letter {
       background: var(--accent);
       box-shadow: none;
       color: var(--accent-ink);
@@ -215,7 +215,7 @@
     .option:hover:not(:disabled) {
       background: var(--bg-hover);
     }
-    .option.selected {
+    .option--selected {
       background: color-mix(in srgb, var(--accent) 7%, transparent);
     }
     .option > div > .md:first-child {

@@ -59,7 +59,7 @@
     .es-decks > li { min-width: 0; }
     .es-deck { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-2) var(--space-2); border-bottom: 1px solid var(--line-soft); cursor: pointer; }
     .es-deck:hover { background: var(--bg-hover); }
-    .es-deck.picked { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+    .es-deck.is-checked { background: color-mix(in srgb, var(--accent) 7%, transparent); }
     .es-deck__name { display: grid; min-width: 0; flex: 1 1 auto; }
     .es-deck__name strong { font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .es-deck__name small { color: var(--text-muted); font-size: var(--fs-sm); }

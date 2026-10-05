@@ -11,7 +11,7 @@ import { ui, uiFormat } from "./i18n.js";
    One definition of the states: `active` (the page the learner is on) is bold, sits on the gliding highlight and carries
    aria-current; `disabled` is dimmed, does nothing and is never current. Nothing else is dimmed or bold. */
 export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hintTitle, upkeep = false, active = false, disabled = false, className = "", title, ...button }) {
-  const classes = ["nav", className, upkeep && "nav-upkeep", active && "active"].filter(Boolean).join(" ");
+  const classes = ["nav", className, upkeep && "nav-upkeep"].filter(Boolean).join(" ");
   const row = (
     <button type="button" {...button} className={classes} disabled={disabled} aria-current={active && !disabled ? "page" : undefined}>
       <IconBox>{icon || <Icon name={`nav-${glyph}`} />}</IconBox>

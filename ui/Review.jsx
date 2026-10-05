@@ -438,7 +438,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                                   ? "incorrect"
                                   : "dim"
                               : selected.includes(o.id)
-                                ? "selected"
+                                ? "option--selected"
                                 : "")
                           }
                           data-usage="review.option"

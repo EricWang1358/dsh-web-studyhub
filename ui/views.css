@@ -301,7 +301,7 @@
       padding: var(--space-3) var(--space-3);
       border-radius: var(--radius-sm);
     }
-    .exam-option.picked {
+    .exam-option[aria-pressed="true"] {
       border-color: var(--accent);
       background: color-mix(in srgb, var(--accent) 14%, transparent);
       box-shadow: var(--ring);
@@ -319,7 +319,7 @@
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
-    .exam-option.picked .exam-option-letter {
+    .exam-option[aria-pressed="true"] .exam-option-letter {
       border-color: transparent;
       background: var(--accent);
       color: var(--accent-ink);

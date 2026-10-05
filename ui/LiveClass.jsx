@@ -41,7 +41,7 @@ export function SentenceMark({ segment, checked }) {
 }
 
 export const Sentence = memo(function Sentence({ segment, selected, generated, checked, onToggle, language }) {
-  return <article className={`live-sentence${selected ? ' selected' : ''}${segment.correctedAt ? ' polished' : ''}`} data-segment-id={segment.id} tabIndex={-1}>
+  return <article className={`live-sentence${selected ? ' live-sentence--selected' : ''}${segment.correctedAt ? ' polished' : ''}`} data-segment-id={segment.id} tabIndex={-1}>
     <label className="live-select"><input type="checkbox" checked={selected} onChange={() => onToggle(segment.id)}
       aria-label={uiFormat('选择句子 {0}', [segment.id])} />
       <time>{formatClock(segment.t)}</time></label>
@@ -192,7 +192,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
           <span className="muted">{ui('原文在上，简体中文在下；勾选句子或划选文字即可出题。')}</span>
           <div className="live-actions">
             {segments.some((segment) => segment.zhState === 'error') && <Button disabled={disabled} onClick={() => void perform(async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
-            <Button variant="link" size="sm" className={`live-follow${follow ? ' on' : ''}`} onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
+            <Button variant="link" size="sm" className="live-follow" onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
           const node = feed.current; if (node && node.scrollHeight - node.scrollTop - node.clientHeight > 80) setFollow(false);

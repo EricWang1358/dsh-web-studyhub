@@ -80,7 +80,7 @@
     .sk-topics > li {
       border-radius: var(--radius-sm);
     }
-    .sk-topics > li.picked {
+    .sk-topics > li.is-picked {
       background: color-mix(in srgb, var(--accent) 9%, transparent);
     }
     .sk-topic-row {
@@ -272,7 +272,7 @@
       background: var(--bg-surface);
       text-align: left;
     }
-    & button.sk-saved-item.on {
+    & button.sk-saved-item--selected {
       border-color: var(--accent);
       background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
     }
@@ -418,7 +418,8 @@
       padding: var(--space-1) 10px;
       font-size: var(--fs-xs);
     }
-    .skc-toolbar button.on {
+    .skc-toolbar button[aria-pressed="true"],
+    .skc-toolbar button.is-active {
       border-color: var(--accent);
       color: var(--accent-soft);
     }
@@ -530,7 +531,7 @@
       border-color: var(--accent-soft);
       background: var(--bg-surface);
     }
-    & button.skc-class.selected {
+    & button.skc-class--selected {
       border-color: var(--accent);
       box-shadow: var(--ring), var(--shadow-md);
     }
@@ -712,7 +713,7 @@
     .sqc-msg.k-async {
       stroke-dasharray: 2 3;
     }
-    .sqc-msg.current {
+    .sqc-msg.sqc-step--current {
       stroke: var(--accent);
       stroke-width: 2.4;
     }
@@ -787,13 +788,13 @@
     }
   }
   :is(.study-app, .study-seat) {
-    & button.sqc-label.current {
+    & button.sqc-label.sqc-step--current {
       color: var(--text);
       font-weight: var(--fw-strong);
     }
   }
   :where(.study-app, .study-seat) {
-    .sqc-label.current b {
+    .sqc-label.sqc-step--current b {
       border-color: var(--accent);
       background: var(--accent);
       color: var(--accent-ink);

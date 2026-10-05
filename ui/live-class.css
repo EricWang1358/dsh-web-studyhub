@@ -72,11 +72,11 @@
     .live-stage { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); overflow: clip; }
     .live-feed-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: var(--fs-sm); }
     .live-follow { white-space: nowrap; }
-    .live-follow.on { color: var(--ok); }
+    .live-follow[aria-pressed="true"] { color: var(--ok); }
     .live-feed { max-height: min(64vh, 760px); min-height: 240px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
     .live-sentence { display: grid; grid-template-columns: 64px minmax(0, 1fr) 22px; gap: var(--space-3); padding: var(--space-4) var(--space-3) var(--space-4) 14px; border-bottom: 1px solid var(--line); content-visibility: auto; contain-intrinsic-size: auto 120px; }
     .live-sentence:last-of-type { border-bottom: 0; }
-    .live-sentence.selected { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .live-sentence--selected { background: color-mix(in srgb, var(--accent) 10%, transparent); }
     .live-sentence:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
     .live-select { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); font-size: var(--fs-xs); color: var(--text-dim); cursor: pointer; }
     .live-words { min-width: 0; overflow-wrap: anywhere; }

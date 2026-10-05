@@ -114,7 +114,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
           {list.length ? (
             <ul className="nb-list">
               {current?.publishedAt && (
-                <li className="nb-row current" title={current.workspace}>
+                <li className="nb-row nb-row--current" title={current.workspace}>
                   <Badge tone="info">{ui('本工作区')}</Badge>
                   <span className="nb-main"><strong>{current.title}</strong><small>{topics(current) || stats(current)}</small></span>
                   <span className="nb-stats">{stats(current)}</span>

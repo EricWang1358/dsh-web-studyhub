@@ -70,8 +70,8 @@
     .audio-reasoning-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 1; padding: var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-xs); background: var(--bg-surface); }
     .audio-reasoning-grid button small { font-size: var(--fs-xs); color: var(--text-muted); }
     .audio-matrix-dot { width: 6px; height: 6px; background: var(--decor-faint); border-radius: 50%; }
-    .audio-reasoning-grid button.selected { border-color: var(--accent-soft); background: var(--bg-selected); }
-    .audio-reasoning-grid button.selected .audio-matrix-dot { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-glow); }
+    .audio-reasoning-grid button[aria-pressed="true"] { border-color: var(--accent-soft); background: var(--bg-selected); }
+    .audio-reasoning-grid button[aria-pressed="true"] .audio-matrix-dot { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-glow); }
     .audio-reasoning-fields label { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,160px); align-items: center; gap: var(--space-4); margin: 0 0 var(--space-5); font-size: var(--fs-md); }
     .audio-reasoning-fields label small { display: block; font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--space-1); }
     .audio-reasoning-fields select { width: 100%; min-width: 0; padding: var(--space-2); font-size: var(--fs-xs); }
