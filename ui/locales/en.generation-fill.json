@@ -1,6 +1,13 @@
 {
   "为「{0}」补题：用 {1} 份未覆盖资料，追加约 {2} 题": "Adding to “{0}”: {2} more questions from {1} uncovered sources",
   "追加题数": "Questions to add",
+  "补题": "Filling",
+  "生成": "Generation",
+  "{0} · 当时草稿 {1}/{2} 题": "{0} · the draft held {1}/{2} then",
+  "之前的任务 · {0}": "Earlier tasks · {0}",
+  "发布检查中": "Checking before publishing",
+  "补题中": "Filling in",
+  "生成中": "Generating",
   "排队 {0} 秒": "Queued {0} s",
   "调用 {0} 秒": "Model call {0} s",
   "模型服务限流了 {0} 次，同时调用数已自动降到 {1}（设置的是 {2}），之后会随调用顺利逐步恢复。": "The model service rate-limited {0} time(s); simultaneous calls were lowered automatically to {1} (set: {2}) and climb back as calls succeed.",

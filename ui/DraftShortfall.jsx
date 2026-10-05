@@ -1,7 +1,7 @@
 import React from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
-import { Button, Field, NumberInput } from "./components/index.js";
+import { Badge, Button, Field, NumberInput } from "./components/index.js";
 import { isActiveJob } from "./job-visibility.js";
 import { useInjectCss } from "./shared.js";
 import { gateTitle } from "./ModelSetupGate.jsx";
@@ -26,6 +26,10 @@ export function DraftTopUp({ draft, jobs = [], busy = false, modelReady = true, 
   const missing = missingQuestions(draft), work = draftWork(draft, jobs);
   if (!work && !canContinueDraft(draft)) return null;
   const blocked = busy || !!work || !modelReady;
+  // While something works on the draft this is a status, not a button that cannot be pressed.
+  if (work) return <div className={"draft-topup " + className} data-draft-topup>
+    <Badge tone="info" dot data-draft-work>{draftWorkLabel(work, draft)}</Badge>
+  </div>;
   return <div className={"draft-topup " + className} data-draft-topup>
     <Button disabled={blocked}
       title={work ? undefined : !modelReady ? gateTitle("block") : ui("用原资料补齐题目，保留已有草稿")}

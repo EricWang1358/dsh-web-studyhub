@@ -97,6 +97,21 @@ test("adding from sources is refused without a draft, a count, a known source, o
   assert.equal((await settleJob(service, first.jobId)).status, "complete");
 });
 
+test("a card and the earlier jobs folded into it can be dismissed together (job.dismiss jobIds)", async (t) => {
+  const { service, saved } = await seeded(t);
+  service.complete = recorder([]);
+  const first = await service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion, extraSourceIds: [sourceB.id], count: 1 });
+  await settleJob(service, first.jobId);
+  const draft = (await service.call("export")).drafts[0];
+  const second = await service.call("generate", { resumeDraftId: draft.id, draftVersion: draft.draftVersion, extraSourceIds: [sourceA.id], count: 1 });
+  await settleJob(service, second.jobId);
+  const ids = (await service.call("snapshot")).jobs.map((job) => job.id);
+  assert.ok(ids.includes(first.jobId) && ids.includes(second.jobId));
+  await assert.rejects(service.call("job.dismiss", { jobId: second.jobId, jobIds: [first.jobId] }), /Specify jobId, jobIds or all/);
+  await service.call("job.dismiss", { jobIds: [second.jobId, first.jobId] });
+  assert.deepEqual((await service.call("snapshot")).jobs.map((job) => job.id).filter((id) => [first.jobId, second.jobId].includes(id)), []);
+});
+
 test("the estimate before adding from sources prices the asked number from those sources alone", () => {
   const long = (n) => `Section ${n}. ${"Architecture includes the principles guiding a system's design and evolution. ".repeat(40)}`;
   const state = { sources: [{ id: "a", title: "A", text: long(1) }, { id: "b", title: "B", text: long(2) }], decks: [], courses: [], settings: {}, attempts: [], runs: [],

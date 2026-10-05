@@ -18,7 +18,7 @@ function rowStatus(code, active) {
    stop control while it runs, and the draft once there is one (P26–P29).
    A failure says what is wrong and how to fix it; the raw message stays in
    技术详情 (P15). It is the shared JobRow. */
-export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards }) {
+export default function JobCard({ job: j, earlier = [], jobs = [], drafts, busy, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards }) {
   const code = jobCode(j), active = isActiveJob(j);
   const dismissFailure = useQuickActions()?.failures[j.id];
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
@@ -66,6 +66,14 @@ export default function JobCard({ job: j, jobs = [], drafts, busy, openDraft, op
       {code === 'partial' && draft && generation && j.type !== JOB_TYPES.SUPPLEMENT && <ShortfallReasons draft={draft} compact />}
       {dismissFailure && <InlineMessage tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
       {j.type !== JOB_TYPES.DRAFT_PUBLISH && <GenerationTrace job={j} openAgent={openAgent} />}
+      {earlier.length > 0 && <Disclosure className="earlier-jobs" summary={uiFormat('之前的任务 · {0}', [earlier.length])}>
+        <ul>{earlier.map((old) => <li key={old.id}>
+          {/* An earlier job says what it saw then (its own numbers), not what the draft holds now: the card above owns the current ones. */}
+          <strong>{Number.isInteger(old.savedCount) && old.requestedTotal > 0
+            ? uiFormat('{0} · 当时草稿 {1}/{2} 题', [old.continued ? ui('补题') : ui('生成'), old.savedCount, old.requestedTotal]) : jobHeadline(old, drafts)}</strong>
+          <GenerationTrace job={old} openAgent={openAgent} />
+        </li>)}</ul>
+      </Disclosure>}
     </JobRow>
   );
 }

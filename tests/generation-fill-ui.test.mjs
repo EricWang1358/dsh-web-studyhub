@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 /* #196 (button names its deck and is off while a fill runs), #200/#203 and #201 draw from the draft page and the home, rendered here. */
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx'; export { foldJobsByDraft } from './ui/job-visibility.js'; export { DraftTopUp } from './ui/DraftShortfall.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -123,6 +123,75 @@ test('generation details show queue vs model-call time per stage, and a rate lim
   m.setUiLanguage('zh');
   assert.match(english, /Model call 12 s · Queued 4 s/);
   assert.match(english, /rate-limited 2 time\(s\); simultaneous calls were lowered automatically to 2 \(set: 4\)/);
+});
+
+/* #200 / #203: one card per deck. */
+const home = (jobs, drafts, extra = {}) => renderToStaticMarkup(React.createElement(m.HomeActivity, { jobs, drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop,
+  manage: noop, start: noop, call: noop, continueDraft: noop, modelReady: true, data: { jobs, drafts, decks: [], sources: [] }, ...extra }));
+const steps = (n, label = 'Part 1/1 · Writing and self-checking questions') => Array.from({ length: n }, (_, index) => ({ id: `s${n}-${index}`, stage: label, status: 'complete' }));
+const fillJob = (id, status, extra = {}) => ({ id, status, type: undefined, stage: 'Draft ready with 12/15 questions', parts: 2, draftId: 'd1', continued: true, deckTitle: '架构的语境性', savedCount: 12, requestedTotal: 15, count: 8,
+  startedAt: `2026-10-05T10:0${id.length}:00.000Z`, steps: steps(3), ...extra });
+const shortDraft = () => draft({ title: '架构的语境性', editorial: { requested: 15, generated: 12, completedParts: 2, parts: 2, failures: [], generation: { sourceIds: ['s1'], kind: 'quiz' } }, cards: Array.from({ length: 12 }, (_, i) => card(`c${i}`)) });
+const cardsIn = (html) => (html.match(/class="sh-job sh-job--/g) || []).length;
+
+test('while a fill runs the deck has one card: the earlier 草稿待补齐 card folds into it (#200)', () => {
+  m.setUiLanguage('zh');
+  const older = fillJob('old', 'complete', { startedAt: '2026-10-05T10:00:00.000Z', steps: steps(18) });
+  const running = fillJob('new-running', 'running', { stage: 'Parallel generation · up to 4 batches', startedAt: '2026-10-05T10:05:00.000Z', steps: steps(5), savedCount: 7, requestedTotal: 15 });
+  const out = home([running, older], [shortDraft()]);
+  assert.equal(cardsIn(out), 1, 'one task card, not the running one above the old warning');
+  assert.match(text(out), /正在补齐「架构的语境性」/);
+  assert.doesNotMatch(text(out), /草稿待补齐/, 'the old 草稿待补齐 card is gone: what it said now lives inside the fold');
+  assert.match(text(out), /之前的任务 · 1/);
+  assert.match(out, /18 步/, 'the earlier task keeps its own process log inside the fold');
+  assert.match(out, /5 步/);
+});
+
+test('the list row says 补题中 as a Badge, not 已复审，待发布, and not as a button (#200)', () => {
+  m.setUiLanguage('zh');
+  const running = fillJob('r', 'running', { stage: 'Parallel generation · up to 4 batches', savedCount: 12 });
+  const out = home([running], [shortDraft()]);
+  const row = /<div class="draft-row">[\s\S]*$/.exec(out)[0];
+  assert.match(text(row), /补题中/);
+  assert.doesNotMatch(text(row), /已复审，待发布|待发布检查/, 'a deck being filled is not "reviewed, waiting to publish"');
+  assert.match(row, /<span[^>]*sh-badge[^>]*data-draft-work[^>]*>(?:<span[^>]*><\/span>)?补题中/, 'the status is a Badge');
+  assert.doesNotMatch(row, /<button[^>]*disabled[^>]*>[^<]*补题中/, 'not a disabled button dressed as a status');
+  const idle = home([], [shortDraft()]);
+  assert.match(text(idle), /待发布检查|已复审，待发布/);
+  assert.doesNotMatch(idle, /data-draft-work/);
+  assert.match(idle, /<button[^>]*>[^<]*继续补齐 3 题/, 'the action is still a button when nothing runs');
+});
+
+test('after a fill ends short only one 草稿待补齐 card remains: the newest job, with its own numbers and process (#203)', () => {
+  m.setUiLanguage('zh');
+  const oldest = fillJob('a1', 'complete', { startedAt: '2026-10-05T09:00:00.000Z', savedCount: 7, steps: steps(18), stage: 'Draft ready with 7/15 questions' });
+  const newest = fillJob('b22', 'complete', { startedAt: '2026-10-05T09:30:00.000Z', savedCount: 12, steps: steps(27), stage: 'Draft ready with 12/15 questions' });
+  const out = home([newest, oldest], [shortDraft()]);
+  assert.equal(cardsIn(out), 1, 'two partial jobs of one deck, one card');
+  assert.equal((text(out).match(/草稿待补齐 · 12\/15 题/g) || []).length, 1, 'one headline with the draft\'s numbers');
+  assert.match(text(out), /补题 · 当时草稿 7\/15 题/, 'the earlier job in the fold says what it saw then');
+  assert.match(out, /27 步/, 'the process log is the newest job\'s');
+  assert.match(text(out), /之前的任务 · 1/);
+  assert.match(out, /18 步/, 'the older job\'s log is only inside the fold');
+  const other = home([newest, oldest], [shortDraft()], {});
+  assert.doesNotMatch(other.replace(/之前的任务[\s\S]*?<\/details>/, ''), /18 步/, 'outside the fold the old process does not appear');
+  m.setUiLanguage('en');
+  const english = text(home([newest, oldest], [shortDraft()]));
+  m.setUiLanguage('zh');
+  assert.match(english, /Earlier tasks · 1/);
+});
+
+test('jobs of different decks, publish and repair jobs and jobs without a draft are never folded', () => {
+  const generation = (id, draftId, startedAt, extra = {}) => ({ id, status: 'complete', draftId, startedAt, ...extra });
+  const jobs = [generation('a', 'd1', '2026-10-05T10:00:00.000Z'), generation('b', 'd2', '2026-10-05T10:01:00.000Z'), generation('c', undefined, '2026-10-05T10:02:00.000Z'),
+    generation('d', 'd1', '2026-10-05T10:03:00.000Z', { type: 'draft-repair' }), generation('e', 'd1', '2026-10-05T10:04:00.000Z', { type: 'draft-publish' }),
+    generation('f', 'd1', '2026-10-05T10:05:00.000Z', { type: 'supplement' }), generation('g', 'd1', '2026-10-05T10:06:00.000Z')];
+  const cards = m.foldJobsByDraft(jobs);
+  assert.deepEqual(cards.map((item) => item.job.id), ['b', 'c', 'd', 'e', 'f', 'g'], 'a is folded into the newer job of the same draft; everything else stays; order is kept');
+  assert.deepEqual(cards.find((item) => item.job.id === 'g').earlier.map((job) => job.id), ['a']);
+  assert.deepEqual(cards.find((item) => item.job.id === 'b').earlier, []);
+  const running = m.foldJobsByDraft([generation('x', 'd9', '2026-10-05T10:00:00.000Z'), generation('y', 'd9', '2026-10-05T10:09:00.000Z', { status: 'running' })]);
+  assert.deepEqual(running.map((item) => item.job.id), ['y'], 'a running job is the newest of its deck');
 });
 
 test('the add button is not offered for a case paper, an edit of a published deck or an unsaved edit', () => {
