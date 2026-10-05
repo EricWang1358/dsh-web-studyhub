@@ -420,7 +420,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
     </div>
     {bilingual.layer}
     {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
-      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }} /></Suspense>}
+      status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }}
+      onShowOriginal={page => { setPeek(null); if (page) setPdfPage(page); setMode('original'); }} /></Suspense>}
     {!localMode && attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
       call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
   </div>;

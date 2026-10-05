@@ -1,11 +1,15 @@
 import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
 import { WorkerMessageHandler } from 'pdfjs-dist/build/pdf.worker.mjs';
-import { peekCanvasSize } from './peek-logic.js';
+import { peekCanvasSize, undecodedImages } from './peek-logic.js';
+import { createBinaryDataFactory, peekDocumentOptions } from './pdf-assets.js';
+import { peekAssetLoaders } from './pdf-asset-data.js';
 
 /* 看原页: pdf.js behind a tiny interface. This module (pdf.js, about a megabyte, and its worker) is only ever imported by PagePeek.jsx,
    which the viewer loads lazily on the first peek, never with the reader; the worker runs on the main thread (the page is a bundle with no worker file to point at). One document is open
    at a time and is destroyed with its pages when the peek closes. A page is drawn into an offscreen canvas and handed back as an
-   ImageBitmap (the offscreen canvas is emptied at once); the caller owns the bitmap and closes it. Nothing here keeps a page. */
+   ImageBitmap (the offscreen canvas is emptied at once); the caller owns the bitmap and closes it. Nothing here keeps a page.
+   Scanned books need pdf.js's wasm image decoders and CMaps: they come from lazily loaded chunks through a BinaryDataFactory (pdf-assets.js,
+   pdf-asset-data.js), and a page whose images still fail to decode is reported to the caller instead of coming out silently blank. */
 
 function loadPdfjs() {
   globalThis.pdfjsWorker ||= { WorkerMessageHandler };
@@ -17,10 +21,13 @@ export const isCancelled = error => error?.name === 'RenderingCancelledException
 
 /**
  * Open `bytes` (a Uint8Array of a PDF) for peeking: { numPages, pageSize(n), render(n, { scale, signal }), destroy() }.
- * pageSize -> { width, height } in PDF units. render -> ImageBitmap no larger than 2000 px on its long edge.
+ * pageSize -> { width, height } in PDF units. render -> ImageBitmap no larger than 2000 px on its long edge; `onReport({ undecoded })` is
+ * called when the page is drawn, with how many of its images pdf.js could not decode (a scan whose decoder did not load is blank otherwise).
+ * deps (tests): { pdfjs, loaders } stand in for pdf.js and for the wasm/CMap/font chunks.
  */
-export async function createPeekRenderer(bytes) {
-  const task = loadPdfjs().getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: true, enableXfa: false, verbosity: 0 });
+export async function createPeekRenderer(bytes, deps = {}) {
+  const BinaryDataFactory = createBinaryDataFactory(deps.loaders || peekAssetLoaders);
+  const task = (deps.pdfjs || loadPdfjs()).getDocument(peekDocumentOptions(bytes, BinaryDataFactory));
   let doc;
   try { doc = await task.promise; }
   catch (error) { await task.destroy().catch(() => {}); throw error; }
@@ -36,7 +43,7 @@ export async function createPeekRenderer(bytes) {
       }
       return sizes.get(number);
     },
-    async render(number, { scale, signal }) {
+    async render(number, { scale, signal, onReport }) {
       const page = await doc.getPage(number);
       try {
         signal?.throwIfAborted();
@@ -49,6 +56,7 @@ export async function createPeekRenderer(bytes) {
         signal?.addEventListener('abort', cancel, { once: true });
         try { await render.promise; } finally { signal?.removeEventListener('abort', cancel); }
         signal?.throwIfAborted();
+        onReport?.({ undecoded: undecodedImages(page.objs, page.commonObjs).length }); // before cleanup() lets the page's objects go
         const bitmap = await createImageBitmap(canvas);
         canvas.width = 0; canvas.height = 0;
         return bitmap;

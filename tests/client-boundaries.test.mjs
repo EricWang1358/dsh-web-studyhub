@@ -112,6 +112,13 @@ test('generated native modules resolve through classic chunk factories and share
   const settingsPanes = (await readFile('ui/settings-groups.js', 'utf8')).match(/^  category\(\{ id:/gm).length;
   assert.equal(lazyLoads.length, 9 + settingsPanes, 'the eight views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks), 看原页 (pdf.js) and one pane per settings category');
   await Promise.all(lazyLoads.map(load => load()));
+  // 看原页 asks pdf.js's wasm decoders, CMaps and fonts from its own lazily loaded chunks (assets/*.js); load each the way the peek does.
+  const assetOutputs = Object.entries(result.metafile.outputs).filter(([, record]) => Object.keys(record.inputs).some(path => /document-preview[\/]peek[\/]assets[\/]/.test(path)));
+  assert.equal(assetOutputs.length, 7, 'jbig2, openjpeg, the standard fonts and the CMaps of four scripts');
+  for (const [path] of assetOutputs) {
+    const asset = await asyncModule(`./${basename(path)}`);
+    assert.ok(typeof asset.default === 'string' ? asset.default.length > 1000 : Object.keys(asset.default).length > 0, `${basename(path)} carries its data`);
+  }
   // StudyMath imports from its effect rather than React.lazy. Exercise that
   // package-local factory path and its shared engine before counting modules.
   const math = await asyncModule(`./${mathName}`);
