@@ -129,3 +129,37 @@
 | `startAudioJob`（`orchestrates`、`fields.subtitle`、`retryable` 闭包） | 旧路径保留（开关关）；运行时无闭包，输入在任务里 |
 | `jobTextModel` / `taskTracker` / `withJobUsage`（字幕） | 旧路径保留；运行时用网关调用与用量 |
 | `subtitleSourceId`、`storeDocuments`、`prepareSubtitles`、缓存键 | 保留，两路共用 |
+
+## S2-5 记录（复查 + 课堂实时校正）
+
+**改动（复查，开关 `runtime.pilot.audioReview`，默认关）**
+
+- 新定义 `audio-review`：`jobs/review.js`（定义）、`review-run.js`（一次尝试）、`review-view.js`（展示与旧字段）、`submit-review.js`；与字幕同属"只有文本的音频任务"，共用 `text-model.js`（`textJobModel`：网关调用、用量、进程内重试 `retryInProcess`）和 `submit-text.js`（`startTextJob`）。无持久化，能取消、能在进程内重试，不能暂停/恢复，`capabilities` 如实声明。
+- `audio.retry` 对任何没有 `singleId`/`batchId` 的 v2 音频任务走进程内重试（字幕、复查同一条分支）。
+- 任务卡阶段读 `view.summary`（`view.js` 的 `stageOf`），不再按 kind 分支。
+
+**改动（课堂校正，开关 `runtime.pilot.audioLiveCorrection`，默认关）**
+
+- 新定义 `audio-live-correction`：**一个课堂一个长期任务**（"课堂校正 · 课名"），课堂开着多久它就在多久：课堂进行中每个周期跑一轮校正，课堂结束时再跑最后一轮；同一任务也跑"校正更早句子"的后台请求。每个请求都是网关的一次调用（`live.correct:N`；后台为 `live.correct.background:N`，代理优先），所以一堂课的校正有了总量、可在任务控制台看见、可取消。
+- 校正本身（游标、版本、记忆、笔记）仍归 `RollingCorrection`（跟着课堂走）；任务只管模型路径。`RollingCorrection` 的节奏、窗口大小、超时、最大输出收进 `lib/live-correction-settings.js`（一处设置，不再是散落的数字；旧路径读同一份）。
+- 托管模式（`managed`）：校正对象**没有自己的定时器**，唯一驱动者是任务（`serve({correct, signal})`）；没有任务时 `run()` 如实报"后台任务负责"，绝不绕过任务去用服务自己的模型。`finish()` 在托管时等待任务把最后一轮跑完（有界）。
+- 取消任务只停止校正：课堂连接、已有校正结果完全不动；之后可再起一个任务继续校正。
+- **恢复方式：无（`recoveryMode: none`）**。重启后课堂恢复（`resumed`）会**新建**一个任务，不续旧任务；旧任务按内核规则变为中断记录。不持久化任何东西。
+- 只经 `live.start` / `live.correct` / `live.correct.background` 接入（`operations.js`）；服务自己的校正模型在托管时不会被使用。
+
+**缺陷（运行时侧已修，旧路径不变）**：D-12（实时校正对任务控制台不可见、无法取消、无总量）。
+
+**实测（~90 分钟课堂，约 180 轮，合成）**：任务 180 个调用、1 个事件、180 个步骤；快照 JSON 约 165 KB（约 0.9 KB/调用）；控制台只取最新 `MAX_CALLS = 300` 个调用，归档按 60/30/12 递减裁剪。调用数随课堂长度线性增长但有上限，**不是无界**；课堂超过约 150 分钟时控制台时间线开始丢最早的调用。
+
+**评审过的行为差异**：重启后不续旧校正任务（旧路径本来也不续，只是没有任务可见）；校正请求经网关后多一次持久化意图写入（毫秒级，周期 30 秒，无影响）；**关开关不回填旧定时器**——开关只管新开的课堂，正在跑校正任务的课堂把它跑到下课；校正任务被取消后保持停止，直到再次调用 `live.correct`（学习者要求停，不丢任何东西，游标/笔记/记忆都在课堂上）。
+
+**红灯证据（S2-5b 实现之前的提交 `b268efa6` 上）**：`unified-runtime-live-correction.test.mjs` 报 `ERR_MODULE_NOT_FOUND: lib/contexts/audio/jobs/live-correction.js`；适配后的基线测试「live correction is not a job … (on the runtime it is one job, D-12)」在运行时侧报 `TypeError: Cannot read properties of undefined (reading 'type')`（任务列表为空，没有校正任务）。实现后两者绿（运行时 4/4 与 5/5，旧侧 5/5）。
+
+**测试**：`unified-runtime-review`（复查：kind/能力/调用/失败重试/开关关）、`audio-family-baseline-review` 与 `subtitle-review-flow` 的孪生、`unified-runtime-live-correction`（4 项：托管对象无定时器且无任务不请求、任务按周期跑并在课堂结束跑最后一轮后完成、取消只停校正且可再起、180 轮测量）、`audio-family-baseline-live` 里"实时校正不是任务"一项按模式分支（运行时：一个 `audio-live-correction` 任务，无信、无通知）。
+
+| 字段 / 调用点 | 处置 |
+|---|---|
+| `RollingCorrection` 的定时器、`correct` 回调（旧路径） | 保留（开关关）；托管时不用 |
+| `liveCorrector`（旧路径模型选择） | 保留；运行时的模型选择在 `live-correction-models.js` |
+| 校正节奏/窗口/超时/最大输出的数字 | 收进 `live-correction-settings.js`，两路共用 |
+| `live.correct.background` 的服务端后台模型 | 旧路径保留；托管时由任务（代理优先）负责 |

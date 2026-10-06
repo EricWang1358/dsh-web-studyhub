@@ -3,6 +3,8 @@
   "scope": "AST CallExpression inventory of model-shaped APIs; source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role",
   "managedDefinitions": [
     "lib/contexts/audio/jobs/batch-import.js",
+    "lib/contexts/audio/jobs/live-correction.js",
+    "lib/contexts/audio/jobs/review.js",
     "lib/contexts/audio/install/marker-install-job.js",
     "lib/contexts/audio/jobs/single-import.js",
     "lib/contexts/audio/jobs/subtitles.js",
@@ -60,6 +62,19 @@
       "reason": "The Gemini text provider leaf of an audio job on the runtime: it runs inside a gateway step and its request is observed by the gateway transport",
       "removeAt": "retained: the provider leaf behind the gateway",
       "evidence": "s2-progress.md S2-4"
+    },
+    {
+      "file": "lib/contexts/audio/jobs/live-correction-models.js",
+      "calls": [
+        {
+          "callee": "tiers.complete",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "reason": "The Gemini text provider leaf of a live class's correction: it runs inside a gateway step and its request is observed by the gateway transport",
+      "removeAt": "retained: the provider leaf behind the gateway",
+      "evidence": "s2-progress.md S2-5"
     },
     {
       "file": "lib/audio-import.js",
