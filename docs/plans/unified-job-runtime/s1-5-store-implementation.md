@@ -36,11 +36,12 @@ Commands use the scrubbed workspace-private runner, Node 22.22.3, workspace TEMP
 | Freeze focused run on implementation + #271 | 57/0/0, 1789.955702ms; `s15-freeze-focused.log` |
 | Real child-process fault matrix | Three artifact windows plus dispatched-request uncertainty passed; one retained source, one accounting entry and no duplicate event per Attempt |
 | Recovery refusal matrix | Alive/unknown executor, inaccessible/changed input, submitted-context change, version mismatch, corrupt checkpoint, future/malformed store/ledger, revision conflict and unknown remote result covered by the new tests |
-| Final current-source focused | 58/0/0, 2158.225683ms; `s15-final-source-focused.log`; source/log hashes in [evidence JSON](s1-5-store-evidence.json) |
-| Installed rc.2 | Passed 2026-10-06 05:49:38–05:49:46 UTC: current-source durable Job → local fake native llm → real library commit/checkpoint → native settlement → explicit restore. One source, one restored completion event, one recorded host Call; five local fake requests across companion checks, cleanup converged |
-| Final full implementation verify | Passed on implementation + `b2349a2`: 5812/0/2, 545474.666611ms, lint/build passed; log/hash in evidence JSON |
+| Current-source focused after resume correction | 60/0/0, 2169.802669ms; `s15-resume-final-focused.log`; source/log hashes in [evidence JSON](s1-5-store-evidence.json) |
+| Installed rc.2 | Passed again at 2026-10-06T06:05:59.769Z–2026-10-06T06:06:11.057Z: current-source durable Job → local fake native llm → real library commit/checkpoint → native settlement → explicit restore. One source, one restored completion event, one recorded host Call; five local fake requests across companion checks, cleanup converged |
+| Prior full implementation verify (before resume correction) | Passed on implementation + `b2349a2`: 5812/0/2, 545474.666611ms, lint/build passed; log/hash in evidence JSON |
 | Concurrent #274 integration | Merged main `6229ca5` into implementation as `fb821cd`: lint/build passed; marker + runtime focused 68/0/0, 2879.885812ms. This is separate from the earlier full cloud run. |
-| Implementation PR CI | Pending; full cloud results are not substitutes for both platforms |
+| Final full verify after resume correction | Running; `s15-resume-final-verify.log` on integrated main `6229ca5` |
+| Implementation PR CI | Pending on corrected head; previous CI results are historical |
 | Paid model quality/billing, remote compute stop | Not run / not claimed |
 
 The crash worker uses a controlled native-service double and an actual separate Node process, filesystem, library writer and existing ledger. Its local fake call counter is not a paid-provider quality test. The installed rc.2 companion separately verifies the real owner/jobs/llm binding. The installed StudyHub package remains unchanged in this step.
@@ -48,6 +49,8 @@ The crash worker uses a controlled native-service double and an actual separate 
 ## Red tests and corrections
 
 The initial store test failed because the production store module did not yet exist (one file failure, not three behavior failures). Further observed reds: semantic model-ledger corruption was accepted; executor inspection was absent; persistence capability was rejected; request intents were absent; async artifact commit was absent; concurrent retries interfered; pending terminal writes exposed completion too early; notification delivery records were absent; guarded audio publication skipped the guard; malformed audio ledger lines lost deduplication history; failed durable retry changed the stored facade; initial admission left an un-actionable queued record; legacy recovery mislabeled canonical running work as failed; recoveryMode none could expose retry after restore.
+
+Final review found two additional behavioral reds: restored checkpoint resume reused a resolved observation wait; failed native resume admission lost the restored flag and repeated the same error on the next admission. Resume now creates a fresh logical wait and admission rollback preserves the restored state. Both regressions are covered with retained facade identity and a new physical Attempt.
 
 Two test-construction errors are kept separate: the first gateway persistence fixture called observe without starting its Step; the first missing-artifact-method fixture waited on a never-entered callback and was corrected to surface the producer failure. These are not presented as production regression evidence. The notification red reached the helper's 90-second condition timeout; it was not a stuck external command. Final corrected tests exercise actual behavior, not fixture timing assumptions. The first frozen full verification stopped at architecture lint because the legacy worker imported the storage module directly; it ran no full tests. The worker now uses the permitted public contract validator and a schema-version guard. The corrected full verification is recorded separately.
 

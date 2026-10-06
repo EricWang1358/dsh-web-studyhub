@@ -13,7 +13,7 @@
     "lib/jobs/durability.js": "f2fd036583ad11f07be95aefea9c4af8089d14467cbaf25369872b4dd0b9de0e",
     "lib/jobs/executor.js": "fef050fbcdfa3d0fd713e473b91b635bbc7521d0a94e8962798f2e52bf1ac497",
     "lib/jobs/gateway.js": "a43e591832526902e7a4eace25b1886d0281961edb90721d436877681a1aa047",
-    "lib/jobs/lifecycle.js": "30011a0aa9dab4b31b5b844d8e602bdb38441bcc526c315aa6845f7fffb418aa",
+    "lib/jobs/lifecycle.js": "443afb0a2da54a1358fb60cd6b7e78f032cbb02723c03202a5749e900c43af35",
     "lib/jobs/registry.js": "615b3bc0f67f5c45f0884ca60f6579d637d513b295e6d8546e43e53faf904f5f",
     "lib/jobs/store.js": "adfbc7b637b05da99957db50fc20149a9e5ac704d84558ed2d044e1a4347b9cf",
     "lib/model-usage.js": "5ad63a94a84ca3658139de02d3a9815fc485b870ee6348d57070eee6c9bbfb4c",
@@ -23,21 +23,21 @@
     "tests/fixtures/runtime-s15/host-probe.mjs": "0a1b7bf7b4b3c77875cc55322aee36067b721045a07101245c94a45f287f7e8a",
     "tests/slow-tests.json": "3690a0010ff419d929bc8461682c345ca11d12de783591df689d18e1c308095a",
     "tests/unified-runtime-crash.test.mjs": "114bab715fc283a776c958c56afbc8f59e338fd4f5a759432767ac9fdd525194",
-    "tests/unified-runtime-recovery.test.mjs": "09591dd8ca718f1a856f7fbbc6445e40f5d9b3a464140aca975cbcf895d3b8ff",
+    "tests/unified-runtime-recovery.test.mjs": "c88358f957188ed09b0c25fd34146d4f143a8b32b6428b1b8601ba87eaf34d24",
     "tests/unified-runtime-store.test.mjs": "8cfbbf2b2b6447dac6d23b81c70c864b1d6736081fc3e733a336a543ce85dba2"
   },
   "focused": {
     "command": "node scripts/test.mjs tests/unified-runtime-lifecycle.test.mjs tests/unified-runtime-recovery.test.mjs tests/unified-runtime-store.test.mjs tests/unified-runtime-crash.test.mjs tests/unified-runtime-gateway.test.mjs",
-    "log": "output/s13-contract/s15-final-source-focused.log",
-    "sha256": "de77237e5f51d8241bdb3b78c5610b37f33cbaeb2a9492d8e5f41a95c1d9ab40",
-    "passed": 58,
+    "log": "output/s13-contract/s15-resume-final-focused.log",
+    "sha256": "5492ac7e186160f9665102a1aa190dc97937dc51fbd59b1e6de22cfbcc0d8d26",
+    "passed": 60,
     "failed": 0,
     "skipped": 0,
-    "durationMs": 2158.225683
+    "durationMs": 2169.802669
   },
   "nativeHost": {
-    "startedAt": "2026-10-06T05:49:38.745Z",
-    "finishedAt": "2026-10-06T05:49:46.481Z",
+    "startedAt": "2026-10-06T06:05:59.769Z",
+    "finishedAt": "2026-10-06T06:06:11.057Z",
     "ok": true,
     "versions": {
       "dsh": "0.2.0-rc.2",
@@ -57,25 +57,25 @@
         "native": {
           "service": "dsh-jobs",
           "handleId": "audio-import-1",
-          "ownerAgentId": "18fde0e9-19f5-49ba-ade1-5aaf672340af"
+          "ownerAgentId": "f6cd9e02-3897-409d-aeda-1a500441a38c"
         },
         "status": "complete",
         "checkpoint": {
           "version": 1,
           "ref": "checkpoints/b11ac15e26a4fe2261308d26499cd19fb003eb809fe6e67c5e86420330a9509e.json",
-          "digest": "d0f6db5eb60d9691a503b49fa7ca5e86aa22c23813cbda9e08d2bceeb5dcc65e",
+          "digest": "019c449917e4612909bfb2101d79b307e4dc2f28192dc7bd54c13e4d1cb990a2",
           "stepKey": "publish:single"
         },
         "calls": [
           {
-            "callId": "af43cd35-97e9-4160-8c52-1a6e89056d31",
-            "jobId": "65eb3d35-bbe0-4210-b27b-7edaaa0524ca",
-            "attemptId": "f13371ab-a7a2-4146-ad00-f85cbc535013",
+            "callId": "772f7d5d-c0a5-497f-a1fd-73d015142aa9",
+            "jobId": "b749d606-159c-4a3c-86df-ddef1ef1efd7",
+            "attemptId": "9274e92c-e80e-4086-8e1f-7af8474d7985",
             "stepKey": "native-text",
-            "stepRunId": "94c9deec-01ce-4e7b-880a-7ec40439005f",
+            "stepRunId": "cccc0366-c4ad-4ce4-b84c-4752d812f7b9",
             "kind": "probe",
-            "startedAt": "2026-10-06T05:49:42.875Z",
-            "endedAt": "2026-10-06T05:49:42.897Z",
+            "startedAt": "2026-10-06T06:06:03.991Z",
+            "endedAt": "2026-10-06T06:06:04.040Z",
             "status": "ok",
             "runner": "direct",
             "tokens": 24,
@@ -106,7 +106,7 @@
         "sourceCount": 1,
         "restoredEventCount": 1,
         "fingerprints": {
-          "lib/jobs/lifecycle.js": "30011a0aa9dab4b31b5b844d8e602bdb38441bcc526c315aa6845f7fffb418aa",
+          "lib/jobs/lifecycle.js": "443afb0a2da54a1358fb60cd6b7e78f032cbb02723c03202a5749e900c43af35",
           "lib/jobs/executor.js": "fef050fbcdfa3d0fd713e473b91b635bbc7521d0a94e8962798f2e52bf1ac497",
           "lib/jobs/store.js": "adfbc7b637b05da99957db50fc20149a9e5ac704d84558ed2d044e1a4347b9cf",
           "lib/jobs/durability.js": "f2fd036583ad11f07be95aefea9c4af8089d14467cbaf25369872b4dd0b9de0e",
@@ -121,7 +121,7 @@
         "observation": "Actual installed rc.2 owner/job/llm with local fake adapter; current source modules, single manifest and real library writer. Installed StudyHub package unchanged."
       },
       "service": "dsh-jobs",
-      "ownerAgentId": "18fde0e9-19f5-49ba-ade1-5aaf672340af",
+      "ownerAgentId": "f6cd9e02-3897-409d-aeda-1a500441a38c",
       "handleId": "s15-inspection-1",
       "activeStatus": "running",
       "terminalStatus": "completed",
@@ -138,8 +138,8 @@
     "consoleErrors": [],
     "pageErrors": [],
     "rawEvidenceHashes": {
-      "summary.json": "8a2043b7e3570da97fea4fb805cdd6b4caf83cd0f789fed3801598ccd0f73278",
-      "host-capabilities.json": "11e1c62983c435b5bd8fda4f40772aec869c7b9f83f0f8156597f53485ff6ff0"
+      "summary.json": "1884ccac28b0d2aa851cf6360dd2f403bd64956fd77760c05750d2fe732ba1ec",
+      "host-capabilities.json": "cfa0cbf2da3bf008a91de098ead522443173bdae7fb66ed665f59518f580086a"
     },
     "limitations": [
       "Actual installed rc.2 owner/jobs/llm services with current-source modules and local fake provider.",
@@ -148,17 +148,9 @@
     ]
   },
   "fullVerify": {
-    "status": "passed",
-    "command": "npm run verify",
-    "baseSha": "b2349a2ea82d8285c03e2e67990024d2cf25b4bc",
-    "log": "output/s13-contract/s15-final-source-verify.log",
-    "sha256": "cc0c6ea21e5df8efd4edddb1f2f601445cbbefad8dd334996c27e903bd3da351",
-    "passed": 5812,
-    "failed": 0,
-    "skipped": 2,
-    "durationMs": 545474.666611,
-    "lint": "passed",
-    "build": "passed"
+    "status": "running",
+    "log": "output/s13-contract/s15-resume-final-verify.log",
+    "baseSha": "6229ca51e7a515b8bdde451c713039ac096dc362"
   },
   "ci": {
     "status": "not yet run"
@@ -197,5 +189,27 @@
       "s15-integrated-build.log": "fecf3433a5c0d1495caa12f1a621f9ba3471dba5efc6be4ff2bf238496cbbd6c"
     }
   },
-  "pr": 275
+  "pr": 275,
+  "priorFullVerify": {
+    "status": "passed",
+    "command": "npm run verify",
+    "baseSha": "b2349a2ea82d8285c03e2e67990024d2cf25b4bc",
+    "log": "output/s13-contract/s15-final-source-verify.log",
+    "sha256": "cc0c6ea21e5df8efd4edddb1f2f601445cbbefad8dd334996c27e903bd3da351",
+    "passed": 5812,
+    "failed": 0,
+    "skipped": 2,
+    "durationMs": 545474.666611,
+    "lint": "passed",
+    "build": "passed"
+  },
+  "priorFocused": {
+    "command": "node scripts/test.mjs tests/unified-runtime-lifecycle.test.mjs tests/unified-runtime-recovery.test.mjs tests/unified-runtime-store.test.mjs tests/unified-runtime-crash.test.mjs tests/unified-runtime-gateway.test.mjs",
+    "log": "output/s13-contract/s15-resume-final-focused.log",
+    "sha256": "5492ac7e186160f9665102a1aa190dc97937dc51fbd59b1e6de22cfbcc0d8d26",
+    "passed": 60,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 2169.802669
+  }
 }

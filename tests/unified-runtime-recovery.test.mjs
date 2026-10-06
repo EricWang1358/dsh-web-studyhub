@@ -26,7 +26,7 @@ import { createRuntimeWork } from '../lib/runtime/work.js';
 import { createManifestJobStore } from '../lib/jobs/store.js';
 import { saveAudioBatch } from '../lib/audio-batch.js';
 
-async function durableFixture(t, run, { recoveryMode = 'retry-from-start' } = {}) {
+async function durableFixture(t, run, { recoveryMode = 'retry-from-start', pauseMode = 'unsupported' } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'durable-life-')), id = 'single-fixture-1';
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, 'audio-batches', id), { recursive: true });
@@ -37,7 +37,7 @@ async function durableFixture(t, run, { recoveryMode = 'retry-from-start' } = {}
   const executor = { assertAvailable() {}, witness: () => ({ pid: process.pid, host: 'fixture', instance: 'test-process' }),
     inspect: () => ({ state, reason: 'controlled-fixture' }), start({ run, cancel }) { const id = `native-${++starts}`; void run(); return { id, ownerAgentId: 'actual-test-owner', stop: cancel, append() {} }; } };
   const ctx = new Context(), work = createRuntimeWork(), lifecycle = createJobLifecycle(root, work);
-  const definition = { kind: 'persist', version: 1, capabilities: { retry: true, recoveryMode },
+  const definition = { kind: 'persist', version: 1, capabilities: { retry: true, recoveryMode, pauseMode },
     persistence: { open: async input => ({ store, inputRef, input,
       validateInput: async () => { if (invalid) throw Object.assign(new Error(invalid), { code: invalid }); }, validateCheckpoint: async () => {}, reconcileCommit: async () => null }) }, run };
   lifecycle.register(ctx, 'persist.v1', definition);
@@ -198,4 +198,48 @@ test('persisted retry capability cannot bypass recoveryMode none after restore',
   const job = await port.restore('persist', {});
   assert.equal(job.actions.retry.reason.code, 'recovery-unsupported');
   await assert.rejects(port.control(job.jobId, 'retry'), { code: 'recovery-unsupported' }); assert.equal(f.starts(), 1);
+});
+
+
+for (const failAdmission of [false, true]) test(`restored checkpoint resume opens a fresh wait after admission failure=${failAdmission}`, async t => {
+  const { until } = await import('./helpers/wait.mjs');
+  let releaseFirst, releaseSecond, seen = 0;
+  const first = new Promise(resolve => { releaseFirst = resolve; });
+  const second = new Promise(resolve => { releaseSecond = resolve; });
+  const f = await durableFixture(t, async context => {
+    seen++;
+    if (!context.checkpointRef) { await first; await context.saveCheckpoint({ version: 1, ref: 'saved:one', digest: 'observed-by-fixture', stepKey: 'safe' }); }
+    else await second;
+    return { refs: [] };
+  }, { recoveryMode: 'resume-checkpoint', pauseMode: 'checkpoint' });
+  let next, ctx;
+  try {
+    const submitted = await f.port.submit('persist', {});
+    await until(() => seen === 1, 'initial durable producer');
+    await f.port.control(submitted.jobId, 'pause'); releaseFirst();
+    await until(() => f.port.status(submitted.jobId).status === 'paused', 'durable checkpoint pause');
+    next = createJobLifecycle(f.root, createRuntimeWork()); ctx = new Context();
+    next.register(ctx, 'persist.v1', f.definition);
+    const port = next.scoped({ owner: Symbol('restored'), domain: 'persist.v1', executor: f.executor });
+    const restored = await port.restore('persist', {});
+    assert.equal(restored.status, 'paused');
+    if (failAdmission) {
+      const start = f.executor.start; f.executor.start = () => { throw new Error('fixture admission failure'); };
+      await assert.rejects(port.control(restored.jobId, 'resume'), /fixture admission failure/);
+      f.executor.start = start;
+      assert.equal(port.status(restored.jobId).status, 'paused');
+    }
+    await port.control(restored.jobId, 'resume');
+    await until(() => seen === 2, 'resumed durable producer');
+    let observed = false;
+    const waiting = port.wait(restored.jobId).then(value => { observed = true; return value; });
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal(observed, false, 'resume wait must not reuse the resolved restore observation');
+    releaseSecond();
+    const ended = await waiting;
+    assert.equal(ended.status, 'complete');
+    assert.equal(ended.runtime.legacyId, submitted.runtime.legacyId);
+    assert.equal(ended.runtime.attempts.length, 2);
+    assert.equal(ended.events.length, 1);
+  } finally { releaseFirst(); releaseSecond(); await next?.dispose(); await ctx?.fiber.dispose(); }
 });
