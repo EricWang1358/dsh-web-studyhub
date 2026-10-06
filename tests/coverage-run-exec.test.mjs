@@ -392,6 +392,9 @@ test('a restart does not lose a run: the draft is the checkpoint; a second servi
   assert.equal(rerun?.args.round, 2, 'the log says round 2 is run again');
   assert.equal((await after.service.call('snapshot')).jobs.filter(job => job.draftId === mid.id && job.contract.status === 'interrupted').length, 0, 'the interrupted record is replaced by the new job');
   hold.open();
+  // This fixture copied a live service to simulate a crash. Its original producer
+  // must finish its bookkeeping before the after hook removes that source folder.
+  await settleJob(crashed.service, started.jobId);
 });
 
 test('the contract: a coverage run declares the pause checkpoint, a plain generation does not, and each says why', async (t) => {
