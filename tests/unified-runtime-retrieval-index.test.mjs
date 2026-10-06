@@ -1,15 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { StudyService } from '../lib/service.js';
-import { createFakeModel } from '../scripts/fake-model.mjs';
 import { INDEX_TOOLS, readManifest, retrievalHome, sourceKey } from '../lib/retrieval-index.js';
 import { INDEX_TEXT } from '../lib/retrieval-messages.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
-import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 import { fakeIndexPort, untilAborted } from './helpers/index-port.mjs';
+import { INDEX_KIND, PAGES, library } from './helpers/index-library.mjs';
 import { until } from './helpers/wait.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
@@ -17,26 +14,8 @@ import { loadUi } from './helpers/ui-module.mjs';
    when its key is written again; nothing is indexed anywhere. Behaviour the legacy build already has is pinned by
    wp28b-index and nonmodel-baseline-index, which also run on this switch (*.runtime.test.mjs). */
 
-const KIND = 'retrieval-index', PAGES = 4;
+const KIND = INDEX_KIND;
 const consoleCode = await loadUi(`export { taskSummary } from './ui/tasks/task-summary.js'; export { tasksOf, runningTaskCount } from './ui/tasks/task-model.js';`);
-async function library(t, fake, { runtime = {}, name = 'OS' } = {}) {
-  const home = await mkdtemp(join(tmpdir(), 'runtime-index-home-')), root = await mkdtemp(join(tmpdir(), 'runtime-index-lib-')), before = process.env.DSH_HOME;
-  process.env.DSH_HOME = home;
-  const { starts: _starts, ...options } = managedRuntimeOptions({ paths: ['retrievalIndex'] });
-  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, ...options, ...runtime });
-  t.after(async () => {
-    await service.dispose();
-    if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before;
-    await rm(root, { recursive: true, force: true, maxRetries: 5 }); await rm(home, { recursive: true, force: true, maxRetries: 5 });
-  });
-  const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\n${name} 第 ${index + 1} 页讲进程。`).join('\n\n');
-  await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: `${name}.md`, courses: [name] });
-  const jobs = async () => (await service.call('snapshot')).jobs.filter(job => job.type === KIND);
-  const status = () => service.call('retrieval.index.status', {});
-  const finished = what => until(async () => { const run = await status(); return ['complete', 'failed', 'cancelled'].includes(run.status) ? run : null; }, what);
-  return { service, root, home, jobs, status, finished };
-}
-
 test('a build is one job in the shared list: titled, with progress, one observed local call, no invented usage and no retry button', async t => {
   const fake = fakeIndexPort(), lib = await library(t, fake);
   assert.deepEqual(await lib.jobs(), []);

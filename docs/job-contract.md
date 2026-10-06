@@ -301,6 +301,20 @@ Rollback: switch it off; jobs already queued in their own chains finish there, n
 
 `runtime.pilot.workflow` (default off, new units only) runs the two background units of 学习流 as Jobs: `workflow-teaching` (an author and an independent review, Steps `author:<n>` / `review:<n>`, purposes `author` / `review`) and `workflow-skeleton` (Steps `skeleton:<n>`, purpose `plan`, result ref `{ kind: 'skeleton', id }`). Both declare `cancel` only and `recoveryMode: none`. The session, the step's record (`records[step].teaching`, `session.skeletonJob`), the single-flight table and its admission limit, the citation and quality checks, the guard against a changed step or a deleted session and every navigation, material and draft action stay in workflows; plain navigation starts no Job. The time limit is the Job's own execution time (a stopped request, not an abandoned answer); a stop is recorded on the step as cancelled, timed out or ended, and a stopped teaching can be started again. Contract: [S4-1](plans/unified-job-runtime/s4-1-model-contract.md).
 
+### Default-off agent-preferred policies (S4-8)
+
+Two switches, each independent of the other and of the switches that run the same units as Jobs: `runtime.pilot.dailyRecapAgent` (the model calls of a daily recap generation) and `runtime.pilot.workflowAgent` (the author and review calls of a teaching and the call of a skeleton). Both default off; each is read at the start of an Attempt, from the trusted binding, never from the Job's input. The definitions `daily-recap`, `workflow-teaching` and `workflow-skeleton` now declare `executionModes: ['direct', 'subagent']` (the kernel refuses an `agent-preferred` Step of a definition that does not), which is a declaration only: with the policy off every Step is `direct` as before.
+
+| Function | Policy off (default) | Policy on |
+| --- | --- | --- |
+| daily recap (`recap:<n>`) | `direct` | `agent-preferred` |
+| teaching (`author:<n>`, `review:<n>`) | `direct` | `agent-preferred` |
+| skeleton (`skeleton:<n>`) | `direct` | `agent-preferred` |
+
+`agent-preferred` goes through the public gateway only: with a verified native parent session the call is one bounded child (no tools: `toolFilter.allow = []`, the route and output limit of the call), recorded as a Call with `runner: subagent`, `childId`, `parentId` and the child's own usage; the child is released when the call ends, and stopping the Job stops it. Without a parent the call is the direct one and the Call carries `fallbackReason: agent-unavailable`; `agent-required` is not used by either function. Quality, time and usage of the two paths are read from the Calls as observed (a value the host did not give stays empty). With either policy on nothing else of the function changes: the note, its guards and the letter, the session, its record and the citation checks stay with their domains.
+
+Rollback: switch the policy off; the next Attempt asks directly again.
+
 ### Default-off daily recap pilot (S4-5)
 
 `runtime.pilot.dailyRecap` (default off, new generations only) runs each generation of a day's recap as a Job of kind `daily-recap` (`cancel` only; `recoveryMode: none`; result ref `{ kind: 'note', id }`). The note, its revision, fingerprint and fragments, the manual-edit protection, `generation.next` merging and the supersede/cancel/delete rules stay in notes; stopping a generation (a supersede, `note.daily.cancel`, a deleted note, an unloaded plugin) stops its Job. Every model call is a Step `recap:<n>` of the gateway, so a generation shows Calls and usage and is a row of the 任务 console. The inbox letter is no longer written in the commit transaction: the Job asks for it and the definition's settled-event sink writes it, so a failed letter never changes how the generation ended. A superseded generation ends `cancelled` (the note says `superseded`). Contract: [S4-1](plans/unified-job-runtime/s4-1-model-contract.md).
