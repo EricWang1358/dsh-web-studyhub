@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "phase": "S1-7",
+  "status": "authorized guard/rollback/packaging/handoff preparation; release blocked",
+  "productionBase": "4204d981eb6d6dca23a44ea430195f78ad1bc5e5",
+  "alphaUnchanged": "c092d7ac8e73228091a9d0a0a7c04e6b82f64570",
+  "logs": {
+    "s17-guard-red.log": {
+      "path": "output/s13-contract/s17-guard-red.log",
+      "sha256": "b435b91bd787f72b922ba5acca99d2b9c0ef5ec7f35e99c80da0d199a127b2a1",
+      "tests": 1,
+      "pass": 0,
+      "fail": 1,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s17-guards-accepted.log": {
+      "path": "output/s13-contract/s17-guards-accepted.log",
+      "sha256": "660b48f1a8e0dac4d7f4e02bd007dc020245cee10b0fb105c100aec57f6d860d",
+      "tests": 16,
+      "pass": 16,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s17-final-lint.log": {
+      "path": "output/s13-contract/s17-final-lint.log",
+      "sha256": "a80de2e6f4d509d5f30906f00289d524ac532a9d01184a95c06b2c68c2ab91b4"
+    },
+    "s17-build.log": {
+      "path": "output/s13-contract/s17-build.log",
+      "sha256": "fecf3433a5c0d1495caa12f1a621f9ba3471dba5efc6be4ff2bf238496cbbd6c"
+    },
+    "s17-rollback-final-prepare.json": {
+      "path": "output/s13-contract/s17-rollback-final-prepare.json",
+      "sha256": "cc026f7424bd377529b63d3b2d0f544776a546e9e65f19b943a4da4bbdb751c4"
+    },
+    "s17-rollback-old-final.json": {
+      "path": "output/s13-contract/s17-rollback-old-final.json",
+      "sha256": "9163b1a47e7d230b37f0c9d8271a910d5e2c2fb78b3e599f0dbea2de48a35d3a"
+    },
+    "s17-rollback-current-resume.json": {
+      "path": "output/s13-contract/s17-rollback-current-resume.json",
+      "sha256": "0ecbd07f6034f535e64f01a2e209b09f54cb011e9c09a1c2633882a6a72089b6"
+    },
+    "s17-pack.json": {
+      "path": "output/s13-contract/s17-pack.json",
+      "sha256": "155513cd843b71ec8306b748dcc4e61631cc422663772a6a395925b7026beccc"
+    },
+    "s17-freeze-lint.log": {
+      "path": "output/s13-contract/s17-freeze-lint.log",
+      "sha256": "a80de2e6f4d509d5f30906f00289d524ac532a9d01184a95c06b2c68c2ab91b4",
+      "exitCode": 0
+    }
+  },
+  "rollback": {
+    "oldSha": "b53b14752ec74dc149d2c7690cc33a5d6ab9e6b7",
+    "runtimeStarted": true,
+    "sourceReadableAndUnchanged": true,
+    "unfinishedCanResume": false,
+    "actionReason": "kernel-recovery-required",
+    "explicitRetryRefusal": "这个任务不能重试：它已经完成，或已被清除",
+    "modelCalls": 0,
+    "manifestPreserved": true,
+    "scope": "old StudyService process over private synthetic library; not a desktop/web host downgrade or real provider validation"
+  },
+  "returnToCompatibleRuntime": {
+    "compatibleRuntimeResumes": true,
+    "freshNativeBindings": 1,
+    "calls": [
+      "proofread",
+      "translate",
+      "title"
+    ],
+    "retranscribed": false,
+    "modelBoundary": "controlled executor and fake responses; not paid quality validation"
+  },
+  "package": {
+    "path": "output/qa/s17-pack/ericwang1358-dsh-daily-flashcard-2.7.0.tgz",
+    "sha256": "5f76ff1936f967dec45f5a316d6fe3b9bd75e32cde58b77fc477777a919e037e",
+    "fileCount": 551,
+    "pilotSourceExact": true,
+    "clientIncluded": true,
+    "privateFilesAbsent": true,
+    "published": false,
+    "alphaRelease": false
+  },
+  "unrun": [
+    "real paid quality/billing",
+    "alpha publication",
+    "deployment",
+    "actual desktop/web-host downgrade; rollback measured exact old StudyService process",
+    "S2-S6"
+  ]
+}

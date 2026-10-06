@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": "S1-6",
-  "status": "implementation submitted for review; full verify and CI pending",
+  "status": "accepted and merged in #279; delegated review comment 6012045125",
   "baseSha": "b53b14752ec74dc149d2c7690cc33a5d6ab9e6b7",
   "sourceFingerprints": {
     "lib/audio-import.js": "5d85ebee475dcad198e18e950f931353ff5768b11094fcbcde788238aad46633",
@@ -117,11 +117,16 @@
   "fullVerify": {
     "command": "npm run verify",
     "log": "output/s13-contract/s16-accepted-verify.log",
-    "status": "running after queuedBehind correction; final result required in PR acceptance"
+    "sha256": "bd0b227f3a6e4472d1b820d3492f68851b87d8f88510dbb7c21db2c2dd01dda6",
+    "passed": 5849,
+    "failed": 0,
+    "skipped": 2,
+    "durationMs": 640582.614471,
+    "scope": "final audio production change 0fde6bb before independent #278 integration; final integration tested by 69 focused and both-platform full CI"
   },
   "installedHost": {
-    "startedAt": "2026-10-06T07:27:31.288Z",
-    "finishedAt": "2026-10-06T07:27:51.314Z",
+    "startedAt": "2026-10-06T07:41:33.365Z",
+    "finishedAt": "2026-10-06T07:42:17.600Z",
     "versions": {
       "dsh": "0.2.0-rc.2",
       "dsh-agent": "0.2.0-rc.2",
@@ -134,7 +139,7 @@
     },
     "packageVersion": "2.7.0",
     "installedFingerprints": {
-      "lib/contexts/audio/pilot.js": "3ff6b045b3c59861869f3cc95716896ce6fcb88e280f08712aa8eccfcaeac3fa",
+      "lib/contexts/audio/pilot.js": "2d3e7c58c6866a4d5fff7cf64269ea12dd96d8005b1c57fa05567b7aadfbeb0c",
       "lib/jobs/lifecycle.js": "864b433cd4fd8e69677340c6133e68ef19c1c9ae25c929110f81a5bb24c46888",
       "lib/jobs/gateway.js": "e5e865b3c8228921e76101c7929b1ed45ed87d27b70d0b992dd401350687ab2f",
       "lib/audio-runtime-store.js": "659cd03b0a0977942e57ecbe9397b48682f0020c80570dd40800ba8f4652474a",
@@ -144,31 +149,31 @@
     "nativeJob": {
       "service": "dsh-jobs",
       "handleId": "audio-import-1",
-      "ownerAgentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6"
+      "ownerAgentId": "862b866f-07c2-4466-8944-5e2e66b799fb"
     },
     "resumeNativeJob": {
       "service": "dsh-jobs",
       "handleId": "audio-import-4",
-      "ownerAgentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6"
+      "ownerAgentId": "862b866f-07c2-4466-8944-5e2e66b799fb"
     },
     "transcriptions": 1,
     "nativeChildren": [
       {
-        "callId": "b2c04058-12f2-43d9-9372-4fc288208a58",
-        "childId": "d7f42ef8-7cfd-488e-a1bc-c3a243926d3f",
-        "parentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6",
+        "callId": "cc291325-cc66-4592-954a-221bb58179b9",
+        "childId": "5eb435d3-7b97-430e-b1b5-793a3f246d0f",
+        "parentId": "862b866f-07c2-4466-8944-5e2e66b799fb",
         "tokens": 1468
       },
       {
-        "callId": "ade2cbba-d7fb-47df-be60-265285434a66",
-        "childId": "9e1f3f37-af52-45db-81dd-a7bf7036583a",
-        "parentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6",
+        "callId": "9bda1071-6a04-4b2a-b22b-f8bf3f8a3072",
+        "childId": "6162fa36-f933-46b0-afea-7dba369d6621",
+        "parentId": "862b866f-07c2-4466-8944-5e2e66b799fb",
         "tokens": 1283
       },
       {
-        "callId": "48b92b52-fa10-47d9-9daa-974785b09269",
-        "childId": "7b5f2d9f-d6aa-45d5-9b58-fdb6f053f988",
-        "parentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6",
+        "callId": "daac5295-ae1f-4004-87e0-385e328bef23",
+        "childId": "1a1c3d36-8eb6-4df5-841c-d4e92760ccaf",
+        "parentId": "862b866f-07c2-4466-8944-5e2e66b799fb",
         "tokens": 1089
       }
     ],
@@ -176,8 +181,8 @@
     "gateDrained": true,
     "sourceCountDelta": 1,
     "deckCountDelta": 0,
-    "report": "output/qa/s16-installed-ui-row/host-capabilities.json",
-    "reportSha256": "ed0bada1c0dd83a80be6c3a6e66ae1d2262d45dd55afa5e02094ef996e28f4c7",
+    "report": "output/qa/s16-accepted-host/host-capabilities.json",
+    "reportSha256": "beb132e07cae686a672d5b7c00770299a0beae9d1dd8ecf45b0d340f63edda6f",
     "modelBoundary": "Actual installed rc.2 jobs and child agents; transcription is injected fake fetch, text uses only the local fake OpenAI endpoint; no real provider or paid quality validation."
   },
   "console": {
@@ -194,8 +199,8 @@
           "ok": true,
           "cls": 0,
           "shiftCount": 0,
-          "longestTask": 0,
-          "longTasks": 0,
+          "longestTask": 117,
+          "longTasks": 2,
           "rowResizes": 0,
           "message": "",
           "shifts": [],
@@ -257,7 +262,7 @@
             "list": [
               {
                 "clientHeight": 732,
-                "scrollHeight": 1368,
+                "scrollHeight": 1482,
                 "scrolls": true,
                 "overflow": "auto"
               }
@@ -279,7 +284,7 @@
             "mainScrolls": false
           }
         },
-        "sha256": "83522aac29ccd6b1b59a018181f8b76cc407ab1c06955de85cac6b5d69a67e97"
+        "sha256": "f782d4a5c2203a55479dfe9d3d018d1dbd450e19493e8f53db9efd5db44af91e"
       },
       {
         "width": 1280,
@@ -290,8 +295,8 @@
           "ok": true,
           "cls": 0,
           "shiftCount": 0,
-          "longestTask": 0,
-          "longTasks": 0,
+          "longestTask": 85,
+          "longTasks": 1,
           "rowResizes": 0,
           "message": "",
           "shifts": [],
@@ -353,7 +358,7 @@
             "list": [
               {
                 "clientHeight": 220,
-                "scrollHeight": 1360,
+                "scrollHeight": 1473,
                 "scrolls": true,
                 "overflow": "auto"
               }
@@ -375,7 +380,7 @@
             "mainScrolls": true
           }
         },
-        "sha256": "d54ee3342547e4f5e1a07b07b0e73cce0a8059bf8d854e3a123b3b71ff88e90a"
+        "sha256": "e6b755d3f63be68967702148c4009282f8436ab665bafaee40ed6fb43f41aeff"
       },
       {
         "width": 420,
@@ -449,7 +454,7 @@
             "list": [
               {
                 "clientHeight": 220,
-                "scrollHeight": 1368,
+                "scrollHeight": 1482,
                 "scrolls": true,
                 "overflow": "auto"
               }
@@ -471,7 +476,7 @@
             "mainScrolls": true
           }
         },
-        "sha256": "cd138f243b5926798441167037da3060a91018913f3602ef3333bd534931b8df"
+        "sha256": "f3ddecada990996eef260ff80f8a80bf6ac3e8ceded4b1cbbd64e310622e8c7a"
       },
       {
         "width": 420,
@@ -482,8 +487,8 @@
           "ok": true,
           "cls": 0,
           "shiftCount": 0,
-          "longestTask": 55,
-          "longTasks": 1,
+          "longestTask": 95,
+          "longTasks": 2,
           "rowResizes": 0,
           "message": "",
           "shifts": [],
@@ -545,7 +550,7 @@
             "list": [
               {
                 "clientHeight": 220,
-                "scrollHeight": 1360,
+                "scrollHeight": 1473,
                 "scrolls": true,
                 "overflow": "auto"
               }
@@ -567,7 +572,7 @@
             "mainScrolls": true
           }
         },
-        "sha256": "b68573b3ee41c74371f350374b150a5934c63004483afd40732d8dd9b85511e9"
+        "sha256": "2a46847b8466ec29f914f7826682a5ffca21c27baa49b60c60add16648d7f310"
       }
     ]
   },
@@ -586,5 +591,30 @@
     "skipped": 2,
     "durationMs": 612790.269543,
     "scope": "head 8c623b6 before the queuedBehind correction; not final acceptance"
+  },
+  "acceptedHead": "f6149713602b6d4e1d3ff5198d3e52fb1118dbdc",
+  "mergeSha": "4204d981eb6d6dca23a44ea430195f78ad1bc5e5",
+  "integratedBase": "9ce4775974bcbc3b696f1d36613d2e35b3764df5",
+  "finalCI": {
+    "run": 37432413774,
+    "mergeSha": "03fcb91294ccb2e8cb6bce6bd7980955ad8b8dc0",
+    "ubuntu": {
+      "job": 112166127917,
+      "passed": 5770,
+      "failed": 0,
+      "skipped": 94
+    },
+    "windows": {
+      "job": 112166128029,
+      "passed": 5770,
+      "failed": 0,
+      "skipped": 94
+    }
+  },
+  "integratedFocused": {
+    "log": "output/s13-contract/s16-integrated-focused.log",
+    "passed": 69,
+    "failed": 0,
+    "skipped": 0
   }
 }

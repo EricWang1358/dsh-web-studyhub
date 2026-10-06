@@ -15,13 +15,13 @@
 | 步骤 | 状态 | 负责人 / 分支 / 文件范围 | 前置评审与已合并 PR | 验证 SHA / 证据 | 未确认项 / 下一步 |
 |---|---|---|---|---|---|
 | S1-0 | 已合并 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | 所有者接受已验证范围及待核验限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) | head 6b1ecedb69308ec44078f10c24975eb2a6a2aef7；merge f091f09f830c226bfebc9af22344896733893a10；[本地及 CI 证据](s1-0-baseline.md) | 最终 StudyHub owner/controller 绑定等限制仍阻断对应实现步骤 |
-| S1-1 | 受阻 | Codex 内核负责人 / codex/unified-runtime-alpha / 契约与版本读取兼容范围 | 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245)、读取兼容 [#255](https://github.com/EricWang1358/dsh-web-studyhub/pull/255) 已合并 | #255 head c092d7ac8e73228091a9d0a0a7c04e6b82f64570；merge 1a432f5e9cf166398385174cf1ec047f16cfceef；[历史验证](s1-1-compatibility-implementation.md) | 仅所列交付已合并，不勾选整步；live facade/执行绑定仍待 S1-2，持久化待 S1-5 |
+| S1-1 | 已合并 | Codex 内核负责人 / 契约、读兼容与 single facade | #245/#255；原执行绑定/持久化缺口由 #262/#275/#279 补齐 | S1-6 merge 4204d981；[交接与限制](s1-7-handoff.md) | 限定 S1 范围，不代表其他任务已迁移 |
 | S1-2 | 已合并 | Codex 云端内核负责人 / codex/runtime-s12-lifecycle / 注册、生命周期、原生绑定与旧入口 | 所有者 2026-10-06 02:28:22 UTC 验收并授权合并 [#262](https://github.com/EricWang1358/dsh-web-studyhub/pull/262) | head 78f83a8；merge 09a094ae54c6afc68982ed5bc7d21a5a92d46b2e；双平台 CI 与实际宿主 8 步见 PR | S1-2 限定范围已接受；持久化、音频试点和共享配额策略仍保留后续门禁 |
 | S1-3 | 已合并 | Codex 云端内核负责人 / codex/runtime-s13-provider-permits / 单文件可观察 HTTP 资源范围 | 所有者 2026-10-06 04:07:50 UTC 验收并授权合并 [#267](https://github.com/EricWang1358/dsh-web-studyhub/pull/267) | head 8ad0905；merge 48ff29c301676533744eca65ef2015178edc17b5；完整 verify 5701/0/2，双平台 CI 5602/0/94；实际宿主见 PR | 默认关闭，未扩大到不可观察宿主内部请求/跨进程；S1-4 放行 |
 | S1-4 | 已合并 | Codex 云端内核负责人 / codex/runtime-s14-gateway / 网关、Call、既有账本及内部音频适配 | 契约 [#270](https://github.com/EricWang1358/dsh-web-studyhub/pull/270)；实现与逐项技术验收 [#272](https://github.com/EricWang1358/dsh-web-studyhub/pull/272) | head ff33db3；merge be82089666427ac8b8a2fbe0e4ab20c96b35bf39；最终 verify 5732/0/2，双平台 CI 5633/0/94；[实现证据](s1-4-gateway-implementation.md) | 内部网关已验收；持久恢复待 S1-5，公开音频试点待 S1-6；真实付费质量未测 |
 | S1-5 | 已合并 | Codex 云端内核负责人 / codex/runtime-s15-store / 持久化、恢复、提交核对 | 契约 [#273](https://github.com/EricWang1358/dsh-web-studyhub/pull/273)、实现与委托验收 [#275](https://github.com/EricWang1358/dsh-web-studyhub/pull/275) | head da3c22b；merge 5aecc769；最终 verify 5816/0/2，双平台 CI 各 5717/0/94；[实施与验证](s1-5-store-implementation.md) | 内部恢复与适配器已验收；公开音频入口/检查点试点仍待 S1-6 |
-| S1-6 | 待评审 | Codex 云端音频负责人 / codex/runtime-s16-audio / 内核薄适配、音频流水线及公开入口 | 前置 #275、接口契约 [#276](https://github.com/EricWang1358/dsh-web-studyhub/pull/276) 已验收合并 | 基线 b53b1475；聚焦 86/0/0，追加双路径/配额通过；实际安装包与四档 UI 验证通过；[完整证据](s1-6-audio-implementation.md) | 默认关闭；完整 verify 与双平台 CI/委托审查尚待完成，不能据此进入 S1-7 |
-| S1-7 | 未开始 | 待领取 | 待 S1-6 通过 | 待填写 | 护栏、回退、发布证据 |
+| S1-6 | 已合并 | Codex 云端音频负责人 / codex/runtime-s16-audio | 契约 #276、实现 [#279](https://github.com/EricWang1358/dsh-web-studyhub/pull/279)；[17 项委托验收](https://github.com/EricWang1358/dsh-web-studyhub/pull/279#issuecomment-6012045125) | head f6149713；merge 4204d981；cloud 5849/0/2，最终 CI 各 5770/0/94；[证据](s1-6-audio-evidence.json) | 默认关闭；真实质量和发布未测；S1-7 放行 |
+| S1-7 | 受阻 | Codex 云端负责人 / codex/runtime-s17-handoff / 护栏、回退、包检查和交接 | S1-6 已验收；本收尾 PR 检查/合并以 PR 记录为准 | 新护栏与架构回归 16/0/0；指定旧 SHA 回退、回到新版恢复、私有包检查通过；[交接](s1-7-handoff.md) | 真实模型预算/抽检及 alpha 发布未获授权；不勾选整个步骤完成，不启动 S2–S6 |
 
 状态只使用未开始 / 进行中 / 待评审 / 受阻 / 已合并；受阻项写明缺少什么证据，已合并项仍须满足本步验收。文档完善不能把实施状态改为完成。日志与测试结果记录命令、所用 SHA、结果摘要和仓库内证据路径或 PR 链接；不放密钥、完整私有输入或模型原始内容。
 
@@ -85,11 +85,11 @@
 
 ## S1-1 公共契约与状态兼容
 
-- [ ] `lib/jobs/contract.js`：生命周期状态、能力声明（`pauseMode`、`recoveryMode`、动作列表）、Job/Attempt/Step/Call 的形状，用 `schemastery`（或对照表选定的 DSH 校验方案）声明与校验。
-- [ ] 旧状态读兼容：`done` → `complete`，`partial` → `result.completeness`，`superseded` → 结束原因；只读旧、写新。
-- [ ] 与 2.6.0 的 `docs/job-contract.md` 对齐；如有改动，契约版本号 +1 并写兼容说明。
-- [ ] 契约先提交文档与可执行 fixture/契约验证，评审合并后再提交兼容实现；明确每个字段的写入者、状态转换表、动作矩阵及拒绝原因。复用 P0 契约，不能另建互相竞争的公共形状。
-- [ ] 明确旧中断卡片 `failed + retryable` 与新 `interrupted` 的映射、旧重试外部 job ID 与稳定逻辑 Job/新 Attempt 的关联；测试旧 ID 查询、控制、通知与 UI 链接的兼容规则。不得把新内部身份规则直接写回旧接口而不说明差异。
+- [x] `lib/jobs/contract.js`：生命周期状态、能力声明（`pauseMode`、`recoveryMode`、动作列表）、Job/Attempt/Step/Call 的形状，用 `schemastery`（或对照表选定的 DSH 校验方案）声明与校验。
+- [x] 旧状态读兼容：`done` → `complete`，`partial` → `result.completeness`，`superseded` → 结束原因；只读旧、写新。
+- [x] 与 2.6.0 的 `docs/job-contract.md` 对齐；如有改动，契约版本号 +1 并写兼容说明。
+- [x] 契约先提交文档与可执行 fixture/契约验证，评审合并后再提交兼容实现；明确每个字段的写入者、状态转换表、动作矩阵及拒绝原因。复用 P0 契约，不能另建互相竞争的公共形状。
+- [x] 明确旧中断卡片 `failed + retryable` 与新 `interrupted` 的映射、旧重试外部 job ID 与稳定逻辑 Job/新 Attempt 的关联；测试旧 ID 查询、控制、通知与 UI 链接的兼容规则。不得把新内部身份规则直接写回旧接口而不说明差异。
 - **验收**：同一旧记录经旧入口与新公共视图读取后语义一致；状态映射、未知/不兼容版本、非法动作、不支持的暂停/恢复均有明确结果；`total` 未知、时间/用量缺失不得编造。交付契约评审链接、版本兼容说明、fixture 与测试证据。
 
 ## S1-2 注册表与生命周期
@@ -104,6 +104,8 @@
 
 ## S1-3 调度器（资源与配额域）
 
+#267 已验收的是可观察 single HTTP 的限定范围；下面原始目标还列有后续阶段的本地工具等资源，未整体勾选不能解释为需要重复实现 #267。精确边界见 [S1-3 实现](s1-3-provider-permits.md) 与 [收尾交接](s1-7-handoff.md)。
+
 - [ ] `lib/jobs/scheduler.js`：资源实例（模型配额域、音频转录槽、本地工具、写入互斥、任务内并发）、许可申请/释放、429 冷却、动态限额、有界等待；从 `lib/audio-pool.js` 推广，不另写。
 - [ ] **与旧路径共享实际资源**：转写沿用同一个宿主 `audioGate` / `admitAudio` 实例。文本先按 S1-0 核验的录音/批次作用域复用现有池；不能声称 `audioGate` 已提供文本计数。
 - [ ] **计数迁移与策略改进分开**：按目标实际配额域收敛时，新旧文本路径委托同一许可与冷却责任层；保留原录音/批次上限。新增宿主/配额域文本限制会改变并发行为，须有独立策略开关、默认值、资源键映射和回退说明，不能仅因打开 `runtime.pilot.audioSingle` 就启用。唯一责任层不能用叠加两个新闸门实现；方案先经 S1-0/契约评审确认。
@@ -114,9 +116,9 @@
 
 ## S1-4 模型网关与非模型执行适配器
 
-- [ ] `lib/jobs/gateway.js`：受管模型请求唯一入口；显式 `purpose / feature / requestedEffort / executionMode / budget`；档位经 `lib/model-effort.js`；子代理经宿主子代理服务；每次可观测请求写一条 Call；**唯一的传输重试层**（试点路径上移除叠加的旧 retry 包装）。
-- [ ] 转写适配器：包装现有 Gemini / Groq / 硅基流动调用与分档回退（`lib/gemini.js` 等），把它们的请求写成 Call，计量从 Call 聚合（取代试点路径上的音频计量 fetch 包装，旧路径继续用旧包装直到 P2）。
-- [ ] 按实际调用点列出“重试/回退/计量包装去留表”：保留、委托或移除的符号与唯一责任层。网关复用 `ctx.llm`、宿主子代理及既有 provider 适配器；不得增加第二个传输重试实现。重试次数、回退顺序、音频额度检查保持基线，新增策略另开开关。
+- [x] `lib/jobs/gateway.js`：受管模型请求唯一入口；显式 `purpose / feature / requestedEffort / executionMode / budget`；档位经 `lib/model-effort.js`；子代理经宿主子代理服务；每次可观测请求写一条 Call；**唯一的传输重试层**（试点路径上移除叠加的旧 retry 包装）。
+- [x] 转写适配器：包装现有 Gemini / Groq / 硅基流动调用与分档回退（`lib/gemini.js` 等），把它们的请求写成 Call，计量从 Call 聚合（取代试点路径上的音频计量 fetch 包装，旧路径继续用旧包装直到 P2）。
+- [x] 按实际调用点列出“重试/回退/计量包装去留表”：保留、委托或移除的符号与唯一责任层。网关复用 `ctx.llm`、宿主子代理及既有 provider 适配器；不得增加第二个传输重试实现。重试次数、回退顺序、音频额度检查保持基线，新增策略另开开关。
 - **验收**：模拟一次失败后成功重试、一次 fallback 与永久失败；实际可观测请求分别产生 Call，账本按稳定 Call 身份只入账一次。重复聚合与恢复不会重复记账；观测不到的宿主内部重试、tokens 或时点留空/标 `unknown`，估算值注明来源。
 - **执行验收**：直接/宿主子代理调用都关联正确 Job/Attempt/Step，记录档位“请求 / 实际 / 回退原因”；`agent-required` 不可用时明确拒绝，`agent-preferred` 的回退可见且遵守契约。能力可用性经宿主最小验证确认，fake provider 测试不能代替宿主核验。
 - **交付**：调用点去留表、计量/重试/执行模式测试与能力表 DSH-04/05/07 的证据。
@@ -133,19 +135,19 @@
 
 ## S1-6 单文件音频试点切换
 
-- [ ] 开关 `runtime.pilot.audioSingle`（默认关；测试与开发开）：开时单文件音频导入经内核执行，关时走旧路径。
-- [ ] 控制台继续读同一公共视图（不需改控制台公共部分）。
-- [ ] S1-0 的同一组特征测试在开关关/开下分别通过，保存相同 fixture、模型与策略条件及行为差异表。取消、计量、中断识别、已声明恢复能力均有证据；任何行为差异先解释并单独评审。
-- [ ] 在旧、新 attempt 运行期间切换开关：在途 attempt 的执行者、定义版本与策略快照不变，只影响新提交；新旧混跑继续满足 S1-3 的许可和冷却约束。不得用切换触发在途任务重提。
-- [ ] 本地 DSH 0.2.0-rc.2 实测（`SSH_TTY=audit`、清空密钥变量、工作区内临时 `DSH_HOME`、fake model）：提交 → 排队 → 运行/进度 → 取消或完成 → 中断识别/能力反馈，保存控制台截图和所用版本；范围与未测能力写明。
+- [x] 开关 `runtime.pilot.audioSingle`（默认关；测试与开发开）：开时单文件音频导入经内核执行，关时走旧路径。
+- [x] 控制台继续读同一公共视图（不需改控制台公共部分）。
+- [x] S1-0 的同一组特征测试在开关关/开下分别通过，保存相同 fixture、模型与策略条件及行为差异表。取消、计量、中断识别、已声明恢复能力均有证据；任何行为差异先解释并单独评审。
+- [x] 在旧、新 attempt 运行期间切换开关：在途 attempt 的执行者、定义版本与策略快照不变，只影响新提交；新旧混跑继续满足 S1-3 的许可和冷却约束。不得用切换触发在途任务重提。
+- [x] 本地 DSH 0.2.0-rc.2 实测（`SSH_TTY=audit`、清空密钥变量、工作区内临时 `DSH_HOME`、fake model）：提交 → 排队 → 运行/进度 → 取消或完成 → 中断识别/能力反馈，保存控制台截图和所用版本；范围与未测能力写明。
 - **交付**：双路径回归与切换矩阵、宿主验证记录、截图、开关默认值与配置入口。公共控制台不增加音频专有分支；专有详情通过既有扩展边界展示。
 
 ## S1-7 护栏与发布
 
-- [ ] 架构测试：迁移例外清单（旧入口、负责人、计划移除阶段）；禁止未登记的新任务表 / 队列 / 直接 provider 调用 / 直接 `complete`。
-- [ ] 文档：本文件打勾、`README.md` 进度表更新、DSH 对照表定稿。
-- [ ] 架构护栏按模块依赖/API 边界检查，允许网关/provider 适配器的受控实现与登记的旧路径；不能仅凭 `fetch` / `Map` 字符串误伤非模型请求或普通缓存。例外表含入口、责任者、原因、移除阶段与证据。
-- [ ] 完成指定回退 tag/SHA 的演练：关闭新接纳 → 排空在途 attempt 或保存兼容检查点 → 旧版启动；分别记录产物可读、未完成新任务能否继续。新版本记录旧版无法继续时，保留记录并明确限制，不宣称完整回退。
+- [x] 架构测试：迁移例外清单（旧入口、负责人、计划移除阶段）；禁止未登记的新任务表 / 队列 / 直接 provider 调用 / 直接 `complete`。
+- [x] 文档：本文件打勾、`README.md` 进度表更新、DSH 对照表定稿。
+- [x] 架构护栏按模块依赖/API 边界检查，允许网关/provider 适配器的受控实现与登记的旧路径；不能仅凭 `fetch` / `Map` 字符串误伤非模型请求或普通缓存。例外表含入口、责任者、原因、移除阶段与证据。
+- [x] 完成指定回退 tag/SHA 的演练：关闭新接纳 → 排空在途 attempt 或保存兼容检查点 → 旧版启动；分别记录产物可读、未完成新任务能否继续。新版本记录旧版无法继续时，保留记录并明确限制，不宣称完整回退。
 - [ ] 发布前执行仓库规定的 `npm run verify` 与产物检查；真实模型抽检需所有者授权、预算和输入/模型/档位/质量/耗时/请求数/用量记录。未授权或未验证的发布门禁保持待完成，fake model 不能代替质量抽检。
 - [ ] 发布 2.6.x alpha 预发行（独立 alpha 分支，与 main 正式版本并行；所有者 2026-10-05 指定）：changelog 写明已验证范围、独立开关及默认值、在途任务处置、指定回退版本与未支持能力。发布不自动扩大试点覆盖面。
 - **交付**：护栏结果、例外清单、完整验证与抽检证据、回退演练、发布版本/commit、更新后的接手记录。
