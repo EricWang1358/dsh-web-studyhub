@@ -2,44 +2,12 @@
    are in daily-recap.test.mjs / daily-recap-tone.test.mjs; this file only pins what the migration must keep or consciously change. Fake model. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { StudyService } from '../lib/service.js';
 import { usageLedger } from '../lib/model-usage.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { until } from './helpers/wait.mjs';
-import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
-import { gate, privateRoot, panelDoor } from './helpers/model-family-baseline.mjs';
-
-const writing = '# 今日学习总结\n\n' + '围绕已练习的知识点整理正确思路，核对条件与推理步骤。'.repeat(8);
-const course = '数学 / 第一章';
-
-/** A library with forty quiz cards in one deck; seeded through the service so both doors can start from the same place. */
-async function seeded(t, options = {}) {
-  const root = await privateRoot(t, 'model-baseline-recap-');
-  const service = new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { complete: options.complete, paths: ['dailyRecap'] }) });
-  t.after(() => service.dispose());
-  await service.store.update(state => {
-    state.decks.push({ id: 'd', title: course, course, cards: Array.from({ length: 40 }, (_, i) => ({ id: `d-${i}`, kind: 'quiz', topic: `知识点 ${i % 3}`, prompt: `题目 ${i}`,
-      answer: '正确答案', explanation: '先核对条件。', options: [{ id: 'a', text: '正确选项', correct: true }, { id: 'b', text: '干扰选项' }] })) });
-  });
-  return service;
-}
-const answer = (service, count, offset = 0) => service.store.update(state => {
-  for (let i = offset; i < offset + count; i++) state.attempts.push({ id: `a-${i}`, runId: 'seed', deckId: 'd', quiz_id: `d-${i}`, timestamp: new Date().toISOString(), grade: 4, assessment: 'graded' });
-});
-const noteOf = async (service, id) => (await service.call('note.get', { id }));
-const done = (service, id, generation) => until(async () => { const note = await noteOf(service, id); return note.generation?.id === generation && note.generation.status !== 'running' && note; }, 'the generation to end');
-/** A model that records what it was asked and can hold the n-th call. */
-function model() {
-  const control = { calls: [], gates: new Map() };
-  control.complete = async (system, prompt, options = {}) => {
-    const number = control.calls.length;
-    control.calls.push({ system, data: JSON.parse(prompt), options });
-    const held = control.gates.get(number);
-    if (held) await held.promise;
-    return writing;
-  };
-  return control;
-}
+import { writing, course, seeded, answer, noteOf, done, model } from './helpers/recap-library.mjs';
+import { SWITCH_MODE } from './helpers/runtime-switch.mjs';
+import { gate, panelDoor } from './helpers/model-family-baseline.mjs';
 
 test('a submission is its own snapshot: the questions and the tone are those of the moment it was started, and the recap is then stale, not rewritten', async t => {
   const fake = model(); fake.gates.set(0, gate());
@@ -89,8 +57,16 @@ test('the recap is not a task of the console and has no host child: it runs as o
   await answer(service, 10);
   const started = await service.call('note.daily.generate', { course });
   await until(() => fake.calls.length === 1, 'the generation to reach the model');
-  assert.deepEqual(Object.keys(fake.calls[0].options), ['signal'], 'no jobId, stage, task or reasoning: lib/index.js sends this to the plain completion');
-  assert.deepEqual((await service.call('snapshot', {})).jobs, [], 'no row in snapshot.jobs: its state is note.generation');
+  // Reviewed differences of the runtime side (S4-5): the gateway's own request to the host model (task, route, reply cap, output sinks) instead of a bare
+  // signal, and the generation is a row of the 任务 console like every other background job (its note state, note.generation, is unchanged).
+  const rows = (await service.call('snapshot', {})).jobs;
+  if (SWITCH_MODE === 'runtime') {
+    assert.ok(Object.keys(fake.calls[0].options).includes('signal') && fake.calls[0].options.task === 'assist');
+    assert.deepEqual(rows.map(job => [job.type, job.status]), [['daily-recap', 'running']]);
+  } else {
+    assert.deepEqual(Object.keys(fake.calls[0].options), ['signal'], 'no jobId, stage, task or reasoning: lib/index.js sends this to the plain completion');
+    assert.deepEqual(rows, [], 'no row in snapshot.jobs: its state is note.generation');
+  }
   assert.equal((await noteOf(service, started.id)).generation.status, 'running');
   fake.gates.get(0).release();
   await done(service, started.id, started.jobId);
@@ -104,7 +80,7 @@ test('the panel and the runtime door produce the same recap for the same answers
   const direct = model(), viaPanel = model();
   const service = await seeded(t, { complete: direct.complete }), twin = await seeded(t);
   for (const each of [service, twin]) await answer(each, 10);
-  const panel = panelDoor(t, twin.store.root, { complete: viaPanel.complete });
+  const panel = panelDoor(t, twin.store.root, { complete: viaPanel.complete, ...(SWITCH_MODE === 'runtime' ? { pilot: { dailyRecap: true } } : {}) });
   const viaRuntime = await service.call('note.daily.generate', { course });
   const viaDoor = await panel('note.daily.generate', { course });
   const [a, b] = await Promise.all([done(service, viaRuntime.id, viaRuntime.jobId),
