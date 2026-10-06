@@ -144,6 +144,14 @@ test('without the model the rows say the questions were shared out by length, an
   assert.equal(m.copy.planLine(undefined), '');
 });
 
+test('a small custom total says why the sections were shared out by length, not that the model was missing', () => {
+  const line = m.copy.planLine({ level: 'standard', goal: 4, rounds: 1, weightSource: 'length', weightReason: 'small-target' });
+  assert.equal(line, '出题计划：标准，约 4 题，分 1 轮（题目不多，按篇幅分配，没有逐段判断重要性）');
+  assert.notEqual(line, m.copy.planLine({ level: 'standard', goal: 4, rounds: 1, weightSource: 'length' }), 'the ordinary no-model line is another sentence');
+  inLanguage('en', () => assert.equal(m.copy.planLine({ level: 'standard', goal: 4, rounds: 1, weightSource: 'length', weightReason: 'small-target' }),
+    'Plan: Standard, about 4 questions in 1 rounds (few questions, shared out by length, importance not judged section by section)'));
+});
+
 test('a coverage without a plan (a draft from before, a top-up) shows no plan line and no why line', () => {
   const covered = coverageOf({ sources: fx.sources, cards: [fx.card(fx.leaves[0])] });
   const html = renderToStaticMarkup(React.createElement(m.CoverageSummary, { coverage: covered, onOpen: noop }));

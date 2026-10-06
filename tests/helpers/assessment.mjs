@@ -45,7 +45,7 @@ export function withQualityStages(complete) {
       // for its concrete answers and reuse it for the real author stage; this
       // adapter never grants review approval. Workflow tests mock all stages.
       const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
-      const authorRequest = { ...request, existing: request.alreadyCovered };
+      const authorRequest = { ...request };
       const author = authorPrompts(authorRequest, request.assessmentPlan);
       const response = await complete(author.system, author.prompt);
       let value;
