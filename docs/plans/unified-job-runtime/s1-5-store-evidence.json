@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": "S1-5",
-  "status": "implementation verification in progress",
+  "status": "accepted and merged, scoped internal S1-5",
   "baseSha": "b2349a2ea82d8285c03e2e67990024d2cf25b4bc",
   "sourceFingerprints": {
     "lib/atomic-json.js": "f7deb78f1ca8a492806652fc0209963601980dbfbdb702d68a799715190cff20",
@@ -148,12 +148,42 @@
     ]
   },
   "fullVerify": {
-    "status": "running",
+    "status": "passed",
     "log": "output/s13-contract/s15-accepted-verify.log",
-    "baseSha": "6229ca51e7a515b8bdde451c713039ac096dc362"
+    "baseSha": "6229ca51e7a515b8bdde451c713039ac096dc362",
+    "command": "npm run verify",
+    "passed": 5816,
+    "failed": 0,
+    "skipped": 2,
+    "durationMs": 558569.236034,
+    "lint": "passed",
+    "build": "passed",
+    "sha256": "f21eef4cc4c37bf259b7cfbdffb25bc180c88357125e42b590ec66f38e1d344a"
   },
   "ci": {
-    "status": "not yet run"
+    "status": "passed",
+    "runId": 37422301416,
+    "mergeRefSha": "f00ff66de3110d15888f577057e8b364cc4b34ff",
+    "headSha": "da3c22b528f322050edf2212dc27a52984fb324e",
+    "baseSha": "6229ca51e7a515b8bdde451c713039ac096dc362",
+    "jobs": [
+      {
+        "os": "ubuntu-latest",
+        "jobId": 112134135609,
+        "passed": 5717,
+        "failed": 0,
+        "skipped": 94,
+        "durationMs": 296432.024509
+      },
+      {
+        "os": "windows-latest",
+        "jobId": 112134135787,
+        "passed": 5717,
+        "failed": 0,
+        "skipped": 94,
+        "durationMs": 306769.0432
+      }
+    ]
   },
   "priorFailedVerification": {
     "log": "output/s13-contract/s15-freeze-verify.log",
@@ -221,5 +251,8 @@
       "cancelled": 616
     },
     "notAcceptanceEvidence": true
-  }
+  },
+  "headSha": "da3c22b528f322050edf2212dc27a52984fb324e",
+  "mergeSha": "5aecc769d657c094b1dac5b5b832779e976dd9c2",
+  "acceptance": "https://github.com/EricWang1358/dsh-web-studyhub/pull/275#issuecomment-6010606981"
 }

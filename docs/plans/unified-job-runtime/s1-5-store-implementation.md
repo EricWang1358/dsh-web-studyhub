@@ -1,6 +1,6 @@
 # S1-5 durable runtime implementation and evidence
 
-Status: implementation under verification; not yet accepted or merged. Implementation [#275](https://github.com/EricWang1358/dsh-web-studyhub/pull/275) is draft. Contract #273 (`58c52d9`, merge `5c8342e`) was published first. This implementation incorporates concurrent #271 at `b2349a2ea82d8285c03e2e67990024d2cf25b4bc`; #269 was already in #273's actual merge. Owner delegated routine S1 technical acceptance/qualified merges on 2026-10-06 04:07:50 UTC. Paid models, credential/permission changes, irreversible user-data deletion, release and deployment remain excluded.
+Status: scoped implementation accepted and merged in [#275](https://github.com/EricWang1358/dsh-web-studyhub/pull/275). Head `da3c22b528f322050edf2212dc27a52984fb324e`, merge `5aecc769d657c094b1dac5b5b832779e976dd9c2`; [final delegated 17-item review](https://github.com/EricWang1358/dsh-web-studyhub/pull/275#issuecomment-6010606981). Contract #273 (`58c52d9`, merge `5c8342e`) was published first. Concurrent #269/#271/#274 are included; final CI and actual merge both used main `6229ca5`. Owner delegated routine S1 technical acceptance/qualified merges on 2026-10-06 04:07:50 UTC. Paid models, credential/permission changes, irreversible user-data deletion, release and deployment remain excluded.
 
 ## What is wired
 
@@ -40,8 +40,8 @@ Commands use the scrubbed workspace-private runner, Node 22.22.3, workspace TEMP
 | Installed rc.2 | Passed again 2026-10-06T06:09:42.836Z–2026-10-06T06:09:50.663Z: durable Job, local fake native llm, real source/checkpoint, native settlement and explicit restore. One source, one stable event, five local fake requests across companion checks; cleanup converged |
 | Prior full implementation verify (before resume correction) | Passed on implementation + `b2349a2`: 5812/0/2, 545474.666611ms, lint/build passed; log/hash in evidence JSON |
 | Concurrent #274 integration | Merged main `6229ca5` into implementation as `fb821cd`: lint/build passed; marker + runtime focused 68/0/0, 2879.885812ms. This is separate from the earlier full cloud run. |
-| Final full verify after resume correction | Running; `s15-accepted-verify.log` on integrated main `6229ca5` |
-| Implementation PR CI | Pending on corrected head; previous CI results are historical |
+| Final full verify after all corrections | Passed: 5816/0/2, 558569.236034ms; lint/build passed; `s15-accepted-verify.log` SHA256 `f21eef4cc4c37bf259b7cfbdffb25bc180c88357125e42b590ec66f38e1d344a` |
+| Final implementation CI | Run 37422301416, merge ref `f00ff66` (head `da3c22b` + base `6229ca5`): Ubuntu 5717/0/94, 296432.024509ms; Windows 5717/0/94, 306769.0432ms |
 | Paid model quality/billing, remote compute stop | Not run / not claimed |
 
 The crash worker uses a controlled native-service double and an actual separate Node process, filesystem, library writer and existing ledger. Its local fake call counter is not a paid-provider quality test. The installed rc.2 companion separately verifies the real owner/jobs/llm binding. The installed StudyHub package remains unchanged in this step.
@@ -56,4 +56,4 @@ Two test-construction errors are kept separate: the first gateway persistence fi
 
 ## Remaining phase gates
 
-S1-5 requires its final full verify, current-source host evidence, PR CI and delegated technical review before completion. S1-6 remains the first public single-audio pilot switch. S1-7 still requires architecture guards, an explicit old-version rollback exercise, packaging checks and disclosure of paid-quality/release gates. Independent alpha has not moved; nothing has been published or deployed.
+S1-5 passed final full verify, current-source host evidence, both-platform CI and delegated technical review in #275. S1-6 remains the first public single-audio pilot switch. S1-7 still requires architecture guards, an explicit old-version rollback exercise, packaging checks and disclosure of paid-quality/release gates. Independent alpha has not moved; nothing has been published or deployed.

@@ -19,8 +19,8 @@
 | S1-2 | 已合并 | Codex 云端内核负责人 / codex/runtime-s12-lifecycle / 注册、生命周期、原生绑定与旧入口 | 所有者 2026-10-06 02:28:22 UTC 验收并授权合并 [#262](https://github.com/EricWang1358/dsh-web-studyhub/pull/262) | head 78f83a8；merge 09a094ae54c6afc68982ed5bc7d21a5a92d46b2e；双平台 CI 与实际宿主 8 步见 PR | S1-2 限定范围已接受；持久化、音频试点和共享配额策略仍保留后续门禁 |
 | S1-3 | 已合并 | Codex 云端内核负责人 / codex/runtime-s13-provider-permits / 单文件可观察 HTTP 资源范围 | 所有者 2026-10-06 04:07:50 UTC 验收并授权合并 [#267](https://github.com/EricWang1358/dsh-web-studyhub/pull/267) | head 8ad0905；merge 48ff29c301676533744eca65ef2015178edc17b5；完整 verify 5701/0/2，双平台 CI 5602/0/94；实际宿主见 PR | 默认关闭，未扩大到不可观察宿主内部请求/跨进程；S1-4 放行 |
 | S1-4 | 已合并 | Codex 云端内核负责人 / codex/runtime-s14-gateway / 网关、Call、既有账本及内部音频适配 | 契约 [#270](https://github.com/EricWang1358/dsh-web-studyhub/pull/270)；实现与逐项技术验收 [#272](https://github.com/EricWang1358/dsh-web-studyhub/pull/272) | head ff33db3；merge be82089666427ac8b8a2fbe0e4ab20c96b35bf39；最终 verify 5732/0/2，双平台 CI 5633/0/94；[实现证据](s1-4-gateway-implementation.md) | 内部网关已验收；持久恢复待 S1-5，公开音频试点待 S1-6；真实付费质量未测 |
-| S1-5 | 进行中 | Codex 云端内核负责人 / codex/runtime-s15-store / 持久化、恢复、提交核对 | 前置 #272 已验收合并；[存储契约](s1-5-store-contract.md) [#273](https://github.com/EricWang1358/dsh-web-studyhub/pull/273) 已先合并 | 实现 [#275](https://github.com/EricWang1358/dsh-web-studyhub/pull/275)，已集成 main 6229ca5（含并行 #269/#271/#274）；[实施与验证](s1-5-store-implementation.md) | 最终 verify 5812/0/2（b2349a2 基线），集成回归 68/0/0；CI 与实施验收进行中 |
-| S1-6 | 未开始 | 待领取 | 待 S1-5 通过 | 待填写 | 开关双路径验证 |
+| S1-5 | 已合并 | Codex 云端内核负责人 / codex/runtime-s15-store / 持久化、恢复、提交核对 | 契约 [#273](https://github.com/EricWang1358/dsh-web-studyhub/pull/273)、实现与委托验收 [#275](https://github.com/EricWang1358/dsh-web-studyhub/pull/275) | head da3c22b；merge 5aecc769；最终 verify 5816/0/2，双平台 CI 各 5717/0/94；[实施与验证](s1-5-store-implementation.md) | 内部恢复与适配器已验收；公开音频入口/检查点试点仍待 S1-6 |
+| S1-6 | 进行中 | Codex 云端音频负责人 / codex/runtime-s16-audio-contract / 单文件公开试点 | 前置 #275 已验收合并；[接口契约](s1-6-audio-contract.md) 待合并 | 基线 5aecc769；仅契约测试，尚无公开试点实施证据 | 契约先行，保持默认关闭 |
 | S1-7 | 未开始 | 待领取 | 待 S1-6 通过 | 待填写 | 护栏、回退、发布证据 |
 
 状态只使用未开始 / 进行中 / 待评审 / 受阻 / 已合并；受阻项写明缺少什么证据，已合并项仍须满足本步验收。文档完善不能把实施状态改为完成。日志与测试结果记录命令、所用 SHA、结果摘要和仓库内证据路径或 PR 链接；不放密钥、完整私有输入或模型原始内容。
@@ -123,10 +123,10 @@
 
 ## S1-5 持久化与恢复识别
 
-- [ ] `lib/jobs/store.js`：任务元记录（类型、输入引用、attempt、状态、版本、检查点引用、`schemaVersion`）；**共用原子写入器**（从 `audio-batch.js atomicJson` 提取，保留 Windows 重命名重试）。
-- [ ] 适配单文件音频既有 manifest：明确哪个字段由谁负责，生命周期只由内核决定。
-- [ ] 重启：只把确认失去执行者的 attempt 标为 `interrupted`；按 `recoveryMode` 提供重试/继续；产物用 stepKey 去重。
-- [ ] 复核并适配既有 `kind:'single'` manifest 与输入 hash/size、参数、旧外部 job ID；区分公共元记录、领域记录与兼容卡片字段。复用现有公共 `jobs` 与领域存储，不能新建第二份任务事实来源。原子写入同时保留 Windows 替换重试与按 manifest 文件串行化，不能只抽取 rename。
+- [x] `lib/jobs/store.js`：任务元记录（类型、输入引用、attempt、状态、版本、检查点引用、`schemaVersion`）；**共用原子写入器**（从 `audio-batch.js atomicJson` 提取，保留 Windows 重命名重试）。
+- [x] 适配单文件音频既有 manifest：明确哪个字段由谁负责，生命周期只由内核决定。
+- [x] 重启：只把确认失去执行者的 attempt 标为 `interrupted`；按 `recoveryMode` 提供重试/继续；产物用 stepKey 去重。
+- [x] 复核并适配既有 `kind:'single'` manifest 与输入 hash/size、参数、旧外部 job ID；区分公共元记录、领域记录与兼容卡片字段。复用现有公共 `jobs` 与领域存储，不能新建第二份任务事实来源。原子写入同时保留 Windows 替换重试与按 manifest 文件串行化，不能只抽取 rename。
 - **故障矩阵**：明确“提交”指业务产物提交。覆盖产物提交前、产物提交后但检查点保存前、检查点保存后但终态/通知保存前崩溃，以及重复恢复；核对领域产物与提交记录，断言不重复产物、不重复入账、不重复完成事件。通知失败不改任务终态，投递去重使用稳定事件键。
 - **恢复拒绝矩阵**：原执行者仍存活、输入不可访问/指纹变化、版本不兼容、检查点损坏均给出原因，不启动新 attempt。远端结果未知先核对 `remoteOperationId`，不能无依据自动重发。
 - **交付**：字段所有权定稿、旧格式读取 fixture、原子写 Windows 行为回归、故障/拒绝测试与已验证的 `recoveryMode`。新增自动恢复独立开关，不借试点默认启用。
