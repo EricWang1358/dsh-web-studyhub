@@ -223,7 +223,7 @@ A v2 Call keeps the v1 Call fields and adds optional `stepRunId` plus:
 
 ```js
 observation = {
-  boundary: 'external-request' | 'host-attempt' | 'legacy' | 'local-wait',
+  boundary: 'external-request' | 'host-attempt' | 'legacy' | 'local-wait' | 'local-process',
   requestCount: integer | null
 }
 ```
@@ -234,6 +234,7 @@ observation = {
 | `host-attempt` | One host-visible model attempt; internal requests were not observed, count null. |
 | `legacy` | A published producer record with no wire observation, count null. |
 | `local-wait` | Local queue/rate-limit waiting, count 0. |
+| `local-process` | A local child process or host tool call the plugin cannot count as wire requests (install, model preparation, search-extension ingest); count null, never a model request. |
 
 A fallback or format repair has its own Call and stable stepKey; an actual execution can associate it with stepRunId. Observation does not add another retry policy or infer hidden host retries. The existing `usage.calls` remains the published summary (tokenUsage.calls or producer-record count); it is not reinterpreted as actual HTTP requests.
 
@@ -275,3 +276,7 @@ The [audio pilot adapter contract](plans/unified-job-runtime/s1-6-audio-contract
 ### Default-off coach pilot (S4-4)
 
 `runtime.pilot.coach` (default off, new submissions only) runs each batch of 为你定制 as a Job of kind `coach-prep` (capabilities: `cancel` only; `recoveryMode: none`). The day row `coach:YYYY-MM-DD` and `coach-daily.json` stay the one place a day is aggregated, paused and adjusted. A batch names its row in the legacy field `listedIn`: it is not a row, an archive record or a share of the 100 finished jobs of its own (`isOwnRow`, `lib/job-status.js`), but it answers to its logical id (the batch id in the day's calls) in `job.status/wait/control/output`. Its model is the host's own light service observed as one `host-attempt` Call (`lib/gateway-model.js`); the gateway books its usage once, by the day the call began. A cancelled batch is `skipped` with reason `cancelled` in the day. Contract: [S4-1](plans/unified-job-runtime/s4-1-model-contract.md).
+
+### Non-model jobs (S5-1)
+
+The [non-model contract](plans/unified-job-runtime/s5-1-nonmodel-contract.md) lets processes, transfers and host tool calls use the same Call/Step records without pretending to be model requests: a Step policy without `requestedEffort`/`executionMode` is a non-model Step (it can `run`/`observe` but `complete` refuses with `model-policy-required`); the `local-process` boundary records a Call with `requestCount` null and `modelRequest:false`; `execution.mode` and `usage.calls` describe model Calls only, so a job with none keeps `execution.mode` null and unknown tokens null; an executor admission refusal carries `code: 'executor-unavailable'` before any job exists. Contract version stays 2.
