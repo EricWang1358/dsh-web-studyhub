@@ -161,9 +161,25 @@ The words are `ui/coverage/copy.js` (`shortfallLine`, `nextRoundText`, `shortfal
 | paused | 继续 |
 | stopped or cancelled with sections left | 为没覆盖的部分补题 (one round; with 自动补到完整 off the page says 「精简：先出第 1 轮，覆盖 12%；点「自动补到完整」继续」, and the toggle is one click away on the draft page) |
 | refused (the key was refused, or no credit) | 去配置模型; the console header has it too, with 接着做 beside it once the key works |
+| a run that ended before it was done and kept a draft (the time limit, a failure, a stop; a plain run or a coverage run whose round failed) | 接着做, with the way it ended and what it will do before the button |
 | done | none |
 
 The badge on the row says what is true: 「已复审，待发布」 only when nothing is missing; otherwise 「已复审 · 少了 N 题」, 「已停止 · …」, 「模型拒绝」, 「已中断」. An interrupted job is titled 「「Deck」已中断」, never 「正在补齐」; a console record that is not the run that wrote the draft's marker keeps its own numbers and offers no action of the draft.
+
+### After a failure: 接着做 (the owner's report of 2026-10-06)
+
+A run that stopped before it was done and kept a draft is **continued**, not started again, and the screens say so in one voice: the home banner, the 待发布 row, the 任务 console and the draft page show how it ended (the one sentence of `describeFailure`: 「生成用时太长，已自动停止」), what 接着做 will do (「已出 13/15 题保留，接着补 2 题」, `copy.js continueLine`) and ONE primary button. The two kinds of run continue differently, and the reason is what each of them promised:
+
+- A **plain run** (a count, no plan: `generate { count: 15 }`) promised 15 questions and nothing about sections. 接着做 is `generate { resumeDraftId, draftVersion }` (`lib/draft-continuation.js`): the same draft, every approved question stays, the questions it still owes are made from the same sources with the same settings. It is never told about the sections of its material that have no question (`shortfall.planned === false`: the coverage says them as a fact, 「覆盖 4/81 个小节（5%）」, not as a shortfall). On the contract it is `actions.retry`: the executor marks a plain run that ended failed or cancelled and kept a continuable draft `retryable`, and `job.control retry` starts the continuation; the record stays in the list, keeps its numbers, offers nothing more (`continuedBy`, reason `continued`) and says 接着做过了 with a way to the new task. A draft that is short of its count whatever the job did (a restart left no job, a part was refused and the rest passed) offers the same 接着做 from the draft alone.
+- A **coverage run** promised a plan: 接着做 continues at the next round that is not done (`coverage: { run: true }`). A round that ran out of time, or failed, now leaves the job retryable too (before, only a refused key did).
+
+`为没覆盖的部分补题` stays what it was, a deliberate top-up of the sections that have no question, and never competes as a second primary: beside 接着做 it is the other button (the draft page, the console's header), and not on the banner or the row. Its first line says the way to full coverage from the same function everywhere (`shortfall.afterRoundPercent`, `roundsToFull`, `questionsToFull`; `planRound` says what every uncovered section costs): 「覆盖现在 4/81 个小节（5%）→ 本轮后约 42% → 目标 100%，还要 3 轮、约 77 题」; the strip of a run that works says it from its own rounds (「覆盖现在 22% → 目标 100%，还要 3 轮、约 68 题」).
+
+**The top-up runs rounds.** On a draft that has no plan, the uncovered sections ARE the plan: `topUpSpec` (lib/coverage-round.js) cuts them into rounds of at most 30 questions (a section costs one question, a planned-and-failed one its planned targets) and the draft keeps it as `editorial.coverageSpec` with `topup: true` and `goal` = the questions it holds plus every question the rounds make. The ONE executor of a coverage run then makes them one after another, pausable between rounds, with 自动补到完整 ON, until every section has a question or a stop condition (no progress, the budget, a refused key, the learner stopping it). The screens send `coverage: { sectionIds, autoComplete }` (`ui/coverage/top-up.js topUpArgs`): `autoComplete` is on unless the learner made the run manual (精简); an agent that sends `coverage: {}` gets the rounds, one that chooses sections and says nothing gets exactly that one round, as before. What the draft was asked for (`editorial.requested`) never moves.
+
+**One goal.** A top-up of one round used to ask for `questions kept + the questions of its round` (13 + 27 = 40) while the draft's own goal stayed what it was asked for (15): the console said 13 / 40, the banner 13/15. A top-up with rounds has the plan's goal (the draft's, through `shortfall.questionsGoal`), and one round without a plan that ends unfinished settles its number to the draft's (`requested`, or what it holds): the contract, the console, the banner, the row and the draft page say the same number.
+
+A batch that has not reported yet does not say 「覆盖 0/10 小节」: its sections count as covered when its questions are saved, so it says 「10 个小节（出完后计入覆盖）」 until then.
 
 ### A refused key is one plain sentence
 

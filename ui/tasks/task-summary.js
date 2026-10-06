@@ -73,6 +73,8 @@ export function taskLine(job) {
   if (contract.status === STATUS.PAUSING) return run ? uiFormat('正在暂停 · 第 {0} 轮做完后停下', [run.round]) : uiFormat('正在暂停 · 等 {0} 个调用结束', [contract.actions.pause.waiting?.count ?? 0]);
   if (contract.status === STATUS.PAUSED) return run ? uiFormat('暂停于第 {0} 轮之后', [run.pausedAfter ?? run.done]) : ui('已暂停');
   if (contract.status === STATUS.INTERRUPTED && run) return uiFormat('中断于第 {0} 轮 · 点「接着做」继续', [run.round]);
+  // A failed or stopped run that was continued says so (its numbers stay as they were; the task that continued it has the new ones).
+  if (contract.continuedBy) return ui('接着做过了 · 新的进度在接着做的任务里');
   // A question run that failed says its cause in plain words, once (the provider's own English, one line per part, stays in the log and the technical detail).
   if (state === 'fail' && ['generation', 'supplement'].includes(contract.kind) && contract.error?.message) return failureSentence(describeFailure(contract.stage.text || contract.error.message));
   if (state === 'fail' || state === 'interrupted') return contract.error?.message ? contract.stage.text || contract.error.message : stageLabel(contract.stage);

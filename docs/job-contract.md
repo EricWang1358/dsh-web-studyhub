@@ -15,6 +15,7 @@ contract = {
   title,           the name the learner knows it by, or null
   status,          queued | running | pausing | paused | cancelling | cancelled | complete | failed | interrupted
   endReason?,      user-cancel | superseded     (why a cancelled job ended)
+  continuedBy?,    the jobId of the task that continued this one (接着做 of a plain question run): the record stays as it ended, with its own numbers, and offers nothing more (retry: `continued`)
   stage,           { code, args?, text? }       a code the UI translates; `text` is the producer's prose, a fallback only
   progress,        { done, total | null, unit | null, percent | null, segments: [{ stage, done, total }] }
                    a question run's progress is the questions kept over what the PLAN asked for (a coverage run's whole plan, not the round it is making); `percent` is 100 only when nothing is
@@ -46,6 +47,7 @@ Each entry of `contract.actions` is `{ available: true }` or `{ available: false
 | `job-ended` | the job is over |
 | `not-ended` | retry only after it ended |
 | `not-retryable` | nothing to continue from |
+| `continued` | it was continued already (`reason.by` is the task that continued it): its numbers stay as they were and the new progress is there |
 | `capability-unsupported` | this kind of job does not do that |
 | `no-safe-checkpoint` | the kind pauses only while queued, and it is running |
 | `single-round` | a question run of one round: nothing to pause between (a coverage run of several rounds pauses between them) |
@@ -119,7 +121,7 @@ The text comes from the model path of this plugin: the direct streamed call, and
 | audio-import | everything: batch identity + attempt, per-file rows, grouped notices, pause (checkpoint), set, retry, calls with slots and waits, live output of host-model windows | live output of Gemini transcription and Gemini text (no stream); the stage of a batch is the batch's phase, per-file stages are in `detail.files` |
 | pdf-convert | status, stage, progress (total unknown until reported), retry, result refs, detail (route, window) | pause, set, calls (the converter reports none), live output |
 | translation | status, progress, pause (checkpoint at a wave), set concurrency, calls, live output | retry (a new translation is started, never twice) |
-| generation, supplement | status, stage, progress in questions, set (concurrency, per-stage reasoning), calls with slots and waits, live output, result refs (draft/deck); a coverage run (generation): pause between rounds, `autoComplete`, 接着做 after a restart, `detail.run` | pause of a one-round run (nothing is checkpointed), retry of a plain run (continuing a draft is its own action) |
+| generation, supplement | status, stage, progress in questions, set (concurrency, per-stage reasoning), calls with slots and waits, live output, result refs (draft/deck); a coverage run (generation): pause between rounds, `autoComplete`, 接着做 after a restart or a failed round, `detail.run`; a plain run (a count, no plan) that ended before it was done and kept a draft: 接着做 = `retry` (the executor marks the record `retryable`; `job.control retry` starts `generate { resumeDraftId, draftVersion }`, which keeps every approved question and makes the questions the run was asked for and did not get, with its own settings) | pause of a one-round run (nothing is checkpointed) |
 | draft-repair, draft-publish | status, stage, progress (repair), cancel (repair only), result refs | calls and controls (their own loops do not record them yet) |
 | extension tasks | status, stage, progress, cancel | everything else |
 | coach-daily (为你定制) | ONE row per local day (`jobId: "coach:YYYY-MM-DD"`, kept in `<library>/coach-daily.json`, the last 14 days; the snapshot shows seven): its batches as calls of kind `prep` (when, cards asked, written, kept, skipped, tokens in / out / cache, a `reason` code when a batch wrote nothing), the day's figures (`detail.metrics`: generated, passed, practised, correct, accuracy, skippedExpired; practice is read from the attempts on the 为你定制 deck, never copied), pause today (`pause`, mode `checkpoint`: no new batch starts, the one in flight finishes), resume, and `set` (`maxBatchesPerDay` 1-48, `maxReady` 1-12, `reasoning` lowest..highest; applies from the next batch). Only today's row can be adjusted; a past day is a record and `job.dismiss` removes it | cancel (a day is a record, not a run: `capability-unsupported`), retry, live output (a batch writes no stream) |

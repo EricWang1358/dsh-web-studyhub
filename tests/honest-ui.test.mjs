@@ -106,7 +106,8 @@ test('no screen prints 100% for a draft that is short, stopped, refused, interru
   for (const state of Object.keys(STATES)) for (const language of ['zh', 'en']) {
     const surfaces = { home: home(state, language), console: consoleOf(state, language), page: pageOf(state, language) };
     for (const [where, html] of Object.entries(surfaces)) {
-      const said = text(html).replace(/(覆盖|Covered) ?\d+%/g, '');
+      // (The way to full coverage — 「覆盖现在 … → 目标 100%，还要 N 轮、约 M 题」 — names the TARGET, which is the point of it; it is not a progress figure.)
+      const said = text(html).replace(/(覆盖现在|Coverage now) .*?(题|questions)/g, '').replace(/(覆盖|Covered) ?\d+%/g, '');
       assert.doesNotMatch(said, /\b100%/, `${state}/${language}/${where}: ${(/.{40}\b100%.{20}/.exec(said) || [''])[0]}`);
     }
     assert.ok(m.taskSummary(STATES[state].job).percent < 100, `${state}: the list row's percent`);

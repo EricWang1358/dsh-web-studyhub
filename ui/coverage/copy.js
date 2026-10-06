@@ -94,6 +94,8 @@ const WHY_WORD = { floor: '每个小节至少一题', long: '篇幅较长', impo
 export function weightLine(weight) {
   if (!weight || typeof weight !== 'object') return '';
   const quota = Number.isInteger(weight.quota) ? uiFormat('计划 {0} 题', [weight.quota]) : ui('不在这次的计划内');
+  // The sections of a top-up's plan (lib/coverage-round.js topUpSpec) have no weight: they cost what they cost, one question each (a section that failed before: its planned targets).
+  if (weight.why === 'topup') return Number.isInteger(weight.quota) ? quota : '';
   const rated = weight.source === 'model' && weight.importance >= 1;
   const head = rated ? [uiFormat('重要性 {0}/5', [weight.importance]), KIND_WORD[weight.kind] && ui(KIND_WORD[weight.kind]), quota].filter(Boolean).join(META_DOT) : [ui('按篇幅分配'), quota].filter(Boolean).join(META_DOT);
   const why = rated && weight.reason ? weight.reason : WHY_WORD[weight.why] ? ui(WHY_WORD[weight.why]) : '';
@@ -103,6 +105,7 @@ export function weightLine(weight) {
 /** The plan of a draft in one line: 「出题计划：标准，约 343 题，分 12 轮（重要性由模型判断）」. */
 export function planLine(spec) {
   if (!spec?.goal) return '';
+  if (spec.topup) return uiFormat('补齐计划：补到每个小节都有题，共 {0} 题，分 {1} 轮', [spec.goal, spec.rounds]);
   const source = spec.weightSource === 'model' ? ui('重要性由模型判断') : spec.weightSource === 'mixed' ? ui('有的小节按篇幅分配') : ui('按篇幅分配，没有用模型判断重要性');
   const line = uiFormat('出题计划：{0}，约 {1} 题，分 {2} 轮（{3}）', [levelLabel(spec.level), spec.goal, spec.rounds, source]);
   return spec.fills > 0 ? uiFormat('{0}；另补做 {1} 轮', [line, spec.fills]) : line;
@@ -115,6 +118,9 @@ export function sectionName(section) {
   if (section.n) return uiFormat('第 {0} 段', [section.n]);
   return section.id;
 }
+
+/** What a batch that has not finished says instead of 「覆盖 0/10 小节」: its sections count as covered when its questions are saved (the batch's own result), not while it is being written. */
+export const rangePendingText = (r, units) => uiFormat('{0}（出完后计入覆盖）', [countOf(units, r.leaves)]);
 
 /** 「覆盖 3/8 小节」 (「覆盖 3/8 页」 for pages): what a range of the material has, for a part of a run. */
 export const rangeCoverageText = (r, units) => (units === 'page' ? uiFormat('覆盖 {0}/{1} 页', [r.covered, r.leaves]) : uiFormat('覆盖 {0}/{1} 小节', [r.covered, r.leaves]));
@@ -207,8 +213,10 @@ export function stopText(stop) {
 /** 「已出 174/251 题」 for a draft that is short of its goal, 「174 道题」 for one that is not. */
 export const questionsText = (s) => (s.questionsMissing > 0 ? uiFormat('已出 {0}/{1} 题', [s.questionsKept, s.questionsGoal]) : uiFormat('{0} 道题', [s.questionsKept]));
 
-/** 「还有 18 个小节没有题」; a draft whose sections all have a question but fewer than its plan gave them says so instead. */
+/** 「还有 18 个小节没有题」; a draft whose sections all have a question but fewer than its plan gave them says so instead. Only a draft with a PLAN promised sections: a plain run asked for a
+    number of questions, and the sections of its material are a fact of the coverage (「覆盖 14%」), never a shortfall it is told about. */
 export function sectionsLeftText(s) {
+  if (s.planned === false) return '';
   if (s.sectionsUncovered > 0) return uiFormat('还有 {0}没有题', [countOf(s.units, s.sectionsUncovered)]);
   if (s.sectionsUnderQuota > 0) return uiFormat('{0}没出满计划的题数', [countOf(s.units, s.sectionsUnderQuota)]);
   return '';
@@ -219,6 +227,30 @@ export function nextRoundText(s) {
   if (!(s.nextRoundSections > 0)) return '';
   const covered = countOf(s.units, s.nextRoundSections);
   return s.sectionsAfterNextRound > 0 ? uiFormat('下一轮补 {0}，还剩 {1} 个', [covered, s.sectionsAfterNextRound]) : uiFormat('下一轮补 {0}', [covered]);
+}
+
+/** What 接着做 does, said before the button (the same sentence on the banner, the row, the console and the draft page): a plain run keeps what it made and makes the questions it still owes,
+    「已出 13/15 题保留，接着补 2 题」; a run of rounds keeps it and goes on at the round that comes next. */
+export function continueLine(s) {
+  if (s.continueKind === 'count' && s.questionsMissing > 0) return uiFormat('已出 {0}/{1} 题保留，接着补 {2} 题', [s.questionsKept, s.questionsGoal, s.questionsMissing]);
+  if (s.round) return uiFormat('已出 {0}/{1} 题保留，接着做从第 {2} 轮继续', [s.questionsKept, s.questionsGoal, s.round]);
+  return uiFormat('已出 {0}/{1} 题保留，接着做会继续', [s.questionsKept, s.questionsGoal]);
+}
+
+/** The way from here to full coverage, said before a top-up starts (and on the strip of a run): 「覆盖现在 14/108 个小节（13%）→ 本轮后约 38% → 目标 100%，还要 4 轮、约 100 题」. All of it is the
+    shortfall's (lib/shortfall.js: the one function that plans a round and says what the rest of the sections cost); '' while the coverage is not known. */
+export function coveragePathText(s) {
+  if (!(s?.roundsToFull > 0) || !(s.questionsToFull > 0) || !Number.isFinite(s.afterRoundPercent) || !Number.isFinite(s.coveragePercent) || !(s.sectionsTotal > 0)) return '';
+  const now = `${s.sectionsCovered}/${countOf(s.units, s.sectionsTotal)}`;
+  return s.roundsToFull === 1 ? uiFormat('覆盖现在 {0}（{1}%）→ 本轮后约 {2}% → 目标 100%，还要 1 轮、约 {3} 题', [now, s.coveragePercent, s.afterRoundPercent, s.questionsToFull])
+    : uiFormat('覆盖现在 {0}（{1}%）→ 本轮后约 {2}% → 目标 100%，还要 {3} 轮、约 {4} 题', [now, s.coveragePercent, s.afterRoundPercent, s.roundsToFull, s.questionsToFull]);
+}
+
+/** The same way, said by a run that works (its rounds are the job's): 「覆盖现在 31% → 目标 100%，还要 3 轮、约 90 题」. */
+export function runPathText(run) {
+  if (!run?.total || run.ended || !Number.isFinite(run.percent) || !(run.left > 0) || !(run.questionsLeft > 0)) return '';
+  return run.left === 1 ? uiFormat('覆盖现在 {0}% → 目标 100%，还要 1 轮、约 {1} 题', [run.percent, run.questionsLeft])
+    : uiFormat('覆盖现在 {0}% → 目标 100%，还要 {1} 轮、约 {2} 题', [run.percent, run.left, run.questionsLeft]);
 }
 
 /** 「精简：先出第 1 轮，覆盖 12%；点「自动补到完整」继续」: what a run that waits for the learner (自动补到完整 is off) has done, and how it goes on. */
@@ -251,7 +283,7 @@ export function repeatingLine(s, max = 2) {
 export const actionLabel = (action) => ({ resume: ui('继续'), continue: ui('接着做'), 'model-settings': ui('去配置模型'), topup: ui('为没覆盖的部分补题') })[action] || '';
 
 /** What the row's badge says a draft is: what is true, never 「已复审，待发布」 for a draft that is short, stopped, refused or interrupted. */
-const STOP_WORD = { learner: '你停下了', budget: '到花费上限', 'no-progress': '没有新进展', 'sections-left': '重试后仍没出成', 'round-failed': '出错了' };
+const STOP_WORD = { learner: '你停下了', budget: '到花费上限', 'no-progress': '没有新进展', 'sections-left': '重试后仍没出成', 'round-failed': '出错了', 'time-limit': '用时到限', 'run-failed': '出错了' };
 export function shortfallTag(s, { reviewed = false } = {}) {
   switch (s.state) {
     case 'paused': return ui('已暂停');

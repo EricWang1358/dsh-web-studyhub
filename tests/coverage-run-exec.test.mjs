@@ -406,7 +406,8 @@ test('the contract: a coverage run declares the pause checkpoint, a plain genera
   assert.equal(manual.actions.pause.reason.code, 'manual-run');
   const interrupted = jobContract({ id: 'd', status: 'interrupted', retryable: true, coverageRun: { autoComplete: true, round: 2, rounds: 3, state: 'running', list: [] } });
   assert.equal(interrupted.actions.retry.available, true);
-  assert.equal(jobContract({ id: 'e', status: 'interrupted', retryable: true }).actions.retry.available, false, 'a plain generation has nothing to continue');
+  assert.equal(jobContract({ id: 'e', status: 'interrupted', retryable: true }).actions.retry.available, true, 'a plain generation that kept a draft is continued too (the executor marks it retryable)');
+  assert.equal(jobContract({ id: 'f', status: 'failed' }).actions.retry.reason.code, 'not-retryable', 'one that kept nothing to continue says why');
   assert.ok(t);
 });
 

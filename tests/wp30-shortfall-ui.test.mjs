@@ -145,10 +145,12 @@ const partialJob = { id: "a", status: "complete", stageCode: "partial", draftId:
 test("home: a short draft says how much of its material has questions and offers one top-up; the reasons are on the draft page, not on the card", () => {
   seeded();
   const html = home({ drafts: [legacyDraft()], jobs: [partialJob] });
-  assert.equal((html.match(/为没覆盖的部分补题/g) || []).length, 1, "the draft row offers its one top-up action once");
+  assert.equal((html.match(/data-shortfall-act="continue"/g) || []).length, 1, "the draft row offers its one action once: 接着做 (a plain run owes questions)");
+  assert.doesNotMatch(html, /为没覆盖的部分补题/, "the top-up of the sections is the draft page's other button, not a second primary on the home");
   const facts = /<span class="draft-meta__facts">([\s\S]*?)<\/span>/.exec(html)[1];
   assert.doesNotMatch(facts, /还差|少了/, "not 'N short': the draft says what it holds of what it was asked for, and which sections have no question");
-  assert.match(facts, /已出 10\/20 题 · 还有 11 个小节没有题/, "the shortfall: the same sentence as the banner above");
+  assert.match(facts, /已出 10\/20 题/, "the shortfall: the same sentence as the banner above");
+  assert.doesNotMatch(facts, /个小节没有题/, "a plain run promised questions, not sections");
   assert.match(facts, /覆盖 1\/12 个小节（8%）/, "the coverage is the draft's fact");
   assert.doesNotMatch(html, /继续补齐/);
   assert.doesNotMatch(html, /answerLeak|Assessment plan/, "no raw backend prose on the card");
@@ -175,9 +177,11 @@ test("home: English renders without Chinese", () => {
   const html = inLanguage("en", () => home({ drafts: [{ ...legacyDraft(), title: "CQRS" }], jobs: [{ ...partialJob, deckTitle: "CQRS" }] }));
   const visible = html.replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(visible, han, (visible.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);
-  assert.match(visible, /Add questions for the uncovered parts/);
+  assert.match(visible, /Continue/);
+  assert.doesNotMatch(visible, /Add questions for the uncovered parts/);
   assert.match(visible, /Covered 1\/12 sections \(8%\)/);
-  assert.match(visible, /Made 10\/20 questions · 11 sections still without a question/);
+  assert.match(visible, /Made 10\/20 questions/);
+  assert.doesNotMatch(visible, /sections still without a question/);
 });
 
 test("home: an active top-up exposes saved progress and stop; its execution and usage are in the console", () => {

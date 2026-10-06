@@ -57,7 +57,7 @@ export default function GenerationParts({ contract, task }) {
               <Button variant="quiet" block className="tc-filerow" aria-pressed={picked === item.part} data-part={item.part} title={item.range || undefined} onClick={() => setPicked(picked === item.part ? null : item.part)}>
                 <span className="tc-dot" data-state={dot(item.status)} aria-hidden="true" />
                 <span className="tc-filerow__name">{uiFormat('第 {0} 批', [item.part])}{item.range && <span className="tc-filerow__text tc-filerow__range">{item.range}</span>}
-                  <PartCoverage range={here(item)} units={coverage?.units} recorded={coverage?.recorded} /></span>
+                  <PartCoverage range={here(item)} units={coverage?.units} recorded={coverage?.recorded} pending={item.kept === undefined} /></span>
                 <span className="tc-cells" role="img" aria-label={STAGES.map(([stage, label]) => `${ui(label)} ${item.stages[stage] || '—'}`).join('，')}>
                   {STAGES.map(([stage]) => <i key={stage} data-stage={stage} data-state={item.stages[stage] || 'none'}><b /></i>)}
                 </span>

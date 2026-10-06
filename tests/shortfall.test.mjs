@@ -94,7 +94,7 @@ test('a draft with no plan and no run: its own request is the goal, and a covere
   assert.equal(s.reason, 'questions-short');
   assert.equal(s.ready, false);
   const open = shortfallOf({ draft: plain, coverage: coverageOf(4, 2), round: round(2, 4, 0, 1) });
-  assert.deepEqual([open.state, open.action, open.reason], ['stopped', 'topup', 'no-plan']);
+  assert.deepEqual([open.state, open.action, open.reason, open.secondary], ['stopped', 'continue', 'no-plan', 'topup'], 'a plain draft that is short of its count is continued (the 2 it owes); the sections are the top-up');
 });
 
 test('without the coverage view (it has not arrived) the questions are still said and nothing is invented', () => {
@@ -110,4 +110,69 @@ test('the sections that failed again and again are listed with their reason (D-1
   const attempts = { [key(79)]: { n: 3, reason: 'review-protocol' }, [key(80)]: { n: 1, reason: 'quote' } };
   const s = shortfallOf({ draft: draft({ marker: stopped({}), specOver: { attempts } }), coverage: coverageOf(81, 2, { 79: { state: 'planned-failed', reason: 'review-protocol' }, 80: { state: 'planned-failed', reason: 'quote' } }), round: round(2, 3, 0) });
   assert.deepEqual(s.repeating.map(item => [item.key, item.reason, item.attempts, item.title]), [[key(79), 'review-protocol', 3, 'Section 79']]);
+});
+
+/* The owner's draft: a plain run (a count, no plan) that kept 13 of the 15 questions it was asked for, on a material with 94 sections that have no question. */
+const plainDraft = ({ cards = 13, requested = 15, extra = {} } = {}) => ({ id: 'p1', title: 'Recovered questions', draftVersion: 3, cards: Array.from({ length: cards }, (_, index) => ({ id: `c${index}` })),
+  editorial: { requested, generation: { sourceIds: ['s'], kind: 'quiz' }, ...extra } });
+const failedPlain = (stage = 'Generation reached its 20-minute total budget; approved questions were retained') => ({ id: 'j9', draftId: 'p1', status: 'failed', stage, retryable: true, savedCount: 13, requestedTotal: 15,
+  contract: { actions: { retry: { available: true } } } });
+
+test('a plain run that stopped short is NOT told about sections it never promised: 13 of 15 questions, and the one action continues the 2 it still owes', () => {
+  const s = shortfallOf({ draft: plainDraft(), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4), job: failedPlain() });
+  assert.equal(s.planned, false, 'no plan: nothing but a number of questions was promised');
+  assert.deepEqual([s.questionsKept, s.questionsGoal, s.questionsMissing], [13, 15, 2]);
+  assert.equal(s.state, 'stopped');
+  assert.equal(s.action, 'continue', 'one primary action, worded as continuing');
+  assert.equal(s.continueKind, 'count', 'it continues the count that was asked for (2 more), not the uncovered sections');
+  assert.equal(s.canContinue, true);
+  assert.equal(s.secondary, 'topup', 'the top-up of the uncovered sections is still there, as the other, deliberate thing');
+  assert.equal(s.sectionsUncovered, 94, 'the sections stay a fact of the material (the coverage line says them)');
+});
+
+test('the way a top-up goes from here to full coverage: coverage now, after the round, and what it takes (rounds and questions)', () => {
+  const s = shortfallOf({ draft: plainDraft(), coverage: coverageOf(108, 94), round: { ...round(27, 27, 67, 4), allQuestions: 100 } });
+  assert.equal(s.coveragePercent, 13);
+  assert.equal(s.afterRoundPercent, Math.round((14 + 27) / 108 * 100));
+  assert.equal(s.roundsToFull, 4);
+  assert.equal(s.questionsToFull, 100);
+});
+
+test('a plain run whose key was refused says so (去配置模型 first) and can still be continued once the key works', () => {
+  const s = shortfallOf({ draft: plainDraft(), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4), job: failedPlain('401 Unauthorized: Invalid API key') });
+  assert.deepEqual([s.state, s.action, s.failure, s.canContinue, s.continueKind], ['refused', 'model-settings', 'credential', true, 'count']);
+});
+
+test('a plain draft that is full, or whose request is unknown, has nothing to continue: its sections without a question are the top-up\'s business', () => {
+  const full = shortfallOf({ draft: plainDraft({ cards: 15 }), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4) });
+  assert.deepEqual([full.questionsMissing, full.action, full.secondary], [0, 'topup', null]);
+  const old = shortfallOf({ draft: { id: 'o', title: 'Old', cards: [{ id: 'c' }], editorial: {} }, coverage: coverageOf(10, 5), round: round(5, 5, 0, 1) });
+  assert.equal(old.action, 'topup');
+});
+
+test('a draft with a plan promises sections as before (planned), and a top-up\'s plan counts as one', () => {
+  const s = shortfallOf({ draft: draft({ marker: stopped({}) }), coverage: coverageOf(81, 2), round: round(2, 3, 0) });
+  assert.equal(s.planned, true);
+  assert.equal(shortfallOf({ draft: plainDraft({ extra: { coverageSpec: { version: 1, topup: true, goal: 113, leaves: 108, mustCover: 94, quotas: [], rounds: [{ round: 1, questions: 27, sectionIds: [] }] } } }), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4) }).planned, true);
+});
+
+test('why a plain run stands still is said by a reason of its own: the time limit, a failure, or the learner stopping it; and what ended it is carried for the sentence', () => {
+  const base = { draft: plainDraft(), coverage: coverageOf(108, 94), round: round(27, 27, 67, 4) };
+  const limit = shortfallOf({ ...base, job: failedPlain() });
+  assert.deepEqual([limit.state, limit.reason, limit.action], ['stopped', 'time-limit', 'continue']);
+  assert.match(limit.ended.stage, /budget/);
+  const other = shortfallOf({ ...base, job: failedPlain('Part 1: the model timed out') });
+  assert.deepEqual([other.state, other.reason, other.action], ['stopped', 'run-failed', 'continue']);
+  const learner = shortfallOf({ ...base, job: { ...failedPlain('Generation was cancelled'), status: 'cancelled' } });
+  assert.deepEqual([learner.state, learner.reason, learner.action], ['cancelled', 'learner', 'continue']);
+  assert.equal(shortfallOf(base).ended, null, 'a draft with no record of how it ended says nothing about it');
+});
+
+test('a coverage run that stopped because a round failed (the time limit of a round) is continued, not topped up', () => {
+  const marker = stopped({ reason: 'round-failed', round: 3, detail: 'Generation reached its 20-minute budget for this round' });
+  const failed = { id: 'j2', draftId: 'd1', status: 'failed', stage: 'Generation reached its 20-minute budget for this round', retryable: true, contract: { actions: { retry: { available: true } } } };
+  const s = shortfallOf({ draft: draft({ cards: 80, marker }), coverage: coverageOf(81, 40), round: round(5, 10, 35, 8), job: failed });
+  assert.deepEqual([s.state, s.reason, s.action, s.continueKind], ['stopped', 'round-failed', 'continue', 'rounds']);
+  const gone = shortfallOf({ draft: draft({ cards: 80, marker }), coverage: coverageOf(81, 40), round: round(5, 10, 35, 8) });
+  assert.equal(gone.action, 'topup', 'without a job to continue (the record is gone) the top-up is what is left');
 });
