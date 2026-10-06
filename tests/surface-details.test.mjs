@@ -92,6 +92,10 @@ test('the composite shadows are built from the edge tokens and the elevation ste
   assert.match(tokens['--shadow-card'], /var\(--paper-rule\)/, 'and keeps its rule ring');
 });
 
+test('--hairline is the 1px border a concentric radius subtracts, written once', () => {
+  assert.equal(decls('ui/tokens.css').filter((d) => d.prop === '--hairline').map((d) => d.value).join(), '1px');
+});
+
 test('the Select / Combobox popup tokens are the names that surface references (fallback-free)', () => {
   const css = read('ui/tokens.css');
   for (const name of ['--shadow-popover', '--shadow-dialog', '--edge-highlight']) assert.match(css, new RegExp(`\\n\\s*${name}:`), name);
@@ -101,7 +105,6 @@ test('the Select / Combobox popup tokens are the names that surface references (
 
 const OVERLAYS = 'ui/components/overlays.css';
 const COMPONENTS = 'ui/components/components.css';
-const SCOPE = ':is(.study-app, .study-seat)';
 const shadowOf = (file, selector) => decls(file).find((d) => d.prop === 'box-shadow' && d.ctx.at(-1) === selector)?.value;
 
 test('popovers, tooltips, menus and the shared floating panels use --shadow-popover', () => {
