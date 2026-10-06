@@ -53,12 +53,14 @@ test("the batched draft collects every part's dropped questions with their part 
     if (system.startsWith("Plan a source-grounded assessment")) return JSON.stringify(qualityPlan(JSON.parse(prompt.split("REQUEST DATA:\n")[1])));
     if (system.startsWith("Act as a strict assessment editor")) {
       const candidate = JSON.parse(prompt).candidate, review = qualityReview(candidate);
-      // The reserve target the part now tops up from (lib/generation-yield.js) is rejected too: this test is about what a dropped candidate reports.
-      review.checks.forEach((check) => { if (check.cardId === "q2" || check.cardId.startsWith("reserve-")) check.optionQuality = "na", check.sourceSupport = "fail"; });
+      // The reserve target and the fill rounds' replacements the part now tops up from (lib/generation-yield.js) are rejected too: this test is about what a dropped candidate reports.
+      review.checks.forEach((check) => { if (check.cardId === "q2" || /^(reserve|fill\d+)-/.test(check.cardId)) check.optionQuality = "na", check.sourceSupport = "fail"; });
       return JSON.stringify(review);
     }
     const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
-    const deck = { title: "D", cards: Array.from({ length: request.count }, (_, i) => card(i + 1, { objective: `Part ${request.alreadyCovered.length} target ${i}`, prompt: `Question ${request.alreadyCovered.length} ${i}?` })) };
+    // Each part's author names its objectives after the part's first target (the plan made them distinct), not after the library, which the author is no longer sent.
+    const part = request.assessmentPlan.targets[0].objective;
+    const deck = { title: "D", cards: Array.from({ length: request.count }, (_, i) => card(i + 1, { objective: `Part ${part} target ${i}`, prompt: `Question ${part} ${i}?` })) };
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, deck));
     return JSON.stringify(authored(deck, [], request.assessmentPlan));
   };
@@ -128,12 +130,12 @@ test("a generation in a big library tells the model only about targets its mater
       objective: "Explain how architecture holds principles guiding design and evolution", prompt: "Arch?", answer: "a", citations: [] }] });
   });
   const requests = [];
-  service.complete = withQualityStages(async (system, prompt) => {
+  const staged = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
-    requests.push(request.alreadyCovered);
     return JSON.stringify({ title: "T", cards: [card(9)] });
   });
+  // The covered targets reach the plan call only: that is the one call that is told which of the library's targets the materials could repeat.
+  service.complete = async (system, prompt, context) => { if (system.startsWith("Plan a source-grounded assessment")) requests.push(JSON.parse(prompt.split("REQUEST DATA:\n")[1]).existing); return staged(system, prompt, context); };
   const started = await service.call("generate", { sourceIds: [source.id], count: 1, kind: "flashcard" });
   const done = await service.call("job.wait", { jobId: started.jobId });
   assert.equal(done.status, "complete", done.stage);
