@@ -46,6 +46,20 @@ test('a call records the round, re-ask and queue wait it belongs to as step labe
   assert.throws(() => gateway.step('x', policy, { labels: { unknown: 1 } }), { code: 'invalid-step-labels' });
 });
 
+test('a step can be stopped by a narrower signal of its owner (a round budget) without stopping the Attempt', async () => {
+  const record = structuredClone(goldenRuntimeContracts.running); record.calls = []; record.runtime.steps = [];
+  const attempt = new AbortController(), round = new AbortController(), entered = Promise.withResolvers();
+  const host = { ctx, sessionId: 'fixture', route: () => ({ provider: 'p', model: 'm' }),
+    complete: async (_system, _prompt, options) => { entered.resolve(); await new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason))); } };
+  const context = { jobId: record.jobId, attemptId: record.attemptId, signal: attempt.signal, assertCurrent() { attempt.signal.throwIfAborted(); } };
+  const gateway = createModelGateway({ context, record, host });
+  const pending = gateway.step('r1:author:1', policy, { signal: round.signal }).complete('system', 'prompt');
+  await entered.promise; round.abort(new Error('round budget'));
+  await assert.rejects(pending, /round budget/);
+  assert.equal(attempt.signal.aborted, false);
+  assert.equal(record.calls[0].status, 'cancelled');
+});
+
 test('an unknown requested level is still refused', () => {
   const { gateway } = setup({ provider: 'p', model: 'm' });
   assert.throws(() => gateway.step('x', { ...policy, requestedEffort: 'xhigh' }), { code: 'invalid-gateway-policy' });
