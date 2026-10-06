@@ -1,0 +1,464 @@
+{
+  "schemaVersion": 1,
+  "base": "b8ff5eef8132ede33bb1c3466e8651308124673e",
+  "approval": {
+    "at": "2026-10-06T01:22:13Z",
+    "scope": "S1-2 approved owner/controller binding only; not main merge or release"
+  },
+  "fakeRequests": 4,
+  "logsSha256": {
+    "red.log": "90d4b6144c49eef1b17b305fba04ffcdaf89e90d16551bc0c95ded5aa18ec5d5",
+    "live-red.log": "de235af308638eee6085940fce1e6488649d607c79773a0e0f2e5c5351717219",
+    "fast.log": "d70a62981719950f50b2474e2c5d552523743d1e65972e6447b667c4ca4765e3",
+    "compatibility.log": "fc93264b9c27c428e829dfbcbddfba1e281528dc706b35a2967b6ffa3ca02251",
+    "targeted-final.log": "b5cecb870edabe99a98b992aff27d0c0f3abe926dbea6a34387d06b86c374c7e",
+    "host-fingerprinted.log": "62f9d871aa6cce87019126898606d3080c444d5d3a5364842c4ec919e4fce7b2",
+    "verify.log": "3aeebe6baf55cfec908b2cf47641642821f09eba8f06fa3a2d1491499f004884",
+    "action-matrix-red.log": "49c63ec88470c049cab329ff1058a9d022729db50b076be12e925a53cb56a443",
+    "last-targeted.log": "e2a035e8a654db663464be31cd85c876196a46e22fb57f0374863aace9a1f486",
+    "request-drain-red.log": "a717e0c65f9601ef95e435f8a6eb718a44d622be3fb36733e3398ca0effcbe03",
+    "request-drain-final.log": "15a5a29384f248c86f330339c65bd7c1f2e2be74d1f127ba5326aeeba4b85e97"
+  },
+  "sourceSha256BeforeIntegration": {
+    "lib/contexts/jobs/operations.js": "e1882aa2380d465bed0113f0eaa9dc905c50bb1b7502bbe0e6d6fea72db5fb04",
+    "lib/host.js": "6c5b43df891b3ee2cc49a36c2cfc62c47b64af3734dc6ef178743d00a67b318a",
+    "lib/index.js": "964b5bd8fb353d43460910695877894ad94a740721b95aaafedf3ef718e7d1c4",
+    "lib/runtime.js": "01f1cc94476715336cec089f6397e50a8dd68870bebc392091e3d8a7485fe87a",
+    "lib/runtime/builtins.js": "92718665f87930c9498542ee349c3d913cad0c13c5fa0bcb7a23bc6d890279e6",
+    "lib/runtime/jobs.js": "9a7f7994c713af1b10467eadcacaa1b564e869fda3e5c0535bc888412ebce635",
+    "lib/runtime/lifecycle.js": "bacdd5ce8fceb101caf0e86e49572e9a70b4033ad230a7ce7a770b4e8ce8f332",
+    "lib/jobs/executor.js": "75ea59bc32649c9c82e37f60872f9facc1521fe9774bf0541c4d01e304da1309",
+    "lib/jobs/lifecycle.js": "386d331d398cd0de163be9f4bce33b5f2c3b8f0c80fffb7f0dc4e0d893dc47b4",
+    "lib/jobs/registry.js": "f66cf56995c025f53120e6037e92fc04abd7ef4960cee024b17247c924466125"
+  },
+  "hostBeforeIntegration": {
+    "schemaVersion": 1,
+    "kind": "S1-2 StudyHub binding preflight",
+    "startedAt": "2026-10-06T01:38:23.846Z",
+    "done": true,
+    "ok": true,
+    "pluginScope": {
+      "llm": {
+        "present": false,
+        "methods": {
+          "stream": false,
+          "resolveCallConfig": false,
+          "resolveModelInfo": false,
+          "listProviders": false
+        }
+      },
+      "agents": {
+        "present": false,
+        "methods": {
+          "create": false,
+          "get": false
+        }
+      },
+      "sessions": {
+        "present": false,
+        "methods": {
+          "get": false
+        }
+      },
+      "jobs": {
+        "present": false,
+        "methods": {
+          "start": false,
+          "get": false,
+          "list": false,
+          "wait": false,
+          "kill": false,
+          "readAt": false,
+          "remove": false,
+          "attachController": false
+        }
+      },
+      "subagents": {
+        "present": false,
+        "methods": {
+          "start": false,
+          "getProvider": false
+        }
+      },
+      "tools": {
+        "present": false,
+        "methods": {
+          "restrict": false
+        }
+      },
+      "agentPresets": {
+        "present": false,
+        "methods": {
+          "mount": false,
+          "composedPreset": false
+        }
+      },
+      "sessionQuery": {
+        "present": false,
+        "methods": {
+          "observeSession": false
+        }
+      },
+      "sessionPersistence": {
+        "present": false,
+        "methods": {
+          "stat": false
+        }
+      },
+      "uiWorkspace": {
+        "present": false,
+        "methods": {
+          "openSession": false
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "DSH-01/04 create-live-fake-parent",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:24.721Z",
+        "evidence": {
+          "exactLiveAgent": true,
+          "liveSession": true,
+          "scoped": true,
+          "parentTurnReason": "completed",
+          "toolsRestricted": true,
+          "visibleToolNames": [],
+          "composedPresetId": "s10-jobs-only"
+        }
+      },
+      {
+        "id": "DSH-01/03/09 studyhub-fiber-binding-preflight",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:25.113Z",
+        "evidence": {
+          "productionFiberObserved": true,
+          "sharedSymbolOwner": true,
+          "sharedAudioGate": true,
+          "distinctInitiatingSessions": true,
+          "productionExecutorBinding": true,
+          "unknownOwnerRejectedBeforeDispatch": true,
+          "controllerLoadedByTestVariant": true,
+          "heldStopRemainedStopping": true,
+          "repeatedKillCallsProducerAgain": true,
+          "cancelCalls": 2,
+          "settledEvents": 1
+        }
+      },
+      {
+        "id": "S1-2 actual-lifecycle-cancel-and-owner-fence",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:25.144Z",
+        "evidence": {
+          "nativeOwnedHandle": true,
+          "rejectedSibling": true,
+          "canonicalSettledEvents": 1,
+          "lateResultDiscarded": true,
+          "cleanupAwaited": true,
+          "actualAgentDisposalCancelledCanonical": true
+        }
+      },
+      {
+        "id": "DSH-04/07 direct-stream-and-usage",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:25.190Z",
+        "evidence": {
+          "chunks": 5,
+          "finish": "stop",
+          "reportedUsage": {
+            "inputTokens": 17,
+            "outputTokens": 12,
+            "totalTokens": 29
+          },
+          "offeredEffortCount": null,
+          "unsupportedEffortRejected": {
+            "name": "LlmError",
+            "code": "UNSUPPORTED_REASONING_EFFORT",
+            "message": "provider \"studyhub-qa-fake\" model \"fake-tutor\" does not support reasoning effort \"s10-intentionally-unsupported-effort\""
+          }
+        }
+      },
+      {
+        "id": "DSH-05/09 one-shot-child",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:25.208Z",
+        "evidence": {
+          "providerCapabilities": {
+            "agentOptions": true,
+            "outputSchema": true,
+            "depthLimit": true,
+            "toolFilter": true,
+            "persona": true
+          },
+          "stopReason": "completed",
+          "persistedLabel": "S1-0 fake one-shot evidence",
+          "parentLineage": true,
+          "assistantEventCount": 1,
+          "pairedLifecycleEvents": true,
+          "disposed": true
+        }
+      },
+      {
+        "id": "DSH-01/03/09 owned-job-official-test-composition",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:25.281Z",
+        "evidence": {
+          "controllerServesOwner": true,
+          "controllerLoadedByTestVariant": true,
+          "controllerProvisioning": "test-added official dsh-tool-jobs in s10-jobs-only preset",
+          "exactOwnerAccess": true,
+          "foreignAndCallerlessDenied": true,
+          "observerTimeoutPreservedProducer": true,
+          "transitions": [
+            "running",
+            "stopping",
+            "killed"
+          ],
+          "cancelCalls": 1,
+          "settledEvents": 1,
+          "awaited": true
+        }
+      },
+      {
+        "id": "DSH-01/03 studyhub-unload-host-job-boundary",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:25.289Z",
+        "evidence": {
+          "productionFiberDisposed": true,
+          "ownerStillLive": true,
+          "hostJobSurvivedProducerFiber": true,
+          "implicitCancelCalls": 0,
+          "explicitCancelCalls": 1,
+          "explicitCleanupCompleted": true,
+          "runtimeUnloadAwaitedProducer": true
+        }
+      },
+      {
+        "id": "DSH-01/03 owner-disposal-drains-job",
+        "status": "ok",
+        "startedAt": "2026-10-06T01:38:25.321Z",
+        "evidence": {
+          "ownerUnregistered": true,
+          "sessionRemoved": true,
+          "ownedRecordRemoved": true,
+          "cancelCalls": 1,
+          "scopeDisposals": 1
+        }
+      }
+    ],
+    "variant": "official-jobs-preset",
+    "controllerLoadedByTestVariant": true,
+    "controllerProvisioning": "test-added official dsh-tool-jobs in s10-jobs-only preset",
+    "profileDefaultUntouched": true,
+    "limitations": [
+      "Exercises the installed production v2 lifecycle through real request services and a registered live Agent; no audio migration or real provider calls.",
+      "Server-side uiWorkspace presence is informational only. Browser openSession, authorization, sidebar visibility and P0 console workflow are unverified.",
+      "Uses only the QA fake OpenAI endpoint. Real provider behavior, quality, SDK internal retries, 429 shared cooldown and price are unverified.",
+      "Does not test continuable children, child signal cancellation under a held model request, unavailable-service unloading, or manifest recovery.",
+      "No claim about atomic crash durability, reliable notification redelivery, or all session persistence backends.",
+      "Official-controller variant explicitly mounts the test-only s10-jobs-only preset. It does not prove bare agents.create or every default/preset composition has job controls. The baseline refusal is preserved separately."
+    ],
+    "injectedScope": {
+      "llm": {
+        "present": true,
+        "methods": {
+          "stream": true,
+          "resolveCallConfig": true,
+          "resolveModelInfo": true,
+          "listProviders": true
+        }
+      },
+      "agents": {
+        "present": true,
+        "methods": {
+          "create": true,
+          "get": true
+        }
+      },
+      "sessions": {
+        "present": true,
+        "methods": {
+          "get": true
+        }
+      },
+      "jobs": {
+        "present": true,
+        "methods": {
+          "start": true,
+          "get": true,
+          "list": true,
+          "wait": true,
+          "kill": true,
+          "readAt": true,
+          "remove": true,
+          "attachController": true
+        }
+      },
+      "subagents": {
+        "present": true,
+        "methods": {
+          "start": true,
+          "getProvider": true
+        }
+      },
+      "tools": {
+        "present": true,
+        "methods": {
+          "restrict": true
+        }
+      },
+      "agentPresets": {
+        "present": true,
+        "methods": {
+          "mount": true,
+          "composedPreset": true
+        }
+      },
+      "sessionQuery": {
+        "present": true,
+        "methods": {
+          "observeSession": true
+        }
+      },
+      "sessionPersistence": {
+        "present": true,
+        "methods": {
+          "stat": true
+        }
+      },
+      "uiWorkspace": {
+        "present": false,
+        "methods": {
+          "openSession": false
+        }
+      }
+    },
+    "packageVersions": {
+      "dsh": "0.2.0-rc.2",
+      "dsh-agent": "0.2.0-rc.2",
+      "dsh-llm": "0.2.0-rc.2",
+      "dsh-jobs-local": "0.2.0-rc.2",
+      "dsh-subagent": "0.2.0-rc.2",
+      "dsh-tool-jobs": "0.2.0-rc.2",
+      "dsh-agent-preset": "0.2.0-rc.2",
+      "dsh-agent-preset-registry": "0.2.0-rc.2"
+    },
+    "composition": {
+      "profileDefaultId": "standard",
+      "mountedPresetId": "s10-jobs-only",
+      "controllerModule": "@deepseek-ai/dsh-tool-jobs",
+      "controllerLoadedByTestVariant": true,
+      "visibleToolNames": [],
+      "completionDelivery": "quiet"
+    },
+    "agentScope": {
+      "llm": {
+        "present": true,
+        "methods": {
+          "stream": true,
+          "resolveCallConfig": true,
+          "resolveModelInfo": true,
+          "listProviders": true
+        }
+      },
+      "agents": {
+        "present": true,
+        "methods": {
+          "create": true,
+          "get": true
+        }
+      },
+      "sessions": {
+        "present": true,
+        "methods": {
+          "get": true
+        }
+      },
+      "jobs": {
+        "present": true,
+        "methods": {
+          "start": true,
+          "get": true,
+          "list": true,
+          "wait": true,
+          "kill": true,
+          "readAt": true,
+          "remove": true,
+          "attachController": true
+        }
+      },
+      "subagents": {
+        "present": true,
+        "methods": {
+          "start": true,
+          "getProvider": true
+        }
+      },
+      "tools": {
+        "present": true,
+        "methods": {
+          "restrict": true
+        }
+      },
+      "agentPresets": {
+        "present": true,
+        "methods": {
+          "mount": true,
+          "composedPreset": true
+        }
+      },
+      "sessionQuery": {
+        "present": true,
+        "methods": {
+          "observeSession": true
+        }
+      },
+      "sessionPersistence": {
+        "present": true,
+        "methods": {
+          "stat": true
+        }
+      },
+      "uiWorkspace": {
+        "present": false,
+        "methods": {
+          "openSession": false
+        }
+      }
+    },
+    "cleanup": {
+      "converged": true,
+      "parentScopeDisposals": 1
+    },
+    "finishedAt": "2026-10-06T01:38:25.339Z"
+  },
+  "hostBeforeIntegrationNote": "Exact fingerprinted installed source before final action-matrix fix, output addition and UI main integration; final native result is reported separately in the implementation PR.",
+  "finalSourceSha256": {
+    "lib/contexts/jobs/operations.js": "e1882aa2380d465bed0113f0eaa9dc905c50bb1b7502bbe0e6d6fea72db5fb04",
+    "lib/host.js": "6c5b43df891b3ee2cc49a36c2cfc62c47b64af3734dc6ef178743d00a67b318a",
+    "lib/index.js": "964b5bd8fb353d43460910695877894ad94a740721b95aaafedf3ef718e7d1c4",
+    "lib/runtime.js": "01f1cc94476715336cec089f6397e50a8dd68870bebc392091e3d8a7485fe87a",
+    "lib/runtime/builtins.js": "92718665f87930c9498542ee349c3d913cad0c13c5fa0bcb7a23bc6d890279e6",
+    "lib/runtime/jobs.js": "9a7f7994c713af1b10467eadcacaa1b564e869fda3e5c0535bc888412ebce635",
+    "lib/runtime/lifecycle.js": "da8db220a50280a800fb2b5736aed0b416774a7d74159ccba440f2e3335e688f",
+    "lib/jobs/executor.js": "5698d0d5d8908314717d0b272721f41a54f5acf7674c8cf3c4b05c47dd8e5382",
+    "lib/jobs/lifecycle.js": "764cb04472a6e6020bef3f8fd36b70042804fea220b4ce9b0e3eda72945bece7",
+    "lib/jobs/registry.js": "f66cf56995c025f53120e6037e92fc04abd7ef4960cee024b17247c924466125"
+  },
+  "preIntegrationFullVerify": {
+    "pass": 5574,
+    "fail": 0,
+    "skip": 2,
+    "durationMs": 492540.7603,
+    "lint": "pass",
+    "build": "pass"
+  },
+  "finalVerification": "See exact-head implementation PR; do not reuse pre-integration full/host results as final evidence.",
+  "separateMergeApproval": {
+    "pr": 260,
+    "head": "455a02c62473401043efdf73317acb10c329a8e8",
+    "merge": "b8ff5eef8132ede33bb1c3466e8651308124673e",
+    "at": "2026-10-06T01:39:00Z",
+    "implementationMergeAuthorized": false
+  }
+}

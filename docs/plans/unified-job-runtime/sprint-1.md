@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|
 | S1-0 | 已合并 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | 所有者接受已验证范围及待核验限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) | head 6b1ecedb69308ec44078f10c24975eb2a6a2aef7；merge f091f09f830c226bfebc9af22344896733893a10；[本地及 CI 证据](s1-0-baseline.md) | 最终 StudyHub owner/controller 绑定等限制仍阻断对应实现步骤 |
 | S1-1 | 受阻 | Codex 内核负责人 / codex/unified-runtime-alpha / 契约与版本读取兼容范围 | 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245)、读取兼容 [#255](https://github.com/EricWang1358/dsh-web-studyhub/pull/255) 已合并 | #255 head c092d7ac8e73228091a9d0a0a7c04e6b82f64570；merge 1a432f5e9cf166398385174cf1ec047f16cfceef；[历史验证](s1-1-compatibility-implementation.md) | 仅所列交付已合并，不勾选整步；live facade/执行绑定仍待 S1-2，持久化待 S1-5 |
-| S1-2 | 受阻 | Codex 云端负责人 / codex/runtime-s12-host-evidence / owner 特征测试、runtime-s10 手工探针、本目录证据；无生产改动 | S1-0 #241、契约 #245、读取兼容 #255；待审定 owner/controller 与唯一结算绑定 | 基线 c3377f67a2797ba97807447653fb9228a1834265；[云端实测与可评审方案](s1-2-cloud-preflight.md) | 92 项定向、7 项真实宿主探针通过；完整验证另见证据。生产实现与 S1-3 起依赖步骤暂停，不能以 probe/CI 代替负责人批准 |
+| S1-2 | 待评审 | Codex 云端内核负责人 / codex/runtime-s12-lifecycle / lib/jobs 注册、生命周期、宿主薄适配与旧入口 | 2026-10-06 01:22:13 UTC 用户批准 [455a02c 绑定方案](s1-2-cloud-preflight.md#可直接审批的决定)；#260 为独立证据 draft | 基线 455a02c；[批准范围、实现与验证记录](s1-2-implementation.md) | 实现及旧基线验证通过；最新 main 组合验证/CI 见实现 PR；未合并/未验收。S1-3 仍需本步验收，未授权后续策略、main 合并或发布 |
 | S1-3 | 未开始 | 待领取 | 待 S1-2 通过 | 待填写 | 新旧路径共享资源 |
 | S1-4 | 未开始 | 待领取 | 待 S1-3 通过 | 待填写 | 唯一执行与计量路径 |
 | S1-5 | 未开始 | 待领取 | 待 S1-4 通过 | 待填写 | 恢复识别与提交核对 |
