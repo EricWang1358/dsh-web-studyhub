@@ -109,8 +109,8 @@ test('paragraphs that already have a translation are skipped and never sent', as
 test('a second start for the same page while it runs is the same job, not a duplicate', async t => {
   const model = gatedModel(); model.gates.set(0, deferred());
   const f = await fixture(t, { model });
-  const first = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope });
-  const second = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope });
+  const first = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope, concurrency: 1 });
+  const second = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope, concurrency: 1 });
   assert.equal(second.jobId, first.jobId);
   assert.equal(second.alreadyRunning, true);
   assert.equal((await f.runtime.call('generation.translation.jobs', { documentId: f.imported.documentId })).jobs.length, 1);
