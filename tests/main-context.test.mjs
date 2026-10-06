@@ -13,6 +13,7 @@ const dispatched = t => { if (SWITCH_MODE === 'runtime') t.mock.timers.tick(1); 
 // A model call of the runtime is always collected by the plugin (the gateway never lets a child answer into the parent session).
 const pluginOwned = executions => SWITCH_MODE === 'runtime' || executions.every(e => e.resultOwner === 'plugin');
 
+const trace = (...a) => console.log('TRACE', Date.now() % 1000000, ...a);
 const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
 const card = (id, sourceId = 'json') => ({ id, kind: 'flashcard', topic: 'Bridge', objective: `Explain dimension ${id}`,
   prompt: `Why separate report and renderer dimension ${id}?`, answer: 'They can vary independently.',
@@ -221,7 +222,8 @@ test('supplement requires an exact active target before any model call', async t
   assert.equal(calls, 0);
 });
 
-test('supplement total-budget expiry publishes the approved checkpoint without extra model calls', async t => {
+for (let round = 0; round < 6; round++) test(`supplement total-budget expiry ${round}`, async t => {
+  trace('t1 start', round);
   let ready;
   const checkpoint = new Promise(resolve => { ready = resolve; });
   const model = withQualityStages(async (system, prompt) => system.startsWith('You author')
@@ -230,19 +232,24 @@ test('supplement total-budget expiry publishes the approved checkpoint without e
   let authorCalls = 0, afterBudget = 0, expired = false;
   const service = await fixture(t, async (system, prompt, execution) => {
     if (expired) afterBudget++;
+    trace('t1 model', system.slice(0, 14), 'aborted', execution.signal.aborted, 'author#', authorCalls);
     if (system.startsWith('You author') && ++authorCalls === 2)
       return new Promise((resolve, reject) => execution.signal.addEventListener('abort', () => reject(execution.signal.reason), { once: true }));
     return model(system, prompt);
   });
   const invoke = service.runtime.invoke.bind(service.runtime);
-  service.runtime.invoke = async (api, action, args, services) => { const result = await invoke(api, action, args, services); if (api === 'bank.v1' && action === 'draft.save') ready(); return result; };
+  service.runtime.invoke = async (api, action, args, services) => { const result = await invoke(api, action, args, services); if (api === 'bank.v1' && action === 'draft.save') { trace('t1 save'); ready(); } return result; };
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 6, kind: 'flashcard' });
+  trace('t1 started', job.jobId);
   dispatched(t);
   await checkpoint;
+  trace('t1 checkpoint');
   expired = true;
   t.mock.timers.tick(20 * 60 * 1000);
+  trace('t1 ticked');
   const done = await service.call('job.wait', { jobId: job.jobId });
+  trace('t1 waited', done.status);
   assert.equal(done.status, 'complete', done.stage);
   assert.equal(done.publication.added, 5);
   assert.equal(done.publication.total, 6);
@@ -254,8 +261,9 @@ test('supplement total-budget expiry publishes the approved checkpoint without e
   assert.deepEqual(state.drafts.map(draft => draft.id), ['draft']);
 });
 
-test('budget finalization respects cancellation, target archival and stale review receipts', async t => {
+for (let round = 0; round < 4; round++) test(`budget finalization ${round}`, async t => {
   for (const scenario of ['cancel', 'cancel-stopping', 'archive', 'stale']) await t.test(scenario, async sub => {
+    trace('t2 start', round, scenario);
     let saved, publishing, release;
     const checkpoint = new Promise(resolve => { saved = resolve; });
     const publication = new Promise(resolve => { publishing = resolve; });
@@ -266,23 +274,27 @@ test('budget finalization respects cancellation, target archival and stale revie
       : JSON.stringify({ issues: [], summary: 'Checked' }));
     const service = await fixture(sub, async (system, prompt, execution) => {
       if (expired) extraCalls++;
+      trace('t2 model', scenario, system.slice(0, 14), 'aborted', execution.signal.aborted);
       if (system.startsWith('You author') && ++authors === 2)
         return new Promise((resolve, reject) => execution.signal.addEventListener('abort', () => reject(execution.signal.reason), { once: true }));
       return model(system, prompt);
     });
     const invoke = service.runtime.invoke.bind(service.runtime);
     service.runtime.invoke = async (api, action, args, services) => {
-      if (api === 'authoring.v1' && action === 'draft.publish') { publishing(); await held; }
+      if (api === 'authoring.v1' && action === 'draft.publish') { trace('t2 publish', scenario); publishing(); await held; }
       const result = await invoke(api, action, args, services);
-      if (api === 'bank.v1' && action === 'draft.save') saved();
+      if (api === 'bank.v1' && action === 'draft.save') { trace('t2 save', scenario); saved(); }
       return result;
     };
     sub.mock.timers.enable({ apis: ['setTimeout'] });
     const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 6, kind: 'flashcard' });
+    trace('t2 started', scenario);
     dispatched(sub);
     await checkpoint;
+    trace('t2 checkpoint', scenario);
     expired = true;
     sub.mock.timers.tick(20 * 60 * 1000);
+    trace('t2 ticked', scenario);
     if (scenario === 'cancel-stopping') {
       await service.call('job.cancel', { jobId: job.jobId });
       release();
@@ -294,7 +306,9 @@ test('budget finalization respects cancellation, target archival and stale revie
       draft.cards[0].explanation += ' Changed after review.';
     });
     release();
+    trace('t2 released', scenario);
     const done = await service.call('job.wait', { jobId: job.jobId });
+    trace('t2 waited', scenario, done.status);
     const state = await service.call('export');
     assert.equal(extraCalls, 0, 'deadline recovery must never start a publication model review');
     assert.equal(state.decks.find(deck => deck.id === 'target').cards.length, scenario === 'stale' ? 5 : 1);
