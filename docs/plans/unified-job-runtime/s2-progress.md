@@ -151,7 +151,9 @@
 
 **实测（~90 分钟课堂，约 180 轮，合成）**：任务 180 个调用、1 个事件、180 个步骤；快照 JSON 约 165 KB（约 0.9 KB/调用）；控制台只取最新 `MAX_CALLS = 300` 个调用，归档按 60/30/12 递减裁剪。调用数随课堂长度线性增长但有上限，**不是无界**；课堂超过约 150 分钟时控制台时间线开始丢最早的调用。
 
-**评审过的行为差异**：重启后不续旧校正任务（旧路径本来也不续，只是没有任务可见）；校正请求经网关后多一次持久化意图写入（毫秒级，周期 30 秒，无影响）。
+**评审过的行为差异**：重启后不续旧校正任务（旧路径本来也不续，只是没有任务可见）；校正请求经网关后多一次持久化意图写入（毫秒级，周期 30 秒，无影响）；**关开关不回填旧定时器**——开关只管新开的课堂，正在跑校正任务的课堂把它跑到下课；校正任务被取消后保持停止，直到再次调用 `live.correct`（学习者要求停，不丢任何东西，游标/笔记/记忆都在课堂上）。
+
+**红灯证据（S2-5b 实现之前的提交 `b268efa6` 上）**：`unified-runtime-live-correction.test.mjs` 报 `ERR_MODULE_NOT_FOUND: lib/contexts/audio/jobs/live-correction.js`；适配后的基线测试「live correction is not a job … (on the runtime it is one job, D-12)」在运行时侧报 `TypeError: Cannot read properties of undefined (reading 'type')`（任务列表为空，没有校正任务）。实现后两者绿（运行时 4/4 与 5/5，旧侧 5/5）。
 
 **测试**：`unified-runtime-review`（复查：kind/能力/调用/失败重试/开关关）、`audio-family-baseline-review` 与 `subtitle-review-flow` 的孪生、`unified-runtime-live-correction`（4 项：托管对象无定时器且无任务不请求、任务按周期跑并在课堂结束跑最后一轮后完成、取消只停校正且可再起、180 轮测量）、`audio-family-baseline-live` 里"实时校正不是任务"一项按模式分支（运行时：一个 `audio-live-correction` 任务，无信、无通知）。
 
