@@ -1,51 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { StudyService } from '../lib/service.js';
+import { stat } from 'node:fs/promises';
 import { INSTALL_MESSAGES, MARKER_INSTALL, markerInstallStatePath, venvLayout } from '../lib/marker-install.js';
 import { INSTALL_JOB_TEXT } from '../lib/marker-install-text.js';
 import { observeLocalWith } from '../lib/contexts/audio/local-process-job.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
-import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
-import { patientCli, until } from './helpers/wait.mjs';
+import { until } from './helpers/wait.mjs';
+import { INSTALL_KIND, harness } from './helpers/marker-install-harness.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* S5-3: one-click Marker setup as a runtime job (runtime.pilot.markerInstall). A fake python stands in for python and pip; nothing is downloaded.
    The behaviour the install already has (stages, sentinel, folders, uninstall) is pinned by marker-install*, nonmodel-baseline-install, which
    also run on this switch (marker-install-service.runtime.test.mjs). */
 
-const FAKE_PYTHON = fileURLToPath(new URL('./helpers/fake-python.mjs', import.meta.url));
-const FAKE_MARKER = fileURLToPath(new URL('./helpers/fake-marker-cli.mjs', import.meta.url));
-const KIND = 'marker-install';
+const KIND = INSTALL_KIND;
 const consoleCode = await loadUi(`export { taskSummary } from './ui/tasks/task-summary.js'; export { tasksOf, runningTaskCount } from './ui/tasks/task-model.js';`);
 const exists = async file => stat(file).then(() => true, () => false);
-
-async function harness(t, py = {}, { runtime = {} } = {}) {
-  const dir = await mkdtemp(join(tmpdir(), 'runtime-marker-install-')), before = process.env.DSH_HOME;
-  process.env.DSH_HOME = join(dir, 'home');
-  const statePath = join(dir, 'py.json'), log = join(dir, 'py-log.jsonl');
-  await writeFile(statePath, JSON.stringify(py)); await writeFile(log, '');
-  const env = { FAKE_PY_STATE: statePath, FAKE_PY_LOG: log };
-  const install = { pythons: [patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env })], freeMegabytes: async () => 100_000,
-    venvPython: folder => patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env: { ...env, FAKE_PY_VENV: venvLayout(folder).venv } }),
-    markerCli: () => patientCli({ file: process.execPath, prefix: [FAKE_MARKER], env: {} }) };
-  const { starts: _starts, ...options } = managedRuntimeOptions({ paths: ['markerInstall'] });
-  const service = new StudyService(join(dir, 'library'), { marker: { install }, ...options, ...runtime });
-  t.after(async () => {
-    await service.call('marker.install.cancel').catch(() => {});
-    await until(async () => (await service.call('marker.install.status')).status !== 'running', 'the install to end', { timeoutMs: 240_000 }).catch(() => {});
-    await service.dispose();
-    if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before;
-    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
-  });
-  const jobs = async () => (await service.call('snapshot')).jobs.filter(job => job.type === KIND);
-  return { dir, service, call: (name, args) => service.call(name, args), jobs, setPy: patch => writeFile(statePath, JSON.stringify(patch)),
-    pyLog: async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean),
-    ended: status => until(async () => { const view = await service.call('marker.install.status'); return view.status === status && view; }, `the install to be ${status}`, { timeoutMs: 240_000 }) };
-}
 
 test('an install is one job in the shared list: titled, staged, with an observed local call per step, and no retry button', async t => {
   const h = await harness(t);
