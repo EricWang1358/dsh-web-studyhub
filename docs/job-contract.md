@@ -95,8 +95,13 @@ Finished jobs (`complete`, `failed`, `cancelled`, `interrupted`) can be put away
 ```
 call = { callId, jobId, attemptId?, stepKey, kind, stage, slot | null,
          queuedAt?, startedAt, firstOutputAt?, endedAt, status, runner, childId, parentId,
-         part, parts, reasoning, tokens, file?, reason? }
+         part, parts, reasoning, tokens, outputTokens?, timing?, file?, reason? }
 ```
+
+`outputTokens` is the provider's own completion count and `timing` is DSH's `sessionStats` for the child session the
+call ran in, when the host served one (`{ ttftMs, ttftSteps, decodeMs, decodeTokens }`): together with the three
+timestamps they are what the console's 首 token 平均（TTFT）/ 输出速度（TPS） are folded from (`lib/job-timing.js`).
+Both are absent when nobody observed them, and a count is never derived from the text.
 
 `kind` is `transcribe | proofread | translate | title | plan | blueprint | author | review | repair | publish | prep | wait | other`; `status` is `running | ok | failed | cancelled | skipped | waiting` (a rate-limit back-off is a call of `kind: "wait"`, `reason: "rate-limit"`). `runner` is `subagent` (DSH sub-agent; `childId` opens it where the host can), `direct`, `gemini` ... A retry or a fallback is a call of its own with the same `stepKey`. A time is present only when it was observed: `queuedAt` is derived from the wait for a free slot where the job measured it, `firstOutputAt` is set when the first text arrived; a missing one stays missing. At most 300 calls are kept per job (the newest), 100 waits, 200 events.
 
@@ -242,3 +247,7 @@ Official 2.6.1 keeps archived contracts read-only and delegates archive, unarchi
 This follows [DSH-01/02/03/04/07/08/09](plans/unified-job-runtime/s1-0-dsh-capabilities.md#固定行-id-能力对照). The fixture uses the existing direct `schemastery@3.18.0` dependency. Its small relationship checks express business identity and capability invariants missing from primitive field schemas; they are not a new validation framework, lifecycle engine, task table, scheduler or provider wrapper.
 
 The [golden compatibility vectors](../tests/fixtures/unified-runtime-compatibility.json) contain actual v1 projector outputs from synthetic old records. Their proposed v2 records explicitly list additional synthetic admission/checkpoint/host-loss premises. Passing them proves schema and projection expectations; it does not prove production control, ownership, persistence, recovery, UI links or facade behavior. The later implementation must exercise real public operations against this contract and the default-off audio pilot.
+
+### Managed gateway admission (S1-4)
+
+The [gateway interface and ownership contract](plans/unified-job-runtime/s1-4-gateway-contract.md) defines explicit purpose/feature/effort/mode/budget admission, Step/Call observation and the existing ledger deduplication boundary. These additive v2 Call read extensions preserve contract version 2; v1 producers remain unchanged. Publication does not claim gateway implementation or persistence acceptance.

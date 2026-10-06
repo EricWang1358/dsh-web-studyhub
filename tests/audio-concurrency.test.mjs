@@ -7,6 +7,10 @@ import { StudyService } from "../lib/service.js";
 import { Context } from '@deepseek-ai/cordis';
 import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { admitSlot } from '../lib/jobs/scheduler.js';
+import { createProviderResources } from '../lib/jobs/resources.js';
+import { createJobLifecycle } from '../lib/jobs/lifecycle.js';
+import { createRuntimeWork } from '../lib/runtime/work.js';
+import { GeminiTiers } from '../lib/gemini.js';
 
 const KEY = "AIzaConcurrencyKey_00000000001";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
@@ -26,7 +30,7 @@ const until = async (condition, what, ms = 4000) => {
 };
 
 /** A service whose transcription requests stay open until the test lets them go, so "at once" can be observed. */
-async function harness(t, { limit, transcript, complete } = {}) {
+async function harness(t, { limit, transcript, complete, sharedProviderQuota = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "audio-jobs-")), previous = process.env.DSH_HOME;
   process.env.DSH_HOME = join(dir, "home");
   const held = [], calls = { transcribe: 0, vocabularies: [] };
@@ -52,7 +56,9 @@ async function harness(t, { limit, transcript, complete } = {}) {
     return reply('{"titleEn":"Google Maps Case Study"}');
   };
   const audioGate = { limit: 1, active: new Set(), waiting: [] };
-  const service = new StudyService(join(dir, "library"), { fetch, complete, audioGate });
+  const workOwner = Symbol('audio host'), resources = createProviderResources({ owner: workOwner, scopeId: 'audio.v1', sharedProviderQuota,
+    queueTimeoutMs: 10000, bindings: [{ resourceRef: 'audio-provider', quotaDomainRef: 'trusted-account', routes: ['paid'], limit: 1, providerObservation: 'external-request' }] });
+  const service = new StudyService(join(dir, "library"), { fetch, complete, audioGate, workOwner, providerResources: resources });
   const services = [service];
   t.after(async () => {
     for (const item of services) {
@@ -70,8 +76,29 @@ async function harness(t, { limit, transcript, complete } = {}) {
   const jobsNow = async () => Object.fromEntries((await service.call("snapshot", {})).jobs.filter((job) => job.type === "audio-import").map((job) => [job.filename, job]));
   const release = (count = 1) => { for (let i = 0; i < count; i++) held.shift()?.(); };
   const anotherLibrary = ({ sharedHost = true } = {}) => { const other = new StudyService(join(dir, 'other-library'), { fetch, ...(sharedHost ? { audioGate } : {}) }); services.push(other); return other; };
-  return { service, calls, held, add, start, jobsNow, release, anotherLibrary, audioGate };
+  return { service, calls, held, add, start, jobsNow, release, anotherLibrary, audioGate, resources, workOwner, fetch };
 }
+
+test('S1-3 actual legacy audio import and canonical Job requests share provider admission', async t => {
+  const f = await harness(t, { sharedProviderQuota: true }), scope = new Context();
+  const lifecycle = createJobLifecycle('/isolated-native-probe', createRuntimeWork());
+  const agent = { id: 'native-provider-probe' }; let producer, started = false;
+  const host = { get: key => key === 'agents' ? { get: () => agent } : { start(spec) { producer = spec.run(); return 'native-one'; }, kill() {} } };
+  const port = lifecycle.scoped({ owner: f.workOwner, domain: 'audio.v1', executor: dshJobExecutor(host, agent), resourceScope: f.resources.scoped(f.workOwner, 'audio.v1') });
+  lifecycle.register(scope, 'audio.v1', { kind: 'provider-probe', version: 1, run: async context => {
+    const tiers = new GeminiTiers({ keys: { paid: 'fake' }, resources: context.resources, fetch: async (...args) => { started = true; return f.fetch(...args); } });
+    await tiers.complete('alias', 'title', 'prompt', { signal: context.signal }); return { refs: [] };
+  } });
+  t.after(async () => { f.release(100); await producer; await lifecycle.dispose(); await scope.fiber.dispose(); });
+  await f.add('mixed-provider.wav', 61); const old = await f.start('mixed-provider.wav');
+  await until(async () => { const job = (await f.jobsNow())['mixed-provider.wav']; if (job?.status === 'failed') throw new Error(job.stage); return f.held.length === 1; }, 'legacy physical HTTP request');
+  const job = await port.submit('provider-probe', {});
+  await until(() => port.status(job.jobId).status === 'running', 'canonical provider consumer');
+  assert.equal(started, false, 'same account remains occupied by legacy transcription');
+  f.release(); assert.equal((await port.wait(job.jobId)).status, 'complete'); assert.equal(started, true);
+  await f.service.call('job.wait', { jobId: old.jobId, timeoutSeconds: 5 });
+  await f.resources.disable();
+});
 
 test('S1-3 canonical resource consumer and actual legacy audio.import use one host gate', async t => {
   const f = await harness(t), scope = new Context(), agent = { id: 'resource-test-agent' };

@@ -106,12 +106,19 @@ test('a session usage read prefers the host projection and falls back to the mir
   const observe = (observation) => ({ observeSession: async (id, options) => { assert.equal(id, 'child-1'); void options; return { ...observation, [Symbol.dispose]: () => { disposed++; } }; } });
   const projected = await readSessionUsage(observe({ events: [event(0, 0, { inputTokens: 1, outputTokens: 1 })],
     projections: { values: { tokenUsage: buckets(500, 70, 4000, 0) } } }), 'child-1');
-  assert.deepEqual(projected, { usage: buckets(500, 70, 4000, 0), requests: 1 });
+  assert.deepEqual(projected, { usage: buckets(500, 70, 4000, 0), requests: 1, timing: null }, 'no sessionStats served: the timing is null, never invented');
   const folded = await readSessionUsage(observe({ events: [event(0, 0, { inputTokens: 100, outputTokens: 10, cacheReadTokens: 50 }), event(0, 1, { inputTokens: 40, outputTokens: 5 })] }), 'child-1');
-  assert.deepEqual(folded, { usage: buckets(140, 15, 50, 0), requests: 2 });
+  assert.deepEqual(folded, { usage: buckets(140, 15, 50, 0), requests: 2, timing: null });
   const malformed = await readSessionUsage(observe({ events: [event(0, 0, { inputTokens: 7, outputTokens: 3 })], projections: { values: { tokenUsage: { outputTokens: 'x' } } } }), 'child-1');
   assert.deepEqual(malformed.usage, buckets(7, 3), 'a projection that is not whole numbers is not trusted');
-  assert.equal(disposed, 3, 'every observation lease is released');
+  const timed = await readSessionUsage(observe({ events: [],
+    projections: { values: { tokenUsage: buckets(10, 5), sessionStats: { turns: 1, steps: 1, llmMs: 1, toolMs: 0, ttftMs: 4800, ttftSteps: 3, decodeMs: 8000, decodeTokens: 2032 } } } }), 'child-1');
+  assert.deepEqual(timed.timing, { ttftMs: 4800, ttftSteps: 3, decodeMs: 8000, decodeTokens: 2032 }, "DSH's own 会话统计 counters ride the same read as its usage");
+  assert.deepEqual(timed.usage, buckets(10, 5));
+  // A host that serves only part of the view is not trusted for the timing either.
+  const partial = await readSessionUsage(observe({ events: [], projections: { values: { tokenUsage: buckets(10, 5), sessionStats: { ttftMs: 1 } } } }), 'child-1');
+  assert.equal(partial.timing, null);
+  assert.equal(disposed, 5, 'every observation lease is released');
   assert.equal(await readSessionUsage({ observeSession: async () => { throw new Error('gone'); } }, 'child-1'), null);
   assert.equal(await readSessionUsage(undefined, 'child-1'), null);
   assert.equal(await readSessionUsage(observe({}), ''), null);

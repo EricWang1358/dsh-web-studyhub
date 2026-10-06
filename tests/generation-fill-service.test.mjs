@@ -8,6 +8,7 @@ import { estimateFromState } from "../lib/token-estimate.js";
 import { extraQuestionDefault } from "../lib/draft-continuation.js";
 import { withQualityStages } from "./helpers/assessment.mjs";
 import { settleJob } from "./helpers/wait.mjs";
+import { requestData } from "./helpers/request-data.mjs";
 
 /* #196: 「用未覆盖的资料补题」 adds questions to the deck that is open, from the sources that deck has not covered,
    through the same continuation pipeline as 继续补齐. It never makes a new deck. */
@@ -42,8 +43,9 @@ const recorder = (seen) => withQualityStages(async (system, prompt) => {
 
 test("adding from uncovered sources puts the new questions into the same draft, not a new deck", async (t) => {
   const { service, saved } = await seeded(t);
-  const seen = [];
-  service.complete = recorder(seen);
+  const seen = [], plans = [], inner = recorder(seen);
+  // The covered targets go to the plan call only (it de-duplicates its targets against them); the stages after it work from the planned targets.
+  service.complete = async (system, prompt, context) => { if (system.startsWith("Plan a source-grounded assessment")) plans.push(requestData(prompt)); return inner(system, prompt, context); };
   const started = await service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion, extraSourceIds: [sourceB.id], count: 2 });
   assert.equal(started.draftId, saved.id);
   const job = await settleJob(service, started.jobId);
@@ -62,7 +64,8 @@ test("adding from uncovered sources puts the new questions into the same draft, 
   assert.ok(seen.length && seen.every((request) => request.sources.every((source) => source.id === sourceB.id)), "the model is shown only the uncovered source");
   assert.ok(seen.every((request) => request.language === "English" && request.difficulty === "advanced" && request.kind === "flashcard" && request.focus === "trade-offs"),
     "kind, language, difficulty and focus are the deck's own");
-  assert.ok(seen.every((request) => request.alreadyCovered.some((objective) => objective === "Seeded target 1")), "the deck's existing targets are not repeated");
+  assert.ok(plans.length && plans.every((request) => request.existing.some((objective) => objective === "Seeded target 1")), "the deck's existing targets are not repeated: the plan is told them");
+  assert.ok(seen.every((request) => !("alreadyCovered" in request)), "and the author is not sent the list again");
 });
 
 test("a deck that merges into a published deck keeps merging after more questions were added", async (t) => {

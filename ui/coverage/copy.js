@@ -106,7 +106,9 @@ export function weightLine(weight) {
 export function planLine(spec) {
   if (!spec?.goal) return '';
   if (spec.topup) return uiFormat('补齐计划：补到每个小节都有题，共 {0} 题，分 {1} 轮', [spec.goal, spec.rounds]);
-  const source = spec.weightSource === 'model' ? ui('重要性由模型判断') : spec.weightSource === 'mixed' ? ui('有的小节按篇幅分配') : ui('按篇幅分配，没有用模型判断重要性');
+  // A small custom total is not weighed section by section on purpose (lib/coverage-plan.js weighsSections): say that, not that no model was used.
+  const source = spec.weightSource === 'model' ? ui('重要性由模型判断') : spec.weightSource === 'mixed' ? ui('有的小节按篇幅分配')
+    : spec.weightReason === 'small-target' ? ui('题目不多，按篇幅分配，没有逐段判断重要性') : ui('按篇幅分配，没有用模型判断重要性');
   const line = uiFormat('出题计划：{0}，约 {1} 题，分 {2} 轮（{3}）', [levelLabel(spec.level), spec.goal, spec.rounds, source]);
   return spec.fills > 0 ? uiFormat('{0}；另补做 {1} 轮', [line, spec.fills]) : line;
 }

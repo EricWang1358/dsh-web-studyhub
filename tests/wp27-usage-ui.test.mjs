@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const compiled = await build({ stdin: { contents: `
   export * as format from './ui/token-usage.js';
   export { TokenUsage, TokenEstimateView, JobUsage, ModelUsageView } from './ui/TokenUsage.jsx';
+  export { default as TaskUsage } from './ui/tasks/TaskUsage.jsx';
   export { default as Generate } from './ui/Generate.jsx';
   export { default as GenerationTrace } from './ui/GenerationTrace.jsx';
   export { default as GenerateAssist } from './ui/GenerateAssist.jsx';
@@ -22,7 +23,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { format, TokenUsage, TokenEstimateView, JobUsage, ModelUsageView, Generate, GenerationTrace, GenerateAssist, CaseCreate, RubricAnswer, WorkflowLesson, setUiLanguage } = module.exports;
+const { format, TokenUsage, TokenEstimateView, JobUsage, ModelUsageView, TaskUsage, Generate, GenerationTrace, GenerateAssist, CaseCreate, RubricAnswer, WorkflowLesson, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const render = (element) => renderToStaticMarkup(element);
@@ -70,6 +71,62 @@ test('an estimate reads as the same lines with ranges, and a first run may hit n
   assert.equal(format.estimateSummary(estimate), 'Estimated 58.3K–96.1K tok · 8–10 model calls');
   assert.equal(format.estimateRows(estimate)[0].label, 'Estimated token usage');
   assert.equal(format.estimateRows(estimate)[3].label, 'Cached input');
+});
+
+test('the two speed figures are DSH\'s session statistics: the same labels, the same wording, the same rounding', () => {
+  setUiLanguage('zh');
+  // The owner's own example: 首 token 平均 1.6秒 / 输出速度 254 tok/s.
+  assert.deepEqual(format.timingRows({ ttftMs: 4800, ttftSteps: 3, decodeMs: 8000, decodeTokens: 2032 }).map((row) => [row.label, row.value]),
+    [['首 token 平均（TTFT）', '1.6秒'], ['输出速度（TPS）', '254 tok/s']]);
+  assert.equal(format.timingText({ ttftMs: 4800, ttftSteps: 3, decodeMs: 8000, decodeTokens: 2032 }), '首 token 平均（TTFT） 1.6秒 · 输出速度（TPS） 254 tok/s');
+  // DSH rounds the seconds to a tenth, and writes minutes from 60 s on.
+  assert.equal(format.formatCompactDuration(1600), '1.6秒');
+  assert.equal(format.formatCompactDuration(162000), '2分42秒');
+  assert.equal(format.formatCompactDuration(0), '0秒');
+  assert.equal(format.formatCompactDuration(null), '');
+  // DSH writes whole tokens from ten up, one decimal below.
+  assert.equal(format.formatTokensPerSecond(254.4), '254');
+  assert.equal(format.formatTokensPerSecond(4.26), '4.3');
+  assert.equal(format.formatTokensPerSecond(0), '0');
+  // A figure nobody could measure is not shown at all, as in DSH's own dialog.
+  assert.deepEqual(format.timingRows({ ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 }), []);
+  assert.deepEqual(format.timingRows(undefined), []);
+  assert.deepEqual(format.timingRows({ ttftMs: 2000, ttftSteps: 1, decodeMs: 0, decodeTokens: 0 }).map((row) => row.id), ['ttft'], 'a wait with no writing still shows the wait');
+  assert.deepEqual(format.timingRows({ ttftMs: 0, ttftSteps: 0, decodeMs: 9000, decodeTokens: 900 }).map((row) => row.id), ['tps']);
+  setUiLanguage('en');
+  assert.deepEqual(format.timingRows({ ttftMs: 4800, ttftSteps: 3, decodeMs: 8000, decodeTokens: 2032 }).map((row) => [row.label, row.value]),
+    [['Avg time to first token (TTFT)', '1.6s'], ['Tokens per second (TPS)', '254 tok/s']]);
+  assert.equal(format.formatCompactDuration(162000), '2m42s');
+});
+
+test('the 任务 console shows a job\'s usage and DSH\'s speed figures together, and neither invents a number', () => {
+  setUiLanguage('zh');
+  const usage = { uncachedInputTokens: 185616, outputTokens: 45501, cacheReadTokens: 2863104, cacheWriteTokens: 0, calls: 12 };
+  // 1.6 s to the first token and 8 s of writing over 2,032 output tokens: the owner's 1.6秒 / 254 tok/s.
+  const calls = [{ callId: 'c1', kind: 'author', status: 'ok', startedAt: '2026-10-06T10:00:00.000Z', firstOutputAt: '2026-10-06T10:00:01.600Z', endedAt: '2026-10-06T10:00:09.600Z', outputTokens: 2032 }];
+  const contract = { usage: { tokens: 3094221, tokenUsage: usage, calls: 12 }, calls };
+  const html = render(React.createElement(TaskUsage, { contract }));
+  const body = text(html);
+  assert.match(html, /data-task-usage/);
+  assert.match(html, /data-task-timing/);
+  for (const part of ['实际用量', '缓存命中', '未缓存输入', '185,616 tok', '缓存读取', '2,863,104 tok', '输出', '45,501 tok', '首 token 平均（TTFT）', '1.6秒', '输出速度（TPS）', '254 tok/s']) {
+    assert.ok(body.includes(part), `${part} in: ${body}`);
+  }
+  assert.doesNotMatch(html, /[¥$￥]|价格|费用|price|cost/i);
+
+  // A job that measured nothing says nothing: no "0秒", no "—".
+  const quiet = render(React.createElement(TaskUsage, { contract: { usage: { tokens: null, tokenUsage: null, calls: null }, calls: [] } }));
+  assert.equal(quiet, '', 'nothing to say, nothing drawn');
+  const noTiming = text(render(React.createElement(TaskUsage, { contract: { usage: { tokens: 1000, tokenUsage: usage, calls: 1 }, calls: [] } })));
+  assert.match(noTiming, /实际用量/);
+  assert.doesNotMatch(noTiming, /TTFT|TPS/, 'a job whose calls never streamed shows no speed figure');
+
+  setUiLanguage('en');
+  const english = text(render(React.createElement(TaskUsage, { contract })));
+  assert.ok(!han.test(english), english);
+  assert.match(english, /Avg time to first token \(TTFT\) 1\.6s/);
+  assert.match(english, /Tokens per second \(TPS\) 254 tok\/s/);
+  assert.match(english, /Actual usage/);
 });
 
 test('TokenUsage renders the rows in DSH order with a copy button and the call count as small print', () => {

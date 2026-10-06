@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "step": "S1-3",
+  "status": "implementation-awaiting-review",
+  "base": "ed157f377c3116910d96158e6ecc41ef550ee166",
+  "owner": "Codex cloud kernel owner",
+  "branch": "codex/runtime-s13-provider-permits",
+  "sourceSha256": {
+    "lib/audio-pool.js": "95e11f2781118377aee93eaae66e24f437c44c5818f6c2303f6eb7754a5aa42e",
+    "lib/jobs/resources.js": "7745c9a69a519667da2935d8c660049c340a68a46f1697048c842b2368f17589",
+    "lib/jobs/lifecycle.js": "116d6a812ce34ff1ecfc9bf15ff52394d2dfe6712d932ca578be75b4bf0518a3",
+    "lib/runtime.js": "2d93715a3f533a2b034cb3a23cce54b37e96c666fc05382162d77429045dd8c0",
+    "lib/runtime/builtins.js": "538c02cc5bbf3a99a401f66159eae14897b14877ca8737012e903b1764d8742a",
+    "lib/contexts/audio/worker.js": "8bcba590e40d4b1e93f1faf48d812402c5b7567a13f204eed683d55274be4c65",
+    "lib/audio-job.js": "90bcab4e367b86410ace1f338757203bc9dd5c2881d9b306a921b20ed36b88db",
+    "lib/audio-import.js": "e966b44cab0b819ef8c039dd01b737da90d85cfbb9c68de8741e1d9ab5f742ad",
+    "lib/gemini.js": "a4c964c4d8af176adf87a683733447250ddcc36a399f359318557edf8f486922",
+    "lib/http.js": "1b9be4d1771038be8dfac75322791f14d08bdbb22d86411d2583971b2fc33df4",
+    "lib/host.js": "34588a36109077ec947c80315a0a15c78d51a455a0f2bcf9e969a0c74de65783",
+    "lib/index.js": "bc406ea1487a9859ea92cd5c9092c202b3fbad1cdb312f521aa8d393deecd44a",
+    "tests/fixtures/runtime-s13/permit-probe.mjs": "38363d02093e6e250f29af65096e5f5bf99b55688172c269b3be92859dae05ee"
+  },
+  "logsSha256": {
+    "permits-red.log": "df6a13fc2fd70a50ce8794ed6b621a3f8a04cda98af4824f847f10c3af9c0168",
+    "permits-race-red.log": "3a3e1c8def97e908cc62a2c9b05f75f887cfe0c52d8e8e7e5437e744ae4e6455",
+    "permits-targeted.log": "c15f9198d1015b4943f7bc7528fd6227e25a4361ff27d0f110d487b37434917a",
+    "permits-verify.log": "03158ff421f8d0d09ca0e559abef433908b3d1ea43e7ed0c1cda4b569037f3cc",
+    "binding-red.log": "5d31928cea8cd077d45668172a0fed9cf2acd5f7767731a81d3d585ea9fbf057",
+    "http-cleanup-red.log": "e51f4497c968f118f0179baad9348c68842eed0f1f9c67c60f56f791f196902d",
+    "mixed-provider-red.log": "5a287fa6d73cac79a9556b74e3068102852c57ad37bb39fcdb463c721639234c",
+    "mixed-provider-green.log": "6e5dc4f65138375f78a1d198a29b9757320404fefc31fb14f2d52a66e5ac35cc",
+    "mixed-provider-green-2.log": "089648a84e9fd670f269cc9f332f577d5f6c865bcb6a20134e94d4cdb5cd8cda",
+    "retry-owner-red.log": "01d1eee250addac8ef33655e4704549ea28a168da42e171c1897a4bfdd9a0bc7",
+    "final-focused.log": "bc1d5ca2a7d73640f7d5c9d2f90785d19fd820dd3a70291a5200aa017af36bb8",
+    "native-provider-probe.log": "8deb4fc278ca73b78e60ad3fe5298b96e71fb50bc395ba7dff753514da0721bf",
+    "generic-scope-focused.log": "babd46e6bd3dee985fe9e65b6a3b0e7f64289d4ea8b985faefc98204a21cca46",
+    "final-binding-focused.log": "30e53caafb8154ad1ca15be5bfff2756cc41cea0856190cbf2982b3a4986319d",
+    "final-native-probe.log": "8d8d45666cfffae9a34e0d019040e708233fb3d97c27b0dcc03b96df05c70708",
+    "final-fixture-lint-2.log": "a80de2e6f4d509d5f30906f00289d524ac532a9d01184a95c06b2c68c2ab91b4",
+    "config-default.log": "721738a29047122aad413822d088936113ae4cbaac0d702d651f91544f9f9c3d"
+  },
+  "nativeProbe": {
+    "startedAt": "2026-10-06T03:40:14.345Z",
+    "finishedAt": "2026-10-06T03:40:16.551Z",
+    "ok": true,
+    "steps": [
+      {
+        "id": "DSH-01/04 create-live-fake-parent",
+        "status": "ok",
+        "startedAt": "2026-10-06T03:40:15.571Z",
+        "evidence": {
+          "exactLiveAgent": true,
+          "liveSession": true,
+          "scoped": true,
+          "parentTurnReason": "completed",
+          "toolsRestricted": true,
+          "visibleToolNames": [],
+          "composedPresetId": "s10-jobs-only"
+        }
+      },
+      {
+        "id": "S1-3 actual-native-provider-permits",
+        "status": "ok",
+        "startedAt": "2026-10-06T03:40:16.041Z",
+        "evidence": {
+          "realDshAgent": "c856528b-7154-48f2-9e51-45697d9a4df4",
+          "nativeJobs": 3,
+          "localFakeHttpRequests": 6,
+          "peakClientRequests": 1,
+          "observedCooldownMs": 55,
+          "cancelledNativeJob": true,
+          "drainedBeforeBaseline": true,
+          "sourceRoot": "/workspace/runtime-s13-contract",
+          "fingerprints": {
+            "lib/audio-pool.js": "95e11f2781118377aee93eaae66e24f437c44c5818f6c2303f6eb7754a5aa42e",
+            "lib/jobs/resources.js": "7745c9a69a519667da2935d8c660049c340a68a46f1697048c842b2368f17589",
+            "lib/jobs/lifecycle.js": "116d6a812ce34ff1ecfc9bf15ff52394d2dfe6712d932ca578be75b4bf0518a3",
+            "lib/jobs/executor.js": "5698d0d5d8908314717d0b272721f41a54f5acf7674c8cf3c4b05c47dd8e5382",
+            "lib/gemini.js": "a4c964c4d8af176adf87a683733447250ddcc36a399f359318557edf8f486922",
+            "lib/http.js": "1b9be4d1771038be8dfac75322791f14d08bdbb22d86411d2583971b2fc33df4"
+          },
+          "limits": "New modules loaded from the task worktree; installed plugin/config not replaced. Local HTTP cleanup is observed, not remote model cancellation or quality."
+        }
+      },
+      {
+        "id": "DSH-04/07 direct-stream-and-usage",
+        "status": "ok",
+        "startedAt": "2026-10-06T03:40:16.342Z",
+        "evidence": {
+          "chunks": 5,
+          "finish": "stop",
+          "reportedUsage": {
+            "inputTokens": 17,
+            "outputTokens": 12,
+            "totalTokens": 29
+          },
+          "offeredEffortCount": null,
+          "unsupportedEffortRejected": {
+            "name": "LlmError",
+            "code": "UNSUPPORTED_REASONING_EFFORT",
+            "message": "provider \"studyhub-qa-fake\" model \"fake-tutor\" does not support reasoning effort \"s10-intentionally-unsupported-effort\""
+          }
+        }
+      },
+      {
+        "id": "DSH-05/09 one-shot-child",
+        "status": "ok",
+        "startedAt": "2026-10-06T03:40:16.359Z",
+        "evidence": {
+          "providerCapabilities": {
+            "agentOptions": true,
+            "outputSchema": true,
+            "depthLimit": true,
+            "toolFilter": true,
+            "persona": true
+          },
+          "stopReason": "completed",
+          "persistedLabel": "S1-0 fake one-shot evidence",
+          "parentLineage": true,
+          "assistantEventCount": 1,
+          "pairedLifecycleEvents": true,
+          "disposed": true
+        }
+      },
+      {
+        "id": "DSH-01/03/09 owned-job-official-test-composition",
+        "status": "ok",
+        "startedAt": "2026-10-06T03:40:16.484Z",
+        "evidence": {
+          "controllerServesOwner": true,
+          "controllerLoadedByTestVariant": true,
+          "controllerProvisioning": "test-added official dsh-tool-jobs in s10-jobs-only preset",
+          "exactOwnerAccess": true,
+          "foreignAndCallerlessDenied": true,
+          "observerTimeoutPreservedProducer": true,
+          "transitions": [
+            "running",
+            "stopping",
+            "killed"
+          ],
+          "cancelCalls": 1,
+          "settledEvents": 1,
+          "awaited": true
+        }
+      },
+      {
+        "id": "DSH-01/03 owner-disposal-drains-job",
+        "status": "ok",
+        "startedAt": "2026-10-06T03:40:16.499Z",
+        "evidence": {
+          "ownerUnregistered": true,
+          "sessionRemoved": true,
+          "ownedRecordRemoved": true,
+          "cancelCalls": 1,
+          "scopeDisposals": 1
+        }
+      }
+    ],
+    "packageVersions": {
+      "dsh": "0.2.0-rc.2",
+      "dsh-agent": "0.2.0-rc.2",
+      "dsh-llm": "0.2.0-rc.2",
+      "dsh-jobs-local": "0.2.0-rc.2",
+      "dsh-subagent": "0.2.0-rc.2",
+      "dsh-tool-jobs": "0.2.0-rc.2",
+      "dsh-agent-preset": "0.2.0-rc.2",
+      "dsh-agent-preset-registry": "0.2.0-rc.2"
+    },
+    "cleanup": {
+      "converged": true,
+      "parentScopeDisposals": 1
+    },
+    "dshFakeModelRequests": 4,
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  "validation": {
+    "originalPrimitiveFullVerify": {
+      "pass": 5664,
+      "fail": 0,
+      "skip": 2,
+      "durationMs": 587541.521255,
+      "scope": "Historical primitive-only code; not final integrated implementation"
+    },
+    "finalFocused": {
+      "pass": 55,
+      "fail": 0,
+      "skip": 0,
+      "scope": "Integrated production interfaces, actual legacy audio.import, controlled native double, request adapter, pool, host ownership, plugin composition",
+      "durationMs": 3490.792313
+    },
+    "finalFullVerifyAndCI": "Exact-head results in the implementation pull request; do not infer completion from this evidence snapshot",
+    "paidModels": "not run",
+    "installedPluginReplacement": "not run; native probe loads current modules explicitly into isolated actual rc.2 host"
+  }
+}

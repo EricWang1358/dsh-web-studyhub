@@ -62,13 +62,15 @@ function recordingModel(requests) {
   };
 }
 
-test("generation sends each evidence, answer and author call only the targets that matter", async () => {
+test("generation tells the plan call only the targets that matter; the answer and author calls get the planned targets and no list of covered ones", async () => {
   const requests = [];
   const library = [...unrelated(500), ...related];
   await generateBatched(recordingModel(requests), { count: 3, kind: "flashcard", sources: [material], existing: library,
     pinnedExisting: ["Pinned: from the draft being continued"] });
   for (const stage of ['plan', 'blueprint', 'author']) assert.ok(requests.some(request => request.stage === stage), stage);
   for (const { stage, existing } of requests) {
+    // The plan de-duplicates its targets against the library; the stages after it work from those targets, so they are not sent the list again.
+    if (stage !== 'plan') { assert.equal(existing, undefined, `${stage} is not sent the covered targets`); continue; }
     assert.ok(existing.length < 60, `${stage} carried ${existing.length} targets`);
     assert.ok(existing.includes("Pinned: from the draft being continued"), stage);
     for (const objective of related) assert.ok(existing.includes(objective), `${stage}: ${objective}`);

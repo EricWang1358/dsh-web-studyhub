@@ -82,6 +82,7 @@
   "重要性由模型判断": "importance judged by the model",
   "有的小节按篇幅分配": "some sections shared out by length",
   "按篇幅分配，没有用模型判断重要性": "shared out by length, the model did not judge importance",
+  "题目不多，按篇幅分配，没有逐段判断重要性": "few questions, shared out by length, importance not judged section by section",
   "自定义：{0} 道题，覆盖 {1}/{2}，{3}，": "Custom: {0} questions, covering {1}/{2}, {3}. ",
   "{0}：约 {1} 道题，覆盖 {2}/{3}，{4}，": "{0}: about {1} questions, covering {2}/{3}, {4}. ",
   "{0} 个排在后面的轮次": "{0} waiting for a later round",

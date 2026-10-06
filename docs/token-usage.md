@@ -1,6 +1,6 @@
 # Token usage and estimates · token 用量与估算
 
-StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (Token 用量 / 缓存命中 / 未缓存输入 / 缓存读取 / 缓存写入 / 输出, with the `tok` unit). It never shows a price: take the numbers to your provider's price list. 本页回答「出一次题要用多少 token、该选什么模型和推理程度」。
+StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (Token 用量 / 缓存命中 / 未缓存输入 / 缓存读取 / 缓存写入 / 输出, with the `tok` unit), and the two speed figures of DSH's own 会话统计 beside them (首 token 平均（TTFT） / 输出速度（TPS）). It never shows a price: take the numbers to your provider's price list. 本页回答「出一次题要用多少 token、该选什么模型和推理程度」，以及每个任务的首 token 与输出速度。
 
 ## 中文
 
@@ -26,6 +26,13 @@ StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (T
 - 缓存读取的下限永远是 0（第一次运行可能一点也不命中），上限是各次调用重复的系统提示词和说明。命中多少取决于服务商。
 - 推理程度越高，推理 token 越多（计入输出）；推理 token 无法预先测量，所以只提示，不加数字。出错重试会让实际调用更多。
 
+### 题目很少、请求顺序与缓存
+
+- **从长资料里只出几道题**：给每个小节评重要性，要用轻量模型把整份资料读一遍（每 20 个小节 1 次调用）。题目很多时值得，因为评分决定哪些小节出题；**自定义的题数很少**（10 道以内，或少于小节数的四分之一，见 `lib/coverage-plan.js` 的 `weighsSections`）时，题目反正落在最长的几个小节里，就跳过评分、按篇幅分配（和没有轻量模型时一样），计划那一行和草稿页会写明原因。表单下面的估算也不再计这几次调用。选「精简 / 标准 / 完整」时始终评分。预览模型实测，4 道题、标准：40 页 2.67 万降到 2.21 万 token，150 页 3.91 万降到 2.23 万，12 万字的文本 2.88 万降到 2.13 万，30 万字的文本 3.96 万降到 2.14 万。
+- **已有题目清单只发一处**：「已有的题目」只发给挑知识点的那一步（它本来就会避开重复），确定答案和写题两步不再收到；确定答案这一步也不再收到参考题（参考题决定写题和审阅的样式），挑知识点这一步只收到它需要的内容。
+- **请求顺序与缓存**：会缓存的服务商只对「和之前某次请求开头完全一样」的部分走缓存，其余照常计费。所以每个出题提示词（挑知识点、确定答案、写题、审阅、改措辞）都把不变的内容放前面（说明、设置、参考题、资料），会变的放后面（前面步骤的结果、候选题、题数，题数永远是最后一个字段）；补上的纠正和重问放在最末，被纠正的提示词仍是不变的开头。顺序集中在 `lib/prompt-order.js`。预览模型加模拟缓存实测：一次 20 题的运行，缓存读取占比从 26% 升到 40%；带措辞修复的从 24% 升到 54%。
+- 把资料放到说明前面的版本已经做好，放在开关（`promptOrder.sourcesFirst`）后面，默认**关闭**：每个阶段的请求都以它自己的系统提示词开头，同一份资料上不同阶段共享不了后面的内容；资料页各不相同的几个部分，资料放前面反而共享得更少（30 万字分四组：说明在前读缓存 2.60 万 token，资料在前 0.68 万）。要等阶段的系统提示词不再排在最前面才划算（同一运行：缓存占 65%，而不是 7%），那是改网关发出的系统提示词，不是改提示词内部的顺序。
+
 ### 资料很多时
 
 - 一次最多处理 60 万字符的资料（约 200 页普通 PDF）；超过会被拒绝，表单会直接告诉你「选了几份、最多能选前几份」，并给出最多能选的资料的用量。
@@ -41,6 +48,22 @@ StudyHub 使用你在 DSH 里选定的模型，不绑定某个模型。批量的
 - 直接调用：读取服务商返回的用量；DSH 子代理（出题的每个阶段）：读取该子会话 DSH 自己的 `tokenUsage` 投影，读不到就按同一规则重放它的事件。四个桶互不重叠，推理 token 已包含在输出里，重试的那次调用另外累加。
 - 每个任务的详情里有「实际用量」（并与出发前的估算对照）；「学习统计 › 模型用量」按功能（出题、改题与复核、陪学、学习流、案例、音频文本）列出近 7 / 30 天。数据只存数量，放在学习库里的 `model-usage.json`（保留 90 天，不含内容）。
 - 记录失败不会影响任何任务。
+
+### 首 token 平均（TTFT）与输出速度（TPS）
+
+「任务」界面里，每个任务的实际用量旁边就是 DSH「会话统计」里的两个速度数字，口径与它完全一致：
+
+- **首 token 平均（TTFT）**：从一次调用开始到它吐出第一个 token 的等待，取平均（DSH：`ttftMs / ttftSteps`）。等模型开口的时间，和它写了多少无关。
+- **输出速度（TPS）**：调用实际写出的 token 数 ÷ 它真正在写的那段时间（DSH：`decodeTokens / (decodeMs / 1000)`），单位 `tok/s`。这是解码速度，不含等待，也不含排队与重试。
+
+数字怎么来的，和 token 用量走同一条路：出题的每个阶段是 DSH 自己的一次性子会话，StudyHub 通过读用量用的同一个 `observeSession` 租约，把这些子会话 DSH 自己的 `sessionStats` 投影一并取回，所以显示的就是宿主自己算的结果；音频文本、翻译等在本插件自己的模型通道上直接发起的调用不是 DSH 会话，没有这样的投影，就按同一组边界现场量：`firstOutputAt − startedAt` 是等待，`endedAt − firstOutputAt` 是写的时间，token 数用服务商报告的 `outputTokens`。
+
+几条刻意的「不说」：
+
+- 量不出来的就不显示：还没结束的调用、不流式返回的转写、服务商没有报告用量的调用，都不进入这两个数字，也绝不会按字数猜。
+- 只有已经结束的调用计入（DSH 也一样，它在助手消息落地时结算），所以运行中的任务显示的是它已完成调用的数字，会随着其余调用结束而变大。
+- 单位与取整照抄 DSH：不足一分钟写 `1.6秒`（一位小数），超过写 `2分42秒`；速度满 10 取整、不足 10 保留一位小数。
+- 只显示数量与时长，不显示价格；也不把 token 数折成时间。
 
 ## English
 
@@ -69,7 +92,17 @@ Transcription itself (Gemini, Groq, SiliconFlow) is not tokens; it is counted in
 
 ### What "already covered" costs
 
-Plans and writing steps are told which learning targets already exist so they do not repeat them. They used to be sent the whole library: one measured library held 2,911 targets (about 55K tokens), repeated in 8 of the 14 calls of a 20-question run, more than half of the 765,472 tokens it used. A call now carries the targets of the deck or draft being added to or continued, plus up to 120 others that share wording with the chosen materials (a local comparison, no model call). The estimate prices exactly that list.
+Plans and writing steps are told which learning targets already exist so they do not repeat them. They used to be sent the whole library: one measured library held 2,911 targets (about 55K tokens), repeated in 8 of the 14 calls of a 20-question run, more than half of the 765,472 tokens it used. A call now carries the targets of the deck or draft being added to or continued, plus up to 120 others that share wording with the chosen materials (a local comparison, no model call). The estimate prices exactly that list. Only the planning call (the step that picks the knowledge points) is sent it: it already leaves out what exists, so the answer and writing steps work from the planned targets and are not sent the list again. In the same way the answer step is not sent your reference questions (they style the question the writing step writes, and the review checks), and the planning step is sent only what it needs (not the job's control handle, signal, performance settings or source id list).
+
+### Few questions from a long material
+
+Rating how much each section matters costs one light-model call per 20 sections, over the whole material (`lib/section-weights.js`). It pays when a run spreads many questions over the sections, because the ratings decide which sections get them. A **small custom total** (at most 10 questions, or fewer than a quarter of the sections: `weighsSections` in `lib/coverage-plan.js`) goes to the longest sections whatever the ratings say, so it skips the ratings and weighs the sections by length, the same fallback as having no light model; the plan line and the draft say so (「题目不多，按篇幅分配，没有逐段判断重要性」). The estimate under the form omits those calls too. Choosing 精简 / 标准 / 完整 (no custom total) is always weighed. Measured with the preview model, a 4-question 标准 run: 40 pages 26.7K to 22.1K tokens, 150 pages 39.1K to 22.3K, a 120,000-character text 28.8K to 21.3K, a 300,000-character text 39.6K to 21.4K.
+
+### Prompt order and the provider's cache
+
+A provider that caches serves a request from cache only up to the longest start identical to an earlier request, and charges the rest in full. So every generation prompt (plan, answers, writing, review, wording repair) keeps what stays the same first (the instructions, the settings, the reference questions, the sources) and what changes after it (the plan so far, the candidate, the number of questions, which is always the last field); an added correction or re-ask goes at the very end, so the prompt it corrects stays an unchanged start. The order lives in `lib/prompt-order.js`. Measured on a 20-question run with the preview model and a simulated provider cache (the stage's system text and the prompt, as the request is sent), the share read from cache went from 26% to 40%; with wording repairs from 24% to 54%.
+
+Sources first (before the instructions) is built behind a switch (`promptOrder.sourcesFirst`) and is **off**: each stage opens its request with its own system text, so two different stages of a part never share the sources behind it, and with the sources first the parts of a run, which have different pages, shared less than with the instructions first (a 300,000-character text planned in four groups: 26.0K tokens read from cache with the instructions first, 6.8K with the sources first). Switching it on pays only once the stage's system text no longer leads the request (the same run: 65% from cache instead of 7%), which is a change to what the gateway sends as system text, not to the order inside a prompt.
 
 ### Short drafts and top-ups
 
@@ -92,3 +125,19 @@ StudyHub uses the model you chose in DSH; it is not tied to one. Low reasoning i
 - Direct calls read the usage the provider reports; DSH sub-agent phases read DSH's own `tokenUsage` projection of the child session, or replay its events with the same fold. The four buckets are disjoint, reasoning tokens are already inside the output, and a retried attempt is added on top.
 - A job's details show Actual usage next to its estimate; Study statistics, Model usage lists the last 7 / 30 days per feature (question writing, repair and review, coach, learning flows, case papers, audio text). Only counts are stored, in `model-usage.json` in the library (90 days, no content).
 - A failure to record never affects a job.
+
+### Average time to first token (TTFT) and output speed (TPS)
+
+In the Jobs console, beside a job's actual usage, are the two speed figures from DSH's own Session statistics, counted the same way:
+
+- **Avg time to first token (TTFT)**: the mean wait from a call's start to its first token (DSH: `ttftMs / ttftSteps`). How long the model took to start, whatever it then wrote.
+- **Tokens per second (TPS)**: the tokens a call actually wrote over the time it spent writing them (DSH: `decodeTokens / (decodeMs / 1000)`), in `tok/s`. Decode speed only: no waiting, no queuing, no retries.
+
+They arrive the same way tokens do. Each question-writing phase is its own one-shot DSH child session, and StudyHub reads those sessions through the very same `observeSession` lease it uses for usage, taking DSH's own `sessionStats` projection with it — so what a job shows is what the host itself counted. Audio text and translation phases call the model directly on this plugin's own client, which is no DSH session and has no such projection; those calls are measured here on the same boundaries: `firstOutputAt − startedAt` is the wait, `endedAt − firstOutputAt` is the writing, and the count is the provider's own `outputTokens`.
+
+Several deliberate silences:
+
+- What cannot be measured is not shown: a call still in flight, a provider that does not stream (a transcription) and a call whose usage was never reported contribute to neither figure, and a count is never derived from the length of a text.
+- Only settled calls count (DSH settles a step when its assistant message lands), so a running job shows its finished calls' figures, which grow as the others end.
+- Wording and rounding are DSH's: under a minute reads `1.6s` (one decimal), over it reads `2m42s`; speed is whole tokens from ten up and one decimal below.
+- Counts and durations only, never a price, and a token count is never turned into a time.

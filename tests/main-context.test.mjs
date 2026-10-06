@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { withQualityStages } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
 const card = (id, sourceId = 'json') => ({ id, kind: 'flashcard', topic: 'Bridge', objective: `Explain dimension ${id}`,
@@ -126,9 +127,9 @@ test('document groups keep exact paged members and coverage separates self refer
 });
 
 test('authorized supplementation generates and resumes into exact active target preserving history and prerequisites', async t => {
-  const requests = [];
+  const requests = [], plans = [];
   let authored = 0;
-  const complete = withQualityStages(async (system, prompt) => {
+  const staged = withQualityStages(async (system, prompt) => {
     if (system.startsWith('You author')) {
       const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
       requests.push(request);
@@ -137,6 +138,7 @@ test('authorized supplementation generates and resumes into exact active target 
     }
     return JSON.stringify({ issues: [], summary: 'Checked' });
   });
+  const complete = async (system, prompt, context) => { if (system.startsWith('Plan a source-grounded assessment')) plans.push(requestData(prompt)); return staged(system, prompt, context); };
   const service = await fixture(t, complete);
   await service.call('card.link', { cardId: 'original', requires: { cardId: 'legacy-card' } });
   const schedule = { repetitions: 3, interval_days: 16, ease_factor: 2.6, due_at: '2026-10-16T00:00:00.000Z' };
@@ -148,7 +150,8 @@ test('authorized supplementation generates and resumes into exact active target 
   assert.equal(draft.mergeTargetId, 'target');
   assert.equal(draft.course, 'A');
   assert.equal(draft.editorial.generation.mergeTargetId, 'target');
-  assert.match(JSON.stringify(requests[0].alreadyCovered), /original/);
+  assert.match(JSON.stringify(plans[0].existing), /original/, 'the plan is told what the target deck already holds');
+  assert.equal('alreadyCovered' in requests[0], false, 'the author is not sent it again');
   const more = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion });
   const resumed = await service.call('job.wait', { jobId: more.jobId, timeoutSeconds: 5 });
   assert.equal(resumed.status, 'complete');
