@@ -43,6 +43,16 @@ test('a step asks for the light lane explicitly, and only for direct execution',
   assert.deepEqual(used, ['light', 'complete']);
 });
 
+test('the light lane gets a raised reasoning preference by name and nothing for the base levels', async t => {
+  const asked = [], modelHost = { ctx: {}, route: { provider: 'p', model: 'm' }, complete: async () => 'full', light: async (_s, _p, request) => { asked.push(request.reasoningEffort); return 'quick'; } };
+  const port = runtime(t, { run: async context => {
+    for (const requestedEffort of ['lowest', 'default', 'high']) await context.gateway.step(requestedEffort, { ...policy, requestedEffort }, { model: 'light' }).complete('s', 'p');
+    return { refs: [] };
+  } }, modelHost);
+  await port.wait((await port.submit('probe', {})).jobId);
+  assert.deepEqual(asked, [undefined, undefined, 'high']);
+});
+
 test('a definition without persistence announces settlement once before observers resume; a failed sink keeps the outcome', async t => {
   const delivered = [];
   const port = runtime(t, { run: async () => ({ refs: [] }), notifications: [
