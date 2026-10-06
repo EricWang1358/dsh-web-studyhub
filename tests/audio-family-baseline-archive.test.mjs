@@ -75,16 +75,18 @@ for (const [kind, create] of Object.entries(KINDS)) test(`${kind}: a record-only
   const done = await settleJob(lib.service, (await create(lib.service, lib)).jobId);
   assert.equal(done.status, 'complete', done.stage);
   const requests = log.length, sources = (await lib.state()).sources.map(source => source.id);
+  // A job that has moved to the runtime has its own kind and its own job id; the archive keeps whichever the job had.
+  const own = (await lib.service.call('snapshot')).jobs.find(job => job.id === done.id).contract;
   assert.deepEqual((await lib.service.call('job.archive', { jobIds: [done.id] })).archived, [done.id]);
   const archived = (await lib.service.call('snapshot')).archivedJobs[0];
-  assert.deepEqual([archived.contract.kind, archived.contract.status, archived.contract.jobId], ['audio-import', 'complete', done.id]);
+  assert.deepEqual([archived.contract.kind, archived.contract.status, archived.contract.jobId], [own.kind, 'complete', own.jobId]);
   assert.deepEqual((await lib.state()).sources.map(source => source.id), sources, 'the sources the job made stay in the library');
 
   const restarted = await restart(lib);
   assert.deepEqual([(await restarted.call('snapshot')).jobs, (await restarted.call('snapshot')).archivedJobs.length], [[], 1]);
   assert.deepEqual((await restarted.call('job.unarchive', { jobIds: [done.id] })).unarchived, [done.id]);
   const back = (await restarted.call('snapshot')).jobs.find(job => job.id === done.id);
-  assert.deepEqual([back.contract.status, back.contract.jobId, back.contract.actions.retry.available, back.sourceIds], ['complete', done.id, false, undefined], 'a record has no sourceIds field, only the contract refs');
+  assert.deepEqual([back.contract.status, back.contract.jobId, back.contract.actions.retry.available, back.sourceIds], ['complete', own.jobId, false, undefined], 'a record has no sourceIds field, only the contract refs');
   assert.deepEqual(back.contract.result.refs.map(ref => ref.id), done.sourceIds);
   await assert.rejects(restarted.call('audio.retry', { jobId: done.id }), /这个任务不能重试/);
   assert.deepEqual((await restarted.call('job.dismiss', { jobId: done.id })).dismissed, [done.id]);
