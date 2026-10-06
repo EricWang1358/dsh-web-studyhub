@@ -9,6 +9,7 @@ import { createMineruClient } from '../lib/mineru-api.js';
 import { NO_MINERU_ACK, NO_MINERU_TOKEN } from '../lib/mineru-settings.js';
 import { FAKE_TOKEN, startFakeMineru } from './helpers/fake-mineru.mjs';
 import { makePdf } from './helpers/pdf.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 /* Cloud PDF conversion through the real service: the mineru.* operations, the shared job list, the inbox, the document import. */
 
@@ -21,7 +22,7 @@ async function harness(t, { serverOptions = {}, contexts, mineru = {} } = {}) {
   const fake = await startFakeMineru(serverOptions);
   const clock = { time: 5_000_000 };
   const options = { mineru: { baseUrl: fake.baseUrl, sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); }, now: () => clock.time, ...mineru } };
-  const open = () => new StudyService(root, { ...options, ...(contexts ? { contexts } : {}) });
+  const open = () => new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), ...(contexts ? { contexts } : {}) });
   let service = open();
   const h = {
     home, root, fake, clock,

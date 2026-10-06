@@ -31,7 +31,7 @@ async function harness(t, { state = {}, cloud = false, noCli = false, pages = 12
   const fake = cloud ? await startFakeMineru() : null;
   const clock = { time: 9_000_000 };
   // (`windowPages` is the seam for fixed local windows: these tests count windows of 50 pages; the adaptive plan has its own tests, tests/mineru-adaptive-*.test.mjs.)
-  const service = new StudyService(root, { ...switchOptions(SWITCH_MODE, { paths: ['mineruSetup'] }), mineru: { ...(fake ? { baseUrl: fake.baseUrl } : {}), now: () => clock.time, limits: { windowPages: 50 },
+  const service = new StudyService(root, { ...switchOptions(SWITCH_MODE, { paths: ['mineruSetup', 'pdfConvert'] }), mineru: { ...(fake ? { baseUrl: fake.baseUrl } : {}), now: () => clock.time, limits: { windowPages: 50 },
     sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); },
     local: { cli: noCli ? null : cli, home: work, modelsCli: patientCli({ file: process.execPath, prefix: [FAKE], env }) } } });
   const h = {

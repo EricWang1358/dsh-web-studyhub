@@ -40,12 +40,13 @@ async function consistentCopy(root, copy) {
   }
 }
 
-/** What a restarted host has: the folder as it is on disk now, a new service, and a model that records and refuses every call (a restart never asks one by itself). */
-export async function restartedOver(t, root) {
+/** What a restarted host has: the folder as it is on disk now, a new service, and a model that records and refuses every call (a restart never asks one by itself).
+ * `options` are the new host's service options (the runtime's switches and its model host); `model` replaces the refusing one. */
+export async function restartedOver(t, root, { options = {}, model } = {}) {
   const copy = await mkdtemp(join(tmpdir(), 'study-s30-restart-')), calls = [];
   await consistentCopy(root, copy);
-  const service = new StudyService(copy);
-  service.complete = async (system) => { calls.push(String(system).slice(0, 40)); throw new Error('a restart must not call a model by itself'); };
+  const service = new StudyService(copy, options);
+  service.complete = model || (async (system) => { calls.push(String(system).slice(0, 40)); throw new Error('a restart must not call a model by itself'); });
   t.after(async () => { await service.dispose(); await rm(copy, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   return { service, root: copy, calls };
 }
