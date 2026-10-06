@@ -283,7 +283,7 @@ Every model family now has its own default-off switch under `runtime.pilot`, and
 
 | Family (Job kind) | Switch | Cancel | Pause | Set | Retry | Recovery | Execution | Feature | Result ref |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| generation / supplement | `generation` | yes | no | yes (live settings) | yes | resume | agent-preferred | `generate` | deck/draft |
+| generation / supplement | `generation` | yes | no | yes (live settings) | yes (after it ended) | retry from the start | agent-preferred | `generate` | deck/draft |
 | translation | `translation` | yes | at a wave boundary | yes (concurrency) | no | none | agent-preferred | `other` | source |
 | coach batch (`coach-prep`) | `coach` | yes | no | no | no | none | direct | `coach` | none |
 | daily recap | `dailyRecap` (+ `dailyRecapAgent`) | yes | no | no | no | none | direct (agent-preferred with the policy) | `other` | note |
