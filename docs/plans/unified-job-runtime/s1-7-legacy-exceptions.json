@@ -3,6 +3,7 @@
   "scope": "AST CallExpression inventory of model-shaped APIs; source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role",
   "managedDefinitions": [
     "lib/contexts/audio/jobs/single-import.js",
+    "lib/contexts/coach/jobs/coach-prep.js",
     "lib/contexts/generation/jobs/generation.js"
   ],
   "entries": [
@@ -151,6 +152,19 @@
       "reason": "The gateway adapter itself: one gateway step per call (the host model is prepared by runtime/models.js); the only model call of a generation run the runtime owns",
       "removeAt": "stays: it is the family's gateway boundary",
       "evidence": "s3-1-generation-queue.md"
+    },
+    {
+      "file": "lib/contexts/coach/jobs/light-step.js",
+      "calls": [
+        {
+          "callee": ".complete",
+          "count": 1
+        }
+      ],
+      "owner": "coach maintainer",
+      "reason": "The managed call itself: gateway.step(...).complete on the host's light lane, kept out of the definition file",
+      "removeAt": "retained; the gateway is the one model entry",
+      "evidence": "s4-1-model-contract.md; tests/unified-runtime-coach.test.mjs"
     },
     {
       "file": "lib/contexts/materials/translation-operations.js",

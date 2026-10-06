@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
 import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics, learnerAnswer, writeNudge } from "../lib/coach.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
+import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
 
 const source = {
   id: "src",
@@ -44,7 +45,7 @@ async function setup(t, { coach = true, latencyMs = 0 } = {}) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const log = [];
   const light = createFakeModel({ latencyMs, log });
-  const service = new StudyService(root, { complete: light, completeLight: light, coach });
+  const service = new StudyService(root, { complete: light, completeLight: light, coach, ...switchOptions(SWITCH_MODE, { complete: light, paths: ['coach'] }) });
   await service.call("source.add", source);
   await service.call("draft.save", { deck: { id: "d", title: "Patterns", cards: prompts.map((p, i) => quiz(i + 1, p)) } });
   await publishFixture(service, "d");
@@ -97,7 +98,7 @@ for (const change of ["forget", "revoke", "revoke-and-reenable"]) {
     await pending;
     assert.equal((await service.call("coach.profile")).ready, 0, "a stale response cannot repopulate the ready pool");
     assert.equal((await service.call("coach.profile")).goal, "interview", "new learner state survives discarding old work");
-    const reopened = new StudyService(root, { complete: light, completeLight: light, coach: true });
+    const reopened = new StudyService(root, { complete: light, completeLight: light, coach: true, ...switchOptions(SWITCH_MODE, { complete: light, paths: ['coach'] }) });
     await reopened.call("coach.consent", { prep: true });
     reopened.queuePrep({ deckId: "d", cardId: "q1", reason: "wrong" });
     assert.equal((await reopened.call("coach.prepare")).ready, 1, "current authorized work still succeeds after reopening");
@@ -473,7 +474,7 @@ test("a rewrite that changes the answer key keeps the answered snapshot until th
   const flip = async (system, prompt) => JSON.parse(prompt).task.includes("反馈标签")
     ? JSON.stringify({ patch: { options: [{ id: "a", correct: false }, { id: "b", correct: true }], answer: "Memento" }, summary: "更正答案" })
     : "{}";
-  const service = new StudyService(root, { complete: flip, completeLight: flip, coach: true });
+  const service = new StudyService(root, { complete: flip, completeLight: flip, coach: true, ...switchOptions(SWITCH_MODE, { complete: flip, paths: ['coach'] }) });
   let run = await service.call("review.start", { deckId: "d", mode: "quiz" });
   run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: [run.card.options[0].id] });
   await service.call("coach.feedback", { deckId: "d", cardId: run.card.id, vote: "down", tags: ["wrong-answer"] });
@@ -490,7 +491,7 @@ test("a background rewrite leaves the current unanswered question stable", async
   const flip = async (system, prompt) => JSON.parse(prompt).task.includes("反馈标签")
     ? JSON.stringify({ patch: { options: [{ id: "a", correct: false }, { id: "b", correct: true }], answer: "Memento" }, summary: "更正答案" })
     : "{}";
-  const service = new StudyService(root, { complete: flip, completeLight: flip, coach: true });
+  const service = new StudyService(root, { complete: flip, completeLight: flip, coach: true, ...switchOptions(SWITCH_MODE, { complete: flip, paths: ['coach'] }) });
   const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
   const oldPrompt = run.card.prompt;
   const oldAnswer = (await service.call("export")).decks[0].cards
@@ -586,7 +587,7 @@ test("a stem rewrite on a cloze card waits until the learner leaves the current 
     assert.equal(data.card.cloze.text, "谁管理快照历史？{{who}}", "the model sees the displayed cloze text");
     return JSON.stringify({ patch: { prompt: "在 Memento 模式里，不读取快照内容却负责管理历史的角色是{{who}}。" }, summary: "补足条件" });
   };
-  const service = new StudyService(root, { complete: rewrite, completeLight: rewrite, coach: true });
+  const service = new StudyService(root, { complete: rewrite, completeLight: rewrite, coach: true, ...switchOptions(SWITCH_MODE, { complete: rewrite, paths: ['coach'] }) });
   await service.call("draft.save", { deck: { id: "c", title: "Cloze", cards: [{
     id: "z1", kind: "cloze", topic: "Memento", objective: "cloze objective", prompt: "谁管理快照历史？{{who}}", answer: "Caretaker",
     hint: "不是快照本身", explanation: "Caretaker 管理历史。", misconception: "以为是 Memento。", citations: [{ sourceId: "src", quote }],
@@ -639,7 +640,7 @@ async function flakySetup(t, wrap) {
   const log = [];
   const base = createFakeModel({ log });
   const light = wrap(base);
-  const service = new StudyService(root, { complete: light, completeLight: light, coach: true });
+  const service = new StudyService(root, { complete: light, completeLight: light, coach: true, ...switchOptions(SWITCH_MODE, { complete: light, paths: ['coach'] }) });
   await service.call("source.add", source);
   await service.call("draft.save", { deck: { id: "d", title: "Patterns", cards: prompts.map((p, i) => quiz(i + 1, p)) } });
   await publishFixture(service, "d");

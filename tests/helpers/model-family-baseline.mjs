@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHostHandler } from '../../lib/host.js';
+import { createHostHandler, servicesForHost } from '../../lib/host.js';
 
 /* Shared pieces of the S4-0 model-family baseline tests (docs/plans/unified-job-runtime/s4-0-model-baseline.md). Fakes only: no model, no network. */
 
@@ -19,10 +19,15 @@ export async function privateRoot(t, prefix, dispose = async () => {}) {
  * (`complete` for ordinary work, `light` for the coach). It resolves to the action's value and throws what the panel would have shown as an error.
  * The assistant's study_workspace tool ends in the same `service.call(action, args)` (lib/index.js runStudyTool), so a library driven through
  * this door and a library driven by `runtime.call` are the two entries the baseline compares.
+ * `pilot` ({ coach: true }, ...) switches families onto the unified runtime for this host; it then has a live agent and a DSH jobs service of its own (controlled doubles).
  */
-export function panelDoor(t, root, { complete, light = complete } = {}) {
-  const disposers = [];
-  const host = { sessions: { get: () => ({ header: { cwd: root } }) }, get: () => undefined, effect: setup => { disposers.push(setup()); } };
+export function panelDoor(t, root, { complete, light = complete, pilot } = {}) {
+  const disposers = [], agent = { id: 'panel' }, hooks = new Map();
+  const jobs = { start(spec) { const id = `panel-job-${hooks.size + 1}`; hooks.set(id, spec.run({ id, append() {} })); return id; },
+    kill(id, _owner, reason) { hooks.get(id)?.cancel?.(reason); }, readAt: () => ({ chunks: [] }) };
+  const services = pilot ? { agents: { get: id => (id === agent.id ? agent : undefined) }, jobs } : {};
+  const host = { sessions: { get: () => ({ header: { cwd: root } }) }, get: key => services[key], effect: setup => { disposers.push(setup()); } };
+  if (pilot) servicesForHost(host, undefined, pilot);
   const handle = createHostHandler(host, { libraryRoot: root, provider: 'fake', model: 'fake' }, (_route, _id, options) => (options?.light ? light : complete));
   t.after(() => { for (const dispose of disposers.reverse()) dispose?.(); });
   return async (action, args = {}) => {

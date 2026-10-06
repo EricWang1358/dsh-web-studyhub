@@ -218,6 +218,7 @@
   "没有需要备的题": "Nothing needed preparing",
   "这批没有写出通过校验的题": "This batch wrote no question that passed validation",
   "学习档案或授权变了，旧结果已丢弃": "The learning profile or consent changed; the old result was dropped",
+  "这批备题已取消": "This batch was cancelled",
   "批次": "Batches",
   "备题": "Preparing",
   "每天最多批数": "Batches per day",
