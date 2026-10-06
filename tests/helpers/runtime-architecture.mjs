@@ -13,6 +13,16 @@ function walk(node, visit) {
   }
 }
 const tree = source => parse(source, { ecmaVersion: 'latest', sourceType: 'module' });
+// `….gateway.step(key, policy).complete(…)` is the managed model path itself, never a bypass.
+const isGatewayStep = node => node?.type === 'CallExpression' && /(?:^|\.)gateway\.step$/.test(member(node.callee));
+// …and so is a call on a name the module bound to such a step (`const step = gateway.step(…); step.complete(…)`).
+const gatewayStepNames = root => {
+  const names = new Set();
+  walk(root, node => { if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier' && isGatewayStep(node.init)) names.add(node.id.name); });
+  return names;
+};
+const gatewayStepCall = (node, names) => node.callee?.type === 'MemberExpression'
+  && (isGatewayStep(node.callee.object) || (node.callee.object?.type === 'Identifier' && names.has(node.callee.object.name)));
 const providerUrl = value => typeof value === 'string' && /^https:\/\/(?:generativelanguage\.googleapis\.com|api\.groq\.com|api\.siliconflow\.(?:cn|com))\//.test(value);
 
 export function hasDefinition(source) {
@@ -29,12 +39,13 @@ export function hasDefinition(source) {
 export function inspectCalls(source) {
   const counts = new Map();
   const record = name => counts.set(name, (counts.get(name) || 0) + 1);
-  walk(tree(source), node => {
+  const root = tree(source), steps = gatewayStepNames(root);
+  walk(root, node => {
     const binding = node.type === 'VariableDeclarator' ? key(node.id) : node.type === 'Property' ? key(node.key) : '';
     const value = node.type === 'VariableDeclarator' ? node.init : node.type === 'Property' ? node.value : null;
     if (/(?:jobs|tasks|queues|queue)$/i.test(binding) && (value?.type === 'ArrayExpression' || value?.type === 'NewExpression' && ['Map', 'Set'].includes(key(value.callee))))
       record(`collection:${binding}:${value.type === 'ArrayExpression' ? 'Array' : key(value.callee)}`);
-    if (node.type !== 'CallExpression') return;
+    if (node.type !== 'CallExpression' || gatewayStepCall(node, steps)) return;
     const callee = member(node.callee), last = callee.split('.').at(-1);
     if ((last === 'complete' && node.arguments.length >= 2) || /(?:^|\.)llm\.stream$/.test(callee) ||
         (last === 'fetch' && providerUrl(node.arguments[0]?.value))) record(callee);
