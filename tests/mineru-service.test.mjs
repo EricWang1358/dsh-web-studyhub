@@ -192,8 +192,7 @@ test('a piece that fails in the cloud: the job fails with a plain reason, keeps 
   await h.call('mineru.retry', { jobId: failed.id });
   const done = await h.until(async () => { const [job] = await h.jobs(); return job?.status === 'complete' ? job : null; }, 'the retry');
   await h.call('job.wait', { jobId: done.id, timeoutSeconds: 10 });
-  // The original path keeps the id of the conversion; a Job keeps its logical id and is listed under a new one after a retry.
-  if (SWITCH_MODE === 'runtime') assert.equal(done.contract.jobId, failed.contract.jobId); else assert.equal(done.id, failed.id);
+  assert.equal(done.id, failed.id);
   assert.equal(h.fake.uploads.length - uploadsBefore, 2, 'pieces 2 and 3 were uploaded; piece 1 was not');
   state = await h.call('snapshot');
   assert.equal(state.inbox.items.filter(item => item.kind === 'pdf-failed').length, 0, 'the letter about the failure is withdrawn');

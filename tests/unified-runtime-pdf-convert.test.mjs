@@ -75,10 +75,9 @@ test('a conversion is one job: titled, observed (a Call for every create, upload
   assert.deepEqual(contract.usage, { tokens: null, tokenUsage: null, calls: 0 });
   assert.equal(contract.execution.mode, null);
   assert.deepEqual([contract.capabilities.retry, contract.capabilities.recoveryMode], [true, 'none']);
-  assert.equal(result[0].job.convertId.length > 10, true);
 });
 
-test('a piece that fails keeps what finished; the retry redoes only that piece and continues the same Job (the logical id stays, the list id is new)', async t => {
+test('a piece that fails keeps what finished; the retry redoes only that piece and continues the same Job under the same id', async t => {
   let healthy = false;
   const h = await harness(t, { serverOptions: { failWhen: file => (/-2-/.test(file.data_id) && !healthy ? 'internal error' : undefined) } });
   const started = await h.start(450);
@@ -91,7 +90,7 @@ test('a piece that fails keeps what finished; the retry redoes only that piece a
   const retried = await h.call('mineru.retry', { jobId: failed.id });
   const done = await h.settled(retried.jobId);
   assert.equal(done.status, 'complete', done.stage);
-  assert.equal(done.contract.jobId, failed.contract.jobId);
+  assert.equal(done.id, failed.id); assert.equal(done.contract.jobId, failed.contract.jobId);
   assert.equal(h.fake.uploads.length - before, 2, 'pieces 2 and 3 were uploaded; piece 1 was not');
   const state = await h.call('snapshot');
   assert.equal(state.sources.filter(source => source.document?.converter === 'mineru').length, 450);
