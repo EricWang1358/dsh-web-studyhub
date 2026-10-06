@@ -6,8 +6,9 @@
 |---|---|---|---|---|---|---|
 | S2-0a | 已合并 | `codex/runtime-s20-baseline` / #282 | `8d661f4` | 内核分层（零行为变化）、`limits.js`、布局护栏、[架构约定](s2-architecture.md) | verify 5875 / 5872 通过 / 0 失败 / 3 跳过；双平台 CI | — |
 | S2-0 | 已合并 | `codex/runtime-s20-audio-baseline` / #283 | `8d661f4` | [音频基线与所有权表](s2-0-audio-baseline.md)、特征测试 | 新增 27 项；双平台 CI | 缺陷 D-1…D-12 由 S2-1…S2-6 消除 |
-| S2-1a | PR 中 | `codex/runtime-s21a-kernel` / #287 | `fd5c5a1` | 观察到的失败为已知结果（只有 `sideEffect:true` 保持未知）、`context.persistence`、持久化夹具、开关矩阵工具 | 红灯 2 项 → 绿；定向 285/0 | — |
-| S2-1 | 进行中 | `codex/runtime-s21-audio-import` | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | 见下 | S2-2 批次 |
+| S2-1a | 已合并 | `codex/runtime-s21a-kernel` / #287 | `fd5c5a1` | 观察到的失败为已知结果（只有 `sideEffect:true` 保持未知）、`context.persistence`、持久化夹具、开关矩阵工具 | 红灯 2 项 → 绿；定向 285/0 | — |
+| S2-1 | 已合并 | `codex/runtime-s21-audio-import` / #290 | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | verify 5947（2 项已修）；合并后整套 3 次 5984/0；双平台 CI | S2-2 批次（A 道） |
+| S2-1b | 已合并 | `codex/runtime-kernel-model-host` / #294 | `8a66375` | 网关用 `preparedModelHost`（语言/清理准备）、轻量通道 `{ model: 'light' }`、无持久化定义的结算通知 | 定向 334/0；双平台 CI | — |
 
 ## S2-1 记录
 
