@@ -185,17 +185,20 @@ test('a coverage run whose round hit its time limit (manual run) keeps its draft
     if (state.hang && system.startsWith(PLAN) && context.signal) await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
     return complete(system, prompt, context);
   };
-  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 400 }, wrap });
+  // The round limit is read when a round starts, from this object: the rounds that have to FINISH get a limit no machine load can reach, and only the round that is meant to run out of time
+  // gets a short one. (A short limit for the whole test made the first run and the retry race the real clock: they failed whenever the machine was busy.)
+  const coverage = { roundLimit: 8, roundTimeoutMs: 120_000 }, SHORT_MS = 150;
+  const { service, ids } = await library(t, { coverage, wrap });
   const first = await service.call('generate', { sourceIds: ids, coverageLevel: 'lean', kind: 'quiz' });
   assert.equal((await settleJob(service, first.jobId)).status, 'complete');
   const draft = await draftOf(service);
-  state.hang = true;
+  state.hang = true; coverage.roundTimeoutMs = SHORT_MS;
   const top = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { autoComplete: false } });
   const ended = await settleJob(service, top.jobId, { timeoutMs: 30_000 });
   assert.equal(ended.status, 'failed', ended.stage);
   const { contract } = await jobOf(service, top.jobId);
   assert.equal(contract.actions.retry.available, true, 'a round that ran out of time is continued, not forgotten');
-  state.hang = false;
+  state.hang = false; coverage.roundTimeoutMs = 120_000;
   const retried = await service.call('job.control', { jobId: top.jobId, action: 'retry' });
   assert.equal((await settleJob(service, retried.jobId)).status, 'complete');
 });
