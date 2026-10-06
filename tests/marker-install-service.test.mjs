@@ -49,10 +49,13 @@ test('install actions are registered, write no library field, and run end to end
 });
 
 test('the assistant tool refuses to install or uninstall: it is the learner\'s click in Settings', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8');
-  assert.match(source, /\["marker\.install\.start", "marker\.install\.uninstall"\]\.includes\(a\.action\)/);
-  assert.match(source, /is not available to the assistant: it installs or removes software/);
+  // The tool itself is driven in tests/nonmodel-baseline-install.test.mjs and tests/assistant-settings-boundary.test.mjs; this pins the table runStudyTool asks.
+  const { assistantRefusal } = await import('../lib/assistant-boundary.js');
+  const source = await (await import('node:fs/promises')).readFile(new URL('../lib/index.js', import.meta.url), 'utf8');
+  assert.match(source, /assistantRefusal\(a\.action\)/);
+  for (const action of ['marker.install.start', 'marker.install.uninstall'])
+    assert.match(assistantRefusal(action), /is not available to the assistant: it installs or removes software/, action);
+  for (const action of ['marker.install.plan', 'marker.install.status', 'marker.install.cancel']) assert.equal(assistantRefusal(action), null, action);
 });
 
 test('cancel and a failed install through the service', async t => {
