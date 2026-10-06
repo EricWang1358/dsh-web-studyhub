@@ -37,6 +37,7 @@
 |---|---|
 | D-8 setup 不在任务表 | 修复（运行时路径） |
 | D-9 取消回执早于清理 | 已由 S5-3 的 `runLocalCommand` 修复覆盖：取消后 Job 在下载进程退出后才结算为 `cancelled`（测试：取消后没有写过任何配置） |
+| D-9 的后果（给 S5-2） | `convert.js` 的取消分支先把 Job 标为 `cancelled`、再 `await discardJob(...)` 删临时目录；D-9 之后取消在进程退出后才结算，旧测试里"等进程消失"那段隐含的延迟没有了，于是"状态已 cancelled 但目录还没删完"这个既有的小竞态暴露出来（约 1/10）。本分支只把 `mineru-local-service` 的断言改成等待清理完成；PDF 转换迁移（S5-2）时应让终态在清理之后发布，与 D-9 的原则一致 |
 | V-6 `mineru.local.start` 同步阻塞 | **未改**：它是即时操作（读取类，保持原接口）；是否应改为后台任务是产品决策 |
 | D-10 | `mineru.local.setup` 已由 #291 纳入 Settings-only |
 
