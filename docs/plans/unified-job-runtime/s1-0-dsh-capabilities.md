@@ -260,3 +260,7 @@
 - owner dispose 取消/移除 owned job、agent/session，scope disposer 一次。
 
 来源：[manual fixtures](../../../tests/fixtures/runtime-s10/README.md)；原始结果 `output/qa/host-s10-jobs-preset/host-capabilities.json` 与 `summary.json`。这是显式 test composition 证据，不证明所有默认/preset 会话已自动有 controller；preset-free 拒绝保留于 `output/qa/host-s10`。alpha 必须先审定 owner/controller 绑定与单一结算责任者。
+
+## S1 收尾能力核验补充（2026-10-06）
+
+历史 S1-0 表保留当时结论，不倒填旧验证。DSH-01/03/09 的实际 owner/controller 与收尾、DSH-04/05/07 的真实 native jobs/children/输出、DSH-06 的限定 single HTTP 资源、DSH-08 的现有 manifest 适配分别随 #262/#267/#272/#275/#279 验收。最新安装包为 DSH rc.2 + 私有 StudyHub 2.7.0，源码指纹、实际范围和未测能力见 [S1-6 证据](s1-6-audio-evidence.json) 与 [最终交接](s1-7-handoff.md)。真实付费质量、远端停止、跨进程配额及任意宿主配置不在已核验范围。

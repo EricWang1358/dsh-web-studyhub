@@ -1,0 +1,472 @@
+{
+  "schemaVersion": 1,
+  "scope": "AST CallExpression inventory of model-shaped APIs; source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role",
+  "managedDefinitions": [
+    "lib/contexts/audio/pilot.js"
+  ],
+  "entries": [
+    {
+      "file": "lib/assist.js",
+      "calls": [
+        {
+          "callee": "collection:tasks:Map",
+          "count": 1
+        },
+        {
+          "callee": "service.complete",
+          "count": 2
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/audio-files.js",
+      "calls": [
+        {
+          "callee": "collection:queue:Array",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Filesystem traversal queue, not a background-job scheduler",
+      "removeAt": "retained non-runtime structure; review if its role changes",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/audio-import.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 2
+        },
+        {
+          "callee": "ctx.complete",
+          "count": 2
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S2 review; provider leaves may remain behind gateway",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/audio-job.js",
+      "calls": [
+        {
+          "callee": ".complete",
+          "count": 1
+        },
+        {
+          "callee": "complete",
+          "count": 2
+        },
+        {
+          "callee": "tiers.complete",
+          "count": 2
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S2 review; provider leaves may remain behind gateway",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/audio-review.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S2 review; provider leaves may remain behind gateway",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/batch.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 2
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/capture.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 3
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/coach.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 5
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/contexts/audio/worker.js",
+      "calls": [
+        {
+          "callee": "tiers.complete",
+          "count": 2
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S2 review; provider leaves may remain behind gateway",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/contexts/materials/translation-operations.js",
+      "calls": [
+        {
+          "callee": "collection:tasks:Array",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Existing named work collection; no new second Job authority",
+      "removeAt": "S6 review; canonical work.jobs retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/contexts/notes/daily-generation.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 2
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S3",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/daily-recap.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/followup.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/generation.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 6
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S3",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/index.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 7
+        },
+        {
+          "callee": "ctx.llm.stream",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/ingest.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/jobs/gateway.js",
+      "calls": [
+        {
+          "callee": "host.complete",
+          "count": 1
+        }
+      ],
+      "owner": "runtime kernel maintainer",
+      "reason": "Approved native model gateway; retained authority",
+      "removeAt": "retained gateway",
+      "evidence": "s1-6-audio-implementation.md (DSH-04/05/07)"
+    },
+    {
+      "file": "lib/library-usage.js",
+      "calls": [
+        {
+          "callee": "collection:queue:Array",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Filesystem usage traversal queue, not a background-job scheduler",
+      "removeAt": "retained non-runtime structure; review if its role changes",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/live-job.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        },
+        {
+          "callee": "tiers.complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S2 review; provider leaves may remain behind gateway",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/live.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/oral-exam-service.js",
+      "calls": [
+        {
+          "callee": "service.complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/rubric-grading.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/runtime/builtins.js",
+      "calls": [
+        {
+          "callee": "collection:jobs:Array",
+          "count": 3
+        },
+        {
+          "callee": "collection:tasks:Array",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Static domain capability/name arrays, not live task collections",
+      "removeAt": "retained non-runtime structure; review if its role changes",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/runtime/domain-contracts.js",
+      "calls": [
+        {
+          "callee": "collection:coach.queue:Array",
+          "count": 1
+        },
+        {
+          "callee": "collection:jobs:Array",
+          "count": 2
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Static domain schema/capability arrays, not live task collections",
+      "removeAt": "retained non-runtime structure; review if its role changes",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/runtime/models.js",
+      "calls": [
+        {
+          "callee": "options.complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/runtime/tasks.js",
+      "calls": [
+        {
+          "callee": "collection:queues:Map",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Existing named work collection; no new second Job authority",
+      "removeAt": "S6 review; canonical work.jobs retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/runtime/work.js",
+      "calls": [
+        {
+          "callee": "collection:captureQueues:Map",
+          "count": 1
+        },
+        {
+          "callee": "collection:coachQueues:Map",
+          "count": 1
+        },
+        {
+          "callee": "collection:coachTasks:Map",
+          "count": 1
+        },
+        {
+          "callee": "collection:jobs:Map",
+          "count": 1
+        },
+        {
+          "callee": "collection:noteJobs:Map",
+          "count": 1
+        },
+        {
+          "callee": "collection:queues:Map",
+          "count": 1
+        },
+        {
+          "callee": "collection:workflowSkeletonJobs:Map",
+          "count": 1
+        },
+        {
+          "callee": "collection:workflowTeachingJobs:Map",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Existing named work collection; no new second Job authority",
+      "removeAt": "S6 review; canonical work.jobs retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/sample-library.js",
+      "calls": [
+        {
+          "callee": "collection:queues:Map",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Existing synthetic sample-library queue state; not canonical runtime authority",
+      "removeAt": "retained non-runtime structure; review if its role changes",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/translation.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/workflow-skeleton.js",
+      "calls": [
+        {
+          "callee": "collection:queues:Array",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "reason": "Existing named work collection; no new second Job authority",
+      "removeAt": "S6 review; canonical work.jobs retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/workflow-teaching.js",
+      "calls": [
+        {
+          "callee": "service.complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
+      "removeAt": "S4/S6 boundary review",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    }
+  ]
+}
