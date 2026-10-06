@@ -1,7 +1,12 @@
 import test from 'node:test';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 
-/* A fixture suite for tests/test-runner-lock.test.mjs: it says it is running, then holds for STUDY_FIXTURE_HOLD_MS. */
+/* A fixture suite for tests/test-runner-lock.test.mjs: it says it is running, then holds for STUDY_FIXTURE_HOLD_MS,
+   or until STUDY_FIXTURE_RELEASE_FILE exists (a hold that does not depend on how loaded the machine is). */
+const release = process.env.STUDY_FIXTURE_RELEASE_FILE;
 if (process.env.STUDY_FIXTURE_LOG) appendFileSync(process.env.STUDY_FIXTURE_LOG, `start ${Date.now()}\n`);
-test('hold', async () => { await new Promise(resolve => setTimeout(resolve, Number(process.env.STUDY_FIXTURE_HOLD_MS || 100))); });
+test('hold', async () => {
+  if (release) { while (!existsSync(release)) await new Promise(resolve => setTimeout(resolve, 20)); return; }
+  await new Promise(resolve => setTimeout(resolve, Number(process.env.STUDY_FIXTURE_HOLD_MS || 100)));
+});
 if (process.env.STUDY_FIXTURE_LOG) process.on('exit', () => appendFileSync(process.env.STUDY_FIXTURE_LOG, `end ${Date.now()}\n`));

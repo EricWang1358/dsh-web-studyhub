@@ -7,6 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { INDEX_TOOLS, buildIndex, readManifest, sourceKey } from '../lib/retrieval-index.js';
 import { until } from './helpers/wait.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 /* S5-0 baseline of the search-index build (docs/plans/unified-job-runtime/s5-0-nonmodel-baseline.md): what a source key and a content hash decide, what the
    build does when the remote write and the local manifest disagree, and that the build is its own background run, not a job of the shared list.
@@ -70,14 +71,14 @@ test('DEFECT BASELINE: a cancel during an ingest leaves that page unrecorded alt
 
 async function libraryWithPages(t, name, port) {
   const root = await mkdtemp(join(tmpdir(), `nonmodel-index-${name}-`));
-  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: port });
+  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: port, ...switchOptions(SWITCH_MODE, { paths: ['retrievalIndex'] }) });
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 5 }); });
   const book = Array.from({ length: 4 }, (_, index) => `<!-- page: ${index + 1} -->\n${name} 第 ${index + 1} 页讲进程。`).join('\n\n');
   await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: `${name}.md`, courses: [name] });
   return { service, root };
 }
 
-test('a build is one background run per library: a second start joins it whatever course it names, other libraries run beside it, and none of it is in the shared job list', async t => {
+test('a build is one background run per library: a second start joins it whatever course it names, other libraries run beside it, and (on the original build) none of it is in the shared job list', async t => {
   const home = await mkdtemp(join(tmpdir(), 'nonmodel-index-home-')), before = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
   t.after(async () => { if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before; await rm(home, { recursive: true, force: true, maxRetries: 5 }); });
@@ -95,7 +96,10 @@ test('a build is one background run per library: a second start joins it whateve
   assert.notEqual(other.runId, first.runId, 'another library has its own run');
   assert.equal((await a.service.call('retrieval.index.status', {})).status, 'running');
   assert.equal((await b.service.call('retrieval.index.status', {})).status, 'running');
-  assert.deepEqual((await a.service.call('snapshot')).jobs, [], 'a build is not a job in the shared list the task console reads');
+  // D-8: the original build is not in the shared list the task console reads; on the runtime (runtime.pilot.retrievalIndex) it is exactly one job there.
+  const listed = (await a.service.call('snapshot')).jobs;
+  if (SWITCH_MODE === 'runtime') assert.deepEqual(listed.map(job => [job.type, job.id]), [['retrieval-index', first.runId]]);
+  else assert.deepEqual(listed, [], 'a build is not a job in the shared list the task console reads');
   for (const { service } of [a, b]) await until(async () => (await service.call('retrieval.index.status', {})).status === 'complete', 'the build');
   assert.equal(Object.keys((await readManifest(a.root)).sources).length, 4);
   assert.equal(Object.keys((await readManifest(b.root)).sources).length, 4);
