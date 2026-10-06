@@ -1,3 +1,4 @@
+import { until } from './helpers/wait.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -168,6 +169,8 @@ test('manual edits survive late completion and automatic updates, explicit repla
   const service = await fixture(t, { complete: async () => { calls++; if (calls === 1) await gate; return writing; } });
   await answers(service, 10);
   const first = await service.call('note.daily.generate', { course: '数学' });
+  // The edit must land while the generation is already asking its model (a late completion), not before it starts.
+  await until(() => calls === 1, 'the generation to ask its model');
   await service.call('note.save', { id: first.id, title: '我的标题', markdown: '# 我写的总结' });
   release();
   await new Promise(resolve => setTimeout(resolve, 40));

@@ -9,6 +9,7 @@ import { LOCAL, LocalMineruError } from '../lib/mineru-local.js';
 import { convertHome, prepareJob, saveManifest } from '../lib/mineru-job.js';
 import { listRecords } from '../lib/mineru-history.js';
 import { makePdf } from './helpers/pdf.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { patientCli, sleep, until } from './helpers/wait.mjs';
 
 /* The adaptive local plan through the real service: windows of 10, 20 and 20 pages, then sized from the measured speed of this computer; a failed window is retried
@@ -47,7 +48,7 @@ async function harness(t, { pages = 120, limits = {}, speed = (start, end) => (e
     if (error) throw error;
     return { content: Array.from({ length: endPage - startPage + 1 }, (_, offset) => ({ type: 'text', text: `Page ${startPage + offset} text`, page_idx: offset })), markers: endPage - startPage + 1, warnings: [] };
   };
-  const options = (extra = {}) => ({ mineru: { now: () => clock.ms, limits: { ...limits, ...extra }, local: { cli, home: work, parseWindow, now: () => clock.ms, modelsCli: { ...cli } } } });
+  const options = (extra = {}) => ({ ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), mineru: { now: () => clock.ms, limits: { ...limits, ...extra }, local: { cli, home: work, parseWindow, now: () => clock.ms, modelsCli: { ...cli } } } });
   let service = new StudyService(root, options());
   const h = {
     home, root, work, clock, calls, gates, cli,

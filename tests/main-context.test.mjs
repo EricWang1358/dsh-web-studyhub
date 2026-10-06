@@ -242,6 +242,8 @@ test('supplement total-budget expiry publishes the approved checkpoint without e
   await checkpoint;
   expired = true;
   t.mock.timers.tick(20 * 60 * 1000);
+  // The budget has expired: from here on the clock is the real one, so the retries of a save that Windows briefly refuses (a rename that hits EPERM waits on a timer) still fire.
+  t.mock.timers.reset();
   const done = await service.call('job.wait', { jobId: job.jobId });
   assert.equal(done.status, 'complete', done.stage);
   assert.equal(done.publication.added, 5);
@@ -283,6 +285,8 @@ test('budget finalization respects cancellation, target archival and stale revie
     await checkpoint;
     expired = true;
     sub.mock.timers.tick(20 * 60 * 1000);
+    // The budget has expired: from here on the clock is the real one, so the retries of a save that Windows briefly refuses (a rename that hits EPERM waits on a timer) still fire.
+    sub.mock.timers.reset();
     if (scenario === 'cancel-stopping') {
       await service.call('job.cancel', { jobId: job.jobId });
       release();
