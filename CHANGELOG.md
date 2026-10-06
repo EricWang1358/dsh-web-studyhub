@@ -2,6 +2,12 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+- **Fewer tokens for a few questions from a long material.** Asking for a small number of questions (10 or fewer, or fewer than a quarter of the sections) no longer reads the whole material first just to rate how important each section is: the questions go to the longest sections either way, so the sections are weighed by length and the plan line says so. In measured runs a 4-question job on a long material used 17–46% fewer tokens (the longer the material, the more it saves). Choosing 精简 / 标准 / 完整 is unchanged.
+- **Less repeated text in every question run.** The list of questions you already have is now sent only to the step that picks the knowledge points (which already avoids repeating them), not again to the answer and writing steps, and the answers step no longer receives your reference questions (the writing step and the review still do). In a measured 20-question run it was about 27,000 tokens (16%) fewer with 400 questions already in the library, about 3% fewer with reference questions, and about 1% with a small library.
+- **More of what is sent again can be served from the provider's cache.** The parts of a request that change (the number of questions, the plan so far) now come after the parts that stay the same, and the plan step is sent only what it needs. A provider that caches repeated starts of a request now reads more of a 20-question run from cache (about 26% before, 40% after in a measured run), which lowers the charge on providers that bill cached tokens less. What a model is asked to do is unchanged.
+
 ## 2.7.0 — 2026-10-06
 
 - **Every course and deck picker can be searched.** The course heading, 换课程, the page scope, the deck you import into, the merge target and the reader's deck are now one searchable list: type part of a course or chapter name and the matches are highlighted; chapters hang under their course on a thin line. "Course settings…" and "New deck “…”" (which takes the name you typed) are buttons under the list instead of options you could hit by accident. The other dropdowns in settings and dialogs share the same look and keyboard (arrows, Enter, Esc, typing to jump), fit narrow panes and follow the interface size. No browser-drawn dropdown is left.
