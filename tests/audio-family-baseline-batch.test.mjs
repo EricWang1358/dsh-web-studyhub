@@ -86,7 +86,7 @@ test('a batch retry with skip: the new attempt keeps the batch id, drops the fai
   for (const skip of [[0, 1], [5], 'x']) await assert.rejects(lib.service.call('audio.retry', { jobId: failed.id, skip }), /跳过的文件编号无效|没有可以导入的文件/);
   assert.deepEqual([(await lib.service.call('snapshot')).jobs.map(job => job.id), lib.calls.length], [[failed.id], before], 'a refused retry changes nothing');
 
-  // job.control accepts the batch id as the public id; the reply names the failed attempt in attemptId and the new one in jobId.
+  // audio.retry accepts the batch id as the public id and replies with the new job id.
   const retried = await lib.service.call('audio.retry', { jobId: failed.id, skip: [1] });
   assert.deepEqual([retried.batchId, retried.jobId === failed.id], [first.batchId, false]);
   const done = await settleJob(lib.service, retried.jobId);
