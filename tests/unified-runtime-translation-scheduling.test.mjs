@@ -117,10 +117,8 @@ for (const [translationMode, generationMode] of COMBINATIONS) {
   });
 }
 
-test('a busy model (429) cools a parallel translation instead of failing it: it waits, asks again one batch at a time, and keeps what it has', async t => {
-  const original = globalThis.setTimeout;
-  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) => original(callback, ms === 5000 ? 10 : ms, ...args));
-  const f = await library(t, { translationMode: 'runtime', generationMode: 'legacy', parallel: true }), doc = await f.one('Alpha');
+for (const translationMode of ['legacy', 'runtime']) test(`translation ${translationMode}: a busy model (429) cools a parallel translation instead of failing it: it waits, asks again one batch at a time, and keeps what it has`, async t => {
+  const f = await library(t, { translationMode, generationMode: 'legacy', parallel: true }), doc = await f.one('Alpha');
   f.fake.failures.push(Object.assign(new Error('429 Too Many Requests'), { status: 429 }));
   const started = await f.translate(doc, { concurrency: 2 });
   const ended = await settleJob(f.runtime, started.jobId);
@@ -128,6 +126,8 @@ test('a busy model (429) cools a parallel translation instead of failing it: it 
   assert.equal((await f.runtime.call('materials.translation.list', { documentId: doc.documentId })).items.length, 9);
   assert.equal(f.fake.failures.length, 0, 'the busy answer was met');
   assert.ok(f.fake.translating.length >= 3, 'the wave was asked again after the wait');
+  const { contract } = (await f.runtime.call('snapshot')).jobs.find(job => job.id === started.jobId), waits = contract.calls.filter(call => call.kind === 'wait');
+  assert.deepEqual(waits.map(wait => [wait.reason, !!wait.endedAt]), [['rate-limit', true]], 'the cooling wait is a Call of the job: the console draws it');
   assert.deepEqual([ended.done, ended.total], [9, 9]);
 });
 
