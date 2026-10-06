@@ -89,15 +89,15 @@ test('PDF cloud · a resume is refused when the saved input is not the file the 
 
 test('PDF local · stop not confirmed: while the cancelled window\'s process still runs the same book cannot be started again; once it is gone it can', async t => {
   const h = await localHarness(t, { delayMs: 60_000 });
-  const started = await h.start();
+  const started = await h.start(), again = await h.upload(), later = await h.upload();
   await until(async () => (await h.parses()).length, 'the first window to start');
   await h.service.call('job.cancel', { jobId: started.jobId });
   const during = (await h.jobs())[0];
   assert.equal(during.status, 'cancelling', 'the receipt is not the end');
-  await assert.rejects(h.start(), /已经在转换/);
+  await assert.rejects(h.start(again), /已经在转换/);
   const ended = await until(async () => { const [job] = await h.jobs(); return job && job.status === 'cancelled' && job; }, 'the stop');
   assert.equal(ended.status, 'cancelled');
-  assert.ok((await h.start()).jobId, 'the process is gone: a new attempt may start');
+  assert.ok((await h.start(later)).jobId, 'the process is gone: a new attempt may start');
 });
 
 /* ---------- Marker install: a crash leaves an owned folder; a stop leaves it too ---------- */

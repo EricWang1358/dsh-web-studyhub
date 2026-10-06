@@ -72,5 +72,5 @@ export async function localHarness(t, state = {}) {
     return uploadId;
   };
   return { service, jobs, parses: async () => (await log()).filter(entry => entry.argv[0] === 'parse'),
-    start: async () => service.call('mineru.import', { uploadId: await upload(), route: 'local' }) };
+    upload, start: async (uploadId) => service.call('mineru.import', { uploadId: uploadId ?? await upload(), route: 'local' }) };
 }
