@@ -35,6 +35,15 @@ test('a failed batch: archived by its batch id (its job id is an alias), kept ar
 
   assert.deepEqual((await restarted.call('job.unarchive', { jobIds: [failed.id] })).unarchived, [failed.id]);
   const back = (await restarted.call('snapshot')).jobs;
+  if (SWITCH_MODE === 'runtime') {
+    // Reviewed (S2-1 design, pinned by the v2 archive tests): an archived runtime record comes back as history, with nothing to retry; dismissing it
+    // still removes the working folder it remembers.
+    assert.deepEqual([back.length, back[0].contract.actions.retry.available], [1, false]);
+    await restarted.call('job.dismiss', { jobId: back[0].id });
+    await jobCleanup.idle();
+    assert.deepEqual([(await restarted.call('snapshot')).jobs, await lib.folders(), (await lib.state()).sources.length], [[], [], 0]);
+    return;
+  }
   assert.deepEqual([back.length, back[0].batchId, back[0].id, back[0].contract.actions.retry.available], [1, first.batchId, failed.id, true]);
   broken = false;
   const retried = await restarted.call('job.control', { jobId: first.batchId, action: 'retry' });
