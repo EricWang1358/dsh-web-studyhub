@@ -32,3 +32,23 @@ for (const [name, meta, outcome] of [
     assert.equal(attempts, 1);
   }
 });
+
+test('a local wait is recorded as side-effect free, and declaring one with a side effect is refused', async t => {
+  let release, entered;
+  const inWait = new Promise(resolve => { entered = resolve; });
+  const f = await durableFixture(t, async context => {
+    const step = context.gateway.step('proofread:1', policy);
+    await assert.rejects(step.run(() => step.observe({ boundary: 'local-wait', kind: 'wait', sideEffect: true }, async () => {})),
+      { code: 'invalid-observation-boundary' });
+    const wait = context.gateway.step('proofread:2', policy);
+    await wait.run(() => wait.observe({ boundary: 'local-wait', kind: 'wait', reason: 'rate-limit' },
+      () => new Promise(resolve => { release = resolve; entered(); })));
+    return { refs: [] };
+  });
+  const job = await f.port.submit('persist', {});
+  await inWait;
+  // A crash now would leave nothing whose remote outcome is unknown: the wait asked nothing of anyone.
+  assert.deepEqual((await f.store.load()).requestIntents.map(intent => [intent.status, intent.sideEffect]), [['pending', false]]);
+  release();
+  assert.equal((await f.port.wait(job.jobId)).status, 'complete');
+});

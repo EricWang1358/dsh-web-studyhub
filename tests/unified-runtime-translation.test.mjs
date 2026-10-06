@@ -4,8 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { until, settleJob } from './helpers/wait.mjs';
-import { gate } from './helpers/model-family-baseline.mjs';
-import { lines, model, library, row } from './helpers/translation-library.mjs';
+import { gate, privateRoot } from './helpers/model-family-baseline.mjs';
+import { createStudyRuntime } from '../lib/runtime/builtins.js';
+import { switchOptions } from './helpers/runtime-switch.mjs';
+import { lines, body, upload, model, library, row } from './helpers/translation-library.mjs';
 
 const runtimeLibrary = (t, fake = model()) => library(t, fake, 'runtime');
 const jobsOf = runtime => [...runtime.work.jobs.values()].filter(job => job.type === 'translation');
@@ -85,4 +87,35 @@ test('with the switch off there is no Job of the runtime: the card is the job ta
   await settleJob(f.runtime, started.jobId);
   assert.equal((await contractOf(f.runtime, started.jobId)).runtime, undefined);
   assert.equal(jobsOf(f.runtime).length, 1);
+});
+
+test('a second start of the same work finds the first even while the runtime has not yet given it its first turn', async t => {
+  const fake = model(), root = await privateRoot(t, 'translation-accepted-');
+  const options = switchOptions('runtime', { complete: fake.complete, paths: ['translation'] }), held = [];
+  // The executor takes the Job and starts it only when it is told to: until then nothing of the Job is presented but its record.
+  const jobExecutor = { ...options.jobExecutor, start: ({ run, cancel }) => { held.push(run); return { id: `held-${held.length}`, ownerAgentId: 'controlled-owner', stop: cancel, append() {} }; } };
+  const runtime = createStudyRuntime(root, { complete: fake.complete, notify: () => {}, language: 'zh', ...options, jobExecutor });
+  t.after(() => runtime.dispose());
+  const imported = await runtime.call('materials.document.import', upload('Alpha.md', body('Alpha')));
+  const args = { documentId: imported.documentId, scope: { sourceIds: [imported.document.sources[0].id] } };
+  const first = await runtime.call('generation.translation.start', args), second = await runtime.call('generation.translation.start', args);
+  assert.equal(held.length, 1, 'the Job has not had its first turn');
+  assert.deepEqual([second.jobId, second.alreadyRunning], [first.jobId, true], 'the same job, not a duplicate');
+  assert.equal(jobsOf(runtime).length, 1);
+  for (const run of held) void run();
+  assert.equal((await settleJob(runtime, first.jobId)).status, 'complete');
+});
+
+test('a job is whole in the list and the status the moment its start returns, even when the executor is slow to give it its first turn', async t => {
+  const fake = model(), root = await privateRoot(t, 'translation-slow-');
+  const options = switchOptions('runtime', { complete: fake.complete, paths: ['translation'] });
+  const jobExecutor = { ...options.jobExecutor, start: ({ run, cancel }) => { setTimeout(() => void run(), 60); return { id: 'slow', ownerAgentId: 'controlled-owner', stop: cancel, append() {} }; } };
+  const runtime = createStudyRuntime(root, { complete: fake.complete, notify: () => {}, language: 'zh', ...options, jobExecutor });
+  t.after(() => runtime.dispose());
+  const imported = await runtime.call('materials.document.import', upload('Alpha.md', body('Alpha')));
+  const started = await runtime.call('generation.translation.start', { documentId: imported.documentId, scope: { sourceIds: [imported.document.sources[0].id] } });
+  const listed = await runtime.call('generation.translation.jobs', { documentId: imported.documentId });
+  assert.deepEqual(listed.jobs.map(job => job.id), [started.jobId]);
+  assert.equal((await runtime.call('generation.translation.status', { jobId: started.jobId })).job.documentId, imported.documentId);
+  assert.equal((await settleJob(runtime, started.jobId)).status, 'complete');
 });

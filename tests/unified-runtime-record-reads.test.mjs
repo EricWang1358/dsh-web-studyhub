@@ -49,3 +49,25 @@ test('reading many fields of a job record in one turn presents it once; the next
   void record.alpha;
   assert.equal(presentations - before, 2, 'a later turn sees the current state');
 });
+
+// A definition that can describe a Job before its first turn (initialPresentation) is found whole as soon as submit returns: a second start,
+// a list or a status read in that same turn needs no wait. Admit's own presentation then takes over.
+test('an initial presentation makes the record whole when submit returns; admit then presents the live view', async t => {
+  const work = createRuntimeWork(), lifecycle = createJobLifecycle('root', work), owner = Symbol('owner');
+  let admitted = false;
+  const definition = { kind: 'probe', version: 1, legacyFields: ['alpha'], capabilities: { cancel: true },
+    initialPresentation: (input, bindings) => () => ({ legacy: { alpha: `${input.name}:${bindings.tag}` } }),
+    async admit(context) { admitted = true; context.present(() => ({ legacy: { alpha: 'live' } })); return { state: {} }; },
+    async run() { return { refs: [], completeness: 'complete' }; } };
+  lifecycle.register({ effect() {} }, 'probe.v1', definition);
+  const executor = { assertAvailable() {}, witness: () => ({}), inspect: () => ({ state: 'lost' }), start({ run }) { void run(); return { id: 'h', ownerAgentId: 'o', stop() {} }; } };
+  t.after(() => lifecycle.dispose());
+  const jobs = lifecycle.scoped({ owner, domain: 'probe.v1', executor });
+  const started = await jobs.submit('probe', { name: 'p' }, {}, { tag: 'b' });
+  assert.equal(admitted, false, 'the first turn has not run yet');
+  assert.equal(work.jobs.get(started.runtime.legacyId).alpha, 'p:b');
+  await jobs.wait(started.jobId);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(work.jobs.get(started.runtime.legacyId).alpha, 'live');
+  assert.throws(() => lifecycle.register({ effect() {} }, 'probe.v1', { ...definition, kind: 'other', initialPresentation: {} }), /Invalid initial presentation/);
+});

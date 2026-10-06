@@ -175,7 +175,7 @@ test('the rewrite stage of the fake model removes passages with internal terms a
 async function pipeline(t, complete, count) {
   const root = await mkdtemp(join(tmpdir(), 'recap-tone-'));
   const service = new StudyService(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['dailyRecap'] }) });
-  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   await service.store.update(state => {
     state.decks.push({ id: 'd', title: '数学', course: '数学', cards: Array.from({ length: count }, (_, i) => ({ id: `d-${i}`, kind: 'quiz', topic: `知识点 ${i % 3}`,
       prompt: `题目 ${i}`, answer: '正确答案', explanation: '先核对条件，然后展开推理。', options: [{ id: 'a', text: '正确选项', correct: true }, { id: 'b', text: '干扰选项' }] })) });
