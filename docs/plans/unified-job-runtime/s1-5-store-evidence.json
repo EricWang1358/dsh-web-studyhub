@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "phase": "S1-5",
+  "status": "implementation verification in progress",
+  "baseSha": "b2349a2ea82d8285c03e2e67990024d2cf25b4bc",
+  "sourceFingerprints": {
+    "lib/atomic-json.js": "f7deb78f1ca8a492806652fc0209963601980dbfbdb702d68a799715190cff20",
+    "lib/audio-batch.js": "b6f9cb7d194f770c8b6739d6a638c8b225e86c9d9f15151ca35ce4f5938eab0d",
+    "lib/audio-dashboard.js": "00ab5f8b62a80503d125002c0f6bc49ebd234c60d38924ee5115625a7f01cd0b",
+    "lib/audio-gateway.js": "544a86eb0cc2a558191aa5ff23c08132e5bfd60b5984cb61a1fb29083838447e",
+    "lib/audio-runtime-store.js": "08204361087a3f15bcabc5797c481870146f7c4994a166c854f38b8662768572",
+    "lib/contexts/audio/worker.js": "d321efefc65a37db6985479f548645edfbdabfcdb25010b6278aeeb4e2a139c5",
+    "lib/jobs/durability.js": "f2fd036583ad11f07be95aefea9c4af8089d14467cbaf25369872b4dd0b9de0e",
+    "lib/jobs/executor.js": "fef050fbcdfa3d0fd713e473b91b635bbc7521d0a94e8962798f2e52bf1ac497",
+    "lib/jobs/gateway.js": "a43e591832526902e7a4eace25b1886d0281961edb90721d436877681a1aa047",
+    "lib/jobs/lifecycle.js": "443afb0a2da54a1358fb60cd6b7e78f032cbb02723c03202a5749e900c43af35",
+    "lib/jobs/registry.js": "615b3bc0f67f5c45f0884ca60f6579d637d513b295e6d8546e43e53faf904f5f",
+    "lib/jobs/store.js": "adfbc7b637b05da99957db50fc20149a9e5ac704d84558ed2d044e1a4347b9cf",
+    "lib/model-usage.js": "5ad63a94a84ca3658139de02d3a9815fc485b870ee6348d57070eee6c9bbfb4c",
+    "lib/runtime/builtins.js": "c03448118c3419341c40a072978857f7eb1eb725ee770fa863a82d3719ec7c82",
+    "tests/fixtures/runtime-s10/host-probe.mjs": "528a441fa7e8ddf01c4db51ecaa7333210aad84ceb901991fa7f7c98c629de53",
+    "tests/fixtures/runtime-s15/crash-worker.mjs": "6fbb760cb84962edcf68ebcf52aa76430946e8cea7bfd438cd26828698433de3",
+    "tests/fixtures/runtime-s15/host-probe.mjs": "0a1b7bf7b4b3c77875cc55322aee36067b721045a07101245c94a45f287f7e8a",
+    "tests/slow-tests.json": "3690a0010ff419d929bc8461682c345ca11d12de783591df689d18e1c308095a",
+    "tests/unified-runtime-crash.test.mjs": "114bab715fc283a776c958c56afbc8f59e338fd4f5a759432767ac9fdd525194",
+    "tests/unified-runtime-recovery.test.mjs": "c88358f957188ed09b0c25fd34146d4f143a8b32b6428b1b8601ba87eaf34d24",
+    "tests/unified-runtime-store.test.mjs": "2a86edf205fa3ffc61b4d74c533f784894a9ca4bb28eb2b1d5e11c0b9e3fa5d2"
+  },
+  "focused": {
+    "command": "node scripts/test.mjs tests/unified-runtime-lifecycle.test.mjs tests/unified-runtime-recovery.test.mjs tests/unified-runtime-store.test.mjs tests/unified-runtime-crash.test.mjs tests/unified-runtime-gateway.test.mjs",
+    "log": "output/s13-contract/s15-accepted-focused.log",
+    "sha256": "f00fc9c6675319aeaa7daeb42fe70a7f28abadb469924f18c4b3f2357a0f3150",
+    "passed": 61,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 3860.632883
+  },
+  "nativeHost": {
+    "startedAt": "2026-10-06T06:09:42.836Z",
+    "finishedAt": "2026-10-06T06:09:50.663Z",
+    "ok": true,
+    "versions": {
+      "dsh": "0.2.0-rc.2",
+      "dsh-agent": "0.2.0-rc.2",
+      "dsh-llm": "0.2.0-rc.2",
+      "dsh-jobs-local": "0.2.0-rc.2",
+      "dsh-subagent": "0.2.0-rc.2",
+      "dsh-tool-jobs": "0.2.0-rc.2",
+      "dsh-agent-preset": "0.2.0-rc.2",
+      "dsh-agent-preset-registry": "0.2.0-rc.2"
+    },
+    "localFakeRequests": 5,
+    "paidModel": false,
+    "installedStudyHubPackageChanged": false,
+    "inspection": {
+      "durable": {
+        "native": {
+          "service": "dsh-jobs",
+          "handleId": "audio-import-1",
+          "ownerAgentId": "69a12b2f-814e-47a6-a505-e394cf582151"
+        },
+        "status": "complete",
+        "checkpoint": {
+          "version": 1,
+          "ref": "checkpoints/b11ac15e26a4fe2261308d26499cd19fb003eb809fe6e67c5e86420330a9509e.json",
+          "digest": "78b508a79c0d0b8b6f7308079022eb49ab2aff0831cbe152d45328e310245c5d",
+          "stepKey": "publish:single"
+        },
+        "calls": [
+          {
+            "callId": "79ae5285-d04e-44b2-914d-ed89e91beb84",
+            "jobId": "2c06f8ad-9472-4b17-86ce-589cd021ef46",
+            "attemptId": "458cfcf2-e641-4540-a7db-c3dede43af6b",
+            "stepKey": "native-text",
+            "stepRunId": "fcd10c4d-0d1a-40cc-8231-aaca73ab9c7f",
+            "kind": "probe",
+            "startedAt": "2026-10-06T06:09:47.769Z",
+            "endedAt": "2026-10-06T06:09:47.792Z",
+            "status": "ok",
+            "runner": "direct",
+            "tokens": 24,
+            "observation": {
+              "boundary": "host-attempt",
+              "requestCount": null
+            },
+            "purpose": "probe",
+            "feature": "audio",
+            "requestedEffort": "default",
+            "executionMode": "direct",
+            "budget": {
+              "timeoutMs": 10000,
+              "maxOutputTokens": 100
+            },
+            "tokenUsage": {
+              "uncachedInputTokens": 11,
+              "outputTokens": 13,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 0
+            },
+            "appliedEffort": null,
+            "modelRequest": true,
+            "selectedEffort": "default",
+            "accounting": "recorded"
+          }
+        ],
+        "sourceCount": 1,
+        "restoredEventCount": 1,
+        "fingerprints": {
+          "lib/jobs/lifecycle.js": "443afb0a2da54a1358fb60cd6b7e78f032cbb02723c03202a5749e900c43af35",
+          "lib/jobs/executor.js": "fef050fbcdfa3d0fd713e473b91b635bbc7521d0a94e8962798f2e52bf1ac497",
+          "lib/jobs/store.js": "adfbc7b637b05da99957db50fc20149a9e5ac704d84558ed2d044e1a4347b9cf",
+          "lib/jobs/durability.js": "f2fd036583ad11f07be95aefea9c4af8089d14467cbaf25369872b4dd0b9de0e",
+          "lib/jobs/gateway.js": "a43e591832526902e7a4eace25b1886d0281961edb90721d436877681a1aa047",
+          "lib/atomic-json.js": "f7deb78f1ca8a492806652fc0209963601980dbfbdb702d68a799715190cff20",
+          "lib/audio-runtime-store.js": "08204361087a3f15bcabc5797c481870146f7c4994a166c854f38b8662768572",
+          "lib/audio-batch.js": "b6f9cb7d194f770c8b6739d6a638c8b225e86c9d9f15151ca35ce4f5938eab0d",
+          "lib/model-usage.js": "5ad63a94a84ca3658139de02d3a9815fc485b870ee6348d57070eee6c9bbfb4c",
+          "lib/audio-dashboard.js": "00ab5f8b62a80503d125002c0f6bc49ebd234c60d38924ee5115625a7f01cd0b"
+        },
+        "paidModel": false,
+        "observation": "Actual installed rc.2 owner/job/llm with local fake adapter; current source modules, single manifest and real library writer. Installed StudyHub package unchanged."
+      },
+      "service": "dsh-jobs",
+      "ownerAgentId": "69a12b2f-814e-47a6-a505-e394cf582151",
+      "handleId": "s15-inspection-1",
+      "activeStatus": "running",
+      "terminalStatus": "completed",
+      "wrongOwnerRefused": true,
+      "callerlessRefused": true,
+      "missingError": "unknown job <id>",
+      "paidModel": false,
+      "limitation": "Native get is owner-scoped. Missing alone does not prove old process death; process witness/recovery wiring still required."
+    },
+    "cleanup": {
+      "converged": true,
+      "parentScopeDisposals": 1
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "rawEvidenceHashes": {
+      "summary.json": "30146c1cd1972c3b3a68f39cd657f4f04892106cf9afa62aaaebdd7e2590689f",
+      "host-capabilities.json": "814e558183cc2e77f42224c7ba8ce0b6b3812d68f58a4929cc44b6300dc2591f"
+    },
+    "limitations": [
+      "Actual installed rc.2 owner/jobs/llm services with current-source modules and local fake provider.",
+      "Does not validate public audio.import pilot, installed StudyHub UI, paid-provider quality, billing or remote-compute termination.",
+      "The aggregate five local fake requests include companion checks; opaque native internal request counts remain null."
+    ]
+  },
+  "fullVerify": {
+    "status": "running",
+    "log": "output/s13-contract/s15-accepted-verify.log",
+    "baseSha": "6229ca51e7a515b8bdde451c713039ac096dc362"
+  },
+  "ci": {
+    "status": "not yet run"
+  },
+  "priorFailedVerification": {
+    "log": "output/s13-contract/s15-freeze-verify.log",
+    "stage": "lint",
+    "reason": "restricted worker import; replaced with permitted public contract validation",
+    "fullTestsStarted": false
+  },
+  "authorization": {
+    "routineS1AcceptanceAndQualifiedMerges": "2026-10-06T04:07:50Z",
+    "excluded": [
+      "paid models",
+      "credential or permission changes",
+      "irreversible user-data deletion",
+      "publishing",
+      "deployment"
+    ]
+  },
+  "integratedBaseSha": "6229ca51e7a515b8bdde451c713039ac096dc362",
+  "integration": {
+    "headSha": "fb821cd8d714891b3a6c013db3b7fd47205c0771",
+    "reason": "concurrent #274 merged after full cloud verification",
+    "lint": "passed",
+    "build": "passed",
+    "focused": {
+      "passed": 68,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 2879.885812
+    },
+    "logs": {
+      "s15-integrated-lint.log": "a80de2e6f4d509d5f30906f00289d524ac532a9d01184a95c06b2c68c2ab91b4",
+      "s15-integrated-focused.log": "1dfc3d2830ea9ff061066f48be3628702f3a2bdf36dac24e3c7c17a40d40a817",
+      "s15-integrated-build.log": "fecf3433a5c0d1495caa12f1a621f9ba3471dba5efc6be4ff2bf238496cbbd6c"
+    }
+  },
+  "pr": 275,
+  "priorFullVerify": {
+    "status": "passed",
+    "command": "npm run verify",
+    "baseSha": "b2349a2ea82d8285c03e2e67990024d2cf25b4bc",
+    "log": "output/s13-contract/s15-final-source-verify.log",
+    "sha256": "cc0c6ea21e5df8efd4edddb1f2f601445cbbefad8dd334996c27e903bd3da351",
+    "passed": 5812,
+    "failed": 0,
+    "skipped": 2,
+    "durationMs": 545474.666611,
+    "lint": "passed",
+    "build": "passed"
+  },
+  "priorFocused": {
+    "command": "node scripts/test.mjs tests/unified-runtime-lifecycle.test.mjs tests/unified-runtime-recovery.test.mjs tests/unified-runtime-store.test.mjs tests/unified-runtime-crash.test.mjs tests/unified-runtime-gateway.test.mjs",
+    "log": "output/s13-contract/s15-resume-final-focused.log",
+    "sha256": "5492ac7e186160f9665102a1aa190dc97937dc51fbd59b1e6de22cfbcc0d8d26",
+    "passed": 60,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 2169.802669
+  },
+  "supersededVerification": {
+    "log": "output/s13-contract/s15-resume-final-verify.log",
+    "status": "cancelled by task owner after another verified facade defect required a source change",
+    "countsAtAbort": {
+      "passed": 118,
+      "failed": 0,
+      "cancelled": 616
+    },
+    "notAcceptanceEvidence": true
+  }
+}

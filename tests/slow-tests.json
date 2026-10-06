@@ -66,6 +66,7 @@
     "tests/store.test.mjs",
     "tests/test-runner-lock.test.mjs",
     "tests/test-runner-schedule.test.mjs",
+    "tests/unified-runtime-crash.test.mjs",
     "tests/unified-runtime-gateway.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
     "tests/wp28b-companion.test.mjs",

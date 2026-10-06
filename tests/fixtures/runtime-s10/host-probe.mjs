@@ -191,7 +191,7 @@ async function runProbe(ctx, config, report) {
     });
     if (config.auditInspection) await step('S1-5 actual-executor-inspection', async () => {
       const { probeExecutorInspection } = await import('../runtime-s15/host-probe.mjs');
-      return probeExecutorInspection({ ctx, parent, sibling, until });
+      return probeExecutorInspection({ ctx, parent, sibling, until, sourceRoot: config.sourceRoot, route });
     });
     if (config.auditGateway) await step('S1-4 actual-model-gateway', async () => {
       const { probeGateway } = await import('../runtime-s14/host-probe.mjs');
