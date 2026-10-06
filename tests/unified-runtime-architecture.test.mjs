@@ -15,7 +15,7 @@ test('managed definitions reject lifecycle/model bypasses while ordinary caches 
 });
 
 test('single audio definition keeps all execution behind approved runtime and pipeline adapters', async () => {
-  const source = await readFile(new URL('../lib/contexts/audio/pilot.js', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../lib/contexts/audio/jobs/single-import.js', import.meta.url), 'utf8');
   assert.deepEqual(auditManagedModule(source), []);
   assert.ok(source.includes('gateway: context.gateway'), 'shared pipeline must receive the runtime gateway');
 });

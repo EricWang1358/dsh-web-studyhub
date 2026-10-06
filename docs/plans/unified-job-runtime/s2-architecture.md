@@ -44,8 +44,16 @@ surface  (operations / tools / ui)     入口、权限、开关读取、控制�
 - 专有详情（如音频分段、字幕条目）通过前端详情注册表按 kind 映射组件；注册表是唯一允许出现 kind 的地方，控制台主体不分支。
 - 用户可见文本：内核不含中文/英文提示文案（布局护栏检查）；家族展示用 `stage.code + args`，文案在 locales。迁移期为旧读取者生成的 legacy 字段可以保留原文案。
 
+## 4.1 内核给定义的接口（S2-1a 起）
+
+- `context.persistence`：定义自己 `persistence.open` 返回的端口；admit/run 直接用，不挂在 bindings 上。
+- `context.admission.state`：admit 返回的 lease 里放本次 attempt 的状态（视图、设置、流水线缓存等），run 读取。
+- `gateway.observe({ boundary, sideEffect })`：观察到结束即已知结果；只有 `sideEffect: true`（重复执行不安全的远端操作）在失败或结果未知时保持 pending，阻止盲目重发。
+- 学习者可见的拒绝：内核抛结构化 code，家族在入口处映射成文案（如 `audioRefusal`），不在内核里写文案。
+
 ## 5. 测试成本
 
+- 开关两侧：特征测试文件读 `SWITCH_MODE`（`tests/helpers/runtime-switch.mjs`），再加一行的孪生文件 `<suite>.runtime.test.mjs` 以运行时模式重跑同一套测试；机制不同的断言按模式分支并写明原因，不复制测试。
 - 每个定义配一份窄测试：用内核 + 假宿主执行器 + 假模型直接驱动定义，不启动整个服务；共用 `tests/fixtures/unified-runtime-contract.mjs` 等现有夹具，缺的夹具加到同一处。
 - 改动一个模块只需重跑它的窄测试和布局/架构护栏；全量 `npm run verify` 只在 PR 收尾与阶段集成时各跑一次。
 - 特征测试先在旧实现上通过，再迁移；新能力先有红灯记录。
