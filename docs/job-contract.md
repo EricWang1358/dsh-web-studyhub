@@ -284,3 +284,7 @@ The [audio pilot adapter contract](plans/unified-job-runtime/s1-6-audio-contract
 ### Non-model jobs (S5-1)
 
 The [non-model contract](plans/unified-job-runtime/s5-1-nonmodel-contract.md) lets processes, transfers and host tool calls use the same Call/Step records without pretending to be model requests: a Step policy without `requestedEffort`/`executionMode` is a non-model Step (it can `run`/`observe` but `complete` refuses with `model-policy-required`); the `local-process` boundary records a Call with `requestCount` null and `modelRequest:false`; `execution.mode` and `usage.calls` describe model Calls only, so a job with none keeps `execution.mode` null and unknown tokens null; an executor admission refusal carries `code: 'executor-unavailable'` before any job exists. Contract version stays 2.
+
+### Naming a Job (S5-2)
+
+A definition may carry `legacyId(input)`: the id its Job is listed under (`work.jobs`, `runtime.legacyId`) is then that name instead of a fresh UUID, and a retry keeps it. For work that already has a public name (a PDF conversion's job folder and history row). The name must match `[\w.-]{1,128}`, else the submit is refused with `invalid-legacy-id` before any Job exists. Definitions without it are unchanged: a fresh id per Job and per retry.
