@@ -5,7 +5,7 @@ import { createRuntimeWork } from '../lib/runtime/work.js';
 import { createAudioWorker } from '../lib/contexts/audio/worker.js';
 import { createJobLifecycle } from '../lib/jobs/lifecycle.js';
 import { dshJobExecutor } from '../lib/jobs/executor.js';
-import { admitSlot, pumpSlots, createPool } from '../lib/jobs/scheduler.js';
+import { admitSlot, pumpSlots, queuedAhead, createPool } from '../lib/jobs/scheduler.js';
 import { createPool as legacyPool } from '../lib/audio-pool.js';
 import { until } from './helpers/wait.mjs';
 
@@ -68,4 +68,19 @@ test('S1-3 text callers sharing a pool share reduction, while backoff releases o
   t.mock.timers.tick(100);
   assert.equal(await refused, 'retried'); assert.equal(attempts, 2);
   assert.deepEqual(events.map(e => e.phase), ['start', 'end']);
+});
+
+test('queuedAhead says how many are ahead of a job that asks for a slot now, whoever built the gate', () => {
+  const gate = { limit: 2, active: new Set(), waiting: [] };
+  assert.equal(queuedAhead(gate), 0, 'a free slot: nobody ahead');
+  gate.active.add('a');
+  assert.equal(queuedAhead(gate), 0, 'one of two taken: still free');
+  gate.active.add('b');
+  assert.equal(queuedAhead(gate), 1, 'full: only the job itself waits');
+  gate.waiting.push({ id: 'c', start() {} }, { id: 'd', start() {} });
+  assert.equal(queuedAhead(gate), 3, 'full with two waiting: they and the job itself');
+  gate.limit = 3;
+  assert.equal(queuedAhead(gate), 0, 'a raised limit frees a slot at once; the waiting ones start at the next pump');
+  pumpSlots(gate);
+  assert.deepEqual([gate.active.size, gate.waiting.length, queuedAhead(gate)], [3, 1, 2]);
 });

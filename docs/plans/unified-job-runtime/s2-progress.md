@@ -9,9 +9,11 @@
 | S2-1a | 已合并 | `codex/runtime-s21a-kernel` / #287 | `fd5c5a1` | 观察到的失败为已知结果（只有 `sideEffect:true` 保持未知）、`context.persistence`、持久化夹具、开关矩阵工具 | 红灯 2 项 → 绿；定向 285/0 | — |
 | S2-1 | 已合并 | `codex/runtime-s21-audio-import` / #290 | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | verify 5947（2 项已修）；合并后整套 3 次 5984/0；双平台 CI | S2-2 批次（A 道） |
 | S2-1b | 已合并 | `codex/runtime-kernel-model-host` / #294 | `8a66375` | 网关用 `preparedModelHost`（语言/清理准备）、轻量通道 `{ model: 'light' }`、无持久化定义的结算通知 | 定向 334/0；双平台 CI | — |
-| S2-2 | PR 中 | `codex/runtime-s22-audio-batch` | `2573b58`（#295 后的 main） | 批次导入/重试、成员协调（`audio-batch` 定义）、共享持久化与展示模块 | verify 6152 项 / 6140 通过 / 0 失败 / 12 跳过；lint 与 build 绿 | S2-3 窗口与许可（A 道） |
+| S2-2 | 已合并 | `codex/runtime-s22-audio-batch` / #301 | `2573b58`（#295 后的 main） | 批次导入/重试、成员协调（`audio-batch` 定义）、共享持久化与展示模块 | verify 6152 项 / 6140 通过 / 0 失败 / 12 跳过；lint 与 build 绿 | S2-3 窗口与许可（A 道） |
 | S2-3 | 已合并 | `codex/runtime-s23-audio-windows` / #309 | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
-| S2-4 | PR 中 | `codex/runtime-s24-audio-subtitles` | S2-3 之上 | 字幕导入（`audio-subtitles`）、`audio-gateway-calls`、内核增量一处 | 见 S2-4 记录 | S2-5 复查与课堂校正（A 道） |
+| S2-4 | 已合并 | `codex/runtime-s24-audio-subtitles` / #311 | S2-3 之上 | 字幕导入（`audio-subtitles`）、`audio-gateway-calls`、内核增量一处 | 见 S2-4 记录 | S2-5 复查与课堂校正（A 道） |
+| S2-5 | 已合并 | `codex/runtime-s25-audio-review` / #317 | S2-4 之上 | 复查（`audio-review`）、课堂校正（`audio-live-correction`） | 见 S2-5 记录 | S2-6 课堂保存（A 道） |
+| S2-6 | PR 中 | `codex/runtime-s26-live-save` | S2-5 之上 | 课堂保存（`audio-live-save`） | 见 S2-6 记录 | S2-7 混跑与回退 |
 
 ## S2-1 记录
 
@@ -163,3 +165,26 @@
 | `liveCorrector`（旧路径模型选择） | 保留；运行时的模型选择在 `live-correction-models.js` |
 | 校正节奏/窗口/超时/最大输出的数字 | 收进 `live-correction-settings.js`，两路共用 |
 | `live.correct.background` 的服务端后台模型 | 旧路径保留；托管时由任务（代理优先）负责 |
+
+## S2-6 记录（课堂保存）
+
+**改动（开关 `runtime.pilot.audioLiveSave`，默认关）**
+
+- 新定义 `audio-live-save`（scope `audio.v1`）：`jobs/live-save.js`（定义）、`live-save-run.js`（一次尝试）、`live-save-view.js`（展示与旧字段）、`submit-live-save.js`（提交）。与字幕/复查同属"只有文本的音频任务"，共用 `submit-text.js` 的 `startTextJob`（新增 `gated`、`bindings` 两个入参：保存要等转写闸门，课堂连接通过提交时的 bindings 传入）和 `text-model.js`。无持久化；能取消、能在进程内重试，不能暂停/恢复。
+- `lib/live-job.js` 拆成 `livePlan` / `existingLiveSources` / `translateLive` / `storeLive`，旧 `executeLiveSaveJob` 与运行时共用，不复制。
+- 转写闸门的持槽抽成 `jobs/slot.js` 的 `holdTranscriptionSlot(context, gate)`，单文件导入与课堂保存共用，等待时任务卡可见（取消后台保存**不**关闭或重建课堂连接，当前转录闸门的等待保持）。
+- 发布前 `assertWritable`：课堂在保存期间被删除就拒绝写入，措辞 `AUDIO_TEXT.liveGone`（「这场实录已被删除，没有保存」）；同样的课堂（同内容同设置）已保存则复用并并入课程（`existingLiveSources`），不请求模型；活跃课堂、校正未覆盖、后台未完成、空内容仍按基线拒绝。
+- 文案在 `audio-messages.js`：`liveSaveStage`、`liveSaveRunning`、`liveGone`、`liveSaveNotice`（会话提示用自己的措辞，不再说"音频"）。
+
+**缺陷（运行时侧已修，旧路径不变）**：D-4（校对保存的模型调用现在是网关调用：任务卡有 token 用量，步骤按 part/parts 编号 `proofread:N`，与其他音频步骤一致）、D-2（会话提示措辞）。
+
+**评审过的行为差异**：同 S2-4（窗口 429 / 瞬时重试、信箱信仍是 `audio-result` / `audio-failed`）；重启后保存任务消失（无持久化，保存的结果已在资料里）。
+
+**测试**：`audio-family-baseline-live` 的运行时孪生（D-4、措辞按模式分支并写明原因）；新增 `unified-runtime-live-save`（2 项：一场课堂保存是自己种类的任务、同一课堂不会同时保存两次、取消不动课堂；保存期间课堂被删除则不保存也不复活）。
+
+| 字段 / 调用点 | 处置 |
+|---|---|
+| `executeLiveSaveJob`、`liveSourceId`、`prepareLive`、缓存键 | 保留，两路共用 |
+| `startAudioJob`（课堂保存的闭包、`retryable`） | 旧路径保留（开关关）；运行时无闭包，输入在任务里 |
+| `jobTextModel` / `taskTracker` / `withJobUsage`（课堂保存） | 旧路径保留；运行时用网关调用与用量 |
+| 单文件导入里的转写闸门持槽 | 抽成 `holdTranscriptionSlot`，两个定义共用 |
