@@ -80,7 +80,8 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     } catch (cause) { if (current()) setError(errorMessage(cause)); }
     finally { if (current()) { pending.current = null; setWorking(false); } }
   };
-  const field = (key, control, note) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]}>{control}</Field>;
+  // The time limit is also a deep link: the 任务 page's 调整时限 opens Settings at this field (ui/tasks/time-limit.js LIMIT_ANCHOR).
+  const field = (key, control, note) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]} {...(key === 'jobTimeoutMinutes' ? { 'data-tour': 'settings-generation-time' } : {})}>{control}</Field>;
   const propsFor = key => ({ name: key, value: editor.values[key], disabled, onChange: event => edit(key, event.target.value) });
   const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
     min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);

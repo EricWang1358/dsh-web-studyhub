@@ -52,6 +52,7 @@ test('the generation settings section renders fourteen usable controls with shar
     ssr.setUiLanguage(language);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
+    assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
     assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 14);
     for (const [name, min, max] of [['count', 1, 500], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 180], ['fillRounds', 0, 4]]) {
       const input = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))[0];

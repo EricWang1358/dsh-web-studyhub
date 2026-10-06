@@ -11,10 +11,16 @@ const dash = '—';
 const UNIT_LABEL = { files: '文件', pages: '页', paragraphs: '段落', questions: '题数' };
 const SEGMENT_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', save: '保存', plan: '规划', blueprint: '答案与情景', author: '出题', review: '审阅', repair: '修复' };
 
-function elapsedOf(contract, running, now) {
-  if (!contract.startedAt) return dash;
+/** How long the task has been going (the 已用 fact, and the one number the time-limit strip counts against its limit): null before it has started. */
+export function elapsedMs(contract, running, now) {
+  if (!contract.startedAt) return null;
   const end = running ? now : Date.parse(contract.finishedAt || contract.startedAt);
-  return formatElapsed(Math.max(0, end - Date.parse(contract.startedAt)));
+  return Math.max(0, end - Date.parse(contract.startedAt));
+}
+
+function elapsedOf(contract, running, now) {
+  const ms = elapsedMs(contract, running, now);
+  return ms === null ? dash : formatElapsed(ms);
 }
 
 /** "151 · 0 失败": model calls made and how many failed. */
