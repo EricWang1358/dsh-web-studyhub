@@ -13,6 +13,7 @@ const RULES = [
   { root: 'lib/contexts/audio/setup', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
   { root: 'lib/contexts/notes/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/audio/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
+  { root: 'lib/contexts/generation/translation', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
   { root: 'lib/contexts/generation/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/study/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/workflows/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
