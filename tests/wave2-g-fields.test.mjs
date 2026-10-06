@@ -77,9 +77,13 @@ test('inputs render the one .sh-input look and pass attributes through', () => {
   assert.match(html(m.TextInput, { type: 'url', placeholder: 'https://' }), /type="url"/);
   assert.match(html(m.TextInput, { invalid: true }), /aria-invalid="true"/);
   assert.match(html(m.TextArea, { value: '', onChange() {}, rows: 4 }), /<textarea[^>]*class="sh-input"[^>]*rows="4"|<textarea[^>]*rows="4"[^>]*class="sh-input"/);
-  const select = html(m.Select, { value: 'b', onChange() {} }, h('option', { value: 'a' }, 'A'), h('option', { value: 'b' }, 'B'));
-  assert.match(select, /<select[^>]*class="sh-input"/);
-  assert.match(select, /<option value="b" selected="">B<\/option>/);
+  // The Select is a closed combobox button until it opens (its popup is loaded on demand): the .sh-input look, the chosen label, the passed attributes.
+  const select = html(m.Select, { value: 'b', onChange() {}, 'aria-label': '口吻', options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B', hint: 'hint' }] });
+  assert.match(select, /<button[^>]*role="combobox"[^>]*class="sh-input sh-select__trigger"|<button[^>]*class="sh-input sh-select__trigger"[^>]*role="combobox"/);
+  assert.match(select, /aria-label="口吻"/);
+  assert.match(select, /<span class="sh-select__value">B<small>hint<\/small><\/span>/);
+  assert.match(html(m.Select, { value: '', placeholder: '选择…', options: [{ value: 'a', label: 'A' }] }), /sh-select__placeholder">选择…</);
+  assert.match(html(m.Select, { value: 'a', invalid: true, name: 'tone', options: [{ value: 'a', label: 'A' }] }), /aria-invalid="true"[\s\S]*<input type="hidden" name="tone" value="a"\/>/);
 });
 
 test('NumberInput renders a number input with limits and an optional suffix', () => {

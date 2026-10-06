@@ -4,7 +4,7 @@ import { browserSession, readJSON, writeJSON } from './storage.js';
 import { courseScope, courseSegments, courseTree } from '../lib/course-tree.js';
 import { isParked, parkedWithin, useCourseActive } from './CourseActive.jsx';
 import { useInjectCss } from './shared.js';
-import { Button } from './components/index.js';
+import { Button, Combobox } from './components/index.js';
 import activeCss from './course-active.css';
 
 const storageKey = (root, page) => `study-page-scope:v1:${JSON.stringify([root || '', page])}`;
@@ -60,13 +60,9 @@ export function usePageScope(root, page, defaultValue = '*') {
   return [value ?? defaultValue, choose];
 }
 
-/* Depth is shown as padding on the option: the open list indents, the closed select shows the chosen name flush left (leading
-   spaces in the label would have been shown in the closed select too). */
-const indent = depth => depth > 0 ? { paddingInlineStart: `${(depth * 1.25).toFixed(2)}em` } : undefined;
-
 /**
  * Scope of a page: all, one course (a parent includes its sub-courses), or uncategorised. Courses form a tree:
- * children are indented under their parent and show their last segment; the value is always the full name.
+ * children hang under their parent (a level-2 option on the hairline) and show their last segment; the value is always the full name.
  */
 export default function PageScope({ courses = [], value, onChange, disabled, unassigned = true, label = ui('课程范围'), selectedLabel, showInactive, onShowInactive }) {
   useInjectCss(activeCss, 'study-course-active');
@@ -83,21 +79,20 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
   const chosenCourse = chosen ? entries.find(course => chosen.names.includes(course.name) || course.name === chosen.name) : null;
   // What this page leaves out, and the one-click way to see it (only for pages that send includeInactive, see scopeArgs).
   const hidden = chosenCourse && isParked(chosenCourse) ? 0 : parkedWithin(courses, value === '@selected' ? '*' : value);
-  const option = (row, group = live) => (row.names.length ? row.names : [row.name]).map((name, index) => {
-    // A parked chapter whose parent is not parked is listed with its whole path: its parent is not in the same group.
+  // A parked chapter whose parent is not parked is listed with its whole path: its parent is not in the same group.
+  const optionsOf = (row, group = live) => (row.names.length ? row.names : [row.name]).map((name, index) => {
     const alone = row.parent && !group.some(item => item.name === row.parent);
-    return <option key={name} value={name} className={parkedNames.has(name) ? 'is-parked' : undefined} title={row.depth > 0 ? name : undefined}
-      style={alone ? undefined : indent(row.depth)}>{alone ? name : row.label}{row.childCount && index === 0 ? ` · ${ui('含子课程')}` : ''}</option>;
+    return { value: name, label: alone ? name : row.label, level: alone ? 1 : Math.min(row.depth + 1, 3), hint: row.childCount && index === 0 ? ui('含子课程') : undefined };
   });
-  return <label className="page-scope">{label}<select value={value} onChange={event => onChange(event.target.value)} disabled={disabled}
-    title={chosen ? chosen.name : undefined}>
-    <option value="*">{ui('全部课程')}</option>
-    {selectedLabel && <option value="@selected">{selectedLabel}</option>}
-    {live.flatMap(row => option(row))}
-    {unassigned && <option value="">{ui('未分类')}</option>}
-    {parked.length > 0 && <optgroup label={uiFormat('未激活的课程 ({0})', [parked.length])}>{parked.flatMap(row => option(row, parked))}</optgroup>}
-    {value && value !== '*' && value !== '@selected' && !listed.has(value) && !rows.some(row => row.name === value) && <option value={value}>{value}</option>}
-  </select>{path && <small className="page-scope__path" title={chosen.name}>{path}</small>}
+  const strayValue = value && value !== '*' && value !== '@selected' && !listed.has(value) && !rows.some(row => row.name === value);
+  const options = [{ value: '*', label: ui('全部课程') },
+    ...(selectedLabel ? [{ value: '@selected', label: selectedLabel }] : []),
+    ...live.flatMap(row => optionsOf(row)),
+    ...(unassigned ? [{ value: '', label: ui('未分类') }] : []),
+    ...(parked.length > 0 ? [{ group: uiFormat('未激活的课程 ({0})', [parked.length]), options: parked.flatMap(row => optionsOf(row, parked)) }] : []),
+    ...(strayValue ? [{ value, label: value }] : [])];
+  return <label className="page-scope">{label}<Combobox value={value} onChange={onChange} disabled={disabled} options={options} searchPlaceholder={ui('搜索课程或章节')}
+    emptyText={query => uiFormat('没有叫「{0}」的课程或章节', [query])} title={chosen ? chosen.name : undefined} />{path && <small className="page-scope__path" title={chosen.name}>{path}</small>}
     {chosenCourse && isParked(chosenCourse) && <small className="page-scope__note">
       <span>{ui('这门课未激活')}</span>
       {active && <span aria-hidden="true">·</span>}

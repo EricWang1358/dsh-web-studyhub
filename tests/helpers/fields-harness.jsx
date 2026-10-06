@@ -16,7 +16,7 @@ function FieldsScenario() {
         <TextInput name="course" value={name} onChange={event => setName(event.target.value)} />
       </Field>
       <Field label="题数" hint="1–50" width="sm"><NumberInput name="count" value={5} min={1} max={50} suffix="道" onChange={() => {}} /></Field>
-      <Field label="口吻" hint="亲切或专业"><Select name="tone" value="a" onChange={() => {}}><option value="a">亲切</option><option value="b">专业</option></Select></Field>
+      <Field label="口吻" hint="亲切或专业"><Select name="tone" value="a" onChange={() => {}} options={[{ value: 'a', label: '亲切' }, { value: 'b', label: '专业' }]} /></Field>
       <Switch label="记录使用频率" hint="关掉后，已有的记录保留。" name="usage" checked={on} onChange={checked => { window.calls.switch.push(checked); setOn(checked); }} />
       <Checkbox label="同意上传" hint="文档会上传。" name="agree" checked={agree} onChange={checked => { window.calls.check.push(checked); setAgree(checked); }} />
       <Switch label="停用的开关" hint="不可用。" checked={false} disabled onChange={() => { window.calls.disabled += 1; }} />

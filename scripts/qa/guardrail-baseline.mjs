@@ -50,6 +50,11 @@ export const ALLOW = {
     { name: '--dsh-windows-titlebar-height', reason: 'host-provided' },
     { name: '--dsh-composer-height', reason: 'host-provided' },
     { name: '--dsh-frame-top-clearance', reason: 'host-provided' },
+    /* Set by Base UI on the positioner of a Select / Combobox popup (ui/components/select.css), in the interface's own pixels. */
+    { name: '--anchor-width', reason: 'Base UI positioner variable' },
+    { name: '--available-width', reason: 'Base UI positioner variable' },
+    { name: '--available-height', reason: 'Base UI positioner variable' },
+    { name: '--transform-origin', reason: 'Base UI positioner variable' },
     /* Optional overrides: the default sits in the var() fallback on purpose. */
     { name: '--sh-toast-offset', reason: 'optional override set by a host page' },
     { name: '--dur-leave', reason: 'optional override, ui/components/feedback.css fallback is the default' },

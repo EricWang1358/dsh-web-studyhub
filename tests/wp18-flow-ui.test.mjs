@@ -6,13 +6,14 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const compiled = await build({ stdin: { contents: `
   export * from './ui/generation-status.js';
   export { ScopeBar, Readings } from './ui/WorkflowScope.jsx';
   export { default as ModelErrorNote } from './ui/ModelErrorNote.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
+bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], plugins: [nativeSelects], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const m = module.exports;
@@ -49,10 +50,10 @@ test("the course switcher lists the other courses and marks the current one", ()
   const zh = bar("zh", session(), resources());
   assert.match(zh, /aria-label="换课程"/);
   assert.match(zh, new RegExp(`<option[^>]*value="${CN}"[^>]*>${CN}`));
-  assert.match(zh, new RegExp(`<option[^>]*value="${PE}"[^>]*>${PE}（当前）`));
+  assert.match(zh, new RegExp(`<option[^>]*value="${PE}"[^>]*selected[^>]*>${PE}`), "the current course is the chosen one");
   const en = bar("en", session(), resources());
   assert.match(en, /aria-label="Switch course"/);
-  assert.match(en, /\(current\)/);
+  assert.match(en, /data-combobox="field"/, "a searchable picker, not a plain select");
 });
 
 test("a cross-course hint offers one click to switch and is absent without a match", () => {

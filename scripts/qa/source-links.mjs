@@ -13,6 +13,7 @@ import { parseArgs } from "node:util";
 import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
+import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { Store } from "../../lib/store.js";
 
@@ -181,7 +182,7 @@ export async function run(options) {
     await page.locator(".study-document-learning textarea").fill(t("为什么只考查一个要点？", "Why only one point?"));
     await page.getByRole("button", { name: t("依据原文回答", "Answer using the source") }).click();
     await page.locator(".study-grounded-answer").waitFor({ timeout: 15000 });
-    await page.locator(".study-document-learning select").first().selectOption("qa-deck");
+    await pick(page, page.locator('.study-document-learning [role="combobox"]').first(), t("手册练习题", "Handbook questions"));
     await page.getByRole("button", { name: t("存成闪卡", "Save as flashcard") }).click();
     await page.locator(".study-qa-saved").waitFor({ timeout: 15000 });
     await sleep(500);

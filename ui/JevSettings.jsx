@@ -152,9 +152,8 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
       <JevGuide />
       <div className="jev-provider" data-provider={provider}>
         <Field label={ui('Jev 服务商')}>
-          <Select name="jev-provider" value={provider} disabled={locked} onChange={event => onProvider?.(event.target.value)}>
-            {providerChoices().map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
-          </Select>
+          <Select name="jev-provider" value={provider} disabled={locked} onChange={value => onProvider?.(value)}
+            options={providerChoices().map(choice => ({ value: choice.id, label: choice.label }))} />
         </Field>
         {meta && !custom && <Hint className="jev-provider__where">{uiFormat('发送到 {0}，模型 {1}。', [meta.host, meta.model])}</Hint>}
         {custom && <form className="jev-custom" onSubmit={saveCustom}>
@@ -201,9 +200,8 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
         {JEV_FEATURE_META.map(feature => <Switch key={feature.id} data-feature={feature.id} label={feature.label()} hint={feature.hint()}
           checked={!!settings.features[feature.id]} onChange={checked => onFeature(feature.id, checked)} />)}
         <Field label={ui('自动填入所需的把握')} width="sm" hint={ui('Jev 的把握低于这条线时，建议只展示概率，留给你决定；替换模型调用时，低于这条线的判断改交给原来的模型。默认 80%。')}>
-          <Select value={String(settings.threshold)} onChange={event => onThreshold(Number(event.target.value))}>
-            {thresholdChoices(settings.threshold).map(choice => <option key={choice} value={String(choice)}>{percentText(choice)}</option>)}
-          </Select>
+          <Select value={settings.threshold} onChange={onThreshold}
+            options={thresholdChoices(settings.threshold).map(choice => ({ value: choice, label: percentText(choice) }))} />
         </Field>
       </fieldset>
       {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck call={call} /></details>}

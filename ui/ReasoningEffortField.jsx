@@ -44,9 +44,7 @@ export default function ReasoningEffortField({ binding = {}, busy = false, onCha
     <Field group={small} label={ui('推理程度')} width="full" hint={ui('只影响出题和改题；陪学提示固定用最低档，音频处理在音频设置里单独调。')}>
       {small
         ? <SegmentedControl label={ui('推理程度')} value={preferred} options={choices} disabled={busy} onChange={onChange} />
-        : <Select value={preferred} disabled={busy} onChange={(event) => onChange?.(event.target.value)}>
-          {choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-        </Select>}
+        : <Select value={preferred} disabled={busy} onChange={(value) => onChange?.(value)} options={choices} />}
     </Field>
     <Hint className="effort-tradeoff" data-effort={tradeoff.key}>{tradeoff.text}</Hint>
     {effort.stale && <Hint className="effort-note">{uiFormat('之前选的「{0}」当前模型没有，已改为跟随。', [binding.reasoningEffort])}</Hint>}

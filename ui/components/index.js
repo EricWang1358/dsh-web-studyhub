@@ -30,6 +30,8 @@ export { useDismiss, useAnchoredPosition, computePlacement, placeInHost } from '
 export { default as SecretKeyForm } from './SecretKeyForm.jsx';
 export { ToastContext, useToast, createToastApi } from './Feedback.jsx';
 export { Field, TextInput, TextArea, Select, NumberInput } from './Field.jsx';
+export { Combobox } from './Combobox.jsx';
+export { flattenOptions, filterEntries, matchRanges, highlightParts, resolveActions } from './option-list.js';
 export { Checkbox, Switch, RadioCard, RadioCardGroup } from './Choice.jsx';
 export { SettingsSection } from './SettingsSection.jsx';
 export { ProviderCard, ProviderGrid, StepList } from './ProviderCard.jsx';

@@ -6,7 +6,8 @@ import React, { useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
-import { Button, ConfirmDialog } from "./components/index.js";
+import { Button, Combobox, ConfirmDialog } from "./components/index.js";
+import { courseEntries } from "./course-picker-entries.js";
 import css from "./workflow-scope.css";
 
 const PICKED = { route: "课程路线的这一批", none: "学习库里还没有相关的题目", ai: "AI 选的范围", match: "按名称匹配的范围", course: "没找到直接相关的主题，先学当前课程" };
@@ -51,9 +52,8 @@ export function ScopeBar({ session, resources, disabled, onRescope, onStartNew }
     {session.aiFailed && <p className="wf-scope-note">{ui("模型暂时不可用，已按名称匹配主题")}</p>}
     {canSwitch && !disabled && <div className="wf-scope-actions">
       <label className="wf-course-switch"><span>{ui("换课程")}</span>
-        <select aria-label={ui("换课程")} value={course} onChange={(event) => choose(event.target.value)}>
-          {courses.map((item) => <option key={item.name} value={item.name}>{item.name === course ? uiFormat("{0}（当前）", [courseName(item.name)]) : courseName(item.name)}</option>)}
-        </select>
+        <Combobox label={ui("换课程")} value={course} onChange={choose} options={courseEntries({ courses, current: course })} searchPlaceholder={ui("搜索课程或章节")}
+          emptyText={(query) => uiFormat("没有叫「{0}」的课程或章节", [query])} />
       </label>
       {hint && <p className="wf-scope-hint">{uiFormat("「{0}」可能更相关", [courseName(hint.course)])} · <Button variant="link" size="sm" onClick={() => choose(hint.course)}>{ui("切换到这门课")}</Button></p>}
     </div>}

@@ -3,6 +3,7 @@
    (scripts/qa/translation.mjs); this guards the markup, the copy, the accessibility attributes and that translations, comments
    and quoted passages are shown as text. */
 import test from 'node:test';
+import { nativeSelects } from './helpers/native-selects.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
@@ -16,7 +17,7 @@ const compiled = await build({ stdin: { contents: `export * from './ui/i18n.js';
   export { default as TranslationBlock } from './ui/document-preview/translation/TranslationBlock.jsx';
   export { TranslationDisplayRow, TranslationMenu, TranslationJobCard, SelectionChip } from './ui/document-preview/translation/TranslationMenu.jsx';
   export { default as GlossaryDialog } from './ui/document-preview/translation/GlossaryDialog.jsx';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 function load() {
   const module = { exports: {} };
   new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);

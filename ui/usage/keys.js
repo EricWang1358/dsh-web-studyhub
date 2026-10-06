@@ -49,7 +49,8 @@ function nameOf(node) {
   const label = attr(node, 'aria-label');
   let canonical = label ? canonicalName(label) : null;
   if (canonical) return canonical;
-  if (tag === 'INPUT' || tag === 'SELECT') {
+  // A Select / Combobox trigger shows the chosen value (a deck, a course): it is named by its label alone, never by what it shows.
+  if (tag === 'INPUT' || tag === 'SELECT' || attr(node, 'role') === 'combobox') {
     const text = node.labels?.[0]?.textContent;
     canonical = text ? canonicalName(text) : null;
     return canonical;

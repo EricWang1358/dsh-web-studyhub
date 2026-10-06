@@ -35,9 +35,7 @@ export function DisplayControls({ settings, onChange, onReset, underline = true,
         options={[{ value: 'narrow', label: ui('窄') }, { value: 'standard', label: ui('标准') }, { value: 'wide', label: ui('宽') }]} />
     </Field>
     <Field label={ui('字体')} width="full">
-      <Select className="reader-select" value={settings.face} onChange={event => onChange({ face: event.target.value })}>
-        {faceOptions().map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </Select>
+      <Select className="reader-select" value={settings.face} onChange={face => onChange({ face })} options={faceOptions()} />
     </Field>
     <Field group label={ui('背景')} width="full">
       <SegmentedControl size="sm" label={ui('背景')} value={settings.tone} onChange={pick('tone')}

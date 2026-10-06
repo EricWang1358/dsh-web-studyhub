@@ -40,9 +40,7 @@ export function CoachSection({ profile, busy, act, call, setProfile, confirmForg
       <Hint>{ui('画像只影响陪学：答错后的提示、追问、改题、强化变式题和每轮复盘的措辞与侧重；不影响出题和复习排期。')}</Hint>
       <Checkbox label={ui('做题时在后台准备变式题和应用场景题')} checked={profile.consent === true} disabled={busy} onChange={setConsent} />
       <Field label={ui('学习目标')} hint={ui('提示语气与例子会贴近这个目标。')}>
-        <Select value={profile.goal} disabled={busy} onChange={(e) => setGoal(e.target.value)}>
-          {GOALS.map(([id, label]) => <option key={id} value={id}>{ui(label)}</option>)}
-        </Select>
+        <Select value={profile.goal} disabled={busy} onChange={setGoal} options={GOALS.map(([id, label]) => ({ value: id, label: ui(label) }))} />
       </Field>
       <div className="coach-profile">
         <div className="coach-profile__head">

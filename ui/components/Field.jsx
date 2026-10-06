@@ -52,10 +52,8 @@ export const TextArea = forwardRef(function TextArea({ rows = 3, invalid, classN
   return <textarea ref={ref} rows={rows} className={cx('sh-input', className)} aria-invalid={invalid || undefined} {...rest} />;
 });
 
-export const Select = forwardRef(function Select({ invalid, className, children, ...rest }, ref) {
-  useComponentCss(css, 'study-fields');
-  return <select ref={ref} className={cx('sh-input', className)} aria-invalid={invalid || undefined} {...rest}>{children}</select>;
-});
+/** The single-choice dropdown (ui/components/Select.jsx: Base UI, options as data). It replaces the native <select>; Combobox is its searchable sibling. */
+export { Select } from './Select.jsx';
 
 /** A number input; `suffix` (a unit such as 分钟) sits beside it. min / max / step are the native ones. */
 export const NumberInput = forwardRef(function NumberInput({ suffix, invalid, inputMode = 'decimal', className, ...rest }, ref) {

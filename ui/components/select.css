@@ -1,0 +1,88 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* Select and Combobox (WP-4): the trigger is the .sh-input look on a button, the popup is the raised overlay surface. Base UI draws no
+       style of its own; everything here is tokens. Docs: docs/design/select-combobox.html. */
+
+    /* ── Trigger (field) ───────────────────────────────────────────────── */
+    .sh-select__trigger { display: flex; align-items: center; gap: var(--space-2); text-align: start; cursor: pointer; }
+    .sh-select__trigger:hover:not(:disabled) { border-color: var(--line-strong); }
+    .sh-select__trigger[data-popup-open] { border-color: var(--line-strong); background: var(--bg-surface); }
+    .sh-select__valuebox { display: contents; }
+    .sh-select__value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sh-select__value small { margin-inline-start: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-sm); }
+    .sh-select__placeholder { color: var(--text-faint); }
+    .sh-select__caret { flex: none; display: inline-flex; color: var(--text-muted); transition: transform var(--dur-fast) var(--ease); }
+    .sh-select__trigger[data-popup-open] .sh-select__caret, .sh-combobox__heading[data-popup-open] .sh-select__caret { transform: rotate(180deg); }
+
+    /* ── Heading trigger: the course heading keeps its display size, only a caret says it opens ── */
+    .sh-combobox__heading { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; max-width: 100%; margin: 0;
+      padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; letter-spacing: inherit;
+      line-height: inherit; text-align: start; cursor: pointer; }
+    /* The hover pill is a spread shadow, not padding: the heading's text stays flush with the page and its box is exactly its text and caret. */
+    .sh-combobox__heading:hover:not(:disabled), .sh-combobox__heading[data-popup-open] { background: var(--bg-hover); box-shadow: 0 0 0 var(--space-1-5) var(--bg-hover); }
+    .sh-combobox__heading:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .sh-combobox__heading-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Popup: positioned by Base UI, drawn inside the study surface. Its --anchor-/--available-* sizes are already in the interface's own pixels (Floating UI divides by the zoom of the surface), so they are used as they are at any interface size ── */
+    .sh-pop { z-index: var(--z-popover); outline: 0; }
+    .sh-pop__popup {
+      --sh-inset: var(--space-1); /* the popup's own padding: options are rounded one inset smaller than the surface, so the corners stay concentric */
+      box-sizing: border-box; display: flex; flex-direction: column; width: max-content;
+      min-width: var(--anchor-width); max-width: var(--available-width);
+      max-height: min(var(--available-height), 26rem);
+      border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-raised); color: var(--text); outline: 0; overflow: hidden;
+      box-shadow: var(--shadow-popover);
+      transform-origin: var(--transform-origin);
+      transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+    }
+    .sh-pop__popup[data-starting-style], .sh-pop__popup[data-ending-style] { opacity: 0; transform: scale(0.97) translateY(-2px); }
+    .sh-pop__popup[data-side="top"][data-starting-style], .sh-pop__popup[data-side="top"][data-ending-style] { transform: scale(0.97) translateY(2px); }
+    .sh-pop__popup--match { width: var(--anchor-width); }
+    .sh-pop__popup--wide { min-width: min(max(var(--anchor-width), 21rem), var(--available-width)); }
+    .sh-pop__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-1); outline: 0; }
+    .sh-pop__list:empty { display: none; }
+
+    /* ── Options ───────────────────────────────────────────────────────── */
+    .sh-opt { display: flex; align-items: center; gap: var(--space-2); min-height: 2.1em; padding: var(--space-1-5) var(--space-2-5);
+      border-radius: calc(var(--radius) - var(--sh-inset) - var(--hairline)); font-size: var(--fs-md); line-height: var(--lh-snug); cursor: pointer; outline: 0; user-select: none; }
+    .sh-opt[data-highlighted] { background: var(--bg-hover); outline: 1px solid var(--line-strong); outline-offset: -1px; }
+    .sh-opt[data-selected] { background: var(--bg-selected); }
+    .sh-opt[data-disabled] { color: var(--text-faint); cursor: default; }
+    .sh-opt__check { flex: none; display: inline-flex; width: 16px; color: var(--text); }
+    .sh-opt__label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sh-opt__hint { flex: none; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .sh-opt mark { background: none; color: inherit; font-weight: var(--fw-strong); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+    /* Chapters hang off their course on one hairline: the tree the old picker faked with spaces. */
+    .sh-opt--context { min-height: 0; padding-block: var(--space-1); color: var(--text-muted); cursor: default; font-size: var(--fs-sm); }
+    .sh-opt--sub { margin-inline-start: var(--space-4); padding-inline-start: var(--space-3); border-radius: 0 calc(var(--radius) - var(--sh-inset) - var(--hairline)) calc(var(--radius) - var(--sh-inset) - var(--hairline)) 0; box-shadow: inset 1px 0 0 var(--line-strong); }
+    .sh-opt--sub[data-level="3"] { margin-inline-start: calc(var(--space-4) * 2); }
+    .sh-opt--sub[data-selected], .sh-opt--sub[data-highlighted] { box-shadow: inset 2px 0 0 var(--text-muted); }
+    .sh-pop__group { padding-bottom: var(--space-1); }
+    .sh-pop__group-label { margin: 0; padding: var(--space-2) var(--space-2-5) var(--space-half); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.03em; }
+
+    /* ── Combobox: search row, empty sentence, footer actions ─────────── */
+    .sh-combobox__search { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); color: var(--text-muted); }
+    .sh-combobox__search > svg { flex: none; }
+    .sh-combobox__input { flex: 1; min-width: 0; margin: 0; padding: var(--space-1) 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text); font: inherit; outline: none; }
+    .sh-combobox__input:focus { border: 0; background: none; box-shadow: none; outline: none; }
+    .sh-combobox__input::placeholder { color: var(--text-faint); }
+    .sh-combobox__empty { padding: var(--space-5) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
+    .sh-combobox__empty:empty { display: none; }
+    .sh-combobox__foot { display: grid; gap: var(--space-half); padding: var(--space-1); border-top: 1px solid var(--line); }
+    .sh-combobox__action { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 2.1em; margin: 0; padding: var(--space-1-5) var(--space-2-5); border: 0;
+      border-radius: calc(var(--radius) - var(--sh-inset) - var(--hairline)); background: none; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); text-align: start; cursor: pointer; }
+    .sh-combobox__action:hover:not(:disabled), .sh-combobox__action:focus-visible { background: var(--bg-hover); color: var(--text); outline: none; }
+    .sh-combobox__action:focus-visible { box-shadow: var(--ring); }
+    .sh-combobox__action:disabled { color: var(--text-faint); cursor: default; }
+    .sh-combobox__action > svg { flex: none; color: var(--text-muted); }
+    .sh-combobox__action-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .sh-pop__popup, .sh-select__caret { transition: none; }
+      .sh-pop__popup[data-starting-style], .sh-pop__popup[data-ending-style] { transform: none; }
+    }
+  }
+}

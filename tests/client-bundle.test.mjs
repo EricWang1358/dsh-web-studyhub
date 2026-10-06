@@ -6,13 +6,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { hostReact } from "../scripts/host-react.mjs";
 import { jsx, jsxs, Fragment } from "../ui/jsx-runtime.js";
 
-test("the DSH client asks the host for react only, never its JSX runtime", async () => {
+test("the DSH client asks the host for react and react-dom only (the host seeds both), never its JSX runtime", async () => {
   const out = await build({
     entryPoints: ["ui/host.jsx"], bundle: true, write: false, format: "cjs", platform: "browser",
     plugins: [hostReact], loader: { ".css": "text" }, jsx: "transform", logLevel: "silent",
   });
   const requires = new Set(out.outputFiles[0].text.match(/require\("[^"]+"\)/g));
-  assert.deepEqual([...requires], ['require("react")']);
+  assert.deepEqual([...requires].sort(), ['require("react")', 'require("react-dom")']);
 });
 
 test("the JSX runtime shim renders children, fragments and keys like React's", () => {

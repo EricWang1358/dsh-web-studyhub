@@ -9,6 +9,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { launchChromium } from './browser.mjs';
+import { pick } from './pick.mjs';
 import { scrubProcessEnv } from './env.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -49,7 +50,7 @@ try {
 
     // 1. The deck-merge confirmation.
     await open(`${wpm}?lang=${lang}&theme=${theme}&scene=merge`, '#manage-merge-target');
-    await tab.selectOption('#manage-merge-target', 'd-se');
+    await pick(tab, '#manage-merge-target', '软件工程基础');
     await tab.locator('form:has(#manage-merge-target) button').last().click();
     await tab.waitForSelector('dialog[open]'); await sleep(250);
     await shoot(tab, 'merge-confirm');

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* WP28b: the one-click path. The card and Settings lead with "安装检索扩展" and "为这门课建立检索索引";
    MinerU's desktop client is the first converter; command-line, Docker and hand-written configuration sit under 高级. */
@@ -16,7 +17,7 @@ const compiled = await build({ stdin: { contents: `
   export * from './ui/retrieval-extension-flow.js';
   export { TOOLS, EXTENSION } from './lib/large-documents.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { ExtensionPanel, ExtensionUpdateNotice, LargeDocumentCard, ExtensionsSettings, runInstall, runUninstall, startIndex, indexProgress, TOOLS, EXTENSION, setUiLanguage } = module.exports;

@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* Audio onboarding in the panel (P44–P49): a setup gate instead of the drop zone, per-file pre-flight with one-click
    fixes, plain errors where the learner looks, one card per provider in settings, a usage console that waits for the
@@ -17,7 +18,7 @@ const compiled = await build({
     export { default as LiveClass } from './ui/LiveClass.jsx';
     export { describeCaptureError, captureAudio } from './ui/live-audio.js';
     export { setUiLanguage, uiMessage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".json": "json", ".css": "text" },
+  bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], plugins: [nativeSelects], loader: { ".json": "json", ".css": "text" },
 });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);

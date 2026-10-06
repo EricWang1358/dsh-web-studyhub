@@ -4,12 +4,13 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* WP-AU #219 / #220: one control per reasoning setting, and its options are the levels of the model in use. */
 
 const compiled = await build({
   stdin: { contents: `export { default as AudioReasoning, EffortSelect } from './ui/AudioReasoning.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.json': 'json', '.css': 'text' },
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.json': 'json', '.css': 'text' },
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);

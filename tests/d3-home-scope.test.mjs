@@ -7,13 +7,14 @@ import React from 'react';
 import { globalCss } from './helpers/global-css.mjs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { mapProps } from './helpers/study-map-props.mjs';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* D3 (2.5.9, design consistency): the shared course-scope control looks the same on every page, and the home has one clear
    hierarchy (mode tabs above the title, title on its own line, one primary button). */
 const require = createRequire(import.meta.url);
 const compiled = await build({
   stdin: { contents: "export { default as StudyMap } from './ui/StudyMap.jsx'; export { default as PageScope } from './ui/PageScope.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent',
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent',
 });
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);

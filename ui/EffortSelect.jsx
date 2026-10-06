@@ -49,9 +49,7 @@ export function EffortSelect({ label, value, efforts = null, disabled = false, o
   const note = choice ? effortNote(choice) : null;
   return <div className={['effort-select', className].filter(Boolean).join(' ')}>
     <Field label={label} hint={description} error={error}>
-      <Select name={name} value={shown} disabled={disabled} onChange={event => onChange(event.target.value)}>
-        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </Select>
+      <Select name={name} value={shown} disabled={disabled} onChange={onChange} options={options} />
     </Field>
     {note && <Hint className="effort-select__note" tone="warning">{effortNoteText(note)}</Hint>}
   </div>;

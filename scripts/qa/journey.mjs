@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
+import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { sampleMaterial, sampleMarkdown, samplePdfHtml } from "./fixtures.mjs";
 import { FAKE_SILICONFLOW_KEY, fakeSiliconflow, longM4a, toneWav } from "./audio-fixtures.mjs";
@@ -254,7 +255,9 @@ export const JOURNEY_STEPS = [
       await j.reload();
     }
     await j.nav("library");
-    await j.page.locator(".course-heading select").selectOption("@course-settings");
+    // 课程设置 is a footer action of the course switcher, not one of its options.
+    await j.page.locator('.course-heading [role="combobox"]').click();
+    await j.page.getByRole("button", { name: j.t("课程设置…") }).click();
     await j.dialog().waitFor({ timeout: 10000 });
     await j.settle();
     await j.shot("panel");
@@ -358,7 +361,7 @@ export const CASE_STEPS = [
     const form = j.anchor("case-create");
     await form.getByRole("button", { name: j.t("选择当前范围") }).first().click();
     await form.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA case paper" : "QA 案例分析卷");
-    await form.getByLabel(j.t("语言")).selectOption(j.lang === "en" ? "English" : "中文");
+    await pick(j.page, form.getByRole("combobox", { name: j.t("语言") }), j.lang === "en" ? "English" : "中文", { exact: true });
     await j.shot("form", { fullPage: true });
     const before = (await j.snapshot()).jobs.length;
     await j.anchor("generate-submit").first().click();

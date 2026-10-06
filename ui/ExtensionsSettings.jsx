@@ -59,13 +59,10 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
         <div className="extensions-settings__advanced">
           {canChoose && <div className="extensions-settings__choice">
             <Field label={ui('用哪个工具检索')}>
-              <Select value={current.effective} disabled={!!working} onChange={event => choose(event.target.value)}>
-                <option value="builtin">{ui('不使用检索（把选中的资料全部交给 AI）')}</option>
-                {current.providers.map(provider => <option key={provider.id} value={provider.id}>{providerLabel(provider)}</option>)}
-                {mcpOthers.length > 0 && <optgroup label={ui('其他 MCP 工具')}>
-                  {mcpOthers.map(tool => <option key={tool.name} value={`mcp:${tool.name}`}>{providerLabel({ kind: 'mcp', label: tool.label, server: tool.server })}</option>)}
-                </optgroup>}
-              </Select>
+              <Select value={current.effective} disabled={!!working} onChange={choose} options={[
+                { value: 'builtin', label: ui('不使用检索（把选中的资料全部交给 AI）') },
+                ...current.providers.map(provider => ({ value: provider.id, label: providerLabel(provider) })),
+                ...(mcpOthers.length > 0 ? [{ group: ui('其他 MCP 工具'), options: mcpOthers.map(tool => ({ value: `mcp:${tool.name}`, label: providerLabel({ kind: 'mcp', label: tool.label, server: tool.server }) })) }] : [])]} />
             </Field>
             <Button variant="secondary" busy={working === 'test'} disabled={!!working || current.effective === 'builtin'} onClick={test}>{ui('测试')}</Button>
           </div>}

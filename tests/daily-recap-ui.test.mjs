@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const require = createRequire(import.meta.url);
 // Styles are irrelevant to these control interactions; keep only their document boundary.
@@ -11,7 +12,7 @@ globalThis.document = { querySelector: () => ({ textContent: '' }) };
 const built = await build({ stdin: { contents: `export { DailyRecapPanel } from './ui/DailyRecap.jsx';
   export { DailyRecapSettingsForm } from './ui/DailyRecapSettings.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
-  format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const load = fn => { const module = { exports: {} }; new Function('require', 'module', 'exports', built.outputFiles[0].text)(fn, module, module.exports); return module.exports; };
 const ssr = load(require);
 let active;
@@ -272,7 +273,7 @@ test('daily recap settings default to manual and submit opt-in plus the chosen t
   assert.equal(control.props.checked, false);
   control.props.onChange(true);
   control = find(editor.render(), node => node.props?.name === 'tone');
-  control.props.onChange({ target: { value: 'professional' } });
+  control.props.onChange('professional');
   await editor.render().props.onSubmit({ preventDefault() {} });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].action, 'settings');

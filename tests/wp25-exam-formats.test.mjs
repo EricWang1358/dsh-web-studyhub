@@ -2,6 +2,7 @@
    card each with "怎么考", settings and a start footer, and one recent-exams
    list. Pure helpers plus server-rendered markup. */
 import test from "node:test";
+import { nativeSelects } from "./helpers/native-selects.mjs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
@@ -12,7 +13,7 @@ const compiled = await build({ stdin: { contents: `export * from './ui/exam-form
   export { default as Exam } from './ui/Exam.jsx'; export { OralSetup } from './ui/OralExam.jsx';
   export { CasePaper } from './ui/CaseWorkspace.jsx'; export { RecentExams } from './ui/ExamShell.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".css": "text" }, logLevel: "silent" });
+  bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], plugins: [nativeSelects], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { defaultExamFormat, recentExams, filterRecent, shortDeckTitles, Exam, OralSetup, CasePaper, RecentExams, setUiLanguage } = module.exports;

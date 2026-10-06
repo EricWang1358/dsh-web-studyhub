@@ -6,7 +6,7 @@ import css from "./manage.css";
 import { useStudy } from "./study-context.jsx";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
-import { Badge, Banner, Button, ConfirmDialog, PageHeader, Panel, useToast } from "./components/index.js";
+import { Badge, Banner, Button, Combobox, ConfirmDialog, PageHeader, Panel, useToast } from "./components/index.js";
 import { formatDateTime } from './format.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
@@ -121,10 +121,9 @@ export default function Manage({
         }}>
           <label className="manage-label" htmlFor="manage-merge-target">{ui("合并到题组")}</label>
           <div className="manage-row">
-            <select id="manage-merge-target" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
-              <option value="">{ui("选择合并目标")}</option>
-              {peers.map((d) => <option key={d.id} value={d.id}>{d.title}（{d.folder || ui("顶层")}）</option>)}
-            </select>
+            <Combobox id="manage-merge-target" value={targetId} onChange={setTargetId} placeholder={ui("选择合并目标")} label={ui("合并到题组")} searchPlaceholder={ui("搜索题组")}
+              emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
+              options={peers.map((d) => ({ value: d.id, label: d.title, hint: d.folder || ui("顶层") }))} />
             <Button disabled={busy || !targetId} type="submit">{ui("合并到目标题组")}</Button>
           </div>
         </form>

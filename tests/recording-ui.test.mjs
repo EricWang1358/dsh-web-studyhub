@@ -4,9 +4,10 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const compiled = await build({ entryPoints: ['ui/Ingest.jsx'], bundle: true, write: false,
-  platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const Ingest = module.exports.default;
@@ -27,7 +28,10 @@ test('recording defaults to the current course and omits system and archived tar
 
 test('a source-only course starts a new deck with a visible editable course', () => {
   const html = render('Sources only');
-  assert.match(html, /<option value="new" selected="">/);
+  // 新建题组 is the picker's footer action, not an option: with no deck of the course the form is the new-deck form (a name and a folder to fill).
+  assert.doesNotMatch(html, /<option value="new"/);
+  assert.match(html, /data-footer-action="new-deck"/);
+  assert.match(html, /<label>题组名称<input required/);
   assert.match(html, /课程归属/);
   assert.match(html, /value="Sources only"/);
 });

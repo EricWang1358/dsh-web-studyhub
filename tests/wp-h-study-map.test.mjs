@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 // UI wave 2 · WP-H: StudyMap split into its parts (#130) with real menus (#79), named fold buttons (#146),
 // a JobRow for generation jobs (#98) and an InlineMessage for the notebook read error (#88).
@@ -23,7 +24,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as CatalogHeading } from './ui/study-map/CatalogHeading.jsx';
   export { useDeckTree } from './ui/study-map/useDeckTree.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const m = module.exports;
@@ -128,7 +129,8 @@ test('the course heading is a named course switcher, or the role input in interv
   assert.match(heading, /<h1[^>]*class="sh-page-header__title course-heading"/, "the course heading is the PageHeader title");
   assert.match(heading, /<select[^>]*aria-label="切换当前课程"/);
   assert.doesNotMatch(heading, /▾/);
-  assert.match(heading, /<svg/, 'the caret beside the course is an icon');
+  assert.match(heading, /data-combobox="heading"/, 'the switcher is the searchable Combobox with the heading as its trigger');
+  assert.match(heading, /<span class="sh-combobox__heading-text">/, 'the heading text is the trigger content');
   const interview = html(m.CourseHeading, { data: baseData({ focus: { ...data.focus, mode: 'interview', role: '后端' } }), headline: '今天', onFocus: noop, role: { draft: '后端', setDraft: noop } });
   assert.match(interview, /<input[^>]*aria-label="岗位方向"[^>]*value="后端"/);
   assert.match(interview, /<h1[^>]*><input/, 'the role input is inside the h1: the page keeps its title in interview mode');
