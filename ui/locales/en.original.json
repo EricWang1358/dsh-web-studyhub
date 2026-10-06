@@ -37,6 +37,8 @@
   "这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用。": "Only the extracted text of this material was saved, not the original file. Asking, adding questions and viewing citations still work.",
   "补上原文件有两种办法：指给它文件的位置（只记路径，不占空间），或复制一份进资料库。已保存的文字、引用和题目不会变。": "There are two ways to add the original: point to where the file is (only the path is stored, no space used), or copy it into the library. The saved text, citations and questions do not change.",
   "补全原文件…": "Add the original file…",
+  "这份资料没有原文件。": "This material has no original file.",
+  "收起，之后在这里仍可补全原文件": "Close, you can still add the original file here",
   "重新指定…": "Choose another file…",
   "改为复制到资料库": "Copy into the library instead",
   "正在读取原文件状态…": "Reading the original file status…",

@@ -4,7 +4,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, Checkbox, Dialog, FileDrop, Hint, Icon, InlineMessage, LoadingState, RadioCard, RadioCardGroup } from '../components/index.js';
 import css from './original-file.css';
-import { ORIGINAL_MAX_BYTES, canAttach, defaultMode, explainFailure, issueOf, modeOptions, originalLine, reportHeadline, reportLines } from './original-file.js';
+import { ORIGINAL_MAX_BYTES, canAttach, collapseNotice, defaultMode, explainFailure, issueOf, modeOptions, noticeCollapsed, originalLine, reportHeadline, reportLines } from './original-file.js';
 import { formatBytes } from '../format.js';
 import { toBase64 } from '../upload.js';
 import { isAbsolutePath, unquotePath } from '../paths.js';
@@ -20,13 +20,24 @@ import { useLiveEffect } from '../use-async.js';
 const readBase64 = async blob => { try { return await toBase64(blob); } catch { throw new Error(ui('读取文件失败，请重试。')); } };
 const identityOf = target => target.documentId ? { documentId: target.documentId, ...(target.revision ? { revision: target.revision } : {}) } : { sourceId: target.sourceId };
 
-/** The reader's explanation when a document has no (usable) original, with the buttons that fix it. onAction('attach' | 'relink' | 'copy'). */
-export function OriginalNotice({ document, onAction }) {
+/** The reader's explanation when a document has no (usable) original, with the buttons that fix it. onAction('attach' | 'relink' | 'copy').
+    A text-only document's notice has a ×: closing it folds the notice into ONE quiet line that keeps 补全原文件… (remembered per document in this browser), so nothing is lost by closing it;
+    `collapsed` / `onCollapse` let a caller (or a test) own that state. A reference that went missing or changed is a fault to fix and has no ×. */
+export function OriginalNotice({ document, onAction, collapsed, onCollapse }) {
   useInjectCss(css, 'study-original-file');
+  const [closedHere, setClosedHere] = useState(() => new Set());
   if (!document || document.originalAvailable) return null;
   const issue = issueOf(document.original);
   if (!issue) return null;
-  if (issue.kind === 'none') return <InlineMessage tone="info" boxed data-kind="none">
+  const id = String(document.documentId || document.id || '');
+  const closed = collapsed ?? (closedHere.has(id) || noticeCollapsed(id));
+  const close = () => { collapseNotice(id); setClosedHere(previous => new Set(previous).add(id)); onCollapse?.(id); };
+  if (issue.kind === 'none' && closed) return <p className="original-quiet" data-kind="none" data-collapsed="true">
+    <Icon name="info" size={16} />
+    <span>{ui('这份资料没有原文件。')}</span>
+    <Button size="sm" variant="quiet" icon="file" onClick={() => onAction?.('attach')}>{ui('补全原文件…')}</Button>
+  </p>;
+  if (issue.kind === 'none') return <InlineMessage tone="info" boxed data-kind="none" onDismiss={close} dismissText={ui('收起，之后在这里仍可补全原文件')}>
     <p>{document.format === 'pdf'
       ? ui('这份资料只保存了提取出的文字，没有原文件，所以「原始 PDF」打不开。提问、补题和查看引用仍然可用。')
       : ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用。')}</p>

@@ -126,7 +126,7 @@ export function DialogToasts({ dialog }) {
  * tinted background for multi-line content. Give it an `id` and point the
  * control's aria-describedby at it.
  */
-export function InlineMessage({ tone = 'error', title, children, action, onDismiss, boxed = false, className, ...rest }) {
+export function InlineMessage({ tone = 'error', title, children, action, onDismiss, dismissText, boxed = false, className, ...rest }) {
   useComponentCss(css);
   const kind = toneOf(tone);
   return (
@@ -137,7 +137,7 @@ export function InlineMessage({ tone = 'error', title, children, action, onDismi
         {children}
       </div>
       {action && <Button variant="link" size="sm" className="sh-inline__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
-      {onDismiss && <IconButton icon="close" size="sm" className="sh-inline__close" label={dismissLabel(kind)} onClick={onDismiss} />}
+      {onDismiss && <IconButton icon="close" size="sm" className="sh-inline__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
     </div>
   );
 }

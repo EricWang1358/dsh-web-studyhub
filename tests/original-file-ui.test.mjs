@@ -146,6 +146,42 @@ test('the legacy notice names what is missing, what still works and both ways to
   assert.match(text(en), /original file/i); assert.match(text(en), /Add the original file…/);
 });
 
+test('the notice for a text-only document can be closed, and closing it keeps a quiet way back instead of hiding the action', () => {
+  const doc = { documentId: 'doc-1', format: 'pdf', original: none };
+  const open = renderToStaticMarkup(h(lib.OriginalNotice, { document: doc, onAction: noop }));
+  assert.match(open, /sh-inline__close/, 'there is a × on the full notice');
+  assert.match(open, /aria-label="收起，之后在这里仍可补全原文件"/);
+  // Closed: one quiet line, no box, no ×, and the action is still on the page.
+  const closed = renderToStaticMarkup(h(lib.OriginalNotice, { document: doc, onAction: noop, collapsed: true }));
+  assert.doesNotMatch(closed, /sh-inline__close/); assert.doesNotMatch(closed, /sh-inline--boxed/);
+  assert.match(closed, /data-collapsed="true"/); assert.match(text(closed), /这份资料没有原文件/);
+  assert.match(closed, /<button[^>]*>.*补全原文件….*<\/button>/);
+  assert.doesNotMatch(text(closed), /只记路径|复制一份进资料库/, 'the long explanation is folded away');
+  const en = inLanguage('en', () => renderToStaticMarkup(h(lib.OriginalNotice, { document: doc, onAction: noop, collapsed: true })));
+  assert.doesNotMatch(en, han); assert.match(text(en), /no original file/i); assert.match(text(en), /Add the original file…/);
+  const enOpen = inLanguage('en', () => renderToStaticMarkup(h(lib.OriginalNotice, { document: doc, onAction: noop })));
+  assert.doesNotMatch(enOpen, han); assert.match(enOpen, /Close, you can still add the original file here/);
+  // A reference that went missing or changed is a problem to fix, not a hint to close.
+  const missing = renderToStaticMarkup(h(lib.OriginalNotice, { document: { ...doc, original: { ...ref, status: 'missing', reason: 'missing' } }, onAction: noop, collapsed: true }));
+  assert.doesNotMatch(missing, /sh-inline__close/); assert.doesNotMatch(missing, /data-collapsed/); assert.match(missing, /重新指定…/);
+});
+
+test('which documents the learner closed the notice for is remembered per viewer, and a broken store changes nothing', () => {
+  const store = new Map();
+  const storage = { getItem: key => (store.has(key) ? store.get(key) : null), setItem: (key, value) => store.set(key, value) };
+  assert.equal(lib.noticeCollapsed('doc-1', storage), false);
+  assert.equal(lib.collapseNotice('doc-1', storage), true);
+  assert.equal(lib.noticeCollapsed('doc-1', storage), true);
+  assert.equal(lib.noticeCollapsed('doc-2', storage), false, 'another document still shows the full notice');
+  assert.equal(lib.noticeCollapsed('', storage), false);
+  // At most 200 documents are remembered, the oldest forgotten first.
+  for (let index = 0; index < 250; index += 1) lib.collapseNotice(`bulk-${index}`, storage);
+  assert.equal(lib.noticeCollapsed('bulk-249', storage), true); assert.equal(lib.noticeCollapsed('doc-1', storage), false);
+  const broken = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('full'); } };
+  assert.equal(lib.noticeCollapsed('doc-1', broken), false); assert.equal(lib.collapseNotice('doc-1', broken), false);
+  store.set('study-original-notice', '{not json'); assert.equal(lib.noticeCollapsed('doc-1', storage), false);
+});
+
 test('a referenced file that is missing or changed says so, with 重新指定 and, while the file exists, 改为复制到资料库', () => {
   const missing = renderToStaticMarkup(h(lib.OriginalNotice, { document: { format: 'pdf', original: { ...ref, status: 'missing', reason: 'missing' } }, onAction: noop }));
   assert.match(text(missing), new RegExp(`找不到原文件：${BOOK.replace(/[\\.]/g, '\\$&')}`));
