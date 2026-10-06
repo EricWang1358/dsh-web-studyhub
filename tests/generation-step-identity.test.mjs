@@ -44,7 +44,7 @@ test('fillRounds 0 and 1 name only the units they run', async () => {
 test('the key of a unit is a pure function of its coordinates', () => {
   const unit = { purpose: 'review', round: 2, part: 3, fill: 1, retry: 1 };
   assert.equal(stepKeyOf(unit), stepKeyOf({ ...unit }));
-  const coordinates = [{}, { round: 1 }, { round: 2 }, { part: 1 }, { part: 2 }, { group: 1 }, { attempt: 2 }, { fill: 1 }, { fill: 2 }, { retry: 1 }, { unit: 'weights' }];
+  const coordinates = [{}, { round: 1 }, { round: 2 }, { part: 1 }, { part: 2 }, { group: 1 }, { attempt: 2 }, { fill: 1 }, { fill: 2 }, { retry: 1 }, { unit: 'weights' }, { card: 'a' }, { card: 'b' }, { card: 'a', attempt: 2 }];
   const keys = coordinates.map(extra => stepKeyOf({ purpose: 'author', ...extra }));
   assert.equal(new Set(keys).size, keys.length, keys.join(' '));
   assert.ok(stepKeyOf({ purpose: 'review', part: 1, attempt: 1 }) === stepKeyOf({ purpose: 'review', part: 1 }), 'the first attempt is the default one');

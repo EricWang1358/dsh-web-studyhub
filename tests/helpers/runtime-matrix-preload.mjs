@@ -6,7 +6,8 @@ import { StudyRuntime } from '../../lib/runtime.js';
 import { managedRuntimeOptions } from './runtime-switch.mjs';
 
 const family = process.env.STUDY_RUNTIME_MATRIX;
-const PILOT_PATHS = { generation: ['generation'], generationRestart: ['generation', 'generationRestart'], audio: ['audioSingle'] };
+const PILOT_PATHS = { generation: ['generation'], generationRestart: ['generation', 'generationRestart'], generationRepair: ['generation', 'generationRepair'],
+  generationRepairRestart: ['generation', 'generationRepair', 'generationRestart'], audio: ['audioSingle'] };
 const made = new WeakMap(), invoke = StudyRuntime.prototype.invoke;
 
 StudyRuntime.prototype.invoke = function (api, name, args = {}, requestServices = {}) {
