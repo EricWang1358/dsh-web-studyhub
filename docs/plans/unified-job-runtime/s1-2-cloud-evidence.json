@@ -220,16 +220,43 @@
     },
     "sourceSha256": {
       "tests/original-attach.test.mjs": "b52894534312de17e49cc3bc6bb43cf1b5a44365cc837a26c9b740b2d4c38d96",
-      "scripts/qa/perf-probe.mjs": "4e8d6d3a159f23ab2882473b8fd8f165ec13ce00afc7801192c653e2cbe7f4e8"
+      "scripts/qa/perf-probe.mjs": "4e8d6d3a159f23ab2882473b8fd8f165ec13ce00afc7801192c653e2cbe7f4e8",
+      "scripts/qa/spine-layout.mjs": "af6a861a552f63b70393b338d09a006f3fe13c25b050fb6026ef82ccb6ea3176",
+      "tests/spine-layout.test.mjs": "6dcab3a554ac554d689149a458b534ae948f7ee1a350c27f8109efe29f6413cf",
+      "tests/slow-tests.json": "77d73072ad8054cc4c514e0ad81d371cd5a5597bd58f656cbde78990dfcfae11"
     },
     "logsSha256": {
       "memory-observation-node22.log": "1958cb0fe9da0ebc23722ef35204dce4a3d230678a7ce2dfda483e423c9469e3",
       "memory-observation-node24.log": "ed38a5ad62c061ebad247afe68e191ba8b47ef51cdd89f2d3f4f9659f9cb834b",
       "memory-fixed-node22.log": "f0e2bcd604aac5a06008f829d9cc4634b634aca930f2cc49016edfabe4673a65",
       "memory-fixed-node24.log": "1447b5d17f63438eb58e5f0af87b13ce007cb77361b1d168b14229fb668ccfa2",
-      "memory-final-node24.log": "ad6720aa0af61a04b4dd8d64351ff7a57c429f1c77780b8bc402d6333fc6be79"
+      "memory-final-node24.log": "ad6720aa0af61a04b4dd8d64351ff7a57c429f1c77780b8bc402d6333fc6be79",
+      "verify-node22-final.log": "942b6dadf98aca78dfb7a1e790a429f4da69916145bc63ed98e76fb4bac8fcd3",
+      "followup-harness.log": "eb86179e7e5bbe84d0d20725eca8ff411c8998c1070b91b5b7e08b2f1c10ba78",
+      "spine-http-final.log": "d35fc8685e9abf2ab37a7aafaa48fa014571e91bf7b3f5866f7295772364749d"
     },
     "fullVerification": "See PR #260 exact-head followup; prior failure receipt is preserved",
-    "productionChanges": false
+    "productionChanges": false,
+    "node22FullBeforeEnvironmentFix": {
+      "pass": 5557,
+      "fail": 5,
+      "skip": 2,
+      "durationMs": 501947.043002,
+      "build": "not run after test failure",
+      "skipReason": "Windows-only file sharing tests"
+    },
+    "harnessFollowup": {
+      "first": {
+        "pass": 12,
+        "fail": 1,
+        "skip": 0
+      },
+      "finalSpine": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      },
+      "npm": "isolated Node prefix npm 11.9.0; no repository dependency changes"
+    }
   }
 }

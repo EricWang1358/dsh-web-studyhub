@@ -114,4 +114,15 @@ node tests/fixtures/runtime-s10/run-host-probe.mjs --repo /workspace/runtime-s12
 
 初版修正后 Node 22 / 24 各 22 pass；补充显式回收可用断言和诊断输出后，最终 Node 24 再次 22 pass / 0 fail，实测流式存活缓冲峰值 1.182 MiB、整文件反例 120.932 MiB。Node 22 完整验证使用隔离安装的 22.22.3、工作区 npm cache、系统 Chromium 和跨 worktree 共用锁 `/workspace/studyhub-tests/full-run.lock`；锁已实际取得。最终完整结果与精确 head 的双平台 CI 终态以 [PR #260](https://github.com/EricWang1358/dsh-web-studyhub/pull/260) 的验证跟进为准，不能将前述历史失败改写为初次通过。
 
-原 `9400881` Ubuntu CI 已通过，Windows 在本段撰写时仍运行；后续提交必须另核验精确 SHA，旧 head 绿灯不代表新提交通过。上述验证修复不放行 owner/controller 审定，也不使 S1→S6 总目标完成。
+原 `9400881` Ubuntu / Windows CI 均已通过（run 37396279431）；后续提交必须另核验精确 SHA，旧 head 绿灯不代表新提交通过。上述验证修复不放行 owner/controller 审定，也不使 S1→S6 总目标完成。
+
+
+### 完整验证发现的测试环境问题
+
+Node 22 的第一次全量检查完成：5,557 pass / 5 fail / 2 skip，501,947 ms，lint 通过；测试失败后该链路 build 未运行。两项 skip 仅为 Windows 文件共享锁测试，不是浏览器跳过。保留日志 `verify-node22-final.log`。五项失败及补验如下：
+
+- `original-attach` 引用已有 perf helper，间接包含子进程调用，因此慢测试清单守卫要求注册到 cli 分类；已按规则登记，不修改守卫。`8588c15` 的 Ubuntu CI 也仅此一项失败（5,477 pass / 1 fail / 79 skip，run 37396873864），不将旧 head 成功当作当前通过。
+- 独立安装的 Node 22 没有相邻 npm，而打包回归刻意清空 npm_execpath 以验证相邻查找。仅在私有 Node 目录安装 npm 11.9.0，未改变依赖清单或发布代码；打包回归补验通过。
+- 系统 Chromium 的管理策略禁止 `file://`，三项 spine 浏览器测试因此失败。QA 夹具现以回环 HTTP 提供原有两份固定资源，包含禁用 localStorage 的场景；服务只绑定 127.0.0.1、随机端口并在退出时关闭，不更改浏览器策略。保持所有尺寸、导航、存储、键盘和动画断言。第一次补验 12 pass / 1 fail 暴露独立的 blocked-storage 导航仍用 file URL；补齐后 spine 三项全部通过、无 skip（`spine-http-final.log`）。
+
+修复后重新运行精确提交的全量验证和双平台 CI；最终结果写入 PR #260 验证区，历史失败与补验收据保留。没有改动生产实现、放宽内存预算或绕过负责人门禁。
