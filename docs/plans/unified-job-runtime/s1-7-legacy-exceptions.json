@@ -135,8 +135,8 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "importAudio has an original provider branch; jobTextModel serves the classroom save until S2-6",
-      "removeAt": "S2-6 then S6-2",
+      "reason": "importAudio has an original provider branch; jobTextModel served the original classroom save",
+      "removeAt": "S6-2",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -150,11 +150,13 @@
           ]
         },
         {
-          "what": "jobTextModel: the text model of the classroom save",
-          "disposition": "migrate",
+          "what": "jobTextModel: the text model of the original classroom save (a save on the runtime uses the gateway)",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S2-6"
+          "reached": false,
+          "switches": [
+            "audioLiveSave"
+          ]
         }
       ]
     },
@@ -602,16 +604,18 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "The classroom save pipeline (proofread): original runner until S2-6",
-      "removeAt": "S2-6 then S6-2",
+      "reason": "The classroom save pipeline (proofread): shared plan/translate/store; the original runner is behind audioLiveSave",
+      "removeAt": "S6-2",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "executeLiveSaveJob provider calls",
-          "disposition": "migrate",
+          "what": "executeLiveSaveJob provider calls (the original classroom save; the runtime save shares livePlan/translateLive/storeLive)",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S2-6"
+          "reached": false,
+          "switches": [
+            "audioLiveSave"
+          ]
         }
       ]
     },
@@ -974,17 +978,17 @@
           "reached": true
         },
         {
-          "what": "audio.retry: the original retry path and its put-back; with the four audio switches on, only a classroom save is retried through it",
-          "disposition": "migrate",
+          "what": "audio.retry: the original retry path and its put-back; only a job the original runner started can reach it (every caller is behind a switch)",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
+          "reached": false,
           "switches": [
             "audioSingle",
             "audioBatch",
             "audioSubtitles",
-            "audioReview"
-          ],
-          "step": "S2-6"
+            "audioReview",
+            "audioLiveSave"
+          ]
         }
       ]
     },
@@ -1038,17 +1042,17 @@
       "evidence": "s2-0-audio-baseline.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "startAudioJob: the original audio runner. With the four audio switches on, the one caller left is live.save {proofread:true} (the classroom save has no switch yet)",
-          "disposition": "migrate",
+          "what": "startAudioJob: the original audio runner; every one of its callers is behind a switch (the classroom save was the last: audioLiveSave)",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
+          "reached": false,
           "switches": [
             "audioSingle",
             "audioBatch",
             "audioSubtitles",
-            "audioReview"
-          ],
-          "step": "S2-6"
+            "audioReview",
+            "audioLiveSave"
+          ]
         },
         {
           "what": "recoverAudioBatches: folders and letters of the last process come back as read-only or retry-only records",
