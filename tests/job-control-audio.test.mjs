@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
+import { SWITCH_MODE, audioSwitch } from './helpers/audio-switch.mjs';
+
+const RUNTIME = SWITCH_MODE === 'runtime';
 
 // WP-TC step 3 through the real audio worker: a batch takes a new transcription concurrency while a recording is being transcribed,
 // pauses its text steps between calls, and has nothing left to adjust once it is over.
@@ -42,7 +45,7 @@ async function fixture(t) {
     const payload = JSON.parse(prompt.split('\n\nYour previous')[0]);
     return reply(JSON.stringify({ titleZh: '数据库', titleEn: 'Databases', paragraphs: payload.paragraphs.map((item) => ({ n: item.n, zh: `${name} 的翻译。` })) }));
   };
-  const service = new StudyService(root, { fetch });
+  const service = new StudyService(root, { fetch, ...audioSwitch() });
   await service.call('audio.settings.set', { paidKey: KEY, textProvider: 'gemini', transcribeConcurrency: 1 });
   const a = join(dir, 'A.wav'), b = join(dir, 'B.wav');
   await writeFile(a, wav(1)); await writeFile(b, wav(2));
@@ -64,7 +67,8 @@ test('a batch: more transcription at once from the next recording on, text steps
   assert.equal(running.actions.pause.available, true);
 
   const reply1 = await service.call('job.control', { jobId: started.jobId, action: 'set', patch: { transcribeConcurrency: 2, textConcurrency: 4, proofreadReasoning: 'high' } });
-  assert.deepEqual(reply1.applied, { transcribeConcurrency: 2, textConcurrency: 4, proofreadReasoning: 'high' });
+  // The runtime answers a control with the job's status; what is in force is read from the contract below.
+  if (RUNTIME) assert.equal(reply1.action, 'set'); else assert.deepEqual(reply1.applied, { transcribeConcurrency: 2, textConcurrency: 4, proofreadReasoning: 'high' });
   await until(() => held.has('A'), 'A starts transcribing while B is still being transcribed');
   const after = await jobOf(started.jobId);
   assert.equal(after.parallel.transcribe.limit, 2);
@@ -76,21 +80,31 @@ test('a batch: more transcription at once from the next recording on, text steps
   assert.equal(paused.action, 'pause');
   const pausing = (await jobOf(started.jobId)).contract;
   assert.equal(pausing.status, 'pausing', 'asked, not reached: two transcriptions are still in flight');
-  assert.deepEqual(pausing.actions.pause.waiting, { reason: 'calls-in-flight', count: 2 });
   assert.equal(pausing.actions.pause.mode, 'checkpoint');
   assert.equal(pausing.actions.pause.available, false);
-  assert.equal(pausing.actions.resume.available, true);
-  held.get('B')();
-  await until(async () => (await jobOf(started.jobId)).members[0].steps?.transcribe?.done === 1, 'B is transcribed');
-  assert.equal((await jobOf(started.jobId)).contract.status, 'pausing', 'A is still being transcribed: the boundary is not reached');
-  held.get('A')();
-  await until(async () => (await jobOf(started.jobId)).contract.status === 'paused', 'the boundary is reached: nothing in flight');
-  await sleep(150);
-  assert.ok(!calls.some((call) => call === 'proofread:B'), `no text step starts while paused: ${calls}`);
-  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'already-paused');
-  await service.call('job.control', { jobId: started.jobId, action: 'resume' });
-  assert.equal((await jobOf(started.jobId)).contract.status, 'running');
-  await until(() => calls.includes('proofread:B'), 'B is proofread after the resume');
+  if (RUNTIME) {
+    // Reviewed difference (S2-2): the runtime ends the attempt at a file boundary. The files in flight are finished (text steps included), no
+    // other file is started, and the paused job is resumed as a new attempt; the legacy pause held back every new call in place.
+    held.get('B')(); held.get('A')();
+    await until(async () => (await jobOf(started.jobId)).contract.status === 'paused', 'every started file is committed: the boundary is reached');
+    assert.ok(calls.includes('proofread:B') && calls.includes('title:A'), `the files in flight were finished: ${calls}`);
+    await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'not-running');
+    await service.call('job.control', { jobId: started.jobId, action: 'resume' });
+  } else {
+    assert.deepEqual(pausing.actions.pause.waiting, { reason: 'calls-in-flight', count: 2 });
+    assert.equal(pausing.actions.resume.available, true);
+    held.get('B')();
+    await until(async () => (await jobOf(started.jobId)).members[0].steps?.transcribe?.done === 1, 'B is transcribed');
+    assert.equal((await jobOf(started.jobId)).contract.status, 'pausing', 'A is still being transcribed: the boundary is not reached');
+    held.get('A')();
+    await until(async () => (await jobOf(started.jobId)).contract.status === 'paused', 'the boundary is reached: nothing in flight');
+    await sleep(150);
+    assert.ok(!calls.some((call) => call === 'proofread:B'), `no text step starts while paused: ${calls}`);
+    await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'already-paused');
+    await service.call('job.control', { jobId: started.jobId, action: 'resume' });
+    assert.equal((await jobOf(started.jobId)).contract.status, 'running');
+    await until(() => calls.includes('proofread:B'), 'B is proofread after the resume');
+  }
   const done = await settleJob(service, started.jobId);
   assert.equal(done.status, 'complete', done.stage);
   const finished = await jobOf(started.jobId);
@@ -98,8 +112,9 @@ test('a batch: more transcription at once from the next recording on, text steps
   assert.equal('paused' in finished, false);
   assert.equal('pausedAt' in finished, false);
   assert.equal(finished.contract.status, 'complete');
-  assert.equal(finished.contract.jobId, finished.batchId, 'the contract names the batch, which survives a retry; the attempt is its own id');
-  assert.equal(finished.contract.attemptId, finished.id);
+  // The job's name that survives a retry: the batch id on the old path, the runtime's own job id (the attempt is its legacy id) on the runtime.
+  if (RUNTIME) assert.equal(finished.contract.runtime.legacyId, finished.id);
+  else { assert.equal(finished.contract.jobId, finished.batchId, 'the contract names the batch, which survives a retry; the attempt is its own id'); assert.equal(finished.contract.attemptId, finished.id); }
   assert.ok(finished.contract.calls.some((call) => call.kind === 'proofread' && Number.isInteger(call.slot)), 'text calls carry the slot they ran in');
   assert.ok(finished.contract.calls.some((call) => call.kind === 'transcribe' && call.file === 'B.wav'));
   await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'job-ended');
@@ -110,9 +125,10 @@ test('retry is an action: a cancelled import starts again from what is kept, as 
   const started = await service.call('audio.import', { path: a });
   await until(() => held.has('A'), 'the recording is being transcribed');
   const first = (await jobOf(started.jobId)).contract;
-  assert.equal(first.actions.retry.reason.code, 'not-ended');
+  assert.equal(first.actions.retry.reason.code, RUNTIME ? 'not-retryable' : 'not-ended');
   await service.call('job.control', { jobId: first.jobId, action: 'cancel' });
-  await until(async () => (await jobOf(started.jobId)).status === 'cancelled', 'the import is cancelled');
+  // Settled means its notifications are delivered too: a retry that arrives while the runtime is still recording them would find the record moving.
+  await settleJob(service, started.jobId);
   const cancelled = (await jobOf(started.jobId)).contract;
   assert.equal(cancelled.status, 'cancelled');
   assert.equal(cancelled.endReason, 'user-cancel');
@@ -120,13 +136,15 @@ test('retry is an action: a cancelled import starts again from what is kept, as 
   assert.equal(cancelled.actions.cancel.reason.code, 'job-ended');
   held.delete('A');
   const retried = await service.call('job.control', { jobId: cancelled.jobId, action: 'retry' });
-  assert.equal(retried.retried, true);
-  assert.notEqual(retried.jobId, started.jobId, 'a new attempt has a new record');
-  const next = (await service.call('snapshot')).jobs.find((job) => job.id === retried.jobId).contract;
+  // A retry's reply names the new attempt: its `jobId` on the old path, its `attemptId` on the runtime (S2-1, D-3).
+  const attempt = RUNTIME ? retried.attemptId : retried.jobId;
+  if (!RUNTIME) assert.equal(retried.retried, true);
+  assert.notEqual(attempt, started.jobId, 'a new attempt has a new record');
+  const next = (await service.call('snapshot')).jobs.find((job) => job.id === attempt).contract;
   assert.equal(next.jobId, cancelled.jobId, 'and the same job');
   assert.notEqual(next.attemptId, cancelled.attemptId);
   assert.equal((await service.call('snapshot')).jobs.filter((job) => job.type === 'audio-import').length, 1, 'the old attempt was replaced, not kept beside it');
   await until(() => held.has('A'), 'the second attempt transcribes');
   held.get('A')();
-  assert.equal((await settleJob(service, retried.jobId)).status, 'complete');
+  assert.equal((await settleJob(service, attempt)).status, 'complete');
 });
