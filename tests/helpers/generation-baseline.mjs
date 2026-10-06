@@ -2,6 +2,7 @@ import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../../lib/service.js';
+import { Store } from '../../lib/store.js';
 import { settleJob, until } from './wait.mjs';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './assessment.mjs';
 
@@ -25,10 +26,23 @@ export async function openLibrary(t, { prefix = 'study-s30-', model, options = {
   return { root, service };
 }
 
+/** A crash leaves the last committed library on disk. The source host is still writing, so copy
+ * until the copy reads back without missing or damaged shards (temp files are never durable state). */
+async function consistentCopy(root, copy) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await cp(root, copy, { recursive: true, force: true, filter: source => !source.endsWith('.tmp') });
+      if (!(await new Store(copy).load()).storageIssues?.length) return;
+    } catch (error) { if (attempt >= 20) throw error; }
+    if (attempt >= 20) throw new Error('no consistent library snapshot after 20 copies');
+    await rm(copy, { recursive: true, force: true }); await new Promise(resolve => setTimeout(resolve, 25));
+  }
+}
+
 /** What a restarted host has: the folder as it is on disk now, a new service, and a model that records and refuses every call (a restart never asks one by itself). */
 export async function restartedOver(t, root) {
   const copy = await mkdtemp(join(tmpdir(), 'study-s30-restart-')), calls = [];
-  await cp(root, copy, { recursive: true });
+  await consistentCopy(root, copy);
   const service = new StudyService(copy);
   service.complete = async (system) => { calls.push(String(system).slice(0, 40)); throw new Error('a restart must not call a model by itself'); };
   t.after(async () => { await service.dispose(); await rm(copy, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
