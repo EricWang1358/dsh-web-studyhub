@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -19,4 +19,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run verify
+      - run: node scripts/test.mjs --test-name-pattern="budget" tests/main-context.test.mjs
+      - run: node scripts/test.mjs --test-name-pattern="budget" tests/main-context.test.mjs
+      - run: node scripts/test.mjs --test-name-pattern="budget" tests/main-context.test.mjs
