@@ -88,13 +88,19 @@ test('PDF cloud · a resume is refused when the saved input is not the file the 
 /* ---------- PDF (local): the process is still running ---------- */
 
 test('PDF local · stop not confirmed: while the cancelled window\'s process still runs the same book cannot be started again; once it is gone it can', async t => {
-  const h = await localHarness(t, { delayMs: 60_000 });
+  // A window that does not hear the stop until it is let go: the process that is still running.
+  let let_go, begun;
+  const gate = new Promise(resolve => { let_go = resolve; }), running = new Promise(resolve => { begun = resolve; });
+  const parseWindow = async options => { begun(); await gate; options.signal.throwIfAborted(); throw new Error('not reached'); };
+  const h = await localHarness(t, {}, { parseWindow });
+  t.after(() => let_go());
   const started = await h.start(), again = await h.upload(), later = await h.upload();
-  await until(async () => (await h.parses()).length, 'the first window to start');
+  await running;
   await h.service.call('job.cancel', { jobId: started.jobId });
   const during = (await h.jobs())[0];
   assert.equal(during.status, 'cancelling', 'the receipt is not the end');
   await assert.rejects(h.start(again), /已经在转换/);
+  let_go();
   const ended = await until(async () => { const [job] = await h.jobs(); return job && job.status === 'cancelled' && job; }, 'the stop');
   assert.equal(ended.status, 'cancelled');
   assert.ok((await h.start(later)).jobId, 'the process is gone: a new attempt may start');

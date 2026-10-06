@@ -47,7 +47,7 @@ export async function harness(t, { serverOptions = {}, runtime = true } = {}) {
     start: async (pages = 450, args = {}) => call('mineru.import', { uploadId: await upload(await makePdf({ pages })), ...args }) };
 }
 
-export async function localHarness(t, state = {}) {
+export async function localHarness(t, state = {}, { parseWindow } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'runtime-pdf-local-home-')), root = await mkdtemp(join(tmpdir(), 'runtime-pdf-local-lib-')), work = await mkdtemp(join(tmpdir(), 'runtime-pdf-local-fake-'));
   const before = { DSH_HOME: process.env.DSH_HOME, MINERU_API_KEY: process.env.MINERU_API_KEY, MINERU_BIN: process.env.MINERU_BIN };
   process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
@@ -55,7 +55,7 @@ export async function localHarness(t, state = {}) {
   await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: 120, modelsReady: true, ...state })); await writeFile(logPath, '');
   const fake = fileURLToPath(new URL('./fake-mineru-cli.mjs', import.meta.url)), cli = patientCli({ file: process.execPath, prefix: [fake], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } });
   const { starts: _starts, ...managed } = managedRuntimeOptions({ paths: ['pdfConvert'] });
-  const service = new StudyService(root, { ...managed, mineru: { limits: { windowPages: 50 }, local: { cli, home: work } } });
+  const service = new StudyService(root, { ...managed, mineru: { limits: { windowPages: 50 }, local: { cli, home: work, ...(parseWindow ? { parseWindow } : {}) } } });
   t.after(async () => {
     await new Promise(resolve => setTimeout(resolve, 20));
     await service.dispose();
