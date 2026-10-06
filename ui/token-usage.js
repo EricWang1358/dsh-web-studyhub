@@ -5,7 +5,14 @@
    缓存写入 / 输出), with DSH's own English labels. Counts after a run are exact
    and grouped by "," like DSH; before a run they are ranges in DSH's compact
    form (12.2K, 1.2M). A cache-write row appears only when there was one and the
-   hit rate only when something was sent, as in DSH. */
+   hit rate only when something was sent, as in DSH.
+
+   The same panel shows DSH's two speed figures beside them: 首 token 平均（TTFT）
+   and 输出速度（TPS） (dsh-session-stats' sessionStats; the numbers come from
+   lib/job-timing.js). Their labels, their "{seconds}秒" / "{tps} tok/s" wording and
+   DSH's own rounding (whole tokens from ten up, one decimal below; the seconds
+   rounded to a tenth) are copied from its client, so a job reads exactly like the
+   harness's own 会话统计. Nothing is shown when the calls cannot say it. */
 import { ui, uiFormat } from './i18n.js';
 import { cacheHitPercent, formatCompactTokens, formatExactTokens, promptTokens, totalTokens } from '../lib/token-usage.js';
 
@@ -59,6 +66,40 @@ export const usedCallsText = (calls) => (calls === 1 ? ui('1 次调用') : uiFor
 export function estimateSummary(estimate) {
   return `${ui('预计')} ${rangeTok(estimate.totalTokens)} · ${callsText(estimate.calls)}`;
 }
+
+/* ---------- DSH's speed figures (会话统计) ---------- */
+
+/**
+ * A length the way DSH's session panel writes it: "1.6秒" under a minute, "2分42秒" from there on.
+ * @param ms milliseconds, or null when nothing measured it
+ */
+export function formatCompactDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  const seconds = ms / 1000;
+  if (seconds < 60) return uiFormat('{0}秒', [Math.round(seconds * 10) / 10]);
+  const whole = Math.round(seconds);
+  return uiFormat('{0}分{1}秒', [Math.floor(whole / 60), whole % 60]);
+}
+
+/** DSH's decode throughput: whole tokens from ten up, one decimal below. */
+export function formatTokensPerSecond(tps) {
+  const clamped = Math.max(0, Number(tps) || 0);
+  return clamped >= 10 ? String(Math.round(clamped)) : String(Math.round(clamped * 10) / 10);
+}
+
+/**
+ * DSH's 会话统计 rows for the calls of a job: 首 token 平均（TTFT） and 输出速度（TPS）.
+ * Each appears only when its calls could measure it, as in DSH's own dialog; nothing is shown otherwise.
+ * @param stats the fold of lib/job-timing.js ({ ttftMs, ttftSteps, decodeMs, decodeTokens })
+ * @returns [{ id, label, value }]
+ */
+export function timingRows(stats) {
+  const rows = [];
+  if (stats?.ttftSteps > 0) rows.push({ id: 'ttft', label: ui('首 token 平均（TTFT）'), value: formatCompactDuration(stats.ttftMs / stats.ttftSteps) });
+  if (stats?.decodeMs > 0) rows.push({ id: 'tps', label: ui('输出速度（TPS）'), value: uiFormat('{0} tok/s', [formatTokensPerSecond(stats.decodeTokens / (stats.decodeMs / 1000))]) });
+  return rows;
+}
+export const timingText = (stats) => joinRows(timingRows(stats));
 
 /**
  * What a finished job should say about its own numbers: when it used more than its estimate's upper bound, and when no

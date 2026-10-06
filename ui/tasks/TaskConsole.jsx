@@ -19,6 +19,7 @@ import { headerActions, autoToggle } from './task-control.js';
 import RunLine from './RunLine.jsx';
 import TimeLimit from './TimeLimit.jsx';
 import { limitFacts, marksOf, slowSteps } from './time-limit.js';
+import TaskUsage from './TaskUsage.jsx';
 import { actionLabel, autoLabel } from '../coverage/copy.js';
 import ControlRow from './ControlRow.jsx';
 import TaskBody from './TaskBody.jsx';
@@ -175,6 +176,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
+      <TaskUsage contract={contract} />
       <RunLine task={task} shortfall={shortfall} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : <ControlRow job={task} />}

@@ -1,6 +1,6 @@
 # Token usage and estimates · token 用量与估算
 
-StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (Token 用量 / 缓存命中 / 未缓存输入 / 缓存读取 / 缓存写入 / 输出, with the `tok` unit). It never shows a price: take the numbers to your provider's price list. 本页回答「出一次题要用多少 token、该选什么模型和推理程度」。
+StudyHub shows tokens, exactly the fields DSH's own session usage panel shows (Token 用量 / 缓存命中 / 未缓存输入 / 缓存读取 / 缓存写入 / 输出, with the `tok` unit), and the two speed figures of DSH's own 会话统计 beside them (首 token 平均（TTFT） / 输出速度（TPS）). It never shows a price: take the numbers to your provider's price list. 本页回答「出一次题要用多少 token、该选什么模型和推理程度」，以及每个任务的首 token 与输出速度。
 
 ## 中文
 
@@ -48,6 +48,22 @@ StudyHub 使用你在 DSH 里选定的模型，不绑定某个模型。批量的
 - 直接调用：读取服务商返回的用量；DSH 子代理（出题的每个阶段）：读取该子会话 DSH 自己的 `tokenUsage` 投影，读不到就按同一规则重放它的事件。四个桶互不重叠，推理 token 已包含在输出里，重试的那次调用另外累加。
 - 每个任务的详情里有「实际用量」（并与出发前的估算对照）；「学习统计 › 模型用量」按功能（出题、改题与复核、陪学、学习流、案例、音频文本）列出近 7 / 30 天。数据只存数量，放在学习库里的 `model-usage.json`（保留 90 天，不含内容）。
 - 记录失败不会影响任何任务。
+
+### 首 token 平均（TTFT）与输出速度（TPS）
+
+「任务」界面里，每个任务的实际用量旁边就是 DSH「会话统计」里的两个速度数字，口径与它完全一致：
+
+- **首 token 平均（TTFT）**：从一次调用开始到它吐出第一个 token 的等待，取平均（DSH：`ttftMs / ttftSteps`）。等模型开口的时间，和它写了多少无关。
+- **输出速度（TPS）**：调用实际写出的 token 数 ÷ 它真正在写的那段时间（DSH：`decodeTokens / (decodeMs / 1000)`），单位 `tok/s`。这是解码速度，不含等待，也不含排队与重试。
+
+数字怎么来的，和 token 用量走同一条路：出题的每个阶段是 DSH 自己的一次性子会话，StudyHub 通过读用量用的同一个 `observeSession` 租约，把这些子会话 DSH 自己的 `sessionStats` 投影一并取回，所以显示的就是宿主自己算的结果；音频文本、翻译等在本插件自己的模型通道上直接发起的调用不是 DSH 会话，没有这样的投影，就按同一组边界现场量：`firstOutputAt − startedAt` 是等待，`endedAt − firstOutputAt` 是写的时间，token 数用服务商报告的 `outputTokens`。
+
+几条刻意的「不说」：
+
+- 量不出来的就不显示：还没结束的调用、不流式返回的转写、服务商没有报告用量的调用，都不进入这两个数字，也绝不会按字数猜。
+- 只有已经结束的调用计入（DSH 也一样，它在助手消息落地时结算），所以运行中的任务显示的是它已完成调用的数字，会随着其余调用结束而变大。
+- 单位与取整照抄 DSH：不足一分钟写 `1.6秒`（一位小数），超过写 `2分42秒`；速度满 10 取整、不足 10 保留一位小数。
+- 只显示数量与时长，不显示价格；也不把 token 数折成时间。
 
 ## English
 
@@ -109,3 +125,19 @@ StudyHub uses the model you chose in DSH; it is not tied to one. Low reasoning i
 - Direct calls read the usage the provider reports; DSH sub-agent phases read DSH's own `tokenUsage` projection of the child session, or replay its events with the same fold. The four buckets are disjoint, reasoning tokens are already inside the output, and a retried attempt is added on top.
 - A job's details show Actual usage next to its estimate; Study statistics, Model usage lists the last 7 / 30 days per feature (question writing, repair and review, coach, learning flows, case papers, audio text). Only counts are stored, in `model-usage.json` in the library (90 days, no content).
 - A failure to record never affects a job.
+
+### Average time to first token (TTFT) and output speed (TPS)
+
+In the Jobs console, beside a job's actual usage, are the two speed figures from DSH's own Session statistics, counted the same way:
+
+- **Avg time to first token (TTFT)**: the mean wait from a call's start to its first token (DSH: `ttftMs / ttftSteps`). How long the model took to start, whatever it then wrote.
+- **Tokens per second (TPS)**: the tokens a call actually wrote over the time it spent writing them (DSH: `decodeTokens / (decodeMs / 1000)`), in `tok/s`. Decode speed only: no waiting, no queuing, no retries.
+
+They arrive the same way tokens do. Each question-writing phase is its own one-shot DSH child session, and StudyHub reads those sessions through the very same `observeSession` lease it uses for usage, taking DSH's own `sessionStats` projection with it — so what a job shows is what the host itself counted. Audio text and translation phases call the model directly on this plugin's own client, which is no DSH session and has no such projection; those calls are measured here on the same boundaries: `firstOutputAt − startedAt` is the wait, `endedAt − firstOutputAt` is the writing, and the count is the provider's own `outputTokens`.
+
+Several deliberate silences:
+
+- What cannot be measured is not shown: a call still in flight, a provider that does not stream (a transcription) and a call whose usage was never reported contribute to neither figure, and a count is never derived from the length of a text.
+- Only settled calls count (DSH settles a step when its assistant message lands), so a running job shows its finished calls' figures, which grow as the others end.
+- Wording and rounding are DSH's: under a minute reads `1.6s` (one decimal), over it reads `2m42s`; speed is whole tokens from ten up and one decimal below.
+- Counts and durations only, never a price, and a token count is never turned into a time.
