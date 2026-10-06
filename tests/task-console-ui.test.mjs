@@ -14,6 +14,8 @@ const m = await loadUi(`
 `);
 
 const iso = (minutes) => new Date(Date.UTC(2026, 9, 5, 10, minutes)).toISOString();
+// Date.UTC takes whole seconds in its seconds slot, so a fractional second goes in as milliseconds.
+const sec = (seconds) => new Date(Date.UTC(2026, 9, 5, 10, 0, Math.floor(seconds), Math.round((seconds % 1) * 1000))).toISOString();
 const jobs = () => [
   { id: 'audio-1', type: 'audio-import', filename: 'API应用与产品策略培训 等 5 个录音', status: 'running', phase: 'proofread', done: 3, total: 9, startedAt: iso(2),
     members: [{ filename: 'a.mp3', status: 'complete', steps: { transcribe: { done: 1, total: 1 }, proofread: { done: 9, total: 9 }, translate: { done: 5, total: 5 } } },
@@ -59,6 +61,41 @@ test('a finished or failed job can be dismissed, not stopped, and says why it fa
   assert.match(detail, /知道了/);
   assert.doesNotMatch(detail, />停止</);
   assert.match(html, /密钥被拒（403）/);
+});
+
+test('a job with settled calls shows 实际用量 and DSH\'s two speed figures under its facts (WP27)', () => {
+  // The console reads the job through its contract (ui/tasks/task-model.js), so a step's own firstOutputAt and
+  // usage are all it takes: the wait before the first token and the writing after it are the job's own numbers.
+  // 1.6 s to the first token twice (so the mean is 1.6 s) and 80 s of writing over 20,320 output tokens (254 tok/s).
+  // 1.6 s to the first token twice (so the mean is 1.6 s) and 80 s of writing over 20,320 output tokens (254 tok/s).
+  const measured = { id: 'gen-usage', type: 'generate', kind: 'quiz', status: 'complete', deckTitle: '带用量的出题', requestedTotal: 4, savedCount: 4,
+    startedAt: sec(0), finishedAt: sec(120),
+    tokenUsage: { uncachedInputTokens: 185616, outputTokens: 20320, cacheReadTokens: 2863104, cacheWriteTokens: 0, calls: 2 },
+    steps: [
+      { id: 's1', stage: 'Writing and self-checking questions', status: 'complete', startedAt: sec(0), firstOutputAt: sec(1.6), finishedAt: sec(41.6), part: 1,
+        tokenUsage: { uncachedInputTokens: 90000, outputTokens: 10000, cacheReadTokens: 1400000, cacheWriteTokens: 0 } },
+      { id: 's2', stage: 'Reviewing ambiguity and source support', status: 'complete', startedAt: sec(60), firstOutputAt: sec(61.6), finishedAt: sec(101.6), part: 1,
+        tokenUsage: { uncachedInputTokens: 95616, outputTokens: 10320, cacheReadTokens: 1463104, cacheWriteTokens: 0 } }] };
+  const html = render({ jobs: [measured] });
+  const detail = html.slice(html.indexOf('class="tc-detail"'));
+  assert.match(detail, /data-task-usage/);
+  assert.match(detail, /data-task-timing/);
+  assert.match(detail, /实际用量/);
+  assert.match(detail, /185,616 tok/);
+  assert.match(detail, /2,863,104 tok/);
+  assert.match(detail, /20,320 tok/);
+  assert.match(detail, /首 token 平均（TTFT）/);
+  assert.match(detail, /1\.6秒/);
+  assert.match(detail, /输出速度（TPS）/);
+  assert.match(detail, /254 tok\/s/);
+  assert.doesNotMatch(html, /[¥$￥]|价格|费用/);
+  // A job that reported nothing keeps the same shape: no strip at all, rather than a row of dashes.
+  const quiet = render({ jobs: [jobs()[1]] });
+  assert.doesNotMatch(quiet, /data-task-usage|data-task-timing/);
+  const en = render({ jobs: [measured] }, 'en');
+  assert.match(en, /<dt>Avg time to first token \(TTFT\)<\/dt><dd>1\.6s<\/dd>/);
+  assert.match(en, /<dt>Tokens per second \(TPS\)<\/dt><dd>254 tok\/s<\/dd>/);
+  assert.match(en, /Actual usage/);
 });
 
 test('English: the same surface in the other language, no Chinese left in the chrome', () => {

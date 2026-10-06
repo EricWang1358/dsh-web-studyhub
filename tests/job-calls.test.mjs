@@ -14,13 +14,17 @@ test('an audio task and a generation step become the same call shape', () => {
   const task = { id: 't1', kind: 'proofread', part: 6, parts: 9, stage: '校对 6/9', status: 'complete', runtime: 'subagent', childId: 'child-1', parentId: 'parent-1',
     slot: 2, startedAt: at(1), finishedAt: at(40), reasoning: 'high', inputChars: 5400, tokenUsage: { uncachedInputTokens: 900, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 1 } };
   const call = unifyCall(task);
-  assert.deepEqual(Object.keys(call).sort(), ['childId', 'endedAt', 'id', 'inputChars', 'kind', 'parentId', 'part', 'parts', 'reasoning', 'runner', 'slot', 'stage', 'startedAt', 'status', 'tokens'].sort());
+  assert.deepEqual(Object.keys(call).sort(), ['childId', 'endedAt', 'id', 'inputChars', 'kind', 'outputTokens', 'parentId', 'part', 'parts', 'reasoning', 'runner', 'slot', 'stage', 'startedAt', 'status', 'tokens'].sort());
+  assert.equal(call.outputTokens, 100, "the provider's completion count rides along: 输出速度（TPS）divides it by the call's decode time");
   assert.equal(call.kind, 'proofread');
   assert.equal(call.status, 'ok');
   assert.equal(call.runner, 'subagent');
   assert.equal(call.endedAt, at(40));
   assert.equal(call.tokens, 1000);
   assert.equal(call.childId, 'child-1');
+  // A call whose provider never reported usage says nothing about its output either; nothing is derived from the text.
+  assert.equal('outputTokens' in unifyCall({ id: 'x', kind: 'proofread', status: 'complete', startedAt: at(1), finishedAt: at(2) }), false);
+  assert.equal(unifyCall({ id: 'x', kind: 'proofread', status: 'complete', startedAt: at(1), tokenUsage: { uncachedInputTokens: 5, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } }).outputTokens, 0, 'zero output is a measurement, not a missing one');
 
   const step = { id: 's1', stage: 'Writing and self-checking questions', part: 2, status: 'running', startedAt: at(5), queuedMs: 1200, runtime: 'direct', slot: 1 };
   const generation = unifyCall(step);

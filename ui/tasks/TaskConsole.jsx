@@ -17,6 +17,7 @@ import { taskSummary, stateLabel } from './task-summary.js';
 import { taskFacts, taskSegments, usageLine } from './task-facts.js';
 import { headerActions, autoToggle } from './task-control.js';
 import RunLine from './RunLine.jsx';
+import TaskUsage from './TaskUsage.jsx';
 import { actionLabel, autoLabel } from '../coverage/copy.js';
 import ControlRow from './ControlRow.jsx';
 import TaskBody from './TaskBody.jsx';
@@ -166,6 +167,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
+      <TaskUsage contract={contract} />
       <RunLine task={task} shortfall={shortfall} />
       {archived ? <ArchivedNote task={task} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}

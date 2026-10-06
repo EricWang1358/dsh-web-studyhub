@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+- **The Jobs console shows how fast the model was, not just how much it used.** Beside 实际用量 every job now carries DSH's own two speed figures from 会话统计: **首 token 平均（TTFT）** — how long the model took to start writing — and **输出速度（TPS）** in `tok/s` — the tokens it wrote per second of writing. They arrive the way tokens do: a question-writing phase is a DSH child session, and StudyHub reads DSH's own `sessionStats` through the same observation lease it already uses for usage, so what you see is what the harness itself counted; audio-text and translation phases, which call the model directly and are no DSH session, are measured on the same boundaries. A figure nobody could measure is simply not shown (a call still running, a transcription that does not stream, a provider that reported no usage), never estimated, and only settled calls count — so a running job's numbers grow as its calls finish. Same wording and rounding as DSH: `1.6秒` under a minute, `2分42秒` over it, whole `tok/s` from ten up.
+
 ## 2.7.0 — 2026-10-06
 
 - **Every course and deck picker can be searched.** The course heading, 换课程, the page scope, the deck you import into, the merge target and the reader's deck are now one searchable list: type part of a course or chapter name and the matches are highlighted; chapters hang under their course on a thin line. "Course settings…" and "New deck “…”" (which takes the name you typed) are buttons under the list instead of options you could hit by accident. The other dropdowns in settings and dialogs share the same look and keyboard (arrows, Enter, Esc, typing to jump), fit narrow panes and follow the interface size. No browser-drawn dropdown is left.

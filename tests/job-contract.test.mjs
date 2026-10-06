@@ -165,6 +165,7 @@ test('a call record: ids, a step key, the times that can be observed and no othe
     { id: 'c2', kind: 'proofread', part: 2, parts: 9, status: 'failed', runtime: 'subagent', startedAt: at(41), finishedAt: at(42) }] }] });
   const [first, second] = jobContract(job).calls;
   assert.deepEqual(Object.keys(first).sort(), ['attemptId', 'callId', 'childId', 'endedAt', 'file', 'firstOutputAt', 'jobId', 'kind', 'parentId', 'part', 'parts', 'reasoning', 'runner', 'slot', 'stage', 'startedAt', 'status', 'stepKey', 'tokens'].sort());
+  assert.equal('outputTokens' in first, false, 'no usage was reported, so no output count is invented');
   assert.equal(first.callId, 'c1');
   assert.equal(first.jobId, 'batch-1');
   assert.equal(first.attemptId, 'attempt-1');
@@ -186,6 +187,7 @@ test('result references, error, usage, execution mode and the type-specific deta
   assert.equal(done.error, null);
   assert.equal(done.usage.tokens, 1000);
   assert.equal(done.usage.calls, 5);
+  assert.equal('timing' in done.usage, false, 'the timing is folded from the calls, not stored beside the usage');
   assert.equal(done.execution.mode, 'mixed', 'a sub-agent and a direct request in one job');
   const failed = jobContract(audio({ status: 'failed', control: undefined, stage: '模型密钥被拒（403）', errorCode: 'invalid-token' }));
   assert.deepEqual(failed.error, { message: '模型密钥被拒（403）', code: 'invalid-token' });
