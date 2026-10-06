@@ -17,7 +17,7 @@
 | S1-0 | 已合并 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | 所有者接受已验证范围及待核验限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) | head 6b1ecedb69308ec44078f10c24975eb2a6a2aef7；merge f091f09f830c226bfebc9af22344896733893a10；[本地及 CI 证据](s1-0-baseline.md) | 最终 StudyHub owner/controller 绑定等限制仍阻断对应实现步骤 |
 | S1-1 | 受阻 | Codex 内核负责人 / codex/unified-runtime-alpha / 契约与版本读取兼容范围 | 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245)、读取兼容 [#255](https://github.com/EricWang1358/dsh-web-studyhub/pull/255) 已合并 | #255 head c092d7ac8e73228091a9d0a0a7c04e6b82f64570；merge 1a432f5e9cf166398385174cf1ec047f16cfceef；[历史验证](s1-1-compatibility-implementation.md) | 仅所列交付已合并，不勾选整步；live facade/执行绑定仍待 S1-2，持久化待 S1-5 |
 | S1-2 | 已合并 | Codex 云端内核负责人 / codex/runtime-s12-lifecycle / 注册、生命周期、原生绑定与旧入口 | 所有者 2026-10-06 02:28:22 UTC 验收并授权合并 [#262](https://github.com/EricWang1358/dsh-web-studyhub/pull/262) | head 78f83a8；merge 09a094ae54c6afc68982ed5bc7d21a5a92d46b2e；双平台 CI 与实际宿主 8 步见 PR | S1-2 限定范围已接受；持久化、音频试点和共享配额策略仍保留后续门禁 |
-| S1-3 | 进行中 | Codex 云端内核负责人 / codex/runtime-s13-resources / scheduler、audio worker、资源回归与本目录证据 | #262 已验收合并；继续 S1-3 已授权 | 基线 09a094a；[资源提取与验证](s1-3-resources.md) | 已实现保行为共享入口；共享 provider 配额/冷却及统一资源契约仍待审，不勾选整步，不放行 S1-4 |
+| S1-3 | 进行中 | Codex 云端内核负责人 / codex/runtime-s13-provider-permits / 原池、scoped resources、provider HTTP/旧单文件接线、宿主配置与验证 | #264 保行为提取、#265 资源契约已获授权合并 | 基线 ed157f377c3116910d96158e6ecc41ef550ee166；[许可实现与验证](s1-3-provider-permits.md) | 限定单文件/可观察 HTTP 许可、旧新委托与独立默认关配置已实现；等待精确提交验证和负责人验收，不勾选整步，不放行 S1-4 |
 | S1-4 | 未开始 | 待领取 | 待 S1-3 通过 | 待填写 | 唯一执行与计量路径 |
 | S1-5 | 未开始 | 待领取 | 待 S1-4 通过 | 待填写 | 恢复识别与提交核对 |
 | S1-6 | 未开始 | 待领取 | 待 S1-5 通过 | 待填写 | 开关双路径验证 |
@@ -39,7 +39,7 @@
   | [DSH-03](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 取消、超时 | dsh-timeout/subagent/jobs rc.2 | P05/R01/R03；jobs wait/kill 隔离探针通过 | abort 传播与真实执行收尾 | 待核验（部分 D 通过） | 观察者 wait 不取消；停止回执不能代替许可释放 |
   | [DSH-04](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 模型调用与档位 | ctx.llm / dsh-llm rc.2 | P06/P07/P08；宿主 fake stream/usage/effort 拒绝通过 | provider 注册与 stream waterfall | 待核验 | 复用 modelCompletion；网关只关联身份与批准策略 |
   | [DSH-05](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 子代理启动、命名、取消、打开 | dsh-subagent / uiWorkspace rc.2 | R03/R04/R05/P09；真实 one-shot parent/child 通过；UI 待测 | parent agent 与 client 导航 | 待核验 | 不伪造 parent、不在 server 假设 uiWorkspace 可用 |
-  | [DSH-06](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 并发、请求频率、429 冷却 | jobs/subagents 上限、providerRetryPolicy rc.2 | R02/R03/R06/P10；共享请求配额待核验 | job 数量与请求许可分开 | 待核验 | 保留 audioGate 和原录音/批次池；不叠加队列/重试 |
+  | [DSH-06](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 并发、请求频率、429 冷却 | jobs/subagents 上限、providerRetryPolicy rc.2 | R02/R03/R06/P10；[rc.2 实际作用域探针](s1-3-dsh06-review.md) | job 数量与请求许可分开 | 候选 owner-job/session-retry 边界已实测；具体 provider 路径仍待核验 | 沿用 audioGate 和原池；演进 permit 模式，不另建队列/重试 |
   | [DSH-07](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 用量上报与观测边界 | usage chunk / BlockAssembler / session log rc.2 | P08/P11/R07；fake usage 已测；缺失 usage/内部 retry 待核验 | provider 观测与唯一 caller sink | 待核验 | 未知不填零；Call/账本去重另有契约 |
   | [DSH-08](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 持久化、原子写、恢复 | dsh-atomic-write / sessions/storage rc.2 | R08/R07/R09/R10；4 个带锁写 D 探针通过 | 单文件 writer 与 agent lifecycle | 待核验（部分 D 通过） | 原子替换不等于联合提交或 fsync；manifest 所有权待评审 |
   | [DSH-09](s1-0-dsh-capabilities.md#固定行-id-能力对照) | 事件、完成通知与投递 | cordis / jobs.events / session rc.2 | P01/P02/R01/R03/R07/P12；settled 一次 D 探针通过 | fiber 订阅 / session 投递 | 待核验（部分 D 通过） | 投递错误不能改终态；持久去重仍待测试 |
