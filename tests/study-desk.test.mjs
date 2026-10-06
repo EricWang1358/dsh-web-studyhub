@@ -131,7 +131,8 @@ test("a finished generation with missing questions remains visibly incomplete", 
   const html = render({ jobs: [{ id: 'partial', status: 'complete',
     savedCount: 9, requestedTotal: 12, parts: 4,
     stage: 'Draft ready with 9/12 questions; 2 part(s) failed' }] });
-  assert.match(html, /草稿待补齐 · 9\/12 题/);
+  assert.match(html, /「新题组」草稿待补齐/);
+  assert.match(html, /已出 9\/12 题/, 'what the draft holds is said once, in the line under the title');
   assert.doesNotMatch(html, /草稿已生成|Draft ready with/);
   assert.match(html, /data-state="partial"/);
 });

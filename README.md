@@ -28,6 +28,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 - **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
 - **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
 - **Read and organise.** The reader has a table of contents, search, **Translate this page** and **Practise these pages**. Courses, **Study notes**, **Tasks** and a **Knowledge outline** keep a term's work together.
+- **Works well with** the open-source [Archify](https://github.com/tt-a1i/archify) (MIT licence, by tt-a1i; no partnership with StudyHub): your assistant can draw a knowledge outline as an interactive diagram with it, and StudyHub keeps and shows the file. See [Works well with other tools](docs/companions.md).
 
 ## Quick start
 
@@ -250,6 +251,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - **Studying:** [learning flows](docs/study-workflows.md) · [coaching and personalised questions](docs/coach.md) · [follow-up questions](docs/followup.md)
 - **Audio:** [audio import](docs/audio-import.md) · [live class](docs/live-class.md)
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
+- **Works well with:** [Archify and other companion tools](docs/companions.md)
 - **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
 - **Developers:** [architecture](docs/architecture.md) · [verification records](docs/verification.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
 

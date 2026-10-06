@@ -119,6 +119,12 @@ test('generated native modules resolve through classic chunk factories and share
     const asset = await asyncModule(`./${basename(path)}`);
     assert.ok(typeof asset.default === 'string' ? asset.default.length > 1000 : Object.keys(asset.default).length > 0, `${basename(path)} carries its data`);
   }
+  // The bundled Inter (ui/fonts/inter-face.js) is a data: URI in a chunk of its own, reached by a dynamic import when StudyHub opens;
+  // load it the way the installer does and check it carries the woff2.
+  const fontOutput = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => /ui[\/]fonts[\/]inter-data\.js$/.test(path)));
+  assert.ok(fontOutput, 'the font has a chunk of its own');
+  assert.ok(Object.entries(result.metafile.outputs).some(([, record]) => record.imports.some(edge => edge.kind === 'dynamic-import' && basename(edge.path) === basename(fontOutput[0]))), 'only a dynamic import reaches it');
+  assert.match((await asyncModule(`./${basename(fontOutput[0])}`)).default, /^data:font\/woff2;base64,d09GMg/, 'the chunk carries the woff2');
   // StudyMath imports from its effect rather than React.lazy. Exercise that
   // package-local factory path and its shared engine before counting modules.
   const math = await asyncModule(`./${mathName}`);

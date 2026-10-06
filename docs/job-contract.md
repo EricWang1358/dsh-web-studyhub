@@ -17,6 +17,8 @@ contract = {
   endReason?,      user-cancel | superseded     (why a cancelled job ended)
   stage,           { code, args?, text? }       a code the UI translates; `text` is the producer's prose, a fallback only
   progress,        { done, total | null, unit | null, percent | null, segments: [{ stage, done, total }] }
+                   a question run's progress is the questions kept over what the PLAN asked for (a coverage run's whole plan, not the round it is making); `percent` is 100 only when nothing is
+                   missing: a run that stopped short (budget, no progress, sections left, a refused key), waits for the learner after round 1, or holds fewer questions than it was asked for is never 100
   actions,         { cancel, pause, resume, retry, set }
   result,          { refs: [{ kind: source | draft | deck, id }], completeness: complete | partial | null }
   error,           null | { message, code? }

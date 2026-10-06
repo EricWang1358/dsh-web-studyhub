@@ -66,7 +66,8 @@
       z-index: var(--z-sticky);
       width: fit-content;
       max-width: 100%;
-      background: var(--bg-glass-strong);
+      /* Opaque: the page scrolls under this bar, and a translucent one let the coverage headline show through its buttons (the evaluation's D-14). */
+      background: var(--bg-raised);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow-item);
@@ -164,6 +165,19 @@
     :where(.study-app, .study-seat) {
       .sticky-actions button {
         font-size: var(--fs-md);
+      }
+      /* On a narrow screen the three buttons share ONE row (a two-row bar covers a seventh of the screen for as long as the page scrolls) and the bar spans the width. */
+      .draft-page .sticky-actions {
+        width: 100%;
+        gap: var(--space-1-5);
+        padding: var(--space-1-5);
+        flex-wrap: nowrap;
+      }
+      .draft-page .sticky-actions > * {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding-inline: var(--space-2);
+        font-size: var(--fs-sm);
       }
     }
   }

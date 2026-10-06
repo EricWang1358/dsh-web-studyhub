@@ -4,7 +4,7 @@ import { Button } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import { roundResult, roundStatusWord, roundTitle, sectionName, stateWord } from '../coverage/copy.js';
 
-/* The rounds of a coverage run (lib/coverage-run.js), at the top of 资料部分: one row per round with its state, what it asked for and, once it has run, what it kept, how many sections it newly covered and what it cost.
+/* The rounds of a coverage run (lib/coverage-run.js), at the top of 轮次与批次: one row per round with its state, what it asked for and, once it has run, what it kept, how many sections it newly covered and what it cost.
    A row opens to the sections of that round, each with its coverage now. The rounds come from the job's own copy of the run (the contract's detail.run); the sections of a round are on the draft (its plan,
    `editorial.coverageSpec.rounds[i].sectionIds`) and their coverage is `coverage.get`'s. */
 
@@ -35,7 +35,7 @@ export default function RunRounds({ run, draft, coverage }) {
                 <span className="tc-num" data-round-status={round.status}>{roundStatusWord(round.status)}</span>
               </Button>
               {open === index && <ul className="tc-round__sections">
-                {sections.length === 0 && <li className="tc-empty">{ui('这一轮的部分在草稿保存后才能查看。')}</li>}
+                {sections.length === 0 && <li className="tc-empty">{ui('这一轮的小节在草稿保存后才能查看。')}</li>}
                 {sections.map((section) => <li key={section.key} data-state={section.state}><span>{section.name}</span><small>{joinMeta([section.state !== 'covered' && ['done', 'failed'].includes(round.status) ? ui('这一轮没出成题') : stateWord(section.state, section.recorded, section.scheduled)])}</small></li>)}
               </ul>}
             </li>

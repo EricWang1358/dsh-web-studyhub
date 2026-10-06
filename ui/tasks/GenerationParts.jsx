@@ -12,7 +12,7 @@ import { reasonWord, uncoveredInRange } from '../coverage/copy.js';
 import { PartCoverage } from '../coverage/PartCoverage.jsx';
 import RunRounds from './RunRounds.jsx';
 
-/* 资料部分: the parts a question run was split into, each with the state of its three stages (writing, review, repair) and what it kept once the run has
+/* 批次: the batches a question run was split into, each with the state of its three stages (writing, review, repair) and what it kept once the run has
    reported. A selected part shows, in a strip of fixed height at the bottom, the calls it made. (The questions themselves live in the draft; the job does
    not record which part wrote which.) What a part covers (its range, its sources) is recorded when the run plans its parts (lib/part-plan.js); 在资料中查看 opens the
    reader on the first of them through the app's own handler (task-actions.js partOpener, the one 打开结果 uses). */
@@ -49,21 +49,21 @@ export default function GenerationParts({ contract, task }) {
     <div className="tc-files">
       <div className="tc-scroll">
         {run && <RunRounds run={run} draft={draft} coverage={coverage} />}
-        {run && parts.length > 0 && <p className="tc-rounds__head tc-rounds__head--parts">{uiFormat('第 {0} 轮的部分', [run.running ?? run.round])}</p>}
+        {run && parts.length > 0 && <p className="tc-rounds__head tc-rounds__head--parts">{uiFormat('第 {0} 轮的批次', [run.running ?? run.round])}</p>}
         {parts.map((item) => {
           const row = item.sourceIds?.length ? partOpener(item, app) : null;
           return (
             <div key={item.part} className="tc-partrow">
               <Button variant="quiet" block className="tc-filerow" aria-pressed={picked === item.part} data-part={item.part} title={item.range || undefined} onClick={() => setPicked(picked === item.part ? null : item.part)}>
                 <span className="tc-dot" data-state={dot(item.status)} aria-hidden="true" />
-                <span className="tc-filerow__name">{uiFormat('第 {0} 部分', [item.part])}{item.range && <span className="tc-filerow__text tc-filerow__range">{item.range}</span>}
+                <span className="tc-filerow__name">{uiFormat('第 {0} 批', [item.part])}{item.range && <span className="tc-filerow__text tc-filerow__range">{item.range}</span>}
                   <PartCoverage range={here(item)} units={coverage?.units} recorded={coverage?.recorded} /></span>
                 <span className="tc-cells" role="img" aria-label={STAGES.map(([stage, label]) => `${ui(label)} ${item.stages[stage] || '—'}`).join('，')}>
                   {STAGES.map(([stage]) => <i key={stage} data-stage={stage} data-state={item.stages[stage] || 'none'}><b /></i>)}
                 </span>
                 <span className="tc-num">{item.kept !== undefined ? uiFormat('{0}/{1} 题', [item.kept, item.asked]) : ui(STATUS_WORD[item.status] || '等待中')}</span>
               </Button>
-              {row && <IconButton icon="external" size="sm" className="tc-partrow__open" data-part-open={item.part} label={uiFormat('在资料中查看第 {0} 部分', [item.part])}
+              {row && <IconButton icon="external" size="sm" className="tc-partrow__open" data-part-open={item.part} label={uiFormat('在资料中查看第 {0} 批', [item.part])}
                 title={row.available ? undefined : row.reason} disabled={!row.available} onClick={row.run} />}
             </div>
           );
@@ -74,12 +74,12 @@ export default function GenerationParts({ contract, task }) {
       </div>
       <div className="tc-strip tc-strip--parts" aria-live="polite">
         {part ? <>
-          <span className="tc-strip__title">{uiFormat('第 {0} 部分', [part.part])}</span>
+          <span className="tc-strip__title">{uiFormat('第 {0} 批', [part.part])}</span>
           <Clipped className="tc-strip__line" text={joinMeta([part.range, part.kept !== undefined ? joinMeta([uiFormat('要 {0} 题，保留 {1} 题', [part.asked, part.kept]), ui(STATUS_WORD[part.status] || '')])
             : joinMeta(calls.map((call) => `${callLabel(call)}${call.endedAt ? ` ${formatDuration(Date.parse(call.endedAt) - Date.parse(call.startedAt))}` : ''}`)) || ui('还没有开始')])} />
           {opener && <Button size="sm" data-part-view={part.part} disabled={!opener.available} onClick={opener.run}>{opener.label}</Button>}
           <Clipped className="tc-strip__why" text={why} />
-        </> : <span className="tc-strip__hint">{ui('选一个部分，在这里看它做了什么。')}</span>}
+        </> : <span className="tc-strip__hint">{ui('选一个批次，在这里看它做了什么。')}</span>}
       </div>
     </div>
   );

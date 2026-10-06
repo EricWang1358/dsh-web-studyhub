@@ -78,7 +78,7 @@ test("a source quotation mismatch directs the learner to verify the selected pag
   assert.match(failure.hint, /所选页.*原文/);
   assert.match(failure.hint, /重新选页/);
   assert.doesNotMatch(failure.hint, /通常就行|已自动重试/);
-  assert.match(m.describeFailure(error, { hasDraft: true }).hint, /继续补齐/);
+  assert.match(m.describeFailure(error, { hasDraft: true }).hint, /为没覆盖的部分补题/);
   assert.doesNotMatch(inLanguage("en", () => m.describeFailure(error).hint), han);
 });
 
@@ -109,7 +109,7 @@ test("job cards name their deck", () => {
   assert.equal(m.jobDeckName({}, drafts), "新题组");
   assert.match(m.jobHeadline({ status: "running", deckTitle: "索引小测" }, drafts), /正在生成「索引小测」/);
   assert.match(m.jobHeadline({ status: "complete", deckTitle: "索引小测", savedCount: 4, requestedTotal: 4 }, drafts), /「索引小测」草稿已生成/);
-  assert.match(m.jobHeadline({ status: "complete", deckTitle: "X", savedCount: 9, requestedTotal: 12 }, drafts), /草稿待补齐 · 9\/12 题/);
+  assert.match(m.jobHeadline({ status: "complete", deckTitle: "X", savedCount: 9, requestedTotal: 12 }, drafts), /「X」草稿待补齐$/);
   assert.match(inLanguage("en", () => m.jobHeadline({ status: "failed", deckTitle: "Indexes" }, drafts)), /Indexes/);
 });
 

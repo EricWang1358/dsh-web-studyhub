@@ -4,10 +4,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonCanvas from "./SkeletonCanvas.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
+import ArchifyCard from "./ArchifyCard.jsx";
+import SkeletonDiagrams from "./SkeletonDiagrams.jsx";
+import { archifyPutOff, setArchifyPutOff } from "./archify.js";
 import css from "./skeleton.css";
+import companionCss from "./skeleton-companion.css";
 import { useInjectCss } from "./shared.js";
 import { groupPrompt } from "./topic-group-prompt.js";
-import { designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
+import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
 import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, LoadingState, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
@@ -66,6 +70,7 @@ function NodeTree({ skeleton, onPractice }) {
 export default function Skeleton({ data, onPractice, focusId, onFocus }) {
   const { call, busy, askInChat } = useStudy();
   useInjectCss(css, "study-skeleton");
+  useInjectCss(companionCss, "study-skeleton-companion");
   const [course, setCourse] = usePageScope(data?.root, 'skeleton', data?.focus?.course ?? '*');
   const [saved, setSaved] = useState(null);
   const [topics, setTopics] = useState(null),
@@ -86,7 +91,9 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
     // The skeleton the user had open was deleted or is not in this course: a muted note, never an error.
     [stale, setStale] = useState(false),
     [reload, setReload] = useState(0),
-    [loadFailed, setLoadFailed] = useState(false);
+    [loadFailed, setLoadFailed] = useState(false),
+    // The Archify recommendation put off ("以后再说"): per viewer and library, in the browser's storage; the page works without it.
+    [archifyLater, setArchifyLater] = useState(() => archifyPutOff(data?.root));
   // Any failure that is not "the skeleton is gone" is shown in plain language; a gone skeleton is released quietly.
   const fail = (e) => {
     const result = classifySkeletonError(e);
@@ -129,7 +136,8 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
     ? [...savedSkeletons, ...(data?.skeletons || []).filter(item => item.id === focusId)] : savedSkeletons;
 
   // Re-read the open skeleton when the conversation saves a new version.
-  const focusVersion = data?.skeletons?.find((k) => k.id === focusId)?.updatedAt;
+  // A diagram attached or deleted by the conversation changes the open skeleton's record without changing its design: it counts too.
+  const focusVersion = (({ updatedAt, diagrams, diagramsAt } = {}) => [updatedAt, diagrams, diagramsAt].join("|"))(data?.skeletons?.find((k) => k.id === focusId));
   useEffect(() => {
     if (!focusId) {
       setViewing(null);
@@ -440,7 +448,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
         </h2>
       </div>
       {!listedSkeletons.length ? (
-        <p className="muted small" data-tour="skeleton-main">{ui("还没有骨架。选好主题后点「在对话中生成骨架」。")}</p>
+        <p className="muted small" data-tour="skeleton-main">{ui("还没有骨架。选好主题后点「在对话中生成骨架」。")}<span className="sk-empty-note">{ui("有了骨架，还可以用开源插件 Archify 把它画成可交互的图。")}</span></p>
       ) : (
         <div className="sk-saved" data-tour="skeleton-main">
           <ul className="sk-saved-list">
@@ -469,6 +477,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                       askInChat(designSkeletonPrompt({ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }))
                     }
                   >{ui("在对话中更新")}</Button>
+                  <Button onClick={() => askInChat(archifySkeletonPrompt({ skeleton: viewing }))}>{ui("用 Archify 画这门课的知识骨架")}</Button>
                   <button
                     type="button"
                     className="sk-danger"
@@ -492,6 +501,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   }
                 }} />}
               {viewing.overview && <Markdown text={viewing.overview} className="sk-overview" />}
+              <SkeletonDiagrams skeletonId={viewing.id} diagrams={viewing.diagrams} revision={viewing.updatedAt} />
               <form
                 className="sk-extend-row"
                 onSubmit={(ev) => {
@@ -544,6 +554,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
           )}
         </div>
       )}
+      {!archifyLater && <ArchifyCard onLater={() => { setArchifyPutOff(data?.root, true); setArchifyLater(true); }} />}
     </section>
   );
 }

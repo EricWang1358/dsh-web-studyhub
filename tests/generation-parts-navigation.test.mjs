@@ -59,7 +59,7 @@ test('the parts list shows where each part came from and a small button per part
   assert.equal((out.match(/data-part="/g) || []).length, 2, 'the rows are unchanged');
   assert.match(out, /Networks · 第 12–14 页/, 'the range is on the row');
   assert.equal((out.match(/data-part-open="/g) || []).length, 2);
-  assert.match(out, /aria-label="在资料中查看第 1 部分"/);
+  assert.match(out, /aria-label="在资料中查看第 1 批"/);
 });
 
 test('the picked part\'s strip: the range, the "several sources" note, why it kept fewer, and the button', () => {
@@ -107,12 +107,12 @@ test('in English every new string is English, and the strip keeps its class so t
   assert.match(strip, />View in materials</);
   assert.match(strip, /2 sources, the first one opens/);
   assert.match(strip, /Reason: quoted text that could not be found in the sources/);
-  assert.match(out, /aria-label="View part 1 in materials"/);
+  assert.match(out, /aria-label="View batch 1 in materials"/);
   assert.doesNotMatch(strip, /[一-鿿]/, 'no Chinese left in the strip');
   assert.match(strip, /tc-strip--parts/);
 });
 
 test('every new literal has an English entry', () => {
   const english = JSON.parse(fs.readFileSync(new URL('../ui/locales/en.task-console.json', import.meta.url), 'utf8'));
-  for (const key of ['在资料中查看', '在资料中查看第 {0} 部分', '共 {0} 份资料，先打开第一份', '这些资料已被删除，无法查看。', '这次运行没有记录用到的资料。', '引用在资料里找不到', '考点规划未通过检查', '题没有通过质量审阅', '其他原因']) assert.ok(english[key], key);
+  for (const key of ['在资料中查看', '在资料中查看第 {0} 批', '共 {0} 份资料，先打开第一份', '这些资料已被删除，无法查看。', '这次运行没有记录用到的资料。', '引用在资料里找不到', '考点规划未通过检查', '题没有通过质量审阅', '其他原因']) assert.ok(english[key], key);
 });

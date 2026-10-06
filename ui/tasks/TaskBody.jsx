@@ -13,13 +13,13 @@ import CoachBatches from './CoachBatches.jsx';
 import { PdfDetail } from '../PdfConvertJob.jsx';
 
 /* The two columns under the controls, one template for every kind of job: on the left the parallel timeline above the tabs 「正在进行」 and the kind's own
-   section (文件 for audio, 资料部分 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall as the window leaves them and
+   section (文件 for audio, 轮次与批次 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall as the window leaves them and
    every list scrolls inside its own panel, so a job with one file looks as complete as one with fifty, and nothing here grows the page. */
 
 const SECTIONS = {
   audio: { value: 'files', label: '文件', count: (contract) => contract.detail.files?.length || 0, View: AudioFiles },
-  generation: { value: 'parts', label: '资料部分', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
-  supplement: { value: 'parts', label: '资料部分', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
+  generation: { value: 'parts', label: '轮次与批次', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
+  supplement: { value: 'parts', label: '轮次与批次', count: (contract) => contract.detail.partList?.length || 0, View: GenerationParts },
   coach: { value: 'batches', label: '批次', count: (contract) => contract.detail.batches?.length || 0, View: CoachBatches },
   pdf: { value: 'convert', label: '转换详情', count: () => '', View: ({ task }) => <div className="tc-scroll"><PdfDetail job={task} /></div> },
 };

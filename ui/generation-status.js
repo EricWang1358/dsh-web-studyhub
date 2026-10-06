@@ -183,14 +183,18 @@ export function jobHeadline(job = {}, drafts = []) {
     if (code === 'failed') return uiFormat('案例「{0}」没有生成完成', [name]);
     return uiFormat('正在出案例「{0}」', [name]);
   }
+  // A run the host stopped under: nothing is wrong with the work, it waits to be continued (it is not "being filled"). A run the learner paused between rounds waits too.
+  if (job.status === 'interrupted' && !ownProse(job)) return uiFormat('「{0}」已中断', [name]);
+  if (isActiveJob(job) && !ownProse(job) && (job.paused === true || job.coverageRun?.state === 'paused')) return uiFormat('「{0}」已暂停', [name]);
   switch (jobCode(job)) {
     case 'queued': return uiFormat('「{0}」排队中', [name]);
     case JOB_STATUS.CANCELLING: return uiFormat('正在停止「{0}」', [name]);
     case 'cancelled': return uiFormat('已停止生成「{0}」', [name]);
     case 'failed': return uiFormat('「{0}」没有生成完成', [name]);
     case 'partial': {
-      const { requested, saved, missing } = standing(job, draftOf(job, drafts));
-      return missing > 0 || !job.requestedTotal ? uiFormat('「{0}」草稿待补齐 · {1}/{2} 题', [name, saved, requested]) : uiFormat('「{0}」草稿已生成', [name]);
+      // What the draft holds is said once, in the line under the title (ui/coverage/copy.js shortfallLine): the title only says it is not complete.
+      const { missing } = standing(job, draftOf(job, drafts));
+      return missing > 0 || !job.requestedTotal ? uiFormat('「{0}」草稿待补齐', [name]) : uiFormat('「{0}」草稿已生成', [name]);
     }
     case 'done': return uiFormat('「{0}」草稿已生成', [name]);
     default: return job.continued ? uiFormat('正在补齐「{0}」', [name]) : uiFormat('正在生成「{0}」', [name]);
@@ -212,13 +216,14 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
     const kept = draft ? job.savedCount || draft.cards?.length || 0 : 0;
     return kept ? uiFormat('已停止。已生成的 {0} 题保存在草稿里。', [kept]) : ui('已停止，还没有生成题目。');
   }
+  if (job.status === 'interrupted' && !ownProse(job)) return ui('已中断；已出的题都保留，点「接着做」继续。');
   if (code === 'failed') return ownProse(job) ? job.stage || stageCodeLabel(code) : describeFailure(job.stage, { hasDraft: !!draft }).title;
   if (code === 'partial' && incomplete(job)) {
-    const { missing } = standing(job, draft);
+    const { requested, saved, missing } = standing(job, draft);
     // A top-up of this very draft is already running: the advice to start one would be wrong, and the numbers are about to change.
     if (missing > 0 && jobs.some((other) => other !== job && other.draftId === job.draftId && isActiveJob(other) && !ownProse(other)))
       return uiFormat('还差 {0} 题，正在补题；进度见新的任务卡。', [missing]);
-    return missing > 0 ? uiFormat('少了 {0} 题；可以打开草稿补齐。', [missing]) : ui('草稿已补齐，检查后即可发布');
+    return missing > 0 ? uiFormat('已出 {0}/{1} 题', [saved, requested]) : ui('草稿已补齐，检查后即可发布');
   }
   if (!isActiveJob(job) || code === 'queued' || code === JOB_STATUS.CANCELLING) return stageCodeLabel(code);
   // While running, the newest step in flight says more than the job-level stage.
@@ -258,7 +263,7 @@ const FAILURES = [
  */
 export const FAILURE_COPY = Object.freeze({
   credential: { action: 'settings', title: '还没有可用的模型密钥', hint: '在模型设置里填好 API Key 后再试。' },
-  rejected: { action: 'settings', title: '模型服务拒绝了请求', hint: '密钥失效，或这个模型已停用 / 不再支持。请在模型设置里检查密钥，或换一个模型。' },
+  rejected: { action: 'settings', title: '模型服务拒绝了请求', cause: '模型服务拒绝了请求（密钥无效或没有权限）', hint: '密钥失效，或这个模型已停用 / 不再支持。请在模型设置里检查密钥，或换一个模型。' },
   'model-retired': { action: 'settings', title: '这个模型已经不能用了', hint: '模型服务不再提供所选的模型。请在模型设置里换一个模型再试。' },
   quota: { action: 'settings', title: '模型账户的余额或额度不足', hint: '充值，或在设置里换一个模型后再试。' },
   'rate-limit': { action: 'retry', title: '模型服务太忙了', hint: '请求太频繁，被模型服务限流了。等一两分钟再试，或在设置里换一个模型。' },
@@ -266,7 +271,7 @@ export const FAILURE_COPY = Object.freeze({
   network: { action: 'retry', title: '连不上模型服务', hint: '检查网络后重试。' },
   unavailable: { action: 'retry', title: '模型服务暂时不可用', hint: '稍后再试。' },
 });
-const copyOf = (kind) => { const entry = FAILURE_COPY[kind]; return { kind, action: entry.action, title: ui(entry.title), hint: ui(entry.hint) }; };
+const copyOf = (kind) => { const entry = FAILURE_COPY[kind]; return { kind, action: entry.action, title: ui(entry.title), ...(entry.cause ? { cause: ui(entry.cause) } : {}), hint: ui(entry.hint) }; };
 
 const PART_SPLIT = /(?:^|;\s*)Part (\d+):\s*/;
 const QUESTION_SPLIT = /;\s+(?=(?:q\d+|Card \d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f-]{23})\s*[:：])/;
@@ -312,10 +317,10 @@ export function failureRowLabel(row) {
 
 /* Causes only the generation pipeline has, named by lib/generation-failure.js: the learner's wording of each (title, the cause in one clause, what to do). */
 const OWN_FAILURES = Object.freeze({
-  'plan-short': { action: 'retry', title: '这一节能出的考点比计划的少', cause: '考点规划不够数',
-    hint: '这一节可出题的内容不多，补问一次后仍然不够。可以点「为没覆盖的部分补题」再试一次，或换成「精简」强度。' },
+  'plan-short': { action: 'retry', title: '模型给出的考点比计划的少', cause: '模型给出的考点不够数',
+    hint: '模型这一次给出的考点不够数，补问一次后仍然不足；这不等于这一节没有可考的内容，再试一次可能就够了。可以点「为没覆盖的部分补题」再试，或换成「精简」强度。' },
   'review-protocol': { action: 'retry', title: '审阅回复的格式不对，没能完成审阅', cause: '审阅回复的格式不对',
-    hint: '点「继续补齐」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。' },
+    hint: '点「为没覆盖的部分补题」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。' },
   'no-reply': { action: 'retry', title: '模型没有返回内容', cause: '模型没有返回内容', hint: '可能是服务暂时的问题，稍后再试。' },
   cancelled: { action: 'retry', title: '已被停止', cause: '已被停止', hint: '已通过检查的题保存在草稿里。' },
 });
@@ -344,7 +349,7 @@ export function describeFailure(text = '', options = {}) {
     return { kind: own, code: own, action: copy.action, title: ui(copy.title), cause: ui(copy.cause), retried: retriedNote(own, found.retries), hint: ui(copy.hint) };
   }
   const legacy = failureKind(raw, options);
-  return { ...legacy, code: CODE_OF_KIND[legacy.kind] || legacy.kind, cause: legacy.kind === 'unknown' && raw.trim() ? uiFormat('{0}（{1}）', [legacy.title, clipRaw(raw.trim())]) : legacy.title,
+  return { ...legacy, code: CODE_OF_KIND[legacy.kind] || legacy.kind, cause: legacy.kind === 'unknown' && raw.trim() ? uiFormat('{0}（{1}）', [legacy.title, clipRaw(raw.trim())]) : legacy.cause || legacy.title,
     retried: retriedNote(legacy.kind, found.retries) };
 }
 
@@ -368,7 +373,7 @@ function failureKind(text = '', { hasDraft = false } = {}) {
       hint: hasDraft ? ui('已通过检查的题保存在草稿里，可以打开草稿继续。') : ui('可以减少题数或资料后重新生成。') };
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
     case 'grounding': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('引用的原文在资料里找不到'),
-      hint: hasDraft ? ui('AI 引用的句子和资料原文对不上；通过检查的题已保存在草稿里。打开草稿用「继续补齐」补上缺的题，不必重新选页。')
+      hint: hasDraft ? ui('AI 引用的句子和资料原文对不上；通过检查的题已保存在草稿里。打开草稿用「为没覆盖的部分补题」补上缺的题，不必重新选页。')
         : ui('AI 引用的句子和资料原文对不上。请确认所选页包含要引用的原文；如果原文在相邻页，重新选页后再生成。') };
     case 'plan': return { kind, action: 'retry', title: ui('考点规划没有通过检查'),
       hint: ui('资料里能稳妥出题的内容可能不够。换几份内容更完整的资料，或减少题数再试。') };
@@ -383,7 +388,7 @@ function failureKind(text = '', { hasDraft = false } = {}) {
       const counts = new Map();
       for (const row of failureBreakdown(raw)) for (const code of row.codes) if (code !== 'review') counts.set(code, (counts.get(code) || 0) + 1);
       const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([code]) => reasonLabel(code));
-      const next = hasDraft ? ui('打开草稿用「继续补齐」再补一轮；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。')
+      const next = hasDraft ? ui('打开草稿点「为没覆盖的部分补题」再补一轮；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。')
         : ui('点「按原资料重新设置」再试一次；也可以在「设置 › 出题偏好」里调整题型、难度和侧重点。');
       return { kind, action: hasDraft ? 'open-draft' : 'retry', title: top.length ? ui('出的题都没通过质量审阅') : ui('没有题目通过检查'),
         hint: top.length ? uiFormat('主要原因：{0}。{1}', [formatClauses(top), next]) : uiFormat('具体原因见技术详情。{0}', [next]) };

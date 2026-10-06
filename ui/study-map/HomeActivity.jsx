@@ -2,9 +2,9 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, InlineMessage } from '../components/index.js';
 import { CoverageTopUp } from '../coverage/CoverageTopUp.jsx';
-import { useCoverage } from '../coverage/use-coverage.js';
-import { coverageHead } from '../coverage/copy.js';
+import { coverageHead, shortfallLine, shortfallTag } from '../coverage/copy.js';
 import { runSummary } from '../coverage/RunPanel.jsx';
+import { useDraftShortfall } from '../coverage/use-shortfall.js';
 import { foldJobsByDraft, isActiveJob } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
@@ -14,8 +14,9 @@ import { useStudy } from '../study-context.jsx';
 import { joinMeta } from '../format.js';
 
 function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
-  // 覆盖: how much of its material the draft has questions for, said in the words of the draft page; the old "还差 N 题" is that fact.
-  const covered = useCoverage({ draftId: d.id }, { version: `${data.revision}:${d.draftVersion}` });
+  // 覆盖: how much of its material the draft has questions for, said in the words of the draft page. The counts, the tag and the one action are the draft's SHORTFALL (lib/shortfall.js):
+  // the same numbers and the same sentences as the banner above, the 任务 console and the draft page.
+  const { view, shortfall } = useDraftShortfall(d, data);
   const qualityCount = (d.quality?.warnings?.length || 0) + (d.quality?.errors?.length || 0);
   const rejectedCount = d.cards.filter((card) => d.editorial?.rejectedIssues?.[card.id]).length;
   const reviewed = reviewedCardStatus(d);
@@ -24,24 +25,26 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
   // adds no line: the 待发布 list arrives after a generation, and a taller list moves the page below it further); the meta text is facts.
   const work = draftWork(d, data.jobs);
   // A draft whose plan has rounds says where its run is in the draft page's words (lib/coverage-run.js draftRunFacts: 「第 1 轮完成，还有 11 轮 · 覆盖 9%」); that line carries the coverage.
-  const run = !work && covered.view?.status === 'ok' ? runSummary(d, data.jobs, covered.view.coverage?.percentLeaves ?? null, covered.view.coverage) : null;
-  const status = rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : reviewed?.unchanged === d.cards.length ? ui('已复审，待发布') : ui('待发布检查');
+  const run = !work && view ? runSummary(d, data.jobs, view.coverage?.percentLeaves ?? null, view.coverage) : null;
+  // The badge says what is true of the draft: 「已复审，待发布」 only when nothing is missing; a draft that is short, stopped, refused or interrupted says that.
+  const tag = shortfallTag(shortfall, { reviewed: reviewed?.unchanged === d.cards.length }), pending = rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : '';
+  const clean = shortfall.ready || (shortfall.state === 'done' && shortfall.questionsMissing === 0), status = clean ? pending || tag : joinMeta([tag, pending]);
   return (
     <div className="draft-row">
       <button type="button" className="draft-open" onClick={() => openDraft(d)}>
         <span>
           <strong>{d.title}</strong>
           <small className="draft-meta">
-            <span className="draft-meta__facts">{joinMeta([uiFormat('{0} 道题', [d.cards.length]), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
-              run?.facts.total > 1 && run.facts.state !== 'complete' ? run.line : covered.view?.coverage?.leaves ? coverageHead(covered.view.coverage) : '',
+            <span className="draft-meta__facts">{joinMeta([shortfallLine(shortfall), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
+              run?.facts.total > 1 && run.facts.state !== 'complete' ? run.line : view?.coverage?.leaves ? coverageHead(view.coverage) : '',
               Number.isInteger(d.editorial?.completedParts) && d.editorial.completedParts < d.editorial.parts
                 ? uiFormat('生成未完成 {0}/{1} 批', [d.editorial.completedParts, d.editorial.parts]) : ''])}</span>
-            {!work && <Badge size="sm" tone={rejectedCount ? 'warning' : 'neutral'} data-draft-status>{status}</Badge>}
+            {!work && <Badge size="sm" tone={rejectedCount || !clean ? 'warning' : 'neutral'} data-draft-status>{status}</Badge>}
           </small>
         </span>
         <span>{ui('打开 →')}</span>
       </button>
-      <CoverageTopUp variant="compact" draft={d} view={covered.view} jobs={data.jobs} modelReady={modelReady} onTopUp={topUpDraft} />
+      <CoverageTopUp variant="compact" draft={d} view={view} jobs={data.jobs} modelReady={modelReady} onTopUp={topUpDraft} />
     </div>
   );
 }
@@ -60,7 +63,7 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, modelRead
   return (
     <section className="home-activity" ref={sectionRef} aria-label={ui('出题进度与待发布草稿')}>
       {jobs.length > 0 && <div className="jobs generation-jobs cjc-list">
-        {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} jobs={jobs} drafts={drafts} busy={busy} openDraft={openDraft}
+        {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} jobs={jobs} drafts={drafts} data={data} modelReady={modelReady} topUpDraft={topUpDraft} busy={busy} openDraft={openDraft}
           cancelJob={cancelJob} dismissJob={dismissJob && ((jobId) => dismissJob(jobId, earlier.filter((old) => !isActiveJob(old)).map((old) => old.id)))} retryGeneration={retryGeneration}
           openModelSettings={openModelSettings} openDeck={manage}
           practiceCards={(deckId, cardIds) => start({ mode: 'path', scope: cardIds.map((cardId) => ({ deckId, cardId })), fresh: true })} />)}

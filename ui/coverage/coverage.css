@@ -43,9 +43,14 @@
     /* ── The run (the rounds of the plan): where it is, why it stopped, and 自动补到完整 ───────────── */
     .cov-run { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .cov-run > * { min-width: 0; margin: 0; }
+    /* What the draft holds and which sections have no question: the SHORTFALL (lib/shortfall.js), the same words as the home row and the 任务 console. */
+    .cov-run__counts { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-run__line { font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-run__stop, .cov-run__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-run[data-run-state='interrupted'] .cov-run__line, .cov-run[data-run-state='stopped'] .cov-run__line { color: var(--warn-ink, var(--text)); }
+    .cov-run__stop--head { color: var(--text); font-weight: var(--fw-strong); }
+    .cov-run__repeating { display: grid; gap: var(--space-1); }
+    .cov-run__repeat-list { display: grid; gap: var(--space-half); margin: 0; padding-inline-start: var(--space-4); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-run__auto { display: grid; gap: var(--space-half); }
     .cov-run__auto small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-run + .cov-topup { padding-top: 0; border-top: 0; }
@@ -53,15 +58,16 @@
     .cov-topup { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .cov-topup > * { min-width: 0; margin: 0; }
     .cov-topup__plan { color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    .cov-topup__more { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-topup__act { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2) var(--space-4); }
     /* The button names the action in full: on a narrow screen it wraps instead of pushing the block past the edge. */
     .cov-topup__button { max-width: 100%; height: auto; padding-block: var(--space-2); text-align: center; white-space: normal; overflow-wrap: anywhere; }
     .cov-topup__estimate { flex: 1 1 14em; max-width: 34em; min-width: 0; }
     .cov-topup__done { color: var(--text-dim); font-size: var(--fs-sm); }
-    .cov-topup--compact { padding-top: 0; border-top: 0; justify-items: end; width: min(18rem, 100%); margin-inline-start: auto; text-align: end; }
+    .cov-topup--compact { padding-top: 0; border-top: 0; justify-items: end; width: min(20rem, 100%); margin-inline-start: auto; text-align: end; }
     .cov-topup--compact .cov-topup__act { justify-content: flex-end; }
     .cov-topup--compact .cov-topup__estimate { flex-basis: 100%; max-width: none; }
+    /* The status of a run that works (「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 …」) is a sentence: in the narrow column it wraps instead of running off the screen. */
+    .cov-topup--compact [data-draft-work] { max-width: 100%; height: auto; padding-block: var(--space-1); white-space: normal; text-align: end; line-height: var(--lh-snug); }
     .cov-topup--panel { padding-top: 0; border-top: 0; }
     /* The console header's popover: wide enough for the sentences and the button (a popover is as wide as its content, which here is a column of short lines). */
     .cov-popover__panel { gap: var(--space-3); width: min(22rem, calc(100vw - var(--space-6))); }
