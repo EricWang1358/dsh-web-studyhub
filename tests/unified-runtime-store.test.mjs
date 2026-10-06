@@ -118,3 +118,23 @@ test('derived single manifest facade clears an old completion time when a new At
   assert.equal(Object.hasOwn(disk.job, 'finishedAt'), false);
   assert.equal(disk.job.filename, 'retained.wav');
 });
+
+test('managed audio pipeline checkpoint records completed cache bytes and safe settings only', async t => {
+  const f = await fixture(t), path = join(f.root, 'pipeline.wav'); await writeFile(path, 'pipeline input');
+  const record = await prepareSingleAudioRecord(f.root, { path });
+  const adapter = await createSingleAudioPersistence(f.root, { library: { read: async () => ({ sources: [] }) } }).open({ singleId: record.id });
+  const pipeline = await adapter.createPipelineCache({ transcribeModel: 'fixture-model', textConcurrency: 2, paidKey: 'private-key-never-save' });
+  await pipeline.cache.set('raw-12345678-0.json', { text: 'finished transcript' });
+  const checkpoint = await pipeline.checkpoint('proofread', { textConcurrency: 3, autoBackoff: false }); await adapter.validateCheckpoint(checkpoint);
+  const payload = await readFile(join(f.root, 'audio-batches', record.id, checkpoint.ref), 'utf8');
+  assert.equal(payload.includes('private-key-never-save'), false);
+  assert.equal(payload.includes('finished transcript'), false, 'domain cache content is referenced, not copied into the checkpoint');
+  const resumed = await adapter.createPipelineCache({ transcribeModel: 'changed-model', textConcurrency: 9 }, checkpoint);
+  assert.equal(resumed.settings.transcribeModel, 'fixture-model'); assert.equal(resumed.settings.textConcurrency, 2);
+  assert.deepEqual(resumed.controls, { textConcurrency: 3, autoBackoff: false });
+  assert.equal((await resumed.cache.get('raw-12345678-0.json')).text, 'finished transcript');
+  await assert.rejects(pipeline.cache.set('../escape.json', {}), { code: 'checkpoint-invalid' });
+  const stored = JSON.parse(payload), cacheFile = join(f.root, 'audio-cache', record.input.hash.slice(0, 16), stored.files[0].name);
+  await writeFile(cacheFile, '{"text":"tampered"}');
+  await assert.rejects(adapter.validateCheckpoint(checkpoint), { code: 'checkpoint-invalid' });
+});

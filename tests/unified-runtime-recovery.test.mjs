@@ -26,7 +26,7 @@ import { createRuntimeWork } from '../lib/runtime/work.js';
 import { createManifestJobStore } from '../lib/jobs/store.js';
 import { saveAudioBatch } from '../lib/audio-batch.js';
 
-async function durableFixture(t, run, { recoveryMode = 'retry-from-start', pauseMode = 'unsupported' } = {}) {
+async function durableFixture(t, run, { recoveryMode = 'retry-from-start', pauseMode = 'unsupported', notifications = [], waitForDelivery = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'durable-life-')), id = 'single-fixture-1';
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, 'audio-batches', id), { recursive: true });
@@ -38,7 +38,7 @@ async function durableFixture(t, run, { recoveryMode = 'retry-from-start', pause
     inspect: () => ({ state, reason: 'controlled-fixture' }), start({ run, cancel }) { const id = `native-${++starts}`; void run(); return { id, ownerAgentId: 'actual-test-owner', stop: cancel, append() {} }; } };
   const ctx = new Context(), work = createRuntimeWork(), lifecycle = createJobLifecycle(root, work);
   const definition = { kind: 'persist', version: 1, capabilities: { retry: true, recoveryMode, pauseMode },
-    persistence: { open: async input => ({ store, inputRef, input,
+    persistence: { open: async input => ({ store, inputRef, input, notifications, waitForDelivery,
       validateInput: async () => { if (invalid) throw Object.assign(new Error(invalid), { code: invalid }); }, validateCheckpoint: async () => {}, reconcileCommit: async () => null }) }, run };
   lifecycle.register(ctx, 'persist.v1', definition);
   const owner = Symbol('owner'), port = lifecycle.scoped({ owner, domain: 'persist.v1', executor });
@@ -242,4 +242,52 @@ for (const failAdmission of [false, true]) test(`restored checkpoint resume open
     assert.equal(ended.runtime.attempts.length, 2);
     assert.equal(ended.events.length, 1);
   } finally { releaseFirst(); releaseSecond(); await next?.dispose(); await ctx?.fiber.dispose(); }
+});
+
+
+test('public-domain observer waits for terminal bookkeeping after physical execution has drained', async t => {
+  let entered, release; const noticed = new Promise(resolve => { entered = resolve; });
+  const held = new Promise(resolve => { release = resolve; });
+  const f = await durableFixture(t, async () => ({ refs: [] }), { waitForDelivery: true,
+    notifications: [{ channel: 'inbox', idempotent: true, deliver: async () => { entered(); await held; } }] });
+  try {
+    const job = await f.port.submit('persist', {}); await noticed;
+    let observed = false;
+    const pending = f.port.wait(job.jobId).then(value => { observed = true; return value; });
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal(f.port.status(job.jobId).status, 'complete', 'physical outcome already durable');
+    assert.equal(observed, false, 'public-domain bookkeeping is still pending');
+    await f.lifecycle.cancelOwner(Symbol('unrelated owner'));
+    release(); assert.equal((await pending).status, 'complete');
+  } finally { release(); }
+});
+
+test('cold restored jobs use the current authorized executor on explicit recovery', async t => {
+  let runs = 0;
+  const f = await durableFixture(t, async () => { if (++runs === 1) throw new Error('first attempt'); return { refs: [] }; });
+  const initial = await f.port.submit('persist', {}); await f.port.wait(initial.jobId);
+  const next = createJobLifecycle(f.root, createRuntimeWork()), ctx = new Context(), owner = Symbol('restored owner');
+  next.register(ctx, 'persist.v1', f.definition);
+  t.after(async () => { await next.dispose(); await ctx.fiber.dispose(); });
+  const cold = next.scoped({ owner, domain: 'persist.v1' });
+  const restored = await cold.restore('persist', {});
+  const live = next.scoped({ owner, domain: 'persist.v1', executor: f.executor });
+  const foreign = next.scoped({ owner: Symbol('foreign'), domain: 'persist.v1', executor: f.executor });
+  await assert.rejects(foreign.recover(restored.jobId), { code: 'job-not-found' });
+  await live.recover(restored.jobId);
+  assert.equal((await live.wait(restored.jobId)).status, 'complete');
+  assert.equal(f.starts(), 2);
+});
+
+test('restoring through another request never replaces an active producer binding', async t => {
+  let entered, release, observed;
+  const started = new Promise(resolve => { entered = resolve; }), held = new Promise(resolve => { release = resolve; });
+  const f = await durableFixture(t, async (_context, _input, binding) => { entered(); await held; observed = binding; return { refs: [] }; });
+  const original = { identity: 'admitted' };
+  try {
+    const job = await f.port.submit('persist', {}, {}, original); await started;
+    await f.port.restore('persist', {}, { identity: 'later request' });
+    release(); await f.port.wait(job.jobId);
+    assert.equal(observed, original); assert.equal(f.starts(), 1);
+  } finally { release(); }
 });

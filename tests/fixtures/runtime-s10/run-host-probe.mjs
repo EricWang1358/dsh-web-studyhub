@@ -45,6 +45,13 @@ const inspectionAt = argv.indexOf('--executor-inspection');
 const auditInspection = inspectionAt >= 0;
 if (auditInspection) argv.splice(inspectionAt, 1);
 if (auditInspection && variant !== 'official-jobs-preset') throw new Error('--executor-inspection requires official-jobs-preset');
+const audioAt = argv.indexOf('--audio-pilot');
+const auditAudio = audioAt >= 0;
+if (auditAudio) argv.splice(audioAt, 1);
+const installAt = argv.indexOf('--install-current');
+const installCurrent = installAt >= 0;
+if (installCurrent) argv.splice(installAt, 1);
+if (auditAudio && variant !== 'official-jobs-preset') throw new Error('--audio-pilot requires official-jobs-preset');
 const qaRoot = join(repoRoot, 'output/qa');
 const hostRoot = resolve(dirname(dshBin), '..');
 const sdkRoot = dirname(hostRoot);
@@ -76,7 +83,7 @@ if (protectedRoots.some(root => relative(root, outCanonical) === '' || inside(ro
 }
 const manifest = JSON.parse(await readFile(join(hostRoot, 'package.json'), 'utf8'));
 if (manifest.name !== '@deepseek-ai/dsh' || manifest.version !== '0.2.0-rc.2') throw new Error('--dsh-bin must be the isolated rc.2 lib/bin.js');
-await access(join(qaRoot, 'dsh-home/profiles/studyhub-e2e'));
+if (!installCurrent) await access(join(qaRoot, 'dsh-home/profiles/studyhub-e2e'));
 const { scrubProcessEnv } = await import(pathToFileURL(join(repoRoot, 'scripts/qa/env.mjs')).href);
 scrubProcessEnv();
 
@@ -103,29 +110,40 @@ const url = path => JSON.stringify(pathToFileURL(path).href);
 once('const repoRoot = fileURLToPath(new URL("../../", import.meta.url));', `const repoRoot = ${JSON.stringify(repoRoot)};`);
 once('import YAML from "yaml";', `import YAML from ${url(createRequire(join(repoRoot, 'package.json')).resolve('yaml'))};`);
 for (const relativePath of ['./env.mjs', './browser.mjs', './fake-openai.mjs']) {
-  once(`from "${relativePath}"`, `from ${url(resolve(repoRoot, 'scripts/qa', relativePath))}`);
+  once(`from "${relativePath}"`, `from ${url(auditAudio && relativePath === './fake-openai.mjs' ? resolve(ownDirectory, '../runtime-s16/fake-openai.mjs') : resolve(repoRoot, 'scripts/qa', relativePath))}`);
 }
 // Absolute import URLs ensure no project/global Cordis copy is mixed into the host.
 const config = { qaRoot, workspace: join(qaRoot, 'dsh-documents/deepseek-harness/default-workspace'),
   reportPath: join(out, 'host-capabilities.json'), sdkRoot,
   waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant, auditStudyHub, auditRuntime, auditResources,
-  auditPermits, auditGateway, auditInspection, sourceRoot: resolve(ownDirectory, '../../..') };
+  auditPermits, auditGateway, auditInspection, auditAudio, sourceRoot: resolve(ownDirectory, '../../..') };
 const companionRows = [{ id: 'studyhub-s10-host-probe', name: pathToFileURL(join(ownDirectory, 'host-probe.mjs')).href, config }];
 if (variant === 'official-jobs-preset') companionRows.unshift({
   id: 's10-jobs-only-preset', name: '@deepseek-ai/dsh-agent-preset', config: { id: 's10-jobs-only', order: 99,
     plugins: [{ id: 'tool-jobs', name: '@deepseek-ai/dsh-tool-jobs',
       config: { completionDelivery: 'quiet', waitTimeoutMs: 1000, maxWaitTimeoutMs: 10_000 } }] },
 });
+
 once('    { id: "workspace-controller", config: { documentsDirectory } },',
-  `    { id: "workspace-controller", config: { documentsDirectory } },\n    { insert: ${JSON.stringify(companionRows)} },`);
+  `    { id: "workspace-controller", config: { documentsDirectory } },\n    { insert: ${JSON.stringify(companionRows)} },${auditAudio ? '\n    { id: "daily-flashcard", config: { runtime: { pilot: { audioSingle: true } } } },' : ''}`);
 once('  const baseEnv = { ...scrubSecrets(process.env), DSH_HOME: home, DSH_TELEMETRY_DISABLED: "1", SSH_TTY: "audit" };',
   '  const privateTemp = join(qaRoot, "host-probe-tmp");\n  await mkdir(privateTemp, { recursive: true });\n  const baseEnv = { ...scrubSecrets(process.env), TEMP: privateTemp, TMP: privateTemp, DSH_HOME: home, DSH_TELEMETRY_DISABLED: "1", DSH_TOOLS_MODE: "native", SSH_TTY: "audit" };');
+if (installCurrent) once('      await rm(packDir, { recursive: true, force: true });', '      // Keep prior private tarballs while the profile still references them.');
+if (installCurrent) once('      return join(packDir, name);',
+  '      const { copyFile } = await import("node:fs/promises");\n      const unique = join(packDir, `runtime-${Date.now()}-${name}`);\n      await copyFile(join(packDir, name), unique); return unique;');
 // This bounded run consumes the already-installed local profile. No build,
 // package install, profile reset, or plugin-manager mutation is performed.
-range('    const tgz = await step("pack-plugin",', '    model = await createFakeOpenAI',
+if (!installCurrent) range('    const tgz = await step("pack-plugin",', '    model = await createFakeOpenAI',
   '    await step("existing-private-profile", async () => {\n      if (!await exists(join(home, "profiles", DSH_PROFILE))) throw new Error("Create the isolated baseline QA profile first");\n      await mkdir(workspace, { recursive: true });\n    });\n');
 range('    await step("first-message",', '    summary.modelRequests = model.log.length;',
   `    await step("actual-host-capability-report", async () => {\n      const { until } = await import(${url(config.waitModule)});\n      const report = await until(async () => {\n        try { const value = JSON.parse(await readFile(${JSON.stringify(config.reportPath)}, "utf8")); return value.done ? value : false; }\n        catch (error) { if (["ENOENT", "SyntaxError"].includes(error.code || error.name)) return false; throw error; }\n      }, "the actual host capability report", { timeoutMs: 80_000, intervalMs: 50 });\n      summary.hostProbe = report;\n      summary.probeSource = { qaBaselineSha256: ${JSON.stringify(sha256)}, adaptation: "companion plugin; already provisioned profile; skip obsolete first-message/open-study selectors" };\n      if (!report.ok) throw new Error("S1-0 host probe failed: " + (report.error?.message || report.steps.find(item => item.status === "failed")?.error?.message || "see host-capabilities.json"));\n    });\n`);
+if (auditAudio) once('    summary.modelRequests = model.log.length;',
+  `    await step("installed-audio-console", async () => {
+      const { captureAudioConsole } = await import(${url(resolve(ownDirectory, '../runtime-s16/ui-probe.mjs'))});
+      try { summary.audioConsole = await captureAudioConsole(page, options.out, summary.hostProbe); }
+      catch (error) { await shot("audio-console-failed"); throw error; }
+    });
+    summary.modelRequests = model.log.length;`);
 // Importing a data module does not write a generated driver into the worktree.
 const mainGuard = source.indexOf('if (process.argv[1] && resolve(process.argv[1])');
 if (mainGuard < 0) throw new Error('QA main guard anchor missing');

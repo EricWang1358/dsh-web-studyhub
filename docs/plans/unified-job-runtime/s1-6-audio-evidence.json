@@ -1,0 +1,590 @@
+{
+  "schemaVersion": 1,
+  "phase": "S1-6",
+  "status": "implementation submitted for review; full verify and CI pending",
+  "baseSha": "b53b14752ec74dc149d2c7690cc33a5d6ab9e6b7",
+  "sourceFingerprints": {
+    "lib/audio-import.js": "5d85ebee475dcad198e18e950f931353ff5768b11094fcbcde788238aad46633",
+    "lib/audio-job.js": "05dc65d01f30b090d19722381fd97fdc5fae423a1deae579dc0a3cd18733c1a7",
+    "lib/audio-runtime-store.js": "659cd03b0a0977942e57ecbe9397b48682f0020c80570dd40800ba8f4652474a",
+    "lib/contexts/audio/operations.js": "7783b89a9f1e7daf327f3f585c5eff25ad5a7f7597e890330a0a59c04cbb1f1a",
+    "lib/contexts/audio/worker.js": "45675a5d7e6f5dbb57fa5c60f29e9919d0191592b7c885c0674377a939553b09",
+    "lib/contexts/jobs/operations.js": "c0fc2c1e93564ff7a080b2a3a638558e0fc96b12e6b672e45e396cfffe4f50e5",
+    "lib/host.js": "7a937961fa54357769a0dda9bf4196c6cc119422c3c59090b0926aad72cc0012",
+    "lib/index.js": "c45ef4166202f462b8fa640569541ebea575c479749323f935857473e460940f",
+    "lib/job-calls.js": "99eb76b97b24e2e51992429f6ff189354cb306d95b3d18dedacf6b18fff06ae7",
+    "lib/jobs/gateway.js": "e5e865b3c8228921e76101c7929b1ed45ed87d27b70d0b992dd401350687ab2f",
+    "lib/jobs/lifecycle.js": "864b433cd4fd8e69677340c6133e68ef19c1c9ae25c929110f81a5bb24c46888",
+    "lib/jobs/registry.js": "657fd41807d1bc021e0b6a9ee7a2232bdc306d59c878ca170c82024274d41419",
+    "lib/runtime.js": "ac80e6df6889863bb99c42464caf2fe88d61579675ced133eb9ca84a7fb3a2f9",
+    "lib/runtime/builtins.js": "61740482de6e7df2d2669f6806c8e8be3ac95f8250c8a98b37cf5073c5504c0f",
+    "lib/runtime/jobs.js": "2830911e483aa8f5a905319652b5c194051762a574ce091a18fcd75e5c1444ab",
+    "tests/audio-single-characterization.test.mjs": "cc5fa43422ea3401d51d15b9e678df9c1817ef3bfcc528e451d31de9c6b630db",
+    "tests/audio-windows.test.mjs": "2e138e329b43f8e44a05fade2ffbc631e172489b568c6a4e1c439b4389a5de76",
+    "tests/fixtures/audio-single-characterization-process.mjs": "75965f19ef7cf78b96c1dfb8cdce9149ce80c4ddab6a6863fc8a5ecca480eaa6",
+    "tests/fixtures/runtime-s10/host-probe.mjs": "076c9c671d4b8211ef71b76adc102ed8d748ae89db936e2033e5a85a60eeca67",
+    "tests/fixtures/runtime-s10/run-host-probe.mjs": "2eececee89d45e7b575dec7f2623cb513b85241c85406751af82d6f614901a84",
+    "tests/slow-tests.json": "b21c4579f671e638af8011a94cd8fb89aef5d428825383ec8a80fa389f4067c9",
+    "tests/unified-runtime-gateway.test.mjs": "ad2e56b67c1759f984ea104992d9caaa83f4b180c1be4e8209c2ed38177dab7c",
+    "tests/unified-runtime-recovery.test.mjs": "425284f0ccb67ea1b3e5e30af43def101121f3eb732778ee47960c26abb8f5d7",
+    "tests/unified-runtime-store.test.mjs": "b099ca5757715c9c3731534e221850c7302e496ad0a2e7208120b98ead07269f",
+    "lib/contexts/audio/pilot.js": "2d3e7c58c6866a4d5fff7cf64269ea12dd96d8005b1c57fa05567b7aadfbeb0c",
+    "tests/fixtures/runtime-s16/fake-openai.mjs": "6447113c5c5fb59a09e675ffcaf316dabd6ede3597ed143b52e0df11280eea1e",
+    "tests/fixtures/runtime-s16/host-probe.mjs": "81c5e00e702ce4f4ae66a1241ed215a7189ec169085bc7b8c37862f3de9babb2",
+    "tests/fixtures/runtime-s16/ui-probe.mjs": "666fcf9f6cf6f6eb6c773b2e182aa6de5fecb51e81bfd517a22127a70db4caeb",
+    "tests/fixtures/unified-runtime-audio-process.mjs": "39927172dad86212da8446728990ca4b769e8c01329c1abd17f928bbc88758e4",
+    "tests/unified-runtime-adapters.test.mjs": "c9574d470b8b482e0d5a69ef61415fc2bc0b44c3dc72115a53838bf621ed2ec7",
+    "tests/unified-runtime-audio-pilot.test.mjs": "6af27482ee0d74a79698277d79f099c6500936688124334fb302ef834821c847"
+  },
+  "verificationLogs": {
+    "s16-current-focused": {
+      "path": "output/s13-contract/s16-current-focused.log",
+      "sha256": "cedd3a498553450ecd8ab82315bf02aaf688e0ad420083b64b0afd9e41246206",
+      "tests": 86,
+      "pass": 86,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-adapter-terminal-green-final": {
+      "path": "output/s13-contract/s16-adapter-terminal-green-final.log",
+      "sha256": "e30c4a29b9129c60e7e47c22ccd1894db8d1d8c2d9c34ca620baf8898a8dafdd",
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-stage-parity-green": {
+      "path": "output/s13-contract/s16-stage-parity-green.log",
+      "sha256": "f9a4521315910cf5218adced50c139a4c99daf6c48efd38d7608089e0dfdaac6",
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-validation-upload": {
+      "path": "output/s13-contract/s16-validation-upload.log",
+      "sha256": "b4dcb5be1c6e69ede6b1f5f513d31a5fa36d205c8f4bfeb2fe809d32eef5f83a",
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-content-reuse-first": {
+      "path": "output/s13-contract/s16-content-reuse-first.log",
+      "sha256": "f7e0623228f13ecb652bf4369d89e6e9f9570e404edc8a7f102311fbd03e4b23",
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-public-quota-bound": {
+      "path": "output/s13-contract/s16-public-quota-bound.log",
+      "sha256": "29a2db1c192b691ee7324b67d980f707f08665aaec1db870131b62c21a1224e4",
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-exhausted-retry-green": {
+      "path": "output/s13-contract/s16-exhausted-retry-green.log",
+      "sha256": "3ba085b194fee0ded75d64f0b098503e9bbcee4e8a9238d17c6a9641cc9cabcd",
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-integration-fast": {
+      "path": "output/s13-contract/s16-integration-fast.log",
+      "sha256": "b495ca17118d12fafd512437649a480b4fff751187b3cdc16f83ba6da3de1fd3",
+      "tests": 5306,
+      "pass": 5306,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "s16-final-lint": {
+      "path": "output/s13-contract/s16-final-lint.log",
+      "sha256": "a80de2e6f4d509d5f30906f00289d524ac532a9d01184a95c06b2c68c2ab91b4"
+    }
+  },
+  "fullVerify": {
+    "command": "npm run verify",
+    "log": "output/s13-contract/s16-accepted-verify.log",
+    "status": "running after queuedBehind correction; final result required in PR acceptance"
+  },
+  "installedHost": {
+    "startedAt": "2026-10-06T07:27:31.288Z",
+    "finishedAt": "2026-10-06T07:27:51.314Z",
+    "versions": {
+      "dsh": "0.2.0-rc.2",
+      "dsh-agent": "0.2.0-rc.2",
+      "dsh-llm": "0.2.0-rc.2",
+      "dsh-jobs-local": "0.2.0-rc.2",
+      "dsh-subagent": "0.2.0-rc.2",
+      "dsh-tool-jobs": "0.2.0-rc.2",
+      "dsh-agent-preset": "0.2.0-rc.2",
+      "dsh-agent-preset-registry": "0.2.0-rc.2"
+    },
+    "packageVersion": "2.7.0",
+    "installedFingerprints": {
+      "lib/contexts/audio/pilot.js": "3ff6b045b3c59861869f3cc95716896ce6fcb88e280f08712aa8eccfcaeac3fa",
+      "lib/jobs/lifecycle.js": "864b433cd4fd8e69677340c6133e68ef19c1c9ae25c929110f81a5bb24c46888",
+      "lib/jobs/gateway.js": "e5e865b3c8228921e76101c7929b1ed45ed87d27b70d0b992dd401350687ab2f",
+      "lib/audio-runtime-store.js": "659cd03b0a0977942e57ecbe9397b48682f0020c80570dd40800ba8f4652474a",
+      "lib/audio-import.js": "5d85ebee475dcad198e18e950f931353ff5768b11094fcbcde788238aad46633",
+      "lib/index.js": "c45ef4166202f462b8fa640569541ebea575c479749323f935857473e460940f"
+    },
+    "nativeJob": {
+      "service": "dsh-jobs",
+      "handleId": "audio-import-1",
+      "ownerAgentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6"
+    },
+    "resumeNativeJob": {
+      "service": "dsh-jobs",
+      "handleId": "audio-import-4",
+      "ownerAgentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6"
+    },
+    "transcriptions": 1,
+    "nativeChildren": [
+      {
+        "callId": "b2c04058-12f2-43d9-9372-4fc288208a58",
+        "childId": "d7f42ef8-7cfd-488e-a1bc-c3a243926d3f",
+        "parentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6",
+        "tokens": 1468
+      },
+      {
+        "callId": "ade2cbba-d7fb-47df-be60-265285434a66",
+        "childId": "9e1f3f37-af52-45db-81dd-a7bf7036583a",
+        "parentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6",
+        "tokens": 1283
+      },
+      {
+        "callId": "48b92b52-fa10-47d9-9daa-974785b09269",
+        "childId": "7b5f2d9f-d6aa-45d5-9b58-fdb6f053f988",
+        "parentId": "35c1a6df-f1f2-426e-b4d6-08c4dd54bcf6",
+        "tokens": 1089
+      }
+    ],
+    "outputAvailable": true,
+    "gateDrained": true,
+    "sourceCountDelta": 1,
+    "deckCountDelta": 0,
+    "report": "output/qa/s16-installed-ui-row/host-capabilities.json",
+    "reportSha256": "ed0bada1c0dd83a80be6c3a6e66ae1d2262d45dd55afa5e02094ef996e28f4c7",
+    "modelBoundary": "Actual installed rc.2 jobs and child agents; transcription is injected fake fetch, text uses only the local fake OpenAI endpoint; no real provider or paid quality validation."
+  },
+  "console": {
+    "ok": true,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "views": [
+      {
+        "width": 1280,
+        "scale": 1,
+        "scaleMethod": "document CSS zoom",
+        "path": "docs/plans/unified-job-runtime/evidence/s1-6/audio-console-1280-100.png",
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 0,
+          "longTasks": 0,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "dimensions": {
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          },
+          "docHeight": 900,
+          "scrollWidth": 1280,
+          "appScrolls": false,
+          "appHeight": 900,
+          "appScrollHeight": 900,
+          "main": {
+            "top": 0,
+            "height": 900,
+            "bottom": 900,
+            "width": 805
+          },
+          "console": {
+            "top": 51,
+            "height": 849,
+            "bottom": 900,
+            "width": 805
+          },
+          "list": {
+            "top": 52,
+            "height": 848,
+            "bottom": 900,
+            "width": 300
+          },
+          "detail": {
+            "top": 52,
+            "height": 848,
+            "bottom": 900,
+            "width": 505
+          },
+          "body": {
+            "top": 335,
+            "height": 565,
+            "bottom": 900,
+            "width": 505
+          },
+          "cols": [
+            {
+              "top": 335,
+              "height": 565,
+              "bottom": 900
+            },
+            {
+              "top": 335,
+              "height": 565,
+              "bottom": 900
+            }
+          ],
+          "scrollers": {
+            "list": [
+              {
+                "clientHeight": 732,
+                "scrollHeight": 1368,
+                "scrolls": true,
+                "overflow": "auto"
+              }
+            ],
+            "panels": [
+              {
+                "clientHeight": 112,
+                "scrollHeight": 112,
+                "scrolls": false,
+                "overflow": "auto"
+              },
+              {
+                "clientHeight": 355,
+                "scrollHeight": 355,
+                "scrolls": false,
+                "overflow": "auto"
+              }
+            ],
+            "mainScrolls": false
+          }
+        },
+        "sha256": "83522aac29ccd6b1b59a018181f8b76cc407ab1c06955de85cac6b5d69a67e97"
+      },
+      {
+        "width": 1280,
+        "scale": 1.5,
+        "scaleMethod": "document CSS zoom",
+        "path": "docs/plans/unified-job-runtime/evidence/s1-6/audio-console-1280-150.png",
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 0,
+          "longTasks": 0,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "dimensions": {
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          },
+          "docHeight": 900,
+          "scrollWidth": 1280,
+          "appScrolls": true,
+          "appHeight": 600,
+          "appScrollHeight": 1657,
+          "main": {
+            "top": 0,
+            "height": 900,
+            "bottom": 900,
+            "width": 760
+          },
+          "console": {
+            "top": 67,
+            "height": 2418,
+            "bottom": 2485,
+            "width": 760
+          },
+          "list": {
+            "top": 68,
+            "height": 505,
+            "bottom": 573,
+            "width": 760
+          },
+          "detail": {
+            "top": 573,
+            "height": 1912,
+            "bottom": 2485,
+            "width": 760
+          },
+          "body": {
+            "top": 1165,
+            "height": 1320,
+            "bottom": 2485,
+            "width": 760
+          },
+          "cols": [
+            {
+              "top": 1165,
+              "height": 660,
+              "bottom": 1825
+            },
+            {
+              "top": 1825,
+              "height": 660,
+              "bottom": 2485
+            }
+          ],
+          "scrollers": {
+            "list": [
+              {
+                "clientHeight": 220,
+                "scrollHeight": 1360,
+                "scrolls": true,
+                "overflow": "auto"
+              }
+            ],
+            "panels": [
+              {
+                "clientHeight": 112,
+                "scrollHeight": 112,
+                "scrolls": false,
+                "overflow": "auto"
+              },
+              {
+                "clientHeight": 241,
+                "scrollHeight": 241,
+                "scrolls": false,
+                "overflow": "auto"
+              }
+            ],
+            "mainScrolls": true
+          }
+        },
+        "sha256": "d54ee3342547e4f5e1a07b07b0e73cce0a8059bf8d854e3a123b3b71ff88e90a"
+      },
+      {
+        "width": 420,
+        "scale": 1,
+        "scaleMethod": "document CSS zoom",
+        "path": "docs/plans/unified-job-runtime/evidence/s1-6/audio-console-420-100.png",
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 0,
+          "longTasks": 0,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "dimensions": {
+          "viewport": {
+            "width": 420,
+            "height": 900
+          },
+          "docHeight": 900,
+          "scrollWidth": 420,
+          "appScrolls": true,
+          "appHeight": 900,
+          "appScrollHeight": 1692,
+          "main": {
+            "top": 0,
+            "height": 900,
+            "bottom": 900,
+            "width": 297
+          },
+          "console": {
+            "top": 45,
+            "height": 1647,
+            "bottom": 1692,
+            "width": 297
+          },
+          "list": {
+            "top": 46,
+            "height": 337,
+            "bottom": 383,
+            "width": 297
+          },
+          "detail": {
+            "top": 383,
+            "height": 1309,
+            "bottom": 1692,
+            "width": 297
+          },
+          "body": {
+            "top": 812,
+            "height": 880,
+            "bottom": 1692,
+            "width": 297
+          },
+          "cols": [
+            {
+              "top": 812,
+              "height": 440,
+              "bottom": 1252
+            },
+            {
+              "top": 1252,
+              "height": 440,
+              "bottom": 1692
+            }
+          ],
+          "scrollers": {
+            "list": [
+              {
+                "clientHeight": 220,
+                "scrollHeight": 1368,
+                "scrolls": true,
+                "overflow": "auto"
+              }
+            ],
+            "panels": [
+              {
+                "clientHeight": 112,
+                "scrollHeight": 112,
+                "scrolls": false,
+                "overflow": "auto"
+              },
+              {
+                "clientHeight": 241,
+                "scrollHeight": 241,
+                "scrolls": false,
+                "overflow": "auto"
+              }
+            ],
+            "mainScrolls": true
+          }
+        },
+        "sha256": "cd138f243b5926798441167037da3060a91018913f3602ef3333bd534931b8df"
+      },
+      {
+        "width": 420,
+        "scale": 1.5,
+        "scaleMethod": "document CSS zoom",
+        "path": "docs/plans/unified-job-runtime/evidence/s1-6/audio-console-420-150.png",
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 55,
+          "longTasks": 1,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "dimensions": {
+          "viewport": {
+            "width": 420,
+            "height": 900
+          },
+          "docHeight": 900,
+          "scrollWidth": 420,
+          "appScrolls": true,
+          "appHeight": 600,
+          "appScrollHeight": 1806,
+          "main": {
+            "top": 0,
+            "height": 900,
+            "bottom": 900,
+            "width": 236
+          },
+          "console": {
+            "top": 67,
+            "height": 2643,
+            "bottom": 2710,
+            "width": 236
+          },
+          "list": {
+            "top": 68,
+            "height": 505,
+            "bottom": 573,
+            "width": 236
+          },
+          "detail": {
+            "top": 573,
+            "height": 2137,
+            "bottom": 2710,
+            "width": 236
+          },
+          "body": {
+            "top": 1390,
+            "height": 1320,
+            "bottom": 2710,
+            "width": 236
+          },
+          "cols": [
+            {
+              "top": 1390,
+              "height": 660,
+              "bottom": 2050
+            },
+            {
+              "top": 2050,
+              "height": 660,
+              "bottom": 2710
+            }
+          ],
+          "scrollers": {
+            "list": [
+              {
+                "clientHeight": 220,
+                "scrollHeight": 1360,
+                "scrolls": true,
+                "overflow": "auto"
+              }
+            ],
+            "panels": [
+              {
+                "clientHeight": 112,
+                "scrollHeight": 112,
+                "scrolls": false,
+                "overflow": "auto"
+              },
+              {
+                "clientHeight": 211,
+                "scrollHeight": 211,
+                "scrolls": false,
+                "overflow": "auto"
+              }
+            ],
+            "mainScrolls": true
+          }
+        },
+        "sha256": "b68573b3ee41c74371f350374b150a5934c63004483afd40732d8dd9b85511e9"
+      }
+    ]
+  },
+  "excluded": [
+    "real paid model calls and quality",
+    "publication and deployment",
+    "credential/permission changes",
+    "S2-S6"
+  ],
+  "preReceiptFixFullVerify": {
+    "command": "npm run verify",
+    "log": "output/s13-contract/s16-final-verify.log",
+    "sha256": "d816fd769ccc2e9aeba244debcd32a30083db76093132c21bd1099cd1aefcecb",
+    "passed": 5849,
+    "failed": 0,
+    "skipped": 2,
+    "durationMs": 612790.269543,
+    "scope": "head 8c623b6 before the queuedBehind correction; not final acceptance"
+  }
+}

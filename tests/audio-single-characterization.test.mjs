@@ -9,11 +9,11 @@ import { flushAudioUsage } from '../lib/audio-dashboard.js';
 import { settleJob, until } from './helpers/wait.mjs';
 import { fakeAudioService, TEST_KEY, wav } from './fixtures/audio-single-characterization-process.mjs';
 
-test('an observer wait ends without stopping a single import; its eventual success is durable and announces no questions', async t => {
+for (const managed of [false, true]) test(`an observer wait ends without stopping a single import; durable success, no questions; pilot=${managed}`, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'audio-single-characterization-')), root = join(dir, 'library');
   const previous = process.env.DSH_HOME;
   process.env.DSH_HOME = join(dir, 'home');
-  const f = fakeAudioService(root, { holdTranscription: true });
+  const f = fakeAudioService(root, { holdTranscription: true, managed });
   const { service } = f;
   let jobId;
   t.after(async () => {
@@ -37,8 +37,8 @@ test('an observer wait ends without stopping a single import; its eventual succe
   const pending = await service.call('snapshot');
   const active = pending.jobs.find(job => job.id === jobId);
   assert.equal(active.contract.status, 'running');
-  assert.equal(active.contract.jobId, active.singleId);
-  assert.equal(active.contract.attemptId, jobId);
+  if (managed) { assert.notEqual(active.contract.jobId, active.singleId); assert.notEqual(active.contract.attemptId, jobId); }
+  else { assert.equal(active.contract.jobId, active.singleId); assert.equal(active.contract.attemptId, jobId); }
   assert.equal(active.contract.actions.cancel.available, true);
   assert.equal(active.contract.actions.retry.available, false);
   assert.deepEqual(active.contract.result, { refs: [], completeness: null });
@@ -48,12 +48,13 @@ test('an observer wait ends without stopping a single import; its eventual succe
   f.release();
   const done = await settleJob(service, jobId);
   assert.equal(done.status, 'complete', done.stage);
+  assert.equal(done.stage, '已存为 1 份资料，校对修正 0 处');
   const snapshot = await service.call('snapshot');
   const completed = snapshot.jobs.find(job => job.id === jobId), contract = completed.contract;
   assert.equal(done.phase, 'done');
-  assert.equal(contract.contractVersion, 1);
+  assert.equal(contract.contractVersion, managed ? 2 : 1);
   assert.equal(contract.jobId, active.contract.jobId);
-  assert.equal(contract.attemptId, jobId);
+  assert.equal(contract.attemptId, active.contract.attemptId);
   assert.equal(contract.status, 'complete');
   assert.deepEqual(contract.result, { refs: [{ kind: 'source', id: done.sourceIds[0] }], completeness: 'complete' });
   assert.equal(contract.actions.retry.available, false);
@@ -72,8 +73,8 @@ test('an observer wait ends without stopping a single import; its eventual succe
   const manifestText = await readFile(join(root, 'audio-batches', completed.singleId, 'manifest.json'), 'utf8');
   const manifest = JSON.parse(manifestText);
   assert.equal(manifest.kind, 'single');
-  assert.equal(manifest.id, contract.jobId);
-  assert.equal(manifest.job.id, contract.attemptId);
+  assert.equal(manifest.id, completed.singleId);
+  assert.equal(manifest.job.id, jobId);
   assert.equal(manifest.job.status, 'complete');
   assert.deepEqual(manifest.job.sourceIds, done.sourceIds);
   assert.equal(manifest.input.size, wav().length);
