@@ -298,7 +298,7 @@ test('job.control set: a running generation job takes the change, reports it bac
   const legacy = await service.call('job.control', { jobId: started.jobId, patch: { concurrency: 3 } });
   assert.equal(legacy.action, 'set', 'a patch without an action is a set');
   await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'pause' }), (error) => error.code === 'single-round' && /只出一轮/.test(error.message));
-  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'retry' }), (error) => error.code === 'capability-unsupported');
+  await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'retry' }), (error) => error.code === 'not-ended', 'a plain run is continued once it has ended (接着做), not while it runs');
   await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'set', patch: { paused: true } }), /pause/);
   await assert.rejects(service.call('job.control', { jobId: started.jobId, action: 'explode' }), (error) => error.code === 'unknown-action');
   release();

@@ -134,12 +134,14 @@ test("the job card of a partly failed generation says why in the learner's langu
   seedView(map, draftView({ draftId: "dr", draftVersion: 2, covered: ["r1.p1"], failed: ["r1.p2"] }));
   const html = home({ drafts: [shortDraft()], jobs: [job] });
   assert.match(html, /5 个批次的引用在资料里找不到/);
-  assert.equal((html.match(/为没覆盖的部分补题/g) || []).length, 1, "the retry of what is missing is offered once, as the one top-up");
+  assert.equal((html.match(/<button[^>]*>[^<]*接着做/g) || []).length, 2, "the retry of what is missing is offered as 接着做 on the card and on the row (the same action, a plain run owes questions)");
+  assert.doesNotMatch(html, /为没覆盖的部分补题/, "and the top-up does not compete on the home");
   assert.doesNotMatch(html, /继续补齐/);
   const english = inLanguage("en", () => home({ drafts: [{ ...shortDraft(), title: "Architecting" }], jobs: [{ ...job, deckTitle: "Architecting" }] })).replace(/<[^>]+>/g, " ");
   assert.doesNotMatch(english, han, (english.match(/.{0,30}[㐀-鿿].{0,30}/) || [])[0]);
   assert.match(english, /5 batch\(es\) quoted text that could not be found in the sources/);
-  assert.match(english, /Add questions for the uncovered parts/);
+  assert.match(english, /4\/25 questions made and kept; Continue makes the 21 still missing/);
+  assert.doesNotMatch(english, /Add questions for the uncovered parts/);
   assert.doesNotMatch(english, /Continue generation for/);
 });
 

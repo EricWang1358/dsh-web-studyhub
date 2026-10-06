@@ -105,8 +105,9 @@ test('actions: what each kind can do in each state, and why not', () => {
   assert.equal(actionsOf(audio({ status: 'complete', control: undefined })).retry, 'not-retryable', 'a finished import has nothing to retry');
   assert.equal(actionsOf(audio({ status: 'cancelling' })).cancel, 'already-cancelling');
   // A question run of ONE round keeps nothing a pause could stop at: it can be stopped and adjusted, not paused, and says why (a coverage run of several rounds can: tests/coverage-run-exec.test.mjs).
-  assert.deepEqual(actionsOf(generation()), { cancel: true, pause: 'single-round', resume: 'single-round', retry: 'capability-unsupported', set: true });
-  assert.deepEqual(actionsOf(generation({ status: 'queued' })), { cancel: true, pause: 'single-round', resume: 'single-round', retry: 'capability-unsupported', set: true });
+  // It CAN be continued once it ended before it was done and kept a draft (接着做: tests/failed-continue-contract.test.mjs); while it runs there is nothing to continue yet.
+  assert.deepEqual(actionsOf(generation()), { cancel: true, pause: 'single-round', resume: 'single-round', retry: 'not-ended', set: true });
+  assert.deepEqual(actionsOf(generation({ status: 'queued' })), { cancel: true, pause: 'single-round', resume: 'single-round', retry: 'not-ended', set: true });
   // A PDF conversion can be stopped and retried, nothing else.
   assert.deepEqual(actionsOf(pdf()), { cancel: true, pause: 'capability-unsupported', resume: 'capability-unsupported', retry: 'not-ended', set: 'capability-unsupported' });
   assert.equal(actionsOf(pdf({ status: 'failed' })).retry, true);

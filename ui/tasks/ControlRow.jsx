@@ -60,7 +60,8 @@ export default function ControlRow({ job }) {
     <div className="tc-controls" role="group" aria-label={ui('即时控制')} data-empty={items.length ? undefined : 'true'}>
       <span className="tc-controls__title">{ui('即时控制')}</span>
       {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。')
-        : contract.status === 'interrupted' && contract.actions.retry.available ? ui('任务被中断了，已完成的部分都保留着；点「接着做」继续。') : reasonText(set)}</span>}
+        : contract.status === 'interrupted' && contract.actions.retry.available ? ui('任务被中断了，已完成的部分都保留着；点「接着做」继续。')
+          : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? ui('任务没有做完，已出的题都保留着；点「接着做」继续。') : reasonText(set)}</span>}
       {items.map((item) => {
         const change = (value) => send({ [item.key]: value });
         if (item.type === 'int') return <Stepper key={item.key} item={item} disabled={working} onChange={change} />;

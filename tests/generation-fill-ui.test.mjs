@@ -209,7 +209,9 @@ test('the list row says 补题中 as a Badge, not 已复审，待发布, and not
   assert.match(text(idle), /待补齐/);
   assert.doesNotMatch(text(idle), /已复审，待发布/);
   assert.doesNotMatch(idle, /data-draft-work/);
-  assert.match(idle, /<button[^>]*>[^<]*为没覆盖的部分补题/, 'the action is still a button when nothing runs');
+  // A plain draft that is short of its count owes questions: its one action is 接着做 (the top-up of the sections is the draft page's other button, not the row's).
+  assert.match(idle, /<button[^>]*>[^<]*接着做/, 'the action is still a button when nothing runs');
+  assert.doesNotMatch(idle, /为没覆盖的部分补题/, 'and the row has no second primary');
   assert.doesNotMatch(idle, /继续补齐/);
 });
 
@@ -222,7 +224,7 @@ test('the row says its status once: the meta line is the count, the Badge carrie
   withView();
   const filling = home([running], [six]), row = rowOf(filling);
   assert.equal((text(row).match(/补题中/g) || []).length, 1, 'the status is said once in the row');
-  assert.equal(text(metaOf(filling)).trim(), '已出 6/10 题 · 还有 10 个小节没有题 · 覆盖 2/12 个小节（17%）', 'the meta line is the facts (the questions, the sections, the coverage: the shortfall) while the Badge shows the fill');
+  assert.equal(text(metaOf(filling)).trim(), '已出 6/10 题 · 覆盖 2/12 个小节（17%）', 'the meta line is the facts (the questions, the coverage: a plain run promised questions, not sections) while the Badge shows the fill');
   assert.match(row, /sh-badge[^>]*data-draft-work[^>]*>(?:<span[^>]*><\/span>)?补题中 · 草稿 6\/10 题/);
   const idle = home([], [six]);
   assert.equal((text(rowOf(idle)).match(/待补齐/g) || []).length, 1, 'idle: one status too');

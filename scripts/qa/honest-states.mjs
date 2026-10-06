@@ -200,7 +200,7 @@ export async function runHonestQa(options) {
           const said = `${t("已出", "Made")} ${kept}/${goal}`;
           for (const [where, text] of [["home banner+row", `${home.banner} | ${home.row}`], ["console", consoleView.text], ["draft page", draft.text]]) {
             assert.ok(text.includes(said), `${where} says ${said}: ${text.slice(0, 400)}`);
-            assert.ok(!/\b100%/.test(text.replace(/覆盖 ?\d+%|Covered \d+%/g, "")) || false, `${where} must not say 100% for a short draft: ${(/.{30}\b100%.{30}/.exec(text) || [""])[0]}`);
+            assert.ok(!/\b100%/.test(text.replace(/(覆盖现在|Coverage now) .*?(题|questions)/g, "").replace(/覆盖 ?\d+%|Covered \d+%/g, "")) || false, `${where} must not say 100% for a short draft: ${(/.{30}\b100%.{30}/.exec(text) || [""])[0]}`);
           }
           const sections = new RegExp(t(`还有 ${left} 个小节没有题`, `${left} sections? still without a question`));
           for (const [where, text] of [["home banner+row", `${home.banner} | ${home.row}`], ["console", consoleView.text], ["draft page", draft.text]]) assert.match(text, sections, where);
@@ -299,7 +299,7 @@ export async function runHonestQa(options) {
           assert.ok(home.rowButtons.includes(again), `the row's action: ${home.rowButtons}`);
           assert.ok(!home.bannerButtons.some((label) => /打开草稿|Open draft/.test(label)), `the banner has ONE primary action: ${home.bannerButtons}`);
           assert.match(consoleView.text, new RegExp(t("暂停于第 \\d+ 轮之后", "Paused after round \\d+")), consoleView.text.slice(0, 400));
-          for (const text of [`${home.banner} ${home.row}`, consoleView.text, draft.text]) assert.ok(!/100%/.test(text.replace(/覆盖 ?\d+%|Covered \d+%/g, "")), "a paused run is not 100%");
+          for (const text of [`${home.banner} ${home.row}`, consoleView.text, draft.text]) assert.ok(!/100%/.test(text.replace(/(覆盖现在|Coverage now) .*?(题|questions)/g, "").replace(/覆盖 ?\d+%|Covered \d+%/g, "")), "a paused run is not 100%");
         });
         await step("press-continue", async () => {
           await goto("library");
@@ -317,7 +317,7 @@ export async function runHonestQa(options) {
           assert.match(draft.text, line, draft.text.slice(0, 600));
           assert.ok(draft.run.includes(t("自动补到完整", "Finish automatically")), "the toggle is on the page");
           assert.ok(draft.buttons.includes(t("为没覆盖的部分补题", "Add questions for the uncovered parts")), `the one button: ${draft.buttons}`);
-          assert.ok(!/\b100%/.test(`${home.banner} ${consoleView.text}`.replace(/覆盖 ?\d+%|Covered \d+%/g, "")), "a manual run waiting after round 1 is not 100%");
+          assert.ok(!/\b100%/.test(`${home.banner} ${consoleView.text}`.replace(/(覆盖现在|Coverage now) .*?(题|questions)/g, "").replace(/覆盖 ?\d+%|Covered \d+%/g, "")), "a manual run waiting after round 1 is not 100%");
         });
       }
       await check("no horizontal overflow on the home", async () => { await goto("library"); await sleep(500); await noOverflow("the home"); });

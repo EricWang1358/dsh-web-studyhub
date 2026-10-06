@@ -32,6 +32,8 @@
     .cjc__pct[data-state='fail'] { color: var(--bad-ink); }
     .cjc__pct[data-state='interrupted'] { color: var(--warn-ink); }
     .cjc__line { min-width: 0; overflow: hidden; font-size: var(--fs-xs); color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+    /* A run that ended before it was done says why and what 接着做 will do before its button: that sentence is read, not cut to one line (three at most). */
+    .cjc[data-state='fail'] .cjc__line, .cjc[data-state='stopped'] .cjc__line, .cjc[data-state='interrupted'] .cjc__line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; white-space: normal; overflow-wrap: anywhere; }
     .cjc__slot { display: flex; justify-content: flex-end; min-width: 0; }
     /* The button names the action in full (「为没覆盖的部分补题」, "Add questions for the uncovered parts"): in its fixed column it wraps onto a second line instead of running into its neighbours. */
     .cjc__go { width: 100%; justify-content: center; height: auto; min-height: 2rem; padding-block: var(--space-1-5); text-align: center; white-space: normal; line-height: var(--lh-snug); overflow-wrap: anywhere; }

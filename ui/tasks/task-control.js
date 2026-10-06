@@ -50,6 +50,7 @@ const REASON = {
   'not-paused': '任务没有暂停。',
   'already-cancelling': '任务正在停止。',
   'no-control-yet': '任务还没有开始。',
+  continued: '这次已经接着做了，新的进度在接着做的那个任务里。',
 };
 export function reasonText(action, name) {
   if (!action || action.available) return '';
