@@ -10,6 +10,7 @@ import { paceTracker, taskTracker } from "../lib/audio-job.js";
 import { checkpoints, digest, finishTranscript, plainModel } from "../lib/audio-import.js";
 import { notify } from "../lib/inbox.js";
 import { settleJob as settled, until } from "./helpers/wait.mjs";
+import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
 
 const KEY = "AIzaRetryTestKey_000000000000001";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
@@ -46,13 +47,19 @@ async function fixture(t, { complete, textProvider = "gemini", counts = {}, fail
     if (url.includes("transcribe:")) { counts.transcribe = (counts.transcribe || 0) + 1; return reply("今天我们讲谷歌地图的应用案例。第一个案例是路线规划。"); }
     return reply(answer(body.systemInstruction.parts[0].text, body.contents[0].parts[0].text));
   };
-  const root = join(dir, "library"), service = new StudyService(root, { fetch, complete });
+  const root = join(dir, "library"), service = new StudyService(root, { fetch, complete, ...switchOptions(SWITCH_MODE, { complete }) });
   await service.call("audio.settings.set", { paidKey: KEY, textProvider });
   const file = join(dir, "谷歌地图.mp3");
   await writeFile(file, pcmWav(5));
   return { dir, root, service, file, counts };
 }
 const uploadFolders = (root) => readdir(join(root, "audio-uploads")).catch(() => []);
+/** Each request of an import as its card lists it: the legacy task list, or the runtime's call timeline in the console. */
+async function requestList(service, job) {
+  if (SWITCH_MODE === "legacy") return job.tasks.map((task) => `${task.stage}:${task.runtime}:${task.status}`);
+  const row = (await service.call("snapshot")).jobs.find((item) => item.id === job.id);
+  return row.contract.calls.map((call) => `${call.stage}:${call.tier}:${call.status}`);
+}
 test('a fresh process lists a failed single recording and retries from its saved transcription', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'audio-single-restart-')), root = join(dir, 'library');
   t.after(() => rm(dir, { recursive: true, force: true }));
@@ -103,7 +110,8 @@ async function upload(service, name, bytes) {
   return uploadId;
 }
 
-test("on the host model route every text request is a DSH sub-agent task with a job id, and the panel can list it", async (t) => {
+// On the runtime the gateway starts host sub-agents itself (tests/unified-runtime-gateway.test.mjs); this pins the legacy execution hooks.
+test("on the host model route every text request is a DSH sub-agent task with a job id, and the panel can list it", { skip: SWITCH_MODE === "runtime" && "gateway-owned sub-agents" }, async (t) => {
   const seen = [];
   const counts = {};
   const answer = textAnswers(counts);
@@ -165,8 +173,9 @@ test("a failed import is resumed from what is saved: no second transcription, no
   assert.equal(first.retryable, true);
   assert.deepEqual([first.steps.transcribe, first.steps.proofread, first.steps.translate], [{ done: 1, total: 1 }, { done: 1, total: 1 }, { done: 0, total: 1 }]);
   assert.deepEqual([counts.transcribe, counts.proofread, counts.translate], [1, 1, 2], "translation was tried twice: once, then again with the correction");
-  assert.deepEqual(first.tasks.map((task) => `${task.stage}:${task.runtime}:${task.status}`),
-    ["转写 1/1:gemini:complete", "校对 1/1:gemini:complete", "翻译 1/1:gemini:complete", "翻译 1/1:gemini:complete"], "both attempts at the translation are listed");
+  assert.deepEqual(await requestList(service, first),
+    SWITCH_MODE === "legacy" ? ["转写 1/1:gemini:complete", "校对 1/1:gemini:complete", "翻译 1/1:gemini:complete", "翻译 1/1:gemini:complete"]
+      : ["转写 1/1:paid:ok", "校对 1/1:paid:ok", "翻译 1/1:paid:ok", "翻译 1/1:paid:ok"], "both attempts at the translation are listed");
   assert.ok(first.pace.transcribe && first.pace.proofread && first.pace.translate, "the pace of each phase is recorded for the estimate");
   assert.deepEqual([first.usage.paid.requests, first.usage.paid.audioSeconds, first.usageRun.paid.requests], [4, 5, 4], "a stopped import still says what it has spent");
   assert.ok((await uploadFolders(root)).includes(id), "the uploaded copy is kept so nothing has to be chosen or uploaded again");

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 // to fit a file — split the file instead.
 const RULES = [
   { root: 'lib/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/contexts/', '/ui/'] },
+  { root: 'lib/contexts/audio/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
   { root: 'lib/contexts/generation/retrieval', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
 ];
 const CJK = /[㐀-鿿]/;

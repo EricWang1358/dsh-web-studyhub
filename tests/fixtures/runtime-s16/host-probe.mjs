@@ -15,7 +15,7 @@ export async function probePublicAudio({ ctx, parent, sibling, until, config }) 
   assert.equal(native.runtimePilot?.audioSingle, true, 'public pilot configuration did not reach request services');
   const require = createRequire(join(process.env.DSH_HOME, 'profiles/studyhub-e2e/package.json'));
   const packageRoot = dirname(require.resolve('@ericwang1358/dsh-daily-flashcard/package.json'));
-  const files = ['lib/contexts/audio/pilot.js', 'lib/jobs/lifecycle.js', 'lib/jobs/gateway.js', 'lib/audio-runtime-store.js', 'lib/audio-import.js', 'lib/index.js'];
+  const files = ['lib/contexts/audio/jobs/single-import.js', 'lib/jobs/lifecycle.js', 'lib/jobs/gateway.js', 'lib/audio-runtime-store.js', 'lib/audio-import.js', 'lib/index.js'];
   const fingerprints = Object.fromEntries(await Promise.all(files.map(async file => {
     const installed = await readFile(join(packageRoot, file)), expected = await readFile(join(config.sourceRoot, file));
     assert.equal(createHash('sha256').update(installed).digest('hex'), createHash('sha256').update(expected).digest('hex'), `installed source differs: ${file}`);
