@@ -54,7 +54,11 @@
 - 重试会换新的 legacy id（内核行为），逻辑 Job id 不变（契约 `jobId`）。
 - 重试在每次模型调用后刷新卡片，覆盖运行很长时刷新成本随调用数增长（每次整份契约校验）。
 
-## 6. 未决问题
+## 6. 开关矩阵
+
+`STUDY_RUNTIME_MATRIX=generation` / `generationRestart`（43 个出题套件，慢文件 300 s 超时）：`generation` 34 个全绿、`generationRestart` 32 个全绿；其余是已评审的差异，分类同 S3-1，另加：重试现在存在，`failed-continue-exec` 剩下的是"旧语义 = 新建一个 Job 接着做、旧记录标 continued"（现在是同一逻辑 Job 的新 Attempt）和读旧逐调用上下文的假模型；`honest-run-exec` #4 用重试前的 legacy id 再查（重试换 id）；`small-target-weights`（`generationRestart`）是"50 ms 后取消再数轻模型调用"的计时断言，落盘后每次调用更慢；`restart-plain` / `restart-supplement` 断言"重启后没有任务"，正是本步改变的行为（开关关时它们照常通过）。
+
+## 7. 未决问题
 
 - `job.dismiss` 之后记录仍在磁盘上，下次重启会再回来一次（7 天后清理）：需要 jobs 上下文在忽略 / 删除任务时通知家族（S3-7 / S6）。
 - 已完成任务的记录在下次重启时才被删除。

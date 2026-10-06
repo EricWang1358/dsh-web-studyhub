@@ -252,3 +252,18 @@ test('without the restart switch a cancelled run can still be retried in the pro
   const after = await restartedOver(t, opened.root, { options: hostOf(complete) });
   assert.deepEqual(await jobsOf(after.service), [], 'the restart switch is off: no job comes back');
 });
+
+test('a retry keeps the usage of every Attempt on the job, while the card tells only of the current one', async t => {
+  const first = await dying(t, 2);
+  await first.service.call('generate', { sourceIds: ['p1'], count: 3, kind: 'flashcard', performance: ONE_BY_ONE });
+  await soon(async () => (await draftsOf(first.service))[0]?.cards.length === 1, 'the first part to be saved');
+  const after = await restarted(t, first.root), asked = askedAuthors(); after.use(asked.model);
+  const [job] = await jobsOf(after.service), earlier = job.contract.calls.length;
+  assert.ok(earlier > 0, 'the first Attempt\'s calls were kept on disk');
+  const attempt = await retried(after.service, job);
+  assert.equal((await settleJob(after.service, attempt)).status, 'complete');
+  const row = (await jobsOf(after.service)).find(item => item.id === attempt);
+  assert.ok(row.contract.calls.length > earlier, 'the job lists the calls of both Attempts');
+  assert.equal(row.contract.usage.calls, row.contract.calls.filter(call => call.modelRequest).length, 'one usage for the job: every Attempt counted once');
+  assert.ok(row.steps.length < row.contract.calls.length, 'the card tells of the current Attempt only');
+});
