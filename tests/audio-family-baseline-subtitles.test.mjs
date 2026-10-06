@@ -3,12 +3,19 @@ import assert from 'node:assert/strict';
 import { admitSlot } from '../lib/jobs/scheduler.js';
 import { KEY, REPORTED, geminiTextFake, hostModel, letters, library, subtitleText } from './helpers/audio-family.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
+import { SWITCH_MODE } from './helpers/audio-switch.mjs';
+
+// On the runtime (S2-4) a subtitle import is its own kind of job and the defects this suite records on the old path are gone: D-1 (a retry
+// keeps the subtitle flag and never waits for a transcription slot), D-2 (its own wording), D-6/D-7 (usage and provider on the card), D-8 (a file
+// is refused only when the same cues are already being imported).
+const RUNTIME = SWITCH_MODE === 'runtime';
 
 /* S2-0 characterization of `audio.subtitles.import` (lib/contexts/audio/operations.js, lib/subtitle-job.js) on the code as it is.
    Already covered elsewhere: the happy path with corrections and review (subtitle-review-flow), cue parsing (subtitles). */
 
 const SOURCE_ID = 'subtitle-2d6df86b';
 const calls = (n, sum = REPORTED) => ({ uncachedInputTokens: n * sum.uncachedInputTokens, outputTokens: n * sum.outputTokens, cacheReadTokens: 0, cacheWriteTokens: 0, calls: n });
+const withoutCount = ({ calls: _count, ...buckets }) => buckets;
 const jobOf = async (service, id) => (await service.call('snapshot')).jobs.find(job => job.id === id);
 
 test('invalid subtitle input is refused before any job record, model request, inbox letter or ledger row', async t => {
@@ -40,23 +47,24 @@ test('one subtitle file: three requests in order, one source id, usage on the ta
   assert.equal(done.status, 'complete', done.stage);
   assert.deepEqual(log, ['proofread', 'translate', 'title']);
   assert.deepEqual(done.sourceIds, [SOURCE_ID]);
-  assert.deepEqual([done.type, done.filename, done.subtitle, done.titleEn], ['audio-import', 'pricing.txt', true, 'Coding Plans Get Pricier']);
+  assert.deepEqual([done.type, done.filename, done.subtitle, done.titleEn], [RUNTIME ? 'audio-subtitles' : 'audio-import', 'pricing.txt', true, 'Coding Plans Get Pricier']);
   // Three booking points: the task's own tally, the daily ledger and (for Gemini requests only) the audio quota tally.
-  assert.deepEqual(done.tokenUsage, calls(3));
+  if (!RUNTIME) assert.deepEqual(done.tokenUsage, calls(3));
   assert.deepEqual(await lib.ledger(), calls(3));
   const view = await jobOf(lib.service, done.id);
-  assert.deepEqual(view.contract.usage, { tokens: 330, tokenUsage: calls(3), calls: 3 });
-  assert.deepEqual(view.contract.calls.map(call => call.stepKey), ['proofread:1', 'translate:1', 'title']);
+  // The runtime's tally of model calls does not repeat their count inside the token buckets.
+  assert.deepEqual(view.contract.usage, { tokens: 330, tokenUsage: RUNTIME ? withoutCount(calls(3)) : calls(3), calls: 3 });
+  assert.deepEqual(view.contract.calls.map(call => call.stepKey), ['proofread:1', 'translate:1', RUNTIME ? 'title:0' : 'title']);
   assert.equal(view.usage.free.requests + view.usage.paid.requests, 0, 'a host text model makes no Gemini request');
-  assert.equal(view.textProvider, undefined, 'the subtitle job never records its provider (unlike audio and batch jobs)');
-  assert.equal(view.contract.detail.textProvider, null);
+  assert.equal(view.textProvider, RUNTIME ? 'host' : undefined, 'the old path never records the provider of a subtitle job (D-7)');
+  assert.equal(view.contract.detail.textProvider, RUNTIME ? 'host' : null);
   // Notification: one inbox letter and one session notice, worded as an audio transcription.
   const state = await lib.state();
   assert.deepEqual(letters(state, done.id), ['audio-result']);
   assert.deepEqual(state.inbox[0].sourceIds, [SOURCE_ID]);
   assert.equal(notices.length, 1);
   assert.equal(notices[0].wakeup, false);
-  assert.match(notices[0].summary, /^音频「pricing\.txt」已转写成中英对照逐字稿$/);
+  assert.match(notices[0].summary, RUNTIME ? /^字幕「pricing\.txt」已校对并译成中英对照逐字稿$/ : /^音频「pricing\.txt」已转写成中英对照逐字稿$/);
   const source = state.sources.find(item => item.id === SOURCE_ID);
   assert.deepEqual([source.courses, source.audio.subtitle, source.audio.sourceIds, source.title], [['Pricing'], true, [SOURCE_ID], '订阅涨价 · 中英对照逐字稿']);
 
@@ -73,7 +81,7 @@ test('a subtitle file on the Gemini text route: the same three requests are coun
   const done = await settleJob(lib.service, (await lib.service.call('audio.subtitles.import', { filename: 'pricing.txt', text: subtitleText })).jobId);
   assert.equal(done.status, 'complete', done.stage);
   assert.deepEqual(log, ['proofread', 'translate', 'title']);
-  assert.deepEqual([done.usage.paid.requests, done.usage.free.requests, done.usageRun, done.tokenUsage, done.textProvider], [3, 0, undefined, undefined, undefined]);
+  assert.deepEqual([done.usage.paid.requests, done.usage.free.requests, done.usageRun?.paid.requests, done.tokenUsage, done.textProvider], RUNTIME ? [3, 0, 3, undefined, 'gemini'] : [3, 0, undefined, undefined, undefined]);
   assert.match(done.sourceIds[0], /^subtitle-[0-9a-f]{8}$/);
   assert.equal(await lib.ledger(), null);
 });
@@ -88,6 +96,16 @@ test('a failed subtitle job retries from its checkpoints through the retained cl
   assert.deepEqual(letters(await lib.state(), failed.id), ['audio-failed']);
   assert.equal((await jobOf(lib.service, failed.id)).contract.actions.retry.available, true);
 
+  if (RUNTIME) {
+    // D-1 fixed: the retry is a text-only job again, so it neither waits for the transcription slot nor loses its subtitle flag.
+    const retried = await lib.service.call('job.control', { jobId: failed.id, action: 'retry' });
+    assert.notEqual(retried.attemptId, failed.id, 'a retry is a new attempt with a new job id');
+    const done = await settleJob(lib.service, retried.attemptId);
+    assert.deepEqual([done.status, done.subtitle, done.sourceIds], ['complete', true, [SOURCE_ID]]);
+    assert.deepEqual(log, ['proofread', 'translate', 'translate', 'title'], 'the proofread checkpoint is reused');
+    assert.deepEqual([letters(await lib.state(), failed.id), letters(await lib.state(), done.id)], [[], ['audio-result']]);
+    return;
+  }
   // Hold the host's transcription slot: a subtitle job is text-only and starts at once, but its RETRY waits behind the audio gate.
   let free; const held = admitSlot(gate, 'other-recording', new AbortController().signal, release => new Promise(resolve => { free = () => { release(); resolve(); }; }));
   await until(() => gate.active.has('other-recording'));
@@ -132,14 +150,25 @@ test('cancelling a running subtitle job stops its request, keeps it retryable an
   await reached;
   // The contract of every audio-import kind offers pause and set, but a text-only job registers no control: they read "no control yet".
   const running = (await jobOf(lib.service, started.jobId)).contract.actions;
-  assert.deepEqual([running.cancel.available, running.pause.reason?.code, running.set.reason?.code, running.retry.reason?.code], [true, 'no-control-yet', 'no-control-yet', 'not-ended']);
-  // The duplicate guard of audio jobs is keyed by file name only: a different lecture under the same subtitle file name is refused as "this audio".
-  await assert.rejects(lib.service.call('audio.subtitles.import', { filename: 'pricing.txt', text: subtitleText.replace('朋友们唉', '各位同学') }), /这个音频已经在处理/);
+  assert.deepEqual([running.cancel.available, running.pause.reason?.code, running.set.reason?.code, running.retry.reason?.code],
+    RUNTIME ? [true, 'capability-unsupported', 'capability-unsupported', 'not-retryable'] : [true, 'no-control-yet', 'no-control-yet', 'not-ended']);
+  const another = subtitleText.replace('朋友们唉', '各位同学');
+  let other;
+  if (RUNTIME) {
+    // D-8 fixed: the same cues are refused as a subtitle import; a different lecture under the same file name is not.
+    await assert.rejects(lib.service.call('audio.subtitles.import', { filename: 'copy.txt', text: subtitleText }), /这份字幕已经在处理/);
+    other = await lib.service.call('audio.subtitles.import', { filename: 'pricing.txt', text: another });
+    assert.ok(['queued', 'running'].includes(other.status));
+  } else {
+    // The duplicate guard of audio jobs is keyed by file name only: a different lecture under the same subtitle file name is refused as "this audio".
+    await assert.rejects(lib.service.call('audio.subtitles.import', { filename: 'pricing.txt', text: another }), /这个音频已经在处理/);
+  }
   const reply = await lib.service.call('job.cancel', { jobId: started.jobId });
   assert.equal(reply.jobs[0].status, 'cancelling');
   const done = await settleJob(lib.service, started.jobId);
-  assert.deepEqual([done.status, done.retryable, done.sourceIds, done.stage], ['cancelled', true, undefined, '已取消；已完成的部分会保留，再来一次会接着做']);
+  assert.deepEqual([done.status, done.retryable, done.sourceIds, done.stage], ['cancelled', true, RUNTIME ? [] : undefined, '已取消；已完成的部分会保留，再来一次会接着做']);
   assert.deepEqual(letters(await lib.state(), done.id), ['audio-failed'], 'a cancelled import is mailed as a failure');
-  assert.match(notices[0].summary, /^音频「pricing\.txt」导入已取消$/);
+  assert.match(notices[0].summary, RUNTIME ? /^字幕「pricing\.txt」导入已取消$/ : /^音频「pricing\.txt」导入已取消$/);
+  if (other) { await lib.service.call('job.cancel', { all: true }); await settleJob(lib.service, other.jobId); }
   assert.deepEqual([(await lib.state()).sources, await lib.ledger()], [[], null]);
 });
