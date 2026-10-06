@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { detectMarker, locateMarker, parseMarkerMarkdown, parseMarkerWindow } from '../lib/marker-local.js';
+import { detectMarker, locateMarker, MARKER_DETECT_TIMEOUT_MS, parseMarkerMarkdown, parseMarkerWindow } from '../lib/marker-local.js';
 import { readMarkerSettings, saveMarkerSettings } from '../lib/marker-settings.js';
 
 const divider = page => `{${page}}${'-'.repeat(48)}\n`;
@@ -17,6 +17,7 @@ import path from 'node:path';
 const args = process.argv.slice(2);
 await writeFile(process.env.MARKER_TEST_LOG, JSON.stringify(args));
 if (args[0] === '--help') {
+  if (process.env.MARKER_TEST_MODE === 'slow') await new Promise(resolve => setTimeout(resolve, 1500));
   console.log(process.env.MARKER_TEST_MODE === 'old' ? '--output_dir' : '--output_dir --page_range --paginate_output --output_format --disable_image_extraction');
 } else if (process.env.MARKER_TEST_MODE === 'hang') {
   setInterval(() => {}, 1000);
@@ -53,6 +54,22 @@ test('Marker detection checks the command flags without converting a document', 
   assert.deepEqual(JSON.parse(await readFile(available.log, 'utf8')), ['--help']);
   const old = await fake(t, 'old');
   assert.equal((await detectMarker({ cli: old.cli })).state, 'unavailable');
+});
+
+test('a Marker that is slow to start still passes detection, and one that is too slow says so instead of a generic failure', async t => {
+  // marker_single --help loads the whole model stack: 16 s on a warm machine, longer when the disk is busy or the antivirus scans it. The limit must not be 20 s.
+  assert.ok(MARKER_DETECT_TIMEOUT_MS >= 2 * 60_000, 'detection waits at least two minutes for a cold start');
+  const slow = await fake(t, 'slow');
+  assert.equal((await detectMarker({ cli: slow.cli, timeoutMs: 10_000 })).state, 'ready');
+  const late = await detectMarker({ cli: slow.cli, timeoutMs: 300 });
+  assert.equal(late.state, 'unavailable');
+  assert.equal(late.reason, 'timeout');
+  assert.equal(late.next, 'recheck');
+  assert.match(late.message, /启动很慢/);
+  assert.notEqual(late.message, 'Marker 检测未完成，请检查程序路径后重新检测。');
+  // A wrong path is still not "slow": it is not installed.
+  const missing = await detectMarker({ cli: { file: path.join(slow.dir, 'nothing-here.exe'), prefix: [], env: {} }, timeoutMs: 5000 });
+  assert.equal(missing.state, 'not-installed');
 });
 
 test('Marker output retains empty pages and converts original page numbers to window-relative indices', () => {
