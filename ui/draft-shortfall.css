@@ -7,7 +7,7 @@
   :is(.study-app, .study-seat) {
     /* The action column of a draft row: one fixed width, so the estimate (a line wider than the button) never widens the group and moves what
        sits beside it; the button and the estimate share its right edge, and a long estimate wraps inside it. */
-    .draft-topup { display: grid; justify-items: end; gap: var(--space-1); flex: 0 0 auto; width: min(18rem, 100%); min-width: 0; margin-inline-start: auto; }
+    .draft-topup { display: grid; justify-items: end; gap: var(--space-1); flex: 0 0 auto; width: min(20rem, 100%); min-width: 0; margin-inline-start: auto; }
     .draft-topup .token-estimate { justify-self: stretch; }
     .shortfall { display: grid; gap: var(--space-1); min-width: 0; margin-top: var(--space-1); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .shortfall p { margin: 0; }

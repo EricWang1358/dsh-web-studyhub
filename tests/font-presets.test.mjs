@@ -46,6 +46,8 @@ test('a typed font name: letters, digits, spaces, CJK and hyphens only, capped; 
 
 test('the custom stack is the quoted name plus the system fallback, nothing else, and empty for no name', () => {
   assert.equal(customFontStack('LXGW WenKai'), '"LXGW WenKai", var(--font-stack-system)');
+  /* The person's font wins: it is first, so the bundled Inter (first in the system stack) only fills what it lacks, e.g. digits in a
+     Chinese-only font. Serif, kai, round and mono do not include Inter at all. */
   assert.equal(customFontStack('x;} body{display:none'), '');
   assert.equal(customFontStack(''), '');
   assert.equal(customFontStack(undefined), '');
@@ -147,9 +149,9 @@ test('the paragraph gap is read by the reader and the reading blocks, with today
   assert.match(read('ui/reading-settings/reading.css'), /\.md p[^{]*\{[^}]*margin-bottom:\s*var\(--reader-gap,\s*0\.7em\)/);
 });
 
-test('no font file is bundled and the labels exist in English', () => {
+test('the one bundled font is Inter for digits and Latin (ui/fonts, see inter-font.test.mjs); a typeface is otherwise a system stack or an installed name; labels exist in English', () => {
   const files = readdirSync(new URL('../ui', import.meta.url), { recursive: true });
-  assert.deepEqual(files.filter(name => /\.(woff2?|ttf|otf|eot)$/i.test(String(name))), [], 'a typeface is a system stack or an installed name, never a file');
+  assert.deepEqual(files.filter(name => /\.(woff2?|ttf|otf|eot)$/i.test(String(name))).map(name => String(name).replace(/\\/g, '/')), ['fonts/inter-latin-opsz-normal.woff2'], 'no other font file is bundled: Chinese stays on the system fonts');
   const english = Object.assign({}, ...readdirSync(new URL('../ui/locales', import.meta.url)).filter(name => /^en(\..+)?\.json$/.test(name)).map(name => JSON.parse(read(`ui/locales/${name}`))));
   for (const zh of [...FONT_IDS.map(id => FONT_PRESETS[id].label), '本机字体', '标题字体', '跟随正文', '保持系统', '字重', '行距', '段间距', '紧凑', '宽松', '稍粗', '加粗', '跟随界面', '排版微调'])
     assert.ok(english[zh] && !/[㐀-鿿]/.test(english[zh]), `${zh} has an English text`);

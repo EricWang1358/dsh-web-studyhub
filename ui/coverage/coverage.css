@@ -63,7 +63,7 @@
     .cov-topup__button { max-width: 100%; height: auto; padding-block: var(--space-2); text-align: center; white-space: normal; overflow-wrap: anywhere; }
     .cov-topup__estimate { flex: 1 1 14em; max-width: 34em; min-width: 0; }
     .cov-topup__done { color: var(--text-dim); font-size: var(--fs-sm); }
-    .cov-topup--compact { padding-top: 0; border-top: 0; justify-items: end; width: min(18rem, 100%); margin-inline-start: auto; text-align: end; }
+    .cov-topup--compact { padding-top: 0; border-top: 0; justify-items: end; width: min(20rem, 100%); margin-inline-start: auto; text-align: end; }
     .cov-topup--compact .cov-topup__act { justify-content: flex-end; }
     .cov-topup--compact .cov-topup__estimate { flex-basis: 100%; max-width: none; }
     /* The status of a run that works (「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 …」) is a sentence: in the narrow column it wraps instead of running off the screen. */

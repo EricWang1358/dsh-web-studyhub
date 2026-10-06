@@ -250,8 +250,8 @@
      together; 保持系统 puts the headings back), the reader and the reading blocks (--reader-face). `custom` is the installed font the person
      typed: --font-custom is set on the app root from the gated name, and an unknown name falls through to the system stack. */
   :is(.study-app, .study-seat) {
-    --font-stack-system: "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-    --font-stack-system-display: "Inter Display", "Segoe UI Variable Display", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-stack-system: "StudyHub Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-stack-system-display: "StudyHub Inter", "Segoe UI Variable Display", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
     --font-stack-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
     --font-stack-kai: "KaiTi", "Kaiti SC", "STKaiti", "BiauKai", "DFKai-SB", serif;
     --font-stack-round: "Yuanti SC", "HarmonyOS Sans SC", "MiSans", "YouYuan", "Microsoft YaHei UI", "PingFang SC", sans-serif;
