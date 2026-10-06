@@ -11,7 +11,7 @@
    4. opens Study with Playwright, screenshots it, then stops everything.
    It never reads or writes ~/.dsh or the owner's Documents folder.
    Output: output/qa/dsh-e2e/*.png and summary.json. Not part of npm test. */
-/* global document -- callbacks passed to page.evaluate / waitForFunction run in the browser */
+/* global document, window, getComputedStyle -- callbacks passed to page.evaluate / waitForFunction run in the browser */
 import { spawn, spawnSync } from "node:child_process";
 import { mkdir, rm, writeFile, readFile, access } from "node:fs/promises";
 import { join, resolve } from "node:path";

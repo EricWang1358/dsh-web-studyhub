@@ -25,7 +25,7 @@
     .sh-combobox__heading:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .sh-combobox__heading-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* ── Popup: positioned by Base UI (screen pixels), drawn inside the study surface (CSS pixels under the interface zoom) ── */
+    /* ── Popup: positioned by Base UI, drawn inside the study surface. Its --anchor-/--available-* sizes are already in the interface's own pixels (Floating UI divides by the zoom of the surface), so they are used as they are at any interface size ── */
     .sh-pop { z-index: var(--z-popover); outline: 0; }
     .sh-pop__popup {
       --sh-inset: var(--space-1); /* the popup's own padding: options are rounded one inset smaller than the surface, so the corners stay concentric */
