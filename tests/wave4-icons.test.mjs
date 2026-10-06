@@ -19,13 +19,20 @@ const { Icon, IconBox, ICON_NAMES } = module.exports;
 const h = React.createElement;
 
 const RAIL = ['audio', 'live', 'workflows', 'coach', 'resume', 'library', 'sources', 'generate', 'skeleton', 'dashboard', 'exam', 'wrongbook', 'notes', 'board', 'settings', 'auto', 'dark', 'language', 'light', 'tour'];
+const COMMON = ['settings', 'chevron-down', 'check', 'search', 'plus'];
 const BOARD = ['calendar', 'filter', 'edit', 'trash', 'archive', 'link', 'checklist', 'move', 'sync', 'undo', 'chevron-down', 'clock', 'more', 'arrow-up', 'arrow-down'];
 const READER = ['copy', 'book'];
 
 test('the registry holds the rail, board and reader glyphs and the brand marks under unique names (#145)', () => {
-  for (const name of [...RAIL.map((n) => `nav-${n}`), ...BOARD, ...READER, 'brand', 'brand-compact']) assert.ok(ICON_NAMES.includes(name), `Icon has ${name}`);
+  for (const name of [...RAIL.map((n) => `nav-${n}`), ...BOARD, ...READER, ...COMMON, 'brand', 'brand-compact']) assert.ok(ICON_NAMES.includes(name), `Icon has ${name}`);
   assert.equal(new Set(ICON_NAMES).size, ICON_NAMES.length);
   for (const name of ICON_NAMES) assert.match(renderToStaticMarkup(h(Icon, { name })), /<svg[^>]*class="sh-icon/, name);
+});
+
+test('the registry holds no hand-drawn glyph but the brand marks: the rest is Phosphor Light path data (icon-paths.js)', () => {
+  const text = read('ui/components/Icon.jsx');
+  assert.match(text, /from '\.\/icon-paths\.js'/);
+  assert.doesNotMatch(text.split('const BRAND')[0], /<(path|circle|rect)\b/, 'no hand-drawn shapes before the brand marks');
 });
 
 test('IconBox is the span the rail styles (the old ui/Icon.jsx wrapper) (#145)', () => {
