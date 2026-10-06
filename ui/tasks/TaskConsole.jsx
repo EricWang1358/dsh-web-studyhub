@@ -17,6 +17,8 @@ import { taskSummary, stateLabel } from './task-summary.js';
 import { taskFacts, taskSegments, usageLine } from './task-facts.js';
 import { headerActions, autoToggle } from './task-control.js';
 import RunLine from './RunLine.jsx';
+import TimeLimit from './TimeLimit.jsx';
+import { limitFacts, marksOf, slowSteps } from './time-limit.js';
 import TaskUsage from './TaskUsage.jsx';
 import { actionLabel, autoLabel } from '../coverage/copy.js';
 import ControlRow from './ControlRow.jsx';
@@ -125,6 +127,13 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   const archive = () => settle(() => (quick ? dismissJobs(quick, task.id) : core.act('job.archive', { jobId: task.id })), ui('已放进「已归档」，之后可以取消归档或删除。'));
   const unarchive = () => settle(() => batchRun('unarchive', [key], { quick, core }), ui('已取消归档'));
   const result = openers.resultOf(task, data), usage = usageLine(task);
+  // The time limit and the steps that took the time (ui/tasks/time-limit.js): drawn by the strip under the facts and marked on the timeline, from the same steps. Only a task whose record knows a limit has them
+  // (a transcription that runs long is just a long file). An ended task counts its calls up to its own end, never up to now.
+  const limited = limitFacts(contract, { now }), clock = live ? now : Date.parse(contract.finishedAt) || now;
+  const hasLimit = !!limited, hit = !!limited?.hit;
+  const steps = useMemo(() => (hasLimit ? slowSteps(contract.calls, { now: clock, hitLimit: hit }) : []), [contract.calls, clock, hasLimit, hit]);
+  const marks = useMemo(() => marksOf(steps), [steps]);
+  const [focusCall, setFocusCall] = useState(null);
   // A coverage run (lib/coverage-run.js): its header says 停在这里 (everything that passed is kept), 接着做 says which round it continues, and 自动补到完整 can be flipped while it runs.
   const run = contract.detail?.run || null, toggle = autoToggle(task);
   const started = contract.startedAt ? formatDateTime(contract.startedAt, 'stamp') : '';
@@ -175,9 +184,10 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
       <Metrics job={task} summary={summary} now={now} />
       <TaskUsage contract={contract} />
       <RunLine task={task} shortfall={shortfall} />
+      <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}
-      <TaskBody task={task} archived={archived} />
+      <TaskBody task={task} archived={archived} marks={marks} focusCall={focusCall} />
     </section>
   );
 }

@@ -203,6 +203,10 @@
     .tc-callbar[data-kind='title'], .tc-callbar[data-kind='publish'], .tc-callbar[data-kind='other'] { --sh-bar: var(--decor-faint); }
     .tc-callbar[data-wait] { background: transparent; border: 1px dashed var(--text-muted); box-sizing: border-box; cursor: default; }
     .tc-callbar[aria-pressed='true'] { outline: 1px solid var(--text); outline-offset: 1px; }
+    /* A step the strip points at (ui/tasks/time-limit.js): the bar fills its track, is hatched and ringed, so it reads without colour (the ring is the warning ink, the hatch is the pattern). */
+    .tc-callbar[data-slow] { top: 0; bottom: 0; z-index: 1; outline: 2px solid var(--warn-ink, var(--text)); outline-offset: 0; background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--bg-surface) 55%, transparent) 3px 5px); }
+    .tc-callbar[data-slow][aria-pressed='true'] { outline-color: var(--text); }
+    .tc-legend [data-kind='slow'] i { width: 10px; height: 8px; box-sizing: border-box; border: 1px solid var(--warn-ink, var(--text)); background: repeating-linear-gradient(135deg, var(--decor-faint) 0 2px, transparent 2px 4px); }
     .tc-lanes__more { flex: none; margin: 0; color: var(--text-faint); font-size: var(--fs-xs); }
     .tc-axis { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); padding: 0 var(--space-5) var(--space-2); color: var(--text-faint); font-family: var(--font-stack-mono); font-size: var(--fs-xs); }
     .tc-axis > div { display: flex; justify-content: space-between; }
@@ -307,6 +311,17 @@
     .tc-run__counts { flex: 1 1 100%; min-width: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: 1.45; overflow-wrap: anywhere; }
     .tc-run__stop { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
     .tc-run[data-run-state='interrupted'] .tc-run__line, .tc-run[data-run-state='stopped'] .tc-run__line { color: var(--warn-ink, var(--text)); }
+    /* The time limit of the task (ui/tasks/TimeLimit.jsx): one quiet strip under the facts, the same register as the line of a coverage run; the link and the steps it names are buttons. */
+    .tc-limit { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
+    .tc-limit__k { font-weight: var(--fw-strong); letter-spacing: 0.04em; }
+    .tc-limit__line { min-width: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+    .tc-limit__call, .tc-limit__more { font-variant-numeric: tabular-nums; }
+    .tc-limit__adjust { align-self: center; margin-inline-start: auto; }
+    .tc-limit__note, .tc-limit__slow { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+    .tc-limit[data-limit-hit='true'] .tc-limit__note, .tc-limit[data-limit-rounds] .tc-limit__note { color: var(--warn-ink, var(--text)); font-weight: var(--fw-medium); }
+    .tc-limit__slow { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
+    .tc-limit__lead { font-weight: var(--fw-strong); }
+    .tc-limit__step { min-height: 0; padding: 0; height: auto; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; text-align: start; white-space: normal; }
     .tc-head__auto { flex: none; align-self: center; margin-inline: var(--space-2); }
     /* The rounds at the top of 资料部分: a row each, its sections on demand. */
     .tc-rounds { border-bottom: 1px solid var(--line); }

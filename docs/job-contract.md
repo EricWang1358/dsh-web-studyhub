@@ -119,6 +119,18 @@ The text comes from the model path of this plugin: the direct streamed call, and
 
 `detail.partList` (generation, supplement) is one entry per part: `{ part, status, stages: { author?, review?, repair? }, sourceIds?, sourceCount?, range?, asked?, kept?, reasons? }`. `asked`, `kept` and `reasons` (codes `quote | plan | quality | other`) appear once the run has reported (`partReport`). `sourceIds` (each source once, at most 20), `sourceCount` (how many there really are) and `range` (a short label of at most 80 characters, such as "Book · 第 12–14 页", written in the job's language) say what the part covers; they come from the job's `partPlan` (`[{ part, sourceIds, sourceCount, label }]`, lib/part-plan.js), which the run writes when it plans its parts, so a part that is still waiting has them too. A job without a plan (an older run, a case paper, a translation) has parts without these three fields. The 任务 console's 在资料中查看 opens the reader on the first of `sourceIds` that is still in the library, through the app's own handler (`partOpener` in ui/tasks/task-actions.js, the handler `resultOpener` uses for transcripts and conversions).
 
+## The time limit of a job
+
+`detail.timeLimit` (generation, supplement, translation) is `{ seconds, scope, callSeconds, keeps }`, taken from the job record (`totalTimeoutSeconds`, `generationTimeoutSeconds`) when the job was started; a record without `totalTimeoutSeconds` has no `timeLimit`, and a consumer shows nothing for it. An archived contract carries it with the rest of `detail`; one archived before the field existed simply lacks it.
+
+- `scope: 'run'`: the limit is for the whole run (a plain question run, a supplement of a deck). It is the setting 每轮运行时限（分钟） of 设置 › 出题偏好 (`jobTimeoutMinutes`, 5 to 180) as it was when the run started; changing it does not touch a run that has started.
+- `scope: 'round'`: a **coverage run** (`job.coverageRun`) has the same limit for EACH round and none for the run as a whole. A round that reaches it keeps the questions that passed review (`detail.run.list[i].reason === 'timeout'` names it) and the run goes on.
+- `scope: 'fixed'`: a limit nobody sets: a translation's 60 minutes (`TRANSLATION_JOB_TIMEOUT_MS`), a selection run's 20 minutes (`origin: 'selection'`, `GENERATION_JOB_TIMEOUT_MS`).
+- `callSeconds`: the limit of ONE model call (`GENERATION_TIMEOUT_MS`, 10 minutes), which no setting changes and which is independent of the run's limit; `null` when the job records none.
+- `keeps`: what a stop by the limit leaves: `questions` (the ones that passed review, saved as they pass), `paragraphs` (the ones already translated), `nothing` (a selection run saves nothing until it is done).
+
+A consumer decides that a job ENDED BY THE LIMIT with the classifier of the list row (`ui/generation-status.js` `hitTimeLimit`, the `budget` row of `FAILURES`, over `error.message`, else `stage.text`) and never with a second pattern. The console's strip (`ui/tasks/TimeLimit.jsx`) says the limit, what is used (`已用`, the same number as the facts row; for a limit per round, the time since the round in flight made its first call), what is kept and the steps that took the time (`ui/tasks/time-limit.js`: past 3 x the median of the other finished steps of its kind and past 2 minutes, or, for a job that ended by its limit, its longest step); the link 调整时限 opens the one editor of the setting (`openSettings('settings-generation-time')`) and is offered only for `run` and `round`.
+
 ## What each kind could and could not map
 
 | kind | maps | does not map |

@@ -256,6 +256,13 @@ const FAILURES = [
   ['quality', /Quality gate failed|Editorial review still found issues|No questions were generated|Author returned no questions|没有题目通过/i],
 ];
 
+/** The kind a failure text is, by the table above ('unknown' when nothing matches). The one lookup describeFailure, describeModelError and hitTimeLimit all read. */
+const kindOfText = (text) => FAILURES.find(([, pattern]) => pattern.test(String(text ?? '')))?.[0] || 'unknown';
+/** Did the run's OWN time limit end it? The row's 「生成用时太长，已自动停止」 and the 任务 page's time-limit strip both ask this and nothing else (the 'budget' row of the table). */
+export const hitTimeLimit = (text) => kindOfText(text) === 'budget';
+/** Is a failed call's own error the model not answering in time (the 'timeout' row of the table)? With how long it ran, that is a call that hit the limit of ONE call. */
+export const hitCallTimeout = (text) => kindOfText(text) === 'timeout';
+
 /**
  * One table for every model failure, whether a generation job or the learning flow reports it: kind -> title, hint and what the learner
  * can do about it ('settings' opens the model settings, 'retry' asks again). The strings are the translation keys. Generation adds its
@@ -366,11 +373,12 @@ export function callErrorText(text = '') {
 
 function failureKind(text = '', { hasDraft = false } = {}) {
   const raw = String(text || '');
-  const kind = FAILURES.find(([, pattern]) => pattern.test(raw))?.[0] || 'unknown';
+  const kind = kindOfText(raw);
   if (Object.hasOwn(FAILURE_COPY, kind)) return copyOf(kind);
   switch (kind) {
+    // The limit itself is on the 任务 page (ui/tasks/TimeLimit.jsx, with the way to change it): the hint only points there, in the same sentence as what to do next.
     case 'budget': return { kind: 'timeout', action: hasDraft ? 'open-draft' : 'retry', title: ui('生成用时太长，已自动停止'),
-      hint: hasDraft ? ui('已通过检查的题保存在草稿里，可以打开草稿继续。') : ui('可以减少题数或资料后重新生成。') };
+      hint: hasDraft ? ui('已通过检查的题保存在草稿里，可以打开草稿继续；时限和调整入口在「任务」页的详情里。') : ui('可以减少题数或资料后重新生成；时限和调整入口在「任务」页的详情里。') };
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
     case 'grounding': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('引用的原文在资料里找不到'),
       hint: hasDraft ? ui('AI 引用的句子和资料原文对不上；通过检查的题已保存在草稿里。打开草稿用「为没覆盖的部分补题」补上缺的题，不必重新选页。')
@@ -405,9 +413,9 @@ function failureKind(text = '', { hasDraft = false } = {}) {
  */
 export function describeModelError(text = '') {
   const raw = String(text || '').trim();
-  const found = FAILURES.find(([, pattern]) => pattern.test(raw))?.[0];
+  const found = kindOfText(raw);
   const kind = found === 'budget' ? 'timeout' : found;
-  if (!Object.hasOwn(FAILURE_COPY, kind || '')) return { kind: 'unknown', title: raw, hint: '', detail: '' };
+  if (!Object.hasOwn(FAILURE_COPY, kind)) return { kind: 'unknown', title: raw, hint: '', detail: '' };
   return { ...copyOf(kind), detail: raw };
 }
 
