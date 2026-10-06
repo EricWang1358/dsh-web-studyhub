@@ -31,7 +31,7 @@ test('one draft is one Job: found whole the moment the call returns, a Call per 
   const started = await service.call('note.generate', { id: note.id });
   assert.equal(started.status, 'running');
   // The Job is in the table, with its card, before anything else has had a turn: a second start or the console finds it at once.
-  assert.deepEqual([noteJobs(service).length, noteJobs(service)[0]?.title], [1, '笔记草稿']);
+  assert.deepEqual([noteJobs(service).length, noteJobs(service)[0]?.contract.title], [1, 'Capacity planning']);
   const ready = await finished(service, note.id);
   assert.equal(ready.generation.status, 'done');
   const { contract } = await settled(service);
