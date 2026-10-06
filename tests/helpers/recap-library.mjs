@@ -7,10 +7,10 @@ import { SWITCH_MODE, switchOptions } from './runtime-switch.mjs';
 export const writing = '# 今日学习总结\n\n' + '围绕已练习的知识点整理正确思路，核对条件与推理步骤。'.repeat(8);
 export const course = '数学 / 第一章';
 
-/** A library with forty quiz cards in one deck; seeded through the service so both doors can start from the same place. */
+/** A library with forty quiz cards in one deck; seeded through the service so both doors can start from the same place. `pilotPaths` switches more on, `nativeHost` gives the Jobs a host with a parent session (S4-8). */
 export async function seeded(t, options = {}, mode = SWITCH_MODE) {
   const root = await privateRoot(t, 'model-baseline-recap-');
-  const service = new StudyService(root, { ...options, ...switchOptions(mode, { complete: options.complete, paths: ['dailyRecap'] }) });
+  const service = new StudyService(root, { ...options, ...switchOptions(mode, { complete: options.complete, paths: ['dailyRecap', ...(options.pilotPaths || [])], host: options.nativeHost }) });
   t.after(() => service.dispose());
   await service.store.update(state => {
     state.decks.push({ id: 'd', title: course, course, cards: Array.from({ length: 40 }, (_, i) => ({ id: `d-${i}`, kind: 'quiz', topic: `知识点 ${i % 3}`, prompt: `题目 ${i}`,

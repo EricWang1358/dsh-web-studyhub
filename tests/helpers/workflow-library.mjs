@@ -22,7 +22,7 @@ export function model() {
 }
 export async function library(t, options = {}, sessions = 1, mode = SWITCH_MODE) {
   const root = await privateRoot(t, 'model-baseline-workflow-');
-  const service = new StudyService(root, { ...options, ...switchOptions(mode, { complete: options.complete, paths: ['workflow'] }) });
+  const service = new StudyService(root, { ...options, ...switchOptions(mode, { complete: options.complete, paths: ['workflow', ...(options.pilotPaths || [])], host: options.nativeHost }) });
   t.after(() => service.dispose());
   await service.store.update(state => {
     state.sources.push({ id: 'source', title: '缓存资料', text: `${quote}未命中时仍需访问原始服务。` });

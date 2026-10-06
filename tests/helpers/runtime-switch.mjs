@@ -2,7 +2,7 @@
 // A controlled native executor and model host stand in for DSH; no provider is reachable.
 
 /** Service options that route new submissions of `paths` through the runtime. */
-export function managedRuntimeOptions({ complete, paths = ['audioSingle'], owner = Symbol('controlled-runtime-owner'), inspect } = {}) {
+export function managedRuntimeOptions({ complete, paths = ['audioSingle'], owner = Symbol('controlled-runtime-owner'), inspect, host } = {}) {
   let starts = 0;
   const jobExecutor = {
     assertAvailable() {},
@@ -11,7 +11,7 @@ export function managedRuntimeOptions({ complete, paths = ['audioSingle'], owner
     start({ run, cancel }) { void run(); return { id: `controlled-${++starts}`, ownerAgentId: 'controlled-owner', stop: cancel, append() {} }; },
   };
   const runtimePilot = Object.fromEntries(paths.map(path => [path, true]));
-  return { runtimePilot, workOwner: owner, jobExecutor, jobModelHost: { ctx: {}, route: { provider: 'fixture', model: 'fixture' }, complete }, starts: () => starts };
+  return { runtimePilot, workOwner: owner, jobExecutor, jobModelHost: { ctx: host?.ctx ?? {}, ...(host ? { sessionId: 'parent' } : {}), route: { provider: 'fixture', model: 'fixture' }, complete }, starts: () => starts };
 }
 
 /** The side a characterization suite runs on. A `<suite>.runtime.test.mjs` twin sets
@@ -22,8 +22,8 @@ export const SWITCH_MODE = process.env.STUDY_RUNTIME_SWITCH === 'runtime' ? 'run
 export const SWITCH_MODES = Object.freeze(['legacy', 'runtime']);
 
 /** Extra StudyService options for one side of the switch. */
-export function switchOptions(mode, { complete, paths } = {}) {
+export function switchOptions(mode, { complete, paths, host } = {}) {
   if (mode === 'legacy') return {};
-  const { starts: _starts, ...options } = managedRuntimeOptions({ complete, paths });
+  const { starts: _starts, ...options } = managedRuntimeOptions({ complete, paths, host });
   return options;
 }
