@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launchChromium } from "../scripts/qa/browser.mjs";
-import { buildSpineHarness, openSpine, measureSpine } from "../scripts/qa/spine-layout.mjs";
+import { buildSpineHarness, serveSpineHarness, openSpine, measureSpine } from "../scripts/qa/spine-layout.mjs";
 import { spineFixture } from "../scripts/qa/spine-fixture.mjs";
 
 /* The 本次脉络 panel in a real browser, with the skeleton of the owner's screenshot (5 stations, 8 points, station 4 holds five):
@@ -156,12 +156,14 @@ test("keys move the current station, the fold is remembered per step type, and a
     } finally { await subject.close(); }
     assert.deepEqual(subject.errors, []);
 
+    const served = await serveSpineHarness(harness);
+    t.after(() => served.close());
     const blocked = await browser.newContext({ viewport: { width: 1194, height: 900 } });
     await blocked.addInitScript(() => { Object.defineProperty(window, "localStorage", { get() { throw new Error("blocked"); } }); });
     const bp = await blocked.newPage();
     const berrors = [];
     bp.on("pageerror", (error) => berrors.push(String(error)));
-    await bp.goto(`${harness}?lang=zh&theme=dark&mode=peek`);
+    await bp.goto(`${served.url}?lang=zh&theme=dark&mode=peek`);
     await bp.locator(".spine-toggle").waitFor();
     await bp.locator(".spine-toggle").click();
     assert.equal(await bp.locator(".spine-tab").count(), 5, "toggling still works without storage");

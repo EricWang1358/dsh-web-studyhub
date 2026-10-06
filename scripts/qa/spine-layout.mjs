@@ -5,7 +5,8 @@
    Exports build/measure helpers for tests/spine-layout.test.mjs. Secrets are scrubbed from the environment first. */
 /* global document, getComputedStyle, window */
 import { build } from "esbuild";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { launchChromium } from "./browser.mjs";
@@ -23,18 +24,45 @@ export async function buildSpineHarness(dir) {
   return pathToFileURL(join(dir, "index.html")).href;
 }
 
+/** Serve just the generated fixture assets, and return a cleanup handle. */
+export async function serveSpineHarness(harness) {
+  // Serve the same generated files over loopback: managed browsers may prohibit file://.
+  // Only these two fixture assets are exposed; no arbitrary filesystem paths are served.
+  const assets = new Map(await Promise.all([
+    ["/index.html", "text/html", new URL(harness)],
+    ["/harness.js", "text/javascript", new URL("harness.js", harness)],
+  ].map(async ([path, type, url]) => [path, { type, body: await readFile(url) }])));
+  const server = createServer((request, response) => {
+    const path = new URL(request.url, "http://localhost").pathname;
+    if (path === "/favicon.ico") { response.writeHead(204); response.end(); return; }
+    const asset = assets.get(path);
+    response.writeHead(asset ? 200 : 404, { "Content-Type": asset?.type || "text/plain" });
+    response.end(asset?.body || "Not found");
+  });
+  await new Promise((done, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", done); });
+  const closeServer = () => new Promise((done, reject) => { server.close(error => error ? reject(error) : done()); server.closeAllConnections(); });
+  return { url: `http://127.0.0.1:${server.address().port}/index.html`, close: closeServer };
+}
+
 /** Open the harness in a fresh context. `storage` seeds localStorage before the page runs. */
 export async function openSpine(browser, harness, { lang = "zh", theme = "dark", width = 1440, height = 900, mode = "peek", storage = {}, reducedMotion = false } = {}) {
-  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme, reducedMotion: reducedMotion ? "reduce" : "no-preference" });
-  await context.addInitScript(([l, t, extra]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); for (const [k, v] of Object.entries(extra)) localStorage.setItem(k, v); } catch { /* blocked */ } }, [lang, theme, storage]);
-  const page = await context.newPage();
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(String(error)));
-  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-  await page.goto(`${harness}?lang=${lang}&theme=${theme}&mode=${mode}`);
-  await page.locator("#lesson-marker").waitFor({ state: "attached", timeout: 15000 });
-  await sleep(250);
-  return { page, errors, close: () => context.close() };
+  const server = await serveSpineHarness(harness);
+  let context;
+  try {
+    context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme, reducedMotion: reducedMotion ? "reduce" : "no-preference" });
+    await context.addInitScript(([l, t, extra]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); for (const [k, v] of Object.entries(extra)) localStorage.setItem(k, v); } catch { /* blocked */ } }, [lang, theme, storage]);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(String(error)));
+    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    await page.goto(`${server.url}?lang=${lang}&theme=${theme}&mode=${mode}`);
+    await page.locator("#lesson-marker").waitFor({ state: "attached", timeout: 15000 });
+    await sleep(250);
+    return { page, errors, close: async () => { try { await context.close(); } finally { await server.close(); } } };
+  } catch (error) {
+    try { await context?.close(); } finally { await server.close(); }
+    throw error;
+  }
 }
 
 /** Geometry of the panel in the page's current state (all numbers are CSS px, tops are document coordinates). */

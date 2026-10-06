@@ -1,0 +1,262 @@
+{
+  "kind": "S1-2 cloud preflight evidence; no production acceptance",
+  "baseline": "c3377f67a2797ba97807447653fb9228a1834265",
+  "node": "24.19.0",
+  "npm": "11.9.0",
+  "sourceSha256": {
+    "tests/fixtures/runtime-s10/host-probe.mjs": "09633aca7f26cc34f469184947a4e23bb38bab3ba08111a14eca226780552bd8",
+    "tests/fixtures/runtime-s10/run-host-probe.mjs": "18c3fb341f0d4bee6da8b07a5e532d378e687fc92244772da35f2fa0196c99f9",
+    "tests/runtime-owner-characterization.test.mjs": "9b7789d4a50f4f54d69639b2777ba52faa1fc4a3eb42ebc1a743edb48dd9073a",
+    "scripts/qa/dsh-e2e.mjs": "eb5b1597686203b6ee28c2ad9debd36a19818dc29aa465c8ecd1f6cc087c096c",
+    "package-lock.json": "bb3717fbbe766370672eebc29068eeffd54cc29112d52cc671bc69ad0133a337"
+  },
+  "host": {
+    "startedAt": "2026-10-06T00:45:05.984Z",
+    "finishedAt": "2026-10-06T00:45:08.006Z",
+    "ok": true,
+    "variant": "official-jobs-preset",
+    "controllerLoadedByTestVariant": true,
+    "controllerProvisioning": "test-added official dsh-tool-jobs in s10-jobs-only preset",
+    "profileDefaultUntouched": true,
+    "packageVersions": {
+      "dsh": "0.2.0-rc.2",
+      "dsh-agent": "0.2.0-rc.2",
+      "dsh-llm": "0.2.0-rc.2",
+      "dsh-jobs-local": "0.2.0-rc.2",
+      "dsh-subagent": "0.2.0-rc.2",
+      "dsh-tool-jobs": "0.2.0-rc.2",
+      "dsh-agent-preset": "0.2.0-rc.2",
+      "dsh-agent-preset-registry": "0.2.0-rc.2"
+    },
+    "steps": [
+      {
+        "id": "DSH-01/04 create-live-fake-parent",
+        "status": "ok",
+        "startedAt": "2026-10-06T00:45:07.346Z",
+        "evidence": {
+          "exactLiveAgent": true,
+          "liveSession": true,
+          "scoped": true,
+          "parentTurnReason": "completed",
+          "toolsRestricted": true,
+          "visibleToolNames": [],
+          "composedPresetId": "s10-jobs-only"
+        }
+      },
+      {
+        "id": "DSH-01/03/09 studyhub-fiber-binding-preflight",
+        "status": "ok",
+        "startedAt": "2026-10-06T00:45:07.855Z",
+        "evidence": {
+          "productionFiberObserved": true,
+          "sharedSymbolOwner": true,
+          "sharedAudioGate": true,
+          "distinctInitiatingSessions": true,
+          "productionExecutorBinding": false,
+          "unknownOwnerRejectedBeforeDispatch": true,
+          "controllerLoadedByTestVariant": true,
+          "heldStopRemainedStopping": true,
+          "repeatedKillCallsProducerAgain": true,
+          "cancelCalls": 2,
+          "settledEvents": 1
+        }
+      },
+      {
+        "id": "DSH-04/07 direct-stream-and-usage",
+        "status": "ok",
+        "startedAt": "2026-10-06T00:45:07.886Z",
+        "evidence": {
+          "chunks": 5,
+          "finish": "stop",
+          "reportedUsage": {
+            "inputTokens": 17,
+            "outputTokens": 12,
+            "totalTokens": 29
+          },
+          "offeredEffortCount": null,
+          "unsupportedEffortRejected": {
+            "name": "LlmError",
+            "code": "UNSUPPORTED_REASONING_EFFORT",
+            "message": "provider \"studyhub-qa-fake\" model \"fake-tutor\" does not support reasoning effort \"s10-intentionally-unsupported-effort\""
+          }
+        }
+      },
+      {
+        "id": "DSH-05/09 one-shot-child",
+        "status": "ok",
+        "startedAt": "2026-10-06T00:45:07.897Z",
+        "evidence": {
+          "providerCapabilities": {
+            "agentOptions": true,
+            "outputSchema": true,
+            "depthLimit": true,
+            "toolFilter": true,
+            "persona": true
+          },
+          "stopReason": "completed",
+          "persistedLabel": "S1-0 fake one-shot evidence",
+          "parentLineage": true,
+          "assistantEventCount": 1,
+          "pairedLifecycleEvents": true,
+          "disposed": true
+        }
+      },
+      {
+        "id": "DSH-01/03/09 owned-job-official-test-composition",
+        "status": "ok",
+        "startedAt": "2026-10-06T00:45:07.971Z",
+        "evidence": {
+          "controllerServesOwner": true,
+          "controllerLoadedByTestVariant": true,
+          "controllerProvisioning": "test-added official dsh-tool-jobs in s10-jobs-only preset",
+          "exactOwnerAccess": true,
+          "foreignAndCallerlessDenied": true,
+          "observerTimeoutPreservedProducer": true,
+          "transitions": [
+            "running",
+            "stopping",
+            "killed"
+          ],
+          "cancelCalls": 1,
+          "settledEvents": 1,
+          "awaited": true
+        }
+      },
+      {
+        "id": "DSH-01/03 studyhub-unload-host-job-boundary",
+        "status": "ok",
+        "startedAt": "2026-10-06T00:45:07.978Z",
+        "evidence": {
+          "productionFiberDisposed": true,
+          "ownerStillLive": true,
+          "hostJobSurvivedProducerFiber": true,
+          "implicitCancelCalls": 0,
+          "explicitCancelCalls": 1,
+          "explicitCleanupCompleted": true
+        }
+      },
+      {
+        "id": "DSH-01/03 owner-disposal-drains-job",
+        "status": "ok",
+        "startedAt": "2026-10-06T00:45:07.981Z",
+        "evidence": {
+          "ownerUnregistered": true,
+          "sessionRemoved": true,
+          "ownedRecordRemoved": true,
+          "cancelCalls": 1,
+          "scopeDisposals": 1
+        }
+      }
+    ],
+    "cleanup": {
+      "converged": true,
+      "parentScopeDisposals": 1
+    }
+  },
+  "localFakeRequests": 4,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "logsSha256": {
+    "targeted.log": "efbc08cf6b98cbe84b780e5f1bdcac3b379d7c9b79681a6fbab09b453f073699",
+    "host-binding-final.log": "164e628fa649c804ad4c432ad1f51c58991e1636d23d86f9f4beaaca8ccabf2f",
+    "verify.log": "a96eb5be0702462b71a70f8a0ae7929f8204d755dad9b23d37c56277dd1c91eb",
+    "hash-repro.log": "440e10bdb79c8b39f4c1651e362b1c395e9177f87ae261bbbf7767e477f5dbb5",
+    "final-lint.log": "3c381a5176b73b2657ffa8510bd74cb95c8e18cd8f5636aca4f87fbc98a8c698",
+    "build.log": "d8766f6d2b2c326c7e184f3fb31ab0a82be58facbe78bb1d7355433892dd99a1",
+    "pack-console.log": "eeb02657b23059c41e990a861ab55a643a0dbef8a34e4da423b92869c2f245bb"
+  },
+  "checks": {
+    "targeted": {
+      "pass": 92,
+      "fail": 0,
+      "skip": 0
+    },
+    "fullVerify": {
+      "pass": 5487,
+      "fail": 2,
+      "skip": 75,
+      "buildInVerify": "not run after failed tests",
+      "machineLock": "default home path unwritable; runner fallback; no parallel full run"
+    },
+    "packAndConsoleFollowup": {
+      "pass": 13,
+      "fail": 0,
+      "skip": 0,
+      "browserTests": 6,
+      "chromium": "151.0.7922.173"
+    },
+    "unchangedHashTestReproduction": {
+      "pass": 21,
+      "fail": 1,
+      "skip": 0
+    },
+    "finalLint": "passed",
+    "independentBuild": "passed"
+  },
+  "verificationFollowup": {
+    "baseline": "94008813efa62ead49f7e1c352c0ba169adac0a0",
+    "supportedNode": ">=22.19",
+    "ciNode": "22",
+    "observations": {
+      "node22": {
+        "pass": 22,
+        "fail": 0,
+        "beforeBytes": 7041103,
+        "peakBytes": 34566223
+      },
+      "node24": {
+        "pass": 21,
+        "fail": 1,
+        "beforeBytes": 5192205,
+        "peakBytes": 69679629
+      }
+    },
+    "finalNode24": {
+      "pass": 22,
+      "fail": 0,
+      "skip": 0,
+      "streamingPeakMiB": 1.182124137878418,
+      "bufferedControlMiB": 120.93212413787842
+    },
+    "sourceSha256": {
+      "tests/original-attach.test.mjs": "b52894534312de17e49cc3bc6bb43cf1b5a44365cc837a26c9b740b2d4c38d96",
+      "scripts/qa/perf-probe.mjs": "4e8d6d3a159f23ab2882473b8fd8f165ec13ce00afc7801192c653e2cbe7f4e8",
+      "scripts/qa/spine-layout.mjs": "af6a861a552f63b70393b338d09a006f3fe13c25b050fb6026ef82ccb6ea3176",
+      "tests/spine-layout.test.mjs": "6dcab3a554ac554d689149a458b534ae948f7ee1a350c27f8109efe29f6413cf",
+      "tests/slow-tests.json": "77d73072ad8054cc4c514e0ad81d371cd5a5597bd58f656cbde78990dfcfae11"
+    },
+    "logsSha256": {
+      "memory-observation-node22.log": "1958cb0fe9da0ebc23722ef35204dce4a3d230678a7ce2dfda483e423c9469e3",
+      "memory-observation-node24.log": "ed38a5ad62c061ebad247afe68e191ba8b47ef51cdd89f2d3f4f9659f9cb834b",
+      "memory-fixed-node22.log": "f0e2bcd604aac5a06008f829d9cc4634b634aca930f2cc49016edfabe4673a65",
+      "memory-fixed-node24.log": "1447b5d17f63438eb58e5f0af87b13ce007cb77361b1d168b14229fb668ccfa2",
+      "memory-final-node24.log": "ad6720aa0af61a04b4dd8d64351ff7a57c429f1c77780b8bc402d6333fc6be79",
+      "verify-node22-final.log": "942b6dadf98aca78dfb7a1e790a429f4da69916145bc63ed98e76fb4bac8fcd3",
+      "followup-harness.log": "eb86179e7e5bbe84d0d20725eca8ff411c8998c1070b91b5b7e08b2f1c10ba78",
+      "spine-http-final.log": "d35fc8685e9abf2ab37a7aafaa48fa014571e91bf7b3f5866f7295772364749d"
+    },
+    "fullVerification": "See PR #260 exact-head followup; prior failure receipt is preserved",
+    "productionChanges": false,
+    "node22FullBeforeEnvironmentFix": {
+      "pass": 5557,
+      "fail": 5,
+      "skip": 2,
+      "durationMs": 501947.043002,
+      "build": "not run after test failure",
+      "skipReason": "Windows-only file sharing tests"
+    },
+    "harnessFollowup": {
+      "first": {
+        "pass": 12,
+        "fail": 1,
+        "skip": 0
+      },
+      "finalSpine": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      },
+      "npm": "isolated Node prefix npm 11.9.0; no repository dependency changes"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # S1-1：版本读取与兼容实现
 
-契约前置 [PR #245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已审查、双平台 CI 通过，并按所有者 2026-10-06 的指令合并；merge SHA 为 `169a69ee8c64476576ce5bbc4ef9331d2db8ee1e`。实现先基于该正式基线，提交前再同步已合并正式 main `a569cbfdb79028580c15072509f1c6205a68691a`（覆盖率运行、更新间隔与 GitHub 安装准备）。在独立 `codex/unified-runtime-alpha` 分支继续。兼容实现仍待 PR 评审合并，S1-1 未勾选完成。
+契约前置 [PR #245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245) 已审查、双平台 CI 通过，并按所有者 2026-10-06 的指令合并；merge SHA 为 `169a69ee8c64476576ce5bbc4ef9331d2db8ee1e`。实现先基于该正式基线，提交前再同步已合并正式 main `a569cbfdb79028580c15072509f1c6205a68691a`（覆盖率运行、更新间隔与 GitHub 安装准备）。在独立 `codex/unified-runtime-alpha` 分支继续。兼容实现已由 [PR #255](https://github.com/EricWang1358/dsh-web-studyhub/pull/255) 合并，merge 为 `1a432f5e9cf166398385174cf1ec047f16cfceef`；以下保留当时验证记录。该 PR 只交付读取兼容，S1-1 整步仍未勾选完成。
 
 ## 实际接线
 
