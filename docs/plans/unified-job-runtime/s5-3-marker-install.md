@@ -9,7 +9,7 @@
 | 文件 | 职责 |
 |---|---|
 | `lib/marker-install.js` | `start` 拆成 `prepare`（确认、无在途安装、计划，全部先于任何进程/文件）、`claim`（占 DSH_HOME 唯一的安装槽）、`begin`（阶段流水线，经 `observe` 接缝运行每段进程）。旧 `start` 就是这三步，行为不变 |
-| `lib/contexts/audio/install/marker-install-job.js` | 任务定义：`admit`（再次要求 `confirm:true` 与目录归属，占槽）、`run`（`begin` + 等待结束）；`observeWithGateway` 把每段进程记成一条 `local-process` 观测 Call |
+| `lib/contexts/audio/install/marker-install-job.js` | 任务定义：`admit`（再次要求 `confirm:true` 与目录归属，占槽）、`run`（`begin` + 等待结束）；`../local-process-job.js` 的 `observeLocalWith`（与 S5-4 共用）把每段进程记成一条 `local-process` 观测 Call |
 | `lib/contexts/audio/install/marker-install-view.js` | 展示读取器（标题、阶段、进度），读的是安装槽里的同一个活状态 |
 | `lib/contexts/audio/install/marker-install-runs.js` | 开关的唯一读取点；`start` 提交 Job，`cancel` 走 Job 取消 |
 | `lib/marker-install-text.js` | 任务的全部中文文案（英文在 `application-messages-en.js`） |

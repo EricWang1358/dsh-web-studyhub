@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { INSTALL_MESSAGES, MARKER_INSTALL, markerInstallStatePath, venvLayout } from '../lib/marker-install.js';
 import { INSTALL_JOB_TEXT } from '../lib/marker-install-text.js';
-import { observeWithGateway } from '../lib/contexts/audio/install/marker-install-job.js';
+import { observeLocalWith } from '../lib/contexts/audio/local-process-job.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 import { patientCli, until } from './helpers/wait.mjs';
@@ -138,8 +138,8 @@ test('every sentence of the install job has its English form', () => {
 test('the steps that change the install folder are declared as side effects, the probes are not, and a non-zero exit is a failed call', async () => {
   const seen = [];
   const gateway = { step: key => ({ run: operation => operation(), observe: async (meta, work) => { const result = await work(new AbortController().signal); seen.push([key, meta.boundary, meta.sideEffect, result.status ?? null]); return result.value; } }) };
-  const observe = observeWithGateway(gateway);
+  const observe = observeLocalWith(gateway, 'install', 'marker');
   for (const kind of ['find-python', 'create-venv', 'install', 'verify']) await observe(kind, async () => ({ code: kind === 'install' ? 1 : 0 }), { sideEffect: MARKER_INSTALL.mutatingStages.includes(kind) });
-  assert.deepEqual(seen, [['install:find-python', 'local-process', false, null], ['install:create-venv', 'local-process', true, null],
-    ['install:install', 'local-process', true, 500], ['install:verify', 'local-process', false, null]]);
+  assert.deepEqual(seen, [['install:1:find-python', 'local-process', false, null], ['install:2:create-venv', 'local-process', true, null],
+    ['install:3:install', 'local-process', true, 500], ['install:4:verify', 'local-process', false, null]]);
 });
