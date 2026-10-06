@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Dialog, IconButton, InlineMessage } from '../../components/index.js';
+import { Button, Dialog, IconButton, InlineMessage, Select } from '../../components/index.js';
 import { TokenEstimateView } from '../../TokenUsage.jsx';
 
 /* The document's glossary (术语表): a term and what to do with it, kept as written or always rendered one way. It is passed
@@ -14,9 +14,8 @@ function Row({ row, index, onChange, onRemove, autoFocus }) {
   const id = useId();
   return <li className="tr-gloss__row">
     <input className="tr-gloss__term" aria-label={uiFormat('术语 {0}', [index + 1])} value={row.term} maxLength={80} autoFocus={autoFocus} placeholder={ui('例如 CQRS')} onChange={event => onChange({ term: event.target.value })} />
-    <select className="tr-gloss__mode" aria-label={uiFormat('术语 {0} 的处理方式', [index + 1])} value={row.mode} onChange={event => onChange({ mode: event.target.value })}>
-      <option value="keep">{ui('保持原文')}</option><option value="fixed">{ui('固定译法')}</option>
-    </select>
+    <Select className="tr-gloss__mode" aria-label={uiFormat('术语 {0} 的处理方式', [index + 1])} value={row.mode} onChange={mode => onChange({ mode })}
+      options={[{ value: 'keep', label: ui('保持原文') }, { value: 'fixed', label: ui('固定译法') }]} />
     <input id={id} className="tr-gloss__to" aria-label={uiFormat('术语 {0} 的固定译法', [index + 1])} value={row.mode === 'fixed' ? row.to : ''} maxLength={160} disabled={row.mode !== 'fixed'}
       placeholder={row.mode === 'fixed' ? ui('固定译成…') : ''} onChange={event => onChange({ to: event.target.value })} />
     <IconButton icon="close" size="sm" label={uiFormat('删除术语 {0}', [index + 1])} title={ui('删除这一行')} onClick={onRemove} />

@@ -1,15 +1,14 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Icon, PageHeader } from '../components/index.js';
+import { Combobox, PageHeader } from '../components/index.js';
 import { ExamCountdown } from '../CourseSettings.jsx';
-import { isParked } from '../CourseActive.jsx';
-import { groupCourseNames, rankCourses } from '../course-names.js';
+import { courseEntries } from '../course-picker-entries.js';
 
 /**
  * The home's heading: the study-mode's role input in interview mode, else the
- * current course as a course switcher (a transparent native select over the
- * heading keeps keyboard and screen-reader behaviour; its last entry opens the
- * course's settings), else the day's headline. `role` is { draft, setDraft }
+ * current course as a course switcher (a searchable Combobox whose trigger is
+ * the heading itself, with the course's settings as a footer action instead of
+ * a fake option), else the day's headline. `role` is { draft, setDraft }
  * from useRoleDraft. Always the page's title (h1), drawn by PageHeader.
  */
 export default function CourseHeading({ data, headline, onFocus, onCourseSettings, role }) {
@@ -25,25 +24,15 @@ export default function CourseHeading({ data, headline, onFocus, onCourseSetting
         }} />, { className: 'course-heading-title' });
   }
   if (!courses.length) return frame(headline, { className: 'course-heading' });
-  const parkedChoices = courses.filter(isParked);
+  // Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names as a tree; parked courses stay reachable, last.
+  const actions = onCourseSettings && focus.courseId
+    ? [{ id: 'course-settings', label: ui('课程设置…'), icon: 'settings', onSelect: () => onCourseSettings(focus.courseId) }] : [];
   return frame(<>
-      <span>{focus.course === '' ? ui('未分类课程') : focus.course || headline}</span>
-      <Icon name="caret" size={14} className="course-heading__caret" />
+      <Combobox variant="heading" label={ui('切换当前课程')} value={focus.course || ''} onChange={(course) => onFocus?.({ course })}
+        options={courseEntries({ courses, current: focus.course })} searchPlaceholder={ui('搜索课程或章节')}
+        emptyText={(query) => uiFormat('没有叫「{0}」的课程或章节', [query])} actions={actions}>
+        {focus.course === '' ? ui('未分类课程') : focus.course || headline}
+      </Combobox>
       <ExamCountdown course={(data.courses || []).find((course) => course.id === focus.courseId)} />
-      <select aria-label={ui('切换当前课程')} value={focus.course || ''}
-        onChange={(event) => (event.target.value === '@course-settings' ? onCourseSettings?.(focus.courseId) : onFocus?.({ course: event.target.value }))}>
-        {/* Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names grouped (WP14). */}
-        {groupCourseNames(rankCourses({ courses: courses.filter((course) => !isParked(course)), current: focus.course })).map((entry) => (entry.type === 'group'
-          ? <optgroup key={`group:${entry.key}`} label={entry.name}>
-            <option value={entry.parent.name}>{entry.parent.name} · {ui('含子课程')}</option>
-            {entry.chapters.map(({ course, chapter, depth }) => <option key={course.name} value={course.name}>{'  '.repeat(Math.max(0, depth - 1))}{chapter}</option>)}
-          </optgroup>
-          : <option key={entry.course.name} value={entry.course.name}>{entry.course.name || ui('未分类课程')}</option>))}
-        {/* Parked courses stay reachable, grouped apart; the heading's value may be one of them. */}
-        {parkedChoices.length > 0 && <optgroup label={uiFormat('未激活的课程 ({0})', [parkedChoices.length])}>
-          {parkedChoices.map((course) => <option key={course.name} value={course.name}>{course.name}</option>)}
-        </optgroup>}
-        {onCourseSettings && focus.courseId && <option value="@course-settings">{ui('课程设置…')}</option>}
-      </select>
     </>, { className: 'course-heading', 'data-tour': 'home-course' });
 }

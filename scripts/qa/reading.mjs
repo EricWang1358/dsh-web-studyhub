@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StudyService } from "../../lib/service.js";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
+import { pick } from "./pick.mjs";
 
 const SOURCE = { id: "qa-reading-notes", title: "Operating systems notes", courses: ["QA"],
   text: "A process is the unit of resource allocation in an operating system, and a thread is the unit of scheduling inside a process. Virtual memory gives every process its own address space, which the memory manager maps onto physical frames on demand. Page replacement decides which resident page leaves memory when a new page must be brought in." };
@@ -114,7 +115,7 @@ export async function runReadingQa(options) {
       return sizes.length;
     });
     await step("serif-and-paper", async () => {
-      await popover.locator(".reader-popover__panel .reader-select").selectOption("serif");
+      await pick(page, popover.locator(".reader-popover__panel .reader-select"), t("宋体 / 衬线", "Serif (Song)"));
       await panelButton(t("纸张", "Paper")).click();
       await sleep(200);
       const face = await family(".explanation.study-reading .md p");

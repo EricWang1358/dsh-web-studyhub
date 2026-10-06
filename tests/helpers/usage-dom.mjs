@@ -41,7 +41,7 @@ function wrap(node, strict) {
     get classList() { const names = this.className.split(/\s+/).filter(Boolean); return { contains: name => names.includes(name), length: names.length, [Symbol.iterator]: () => names[Symbol.iterator]() }; },
     get textContent() { const parts = []; const visit = item => { if (item.nodeName === '#text') parts.push(item.value); for (const child of item.childNodes || []) visit(child); }; visit(node); return parts.join(''); },
     get labels() {
-      if (this.tagName !== 'INPUT' && this.tagName !== 'SELECT' && this.tagName !== 'TEXTAREA') return null;
+      if (!['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(this.tagName)) return null; // a button is labelable too (a Select trigger)
       const found = []; let root = node; while (root.parentNode) root = root.parentNode;
       const visit = item => { if (item.nodeName === 'label' && (item.attrs?.find(a => a.name === 'for')?.value === this.id && this.id || contains(item, node))) found.push(wrap(item, strict)); for (const child of item.childNodes || []) visit(child); };
       visit(root); return found;

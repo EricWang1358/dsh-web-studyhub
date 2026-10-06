@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { pick } from '../scripts/qa/pick.mjs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -129,7 +130,7 @@ test('recap edits update the reading and outline while retaining the shared read
   await page.getByRole('button', { name: '显示设置', exact: true }).click();
   await page.getByRole('button', { name: '增大字号', exact: true }).click();
   await page.getByRole('button', { name: '宽', exact: true }).click();
-  await page.getByRole('combobox', { name: '字体', exact: true }).selectOption('serif');
+  await pick(page, page.getByRole('combobox', { name: '字体', exact: true }), '宋体 / 衬线');
   await page.getByRole('button', { name: '纸张', exact: true }).click();
   assert.equal(await page.getByRole('group', { name: '下划线', exact: true }).count(), 0);
   const chosen = await page.evaluate(() => JSON.parse(localStorage.getItem('study-reader-settings')));

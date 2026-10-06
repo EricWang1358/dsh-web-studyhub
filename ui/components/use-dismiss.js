@@ -29,7 +29,8 @@ export function useDismiss({ open: isOpen, onClose, refs, escape = true, returnF
     // A Select or Combobox popup opened from inside this panel is drawn outside it (in the study surface): pressing it is not pressing away.
     const away = event => { if (!inside(event.target) && !event.target?.closest?.('.sh-pop')) latest.current.onClose?.('outside'); };
     const key = event => {
-      if (event.key !== 'Escape' || open.at(-1) !== token) return;
+      // An open Select / Combobox popup owns Escape (it closes itself first), even before focus has moved into it.
+      if (event.key !== 'Escape' || open.at(-1) !== token || document.querySelector('.sh-pop__popup:not([data-closed])')) return;
       const target = event.target;
       if (!inside(target) && target !== document.body && target !== document.documentElement) return;
       event.preventDefault();

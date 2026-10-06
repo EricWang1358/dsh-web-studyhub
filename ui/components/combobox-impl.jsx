@@ -61,7 +61,7 @@ export default forwardRef(function ComboboxImpl({ options = [], value, onChange,
   const heading = variant === 'heading';
   return (
     <Base.Root items={all} filteredItems={choices} value={selected ? byKey.get(selected.key) : null} onValueChange={changed} open={open} disabled={disabled} required={required}
-      onOpenChange={(next) => { setOpen(next); }} onOpenChangeComplete={(next) => { if (!next) setQuery(''); }}
+      onOpenChange={(next) => { if (next) setQuery(''); setOpen(next); }} onOpenChangeComplete={(next) => { if (!next) setQuery(''); }}
       inputValue={query} onInputValueChange={(next, details) => { if (details.reason === 'input-change') setQuery(next); }}
       itemToStringLabel={(option) => option?.label ?? ''} isItemEqualToValue={(a, b) => a?.key === b?.key} autoHighlight modal={false}>
       <Base.Trigger ref={mergeRefs(ref, trigger)} aria-invalid={invalid || undefined} aria-label={label} {...rest}

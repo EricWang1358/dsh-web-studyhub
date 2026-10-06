@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
-import { Badge, Button, Checkbox, CloseButton, IconButton, Popover, SegmentedControl, TabPanel, Tabs } from './components/index.js';
+import { Badge, Button, Checkbox, CloseButton, IconButton, Popover, SegmentedControl, Select, TabPanel, Tabs } from './components/index.js';
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
@@ -314,12 +314,10 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
           trigger={({ props, ref }) => <Button ref={ref} size="sm" {...props}>{ui("布局")}</Button>}>
           <Button size="sm" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</Button>
           <Checkbox checked={showAttributes} onChange={(checked) => { setShowAttributes(checked); setFocusPositions({}); }} label={ui("显示属性")} />
-          <select aria-label={ui("布局方向")} value={direction} onChange={(ev) => { setDirection(ev.target.value); setFocusMode(false); setFocusPositions({}); }}>
-            <option value="auto">{ui("自适应方向")}</option><option value="right">{ui("从左到右")}</option><option value="down">{ui("从上到下")}</option>
-          </select>
-          <select aria-label={ui("布局间距")} value={spacing} onChange={(ev) => { setSpacing(Number(ev.target.value)); setFocusMode(false); setFocusPositions({}); }}>
-            <option value="1">{ui("标准间距")}</option><option value="1.6">{ui("宽松间距")}</option>
-          </select>
+          <Select aria-label={ui("布局方向")} value={direction} onChange={(next) => { setDirection(next); setFocusMode(false); setFocusPositions({}); }}
+            options={[{ value: "auto", label: ui("自适应方向") }, { value: "right", label: ui("从左到右") }, { value: "down", label: ui("从上到下") }]} />
+          <Select aria-label={ui("布局间距")} value={spacing} onChange={(next) => { setSpacing(next); setFocusMode(false); setFocusPositions({}); }}
+            options={[{ value: 1, label: ui("标准间距") }, { value: 1.6, label: ui("宽松间距") }]} />
           {!!Object.keys(positions).length && <Button size="sm" onClick={() => setPositions({})} title={ui("恢复自动排版")}>{ui("重置布局")}</Button>}
         </Popover>
         {selected && (
@@ -345,10 +343,9 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
       </ZoomBar>
       <div className="skc-search">
         <input aria-label={ui("查找概念")} placeholder={ui("查找概念…")} value={query} onChange={(ev) => setQuery(ev.target.value)} />
-        {components.length > 1 && <select aria-label={ui("概念分组")} value={component?.id || ""} onChange={(ev) => { setComponentId(ev.target.value); setFocusMode(false); onSelect(null); }}>
-          <option value="">{uiFormat("全部 {0} 组", [components.length])}</option>
-          {components.map((group) => <option key={group.id} value={group.id}>{uiFormat("{0} · {1} 个概念", [group.title, group.nodes.length])}</option>)}
-        </select>}
+        {components.length > 1 && <Select aria-label={ui("概念分组")} value={component?.id || ""} onChange={(next) => { setComponentId(next); setFocusMode(false); onSelect(null); }}
+          options={[{ value: "", label: uiFormat("全部 {0} 组", [components.length]) },
+            ...components.map((group) => ({ value: group.id, label: uiFormat("{0} · {1} 个概念", [group.title, group.nodes.length]) }))]} />}
       </div>
       {query.trim() && <div className="skc-results" aria-label={ui("概念搜索结果")}>
         {skeleton.nodes.filter((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 30).map((n) => (

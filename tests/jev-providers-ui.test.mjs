@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { jevMessage } from '../lib/jev-messages.js';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* The provider selector, the key-source row and the per-provider privacy note of the Jev settings section, zh and en.
    The key itself is never in the markup; a key from an environment variable shows only the variable's NAME. */
@@ -14,7 +15,7 @@ const compiled = await build({ stdin: { contents: `
   export { JevSettingsView, JevPrivacy } from './ui/JevSettings.jsx';
   export { privacyPoints, providerChoices, keySourceText, JEV_PROVIDER_META } from './ui/jev-flow.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { JevSettingsView, JevPrivacy, privacyPoints, providerChoices, keySourceText, JEV_PROVIDER_META, setUiLanguage } = module.exports;

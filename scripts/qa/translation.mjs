@@ -13,6 +13,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { createPreviewServer } from "../preview-server.mjs";
 import { launchChromium } from "./browser.mjs";
+import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { reportUsage } from "../../lib/usage-scope.js";
 
@@ -312,7 +313,7 @@ export async function runTranslationQa(options) {
       await page.getByRole("menuitem", { name: t("术语表…", "Glossary…") }).click();
       await page.locator("dialog[open] .tr-gloss").waitFor();
       await page.locator("dialog[open] .tr-gloss__term").first().fill(doc.term);
-      if (doc.fixed) { await page.locator("dialog[open] .tr-gloss__mode").first().selectOption("fixed"); await page.locator("dialog[open] .tr-gloss__to").first().fill(doc.fixed); }
+      if (doc.fixed) { await pick(page, page.locator("dialog[open] .tr-gloss__mode").first(), /固定译法|Fixed translation/); await page.locator("dialog[open] .tr-gloss__to").first().fill(doc.fixed); }
     }, { audit: false });
     await step("glossary-saved", async () => {
       await clearToasts();

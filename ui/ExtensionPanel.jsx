@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar } from './components/index.js';
+import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar, Select } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { indexProgress, runInstall, runUninstall, startIndex } from './retrieval-extension-flow.js';
 import css from './large-documents.css';
@@ -122,10 +122,8 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
     <div className="extension-panel__index">
       <div className="extension-panel__course">
         <label htmlFor={selectId}>{ui('要建立索引的课程')}
-          <select id={selectId} value={course} disabled={running || starting} onChange={event => setCourse(event.target.value)}>
-            <option value="">{ui('全部资料')}</option>
-            {list.map(name => <option key={name} value={name}>{name}</option>)}
-          </select>
+          <Select id={selectId} value={course} disabled={running || starting} onChange={setCourse}
+            options={[{ value: '', label: ui('全部资料') }, ...list.map(name => ({ value: name, label: name }))]} />
         </label>
       </div>
       {plan && !running && <p className="extension-panel__plan" role="status">{upToDate

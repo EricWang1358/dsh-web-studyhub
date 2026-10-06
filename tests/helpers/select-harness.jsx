@@ -3,8 +3,9 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button, Combobox, Dialog, Field, Popover, Select } from '../../ui/components/index.js';
 import { courseEntries } from '../../ui/course-picker-entries.js';
+import Ingest from '../../ui/Ingest.jsx';
 
-window.calls = { select: [], course: [], actions: [], deck: [], dialog: [], heading: [], popover: [] };
+window.calls = { select: [], course: [], actions: [], deck: [], dialog: [], heading: [], popover: [], ingest: [] };
 
 const TONES = [{ value: 'friendly', label: '亲切', hint: '默认' }, { value: 'professional', label: '专业' }, { value: 'strict', label: '严格', disabled: true }];
 const GROUPED = [{ group: '常用', options: [{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }] }, { group: '其他', options: [{ value: 'c', label: 'Gamma' }, { value: '', label: '不选' }] }];
@@ -59,12 +60,19 @@ function Scenario() {
   </div>;
 }
 
+/* The real Ingest form with a small library: its deck picker is a Combobox whose footer action creates a deck with the typed name. */
+function IngestScenario() {
+  const decks = [{ id: 'd1', title: '第 4 章 特征值', course: 'MA1522 线性代数', count: 38 }, { id: 'd2', title: '图与最短路', course: 'CS2040S 数据结构', count: 20 }, { id: 'd3', title: '期末 · 错题', course: 'MA1522 线性代数', count: 12 }];
+  const data = { decks, modelReady: true, focus: { course: 'MA1522 线性代数', courses: [{ name: 'MA1522 线性代数' }, { name: 'CS2040S 数据结构' }] } };
+  return <div className="study-app" id="scene" style={{ padding: 24, display: 'block', height: 'auto', minHeight: 900 }}><Ingest data={data} busy={false} start={config => window.calls.ingest.push(config)} onOpenSettings={() => {}} /></div>;
+}
+
 let root;
-window.mountScenario = () => {
+window.mountScenario = (name) => {
   root?.unmount();
   const host = document.getElementById('root');
   host.replaceChildren();
   root = createRoot(host);
-  root.render(<Scenario />);
+  root.render(name === 'ingest' ? <IngestScenario /> : <Scenario />);
 };
 window.harnessReady = true;

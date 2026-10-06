@@ -30,9 +30,7 @@ function Choose({ item, disabled, onChange }) {
   return (
     <span className="tc-control" data-control={item.key}>
       <label className="tc-control__label" htmlFor={id}>{item.label}</label>
-      <Select id={id} className="tc-select" value={item.value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
-        {item.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </Select>
+      <Select id={id} className="tc-select" value={item.value} disabled={disabled} onChange={onChange} options={item.options} />
     </span>
   );
 }

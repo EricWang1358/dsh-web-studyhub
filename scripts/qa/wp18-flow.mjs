@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { StudyService } from "../../lib/service.js";
 import { launchChromium } from "./browser.mjs";
+import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -97,7 +98,7 @@ async function run() {
       await sleep(300);
       record.readings = (await page.locator(".wf-readings").first().innerText()).slice(0, 600);
       await shot("4-readings", page.locator(".wf-readings").first());
-      await page.locator(".wf-course-switch select").focus();
+      await page.locator('.wf-course-switch [role="combobox"]').focus();
       await shot("5-switcher", page.locator(".wf-scope"));
       // One click on the hint moves the flow to the better-matching course.
       await page.locator(".wf-scope-hint .link-btn").click();
@@ -118,8 +119,8 @@ async function run() {
         await page.reload();
         await page.getByRole("button", { name: lang === "en" ? "Learning flow" : "学习流", exact: true }).first().click();
         await page.locator(".wf-quick-resume .link-btn").click().catch(() => {});
-        await page.locator(".wf-course-switch select").waitFor({ timeout: 20000 });
-        await page.locator(".wf-course-switch select").selectOption(PE);
+        await page.locator('.wf-course-switch [role="combobox"]').waitFor({ timeout: 20000 });
+        await pick(page, page.locator('.wf-course-switch [role="combobox"]'), PE);
         await page.locator("dialog[open]").waitFor({ timeout: 5000 });
         await sleep(400);
         record.blocked = await page.locator("dialog[open]").innerText();

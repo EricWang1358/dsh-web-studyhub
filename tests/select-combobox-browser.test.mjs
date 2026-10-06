@@ -17,7 +17,7 @@ try { browser = await launchChromium(); }
 catch (error) { if (!/Executable doesn't exist|browserType\.launch/.test(String(error.message))) throw error; unavailable = true; }
 after(() => browser?.close());
 
-async function open(t, { scale = '100', width = 1000, height = 900, reducedMotion = 'no-preference' } = {}) {
+async function open(t, { scale = '100', width = 1000, height = 900, reducedMotion = 'no-preference', scenario } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN', reducedMotion });
   t.after(() => context.close());
   const page = await context.newPage();
@@ -25,11 +25,11 @@ async function open(t, { scale = '100', width = 1000, height = 900, reducedMotio
   page.on('pageerror', error => errors.push(error.message));
   await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>${tokens}</style><style>${base}</style></head><body data-theme="dark"><div id="root"></div></body></html>`);
   await page.addScriptTag({ content: script });
-  await page.evaluate(() => window.mountScenario());
+  await page.evaluate(name => window.mountScenario(name), scenario);
   await page.locator('#scene').waitFor();
   await page.evaluate(value => { document.getElementById('scene').dataset.uiScale = value; }, scale);
   // The real trigger replaces the closed shell once the popup code has loaded.
-  await page.locator('#fields .sh-select__valuebox').first().waitFor();
+  await page.locator(scenario === 'ingest' ? 'button[role="combobox"][aria-haspopup="dialog"]' : '#fields .sh-select__valuebox').first().waitFor({ state: 'attached' });
   return { page, errors };
 }
 const calls = page => page.evaluate(() => JSON.parse(JSON.stringify(window.calls)));
@@ -194,6 +194,29 @@ test('Combobox with create: the typed name is in the action label, and Enter cre
   await popup(page).waitFor({ state: 'hidden' });
   assert.deepEqual((await calls(page)).actions.at(-1), ['new', '量子力学']);
   assert.equal(await page.locator('#typed').textContent(), '量子力学');
+  assert.deepEqual(errors, []);
+});
+
+test('Ingest: decks are grouped under their course (the current one first) and 新建题组 carries the typed name into the new deck', { skip: unavailable }, async t => {
+  const { page, errors } = await open(t, { scenario: 'ingest' });
+  const picker = page.getByRole('combobox', { name: '题组', exact: true });
+  assert.match(await picker.textContent(), /第 4 章 特征值/, 'a deck of the current course is chosen to begin with');
+  await picker.click();
+  await popup(page).waitFor();
+  const groups = await page.locator('.sh-pop__group-label').allTextContents();
+  assert.deepEqual(groups, ['MA1522 线性代数', 'CS2040S 数据结构'], 'the current course comes first');
+  assert.deepEqual((await page.getByRole('option').allTextContents()).map(text => text.replace(/\s+/g, '')), ['第4章特征值38题', '期末·错题12题', '图与最短路20题']);
+  await page.getByPlaceholder('搜索题组').fill('量子错题');
+  assert.equal((await page.getByRole('button', { name: /新建题组/ }).textContent()).trim(), '新建题组「量子错题」');
+  await page.getByRole('button', { name: /新建题组/ }).click();
+  await popup(page).waitFor({ state: 'hidden' });
+  assert.equal(await page.getByLabel('题组名称').inputValue(), '量子错题', 'the typed name is the name of the new deck');
+  await page.getByRole('button', { name: /开始录题/ }).click();
+  assert.equal((await calls(page)).ingest[0].deckTitle, '量子错题');
+  await picker.click();
+  await page.getByRole('option', { name: /图与最短路/ }).click();
+  await page.getByRole('button', { name: /开始录题/ }).click();
+  assert.equal((await calls(page)).ingest[1].deckId, 'd2');
   assert.deepEqual(errors, []);
 });
 

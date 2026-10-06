@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* WP28: the "大教材建议" card, the Settings section and the import hub's reaction to a file that is too large. */
 
@@ -14,7 +15,7 @@ const compiled = await build({ stdin: { contents: `
   export { runImport, importSummary, importAccept, routeImportFile } from './ui/ImportHub.jsx';
   export { generateAdvice } from './ui/large-document-advice.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { LargeDocumentCard, ExtensionsSettings, providerLabel, runImport, generateAdvice, importAccept, setUiLanguage } = module.exports;

@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { pick } from '../scripts/qa/pick.mjs';
 
 test('science settings apply, persist and run exact local tools in the real app', { timeout: 480000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'science-browser-')); t.after(() => rm(root, { recursive: true, force: true }));
@@ -39,9 +40,9 @@ test('science settings apply, persist and run exact local tools in the real app'
   const open = () => page.getByRole('button', { name: 'Formulas, images and calculation tools', exact: true }).click();
   await open();
   await page.locator('.science-preview math').waitFor();
-  await page.getByLabel('Formula size', { exact: true }).selectOption('150');
-  await page.getByLabel('Formula alignment', { exact: true }).selectOption('left');
-  await page.getByLabel('Maximum image height', { exact: true }).selectOption('540');
+  await pick(page, page.getByRole('combobox', { name: 'Formula size', exact: true }), '150%');
+  await pick(page, page.getByRole('combobox', { name: 'Formula alignment', exact: true }), 'Left');
+  await pick(page, page.getByRole('combobox', { name: 'Maximum image height', exact: true }), '540 px');
   assert.equal(await page.locator('.study-app').evaluate(el => el.style.getPropertyValue('--study-formula-scale')), '1.5');
   assert.equal(await page.locator('.science-preview .md-math').evaluate(el => parseFloat(el.ownerDocument.defaultView.getComputedStyle(el).fontSize) > 20), true);
   await page.getByRole('button', { name: 'Balance equation', exact: true }).click();

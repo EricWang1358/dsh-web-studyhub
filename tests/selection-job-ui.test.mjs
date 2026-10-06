@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* The reader's learning panel no longer waits on one host call. A supplement is a background job shown in place: stage in
    plain words, counts, elapsed time, the estimate and the real usage, a stop button, and, when it finishes, a result block
@@ -18,7 +19,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as GenerationTrace } from './ui/GenerationTrace.jsx';
   export { SelectionJobCard, SelectionJobList } from './ui/document-preview/SelectionJobs.jsx';
   export { default as DocumentLearning, LearningPanel } from './ui/document-preview/DocumentLearning.jsx';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const load = () => {
   const module = { exports: {} };
   new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);

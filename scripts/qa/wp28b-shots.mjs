@@ -13,6 +13,7 @@ import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { startFakeReleaseHost } from "../fake-extension.mjs";
 import { launchChromium } from "./browser.mjs";
+import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -76,7 +77,7 @@ async function main() {
         await shot("3-install-approval");
         await press(/允许并继续|Allow and continue/);
         await page.getByRole("button", { name: /为这门课建立检索索引|Build the search index/ }).waitFor({ timeout: 30000 });
-        await page.locator('.extension-panel__index select').selectOption({ label: "操作系统" }).catch(() => {});
+        await pick(page, page.locator('.extension-panel__index [role="combobox"]'), "操作系统").catch(() => {});
         await settle(700); await toSection(); await sleep(300);
         await shot("4-installed-ready");
 

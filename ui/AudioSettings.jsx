@@ -140,11 +140,10 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
         </div>
         <Disclosure className="audio-expert settings-disclosure" summary={ui('专家选项')} meta={ui('模型、并发')}>
           <Field label={ui('校对与翻译用哪个模型')}>
-            <Select value={view.textProvider} disabled={busy} onChange={(e) => save({ textProvider: e.target.value })}>
-              <option value="auto">{ui('自动（有对话模型就用它，否则用 Gemini）')}</option>
-              <option value="gemini">{ui('Gemini（同样先免费后付费）')}</option>
-              <option value="host">{ui('对话当前使用的模型')}</option>
-            </Select>
+            <Select value={view.textProvider} disabled={busy} onChange={(value) => save({ textProvider: value })} options={[
+              { value: 'auto', label: ui('自动（有对话模型就用它，否则用 Gemini）') },
+              { value: 'gemini', label: ui('Gemini（同样先免费后付费）') },
+              { value: 'host', label: ui('对话当前使用的模型') }]} />
           </Field>
           {modelField('transcribeModel', '转写模型')}
           {view.textProvider !== 'host' && modelField('textModel', 'Gemini 文本模型')}
@@ -157,28 +156,23 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
             onChange={value => save({ liveCorrectionReasoning: value })} />
           <Field label={ui('校对与翻译的并行数')}
             hint={ui('同时发给 DSH 模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。')}>
-            <Select value={view.textConcurrency ?? 3} disabled={busy} onChange={(e) => save({ textConcurrency: Number(e.target.value) })}>
-              {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count === 3 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
-            </Select>
+            <Select value={view.textConcurrency ?? 3} disabled={busy} onChange={(value) => save({ textConcurrency: value })}
+              options={[1, 2, 3, 4, 5, 6].map((count) => ({ value: count, label: count === 3 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count]) }))} />
           </Field>
           <Field label={ui('转写的并行数')}
             hint={ui('同时向转写服务商发送的录音数。免费额度和每分钟限流有限，默认 1 个；后一个录音的转写本来就会和前一个录音的校对、翻译同时进行。')}>
-            <Select value={view.transcribeConcurrency ?? 1} disabled={busy} onChange={(e) => save({ transcribeConcurrency: Number(e.target.value) })}>
-              {[1, 2, 3].map((count) => <option key={count} value={count}>{count === 1 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count])}</option>)}
-            </Select>
+            <Select value={view.transcribeConcurrency ?? 1} disabled={busy} onChange={(value) => save({ transcribeConcurrency: value })}
+              options={[1, 2, 3].map((count) => ({ value: count, label: count === 1 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count]) }))} />
           </Field>
           <Field label={ui('每次请求最长')}
             hint={ui('录音不超过这个长度就整段发送；更长时按最少的段数平均切开，尽量在停顿处。若长录音经常等不到回应，可以调小。')}>
-            <Select value={view.partMinutes ?? 59} disabled={busy} onChange={(e) => save({ partMinutes: Number(e.target.value) })}>
-              {[[59, '59 分钟（推荐：请求最少，最省免费额度）'], [45, '45 分钟'], [30, '30 分钟'], [20, '20 分钟'], [10, '10 分钟']].map(([minutes, label]) =>
-                <option key={minutes} value={minutes}>{ui(label)}</option>)}
-            </Select>
+            <Select value={view.partMinutes ?? 59} disabled={busy} onChange={(value) => save({ partMinutes: value })}
+              options={[[59, '59 分钟（推荐：请求最少，最省免费额度）'], [45, '45 分钟'], [30, '30 分钟'], [20, '20 分钟'], [10, '10 分钟']].map(([minutes, label]) => ({ value: minutes, label: ui(label) }))} />
           </Field>
           <Field label={ui('转写风格')}>
-            <Select value={view.mode} disabled={busy} onChange={(e) => save({ mode: e.target.value })}>
-              <option value="SMART">{ui('整理（去掉口头禅和重复，自动分段）')}</option>
-              <option value="VERBATIM">{ui('逐字（保留每个字）')}</option>
-            </Select>
+            <Select value={view.mode} disabled={busy} onChange={(value) => save({ mode: value })} options={[
+              { value: 'SMART', label: ui('整理（去掉口头禅和重复，自动分段）') },
+              { value: 'VERBATIM', label: ui('逐字（保留每个字）') }]} />
           </Field>
         </Disclosure>
       </Disclosure>

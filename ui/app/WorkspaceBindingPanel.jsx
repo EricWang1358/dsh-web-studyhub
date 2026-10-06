@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button } from '../components/index.js';
+import { Button, Select } from '../components/index.js';
 import LibraryUsage from '../LibraryUsage.jsx';
 import ReasoningEffortField from '../ReasoningEffortField.jsx';
 import { AppContext } from './app-context.js';
@@ -65,21 +65,15 @@ function Binding({ app }) {
       <div className="binding-row">
         <label className="binding-main">
           <span className="binding-label">{ui('生成模型')}</span>
-          <select value={customModelKey} disabled={busy} onChange={(event) => {
-            const value = event.target.value;
+          <Select value={customModelKey} disabled={busy} onChange={(value) => {
             if (value === 'manual') setModelDraft({ provider: binding.provider, model: binding.model });
             else if (!value) updateBinding({ provider: '', model: '' });
             else { const [provider, model] = JSON.parse(value); updateBinding({ provider, model }); }
-          }}>
-            <option value="">{followedModel ? uiFormat('跟随当前会话（{0}）', [modelName(followedModel)]) : ui('跟随当前会话')}</option>
-            {modelGroups.map((group) => (
-              <optgroup key={group.id} label={group.name || group.id}>
-                {group.models.map((model) => <option key={model.id} value={JSON.stringify([group.id, model.id])}>{model.name || model.id}</option>)}
-              </optgroup>
-            ))}
-            {customModelKey && !customListed && <option value={customModelKey}>{modelName(binding)}</option>}
-            <option value="manual">{ui('手动填写…')}</option>
-          </select>
+          }} options={[
+            { value: '', label: followedModel ? uiFormat('跟随当前会话（{0}）', [modelName(followedModel)]) : ui('跟随当前会话') },
+            ...modelGroups.map((group) => ({ group: group.name || group.id, options: group.models.map((model) => ({ value: JSON.stringify([group.id, model.id]), label: model.name || model.id })) })),
+            ...(customModelKey && !customListed ? [{ value: customModelKey, label: modelName(binding) }] : []),
+            { value: 'manual', label: ui('手动填写…') }]} />
           <small>{modelNote}</small>
         </label>
       </div>
