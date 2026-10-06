@@ -32,6 +32,7 @@ async function pdfPages(bytes) {
  *  failWhen(file)       return an err_msg to make that file `failed`
  *  holdWhen(file, poll) return true to keep a file `pending` on that poll (a slow or queued task)
  *  onPoll(file, poll)   observe each status request
+ *  loseCreateAnswers    how many creates are made but never answered (the connection is cut)
  */
 export async function startFakeMineru(options = {}) {
   const token = options.token ?? FAKE_TOKEN, steps = options.steps ?? 2;
@@ -88,6 +89,8 @@ export async function startFakeMineru(options = {}) {
       const batchId = `batch-${randomUUID().slice(0, 8)}`;
       const files = payload.files.map(entry => ({ ...entry, state: 'waiting-file' }));
       batches.set(batchId, { id: batchId, payload, files });
+      // The answer is lost on the way back: the batch exists, the caller never hears of it.
+      if (options.loseCreateAnswers > 0) { options.loseCreateAnswers--; request.socket.destroy(); return; }
       return json(response, ok({ batch_id: batchId, file_urls: files.map((_, index) => `${origin()}/upload/${batchId}/${index}`) }));
     }
     const status = /^\/api\/v4\/extract-results\/batch\/(.+)$/.exec(url.pathname);
