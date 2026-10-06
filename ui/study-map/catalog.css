@@ -96,6 +96,8 @@
       background: var(--bg-sunken);
       color: var(--text);
     }
+    /* The search field gives way, the 已归档 switch keeps its one line. */
+    .map-tools__archived { flex: none; white-space: nowrap; }
     .map-legend {
       display: flex;
       flex-wrap: wrap;
