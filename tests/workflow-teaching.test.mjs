@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 import { until } from "./helpers/wait.mjs";
+import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
 
 const article = "## 从一次请求开始\n\n" + "这是根据缓存复用条件构造的例子：先检查请求是否能使用保存的结果，再检查结果是否仍然有效。两项条件都满足时可以复用；否则回到原始服务取得结果。".repeat(5) +
   "\n\n## 一步一步推演\n\n" + "假设有效期是六十秒，这是为说明机制而设定的演示条件。十秒后的相同请求可以按这个策略复用，七十秒后的请求则需要回源。检查每一步的条件，而不是看到缓存就直接返回。".repeat(3) +
@@ -15,7 +16,7 @@ const approved = JSON.stringify({ grounded: true, coherent: true, explained: tru
 async function setup(t, complete) {
   const root = await mkdtemp(join(tmpdir(), "study-workflow-teaching-"));
   t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
-  const service = new StudyService(root, { complete });
+  const service = new StudyService(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['workflow'] }) });
   await service.store.update(s => {
     s.sources.push({ id: "source", title: "缓存资料", text: quote + "未命中时仍需访问原始服务。" });
     s.decks.push({ id: "deck", title: "缓存", cards: [{ id: "card", topic: "缓存", kind: "flashcard", prompt: "如何判断可复用？", answer: "检查请求和有效期", explanation: quote, citations: [{ sourceId: "source", quote }] }] });
@@ -112,7 +113,7 @@ test("concurrent clicks share one job and deleting the session prevents a late r
   const args = { id: session.id, version: session.version, stepId: "lesson", mode: "lesson" };
   const [a, b] = await Promise.all([service.call("workflow.teaching.start", args), service.call("workflow.teaching.start", args)]);
   assert.equal(a.session.records.lesson.teaching.id, b.session.records.lesson.teaching.id);
-  assert.equal(calls, 1);
+  await until(() => calls === 1, "the one lesson call");
   await service.call("workflow.session.delete", { id: session.id, version: a.session.version });
   release();
   await workerDone(service); // the detached worker has reached its guarded persistence write
@@ -166,7 +167,12 @@ test("a timed-out model call cannot trigger review or repair after it eventually
   t.mock.method(globalThis, "setTimeout", (callback, ms, ...args) => setTimeoutOriginal(callback, ms === 240000 ? 20 : ms, ...args));
   let release, calls = 0, returned = false;
   const gate = new Promise(resolve => { release = resolve; });
-  const { service, session } = await setup(t, async () => { calls++; await gate; returned = true; return generated(); });
+  // The request ends however it likes; a model that is stopped (the runtime hands it the Job's signal) answers with the stop.
+  const { service, session } = await setup(t, async (_system, _prompt, options) => {
+    calls++;
+    const stopped = new Promise((_, reject) => options?.signal?.addEventListener("abort", () => reject(new Error("stopped")), { once: true }));
+    try { await Promise.race([gate, stopped]); returned = true; return generated(); } catch (error) { returned = true; throw error; }
+  });
   await service.call("workflow.teaching.start", { id: session.id, version: session.version, stepId: "lesson" });
   const failed = await settled(service, session.id);
   assert.equal(failed.session.records.lesson.teaching.status, "failed");
