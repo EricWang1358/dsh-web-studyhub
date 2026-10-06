@@ -152,7 +152,7 @@
         }
       ],
       "owner": "generation family (lane B)",
-      "reason": "The gateway adapter itself: the language/content preparation of runtime/models.js, then one gateway step per call; the only model call of a generation run the runtime owns",
+      "reason": "The gateway adapter itself: one gateway step per call (the host model is prepared by runtime/models.js); the only model call of a generation run the runtime owns",
       "removeAt": "stays: it is the family's gateway boundary",
       "evidence": "s3-1-generation-queue.md"
     },
@@ -260,7 +260,7 @@
         }
       ],
       "owner": "runtime kernel maintainer",
-      "reason": "Approved native model gateway; retained authority",
+      "reason": "Approved native model gateway; retained authority (default and light lanes of the prepared host)",
       "removeAt": "retained gateway",
       "evidence": "s1-6-audio-implementation.md (DSH-04/05/07)"
     },
