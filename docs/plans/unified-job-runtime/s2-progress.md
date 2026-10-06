@@ -10,7 +10,7 @@
 | S2-1 | 已合并 | `codex/runtime-s21-audio-import` / #290 | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | verify 5947（2 项已修）；合并后整套 3 次 5984/0；双平台 CI | S2-2 批次（A 道） |
 | S2-1b | 已合并 | `codex/runtime-kernel-model-host` / #294 | `8a66375` | 网关用 `preparedModelHost`（语言/清理准备）、轻量通道 `{ model: 'light' }`、无持久化定义的结算通知 | 定向 334/0；双平台 CI | — |
 | S2-2 | PR 中 | `codex/runtime-s22-audio-batch` | `2573b58`（#295 后的 main） | 批次导入/重试、成员协调（`audio-batch` 定义）、共享持久化与展示模块 | verify 6152 项 / 6140 通过 / 0 失败 / 12 跳过；lint 与 build 绿 | S2-3 窗口与许可（A 道） |
-| S2-3 | PR 中 | `codex/runtime-s23-audio-windows` | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
+| S2-3 | 已合并 | `codex/runtime-s23-audio-windows` / #309 | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
 | S2-4 | PR 中 | `codex/runtime-s24-audio-subtitles` | S2-3 之上 | 字幕导入（`audio-subtitles`）、`audio-gateway-calls`、内核增量一处 | 见 S2-4 记录 | S2-5 复查与课堂校正（A 道） |
 
 ## S2-1 记录
