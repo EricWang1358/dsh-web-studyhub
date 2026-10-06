@@ -102,7 +102,7 @@ test("happy path: no patch, no reserve, the same calls as before", async () => {
 test("a card failing only explanationQuality is patched in the run; its answer fields stay byte-identical", async () => {
   const model = fakeModel({ reviewFail: { 2: ["explanationQuality"] }, defects: { 2: (card) => ({ ...card, explanation: card.answer }) },
     patch: (body) => ({ cards: body.cards.map((card) => ({ id: card.id, explanation: "Rewritten: the definition ties principle 2 to evolution, so a later choice that ignores it is wrong.",
-      answer: "HACKED", options: [], citations: [], objective: "HACKED", targetId: "target-9", id: card.id, kind: "flashcard" })) }) });
+      answer: "HACKED", options: [], citations: [], objective: "HACKED", targetId: "target-9", kind: "flashcard" })) }) });
   const result = await generate(model);
   assert.deepEqual(model.log.calls, ["plan", "blueprint", "author", "review", "patch", "review"]);
   assert.equal(model.log.reviewSizes[1], 1, "only the patched card is re-reviewed");

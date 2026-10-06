@@ -30,6 +30,8 @@ export default [
         { args: "none", varsIgnorePattern: "^_", ignoreRestSiblings: true },
       ],
       "no-undef": "error",
+      // A repeated key silently drops the earlier value (message tables merged from several lanes).
+      "no-dupe-keys": "error",
     },
   },
   {
