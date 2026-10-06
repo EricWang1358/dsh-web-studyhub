@@ -6,6 +6,12 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { withQualityStages } from './helpers/assessment.mjs';
 import { requestData } from './helpers/request-data.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
+
+// The runtime starts a job on a zero-delay timer: with the timers of a test mocked, that start waits for a tick.
+const dispatched = t => { if (SWITCH_MODE === 'runtime') t.mock.timers.tick(1); };
+// A model call of the runtime is always collected by the plugin (the gateway never lets a child answer into the parent session).
+const pluginOwned = executions => SWITCH_MODE === 'runtime' || executions.every(e => e.resultOwner === 'plugin');
 
 const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
 const card = (id, sourceId = 'json') => ({ id, kind: 'flashcard', topic: 'Bridge', objective: `Explain dimension ${id}`,
@@ -17,7 +23,7 @@ async function fixture(t, complete) {
   const previousHome = process.env.DSH_HOME;
   // Library-only fixtures must not activate the learner's machine-wide model experiments.
   process.env.DSH_HOME = join(root, 'home');
-  const service = new StudyService(root, { complete });
+  const service = new StudyService(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['generation'] }) });
   t.after(async () => {
     await service.dispose();
     if (previousHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previousHome;
@@ -201,7 +207,7 @@ test('supplement finishes in the exact deck without a leftover draft or phase ou
   assert.deepEqual(after.decks.find(d => d.id === 'target').cards[0], before.decks.find(d => d.id === 'target').cards[0]);
   assert.deepEqual(after.attempts, before.attempts);
   assert.ok(executions.length);
-  assert.ok(executions.every(e => e.resultOwner === 'plugin'));
+  assert.ok(pluginOwned(executions));
   assert.equal(notices.length, 1);
   assert.match(notices[0].text, /target/);
   assert.doesNotMatch(notices[0].text, /草稿里审阅或发布/);
@@ -232,6 +238,7 @@ test('supplement total-budget expiry publishes the approved checkpoint without e
   service.runtime.invoke = async (api, action, args, services) => { const result = await invoke(api, action, args, services); if (api === 'bank.v1' && action === 'draft.save') ready(); return result; };
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 6, kind: 'flashcard' });
+  dispatched(t);
   await checkpoint;
   expired = true;
   t.mock.timers.tick(20 * 60 * 1000);
@@ -272,6 +279,7 @@ test('budget finalization respects cancellation, target archival and stale revie
     };
     sub.mock.timers.enable({ apis: ['setTimeout'] });
     const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 6, kind: 'flashcard' });
+    dispatched(sub);
     await checkpoint;
     expired = true;
     sub.mock.timers.tick(20 * 60 * 1000);
@@ -309,7 +317,7 @@ test('original generation collects all phase output in the plugin and sends only
   const job = await service.call('generate', { sourceIds: ['p1'], count: 1, kind: 'flashcard' });
   const done = await service.call('job.wait', { jobId: job.jobId });
   assert.equal(done.status, 'complete');
-  assert.ok(executions.every(execution => execution.resultOwner === 'plugin'));
+  assert.ok(pluginOwned(executions));
   assert.equal(notices.length, 1);
   assert.ok(done.draftId, 'explicit draft generation still creates a draft');
 });

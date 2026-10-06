@@ -4,6 +4,7 @@
   "managedDefinitions": [
     "lib/contexts/audio/jobs/single-import.js",
     "lib/contexts/coach/jobs/coach-prep.js",
+    "lib/contexts/generation/jobs/generation.js",
     "lib/contexts/generation/retrieval/jobs/retrieval-index.js"
   ],
   "entries": [
@@ -139,6 +140,19 @@
       "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
       "removeAt": "S2 review; provider leaves may remain behind gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/gateway-model.js",
+      "calls": [
+        {
+          "callee": "step.complete",
+          "count": 1
+        }
+      ],
+      "owner": "generation family (lane B)",
+      "reason": "The gateway adapter itself: one gateway step per call (the host model is prepared by runtime/models.js); the only model call of a generation run the runtime owns",
+      "removeAt": "stays: it is the family's gateway boundary",
+      "evidence": "s3-1-generation-queue.md"
     },
     {
       "file": "lib/contexts/coach/jobs/light-step.js",
