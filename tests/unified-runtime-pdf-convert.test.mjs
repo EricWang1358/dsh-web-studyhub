@@ -157,7 +157,7 @@ test('a create whose answer is lost is not made again by the job: it stops with 
 test('every new sentence of the conversion has its English form', async () => {
   const { localizeAppMessage } = await import('../lib/application-messages.js');
   const { JOB_TEXT } = await import('../lib/mineru-job.js');
-  for (const text of [CONVERT_TEXT.needsSession, JOB_TEXT.createUnknown, JOB_TEXT.cannotVerify, JOB_TEXT.orphanBatch]) assert.notEqual(localizeAppMessage(text), text, text);
+  for (const text of [CONVERT_TEXT.needsSession, JOB_TEXT.createUnknown, JOB_TEXT.cannotVerify, JOB_TEXT.orphanBatch, JOB_TEXT.inputChanged]) assert.notEqual(localizeAppMessage(text), text, text);
 });
 
 test('a local conversion runs each window as one observed local-process Call; stopping it ends the Job only after the window\'s process is gone, and the folder is dealt with', async t => {

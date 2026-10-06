@@ -30,7 +30,7 @@ export async function harness(t, { state = {}, noCli = false, runtime = {} } = {
     for (const dir of [home, root, work]) await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
   const log = async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
-  return { service, call: (name, args) => service.call(name, args), log, calls: async () => (await log()).map(entry => entry.argv.join(' ')),
+  return { work, service, call: (name, args) => service.call(name, args), log, calls: async () => (await log()).map(entry => entry.argv.join(' ')),
     set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }), state: () => readJsonFile(statePath),
     jobs: async () => (await service.call('snapshot')).jobs.filter(job => job.type === SETUP_KIND),
     ended: status => until(async () => { const run = await service.call('mineru.local.setup.status'); return run.status === status && run; }, `the setup to be ${status}`, { timeoutMs: 120_000 }) };

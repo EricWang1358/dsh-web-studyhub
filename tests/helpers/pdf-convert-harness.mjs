@@ -64,9 +64,13 @@ export async function localHarness(t, state = {}) {
   });
   const log = async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
   const jobs = async () => (await service.call('snapshot')).jobs.filter(job => job.type === PDF_KIND);
-  const bytes = await makePdf({ pages: 120 }), { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name: 'Book.pdf', size: bytes.length });
-  for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
-  await service.call('mineru.upload.finish', { uploadId });
+  const bytes = await makePdf({ pages: 120 });
+  const upload = async () => {
+    const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name: 'Book.pdf', size: bytes.length });
+    for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
+    await service.call('mineru.upload.finish', { uploadId });
+    return uploadId;
+  };
   return { service, jobs, parses: async () => (await log()).filter(entry => entry.argv[0] === 'parse'),
-    start: () => service.call('mineru.import', { uploadId, route: 'local' }) };
+    start: async () => service.call('mineru.import', { uploadId: await upload(), route: 'local' }) };
 }
