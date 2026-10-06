@@ -3,7 +3,7 @@ import { ui } from "../i18n.js";
 import CompactJobCard from "../tasks/CompactJobCard.jsx";
 export { parallelNote, reuseNote } from "./audio-notes.js";
 export { reasoningNote } from "../EffortSelect.jsx";
-import { isActiveJob, JOB_TYPES } from "../../lib/job-status.js";
+import { isActiveJob, isAudioJob } from "../../lib/job-status.js";
 
 /* The background audio imports on the pages that start them (the add-source form, the sources page, the reader): each one is the compact job card, and
    everything more (every file, the parallel timeline, the live output, the log, the controls) is in the 任务 console, which 「查看详情」 opens with the
@@ -66,7 +66,7 @@ function primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings }) {
 
 /** Progress and results of audio imports; shown in the add-source form and at the top of the sources page. */
 export function AudioJobs({ data, busy, act, onOpenSources, onLegacyRetry, onOpenSettings }) {
-  const jobs = (data.jobs || []).filter((job) => job.type === JOB_TYPES.AUDIO_IMPORT);
+  const jobs = (data.jobs || []).filter(isAudioJob);
   return jobs.length ? <div className="cjc-list audio-jobs">{jobs.map((job) => <CompactJobCard key={job.id} job={job}
     onStop={act ? () => act("job.control", { jobId: job.batchId || job.id, action: "cancel" }) : undefined}
     primary={primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings })} />)}</div> : null;

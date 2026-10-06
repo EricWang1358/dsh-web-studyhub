@@ -10,7 +10,7 @@ import { saveAudioBatch } from '../../lib/audio-batch.js';
 
 export async function durableFixture(t, run, { recoveryMode = 'retry-from-start', pauseMode = 'unsupported', notifications = [], waitForDelivery = false, admit } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'durable-life-')), id = 'single-fixture-1';
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   await mkdir(join(root, 'audio-batches', id), { recursive: true });
   await saveAudioBatch(root, { id, kind: 'single', job: { id: 'legacy' } });
   const store = createManifestJobStore(join(root, 'audio-batches', id, 'manifest.json'));

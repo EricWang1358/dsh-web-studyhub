@@ -3,7 +3,7 @@ import { formatElapsed, formatNumber } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
 import { joinMeta } from '../format.js';
 import { parallelNote, reuseNote } from '../audio/audio-notes.js';
-import { contractOf, isRunningTask } from './task-model.js';
+import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
 
 /* The four facts beside a task's progress and the stage segments of its bar, read from the job's contract. */
 
@@ -62,7 +62,7 @@ export function taskFacts(job, now = Date.now()) {
  */
 export function usageLine(job) {
   const contract = contractOf(job), usage = contract.detail?.usage;
-  if (contract.kind !== 'audio-import') return '';
+  if (taskKindOf(job) !== 'audio') return '';
   const files = contract.detail.files || [], total = files.reduce((sum, file) => sum + (file.steps?.transcribe?.total || 0), 0);
   const reused = reuseNote(total > 0 ? { transcribe: { total, done: total, reused: files.reduce((sum, file) => sum + (file.steps?.transcribe?.reused || 0), 0) } } : undefined);
   const windows = contract.status === 'running' && files.some((file) => file.status === 'running' && ['proofread', 'translate'].includes(file.phase)) ? parallelNote(contract.detail.parallel?.text) : '';

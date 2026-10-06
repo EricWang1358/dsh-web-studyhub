@@ -2,7 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StudyService } from '../../lib/service.js';
 import { settleJob } from '../helpers/wait.mjs';
+import { audioSwitch } from '../helpers/audio-switch.mjs';
 
+// Modes: interrupt (B never answers; the process ends once A is saved), last (every request is answered; a preload ends the process at the last
+// member's result), resume (retry and finish), probe (retry and report what was refused).
 const [root, mode] = process.argv.slice(2), calls = [], transcribed = [];
 const reply = text => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: {} }));
 const fetch = async (url, init) => {
@@ -18,8 +21,8 @@ const fetch = async (url, init) => {
   if (system.startsWith('You translate')) return reply(JSON.stringify({ titleZh: '数据库', titleEn: 'Databases', paragraphs: JSON.parse(prompt).paragraphs.map(p => ({ n: p.n, zh: '数据库译文。' })) }));
   return reply('{"titleEn":"Lecture"}');
 };
-const service = new StudyService(root, { fetch });
-if (mode === 'interrupt') {
+const service = new StudyService(root, { fetch, ...audioSwitch() });
+if (mode === 'interrupt' || mode === 'last') {
   await mkdir(root, { recursive: true });
   await service.call('audio.settings.set', { paidKey: 'AIzaRestartBatch_000000000000001', textProvider: 'gemini', transcribeConcurrency: 1 });
   const bytes = fill => {
@@ -34,6 +37,8 @@ if (mode === 'interrupt') {
   await service.call('audio.upload.chunk', { uploadId, offset: 0, data: b.toString('base64') });
   await service.call('audio.upload.finish', { uploadId });
   const started = await service.call('audio.import', { files: [{ path: a }, { uploadId }], courses: ['Frozen A'] });
+  // Nothing more to report from this process: the preload that ends it does so at the point under test.
+  if (mode === 'last') await new Promise(() => {});
   // The manifest is replaced while this reads it (a half-written read is read again) and a busy machine can take long: wait for the condition, not for a count of polls.
   const deadline = Date.now() + 60_000;
   // A test that intercepts manifest replacement reports the persisted completion itself (globalThis.__firstMemberPersisted): reading the
@@ -46,6 +51,10 @@ if (mode === 'interrupt') {
     await new Promise(resolve => setTimeout(resolve, reported ? 10 : 25));
   }
   throw new Error('First member never completed');
+} else if (mode === 'probe') {
+  const before = (await service.call('snapshot')).jobs[0];
+  const refusal = await service.call('audio.retry', { jobId: before.id }).then(() => null, error => ({ code: error.code, message: error.message }));
+  process.stdout.write(JSON.stringify({ before, refusal, calls: calls.length, sources: (await service.store.read()).sources.length }));
 } else {
   const before = (await service.call('snapshot')).jobs[0], callsBeforeRetry = calls.length;
   // A fresh upload invokes stale-upload pruning; the unfinished batch owns an independent copy.
