@@ -1,6 +1,6 @@
 # S2-0：音频家族基线与所有权表
 
-> 源码基线：`origin/main` `8d661f4`（S1-7 已合并，package 2.6.x）。本步**没有改任何生产代码**：只补特征测试、写本记录。单文件导入已由 [s1-0-audio-behavior.md](s1-0-audio-behavior.md) 与 [s1-6-audio-contract.md](s1-6-audio-contract.md) 记录，这里只在与其余入口对照时引用，不重做。
+> 源码基线：`origin/main` `8d661f4`（S1-7 已合并，package 2.7.1）。本步**没有改任何生产代码**：只补特征测试、写本记录。单文件导入已由 [s1-0-audio-behavior.md](s1-0-audio-behavior.md) 与 [s1-6-audio-contract.md](s1-6-audio-contract.md) 记录，这里只在与其余入口对照时引用，不重做。
 >
 > 证据三类：**测试断言**（本步新增或既有，已在基线 SHA 上执行）、**源码观察**（只读代码，附 file:line）、**待核验**（没有动态证据，写明原因）。引用行号为 `8d661f4` 的行号。
 
