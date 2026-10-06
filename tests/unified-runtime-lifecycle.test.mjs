@@ -62,7 +62,7 @@ test('S1-2 stop is idempotent and waits for physical cleanup; observer timeout n
 
 test('S1-2 scope unload rejects admissions and waits for producer cleanup', async t => {
   const held = deferred(), started = deferred();
-  const f = fixture(t, { run: async context => { started.resolve(context); await held.promise; return { refs: [] }; } });
+  const f = fixture(t, { capabilities: { retry: true }, run: async context => { started.resolve(context); await held.promise; return { refs: [] }; } });
   t.after(() => held.resolve());
   const job = await f.port.submit('probe', {}); await started.promise;
   let released = false;
@@ -72,6 +72,8 @@ test('S1-2 scope unload rejects admissions and waits for producer cleanup', asyn
   await assert.rejects(() => f.port.submit('probe', {}), /unavailable|unloaded/);
   held.resolve(); await closing;
   assert.equal(f.port.status(job.jobId).status, 'cancelled');
+  assert.equal(f.port.status(job.jobId).actions.retry.available, false);
+  assert.equal(f.port.status(job.jobId).actions.retry.reason.code, 'scope-unloaded');
 });
 
 test('S1-2 checkpoint pause keeps logical wait open, resumes with a new Attempt and fences late publication', async t => {

@@ -46,3 +46,8 @@
 下一门禁：S1-2 实现 PR 的负责人验收与合并；之后才能按 S1-3 的真实资源/策略矩阵推进。当前批准不放行新文本配额策略、自动恢复、音频试点开启或发布。
 
 最后追加的请求 runtime 卸载回归先红后绿：原 `disposeRequests` 丢弃 drain promise，现所有 scope 清理逐层返回并等待它。对应 5 文件 20 pass / 0 fail，保留 `request-drain-red.log` / `request-drain-final.log`；最终精确提交全量验证以 CI 与 PR 收据为准。
+
+
+组合全量回归完成：5,636 pass / 0 fail / 2 Windows-only skip，601,159 ms，lint/build 通过，日志 verify-main.log。该长测启动后有最后的局部卸载修正，故不把它单独当作最终精确 SHA 全量证明；最后差异的定向检查和精确提交 CI 分别保留。
+
+最终复核补充了“定义已卸载后 retry 不再显示 available”的失败测试；修正仅刷新作用域失效后的动作拒绝原因（scope-unloaded），不改变 v1 或物理停止协议。相关 6 文件 83 pass / 0 fail，日志 unloaded-actions-red.log / unloaded-actions-final.log。实现独立 Draft PR #262；新实现没有获得合并授权。

@@ -17,7 +17,10 @@
     "action-matrix-red.log": "49c63ec88470c049cab329ff1058a9d022729db50b076be12e925a53cb56a443",
     "last-targeted.log": "e2a035e8a654db663464be31cd85c876196a46e22fb57f0374863aace9a1f486",
     "request-drain-red.log": "a717e0c65f9601ef95e435f8a6eb718a44d622be3fb36733e3398ca0effcbe03",
-    "request-drain-final.log": "15a5a29384f248c86f330339c65bd7c1f2e2be74d1f127ba5326aeeba4b85e97"
+    "request-drain-final.log": "15a5a29384f248c86f330339c65bd7c1f2e2be74d1f127ba5326aeeba4b85e97",
+    "verify-main.log": "334ab05f969051ccad068405df2c3e21e6d86aaa4a9830b46754219252466de3",
+    "unloaded-actions-red.log": "75fe1b275ecafabb372ba90e4f961f71957b8ab76d53ef436f146fb5b31bcdb6",
+    "unloaded-actions-final.log": "371914a5edcba4868b9c795d73db4eacd802c6c4f364809ab7abd209f2b3dfbf"
   },
   "sourceSha256BeforeIntegration": {
     "lib/contexts/jobs/operations.js": "e1882aa2380d465bed0113f0eaa9dc905c50bb1b7502bbe0e6d6fea72db5fb04",
@@ -442,7 +445,7 @@
     "lib/runtime/jobs.js": "9a7f7994c713af1b10467eadcacaa1b564e869fda3e5c0535bc888412ebce635",
     "lib/runtime/lifecycle.js": "da8db220a50280a800fb2b5736aed0b416774a7d74159ccba440f2e3335e688f",
     "lib/jobs/executor.js": "5698d0d5d8908314717d0b272721f41a54f5acf7674c8cf3c4b05c47dd8e5382",
-    "lib/jobs/lifecycle.js": "764cb04472a6e6020bef3f8fd36b70042804fea220b4ce9b0e3eda72945bece7",
+    "lib/jobs/lifecycle.js": "c38fc5891cc1fb2ec1219f99ce6d7efdce041a950cf9679bed57deb3f4da89f9",
     "lib/jobs/registry.js": "f66cf56995c025f53120e6037e92fc04abd7ef4960cee024b17247c924466125"
   },
   "preIntegrationFullVerify": {
@@ -460,5 +463,19 @@
     "merge": "b8ff5eef8132ede33bb1c3466e8651308124673e",
     "at": "2026-10-06T01:39:00Z",
     "implementationMergeAuthorized": false
+  },
+  "mainCombinationVerify": {
+    "pass": 5636,
+    "fail": 0,
+    "skip": 2,
+    "durationMs": 601158.740601,
+    "lint": "pass",
+    "build": "pass",
+    "qualification": "Started before the final tracked-runtime/action-availability refinements; those have separate targeted checks, final exact-head full verification is CI."
+  },
+  "unloadedActionsFollowup": {
+    "pass": 83,
+    "fail": 0,
+    "skip": 0
   }
 }
