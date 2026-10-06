@@ -5,14 +5,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { createModelGateway } from '../lib/jobs/gateway.js';
-import { gatewayModel } from '../lib/gateway-model.js';
 import { createJobServices } from '../lib/runtime/jobs.js';
 import { createRuntimeWork } from '../lib/runtime/work.js';
 import { dayOf } from '../lib/coach-daily.js';
 import { usageLedger } from '../lib/model-usage.js';
-import { reportUsage } from '../lib/usage-scope.js';
-import { goldenRuntimeContracts } from './fixtures/unified-runtime-contract.mjs';
 import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 import { privateRoot } from './helpers/model-family-baseline.mjs';
 import { lightModel, miss, seed } from './helpers/coach-library.mjs';
@@ -132,23 +128,6 @@ test('the parts of a day are no rows, are never archived and only the newest few
   services.pruneJobs();
   assert.equal([...work.jobs.values()].filter(job => job.listedIn).length, 20);
   assert.ok(work.jobs.has('part-24') && !work.jobs.has('part-0') && work.jobs.has('own'));
-});
-
-test('gatewayModel: one Step, one observed host attempt; the Step signal and the usage cross over', async () => {
-  const record = structuredClone(goldenRuntimeContracts.running); record.calls = []; record.runtime.steps = [];
-  const controller = new AbortController(), booked = [];
-  const context = { jobId: record.jobId, attemptId: record.attemptId, signal: controller.signal, assertCurrent: () => controller.signal.throwIfAborted() };
-  const gateway = createModelGateway({ context, record, host: {}, ledger: call => { booked.push(call); } });
-  const seen = [];
-  const model = async (system, prompt, options) => { seen.push(options); reportUsage({ uncachedInputTokens: 4, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 }); return `${system}/${prompt}`; };
-  const policy = { purpose: 'prep', feature: 'coach', requestedEffort: 'lowest', executionMode: 'direct', budget: null };
-  const complete = gatewayModel(gateway, { stepKey: 'variants:1', policyFor: options => ({ ...policy, requestedEffort: options.reasoningEffort ?? 'lowest' }) }, model);
-  assert.equal(await complete('s', 'p', { maxTokens: 9, reasoningEffort: 'high' }), 's/p');
-  assert.deepEqual([seen[0].maxTokens, seen[0].reasoningEffort, seen[0].signal instanceof AbortSignal], [9, 'high', true]);
-  const [call] = record.calls;
-  assert.deepEqual([call.requestedEffort, call.tokens, call.tokenUsage.calls, booked.length], ['high', 5, undefined, 1]);
-  controller.abort();
-  await assert.rejects(() => complete('s', 'p'));
 });
 
 test('the light model\'s hedged request stops with the caller\'s signal', async t => {

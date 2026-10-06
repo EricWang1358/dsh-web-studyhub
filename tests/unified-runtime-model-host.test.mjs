@@ -24,6 +24,8 @@ test('the gateway host is prepared like every model call: UI language once, loca
   assert.equal(seen[0].system.split('Application language preference').length, 2, 'one preference even when the family added it already');
   assert.ok(!seen[0].prompt.includes('base64,AAAA'), 'local image bytes are omitted');
   assert.equal(preparedModelHost({}), undefined, 'no session model, no host');
+  const given = await preparedModelHost({ jobModelHost: { complete: raw }, light: async () => 'given' }).light('s', 'p');
+  assert.equal(given, 'given', 'a light model the service was given (its `light` seam) is the light lane');
 });
 
 test('a step asks for the light lane explicitly, and only for direct execution', async t => {
