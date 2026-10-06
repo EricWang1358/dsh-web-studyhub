@@ -136,19 +136,6 @@
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
     },
     {
-      "file": "lib/contexts/coach/jobs/light-step.js",
-      "calls": [
-        {
-          "callee": ".complete",
-          "count": 1
-        }
-      ],
-      "owner": "coach maintainer",
-      "reason": "The managed call itself: gateway.step(...).complete on the host's light lane, kept out of the definition file",
-      "removeAt": "retained; the gateway is the one model entry",
-      "evidence": "s4-1-model-contract.md; tests/unified-runtime-coach.test.mjs"
-    },
-    {
       "file": "lib/contexts/materials/translation-operations.js",
       "calls": [
         {
