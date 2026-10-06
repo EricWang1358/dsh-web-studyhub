@@ -1,0 +1,163 @@
+{
+  "baseline": "6b6be21ddc7fdaefcef070db7a396e1530e529ff",
+  "contractPR": 270,
+  "actualHost": "0.2.0-rc.2",
+  "hostPassed": true,
+  "step": {
+    "id": "S1-4 actual-model-gateway",
+    "status": "ok",
+    "startedAt": "2026-10-06T04:36:52.813Z",
+    "evidence": {
+      "status": "complete",
+      "nativeJob": {
+        "service": "dsh-jobs",
+        "handleId": "s14-gateway-1",
+        "ownerAgentId": "89401a8e-94c8-456d-86b7-0b25800ded49"
+      },
+      "calls": [
+        {
+          "callId": "900320b0-718f-4069-b5f4-770593320cdb",
+          "jobId": "e4fa74a4-9e71-46ff-ba09-20d8406343f6",
+          "attemptId": "e66a9cc7-f413-42ba-8408-54fa57dbaa46",
+          "stepKey": "direct",
+          "stepRunId": "88da0357-be27-4383-a62f-3a1d0ced1c96",
+          "kind": "probe",
+          "startedAt": "2026-10-06T04:36:53.091Z",
+          "endedAt": "2026-10-06T04:36:53.126Z",
+          "status": "ok",
+          "runner": "direct",
+          "tokens": 23,
+          "observation": {
+            "boundary": "host-attempt",
+            "requestCount": null
+          },
+          "purpose": "probe",
+          "feature": "other",
+          "requestedEffort": "default",
+          "executionMode": "direct",
+          "budget": {
+            "timeoutMs": 10000,
+            "maxOutputTokens": 100
+          },
+          "tokenUsage": {
+            "uncachedInputTokens": 11,
+            "outputTokens": 12,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "appliedEffort": null,
+          "modelRequest": true,
+          "selectedEffort": "default",
+          "accounting": "recorded"
+        },
+        {
+          "callId": "934c686c-bfca-46be-ad7e-d93dabae56eb",
+          "jobId": "e4fa74a4-9e71-46ff-ba09-20d8406343f6",
+          "attemptId": "e66a9cc7-f413-42ba-8408-54fa57dbaa46",
+          "stepKey": "agent-required",
+          "stepRunId": "b0ea733d-e15b-4e91-91de-c7cdafb218b8",
+          "kind": "probe",
+          "startedAt": "2026-10-06T04:36:53.131Z",
+          "endedAt": "2026-10-06T04:36:53.220Z",
+          "status": "ok",
+          "runner": "subagent",
+          "childId": "7a9c7b1b-ab7d-44d9-ad7a-6a1988db211d",
+          "parentId": "89401a8e-94c8-456d-86b7-0b25800ded49",
+          "tokens": 1241,
+          "observation": {
+            "boundary": "host-attempt",
+            "requestCount": null
+          },
+          "purpose": "probe",
+          "feature": "other",
+          "requestedEffort": "default",
+          "executionMode": "agent-required",
+          "budget": {
+            "timeoutMs": 10000,
+            "maxOutputTokens": 100
+          },
+          "tokenUsage": {
+            "uncachedInputTokens": 1219,
+            "outputTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "appliedEffort": "default",
+          "modelRequest": true,
+          "selectedEffort": "default",
+          "accounting": "recorded"
+        },
+        {
+          "callId": "7675d043-ce64-471e-9957-196176fe6dfb",
+          "jobId": "e4fa74a4-9e71-46ff-ba09-20d8406343f6",
+          "attemptId": "e66a9cc7-f413-42ba-8408-54fa57dbaa46",
+          "stepKey": "effort-fallback",
+          "stepRunId": "ca9eb56a-f87e-450d-90c0-8dfa5ec3d2c9",
+          "kind": "probe",
+          "startedAt": "2026-10-06T04:36:53.222Z",
+          "endedAt": "2026-10-06T04:36:53.237Z",
+          "status": "ok",
+          "runner": "direct",
+          "tokens": 22,
+          "observation": {
+            "boundary": "host-attempt",
+            "requestCount": null
+          },
+          "purpose": "probe",
+          "feature": "other",
+          "requestedEffort": "highest",
+          "executionMode": "direct",
+          "budget": null,
+          "tokenUsage": {
+            "uncachedInputTokens": 10,
+            "outputTokens": 12,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "appliedEffort": null,
+          "modelRequest": true,
+          "selectedEffort": "default",
+          "fallbackReason": "unsupported",
+          "accounting": "recorded"
+        }
+      ],
+      "fingerprints": {
+        "lib/jobs/gateway.js": "6ca7f97598c490f9cd346bbef10a70337cfa7a21b6f5b4521618c73febcc5765",
+        "lib/jobs/lifecycle.js": "e1a957f6b168ca3a2c1c87c0acf4b7dc255c4ddfb5ec345def816415fae00ccf",
+        "lib/jobs/executor.js": "5698d0d5d8908314717d0b272721f41a54f5acf7674c8cf3c4b05c47dd8e5382",
+        "lib/host-capabilities.js": "80a97cad14967d76149bd50786aede1a50b8ad5606aaaf8a8149395a2644f1e2",
+        "lib/index.js": "86fecba4e42c5f302b94adb1035d2d8c9bdf11e3d6910dd3ffd60d81cb88b7a8",
+        "lib/model-usage.js": "df6eaebbbabee76c9dc3c3b8b2df85969639aad96b1eb9b799aabc2cb82cab43",
+        "lib/audio-gateway.js": "19a2c5b3b6caa69194b2dd6cd202b72fd482ac78be795c4475a159d8e0fc0f20",
+        "lib/audio-dashboard.js": "58da9cb4dddac8abba500ca4a14d8f9e8d6d0cb265c86679cdb938fa468c162b",
+        "lib/gemini.js": "47501177a4a53b8636d56504ed783556c296c33ab4a1fe33585ba0cbfe9a34af",
+        "lib/audio-job.js": "424cb0dee0fdd11be00ed8b0593c3d80d0edcd66ad3f9a4002bb01320ab45652"
+      },
+      "childDisposed": true,
+      "lateAdmissionCancellationDrained": true,
+      "paidModel": false,
+      "observation": "actual installed rc.2 host with local fake adapter; current production modules, installed StudyHub package unchanged"
+    }
+  },
+  "cleanup": {
+    "converged": true,
+    "parentScopeDisposals": 1
+  },
+  "fakeModelRequests": 8,
+  "pageErrors": 0,
+  "paidRequests": 0,
+  "limits": [
+    "Current modules imported into isolated installed host; installed StudyHub package unchanged",
+    "Model outputs/usage are local fake adapter reports, not paid quality/billing",
+    "Host internal HTTP request counts remain unknown",
+    "Final full verification and head CI results recorded in implementation PR"
+  ],
+  "logs": {
+    "s14-gateway-red.log": "ec05350c4609202977c5b4f20a6ca1a2d488ff5068da7bc55784ddbc2016781d",
+    "s14-host-ledger-red.log": "9562ef3c028212cd23f4b070a2a7d0f3b7a6cfe6e6208353c92ba1a631131b9d",
+    "s14-late-admission-red.log": "5f4d1a05473bc0728e076e4af5d109c9506900c386b9f207e532cca0b288a9f9",
+    "s14-audio-pipeline-red.log": "84a5326955af496837ac91c6a3d0e7ed6219cf0a57ce5162bed2b0263d14d784",
+    "s14-pipeline-both.log": "7c4ff6044887a76f11aa47915d90bc0c01a36f3999c00990664f424a8f1ac7df",
+    "s14-native-final-source.log": "a11f4ecbf2798236ab119a513f2bcb4f0c1e73b955fa7abf59ad9b0db75eb2ca"
+  }
+}
