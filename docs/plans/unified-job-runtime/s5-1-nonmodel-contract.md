@@ -1,6 +1,6 @@
 # S5-1：非模型执行与能力契约差额
 
-核验日期：2026-10-06。分支 `codex/runtime-s51-nonmodel-contract`，基线 origin/main `fd5c5a1`（S5-0）加内核 PR #287（S2-1a：`gateway.observe` 的 `sideEffect`、`context.persistence`）。依据 [S5-0 基线](s5-0-nonmodel-baseline.md) 的 G-1…G-11 与 D-1…D-13；工作包文本见 [U28](sprints-2-6.md#u28-s5-1)。
+核验日期：2026-10-06。分支 `codex/runtime-s51-nonmodel-contract`，基线 origin/main `336d9c1`（含 S5-0 与内核 PR #287：`gateway.observe` 的 `sideEffect`、`context.persistence`）。依据 [S5-0 基线](s5-0-nonmodel-baseline.md) 的 G-1…G-11 与 D-1…D-13；工作包文本见 [U28](sprints-2-6.md#u28-s5-1)。
 
 本步结论一句话：**非模型任务要用的内核差额很小——4 处增量改动（各自独立提交、先红后绿），其余 G 项由已发布内核加"家族自己的定义"承担，不新增内核类型分支、不新增资源种类、不新增重试层。** 本步不迁移任何生产入口（`lib/index.js`、`builtins.js`、`convert.js` 都没改）。
 
@@ -42,7 +42,7 @@
 | P1/P2/P3 PDF 与 Marker 转换（S5-2） | 是 | 是（原 `mineru.retry`） | 不支持（原 `CAPABILITIES['pdf-convert']` 不可暂停） | `resume-checkpoint`（manifest 适配器） | 否 | `jobs/<id>/manifest.json` | 云端 `external-request`；本地 mineru/marker `local-process` | 令牌、隐私确认在 `admit`；转换闸门为准入租约（D-11 是否拆成云/本地两个闸门由 S5-2 决定） |
 | P4 Marker 安装/卸载（S5-3） | 是 | **否** | 不支持 | `none` | 否 | 无（`marker-install.json` 仍是业务状态） | `local-process`（python/venv/pip/验证） | `confirm:true`、目录所有权、sentinel 在入口与 `admit` 两处；助手拒绝表保持在 `lib/index.js` |
 | P5 MinerU 本地 setup（S5-4） | 是 | **否** | 不支持 | `none` | 否 | 无 | `local-process`（服务启停、模型下载、配置写入） | `confirm:true`、tier 校验在 `admit`；"可用后才启用配置"的顺序保留在 `run` |
-| P6 检索索引（S5-5） | 是 | 是（再次按 manifest 差量，不重复写已索引页） | 不支持 | `none` | 否 | 无新增；manifest 仍是检查点 | `local-process`（宿主 MCP `ingest_data`/`delete_file` 调用） | 缺 provider/ingest 工具在入口与 `admit` 明确拒绝 |
+| P6 检索索引（S5-5） | 是 | **否**（再次"开始"即按 manifest 差量续做；不提供控制台重试，因为重试会绕过入口的同库单飞检查） | 不支持 | `none` | 否 | 无新增；manifest 仍是检查点 | `local-process`（宿主 MCP `ingest_data`/`delete_file` 调用） | 缺 provider/ingest 工具在入口与 `admit` 明确拒绝 |
 
 `executionModes` 对全部非模型定义保持默认，不写 `subagent`。能力只声明上表真实可用的；没有 Settings-only 以外的假按钮。
 
