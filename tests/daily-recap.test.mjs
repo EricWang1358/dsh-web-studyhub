@@ -9,7 +9,10 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 const writing = '# 今日学习总结\n\n' + '围绕已练习的知识点整理正确思路，核对条件与推理步骤。'.repeat(8);
+// A recap belongs to a calendar day: freeze the clock at a midday so answering and generating never straddle midnight.
+const MIDDAY = Date.parse('2026-10-06T12:00:00+08:00');
 async function fixture(t, options = {}) {
+  t.mock.timers.enable({ apis: ['Date'], now: MIDDAY });
   const root = await mkdtemp(join(tmpdir(), 'study-daily-recap-'));
   const service = new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { complete: options.complete, paths: ['dailyRecap'] }) });
   // A recap Job may still be writing when the test ends: let the service stop, then remove the folder with retries.
