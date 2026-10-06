@@ -74,7 +74,8 @@ test('a skip retry that cannot start puts the skipped marks back, and one that c
   const card = await rowOf(lib, failed.id);
   assert.deepEqual([card.status, card.retryable], ['failed', true], 'the failed card is still there to act on');
   await writeFile(lib.a, original);
-  const retried = await lib.service.call('audio.retry', { jobId: failed.id, skip: [1] });
+  // The console's "skip this file" names the job by its contract attempt id, not the card id.
+  const retried = await lib.service.call('audio.retry', { jobId: card.contract.attemptId, skip: [1] });
   const done = await settleJob(lib.service, retried.jobId);
   assert.deepEqual([done.status, done.members.map(member => member.status)], ['complete', ['complete', 'skipped']]);
 });
