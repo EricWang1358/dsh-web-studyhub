@@ -68,6 +68,13 @@ test('a definition without persistence announces settlement once before observer
   assert.equal(port.status(job.jobId).detail.notificationError, 'delivery-failed');
 });
 
+test('a sink of a definition without persistence is given the bindings its job was submitted with (the submitter\'s own services)', async t => {
+  const seen = [], bindings = { worker: { announce: text => seen.push(text) } };
+  const port = runtime(t, { run: async () => ({ refs: [] }), notifications: [{ channel: 'session', deliver: (_event, _view, given) => given.worker.announce('settled') }] });
+  await port.wait((await port.submit('probe', {}, {}, bindings)).jobId);
+  assert.deepEqual(seen, ['settled']);
+});
+
 test('notification sinks are validated, and durable definitions keep theirs on the persistence port', () => {
   const lifecycle = createJobLifecycle('/private-library', createRuntimeWork()), ctx = new Context();
   for (const notifications of [{}, [{ channel: '', deliver() {} }], [{ channel: 'x' }]]) {

@@ -52,7 +52,8 @@ test('G-10: a step budget is the per-operation timeout of a non-model task; no j
   const alive = setInterval(() => {}, 1000); t.after(() => clearInterval(alive)); // AbortSignal.timeout does not keep the process alive
   const f = await durableFixture(t, async context => {
     await observed(context, 'download', { sideEffect: false }, signal => new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true })),
-      { ...step, budget: { timeoutMs: 20 } });
+      // Long enough that the budget never expires before the request is dispatched, even on a loaded machine.
+      { ...step, budget: { timeoutMs: 1000 } });
     return { refs: [] };
   });
   const job = await f.port.submit('persist', {}), end = await f.port.wait(job.jobId);

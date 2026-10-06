@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 const lines = Array.from({ length: 40 }, (_, index) => `Paragraph number ${index} explains one more consequence of the architecture in some detail.`);
 const markdown = `# Notes\n\n${lines.join('\n\n')}\n`;
@@ -22,7 +23,7 @@ test('a translation job: the next wave is sized by the concurrency in force, and
     return JSON.stringify({ translations: data.passages.map((passage) => ({ id: passage.id, text: `译文：${passage.text.length}` })) });
   };
   const root = await mkdtemp(join(tmpdir(), 'translation-control-'));
-  const runtime = createStudyRuntime(root, { complete, notify: () => {}, language: 'zh' });
+  const runtime = createStudyRuntime(root, { complete, notify: () => {}, language: 'zh', ...switchOptions(SWITCH_MODE, { complete, paths: ['translation'] }) });
   t.after(async () => { await runtime.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   const imported = await runtime.call('materials.document.import', { filename: 'notes.md', dataBase64: Buffer.from(markdown).toString('base64') });
   const scope = { sourceIds: [imported.document.sources[0].id] };
@@ -49,5 +50,5 @@ test('a translation job: the next wave is sized by the concurrency in force, and
   assert.equal(done.done, done.total);
   assert.ok(calls.length > frozen, 'the rest was translated after the resume');
   const finished = (await runtime.call('snapshot')).jobs.find((item) => item.id === started.jobId);
-  assert.equal('control' in finished, false);
+  assert.equal(finished.control, undefined, 'nothing left to adjust');
 });

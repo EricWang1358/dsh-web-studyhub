@@ -47,11 +47,12 @@ surface  (operations / tools / ui)     入口、权限、开关读取、控制�
 ## 4.1 内核给定义的接口（S2-1a 起）
 
 - `context.persistence`：定义自己 `persistence.open` 返回的端口；admit/run 直接用，不挂在 bindings 上。
+- `initialPresentation(input, bindings)`（可选）：返回一个 reader，submit 返回前装上，记录一进任务表就是完整的（第二次启动、列表、状态在同一轮就能找到它）；admit 里的 `context.present` 随后接管。不要用轮询或旁表等第一轮。
 - `context.admission.state`：admit 返回的 lease 里放本次 attempt 的状态（视图、设置、流水线缓存等），run 读取。
 - `gateway.observe({ boundary, sideEffect })`：观察到结束即已知结果；只有 `sideEffect: true`（重复执行不安全的远端操作）在失败或结果未知时保持 pending，阻止盲目重发。
 - 宿主模型：网关调用的是 `preparedModelHost(services)`——与其他模型调用同一套准备（界面语言、图片/脚注清理、阶段本地化），不记账（网关入账）。家族不要绕开 `gateway.step().complete()` 自己包模型函数。
 - 轻量通道：`gateway.step(key, policy, { model: 'light' })` 走宿主轻量路线（对冲 + 一次瞬时重试），只用于 `direct`。
-- 结算通知：有持久化的定义在 persistence 端口上声明 `notifications`；没有持久化的定义在定义上声明 `notifications: [{ channel, deliver(event, view) }]`，结算后进程内投递一次、观察者等投递完成；失败记在 `detail.notificationError`，不改变终态。
+- 结算通知：有持久化的定义在 persistence 端口上声明 `notifications`；没有持久化的定义在定义上声明 `notifications: [{ channel, deliver(event, view, bindings) }]`（bindings 是提交时给的，即提交者自己的服务），结算后进程内投递一次、观察者等投递完成；失败记在 `detail.notificationError`，不改变终态。
 - 学习者可见的拒绝：内核抛结构化 code，家族在入口处映射成文案（如 `audioRefusal`），不在内核里写文案。
 
 ## 5. 测试成本

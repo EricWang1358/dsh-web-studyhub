@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { reportUsage } from '../lib/usage-scope.js';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const deferred = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
@@ -43,7 +44,7 @@ function gatedModel() {
 
 async function fixture(t, { model = gatedModel(), notices = [], language = 'zh', noModel = false, body = markdown } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'translation-jobs-'));
-  const runtime = createStudyRuntime(root, { ...(noModel ? {} : { complete: model.complete }), notify: message => notices.push(message), language });
+  const runtime = createStudyRuntime(root, { ...(noModel ? {} : { complete: model.complete, ...switchOptions(SWITCH_MODE, { complete: model.complete, paths: ['translation'] }) }), notify: message => notices.push(message), language });
   // The runtime is disposed first (a stopped job may still be writing a shard), then the folder goes, with retries for a slow filesystem.
   t.after(async () => { await runtime.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   const imported = await runtime.call('materials.document.import', { filename: 'notes.md', dataBase64: Buffer.from(body).toString('base64') });
@@ -108,8 +109,8 @@ test('paragraphs that already have a translation are skipped and never sent', as
 test('a second start for the same page while it runs is the same job, not a duplicate', async t => {
   const model = gatedModel(); model.gates.set(0, deferred());
   const f = await fixture(t, { model });
-  const first = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope });
-  const second = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope });
+  const first = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope, concurrency: 1 });
+  const second = await f.runtime.call('generation.translation.start', { documentId: f.imported.documentId, scope: f.scope, concurrency: 1 });
   assert.equal(second.jobId, first.jobId);
   assert.equal(second.alreadyRunning, true);
   assert.equal((await f.runtime.call('generation.translation.jobs', { documentId: f.imported.documentId })).jobs.length, 1);

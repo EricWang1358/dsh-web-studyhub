@@ -10,7 +10,8 @@
 | S2-1 | 已合并 | `codex/runtime-s21-audio-import` / #290 | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | verify 5947（2 项已修）；合并后整套 3 次 5984/0；双平台 CI | S2-2 批次（A 道） |
 | S2-1b | 已合并 | `codex/runtime-kernel-model-host` / #294 | `8a66375` | 网关用 `preparedModelHost`（语言/清理准备）、轻量通道 `{ model: 'light' }`、无持久化定义的结算通知 | 定向 334/0；双平台 CI | — |
 | S2-2 | PR 中 | `codex/runtime-s22-audio-batch` | `2573b58`（#295 后的 main） | 批次导入/重试、成员协调（`audio-batch` 定义）、共享持久化与展示模块 | verify 6152 项 / 6140 通过 / 0 失败 / 12 跳过；lint 与 build 绿 | S2-3 窗口与许可（A 道） |
-| S2-3 | PR 中 | `codex/runtime-s23-audio-windows` | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
+| S2-3 | 已合并 | `codex/runtime-s23-audio-windows` / #309 | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
+| S2-4 | PR 中 | `codex/runtime-s24-audio-subtitles` | S2-3 之上 | 字幕导入（`audio-subtitles`）、`audio-gateway-calls`、内核增量一处 | 见 S2-4 记录 | S2-5 复查与课堂校正（A 道） |
 
 ## S2-1 记录
 
@@ -104,3 +105,61 @@
 | `orderedWindows` | 保留（排序/上下文/收尾）；不另有许可 |
 | `createPool`、`withModelRetry`、`exclusive` | 保留，各管各的错误类别/键 |
 | `syncAudioGate`、`liveControls.setTranscribeLimit`、定义里的 `holdTranscriptionSlot` | 共用 `applyTranscribeLimit` |
+
+## S2-4 记录（字幕导入）
+
+**改动**
+
+- 新定义 `audio-subtitles`（scope `audio.v1`，开关 `runtime.pilot.audioSubtitles`，默认关）：`jobs/subtitles.js`（定义）、`subtitles-run.js`（一次尝试）、`subtitle-view.js`（展示与旧字段）、`submit-subtitles.js`（提交 / 进程内重试）。无持久化：字幕文本只在内存里，重启后任务消失（D-9 如实保留，未新增输入持久化）；能取消、能在进程内重试（已校对/翻译的窗口仍在 `audio-cache`，重试只做剩下的），不能暂停、不能恢复，`capabilities` 如实声明。
+- `lib/subtitle-job.js` 拆成 `subtitlePlan` / `existingSubtitleSources` / `translateSubtitle` / `storeSubtitle`，旧 `executeSubtitleJob` 与运行时共用，不复制。
+- `lib/audio-gateway-calls.js`：音频任务经网关的请求（策略、标签、实时输出桥、宿主/Gemini 文本）收成一处，`importAudio` 与字幕共用（以后复查、课堂保存也用）。
+- 发布：`store.publishSources(sources, { assertCurrent })`，尝试已被取消就拒绝写入；同样的字幕（同文本同设置）已存在时复用并并入课程，不请求模型。
+- 结算通知：定义上的 `notifications`（进程内、结算后投递一次），信箱信与会话提示由提交者自己的服务写（见内核小增量）。
+- **内核增量（单独一次提交 `kernel:`）**：无持久化定义的结算接收器多收一个参数 `bindings`（提交时给的），`deliver(event, view, bindings)`；红绿测试在 `unified-runtime-model-host`。原因：接收器要用提交者自己的信箱和通知服务，静态定义拿不到。
+- `lib/contexts/jobs/operations.js` 与 `domain-contracts.js`：`job.control retry` 走运行时时也撤回上一次失败的信（原来只有 `audio.retry` 撤回；单文件/批次也受益），并给 `job.control` 写 `inbox` 的授权。
+
+**缺陷（运行时侧已修，旧路径不变）**：D-1（重试保留字幕标记且不再排在转写闸门后面）、D-2（会话提示用字幕自己的措辞：「字幕「x」已校对并译成中英对照逐字稿」）、D-6/D-7（用量与 `textProvider` 在任务卡上，`usageRun` 有值）、D-8（重复判断改按"同样的字幕内容+设置"，同名不同内容不再被拒，提示语也不再说"音频"）。D-9（重启后信箱旧信仍提示「接着做」）未改：没有输入持久化就没有可点的卡，另开策略时再处理。
+
+**评审过的行为差异**：窗口的 429 / 瞬时重试与批次同（见 S2-3）；信箱信仍是 `audio-result` / `audio-failed` 两种（改信箱类型要动前端）。
+
+**测试**：`audio-family-baseline-subtitles` 加孪生（运行时侧上述缺陷的期望按模式分支并写明原因）；新增 `unified-runtime-subtitles`（3 项：kind/能力/家族/调用、失败的信与提示 + 用合同 id 重试、开关关则走旧路径）。
+
+| 字段 / 调用点 | 处置 |
+|---|---|
+| `startAudioJob`（`orchestrates`、`fields.subtitle`、`retryable` 闭包） | 旧路径保留（开关关）；运行时无闭包，输入在任务里 |
+| `jobTextModel` / `taskTracker` / `withJobUsage`（字幕） | 旧路径保留；运行时用网关调用与用量 |
+| `subtitleSourceId`、`storeDocuments`、`prepareSubtitles`、缓存键 | 保留，两路共用 |
+
+## S2-5 记录（复查 + 课堂实时校正）
+
+**改动（复查，开关 `runtime.pilot.audioReview`，默认关）**
+
+- 新定义 `audio-review`：`jobs/review.js`（定义）、`review-run.js`（一次尝试）、`review-view.js`（展示与旧字段）、`submit-review.js`；与字幕同属"只有文本的音频任务"，共用 `text-model.js`（`textJobModel`：网关调用、用量、进程内重试 `retryInProcess`）和 `submit-text.js`（`startTextJob`）。无持久化，能取消、能在进程内重试，不能暂停/恢复，`capabilities` 如实声明。
+- `audio.retry` 对任何没有 `singleId`/`batchId` 的 v2 音频任务走进程内重试（字幕、复查同一条分支）。
+- 任务卡阶段读 `view.summary`（`view.js` 的 `stageOf`），不再按 kind 分支。
+
+**改动（课堂校正，开关 `runtime.pilot.audioLiveCorrection`，默认关）**
+
+- 新定义 `audio-live-correction`：**一个课堂一个长期任务**（"课堂校正 · 课名"），课堂开着多久它就在多久：课堂进行中每个周期跑一轮校正，课堂结束时再跑最后一轮；同一任务也跑"校正更早句子"的后台请求。每个请求都是网关的一次调用（`live.correct:N`；后台为 `live.correct.background:N`，代理优先），所以一堂课的校正有了总量、可在任务控制台看见、可取消。
+- 校正本身（游标、版本、记忆、笔记）仍归 `RollingCorrection`（跟着课堂走）；任务只管模型路径。`RollingCorrection` 的节奏、窗口大小、超时、最大输出收进 `lib/live-correction-settings.js`（一处设置，不再是散落的数字；旧路径读同一份）。
+- 托管模式（`managed`）：校正对象**没有自己的定时器**，唯一驱动者是任务（`serve({correct, signal})`）；没有任务时 `run()` 如实报"后台任务负责"，绝不绕过任务去用服务自己的模型。`finish()` 在托管时等待任务把最后一轮跑完（有界）。
+- 取消任务只停止校正：课堂连接、已有校正结果完全不动；之后可再起一个任务继续校正。
+- **恢复方式：无（`recoveryMode: none`）**。重启后课堂恢复（`resumed`）会**新建**一个任务，不续旧任务；旧任务按内核规则变为中断记录。不持久化任何东西。
+- 只经 `live.start` / `live.correct` / `live.correct.background` 接入（`operations.js`）；服务自己的校正模型在托管时不会被使用。
+
+**缺陷（运行时侧已修，旧路径不变）**：D-12（实时校正对任务控制台不可见、无法取消、无总量）。
+
+**实测（~90 分钟课堂，约 180 轮，合成）**：任务 180 个调用、1 个事件、180 个步骤；快照 JSON 约 165 KB（约 0.9 KB/调用）；控制台只取最新 `MAX_CALLS = 300` 个调用，归档按 60/30/12 递减裁剪。调用数随课堂长度线性增长但有上限，**不是无界**；课堂超过约 150 分钟时控制台时间线开始丢最早的调用。
+
+**评审过的行为差异**：重启后不续旧校正任务（旧路径本来也不续，只是没有任务可见）；校正请求经网关后多一次持久化意图写入（毫秒级，周期 30 秒，无影响）；**关开关不回填旧定时器**——开关只管新开的课堂，正在跑校正任务的课堂把它跑到下课；校正任务被取消后保持停止，直到再次调用 `live.correct`（学习者要求停，不丢任何东西，游标/笔记/记忆都在课堂上）。
+
+**红灯证据（S2-5b 实现之前的提交 `b268efa6` 上）**：`unified-runtime-live-correction.test.mjs` 报 `ERR_MODULE_NOT_FOUND: lib/contexts/audio/jobs/live-correction.js`；适配后的基线测试「live correction is not a job … (on the runtime it is one job, D-12)」在运行时侧报 `TypeError: Cannot read properties of undefined (reading 'type')`（任务列表为空，没有校正任务）。实现后两者绿（运行时 4/4 与 5/5，旧侧 5/5）。
+
+**测试**：`unified-runtime-review`（复查：kind/能力/调用/失败重试/开关关）、`audio-family-baseline-review` 与 `subtitle-review-flow` 的孪生、`unified-runtime-live-correction`（4 项：托管对象无定时器且无任务不请求、任务按周期跑并在课堂结束跑最后一轮后完成、取消只停校正且可再起、180 轮测量）、`audio-family-baseline-live` 里"实时校正不是任务"一项按模式分支（运行时：一个 `audio-live-correction` 任务，无信、无通知）。
+
+| 字段 / 调用点 | 处置 |
+|---|---|
+| `RollingCorrection` 的定时器、`correct` 回调（旧路径） | 保留（开关关）；托管时不用 |
+| `liveCorrector`（旧路径模型选择） | 保留；运行时的模型选择在 `live-correction-models.js` |
+| 校正节奏/窗口/超时/最大输出的数字 | 收进 `live-correction-settings.js`，两路共用 |
+| `live.correct.background` 的服务端后台模型 | 旧路径保留；托管时由任务（代理优先）负责 |
