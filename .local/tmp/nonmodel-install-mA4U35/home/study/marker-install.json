@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "status": "cancelled",
+  "stage": "install",
+  "folder": "D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\.claude\\worktrees\\agent-a440635203573b09e\\.local\\tmp\\nonmodel-install-mA4U35\\Foreign\\StudyHub-Marker",
+  "mirror": "official",
+  "python": {
+    "version": "3.11.4",
+    "command": "D:\\nodejs\\node.exe D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\.claude\\worktrees\\agent-a440635203573b09e\\tests\\helpers\\fake-python.mjs"
+  },
+  "startedAt": "2026-10-06T09:56:54.683Z",
+  "finishedAt": "2026-10-06T09:56:55.434Z",
+  "lastLine": "Downloading marker_pdf-1.0.0-py3-none-any.whl (200 kB)",
+  "log": [
+    "== create-venv ==",
+    "$ D:\\nodejs\\node.exe D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\.claude\\worktrees\\agent-a440635203573b09e\\tests\\helpers\\fake-python.mjs -m venv D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\.claude\\worktrees\\agent-a440635203573b09e\\.local\\tmp\\nonmodel-install-mA4U35\\Foreign\\StudyHub-Marker\\venv",
+    "created D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\.claude\\worktrees\\agent-a440635203573b09e\\.local\\tmp\\nonmodel-install-mA4U35\\Foreign\\StudyHub-Marker\\venv",
+    "== install ==",
+    "$ D:\\nodejs\\node.exe D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\.claude\\worktrees\\agent-a440635203573b09e\\tests\\helpers\\fake-python.mjs -m pip install --disable-pip-version-check --no-input --progress-bar off --timeout 60 marker-pdf",
+    "Collecting marker-pdf",
+    "Downloading marker_pdf-1.0.0-py3-none-any.whl (200 kB)"
+  ],
+  "error": {
+    "code": "cancelled",
+    "message": "已取消安装。"
+  },
+  "command": ""
+}

@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "scope": "AST CallExpression inventory of model-shaped APIs; source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role",
   "managedDefinitions": [
-    "lib/contexts/audio/pilot.js"
+    "lib/contexts/audio/pilot.js",
+    "lib/contexts/retrieval/jobs/retrieval-index.js"
   ],
   "entries": [
     {

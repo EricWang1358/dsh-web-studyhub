@@ -1,0 +1,154 @@
+{
+  "format": "study-sharded",
+  "version": 4,
+  "revision": 4,
+  "settings": {
+    "minimum_ease_factor": 1.3,
+    "initial_ease_factor": 2.5,
+    "first_interval_days": 1,
+    "second_interval_days": 6,
+    "generation": {
+      "concurrency": 4,
+      "batchSize": 5,
+      "jobTimeoutMinutes": 20,
+      "fillRounds": 2,
+      "effortPlanning": "follow",
+      "effortReview": "follow",
+      "effortWriting": "low",
+      "effortRepair": "low",
+      "kind": "quiz",
+      "count": 10,
+      "language": "auto",
+      "difficulty": "mixed",
+      "focus": "",
+      "notation": "auto"
+    },
+    "dailyRecap": {
+      "automatic": false,
+      "tone": "friendly",
+      "timeZone": "Asia/Shanghai"
+    }
+  },
+  "focus": {
+    "mode": "interview",
+    "role": "Platform Engineer",
+    "targetTopics": [
+      "架构",
+      "性能"
+    ]
+  },
+  "learner": {
+    "consent": {
+      "prep": null
+    },
+    "goal": "",
+    "summary": "",
+    "signals": {
+      "got": 0,
+      "confused": 0,
+      "easy": 0,
+      "hard": 0,
+      "up": 0,
+      "down": 0
+    },
+    "levels": {},
+    "updatedAt": null,
+    "memoryRevision": 0,
+    "prepRevision": 0
+  },
+  "collections": {
+    "format": "study-collections/v1",
+    "definitions": {
+      "sources": {
+        "mode": "item"
+      },
+      "decks": {
+        "mode": "item"
+      },
+      "drafts": {
+        "mode": "item"
+      },
+      "runs": {
+        "mode": "item"
+      },
+      "oralRuns": {
+        "mode": "item"
+      },
+      "workflowTemplates": {
+        "mode": "item"
+      },
+      "workflowSessions": {
+        "mode": "item"
+      },
+      "courses": {
+        "mode": "item"
+      },
+      "teaching": {
+        "mode": "whole"
+      },
+      "coach": {
+        "mode": "whole"
+      },
+      "feedback": {
+        "mode": "whole"
+      },
+      "prepared": {
+        "mode": "whole"
+      },
+      "inbox": {
+        "mode": "whole"
+      },
+      "skeletons": {
+        "mode": "whole"
+      },
+      "topicGroups": {
+        "mode": "whole"
+      },
+      "notes": {
+        "mode": "whole"
+      },
+      "attempts": {
+        "mode": "chunk",
+        "chunkSize": 1000
+      },
+      "documents": {
+        "mode": "item"
+      },
+      "selectionJobs": {
+        "mode": "item"
+      },
+      "audioResults": {
+        "mode": "item"
+      }
+    }
+  },
+  "shards": {
+    "sources": [],
+    "decks": [
+      "decks/d.fbcb66ac16e63f948769.json"
+    ],
+    "drafts": [],
+    "runs": [
+      "runs/9ccf85d7-aa6d-4a32-9488-4ce536fc77e5.611c7d62756c5c3440be.json",
+      "runs/7b4b3304-821e-4662-971d-ca094ce6f3f6.f8321808dd0955d7d669.json"
+    ],
+    "oralRuns": [],
+    "workflowTemplates": [],
+    "workflowSessions": [],
+    "courses": [],
+    "teaching": "misc/teaching.97d170e1550eee4afc0a.json",
+    "coach": "misc/coach.97d170e1550eee4afc0a.json",
+    "feedback": "misc/feedback.97d170e1550eee4afc0a.json",
+    "prepared": "misc/prepared.97d170e1550eee4afc0a.json",
+    "inbox": "misc/inbox.97d170e1550eee4afc0a.json",
+    "skeletons": "misc/skeletons.97d170e1550eee4afc0a.json",
+    "topicGroups": "misc/topicGroups.97d170e1550eee4afc0a.json",
+    "notes": "misc/notes.97d170e1550eee4afc0a.json",
+    "attempts": [
+      "attempts/0.83d681922249ac4b61af.json"
+    ],
+    "documents": [],
+    "selectionJobs": [],
+    "audioResults": []
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "format": "study-sharded",
+  "version": 4,
+  "revision": 4,
+  "settings": {
+    "minimum_ease_factor": 1.3,
+    "initial_ease_factor": 2.5,
+    "first_interval_days": 1,
+    "second_interval_days": 6,
+    "generation": {
+      "concurrency": 4,
+      "batchSize": 5,
+      "jobTimeoutMinutes": 20,
+      "fillRounds": 2,
+      "effortPlanning": "follow",
+      "effortReview": "follow",
+      "effortWriting": "low",
+      "effortRepair": "low",
+      "kind": "quiz",
+      "count": 10,
+      "language": "auto",
+      "difficulty": "mixed",
+      "focus": "",
+      "notation": "auto"
+    },
+    "dailyRecap": {
+      "automatic": false,
+      "tone": "friendly",
+      "timeZone": "Asia/Shanghai"
+    }
+  },
+  "learner": {
+    "consent": {
+      "prep": null
+    },
+    "goal": "",
+    "summary": "",
+    "signals": {
+      "got": 0,
+      "confused": 0,
+      "easy": 0,
+      "hard": 0,
+      "up": 0,
+      "down": 0
+    },
+    "levels": {},
+    "updatedAt": null,
+    "memoryRevision": 0,
+    "prepRevision": 0
+  },
+  "collections": {
+    "format": "study-collections/v1",
+    "definitions": {
+      "sources": {
+        "mode": "item"
+      },
+      "decks": {
+        "mode": "item"
+      },
+      "drafts": {
+        "mode": "item"
+      },
+      "runs": {
+        "mode": "item"
+      },
+      "oralRuns": {
+        "mode": "item"
+      },
+      "workflowTemplates": {
+        "mode": "item"
+      },
+      "workflowSessions": {
+        "mode": "item"
+      },
+      "courses": {
+        "mode": "item"
+      },
+      "teaching": {
+        "mode": "whole"
+      },
+      "coach": {
+        "mode": "whole"
+      },
+      "feedback": {
+        "mode": "whole"
+      },
+      "prepared": {
+        "mode": "whole"
+      },
+      "inbox": {
+        "mode": "whole"
+      },
+      "skeletons": {
+        "mode": "whole"
+      },
+      "topicGroups": {
+        "mode": "whole"
+      },
+      "notes": {
+        "mode": "whole"
+      },
+      "attempts": {
+        "mode": "chunk",
+        "chunkSize": 1000
+      },
+      "documents": {
+        "mode": "item"
+      },
+      "selectionJobs": {
+        "mode": "item"
+      },
+      "audioResults": {
+        "mode": "item"
+      }
+    }
+  },
+  "shards": {
+    "sources": [],
+    "decks": [
+      "decks/b.2dc6bf32d35d33c78abb.json",
+      "decks/7a11a889-37d8-46c1-a43c-9c6540f1a316.6cf13c10900ad6ecfb88.json",
+      "decks/a.18feb7eb4ebd25cf0032.json"
+    ],
+    "drafts": [],
+    "runs": [],
+    "oralRuns": [],
+    "workflowTemplates": [],
+    "workflowSessions": [],
+    "courses": [
+      "courses/course-1601c4bdf88c.38f481531f6b0fdf3d7f.json",
+      "courses/course-a6c327f7e6b5.79be5476ebe7dd9afdc9.json"
+    ],
+    "teaching": "misc/teaching.97d170e1550eee4afc0a.json",
+    "coach": "misc/coach.97d170e1550eee4afc0a.json",
+    "feedback": "misc/feedback.97d170e1550eee4afc0a.json",
+    "prepared": "misc/prepared.97d170e1550eee4afc0a.json",
+    "inbox": "misc/inbox.97d170e1550eee4afc0a.json",
+    "skeletons": "misc/skeletons.98e3acbe9bf3a12a9613.json",
+    "topicGroups": "misc/topicGroups.97d170e1550eee4afc0a.json",
+    "notes": "misc/notes.6858f77de45a469f9910.json",
+    "attempts": [
+      "attempts/0.2c11dc30c87f3f8d9819.json"
+    ],
+    "documents": [],
+    "selectionJobs": [],
+    "audioResults": []
+  }
+}
