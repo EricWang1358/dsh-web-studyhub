@@ -277,6 +277,32 @@ The [audio pilot adapter contract](plans/unified-job-runtime/s1-6-audio-contract
 
 `runtime.pilot.translation` (default off, new submissions only) runs each page or chapter translation started through `generation.translation.start` as a Job of kind `translation` (capabilities: `cancel`, `set`, `pauseMode: checkpoint`; no `retry`; `recoveryMode: none`; `executionModes` `direct` and `subagent`; result ref `{ kind: 'source', id }`). The paragraphs, the glossary, the document revisions and the per-library write locks stay in materials; the job still waits in the one `queues(root)` chain it shared with generation (order unchanged), now as the Job's admission. Every batch is a Step of the gateway (`translate`, `part` = batch number, agent-preferred as the generation path always was) and its usage is booked once, by the gateway. Pause is real: at a wave boundary the Attempt ends with its waves kept and the library queue is released; a resume is a new Attempt that queues again and asks only what has no translation yet (the live concurrency setting returns to the submitted one). The one-hour budget is still the executor's own timer: a budget stop ends the Job `failed` with outcome `budget` and a late answer is not kept. Two differences from the legacy path, both fixes found by the S4-0 baseline: the glossary is frozen in the submitted input (D1), and cancelling a queued translation ends it at once (D8). Immediate translations of a selection or one material passage are not jobs and do not change. With the switch off nothing here is reachable.
 
+### P4 acceptance: the model families together (S4-9)
+
+Every model family now has its own default-off switch under `runtime.pilot`, and each can be turned on or off without moving another:
+
+| Family (Job kind) | Switch | Cancel | Pause | Set | Retry | Recovery | Execution | Feature | Result ref |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| generation / supplement | `generation` | yes | no | yes (live settings) | yes | resume | agent-preferred | `generate` | deck/draft |
+| translation | `translation` | yes | at a wave boundary | yes (concurrency) | no | none | agent-preferred | `other` | source |
+| coach batch (`coach-prep`) | `coach` | yes | no | no | no | none | direct | `coach` | none |
+| daily recap | `dailyRecap` (+ `dailyRecapAgent`) | yes | no | no | no | none | direct (agent-preferred with the policy) | `other` | note |
+| teaching / skeleton | `workflow` (+ `workflowAgent`) | yes | no | no | no | none | direct (agent-preferred with the policy) | `flow` | none / skeleton |
+| assistant request | `assist` | yes | no | no | no | none | direct (host teacher observed) | `coach` | card |
+
+Independent of the switch that moves a family: `translationParallel` (S4-3: translation waits only for translations of its own document, not for the library's generation). A family whose switch is off keeps its in-process path unchanged.
+
+`tests/unified-runtime-model-family.test.mjs` runs the families together on one service with every switch on (a translation, a generation, a daily recap and a teaching; the coach and the assistant, which the mix has no door for, have their own suites):
+
+- One public table: one record per job, every one a version-2 contract with one Attempt; `job.status`/`job.wait`/`job.control` answer for all of them with the same words. What a family cannot do is refused with the same code (`capability-unsupported`; `not-retryable` for a generation); only the translation pauses, at a wave boundary. Stopping one job stops that job and no other.
+- Real overlap: with all four held at the model at once, four families are in flight together (a translation overlapping a generation only with `translationParallel`; without it the peak of the library is one model call).
+- One Call and one ledger write per model call: the model was asked exactly as often as Calls were recorded, no Call id twice, and the ledger's calls equal the Calls (features `generate`, `flow`, `other`).
+- Switch independence: with only one family's switch on, only that family's jobs are Jobs of the runtime.
+- Policies: with `dailyRecapAgent`, `workflowAgent` (and the translation's always-preferred policy) and a host that has a parent session, every call of the recap, the teaching and the translation is a host child (`runner: subagent`, `childId`, `parentId`), the direct model is not asked, every child is released and the usage is still counted once.
+- Going back: a host that goes away with a translation running leaves its kept paragraphs readable; a library started without the switches asks no model by itself, does not submit the old Attempt again, and runs new work the in-process way, asking only what was not kept.
+
+Not covered by this suite, and the work that remains after P4 (the register of side paths): the immediate translation of a selection or one material passage is a plain request, not a job (S4-2); `assist.start` stays panel-only (S4-7); the coach has no start in the mix; a recap's letter and a translation's inbox letter are sent by their executors on the in-process path and by the definition's notification on the runtime path; the real-model spot check of quality, latency and usage (fixed input, model, effort and budget, runtime against in-process and sub-agent against direct) needs a person with a real model route and was not run here, which is why every policy stays default off.
+
 ### Default-off translation scheduling (S4-3)
 
 `runtime.pilot.translationParallel` (default off, its own switch: it applies to the in-process path and to `runtime.pilot.translation` alike, and to new submissions only) takes translation out of the library's one queue. Until then a translation waits behind everything the library accepted (generate, supplement, selection fill, repair, publish) and everything waits behind it. With the switch a translation waits in a chain of its own per document (`translation/lane.js`: `<root>\0translation:<documentId>`), so it overlaps whole-library generation, and two documents overlap each other; two translations of the same document stay one at a time. `queuedBehind` then counts the active translations of that document. Nothing else of the queue changes; the generation side keeps its chain, order and locks.
