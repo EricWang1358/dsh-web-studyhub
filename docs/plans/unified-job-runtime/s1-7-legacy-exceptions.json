@@ -3,11 +3,15 @@
   "scope": "AST CallExpression inventory of model-shaped APIs; source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role",
   "managedDefinitions": [
     "lib/contexts/audio/jobs/batch-import.js",
+    "lib/contexts/audio/install/marker-install-job.js",
     "lib/contexts/audio/jobs/single-import.js",
     "lib/contexts/coach/jobs/coach-prep.js",
     "lib/contexts/generation/jobs/generation.js",
     "lib/contexts/generation/retrieval/jobs/retrieval-index.js",
-    "lib/contexts/notes/jobs/daily-recap.js"
+    "lib/contexts/notes/jobs/daily-recap.js",
+    "lib/contexts/workflows/jobs/teaching.js",
+    "lib/contexts/workflows/jobs/skeleton.js",
+    "lib/contexts/study/jobs/assist.js"
   ],
   "entries": [
     {
@@ -19,7 +23,7 @@
         },
         {
           "callee": "service.complete",
-          "count": 2
+          "count": 1
         }
       ],
       "owner": "existing domain maintainer",

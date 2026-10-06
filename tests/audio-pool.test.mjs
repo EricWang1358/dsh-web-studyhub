@@ -7,6 +7,7 @@ import { finishTranscript } from '../lib/audio-import.js';
 import { readAudioSettings, saveAudioSettings } from '../lib/audio-settings.js';
 import { StudyService } from '../lib/service.js';
 import { settleJob, until } from './helpers/wait.mjs';
+import { SWITCH_MODE, audioSwitch } from './helpers/audio-switch.mjs';
 
 /* WP-AU #212: the text steps run on a sliding pool (a finished window is replaced at once), results are collected
    in source order, and the files of a batch overlap: file N+1 is transcribed while file N is proofread and translated. */
@@ -185,13 +186,14 @@ async function batch(t, { textConcurrency = 3, files = 3, text = lecture } = {})
       if (hold && kind === 'proofread' && !held.has('first')) {
         await new Promise((resolve, reject) => { held.set('first', resolve); init.signal?.addEventListener('abort', () => reject(init.signal.reason), { once: true }); });
       }
-      await new Promise(resolve => setTimeout(resolve, 3));
+      // On the runtime each call is first saved as an intent, one write after another: the fake model must be slower than that for calls to overlap.
+      await new Promise(resolve => setTimeout(resolve, SWITCH_MODE === 'runtime' ? 150 : 3));
       if (kind === 'proofread') return reply('{"corrections":[]}');
       const payload = JSON.parse(prompt);
       return reply(JSON.stringify({ titleZh: '标', titleEn: 'T', paragraphs: payload.paragraphs.map(p => ({ n: p.n, zh: 'x' })) }));
     } finally { text_.active--; }
   };
-  const service = new StudyService(join(dir, 'library'), { fetch });
+  const service = new StudyService(join(dir, 'library'), { fetch, ...audioSwitch() });
   await service.call('audio.settings.set', { paidKey: KEY, textProvider: 'gemini', textConcurrency });
   const members = [];
   for (let n = 1; n <= files; n++) { const path = join(dir, `f${n}.wav`); await writeFile(path, wav(n)); members.push({ path }); }
