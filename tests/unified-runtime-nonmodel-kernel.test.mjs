@@ -42,3 +42,15 @@ test('G-2/G-7: a non-model step carries no model policy and cannot start a model
   for (const field of ['requestedEffort', 'executionMode']) assert.equal(Object.hasOwn(end.calls[0], field), false, `${field} would be invented data on a process Call`);
   assert.equal(end.calls[0].purpose, 'install');
 });
+
+test('G-7: execution mode describes model calls only, so a process never makes a job "direct"', async t => {
+  const observe = (context, meta) => { const step = context.gateway.step(`s:${meta.kind}`, nonModel); return step.run(() => step.observe(meta, async () => ({ value: 1 }))); };
+  const onlyProcess = await finished(t, async context => { await observe(context, { boundary: 'local-process', kind: 'venv' }); return { refs: [] }; });
+  assert.equal(onlyProcess.end.execution.mode, null);
+  const mixed = await finished(t, async context => {
+    await observe(context, { boundary: 'local-process', kind: 'venv' });
+    await observe(context, { boundary: 'external-request', kind: 'ask', modelRequest: true, runner: 'subagent' });
+    return { refs: [] };
+  });
+  assert.equal(mixed.end.execution.mode, 'subagent', 'the one model call decides; the process Call does not make it mixed');
+});
