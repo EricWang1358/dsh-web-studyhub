@@ -156,7 +156,7 @@ export function timelineModel(calls, { now = Date.now(), running = false, pinned
 const PHASE = { transcribe: '转写', proofread: '校对', translate: '翻译' };
 const STATUS_WORD = (status) => ({ complete: ui('任务完成'), failed: ui('任务失败'), cancelled: ui('任务已停止'), interrupted: ui('任务中断'), running: ui('任务开始'), queued: ui('排队中') })[status] || '';
 
-const BATCH_REASON = { paused: '今天已暂停备题', limit: '今天的备题次数已用完', full: '备好的题已经攒满', none: '没有需要备的题', invalid: '这批没有写出通过校验的题', changed: '学习档案或授权变了，旧结果已丢弃' };
+const BATCH_REASON = { paused: '今天已暂停备题', limit: '今天的备题次数已用完', full: '备好的题已经攒满', none: '没有需要备的题', invalid: '这批没有写出通过校验的题', changed: '学习档案或授权变了，旧结果已丢弃', cancelled: '这批备题已取消' };
 /** Why a batch of 为你定制 wrote nothing, in words (the producer records a code, so the words are translated here); a model error keeps its own message. */
 export const batchReason = (batch) => (batch.reason === 'error' ? batch.message || ui('这批没有完成') : batch.reason && BATCH_REASON[batch.reason] ? ui(BATCH_REASON[batch.reason]) : batch.status === 'ok' ? '' : ui('这批没有写出题'));
 const batchText = (args, text) => (args.status === 'ok' ? uiFormat('备好 {0} 道定制题', [args.passed ?? 0]) : batchReason({ status: args.status, reason: args.reason, message: text }));
