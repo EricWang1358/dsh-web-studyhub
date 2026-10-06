@@ -12,6 +12,7 @@ const RULES = [
   { root: 'lib/contexts/audio/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
   { root: 'lib/contexts/generation/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/coach/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
+  { root: 'lib/contexts/generation/retrieval', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
 ];
 const CJK = /[㐀-鿿]/;
 const repo = fileURLToPath(new URL('../', import.meta.url));

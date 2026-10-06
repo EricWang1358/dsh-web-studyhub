@@ -87,6 +87,7 @@ test('assist.start belongs to the panel only: the runtime has no such action, an
   assert.deepEqual(shape(shown), shape(direct));
   await until(async () => (await viaPanel('snapshot', {})).assist.every(task => task.status !== 'running'), 'the panel task to end');
   assert.equal((await viaPanel('snapshot', {})).assist[0].status, 'done', 'the panel reads it from the snapshot');
+  await ended(assist, directLibrary.root); // the direct task writes its follow-up on its own schedule
   assert.deepEqual((await panelLibrary.service.store.read()).decks[0].cards[0].followups?.length, (await directLibrary.service.store.read()).decks[0].cards[0].followups?.length);
 });
 

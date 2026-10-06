@@ -4,7 +4,8 @@
   "managedDefinitions": [
     "lib/contexts/audio/jobs/single-import.js",
     "lib/contexts/coach/jobs/coach-prep.js",
-    "lib/contexts/generation/jobs/generation.js"
+    "lib/contexts/generation/jobs/generation.js",
+    "lib/contexts/generation/retrieval/jobs/retrieval-index.js"
   ],
   "entries": [
     {
