@@ -4,37 +4,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
-import { StudyService } from '../lib/service.js';
 import { createAssistService } from '../lib/assist.js';
 import { createAssistChildren } from '../lib/assist-child.js';
 import { usageLedger } from '../lib/model-usage.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { until } from './helpers/wait.mjs';
+import { SWITCH_MODE } from './helpers/runtime-switch.mjs';
 import { gate, privateRoot, panelDoor } from './helpers/model-family-baseline.mjs';
-
-const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
-const card = { id: 'c', kind: 'flashcard', topic: 'Bridge', objective: 'Explain Bridge', prompt: 'What does Bridge separate?', answer: 'Abstraction and implementation.', hint: 'Two dimensions.',
-  explanation: 'Both vary independently.', misconception: 'It adapts interfaces.', citations: [{ sourceId: 's', quote: evidence }] };
-const reply = '{"answer":"Two independent dimensions."}';
-
-async function library(t, options = {}) {
-  const root = await privateRoot(t, 'model-baseline-assist-');
-  const service = new StudyService(root, options);
-  t.after(() => service.dispose());
-  await service.store.update(state => { state.sources.push({ id: 's', title: 'Lecture', text: evidence }); state.decks.push({ id: 'd', title: 'Patterns', course: 'Software', cards: [structuredClone(card)] }); });
-  return { root, service };
-}
-/** A host with a running parent session whose sub-agent service answers with `output` once released. */
-function nativeHost(output = reply, release = Promise.resolve()) {
-  const calls = { started: [], disposed: [] };
-  const subagents = { getProvider: () => ({ capabilities: { toolFilter: true, agentOptions: true } }), start: async (_kind, request) => {
-    calls.started.push(request);
-    return { id: `child-${calls.started.length}`, result: release.then(() => ({ stopReason: 'completed', output: [{ type: 'text', text: output }] })), dispose: async () => calls.disposed.push(`child-${calls.started.length}`) };
-  } };
-  return { calls, ctx: { sessions: { get: () => undefined }, get: key => (key === 'agents' ? { get: () => ({ id: 'parent' }) } : key === 'subagents' ? subagents : undefined) } };
-}
-const request = (service, root, extra = {}) => ({ root, service, sessionId: 'parent', mode: 'ask', ref: { deckId: 'd', cardId: 'c' }, text: 'Explain it', helpChoices: ['example'], card, deckTitle: 'Patterns', route: { provider: 'p', model: 'm' }, ...extra });
-const ended = (assist, root) => until(() => assist.assistView(root).tasks.every(task => task.status !== 'running'), 'the assist task to end');
+import { reply, library, nativeHost, request, ended } from './helpers/assist-library.mjs';
 
 test('the task record the panel reads: what was asked and which runtime ran it, never the root, the abort controller, the session, the route or the input digest', async t => {
   const f = await library(t, { complete: async () => reply }), assist = createAssistService({ children: createAssistChildren() });
@@ -78,7 +55,7 @@ test('assist.start belongs to the panel only: the runtime has no such action, an
   const runtime = createStudyRuntime(await privateRoot(t, 'model-baseline-assist-runtime-'), { complete: async () => reply });
   t.after(() => runtime.dispose());
   await assert.rejects(runtime.call('assist.start', { mode: 'ask', deckId: 'd', cardId: 'c' }), /unknown|unavailable|not/i);
-  const panelLibrary = await library(t), viaPanel = panelDoor(t, panelLibrary.root, { complete: async () => reply });
+  const panelLibrary = await library(t), viaPanel = panelDoor(t, panelLibrary.root, { complete: async () => reply, ...(SWITCH_MODE === 'runtime' ? { pilot: { assist: true } } : {}) });
   const directLibrary = await library(t, { complete: async () => reply }), assist = createAssistService({ children: createAssistChildren() });
   t.after(() => assist.dispose());
   const shown = await viaPanel('assist.start', { mode: 'ask', deckId: 'd', cardId: 'c', text: 'Explain it', helpChoices: ['example'] });
@@ -98,5 +75,8 @@ test('an assistant call is not in the usage ledger: it goes straight to the host
   await assist.startAssist({}, request(f.service, f.root, { helpChoices: [] }));
   await ended(assist, f.root);
   assert.equal(assist.assistView(f.root).tasks[0].status, 'done');
-  assert.deepEqual((await usageLedger(f.root).summary({ days: 1 })).byFeature, {}, 'unrecorded: the other families all appear here');
+  // Reviewed difference of the runtime side (S4-7, defect D4 of S4-0): the call is a Step of a Job, so the gateway books it, once, under the feature coach.
+  const { byFeature } = await usageLedger(f.root).summary({ days: 1 });
+  if (SWITCH_MODE === 'runtime') assert.deepEqual([Object.keys(byFeature), byFeature.coach.calls], [['coach'], 1]);
+  else assert.deepEqual(byFeature, {}, 'unrecorded: the other families all appear here');
 });

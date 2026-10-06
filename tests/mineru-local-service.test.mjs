@@ -236,7 +236,8 @@ test('cancel stops the running window promptly, kills the process and cleans the
   const pid = (await h.parses())[0].pid;
   const gone = await until(() => { try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } }, 'the child process to be gone', { intervalMs: 50 }).catch(() => false);
   assert.equal(gone, true, 'the child process is gone');
-  assert.deepEqual(await filesUnder(join(convertHome(h.root), 'jobs')), []);
+  // The cancelled status is set just before the job folder is removed (lib/contexts/audio/convert.js); the process is now gone when the cancel settles, so wait for the cleanup itself.
+  await until(async () => !(await filesUnder(join(convertHome(h.root), 'jobs'))).length, 'the job folder to be cleaned');
   assert.equal((await h.call('snapshot')).inbox.items.filter(item => item.kind.startsWith('pdf-')).length, 0);
 });
 

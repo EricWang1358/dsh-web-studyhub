@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createAssistService } from '../lib/assist.js';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { createHostHandler } from '../lib/host.js';
 import { runCorrectionAgent } from '../lib/live-correction-agent.js';
 import { LiveSession } from '../lib/live.js';
@@ -84,7 +85,7 @@ async function fixture(t, complete) {
   const root = await mkdtemp(join(tmpdir(), 'study-assist-host-'));
   const children = createAssistChildren(), assist = createAssistService({ children });
   t.after(async () => { assist.dispose(); await rm(root, { recursive: true, force: true }); });
-  const service = new StudyService(root, { complete });
+  const service = new StudyService(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['assist'] }) });
   await service.store.update(s => { s.sources.push({ id: 's', title: 'Lecture', text: evidence }); s.decks.push({ id: 'd', title: 'Patterns', course: 'Software', cards: [structuredClone(card)] }); });
   return { root, service, assist, children, start: (ctx = {}, extra = {}) => assist.startAssist(ctx, { root, service, sessionId: 'parent', mode: 'ask', ref: { deckId: 'd', cardId: 'c' }, text: 'Explain it', helpChoices: ['example'], card, deckTitle: 'Patterns', route: { provider: 'p', model: 'm' }, ...extra }), task: () => assist.assistView(root).tasks.at(-1) };
 }
@@ -165,7 +166,8 @@ test('teacher reuse expires after two idle minutes and rotates after eight turns
   t.mock.timers.enable({ apis: ['setTimeout'] });
   await f.start(ctx);
   // Let filesystem work settle before advancing only the idle timer.
-  while (f.task().status === 'running') await new Promise(resolve => setImmediate(resolve));
+  // (the runtime side starts its Job on a zero-delay timer, which the mocked clock must be told to run)
+  while (f.task().status === 'running') { t.mock.timers.tick(0); await new Promise(resolve => setImmediate(resolve)); }
   t.mock.timers.tick(120001);
   t.mock.timers.reset();
   await until(() => calls.disposed.length === 2);
