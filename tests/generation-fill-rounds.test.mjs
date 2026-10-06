@@ -3,65 +3,12 @@ import assert from "node:assert/strict";
 import { generateBatched } from "../lib/batch.js";
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, normalizeGenerationPerformance, validateGenerationPatch, resolveGenerationRequest } from "../lib/generation-settings.js";
 import { priorRoundBrief, rejectionCode } from "../lib/generation-yield.js";
-import { qualityPlan, qualityReview } from "./helpers/assessment.mjs";
+import { fakeModel, source } from "./helpers/fill-rounds-model.mjs";
 
 /* #197: a part that ends short is filled again automatically, a bounded number of rounds, each round asking only for the gap, with what the
    earlier candidates were rejected for in its prompt; a rejected objective is never tried again; cancel and timeout stop at once and keep
    what passed. Round 1 draws on the group's verified reserve; later rounds plan new targets (avoiding every rejected objective). */
 
-const source = { id: "s", title: "Course notes", text: "Architecture includes the principles guiding a system's design and evolution." };
-const number = (id) => Number(String(id).replace(/\D+/g, ""));
-const quizCard = (n, index, targetId) => ({ id: `q${index + 1}`, targetId, kind: "quiz", topic: `Architecture scope ${n}`, objective: `Planned ${n}`,
-  prompt: `Which statement about architecture principle ${n} follows from the definition?`, answer: `Principles guide later choices ${n}.`,
-  hint: "Compare a description of today with a rule about permitted change.", explanation: `The definition ties principle ${n} to design and evolution, so later choices must follow it.`,
-  misconception: "Architecture only describes current components.", citations: [{ sourceId: "s", quote: source.text }],
-  options: [{ id: "a", text: `Principles guide later choices ${n}.`, correct: true, explanation: "The definition says principles guide design and evolution." },
-    { id: "b", text: `Architecture is only today's diagram ${n}.`, correct: false, explanation: "Ignores the evolution part of the definition." },
-    { id: "c", text: `Principles never constrain design ${n}.`, correct: false, explanation: "Contradicts the definition." }] });
-
-/** Plans number their objectives globally (Planned 1, 2, 3 ...) like a planner told what exists; `rejectObjectives` fail source support once seen. */
-function fakeModel({ rejectObjectives = new Set(), onAuthor, onPlan } = {}) {
-  let next = 0;
-  const log = { calls: [], plans: [], authors: [], seen: new Set() };
-  const complete = async (system, prompt) => {
-    const data = () => JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
-    if (system.startsWith("Plan a source-grounded assessment")) {
-      const request = data();
-      log.calls.push("plan"); log.plans.push({ count: request.count, existing: request.existing });
-      onPlan?.(request);
-      const targets = qualityPlan({ ...request, kind: "quiz" }).targets.map((target) => ({ ...target, objective: `Planned ${++next}` }));
-      return JSON.stringify({ targets });
-    }
-    if (system.startsWith("Prepare supported answers")) {
-      log.calls.push("blueprint");
-      const plan = data().assessmentPlan, cards = plan.targets.map((target, index) => quizCard(number(target.objective), index, target.targetId));
-      return JSON.stringify({ items: cards.map((card, index) => ({ targetId: plan.targets[index].targetId, answer: card.answer, reasoning: card.explanation,
-        scenario: { kind: "none", facts: [], decisiveConditions: [] }, comparisonAxis: "scope", options: card.options })) });
-    }
-    if (system.startsWith("You author")) {
-      log.calls.push("author");
-      const request = data(), plan = request.assessmentPlan;
-      log.authors.push({ objectives: plan.targets.map((target) => target.objective), priorRound: request.priorRound, count: request.count });
-      onAuthor?.(request);
-      const cards = plan.targets.map((target, index) => quizCard(number(target.objective), index, target.targetId));
-      return JSON.stringify({ deck: { title: "D", cards }, changes: [], checks: qualityReview({ cards }).checks });
-    }
-    if (system.startsWith("Act as a strict assessment editor")) {
-      log.calls.push("review");
-      const candidate = JSON.parse(prompt).candidate, review = qualityReview(candidate), issues = [];
-      for (const check of review.checks) {
-        const card = candidate.cards.find((item) => item.id === check.cardId);
-        if (!rejectObjectives.has(card.objective)) continue;
-        log.seen.add(card.objective);
-        check.sourceSupport = "fail"; check.explanation = `${card.objective} is not supported by the quoted source.`;
-        issues.push(`${card.id}: sourceSupport needs work`);
-      }
-      return JSON.stringify({ ...review, issues });
-    }
-    throw new Error(`unexpected call: ${system.slice(0, 40)}`);
-  };
-  return { complete, log };
-}
 const run = (model, request = {}) => generateBatched(model.complete, { count: 5, kind: "quiz", sources: [source], performance: { concurrency: 1, batchSize: 5 }, ...request });
 const withRounds = (fillRounds) => ({ concurrency: 1, batchSize: 5, fillRounds });
 

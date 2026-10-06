@@ -5,6 +5,7 @@ import { jobCleanup } from '../lib/job-cleanup.js';
 import { writeSaved } from '../lib/live.js';
 import { batchLibrary, hostModel, library, seedReview, subtitleText } from './helpers/audio-family.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { SWITCH_MODE } from './helpers/audio-switch.mjs';
 
 /* S2-0 fixtures for archive / unarchive / dismiss / retry names of the audio family, on the code as it is.
    Already covered elsewhere: the single-file import (job-archive-service), the archive store and operations (job-archive*), legacy recovery cards (audio-retry). */
@@ -18,11 +19,13 @@ test('a failed batch: archived by its batch id (its job id is an alias), kept ar
   const failed = await settleJob(lib.service, first.jobId);
   assert.deepEqual([failed.status, failed.batchId], ['failed', first.batchId]);
   const before = lib.calls.length;
+  const lineage = (await lib.service.call('snapshot')).jobs.find(job => job.id === failed.id).contract.jobId;
 
   assert.deepEqual((await lib.service.call('job.archive', { jobIds: [first.batchId] })).archived, [first.batchId]);
   assert.deepEqual(await lib.folders(), [first.batchId], 'archiving deletes nothing');
   const snapshot = await lib.service.call('snapshot');
-  assert.deepEqual([snapshot.jobs, snapshot.archivedJobs.length, snapshot.archivedJobs[0].contract.jobId], [[], 1, first.batchId]);
+  // The lineage a record is archived under: what survives a retry. The batch id on the old path, the runtime's own job id on the runtime.
+  assert.deepEqual([snapshot.jobs, snapshot.archivedJobs.length, snapshot.archivedJobs[0].contract.jobId], [[], 1, lineage]);
   assert.deepEqual((await lib.service.call('job.archive', { jobIds: [failed.id] })).alreadyArchived, [failed.id], 'the attempt id is an alias of the archived lineage');
 
   const restarted = await restart(lib);
@@ -32,12 +35,23 @@ test('a failed batch: archived by its batch id (its job id is an alias), kept ar
 
   assert.deepEqual((await restarted.call('job.unarchive', { jobIds: [failed.id] })).unarchived, [failed.id]);
   const back = (await restarted.call('snapshot')).jobs;
+  if (SWITCH_MODE === 'runtime') {
+    // Reviewed (S2-1 design, pinned by the v2 archive tests): an archived runtime record comes back as history, with nothing to retry; dismissing it
+    // still removes the working folder it remembers.
+    assert.deepEqual([back.length, back[0].contract.actions.retry.available], [1, false]);
+    await restarted.call('job.dismiss', { jobId: back[0].id });
+    await jobCleanup.idle();
+    assert.deepEqual([(await restarted.call('snapshot')).jobs, await lib.folders(), (await lib.state()).sources.length], [[], [], 0]);
+    return;
+  }
   assert.deepEqual([back.length, back[0].batchId, back[0].id, back[0].contract.actions.retry.available], [1, first.batchId, failed.id, true]);
   broken = false;
   const retried = await restarted.call('job.control', { jobId: first.batchId, action: 'retry' });
-  // S2-1 fixed D-3: the reply names the new attempt.
-  assert.deepEqual([retried.batchId, retried.attemptId === retried.jobId, retried.jobId === failed.id], [first.batchId, true, false]);
-  const done = await settleJob(restarted, retried.jobId);
+  // S2-1 fixed D-3: the reply names the new attempt. On the runtime that is its `attemptId` (`jobId` is the name the request gave).
+  const attempt = SWITCH_MODE === 'runtime' ? retried.attemptId : retried.jobId;
+  if (SWITCH_MODE === 'runtime') assert.deepEqual([retried.jobId, attempt === failed.id], [first.batchId, false]);
+  else assert.deepEqual([retried.batchId, retried.attemptId === retried.jobId, retried.jobId === failed.id], [first.batchId, true, false]);
+  const done = await settleJob(restarted, attempt);
   assert.equal(done.status, 'complete', done.stage);
   assert.deepEqual(lib.calls.slice(before).map(call => call.split(':')[0]), ['translate', 'title'], 'only what the failed member had not finished is done again');
 
