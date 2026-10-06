@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "scope": "AST CallExpression inventory of model-shaped APIs; source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role",
   "managedDefinitions": [
-    "lib/contexts/audio/jobs/single-import.js"
+    "lib/contexts/audio/jobs/single-import.js",
+    "lib/contexts/coach/jobs/coach-prep.js"
   ],
   "entries": [
     {
@@ -137,6 +138,19 @@
       "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
       "removeAt": "S2 review; provider leaves may remain behind gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+    },
+    {
+      "file": "lib/contexts/coach/jobs/light-step.js",
+      "calls": [
+        {
+          "callee": ".complete",
+          "count": 1
+        }
+      ],
+      "owner": "coach maintainer",
+      "reason": "The managed call itself: gateway.step(...).complete on the host's light lane, kept out of the definition file",
+      "removeAt": "retained; the gateway is the one model entry",
+      "evidence": "s4-1-model-contract.md; tests/unified-runtime-coach.test.mjs"
     },
     {
       "file": "lib/contexts/materials/translation-operations.js",
