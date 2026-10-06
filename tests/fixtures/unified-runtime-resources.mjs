@@ -14,12 +14,14 @@ const Binding = Schema.object({
 const Proposal = Schema.object({
   resourceContractVersion: Schema.const(1).required(),
   audioPilot: Schema.boolean().required(), sharedProviderQuota: Schema.boolean().required(),
+  enforcementScope: Schema.const('host-process').required(),
+  providerObservation: choice(['none', 'external-request', 'host-attempt']),
   quotaDomainRef: Schema.union([Schema.const(null), ref()]),
   resolution: choice(['baseline-instance', 'explicit-trusted-binding']),
   queueTimeoutMs: Schema.union([Schema.const(null), Schema.number().min(0)]),
   bindings: Schema.array(Binding).required(),
 });
-const rootKeys = new Set(['resourceContractVersion', 'audioPilot', 'sharedProviderQuota', 'quotaDomainRef', 'resolution', 'queueTimeoutMs', 'bindings']);
+const rootKeys = new Set(['resourceContractVersion', 'audioPilot', 'sharedProviderQuota', 'enforcementScope', 'providerObservation', 'quotaDomainRef', 'resolution', 'queueTimeoutMs', 'bindings']);
 const bindingKeys = new Set(['resourceRef', 'counterOwnerRef', 'scopeRef', 'kind', 'scopeKind', 'unit', 'limit']);
 
 /** Validate review data only. String refs describe trusted resolutions; they grant no authority. */
@@ -49,6 +51,7 @@ export function validateResourceProposal(input) {
     }
   }
   if (hasProvider !== value.sharedProviderQuota) fail('policy-domain-mismatch');
+  if (value.providerObservation !== (hasProvider ? 'external-request' : 'none')) fail('provider-boundary-unobservable');
   if (hasProvider && value.queueTimeoutMs === null) fail('provider-wait-unbounded');
   return value;
 }
@@ -56,6 +59,7 @@ export function validateResourceProposal(input) {
 export const resourceProposals = {
   baseline: {
     resourceContractVersion: 1, audioPilot: false, sharedProviderQuota: false,
+    enforcementScope: 'host-process', providerObservation: 'none',
     quotaDomainRef: null, resolution: 'baseline-instance', queueTimeoutMs: null,
     bindings: [
       { resourceRef: 'host-transcribe', counterOwnerRef: 'host-gate', scopeRef: 'host-1', kind: 'transcription-slot', scopeKind: 'host', unit: 'transcription', limit: 1 },
@@ -64,6 +68,7 @@ export const resourceProposals = {
   },
   shared: {
     resourceContractVersion: 1, audioPilot: true, sharedProviderQuota: true,
+    enforcementScope: 'host-process', providerObservation: 'external-request',
     quotaDomainRef: 'quota-1', resolution: 'explicit-trusted-binding', queueTimeoutMs: 1000,
     bindings: [
       { resourceRef: 'provider-requests', counterOwnerRef: 'verified-owner-1', scopeRef: 'quota-1', kind: 'provider-request', scopeKind: 'quota-domain', unit: 'physical-request', limit: 2 },

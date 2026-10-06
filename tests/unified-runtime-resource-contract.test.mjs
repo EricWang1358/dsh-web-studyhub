@@ -53,3 +53,8 @@ test('S1-3 unsupported and unknown inputs cannot silently select a new strategy'
   reject('shared', x => { x.bindings[0].kind = 'gpu'; }, 'invalid-resource-contract');
   reject('shared', x => { x.bindings[0].scopeRef = 'https://provider.invalid/account'; }, 'invalid-resource-contract');
 });
+
+test('S1-3 review: hidden host retries cannot be called physical-request quota enforcement', () => {
+  reject('shared', x => { x.providerObservation = 'host-attempt'; }, 'provider-boundary-unobservable');
+  reject('shared', x => { x.enforcementScope = 'account-global'; }, 'invalid-resource-contract');
+});

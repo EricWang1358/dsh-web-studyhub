@@ -185,6 +185,10 @@ async function runProbe(ctx, config, report) {
       return { exactLiveAgent: true, liveSession: true, scoped: true, parentTurnReason: end.data.reason.kind, toolsRestricted: true,
         visibleToolNames, composedPresetId: service(ctx, 'agentPresets')?.composedPreset(parent.ctx) ?? null };
     });
+    if (config.auditResources) await step('DSH-06 actual-owner-and-retry-scope', async () => {
+      const { probeResourceScope } = await import('../runtime-s13/resource-probe.mjs');
+      return probeResourceScope({ ctx, parent, sibling, sdkRoot, route, signal, until });
+    });
     if (config.auditStudyHub) await step('DSH-01/03/09 studyhub-fiber-binding-preflight', async () => {
       const root = ctx.root || ctx;
       const host = root[Symbol.for('studyhub.workbench.host.v1')];

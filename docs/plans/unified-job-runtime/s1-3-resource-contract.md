@@ -13,6 +13,7 @@
 5. **有界等待与真实释放**。新 provider 资源申请显式 queueTimeoutMs，有限且非负；它不是 job.wait 的观察者 timeout。到期移除 waiter、不调用 provider；已接纳后请求 timeout/cancel 传播底层 signal，但必须等物理 promise/cleanup 完成才释放一次。旧 baseline 可保留 queueTimeoutMs=null，沿用既有 signal；这不算统一有界等待实现。
 6. **共享冷却不是重试器**。许可层接收已观察到的 429/Retry-After，按确切域阻止新派发；不重发请求。S1-4 决定唯一传输重试责任层。已结束的失败请求先释放许可，冷却后重试重新申请。未确认物理停止的请求不能为了退避提前释放。不同域不受影响，下调不撤销在途占用，回升不超过配置上限。
 7. **切换与回退**。策略/资源绑定身份在 Attempt 开始时固定；动态 limit 在同一实例上只影响后续派发。关闭策略不让新请求绕过仍在使用的同域限制：先关闭该域新接纳，排空使用旧策略的请求/Attempt 或等安全边界，方可切回 baseline。不能在同域并存两套配额计数。
+8. **只承诺一个 host 进程中的实际可观测请求**。`enforcementScope: 'host-process'` 是首版明确边界，不是账户全局限额，也不覆盖另一 DSH 进程/机器。provider 绑定必须证明 `providerObservation: 'external-request'`；若宿主/SDK 会在一次 host-attempt 内隐藏 retry/hedge，请求数未知，拒绝该路径启用物理请求配额策略，保持 baseline 并返回能力缺口。不能用一个 host-attempt 许可冒充多个物理请求都已受控。
 
 ## 拟议端口语义（尚未发布）
 
@@ -50,5 +51,11 @@ npm run lint
 | 宿主能力 | DSH-06 对应安装版本、公开 API、实际 composition 及作用域的最小验证；源码搜索缺失不能代替 |
 
 DSH-06 当前证据只证明既有 StudyHub gate/pool 可复用、rc.2 jobs-local 上限是精确 owner 的 running+stopping Job 数、llm-retry 状态属于 agent.session 的 provider/policyKey。它们不是共同 provider 许可/冷却的已验收接口。审批本文仅固定语义；不能授权在能力仍待核验时自行写替代实现，不能放行 S1-4 或发布。
+
+### 本轮独立核查与修订
+
+按已发布 Job/Attempt 契约和实际宿主证据重新审查后，发现原提案未充分限定“物理请求可见”与“一个 host 进程”的边界。已追加上面第 8 项，并以先红后绿的 fixture 拒绝 `host-attempt` 冒充 `external-request`、拒绝 `account-global` 保证。没有变更生产代码。
+
+[DSH-06 实际宿主证据与审批建议](s1-3-dsh06-review.md)给出本轮新运行结果。原“待核验”现细分为：候选 rc.2 owner-job/session-retry 行为已实测；它们不能作为共享 provider 许可/冷却直接使用；具体请求适配器的可观测性仍需逐路径核验。不能将任何一项扩展为整个 S1-3 已完成。
 
 **合并门禁**：[agent-rules.md](agent-rules.md) 要求“需要新接口：先提交只改契约文档与测试的 PR，合并后再迁移调用方”；[sprint-1.md](sprint-1.md) S1-3 要求共享策略“方案先经 S1-0/契约评审确认”。因此生产策略接入暂停在此，已有资源提取与契约准备可以独立交付。此 PR 不含也不要求任何凭据/权限变更、真实模型调用、发布或部署。
