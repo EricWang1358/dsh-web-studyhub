@@ -2,6 +2,14 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 2.7.0 — 2026-10-06
+
+- **Every course and deck picker can be searched.** The course heading, 换课程, the page scope, the deck you import into, the merge target and the reader's deck are now one searchable list: type part of a course or chapter name and the matches are highlighted; chapters hang under their course on a thin line. "Course settings…" and "New deck “…”" (which takes the name you typed) are buttons under the list instead of options you could hit by accident. The other dropdowns in settings and dialogs share the same look and keyboard (arrows, Enter, Esc, typing to jump), fit narrow panes and follow the interface size. No browser-drawn dropdown is left.
+- **New icons.** The whole icon set is redrawn in Phosphor Light: one consistent, lighter line.
+- **Numbers look the same on every computer.** StudyHub now brings its own copy of Inter for digits and Latin letters, so big counts, scores and timers are crisp and line up in columns; Chinese text stays in your system font.
+- **More solid surfaces.** Menus, popovers, tooltips, dialogs, the question card and panels get a fine top edge, a two-layer shadow and inner corners that match the outer ones; the light and paper themes are tuned separately. No blur or glass effects were added.
+- **Fixes.** The 已归档 switch in the study catalog no longer breaks onto two lines; choosing in a dropdown inside a settings popover no longer closes the popover.
+
 ## 2.6.2 — 2026-10-06
 
 - **Questions now cover the whole material, and you can see it.** A long material (a transcript of several recordings, a book) used to get about as many knowledge points as questions you asked for, so most of it was never asked about, and the only trace was a dashed circle. Now every material is split into sections (a recording's parts, PDF pages or chapters, headings), and each section is shown as covered, planned but not produced (with the real reason) or never planned: on the 资料 row, in the reader's outline (with a filter for what is not covered), on the draft page (with a bar per recording and the list of uncovered sections, each opening the reader at it), in the Jobs console and in the 做这几页的题 panel. The reader outline lists recordings and their parts only, no longer a 英文原句 / 中文对照 entry under every part.
