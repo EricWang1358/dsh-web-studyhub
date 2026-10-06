@@ -141,7 +141,7 @@
 | D-7 | 第二次 `retrieval.index.start` 无论课程都并入第一个 run，课程参数被忽略 | `retrieval-operations.js:150` | index #5 |
 | D-8 | setup、安装、索引不在共享任务表；服务卸载不会停止它们（模块级 Map） | `convert.js:245`、`retrieval-operations.js:61`、`marker-install.js:248` | instant #2 #3 |
 | D-9 | `runLocalCommand` abort 后立即 reject，不等进程退出；取消回执早于清理，PDF 取消还会立刻删 job 目录 | `local-command.js:34`、`convert.js:160` | 代码审阅；Windows 真机未验证（V-4） |
-| D-10 | `study_workspace` 只拒绝 `marker.install.start/uninstall`；`marker.settings.set`（可写任意程序路径，随后 `marker.import` 会执行它）、`mineru.local.setup`（`confirm:true` 由调用方自带）、`mineru.settings.set`、`mineru.import`、`marker.import` 仍可达 | `lib/index.js:348` | 仅静态审阅；需真实宿主会话确认可达性 |
+| D-10 | `study_workspace` 只拒绝 `marker.install.start/uninstall`；`marker.settings.set`（可写任意程序路径，随后 `marker.import` 会执行它）、`mineru.local.setup`（`confirm:true` 由调用方自带）、`mineru.settings.set`、`mineru.import`、`marker.import` 仍可达 | `lib/index.js:348` | 已动态确认并修复（`tests/assistant-settings-boundary.test.mjs`）：助手设的程序路径确被 `marker.local.status`/`marker.import` 执行；`marker.settings.set`、`mineru.settings.set`、`mineru.local.setup` 现与安装/卸载同列 Settings-only（`lib/assistant-boundary.js`）；两个 import 保留给助手，只用学习者在设置里配好的程序与授权 |
 | D-11 | 一个 jobs 表只有一个转换闸：本地 Marker 转换会让云端转换排队 | `convert.js:65-66,81-82` | 仅代码审阅 |
 | D-12 | 读取类调用带写副作用或长阻塞（`history.list`、`local.start`） | `convert.js:270-276,365` | 仅代码审阅 |
 | D-13 | pdf-convert 的进度分段固定标成 `author` | `job-contract.js:124` | 仅代码审阅 |
@@ -157,7 +157,7 @@
 | V-5 | 转换结果入库：导入层以合并字节哈希作 `document.id`（`materials/files.js:21,57-67` 看起来幂等），"导入后、终态保存前崩溃"再恢复是否不重复未按测试固定 | S5-2、S5-6 |
 | V-6 | `mineru.local.start` 在真实 CLI 上的阻塞时长与是否应保持即时 | S5-4 |
 | V-7 | DSH `jobs.start` 在无 Agent 的面板入口下的行为（G-1 的宿主证据） | S5-1 |
-| V-8 | D-10 的可达性与产品决策（哪些操作应列入 Settings-only） | S5-1、S5-3 |
+| V-8 | D-10 的可达性已确认（见 D-10）；仍待产品决策：`mineru.local.start`（启动常驻本地服务，不改配置）是否也列入 Settings-only | S5-1、S5-3 |
 
 ## 10. 测试
 
