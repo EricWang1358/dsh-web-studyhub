@@ -6,7 +6,9 @@ import css from "./manage.css";
 import { useStudy } from "./study-context.jsx";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
-import { Badge, Banner, Button, Combobox, ConfirmDialog, PageHeader, Panel, useToast } from "./components/index.js";
+import { Badge, Banner, Button, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
+import { partOf, partsOf } from "../lib/deck-parts.js";
+import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
@@ -36,6 +38,10 @@ export default function Manage({
   const [merging, setMerging] = useState(false);
   const [splitTitle, setSplitTitle] = useState("");
   const [splitTopics, setSplitTopics] = useState([]);
+  // The parts of the deck (lib/deck-parts.js): 「第一部分 12 题 · 第二部分 9 题」 and one part at a time on screen. Practice and mastery read the whole deck.
+  const parts = partsOf(managedDeck), [shownPart, setShownPart] = useState(0);
+  const showing = parts.length > 1 && parts.some((part) => part.n === shownPart) ? shownPart : 0;
+  const shownCards = showing ? managedDeck.cards.filter((card) => partOf(card) === showing) : managedDeck.cards;
   const topics = [...new Set(managedDeck.cards.map((c) => c.topic || ui("未分类")))];
   const peers = decks.filter((d) => d.id !== managedDeck.id && !d.systemKind && !d.archived);
   const deckIndex = decks.findIndex((d) => d.id === managedDeck.id);
@@ -70,6 +76,7 @@ export default function Manage({
         <div className="manage-meta">
           <Badge size="sm">{uiFormat("{0} 题", [managedDeck.cards.length])}</Badge>
           {managedDeck.archived && <Badge size="sm" tone="warning">{ui("已归档")}</Badge>}
+          {parts.length > 1 && <span className="manage-parts" data-deck-parts>{partsLine(parts)}</span>}
         </div>
         {managedDeck.originalTitle && managedDeck.originalTitle !== managedDeck.title &&
           <p className="muted">{ui("导入原标题：")}{managedDeck.originalTitle}</p>}
@@ -158,8 +165,10 @@ export default function Manage({
           if (result === undefined) throw new Error(ui("另一个操作还在进行，请稍后重试。"));
         }} />}
       {!managedDeck.cards.length && <p className="muted">{slainView ? ui("斩题组为空。练习时点击“斩”，题目会收纳到这里。") : ui("当前题组没有题目。已斩的题可从斩题组恢复。")}</p>}
+      {parts.length > 1 && <SegmentedControl size="sm" className="manage-part-filter" label={ui("按部分查看")} value={showing} onChange={setShownPart} data-part-filter
+        options={[{ value: 0, label: ui("全部") }, ...parts.map((part) => ({ value: part.n, label: partLabel(part.n) }))]} />}
       <div className="manage-cards">
-        {managedDeck.cards.map((card) => (
+        {shownCards.map((card) => (
           <Panel as="article" density="compact" className={`manage-card${card.suspended ? " is-suspended" : ""}`} key={card.id}>
             <div className="manage-card__body">
               <div className="manage-card__meta">

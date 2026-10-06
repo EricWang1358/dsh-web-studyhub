@@ -4,6 +4,7 @@ import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
 import { contractOf, taskKindOf, isRunningTask } from './task-model.js';
 import { roundOfText, waitingText } from '../coverage/copy.js';
+import { partTitle } from '../deck-parts.js';
 
 /* A job as one line of the console's list and as the header of its detail: kind, title, a state, a percent and ONE status line, all read from the job's
    contract. The stage is a CODE there; this file is where it becomes words (and the only place that does), so a job reads the same wherever it is shown. */
@@ -34,8 +35,10 @@ const dayName = (date) => { const [year, month, day] = String(date).split('-').m
 
 /** The title the learner knows the job by. */
 export function taskTitle(job) {
-  const { title, kind } = contractOf(job);
+  const { title, kind, detail } = contractOf(job);
   if (kind === 'coach-daily') return uiFormat('为你定制 · {0}', [dayName(title)]);
+  // A new draft that will be the next part of a deck (lib/deck-parts.js): 「期中复习 · 第二部分」.
+  if (detail?.part?.deckTitle) return partTitle(detail.part.deckTitle, detail.part.n);
   if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : title;
   return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKindOf(job));
 }
