@@ -45,7 +45,7 @@ export function runningCalls(calls) {
   return (calls || []).filter((call) => call.status === 'running' || call.status === 'waiting').sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0));
 }
 
-const WINDOW_MS = 10 * 60 * 1000, MIN_WINDOW_MS = 60 * 1000, MAX_SLOT_LANES = 8, MAX_TRANSCRIBE_LANES = 3, EDGE = 0.5, REUSED_EDGE = 1.5;
+const WINDOW_MS = 10 * 60 * 1000, MAX_KEPT_WINDOW_MS = 60 * 60 * 1000, MIN_WINDOW_MS = 60 * 1000, MAX_SLOT_LANES = 8, MAX_TRANSCRIBE_LANES = 3, EDGE = 0.5, REUSED_EDGE = 1.5;
 const MAX_LANES = 24, MAX_UNIT_ROWS = 3, ATTACH_MS = 5000, NAME_CHARS = 22;
 
 /** Put intervals in the fewest lanes where none overlap (first fit), at most `limit` lanes. */
@@ -91,13 +91,16 @@ function unitOf(call, mode) {
  *  At most 24 lanes: the units that were active most recently stay (a unit with a call in flight always does), still in their own order; `hiddenLanes` counts the
  *  units left out. A unit with nothing inside the window has no lane.
  *  A reused transcript (call.reused, no duration) is a bar of at least 1.5% of the chart, the others of at least 0.5%.
- * The window is the last ten minutes of a running job, the whole run of a finished one (at most ten minutes, at least one).
+ * The window is the last ten minutes of a running job, the whole run of a finished one (at most ten minutes, at least one); `pinned` (call ids) widens it back to the earliest of those calls (an hour at most).
  */
-export function timelineModel(calls, { now = Date.now(), running = false } = {}) {
+export function timelineModel(calls, { now = Date.now(), running = false, pinned = [] } = {}) {
   const timed = (calls || []).filter((call) => Number.isFinite(Date.parse(call.startedAt))).map((call) => ({ call, from: Date.parse(call.startedAt), to: call.endedAt ? Date.parse(call.endedAt) : null }));
   if (!timed.length) return { lanes: [], hiddenLanes: 0, windowMs: MIN_WINDOW_MS, begin: now, end: now };
   const first = Math.min(...timed.map((item) => item.from)), last = Math.max(...timed.map((item) => item.to ?? item.from));
-  const end = running ? now : last, span = Math.min(WINDOW_MS, Math.max(MIN_WINDOW_MS, end - first)), begin = end - span;
+  // The steps the time-limit strip points at (`pinned`: call ids) are never cut away: the window reaches back to where the earliest of them began (an hour at most).
+  const kept = timed.filter((item) => pinned.includes(item.call.callId)).map((item) => item.from);
+  const end = running ? now : last, reach = kept.length ? Math.min(MAX_KEPT_WINDOW_MS, end - Math.min(...kept)) : 0;
+  const span = Math.min(Math.max(WINDOW_MS, reach), Math.max(MIN_WINDOW_MS, end - first)), begin = end - span;
   const bar = ({ call, from, to }) => {
     const stop = to ?? end, left = Math.max(0, (Math.max(from, begin) - begin) / span * 100), right = Math.min(100, (Math.min(stop, end) - begin) / span * 100);
     if (right < 0 || stop < begin) return null;

@@ -33,6 +33,7 @@ test('a host without a component shows no category for it', () => {
 test('every deep link and tour anchor lands on its category', () => {
   const expected = { 'settings-model': 'model', 'settings-generation': 'generation', 'settings-audio': 'audio', 'settings-mineru': 'mineru', 'settings-extensions': 'retrieval', 'settings-update': 'update', 'settings-usage': 'usage', 'settings-experimental': 'experimental', 'settings-jev': 'experimental' };
   for (const [anchor, id] of Object.entries(expected)) assert.equal(categoryForAnchor(anchor), id, anchor);
+  assert.equal(categoryForAnchor('settings-generation-time'), 'generation', 'the 任务 page links to the field of the time limit (ui/tasks/time-limit.js LIMIT_ANCHOR)');
   assert.equal(categoryForAnchor('settings-nowhere'), null);
   assert.equal(categoryForAnchor('settings-science'), 'science');
   assert.equal(categoryForAnchor('settings-daily-recap'), 'daily-recap');
