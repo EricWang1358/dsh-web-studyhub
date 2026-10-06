@@ -16,7 +16,7 @@
 | 云端活动目录 | `/workspace/runtime-s13-contract`；原 `/workspace/dsh-web-studyhub` 保持在 `c3377f6`，未用于改动 |
 | 指定回退目录 / SHA | `/workspace/runtime-s17-rollback`，detached `b53b14752ec74dc149d2c7690cc33a5d6ab9e6b7`，独立安装依赖，未共享 node_modules |
 
-`#259` 文档合并 `c3377f6` 是原始交接点，不是当前 main。当前正式 package 版本为 2.7.0；计划中历史“2.6.x alpha”目标没有被偷偷改写，也没有将正式版降号。发布负责人须在获准发布后协调 alpha 分支/版本，不能把这里的私有 2.7.0 测试 tarball 当作 alpha 预发行。
+`#259` 文档合并 `c3377f6` 是原始交接点，不是当前 main。私有包检查时 package 版本为 2.7.0；随后并行发布准备 PR #280 将 main 更新到 `47f132815fc2fa65c7352f3f536109bb9c3ddd96`、package 2.7.1（仅版本与发行文档，无 lib 运行时代码变动），本分支已同步。2.7.0 私有包证据不能冒充 2.7.1 包验证；本 agent 未执行该发布。计划中历史“2.6.x alpha”目标没有被偷偷改写，也没有将正式版降号。发布负责人须在获准发布后协调 alpha 分支/版本，不能把这里的私有 2.7.0 测试 tarball 当作 alpha 预发行。
 
 ## S1-0…7 逐项状态
 
