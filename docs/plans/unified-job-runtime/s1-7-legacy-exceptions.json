@@ -5,6 +5,7 @@
     "lib/contexts/audio/jobs/batch-import.js",
     "lib/contexts/audio/jobs/live-correction.js",
     "lib/contexts/audio/jobs/review.js",
+    "lib/contexts/audio/install/marker-install-job.js",
     "lib/contexts/audio/jobs/single-import.js",
     "lib/contexts/audio/jobs/subtitles.js",
     "lib/contexts/coach/jobs/coach-prep.js",
@@ -12,7 +13,8 @@
     "lib/contexts/generation/retrieval/jobs/retrieval-index.js",
     "lib/contexts/notes/jobs/daily-recap.js",
     "lib/contexts/workflows/jobs/teaching.js",
-    "lib/contexts/workflows/jobs/skeleton.js"
+    "lib/contexts/workflows/jobs/skeleton.js",
+    "lib/contexts/study/jobs/assist.js"
   ],
   "entries": [
     {
@@ -24,7 +26,7 @@
         },
         {
           "callee": "service.complete",
-          "count": 2
+          "count": 1
         }
       ],
       "owner": "existing domain maintainer",
