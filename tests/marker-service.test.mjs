@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { prepareJob } from '../lib/mineru-job.js';
 import { resultsDir } from '../lib/mineru-paths.js';
 import { makePdf } from './helpers/pdf.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 const fake = fileURLToPath(new URL('./helpers/fake-marker-cli.mjs', import.meta.url));
 async function harness(t, state = {}, limits = { windowPages: 2 }) {
   const folder = await mkdtemp(join(tmpdir(), 'marker-service-'));
@@ -15,7 +16,7 @@ async function harness(t, state = {}, limits = { windowPages: 2 }) {
   process.env.DSH_HOME = join(folder, 'home');
   const root = join(folder, 'library'), statePath = join(folder, 'state.json'), log = join(folder, 'log.jsonl');
   await writeFile(statePath, JSON.stringify(state)); await writeFile(log, '');
-  const options = { marker: { limits, local: { cli: { file: process.execPath, prefix: [fake], env: { FAKE_MARKER_STATE: statePath, FAKE_MARKER_LOG: log } } } } };
+  const options = { ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), marker: { limits, local: { cli: { file: process.execPath, prefix: [fake], env: { FAKE_MARKER_STATE: statePath, FAKE_MARKER_LOG: log } } } } };
   let service = new StudyService(root, options);
   const pdfs = new Map();
   const h = {
