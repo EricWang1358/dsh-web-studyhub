@@ -4,18 +4,18 @@
 
 ## 1. 做了什么
 
-`retrieval.index.start / status / cancel`（以及覆盖情况里的 `building`）在开关 `runtime.pilot.retrievalIndex`（插件 `Config`，**默认关闭**）打开时由统一运行时承担：一次构建是一个 `retrieval-index` Job，进入共享任务表和任务控制台；关闭时是原来的后台 run，行为不变。开关只在一处读取：`lib/contexts/retrieval/index-runs.js`。
+`retrieval.index.start / status / cancel`（以及覆盖情况里的 `building`）在开关 `runtime.pilot.retrievalIndex`（插件 `Config`，**默认关闭**）打开时由统一运行时承担：一次构建是一个 `retrieval-index` Job，进入共享任务表和任务控制台；关闭时是原来的后台 run，行为不变。开关只在一处读取：`lib/contexts/generation/retrieval/index-runs.js`。
 
 继续调用既有的宿主/MCP 工具（`mcp__studyhub__ingest_data` / `delete_file`），不新增搜索引擎、不产生第二份索引内容；查询、预览、计划、覆盖仍是即时调用。
 
 | 文件 | 职责 |
 |---|---|
-| `lib/contexts/retrieval/jobs/retrieval-index.js` | 任务定义：`admit`（工具可用、读库和 manifest、算计划）、`run`（经网关观测一次 `local-process` 调用，里面是既有的 `buildIndex`） |
-| `lib/contexts/retrieval/jobs/retrieval-index-view.js` | 展示读取器（标题、阶段、进度、详情）与旧状态形状的读取 |
-| `lib/contexts/retrieval/jobs/submit-retrieval-index.js` | start/status/cancel 入口：同库单飞、拒绝在创建 Job 之前、回执 |
-| `lib/contexts/retrieval/index-plan.js`、`adopt-index.js` | 两条路径共用：课程资料与差量计划；构建后采用扩展索引为检索源 |
-| `lib/contexts/retrieval/legacy-index-run.js` | 原后台 run，原样搬出（开关关闭时使用） |
-| `lib/contexts/retrieval/index-runs.js`、`runtime-port.js` | 开关的唯一读取点；生成上下文给构建的 job 端口 |
+| `lib/contexts/generation/retrieval/jobs/retrieval-index.js` | 任务定义：`admit`（工具可用、读库和 manifest、算计划）、`run`（经网关观测一次 `local-process` 调用，里面是既有的 `buildIndex`） |
+| `lib/contexts/generation/retrieval/jobs/retrieval-index-view.js` | 展示读取器（标题、阶段、进度、详情）与旧状态形状的读取 |
+| `lib/contexts/generation/retrieval/jobs/submit-retrieval-index.js` | start/status/cancel 入口：同库单飞、拒绝在创建 Job 之前、回执 |
+| `lib/contexts/generation/retrieval/index-plan.js`、`adopt-index.js` | 两条路径共用：课程资料与差量计划；构建后采用扩展索引为检索源 |
+| `lib/contexts/generation/retrieval/legacy-index-run.js` | 原后台 run，原样搬出（开关关闭时使用） |
+| `lib/contexts/generation/retrieval/index-runs.js`、`runtime-port.js` | 开关的唯一读取点；生成上下文给构建的 job 端口 |
 | `lib/retrieval-messages.js` | 构建的全部中文文案（英文在 `application-messages*.js`） |
 | `lib/retrieval-index.js` | 只加了 `canIngest/indexUnavailable`（三处共用）和 `onItem` 钩子，`buildIndex` 行为不变 |
 
