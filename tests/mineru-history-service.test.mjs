@@ -9,6 +9,7 @@ import { prepareJob } from '../lib/mineru-job.js';
 import { closeRecord, historyDir, listRecords, openRecord } from '../lib/mineru-history.js';
 import { FAKE_TOKEN, startFakeMineru } from './helpers/fake-mineru.mjs';
 import { makePdf } from './helpers/pdf.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 /* The conversion history through the real service: a record per conversion (cloud and local), kept while it runs and after it ends,
    resumed from the history, deleted without touching the imported documents. The cloud is the fake MinerU server, the local mineru a fake CLI. */
@@ -31,7 +32,7 @@ async function harness(t, { serverOptions = {}, cliState = {}, pages = 120, clou
   const options = { mineru: { ...(fake ? { baseUrl: fake.baseUrl } : {}), now: () => clock.time, limits: { windowPages: 50 },
     sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); },
     local: { cli, home: work, modelsCli: { file: process.execPath, prefix: [FAKE], env: cli.env } } } };
-  const open = () => new StudyService(root, { ...options, ...(contexts ? { contexts } : {}) });
+  const open = () => new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), ...(contexts ? { contexts } : {}) });
   let service = open();
   const h = {
     home, root, fake, work,
