@@ -1,4 +1,5 @@
 import { jobContract, isLiveStatus, STATUS } from '../../lib/job-contract.js';
+import { AUDIO_JOB_TYPES } from '../../lib/job-status.js';
 
 export { isLiveStatus };
 
@@ -15,7 +16,7 @@ export function contractOf(job) {
   return own.get(job);
 }
 
-const KINDS = { 'audio-import': 'audio', 'pdf-convert': 'pdf', translation: 'translation', generation: 'generation', supplement: 'supplement',
+const KINDS = { ...Object.fromEntries(AUDIO_JOB_TYPES.map((type) => [type, 'audio'])), 'pdf-convert': 'pdf', translation: 'translation', generation: 'generation', supplement: 'supplement',
   'draft-repair': 'repair', 'draft-publish': 'publish', 'coach-daily': 'coach', extension: 'extension' };
 /** The kind of a job, for its label and for the job-type section of the detail pane. */
 export const taskKindOf = (job) => KINDS[contractOf(job).kind] || 'extension';

@@ -4,6 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { KEY, batchLibrary, hostModel, letters, wav } from './helpers/audio-family.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { SWITCH_MODE } from './helpers/audio-switch.mjs';
 
 /* S2-0 characterization of the batch entry `audio.import { files }` and its retry (lib/contexts/audio/operations.js, lib/audio-batch.js) on the code as it is.
    Already covered elsewhere: order, frozen course, no partial sources, one slot shared with singles, cancel/resume (audio-batch), orphan results and manifest
@@ -115,5 +116,6 @@ test('a batch on the DSH text model: Gemini only transcribes, the text requests 
   assert.deepEqual(await lib.ledger(), { uncachedInputTokens: 600, outputTokens: 60, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 6 });
   assert.equal(done.tokenUsage, undefined, 'no total on the batch job itself');
   const view = (await lib.service.call('snapshot')).jobs.find(job => job.id === done.id);
-  assert.equal(view.contract.usage.tokens, null);
+  // D-5 (S2-2): on the runtime every model call goes through the gateway, so the batch contract carries the total of its six calls (each 100 in, 10 out).
+  assert.equal(view.contract.usage.tokens, SWITCH_MODE === 'runtime' ? 6 * 110 : null);
 });

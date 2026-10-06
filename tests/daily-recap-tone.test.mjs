@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { recapPrompt, recapLeaks, polishRecapMarkdown, checkedRecapMarkdown } from '../lib/daily-recap.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 const clean = '# 今日回顾\n\n' + '今天你练了十二道题，主线是先核对条件，再套用结论。'.repeat(6);
 
@@ -173,7 +174,7 @@ test('the rewrite stage of the fake model removes passages with internal terms a
 /* The generation pipeline: a leaking final writing is rewritten once before it is saved. */
 async function pipeline(t, complete, count) {
   const root = await mkdtemp(join(tmpdir(), 'recap-tone-'));
-  const service = new StudyService(root, { complete });
+  const service = new StudyService(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['dailyRecap'] }) });
   t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
   await service.store.update(state => {
     state.decks.push({ id: 'd', title: '数学', course: '数学', cards: Array.from({ length: count }, (_, i) => ({ id: `d-${i}`, kind: 'quiz', topic: `知识点 ${i % 3}`,

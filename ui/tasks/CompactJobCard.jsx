@@ -6,7 +6,7 @@ import { AppContext } from '../app/app-context.js';
 import { dismissJobs, useQuickActions } from '../quick-actions.js';
 import { joinMeta } from '../format.js';
 import css from './compact-card.css';
-import { contractOf, isRunningTask } from './task-model.js';
+import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
 import { taskSummary, stageLabel } from './task-summary.js';
 import { runningCalls, callLabel } from './call-model.js';
 import { resultOpener } from './task-actions.js';
@@ -31,7 +31,7 @@ export function cardLine(job) {
   const notices = contract.detail?.notices?.length || contract.detail?.warnings?.length || 0, noticed = notices ? uiFormat('{0} 条提醒', [notices]) : '';
   if (status === 'failed' || status === 'interrupted') return uiMessage(error?.message || stageLabel(contract.stage));
   if (status === 'cancelled') return joinMeta([ui('已停止'), progress.total > 0 ? uiFormat('停在 {0}/{1}', [progress.done, progress.total]) : '', ui('已完成的部分已保留')]);
-  if (status === 'complete' && contract.kind === 'audio-import') {
+  if (status === 'complete' && taskKindOf(job) === 'audio') {
     const { review, reusedWhole, corrected, uncertain } = contract.detail, sources = result.refs.filter((ref) => ref.kind === 'source').length;
     if (review) return uiFormat('复核完成：改进正稿 {0} 处 · 判定原文无误 {1} 处 · 仍拿不准 {2} 处', [review.applied, review.rejected, review.unsure]);
     return joinMeta([reusedWhole ? ui('已导入过，直接复用') : uiFormat('已存为 {0} 份资料 · 校对修正 {1} 处', [sources, corrected]),
