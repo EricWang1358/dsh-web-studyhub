@@ -13,6 +13,11 @@ import { batchDocuments, readAudioBatch, saveAudioBatch } from '../lib/audio-bat
 import { checkpoints } from '../lib/audio-import.js';
 import { storeDocuments } from '../lib/audio-job.js';
 import { settleJob, until } from './helpers/wait.mjs';
+import { SWITCH_MODE, audioSwitch } from './helpers/audio-switch.mjs';
+
+// These scenarios end a process while a model request is in flight. The legacy path retries blindly after that; the runtime refuses to
+// resume an unreconciled request (S1-6, remote-result-unknown), so the runtime side of each scenario is in unified-runtime-audio-batch.test.mjs.
+const killedMidRequest = SWITCH_MODE === 'runtime' ? { skip: 'a crash mid-request refuses recovery on the runtime; see unified-runtime-audio-batch.test.mjs' } : {};
 
 const KEY = 'AIzaAudioBatchTest_00000000000001';
 test('BOM-prefixed audio manifests and checkpoints remain readable without rewriting text', async t => {
@@ -97,7 +102,7 @@ async function fixture(t, { hold = false, fail = () => false, limit = 1 } = {}) 
     const payload = JSON.parse(prompt.split('\n\nYour previous')[0]);
     return reply(JSON.stringify({ titleZh: '数据库', titleEn: 'Databases', paragraphs: payload.paragraphs.map(p => ({ n: p.n, zh: `${name} 的翻译。` })) }));
   };
-  const service = new StudyService(root, { fetch });
+  const service = new StudyService(root, { fetch, ...audioSwitch() });
   await service.call('audio.settings.set', { paidKey: KEY, textProvider: 'gemini', transcribeConcurrency: limit });
   const a = join(dir, 'A.wav'), b = join(dir, 'B.wav');
   await writeFile(a, wav(1)); await writeFile(b, wav(2));
@@ -182,6 +187,8 @@ test('an assembly save failure retries only assembly and changed path inputs are
   const another = await wait(await service.call('audio.import', { files: [{ path: a }, { path: b }] }));
   assert.equal(another.status, 'failed');
   await writeFile(b, wav(3));
+  // The runtime checks the files before it brings the batch back, so the retry is refused (naming the file) instead of failing a new attempt.
+  if (SWITCH_MODE === 'runtime') return assert.rejects(service.call('audio.retry', { jobId: another.id }), /音频文件已改变：B\.wav/);
   const changed = await wait(await service.call('audio.retry', { jobId: another.id }));
   assert.equal(changed.status, 'failed');
   assert.match(changed.stage, /文件已改变/);
@@ -207,7 +214,7 @@ test('long combined transcripts keep filename boundaries and the existing source
   }
 });
 
-test('a fresh process recovers an interrupted uploaded batch without automatic model calls', async t => {
+test('a fresh process recovers an interrupted uploaded batch without automatic model calls', killedMidRequest, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'audio-batch-process-')), root = join(dir, 'library');
   t.after(() => rm(dir, { recursive: true, force: true }));
   const child = mode => new Promise((resolve, reject) => {
@@ -236,7 +243,7 @@ test('a fresh process recovers an interrupted uploaded batch without automatic m
   assert.equal(second.oldFailureLetters, 0);
 });
 
-test('transient Windows manifest replacement failures preserve the finished member before process interruption', async t => {
+test('transient Windows manifest replacement failures preserve the finished member before process interruption', killedMidRequest, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'audio-batch-replacement-')), root = join(dir, 'library');
   t.after(() => rm(dir, { recursive: true, force: true }));
   const preload = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
@@ -304,7 +311,7 @@ async function orphanedBatch(t) {
   return { root, child, manifest, result, resultPath };
 }
 
-test('a restart recovers the completed member result after exhausted manifest replacement without new model cost', async t => {
+test('a restart recovers the completed member result after exhausted manifest replacement without new model cost', killedMidRequest, async t => {
   const { root, child, manifest, result } = await orphanedBatch(t);
   const recovered = await child('resume');
   assert.equal(recovered.callsBeforeRetry, 0);
@@ -324,7 +331,7 @@ test('a restart recovers the completed member result after exhausted manifest re
   assert.deepEqual(persisted.members[0].progress.usage, first.usage);
 });
 
-for (const invalid of ['corrupt JSON', 'changed transcript', 'wrong member identity', 'empty documents']) test(`an orphan result with ${invalid} is reprocessed instead of published`, async t => {
+for (const invalid of ['corrupt JSON', 'changed transcript', 'wrong member identity', 'empty documents']) test(`an orphan result with ${invalid} is reprocessed instead of published`, killedMidRequest, async t => {
   const { child, result, resultPath } = await orphanedBatch(t);
   if (invalid === 'corrupt JSON') await writeFile(resultPath, '{', 'utf8');
   else if (invalid === 'changed transcript') {
@@ -345,7 +352,7 @@ for (const invalid of ['corrupt JSON', 'changed transcript', 'wrong member ident
   assert.ok(recovered.sources[0].text.includes('A.wav'));
 });
 
-test('orphan result recovery still rejects a changed original recording before any model call or publication', async t => {
+test('orphan result recovery still rejects a changed original recording before any model call or publication', killedMidRequest, async t => {
   const { child, manifest } = await orphanedBatch(t);
   await writeFile(manifest.members[0].path, wav(3));
   const recovered = await child('resume');
@@ -451,8 +458,13 @@ test('inputs survive when sources commit but the terminal manifest cannot be sav
     return result;
   };
   const job = await wait(await service.call('audio.import', { files: [{ path: a }, uploaded] }));
-  assert.equal(job.status, 'complete', job.stage);
   assert.equal((await service.store.read()).sources.length, 1);
-  assert.ok(job.warnings.some(warning => warning.includes('任务进度')));
+  if (SWITCH_MODE === 'runtime') {
+    // Reviewed difference: a job whose outcome cannot be saved is not reported as complete; the sources are in, and a retry reconciles them.
+    assert.deepEqual([job.status, job.stage], ['failed', 'Job outcome could not be saved']);
+  } else {
+    assert.equal(job.status, 'complete', job.stage);
+    assert.ok(job.warnings.some(warning => warning.includes('任务进度')));
+  }
   assert.equal((await readFile(blocked.members[1].path)).at(-1), 2, 'no cleanup before durable completion');
 });

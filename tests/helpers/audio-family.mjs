@@ -5,6 +5,7 @@ import { StudyService } from '../../lib/service.js';
 import { usageLedger } from '../../lib/model-usage.js';
 import { reportUsage } from '../../lib/usage-scope.js';
 import { listSaved } from '../../lib/live.js';
+import { audioSwitch } from './audio-switch.mjs';
 
 /* Shared fixtures of the S2-0 audio-family baseline tests (docs/plans/unified-job-runtime/s2-0-audio-baseline.md).
    Everything is a fake: no network, no key, a private library and DSH_HOME per test. */
@@ -61,15 +62,17 @@ export function geminiTextFake(log) {
   };
 }
 
-/** A Gemini fake for transcription and text; `calls` is the ordered request log ("transcribe:A", "proofread:B", ...). */
-export function geminiFake({ failTranslate = () => false } = {}) {
-  const calls = [];
+/** A Gemini fake for transcription and text; `calls` is the ordered request log ("transcribe:A", "proofread:B", ...).
+ * With `hold`, a transcription waits until `held.get(name)()` (or until its request is aborted). */
+export function geminiFake({ failTranslate = () => false, hold = false } = {}) {
+  const calls = [], held = new Map();
   const fetch = async (url, init = {}) => {
     const body = JSON.parse(init.body);
     if (String(url).includes('transcribe:')) {
       const audio = body.contents[0].parts.find(part => part.inlineData).inlineData.data;
       const name = Buffer.from(audio, 'base64').at(-1) === 1 ? 'A' : 'B';
       calls.push(`transcribe:${name}`);
+      if (hold) await new Promise((resolve, reject) => { held.set(name, resolve); init.signal?.addEventListener('abort', () => reject(init.signal.reason), { once: true }); });
       return geminiReply(`${name} describes database transactions and indexes.`);
     }
     const system = body.systemInstruction.parts[0].text, prompt = body.contents[0].parts[0].text;
@@ -82,7 +85,7 @@ export function geminiFake({ failTranslate = () => false } = {}) {
     const payload = JSON.parse(prompt.split('\n\nYour previous')[0]);
     return geminiReply(JSON.stringify({ titleZh: '数据库', titleEn: 'Databases', paragraphs: payload.paragraphs.map(p => ({ n: p.n, zh: `${name} 的翻译。` })) }));
   };
-  return { fetch, calls };
+  return { fetch, calls, held };
 }
 
 /**
@@ -100,7 +103,7 @@ export async function library(t, { settings = {}, ...options } = {}) {
     await rm(dir, { recursive: true, force: true });
   });
   const open = async extra => {
-    const service = new StudyService(root, { ...options, ...extra });
+    const service = new StudyService(root, { ...audioSwitch({ complete: options.complete }), ...options, ...extra });
     services.push(service);
     await service.call('audio.settings.set', settings);
     return service;
@@ -112,8 +115,8 @@ export async function library(t, { settings = {}, ...options } = {}) {
 }
 
 /** A Gemini-routed library with two recordings, A.wav and B.wav (`a`, `b`), the request log `calls`, session notices and the batch folders. `keys` are the audio settings. */
-export async function batchLibrary(t, { keys = { paidKey: KEY }, failTranslate, ...extra } = {}) {
-  const fake = geminiFake({ failTranslate: name => failTranslate?.(name) ?? false }), notices = [];
+export async function batchLibrary(t, { keys = { paidKey: KEY }, failTranslate, hold, ...extra } = {}) {
+  const fake = geminiFake({ failTranslate: name => failTranslate?.(name) ?? false, hold }), notices = [];
   const lib = await library(t, { fetch: fake.fetch, notify: notice => notices.push(notice), settings: { textProvider: 'gemini', ...keys }, ...extra });
   const [a, b] = [join(lib.dir, 'A.wav'), join(lib.dir, 'B.wav')];
   await writeFile(a, wav(1)); await writeFile(b, wav(2));

@@ -8,7 +8,7 @@ import { failureText } from '../failure.js';
 import { formatDateTime, joinMeta } from '../format.js';
 import denseCss from '../dense-surface.css';
 import css from './task-console.css';
-import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf } from './task-model.js';
+import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf, taskKindOf } from './task-model.js';
 import { isSelectableTask, reconcileSelection, selectionSummary, toggleAll, toggleSelection } from './task-selection.js';
 import { batchMessage, batchRun } from './task-batch.js';
 import SelectBar from './SelectBar.jsx';
@@ -259,7 +259,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
     window.addEventListener('keydown', end, true);
     return () => window.removeEventListener('keydown', end, true);
   }, [selecting]);
-  const kind = (id) => { const item = everything.get(id); return item ? contractOf(item).kind : null; };
+  const kind = (id) => { const item = everything.get(id); return item ? taskKindOf(item) : null; };
   return (
     <div className="tc" data-surface="dense" data-usage-area="tasks" data-full={full ? 'true' : 'false'}>
       <section className="tc-list" aria-label={ui('任务列表')} ref={listRef}>
@@ -283,7 +283,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
       {task ? <Detail key={taskId(task)} task={task} data={data} openers={openers} full={full} onFull={toggleFull} onDelete={askDelete} />
         : <section className="tc-detail" aria-label={ui('任务详情')}><p className="tc-empty">{ui('选择左边的一个任务查看详情。')}</p></section>}
       {deleting && <DeleteTasksDialog count={deleting.ids.length} archived={deleting.ids.filter((id) => archived.some((item) => taskId(item) === id)).length}
-        audio={deleting.ids.filter((id) => kind(id) === 'audio-import').length} onConfirm={confirmDelete} onClose={() => setDeleting(null)} />}
+        audio={deleting.ids.filter((id) => kind(id) === 'audio').length} onConfirm={confirmDelete} onClose={() => setDeleting(null)} />}
     </div>
   );
 }

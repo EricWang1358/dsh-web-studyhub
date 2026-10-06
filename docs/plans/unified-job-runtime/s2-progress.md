@@ -9,6 +9,7 @@
 | S2-1a | 已合并 | `codex/runtime-s21a-kernel` / #287 | `fd5c5a1` | 观察到的失败为已知结果（只有 `sideEffect:true` 保持未知）、`context.persistence`、持久化夹具、开关矩阵工具 | 红灯 2 项 → 绿；定向 285/0 | — |
 | S2-1 | 已合并 | `codex/runtime-s21-audio-import` / #290 | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | verify 5947（2 项已修）；合并后整套 3 次 5984/0；双平台 CI | S2-2 批次（A 道） |
 | S2-1b | 已合并 | `codex/runtime-kernel-model-host` / #294 | `8a66375` | 网关用 `preparedModelHost`（语言/清理准备）、轻量通道 `{ model: 'light' }`、无持久化定义的结算通知 | 定向 334/0；双平台 CI | — |
+| S2-2 | PR 中 | `codex/runtime-s22-audio-batch` | `2573b58`（#295 后的 main） | 批次导入/重试、成员协调（`audio-batch` 定义）、共享持久化与展示模块 | verify 6152 项 / 6140 通过 / 0 失败 / 12 跳过；lint 与 build 绿 | S2-3 窗口与许可（A 道） |
 
 ## S2-1 记录
 
@@ -33,3 +34,46 @@
 | `preparedAudioSettings` / `operations.js prepare()` / 运行时 admit 三份检查 | 收成 `assertImportSettings` |
 | 音频文案字面量（排队、读取、复用、已存、取消、重试拒绝、录音变化） | 收入 `lib/audio-messages.js` |
 | `retryable` 内存占位（旧路径） | 保留至 S2-6 全部迁完；运行时任务不使用 |
+
+
+## S2-2 记录（批次）
+
+**改动**
+
+- 新定义 `audio-batch`（scope `audio.v1`，开关 `runtime.pilot.audioBatch`，默认关，只影响新提交；旧记录仍按记录自带的 `runtimeJob` 走运行时）。文件在 `lib/contexts/audio/jobs/`：`batch-import.js`（定义，admit/run）、`batch-member.js`（一个文件：转写槽→复用/运行→提交）、`batch-view.js`（展示读取器、旧字段、汇总）；与单文件共用 `view.js`（展示骨架）、`notifications.js`（信箱/会话/清理）、`controls.js`（控制台控制）、`submit-audio.js`（提交/恢复/重试入口，`AUDIO_PATHS` 登记各路径的 kind/开关/输入）。
+- 持久化：沿用 `audio-batches/<id>/manifest.json`，经 `createManifestJobStore`。端口 `lib/audio-batch-runtime-store.js`；与单文件共用 `lib/audio-runtime-common.js`（摘要、检查点文件、设置/控制白名单、旧卡投影、账本端口）与 `lib/audio-runtime-artifacts.js`（准备/核对/发布来源）。成员结果 `result-N.json` 是成员提交（步骤键 `member:N`，`commitArtifact` 先记 pending 再写文件）；合并后的资料是唯一的 `assemble:1` 提交。成员复用/孤儿结果校验/分卷/来源 ID/`batchDocuments` 搬到 `lib/audio-batch-members.js`，旧执行器与运行时共用，不复制。
+- 并发：批次本身不占转写槽；每个文件按提交顺序逐个取宿主 `audioGate` 的槽（无"父占槽等子"死锁）；一个批次一个文字池；同内容 hash 仍由 `exclusive` 串行。
+- 暂停：`pauseMode: 'checkpoint'`，在文件边界结束本次尝试（见"评审过的行为差异"）。
+- D-5 已修：批次合同的 `usage.tokens` 来自网关的全部调用；每个文件的 `tokenUsage` 由其调用（步骤键前缀 `member:N:`）汇总。D-10 已修：带 skip 的重试在启动失败时撤回 skipped 标记（旧路径同样）。
+- 重试：`audio.retry` 也认合同的 `attemptId`/`jobId`（控制台「跳过此文件」发的是它）。
+- 常量/文案：`partMinutes || 59` 四处回退收成 `partSecondsOf()`；title/subject/course/terms/50 个文件的限制收成 `lib/contexts/audio/input-limits.js`（四个入口共用）；400 字阶段文本、"排队中"、"上次导入已中断"、批次预检/变化/重复文案收入 `lib/audio-messages.js`。
+- 控制台把音频当一个家族：`lib/job-status.js` 的 `AUDIO_JOB_TYPES`/`isAudioJob`（登记一行，新音频 kind 只加这里），音频页、控制台列表/卡片/用量行/删除对话框、`api.js`、`contracts.js` 都读它，没有新增 `type === '<kind>'` 分支。
+
+**开关矩阵**：`tests/helpers/audio-switch.mjs` + 四个孪生文件（`audio-batch`、`audio-family-baseline-batch`、`job-control-audio`、`audio-family-baseline-archive` 的 `.runtime.test.mjs`）以运行时模式重跑同一套特征测试；运行时独有的行为在 `tests/unified-runtime-audio-batch.test.mjs`（10 项：kind/能力/家族、文件边界暂停与继续、skip 撤回、开关只管新提交、崩溃恢复各变体、孤儿结果校验、录音变化）。
+
+**评审过的行为差异**（运行时侧；测试按模式分支并写明原因）
+
+1. 暂停在文件边界：旧批次是原地软暂停（不再发新调用，在途调用跑完，文字步骤停住）；运行时在已开始的文件全部提交后结束本次尝试，已开始的文件会把文字步骤也做完，不再开始新文件，继续时是新的一次尝试。
+2. 进程在请求发出后被杀：运行时拒绝恢复（`remote-result-unknown`，S1-6 合同），旧路径盲目重试。6 个旧进程测试在运行时侧跳过，等价场景（崩在最后一个文件提交处、坏结果、录音变化）在新测试里。
+3. 终态清单写不进去：运行时报 `failed`（"Job outcome could not be saved"），资料已入库、输入保留，重试会核对；旧路径报完成并带警告。
+4. 录音在重试前变化：运行时在重试调用时拒绝并点名文件，旧路径开出一次新尝试再失败。
+5. 回包形状：`job.control` 回 `{ jobId, attemptId, action, status }`；重试的新尝试在 `attemptId`；`contract.jobId` 是运行时的 job id（不再是批次 id）；重试原因码 `not-retryable`（旧 `not-ended`）。
+6. 归档后取消归档：运行时记录回来是历史（没有重试），沿用 S2-1 的设计（`unified-runtime-archive-read` 固定了它）；旧路径仍从文件夹回来可重试。孪生测试在运行时侧改为断言历史并清理文件夹。
+7. 批次的文字窗口与单文件一样 `refusals: 0`（运行时没有 429 自适应降额/退避）：由 S2-3 收敛为唯一一层。
+
+**发现（给内核负责人，本 PR 不改）**
+
+- 恢复/重启时 `preflight → validateInput` 与开始重试共用：批次对每个未完成批次的全部成员做全量 hash（单文件只一个），开机恢复多个失败的大批次会慢。建议 `preflight(version, { phase })`，恢复时只做廉价检查。
+- 取消后立即重试可能撞上结算通知还在写的 `revision-conflict`（测试用 `settleJob` 等到通知投递完才重试）。
+
+**去留**
+
+| 字段 / 调用点 | 处置 |
+|---|---|
+| `executeAudioBatch` 的 `admit` + 共享文字池 | 旧路径保留（开关关）；运行时由 `batch-member.js` 逐文件取宿主槽、一个批次一个池 |
+| `batchDocuments`、成员指纹、result digest（`readMemberResult`）、skip、部分失败 | 保留并搬到 `audio-batch-members.js` 共用 |
+| `job.members[]`、`usage/usageRun/parallel` | 保留成员级；批次级 token 汇总是新增（D-5） |
+| `holdForBlockedMember` | 保留，旧/新共用 |
+| `retryable` 内存占位（批次） | 旧路径保留至 S2-6；运行时批次不用 |
+| `persisters`/`liveControls`（`onPaused`） | 旧路径保留；运行时用 `controls.js` |
+| `syncAudioGate` | 旧路径保留；运行时 admit 里 `applyTranscribeLimit`（S2-3 统一） |
