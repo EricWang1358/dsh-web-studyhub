@@ -8,7 +8,7 @@
     "lib/audio-batch.js": "b6f9cb7d194f770c8b6739d6a638c8b225e86c9d9f15151ca35ce4f5938eab0d",
     "lib/audio-dashboard.js": "00ab5f8b62a80503d125002c0f6bc49ebd234c60d38924ee5115625a7f01cd0b",
     "lib/audio-gateway.js": "544a86eb0cc2a558191aa5ff23c08132e5bfd60b5984cb61a1fb29083838447e",
-    "lib/audio-runtime-store.js": "5091ef83e4ac05156425d86044e1c1c4611d792110dca938870a11e1fd43c620",
+    "lib/audio-runtime-store.js": "08204361087a3f15bcabc5797c481870146f7c4994a166c854f38b8662768572",
     "lib/contexts/audio/worker.js": "d321efefc65a37db6985479f548645edfbdabfcdb25010b6278aeeb4e2a139c5",
     "lib/jobs/durability.js": "f2fd036583ad11f07be95aefea9c4af8089d14467cbaf25369872b4dd0b9de0e",
     "lib/jobs/executor.js": "fef050fbcdfa3d0fd713e473b91b635bbc7521d0a94e8962798f2e52bf1ac497",
@@ -24,20 +24,20 @@
     "tests/slow-tests.json": "3690a0010ff419d929bc8461682c345ca11d12de783591df689d18e1c308095a",
     "tests/unified-runtime-crash.test.mjs": "114bab715fc283a776c958c56afbc8f59e338fd4f5a759432767ac9fdd525194",
     "tests/unified-runtime-recovery.test.mjs": "c88358f957188ed09b0c25fd34146d4f143a8b32b6428b1b8601ba87eaf34d24",
-    "tests/unified-runtime-store.test.mjs": "8cfbbf2b2b6447dac6d23b81c70c864b1d6736081fc3e733a336a543ce85dba2"
+    "tests/unified-runtime-store.test.mjs": "2a86edf205fa3ffc61b4d74c533f784894a9ca4bb28eb2b1d5e11c0b9e3fa5d2"
   },
   "focused": {
     "command": "node scripts/test.mjs tests/unified-runtime-lifecycle.test.mjs tests/unified-runtime-recovery.test.mjs tests/unified-runtime-store.test.mjs tests/unified-runtime-crash.test.mjs tests/unified-runtime-gateway.test.mjs",
-    "log": "output/s13-contract/s15-resume-final-focused.log",
-    "sha256": "5492ac7e186160f9665102a1aa190dc97937dc51fbd59b1e6de22cfbcc0d8d26",
-    "passed": 60,
+    "log": "output/s13-contract/s15-accepted-focused.log",
+    "sha256": "f00fc9c6675319aeaa7daeb42fe70a7f28abadb469924f18c4b3f2357a0f3150",
+    "passed": 61,
     "failed": 0,
     "skipped": 0,
-    "durationMs": 2169.802669
+    "durationMs": 3860.632883
   },
   "nativeHost": {
-    "startedAt": "2026-10-06T06:05:59.769Z",
-    "finishedAt": "2026-10-06T06:06:11.057Z",
+    "startedAt": "2026-10-06T06:09:42.836Z",
+    "finishedAt": "2026-10-06T06:09:50.663Z",
     "ok": true,
     "versions": {
       "dsh": "0.2.0-rc.2",
@@ -57,25 +57,25 @@
         "native": {
           "service": "dsh-jobs",
           "handleId": "audio-import-1",
-          "ownerAgentId": "f6cd9e02-3897-409d-aeda-1a500441a38c"
+          "ownerAgentId": "69a12b2f-814e-47a6-a505-e394cf582151"
         },
         "status": "complete",
         "checkpoint": {
           "version": 1,
           "ref": "checkpoints/b11ac15e26a4fe2261308d26499cd19fb003eb809fe6e67c5e86420330a9509e.json",
-          "digest": "019c449917e4612909bfb2101d79b307e4dc2f28192dc7bd54c13e4d1cb990a2",
+          "digest": "78b508a79c0d0b8b6f7308079022eb49ab2aff0831cbe152d45328e310245c5d",
           "stepKey": "publish:single"
         },
         "calls": [
           {
-            "callId": "772f7d5d-c0a5-497f-a1fd-73d015142aa9",
-            "jobId": "b749d606-159c-4a3c-86df-ddef1ef1efd7",
-            "attemptId": "9274e92c-e80e-4086-8e1f-7af8474d7985",
+            "callId": "79ae5285-d04e-44b2-914d-ed89e91beb84",
+            "jobId": "2c06f8ad-9472-4b17-86ce-589cd021ef46",
+            "attemptId": "458cfcf2-e641-4540-a7db-c3dede43af6b",
             "stepKey": "native-text",
-            "stepRunId": "cccc0366-c4ad-4ce4-b84c-4752d812f7b9",
+            "stepRunId": "fcd10c4d-0d1a-40cc-8231-aaca73ab9c7f",
             "kind": "probe",
-            "startedAt": "2026-10-06T06:06:03.991Z",
-            "endedAt": "2026-10-06T06:06:04.040Z",
+            "startedAt": "2026-10-06T06:09:47.769Z",
+            "endedAt": "2026-10-06T06:09:47.792Z",
             "status": "ok",
             "runner": "direct",
             "tokens": 24,
@@ -112,7 +112,7 @@
           "lib/jobs/durability.js": "f2fd036583ad11f07be95aefea9c4af8089d14467cbaf25369872b4dd0b9de0e",
           "lib/jobs/gateway.js": "a43e591832526902e7a4eace25b1886d0281961edb90721d436877681a1aa047",
           "lib/atomic-json.js": "f7deb78f1ca8a492806652fc0209963601980dbfbdb702d68a799715190cff20",
-          "lib/audio-runtime-store.js": "5091ef83e4ac05156425d86044e1c1c4611d792110dca938870a11e1fd43c620",
+          "lib/audio-runtime-store.js": "08204361087a3f15bcabc5797c481870146f7c4994a166c854f38b8662768572",
           "lib/audio-batch.js": "b6f9cb7d194f770c8b6739d6a638c8b225e86c9d9f15151ca35ce4f5938eab0d",
           "lib/model-usage.js": "5ad63a94a84ca3658139de02d3a9815fc485b870ee6348d57070eee6c9bbfb4c",
           "lib/audio-dashboard.js": "00ab5f8b62a80503d125002c0f6bc49ebd234c60d38924ee5115625a7f01cd0b"
@@ -121,7 +121,7 @@
         "observation": "Actual installed rc.2 owner/job/llm with local fake adapter; current source modules, single manifest and real library writer. Installed StudyHub package unchanged."
       },
       "service": "dsh-jobs",
-      "ownerAgentId": "f6cd9e02-3897-409d-aeda-1a500441a38c",
+      "ownerAgentId": "69a12b2f-814e-47a6-a505-e394cf582151",
       "handleId": "s15-inspection-1",
       "activeStatus": "running",
       "terminalStatus": "completed",
@@ -138,8 +138,8 @@
     "consoleErrors": [],
     "pageErrors": [],
     "rawEvidenceHashes": {
-      "summary.json": "1884ccac28b0d2aa851cf6360dd2f403bd64956fd77760c05750d2fe732ba1ec",
-      "host-capabilities.json": "cfa0cbf2da3bf008a91de098ead522443173bdae7fb66ed665f59518f580086a"
+      "summary.json": "30146c1cd1972c3b3a68f39cd657f4f04892106cf9afa62aaaebdd7e2590689f",
+      "host-capabilities.json": "814e558183cc2e77f42224c7ba8ce0b6b3812d68f58a4929cc44b6300dc2591f"
     },
     "limitations": [
       "Actual installed rc.2 owner/jobs/llm services with current-source modules and local fake provider.",
@@ -149,7 +149,7 @@
   },
   "fullVerify": {
     "status": "running",
-    "log": "output/s13-contract/s15-resume-final-verify.log",
+    "log": "output/s13-contract/s15-accepted-verify.log",
     "baseSha": "6229ca51e7a515b8bdde451c713039ac096dc362"
   },
   "ci": {
@@ -211,5 +211,15 @@
     "failed": 0,
     "skipped": 0,
     "durationMs": 2169.802669
+  },
+  "supersededVerification": {
+    "log": "output/s13-contract/s15-resume-final-verify.log",
+    "status": "cancelled by task owner after another verified facade defect required a source change",
+    "countsAtAbort": {
+      "passed": 118,
+      "failed": 0,
+      "cancelled": 616
+    },
+    "notAcceptanceEvidence": true
   }
 }

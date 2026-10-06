@@ -105,3 +105,16 @@ test('stable model accounting refuses an unknown call date and an orphaned ident
   await writeFile(file, raw);
   await assert.rejects(ledger.validate(), { code: 'ledger-invalid' }); assert.equal(await readFile(file, 'utf8'), raw);
 });
+
+test('derived single manifest facade clears an old completion time when a new Attempt is queued', async t => {
+  const f = await fixture(t);
+  f.batch.job.finishedAt = '2026-10-05T00:00:00.000Z';
+  f.batch.job.filename = 'retained.wav';
+  await saveAudioBatch(f.root, f.batch);
+  const adapter = await createSingleAudioPersistence(f.root).open({ singleId: f.batch.id });
+  await adapter.store.save(f.envelope, { expectedRevision: null });
+  const disk = await readAudioBatch(f.root, f.batch.id);
+  assert.equal(disk.job.status, 'queued');
+  assert.equal(Object.hasOwn(disk.job, 'finishedAt'), false);
+  assert.equal(disk.job.filename, 'retained.wav');
+});
