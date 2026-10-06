@@ -15,6 +15,8 @@ test('managed definitions reject lifecycle/model bypasses while ordinary caches 
   // The managed path itself is never a bypass; a step result that is not the gateway's still is.
   assert.deepEqual(auditManagedModule('context.gateway.step("k", policy, { model: "light" }).complete(system, prompt); gateway.step("k", p).complete(s, q);'), []);
   assert.ok(auditManagedModule('other.step("k", p).complete(system, prompt);').length);
+  assert.deepEqual(auditManagedModule('const step = context.gateway.step("k", p); step.complete(system, prompt);'), []);
+  assert.ok(auditManagedModule('const step = other.step("k", p); step.complete(system, prompt);').length);
 });
 
 test('single audio definition keeps all execution behind approved runtime and pipeline adapters', async () => {

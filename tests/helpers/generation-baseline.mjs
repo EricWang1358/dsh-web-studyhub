@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { StudyService } from '../../lib/service.js';
 import { Store } from '../../lib/store.js';
 import { settleJob, until } from './wait.mjs';
+import { SWITCH_MODE, switchOptions } from './runtime-switch.mjs';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './assessment.mjs';
 
 /* Shared fixtures of the S3-0 generation-family baseline (docs/plans/unified-job-runtime/s3-0-generation-baseline.md): fake models only.
@@ -20,7 +21,7 @@ export const holding = (hold, when = () => true) => complete => async (system, p
 /** A library folder removed with its service (a held gate is opened, the service disposed, then the folder removed). */
 export async function openLibrary(t, { prefix = 'study-s30-', model, options = {}, hold } = {}) {
   const root = await mkdtemp(join(tmpdir(), prefix));
-  const service = new StudyService(root, options);
+  const service = new StudyService(root, { ...switchOptions(SWITCH_MODE, { complete: model, paths: ['generation'] }), ...options });
   if (model) service.complete = model;
   t.after(async () => { hold?.open(); await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   return { root, service };
