@@ -136,7 +136,7 @@
   "用 Marker 开始解析": "Start conversion with Marker",
   "本地 Marker": "Local Marker",
   "每次解析 PDF 都会记录文件名、解析工具、耗时和结果，不保存文档内容。": "PDF conversion history records filenames, converters, timings and results, without document content.",
-  "程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用；模型和 OCR 后端会在实际解析时检查。": "Marker runs on the computer hosting StudyHub. Detection checks the command; models and the OCR backend are checked during conversion.",
+  "程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。": "Marker runs on the computer hosting StudyHub. Detection starts Marker once to check the command, which can take a minute or two the first time; models and the OCR backend are checked during conversion.",
   "需要手动转换时可用这个脚本。完成后把分页 Markdown 拖进「添加资料」。": "Use this optional script for manual conversion, then drop the paginated Markdown into Add materials.",
   "在 StudyHub 所在电脑运行，结果自动导入。": "Runs on the computer hosting StudyHub and imports the result automatically.",
   "分段与页码详情": "Chunking and page details",
