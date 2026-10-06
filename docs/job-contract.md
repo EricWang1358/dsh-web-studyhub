@@ -272,3 +272,7 @@ The [durable lifecycle contract](plans/unified-job-runtime/s1-5-store-contract.m
 ### Default-off public audio pilot (S1-6)
 
 The [audio pilot adapter contract](plans/unified-job-runtime/s1-6-audio-contract.md) adds trusted admission, presentation/control, checkpoint-boundary and bounded output ports without changing public contract version 2. `runtime.pilot.audioSingle` defaults off and selects only new single-file admissions; existing Attempts and managed recovery retain their owner and path. A skipped cached unit retains the non-wire producer observation (`legacy`, requestCount null, `modelRequest:false`), never an observed model request. `local-wait` remains reserved for actual wait records. Publishing this contract does not enable or certify the public pilot.
+
+### Non-model jobs (S5-1)
+
+The [non-model contract](plans/unified-job-runtime/s5-1-nonmodel-contract.md) lets processes, transfers and host tool calls use the same Call/Step records without pretending to be model requests: a Step policy without `requestedEffort`/`executionMode` is a non-model Step (it can `run`/`observe` but `complete` refuses with `model-policy-required`); the `local-process` boundary records a Call with `requestCount` null and `modelRequest:false`; `execution.mode` and `usage.calls` describe model Calls only, so a job with none keeps `execution.mode` null and unknown tokens null; an executor admission refusal carries `code: 'executor-unavailable'` before any job exists. Contract version stays 2.
