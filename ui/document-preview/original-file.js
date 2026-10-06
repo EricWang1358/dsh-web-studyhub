@@ -1,6 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { MAX_OFFICE_BYTES } from '../../lib/office/limits.js';
 import { formatBytes } from '../format.js';
+import { browserStorage, readJSON, writeJSON } from '../storage.js';
 
 /* Pure logic and wording of the "补全原文件" flow: attach the ORIGINAL file to a document that only kept its text.
    The screens are in OriginalFile.jsx; everything that can be decided without React is here (and tested). */
@@ -9,6 +10,19 @@ import { formatBytes } from '../format.js';
 export const ORIGINAL_MAX_BYTES = MAX_OFFICE_BYTES;
 
 export { unquotePath, isAbsolutePath } from '../paths.js';
+
+/* The notice for a document that only kept its text can be closed (it is a hint, not a fault). Closing remembers the document in this browser (never anywhere else) and folds the notice
+   into one quiet line that keeps the action; nothing is lost by closing it. At most NOTICE_KEEP documents are remembered, the oldest forgotten first. */
+const NOTICE_KEY = 'study-original-notice', NOTICE_KEEP = 200;
+const closedIds = storage => { const stored = readJSON(NOTICE_KEY, [], storage); return Array.isArray(stored) ? stored.filter(id => typeof id === 'string') : []; };
+/** Has the learner closed the full notice of this document in this browser? */
+export const noticeCollapsed = (id, storage = browserStorage()) => !!id && closedIds(storage).includes(String(id));
+/** Remember that the learner closed the notice of this document; true when it was stored (the caller keeps its own memory when not). */
+export function collapseNotice(id, storage = browserStorage()) {
+  if (!id) return false;
+  const kept = closedIds(storage).filter(item => item !== String(id));
+  return writeJSON(NOTICE_KEY, [...kept, String(id)].slice(-NOTICE_KEEP), storage);
+}
 
 /** "D:\…\book.pdf": the drive (or first folder) and the file name; a short path stays whole. */
 export function shortPath(path, max = 32) {

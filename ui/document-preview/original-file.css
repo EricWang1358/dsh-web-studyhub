@@ -5,6 +5,8 @@
     /* 补全原文件 (attach the original to a document that only kept its text): the reader notice, the dialog, the row-menu line.
        Tokens only; the dialog follows the shared Dialog component. */
     .original-notice__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .original-quiet { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .original-quiet > svg { flex: none; }
     .original-dialog .sh-dialog__content { display: grid; gap: var(--space-4); align-content: start; }
     .original-dialog p { margin: 0; line-height: var(--lh-snug); }
     .original-status { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);

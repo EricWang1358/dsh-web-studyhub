@@ -66,7 +66,21 @@ async function main() {
     await page.locator(".study-document-viewer").waitFor({ timeout: 15000 });
     await shot("1-notice");
 
-    // 2. The dialog: choose.
+    // 1b. The notice can be closed; it folds into one quiet line that keeps the action, and stays that way after a reload.
+    const close = page.getByRole("button", { name: T("收起，之后在这里仍可补全原文件", "Close, you can still add the original file here") });
+    await close.click(); await settle(300);
+    if (await page.locator(".sh-inline--boxed[data-kind=none]").count()) throw new Error("the boxed notice is still there after closing it");
+    const quiet = page.locator(".original-quiet[data-collapsed]");
+    await quiet.waitFor({ timeout: 5000 });
+    if (!(await quiet.getByRole("button", { name: T("补全原文件…", "Add the original file…") }).count())) throw new Error("the quiet line lost the action");
+    await shot("1b-closed");
+    await page.reload(); await page.locator("aside, nav").first().waitFor({ timeout: 30000 }); await settle(800);
+    await page.locator('[data-tour="nav-sources"]').first().click(); await settle();
+    await page.locator(".source-main", { hasText: "Database System Concepts" }).first().click(); await settle(800);
+    await page.locator(".original-quiet[data-collapsed]").waitFor({ timeout: 15000 });
+    await shot("1c-closed-after-reload");
+
+    // 2. The dialog: choose (from the quiet line).
     await page.getByRole("button", { name: T("补全原文件…", "Add the original file…") }).first().click(); await settle(400);
     await shot("2-dialog-choose");
 
@@ -97,7 +111,7 @@ async function main() {
     // 7. The file moved: the reader says so plainly.
     await rename(lecture, join(files, "moved.pdf"));
     await page.locator(".source-main", { hasText: "Database System Concepts" }).first().click(); await settle(900);
-    await page.locator(".original-notice.is-warning").waitFor({ timeout: 15000 });
+    await page.locator(".sh-inline--boxed.sh-inline--warning").waitFor({ timeout: 15000 });
     await shot("7-missing");
     await page.locator(".study-document-preview-mode").getByRole("button", { name: T("原始 PDF", "Original PDF") }).click(); await settle(500);
     await shot("8-missing-dialog");
