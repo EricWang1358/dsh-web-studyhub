@@ -267,3 +267,7 @@ The [gateway interface and ownership contract](plans/unified-job-runtime/s1-4-ga
 ### Durable admission and recovery (S1-5)
 
 The [durable lifecycle contract](plans/unified-job-runtime/s1-5-store-contract.md) places the canonical v2 record in the existing domain manifest's explicitly versioned `runtimeJob` envelope. Public contract version 2 and runtime schema 1 are unchanged; the storage envelope has its own schema version. Legacy manifests remain legacy. Recovery requires positive executor-loss evidence, input/version/checkpoint validation and reconciliation of uncertain requests and artifact commits. Request intents do not count as observed Calls. Publication of this interface is not evidence that persistence or recovery is implemented.
+
+### Default-off public audio pilot (S1-6)
+
+The [audio pilot adapter contract](plans/unified-job-runtime/s1-6-audio-contract.md) adds trusted admission, presentation/control, checkpoint-boundary and bounded output ports without changing public contract version 2. `runtime.pilot.audioSingle` defaults off and selects only new single-file admissions; existing Attempts and managed recovery retain their owner and path. A skipped cached unit retains the non-wire producer observation (`legacy`, requestCount null, `modelRequest:false`), never an observed model request. `local-wait` remains reserved for actual wait records. Publishing this contract does not enable or certify the public pilot.
