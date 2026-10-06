@@ -241,7 +241,6 @@
     --hue-orange: color-mix(in srgb, var(--warn) 55%, var(--bad));
     /* Shadows that are not the three elevation steps: the contact shadow of a dialog and a toast, the fade above a pinned list, a dragged row. */
     --shadow-contact: 0 2px 10px #0000002e;
-    --shadow-contact-toast: 0 3px 10px -4px #0000003d;
     --shadow-up: 0 -10px 18px -14px #0000008c;
     --shadow-drag: 0 8px 22px color-mix(in srgb, #000 40%, transparent);
     /* Elevation recipe: a 1px inner top highlight, a hairline ring and a tight contact shadow, then the far shadow of the step. popover = menus, popovers,
