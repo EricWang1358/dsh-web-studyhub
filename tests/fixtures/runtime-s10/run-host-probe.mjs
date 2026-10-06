@@ -37,6 +37,10 @@ const permitsAt = argv.indexOf('--provider-permits');
 const auditPermits = permitsAt >= 0;
 if (auditPermits) argv.splice(permitsAt, 1);
 if (auditPermits && variant !== 'official-jobs-preset') throw new Error('--provider-permits requires official-jobs-preset');
+const gatewayAt = argv.indexOf('--model-gateway');
+const auditGateway = gatewayAt >= 0;
+if (auditGateway) argv.splice(gatewayAt, 1);
+if (auditGateway && variant !== 'official-jobs-preset') throw new Error('--model-gateway requires official-jobs-preset');
 const qaRoot = join(repoRoot, 'output/qa');
 const hostRoot = resolve(dirname(dshBin), '..');
 const sdkRoot = dirname(hostRoot);
@@ -101,7 +105,7 @@ for (const relativePath of ['./env.mjs', './browser.mjs', './fake-openai.mjs']) 
 const config = { qaRoot, workspace: join(qaRoot, 'dsh-documents/deepseek-harness/default-workspace'),
   reportPath: join(out, 'host-capabilities.json'), sdkRoot,
   waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant, auditStudyHub, auditRuntime, auditResources,
-  auditPermits, sourceRoot: resolve(ownDirectory, '../../..') };
+  auditPermits, auditGateway, sourceRoot: resolve(ownDirectory, '../../..') };
 const companionRows = [{ id: 'studyhub-s10-host-probe', name: pathToFileURL(join(ownDirectory, 'host-probe.mjs')).href, config }];
 if (variant === 'official-jobs-preset') companionRows.unshift({
   id: 's10-jobs-only-preset', name: '@deepseek-ai/dsh-agent-preset', config: { id: 's10-jobs-only', order: 99,

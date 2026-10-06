@@ -189,6 +189,10 @@ async function runProbe(ctx, config, report) {
       const { probeResourceScope } = await import('../runtime-s13/resource-probe.mjs');
       return probeResourceScope({ ctx, parent, sibling, sdkRoot, route, signal, until });
     });
+    if (config.auditGateway) await step('S1-4 actual-model-gateway', async () => {
+      const { probeGateway } = await import('../runtime-s14/host-probe.mjs');
+      return probeGateway({ ctx, parent, sourceRoot: config.sourceRoot, route, until });
+    });
     if (config.auditPermits) await step('S1-3 actual-native-provider-permits', async () => {
       const { probeProviderPermits } = await import('../runtime-s13/permit-probe.mjs');
       return probeProviderPermits({ ctx, parent, sourceRoot: config.sourceRoot, until });
