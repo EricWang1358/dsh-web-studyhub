@@ -1,6 +1,6 @@
 # S1-5 durable runtime implementation and evidence
 
-Status: implementation under verification; not yet accepted or merged. Contract #273 (`58c52d9`, merge `5c8342e`) was published first. This implementation incorporates concurrent #271 at `b2349a2ea82d8285c03e2e67990024d2cf25b4bc`; #269 was already in #273's actual merge. Owner delegated routine S1 technical acceptance/qualified merges on 2026-10-06 04:07:50 UTC. Paid models, credential/permission changes, irreversible user-data deletion, release and deployment remain excluded.
+Status: implementation under verification; not yet accepted or merged. Implementation [#275](https://github.com/EricWang1358/dsh-web-studyhub/pull/275) is draft. Contract #273 (`58c52d9`, merge `5c8342e`) was published first. This implementation incorporates concurrent #271 at `b2349a2ea82d8285c03e2e67990024d2cf25b4bc`; #269 was already in #273's actual merge. Owner delegated routine S1 technical acceptance/qualified merges on 2026-10-06 04:07:50 UTC. Paid models, credential/permission changes, irreversible user-data deletion, release and deployment remain excluded.
 
 ## What is wired
 
@@ -39,6 +39,7 @@ Commands use the scrubbed workspace-private runner, Node 22.22.3, workspace TEMP
 | Final current-source focused | 58/0/0, 2158.225683ms; `s15-final-source-focused.log`; source/log hashes in [evidence JSON](s1-5-store-evidence.json) |
 | Installed rc.2 | Passed 2026-10-06 05:49:38–05:49:46 UTC: current-source durable Job → local fake native llm → real library commit/checkpoint → native settlement → explicit restore. One source, one restored completion event, one recorded host Call; five local fake requests across companion checks, cleanup converged |
 | Final full implementation verify | Passed on implementation + `b2349a2`: 5812/0/2, 545474.666611ms, lint/build passed; log/hash in evidence JSON |
+| Concurrent #274 integration | Merged main `6229ca5` into implementation as `fb821cd`: lint/build passed; marker + runtime focused 68/0/0, 2879.885812ms. This is separate from the earlier full cloud run. |
 | Implementation PR CI | Pending; full cloud results are not substitutes for both platforms |
 | Paid model quality/billing, remote compute stop | Not run / not claimed |
 

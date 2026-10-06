@@ -178,5 +178,24 @@
       "publishing",
       "deployment"
     ]
-  }
+  },
+  "integratedBaseSha": "6229ca51e7a515b8bdde451c713039ac096dc362",
+  "integration": {
+    "headSha": "fb821cd8d714891b3a6c013db3b7fd47205c0771",
+    "reason": "concurrent #274 merged after full cloud verification",
+    "lint": "passed",
+    "build": "passed",
+    "focused": {
+      "passed": 68,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 2879.885812
+    },
+    "logs": {
+      "s15-integrated-lint.log": "a80de2e6f4d509d5f30906f00289d524ac532a9d01184a95c06b2c68c2ab91b4",
+      "s15-integrated-focused.log": "1dfc3d2830ea9ff061066f48be3628702f3a2bdf36dac24e3c7c17a40d40a817",
+      "s15-integrated-build.log": "fecf3433a5c0d1495caa12f1a621f9ba3471dba5efc6be4ff2bf238496cbbd6c"
+    }
+  },
+  "pr": 275
 }
