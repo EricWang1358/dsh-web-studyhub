@@ -144,6 +144,7 @@ test('switch changes only new admissions while legacy and managed imports share 
   await until(() => f.calls.filter(kind => kind === 'transcribe').length === 1, 'legacy held request');
   runtimePilot.audioSingle = true;
   const second = await f.service.call('audio.import', { path: paths[1] });
+  assert.equal(second.queuedBehind, 1, 'managed admission retains the existing queue receipt');
   const read = async () => (await f.service.call('snapshot')).jobs;
   await until(async () => (await read()).find(job => job.id === second.jobId)?.contract.status === 'queued', 'managed queued admission');
   const observed = (await read()).find(job => job.id === second.jobId).contract;

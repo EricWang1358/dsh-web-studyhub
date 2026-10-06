@@ -28,13 +28,13 @@
     "tests/unified-runtime-gateway.test.mjs": "ad2e56b67c1759f984ea104992d9caaa83f4b180c1be4e8209c2ed38177dab7c",
     "tests/unified-runtime-recovery.test.mjs": "425284f0ccb67ea1b3e5e30af43def101121f3eb732778ee47960c26abb8f5d7",
     "tests/unified-runtime-store.test.mjs": "b099ca5757715c9c3731534e221850c7302e496ad0a2e7208120b98ead07269f",
-    "lib/contexts/audio/pilot.js": "3ff6b045b3c59861869f3cc95716896ce6fcb88e280f08712aa8eccfcaeac3fa",
+    "lib/contexts/audio/pilot.js": "2d3e7c58c6866a4d5fff7cf64269ea12dd96d8005b1c57fa05567b7aadfbeb0c",
     "tests/fixtures/runtime-s16/fake-openai.mjs": "6447113c5c5fb59a09e675ffcaf316dabd6ede3597ed143b52e0df11280eea1e",
-    "tests/fixtures/runtime-s16/host-probe.mjs": "9d60a1d608921f943d0bc4fbd136b48e6f76781236198c4f43947cb07ffbba1b",
+    "tests/fixtures/runtime-s16/host-probe.mjs": "81c5e00e702ce4f4ae66a1241ed215a7189ec169085bc7b8c37862f3de9babb2",
     "tests/fixtures/runtime-s16/ui-probe.mjs": "666fcf9f6cf6f6eb6c773b2e182aa6de5fecb51e81bfd517a22127a70db4caeb",
     "tests/fixtures/unified-runtime-audio-process.mjs": "39927172dad86212da8446728990ca4b769e8c01329c1abd17f928bbc88758e4",
     "tests/unified-runtime-adapters.test.mjs": "c9574d470b8b482e0d5a69ef61415fc2bc0b44c3dc72115a53838bf621ed2ec7",
-    "tests/unified-runtime-audio-pilot.test.mjs": "971856e9ca94ac2c8b638f8f92edaee3750756a1741633ea20897c5974072b6e"
+    "tests/unified-runtime-audio-pilot.test.mjs": "6af27482ee0d74a79698277d79f099c6500936688124334fb302ef834821c847"
   },
   "verificationLogs": {
     "s16-current-focused": {
@@ -116,8 +116,8 @@
   },
   "fullVerify": {
     "command": "npm run verify",
-    "log": "output/s13-contract/s16-final-verify.log",
-    "status": "running at evidence creation; final result must be read from PR acceptance"
+    "log": "output/s13-contract/s16-accepted-verify.log",
+    "status": "running after queuedBehind correction; final result required in PR acceptance"
   },
   "installedHost": {
     "startedAt": "2026-10-06T07:27:31.288Z",
@@ -576,5 +576,15 @@
     "publication and deployment",
     "credential/permission changes",
     "S2-S6"
-  ]
+  ],
+  "preReceiptFixFullVerify": {
+    "command": "npm run verify",
+    "log": "output/s13-contract/s16-final-verify.log",
+    "sha256": "d816fd769ccc2e9aeba244debcd32a30083db76093132c21bd1099cd1aefcecb",
+    "passed": 5849,
+    "failed": 0,
+    "skipped": 2,
+    "durationMs": 612790.269543,
+    "scope": "head 8c623b6 before the queuedBehind correction; not final acceptance"
+  }
 }

@@ -49,6 +49,7 @@ export async function probePublicAudio({ ctx, parent, sibling, until, config }) 
   assert.throws(() => jobService.get(firstNative.handleId, sibling.id));
   const queuedPath = join(config.workspace, `s16-queued-${suffix}.wav`), queuedBytes = wav(); queuedBytes[queuedBytes.length - 1] = 7; await writeFile(queuedPath, queuedBytes);
   const second = await call('audio.import', { path: queuedPath });
+  assert.equal(second.queuedBehind, 1, 'public queued receipt must retain the actual gate position');
   await until(async () => (await find(second.jobId)).contract.status === 'queued', 'public native queued job');
   await call('job.control', { jobId: second.jobId, action: 'pause' });
   await until(async () => (await find(second.jobId)).contract.status === 'paused', 'queued native checkpoint');
