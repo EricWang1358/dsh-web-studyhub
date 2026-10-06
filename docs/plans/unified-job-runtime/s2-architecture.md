@@ -51,7 +51,7 @@ surface  (operations / tools / ui)     入口、权限、开关读取、控制�
 - `gateway.observe({ boundary, sideEffect })`：观察到结束即已知结果；只有 `sideEffect: true`（重复执行不安全的远端操作）在失败或结果未知时保持 pending，阻止盲目重发。
 - 宿主模型：网关调用的是 `preparedModelHost(services)`——与其他模型调用同一套准备（界面语言、图片/脚注清理、阶段本地化），不记账（网关入账）。家族不要绕开 `gateway.step().complete()` 自己包模型函数。
 - 轻量通道：`gateway.step(key, policy, { model: 'light' })` 走宿主轻量路线（对冲 + 一次瞬时重试），只用于 `direct`。
-- 结算通知：有持久化的定义在 persistence 端口上声明 `notifications`；没有持久化的定义在定义上声明 `notifications: [{ channel, deliver(event, view) }]`，结算后进程内投递一次、观察者等投递完成；失败记在 `detail.notificationError`，不改变终态。
+- 结算通知：有持久化的定义在 persistence 端口上声明 `notifications`；没有持久化的定义在定义上声明 `notifications: [{ channel, deliver(event, view, bindings) }]`（bindings 是提交时给的，即提交者自己的服务），结算后进程内投递一次、观察者等投递完成；失败记在 `detail.notificationError`，不改变终态。
 - 学习者可见的拒绝：内核抛结构化 code，家族在入口处映射成文案（如 `audioRefusal`），不在内核里写文案。
 
 ## 5. 测试成本

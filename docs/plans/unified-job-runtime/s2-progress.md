@@ -10,7 +10,8 @@
 | S2-1 | 已合并 | `codex/runtime-s21-audio-import` / #290 | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | verify 5947（2 项已修）；合并后整套 3 次 5984/0；双平台 CI | S2-2 批次（A 道） |
 | S2-1b | 已合并 | `codex/runtime-kernel-model-host` / #294 | `8a66375` | 网关用 `preparedModelHost`（语言/清理准备）、轻量通道 `{ model: 'light' }`、无持久化定义的结算通知 | 定向 334/0；双平台 CI | — |
 | S2-2 | PR 中 | `codex/runtime-s22-audio-batch` | `2573b58`（#295 后的 main） | 批次导入/重试、成员协调（`audio-batch` 定义）、共享持久化与展示模块 | verify 6152 项 / 6140 通过 / 0 失败 / 12 跳过；lint 与 build 绿 | S2-3 窗口与许可（A 道） |
-| S2-3 | PR 中 | `codex/runtime-s23-audio-windows` | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
+| S2-3 | 已合并 | `codex/runtime-s23-audio-windows` / #309 | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
+| S2-4 | PR 中 | `codex/runtime-s24-audio-subtitles` | S2-3 之上 | 字幕导入（`audio-subtitles`）、`audio-gateway-calls`、内核增量一处 | 见 S2-4 记录 | S2-5 复查与课堂校正（A 道） |
 
 ## S2-1 记录
 
@@ -104,3 +105,27 @@
 | `orderedWindows` | 保留（排序/上下文/收尾）；不另有许可 |
 | `createPool`、`withModelRetry`、`exclusive` | 保留，各管各的错误类别/键 |
 | `syncAudioGate`、`liveControls.setTranscribeLimit`、定义里的 `holdTranscriptionSlot` | 共用 `applyTranscribeLimit` |
+
+## S2-4 记录（字幕导入）
+
+**改动**
+
+- 新定义 `audio-subtitles`（scope `audio.v1`，开关 `runtime.pilot.audioSubtitles`，默认关）：`jobs/subtitles.js`（定义）、`subtitles-run.js`（一次尝试）、`subtitle-view.js`（展示与旧字段）、`submit-subtitles.js`（提交 / 进程内重试）。无持久化：字幕文本只在内存里，重启后任务消失（D-9 如实保留，未新增输入持久化）；能取消、能在进程内重试（已校对/翻译的窗口仍在 `audio-cache`，重试只做剩下的），不能暂停、不能恢复，`capabilities` 如实声明。
+- `lib/subtitle-job.js` 拆成 `subtitlePlan` / `existingSubtitleSources` / `translateSubtitle` / `storeSubtitle`，旧 `executeSubtitleJob` 与运行时共用，不复制。
+- `lib/audio-gateway-calls.js`：音频任务经网关的请求（策略、标签、实时输出桥、宿主/Gemini 文本）收成一处，`importAudio` 与字幕共用（以后复查、课堂保存也用）。
+- 发布：`store.publishSources(sources, { assertCurrent })`，尝试已被取消就拒绝写入；同样的字幕（同文本同设置）已存在时复用并并入课程，不请求模型。
+- 结算通知：定义上的 `notifications`（进程内、结算后投递一次），信箱信与会话提示由提交者自己的服务写（见内核小增量）。
+- **内核增量（单独一次提交 `kernel:`）**：无持久化定义的结算接收器多收一个参数 `bindings`（提交时给的），`deliver(event, view, bindings)`；红绿测试在 `unified-runtime-model-host`。原因：接收器要用提交者自己的信箱和通知服务，静态定义拿不到。
+- `lib/contexts/jobs/operations.js` 与 `domain-contracts.js`：`job.control retry` 走运行时时也撤回上一次失败的信（原来只有 `audio.retry` 撤回；单文件/批次也受益），并给 `job.control` 写 `inbox` 的授权。
+
+**缺陷（运行时侧已修，旧路径不变）**：D-1（重试保留字幕标记且不再排在转写闸门后面）、D-2（会话提示用字幕自己的措辞：「字幕「x」已校对并译成中英对照逐字稿」）、D-6/D-7（用量与 `textProvider` 在任务卡上，`usageRun` 有值）、D-8（重复判断改按"同样的字幕内容+设置"，同名不同内容不再被拒，提示语也不再说"音频"）。D-9（重启后信箱旧信仍提示「接着做」）未改：没有输入持久化就没有可点的卡，另开策略时再处理。
+
+**评审过的行为差异**：窗口的 429 / 瞬时重试与批次同（见 S2-3）；信箱信仍是 `audio-result` / `audio-failed` 两种（改信箱类型要动前端）。
+
+**测试**：`audio-family-baseline-subtitles` 加孪生（运行时侧上述缺陷的期望按模式分支并写明原因）；新增 `unified-runtime-subtitles`（3 项：kind/能力/家族/调用、失败的信与提示 + 用合同 id 重试、开关关则走旧路径）。
+
+| 字段 / 调用点 | 处置 |
+|---|---|
+| `startAudioJob`（`orchestrates`、`fields.subtitle`、`retryable` 闭包） | 旧路径保留（开关关）；运行时无闭包，输入在任务里 |
+| `jobTextModel` / `taskTracker` / `withJobUsage`（字幕） | 旧路径保留；运行时用网关调用与用量 |
+| `subtitleSourceId`、`storeDocuments`、`prepareSubtitles`、缓存键 | 保留，两路共用 |
