@@ -29,6 +29,10 @@ const runtimeAt = argv.indexOf('--runtime-lifecycle');
 const auditRuntime = runtimeAt >= 0;
 if (auditRuntime) argv.splice(runtimeAt, 1);
 if (auditRuntime && !auditStudyHub) throw new Error('--runtime-lifecycle requires --studyhub-binding');
+const resourceAt = argv.indexOf('--resource-scope');
+const auditResources = resourceAt >= 0;
+if (auditResources) argv.splice(resourceAt, 1);
+if (auditResources && variant !== 'official-jobs-preset') throw new Error('--resource-scope requires official-jobs-preset');
 const qaRoot = join(repoRoot, 'output/qa');
 const hostRoot = resolve(dirname(dshBin), '..');
 const sdkRoot = dirname(hostRoot);
@@ -92,7 +96,7 @@ for (const relativePath of ['./env.mjs', './browser.mjs', './fake-openai.mjs']) 
 // Absolute import URLs ensure no project/global Cordis copy is mixed into the host.
 const config = { qaRoot, workspace: join(qaRoot, 'dsh-documents/deepseek-harness/default-workspace'),
   reportPath: join(out, 'host-capabilities.json'), sdkRoot,
-  waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant, auditStudyHub, auditRuntime };
+  waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant, auditStudyHub, auditRuntime, auditResources };
 const companionRows = [{ id: 'studyhub-s10-host-probe', name: pathToFileURL(join(ownDirectory, 'host-probe.mjs')).href, config }];
 if (variant === 'official-jobs-preset') companionRows.unshift({
   id: 's10-jobs-only-preset', name: '@deepseek-ai/dsh-agent-preset', config: { id: 's10-jobs-only', order: 99,

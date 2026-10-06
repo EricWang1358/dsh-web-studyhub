@@ -4,6 +4,9 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
+import { Context } from '@deepseek-ai/cordis';
+import { dshJobExecutor } from '../lib/jobs/executor.js';
+import { admitSlot } from '../lib/jobs/scheduler.js';
 
 const KEY = "AIzaConcurrencyKey_00000000001";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
@@ -54,7 +57,8 @@ async function harness(t, { limit, transcript, complete } = {}) {
   t.after(async () => {
     for (const item of services) {
       await item.call('job.cancel', { all: true });
-      for (const job of (await item.call('snapshot')).jobs) await item.call('job.wait', { jobId: job.id, timeoutSeconds: 5 });
+      // job.status is owner-filtered; a mixed-resource probe may belong to a sibling scope.
+      for (const job of (await item.call('job.status')).jobs) await item.call('job.wait', { jobId: job.id, timeoutSeconds: 5 });
     }
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
     await rm(dir, { recursive: true, force: true });
@@ -66,8 +70,45 @@ async function harness(t, { limit, transcript, complete } = {}) {
   const jobsNow = async () => Object.fromEntries((await service.call("snapshot", {})).jobs.filter((job) => job.type === "audio-import").map((job) => [job.filename, job]));
   const release = (count = 1) => { for (let i = 0; i < count; i++) held.shift()?.(); };
   const anotherLibrary = ({ sharedHost = true } = {}) => { const other = new StudyService(join(dir, 'other-library'), { fetch, ...(sharedHost ? { audioGate } : {}) }); services.push(other); return other; };
-  return { service, calls, held, add, start, jobsNow, release, anotherLibrary };
+  return { service, calls, held, add, start, jobsNow, release, anotherLibrary, audioGate };
 }
+
+test('S1-3 canonical resource consumer and actual legacy audio.import use one host gate', async t => {
+  const f = await harness(t), scope = new Context(), agent = { id: 'resource-test-agent' };
+  const handles = new Map(), producer = Promise.withResolvers(); let port, started = 0, count = 0;
+  // Native service double only; the StudyService audio.import and gate are real.
+  const host = { get: key => key === 'agents' ? { get: () => agent } : {
+    start(spec) { const id = `handle-${++count}`; handles.set(id, spec.run()); return id; },
+    kill(id) { handles.get(id).cancel(); },
+  } };
+  const services = { workOwner: Symbol('probe'), jobExecutor: dshJobExecutor(host, agent) };
+  f.service.runtime.register({ id: 'resource-probe', operations: { submit: (_args, context) => {
+    port = context.jobs; return port.submit('resource-probe', {});
+  } } });
+  f.service.runtime.registerJob(scope, 'resource-probe.v1', { kind: 'resource-probe', version: 1,
+    run: context => admitSlot(f.audioGate, context.attemptId, context.signal, async () => {
+      context.signal.throwIfAborted(); started++; await producer.promise; return { refs: [] };
+    }) });
+  t.after(async () => { producer.resolve(); await scope.fiber.dispose(); });
+  const canonical = await f.service.runtime.call('resource-probe.submit', {}, services);
+  await until(() => started === 1, 'canonical resource occupancy');
+  await f.add('legacy-mixed.wav', 21);
+  const legacy = await f.start('legacy-mixed.wav');
+  assert.equal(legacy.status, 'queued'); assert.equal(f.calls.transcribe, 0);
+  await port.control(canonical.jobId, 'cancel');
+  assert.equal(f.audioGate.active.size, 1); assert.equal(f.calls.transcribe, 0);
+  producer.resolve(); assert.equal((await port.wait(canonical.jobId)).status, 'cancelled');
+  await until(() => f.calls.transcribe === 1, 'legacy takes physically released slot');
+  const queued = await f.service.runtime.call('resource-probe.submit', {}, services);
+  await until(() => f.audioGate.waiting.length === 1, 'canonical waits behind legacy');
+  await port.control(queued.jobId, 'cancel');
+  assert.equal((await port.wait(queued.jobId)).status, 'cancelled');
+  assert.equal(started, 1); assert.equal(f.audioGate.waiting.length, 0);
+  assert.equal(f.audioGate.active.size, 1);
+  f.release();
+  assert.equal((await f.service.call('job.wait', { jobId: legacy.jobId, timeoutSeconds: 10 })).status, 'complete');
+  assert.equal(f.audioGate.active.size, 0); assert.equal(f.calls.transcribe, 1);
+});
 
 test("recordings run one at a time and queued recordings take the slot in submitted order", async (t) => {
   const { service, calls, add, start, jobsNow, release } = await harness(t);
