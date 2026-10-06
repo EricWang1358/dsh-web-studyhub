@@ -6,6 +6,7 @@ import { StudyService } from '../lib/service.js';
 import { usageLedger } from '../lib/model-usage.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { until } from './helpers/wait.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { gate, privateRoot, panelDoor } from './helpers/model-family-baseline.mjs';
 
 const writing = '# 今日学习总结\n\n' + '围绕已练习的知识点整理正确思路，核对条件与推理步骤。'.repeat(8);
@@ -14,7 +15,7 @@ const course = '数学 / 第一章';
 /** A library with forty quiz cards in one deck; seeded through the service so both doors can start from the same place. */
 async function seeded(t, options = {}) {
   const root = await privateRoot(t, 'model-baseline-recap-');
-  const service = new StudyService(root, options);
+  const service = new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { complete: options.complete, paths: ['dailyRecap'] }) });
   t.after(() => service.dispose());
   await service.store.update(state => {
     state.decks.push({ id: 'd', title: course, course, cards: Array.from({ length: 40 }, (_, i) => ({ id: `d-${i}`, kind: 'quiz', topic: `知识点 ${i % 3}`, prompt: `题目 ${i}`,
