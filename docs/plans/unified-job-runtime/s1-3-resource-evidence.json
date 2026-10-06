@@ -1,0 +1,59 @@
+{
+  "base": "09a094ae54c6afc68982ed5bc7d21a5a92d46b2e",
+  "s12": {
+    "head": "78f83a8d1ca00a6669a76cc0df0db58ae3ef8bbc",
+    "acceptedAt": "2026-10-06T02:28:22Z",
+    "mergedAt": "2026-10-06T02:30:38Z",
+    "merge": "09a094ae54c6afc68982ed5bc7d21a5a92d46b2e",
+    "pr": 262
+  },
+  "productionExtraction": {
+    "onlyFunctionNamesAndExportsChanged": true,
+    "resourceInstancesMoved": false,
+    "newQueueOrRetry": false
+  },
+  "files": {
+    "lib/jobs/scheduler.js": "e62df176ecf49f26979e05ed9f40002bdb9f43435eaf95d01ee0d6f769e92e58",
+    "lib/contexts/audio/worker.js": "50b97ad1c4430356f8f508e9cf35ba775aab4a9b744b1cd86d723fb02681fa5b",
+    "lib/audio-pool.js": "e988bce78f231d1ef9cc93c9e90bd57312b1a90db2393263a43f344084399f7c"
+  },
+  "hostSource": {
+    "@deepseek-ai/dsh-llm-retry": {
+      "version": "0.2.0-rc.2",
+      "entrySha256": "cbb99f1c5038e4a9167aedf333343cb3e3adfb5c9f45a37ef7562b024429d050"
+    },
+    "@deepseek-ai/dsh-jobs-local": {
+      "version": "0.2.0-rc.2",
+      "entrySha256": "3bed0cd38c649f39b148752e742ff1ef57696a6b9b11b15ff8cc6cd1d4f08f26"
+    }
+  },
+  "validation": {
+    "baseline": {
+      "pass": 4,
+      "fail": 0,
+      "source": "09a094ae54c6afc68982ed5bc7d21a5a92d46b2e"
+    },
+    "red": {
+      "exit": 1,
+      "reason": "new scheduler entry absent"
+    },
+    "targeted": {
+      "pass": 33,
+      "fail": 0,
+      "skip": 0
+    },
+    "mixedAudioInitial": {
+      "pass": 9,
+      "fail": 1,
+      "reason": "test cleanup used cross-owner snapshot instead of authorized job.status"
+    },
+    "mixedAudioFixed": {
+      "pass": 10,
+      "fail": 0,
+      "skip": 0
+    },
+    "fullVerify": "See implementation PR for final receipt; not yet claimed by this file",
+    "nativeHost": "Not rerun for internal resource extraction; existing S1-2 native binding evidence is historical only",
+    "realModels": "Not run; not authorized"
+  }
+}
