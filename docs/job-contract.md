@@ -249,3 +249,7 @@ The [golden compatibility vectors](../tests/fixtures/unified-runtime-compatibili
 ### Managed gateway admission (S1-4)
 
 The [gateway interface and ownership contract](plans/unified-job-runtime/s1-4-gateway-contract.md) defines explicit purpose/feature/effort/mode/budget admission, Step/Call observation and the existing ledger deduplication boundary. These additive v2 Call read extensions preserve contract version 2; v1 producers remain unchanged. Publication does not claim gateway implementation or persistence acceptance.
+
+### Durable admission and recovery (S1-5)
+
+The [durable lifecycle contract](plans/unified-job-runtime/s1-5-store-contract.md) places the canonical v2 record in the existing domain manifest's explicitly versioned `runtimeJob` envelope. Public contract version 2 and runtime schema 1 are unchanged; the storage envelope has its own schema version. Legacy manifests remain legacy. Recovery requires positive executor-loss evidence, input/version/checkpoint validation and reconciliation of uncertain requests and artifact commits. Request intents do not count as observed Calls. Publication of this interface is not evidence that persistence or recovery is implemented.
