@@ -56,10 +56,6 @@
       "file": "lib/audio-job.js",
       "calls": [
         {
-          "callee": ".complete",
-          "count": 1
-        },
-        {
           "callee": "complete",
           "count": 2
         },

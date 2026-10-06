@@ -13,6 +13,9 @@ function walk(node, visit) {
   }
 }
 const tree = source => parse(source, { ecmaVersion: 'latest', sourceType: 'module' });
+// `….gateway.step(key, policy).complete(…)` is the managed model path itself, never a bypass.
+const gatewayStepCall = node => node.callee?.type === 'MemberExpression' && node.callee.object?.type === 'CallExpression'
+  && /(?:^|\.)gateway\.step$/.test(member(node.callee.object.callee));
 const providerUrl = value => typeof value === 'string' && /^https:\/\/(?:generativelanguage\.googleapis\.com|api\.groq\.com|api\.siliconflow\.(?:cn|com))\//.test(value);
 
 export function hasDefinition(source) {
@@ -34,7 +37,7 @@ export function inspectCalls(source) {
     const value = node.type === 'VariableDeclarator' ? node.init : node.type === 'Property' ? node.value : null;
     if (/(?:jobs|tasks|queues|queue)$/i.test(binding) && (value?.type === 'ArrayExpression' || value?.type === 'NewExpression' && ['Map', 'Set'].includes(key(value.callee))))
       record(`collection:${binding}:${value.type === 'ArrayExpression' ? 'Array' : key(value.callee)}`);
-    if (node.type !== 'CallExpression') return;
+    if (node.type !== 'CallExpression' || gatewayStepCall(node)) return;
     const callee = member(node.callee), last = callee.split('.').at(-1);
     if ((last === 'complete' && node.arguments.length >= 2) || /(?:^|\.)llm\.stream$/.test(callee) ||
         (last === 'fetch' && providerUrl(node.arguments[0]?.value))) record(callee);
