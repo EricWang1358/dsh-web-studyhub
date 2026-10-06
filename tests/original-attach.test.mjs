@@ -15,6 +15,7 @@ import { materialsSchemas } from '../lib/contexts/materials/contracts.js';
 import { hashFile } from '../lib/contexts/materials/original-file.js';
 import { domainTool } from '../lib/runtime/tools.js';
 import { makeTextPdf, LECTURE_PAGES } from './helpers/text-pdf.mjs';
+import { collectGarbage, settledMemory } from '../scripts/qa/perf-probe.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -279,11 +280,25 @@ test('hashing streams the file in small chunks; a file over the limit is refused
   const { outside, call, sourceId } = await legacyLecture(t);
   const big = join(outside, 'big.pdf');
   await writeFile(big, '%PDF-1.7\n'); await truncate(big, 120 * 1024 * 1024);
-  const chunks = []; const peak = { rss: 0 };
-  const result = await hashFile(big, { onChunk: size => { chunks.push(size); peak.rss = Math.max(peak.rss, process.memoryUsage().arrayBuffers); } });
+  // Measure retained buffers, not when a particular V8 version happens to
+  // collect dead stream chunks (Node 24 lets those exceed this budget).
+  assert.equal(collectGarbage(), true, 'retained-memory measurement requires collection');
+  const chunks = []; let peakBuffersMiB = 0;
+  const result = await hashFile(big, { onChunk: size => {
+    chunks.push(size);
+    peakBuffersMiB = Math.max(peakBuffersMiB, settledMemory().arrayBuffers);
+  } });
   assert.equal(result.bytes, 120 * 1024 * 1024);
   assert.ok(chunks.length > 100, 'many chunks'); assert.ok(Math.max(...chunks) <= 1024 * 1024, 'no chunk above 1 MB');
-  assert.ok(peak.rss < 64 * 1024 * 1024, 'the file is never held in memory');
+  assert.ok(peakBuffersMiB < 64, `live buffers stay below 64 MiB while hashing (observed ${peakBuffersMiB})`);
+  // Negative control: a live full-file copy must still exceed the unchanged
+  // budget after collection, so collection cannot hide buffered input.
+  const retained = await readFile(big);
+  const bufferedMiB = settledMemory().arrayBuffers;
+  assert.ok(bufferedMiB >= 120, 'the probe detects a retained full-file copy');
+  t.diagnostic(`retained buffers: streaming peak ${peakBuffersMiB} MiB; full-file control ${bufferedMiB} MiB`);
+  assert.equal(retained.length, result.bytes);
+  assert.equal(sha(retained), result.hash, 'streaming and buffered digests agree');
   await truncate(big, 41 * 1024 * 1024);
   await assert.rejects(call('materials.original.attach', { sourceId, path: big, mode: 'reference' }), /at most 40 MB/);
 });

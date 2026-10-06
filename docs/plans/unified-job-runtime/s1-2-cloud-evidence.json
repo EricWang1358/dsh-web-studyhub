@@ -192,5 +192,44 @@
     },
     "finalLint": "passed",
     "independentBuild": "passed"
+  },
+  "verificationFollowup": {
+    "baseline": "94008813efa62ead49f7e1c352c0ba169adac0a0",
+    "supportedNode": ">=22.19",
+    "ciNode": "22",
+    "observations": {
+      "node22": {
+        "pass": 22,
+        "fail": 0,
+        "beforeBytes": 7041103,
+        "peakBytes": 34566223
+      },
+      "node24": {
+        "pass": 21,
+        "fail": 1,
+        "beforeBytes": 5192205,
+        "peakBytes": 69679629
+      }
+    },
+    "finalNode24": {
+      "pass": 22,
+      "fail": 0,
+      "skip": 0,
+      "streamingPeakMiB": 1.182124137878418,
+      "bufferedControlMiB": 120.93212413787842
+    },
+    "sourceSha256": {
+      "tests/original-attach.test.mjs": "b52894534312de17e49cc3bc6bb43cf1b5a44365cc837a26c9b740b2d4c38d96",
+      "scripts/qa/perf-probe.mjs": "4e8d6d3a159f23ab2882473b8fd8f165ec13ce00afc7801192c653e2cbe7f4e8"
+    },
+    "logsSha256": {
+      "memory-observation-node22.log": "1958cb0fe9da0ebc23722ef35204dce4a3d230678a7ce2dfda483e423c9469e3",
+      "memory-observation-node24.log": "ed38a5ad62c061ebad247afe68e191ba8b47ef51cdd89f2d3f4f9659f9cb834b",
+      "memory-fixed-node22.log": "f0e2bcd604aac5a06008f829d9cc4634b634aca930f2cc49016edfabe4673a65",
+      "memory-fixed-node24.log": "1447b5d17f63438eb58e5f0af87b13ce007cb77361b1d168b14229fb668ccfa2",
+      "memory-final-node24.log": "ad6720aa0af61a04b4dd8d64351ff7a57c429f1c77780b8bc402d6333fc6be79"
+    },
+    "fullVerification": "See PR #260 exact-head followup; prior failure receipt is preserved",
+    "productionChanges": false
   }
 }
