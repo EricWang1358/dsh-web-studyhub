@@ -108,3 +108,15 @@ test('flipping the switch never resubmits a started attempt: each job runs once,
   for (const { jobId } of [legacy, managed]) assert.equal((await runtime.call('job.wait', { jobId, timeoutSeconds: 30 }, services('a'))).status, 'complete');
   assert.equal(staged.log.filter(stage => stage === 'plan').length, 2, 'two jobs, two planning calls: nothing ran twice');
 });
+
+test('a second run of the same request names its steps exactly like the first: the keys are the units\', not this attempt\'s', async t => {
+  const { runtime, services } = await library(t);
+  const keys = [];
+  for (let run = 0; run < 2; run++) {
+    const started = await runtime.call('generate', request, services('a'));
+    assert.equal((await runtime.call('job.wait', { jobId: started.jobId, timeoutSeconds: 30 }, services('a'))).status, 'complete');
+    keys.push((await snapshotOf(runtime, started.jobId, services('a'))).contract.calls.map(call => call.stepKey));
+  }
+  assert.deepEqual(keys[0], keys[1]);
+  assert.equal(new Set(keys[0]).size, keys[0].length, `one key per unit: ${keys[0].join(' ')}`);
+});
