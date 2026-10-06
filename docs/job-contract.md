@@ -223,7 +223,7 @@ A v2 Call keeps the v1 Call fields and adds optional `stepRunId` plus:
 
 ```js
 observation = {
-  boundary: 'external-request' | 'host-attempt' | 'legacy' | 'local-wait',
+  boundary: 'external-request' | 'host-attempt' | 'legacy' | 'local-wait' | 'local-process',
   requestCount: integer | null
 }
 ```
@@ -234,6 +234,7 @@ observation = {
 | `host-attempt` | One host-visible model attempt; internal requests were not observed, count null. |
 | `legacy` | A published producer record with no wire observation, count null. |
 | `local-wait` | Local queue/rate-limit waiting, count 0. |
+| `local-process` | A local child process or host tool call the plugin cannot count as wire requests (install, model preparation, search-extension ingest); count null, never a model request. |
 
 A fallback or format repair has its own Call and stable stepKey; an actual execution can associate it with stepRunId. Observation does not add another retry policy or infer hidden host retries. The existing `usage.calls` remains the published summary (tokenUsage.calls or producer-record count); it is not reinterpreted as actual HTTP requests.
 
