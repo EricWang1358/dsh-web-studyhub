@@ -23,7 +23,7 @@
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-popover);
       color: var(--text);
       font-size: var(--fs-md);
       font-weight: var(--fw-regular);
@@ -41,14 +41,14 @@
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-popover);
     }
     .source-row-menu {
       padding: var(--space-1);
       border: 1px solid var(--line-strong);
       border-radius: var(--radius-sm);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-popover);
     }
     .sh-tooltip {
       width: max-content;
@@ -68,13 +68,15 @@
       z-index: var(--z-popover, 40);
       display: flex;
       flex-direction: column;
+      /* --sh-inset: the gap between the menu's edge and its items; an item's corner is the menu's corner less that gap and the border (--hairline) (concentric radii). */
+      --sh-inset: var(--space-1);
       min-width: 210px;
       max-width: calc(100% - var(--space-4));
-      padding: var(--space-1);
+      padding: var(--sh-inset);
       border: 1px solid var(--line-strong);
-      border-radius: var(--radius-sm);
+      border-radius: var(--radius);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-popover);
       color: var(--text);
     }
     .sh-menu-anchor > .sh-menu { top: 100%; right: 0; margin-top: var(--space-1); }
@@ -88,7 +90,7 @@
       margin: 0;
       padding: var(--space-2) calc(var(--space-2) + var(--space-half));
       border: 0;
-      border-radius: var(--radius-sm);
+      border-radius: calc(var(--radius) - var(--sh-inset) - var(--hairline));
       background: none;
       color: var(--text);
       font-size: var(--fs-md);

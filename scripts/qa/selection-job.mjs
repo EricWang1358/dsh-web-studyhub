@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
+import { pickNth } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { sampleMarkdown } from "./fixtures.mjs";
 
@@ -120,12 +121,12 @@ export async function run(options) {
       if (!(await panel.isVisible())) { await page.locator('[data-tour="source-tools-toggle"]').click(); await sleep(400); }
     };
     const learning = () => page.locator(".study-document-learning");
-    const deckSelect = () => learning().locator("form").nth(1).locator("select").first();
+    const deckSelect = () => learning().locator("form").nth(1).locator('[role="combobox"]').first();
 
     await check("select a passage and see the form with its estimate", async () => {
       await select(0);
       await learning().locator("form").nth(1).waitFor({ timeout: 15000 });
-      await deckSelect().selectOption({ index: 1 });
+      await pickNth(page, deckSelect(), 0);
       await learning().locator('input[type="number"]').fill("2");
       await page.locator("[data-token-estimate] .token-estimate__line:not(.token-estimate__line--loading)").waitFor({ timeout: 15000 });
       const estimate = await page.locator("[data-token-estimate] .token-estimate__line:not(.token-estimate__line--loading)").innerText();
@@ -171,7 +172,7 @@ export async function run(options) {
 
       await check("a second job for another passage can be started and stopped without touching the deck", async () => {
         await select(1);
-        await deckSelect().selectOption({ index: 1 });
+        await pickNth(page, deckSelect(), 0);
         await learning().locator('input[type="number"]').fill("1");
         await sleep(500);
         await learning().locator("button.primary").click();

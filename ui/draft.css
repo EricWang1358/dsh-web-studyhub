@@ -70,7 +70,7 @@
       background: var(--bg-raised);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--shadow-item);
       padding: var(--space-2);
       margin-bottom: var(--space-5-5);
       display: flex;
@@ -158,7 +158,7 @@
       min-width: 110px;
       margin-top: var(--space-1-5);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-popover);
     }
   }
   @container study (max-width:720px) {

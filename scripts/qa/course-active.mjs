@@ -14,6 +14,7 @@ import { StudyService } from "../../lib/service.js";
 import { createPreviewServer } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
+import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -92,7 +93,7 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
   await nav("dashboard");
   await page.locator(".dash-forecast-panel").first().waitFor({ timeout: 20000 });
   // The page opens on the current course; the learner's screenshot was "全部课程".
-  await page.locator(".page-scope select").first().selectOption("*");
+  await pick(page, page.locator('.page-scope [role="combobox"]').first(), t("全部课程", "All courses"));
   await settle(1200);
   const before = await text(".dash-forecast-panel .dash-chart-summary");
   seen.forecastBefore = before;
@@ -100,6 +101,8 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
   await shot("02-dashboard-before", ".dash-forecast-panel");
 
   await nav("settings");
+  // Settings is a list of categories and one pane: the course list is the 课程 category.
+  await page.getByRole("button", { name: t("课程", "Courses"), exact: true }).first().click().catch(() => {});
   await page.locator(".course-list").first().waitFor({ timeout: 20000 });
   await page.locator(".course-list").first().scrollIntoViewIfNeeded().catch(() => {});
   await settle(400);
@@ -126,7 +129,7 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
 
   await nav("dashboard");
   await page.locator(".dash-forecast-panel").first().waitFor({ timeout: 20000 });
-  await page.locator(".page-scope select").first().selectOption("*");
+  await pick(page, page.locator('.page-scope [role="combobox"]').first(), t("全部课程", "All courses"));
   await settle(1200);
   const after = await text(".dash-forecast-panel .dash-chart-summary");
   seen.forecastAfter = after;
@@ -156,18 +159,18 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
   await settle(500);
   await shot("09b-home-parked-open", ".parked-toggle");
   // The current course may be parked on purpose: the home says so, with the way back.
-  const switcher = page.locator(`select[aria-label="${t("切换当前课程", "Switch current course")}"]`).first();
-  await switcher.selectOption(OS);
+  const switcher = page.locator(`[role="combobox"][aria-label="${t("切换当前课程", "Switch current course")}"]`).first();
+  await pick(page, switcher, OS);
   await settle(1500);
   seen.currentParked = await text(".course-parked-line");
   expect(/未激活|Inactive/.test(seen.currentParked), `the home marks a parked current course (${seen.currentParked})`);
   await shot("09c-home-current-parked", ".course-parked-line");
-  await switcher.selectOption(DB);
+  await pick(page, switcher, DB);
   await settle(1000);
 
   // Browse a parked course from the picker; nothing is silently empty.
   await nav("dashboard");
-  await page.locator(".page-scope select").first().selectOption(OS);
+  await pick(page, page.locator('.page-scope [role="combobox"]').first(), OS);
   await settle(1200);
   const own = await text(".dash-hero");
   seen.parkedPick = await text(".page-scope__note");
@@ -179,7 +182,7 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
   await shot("11-activated");
 
   await nav("wrongbook");
-  await page.locator(".page-scope select").first().selectOption("*");
+  await pick(page, page.locator('.page-scope [role="combobox"]').first(), t("全部课程", "All courses"));
   await settle(1200);
   seen.wrongBookLine = await text(".page-scope__note");
   expect(/不含 2 门|Not including 2/.test(seen.wrongBookLine), `the wrong book says what it leaves out (${seen.wrongBookLine})`);

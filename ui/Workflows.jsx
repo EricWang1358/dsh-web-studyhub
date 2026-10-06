@@ -1,7 +1,7 @@
 import { ui, uiFormat, useUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
-import { Banner, Button, Checkbox, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, useToast } from "./components/index.js";
+import { Banner, Button, Checkbox, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, Select, useToast } from "./components/index.js";
 import { workflowDesignPrompt, workflowSkeletonPrompt } from "./agent-prompts/workflow.js";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
@@ -25,12 +25,11 @@ const newStep = (component) => ({ id: `step-${crypto.randomUUID()}`, kind: compo
   instructions: component.prompt, content: "", next: "$next", retry: "$stay", count: 10 });
 
 function BranchSelect({ label, value, onChange, steps }) {
-  return <label>{label}<select value={value} onChange={(event) => onChange(event.target.value)}>
-    <option value="$next">{ui("按顺序进入下一步")}</option>
-    <option value="$stay">{ui("留在当前步骤")}</option>
-    <option value="$finish">{ui("结束本次学习")}</option>
-    {steps.map((step, index) => <option key={step.id} value={step.id}>{index + 1}. {step.title || ui("未命名步骤")}</option>)}
-  </select></label>;
+  return <label>{label}<Select value={value} onChange={onChange} options={[
+    { value: "$next", label: ui("按顺序进入下一步") },
+    { value: "$stay", label: ui("留在当前步骤") },
+    { value: "$finish", label: ui("结束本次学习") },
+    ...steps.map((step, index) => ({ value: step.id, label: `${index + 1}. ${step.title || ui("未命名步骤")}` }))]} /></label>;
 }
 
 export function FlowEditor({ initial, components, latest, storageKey, draftName, call, askInChat, onSaved, onBack }) {
@@ -211,7 +210,8 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
         </> : <p className="muted small">{ui("学习库还没有题目主题。填写上方主题即可开始。")}</p>}
       </details>
       <label>{ui("这次学什么")}<input required maxLength={120} value={topic} placeholder={ui("写一个主题；没有题目也可以开始")} onChange={(e) => { setTopic(e.target.value); requestId.current = crypto.randomUUID(); }} /></label>
-      <label>{ui("关联知识骨架")}<select value={skeletonId} onChange={(e) => { setSkeletonId(e.target.value); requestId.current = crypto.randomUUID(); if (!topic.trim()) setTopic(listing.skeletons.find((s) => s.id === e.target.value)?.title || ""); }}><option value="">{ui("暂不关联")}</option>{listing.skeletons.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
+      <label>{ui("关联知识骨架")}<Select value={skeletonId} onChange={(next) => { setSkeletonId(next); requestId.current = crypto.randomUUID(); if (!topic.trim()) setTopic(listing.skeletons.find((s) => s.id === next)?.title || ""); }}
+        options={[{ value: "", label: ui("暂不关联") }, ...listing.skeletons.map((s) => ({ value: s.id, label: s.title }))]} /></label>
       <div className="wf-skeleton-shortcut">
         <div className="wf-actions"><Button onClick={generateSkeleton} disabled={!scope.length}>{skeletonPending ? ui("准备请求…") : ui("生成知识骨架")}</Button><Button onClick={() => void onRefresh()}>{ui("刷新骨架")}</Button></div>
         <p className="muted small" role="status">{scope.length ? ui("根据上方已选题目，交给主对话生成；保存后可在这里关联。") : ui("先选择上方题目范围，即可生成对应骨架；也可以直接关联已有骨架。")}</p>

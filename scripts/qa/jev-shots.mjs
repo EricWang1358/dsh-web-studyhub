@@ -21,6 +21,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPreviewServer, previewCall } from '../preview-server.mjs';
 import { launchChromium } from './browser.mjs';
+import { pick } from './pick.mjs';
 import { layoutAudit } from './mineru-layout.mjs';
 import { scrubProcessEnv } from './env.mjs';
 import { defaultAnswer, startFakeJev } from '../../tests/helpers/fake-jev.mjs';
@@ -106,7 +107,7 @@ try {
       const settle = async (ms = 350) => { await tab.waitForLoadState('networkidle').catch(() => {}); await sleep(ms); };
       const shot = async label => { const path = join(out, `${label}-${lang}-${theme}-${width}.png`); await tab.screenshot({ path }); shots.push(path); };
       const noJev = async (where, options) => { const hits = await jevTrace(tab, options); if (hits.length) problems.push(`${tag}: Jev is visible with experimental features hidden (${where}): ${hits.join(' | ')}`); };
-      const pickLoose = async () => { await tab.getByLabel(/课程范围|Course scope/).selectOption(''); await settle(300); await tab.getByRole('button', { name: /选择当前范围|Select this scope/ }).click(); await settle(200); };
+      const pickLoose = async () => { await pick(tab, tab.getByRole('combobox', { name: /课程范围|Course scope/ }), /未分类|Uncategorised/); await settle(300); await tab.getByRole('button', { name: /选择当前范围|Select this scope/ }).click(); await settle(200); };
       const openPage = async nav => { await tab.locator(`[data-tour="nav-${nav}"]`).first().click(); await settle(); };
       // Settings is a list of categories and one pane: the experimental switch (and the Jev block under it) is the 实验性功能 category.
       const advanced = async () => {
@@ -182,7 +183,7 @@ try {
       group = await advanced();
       await block().evaluate(element => element.scrollIntoView({ block: 'start' })); await settle(300);
       await shot('4-shown-guide-step1'); await audit(tab, `guide/${tag}`, { scopes: ['.jev-guide', '.jev-provider'] }); await fit('shown block');
-      const order = await block().evaluate(element => ['.jev-guide', 'select[name="jev-provider"]', 'input[name="jev-key"]', '.jev-replace', '.jev-switches'].map(selector => element.querySelector(selector)?.getBoundingClientRect().top ?? -1));
+      const order = await block().evaluate(element => ['.jev-guide', '.jev-provider [role="combobox"]', 'input[name="jev-key"]', '.jev-replace', '.jev-switches'].map(selector => element.querySelector(selector)?.getBoundingClientRect().top ?? -1));
       if (order.some(value => value < 0) || order.some((value, index) => index && value <= order[index - 1])) problems.push(`${tag}: the guided block is not in order (guide, provider, key, replace switches, master): ${order.join(', ')}`);
       await block().getByRole('button', { name: /下一个|Next/ }).click(); await settle(200);
       if (!await block().locator('[data-jev-guide="2"]').count()) problems.push(`${tag}: the walk-through did not advance`);
@@ -194,7 +195,7 @@ try {
       await shot('6-guide-skipped');
 
       // The provider: OpenCode Zen free; its key variable is not set yet.
-      await block().locator('select[name="jev-provider"]').selectOption('opencode-zen-free'); await settle(500);
+      await pick(tab, block().locator('.jev-provider [role="combobox"]'), /Jev (免费|Free)/); await settle(500);
       await block().locator('[data-provider="opencode-zen-free"]').first().waitFor({ timeout: 15000 });
       if (!await block().getByText(/OPENCODE_GO_API_KEY_2/).count()) problems.push(`${tag}: the key variable name is not shown`);
       await shot('7-provider-zen-key-missing'); await audit(tab, `provider/${tag}`, { scopes: ['.jev-provider', '.jev-card', '.jev-privacy', '.jev-replace'] });
@@ -219,9 +220,9 @@ try {
       await block().locator('.jev-card').scrollIntoViewIfNeeded(); await settle(200);
       await shot('9-key-from-environment-tested'); await audit(tab, `key/${tag}`, { scopes: ['.jev-card', '.jev-privacy', '.jev-provider'] });
       // Another provider has its own confirmation.
-      await block().locator('select[name="jev-provider"]').selectOption('opencode-zen'); await settle(500);
+      await pick(tab, block().locator('.jev-provider [role="combobox"]'), 'OpenCode Zen · Jev', { exact: true }); await settle(500);
       if (!await block().locator('.jev-privacy[data-confirmed="false"]').count()) problems.push(`${tag}: the paid preset inherited the confirmation of the free one`);
-      await block().locator('select[name="jev-provider"]').selectOption('opencode-zen-free'); await settle(500);
+      await pick(tab, block().locator('.jev-provider [role="combobox"]'), /Jev (免费|Free)/); await settle(500);
       if (!await block().locator('.jev-privacy[data-confirmed="true"]').count()) problems.push(`${tag}: the confirmation of the free preset was lost`);
 
       // C. The switches turn on at once.

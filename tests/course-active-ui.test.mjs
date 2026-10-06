@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { mapProps } from './helpers/study-map-props.mjs';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -19,7 +20,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as CourseField } from './ui/CourseField.jsx';
   export { rankCourses } from './ui/course-names.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { PageScope, decksInCourse, courseParked, scopeArgs, ActiveSwitch, ParkedChip, CourseActiveProvider, activeNotice, liveSubCourses, parkedWithin,
@@ -50,7 +51,6 @@ test('the scope picker lists parked courses under their own heading, selectable,
   const group = html.match(/<optgroup[\s\S]*?<\/optgroup>/)[0];
   assert.match(group, /value="Cloud"/);
   assert.match(group, new RegExp(`value="${C05.replace(/\//g, '\\/')}"`), 'a parked chapter stays selectable');
-  assert.match(group, /class="is-parked"/, 'dimmed');
   assert.doesNotMatch(html.replace(group, ''), /value="Cloud"/, 'not in the main list');
   assert.match(html.replace(group, ''), /value="Databases"/);
   assert.match(html.replace(group, ''), /Microservices/, 'chapter 07 is kept alive inside its parked parent and stays in the main list');

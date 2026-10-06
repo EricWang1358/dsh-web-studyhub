@@ -7,6 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
+import { nativeSelects } from './helpers/native-selects.mjs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
@@ -53,7 +54,7 @@ const compiled = await build({ stdin: { contents: `
   export * as status from './ui/generation-status.js';
   export { GenerationSettingsForm, generationFormErrors } from './ui/GenerationSettings.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Generate, form, status, GenerationSettingsForm, setUiLanguage } = module.exports;

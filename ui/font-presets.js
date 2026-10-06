@@ -1,7 +1,10 @@
 /* The typefaces of StudyHub, in one pure registry that the interface (设置 › 界面) and the reader (Aa) share. A preset is only an id, a zh
    label (passed through ui() where shown) and a reference to its stack; the stacks themselves are CSS variables defined ONCE in
-   tokens.css (--font-stack-*), so no stylesheet repeats a long font list. No font file is bundled: a typeface is a system stack, or the
-   name of a font the person has installed. */
+   tokens.css (--font-stack-*), so no stylesheet repeats a long font list. The one font file that IS bundled (owner decision 2026-10-06)
+   is Inter for digits and Latin letters only (ui/fonts/inter-face.js): it is the first family of the two system stacks, and its
+   unicode-range excludes CJK, so Chinese stays on the system fonts. Every other typeface is a system stack or the name of a font the
+   person has installed; serif, kai, round and mono do not include Inter, and a typed font name comes before the system stack, so the
+   person's font wins and Inter only fills in what it lacks. */
 const preset = (id, label) => Object.freeze({ label, stack: `var(--font-stack-${id})` });
 
 export const FONT_PRESETS = Object.freeze({

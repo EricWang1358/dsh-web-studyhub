@@ -51,8 +51,12 @@ import AppTopbar from './app/AppTopbar.jsx';
 import AppModalHost, { readerOpen } from './app/AppModalHost.jsx';
 import { ContextReturn, IngestBanner, StorageIssuesBanner } from './app/AppBanners.jsx';
 import { DisabledPage, PageView, StartPage } from './app/page-views.jsx';
+import { installInterFace } from './fonts/inter-face.js';
 
 export { LibraryChip, libraryFolderName } from './app/AppTopbar.jsx';
+
+/* The bundled Inter for digits and Latin letters (ui/fonts/inter-face.js): fetched as its own chunk when StudyHub opens, injected once. */
+installInterFace();
 
 const LANG_ATTR = { en: 'en', zh: 'zh-CN' };
 

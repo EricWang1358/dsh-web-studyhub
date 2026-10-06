@@ -73,15 +73,12 @@ export default function ScienceSettings({ onChange }) {
   const switches = [['imageCaptions', '显示图片说明'], ['imageEnlarge', '点击图片放大'], ['localImages', '启用本地图片插入'], ['chemistry', '启用化学自动配平'], ['symbolic', '启用代数恒等式证明']];
   return <SettingsSection className="science-settings" tour="settings-science" title={ui('公式、图片与计算工具')}
     lead={ui('修改立即生效并保存在当前浏览器；独立于阅读字号。配平和证明在本地计算，不调用模型。')}>
-    <Field label={ui('公式大小')} width="sm"><Select value={settings.formulaScale} onChange={event => choose('formulaScale', Number(event.target.value))}>
-      {FORMULA_SCALES.map(value => <option key={value} value={value}>{value}%</option>)}
-    </Select></Field>
-    <Field label={ui('公式对齐')} width="sm"><Select value={settings.formulaAlign} onChange={event => choose('formulaAlign', event.target.value)}>
-      <option value="center">{ui('居中')}</option><option value="left">{ui('靠左')}</option>
-    </Select></Field>
-    <Field label={ui('图片最大高度')} width="sm"><Select value={settings.imageHeight} onChange={event => choose('imageHeight', Number(event.target.value))}>
-      {IMAGE_HEIGHTS.map(value => <option key={value} value={value}>{value} px</option>)}
-    </Select></Field>
+    <Field label={ui('公式大小')} width="sm"><Select value={settings.formulaScale} onChange={value => choose('formulaScale', value)}
+      options={FORMULA_SCALES.map(value => ({ value, label: `${value}%` }))} /></Field>
+    <Field label={ui('公式对齐')} width="sm"><Select value={settings.formulaAlign} onChange={value => choose('formulaAlign', value)}
+      options={[{ value: 'center', label: ui('居中') }, { value: 'left', label: ui('靠左') }]} /></Field>
+    <Field label={ui('图片最大高度')} width="sm"><Select value={settings.imageHeight} onChange={value => choose('imageHeight', value)}
+      options={IMAGE_HEIGHTS.map(value => ({ value, label: `${value} px` }))} /></Field>
     {switches.map(([key, title]) => <Checkbox key={key} label={ui(title)} checked={settings[key]} onChange={checked => choose(key, checked)} />)}
     <div className="settings-actions"><Button variant="quiet" onClick={() => onChange?.({ ...SCIENCE_DEFAULTS })}>{ui('恢复默认')}</Button></div>
     <div className="science-preview"><Hint as="span">{ui('公式预览')}</Hint><Markdown text={String.raw`$$\frac{x^2 + 2x + 1}{2}$$`} /></div>

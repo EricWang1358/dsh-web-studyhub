@@ -130,6 +130,13 @@ test('text fields: clicking into one is "text field" and nothing else; no value,
   const unknown = tree('<label for="c">Include my "Quantum notes" deck</label><input id="c" type="checkbox"><select aria-label="Quantum notes"><option>Quantum notes</option></select>');
   assert.equal(m.resolveUsageControl(unknown.byTag('input')[0]).key, 'settings/checkbox');
   assert.equal(m.resolveUsageControl(unknown.byTag('select')[0]).key, 'settings/select');
+  // the Select / Combobox trigger is a button with role=combobox: named by its label (the app's copy), never by the value it shows; an option is only ever "option"
+  const seededValue = '我的操作系统期末笔记';
+  const trigger = tree(`<label for="s">${m.ui('课程范围')}</label><button id="s" role="combobox" aria-haspopup="listbox">${seededValue}</button><button role="combobox" aria-label="${seededValue}">${seededValue}</button><div role="option">${seededValue}</div>`);
+  assert.equal(m.resolveUsageControl(trigger.byTag('button')[0]).key, 'settings/combobox/课程范围');
+  assert.equal(m.resolveUsageControl(trigger.byTag('button')[1]).key, 'settings/combobox');
+  assert.equal(m.resolveUsageControl(trigger.byTag('div')[0]).key, 'settings/option');
+  for (const element of [...trigger.byTag('button'), ...trigger.byTag('div')]) assert.ok(!JSON.stringify(m.resolveUsageControl(element)).includes('操作系统'));
 });
 
 test('not a control, not recorded: a click on plain text or a layout box counts for nothing; a click inside the usage section counts for nothing', () => {

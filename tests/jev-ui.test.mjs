@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* The Jev settings section and the organizer rows: the privacy note, the one confirmation, the switches (all off), the key shown
    only as its last four characters, the usage rows, and the probabilities under a suggested course. zh and en. */
@@ -16,7 +17,7 @@ const compiled = await build({ stdin: { contents: `
   export { JevCardBadge, JevCardSignals } from './ui/JevBadge.jsx';
   export { privacyPoints, noteText, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META } from './ui/jev-flow.js';
   export { setUiLanguage, ENGLISH_SOURCES } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { JevSettings, JevSettingsView, JevUsageView, JevSuggestButton, JevNote, JevProbabilities, JevCardBadge, JevCardSignals, privacyPoints, noteText, setupStep, dshUsage, thresholdChoices, probabilityRows, startsIncluded, JEV_FEATURE_META, setUiLanguage, ENGLISH_SOURCES } = module.exports;

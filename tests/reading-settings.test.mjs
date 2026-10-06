@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import * as shared from '../ui/reading-settings/settings.js';
 import * as reader from '../ui/document-preview/reader/settings.js';
 import { createReadingStore } from '../ui/reading-settings/store.js';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const han = /[㐀-鿿]/;
 const memory = (initial = {}) => {
@@ -119,7 +120,7 @@ const compiled = await build({ stdin: { contents: `
   export { ReadingSettingsButton, ReadingBlock, DisplayControls } from './ui/reading-settings/ReadingSettings.jsx';
   export { default as ReaderDisplaySettings, DisplayControls as ReaderDisplayControls } from './ui/document-preview/reader/DisplaySettings.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const lib = module.exports;

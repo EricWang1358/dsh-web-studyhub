@@ -4,13 +4,14 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 // P18 / P22: the generation picker lists documents (a PDF is one row with an
 // expandable page list), counts documents, and labels formats through one
 // helper so fresh Markdown is never called a legacy extraction.
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `export * from './ui/SourcePicker.jsx'; export { default } from './ui/SourcePicker.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { default: SourcePicker, sourceFormatLabel, selectionState, toggleDocument, selectDocuments, setUiLanguage } = module.exports;

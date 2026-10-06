@@ -48,9 +48,8 @@ export function DailyRecapSettingsForm({ root, saved, busy = false, act }) {
       <Checkbox name="automatic" label={ui('自动准备并生成每日合集')} checked={editor.values.automatic} onChange={automatic => edit({ automatic })} />
       <Hint>{ui('默认关闭。开启后会使用当前 AI 模型：做题时逐步准备讲解，章节结束后统一整理语言和顺序。你的手动修改会保留。')}</Hint>
       <Field label={ui('默认讲解口吻')} hint={ui('亲切：像一起复盘的助教；专业：简洁、严谨地讲清判断依据。手动生成时可单独调整。')}>
-        <Select name="tone" value={editor.values.tone} onChange={event => edit({ tone: event.target.value })}>
-          <option value="friendly">{ui('亲切')}</option><option value="professional">{ui('专业')}</option>
-        </Select>
+        <Select name="tone" value={editor.values.tone} onChange={tone => edit({ tone })}
+          options={[{ value: 'friendly', label: ui('亲切') }, { value: 'professional', label: ui('专业') }]} />
       </Field>
       <Hint>{ui('每天按保存的时区划分；继续做新题会更新今天的同一篇合集。')}</Hint>
       <Field group label={uiFormat('当天统计时区：{0}', [timeZoneName])}>

@@ -3,7 +3,7 @@ import React, { useRef, useState } from "react";
 import { kinds } from "./shared.js";
 import { importExample, importPrompt } from "./json-prompts.js";
 import CourseField from './CourseField.jsx';
-import { Button, Checkbox, FileDrop, InlineMessage, useToast } from './components/index.js';
+import { Button, Checkbox, FileDrop, InlineMessage, Select, useToast } from './components/index.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { useStudy } from './study-context.jsx';
 
@@ -37,7 +37,8 @@ export default function JsonImport({ data, openDraft }) {
     <p className="muted">{ui("粘贴 JSON 或读取 JSON/TXT 文件（TXT 内也需为 JSON）。支持五种题型混合导入。导入时建议标题和课程，确认后保存草稿；发布时快速校验并直接开始学习。")}</p>
     <fieldset>
       <legend>{ui("01 / 各题型 JSON 提示词")}</legend>
-      <label>{ui("题型")}<select value={kind} onChange={(e) => { setKind(e.target.value); setMessage(""); }}>{Object.entries({ mixed: ui("混合题型（一次复制全部）"), ...kinds }).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+      <label>{ui("题型")}<Select value={kind} onChange={(next) => { setKind(next); setMessage(""); }}
+        options={Object.entries({ mixed: ui("混合题型（一次复制全部）"), ...kinds }).map(([id, label]) => ({ value: id, label }))} /></label>
       <label>{ui("复制给 AI，追加你的资料与出题要求")}<textarea readOnly rows={8} value={importPrompt(kind, kinds[kind], getUiLanguage())} /></label>
       <Button icon={promptCopy.copied ? "check" : undefined} onClick={async () => {
         setMessage("");

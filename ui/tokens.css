@@ -56,12 +56,18 @@
     /* A rendered PDF page is white paper in every theme. */
     --pdf-page: #fff;
 
-    --shadow-card: 0 0 0 1px var(--paper-rule), 0 2px 4px #00000026, var(--shadow-lg);
+    --shadow-card: inset 0 1px 0 var(--edge-highlight-paper), 0 0 0 1px var(--paper-rule), 0 2px 4px #00000026, var(--shadow-lg);
     --radius-card: 16px;
     --glass-sheen: #fff4e30a;
     --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
     --shadow-md: 0 14px 34px -20px #000000d9;
     --shadow-lg: 0 30px 70px -30px #000000f2;
+    /* Surface edges (docs/design/select-combobox.html 6D): the 1px inner top line of a floating surface, of a resting one, of paper stock, and the ink of the
+       hairline ring and the contact shadow. The composites that use them (--shadow-popover ...) are in the semantic block below. */
+    --edge-highlight: #ffffff38;
+    --edge-highlight-soft: #ffffff0f;
+    --edge-highlight-paper: #ffffffb3;
+    --edge-shade: #00000052;
     --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
 
     /* The stacks themselves are the --font-stack-* block at the end of this file (ui/font-presets.js lists them). */
@@ -156,6 +162,10 @@
     --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
     --shadow-md: 0 14px 34px -20px #2a1c0e38;
     --shadow-lg: 0 30px 70px -30px #2a1c0e45;
+    /* A white line vanishes on white stock, so by daylight the ring and the contact shadow carry the edge (an ink-tinted hairline) and the highlight is only a trace on cream. */
+    --edge-highlight: #ffffff;
+    --edge-highlight-soft: #ffffffcc;
+    --edge-shade: #2a1c0e26;
     --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 
     color-scheme: light;
@@ -199,6 +209,8 @@
     --fw-strong: 650;
     --radius-xs: 4px;
     --space-half: 2px;
+    /* The 1px border of a surface; a concentric inner radius subtracts it (and the padding) from the outer one. */
+    --hairline: 1px;
     --dur-fast: .15s;
     --dur: .2s;
     --dur-slow: .3s;
@@ -229,9 +241,15 @@
     --hue-orange: color-mix(in srgb, var(--warn) 55%, var(--bad));
     /* Shadows that are not the three elevation steps: the contact shadow of a dialog and a toast, the fade above a pinned list, a dragged row. */
     --shadow-contact: 0 2px 10px #0000002e;
-    --shadow-contact-toast: 0 3px 10px -4px #0000003d;
     --shadow-up: 0 -10px 18px -14px #0000008c;
     --shadow-drag: 0 8px 22px color-mix(in srgb, #000 40%, transparent);
+    /* Elevation recipe: a 1px inner top highlight, a hairline ring and a tight contact shadow, then the far shadow of the step. popover = menus, popovers,
+       tooltips, listboxes, toasts; dialog = modal sheets and overlay panels; item = small raised pieces (a chip, a segment thumb, a tile); panel = a resting
+       desk panel or provider card (only the soft top line, it stays flat). The card is --shadow-card. */
+    --shadow-popover: inset 0 1px 0 var(--edge-highlight), 0 0 0 1px var(--edge-shade), 0 1px 2px var(--edge-shade), var(--shadow-md);
+    --shadow-dialog: inset 0 1px 0 var(--edge-highlight), 0 0 0 1px var(--edge-shade), var(--shadow-contact), var(--shadow-lg);
+    --shadow-item: inset 0 1px 0 var(--edge-highlight-soft), var(--shadow-sm);
+    --shadow-panel: inset 0 1px 0 var(--edge-highlight-soft);
     /* The inner highlight on a primary button. */
     --sheen: #ffffff24;
     --sheen-strong: #ffffff38;
@@ -250,8 +268,8 @@
      together; 保持系统 puts the headings back), the reader and the reading blocks (--reader-face). `custom` is the installed font the person
      typed: --font-custom is set on the app root from the gated name, and an unknown name falls through to the system stack. */
   :is(.study-app, .study-seat) {
-    --font-stack-system: "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-    --font-stack-system-display: "Inter Display", "Segoe UI Variable Display", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-stack-system: "StudyHub Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-stack-system-display: "StudyHub Inter", "Segoe UI Variable Display", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
     --font-stack-serif: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
     --font-stack-kai: "KaiTi", "Kaiti SC", "STKaiti", "BiauKai", "DFKai-SB", serif;
     --font-stack-round: "Yuanti SC", "HarmonyOS Sans SC", "MiSans", "YouYuan", "Microsoft YaHei UI", "PingFang SC", sans-serif;

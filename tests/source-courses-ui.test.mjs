@@ -5,11 +5,12 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { withStudy } from './helpers/study-services.mjs';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const compiled = await build({ stdin: { contents: `export {default as Sources, CourseDialog, courseAssignments, saveDocumentCourses} from './ui/Sources.jsx';
   export {default as Generate} from './ui/Generate.jsx'; export {default as ImportHub} from './ui/ImportHub.jsx';
   export {usePageScope} from './ui/PageScope.jsx'; export {setUiLanguage} from './ui/i18n.js'; export {StudyServicesContext} from './ui/study-context.jsx';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Sources, CourseDialog, courseAssignments, saveDocumentCourses, Generate, ImportHub, usePageScope, setUiLanguage, StudyServicesContext } = module.exports;

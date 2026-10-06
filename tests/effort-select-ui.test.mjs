@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { GENERATION_SETTINGS_DEFAULTS } from '../lib/generation-settings.js';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 /* #226 / #227: the effort selects of 出题偏好 are the same component as the audio settings', with the options of the model in use, and a
    level the model lacks is shown as the level that is really used, the note naming the preference. */
@@ -12,7 +13,7 @@ import { GENERATION_SETTINGS_DEFAULTS } from '../lib/generation-settings.js';
 const compiled = await build({
   stdin: { contents: `export { default as GenerationSettings } from './ui/GenerationSettings.jsx'; export { default as AudioReasoning, EffortSelect } from './ui/AudioReasoning.jsx';
     export { EffortSelect as SharedEffortSelect } from './ui/EffortSelect.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.json': 'json', '.css': 'text' }, logLevel: 'silent',
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.json': 'json', '.css': 'text' }, logLevel: 'silent',
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);

@@ -20,5 +20,13 @@
   "共 {0} 项": "{0} items",
   "共 {0} 项 / 显示 {1} 项": "{0} items / showing {1}",
   "没有匹配的项": "Nothing matches",
-  "还没有内容": "Nothing here yet"
+  "还没有内容": "Nothing here yet",
+  "没有找到「{0}」": "Nothing matches “{0}”",
+  "没有可选的项": "Nothing to choose from",
+  "搜索题组": "Search decks",
+  "搜索课程或章节": "Search courses or chapters",
+  "没有叫「{0}」的题组": "No deck called “{0}”",
+  "没有叫「{0}」的课程或章节": "No course or chapter called “{0}”",
+  "新建题组「{0}」": "New deck “{0}”",
+  "新建题组": "New deck"
 }

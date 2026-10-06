@@ -4,13 +4,14 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 // WP16 item 1 (UI): Settings offers a reasoning-effort choice only when the
 // model in effect has levels, and says plainly what the trade-off is.
 const require = createRequire(import.meta.url);
 const compiled = await build({
   stdin: { contents: `export { default as ReasoningEffortField, effortTradeoff } from './ui/ReasoningEffortField.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent',
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent',
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -119,7 +120,7 @@ test('English UI has no Chinese in the field', () => {
 
 test('the generation trace shows the level a step ran on, under technical details', async () => {
   const trace = await build({ stdin: { contents: `export { default as GenerationTrace } from './ui/GenerationTrace.jsx';`, resolveDir: process.cwd() },
-    bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+    bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
   const traceModule = { exports: {} };
   new Function('require', 'module', 'exports', trace.outputFiles[0].text)(require, traceModule, traceModule.exports);
   setUiLanguage('zh');

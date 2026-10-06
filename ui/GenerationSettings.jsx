@@ -84,9 +84,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
   const propsFor = key => ({ name: key, value: editor.values[key], disabled, onChange: event => edit(key, event.target.value) });
   const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
     min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
-  const choiceField = (key, options, label) => field(key, <Select {...propsFor(key)}>
-    {options.map(value => <option key={value} value={value}>{label(value)}</option>)}
-  </Select>);
+  const choiceField = (key, choices, label) => field(key, <Select {...propsFor(key)} onChange={value => edit(key, value)} options={choices.map(value => ({ value, label: label(value) }))} />);
   return <form className="settings-form" onSubmit={save}>
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>

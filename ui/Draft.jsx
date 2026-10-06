@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
-import { Banner, Button, Disclosure, Hint, PageHeader, Panel, useToast } from "./components/index.js";
+import { Banner, Button, Disclosure, Hint, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
@@ -507,9 +507,9 @@ export default function Draft({
               <div className="citations">
                 {q.citations?.map((c, j) => (
                   <div key={j}>
-                    <label>{ui("引用来源")}<select
+                    <label>{ui("引用来源")}<Select
                         value={c.sourceId}
-                        onChange={(e) =>
+                        onChange={(sourceId) =>
                           patchCard(
                             i,
                             "citations",
@@ -517,20 +517,15 @@ export default function Draft({
                               index === j
                                 ? {
                                     ...citation,
-                                    sourceId: e.target.value,
+                                    sourceId,
                                     quote: "",
                                   }
                                 : citation,
                             ),
                           )
                         }
-                      >
-                        {data.sources.map((source) => (
-                          <option key={source.id} value={source.id}>
-                            {source.title}
-                          </option>
-                        ))}
-                      </select>
+                        options={data.sources.map((source) => ({ value: source.id, label: source.title }))}
+                      />
                     </label>
                     <label>{ui("逐字原文引用")}<textarea
                         value={c.quote}

@@ -3,7 +3,7 @@ import Markdown from '../Markdown.jsx';
 import { ui, uiFormat, uiLanguageName } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
-import { Badge, Button, InlineMessage, useNow, useToast } from '../components/index.js';
+import { Badge, Button, Combobox, InlineMessage, Select, useNow, useToast } from '../components/index.js';
 import { usePolling } from '../use-polling.js';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
@@ -63,14 +63,14 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
       {answer && <SaveAnswerAsCard key={answer} call={call} selection={resolution.selection} question={question} answer={answer} deckId={deckId} decks={decks}
         ready={saveReady} onSaved={onSaved} onOpenCard={jobHandlers.onOpenCard} isCurrent={isCurrent} />}
       <form onSubmit={onStart}>
-        <label>{ui('补充到现有题组')}<select value={deckId} required onChange={event => onDeck?.(event.target.value)}><option value="">{ui('选择题组')}</option>
-          {decks.map(deck => <option key={deck.id} value={deck.id}>{deck.title}</option>)}
-        </select></label>
+        <label>{ui('补充到现有题组')}<Combobox value={deckId} required onChange={value => onDeck?.(value)} placeholder={ui('选择题组')} label={ui('补充到现有题组')} searchPlaceholder={ui('搜索题组')}
+          emptyText={query => uiFormat('没有叫「{0}」的题组', [query])}
+          options={decks.map(deck => ({ value: deck.id, label: deck.title, hint: typeof deck.count === 'number' ? uiFormat('{0} 题', [deck.count]) : undefined }))} /></label>
         {!decks.length && <p className="muted">{ui('请先创建或导入一个题组，再从资料中补题。')}</p>}
         <div className="study-selection-options">
-          <label>{ui('题型')}<select value={kind} onChange={event => onKind?.(event.target.value)}>
-            <option value="flashcard">{ui('闪卡')}</option><option value="quiz">{ui('单选测验')}</option><option value="multi">{ui('多选测验')}</option><option value="open">{ui('开放问答')}</option><option value="cloze">{ui('填空卡')}</option>
-          </select></label>
+          <label>{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)} options={[
+            { value: 'flashcard', label: ui('闪卡') }, { value: 'quiz', label: ui('单选测验') }, { value: 'multi', label: ui('多选测验') },
+            { value: 'open', label: ui('开放问答') }, { value: 'cloze', label: ui('填空卡') }]} /></label>
           <label>{ui('题数')}<input type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
         </div>
         <p className="muted">{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</p>

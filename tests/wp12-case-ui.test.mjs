@@ -4,6 +4,7 @@
    answer that replaces self-rating in review, and the entry points in
    创建题组 and 模拟考试. */
 import test from "node:test";
+import { nativeSelects } from "./helpers/native-selects.mjs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
@@ -21,7 +22,7 @@ const compiled = await build({ stdin: { contents: `export { RubricResult, CaseRe
   export { default as Exam } from './ui/Exam.jsx'; export { default as Review } from './ui/Review.jsx'; export { setUiLanguage } from './ui/i18n.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';`,
-  resolveDir: process.cwd() }, bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".css": "text" }, logLevel: "silent" });
+  resolveDir: process.cwd() }, bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], plugins: [nativeSelects], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { RubricResult, CaseReport, RubricSkills, ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor, Generate, Exam, Review, StudyServicesContext, setUiLanguage } = module.exports;

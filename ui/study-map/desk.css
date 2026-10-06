@@ -193,7 +193,7 @@
       z-index: -1;
       border-radius: var(--paper-radius);
       background: color-mix(in srgb, var(--paper) 82%, var(--bg-canvas));
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-popover);
       transition: transform 0.5s var(--ease-out);
       animation: stack-in 0.6s var(--ease-out) 0.12s backwards;
     }

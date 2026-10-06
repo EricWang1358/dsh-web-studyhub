@@ -5,7 +5,7 @@ import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { importedReferences, referenceSelection } from './reference-questions.js';
-import { Button, SegmentedControl, IconButton, useToast } from "./components/index.js";
+import { Button, SegmentedControl, IconButton, Select, useToast } from "./components/index.js";
 import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
@@ -132,8 +132,8 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
           <div className="case-create__grid">
             <label>{ui("题数")}<input type="number" min={1} max={5} value={form.questions} onChange={(event) => setForm({ ...form, questions: event.target.value })} /></label>
             <label>{ui("总分")}<input type="number" min={4} max={100} value={form.totalMarks} onChange={(event) => setForm({ ...form, totalMarks: event.target.value })} /></label>
-            <label>{ui("语言")}<select value={form.language} onChange={(event) => setForm({ ...form, language: event.target.value })}>
-              <option value="中文">{ui("中文")}</option><option value="English">English</option><option value="中英双语">{ui("中英双语")}</option></select></label>
+            <label>{ui("语言")}<Select value={form.language} onChange={(language) => setForm({ ...form, language })}
+              options={[{ value: "中文", label: ui("中文") }, { value: "English", label: "English" }, { value: "中英双语", label: ui("中英双语") }]} /></label>
           </div>
           <label>{ui("题组名称（可选）")}<input value={form.title} maxLength={120} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
           <p className="muted">{uiFormat("按每分约 {0} 分钟，这套题建议作答 {1} 分钟。", [profile?.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,

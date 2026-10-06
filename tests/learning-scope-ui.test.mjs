@@ -4,12 +4,13 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const compiled = await build({ stdin: { contents: `export {default as Exam} from './ui/Exam.jsx';
   export {default as Dashboard} from './ui/Dashboard.jsx'; export {default as WrongBook} from './ui/WrongBook.jsx';
   export {default as Skeleton} from './ui/Skeleton.jsx'; export {default as Graph} from './ui/Graph.jsx';
   export {default as LiveClass} from './ui/LiveClass.jsx'; export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Exam, Dashboard, WrongBook, Skeleton, Graph, LiveClass, setUiLanguage } = module.exports;

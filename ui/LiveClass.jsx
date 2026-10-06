@@ -7,7 +7,7 @@ import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
 import { formatClock, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
-import { Button, Checkbox, IconButton, InlineMessage, PageHeader, SetupRequired, useToast } from './components/index.js';
+import { Button, Checkbox, IconButton, InlineMessage, PageHeader, Select, SetupRequired, useToast } from './components/index.js';
 import { requestAudioSettingsFocus } from './AudioSettings.jsx';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
@@ -142,8 +142,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
     }}>
       <div className="live-fields"><label>{ui('课堂名称')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
-        <label>{ui('声音来源')}<select value={kind} onChange={(event) => setKind(event.target.value)}>
-          <option value="microphone">{ui('麦克风（现场课堂）')}</option><option value="tab">{ui('标签页 / 系统声音（网课）')}</option></select></label></div>
+        <label>{ui('声音来源')}<Select value={kind} onChange={setKind}
+          options={[{ value: 'microphone', label: ui('麦克风（现场课堂）') }, { value: 'tab', label: ui('标签页 / 系统声音（网课）') }]} /></label></div>
       {kind === 'tab' && <p className="muted">{ui('选择正在播放课程的标签页，并勾选「共享标签页音频」。只发送声音，不发送画面。')}</p>}
       <CourseField value={course} onChange={setCourse} courses={data?.focus?.courses} disabled={disabled} />
       <details><summary>{ui('课程背景与术语（可选）')}</summary>

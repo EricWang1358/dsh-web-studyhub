@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
+import { pick } from "./pick.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { seedLibrary } from "./perf-seed.mjs";
 
@@ -108,8 +109,8 @@ export async function runBrowserBaseline(options = {}) {
       const openMs = Date.now() - started;
       await sleep(900);
       // Pages open on the current course; the worst case is every course at once.
-      const scope = page.locator(".page-scope select").first();
-      if (await scope.count()) { await scope.selectOption("*").catch(() => {}); await sleep(900); }
+      const scope = page.locator('.page-scope [role="combobox"]').first();
+      if (await scope.count()) { await pick(page, scope, lang === "en" ? "All courses" : "全部课程").catch(() => {}); await sleep(900); }
       if (target.id === "sources") {
         const expand = page.getByRole("button", { name: lang === "en" ? /Expand all/i : "全部展开" });
         if (await expand.count()) { await expand.first().click().catch(() => {}); await sleep(900); }
