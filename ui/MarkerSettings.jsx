@@ -56,7 +56,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
       <TextInput value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCommand(event.target.value); }} />
     </Field>
     <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('保存并检测')}</Button></div>
-    <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用；模型和 OCR 后端会在实际解析时检查。')}</Hint>
+    <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。')}</Hint>
     {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </div>
