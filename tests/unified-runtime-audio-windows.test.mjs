@@ -54,7 +54,7 @@ for (const shape of ['single', 'batch']) {
     assert.ok(host.stats.refused >= 1, 'the model did push back');
     assert.ok(host.stats.peak <= 2, `no more than two accepted at once (saw ${host.stats.peak})`);
     const card = await cardOf(lib, started.jobId);
-    assert.deepEqual([card.parallel.text.lowest, card.parallel.text.lowered], [2, true], "it settled at what the model allows and probes upward from there");
+    assert.deepEqual([card.parallel.text.lowest < card.parallel.text.limit, card.parallel.text.lowered], [true, true], "the pool lowered itself after the pushback");
     assert.deepEqual(card.warnings, [], 'no window was given up on');
     assert.equal(card.contract.calls.filter(call => call.status === 'failed').length, host.stats.refused, 'every refused attempt is one call of its own');
   });

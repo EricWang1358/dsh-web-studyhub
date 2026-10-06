@@ -10,6 +10,7 @@
 | S2-1 | 已合并 | `codex/runtime-s21-audio-import` / #290 | `fd5c5a1` + #287 | 单文件导入/重试完整接入（见下） | verify 5947（2 项已修）；合并后整套 3 次 5984/0；双平台 CI | S2-2 批次（A 道） |
 | S2-1b | 已合并 | `codex/runtime-kernel-model-host` / #294 | `8a66375` | 网关用 `preparedModelHost`（语言/清理准备）、轻量通道 `{ model: 'light' }`、无持久化定义的结算通知 | 定向 334/0；双平台 CI | — |
 | S2-2 | PR 中 | `codex/runtime-s22-audio-batch` | `2573b58`（#295 后的 main） | 批次导入/重试、成员协调（`audio-batch` 定义）、共享持久化与展示模块 | verify 6152 项 / 6140 通过 / 0 失败 / 12 跳过；lint 与 build 绿 | S2-3 窗口与许可（A 道） |
+| S2-3 | PR 中 | `codex/runtime-s23-audio-windows` | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
 
 ## S2-1 记录
 
@@ -77,3 +78,28 @@
 | `retryable` 内存占位（批次） | 旧路径保留至 S2-6；运行时批次不用 |
 | `persisters`/`liveControls`（`onPaused`） | 旧路径保留；运行时用 `controls.js` |
 | `syncAudioGate` | 旧路径保留；运行时 admit 里 `applyTranscribeLimit`（S2-3 统一） |
+
+## S2-3 记录（窗口与重复许可）
+
+**结论先行**：路径上每一类"许可/重试"只剩一个负责层；运行时与旧路径的文字窗口策略对齐。
+
+| 事 | 唯一负责层 | 说明 |
+|---|---|---|
+| 转写并发 | 宿主 `audioGate` | 单文件持槽、批次逐文件取槽；`applyTranscribeLimit`（`jobs/controls.js`）是改 limit 的唯一函数，旧路径 `syncAudioGate`/控制台改并发也用它 |
+| 文字窗口的许可与 429（降额/退避/回升） | 文字池 `createPool`（`audio-pool.js`） | 运行时不再 `refusals: 0`：网关只观察，每次尝试是独立的 Call；开共享配额时由配额域负责（池 `refusals: 0`、`providerOwnsRetry`），与基线一致 |
+| 瞬时失败（503、空回复）的重试 | `withModelRetry` | 与旧路径相同，只管池不处理的那一类错误（限流类被 `skip: isLimitError` 让给池） |
+| 同一录音同时导入 | `exclusive(hash)` | 键控的领域互斥（同内容不付两次钱），等待时任务卡 `phase: queued` 可见；不是调度器，不登记例外 |
+| 窗口派发顺序/上下文 | `orderedWindows` | 保留：只决定"谁先开始、读到哪些已完成的修正、按源序收集、取消时收尾"；它读的是池的上限这个同一个数，不自己授予许可 |
+
+**改动**：`audio-job.js` 里 `providerOwnsRetry`/`refusals: 0` 只在共享配额时设（原来网关路径也设，运行时因此没有 429 自适应和瞬时重试）；批次文字池同样不再 `refusals: 0`；运行时批次在共享配额开启时与旧路径一样拒绝（`capability-unverified`，`quotaSingleOnly` 一处措辞）——S2-2 漏了这一道，此处补上并有新旧两侧测试。
+
+**测试**：`tests/unified-runtime-audio-windows.test.mjs`（单文件/批次：模型只允许两路时被池独自接住——降额、退避、完成、不超并发、每次被拒是一个 Call；瞬时失败重试一次且是新 Call；批次共享配额拒绝）；`audio-pool.test.mjs` 加开关孪生。先红后绿：改前三项红（一次 429/503 直接让任务失败），改后绿。
+注意：运行时每个调用先落一个"意图"（逐个写入），假模型要慢过它调用才会重叠，测试里用 120–150 ms。
+
+**D-11**：核对后不是缺陷——音频设置在 `DSH_HOME` 下（用户级，`audio-settings.js`），不随库变，所以"最近启动者所在库的设置"就是同一份设置。`syncAudioGate` 保留（旧路径入口），不再有第二份写 limit 的代码。
+
+| 字段 / 调用点 | 处置 |
+|---|---|
+| `orderedWindows` | 保留（排序/上下文/收尾）；不另有许可 |
+| `createPool`、`withModelRetry`、`exclusive` | 保留，各管各的错误类别/键 |
+| `syncAudioGate`、`liveControls.setTranscribeLimit`、定义里的 `holdTranscriptionSlot` | 共用 `applyTranscribeLimit` |
