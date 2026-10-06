@@ -6,12 +6,14 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { recapDay } from '../lib/daily-recap.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 const writing = '# 今日学习总结\n\n' + '围绕已练习的知识点整理正确思路，核对条件与推理步骤。'.repeat(8);
 async function fixture(t, options = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-daily-recap-'));
-  const service = new StudyService(root, options);
-  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  const service = new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { complete: options.complete, paths: ['dailyRecap'] }) });
+  // A recap Job may still be writing when the test ends: let the service stop, then remove the folder with retries.
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   await service.store.update(state => {
     for (const [id, course] of [['d', '数学 / 第一章'], ['d2', '数学 / 第二章'], ['other', '英语']])
       state.decks.push({ id, title: course, course, cards: Array.from({ length: 40 }, (_, i) => ({
