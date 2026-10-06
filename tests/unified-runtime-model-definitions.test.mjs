@@ -8,6 +8,10 @@ import { createJobLifecycle } from '../lib/jobs/lifecycle.js';
 import { validateRuntimeContract } from '../lib/jobs/contract.js';
 import { createRuntimeWork } from '../lib/runtime/work.js';
 import { chooseEffort } from '../lib/model-effort.js';
+import { withModelRetry } from '../lib/model-retry.js';
+import { reportUsage, withUsageSink } from '../lib/usage-scope.js';
+import { addUsage } from '../lib/token-usage.js';
+import { usageLedger } from '../lib/model-usage.js';
 
 // S4-1: the model families as the PUBLISHED kernel sees them. The table is the machine form of
 // docs/plans/unified-job-runtime/s4-1-model-contract.md; later steps register production definitions with the same facts.
@@ -70,7 +74,7 @@ async function fixture(t, { run = {}, admit = {} } = {}) {
     gates.set(submitted.jobId, gate); await gate.started.promise;
     return { jobs, agent, gate, id: submitted.jobId, status: () => jobs.status(submitted.jobId) };
   };
-  return { work, lifecycle, owner, port, gated };
+  return { root, work, lifecycle, owner, port, gated };
 }
 
 test('every model family registers on the published registry and its running Job states only real, refusable actions', async t => {
@@ -193,6 +197,36 @@ test('a time limit ends the Job cancelled with its stop reason (translation\'s f
   const jobs = f.port('translation'), job = await jobs.submit('translation', {}, { executionTimeoutMs: 20 });
   const ended = await jobs.wait(job.jobId);
   assert.equal(ended.status, 'cancelled'); assert.equal(ended.detail.stopReason, 'execution-timeout'); assert.equal(ended.error, null);
+});
+
+test('a host model service with its own retry is ONE observed host attempt: one Call, usage booked once on the day the call began, stop reaches the request', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 5, 23, 59, 50).getTime() });
+  let attempts = 0, received = null;
+  // What modelServices(...).light is: transient errors retried inside, every billed attempt reported to the usage scope.
+  const light = (_system, _prompt, { signal }) => withModelRetry(async () => {
+    received = signal; reportUsage({ uncachedInputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 });
+    if (++attempts === 1) throw Object.assign(new Error('overloaded'), { status: 529 });
+    t.mock.timers.tick(20_000);
+    return 'variants';
+  }, { delays: [0] });
+  const f = await fixture(t, { run: { 'coach-prep': async context => {
+    const step = context.gateway.step('variants:1', policyOf(FAMILIES['coach-prep'])); let used = null;
+    const text = await step.run(() => step.observe({ boundary: 'host-attempt', runner: 'direct' }, async signal => {
+      const value = await withUsageSink({ key: 'gateway-call', sink: usage => { used = addUsage(used, usage); } }, () => light('s', 'p', { signal }));
+      const { calls: _calls, ...tokenUsage } = used;
+      return { value, tokenUsage };
+    }));
+    assert.equal(text, 'variants');
+    return { refs: [] };
+  } } });
+  const job = await f.gated('coach-prep'); job.gate.release.resolve();
+  const ended = await job.jobs.wait(job.id), observed = ended.calls.filter(call => call.stepKey === 'variants:1');
+  assert.equal(attempts, 2); assert.equal(observed.length, 1);
+  assert.deepEqual([observed[0].runner, observed[0].observation.boundary, observed[0].tokens, observed[0].accounting], ['direct', 'host-attempt', 24, 'recorded']);
+  const { daily, byFeature } = await usageLedger(f.root).summary({ days: 3, at: new Date(2026, 9, 6, 12).getTime() });
+  assert.deepEqual(daily.map(day => [day.date, day.calls, day.uncachedInputTokens]), [['2026-10-05', 1, 20]], 'booked by the day the call began, once');
+  assert.equal(byFeature.coach.calls, 1);
+  assert.ok(received instanceof AbortSignal, 'the request received the Step signal, which the Job\'s stop aborts');
 });
 
 test('coach-prep\'s "lowest" effort resolves to the same level the light path picks', () => {

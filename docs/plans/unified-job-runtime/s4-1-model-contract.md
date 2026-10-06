@@ -1,14 +1,14 @@
 # S4-1：模型任务契约差额与共享接线门禁
 
-> 本步只增加本文与 `tests/unified-runtime-model-definitions.test.mjs`，不改生产代码、不新增接口。基于 origin/main `fd5c5a1`；
-> 家族基线见 [s4-0-model-baseline.md](s4-0-model-baseline.md)（#286，未合并时读 `origin/codex/runtime-s40-model-baseline`）。
+> 本步只增加本文与 `tests/unified-runtime-model-definitions.test.mjs`，不改生产代码、不新增接口。基于合并了 #286（S4-0）与 #287（S2-1a 内核支持）的 origin/main；
+> 家族基线见 [s4-0-model-baseline.md](s4-0-model-baseline.md)。
 > 结论依据是已发布内核 `lib/jobs/**` 的源码与上述测试（全部用假执行者、假模型宿主，不碰真实 DSH、模型或密钥）。
 > DSH 能力行：DSH-01（注册/作用域）、02（校验）、04（模型）、05（子代理）、07（用量）、09（事件/通知）；实际宿主证据仍待 S4-9。
 
 ## 1. 结论
 
-- **已发布内核足够**表达五个家族的目的、功能、可用动作、owner、执行方式与结果引用；测试 1–8 逐项证明，没有为它们新增空壳接口。
-- 内核**不足**的只有 G1–G5（第 6 节）。G1、G2 是后续步骤硬依赖，须由内核负责人决定接口后再迁移；G3–G5 可在家族层用映射解决，但要登记。
+- **已发布内核足够**表达五个家族的目的、功能、可用动作、owner、执行方式与结果引用；测试 1–9 逐项证明，没有为它们新增空壳接口。
+- 内核**不足**的只有 G2（无持久化定义没有结算事件接收器）；G1、G3–G5 是家族/共享接线层的约束或映射（第 6 节），已给出做法。G2 是 S4-2、S4-7 的硬依赖，须由内核负责人决定接口后再迁移。
 - 家族注册、`Config` 开关、布局护栏、例外清单、`application-messages-en.js` 仍是共享接线，由各 S 步骤以最小改动合入（第 7 节）。
 
 ## 2. 定义对照表（目标定义；`kind` 为将来注册名）
@@ -53,13 +53,13 @@
 
 | # | 差额 | 影响 | 建议（内核负责人决定） |
 |---|---|---|---|
-| **G1** | **轻量模型路径**：为你定制现在走 `worker.light` = 最低档 + 90 s + 15 s 对冲 + `withModelRetry`（瞬时错误退避重试两次）。网关只调 `host.complete`（直连的 8 分钟路径，无对冲无重试） | 不处理则备题在 429/卡首包时比 2.7.1 更脆；不得在领域再叠一层重试 | 网关策略增加**可选** `profile`（缺省 = 现状，值写入 Call 便于观测）；宿主 `jobModelHost.profiles.light` 由一个宿主侧 helper 用现有 `completeLight`+`withModelRetry` 装配，并把 `requestedEffort` 偏好原样交给 host。最低档等价已测（测试 8：`chooseEffort(…,'lowest')` 与 `pickLightEffort` 对三类档位表一致）。S4-4 以 `kernel:` 提交实现，仅在 `runtime.pilot.coach` 之后使用 |
+| **G1** | **网关 `complete` 不经 `modelServices`**：网关只调 `jobModelHost.complete`（原始补全）。家族今天用的模型是 `modelServices(services)` 包装过的：界面语言系统提示、本地图片字节剔除、脚注 HTML 清理（`prepared()`），为你定制的 `light` 还带最低档、90 s、15 s 对冲和瞬时错误退避重试。直接 `step.complete` 会让英文界面的学习者拿到中文输出，并让备题在 429/卡首包时比 2.7.1 更脆；而把已被 `recordedModels` 包装的函数放进 Job 会让同一次调用被两个 sink 各记一次 | 所有迁移家族（S4-2/4/5/6/7） | **无需内核改动**：`step.run` + `step.observe({ boundary: 'host-attempt' })` 包装 `modelServices(...)` **未经 `recordedModels`** 的函数；Job 的停止信号作为请求的 `signal`，用量经 `withUsageSink` 取回并随结果交网关入账一次（测试 8：一个 Call、两次计费的尝试合并为一次入账、按调用开始那天归属、重试在内部不可见）。S4-4 把这个包装沉淀为一个共享 helper，S4-5/6/7 复用。最低档等价已测（测试 9）。`light` 的对冲分支今天不接外部 signal，S4-4 修 |
 | **G2** | **无持久化定义没有"结算事件接收器"**：`settleObserver` 只经 `entry.durable.deliver()` 投递，而 `durable` 仅在定义声明 `persistence`（要整套 store/校验）时存在。翻译的收件箱/会话通知、助手信件需要通知而不需要恢复 | S4-2、S4-7 受阻（S4-4 不需要：变式信与写卡同事务） | 增加可选的 `definition.notifications`（与持久化端口同形 `{channel, idempotent, deliver}`），在同一个 settled 事件上投递；失败不改终态 |
 | **G3** | **终态映射**：到期（`executionTimeoutMs`/步骤预算）的 Job 结局是 `cancelled` + `detail.stopReason: 'execution-timeout'`、`error: null`（测试 7），旧翻译是 `failed`/`budget`；`superseded` 作为 `endReason` 只在契约里，内核停止路径固定写 `user-cancel` | 翻译到期展示、总结 supersede 的展示 | 先在家族 `present` 里用 stage/detail 映射并登记；若体验不可接受，内核增加"带原因的停止"。S4-2、S4-5 各自决定 |
 | **G4** | **用量桶**：`USAGE_FEATURES` 没有翻译/总结/助手 | 面板数字归类 | 所有者决定；默认沿用第 2 节 |
 | **G5** | **批次 Job 与日行重复**：Job 一律进 `work.jobs`，而 `library.snapshot`、`pruneJobs`/自动归档、`job.cancel all` 都把每个 Job 当一行。为你定制要保持"一天一行" | S4-4 | 家族给批 Job 一个遗留字段（如 `listedIn: 'coach:<date>'`），共享接线处用一个与 kind 无关的过滤判断；不加 `type ===` 分支 |
 
-S4-0 §6 其余条目：①排队——`definition.admit` 委托现有 `queues(root)` 即可，Job 在 admit 期间为 `queued`，取消立即结算且不抢后继位置（测试 6，顺带解决 D8）；②日聚合——批各为 Job，日行继续由 `coach-daily` 投影（G5）；④真取消——网关给每个 Step 一个 signal，步骤预算会真正中止请求；⑦账本——内核按 `callId` 幂等入账，迁移路径上的模型**必须是未经 `recordedModels` 包装的 host**，否则同一次调用被两个 sink 各记一次；⑨预算——步骤 `budget.timeoutMs/maxOutputTokens` 已有，总结原本无预算，是否新增属 S4-5 决定；⑩恢复——全部 `none`。
+S4-0 §6 其余条目：①排队——`definition.admit` 委托现有 `queues(root)` 即可，Job 在 admit 期间为 `queued`，取消立即结算且不抢后继位置（测试 6，顺带解决 D8）；②日聚合——批各为 Job，日行继续由 `coach-daily` 投影（G5）；④真取消——网关给每个 Step 一个 signal，步骤预算会真正中止请求；⑦账本——内核按 `callId` 幂等入账；迁移路径上的模型**必须未经 `recordedModels` 包装**（G1）；⑨预算——步骤 `budget.timeoutMs/maxOutputTokens` 已有，总结原本无预算，是否新增属 S4-5 决定；⑩恢复——全部 `none`。
 
 ## 7. 共享接线归属
 
@@ -74,5 +74,5 @@ S4-0 §6 其余条目：①排队——`definition.admit` 委托现有 `queues(r
 
 ## 8. 验证
 
-- `node scripts/test.mjs tests/unified-runtime-model-definitions.test.mjs`：9 例（含本文档与测试的 kind/G 编号同步检查）。
+- `node scripts/test.mjs tests/unified-runtime-model-definitions.test.mjs`：10 例（含本文档与测试的 kind/G 编号同步检查）。
 - 本 PR 没有生产代码改动，旧实现行为不变；回退 = 回退本 PR。
