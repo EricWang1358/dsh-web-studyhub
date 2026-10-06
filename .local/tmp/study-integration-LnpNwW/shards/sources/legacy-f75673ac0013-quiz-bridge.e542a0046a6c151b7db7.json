@@ -1,1 +1,0 @@
-{"createdAt":"2026-10-06T09:56:01.066Z","id":"legacy-f75673ac0013-quiz-bridge","title":"Bridge","text":"\n## Prompt\nWhat does Bridge separate?\n\n## Answer\nAbstraction and implementation.\n\n## Hint\nThink of independent dimensions.\n\n## Explanation\nThey vary independently.\n\n## Common Mistake\nSubclass all combinations.\n","origin":"quizzes\\bridge.md"}
