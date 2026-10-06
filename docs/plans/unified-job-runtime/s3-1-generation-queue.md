@@ -28,7 +28,7 @@
 | 调用点 | 开关关（旧） | 开关开（运行时） |
 |---|---|---|
 | 流水线各阶段（规划 / 答案蓝图 / 写题 / 复审 / 修补，含复审重问、补位轮） | `providedComplete` → `modelCompletion` → 出题 worker；档位 `stageEffortRoute`；用量 `withJobUsage`（内存）+ `recordedModels` 日账本 | `gateway.step(stepKey, policy).complete`：`purpose` = 调用种类，`feature` = `generate` / `case`（`case.drills` 为 `case`），`requestedEffort` = 学习者设的该阶段档位，没有或 `follow` 则 `follow`（取会话 + 出题设置里的级别），`executionMode: 'agent-preferred'`，预算 = 单次调用上限；用量与日账本由网关记一次 |
-| 覆盖运行的小节权重 | `providedLight`（轻模型、15 s 对冲、`withModelRetry`） | gateway step `plan`，`requestedEffort: lowest`，`executionMode: direct`，预算 45 s（`SECTION_WEIGHT_TIMEOUT_MS`）；失败照旧退回按长度加权 |
+| 覆盖运行的小节权重 | `providedLight`（轻模型、15 s 对冲、`withModelRetry`） | gateway step `plan`，轻模型通道（`{ model: 'light' }`，宿主的对冲与一次瞬时重试，由宿主负责），`executionMode: direct`，预算 45 s（`SECTION_WEIGHT_TIMEOUT_MS`）；失败照旧退回按长度加权 |
 | 修题逐卡调用 / 发布前逐题复审 / 选区补题 | 旧路径 | **不变**（S3-5 / S3-6 / S3-4），仍在同一条队列里 |
 | 估算、`generate.suggest`、`generate.path.suggest`、检索 | 非任务调用 | 不变（不是后台任务） |
 
@@ -43,7 +43,7 @@ step 键：`[round<n>:]<种类>:<part|all>`（S3-2 才定稳定身份与轮次/�
 | 拒绝档位后降档再问一次 | `lib/index.js` `modelCompletion` | 保留 | 两条路径共用同一个下层函数，没有新增 |
 | 内存用量 `withJobUsage` + step 记账 | `operations.js` → 现 `legacy-model.js` | 开关关：保留；开关开：**迁走**（卡片的 steps / tokenUsage 由网关调用记录派生） | 用量一处记账 |
 | `step.runtime ||= 'direct'`、`onEvent` 合并 | 同上 | 开关开：迁到网关调用的 `runner`/`appliedEffort`/`childId` | 执行方式归属唯一 |
-| 轻模型对冲 + `withModelRetry` | `lib/index.js`、`runtime/models.js` | 开关开：权重调用不用 | 对冲与网关/许可的重试叠加（V8），本步用单次调用 + 预算 |
+| 轻模型对冲 + `withModelRetry` | `lib/index.js`、`runtime/models.js` | 开关开：权重调用经网关的轻模型通道，对冲与一次瞬时重试仍由宿主做（唯一重试层） | 与旧路径等价 |
 | `generationMessengers`（向运行中 worker 发补充要求） | `operations.js` | 开关开：**不接入网关**（内核缺口，见 §6） | 网关子代理是一次性、由插件收结果；`job.message` 仍存入 `messages`，对**后续**调用生效 |
 
 ## 5. 字段 / 调用点去留（S3-0 §4 中本步负责的行）
@@ -65,8 +65,7 @@ step 键：`[round<n>:]<种类>:<part|all>`（S3-2 才定稳定身份与轮次/�
 3. **运行中的补充要求不送达当前调用**：`job.message` 的文字保存并用于之后每次调用，不再推给正在跑的子代理（旧路径只有宿主具备"可续接子代理"全部能力时才推，且插件收结果的阶段本来就一次性）。内核缺口：网关没有信使通道。
 4. 排队中的任务 `startedAt` 为空（旧路径创建时就有）；`startedAt` 在真正开始时由运行时写。
 5. 控制台契约 `jobId` 是逻辑身份，`legacyId` 才是工具与学习者看到的 id（与音频试点相同）。
-6. 小节权重不再走轻模型的对冲与重试，单次调用 45 s 预算。
-7. 模型调用选项里没有旧的 `jobId / stage / slot / stageEffort / onEvent / resultOwner`：这些信息在网关调用记录里（`stage`、`slot`、`requestedEffort`、`runner`、`childId`）。
+6. 模型调用选项里没有旧的 `jobId / stage / slot / stageEffort / onEvent / resultOwner`：这些信息在网关调用记录里（`stage`、`slot`、`requestedEffort`、`runner`、`childId`）。
 
 ## 7. 开关矩阵与红灯清单
 
@@ -85,8 +84,8 @@ step 键：`[round<n>:]<种类>:<part|all>`（S3-2 才定稳定身份与轮次/�
 ## 8. 内核改动（三个独立提交，各有红→绿测试）
 
 1. `gateway`：`requestedEffort: 'follow'`（取宿主路由上学习者设的出题级别）；已选定的级别以**不带学习者偏好标记**的路由发出，避免被下游再次替换；步骤标签增加 `round` / `retry` / `queuedMs`。⚠ 第二点也影响音频试点：此前网关选定的档位会被宿主路由上的学习者出题级别二次替换（`tests/unified-runtime-gateway-effort.test.mjs`）。
-2. `gateway`：`step(…, { signal })` 接受所有者更窄的信号（出题的"轮预算"到时要停掉在途调用，而不只在尝试结束时）。
-3. `lifecycle`：读取 `work.jobs` 记录的任一字段都会整份展示 + 全量 schema 校验，且 `assertCurrent` 也走这条路径（一次 4 调用的出题慢约 8 倍）。现在内部检查直接读权威契约，同一轮读取记录的多个字段只展示一次（`tests/unified-runtime-record-reads.test.mjs`）。
+2. `gateway`：`step(…, { signal })`（与 #294 的 `model` 选项并存；策略校验与档位解析拆到 `lib/jobs/gateway-policy.js`） 接受所有者更窄的信号（出题的"轮预算"到时要停掉在途调用，而不只在尝试结束时）。
+3. `lifecycle`（`presented` 处注明约束：一次展示在同一同步轮内复用，在同一轮内既改领域视图又重读记录的读取者会看到前一次展示；执行器写视图、读取者在别的轮读记录，`unified-runtime-record-reads` 钉住）：读取 `work.jobs` 记录的任一字段都会整份展示 + 全量 schema 校验，且 `assertCurrent` 也走这条路径（一次 4 调用的出题慢约 8 倍）。现在内部检查直接读权威契约，同一轮读取记录的多个字段只展示一次（`tests/unified-runtime-record-reads.test.mjs`）。
 
 ## 9. 未决问题
 

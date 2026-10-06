@@ -143,10 +143,6 @@
       "file": "lib/contexts/generation/jobs/gateway-model.js",
       "calls": [
         {
-          "callee": "prepared.complete",
-          "count": 2
-        },
-        {
           "callee": "step.complete",
           "count": 1
         }
