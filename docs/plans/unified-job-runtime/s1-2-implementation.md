@@ -51,3 +51,7 @@
 组合全量回归完成：5,636 pass / 0 fail / 2 Windows-only skip，601,159 ms，lint/build 通过，日志 verify-main.log。该长测启动后有最后的局部卸载修正，故不把它单独当作最终精确 SHA 全量证明；最后差异的定向检查和精确提交 CI 分别保留。
 
 最终复核补充了“定义已卸载后 retry 不再显示 available”的失败测试；修正仅刷新作用域失效后的动作拒绝原因（scope-unloaded），不改变 v1 或物理停止协议。相关 6 文件 83 pass / 0 fail，日志 unloaded-actions-red.log / unloaded-actions-final.log。实现独立 Draft PR #262；新实现没有获得合并授权。
+
+## 后续验收与合并（2026-10-06）
+
+所有者于 02:28:22 UTC 接受本记录的 S1-2 限定范围，授权合并 #262 并继续 S1-3。已于 02:30:38 UTC 合并，远端 main 核实为 `09a094ae54c6afc68982ed5bc7d21a5a92d46b2e`。最终 head `78f83a8` 双平台 CI 均成功、各 5537 pass / 0 fail / 94 skip；最终安装包实际宿主探针 8 步通过、4 次 fake 请求，完整收据见 [#262](https://github.com/EricWang1358/dsh-web-studyhub/pull/262)。此前“待验收”的段落保留为历史状态，本段为当前门禁结论。后续 PR 合并、共享配额策略及发布仍分别审定。
