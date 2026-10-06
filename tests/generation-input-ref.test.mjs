@@ -4,8 +4,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { inputRefOf, checkpointStatus } from '../lib/contexts/generation/jobs/input-ref.js';
-import { checkpointRefOf } from '../lib/contexts/generation/jobs/checkpoint-ref.js';
+import { inputRefOf, checkpointStatus, hashSources } from '../lib/contexts/generation/jobs/input-ref.js';
+import { checkpointRefOf, checkpointOf, checkpointHolds } from '../lib/contexts/generation/jobs/checkpoint-ref.js';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
 import { stagedModel } from './helpers/generation-baseline.mjs';
@@ -66,4 +66,25 @@ test('a draft written by a run carries the frozen input, the same one for the sa
   assert.equal(refs[0].version, 1);
   assert.match(refs[0].definition, /^generation@\d+$/);
   assert.deepEqual(refs[0], refs[1], 'the same request over the same sources freezes the same input');
+});
+
+test('a continuation asks only about the definition and the sources: a current reference without a hash does not compare the request', () => {
+  const saved = inputRefOf({ definition: 'generation@1', request: asked(), sources });
+  const now = list => ({ version: saved.version, definition: 'generation@1', sources: hashSources(list) });
+  assert.deepEqual(checkpointStatus(saved, now(sources)), { valid: true });
+  assert.deepEqual(checkpointStatus(saved, now([{ ...sources[0], text: 'rewritten' }, sources[1]])), { valid: false, reason: 'sources', changed: ['s'] });
+  assert.deepEqual(checkpointStatus(saved, now([sources[0], { id: 't', text: null }])), { valid: false, reason: 'sources', changed: ['t'] }, 'a deleted source has no text');
+});
+
+test('a checkpoint vouches for the questions the draft held: more questions after it are the run\'s own, an edited or removed one is not', () => {
+  const draft = (cards, inputHash = 'h') => ({ id: 'd', draftVersion: 3, cards, editorial: { generation: { inputRef: { hash: inputHash } } } });
+  const one = { id: 'a', prompt: 'A?' }, two = { id: 'b', prompt: 'B?' };
+  const checkpoint = checkpointOf(draft([one]));
+  assert.equal(checkpoint.ref, 'draft:d:n1');
+  assert.equal(checkpointHolds(checkpoint, draft([one])), true);
+  assert.equal(checkpointHolds(checkpoint, draft([one, two])), true, 'the run saved another question after the checkpoint');
+  assert.equal(checkpointHolds(checkpoint, draft([{ ...one, prompt: 'Rewritten?' }])), false);
+  assert.equal(checkpointHolds(checkpoint, draft([])), false);
+  assert.equal(checkpointHolds(checkpoint, undefined), false, 'the draft is gone');
+  assert.equal(checkpointHolds(checkpoint, draft([one], 'other')), false, 'another input made the draft');
 });

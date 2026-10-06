@@ -22,8 +22,10 @@ export const SWITCH_MODE = process.env.STUDY_RUNTIME_SWITCH === 'runtime' ? 'run
 export const SWITCH_MODES = Object.freeze(['legacy', 'runtime']);
 
 /** Extra StudyService options for one side of the switch. */
-export function switchOptions(mode, { complete, paths } = {}) {
+export function switchOptions(mode, { complete, paths = ['audioSingle'] } = {}) {
   if (mode === 'legacy') return {};
-  const { starts: _starts, ...options } = managedRuntimeOptions({ complete, paths });
+  // A twin that also turns a family's follow-up switch on names it in STUDY_RUNTIME_PATHS (e.g. "generationRestart").
+  const more = (process.env.STUDY_RUNTIME_PATHS || '').split(',').filter(Boolean);
+  const { starts: _starts, ...options } = managedRuntimeOptions({ complete, paths: [...new Set([...paths, ...more])] });
   return options;
 }
