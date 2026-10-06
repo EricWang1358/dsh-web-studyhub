@@ -47,6 +47,7 @@ surface  (operations / tools / ui)     入口、权限、开关读取、控制�
 ## 4.1 内核给定义的接口（S2-1a 起）
 
 - `context.persistence`：定义自己 `persistence.open` 返回的端口；admit/run 直接用，不挂在 bindings 上。
+- `initialPresentation(input, bindings)`（可选）：返回一个 reader，submit 返回前装上，记录一进任务表就是完整的（第二次启动、列表、状态在同一轮就能找到它）；admit 里的 `context.present` 随后接管。不要用轮询或旁表等第一轮。
 - `context.admission.state`：admit 返回的 lease 里放本次 attempt 的状态（视图、设置、流水线缓存等），run 读取。
 - `gateway.observe({ boundary, sideEffect })`：观察到结束即已知结果；只有 `sideEffect: true`（重复执行不安全的远端操作）在失败或结果未知时保持 pending，阻止盲目重发。
 - 宿主模型：网关调用的是 `preparedModelHost(services)`——与其他模型调用同一套准备（界面语言、图片/脚注清理、阶段本地化），不记账（网关入账）。家族不要绕开 `gateway.step().complete()` 自己包模型函数。
