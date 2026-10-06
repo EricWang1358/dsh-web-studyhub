@@ -25,6 +25,14 @@ const bindingAt = argv.indexOf('--studyhub-binding');
 const auditStudyHub = bindingAt >= 0;
 if (auditStudyHub) argv.splice(bindingAt, 1);
 if (auditStudyHub && variant !== 'official-jobs-preset') throw new Error('--studyhub-binding requires the explicit official-jobs-preset variant');
+const runtimeAt = argv.indexOf('--runtime-lifecycle');
+const auditRuntime = runtimeAt >= 0;
+if (auditRuntime) argv.splice(runtimeAt, 1);
+if (auditRuntime && !auditStudyHub) throw new Error('--runtime-lifecycle requires --studyhub-binding');
+const resourceAt = argv.indexOf('--resource-scope');
+const auditResources = resourceAt >= 0;
+if (auditResources) argv.splice(resourceAt, 1);
+if (auditResources && variant !== 'official-jobs-preset') throw new Error('--resource-scope requires official-jobs-preset');
 const qaRoot = join(repoRoot, 'output/qa');
 const hostRoot = resolve(dirname(dshBin), '..');
 const sdkRoot = dirname(hostRoot);
@@ -66,7 +74,9 @@ const sha256 = createHash('sha256').update(source).digest('hex');
 // Same inspected driver with Windows CRLF or the repository's Linux LF checkout.
 // Keep exact byte hashes: a source change must still stop this manual adapter.
 const expected = new Set(['a2b148c28b53cccd8fe67b2668527d09b1908f483286f910ff6693de5ad66246',
-  'eb5b1597686203b6ee28c2ad9debd36a19818dc29aa465c8ecd1f6cc087c096c']);
+  'eb5b1597686203b6ee28c2ad9debd36a19818dc29aa465c8ecd1f6cc087c096c',
+  // main #261: inspected UI-only additions inside the deliberately skipped UI segment.
+  '2ef268acab93c279580bc0863f28346ce89c2df09748b05926ae95a44a0aa32d', 'a024d46f50911c9e064d3c7d697b51a2fc303b93901de3326dc37ea53d9cff8c']);
 if (!expected.has(sha256)) throw new Error('Baseline QA source changed; inspect before adapting it');
 const once = (needle, replacement) => {
   if (source.split(needle).length !== 2) throw new Error(`QA adapter anchor not unique: ${needle.slice(0, 100)}`);
@@ -86,7 +96,7 @@ for (const relativePath of ['./env.mjs', './browser.mjs', './fake-openai.mjs']) 
 // Absolute import URLs ensure no project/global Cordis copy is mixed into the host.
 const config = { qaRoot, workspace: join(qaRoot, 'dsh-documents/deepseek-harness/default-workspace'),
   reportPath: join(out, 'host-capabilities.json'), sdkRoot,
-  waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant, auditStudyHub };
+  waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant, auditStudyHub, auditRuntime, auditResources };
 const companionRows = [{ id: 'studyhub-s10-host-probe', name: pathToFileURL(join(ownDirectory, 'host-probe.mjs')).href, config }];
 if (variant === 'official-jobs-preset') companionRows.unshift({
   id: 's10-jobs-only-preset', name: '@deepseek-ai/dsh-agent-preset', config: { id: 's10-jobs-only', order: 99,

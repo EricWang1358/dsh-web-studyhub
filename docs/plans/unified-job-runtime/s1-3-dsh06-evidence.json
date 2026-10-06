@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "base": "09a094ae54c6afc68982ed5bc7d21a5a92d46b2e",
+  "scope": "actual isolated rc.2 composition; synthetic error events, local fake endpoint",
+  "hostReportSha256": "0c25b790d3cfa4e6ca204dc10625ca56821ffcb042d1660beed47441139b1ad6",
+  "summarySha256": "67b3630e36401e2083e88bc8d101a62247b59b6cf64bee45fa37d6c45b51980f",
+  "probeSourceSha256": {
+    "tests/fixtures/runtime-s13/resource-probe.mjs": "3b960ca9e00a2c3541793d6b40fdc265336e30589047daad02275cdb292ec9a1",
+    "tests/fixtures/runtime-s10/host-probe.mjs": "c4490dfd6d6ea832f2bb030cd96d111ba297f3d97bafe001ddbe13118fca570f",
+    "tests/fixtures/runtime-s10/run-host-probe.mjs": "93346b687249e4e282a5eed6e0ef47642f7c67b32c01d26e6d22803fe11afc9c"
+  },
+  "host": {
+    "ok": true,
+    "steps": 6,
+    "packageVersions": {
+      "dsh": "0.2.0-rc.2",
+      "dsh-agent": "0.2.0-rc.2",
+      "dsh-llm": "0.2.0-rc.2",
+      "dsh-jobs-local": "0.2.0-rc.2",
+      "dsh-subagent": "0.2.0-rc.2",
+      "dsh-tool-jobs": "0.2.0-rc.2",
+      "dsh-agent-preset": "0.2.0-rc.2",
+      "dsh-agent-preset-registry": "0.2.0-rc.2"
+    },
+    "resourceStep": {
+      "id": "DSH-06 actual-owner-and-retry-scope",
+      "status": "ok",
+      "startedAt": "2026-10-06T02:49:56.919Z",
+      "evidence": {
+        "jobs": {
+          "exactOwnerCeiling": 10,
+          "siblingAdmittedAtParentCeiling": true,
+          "stoppingConsumesCapacity": true,
+          "replacementAfterSettlement": true
+        },
+        "retry": {
+          "injectedSynthetic429": true,
+          "counters": [
+            1,
+            1
+          ],
+          "independentRetryIds": true,
+          "observedDelayMs": [
+            10000,
+            10000
+          ],
+          "sameProviderDirectStreamCompletedDuringWait": true,
+          "finish": "stop"
+        },
+        "conclusion": "Inspected rc.2 owner-job and session-retry mechanisms do not supply a shared provider-request admission barrier on ctx.llm.stream.",
+        "limitations": [
+          "Synthetic failures entered the real retry extension point; provider HTTP 429 mapping is not tested.",
+          "No cross-process quota guarantee or global claim about every DSH package.",
+          "No shared-provider production policy implemented."
+        ]
+      }
+    },
+    "cleanup": {
+      "converged": true,
+      "parentScopeDisposals": 1
+    },
+    "modelRequests": 5,
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  "source": {
+    "dsh-jobs-local": {
+      "version": "0.2.0-rc.2",
+      "path": "output/qa/dsh-cli/node_modules/@deepseek-ai/dsh-jobs-local/lib/index.js",
+      "sha256": "3bed0cd38c649f39b148752e742ff1ef57696a6b9b11b15ff8cc6cd1d4f08f26"
+    },
+    "dsh-llm-retry": {
+      "version": "0.2.0-rc.2",
+      "path": "output/qa/dsh-cli/node_modules/@deepseek-ai/dsh-llm-retry/lib/index.js",
+      "sha256": "cbb99f1c5038e4a9167aedf333343cb3e3adfb5c9f45a37ef7562b024429d050"
+    },
+    "dsh-agent": {
+      "version": "0.2.0-rc.2",
+      "path": "output/qa/dsh-cli/node_modules/@deepseek-ai/dsh-agent/lib/index.js",
+      "sha256": "7b9aa39474de83115cf890dd7f8904cf0d59df0811cb335ab85565a04f1aac93"
+    },
+    "dsh-llm": {
+      "version": "0.2.0-rc.2",
+      "path": "output/qa/dsh-cli/node_modules/@deepseek-ai/dsh-llm/lib/index.js",
+      "sha256": "9132c8a8053ee82b9fb1ded4f98c85cf557f288a15a85c552c6b1fb319ead120"
+    },
+    "dsh-base": {
+      "version": "0.2.0-rc.2",
+      "path": "output/qa/dsh-cli/node_modules/@deepseek-ai/dsh-base/cordis.patch.yml",
+      "sha256": "9c2be64f46a193eff3cca190c26e697e8e8eee25c9b40149dfdb56f8142c252d"
+    }
+  }
+}

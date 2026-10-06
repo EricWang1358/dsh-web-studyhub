@@ -16,8 +16,8 @@
 |---|---|---|---|---|---|
 | S1-0 | 已合并 | Codex 集成负责人 / codex/unified-runtime-alpha / 本目录审计、tests/audio-single-characterization 与 fixture、slow-tests 清单 | 所有者接受已验证范围及待核验限制并授权合并 [#241](https://github.com/EricWang1358/dsh-web-studyhub/pull/241) | head 6b1ecedb69308ec44078f10c24975eb2a6a2aef7；merge f091f09f830c226bfebc9af22344896733893a10；[本地及 CI 证据](s1-0-baseline.md) | 最终 StudyHub owner/controller 绑定等限制仍阻断对应实现步骤 |
 | S1-1 | 受阻 | Codex 内核负责人 / codex/unified-runtime-alpha / 契约与版本读取兼容范围 | 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245)、读取兼容 [#255](https://github.com/EricWang1358/dsh-web-studyhub/pull/255) 已合并 | #255 head c092d7ac8e73228091a9d0a0a7c04e6b82f64570；merge 1a432f5e9cf166398385174cf1ec047f16cfceef；[历史验证](s1-1-compatibility-implementation.md) | 仅所列交付已合并，不勾选整步；live facade/执行绑定仍待 S1-2，持久化待 S1-5 |
-| S1-2 | 受阻 | Codex 云端负责人 / codex/runtime-s12-host-evidence / owner 特征测试、runtime-s10 手工探针、本目录证据；无生产改动 | S1-0 #241、契约 #245、读取兼容 #255；待审定 owner/controller 与唯一结算绑定 | 基线 c3377f67a2797ba97807447653fb9228a1834265；[云端实测与可评审方案](s1-2-cloud-preflight.md) | 92 项定向、7 项真实宿主探针通过；完整验证另见证据。生产实现与 S1-3 起依赖步骤暂停，不能以 probe/CI 代替负责人批准 |
-| S1-3 | 未开始 | 待领取 | 待 S1-2 通过 | 待填写 | 新旧路径共享资源 |
+| S1-2 | 已合并 | Codex 云端内核负责人 / codex/runtime-s12-lifecycle / 注册、生命周期、原生绑定与旧入口 | 所有者 2026-10-06 02:28:22 UTC 验收并授权合并 [#262](https://github.com/EricWang1358/dsh-web-studyhub/pull/262) | head 78f83a8；merge 09a094ae54c6afc68982ed5bc7d21a5a92d46b2e；双平台 CI 与实际宿主 8 步见 PR | S1-2 限定范围已接受；持久化、音频试点和共享配额策略仍保留后续门禁 |
+| S1-3 | 进行中 | Codex 云端内核负责人 / codex/runtime-s13-resources / scheduler、audio worker、资源回归与本目录证据 | #262 已验收合并；继续 S1-3 已授权 | 基线 09a094a；[资源提取与验证](s1-3-resources.md) | 已实现保行为共享入口；共享 provider 配额/冷却及统一资源契约仍待审，不勾选整步，不放行 S1-4 |
 | S1-4 | 未开始 | 待领取 | 待 S1-3 通过 | 待填写 | 唯一执行与计量路径 |
 | S1-5 | 未开始 | 待领取 | 待 S1-4 通过 | 待填写 | 恢复识别与提交核对 |
 | S1-6 | 未开始 | 待领取 | 待 S1-5 通过 | 待填写 | 开关双路径验证 |
@@ -94,9 +94,9 @@
 
 ## S1-2 注册表与生命周期
 
-- [ ] `lib/jobs/registry.js`：任务定义注册（挂在 cordis 上下文，插件卸载随作用域释放）；定义包含 `kind`、版本、能力、`run(ctx, input)`、恢复钩子。
-- [ ] `lib/jobs/lifecycle.js`：创建 Job、开 Attempt、状态转换、**一次结算**、迟到结果保护（旧 attempt 的进度/结果被丢弃）、取消协议（`cancelling` → 收尾 → `cancelled`）。
-- [ ] 公共操作 `submit / status / list / wait / control / output` 接到内核；现有 `job.cancel / job.status / job.wait` 改为兼容入口。
+- [x] `lib/jobs/registry.js`：任务定义注册（挂在 cordis 上下文，插件卸载随作用域释放）；定义包含 `kind`、版本、能力、`run(ctx, input)`、恢复钩子。
+- [x] `lib/jobs/lifecycle.js`：创建 Job、开 Attempt、状态转换、**一次结算**、迟到结果保护（旧 attempt 的进度/结果被丢弃）、取消协议（`cancelling` → 收尾 → `cancelled`）。
+- [x] 公共操作 `submit / status / list / wait / control / output` 接到内核；现有 `job.cancel / job.status / job.wait` 改为兼容入口。
 - **验收**：可控执行器与假时钟覆盖同一 Job 只存在一个活动 attempt；取消/完成竞态、重复 control、重复终态回调均只结算一次。旧 attempt 的进度、结果及产物提交被拒绝，不能只保护内存状态。
 - **停止验收**：排队取消不会启动执行器；运行取消与三类超时传播实际停止信号；卸载后不再派发、不残留事件订阅或计时器，活动执行按停止协议收尾。底层未停止前不得提前回收其实际占用许可；无法确认的远端停止如实记录。
 - **等待语义**：区分 `wait` 的观察者等待上限与任务的排队期限、执行预算、请求超时。既有 `tasks.wait(timeoutMs)` 到期返回快照，不取消任务；兼容入口保持这一语义，不能把查询等待超时当成任务停止。

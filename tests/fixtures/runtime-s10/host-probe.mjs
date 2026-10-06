@@ -1,5 +1,5 @@
-/* S1-0 evidence only. Load as a companion plugin in the isolated QA web host.
- * It registers no services, controller, tools, provider, or StudyHub implementation.
+/* Isolated runtime evidence companion. Never registers services, controllers or providers.
+ * Optional S1-2 mode registers controlled definitions through the real StudyHub runtime.
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -70,7 +70,7 @@ export function apply(ctx, config) {
     controllerProvisioning: officialVariant ? 'test-added official dsh-tool-jobs in s10-jobs-only preset' : 'no test controller or preset mount',
     profileDefaultUntouched: true,
     limitations: [
-      config.auditStudyHub
+      config.auditRuntime ? 'Exercises the installed production v2 lifecycle through real request services and a registered live Agent; no audio migration or real provider calls.' : config.auditStudyHub
         ? 'Also inspects the installed StudyHub fiber and submits a controlled producer through its jobs service. No production v2 executor or binding is installed.'
         : 'Measures this companion plugin and genuine agent scopes in the isolated rc.2 web host; production StudyHub plugin fiber injection is not directly intercepted.',
       'Server-side uiWorkspace presence is informational only. Browser openSession, authorization, sidebar visibility and P0 console workflow are unverified.',
@@ -185,6 +185,10 @@ async function runProbe(ctx, config, report) {
       return { exactLiveAgent: true, liveSession: true, scoped: true, parentTurnReason: end.data.reason.kind, toolsRestricted: true,
         visibleToolNames, composedPresetId: service(ctx, 'agentPresets')?.composedPreset(parent.ctx) ?? null };
     });
+    if (config.auditResources) await step('DSH-06 actual-owner-and-retry-scope', async () => {
+      const { probeResourceScope } = await import('../runtime-s13/resource-probe.mjs');
+      return probeResourceScope({ ctx, parent, sibling, sdkRoot, route, signal, until });
+    });
     if (config.auditStudyHub) await step('DSH-01/03/09 studyhub-fiber-binding-preflight', async () => {
       const root = ctx.root || ctx;
       const host = root[Symbol.for('studyhub.workbench.host.v1')];
@@ -198,7 +202,7 @@ async function runProbe(ctx, config, report) {
       assert.equal(second.audioGate, first.audioGate);
       assert.equal(first.sessionId, parent.id);
       assert.equal(second.sessionId, sibling.id);
-      assert.equal(first.executor, undefined, 'baseline unexpectedly acquired a v2 executor');
+      if (config.auditRuntime) assert.equal(typeof first.jobExecutor?.start, 'function');
       const workbenchJobs = service(host.fiber.ctx, 'jobs');
       assert.equal(typeof workbenchJobs?.start, 'function');
       let release, cancels = 0, starts = 0;
@@ -231,10 +235,58 @@ async function runProbe(ctx, config, report) {
       assert.equal(events.filter(value => value === id).length, 1);
       jobs.remove(id, parent.id);
       return { productionFiberObserved: true, sharedSymbolOwner: true, sharedAudioGate: true,
-        distinctInitiatingSessions: true, productionExecutorBinding: false,
+        distinctInitiatingSessions: true, productionExecutorBinding: !!config.auditRuntime,
         unknownOwnerRejectedBeforeDispatch: true, controllerLoadedByTestVariant: true,
         heldStopRemainedStopping: true, repeatedKillCallsProducerAgain: true,
         cancelCalls: cancels, settledEvents: 1 };
+    });
+    let runtimeProbe;
+    if (config.auditRuntime) await step('S1-2 actual-lifecycle-cancel-and-owner-fence', async () => {
+      const api = service(ctx.root || ctx, 'studyRuntime');
+      const request = await api.requestServices({ agent: parent });
+      const libraryRoot = await api.resolveWorkspace({ agent: parent });
+      const runtime = api.runtimeForLibrary(libraryRoot);
+      let port, running, release;
+      const held = new Promise(resolve => { release = resolve; });
+      producers.push(release);
+      runtime.register({ id: 's12-runtime', operations: { submit: (_args, context) => { port = context.jobs; return port.submit('s12-runtime', {}); } } });
+      const host = (ctx.root || ctx)[Symbol.for('studyhub.workbench.host.v1')];
+      runtime.registerJob(host.fiber.ctx, 's12-runtime.v1', { kind: 's12-runtime', version: 1,
+        run: async context => { running = context; context.output('S1-2 physical output'); await held; return { refs: [{ kind: 'source', id: 'must-not-publish' }] }; } });
+      const job = await runtime.call('s12-runtime.submit', {}, request);
+      await until(() => running, 'actual v2 producer dispatch');
+      const handle = port.status(job.jobId).runtime.attempts[0].executor;
+      assert.equal(handle.ownerAgentId, parent.id);
+      assert.equal(port.output(job.jobId).chunks.map(chunk => chunk.text).join(''), 'S1-2 physical output');
+      assert.equal(jobs.get(handle.handleId, parent.id).status, 'running');
+      assert.throws(() => jobs.get(handle.handleId, sibling.id), /another session/);
+      await port.control(job.jobId, 'cancel'); await port.control(job.jobId, 'cancel');
+      assert.equal(running.signal.aborted, true);
+      assert.equal((await port.wait(job.jobId, { timeoutMs: 0 })).status, 'cancelling');
+      assert.equal(jobs.get(handle.handleId, parent.id).status, 'stopping');
+      release();
+      const ended = await port.wait(job.jobId);
+      assert.equal(ended.status, 'cancelled'); assert.deepEqual(ended.result.refs, []);
+      assert.equal(ended.events.filter(event => event.type === 'settled').length, 1);
+      assert.equal((await jobs.wait(handle.handleId, 10000, parent.id, signal)).status, 'killed');
+      jobs.remove(handle.handleId, parent.id);
+      let ownerPort, ownerContext;
+      runtime.register({ id: 's12-owner', operations: { submit: (_args, context) => { ownerPort = context.jobs; return ownerPort.submit('s12-owner', {}); } } });
+      runtime.registerJob(host.fiber.ctx, 's12-owner.v1', { kind: 's12-owner', version: 1,
+        run: async context => {
+          ownerContext = context;
+          await new Promise(resolve => context.signal.addEventListener('abort', resolve, { once: true }));
+          return { refs: [] };
+        } });
+      const owned = await runtime.call('s12-owner.submit', {}, await api.requestServices({ agent: sibling }));
+      await until(() => ownerContext, 'Agent-owned v2 producer');
+      await abortable(handles[1].dispose(), signal);
+      assert.equal(ownerContext.signal.aborted, true);
+      assert.equal((await ownerPort.wait(owned.jobId)).status, 'cancelled');
+      assert.equal(ownerPort.status(owned.jobId).events.filter(event => event.type === 'settled').length, 1);
+      assert.equal(agents.get(sibling.id), undefined);
+      runtimeProbe = { runtime, request, port };
+      return { nativeOwnedHandle: true, rejectedSibling: true, canonicalSettledEvents: 1, lateResultDiscarded: true, cleanupAwaited: true, actualAgentDisposalCancelledCanonical: true };
     });
     await step('DSH-04/07 direct-stream-and-usage', async () => {
       const llm = service(parent.ctx, 'llm');
@@ -341,7 +393,29 @@ async function runProbe(ctx, config, report) {
       producers.push(() => release({ status: 'killed' }));
       const id = service(host.fiber.ctx, 'jobs').start({ kind: 's12-unload', owner: parent.id,
         label: 'S1-2 producer fiber disposal boundary', run: () => ({ done, cancel: () => { cancels++; } }) });
-      await abortable(host.fiber.dispose(), signal);
+      let kernelRelease, kernelContext, kernelJob;
+      if (runtimeProbe) {
+        const held = new Promise(resolve => { kernelRelease = resolve; }); producers.push(kernelRelease);
+        runtimeProbe.runtime.register({ id: 's12-drain', operations: { submit: (_args, context) => context.jobs.submit('s12-drain', {}) } });
+        runtimeProbe.runtime.registerJob(host.fiber.ctx, 's12-drain.v1', { kind: 's12-drain', version: 1,
+          run: async context => { kernelContext = context; await held; return { refs: [] }; } });
+        kernelJob = await runtimeProbe.runtime.call('s12-drain.submit', {}, runtimeProbe.request);
+        await until(() => kernelContext, 'unload producer dispatch');
+      }
+      let disposed = false;
+      const unloading = host.fiber.dispose().then(() => { disposed = true; });
+      if (runtimeProbe) {
+        await until(() => kernelContext.signal.aborted, 'explicit kernel stop during plugin unload');
+        assert.equal(disposed, false, 'plugin disposal returned before producer cleanup');
+        kernelRelease();
+      }
+      await abortable(unloading, signal);
+      if (kernelJob) {
+        const handle = kernelJob.runtime.attempts[0].executor.handleId;
+        assert.equal((await jobs.wait(handle, 10000, parent.id, signal)).status, 'killed');
+        jobs.remove(handle, parent.id);
+      }
+
       // Host records belong to the live Agent, not the producing plugin fiber.
       // This is a measured gap, not an accepted S1-2 unload implementation.
       assert.equal(agents.get(parent.id), parent);
@@ -355,7 +429,7 @@ async function runProbe(ctx, config, report) {
       jobs.remove(id, parent.id);
       return { productionFiberDisposed: true, ownerStillLive: true,
         hostJobSurvivedProducerFiber: true, implicitCancelCalls: 0,
-        explicitCancelCalls: cancels, explicitCleanupCompleted: true };
+        explicitCancelCalls: cancels, explicitCleanupCompleted: true, runtimeUnloadAwaitedProducer: !!runtimeProbe };
     });
     await step('DSH-01/03 owner-disposal-drains-job', async () => {
       let resolves, cancels = 0;
