@@ -7,8 +7,9 @@ import { REPORTED, hostModel, letters, library } from './helpers/audio-family.mj
 import { settleJob, until } from './helpers/wait.mjs';
 import { SWITCH_MODE } from './helpers/audio-switch.mjs';
 
-// On the runtime (S2-6) a class save is its own kind of job and D-4 is gone: its model calls are calls of the gateway, so the task shows their tokens
-// and the steps are numbered by part like every other audio step; its announcement has its own wording (D-2).
+// On the runtime a class save (S2-6) is its own kind of job and D-4 is gone: its model calls are calls of the gateway, so the task shows their tokens
+// and the steps are numbered by part like every other audio step; its announcement has its own wording (D-2). The correction of a class (S2-5) is one
+// job of the console (D-12).
 const RUNTIME = SWITCH_MODE === 'runtime';
 
 /* S2-0 characterization of the live-class entries that are not live.start/stop themselves: live.save (quick and proofread), live.correct and
@@ -96,10 +97,10 @@ test('a failed proofread save is not recoverable after a restart; saving the cla
   assert.deepEqual(lib.log, ['proofread', 'translate', 'translate', 'title']);
 });
 
-test('live correction is not a job: it books the daily ledger and leaves no task, letter or notice', async t => {
+test('live correction is not a job: it books the daily ledger and leaves no task, letter or notice (on the runtime it is one job, D-12)', async t => {
   const requests = [];
   const correction = async (_system, prompt, options) => {
-    const input = JSON.parse(prompt); requests.push(options.task);
+    const input = JSON.parse(prompt); requests.push(RUNTIME ? 'live.correct' : options.task);
     reportUsage({ ...REPORTED });
     const last = input.items.at(-1).n;
     return JSON.stringify({ items: [], note: { text: '知识点', refs: [last] }, memory: { text: '课程摘要', refs: [last] }, followups: [] });
@@ -111,7 +112,12 @@ test('live correction is not a job: it books the daily ledger and leaves no task
   await until(() => session.correction.snapshot().pending === 0 && !session.correction.snapshot().running);
   assert.deepEqual(requests, ['live.correct']);
   assert.deepEqual(await lib.ledger(), calls(1));
-  assert.deepEqual([(await lib.service.call('snapshot')).jobs, (await lib.state()).inbox, lib.notices], [[], [], []]);
+  if (RUNTIME) {
+    // D-12 fixed: the correction of a class is a job of the console (visible, cancellable); it ends with the class's last pass and writes no letter.
+    const [job] = (await lib.service.call('snapshot')).jobs;
+    assert.deepEqual([job.type, job.title ?? job.contract.title, (await settleJob(lib.service, job.id)).status, job.contract.calls.length], ['audio-live-correction', '课堂校正 · Databases week 5', 'complete', 1]);
+    assert.deepEqual([(await lib.state()).inbox, lib.notices], [[], []]);
+  } else assert.deepEqual([(await lib.service.call('snapshot')).jobs, (await lib.state()).inbox, lib.notices], [[], [], []]);
   await lib.service.call('live.correct.background', { id: ID });
   assert.deepEqual(requests, ['live.correct'], 'nothing is pending in the background, so no request');
 });

@@ -4,13 +4,18 @@
   "managedDefinitions": [
     "lib/contexts/audio/jobs/batch-import.js",
     "lib/contexts/audio/jobs/live-save.js",
+    "lib/contexts/audio/jobs/live-correction.js",
     "lib/contexts/audio/jobs/review.js",
+    "lib/contexts/audio/install/marker-install-job.js",
     "lib/contexts/audio/jobs/single-import.js",
     "lib/contexts/audio/jobs/subtitles.js",
     "lib/contexts/coach/jobs/coach-prep.js",
     "lib/contexts/generation/jobs/generation.js",
     "lib/contexts/generation/retrieval/jobs/retrieval-index.js",
-    "lib/contexts/notes/jobs/daily-recap.js"
+    "lib/contexts/notes/jobs/daily-recap.js",
+    "lib/contexts/workflows/jobs/teaching.js",
+    "lib/contexts/workflows/jobs/skeleton.js",
+    "lib/contexts/study/jobs/assist.js"
   ],
   "entries": [
     {
@@ -22,7 +27,7 @@
         },
         {
           "callee": "service.complete",
-          "count": 2
+          "count": 1
         }
       ],
       "owner": "existing domain maintainer",
@@ -55,6 +60,19 @@
       "reason": "The Gemini text provider leaf of an audio job on the runtime: it runs inside a gateway step and its request is observed by the gateway transport",
       "removeAt": "retained: the provider leaf behind the gateway",
       "evidence": "s2-progress.md S2-4"
+    },
+    {
+      "file": "lib/contexts/audio/jobs/live-correction-models.js",
+      "calls": [
+        {
+          "callee": "tiers.complete",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "reason": "The Gemini text provider leaf of a live class's correction: it runs inside a gateway step and its request is observed by the gateway transport",
+      "removeAt": "retained: the provider leaf behind the gateway",
+      "evidence": "s2-progress.md S2-5"
     },
     {
       "file": "lib/audio-import.js",

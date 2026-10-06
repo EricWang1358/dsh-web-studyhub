@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { venvLayout } from '../lib/marker-install.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 /* The marker.install.* actions through the real service, with a fake python and no network. */
 const FAKE_PYTHON = fileURLToPath(new URL('./helpers/fake-python.mjs', import.meta.url));
@@ -21,7 +22,7 @@ async function harness(t, py = {}) {
   const install = { pythons: [{ file: process.execPath, prefix: [FAKE_PYTHON], env }], freeMegabytes: async () => 100_000,
     venvPython: folder => ({ file: process.execPath, prefix: [FAKE_PYTHON], env: { ...env, FAKE_PY_VENV: venvLayout(folder).venv } }),
     markerCli: () => ({ file: process.execPath, prefix: [FAKE_MARKER], env: {} }) };
-  const service = new StudyService(join(dir, 'library'), { marker: { install } });
+  const service = new StudyService(join(dir, 'library'), { marker: { install }, ...switchOptions(SWITCH_MODE, { paths: ['markerInstall'] }) });
   t.after(async () => {
     await service.call('marker.install.cancel'); await new Promise(resolve => setTimeout(resolve, 50)); service.dispose();
     if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before;
