@@ -8,7 +8,7 @@
 ## 1. 结论
 
 - **已发布内核足够**表达五个家族的目的、功能、可用动作、owner、执行方式与结果引用；测试 1–9 逐项证明，没有为它们新增空壳接口。
-- 内核**不足**的只有 G2（无持久化定义没有结算事件接收器）；G1、G3–G5 是家族/共享接线层的约束或映射（第 6 节），已给出做法。G2 是 S4-2、S4-7 的硬依赖，须由内核负责人决定接口后再迁移。
+- 内核**不足**的 G1、G2 已由 #294 解决；G3–G5 是家族/共享接线层的约束或映射（第 6 节），已给出做法。
 - 家族注册、`Config` 开关、布局护栏、例外清单、`application-messages-en.js` 仍是共享接线，由各 S 步骤以最小改动合入（第 7 节）。
 
 ## 2. 定义对照表（目标定义；`kind` 为将来注册名）
@@ -53,8 +53,8 @@
 
 | # | 差额 | 影响 | 建议（内核负责人决定） |
 |---|---|---|---|
-| **G1** | **网关 `complete` 不经 `modelServices`**：网关只调 `jobModelHost.complete`（原始补全）。家族今天用的模型是 `modelServices(services)` 包装过的：界面语言系统提示、本地图片字节剔除、脚注 HTML 清理（`prepared()`），为你定制的 `light` 还带最低档、90 s、15 s 对冲和瞬时错误退避重试。直接 `step.complete` 会让英文界面的学习者拿到中文输出，并让备题在 429/卡首包时比 2.7.1 更脆；而把已被 `recordedModels` 包装的函数放进 Job 会让同一次调用被两个 sink 各记一次 | 所有迁移家族（S4-2/4/5/6/7） | **无需内核改动**：`step.run` + `step.observe({ boundary: 'host-attempt' })` 包装 `modelServices(...)` **未经 `recordedModels`** 的函数；Job 的停止信号作为请求的 `signal`，用量经 `withUsageSink` 取回并随结果交网关入账一次（测试 8：一个 Call、两次计费的尝试合并为一次入账、按调用开始那天归属、重试在内部不可见）。S4-4 把这个包装沉淀为一个共享 helper，S4-5/6/7 复用。最低档等价已测（测试 9）。`light` 的对冲分支今天不接外部 signal，S4-4 修 |
-| **G2** | **无持久化定义没有"结算事件接收器"**：`settleObserver` 只经 `entry.durable.deliver()` 投递，而 `durable` 仅在定义声明 `persistence`（要整套 store/校验）时存在。翻译的收件箱/会话通知、助手信件需要通知而不需要恢复 | S4-2、S4-7 受阻（S4-4 不需要：变式信与写卡同事务） | 增加可选的 `definition.notifications`（与持久化端口同形 `{channel, idempotent, deliver}`），在同一个 settled 事件上投递；失败不改终态 |
+| **G1** | 网关 `complete` 不经 `modelServices`（语言/图片/脚注准备、轻量路径的对冲与重试） | 所有家族 | **已解决（#294）**：网关用 `preparedModelHost`（未入账），步骤用 `{ model: 'light' }` 选轻量路径；较高推理档由网关交给轻量路径（S4-4）。本节原先的 `step.observe` 包装方案已被取代，仅保留测试 8 作为内核对「宿主自带重试的服务 = 一次观测」的证明 |
+| **G2** | 无持久化定义没有结算事件接收器 | S4-2、S4-7 | **已解决（#294）**：定义级 `notifications: [{ channel, deliver(event, view) }]`，进程内投递一次，失败记 `detail.notificationError`，不改终态 |
 | **G3** | **终态映射**：到期（`executionTimeoutMs`/步骤预算）的 Job 结局是 `cancelled` + `detail.stopReason: 'execution-timeout'`、`error: null`（测试 7），旧翻译是 `failed`/`budget`；`superseded` 作为 `endReason` 只在契约里，内核停止路径固定写 `user-cancel` | 翻译到期展示、总结 supersede 的展示 | 先在家族 `present` 里用 stage/detail 映射并登记；若体验不可接受，内核增加"带原因的停止"。S4-2、S4-5 各自决定 |
 | **G4** | **用量桶**：`USAGE_FEATURES` 没有翻译/总结/助手 | 面板数字归类 | 所有者决定；默认沿用第 2 节 |
 | **G5** | **批次 Job 与日行重复**：Job 一律进 `work.jobs`，而 `library.snapshot`、`pruneJobs`/自动归档、`job.cancel all` 都把每个 Job 当一行。为你定制要保持"一天一行" | S4-4 | 家族给批 Job 一个遗留字段（如 `listedIn: 'coach:<date>'`），共享接线处用一个与 kind 无关的过滤判断；不加 `type ===` 分支 |
