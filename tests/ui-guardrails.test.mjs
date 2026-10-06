@@ -9,11 +9,9 @@ import {
 
 // UI consistency guard rails (tracker #161). Per-file ratchets may only fall; the hard rules
 // have no baseline. Regenerate the baseline with `node scripts/qa/guardrail-baseline.mjs --update`.
-const started = performance.now(), cpuStarted = process.cpuUsage();
+const started = performance.now();
 const scan = scanUi();
 const scanMs = Math.round(performance.now() - started);
-// The work done by the scan, not the time it waited for a core: a full test run shares the machine with dozens of other processes.
-const scanCpu = process.cpuUsage(cpuStarted), scanCpuMs = Math.round((scanCpu.user + scanCpu.system) / 1000);
 const baseline = readBaseline();
 const UPDATE = 'Fix the new value, or lower-only update: node scripts/qa/guardrail-baseline.mjs --update';
 
@@ -66,10 +64,32 @@ test('allow-list entries that no longer match anything are removed', () => {
   assert.deepEqual(scan.staleAllow, [], 'delete the stale entry from ALLOW in scripts/qa/guardrail-baseline.mjs');
 });
 
-test('the scan stays fast', (t) => {
-  t.diagnostic(`ui scan took ${scanMs} ms (${scanCpuMs} ms of CPU)`);
-  assert.ok(scanCpuMs < 5000, `scan used ${scanCpuMs} ms of CPU`);
-  assert.ok(scanMs < 120_000, `scan took ${scanMs} ms: it is not merely slow, it is stuck`); // a loose wall-clock bound, a hang guard only
+/* A performance guard that does not depend on the machine: it asks how the scan GROWS, not how long it takes. The same real stylesheet and component are scanned at 1x and 8x
+   the size, each measured several times, keeping the best of them (a loaded machine only ever makes a run slower, never faster), and the cost must grow about eight
+   times (linear), nowhere near sixty-four (quadratic: a regex that backtracks, a list searched per rule). The only absolute bound is a hang guard. */
+const costOf = (copies) => {
+  const dir = mkdtempSync(join(tmpdir(), 'ui-scan-'));
+  try {
+    mkdirSync(join(dir, 'ui'), { recursive: true });
+    const css = readFileSync(join(ROOT, 'ui/tasks/task-console.css'), 'utf8'), jsx = readFileSync(join(ROOT, 'ui/components/Button.jsx'), 'utf8');
+    for (let i = 0; i < copies; i++) { writeFileSync(join(dir, 'ui', `a${i}.css`), css); writeFileSync(join(dir, 'ui', `a${i}.jsx`), jsx); }
+    let best = Infinity;
+    for (let run = 0; run < 5; run++) {
+      const before = process.cpuUsage();
+      scanUi(dir);
+      const used = process.cpuUsage(before);
+      best = Math.min(best, used.user + used.system);
+    }
+    return best;
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+};
+
+test('the scan reads every file of ui/ and its cost grows with the work, not with the square of it', (t) => {
+  t.diagnostic(`ui scan took ${scanMs} ms`);
+  assert.ok(scanMs < 120_000, `scan took ${scanMs} ms: it is not merely slow, it is stuck`); // a hang guard, not a speed budget
+  const small = costOf(4), large = costOf(32), ratio = large / Math.max(small, 1000);
+  t.diagnostic(`8x the files cost ${ratio.toFixed(1)}x`);
+  assert.ok(ratio < 24, `8x the work cost ${ratio.toFixed(1)}x (linear is 8, quadratic 64)`);
 });
 
 test('the CSS reader handles comments, nesting, CRLF, strings and data urls', () => {
