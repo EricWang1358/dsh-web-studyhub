@@ -1,0 +1,47 @@
+{
+  "baseline": "be82089666427ac8b8a2fbe0e4ab20c96b35bf39",
+  "scope": "S1-5 contract-only and installed rc.2 capability preflight; no recovery implementation acceptance",
+  "hostVersion": "0.2.0-rc.2",
+  "nativeInspection": {
+    "id": "S1-5 actual-executor-inspection",
+    "status": "ok",
+    "startedAt": "2026-10-06T04:58:41.001Z",
+    "evidence": {
+      "service": "dsh-jobs",
+      "ownerAgentId": "9ffcfa4e-e5fa-4834-9f60-d37fed76bbef",
+      "handleId": "s15-inspection-1",
+      "activeStatus": "running",
+      "terminalStatus": "completed",
+      "wrongOwnerRefused": true,
+      "callerlessRefused": true,
+      "missingError": "unknown job <id>",
+      "paidModel": false,
+      "limitation": "Native get is owner-scoped. Missing alone does not prove old process death; process witness/recovery wiring still required."
+    }
+  },
+  "cleanup": {
+    "converged": true,
+    "parentScopeDisposals": 1
+  },
+  "sourceSha256": {
+    "tests/fixtures/runtime-s15/host-probe.mjs": "1b23b524792a2d874c9d38dedc973b97124a6f3d569e872b10868f780c49f272",
+    "tests/fixtures/runtime-s10/host-probe.mjs": "ca1d855e906414b0ad93ae2c3e638ef3f10d14bf07f1a4c736b514933b0cd079",
+    "tests/fixtures/runtime-s10/run-host-probe.mjs": "89a804237ad06490d119af6baf82cc6ed4e7d654815612c2b8fb1029161ac79f"
+  },
+  "reportSha256": "b12542e9c0521168493c232a76657fc9f68c7ab7b0b1b1bb953e6dbf3b71fa3a",
+  "verification": {
+    "contractTests": {
+      "pass": 28,
+      "fail": 0,
+      "skip": 0,
+      "durationMs": 246.500435
+    },
+    "lint": "pass",
+    "fullVerify": "not rerun for docs/fixture-only change",
+    "paidModels": "not run"
+  },
+  "failedProbeAttempts": [
+    "First fixture used the wrong jobs.wait argument position; actual access refusal exposed it.",
+    "Second used undefined timeout, which actual rc.2 rejects. Final fixture uses jobs.wait(id, 10000, owner) and passes. These are probe corrections, not production failure or recovery red tests."
+  ]
+}

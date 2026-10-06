@@ -18,8 +18,8 @@
 | S1-1 | 受阻 | Codex 内核负责人 / codex/unified-runtime-alpha / 契约与版本读取兼容范围 | 契约 [#245](https://github.com/EricWang1358/dsh-web-studyhub/pull/245)、读取兼容 [#255](https://github.com/EricWang1358/dsh-web-studyhub/pull/255) 已合并 | #255 head c092d7ac8e73228091a9d0a0a7c04e6b82f64570；merge 1a432f5e9cf166398385174cf1ec047f16cfceef；[历史验证](s1-1-compatibility-implementation.md) | 仅所列交付已合并，不勾选整步；live facade/执行绑定仍待 S1-2，持久化待 S1-5 |
 | S1-2 | 已合并 | Codex 云端内核负责人 / codex/runtime-s12-lifecycle / 注册、生命周期、原生绑定与旧入口 | 所有者 2026-10-06 02:28:22 UTC 验收并授权合并 [#262](https://github.com/EricWang1358/dsh-web-studyhub/pull/262) | head 78f83a8；merge 09a094ae54c6afc68982ed5bc7d21a5a92d46b2e；双平台 CI 与实际宿主 8 步见 PR | S1-2 限定范围已接受；持久化、音频试点和共享配额策略仍保留后续门禁 |
 | S1-3 | 已合并 | Codex 云端内核负责人 / codex/runtime-s13-provider-permits / 单文件可观察 HTTP 资源范围 | 所有者 2026-10-06 04:07:50 UTC 验收并授权合并 [#267](https://github.com/EricWang1358/dsh-web-studyhub/pull/267) | head 8ad0905；merge 48ff29c301676533744eca65ef2015178edc17b5；完整 verify 5701/0/2，双平台 CI 5602/0/94；实际宿主见 PR | 默认关闭，未扩大到不可观察宿主内部请求/跨进程；S1-4 放行 |
-| S1-4 | 进行中 | Codex 云端内核负责人 / codex/runtime-s14-gateway-contract / 网关接口、Call/账本及调用适配 | 前置 #267 已验收合并；[网关契约](s1-4-gateway-contract.md) 先独立发布 | 基线 48ff29c（含并行 #268）；契约 fixture 仅证明公共形状 | 2026-10-06 所有者授权代理处理 S1 常规技术验收/合并；不包括付费模型、凭据权限及发布部署 |
-| S1-5 | 未开始 | 待领取 | 待 S1-4 通过 | 待填写 | 恢复识别与提交核对 |
+| S1-4 | 已合并 | Codex 云端内核负责人 / codex/runtime-s14-gateway / 网关、Call、既有账本及内部音频适配 | 契约 [#270](https://github.com/EricWang1358/dsh-web-studyhub/pull/270)；实现与逐项技术验收 [#272](https://github.com/EricWang1358/dsh-web-studyhub/pull/272) | head ff33db3；merge be82089666427ac8b8a2fbe0e4ab20c96b35bf39；最终 verify 5732/0/2，双平台 CI 5633/0/94；[实现证据](s1-4-gateway-implementation.md) | 内部网关已验收；持久恢复待 S1-5，公开音频试点待 S1-6；真实付费质量未测 |
+| S1-5 | 进行中 | Codex 云端内核负责人 / codex/runtime-s15-store-contract / 持久化、恢复、提交核对 | 前置 #272 已验收合并；[存储契约](s1-5-store-contract.md) 先独立发布 | 基线 be82089；契约 fixture 不代表恢复实现通过 | 实际原生存活探针、Windows 保行为提取及崩溃矩阵待实现验收 |
 | S1-6 | 未开始 | 待领取 | 待 S1-5 通过 | 待填写 | 开关双路径验证 |
 | S1-7 | 未开始 | 待领取 | 待 S1-6 通过 | 待填写 | 护栏、回退、发布证据 |
 
