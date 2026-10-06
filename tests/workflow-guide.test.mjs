@@ -4,12 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
+import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
 
 const quote = "缓存命中要求请求可以使用已保存的结果，且结果没有过期。";
 async function setup(t, complete) {
   const root = await mkdtemp(join(tmpdir(), "study-workflow-guide-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const service = new StudyService(root, complete ? { complete } : {});
+  const service = new StudyService(root, complete ? { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['workflow'] }) } : {});
   await service.store.update((s) => {
     s.sources.push({ id: "source", title: "缓存资料", text: quote + "未命中时仍需访问原始服务。" });
     const card = (id, topic) => ({ id, topic, kind: "flashcard", prompt: `${topic}：如何判断？`, answer: "检查条件",

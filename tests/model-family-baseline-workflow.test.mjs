@@ -7,6 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { usageLedger } from '../lib/model-usage.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { until } from './helpers/wait.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { gate, privateRoot, panelDoor } from './helpers/model-family-baseline.mjs';
 
 const quote = '缓存命中要求请求可以使用已保存的结果，且结果没有过期。';
@@ -27,7 +28,7 @@ function model() {
 }
 async function library(t, options = {}, sessions = 1) {
   const root = await privateRoot(t, 'model-baseline-workflow-');
-  const service = new StudyService(root, options);
+  const service = new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { complete: options.complete, paths: ['workflow'] }) });
   t.after(() => service.dispose());
   await service.store.update(state => {
     state.sources.push({ id: 'source', title: '缓存资料', text: `${quote}未命中时仍需访问原始服务。` });
@@ -68,7 +69,11 @@ test('at most three teachings per library are admitted at once; the fourth is re
   await until(() => fake.lessons.length === 3, 'three lesson calls');
   await assert.rejects(teach(call, sessions[3]), /已有三份讲解正在生成/);
   assert.equal(fake.lessons.length, 3, 'the refused one never reached the model');
-  assert.deepEqual((await call('snapshot', {})).jobs, [], 'a teaching lives in session.records[step].teaching, not in snapshot.jobs');
+  // Reviewed difference of the runtime side (S4-6): a teaching is a Job like every other background job, so it is a row of the 任务 console; its state in
+  // session.records[step].teaching is unchanged.
+  const rows = (await call('snapshot', {})).jobs.map(job => job.type);
+  if (SWITCH_MODE === 'runtime') assert.deepEqual(rows, ['workflow-teaching', 'workflow-teaching', 'workflow-teaching']);
+  else assert.deepEqual(rows, [], 'a teaching lives in session.records[step].teaching, not in snapshot.jobs');
   const running = (await call('workflow.session.get', { id: sessions[0].id })).resources;
   assert.equal(running.teachingActive, true);
   for (const n of [0, 1, 2]) fake.gates.get(n).release();
@@ -80,7 +85,7 @@ test('at most three teachings per library are admitted at once; the fourth is re
 test('the panel and the runtime door start the same teaching: the same lesson text, citations and teaching record', async t => {
   const direct = model(), viaPanel = model();
   const a = await library(t, { complete: direct.complete }), b = await library(t);
-  const panel = panelDoor(t, b.root, { complete: viaPanel.complete });
+  const panel = panelDoor(t, b.root, { complete: viaPanel.complete, ...(SWITCH_MODE === 'runtime' ? { pilot: { workflow: true } } : {}) });
   await teach(a.service.call.bind(a.service), a.session);
   await teach(panel, b.session);
   const [x, y] = await Promise.all([finished(a.service.call.bind(a.service), a.session.id), finished(panel, b.session.id)]);
