@@ -11,6 +11,9 @@ import { goldenRuntimeContracts } from './fixtures/unified-runtime-contract.mjs'
 import { validateRuntimeContract } from '../lib/jobs/contract.js';
 import { until } from './helpers/wait.mjs';
 import { recordAudioUsage } from '../lib/audio-dashboard.js';
+import { finishTranscript } from '../lib/audio-import.js';
+import { createPool } from '../lib/audio-pool.js';
+import { setImmediate } from 'node:timers/promises';
 const policy = { purpose: 'proofread', feature: 'audio', requestedEffort: 'medium', executionMode: 'direct', budget: null };
 function setup(host, ledger, requiresExternalObservation = false) {
   const record = structuredClone(goldenRuntimeContracts.running); record.calls = []; record.runtime.steps = [];
@@ -21,6 +24,32 @@ function setup(host, ledger, requiresExternalObservation = false) {
   return { record, controller, gateway, revoke: () => { current = false; } };
 }
 const reply = (status, body = {}) => ({ status, ok: status >= 200 && status < 300, headers: new Headers(), json: async () => body });
+test('same exhausted audio provider fixture records the approved off/on nested retry difference', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const counts = [];
+  for (const managed of [false, true]) {
+    const { gateway, record } = setup(); let requests = 0, completed = false, failure;
+    const tiers = new GeminiTiers({ keys: { paid: 'synthetic-key' }, ...(managed ? { gateway } : {}), sleep: async () => {},
+      fetch: async () => { requests++; return reply(503, { error: { message: 'synthetic unavailable' } }); } });
+    const complete = async () => {
+      const run = () => tiers.generate('synthetic-model', {}, {});
+      return managed ? gateway.step('proofread:1', policy).run(run) : run();
+    };
+    if (managed) complete.providerOwnsRetry = true;
+    const pool = createPool({ limit: 1, ...(managed ? { refusals: 0 } : {}) });
+    const pending = finishTranscript({ paragraphs: ['One synthetic paragraph.'], filename: 'fixture.wav', complete,
+      settings: { textConcurrency: 1 }, pools: { text: pool }, saved: { get: async () => null, set: async () => {} }, keys: { raw: 'same', text: 'same' } })
+      .catch(error => { failure = error; }).finally(() => { completed = true; });
+    for (let ticks = 0; !completed && ticks < 100; ticks++) { await setImmediate(); t.mock.timers.tick(60_000); }
+    assert.equal(completed, true); await pending; assert.match(failure.message, /synthetic unavailable/);
+    counts.push(requests);
+    if (managed) {
+      assert.equal(record.calls.length, requests);
+      assert.ok(record.calls.every(call => call.observation.requestCount === 1 && call.status === 'failed'));
+    }
+  }
+  assert.deepEqual(counts, [9, 3], 'legacy outer retry repeats the provider group; managed has one provider retry owner');
+});
 test('gateway rejects missing/unsupported policies and out-of-step calls before I/O', async () => {
   const { gateway } = setup();
   for (const value of [{}, { ...policy, executionMode: 'magic' }, { ...policy, budget: { dollars: 1 } }, { ...policy, requestedEffort: 'xhigh' }])
@@ -192,4 +221,25 @@ for (const textProvider of ['gemini', 'host']) test(`existing single-file ${text
   assert.equal(record.calls.filter(call => call.accounting === 'recorded').length, record.calls.filter(call => call.observation.boundary === 'external-request').length);
   assert.ok(job.sourceIds.length > 0); assert.ok((await store.read()).sources.length > 0);
   assert.equal(job.tasks, undefined, 'managed calls are not written a second time by legacy taskTracker');
+});
+
+test('gateway preserves display labels, streams into the existing bounded output sink and observes cache reuse without a model call', async () => {
+  const { createOutputStore } = await import('../lib/job-output.js');
+  const outputs = createOutputStore({ limit: 5 }); let sent = 0;
+  const host = { ctx: {}, route: { provider: 'fixture', model: 'fixture' }, complete: async (_system, _prompt, options) => {
+    sent++; options.onOutput?.('A😀BCDEF'); options.onReasoning?.(3); return 'A😀BCDEF';
+  } };
+  const { gateway, record } = setup(host), options = { labels: { stage: '校对 2/3', part: 2, parts: 3, file: 'lecture.wav', slot: 1 },
+    output: { open: callId => outputs.open('legacy', callId), append: (callId, text) => outputs.append('legacy', callId, text),
+      reasoning: (callId, count) => outputs.reasoning('legacy', callId, count), close: callId => outputs.close('legacy', callId) } };
+  await gateway.step('proofread:2', { ...policy, requestedEffort: 'default' }, options).complete('system', 'prompt');
+  const call = record.calls[0];
+  assert.equal(call.stage, '校对 2/3'); assert.equal(call.part, 2); assert.equal(call.file, 'lecture.wav');
+  const output = outputs.read('legacy', call.callId, 0);
+  assert.equal(output.text, 'BCDEF'); assert.equal(output.next, 8); assert.equal(output.reasoning, 3); assert.equal(output.ended, true);
+  await gateway.step('proofread:3', policy, options).reuse('same-audio-and-settings');
+  assert.equal(sent, 1); assert.equal(record.calls[1].status, 'skipped');
+  assert.equal(record.calls[1].runner, 'saved'); assert.equal(record.calls[1].modelRequest, false);
+  assert.deepEqual(record.calls[1].observation, { boundary: 'legacy', requestCount: null });
+  validateRuntimeContract(record);
 });

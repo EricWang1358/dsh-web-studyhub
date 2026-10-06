@@ -20,7 +20,7 @@
 | S1-3 | 已合并 | Codex 云端内核负责人 / codex/runtime-s13-provider-permits / 单文件可观察 HTTP 资源范围 | 所有者 2026-10-06 04:07:50 UTC 验收并授权合并 [#267](https://github.com/EricWang1358/dsh-web-studyhub/pull/267) | head 8ad0905；merge 48ff29c301676533744eca65ef2015178edc17b5；完整 verify 5701/0/2，双平台 CI 5602/0/94；实际宿主见 PR | 默认关闭，未扩大到不可观察宿主内部请求/跨进程；S1-4 放行 |
 | S1-4 | 已合并 | Codex 云端内核负责人 / codex/runtime-s14-gateway / 网关、Call、既有账本及内部音频适配 | 契约 [#270](https://github.com/EricWang1358/dsh-web-studyhub/pull/270)；实现与逐项技术验收 [#272](https://github.com/EricWang1358/dsh-web-studyhub/pull/272) | head ff33db3；merge be82089666427ac8b8a2fbe0e4ab20c96b35bf39；最终 verify 5732/0/2，双平台 CI 5633/0/94；[实现证据](s1-4-gateway-implementation.md) | 内部网关已验收；持久恢复待 S1-5，公开音频试点待 S1-6；真实付费质量未测 |
 | S1-5 | 已合并 | Codex 云端内核负责人 / codex/runtime-s15-store / 持久化、恢复、提交核对 | 契约 [#273](https://github.com/EricWang1358/dsh-web-studyhub/pull/273)、实现与委托验收 [#275](https://github.com/EricWang1358/dsh-web-studyhub/pull/275) | head da3c22b；merge 5aecc769；最终 verify 5816/0/2，双平台 CI 各 5717/0/94；[实施与验证](s1-5-store-implementation.md) | 内部恢复与适配器已验收；公开音频入口/检查点试点仍待 S1-6 |
-| S1-6 | 进行中 | Codex 云端音频负责人 / codex/runtime-s16-audio-contract / 单文件公开试点 | 前置 #275 已验收合并；[接口契约](s1-6-audio-contract.md) 待合并 | 基线 5aecc769；仅契约测试，尚无公开试点实施证据 | 契约先行，保持默认关闭 |
+| S1-6 | 待评审 | Codex 云端音频负责人 / codex/runtime-s16-audio / 内核薄适配、音频流水线及公开入口 | 前置 #275、接口契约 [#276](https://github.com/EricWang1358/dsh-web-studyhub/pull/276) 已验收合并 | 基线 b53b1475；聚焦 86/0/0，追加双路径/配额通过；实际安装包与四档 UI 验证通过；[完整证据](s1-6-audio-implementation.md) | 默认关闭；完整 verify 与双平台 CI/委托审查尚待完成，不能据此进入 S1-7 |
 | S1-7 | 未开始 | 待领取 | 待 S1-6 通过 | 待填写 | 护栏、回退、发布证据 |
 
 状态只使用未开始 / 进行中 / 待评审 / 受阻 / 已合并；受阻项写明缺少什么证据，已合并项仍须满足本步验收。文档完善不能把实施状态改为完成。日志与测试结果记录命令、所用 SHA、结果摘要和仓库内证据路径或 PR 链接；不放密钥、完整私有输入或模型原始内容。

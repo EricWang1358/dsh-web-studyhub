@@ -97,3 +97,33 @@ test('a legacy recording-parallelism value is ignored and the limits of both con
   await assert.rejects(saveAudioSettings({ textConcurrency: 0 }), /1 到 6/);
   await assert.rejects(saveAudioSettings({ transcribeConcurrency: 4 }), /1 到 3/);
 });
+
+for (const phase of ['proofread', 'translate']) test(`managed ${phase} pause drains admitted windows and preserves their cache before yielding`, async () => {
+  const files = new Map(), calls = [], pending = [];
+  let paused = false, active = 0, boundary;
+  const marker = Symbol('domain checkpoint pause');
+  const saved = { get: async name => files.get(name), set: async (name, value) => { files.set(name, value); } };
+  const complete = async (_system, prompt, options) => {
+    calls.push(`${options.kind}:${options.part || 0}`);
+    if (options.kind === phase) {
+      active++;
+      try { await new Promise(resolve => { pending.push(resolve); }); } finally { active--; }
+    }
+    return answer(prompt, options);
+  };
+  const run = finishTranscript({ paragraphs, filename: 'lecture.wav', settings: { textConcurrency: 2 }, complete, saved,
+    keys: { raw: 'r', text: 't' }, pauseRequested: () => paused,
+    pauseBoundary: async value => { boundary = value; assert.equal(active, 0); throw marker; } });
+  run.catch(() => {});
+  await until(() => pending.length === 2); paused = true;
+  // Resolve all later windows too on the old implementation, so the red test
+  // reports its missing boundary rather than hanging indefinitely.
+  const drain = setInterval(() => { for (const resolve of pending.splice(0)) resolve(); }, 5);
+  try {
+    await assert.rejects(run, error => error === marker);
+    assert.equal(boundary, phase);
+    assert.equal(calls.filter(value => value.startsWith(phase + ':')).length, 2);
+    assert.equal([...files.keys()].filter(name => name.startsWith(phase === 'proofread' ? 'proof-' : 'part-')).length, 2);
+    assert.equal(calls.some(value => value.startsWith('title:')), false);
+  } finally { clearInterval(drain); }
+});

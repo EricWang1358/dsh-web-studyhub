@@ -17,9 +17,13 @@ export function wav() {
   return Buffer.concat([header, data]);
 }
 
-export function fakeAudioService(root, { holdTranscription = false } = {}) {
+export function fakeAudioService(root, { holdTranscription = false, runtimeOptions = {}, managed = false, responses = {} } = {}) {
   const calls = [], notifications = [], signals = [];
-  let release;
+  let release, starts = 0;
+  if (managed) runtimeOptions = { runtimePilot: { audioSingle: true }, workOwner: Symbol('controlled-audio-owner'),
+    jobExecutor: { assertAvailable() {}, witness: () => ({ pid: process.pid, host: 'fixture', instance: 'controlled' }), inspect: () => ({ state: 'lost', reason: 'controlled' }),
+      start({ run, cancel }) { void run(); return { id: `controlled-${++starts}`, ownerAgentId: 'controlled-owner', stop: cancel, append() {} }; } },
+    jobModelHost: { ctx: {}, route: { provider: 'fixture', model: 'fixture' } }, ...runtimeOptions };
   const fetch = async (url, options) => {
     assertTranscription(url);
     calls.push('transcribe'); signals.push(options.signal);
@@ -35,14 +39,15 @@ export function fakeAudioService(root, { holdTranscription = false } = {}) {
   const complete = async (system, prompt, options) => {
     const kind = system.startsWith('You proofread') ? 'proofread' : system.startsWith('You translate') ? 'translate' : 'title';
     calls.push(kind);
-    options.onEvent({ runtime: 'subagent', childId: `fake-child-${calls.length}`, status: 'running' });
-    const reply = kind === 'proofread' ? '{"corrections":[]}' : kind === 'title' ? '{"titleEn":"Database Lecture"}'
+    options.onEvent?.({ runtime: 'subagent', childId: `fake-child-${calls.length}`, status: 'running' });
+    const reply = responses[kind] !== undefined ? responses[kind] : kind === 'proofread' ? '{"corrections":[]}' : kind === 'title' ? '{"titleEn":"Database Lecture"}'
       : JSON.stringify({ titleZh: '数据库', titleEn: 'Databases', paragraphs: JSON.parse(prompt).paragraphs.map(p => ({ n: p.n, zh: '数据库事务与索引。' })) });
-    options.onEvent({ runtime: 'subagent', childId: `fake-child-${calls.length}`, status: 'complete' });
+    options.onOutput?.(reply);
+    options.onEvent?.({ runtime: 'subagent', childId: `fake-child-${calls.length}`, status: 'complete' });
     return reply;
   };
-  const service = new StudyService(root, { fetch, complete, notify: notice => { notifications.push(notice); } });
-  return { service, calls, notifications, signals, release: () => release?.() };
+  const service = new StudyService(root, { fetch, complete, notify: notice => { notifications.push(notice); }, ...runtimeOptions, ...(runtimeOptions.jobModelHost ? { jobModelHost: { ...runtimeOptions.jobModelHost, complete } } : {}) });
+  return { service, calls, notifications, signals, release: () => release?.(), starts: () => starts };
 }
 
 function assertTranscription(url) {
