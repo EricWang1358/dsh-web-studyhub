@@ -25,6 +25,7 @@ import { coverageGroups, coverageUnit } from "./coverage-groups.js";
 import LocalImagePicker from './LocalImagePicker.jsx';
 import { useStudy } from "./study-context.jsx";
 import { useSciencePreferences } from './SciencePreferences.jsx';
+import { DraftPartLine, NEW_DECK, PartTargetChoice, defaultPartTarget, partTargets } from './DraftPart.jsx';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -54,6 +55,9 @@ export default function Draft({
   const { call, busy, act } = useStudy();
   const toast = useToast();
   const [deleteArmedId, setDeleteArmedId] = React.useState(null);
+  // A draft made as the next part of a published deck (lib/deck-parts.js): where it goes is chosen here, when it is published; nothing touches the deck before.
+  const targets = partTargets(draft, data), [partTarget, setPartTarget] = React.useState(undefined);
+  const intoDeck = !targets ? null : partTarget === NEW_DECK ? NEW_DECK : targets.candidates.some((item) => item.id === partTarget) ? partTarget : defaultPartTarget(targets);
   const science = useSciencePreferences();
   const appendImage = (cardId, key, markdown) => setDraft(current => current.id !== draft.id ? current : ({ ...current, cards: current.cards.map(card =>
     card.id === cardId ? { ...card, [key]: (card[key] || '') + '\n\n' + markdown } : card) }));
@@ -147,7 +151,9 @@ export default function Draft({
       {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
       </label>}
       {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
+      <DraftPartLine targets={targets} />
       <p className="draft-count">{uiRich("当前草稿 {0} 题", <strong>{draft.cards.length}</strong>)}{unsavedDraft && <><span aria-hidden="true"> · </span><span>{ui("有未保存修改")}</span></>}</p>
+      <PartTargetChoice targets={targets} value={intoDeck} onChange={setPartTarget} disabled={busy} />
       <div className="sticky-actions" data-tour="draft-publish">
         <Button
           disabled={busy || updatingDraft || staleDraft || missingDraft}
@@ -178,6 +184,7 @@ export default function Draft({
               const published = await call("draft.publish.quick", {
                 id: saved.id,
                 draftVersion: saved.draftVersion,
+                ...(intoDeck ? { mergeTargetId: intoDeck } : {}),
               });
               if (isCurrent()) clearRecovery();
               try {

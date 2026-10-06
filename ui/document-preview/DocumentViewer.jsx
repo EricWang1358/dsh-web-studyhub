@@ -19,6 +19,8 @@ import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
 import { MasteryLine } from './practice/MasteryMark.jsx';
 import { CoverageChip } from '../coverage/Coverage.jsx';
+import DocumentTopUp, { offersDocumentTopUp } from '../coverage/DocumentTopUp.jsx';
+import { modelReadiness } from '../generation-status.js';
 import { useReadingLoop } from './practice/useReadingLoop.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
 import OutlineAssist from './reader/OutlineAssist.jsx';
@@ -394,6 +396,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
+        coverageAction={!localMode && data && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
+          ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={localMode ? localContent.title || source.title || ui('资料内容') : ui('资料内容')} data-mode={view}>

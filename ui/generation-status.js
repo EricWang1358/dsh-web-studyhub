@@ -12,6 +12,7 @@ import { classifyFailure } from '../lib/generation-failure.js';
 import { formatClauses } from './format.js';
 import { USAGE_STAGES, stageUsage } from '../lib/stage-usage.js';
 import { DEFAULT_LEVEL } from '../lib/coverage-strength.js';
+import { jobPart, partTitle } from './deck-parts.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
 export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
@@ -130,6 +131,9 @@ export function stepLabel(step, job = {}) {
 }
 
 export function jobDeckName(job = {}, drafts = []) {
+  // A new draft that will be the next part of a deck (lib/deck-parts.js): 「期中复习 · 第二部分」, the same title the 任务 console gives it.
+  const part = jobPart(job);
+  if (part?.deckTitle) return partTitle(part.deckTitle, part.n);
   return job.deckTitle || (job.type === JOB_TYPES.SUPPLEMENT && job.targetTitle) || draftOf(job, drafts)?.title || job.targetTitle || ui('新题组');
 }
 

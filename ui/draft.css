@@ -96,6 +96,16 @@
       color: var(--text);
       font-size: var(--fs-lg);
     }
+    /* A draft that will be the next part of a published deck: whose part it is, and where it goes when published (ui/DraftPart.jsx). */
+    .draft-part-line {
+      margin: 0 0 var(--space-2);
+      color: var(--text);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+    }
+    .draft-part-target {
+      margin: 0 0 var(--space-4);
+    }
     .draft-page .sticky-actions {
       margin: 0 0 var(--space-5);
     }
