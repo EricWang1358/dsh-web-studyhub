@@ -189,6 +189,10 @@ async function runProbe(ctx, config, report) {
       const { probeResourceScope } = await import('../runtime-s13/resource-probe.mjs');
       return probeResourceScope({ ctx, parent, sibling, sdkRoot, route, signal, until });
     });
+    if (config.auditPermits) await step('S1-3 actual-native-provider-permits', async () => {
+      const { probeProviderPermits } = await import('../runtime-s13/permit-probe.mjs');
+      return probeProviderPermits({ ctx, parent, sourceRoot: config.sourceRoot, until });
+    });
     if (config.auditStudyHub) await step('DSH-01/03/09 studyhub-fiber-binding-preflight', async () => {
       const root = ctx.root || ctx;
       const host = root[Symbol.for('studyhub.workbench.host.v1')];

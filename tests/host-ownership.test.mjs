@@ -25,6 +25,9 @@ test('one host reuses library work while concurrent request facades retain their
   assert.notEqual(first.runtime, foreign.runtime);
   assert.equal(first.modelOptions.audioGate, second.modelOptions.audioGate, 'requests from one host share its audio budget');
   assert.notEqual(first.modelOptions.audioGate, foreign.modelOptions.audioGate, 'different hosts have independent audio budgets');
+  assert.equal(first.modelOptions.providerResources, second.modelOptions.providerResources);
+  assert.notEqual(first.modelOptions.providerResources, foreign.modelOptions.providerResources);
+  assert.equal(first.modelOptions.providerResources.enabled, false, 'provider quota has an independent off default');
   assert.equal(await first.complete('system', 'prompt'), 'one');
   assert.equal(await second.complete('system', 'prompt'), 'two');
 });

@@ -1,10 +1,12 @@
-# S1-3 资源契约提案（review-only v1）
+# S1-3 资源契约（v1；#265 已合并）
 
 本 PR **只含契约文档与可执行校验 fixture**，没有资源调度实现，没有启用任何策略，也不使 S1-3 完成。基线 `09a094ae54c6afc68982ed5bc7d21a5a92d46b2e`；用户于 2026-10-06 02:28:22 UTC 接受并授权合并 S1-2 #262、继续 S1-3。下一份新接口生产实现必须等待本契约评审/合并及对应宿主能力核验，不以 fixture 通过替代这些门禁。
 
 负责人 Codex 云端内核负责人；分支 `codex/runtime-s13-resource-contract`，独立 worktree `/workspace/runtime-s13-contract`，自身 npm ci。本文是独立的资源执行端口契约提案版本 1；不改变已经发布的 Job v1/v2 序列化形状、状态词汇或操作。将来若增加 Job 公共字段，必须另提版本变更。
 
-## 需要批准的具体决定
+2026-10-06 更新：所有者 02:53:23 UTC 授权检查通过后合并，#265 已合并为 `ed157f377c3116910d96158e6ecc41ef550ee166`。下文保留原契约 PR 的范围说明；该接口语义门禁已满足，具体生产接线和整步验收尚未完成。
+
+## 已接受的具体决定
 
 1. **只复用实际实例**。转写绑定现有 host audioGate；文本工作量绑定原录音/批次 pool。绑定由可信宿主/运行时在注册作用域解析，资源字符串只用于审计，不能通过 submit 输入任意选择 owner、配额域或计数器。卸载即撤销绑定和新接纳。
 2. **独立策略且默认关闭**。拟用配置名 `runtime.resources.sharedProviderQuota`，默认 `false`；不随 `runtime.pilot.audioSingle` 改变。开时必须明确 quotaDomainRef 和经过核验的实际请求适配器，否则在任何 I/O 前拒绝。没有配置入口实现，不会因合并本文改变用户设置。
@@ -15,7 +17,7 @@
 7. **切换与回退**。策略/资源绑定身份在 Attempt 开始时固定；动态 limit 在同一实例上只影响后续派发。关闭策略不让新请求绕过仍在使用的同域限制：先关闭该域新接纳，排空使用旧策略的请求/Attempt 或等安全边界，方可切回 baseline。不能在同域并存两套配额计数。
 8. **只承诺一个 host 进程中的实际可观测请求**。`enforcementScope: 'host-process'` 是首版明确边界，不是账户全局限额，也不覆盖另一 DSH 进程/机器。provider 绑定必须证明 `providerObservation: 'external-request'`；若宿主/SDK 会在一次 host-attempt 内隐藏 retry/hedge，请求数未知，拒绝该路径启用物理请求配额策略，保持 baseline 并返回能力缺口。不能用一个 host-attempt 许可冒充多个物理请求都已受控。
 
-## 拟议端口语义（尚未发布）
+## 已合并的端口语义（实现待验收）
 
 资源对象由可信 domain 注册提供给执行上下文，建议端口为 `context.resources.run(resourceRef, operation, { queueTimeoutMs })`。这里只规定责任与生命周期，不提供可执行实现。资源引用必须属于当前 owner/domain/Attempt 已绑定集合；不能跨 owner 取得资源端口。宿主 gate 可以跨库共享实际容量，但共享容量不赋予操作/结果读取权限。
 
