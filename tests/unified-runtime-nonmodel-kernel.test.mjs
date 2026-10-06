@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateRuntimeContract } from '../lib/jobs/contract.js';
+import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { durableFixture } from './fixtures/unified-runtime-durable.mjs';
 
 // Kernel additions for non-model jobs (S5-1). Each test names the gap of s5-0-nonmodel-baseline.md it closes.
@@ -53,4 +54,18 @@ test('G-7: execution mode describes model calls only, so a process never makes a
     return { refs: [] };
   });
   assert.equal(mixed.end.execution.mode, 'subagent', 'the one model call decides; the process Call does not make it mixed');
+});
+
+test('G-1: a panel without a live Agent is refused with a code, before any job or process exists', async t => {
+  let ran = 0;
+  const f = await durableFixture(t, async () => { ran++; return { refs: [] }; });
+  const agents = { get: () => undefined };
+  const executors = [dshJobExecutor({ get: key => key === 'agents' ? agents : { start() {} } }, { id: 'gone' }),
+    dshJobExecutor({ get: key => key === 'agents' ? { get: id => ({ id }) } : undefined }, { id: 'live' })];
+  for (const executor of executors) {
+    const port = f.lifecycle.scoped({ owner: Symbol('panel'), domain: 'persist.v1', executor });
+    await assert.rejects(port.submit('persist', {}), { code: 'executor-unavailable' });
+    assert.deepEqual(port.list(), []);
+  }
+  assert.equal(ran, 0);
 });
