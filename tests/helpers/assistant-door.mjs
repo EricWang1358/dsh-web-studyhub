@@ -35,7 +35,7 @@ export async function assistantDoors(t, { mineru = { version: '4.0.10', total: 3
   Object.assign(process.env, {
     DSH_HOME: dirs.dshHome, HOME: dirs.user, USERPROFILE: dirs.user, TEMP: dirs.temp, TMP: dirs.temp, TMPDIR: dirs.temp, SSH_TTY: 'audit',
     PATH: dirs.bin, MINERU_HOME: dirs.mineruHome, MINERU_BIN: process.execPath,
-    NODE_OPTIONS: `--require ${PROBE}`, SPAWN_PROBE_LOG: files.spawns,
+    NODE_OPTIONS: [saved.NODE_OPTIONS, `--require ${PROBE}`].filter(Boolean).join(' '), SPAWN_PROBE_LOG: files.spawns, SPAWN_PROBE_KEEP_OPTIONS: saved.NODE_OPTIONS || '',
     FAKE_MINERU_STATE: files.mineruState, FAKE_MINERU_LOG: files.mineruLog, FAKE_MARKER_STATE: files.markerState, FAKE_MARKER_LOG: files.markerLog,
   });
   if (process.env.Path !== undefined) process.env.Path = dirs.bin;

@@ -18,8 +18,8 @@ if (log && isMainThread) {
   const args = [...flags, ...(process.argv[1] ? [marker ? process.argv[1] : basename(process.argv[1]), ...rest] : [])];
   const role = marker ? 'marker' : 'mineru';
   appendFileSync(log, `${JSON.stringify({ role, program: process.execPath, args })}\n`);
-  const env = { ...process.env };
-  delete env.NODE_OPTIONS;
+  // The fake itself runs without this preload, with whatever options the test run had before.
+  const env = { ...process.env, NODE_OPTIONS: process.env.SPAWN_PROBE_KEEP_OPTIONS || '' };
   const result = spawnSync(process.execPath, [join(__dirname, `fake-${role}-cli.mjs`), ...args], { env, stdio: 'inherit', windowsHide: true });
   process.exit(result.status ?? 1);
 }
