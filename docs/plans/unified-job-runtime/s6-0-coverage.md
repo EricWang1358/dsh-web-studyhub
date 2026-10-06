@@ -6,7 +6,7 @@
 
 ## 1. 方法与"全开"的含义
 
-**"全开"**＝`MIGRATION_SWITCHES` 的 16 个开关全部打开（`lib/runtime-config.js`）。一条后台路径"全开后仍在运行时之外"，指它在全开时仍会被某个入口启动，而启动它的执行者不是统一运行时的 Job。
+**"全开"**＝`MIGRATION_SWITCHES` 的 17 个开关全部打开（`lib/runtime-config.js`）。一条后台路径"全开后仍在运行时之外"，指它在全开时仍会被某个入口启动，而启动它的执行者不是统一运行时的 Job。
 
 **怎么找**：不靠名字，靠 AST 找"后台工作从哪里开始"的调用（`tests/helpers/runtime-architecture.mjs` 的 `inspectStarts`）：
 
@@ -24,13 +24,13 @@
 
 | 处置 | 含义 | 清单字段 |
 |---|---|---|
-| **迁移（migrate）** | 全开后仍在运行时之外运行；写明负责的步骤 | `step`（`S2-6`、`S3-4` …；无归属的写 `unassigned`） |
+| **迁移（migrate）** | 全开后仍在运行时之外运行；写明负责的步骤 | `step`（`S2-6`、`S3-4`、`S4-10` …） |
 | **保留例外（exception）** | 有意保留；写明属于哪一类、为什么 | `kind` |
 | **S6-2 删除（delete-s6-2）** | 对应开关打开后不可达的旧执行实现 | `switches`（旁路它的开关） |
 
 例外的类别（`kind`）：只读历史适配（read-adapter）、合法 provider 实现（provider-leaf）、共享流水线（shared-pipeline，自己不发请求，模型由调用方传入）、领域缓存/单飞/写队列（domain-structure）、即时请求（foreground-request）、会话子系统（session-subsystem）、控制适配（control-adapter）、公开 API（public-api）、内核本身（kernel）、匹配误报（not-a-job）。
 
-## 2. 16 个开关与它们旁路的旧路径
+## 2. 17 个开关与它们旁路的旧路径
 
 | 开关 | 旁路什么（开关打开后不再被启动） | 分派点 | 运行时一侧的证据 |
 |---|---|---|---|
@@ -42,6 +42,7 @@
 | `generation` | 出题/补题的旧任务表与旧执行器 | `lib/contexts/generation/jobs/submit-generation.js:9`（`startLegacy`） | `generation-family-baseline-queue.runtime`、`unified-runtime-generation-*` |
 | `generationRestart` | 重启后只靠草稿标记恢复（仍保留，见 §3 `coverage.recover`） | `lib/contexts/generation/operations.js:73` | `unified-runtime-recovery`（本开关的 S3-3 记录） |
 | `translation` | 翻译卡的旧任务表与旧执行器 | `lib/contexts/generation/translation-jobs.js:38,124` | `translation-jobs.runtime`、`unified-runtime-translation` |
+| `translationParallel` | 不是旁路旧路径，而是策略：翻译离开整库出题的队列链（`translation/lane.js`），仍在 `work.queues` 里排队 | `translation-jobs.js:39` | `translation-jobs.runtime-parallel`、`unified-runtime-translation-scheduling` |
 | `coach` | 为你定制备题批次的进程内执行 | `lib/contexts/coach/jobs/submit-coach-prep.js:12` | `coach.runtime`、`unified-runtime-coach` |
 | `dailyRecap` | 每日总结的进程内执行 | `lib/contexts/notes/jobs/submit-daily-recap.js:13` | `daily-recap.runtime`、`unified-runtime-daily-recap` |
 | `workflow` | 讲解与骨架的进程内执行 | `lib/contexts/workflows/jobs/submit-workflow.js:21` | `workflow-teaching.runtime`、`unified-runtime-workflows` |
@@ -53,7 +54,7 @@
 
 ## 3. 全部后台启动点（`starts`，33 个文件 48 处）
 
-读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量：迁移 6、保留例外 30、S6-2 删除 12（§7 给删除清单）。**答案**：全开后仍在运行时之外的后台**路径**只有 5 条要迁移——课堂保存（S2-6）、发布草稿（S3-6）、后台修题（S3-5）、选区补题（S3-4）、`note.generate`（没有归属）；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
+读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量：迁移 6、保留例外 30、S6-2 删除 12（§7 给删除清单）。**答案**：全开后仍在运行时之外的后台**路径**只有 5 条要迁移——课堂保存（S2-6）、发布草稿（S3-6）、后台修题（S3-5）、选区补题（S3-4）、`note.generate`（S4-10）；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
 
 ### 3.1 音频
 
@@ -103,7 +104,7 @@
 | `lib/contexts/notes/daily.js:95`、`:10`（`liveGenerations`） | 每日总结的待办记录（替换/追赶语义）；进程内执行（`dailyRecap` 关闭时） | 待办记录仍走；执行是 Job | 领域结构保留；进程内执行 S6-2 删除 |
 | `lib/workflow-skeleton.js:139-140`、`lib/workflow-teaching.js:185-186` | 骨架/讲解的单飞表；进程内执行（`workflow` 关闭时） | 单飞表仍走；执行是 Job | 领域结构保留；进程内执行 S6-2 删除 |
 | `lib/assist.js`（`tasks` 表与进程内请求，见 §4） | 助教请求列表；进程内执行 | 列表仍走；执行是 Job | 列表保留；进程内执行 S6-2 删除 |
-| `lib/contexts/notes/operations.js:43,66`（`note.generate`） | 后台起草一篇博客笔记：模型直接调用、自己的表项、**没有 Job** | **仍走**，无开关 | **迁移（unassigned）**：计划里没有它的步骤（缺口 2） |
+| `lib/contexts/notes/operations.js:43,66`（`note.generate`） | 后台起草一篇博客笔记：模型直接调用、自己的表项、**没有 Job** | **仍走**，无开关 | **迁移 S4-10**（所有者决定；缺口 2） |
 
 ### 3.5 平台与内核
 
@@ -116,11 +117,11 @@
 
 ## 4. 模型调用点清单（`entries`，原 33 条 + 本步新增 5 条）的复核
 
-结论：**原 33 条全部仍存在**（守卫是逐文件逐调用精确比对，缺一或多一都失败），**没有一条已过时可删**。但：
+结论：**原 33 条全部仍存在**（守卫是逐文件逐调用精确比对，缺一或多一都失败），**没有一条因为已过时而可删**；其中 2 条是匹配误报，随匹配器的收紧离开清单。但：
 
 - 33 条里有 21 条的理由是同一句话"Registered legacy/shared pipeline call boundary; not a newly migrated definition"，**并不说明它是什么**；本步已逐条改成实际职责与去向。
-- 复核后共 45 处登记（含新增 5 条）：迁移 5、保留例外 36、S6-2 删除 4。
-- 2 条是匹配误报（`lib/contexts/materials/translation-operations.js` 的局部数组 `tasks`、`lib/workflow-skeleton.js` 的局部数组 `queues`，不是任务表）：保留在清单里（匹配规则按名字），理由改为"误报"。
+- 复核后共 43 处登记（36 条，含新增 5 条）：迁移 5、保留例外 34、S6-2 删除 4。
+- 2 条是匹配误报（`lib/contexts/materials/translation-operations.js` 的局部数组 `tasks`、`lib/workflow-skeleton.js` 的局部数组 `queues`，不是任务表）：所有者决定后匹配器不再数"嵌套函数里的局部变量"（§5 决定 3），这两条随之从清单消失，原 33 条变为 31 条，加新增 5 条共 36 条。
 - 另有 5 条目录/静态数组类（`audio-files.js`、`library-usage.js`、`sample-library.js`、`lib/runtime/builtins.js`、`lib/runtime/domain-contracts.js`）确认不是任务调度。
 
 | 文件 | 全开后 | 处置 / 类别 | 说明 |
@@ -136,7 +137,6 @@
 | `lib/capture.js:114,211,222` | 仍走 | 例外：即时请求 | 决定 S4-0：即时模型请求保持即时 |
 | `lib/coach.js:161,192,215,251,403` | 仍走 | 例外：即时请求（nudge/debrief/rewrite）+ 共享流水线（备题） | 同上 |
 | `lib/contexts/audio/worker.js:262,272` | 实时翻译仍走；旧校正调用不走 | 翻译：会话子系统；旧校正 S6-2 删除（`audioLiveCorrection`） | |
-| `lib/contexts/materials/translation-operations.js:156` | — | 例外：误报 | 局部数组 |
 | `lib/contexts/notes/daily-generation.js:39,48`、`lib/daily-recap.js:256` | 仍走 | 例外：共享流水线 | 每日总结的模型由调用方传入 |
 | `lib/followup.js:50`、`lib/ingest.js:59`、`lib/oral-exam-service.js:36`、`lib/rubric-grading.js:29` | 仍走 | 例外：即时请求 | 单次等待的请求，无任务记录 |
 | `lib/generation.js:96,101,142,272,273,756` | 仍走 | 例外：共享流水线 | |
@@ -150,21 +150,20 @@
 | `lib/runtime/tasks.js:9` | 仍走 | 例外：公开 API | 扩展任务队列 |
 | `lib/runtime/work.js:11-30` | 仍走 | 例外：内核（`jobs`，控制台读的表）+ 领域单飞/队列表；`queues`/`settled` 仍被出题与翻译 Job 排队使用（S3-1 保留，S6-5 由内核调度取代） | |
 | `lib/translation.js:80` | 仍走 | 例外：共享流水线 | 读者直接翻译与翻译卡共用 |
-| `lib/workflow-skeleton.js:46` | — | 例外：误报 | 局部数组 |
 | `lib/workflow-teaching.js:115` | 不走（`workflow` 打开后由 Job 执行） | S6-2 删除 | 进程内讲解调用 |
 | **新增** `lib/contexts/authoring/publication.js:87` | 仍走 | **迁移 S3-6** | 发布前审阅，随 `draft.publish` |
 | **新增** `lib/contexts/generation/operations.js:161,1045` | 仍走 | `generate.suggest` 即时请求（例外）；`draft.repair` **迁移 S3-5** | |
-| **新增** `lib/contexts/notes/operations.js:43` | 仍走 | **迁移（unassigned）** | `note.generate` |
+| **新增** `lib/contexts/notes/operations.js:43` | 仍走 | **迁移 S4-10** | `note.generate` |
 | **新增** `lib/contexts/recording/operations.js:54` | 仍走 | 例外：即时请求 | `capture` 的宿主模型调用 |
 | **新增** `lib/contexts/study/operations.js:134` | 仍走 | 例外：即时请求 | `card.grade` |
 
 ## 5. 发现的缺口（本步不修，登记并给出去向）
 
 1. **课堂保存（校对）没有开关，仍在旧音频执行器上**（`operations.js:335`、`lib/live-job.js`、`lib/audio-job.js` 的 `jobTextModel`）：它是 S2-6（U7，A 道）；S2-6 迁完才能删 `startAudioJob`（见 §7 顺序）。
-2. **`note.generate`（博客笔记后台起草）完全不在计划里**：模型直接调用、自己的表项、没有 Job、不在任务控制台。本步登记为"迁移（unassigned）"，**需要所有者决定**归入哪个步骤（建议并入 S4 的模型任务家族，或作为 S6 的独立小步）。
-3. **即时模型请求绕过网关**：capture、card.grade、followup、ingest、oral exam、`generate.suggest`、教练的 nudge/debrief/rewrite、实时翻译等直接调用宿主模型。它们是 S4-0 明确保持即时的请求，但这意味着它们**不进统一的资源许可、用量与观测**（只靠既有每日账本）。保留为例外，**需要所有者在 S6-5 确认**这个边界是否可接受。
+2. **`note.generate`（博客笔记后台起草）完全不在计划里**：模型直接调用、自己的表项、没有 Job、不在任务控制台。**已决定（所有者，2026-10-07）**：成为新工作包 S4-10，见下面"所有者决定"。
+3. **即时模型请求绕过网关**：capture、card.grade、followup、ingest、oral exam、`generate.suggest`、教练的 nudge/debrief/rewrite、实时翻译等直接调用宿主模型。它们是 S4-0 明确保持即时的请求，但这意味着它们**不进统一的资源许可、用量与观测**（只靠既有每日账本）。**已决定（所有者，2026-10-07）**：保持即时，但 S6-5 必须让它们经网关的计量路径共享 provider 配额与用量账本，见下面"所有者决定"。
 4. **模型调用点清单漏掉了别名调用**：旧匹配只认名为 `complete` 的函数，漏了 `providedComplete/providedLight`（上下文操作拿到的宿主模型）。本步把这两个名字加进匹配，新发现 5 个文件（上表"新增"行）。仍然看不到的：经其他名字传递的模型函数（如 `askLight`、`ask`）——它们出现在注入模型的流水线内，由调用方负责，登记为共享流水线。
-5. **原清单的理由大面积失真**（33 条里 21 条是同一句套话）、2 条误报：已重写；匹配器本身没有改成"只认模块级"，避免扩大本步范围。
+5. **原清单的理由大面积失真**（33 条里 21 条是同一句套话）、2 条误报：理由已重写；误报已随匹配器收紧消失（决定 3）。
 6. **控制适配仍挂着旧表**：托管出题/翻译 Job 仍把控制器登记进 `generationControllers`、控件读 `jobControls`、暂停边界靠 `job-control.js:43` 的轮询、并仍在每库 `work.queues` 里排队（S3-1 的选择）。这些是 S6-5"全家族控制台"要收的。
 7. **ffmpeg 与本地程序没有统一观测**：`groq.js` 的 ffmpeg 解码/切分在音频 Job 里，随取消停止，但**不记为 Call**；`marker.local.status` 最长等 2 分钟（`MARKER_DETECT_TIMEOUT_MS`），是即时请求里最长的一个（S5-0 的 V-6 同类问题）。
 8. **重启恢复的读适配是三份**：`recoverAudioBatches`、`recoverConvertJobs`、`coverage.recover` 各自把旧状态变成"已中断"记录。全开时只为开关打开**之前**留下的状态创建记录；它们的去留要和 S6-1（旧契约与 ID 兼容）、S6-6（最终读兼容与回退）一起定。
@@ -172,13 +171,20 @@
 10. **守卫的已知盲区**：只认调用表达式；不看动态拼出的函数名、经 `Reflect`/`apply` 的调用、新的宿主子代理 API 名。登记表按名字匹配（`runs/setups/live*/inflight/active/persisters`），换个名字的新登记表要靠评审。
 11. **"全开"是读出来的，不是跑出来的**：每个开关有孪生套件在运行时一侧通过，加上"全开服务能启动并读快照"的测试，但没有一个全开进程把全部入口跑一遍。S6-7（alpha 总验收）应补一个全开混跑。
 
+### 所有者决定（2026-10-07，协调者转达）
+
+1. **`note.generate` 成为新工作包 S4-10**（模型任务家族，由 D 道负责）：开关 `noteGenerate`（`MIGRATION_SWITCHES` 一行，默认关）；定义放在 `lib/contexts/notes/jobs/note-generate.js`，登记在 `managedDefinitions` 的 `notes` 行；每个模型调用都经 `context.gateway.step`，用 `initialPresentation`（见 `s2-architecture.md` §4.1）让卡片在提交时就是完整的；旧/运行时孪生套件，先取红灯证据。它同时是 S6-4（新增一种任务不改内核）的真实证据，PR 里记录 diff 范围。清单里它的步骤从 `unassigned` 改为 `S4-10`。
+2. **即时模型请求保持即时，不建 Job、不出卡片**（S4-0 是有意的决定）。**S6-5 的要求**：它们仍须经网关的计量路径共享 provider 配额与用量账本，不能绕过。现在不实现，只记录为 S6-5 的验收条件（缺口 3）。
+3. **匹配器收紧**：所有者要求"只认模块级"。核对后严格的模块级会丢掉清单里绝大多数真实的表（`runtime/work.js` 的全部任务表在工厂函数里，`assist.js` 的 `tasks`、`runtime/tasks.js` 的 `queues` 也是），只剩 2 处静态数组，等于废掉这条守卫。因此实际做法是：**模块级与工厂级的变量、以及对象属性仍然计数；嵌套函数里的局部变量不再计数**（`walk` 现在把"外面包了几层函数"交给访问者）。效果恰好是去掉那 2 条误报，其余全部保留；启动点的红灯探针（`lib/` 下放一个 `ownWork` 调用）依旧失败。
+
 ## 6. 守卫测试（`tests/unified-runtime-architecture.test.mjs`，扩展，未新建）
 
 | 测试 | 防什么 |
 |---|---|
 | `inspectStarts sees real starts, not strings, comments or regular expressions` | 匹配器本身：字符串、注释、正则的 `.exec` 不算启动 |
+
 | `every place background work starts is reviewed…` | **全开状态下出现清单之外的新启动点就失败**：逐文件逐调用精确比对 `starts` |
-| `every reviewed site has a disposition that holds…` | 每个文件至少一个登记的 site；`migrate` 写步骤、`delete-s6-2` 写旁路它的开关且不可达、`exception` 写类别且已被到达 |
+| `every reviewed site has a disposition that holds…` | 每个文件至少一个登记的 site；`migrate` 写步骤（`S4-10` 这样的编号）、`delete-s6-2` 写旁路它的开关且不可达、`exception` 写类别且已被到达 |
 | `every migration switch bypasses something in the inventory, and every inventory row appears in the coverage document` | 每个开关都有被登记的旧路径；清单里的每个文件与每个开关名都在本文出现 |
 | `with every migration switch on at once the service starts…` | 全开的服务能启动并读快照 |
 
@@ -197,4 +203,4 @@
 ## 8. 本步未做
 
 - 不删除任何旧执行器（S6-2）；不改任何运行时行为；不改变匹配器的"按名字"规则（缺口 5）。
-- 缺口 1、2、3、7、8 的处理属于各自的后续步骤或需要所有者决定，不在本步。
+- 缺口 1、2、3、7、8 的处理属于各自的后续步骤（S2-6、S4-10、S6-5 …），不在本步。

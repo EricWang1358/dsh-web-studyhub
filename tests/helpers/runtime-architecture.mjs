@@ -3,13 +3,16 @@ import { parse } from 'espree';
 const key = node => node?.type === 'Identifier' ? node.name : node?.type === 'Literal' ? String(node.value) : '';
 const member = node => node?.type === 'ChainExpression' ? member(node.expression) : node?.type === 'Identifier' ? node.name
   : node?.type === 'MemberExpression' ? `${member(node.object)}.${key(node.property)}` : '';
-function walk(node, visit) {
+const FUNCTIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
+/** Visit every node; `visit(node, depth)` also gets how many functions enclose it (0 = module level). */
+function walk(node, visit, depth = 0) {
   if (!node || typeof node !== 'object') return;
-  if (node.type) visit(node);
+  const inside = depth + (FUNCTIONS.has(node.type) ? 1 : 0);
+  if (node.type) visit(node, inside);
   for (const [name, value] of Object.entries(node)) {
     if (name === 'parent') continue;
-    if (Array.isArray(value)) for (const child of value) walk(child, visit);
-    else if (value && typeof value === 'object') walk(value, visit);
+    if (Array.isArray(value)) for (const child of value) walk(child, visit, inside);
+    else if (value && typeof value === 'object') walk(value, visit, inside);
   }
 }
 const tree = source => parse(source, { ecmaVersion: 'latest', sourceType: 'module' });
@@ -40,7 +43,9 @@ export function inspectCalls(source) {
   const counts = new Map();
   const record = name => counts.set(name, (counts.get(name) || 0) + 1);
   const root = tree(source), steps = gatewayStepNames(root);
-  walk(root, node => {
+  walk(root, (node, depth) => {
+    // A variable of a function nested inside another function is a local of that call, not a table anything else can reach: only module-level and factory-level variables, and object properties, count.
+    if (node.type === 'VariableDeclarator' && depth >= 2) return;
     const binding = node.type === 'VariableDeclarator' ? key(node.id) : node.type === 'Property' ? key(node.key) : '';
     const value = node.type === 'VariableDeclarator' ? node.init : node.type === 'Property' ? node.value : null;
     if (/(?:jobs|tasks|queues|queue)$/i.test(binding) && (value?.type === 'ArrayExpression' || value?.type === 'NewExpression' && ['Map', 'Set'].includes(key(value.callee))))

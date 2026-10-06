@@ -97,7 +97,7 @@ test('every reviewed site has a disposition that holds: migrate names its step, 
       assert.ok(inventory.kinds.includes(site.kind), `${where}: kind ${site.kind}`);
       assert.equal(typeof site.reached, 'boolean', where);
       for (const name of site.switches ?? []) assert.ok(switches.includes(name), `${where}: unknown switch ${name}`);
-      if (site.disposition === 'migrate') assert.ok(site.reached && /^(?:S\d-\d|unassigned)$/.test(site.step ?? ''), `${where}: a path still outside the runtime needs its step`);
+      if (site.disposition === 'migrate') assert.ok(site.reached && /^S\d-\d{1,2}$/.test(site.step ?? ''), `${where}: a path still outside the runtime needs its step`);
       if (site.disposition === 'delete-s6-2') assert.ok(site.reached === false && site.switches?.length, `${where}: a deletable path is unreachable behind a switch`);
       if (site.disposition === 'exception') assert.ok(site.reached === true && site.kind !== 'legacy-bypass', `${where}: an exception is reached and says what it is`);
     }

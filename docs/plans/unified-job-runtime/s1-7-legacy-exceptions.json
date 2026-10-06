@@ -353,27 +353,6 @@
       ]
     },
     {
-      "file": "lib/contexts/materials/translation-operations.js",
-      "calls": [
-        {
-          "callee": "collection:tasks:Array",
-          "count": 1
-        }
-      ],
-      "owner": "runtime/domain maintainer",
-      "reason": "A local array of paragraph groups of one request, not a job table",
-      "removeAt": "retained: matcher false positive",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
-      "sites": [
-        {
-          "what": "a local variable named tasks",
-          "disposition": "exception",
-          "kind": "not-a-job",
-          "reached": true
-        }
-      ]
-    },
-    {
       "file": "lib/contexts/notes/daily-generation.js",
       "calls": [
         {
@@ -404,15 +383,15 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "note.generate: a blog-note draft written in the background without a Job",
-      "removeAt": "unassigned",
+      "removeAt": "S4-10",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
           "what": "blog-note generation",
           "disposition": "migrate",
-          "kind": "unassigned-gap",
+          "kind": "legacy-bypass",
           "reached": true,
-          "step": "unassigned"
+          "step": "S4-10"
         }
       ]
     },
@@ -844,10 +823,13 @@
           "reached": true
         },
         {
-          "what": "queues, settled: the per-library queue the Jobs of generation and translation still wait in (S3-1 kept it; the kernel scheduler replaces it at S6-5)",
+          "what": "queues, settled: the per-library queue the Jobs of generation and translation still wait in (S3-1 kept it; translationParallel takes translations off the library chain; the kernel scheduler replaces it at S6-5)",
           "disposition": "exception",
           "kind": "domain-structure",
-          "reached": true
+          "reached": true,
+          "switches": [
+            "translationParallel"
+          ]
         }
       ]
     },
@@ -889,27 +871,6 @@
           "what": "injected complete of the shared pipeline",
           "disposition": "exception",
           "kind": "shared-pipeline",
-          "reached": true
-        }
-      ]
-    },
-    {
-      "file": "lib/workflow-skeleton.js",
-      "calls": [
-        {
-          "callee": "collection:queues:Array",
-          "count": 1
-        }
-      ],
-      "owner": "runtime/domain maintainer",
-      "reason": "A local list of topic groups of one request, not a job table",
-      "removeAt": "retained: matcher false positive",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
-      "sites": [
-        {
-          "what": "a local variable named queues",
-          "disposition": "exception",
-          "kind": "not-a-job",
           "reached": true
         }
       ]
@@ -1432,11 +1393,11 @@
       "evidence": "s6-0-coverage.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "note.generate: a blog-note draft written by the model in the background, with its own job table entry and no Job",
+          "what": "note.generate: a blog-note draft written by the model in the background, with its own job table entry and no Job (decided 2026-10-07: S4-10, switch noteGenerate)",
           "disposition": "migrate",
-          "kind": "unassigned-gap",
+          "kind": "legacy-bypass",
           "reached": true,
-          "step": "unassigned"
+          "step": "S4-10"
         }
       ]
     },
@@ -1823,7 +1784,6 @@
     "control-adapter",
     "public-api",
     "kernel",
-    "not-a-job",
-    "unassigned-gap"
+    "not-a-job"
   ]
 }
