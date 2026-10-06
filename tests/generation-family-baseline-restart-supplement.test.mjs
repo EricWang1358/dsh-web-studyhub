@@ -1,33 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { settleJob } from './helpers/wait.mjs';
-import { withQualityStages, qualityReview } from './helpers/assessment.mjs';
+import { qualityReview } from './helpers/assessment.mjs';
+import { evidence, other, card, SCHEDULE, ONE_BY_ONE, authoring } from './helpers/supplement-fixtures.mjs';
 import { gate, openLibrary, restartedOver, jobsOf, finish, soon } from './helpers/generation-baseline.mjs';
 
 /* S3-0 baseline, restart boundary of the SUPPLEMENT and REPAIR paths: `generate { resumeDraftId, extraSourceIds }`, the target supplement (`supplement { deckId }`) and `draft.repair`.
    Like the other ordinary paths they have no restart restoration: what the library folder keeps is the draft (a supplement's checkpoint, a repair's per-card saves) and, for a
    supplement, the untouched target deck; no job comes back and nothing continues by itself. Owners of the gaps: S3-3 (supplements), S3-5 (repair). Fake models only. */
-
-const evidence = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
-const other = 'A trade-off analysis weighs the cost of each architectural characteristic against the others.';
-const card = (id, sourceId = 'p1', quote = evidence) => ({ id, kind: 'flashcard', topic: 'Bridge', objective: `Explain dimension ${id}`,
-  prompt: `Why separate report and renderer dimension ${id}?`, answer: 'They can vary independently.', hint: 'Consider two reasons to change.',
-  explanation: 'Report types and rendering backends vary independently.', misconception: 'A subclass for every combination causes a cross product.', citations: [{ sourceId, quote }] });
-const SCHEDULE = { repetitions: 3, interval_days: 16, ease_factor: 2.6, due_at: '2026-10-16T00:00:00.000Z' };
-const ONE_BY_ONE = { concurrency: 1, batchSize: 1, jobTimeoutMinutes: 20, fillRounds: 0, effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
-
-/** A model that authors one fresh card per part and holds the author stage of the `at`-th part (1-based) until the gate is opened. */
-function authoring(hold, at) {
-  let authors = 0, seen = 0;
-  const inner = withQualityStages(async (system, prompt) => {
-    if (system.startsWith('You author')) return JSON.stringify({ title: 'Supplement', cards: [card(`new-${++authors}`, 'p1')] });
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
-  });
-  return async (system, prompt, context = {}) => {
-    if (system.startsWith('You author') && ++seen === at && !hold.entered) { hold.entered = true; await hold.promise; }
-    return inner(system, prompt, context);
-  };
-}
 
 test('extraSourceIds supplement killed after its first batch: the draft keeps the batch, the added source and the request; no job comes back', async t => {
   const hold = gate();
