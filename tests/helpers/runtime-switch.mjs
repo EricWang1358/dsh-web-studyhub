@@ -18,12 +18,16 @@ export function managedRuntimeOptions({ complete, paths = ['audioSingle'], owner
  * STUDY_RUNTIME_SWITCH=runtime and imports the suite, so one suite covers both sides. */
 export const SWITCH_MODE = process.env.STUDY_RUNTIME_SWITCH === 'runtime' ? 'runtime' : 'legacy';
 
+/** A `<suite>.parallel.test.mjs` twin sets STUDY_TRANSLATION_PARALLEL=1: the same suite with translations no longer behind the library's generation (S4-3). */
+export const TRANSLATION_PARALLEL = process.env.STUDY_TRANSLATION_PARALLEL === '1';
+
 /** Both sides of a migration switch, for `for (const mode of SWITCH_MODES)` test loops. */
 export const SWITCH_MODES = Object.freeze(['legacy', 'runtime']);
 
 /** Extra StudyService options for one side of the switch. */
 export function switchOptions(mode, { complete, paths } = {}) {
-  if (mode === 'legacy') return {};
+  const parallel = TRANSLATION_PARALLEL ? { translationParallel: true } : {};
+  if (mode === 'legacy') return TRANSLATION_PARALLEL ? { runtimePilot: parallel } : {};
   const { starts: _starts, ...options } = managedRuntimeOptions({ complete, paths });
-  return options;
+  return { ...options, runtimePilot: { ...options.runtimePilot, ...parallel } };
 }
