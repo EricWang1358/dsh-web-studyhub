@@ -105,3 +105,17 @@ test('a second start of the same work finds the first even while the runtime has
   for (const run of held) void run();
   assert.equal((await settleJob(runtime, first.jobId)).status, 'complete');
 });
+
+test('a job is whole in the list and the status the moment its start returns, even when the executor is slow to give it its first turn', async t => {
+  const fake = model(), root = await privateRoot(t, 'translation-slow-');
+  const options = switchOptions('runtime', { complete: fake.complete, paths: ['translation'] });
+  const jobExecutor = { ...options.jobExecutor, start: ({ run, cancel }) => { setTimeout(() => void run(), 60); return { id: 'slow', ownerAgentId: 'controlled-owner', stop: cancel, append() {} }; } };
+  const runtime = createStudyRuntime(root, { complete: fake.complete, notify: () => {}, language: 'zh', ...options, jobExecutor });
+  t.after(() => runtime.dispose());
+  const imported = await runtime.call('materials.document.import', upload('Alpha.md', body('Alpha')));
+  const started = await runtime.call('generation.translation.start', { documentId: imported.documentId, scope: { sourceIds: [imported.document.sources[0].id] } });
+  const listed = await runtime.call('generation.translation.jobs', { documentId: imported.documentId });
+  assert.deepEqual(listed.jobs.map(job => job.id), [started.jobId]);
+  assert.equal((await runtime.call('generation.translation.status', { jobId: started.jobId })).job.documentId, imported.documentId);
+  assert.equal((await settleJob(runtime, started.jobId)).status, 'complete');
+});
