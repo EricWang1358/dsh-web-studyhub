@@ -173,7 +173,7 @@ test('an undo toast may leave on its own but a plain action toast may not', () =
 
 test('the component stylesheet for overlays uses tokens, not raw values', () => {
   const css = read('ui/components/overlays.css');
-  assert.match(css, /\.sh-popover\s*\{[^}]*var\(--shadow-md\)/s);
+  assert.match(css, /\.sh-popover\s*\{[^}]*var\(--shadow-popover\)/s);
   assert.match(css, /\.sh-popover\s*\{[^}]*var\(--line-strong\)/s);
   assert.match(css, /\.sh-popover\s*\{[^}]*var\(--bg-raised\)/s);
   assert.match(css, /\.sh-menu\s*\{/);

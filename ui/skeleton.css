@@ -524,7 +524,7 @@
       text-align: left;
       cursor: grab;
       touch-action: none;
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--shadow-item);
       transition: opacity var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
     }
     & button.skc-class:hover:not(:disabled) {
@@ -533,7 +533,7 @@
     }
     & button.skc-class--selected {
       border-color: var(--accent);
-      box-shadow: var(--ring), var(--shadow-md);
+      box-shadow: var(--ring), var(--shadow-popover);
     }
     & button.skc-class.dim {
       opacity: 0.35;
@@ -595,7 +595,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-dialog);
       animation: rise-in 0.18s var(--ease);
     }
     .skc-detail p {
@@ -926,7 +926,7 @@
   :is(.study-app, .study-seat) {
     & button.skc-class.fresh {
       border-color: var(--ok);
-      box-shadow: 0 0 0 3px var(--ok-halo), var(--shadow-md);
+      box-shadow: 0 0 0 3px var(--ok-halo), var(--shadow-popover);
       animation: skc-fresh 1.6s var(--ease) 2;
     }
   }
@@ -1422,7 +1422,7 @@
 
 @keyframes skc-fresh {
   50% {
-    box-shadow: 0 0 0 7px var(--ok-halo), var(--shadow-md);
+    box-shadow: 0 0 0 7px var(--ok-halo), var(--shadow-popover);
   }
 }
 

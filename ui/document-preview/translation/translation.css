@@ -162,7 +162,7 @@
       border: 1px solid var(--info);
       border-radius: var(--radius-pill);
       background: var(--bg-raised);
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--shadow-item);
       color: var(--text);
       font-family: var(--font-ui);
       font-size: var(--fs-sm);
@@ -175,7 +175,7 @@
     .tr-chipbtn:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .tr-float:not([data-placed]) { left: 0; top: 0; visibility: hidden; }
     .tr-float { position: absolute; z-index: calc(var(--z-sticky) + 1); width: min(320px, calc(100% - 8px)); }
-    .tr-float .tr-block { padding-right: 1.6em; border: 1px solid var(--line-strong); border-left: 3px solid var(--info); border-radius: var(--radius-sm); background: var(--bg-raised); box-shadow: var(--shadow-md); }
+    .tr-float .tr-block { padding-right: 1.6em; border: 1px solid var(--line-strong); border-left: 3px solid var(--info); border-radius: var(--radius-sm); background: var(--bg-raised); box-shadow: var(--shadow-popover); }
     /* The Popover that carries the card: zero-size anchor at the selection, a plain panel around the block's own frame. */
     .tr-float .tr-float__host { display: block; height: 0; }
     .tr-float .tr-float__anchor { display: block; width: 0; height: 0; }
