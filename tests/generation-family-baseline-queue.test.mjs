@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { gate, soon, stagedModel } from './helpers/generation-baseline.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 /* S3-0 baseline, the ONE per-library queue: generate, supplement, selection fill, draft.repair and draft.publish.start all chain on `work.queues.get(root)` (a promise chain, one entry
    per library root) and `queuedBehind` counts the ACTIVE jobs of the library. A job that waits is `queued`, its executor has not started (no model call), and the jobs then run one at
@@ -20,12 +21,11 @@ test('five entry points share one library queue: the first runs, the others wait
   const hold = gate(), staged = stagedModel({ holdAt: 'plan', hold });
   const complete = async (system, prompt, options = {}) => {
     if (!system.startsWith('Repair one draft card')) return staged.complete(system, prompt, options);
-    staged.jobs.includes(options.jobId) || staged.jobs.push(options.jobId);
     const input = JSON.parse(prompt);
     return JSON.stringify({ card: { ...input.card, explanation: `Fixed: ${input.card.explanation}` } });
   };
   const root = await mkdtemp(join(tmpdir(), 'study-s30-queue-'));
-  const runtime = createStudyRuntime(root, { complete });
+  const runtime = createStudyRuntime(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ['generation'] }) });
   t.after(async () => { hold.open(); await runtime.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   await new Store(root).update(state => { state.decks.push({ id: 'd', title: 'Architecture basics', cards: [{ id: 'old', kind: 'flashcard', objective: 'Original objective', prompt: 'Original question?', answer: 'Original' }] }); });
   await runtime.call('source.add', { id: 's', title: 'Notes', text });
@@ -49,9 +49,11 @@ test('five entry points share one library queue: the first runs, the others wait
   assert.equal(runtime.work.queues.size, 1, 'one chain per library root, not one per entry point');
   const states = await runtime.call('snapshot');
   assert.equal(states.jobs.filter(job => job.status === 'queued').length, 4);
-  assert.deepEqual(staged.jobs, [first.jobId], 'a queued job has not touched the model');
+  assert.deepEqual(staged.log, ['plan'], 'a queued job has not touched the model: only the first job is at its planning call');
   hold.open();
-  for (const [, reply] of entries) assert.equal((await runtime.call('job.wait', { jobId: reply.jobId, timeoutSeconds: 30 })).status, 'complete');
-  assert.deepEqual(staged.jobs, [first.jobId, entries[0][1].jobId, entries[1][1].jobId, entries[2][1].jobId, entries[3][1].jobId],
-    'they ran one at a time, in the order they were accepted (publish, repair, selection, supplement)');
+  const ended = [(await runtime.call('job.wait', { jobId: first.jobId, timeoutSeconds: 30 }))];
+  for (const [, reply] of entries) ended.push(await runtime.call('job.wait', { jobId: reply.jobId, timeoutSeconds: 30 }));
+  assert.deepEqual(ended.map(job => job.status), Array(5).fill('complete'));
+  assert.deepEqual(ended.map(job => job.finishedAt), [...ended.map(job => job.finishedAt)].sort(),
+    'they ran one at a time, in the order they were accepted (generate, publish, repair, selection, supplement)');
 });

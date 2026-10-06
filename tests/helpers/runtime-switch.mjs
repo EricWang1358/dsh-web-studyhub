@@ -14,6 +14,10 @@ export function managedRuntimeOptions({ complete, paths = ['audioSingle'], owner
   return { runtimePilot, workOwner: owner, jobExecutor, jobModelHost: { ctx: {}, route: { provider: 'fixture', model: 'fixture' }, complete }, starts: () => starts };
 }
 
+/** The side a characterization suite runs on. A `<suite>.runtime.test.mjs` twin sets
+ * STUDY_RUNTIME_SWITCH=runtime and imports the suite, so one suite covers both sides. */
+export const SWITCH_MODE = process.env.STUDY_RUNTIME_SWITCH === 'runtime' ? 'runtime' : 'legacy';
+
 /** Both sides of a migration switch, for `for (const mode of SWITCH_MODES)` test loops. */
 export const SWITCH_MODES = Object.freeze(['legacy', 'runtime']);
 
