@@ -14,6 +14,8 @@ import { chapterLabel, documentNotes, inScope, relationNote, sameIndexInfo, sour
 import { materialRelations } from '../lib/source-relations.js';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import { CoverageChip } from './coverage/Coverage.jsx';
+import DocumentTopUp, { offersDocumentTopUp } from './coverage/DocumentTopUp.jsx';
+import { modelReadiness } from './generation-status.js';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
@@ -133,7 +135,7 @@ export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, 
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
-const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canSegment', 'canRename', 'actions'];
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canSegment', 'canRename', 'actions'];
 
 /**
  * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
@@ -145,7 +147,7 @@ export function sourceRowPropsEqual(a, b) {
 }
 
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canSegment, canRename, mastery, coverage = null, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse }) {
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse }) {
   const { busy, call } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
@@ -196,6 +198,8 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
         </button>}
         <div className="source-doc__actions">
           {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
+          {/* 为没覆盖的部分补题 of a material whose questions were published: a NEW draft, the deck's next part (ui/coverage/DocumentTopUp.jsx). */}
+          {topUp && <DocumentTopUp item={item} revision={JSON.stringify(coverage)} />}
           {item.archived && <>
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
             <Button size="sm" variant="danger" disabled={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
@@ -438,7 +442,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                 {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
                   isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
                   canGenerate={!showArchived && !!onGenerate} canSegment={typeof call === 'function'} canRename={!!renameFor}
-                  mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} slot={indexStatus !== 'unavailable'}
+                  mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
+                  topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} slot={indexStatus !== 'unavailable'}
                   relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null}
                   courses={data.focus?.courses} defaultCourse={data.focus?.course} />)}
               </div>

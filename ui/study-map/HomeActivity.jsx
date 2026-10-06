@@ -12,6 +12,7 @@ import { draftWork } from '../draft-shortfall.js';
 import JobCard from './JobCard.jsx';
 import { useStudy } from '../study-context.jsx';
 import { joinMeta } from '../format.js';
+import { draftPartTitle, partTargets } from '../DraftPart.jsx';
 
 function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
   // 覆盖: how much of its material the draft has questions for, said in the words of the draft page. The counts, the tag and the one action are the draft's SHORTFALL (lib/shortfall.js):
@@ -33,7 +34,8 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
     <div className="draft-row">
       <button type="button" className="draft-open" onClick={() => openDraft(d)}>
         <span>
-          <strong>{d.title}</strong>
+          {/* A draft that will be the next part of a deck says so: 「期中复习 · 第二部分」 (ui/DraftPart.jsx). */}
+          <strong>{draftPartTitle(partTargets(d, data)) || d.title}</strong>
           <small className="draft-meta">
             <span className="draft-meta__facts">{joinMeta([shortfallLine(shortfall), qualityCount ? uiFormat('{0} 项质量提醒', [qualityCount]) : '',
               run?.facts.total > 1 && run.facts.state !== 'complete' ? run.line : view?.coverage?.leaves ? coverageHead(view.coverage) : '',

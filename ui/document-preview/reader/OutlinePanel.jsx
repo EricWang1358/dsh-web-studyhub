@@ -18,9 +18,10 @@ const FILTER_FROM = 12;
  * (a button, so the keyboard reaches it); the current entry is marked, and when it is folded away its nearest open part is.
  * `footer` is the slot under the list (the "让 AI 帮你" flow). `initialOpen`: ids open at first (default: defaultExpanded).
  * `meters` (mastery: asked and answered) and `coverage` (practice/coverage-outline.js outlineCoverage: asked at all) are different facts and have different marks: a round mastery ring
- * and a square coverage mark. `coverageTotals` (lib/coverage.js) is what the header says (覆盖 7/80); `initialOnlyUncovered` starts with 只看没覆盖的 on.
+ * and a square coverage mark. `coverageTotals` (lib/coverage.js) is what the header says (覆盖 7/80); `initialOnlyUncovered` starts with 只看没覆盖的 on. `coverageAction` is the one top-up of the
+ * material, under the header (ui/coverage/DocumentTopUp.jsx).
  */
-export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, coverage = null, coverageTotals = null, initialOnlyUncovered = false, ...rest }) {
+export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, coverage = null, coverageTotals = null, coverageAction = null, initialOnlyUncovered = false, ...rest }) {
   useInjectCss(coverageCss, 'study-coverage');
   const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map()), [onlyUncovered, setOnlyUncovered] = useState(initialOnlyUncovered);
   const signature = `${items.length}:${items[0]?.id ?? ''}:${items.at(-1)?.id ?? ''}`;
@@ -54,6 +55,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
     {coverage && coverageTotals?.leaves > 0 && <div className="reader-outline__covhead" data-coverage-head>
       <span className="cov-meter" data-coverage-count>{coverageOutlineHead(coverageTotals)}</span>
       {coverageTotals.covered < coverageTotals.leaves && <Checkbox className="reader-outline__covtoggle" label={ui('只看没覆盖的')} checked={onlyUncovered} onChange={setOnlyUncovered} data-coverage-filter />}
+      {coverageAction && <div className="reader-outline__covaction">{coverageAction}</div>}
     </div>}
     {items.length > FILTER_FROM && <div className="reader-outline__filter" role="search">
       <Icon name="search" size={16} className="reader-find__icon" />
