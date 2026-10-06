@@ -7,6 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { INDEX_TOOLS, MODEL_DOWNLOAD_MB, SOURCE_PREFIX, buildIndex, contentHash, pageDocument, planIndex, sourceIdFromKey } from '../lib/retrieval-index.js';
 import { resolveHits, normalizeHits } from '../lib/retrieval.js';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 /* WP28b: "为这门课建立检索索引". The sources of a course are handed page by page to the search server's
    ingest tool under their own source id, only the new or changed ones, and the answers map back exactly. */
@@ -131,7 +132,7 @@ async function setup(t, options) {
   const before = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
   const server = fakeServer(options);
-  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: server.port });
+  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: server.port, ...switchOptions(SWITCH_MODE, { paths: ['retrievalIndex'] }) });
   t.after(async () => {
     await service.dispose();
     if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before;
