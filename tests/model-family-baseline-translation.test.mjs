@@ -3,44 +3,13 @@
    the passage rules in materials-translation. Fake model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { usageLedger } from '../lib/model-usage.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { until, settleJob } from './helpers/wait.mjs';
-import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
+import { SWITCH_MODE } from './helpers/runtime-switch.mjs';
+import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { gate, privateRoot, panelDoor } from './helpers/model-family-baseline.mjs';
-
-const lines = prefix => Array.from({ length: 8 }, (_, index) => `${prefix} paragraph ${index} explains one more consequence of the architecture in some detail.`);
-const body = (prefix, extra = []) => `# ${prefix}\n\n${[...lines(prefix), ...extra].join('\n\n')}\n`;
-const zh = text => `译文：${'字'.repeat(Math.ceil(text.replace(/\s/g, '').length * 0.5))}`;
-const upload = (name, text, documentId) => ({ filename: name, ...(documentId ? { documentId } : {}), dataBase64: Buffer.from(text).toString('base64') });
-
-/** Answers every batch like a careful translator; `gates` holds the n-th call until released. */
-function model() {
-  const control = { calls: [], gates: new Map(), signals: [] };
-  control.complete = async (_system, prompt, options = {}) => {
-    const data = JSON.parse(prompt), number = control.calls.length;
-    control.calls.push(data); control.signals.push(options.signal);
-    const held = control.gates.get(number);
-    if (held) await new Promise((resolve, reject) => { held.promise.then(resolve); options.signal?.addEventListener('abort', () => reject(options.signal.reason), { once: true }); });
-    options.signal?.throwIfAborted();
-    return JSON.stringify({ translations: data.passages.map(passage => ({ id: passage.id, text: zh(passage.text) })) });
-  };
-  return control;
-}
-
-async function library(t, fake = model()) {
-  const root = await privateRoot(t, 'model-baseline-translation-');
-  const runtime = createStudyRuntime(root, { complete: fake.complete, notify: () => {}, language: 'zh', ...switchOptions(SWITCH_MODE, { complete: fake.complete, paths: ['translation'] }) });
-  t.after(() => runtime.dispose());
-  const one = async (prefix, extra) => {
-    const imported = await runtime.call('materials.document.import', upload(`${prefix}.md`, body(prefix, extra)));
-    return { documentId: imported.documentId, revision: imported.revision, sourceId: imported.document.sources[0].id, scope: { sourceIds: [imported.document.sources[0].id] } };
-  };
-  const items = (documentId, extra = {}) => runtime.call('materials.translation.list', { documentId, ...extra });
-  return { root, runtime, fake, one, items };
-}
-const row = (runtime, jobId) => runtime.call('snapshot').then(snapshot => snapshot.jobs.find(job => job.id === jobId));
+import { lines, body, upload, model, library, row } from './helpers/translation-library.mjs';
 
 test('translation waits on the per-library queue: a second job is queued behind the first, the model is not asked for it, and the queue is dropped when the work is done', async t => {
   const fake = model(); fake.gates.set(0, gate());
