@@ -5,9 +5,12 @@
     "lib/contexts/audio/jobs/batch-import.js",
     "lib/contexts/audio/install/marker-install-job.js",
     "lib/contexts/audio/jobs/single-import.js",
+    "lib/contexts/audio/jobs/subtitles.js",
+    "lib/contexts/audio/pdf/pdf-convert-job.js",
     "lib/contexts/audio/setup/mineru-setup-job.js",
     "lib/contexts/coach/jobs/coach-prep.js",
     "lib/contexts/generation/jobs/generation.js",
+    "lib/contexts/generation/translation/jobs/translation.js",
     "lib/contexts/generation/retrieval/jobs/retrieval-index.js",
     "lib/contexts/notes/jobs/daily-recap.js",
     "lib/contexts/workflows/jobs/teaching.js",
@@ -44,6 +47,19 @@
       "reason": "Filesystem traversal queue, not a background-job scheduler",
       "removeAt": "retained non-runtime structure; review if its role changes",
       "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+    },
+    {
+      "file": "lib/audio-gateway-calls.js",
+      "calls": [
+        {
+          "callee": "tiers.complete",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "reason": "The Gemini text provider leaf of an audio job on the runtime: it runs inside a gateway step and its request is observed by the gateway transport",
+      "removeAt": "retained: the provider leaf behind the gateway",
+      "evidence": "s2-progress.md S2-4"
     },
     {
       "file": "lib/audio-import.js",
