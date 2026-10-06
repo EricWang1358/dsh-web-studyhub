@@ -22,7 +22,7 @@
         },
         {
           "callee": "service.complete",
-          "count": 1
+          "count": 2
         }
       ],
       "owner": "existing domain maintainer",
