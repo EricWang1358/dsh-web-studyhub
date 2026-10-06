@@ -101,6 +101,8 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
   await shot("02-dashboard-before", ".dash-forecast-panel");
 
   await nav("settings");
+  // Settings is a list of categories and one pane: the course list is the 课程 category.
+  await page.getByRole("button", { name: t("课程", "Courses"), exact: true }).first().click().catch(() => {});
   await page.locator(".course-list").first().waitFor({ timeout: 20000 });
   await page.locator(".course-list").first().scrollIntoViewIfNeeded().catch(() => {});
   await settle(400);

@@ -11,6 +11,7 @@
    4. opens Study with Playwright, screenshots it, then stops everything.
    It never reads or writes ~/.dsh or the owner's Documents folder.
    Output: output/qa/dsh-e2e/*.png and summary.json. Not part of npm test. */
+/* global document -- callbacks passed to page.evaluate / waitForFunction run in the browser */
 import { spawn, spawnSync } from "node:child_process";
 import { mkdir, rm, writeFile, readFile, access } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -162,6 +163,8 @@ export async function runDshE2e(options) {
       await shot("01-dsh-home");
     });
     await step("first-message", async () => {
+      // DSH 0.2.0-rc.2 opens straight on the Study plugin page (its only plugin tab): there is no composer to type in then.
+      if (await page.locator(".study-app").first().isVisible().catch(() => false)) { await shot("02-study-already-open"); return; }
       const box = page.getByRole("textbox").last();
       await box.click();
       await page.keyboard.type(options.lang === "en" ? "Hello, I want to study with my notes." : "你好，我想用我的资料学习。");
@@ -171,8 +174,10 @@ export async function runDshE2e(options) {
     });
     await step("open-study", async () => {
       const tab = page.getByRole("tab", { name: /学习|Study/ });
-      await tab.first().waitFor({ timeout: 30000 });
-      await tab.first().click();
+      if (!await page.locator(".study-app").first().isVisible().catch(() => false)) {
+        await tab.first().waitFor({ timeout: 30000 });
+        await tab.first().click();
+      }
       await page.locator(".study-app, [class*=study]").first().waitFor({ timeout: 60000 });
       await sleep(3000);
       await shot("03-study");
@@ -180,6 +185,127 @@ export async function runDshE2e(options) {
       await sleep(1500);
       await shot("04-study-900");
     });
+    // Select and Combobox (Base UI, lazily loaded chunks) inside the real host: its react (the only one shared), the bundled react-dom, the
+    // popups' placement, focus and Escape. Mouse and keyboard; once more inside an open modal dialog (the settings field is moved into one).
+    await step("select-and-combobox", async () => {
+      const popup = page.locator(".sh-pop__popup:not([data-closed])");
+      const nav = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click({ force: true }); await sleep(1200); };
+      const focused = async (locator, message) => {
+        const handle = await locator.elementHandle();
+        await page.waitForFunction((element) => document.activeElement === element, handle, { timeout: 4000 }).catch(() => {});
+        if (!await locator.evaluate((element) => document.activeElement === element)) throw new Error(message);
+      };
+      const inside = async (locator, host) => { const a = await locator.boundingBox(), b = await host.boundingBox(); return !!a && !!b && a.x >= b.x - 1 && a.y >= b.y - 1 && a.x + a.width <= b.x + b.width + 1 && a.y + a.height <= b.y + b.height + 1; };
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await nav("settings");
+      await page.getByRole("button", { name: /^(出题偏好|Generation preferences)$/ }).first().click();
+      await sleep(1000);
+      const select = page.locator('.settings-form [role="combobox"]:visible').first();
+      await select.waitFor({ timeout: 30000 });
+      const before = (await select.innerText()).trim();
+      // mouse: open, the popup sits under the trigger inside the window, choose another option
+      await select.click();
+      await popup.waitFor({ timeout: 10000 });
+      await sleep(300);
+      const a = await select.boundingBox(), b = await popup.boundingBox();
+      if (Math.abs(a.x - b.x) > 1.5 || Math.abs(a.width - b.width) > 1.5) {
+        summary.selectDiagnostics = await page.evaluate(() => {
+          const positioner = document.querySelector(".sh-pop:not([hidden])"), chain = [];
+          for (let node = positioner?.parentElement; node && chain.length < 12; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            chain.push({ tag: node.tagName, cls: String(node.className).slice(0, 60), position: style.position, transform: style.transform, zoom: style.zoom, contain: style.contain, overflow: style.overflow });
+          }
+          return { positionerStyle: positioner?.getAttribute("style"), data: positioner && Object.fromEntries([...positioner.attributes].map((attribute) => [attribute.name, attribute.value]).filter(([name]) => name !== "style")), chain,
+            react: Object.keys(window).filter((key) => /react|loader/i.test(key)) };
+        });
+        const style = () => page.evaluate(() => document.querySelector(".sh-pop:not([hidden])")?.getAttribute("style"));
+        await sleep(2000);
+        summary.selectDiagnostics.afterTwoSeconds = await style();
+        await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+        await sleep(500);
+        summary.selectDiagnostics.afterResize = await style();
+        await page.keyboard.press("ArrowDown");
+        await sleep(500);
+        summary.selectDiagnostics.afterKey = await style();
+        summary.selectDiagnostics.console = summary.consoleErrors.slice(-5);
+        await shot("05-select-misplaced");
+        throw new Error(`the select popup is not under its trigger in the host: ${JSON.stringify([a, b])}`);
+      }
+      await shot("05-select-open");
+      const options = await popup.getByRole("option").allInnerTexts();
+      if (options.length < 3) throw new Error(`the select offers ${options.length} options`);
+      await popup.getByRole("option").nth(1).click();
+      await popup.waitFor({ state: "hidden" });
+      if ((await select.innerText()).trim() === before) throw new Error("choosing an option did not change the select");
+      await focused(select, "focus did not return to the select after a choice");
+      // keyboard: Enter opens, ArrowDown moves, Enter chooses, Escape closes and returns focus
+      await select.press("Enter");
+      await popup.waitFor();
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Enter");
+      await popup.waitFor({ state: "hidden" });
+      await focused(select, "focus did not return to the select after keyboard choice");
+      await select.press("Enter");
+      await popup.waitFor();
+      await page.keyboard.press("Escape");
+      await popup.waitFor({ state: "hidden" });
+      await focused(select, "Escape did not return focus to the select");
+      // inside an open modal dialog (top layer): the settings field is moved into a <dialog>, the popup must open in it
+      await page.evaluate(() => {
+        const field = document.querySelector('.settings-form [role="combobox"]').closest(".sh-field");
+        const dialog = document.createElement("dialog");
+        dialog.id = "qa-dialog";
+        dialog.style.cssText = "width: 420px; min-height: 380px; padding: 24px;"; // tall enough for a popup: a dialog clips what it holds, as the Menu has always been
+        field.closest(".study-app").appendChild(dialog);
+        dialog.appendChild(field);
+        dialog.showModal();
+      });
+      await sleep(400);
+      const dialog = page.locator("#qa-dialog");
+      const inDialog = dialog.locator('[role="combobox"]').first();
+      await inDialog.click();
+      await popup.waitFor({ timeout: 10000 });
+      await sleep(300);
+      if (!await popup.evaluate((element) => !!element.closest("dialog[open]"))) throw new Error("the select popup is not inside the open dialog");
+      if (!await popup.isVisible() || !(await popup.getByRole("option").count())) throw new Error("the select popup in the dialog is not usable");
+      await shot("06-select-in-dialog");
+      await popup.getByRole("option").nth(0).click();
+      await popup.waitFor({ state: "hidden" });
+      await focused(inDialog, "focus did not return to the select inside the dialog");
+      await inDialog.press("Enter");
+      await popup.waitFor();
+      await page.keyboard.press("Escape");
+      await popup.waitFor({ state: "hidden" });
+      if (!await dialog.evaluate((element) => element.open)) throw new Error("Escape closed the dialog together with the select popup");
+      await page.evaluate(() => document.getElementById("qa-dialog").close());
+      // Combobox: the page scope of the statistics page
+      await nav("dashboard");
+      const scope = page.locator('.page-scope [role="combobox"]:visible').first();
+      await scope.waitFor({ timeout: 30000 });
+      await scope.click();
+      await popup.waitFor();
+      const search = popup.locator(".sh-combobox__input");
+      if (!await search.evaluate((element) => document.activeElement === element)) throw new Error("the combobox search box did not take focus");
+      await page.keyboard.type("zzzz-no-such-course");
+      await sleep(300);
+      if (await popup.getByRole("option").count()) throw new Error("a search with no match still lists options");
+      if (!(await popup.locator(".sh-combobox__empty").innerText()).trim()) throw new Error("no empty-state sentence");
+      await shot("07-combobox-empty");
+      await search.fill("");
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Enter");
+      await popup.waitFor({ state: "hidden" });
+      await focused(scope, "focus did not return to the combobox trigger");
+      await scope.click();
+      await popup.waitFor();
+      if (!await inside(popup, page.locator("body"))) throw new Error("the combobox popup is outside the window");
+      await shot("08-combobox-open");
+      await page.keyboard.press("Escape");
+      await popup.waitFor({ state: "hidden" });
+      await focused(scope, "Escape did not return focus to the combobox trigger");
+    });
+    const flushWarnings = summary.consoleErrors.filter((text) => /flushSync|Maximum update depth|Invalid hook call/i.test(text));
+    if (flushWarnings.length) summary.steps.push({ name: "no-react-warnings", status: "failed", ms: 0, error: flushWarnings.join(" | ").slice(0, 800) });
     summary.modelRequests = model.log.length;
   } catch (error) {
     summary.error = String(error?.message || error).slice(0, 4000);

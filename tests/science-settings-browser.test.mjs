@@ -58,13 +58,13 @@ test('science settings apply, persist and run exact local tools in the real app'
   await page.getByRole('checkbox', { name: 'Enable chemical balancing', exact: true }).uncheck();
   assert.equal(await page.getByRole('button', { name: 'Balance equation', exact: true }).count(), 0);
   await page.reload(); await page.locator('[data-usage="nav.settings"]').click(); await open();
-  assert.equal(await page.getByLabel('Formula size', { exact: true }).inputValue(), '150');
+  assert.equal((await page.getByRole('combobox', { name: 'Formula size', exact: true }).textContent()).trim(), '150%');
   assert.equal(await page.getByRole('checkbox', { name: 'Enable chemical balancing', exact: true }).isChecked(), false);
   await page.setViewportSize({ width: 390, height: 900 });
   assert.ok(await page.locator('.science-settings').evaluate(el => el.scrollWidth <= el.clientWidth + 1));
   await page.screenshot({ path: join(out, 'mobile.png') });
   await page.locator('.science-settings').getByRole('button', { name: 'Reset', exact: true }).click();
-  assert.equal(await page.getByLabel('Formula size', { exact: true }).inputValue(), '100');
+  assert.equal((await page.getByRole('combobox', { name: 'Formula size', exact: true }).textContent()).trim(), '100%');
   assert.equal(await page.getByRole('checkbox', { name: 'Enable chemical balancing', exact: true }).isChecked(), true);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole('button', { name: 'Study library', exact: true }).click();

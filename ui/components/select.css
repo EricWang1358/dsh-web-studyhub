@@ -1,3 +1,5 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
 @layer study.components {
   :is(.study-app, .study-seat) {
     /* Select and Combobox (WP-4): the trigger is the .sh-input look on a button, the popup is the raised overlay surface. Base UI draws no
@@ -13,7 +15,6 @@
     .sh-select__placeholder { color: var(--text-faint); }
     .sh-select__caret { flex: none; display: inline-flex; color: var(--text-muted); transition: transform var(--dur-fast) var(--ease); }
     .sh-select__trigger[data-popup-open] .sh-select__caret, .sh-combobox__heading[data-popup-open] .sh-select__caret { transform: rotate(180deg); }
-    .sh-select--inline { display: inline-flex; width: auto; max-width: 100%; }
 
     /* ── Heading trigger: the course heading keeps its display size, only a caret says it opens ── */
     .sh-combobox__heading { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; max-width: 100%; margin: 0;
@@ -63,7 +64,7 @@
 
     /* ── Combobox: search row, empty sentence, footer actions ─────────── */
     .sh-combobox__search { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); color: var(--text-muted); }
-    .sh-combobox__search .sh-icon { flex: none; }
+    .sh-combobox__search > svg { flex: none; }
     .sh-combobox__input { flex: 1; min-width: 0; margin: 0; padding: var(--space-1) 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text); font: inherit; outline: none; }
     .sh-combobox__input:focus { border: 0; background: none; box-shadow: none; outline: none; }
     .sh-combobox__input::placeholder { color: var(--text-faint); }
@@ -75,7 +76,7 @@
     .sh-combobox__action:hover:not(:disabled), .sh-combobox__action:focus-visible { background: var(--bg-hover); color: var(--text); outline: none; }
     .sh-combobox__action:focus-visible { box-shadow: var(--ring); }
     .sh-combobox__action:disabled { color: var(--text-faint); cursor: default; }
-    .sh-combobox__action .sh-icon { flex: none; color: var(--text-muted); }
+    .sh-combobox__action > svg { flex: none; color: var(--text-muted); }
     .sh-combobox__action-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   @media (prefers-reduced-motion: reduce) {

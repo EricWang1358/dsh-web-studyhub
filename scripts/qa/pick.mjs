@@ -1,3 +1,4 @@
+/* global document -- the waitForFunction callback runs in the browser */
 /* Choosing in a Select or Combobox from a QA script or a browser test. The popup is Base UI's (ui/components/Select.jsx, Combobox.jsx): options are
    role="option" rows without a value attribute, so they are picked by their visible text, the way a learner does. `selectOption` no longer applies. */
 

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import vm from 'node:vm';
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const packageId = '@ericwang1358/dsh-daily-flashcard';
@@ -27,8 +28,8 @@ test('generated native modules resolve through classic chunk factories and share
   assert.ok(files.size > 5, 'features and shared dependencies must be separate emitted modules');
   assert.ok(files.has('client.js'));
   for (const name of files.keys()) assert.match(name, /^client(?:\.[A-Za-z0-9][A-Za-z0-9._-]*)?\.js$/);
-  assert.ok(!Object.keys(result.metafile.inputs).some(path => /node_modules[\\/]react[\\/]/.test(path)),
-    'native modules must never contain a React implementation');
+  assert.ok(!Object.keys(result.metafile.inputs).some(path => /node_modules[\\/]react(?:-dom)?[\\/]/.test(path)),
+    'native modules must never contain a React or React DOM implementation: the host supplies both');
 
   const factories = new Map(), cache = new Map(), arrivals = [], materialized = [], lazyLoads = [];
   const hostReact = new Proxy(React, { get(target, key) {
@@ -60,6 +61,7 @@ test('generated native modules resolve through classic chunk factories and share
   }
   function materialize(id) {
     if (id === 'react') return hostReact;
+    if (id === 'react-dom') return ReactDOM;
     if (cache.has(id)) return cache.get(id);
     assert.ok(factories.has(id), `missing registered module ${id}`);
     const require = spec => materialize(spec);
@@ -110,7 +112,7 @@ test('generated native modules resolve through classic chunk factories and share
   const notesEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/BlogNotes.jsx');
   assert.ok(notesEntry);
   const settingsPanes = (await readFile('ui/settings-groups.js', 'utf8')).match(/^  category\(\{ id:/gm).length;
-  assert.equal(lazyLoads.length, 9 + settingsPanes, 'the eight views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks), 看原页 (pdf.js) and one pane per settings category');
+  assert.equal(lazyLoads.length, 11 + settingsPanes, 'the eight views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks), 看原页 (pdf.js), the Select and Combobox popups (Base UI) and one pane per settings category');
   await Promise.all(lazyLoads.map(load => load()));
   // 看原页 asks pdf.js's wasm decoders, CMaps and fonts from its own lazily loaded chunks (assets/*.js); load each the way the peek does.
   const assetOutputs = Object.entries(result.metafile.outputs).filter(([, record]) => Object.keys(record.inputs).some(path => /document-preview[\/]peek[\/]assets[\/]/.test(path)));

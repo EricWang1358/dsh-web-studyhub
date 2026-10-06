@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -15,7 +16,7 @@ const compiled = await build({ stdin: { contents: `
   export { groupCourseNames, splitCourseName } from './ui/course-names.js';
   export { inScope } from './ui/SourcePicker.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { PageScope, decksInCourse, courseMatcher, CourseField, pickCourse, CourseList, groupCourseNames, splitCourseName, inScope, setUiLanguage } = module.exports;
@@ -59,7 +60,7 @@ test('splitCourseName follows the shared rule: an unspaced slash needs a known c
   assert.equal(splitCourseName('TCP/IP Basics', ['TCP/IP Basics']), null);
 });
 
-test('PageScope shows the tree: children indented under their parent, the full name as value, sub-courses said so', () => {
+test('PageScope shows the tree (a Combobox: children at level 2 under their parent), the full name as value, sub-courses said so', () => {
   const html = render(h(PageScope, { courses: focusCourses, value: '*', onChange() {} }));
   const options = [...html.matchAll(/<option value="([^"]*)"(?: title="([^"]*)")?[^>]*>([^<]*)<\/option>/g)].map(([, value, title, text]) => ({ value, title, text }));
   const labels = options.map(option => option.text.replace(/ /g, '_'));
@@ -67,7 +68,7 @@ test('PageScope shows the tree: children indented under their parent, the full n
   assert.ok(at(P) >= 0 && at('01 云计算') > at(P) && at('05 Kubernetes') > at('01 云计算') && at('07 微服务') > at('05 Kubernetes') && at('08 Serverless') > at('07 微服务') && at('10 Serverless') > at('08 Serverless'),
     'chapters follow their parent in natural order');
   assert.match(labels[at('05 Kubernetes')], /^05 Kubernetes/, 'a chapter shows only its last segment, flush left in the label');
-  assert.match(html, /<option[^>]*style="padding-inline-start:1\.25em"[^>]*>05 Kubernetes/, 'and is indented by padding in the open list');
+  assert.match(html, /<option[^>]*data-level="2"[^>]*>05 Kubernetes/, 'and hangs at level 2 on the hairline in the open list');
   assert.doesNotMatch(labels[at('05 Kubernetes')], /Cloud Native/);
   const chapter = options[at('05 Kubernetes')];
   assert.equal(chapter.value.replace(/&amp;/g, '&'), NAMES.c05, 'choosing a child fills the full path');
@@ -152,16 +153,16 @@ test('Settings course list: a parent counts its sub-courses and says so; an impl
   assert.match(en, /incl\. sub-courses/);
 });
 
-test('PageScope: a closed select shows the chosen course without indentation spaces; depth is padding inside the list; the path wraps instead of being cut', async () => {
+test('PageScope: a closed picker shows the chosen course without indentation spaces; depth is a level in the open list; the path wraps instead of being cut', async () => {
   const { readFileSync } = await import('node:fs');
   const html = render(h(PageScope, { courses: focusCourses, value: NAMES.c07, onChange() {} }));
   const options = [...html.matchAll(/<option([^>]*)>([^<]*)</g)].map(match => ({ attrs: match[1], text: match[2] }));
   assert.ok(options.length > 3);
   for (const option of options) assert.doesNotMatch(option.text, /^[\s ]/, `no leading spaces in the label "${option.text}" (the closed select would show them)`);
   const child = options.find(option => /07 微服务/.test(option.text));
-  assert.match(child.attrs, /style="[^"]*padding-inline-start:\s*1\.\d+em/, 'a child is indented by padding, which only the open list uses');
+  assert.match(child.attrs, /data-level="[23]"/, 'a child hangs at a level (drawn on the hairline by the open list only)');
   const root = options.find(option => /^全部课程$/.test(option.text));
-  assert.doesNotMatch(root.attrs, /padding/);
+  assert.doesNotMatch(root.attrs, /data-level/);
   const css = readFileSync(new URL('../ui/course-active.css', import.meta.url), 'utf8');
   const pathRule = /\.page-scope__path\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.doesNotMatch(pathRule, /white-space:\s*nowrap/, 'the whole path is shown, wrapped');

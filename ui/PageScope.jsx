@@ -91,7 +91,7 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
     ...(unassigned ? [{ value: '', label: ui('未分类') }] : []),
     ...(parked.length > 0 ? [{ group: uiFormat('未激活的课程 ({0})', [parked.length]), options: parked.flatMap(row => optionsOf(row, parked)) }] : []),
     ...(strayValue ? [{ value, label: value }] : [])];
-  return <label className="page-scope">{label}<Combobox value={value} onChange={onChange} disabled={disabled} options={options} label={label} searchPlaceholder={ui('搜索课程或章节')}
+  return <label className="page-scope">{label}<Combobox value={value} onChange={onChange} disabled={disabled} options={options} searchPlaceholder={ui('搜索课程或章节')}
     emptyText={query => uiFormat('没有叫「{0}」的课程或章节', [query])} title={chosen ? chosen.name : undefined} />{path && <small className="page-scope__path" title={chosen.name}>{path}</small>}
     {chosenCourse && isParked(chosenCourse) && <small className="page-scope__note">
       <span>{ui('这门课未激活')}</span>

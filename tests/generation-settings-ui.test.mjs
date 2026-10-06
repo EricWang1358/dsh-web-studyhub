@@ -5,11 +5,12 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { GENERATION_SETTINGS_DEFAULTS } from '../lib/generation-settings.js';
+import { nativeSelects } from './helpers/native-selects.mjs';
 
 const require = createRequire(import.meta.url);
 const built = await build({ stdin: { contents: `export { default as GenerationSettings, GenerationSettingsForm, generationFormErrors } from './ui/GenerationSettings.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
-  format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const load = requireFn => { const module = { exports: {} }; new Function('require', 'module', 'exports', built.outputFiles[0].text)(requireFn, module, module.exports); return module.exports; };
 const ssr = load(require), noop = () => {};
 let active;
@@ -41,7 +42,8 @@ const find = (tree, predicate) => {
   return null;
 };
 const control = (view, key) => find(view.render(), node => node.props?.name === key);
-const edit = (view, key, value) => control(view, key).props.onChange({ target: { value } });
+// A Select reports its value; a text or number input reports an event.
+const edit = (view, key, value) => { const { props } = control(view, key); return props.options ? props.onChange(value) : props.onChange({ target: { value } }); };
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 

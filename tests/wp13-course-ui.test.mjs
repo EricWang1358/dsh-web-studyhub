@@ -2,6 +2,7 @@
    focus topics, examiner guidance, rename and merge), the exam countdown on the
    library heading and the course pickers that show existing courses first. */
 import test from 'node:test';
+import { nativeSelects } from './helpers/native-selects.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
@@ -14,7 +15,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as CourseField, toggleCourse } from './ui/CourseField.jsx';
   export { default as PageScope } from './ui/PageScope.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { CourseSettings, CourseList, ExamCountdown, draftFromCourse, payloadFromDraft, examCountdown, CourseField, toggleCourse, PageScope, setUiLanguage } = module.exports;
