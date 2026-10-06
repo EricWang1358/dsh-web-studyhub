@@ -31,7 +31,7 @@ test('job status: what is active, what can be stopped, and the job types', async
   assert.equal(isCancellable({ status: 'running' }), true);
   assert.equal(isCancellable({ status: 'cancelling' }), false, 'already stopping');
   assert.equal(isCancellable({ status: 'complete' }), false);
-  assert.deepEqual(JOB_TYPES, { AUDIO_IMPORT: 'audio-import', AUDIO_BATCH: 'audio-batch', AUDIO_SUBTITLES: 'audio-subtitles', PDF_CONVERT: 'pdf-convert', TRANSLATION: 'translation', SUPPLEMENT: 'supplement', DRAFT_REPAIR: 'draft-repair', DRAFT_PUBLISH: 'draft-publish', COACH_DAILY: 'coach-daily' });
+  assert.deepEqual(JOB_TYPES, { AUDIO_IMPORT: 'audio-import', AUDIO_BATCH: 'audio-batch', AUDIO_SUBTITLES: 'audio-subtitles', AUDIO_REVIEW: 'audio-review', PDF_CONVERT: 'pdf-convert', TRANSLATION: 'translation', SUPPLEMENT: 'supplement', DRAFT_REPAIR: 'draft-repair', DRAFT_PUBLISH: 'draft-publish', COACH_DAILY: 'coach-daily' });
   assert.ok(Object.isFrozen(JOB_STATUS) && Object.isFrozen(JOB_TYPES));
   const visibility = await loadUi(`export * from './ui/job-visibility.js';`);
   assert.equal(visibility.isActiveJob({ status: 'cancelling' }), true, 'job-visibility keeps its export');

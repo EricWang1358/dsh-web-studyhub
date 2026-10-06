@@ -7,6 +7,7 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { Store } from '../lib/store.js';
 import { storeDocuments } from '../lib/audio-job.js';
 import { domainTool } from '../lib/runtime/tools.js';
+import { SWITCH_MODE, audioSwitch } from './helpers/audio-switch.mjs';
 
 const subtitles = `[00:00:00.080] 朋友们唉
 [00:00:01.900] 今天有点情绪低落
@@ -43,7 +44,7 @@ test('a subtitle file is proofread and translated without transcription, then it
   const previous = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
   const log = [];
-  const runtime = createStudyRuntime(root, { contexts: ['audio', 'materials'], complete: fakeModel(log) });
+  const runtime = createStudyRuntime(root, { contexts: ['audio', 'materials'], complete: fakeModel(log), ...audioSwitch({ complete: fakeModel(log) }) });
   t.after(async () => {
     runtime.dispose();
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
@@ -54,6 +55,7 @@ test('a subtitle file is proofread and translated without transcription, then it
   const started = await runtime.call('audio.subtitles.import', { filename: 'pricing.txt', text: subtitles, title: '订阅涨价' });
   const imported = await runtime.call('audio.job.wait', { jobId: started.jobId, timeoutSeconds: 30 });
   assert.equal(imported.status, 'complete', imported.stage);
+  assert.equal(imported.type, SWITCH_MODE === 'runtime' ? 'audio-subtitles' : 'audio-import', 'the suite runs the path its side names');
   assert.equal(imported.subtitle, true); assert.equal(imported.corrected, 1); assert.equal(imported.uncertain, 1);
   assert.ok(!log.includes('transcribe'));
 

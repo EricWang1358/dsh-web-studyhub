@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { KEY, REPORTED, geminiTextFake, hostModel, letters, library, seedReview } from './helpers/audio-family.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { SWITCH_MODE } from './helpers/audio-switch.mjs';
+
+// On the runtime (S2-5) a review is its own kind of job: its requests are calls of the gateway (no `tasks`), its announcement has its own wording (D-2)
+// and its Gemini route keeps the tally of its text model (D-6).
+const RUNTIME = SWITCH_MODE === 'runtime';
 
 /* S2-0 characterization of `audio.corrections.review` (lib/contexts/audio/operations.js, lib/audio-review.js) on the code as it is.
    Already covered elsewhere: cross-volume application and legacy membership (subtitle-review-flow), batches kept on failure/cancel (subtitle-review-flow), pure helpers (audio-review). */
@@ -36,12 +41,13 @@ test('sixteen unsure items: two requests of 15 and 1 in order, committed per bat
   const done = await settleJob(lib.service, started.jobId);
   assert.equal(done.status, 'complete', done.stage);
   assert.deepEqual(lib.log, ['review', 'review']);
-  assert.deepEqual([done.filename, done.type, done.sourceIds, done.done, done.total], ['复核 · talk-1 · 中英对照逐字稿', 'audio-import', ['talk-1'], 2, 2]);
+  assert.deepEqual([done.filename, done.type, done.sourceIds, done.done, done.total], ['复核 · talk-1 · 中英对照逐字稿', RUNTIME ? 'audio-review' : 'audio-import', ['talk-1'], 2, 2]);
   assert.deepEqual(done.review, { applied: 16, rejected: 0, unsure: 0 });
   assert.equal(done.stage, '复核完成：改进正稿 16 处 · 判定原文无误 0 处 · 仍拿不准 0 处');
-  assert.deepEqual([done.tokenUsage, await lib.ledger()], [calls(2), calls(2)]);
-  assert.deepEqual(done.tasks.map(task => task.stage), ['复核存疑处 1/2', '复核存疑处 2/2']);
   const view = (await lib.service.call('snapshot')).jobs.find(job => job.id === done.id);
+  if (RUNTIME) assert.deepEqual([view.contract.usage.tokens, await lib.ledger()], [220, calls(2)]);
+  else assert.deepEqual([done.tokenUsage, await lib.ledger()], [calls(2), calls(2)]);
+  assert.deepEqual(RUNTIME ? view.contract.calls.map(call => call.stage) : done.tasks.map(task => task.stage), ['复核存疑处 1/2', '复核存疑处 2/2']);
   assert.deepEqual(view.contract.calls.map(call => call.stepKey), ['proofread:1', 'proofread:2'], 'a review request is booked under the proofread kind');
   assert.equal(view.contract.detail.review.applied, 16);
   // The source is edited in place in both stores; no new source id is created and the job is not a transcription.
@@ -54,8 +60,9 @@ test('sixteen unsure items: two requests of 15 and 1 in order, committed per bat
   assert.deepEqual(letters(state, done.id), ['audio-result']);
   assert.deepEqual(state.inbox[0].sourceIds, ['talk-1']);
   assert.equal(lib.notices.length, 1);
-  assert.match(lib.notices[0].summary, /^音频「复核 · talk-1 · 中英对照逐字稿」已转写成中英对照逐字稿$/);
-  assert.equal(done.usage, undefined, 'no audio quota tally: a review makes no Gemini request');
+  assert.match(lib.notices[0].summary, RUNTIME ? /^「talk-1 · 中英对照逐字稿」存疑处复核已完成$/ : /^音频「复核 · talk-1 · 中英对照逐字稿」已转写成中英对照逐字稿$/);
+  if (RUNTIME) assert.equal(done.usage.paid.requests + done.usage.free.requests, 0, 'a review with the host model makes no Gemini request');
+  else assert.equal(done.usage, undefined, 'no audio quota tally: a review makes no Gemini request');
 });
 
 test('a review that fails after its first batch keeps that batch, and its retry only asks for what is still pending', async t => {
@@ -69,8 +76,9 @@ test('a review that fails after its first batch keeps that batch, and its retry 
 
   // The retained closure resumes from the persisted state: the new attempt counts only its own batch.
   const retried = await lib.service.call('job.control', { jobId: failed.id, action: 'retry' });
-  assert.notEqual(retried.jobId, failed.id);
-  const done = await settleJob(lib.service, retried.jobId);
+  const attempt = RUNTIME ? retried.attemptId : retried.jobId;
+  assert.notEqual(attempt, failed.id);
+  const done = await settleJob(lib.service, attempt);
   assert.equal(done.status, 'complete', done.stage);
   assert.deepEqual([lib.log.length, done.review, done.total], [3, { applied: 1, rejected: 0, unsure: 0 }, 1]);
   assert.equal(await unreviewed(lib), 0);
@@ -94,6 +102,7 @@ test('a review on the Gemini text route: one request, no usage on the job at all
   await seedReview(lib.service, 2);
   const done = await settleJob(lib.service, (await lib.service.call('audio.corrections.review', { sourceId: 'talk-1' })).jobId);
   assert.equal(done.status, 'complete', done.stage);
-  assert.deepEqual([log, done.review, done.usage, done.usageRun, done.tokenUsage, done.textProvider], [['review'], { applied: 2, rejected: 0, unsure: 0 }, undefined, undefined, undefined, undefined]);
+  assert.deepEqual([log, done.review, done.usage?.paid.requests, done.usageRun?.paid.requests, done.tokenUsage, done.textProvider],
+    RUNTIME ? [['review'], { applied: 2, rejected: 0, unsure: 0 }, 1, 1, undefined, 'gemini'] : [['review'], { applied: 2, rejected: 0, unsure: 0 }, undefined, undefined, undefined, undefined]);
   assert.equal(await lib.ledger(), null);
 });
