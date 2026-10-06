@@ -92,8 +92,8 @@ test('a failed subtitle job retries from its checkpoints through the retained cl
   let free; const held = admitSlot(gate, 'other-recording', new AbortController().signal, release => new Promise(resolve => { free = () => { release(); resolve(); }; }));
   await until(() => gate.active.has('other-recording'));
   const retried = await lib.service.call('job.control', { jobId: failed.id, action: 'retry' });
-  // job.control names the failed attempt in `attemptId` and the new one in `jobId` (the started job overrides the asked-for id).
-  assert.equal(retried.attemptId, failed.id);
+  // job.control names the new attempt in both `attemptId` and `jobId` (S2-1 fixed D-3, which named the failed one).
+  assert.equal(retried.attemptId, retried.jobId);
   assert.notEqual(retried.jobId, failed.id, 'a retry is a new attempt with a new job id');
   assert.equal((await lib.service.call('snapshot')).jobs.some(job => job.id === failed.id), false, 'the failed attempt leaves the list');
   const queued = await jobOf(lib.service, retried.jobId);

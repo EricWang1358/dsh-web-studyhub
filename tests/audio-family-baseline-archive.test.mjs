@@ -35,7 +35,8 @@ test('a failed batch: archived by its batch id (its job id is an alias), kept ar
   assert.deepEqual([back.length, back[0].batchId, back[0].id, back[0].contract.actions.retry.available], [1, first.batchId, failed.id, true]);
   broken = false;
   const retried = await restarted.call('job.control', { jobId: first.batchId, action: 'retry' });
-  assert.deepEqual([retried.batchId, retried.attemptId === failed.id, retried.jobId === failed.id], [first.batchId, true, false]);
+  // S2-1 fixed D-3: the reply names the new attempt.
+  assert.deepEqual([retried.batchId, retried.attemptId === retried.jobId, retried.jobId === failed.id], [first.batchId, true, false]);
   const done = await settleJob(restarted, retried.jobId);
   assert.equal(done.status, 'complete', done.stage);
   assert.deepEqual(lib.calls.slice(before).map(call => call.split(':')[0]), ['translate', 'title'], 'only what the failed member had not finished is done again');
