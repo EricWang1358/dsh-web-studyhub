@@ -142,10 +142,12 @@ test('a lock that cannot be written never stops a run', async t => {
 });
 
 /** `node scripts/test.mjs` over the one-test fixture suite, with a lock file of its own. */
-function fullRun(dir, { hold = 100, args = [], env = {} } = {}) {
+/** `release`: the run holds until that file exists, so a test never races the machine's load against a fixed hold. */
+function fullRun(dir, { hold = 100, release, args = [], env = {} } = {}) {
   const log = join(dir, `run-${Math.random().toString(36).slice(2)}.log`);
   const childEnv = { ...process.env, STUDY_TEST_SUITE_DIR: holdSuite, STUDY_TEST_LOCK_FILE: join(dir, 'full-run.lock'), STUDY_TEST_DURATIONS_FILE: join(dir, 'durations.json'),
-    STUDY_TEST_LOCK_POLL_MS: '40', STUDY_FIXTURE_LOG: log, STUDY_FIXTURE_HOLD_MS: String(hold), ...env };
+    STUDY_TEST_LOCK_POLL_MS: '40', STUDY_FIXTURE_LOG: log, STUDY_FIXTURE_HOLD_MS: String(hold),
+    ...(release ? { STUDY_FIXTURE_RELEASE_FILE: release } : {}), ...env };
   delete childEnv.NODE_TEST_CONTEXT; // this suite runs inside node --test; the runs it starts are runs of their own
   const child = spawn(process.execPath, [testScript, ...args], { env: childEnv, windowsHide: true });
   const run = { child, out: '', err: '', log, started: () => readFile(log, 'utf8').catch(() => '').then(text => /^start (\d+)/m.exec(text)?.[1]),
@@ -156,14 +158,15 @@ function fullRun(dir, { hold = 100, args = [], env = {} } = {}) {
 }
 
 test('two full runs of the suite queue: the second prints one line, starts after the first has ended, and the lock is gone at the end', async t => {
-  const dir = await folder(t);
-  const first = fullRun(dir, { hold: 1500 });
+  const dir = await folder(t), release = join(dir, 'release');
+  const first = fullRun(dir, { release });
   await until(() => first.started(), 'the first run to start its tests');
   const second = fullRun(dir, { hold: 100 });
   await until(() => /waiting/i.test(second.err), 'the notice');
   assert.equal(second.err.trim().split('\n').length, 1, `one line: ${second.err}`);
   assert.match(second.err, new RegExp(`pid ${first.child.pid}\\b`));
   assert.equal(await second.started(), undefined, 'queued behind the first');
+  await writeFile(release, '');
   assert.equal((await first.closed).code, 0, first.err + first.out);
   assert.equal((await second.closed).code, 0, second.err + second.out);
   assert.ok(Number(await second.started()) >= Number(await first.ended()), 'the second suite started after the first one ended');
@@ -171,24 +174,26 @@ test('two full runs of the suite queue: the second prints one line, starts after
 });
 
 test('STUDY_TEST_NO_LOCK=1 runs without queueing and without a lock', async t => {
-  const dir = await folder(t);
-  const first = fullRun(dir, { hold: 1200 });
+  const dir = await folder(t), release = join(dir, 'release');
+  const first = fullRun(dir, { release });
   await until(() => first.started(), 'the first run to start its tests');
   const second = fullRun(dir, { hold: 50, env: { STUDY_TEST_NO_LOCK: '1' } });
   assert.equal((await second.closed).code, 0, second.err + second.out);
   assert.equal(second.err, '');
   assert.equal(JSON.parse(await readFile(join(dir, 'full-run.lock'), 'utf8')).pid, first.child.pid, 'the first run still holds it');
+  await writeFile(release, '');
   assert.equal((await first.closed).code, 0);
 });
 
 test('a run with file arguments does not take the lock or wait for one', async t => {
-  const dir = await folder(t);
-  const first = fullRun(dir, { hold: 1200 });
+  const dir = await folder(t), release = join(dir, 'release');
+  const first = fullRun(dir, { release });
   await until(() => first.started(), 'the first run to start its tests');
   const second = fullRun(dir, { hold: 50, args: [join(holdSuite, 'hold.test.mjs')] });
   assert.equal((await second.closed).code, 0, second.err + second.out);
   assert.doesNotMatch(second.err, /waiting/i);
   assert.equal(JSON.parse(await readFile(join(dir, 'full-run.lock'), 'utf8')).pid, first.child.pid);
+  await writeFile(release, '');
   assert.equal((await first.closed).code, 0);
 });
 
