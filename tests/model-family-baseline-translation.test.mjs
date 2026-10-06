@@ -7,6 +7,7 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { usageLedger } from '../lib/model-usage.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { until, settleJob } from './helpers/wait.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { gate, privateRoot, panelDoor } from './helpers/model-family-baseline.mjs';
 
 const lines = prefix => Array.from({ length: 8 }, (_, index) => `${prefix} paragraph ${index} explains one more consequence of the architecture in some detail.`);
@@ -30,7 +31,7 @@ function model() {
 
 async function library(t, fake = model()) {
   const root = await privateRoot(t, 'model-baseline-translation-');
-  const runtime = createStudyRuntime(root, { complete: fake.complete, notify: () => {}, language: 'zh' });
+  const runtime = createStudyRuntime(root, { complete: fake.complete, notify: () => {}, language: 'zh', ...switchOptions(SWITCH_MODE, { complete: fake.complete, paths: ['translation'] }) });
   t.after(() => runtime.dispose());
   const one = async (prefix, extra) => {
     const imported = await runtime.call('materials.document.import', upload(`${prefix}.md`, body(prefix, extra)));
@@ -71,10 +72,17 @@ test('a queued job that is cancelled makes no model call, but it only reports ca
   const second = await f.runtime.call('generation.translation.start', { documentId: b.documentId, scope: b.scope });
   await until(() => fake.calls.length >= 1, 'the first job reaches the model');
   const reply = await f.runtime.call('job.cancel', { jobId: second.jobId });
-  assert.equal(reply.jobs[0].status, 'cancelled', 'the learner is told at once');
+  const stage = async () => (await f.runtime.call('generation.translation.status', { jobId: second.jobId })).job.stage;
+  if (SWITCH_MODE === 'runtime') {
+    // Reviewed difference of the runtime side (S4-2, defect D8): the stop is told at once and the job ends at once, still behind the first in the queue's order,
+    // instead of waiting for its place in the queue just to say it was cancelled.
+    assert.ok(['cancelling', 'cancelled'].includes(reply.jobs[0].status));
+    await until(async () => (await stage()) === 'Cancelled before starting', 'the cancelled job to end while the first still holds the library');
+    assert.equal((await settleJob(f.runtime, second.jobId)).status, 'cancelled');
+  } else assert.equal(reply.jobs[0].status, 'cancelled', 'the learner is told at once');
   fake.gates.get(0).release();
   await settleJob(f.runtime, first.jobId);
-  await until(async () => (await f.runtime.call('generation.translation.status', { jobId: second.jobId })).job.stage === 'Cancelled before starting', 'the queue to reach the cancelled job');
+  await until(async () => (await stage()) === 'Cancelled before starting', 'the queue to reach the cancelled job');
   assert.equal(fake.calls.some(call => call.passages.some(item => item.text.startsWith('Beta'))), false);
   assert.deepEqual(await f.items(b.documentId).then(list => list.items), []);
 });
@@ -99,8 +107,10 @@ test('what a job was submitted with is what it keeps: a new revision, another ta
   assert.equal((await f.items(b.documentId, { revision: next.revision, target: 'zh' })).items.length, 0, 'the newer revision got nothing');
   const sent = fake.calls.flatMap(call => call.passages.map(item => item.text)).filter(text => text.startsWith('Beta'));
   assert.equal(sent.some(text => text.includes('added later')), false);
-  // Not a snapshot: the glossary of the document is read again by every wave, so a rule saved after the submission does reach the queued job.
-  assert.ok(fake.calls.some(call => call.passages.some(item => item.text.includes('Beta')) && call.glossary?.some(entry => entry.term === 'architecture')));
+  // Not a snapshot (defect D1): the glossary of the document is read again by every wave, so a rule saved after the submission does reach the queued job.
+  // Reviewed difference of the runtime side (S4-2): the glossary is frozen with the submission like the target, the revision and the scope.
+  const reached = fake.calls.some(call => call.passages.some(item => item.text.includes('Beta')) && call.glossary?.some(entry => entry.term === 'architecture'));
+  assert.equal(reached, SWITCH_MODE !== 'runtime');
 });
 
 test('a retranslation keeps the comment and the passages it was submitted with; a repeat of the same submission while it waits is the same job', async t => {
@@ -125,7 +135,7 @@ test('a retranslation keeps the comment and the passages it was submitted with; 
 
 test('the panel and the runtime door start the same translation: same paragraphs, same versions, same visible job fields', async t => {
   const direct = await library(t), panelRoot = await privateRoot(t, 'model-baseline-translation-panel-');
-  const panel = panelDoor(t, panelRoot, { complete: model().complete });
+  const panel = panelDoor(t, panelRoot, { complete: model().complete, ...(SWITCH_MODE === 'runtime' ? { pilot: { translation: true } } : {}) });
   const a = await direct.one('Alpha');
   const imported = await panel('materials.document.import', upload('Alpha.md', body('Alpha')));
   const scope = { sourceIds: [imported.document.sources[0].id] };
