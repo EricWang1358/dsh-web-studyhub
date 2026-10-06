@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Layered runtime code stays small and readable so later fixes touch one module.
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 // to fit a file — split the file instead.
 const RULES = [
   { root: 'lib/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/contexts/', '/ui/'] },
+  { root: 'lib/contexts/coach/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
 ];
 const CJK = /[㐀-鿿]/;
 const repo = fileURLToPath(new URL('../', import.meta.url));
@@ -34,7 +35,7 @@ for (const rule of RULES) {
         if (line.length > rule.maxLineLength) problems.push(`${name}:${index + 1}: ${line.length} chars > ${rule.maxLineLength}`);
         const imported = /^\s*(?:import|export)\b.*\bfrom\s+['"]([^'"]+)['"]/.exec(line)?.[1];
         if (imported && rule.forbidImports.some(part => imported.includes(part))) problems.push(`${name}:${index + 1}: imports ${imported} (outer layer)`);
-        if (CJK.test(line.replace(/\/\/.*$|\/\*.*?\*\//g, ''))) problems.push(`${name}:${index + 1}: user-facing text belongs in locales/application messages`);
+        if (!rule.textIn?.includes(basename(file)) && CJK.test(line.replace(/\/\/.*$|\/\*.*?\*\//g, ''))) problems.push(`${name}:${index + 1}: user-facing text belongs in locales/application messages`);
       });
     }
     assert.deepEqual(problems, []);

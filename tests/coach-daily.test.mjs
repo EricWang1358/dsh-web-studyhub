@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
+import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { dayOf, coachDailyLedger, DAILY } from '../lib/coach-daily.js';
 
 // #234 為你定制: the day's variant preparation is ONE row of the 任务 console per day (not one per batch): its batches, its metrics (cards written and passed,
@@ -23,7 +24,7 @@ async function setup(t, { cards = 10 } = {}) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const log = [], options = [], base = createFakeModel({ log, usage: true });
   const model = async (...args) => { options.push(args[2] || {}); return base(...args); };
-  const service = new StudyService(root, { complete: model, completeLight: model, coach: true });
+  const service = new StudyService(root, { complete: model, completeLight: model, coach: true, ...switchOptions(SWITCH_MODE, { complete: model, paths: ['coach'] }) });
   await service.call('source.add', source);
   await service.call('draft.save', { deck: { id: 'd', title: 'Patterns', cards: Array.from({ length: cards }, (_, i) => quiz(i + 1, `第 ${i + 1} 个关于 Memento 的问题：谁管理历史 ${i}？`, i < 3 ? '保护状态' : 'Memento')) } });
   await new StudyService(root).call('draft.publish', { id: 'd' });
