@@ -61,6 +61,8 @@
     "tests/mineru-local-liveness.test.mjs",
     "tests/mineru-local-service.test.mjs",
     "tests/mineru-local.test.mjs",
+    "tests/nonmodel-baseline-install.test.mjs",
+    "tests/nonmodel-baseline-instant.test.mjs",
     "tests/original-attach.test.mjs",
     "tests/perf-budget.test.mjs",
     "tests/store.test.mjs",
