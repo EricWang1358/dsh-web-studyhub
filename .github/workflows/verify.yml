@@ -19,6 +19,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: node scripts/test.mjs --test-name-pattern="budget" tests/main-context.test.mjs
-      - run: node scripts/test.mjs --test-name-pattern="budget" tests/main-context.test.mjs
-      - run: node scripts/test.mjs --test-name-pattern="budget" tests/main-context.test.mjs
+      - run: npm test
