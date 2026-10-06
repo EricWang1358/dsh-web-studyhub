@@ -37,3 +37,25 @@ The second variant declares a separate s10-jobs-only preset with installed offic
 - Fake usage is adapter-reported; real-provider quality, billing and price were not measured. S1-0 owner approval and S1-1 through S1-7 remain separate gates.
 
 The scripts were syntax-checked and the official variant executed by the integration agent. Detailed versions, commands, baseline failures and review status are recorded in docs/plans/unified-job-runtime/s1-0-baseline.md and s1-0-dsh-capabilities.md.
+
+## S1-2 production-fiber preflight
+
+Add `--studyhub-binding` to the `official-jobs-preset` command to inspect the
+installed StudyHub workbench fiber and its request services, submit a held
+producer through that fiber's host jobs service, and measure producer-fiber
+unload separately from Agent disposal. This mode disposes only the isolated
+profile's StudyHub workbench fiber; use a fresh probe process for each run.
+It does not install a production v2 executor or approve a binding policy.
+
+The rc.2 observations include repeated kill invoking producer.cancel twice
+while stopping, and a host job surviving disposal of the producing StudyHub
+fiber until explicitly stopped. These are characterized gaps for S1-2, not
+claims that lifecycle acceptance passed. The original mode remains unchanged.
+The driver guard accepts the inspected source's exact CRLF and LF hashes;
+other driver edits still stop execution.
+
+On Linux keep XDG data/cache/config inside the worktree too, to prevent pnpm
+from attempting a user-directory cache write. An installed Chromium can be
+selected using `PLAYWRIGHT_CHROMIUM`; no system package changes are required.
+Commands, versions, failures and approval gate:
+[S1-2 cloud preflight](../../../docs/plans/unified-job-runtime/s1-2-cloud-preflight.md).

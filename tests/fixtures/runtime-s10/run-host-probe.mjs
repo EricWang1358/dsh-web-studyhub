@@ -21,6 +21,10 @@ const out = take('--out');
 const variantAt = argv.indexOf('--variant');
 const variant = variantAt < 0 ? 'bare' : argv.splice(variantAt, 2)[1];
 if (!['bare', 'official-jobs-preset'].includes(variant)) throw new Error('--variant must be bare or official-jobs-preset');
+const bindingAt = argv.indexOf('--studyhub-binding');
+const auditStudyHub = bindingAt >= 0;
+if (auditStudyHub) argv.splice(bindingAt, 1);
+if (auditStudyHub && variant !== 'official-jobs-preset') throw new Error('--studyhub-binding requires the explicit official-jobs-preset variant');
 const qaRoot = join(repoRoot, 'output/qa');
 const hostRoot = resolve(dirname(dshBin), '..');
 const sdkRoot = dirname(hostRoot);
@@ -59,8 +63,11 @@ scrubProcessEnv();
 const originalPath = join(repoRoot, 'scripts/qa/dsh-e2e.mjs');
 let source = await readFile(originalPath, 'utf8');
 const sha256 = createHash('sha256').update(source).digest('hex');
-const expected = 'a2b148c28b53cccd8fe67b2668527d09b1908f483286f910ff6693de5ad66246';
-if (sha256 !== expected) throw new Error('Baseline QA source changed; inspect before adapting it');
+// Same inspected driver with Windows CRLF or the repository's Linux LF checkout.
+// Keep exact byte hashes: a source change must still stop this manual adapter.
+const expected = new Set(['a2b148c28b53cccd8fe67b2668527d09b1908f483286f910ff6693de5ad66246',
+  'eb5b1597686203b6ee28c2ad9debd36a19818dc29aa465c8ecd1f6cc087c096c']);
+if (!expected.has(sha256)) throw new Error('Baseline QA source changed; inspect before adapting it');
 const once = (needle, replacement) => {
   if (source.split(needle).length !== 2) throw new Error(`QA adapter anchor not unique: ${needle.slice(0, 100)}`);
   source = source.replace(needle, replacement);
@@ -79,7 +86,7 @@ for (const relativePath of ['./env.mjs', './browser.mjs', './fake-openai.mjs']) 
 // Absolute import URLs ensure no project/global Cordis copy is mixed into the host.
 const config = { qaRoot, workspace: join(qaRoot, 'dsh-documents/deepseek-harness/default-workspace'),
   reportPath: join(out, 'host-capabilities.json'), sdkRoot,
-  waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant };
+  waitModule: join(repoRoot, 'tests/helpers/wait.mjs'), provider: 'studyhub-qa-fake', model: 'fake-tutor', variant, auditStudyHub };
 const companionRows = [{ id: 'studyhub-s10-host-probe', name: pathToFileURL(join(ownDirectory, 'host-probe.mjs')).href, config }];
 if (variant === 'official-jobs-preset') companionRows.unshift({
   id: 's10-jobs-only-preset', name: '@deepseek-ai/dsh-agent-preset', config: { id: 's10-jobs-only', order: 99,
