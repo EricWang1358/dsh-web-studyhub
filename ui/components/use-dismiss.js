@@ -16,7 +16,7 @@ const open = [];
  * gets 'outside' or 'escape'. Escape works while focus is inside or nowhere
  * (a closed menu item took it), stops there so an enclosing dialog stays open,
  * and returns focus to `returnFocusRef`. An outside press does not move focus.
- * `capture` (default on) hears the press before the page can stop it.
+ * `capture` (default on) hears the press before the page can stop it. A press inside a Select / Combobox popup (.sh-pop) counts as inside.
  */
 export function useDismiss({ open: isOpen, onClose, refs, escape = true, returnFocusRef, capture = true }) {
   const latest = useRef({});
@@ -26,7 +26,8 @@ export function useDismiss({ open: isOpen, onClose, refs, escape = true, returnF
     const token = {};
     open.push(token);
     const inside = target => elementsOf(latest.current.refs).some(element => element.contains(target));
-    const away = event => { if (!inside(event.target)) latest.current.onClose?.('outside'); };
+    // A Select or Combobox popup opened from inside this panel is drawn outside it (in the study surface): pressing it is not pressing away.
+    const away = event => { if (!inside(event.target) && !event.target?.closest?.('.sh-pop')) latest.current.onClose?.('outside'); };
     const key = event => {
       if (event.key !== 'Escape' || open.at(-1) !== token) return;
       const target = event.target;
