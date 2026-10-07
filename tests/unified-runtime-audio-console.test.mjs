@@ -212,3 +212,20 @@ test('the settings of a batch: what the card offers and what job.control accepts
   assert.deepEqual(disagreements, [], 'accepted while offered neither before nor after, or refused while offered both before and after');
   await lib.service.call('job.control', { jobId: started.jobId, action: 'cancel' }); await settleJob(lib.service, started.jobId);
 });
+
+test('job.cancel, the lenient door, answers the same for an ended job whichever side the switch is on: nothing to stop, no refusal', async t => {
+  const replies = {};
+  for (const side of ['off', 'on']) {
+    const lib = await consoleLibrary(t);
+    lib.set(side === 'on', 'audioSubtitles');
+    const started = await KINDS.subtitles.start(lib, 1);
+    await live(lib, started.jobId);
+    lib.release();
+    assert.equal((await settleJob(lib.service, started.jobId)).status, 'complete');
+    const { reply, error } = await refuse(lib, { jobId: started.jobId }, 'job.cancel');
+    assert.equal(error, undefined, `${side}: job.cancel on an ended job is not refused (${error?.message})`);
+    replies[side] = { jobs: reply.jobs.map(job => job.status), note: typeof reply.note };
+    assert.equal((await cardOf(lib, started.jobId)).status, 'complete', `${side}: and the finished job is left as it was`);
+  }
+  assert.deepEqual(replies.on, replies.off, 'the same answer on both sides');
+});
