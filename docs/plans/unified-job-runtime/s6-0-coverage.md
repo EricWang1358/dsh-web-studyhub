@@ -56,7 +56,7 @@
 | `dailyRecap` | 每日总结的进程内执行 | `lib/contexts/notes/jobs/submit-daily-recap.js:13` | `daily-recap.runtime`、`unified-runtime-daily-recap` |
 | `workflow` | 讲解与骨架的进程内执行 | `lib/contexts/workflows/jobs/submit-workflow.js:21` | `workflow-teaching.runtime`、`unified-runtime-workflows` |
 | `dailyRecapAgent` | 不是旁路旧路径，而是策略（登记在清单 `policySwitches`）：每日总结的模型调用改问宿主子代理，没有时回落直连并记原因（S4-8 #321） | `lib/contexts/notes/jobs/submit-daily-recap.js`（绑定里的 `agent`） | `unified-runtime-agent-policy` |
-| `examBlueprint` | 不是旁路旧路径，也没有旧路径：考试蓝图构建（3.1 步骤 2）是新增的 Job 种类，开关只决定是否接纳新的构建（登记在清单 `policySwitches`） | `lib/contexts/generation/blueprint/start.js` | `exam-blueprint-job` |
+| `examBlueprint` | 不是旁路旧路径，也没有旧路径：考点清单构建（备考补习，3.1 步骤 2；代码名 blueprint）是新增的 Job 种类，开关只决定是否接纳新的构建（登记在清单 `policySwitches`） | `lib/contexts/generation/blueprint/start.js` | `exam-blueprint-job` |
 | `workflowAgent` | 同上：讲解与骨架的模型调用改问宿主子代理（S4-8 #321） | `lib/contexts/workflows/jobs/submit-workflow.js`（绑定里的 `agent`） | `unified-runtime-agent-policy` |
 | `assist` | 助教请求的进程内执行 | `lib/contexts/study/jobs/submit-assist.js:15` | `assist-host.runtime`、`unified-runtime-assist` |
 | `pdfConvert` | PDF 云端/本地转换的旧后台运行 | `lib/contexts/audio/convert.js:49` | `mineru-service.runtime` 等 4 个孪生、`unified-runtime-pdf-convert` |
