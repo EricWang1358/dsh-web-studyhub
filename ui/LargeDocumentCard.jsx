@@ -1,7 +1,8 @@
 import React, { useId, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Disclosure, Hint, Icon } from './components/index.js';
+import { Badge, Button, Disclosure, Hint, Icon, Tooltip } from './components/index.js';
+import { adviceTip } from './index-scope.js';
 import { formatNumber } from './format.js';
 import { megabytes } from '../lib/office/limits.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
@@ -161,7 +162,7 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
  * install and the index builder; without `call` the card only explains), initialPlan /
  * initialRun / initialApproval (previews and tests), className. Extra props land on the root.
  */
-export default function LargeDocumentCard({ reason, detail = {}, retrieval = null, onOpenSettings, call, courses = [], defaultCourse = '', onRetrieval,
+export default function LargeDocumentCard({ reason, detail = {}, document, retrieval = null, onOpenSettings, call, courses = [], defaultCourse = '', onRetrieval,
   conversionAvailable = true, courseNames = [], onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
   useInjectCss(css, 'study-large-documents');
   const titleId = useId();
@@ -170,7 +171,7 @@ export default function LargeDocumentCard({ reason, detail = {}, retrieval = nul
   const search = <div className="large-doc__group" data-role="retrieval">
     <h3 className="large-doc__group-title">{ui('检索：只让 AI 看相关页面')}</h3>
     {typeof call === 'function'
-      ? <ExtensionPanel call={call} status={retrieval} onStatus={onRetrieval} courses={courses} defaultCourse={defaultCourse}
+      ? <ExtensionPanel call={call} status={retrieval} onStatus={onRetrieval} courses={courses} defaultCourse={defaultCourse} document={document}
         initialPlan={initialPlan} initialRun={initialRun} initialApproval={initialApproval} />
       : <Hint>{ui('在「设置 › 检索扩展」里一键安装检索扩展，再为这门课建立检索索引。')}</Hint>}
   </div>;
@@ -179,7 +180,10 @@ export default function LargeDocumentCard({ reason, detail = {}, retrieval = nul
       <header className="large-doc__head">
         <Icon name="info" size={20} className="large-doc__icon" />
         <div>
-          <h2 id={titleId} className="large-doc__title">{ui('大教材建议')}</h2>
+          {/* Why a long book is advised by chapter; the other reasons (a file too large to import, a selection too big) say their own reason below. */}
+          {reason === 'long-document'
+            ? <Tooltip layer anchorClassName="large-doc__tip" content={adviceTip()}><h2 id={titleId} className="large-doc__title" tabIndex={0}>{ui('大教材建议')}</h2></Tooltip>
+            : <h2 id={titleId} className="large-doc__title">{ui('大教材建议')}</h2>}
           <p className="large-doc__reason">{reasonText(reason, detail)}</p>
         </div>
       </header>

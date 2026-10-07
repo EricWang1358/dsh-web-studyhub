@@ -51,10 +51,16 @@
     .extension-panel { display: grid; gap: var(--space-3); min-width: 0; }
     .extension-panel__lead { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .extension-panel__lead--ok { color: var(--text); font-weight: var(--fw-strong); }
-    .extension-panel__index { display: grid; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg); }
+    .extension-panel__index { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg); }
     .extension-panel__course label { margin: 0; }
     .extension-panel__course select { width: 100%; }
     .extension-panel__plan { margin: 0; font-size: var(--fs-sm); color: var(--text); line-height: var(--lh-snug); }
+    /* The course line and the button each carry a hover; the line keeps two lines of room until the plan arrives, so the card does not grow under the reader. */
+    .extension-panel__tip { display: flex; min-width: 0; }
+    .extension-panel__tip > .extension-panel__plan { flex: 1; min-width: 0; }
+    .extension-panel__plan--waiting { min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); }
+    .extension-panel__plan--note { color: var(--text-dim); }
+    .extension-panel__action { display: inline-flex; }
     .extension-panel__progress { display: grid; gap: var(--space-2); justify-items: start; }
     .extension-panel__progress .sh-progress { width: 100%; }
     .extension-panel__progress p { margin: 0; font-size: var(--fs-sm); }

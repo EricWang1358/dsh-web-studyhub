@@ -130,12 +130,12 @@ test('IndexBadge is a Badge whose tone and icon follow the index state', () => {
   m.setUiLanguage('zh');
   const badge = info => html(m.IndexBadge, { info });
   assert.match(badge({ state: 'indexed', total: 120 }), /sh-badge[^>]*data-tone="success"[^>]*data-state="indexed"|data-state="indexed"[^>]*data-tone="success"/);
-  assert.match(badge({ state: 'indexed', total: 120 }), /索引已建好 · 120 页/);
+  assert.match(badge({ state: 'indexed', total: 120 }), /索引已建好 · 这份资料 120\/120 页/);
   assert.match(badge({ state: 'partial', indexed: 3, total: 9 }), /data-tone="warning"/);
   assert.match(badge({ state: 'stale', stale: 2 }), /data-tone="warning"/);
   assert.match(badge({ state: 'building' }), /data-tone="info"[\s\S]*sh-spinner/);
   assert.match(badge({ state: 'missing' }), /data-tone="neutral"/);
-  assert.match(badge({ state: 'missing' }), /title="索引是按页提前编好的目录/);
+  assert.match(badge({ state: 'missing' }), /role="tooltip"[^>]*>这份资料还没有检索目录/, 'the words behind the badge are a Tooltip, not a title');
   assert.equal(html(m.IndexBadge, {}), '');
 });
 

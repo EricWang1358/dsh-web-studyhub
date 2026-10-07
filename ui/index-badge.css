@@ -1,0 +1,15 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The index badge says whose pages it counts ("这份资料 404/404 页"). In a narrow window the row has no room for that: it shows the short
+       label (the counts alone) and the hover keeps the scope. */
+    .index-badge__short { display: none; }
+  }
+  @container study (max-width: 720px) {
+    :is(.study-app, .study-seat) {
+      .index-badge__full { display: none; }
+      .index-badge__short { display: inline; }
+    }
+  }
+}
