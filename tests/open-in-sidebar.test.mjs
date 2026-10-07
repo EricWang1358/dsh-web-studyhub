@@ -26,13 +26,23 @@ const bundle = await build({ stdin: { contents: `
     const reply = await window.invokeStudy(payload.action, payload.args);
     return reply.ok ? { ok: true, value: reply.value } : { ok: false, error: { message: reply.error, code: reply.code } };
   } };
-  // How this fake DSH's right sidebar behaves: works (mounts the seat), inert (openTab does nothing), throws, none (no sidebarRight service).
+  // How this fake DSH's right sidebar behaves: works (mounts the seat), inert (openTab does nothing), throws, none (no sidebarRight service),
+  // and the two of a DSH whose right sidebar belongs to the conversation panel: it mounts (after dshMountDelay ms) only once that panel has been
+  // revealed by layout.selectPanel(null); before that openTab does nothing ('late') or throws ('late-throws').
   const mode = window.dshSidebar || 'works';
+  let revealed = false;
+  const mountLater = () => setTimeout(() => window.mountSidebar(), window.dshMountDelay || 0);
   const openTab = { works: (id) => { log.push('openTab:' + id); window.mountSidebar(); }, inert: (id) => { log.push('openTab:' + id); },
-    throws: () => { throw new Error('right sidebar is not mounted'); } }[mode];
+    throws: () => { throw new Error('right sidebar is not mounted'); },
+    late: (id) => { log.push('openTab:' + id + (revealed ? '' : ':lost')); if (revealed && !window.sidebarMounting) { window.sidebarMounting = true; mountLater(); } },
+    'late-throws': (id) => { if (!revealed) throw new Error('no right sidebar'); log.push('openTab:' + id); if (!window.sidebarMounting) { window.sidebarMounting = true; mountLater(); } } }[mode];
   const services = {
     connection: { rpc },
-    layout: { selectPanel: (id) => { if (id !== null) return; log.push('selectPanel:null'); roots.page?.render(null); } }, // the first-run landing selects the studyhub page: not what is under test
+    layout: { selectPanel: (id) => {
+      if (!window.dshReady) return; // the first-run landing selects the studyhub page: not what is under test
+      log.push('selectPanel:' + id);
+      if (id === null) { revealed = true; roots.page?.render(null); } else window.mountPage();
+    } },
     sidebarRight: mode === 'none' ? undefined : { openTab, openResource() {} },
   };
   const ctx = { get: (name) => services[name], effect(fn) { fn(); }, inject: (_n, fn) => fn(ctx),
@@ -56,7 +66,7 @@ const cards = Array.from({ length: 4 }, (_, i) => ({
 }));
 const reading = { documentId: 'doc1', sourceId: 'src1', sectionTitle: '检索练习', page: 2, scope: { kind: 'here', count: 1, label: '这一页' } };
 
-async function open(t, { sidebar = 'works', withReading = true, premount = false, width = 1100, placement = 'main' } = {}) {
+async function open(t, { sidebar = 'works', withReading = true, premount = false, width = 1100, placement = 'main', mountDelay = 0 } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'open-in-sidebar-'));
   let server, browser;
   t.after(async () => { await browser?.close(); await server?.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });
@@ -83,6 +93,8 @@ async function open(t, { sidebar = 'works', withReading = true, premount = false
   await page.addScriptTag({ content: `window.dshSidebar = ${JSON.stringify(sidebar)};` });
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   await page.evaluate((where) => { window.installDsh(); where === 'page' ? window.mountPage() : window.mountMain(); }, placement);
+  await page.waitForTimeout(100); // the first-run landing has run
+  await page.evaluate((delay) => { window.dshReady = true; window.dshMountDelay = delay; }, mountDelay);
   if (premount) {
     await page.evaluate(() => window.mountSidebar());
     await page.locator('#side .study-app').waitFor();
@@ -116,8 +128,42 @@ test('the top-level StudyHub page reveals the conversation once the sidebar has 
   const { page, errors } = opened;
   await sidebarButton(page).click();
   await page.locator('#side .review-page').waitFor({ timeout: 15000 });
-  assert.deepEqual(await page.evaluate(() => window.dshLog), ['openTab:study-workspace', 'selectPanel:null']);
+  const log = await page.evaluate(() => window.dshLog);
+  assert.equal(log[0], 'selectPanel:null', 'the conversation is revealed first, the sidebar is asked for after it');
+  assert.ok(log.length > 1 && log.slice(1).every(entry => entry === 'openTab:study-workspace'));
   assert.deepEqual(errors, []);
+});
+
+for (const sidebar of ['late', 'late-throws'])
+  test(`the top-level page reveals the conversation first and asks again until a sidebar that only exists then takes the run (${sidebar})`, { timeout: 90000 }, async t => {
+    const opened = await open(t, { placement: 'page', sidebar, mountDelay: 1200 });
+    if (!opened) return;
+    const { page, errors } = opened;
+    await sidebarButton(page).click();
+    await page.locator('#side .review-page').waitFor({ timeout: 15000 });
+    const log = await page.evaluate(() => window.dshLog);
+    assert.equal(log[0], 'selectPanel:null', 'the conversation is revealed before the sidebar is asked for');
+    assert.ok(log.filter(entry => entry.startsWith('openTab:study-workspace')).length >= 1);
+    assert.equal(await reasonOf(page).count(), 0, 'no failure is reported');
+    assert.deepEqual(errors, []);
+  });
+
+test('a page whose sidebar never opens is brought back with what to do, and the run is not left for a later sidebar', { timeout: 90000 }, async t => {
+  const opened = await open(t, { placement: 'page', sidebar: 'inert' });
+  if (!opened) return;
+  const { page } = opened;
+  await sidebarButton(page).click();
+  await reasonOf(page).waitFor({ timeout: 15000 });
+  assert.match(await reasonOf(page).textContent(), /请先回到对话并打开右栏/);
+  const log = await page.evaluate(() => window.dshLog);
+  assert.equal(log[0], 'selectPanel:null');
+  assert.equal(log.at(-1), 'selectPanel:studyhub', 'the learner is put back on the StudyHub page');
+  assert.ok(log.filter(entry => entry === 'openTab:study-workspace').length >= 3, 'the sidebar was asked repeatedly');
+  assert.equal(await page.locator('#main .study-app').count(), 1, 'StudyHub is on screen again');
+  await page.evaluate(() => window.mountSidebar());
+  await page.locator('#side .study-app').waitFor();
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('#side .review-page').count(), 0, 'a failed handoff is not delivered later');
 });
 
 test('with no right sidebar in DSH the button is not drawn', { timeout: 90000 }, async t => {
