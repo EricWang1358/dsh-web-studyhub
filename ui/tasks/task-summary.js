@@ -15,6 +15,10 @@ const KIND_LABEL = {
 };
 export const taskKindLabel = (kind) => ui(KIND_LABEL[kind] || KIND_LABEL.extension);
 
+/** The name of a kind of audio job: each has its own (a subtitle import is not a batch transcription). The original path records a batch as an `audio-import` that holds several files. */
+const AUDIO_LABEL = { 'audio-batch': '音频批量转写', 'audio-subtitles': '字幕导入', 'audio-review': '转写复核', 'audio-live-save': '课堂保存', 'audio-live-correction': '课堂校正' };
+export const audioKindLabel = (contract) => ui(AUDIO_LABEL[contract.kind] || (contract.detail?.files?.length > 1 ? '音频批量转写' : '音频转写'));
+
 /** run | queued | paused | stopping | done | partial | fail | stopped: what a row's dot, colour and word are drawn from. */
 export function taskState(job) {
   const { status, result } = contractOf(job);
@@ -91,7 +95,7 @@ export function taskLine(job) {
 /** Everything a list row needs. */
 export function taskSummary(job) {
   const contract = contractOf(job), kind = taskKindOf(job);
-  return { id: contract.jobId, kind, kindLabel: taskKindLabel(kind), title: taskTitle(job), state: taskState(job), percent: taskPercent(job), running: isRunningTask(job), line: taskLine(job), status: contract.status };
+  return { id: contract.jobId, kind, kindLabel: kind === 'audio' ? audioKindLabel(contract) : taskKindLabel(kind), title: taskTitle(job), state: taskState(job), percent: taskPercent(job), running: isRunningTask(job), line: taskLine(job), status: contract.status };
 }
 
 /** The badge word of a state. */
