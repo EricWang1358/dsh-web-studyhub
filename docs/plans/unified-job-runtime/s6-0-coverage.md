@@ -59,7 +59,7 @@
 
 ## 3. 全部后台启动点（`starts`，33 个文件 48 处）
 
-读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量：迁移 4、保留例外 30、S6-2 删除 12（§7 给删除清单）。**答案**：全开后仍在运行时之外的后台**路径**只有 3 条要迁移——课堂保存（S2-6）、补题运行里的发布与快速发布的审阅（S3-7）、`note.generate`（S4-10）；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
+读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量：迁移 4、保留例外 30、S6-2 删除 12（§7 给删除清单）。**答案**：全开后仍在运行时之外的后台**路径**只有 3 条要迁移——课堂保存（S2-6）、快速发布的审阅（S3-7）、`note.generate`（S4-10）；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
 
 ### 3.1 音频
 
@@ -156,7 +156,7 @@
 | `lib/runtime/work.js:11-30` | 仍走 | 例外：内核（`jobs`，控制台读的表）+ 领域单飞/队列表；`queues`/`settled` 仍被出题与翻译 Job 排队使用（S3-1 保留，S6-5 由内核调度取代） | |
 | `lib/translation.js:80` | 仍走 | 例外：共享流水线 | 读者直接翻译与翻译卡共用 |
 | `lib/workflow-teaching.js:115` | 不走（`workflow` 打开后由 Job 执行） | S6-2 删除 | 进程内讲解调用 |
-| **新增** `lib/contexts/authoring/publication.js:87` | 仍走（补题运行自己的发布、快速发布） | **迁移 S3-7**；发布草稿的任务已经网关（`a.ask`） | 发布前审阅，随 `draft.publish` |
+| **新增** `lib/contexts/authoring/publication.js:87` | 仍走（快速发布；不落盘的补题运行） | **迁移 S3-7**；发布草稿的任务已经网关（`a.ask`） | 发布前审阅，随 `draft.publish` |
 | **新增** `lib/contexts/generation/operations.js:161` | 仍走 | `generate.suggest` 即时请求（例外）；`draft.repair` 的模型调用已搬到 `draft-repair.js`，经网关一步（S3-5） | |
 | **新增** `lib/contexts/notes/operations.js:43` | 仍走 | **迁移 S4-10** | `note.generate` |
 | **新增** `lib/contexts/recording/operations.js:54` | 仍走 | 例外：即时请求 | `capture` 的宿主模型调用 |

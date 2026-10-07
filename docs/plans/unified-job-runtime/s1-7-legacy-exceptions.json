@@ -310,12 +310,12 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "The review before a publication: the draft-publish job (S3-6) asks it through the gateway (a.ask); the supplement's own publication and the quick publication still ask the host model here",
+      "reason": "The review before a publication: the draft-publish job (S3-6) and a kept supplement run (S3-6b) ask it through the gateway (a.ask); the quick publication and a supplement that is not kept on disk still ask the host model here",
       "removeAt": "S3-7",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
-          "what": "review of the cards before publication, as the supplement run and draft.publish.quick ask it (the draft-publish job passes its gateway as a.ask)",
+          "what": "review of the cards before publication, as draft.publish.quick (and a supplement run that is not kept on disk) ask it",
           "disposition": "migrate",
           "kind": "legacy-bypass",
           "reached": true,
