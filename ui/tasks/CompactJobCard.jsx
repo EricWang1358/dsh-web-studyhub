@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { ui, uiFormat, uiMessage } from '../i18n.js';
-import { Button, InlineMessage, ProgressBar } from '../components/index.js';
+import { Button, InlineMessage, ProgressBar, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { AppContext } from '../app/app-context.js';
 import { dismissJobs, useQuickActions } from '../quick-actions.js';
@@ -9,6 +9,7 @@ import css from './compact-card.css';
 import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
 import { taskSummary, stageLabel } from './task-summary.js';
 import { badgeText } from './task-parallel.js';
+import { progressHint } from './task-facts.js';
 import { runningCalls, callLabel } from './call-model.js';
 import { resultOpener } from './task-actions.js';
 
@@ -31,7 +32,8 @@ export function cardLine(job) {
   const contract = contractOf(job), { progress, status, result, error } = contract;
   const notices = contract.detail?.notices?.length || contract.detail?.warnings?.length || 0, noticed = notices ? uiFormat('{0} 条提醒', [notices]) : '';
   if (status === 'failed' || status === 'interrupted') return uiMessage(error?.message || stageLabel(contract.stage));
-  if (status === 'cancelled') return joinMeta([ui('已停止'), progress.total > 0 ? uiFormat('停在 {0}/{1}', [progress.done, progress.total]) : '', ui('已完成的部分已保留')]);
+  const own = contract.detail?.own, ownCount = own?.asked > 0 ? uiFormat('本任务 {0}/{1} 题', [own.made, own.asked]) : '';
+  if (status === 'cancelled') return joinMeta([ui('已停止'), ownCount ? uiFormat('停在 {0}', [ownCount]) : progress.total > 0 ? uiFormat('停在 {0}/{1}', [progress.done, progress.total]) : '', ui('已完成的部分已保留')]);
   if (status === 'complete' && taskKindOf(job) === 'audio') {
     const { review, reusedWhole, corrected, uncertain } = contract.detail, sources = result.refs.filter((ref) => ref.kind === 'source').length;
     if (review) return uiFormat('复核完成：改进正稿 {0} 处 · 判定原文无误 {1} 处 · 仍拿不准 {2} 处', [review.applied, review.rejected, review.unsure]);
@@ -41,7 +43,7 @@ export function cardLine(job) {
   if (status === 'complete') {
     const sources = result.refs.filter((ref) => ref.kind === 'source').length;
     return joinMeta([sources ? uiFormat('已存为 {0} 份资料', [sources]) : result.refs.some((ref) => ref.kind === 'draft') ? ui('草稿已生成') : ui('已完成'),
-      result.completeness === 'partial' ? ui('只完成了一部分') : '', progress.unit && progress.total > 0 ? uiFormat('{0}/{1} {2}', [progress.done, progress.total, ui(UNIT[progress.unit])]) : '', noticed]);
+      result.completeness === 'partial' ? ui('只完成了一部分') : '', ownCount || (progress.unit && progress.total > 0 ? uiFormat('{0}/{1} {2}', [progress.done, progress.total, ui(UNIT[progress.unit])]) : ''), noticed]);
   }
   const now = runningCalls(contract.calls).find((call) => call.kind !== 'wait');
   const count = progress.total > 0 && ['files', 'pages', 'paragraphs'].includes(progress.unit) ? uiFormat('{0}/{1} {2}完成', [progress.done, progress.total, ui(UNIT[progress.unit])]) : '';
@@ -54,7 +56,7 @@ export function cardLine(job) {
 export default function CompactJobCard({ job, onStop, onDismiss, primary, title, line, onOpenConsole, className, ...rest }) {
   useInjectCss(css, 'study-compact-card');
   const app = useContext(AppContext) || {}, quick = useQuickActions();
-  const contract = contractOf(job), summary = { ...taskSummary(job) }, live = isRunningTask(job), unknown = summary.percent === null && live;
+  const contract = contractOf(job), summary = { ...taskSummary(job) }, percentHint = progressHint(job).percent, live = isRunningTask(job), unknown = summary.percent === null && live;
   const openConsole = onOpenConsole || (() => app.nav?.show?.task?.(contract.jobId));
   const cancel = onStop || (() => app.core?.act?.('job.control', { jobId: contract.jobId, action: 'cancel' }));
   // 知道了 puts the task in 已归档 (nothing is deleted); the notice says where it went.
@@ -74,7 +76,9 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, title,
       <div className="cjc__main">
         <div className="cjc__top">
           <strong className="cjc__title">{summary.title}</strong>
-          <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'interrupted' ? ui('已中断') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : summary.percent === null ? '' : `${summary.percent}%`}</span>
+          {percentHint && summary.percent !== null && !['fail', 'interrupted', 'stopped', 'done'].includes(tone)
+            ? <Tooltip layer content={percentHint} anchorClassName="cjc__pct-anchor"><span className="cjc__pct" data-state={tone} data-metric-hint tabIndex={0}>{`${summary.percent}%`}</span></Tooltip>
+            : <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'interrupted' ? ui('已中断') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : summary.percent === null ? '' : `${summary.percent}%`}</span>}
         </div>
         <ProgressBar className="cjc__bar" size="sm" value={summary.percent ?? 0} max={100} indeterminate={unknown} tone={tone === 'fail' ? 'error' : tone === 'done' ? 'success' : 'accent'} label={uiFormat('{0} 的进度', [summary.title])} />
         <span className="cjc__line" role={tone === 'fail' ? 'alert' : undefined}>{line || cardLine(job)}</span>

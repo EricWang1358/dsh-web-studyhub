@@ -191,7 +191,7 @@ export function eventText(event) {
     case 'parallel-resumed': return ui('前面的任务已完成，自动继续');
     case 'batch': return batchText(a, event.text);
     // The rounds of a coverage run: one line per round boundary and one for the reason a run stops (ui/coverage/copy.js is the one wording).
-    case 'round-start': case 'round-end': case 'round-rerun': case 'run-paused': case 'run-resumed': case 'run-waiting': case 'run-interrupted': case 'run-stop': return runEventText(event.code, a);
+    case 'round-start': case 'round-end': case 'round-rerun': case 'run-paused': case 'run-resumed': case 'run-waiting': case 'run-interrupted': case 'run-stop': case 'run-closing': case 'run-closed': return runEventText(event.code, a);
     default: return event.text || String(event.code || '');
   }
 }
