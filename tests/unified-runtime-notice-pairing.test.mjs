@@ -68,8 +68,10 @@ test('durable: each sink delivers once through the stored deliveries, with no ke
 
 /** The first process dies inside the sink of `channel` (claimed on disk, never delivered); a second one takes the job from the store. Returns what was delivered before and after. */
 async function crashIn(t, channel) {
-  const dying = Promise.withResolvers(), held = { channel, promise: dying.promise }, { f, seen } = await pair(t, { durable: true, held });
-  t.after(() => dying.resolve()); // the dead process's sink is let go at the end so that its fixture can close
+  const dying = Promise.withResolvers(), held = { channel, promise: dying.promise };
+  // The dead process's sink is let go first: closing its fixture waits for every delivery still on its way, so this hook must run before the fixture's own.
+  t.after(() => dying.resolve());
+  const { f, seen } = await pair(t, { durable: true, held });
   const job = await f.port.submit('persist', {});
   await until(() => seen.started[channel] === 1, `the ${channel} sink to be claimed and started`);
   assert.equal((await f.store.load()).deliveries.find(item => item.channel === channel).status, 'claimed', 'the claim is on disk before the delivery');
