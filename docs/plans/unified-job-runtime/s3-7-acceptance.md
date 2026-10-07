@@ -130,6 +130,7 @@
 - **共享供应商配额**：开启时出题拒绝启动（`capability-unverified`），需要观测边界后才能放开（S3-1）。
 - **`card.grade`** 的模型调用在 study 上下文里，不经网关。
 - **mixed 重试少一张 = fixture 的行为，不是丢题**（`generation-restart-mixed` 两条钉住）：这个假规划器是确定的、总取资料开头的句子，且在每个进程里从 `#1` 起给目标编号。重试用「全新的」规划器时，它又规划出已存草稿里那一题（问题文字相同、目标编号不同），服务器的补题合并（`mergeContinuedDraft`）把重复的那一张跳过，并写进草稿的 `failures`「补题时跳过了一道与已有草稿重复的题」，草稿仍显示比请求少一张，可以再「接着做」；测试逐张核对：重试写了 3 张，被跳过的恰是与已存那张问同一个问题的一张，其余 2 张按序保留，没有任何写出的题无声丢失。换成「记得已规划过什么」的规划器（真实规划器被告知草稿里已有的题，这里用 `alreadyPlanned` 模拟），重试与从未被打断的运行逐张相同（4 张、题型相同、没有跳过）。
+  **生产路径确实把已存的题告诉规划器**（不是 fixture 替它做的）：接着做 / 重试沿同一份草稿（`resumeArgs` → `resumeDraftId`），执行器每次给 `generateBatched` 的参数里带 `...existingFor(fresh, target, base)`（`lib/contexts/generation/operations.js`，函数 `existingFor`：被续补的草稿与目标题组的学习目标，作为 `existing` 与 `pinnedExisting`）；`lib/batch.js` 的 `library()` 经 `scopeExisting(..., { pinned })`（`lib/existing-scope.js`：被续补的草稿的目标总是保留）把它放进每一次规划调用的 `existing`；规划结果还要过服务器的 `planProblems`（`lib/assessment-quality.js`：与 `existing` 学习目标重复的目标被打回重规划）。`generation-restart-mixed` 第一条断言：重试的每次规划请求的 `existing` 都含已存那一题的学习目标。所以真实重试不会重复规划已有的题；fixture 里那一张重复只因为假规划器忽略 `existing`、且给重复的目标换了新编号（服务器按学习目标文字比对，认不出）。
 - **V1**：重启用「复制库目录 + 新服务」模拟，不是杀真实宿主进程。
 - **V2**：子代理执行方式下重启后的子任务归属缺宿主证据。
 - **`job.dismiss` 后的运行记录**：记录在忽略 / 删除任务后仍留在磁盘，下次重启会再回来（7 天清理）；jobs 上下文需要通知家族（S6）。

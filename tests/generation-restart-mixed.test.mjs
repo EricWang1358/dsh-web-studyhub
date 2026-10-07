@@ -37,10 +37,11 @@ const PLAN = 'Plan a source-grounded assessment';
 
 /** The planner of a retry that REMEMBERS: it is told which passages the questions the draft already holds were planned from (the real planner is told those questions), and does not plan them again.
  * `quoteOf` is what the planner of the first process planned each objective from. */
-function remembering(model, quoteOf) {
+function remembering(model, quoteOf, seenExisting) {
   const complete = async (system, prompt, context = {}) => {
     if (!system.startsWith(PLAN)) return model.complete(system, prompt, context);
     const [head, data] = prompt.split('REQUEST DATA:\n'), request = parseJson(data);
+    seenExisting.push(request.existing ?? []);
     const already = (request.existing ?? []).map(objective => quoteOf.get(objective)).filter(Boolean);
     return model.complete(system, `${head}REQUEST DATA:\n${JSON.stringify({ ...request, assignments: [{ alreadyPlanned: already }] })}`, context);
   };
@@ -82,7 +83,9 @@ async function retried(t, ids, again) {
 
 test('restart, a mixed run killed after its first part, planner that remembers: the retry comes to exactly what the run that was never cut short comes to, card by card', async t => {
   const ids = world.sources.map(source => source.id), whole = await uninterrupted(t, ids);
-  const run = await retried(t, ids, first => remembering(clusteringModel(), first.planner.log.quoteOf));
+  const existing = [];
+  const run = await retried(t, ids, first => remembering(clusteringModel(), first.planner.log.quoteOf, existing));
+  assert.ok(existing.length > 0 && existing.every(list => run.saved.cards.every(item => list.includes(item.objective))), 'PRODUCTION: the retry tells its planner the questions the draft already holds (`existing`), it is not this fixture that does');
   assert.equal(run.draft.id, run.saved.id, 'the same draft');
   assert.deepEqual(run.draft.cards.slice(0, run.saved.cards.length).map(item => item.id), run.saved.cards.map(item => item.id), 'what was approved stays in place');
   assert.equal(whole.draft.cards.length, 4);
