@@ -286,5 +286,12 @@
   "本日记录 · {0}": "Daily record · {0}",
   "暂无进行中的批次": "No batch currently running",
   "失败 {0} 批": "{0} failed batches",
-  "跟随当前会话 · {0} · {1}": "Follow current session · {0} · {1}"
+  "跟随当前会话 · {0} · {1}": "Follow current session · {0} · {1}",
+  "第 {0}/{1} 批": "Batch {0}/{1}",
+  "要求 {0} 道": "asked for {0}",
+  "写出 {0} 道": "wrote {0}",
+  "审了 {0} 道": "reviewed {0}",
+  "通过 {0}": "passed {0}",
+  "未通过 {0}": "not passed {0}",
+  "重写 {0} 道": "re-wrote {0}"
 }
