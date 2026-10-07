@@ -8,15 +8,8 @@
         "scenario": "settled",
         "lib": "older",
         "seen": {
-          "unreadable": "invalid-store-shape"
-        }
-      },
-      "rolledForward": {
-        "scenario": "settled",
-        "lib": "current",
-        "seen": {
           "sources": 5,
-          "sourceHash": "71a393489d57397f",
+          "sourceHash": "ede116f01f411268",
           "ids": [
             "audio-batch-<id>",
             "audio-d27c67f6aeb75c22-bd827868",
@@ -38,7 +31,7 @@
         },
         "prepared": {
           "sources": 5,
-          "sourceHash": "71a393489d57397f",
+          "sourceHash": "ede116f01f411268",
           "ids": [
             "audio-batch-<id>",
             "audio-d27c67f6aeb75c22-bd827868",
@@ -96,7 +89,113 @@
           "audio-cache/subtitle-<id>/proof-sub1-<id>-0-<id>.json",
           "audio-cache/subtitle-<id>/title-sub1-<id>-<id>.json",
           "live/saved-class-0001.json",
-          "live/saved-class-0001.json.<id>.tmp",
+          "shards/audioResults/audio-<id>-<id>.<id>.json",
+          "shards/audioResults/audio-batch-<id>.<id>.json",
+          "shards/audioResults/live-saved-cl-<id>.<id>.json",
+          "shards/audioResults/subtitle-<id>.<id>.json",
+          "shards/audioResults/talk-1.<id>.json",
+          "shards/courses/course-<id>.<id>.json",
+          "shards/misc/coach.<id>.json",
+          "shards/misc/feedback.<id>.json",
+          "shards/misc/inbox.<id>.json",
+          "shards/misc/notes.<id>.json",
+          "shards/misc/prepared.<id>.json",
+          "shards/misc/skeletons.<id>.json",
+          "shards/misc/teaching.<id>.json",
+          "shards/misc/topicGroups.<id>.json",
+          "shards/sources/audio-<id>-<id>.<id>.json",
+          "shards/sources/audio-batch-<id>.<id>.json",
+          "shards/sources/live-saved-cl-<id>.<id>.json",
+          "shards/sources/subtitle-<id>.<id>.json",
+          "shards/sources/talk-1.<id>.json",
+          "study-workspace.json"
+        ]
+      },
+      "rolledForward": {
+        "scenario": "settled",
+        "lib": "current",
+        "seen": {
+          "sources": 5,
+          "sourceHash": "ede116f01f411268",
+          "ids": [
+            "audio-batch-<id>",
+            "audio-d27c67f6aeb75c22-bd827868",
+            "live-saved-cl-3500a4a4",
+            "subtitle-2d6df86b",
+            "talk-1"
+          ],
+          "closingLetters": [
+            "audio-result",
+            "audio-result",
+            "audio-result",
+            "audio-result",
+            "audio-result"
+          ],
+          "jobs": [
+            "complete",
+            "complete"
+          ]
+        },
+        "prepared": {
+          "sources": 5,
+          "sourceHash": "ede116f01f411268",
+          "ids": [
+            "audio-batch-<id>",
+            "audio-d27c67f6aeb75c22-bd827868",
+            "live-saved-cl-3500a4a4",
+            "subtitle-2d6df86b",
+            "talk-1"
+          ],
+          "closingLetters": [
+            "audio-result",
+            "audio-result",
+            "audio-result",
+            "audio-result",
+            "audio-result"
+          ],
+          "jobs": [
+            "complete",
+            "complete",
+            "complete",
+            "complete",
+            "complete",
+            "complete"
+          ],
+          "done": [
+            {
+              "status": "complete"
+            },
+            {
+              "status": "complete"
+            },
+            {
+              "status": "complete"
+            },
+            {
+              "status": "complete"
+            },
+            {
+              "status": "complete"
+            }
+          ]
+        },
+        "fileKinds": [
+          "audio-batches/<id>/checkpoints/<id>.json",
+          "audio-batches/<id>/manifest.json",
+          "audio-batches/<id>/result-0.json",
+          "audio-batches/<id>/result-1.json",
+          "audio-cache/<id>/part-<id>-<id>-0-<id>.json",
+          "audio-cache/<id>/proof-<id>-<id>-0-<id>.json",
+          "audio-cache/<id>/raw-<id>-0.json",
+          "audio-cache/<id>/title-<id>-<id>-<id>.json",
+          "audio-cache/<id>/usage.json",
+          "audio-cache/live-saved-class-0001/part-live2-<id>-0-<id>.json",
+          "audio-cache/live-saved-class-0001/proof-live2-<id>-0-<id>.json",
+          "audio-cache/live-saved-class-0001/title-live2-<id>-<id>.json",
+          "audio-cache/subtitle-<id>/part-sub1-<id>-0-<id>.json",
+          "audio-cache/subtitle-<id>/proof-sub1-<id>-0-<id>.json",
+          "audio-cache/subtitle-<id>/title-sub1-<id>-<id>.json",
+          "live/saved-class-0001.json",
           "shards/audioResults/audio-<id>-<id>.<id>.json",
           "shards/audioResults/audio-batch-<id>.<id>.json",
           "shards/audioResults/live-saved-cl-<id>.<id>.json",
@@ -124,7 +223,7 @@
         "lib": "current",
         "seen": {
           "sources": 5,
-          "sourceHash": "71a393489d57397f",
+          "sourceHash": "ede116f01f411268",
           "ids": [
             "audio-batch-<id>",
             "audio-d27c67f6aeb75c22-bd827868",
@@ -146,7 +245,7 @@
         },
         "prepared": {
           "sources": 5,
-          "sourceHash": "71a393489d57397f",
+          "sourceHash": "ede116f01f411268",
           "ids": [
             "audio-batch-<id>",
             "audio-d27c67f6aeb75c22-bd827868",
@@ -204,7 +303,6 @@
           "audio-cache/subtitle-<id>/proof-sub1-<id>-0-<id>.json",
           "audio-cache/subtitle-<id>/title-sub1-<id>-<id>.json",
           "live/saved-class-0001.json",
-          "live/saved-class-0001.json.<id>.tmp",
           "shards/audioResults/audio-<id>-<id>.<id>.json",
           "shards/audioResults/audio-batch-<id>.<id>.json",
           "shards/audioResults/live-saved-cl-<id>.<id>.json",
@@ -233,18 +331,63 @@
         "scenario": "single",
         "lib": "older",
         "seen": {
-          "unreadable": "invalid-store-shape"
+          "sources": 0,
+          "sourceHash": "e3b0c44298fc1c14",
+          "ids": [],
+          "closingLetters": [],
+          "jobs": [
+            "failed+retry"
+          ]
+        },
+        "finished": {
+          "refused": "revision-conflict",
+          "resubmitted": {
+            "status": "complete"
+          },
+          "resubmittedRequests": {
+            "proofread": 1,
+            "translate": 1,
+            "title": 1
+          },
+          "clicks": 2,
+          "firstRefusal": "revision-conflict",
+          "requests": {
+            "proofread": 1,
+            "translate": 1,
+            "title": 1
+          }
+        },
+        "after": {
+          "sources": 1,
+          "sourceHash": "257e2864df7918fd",
+          "ids": [
+            "audio-d27c67f6aeb75c22-bd827868"
+          ],
+          "closingLetters": [
+            "audio-failed",
+            "audio-result"
+          ],
+          "jobs": [
+            "complete",
+            "failed+retry"
+          ]
         }
       },
       "rolledForward": {
         "scenario": "single",
         "lib": "current",
         "seen": {
-          "sources": 0,
-          "sourceHash": "e3b0c44298fc1c14",
-          "ids": [],
-          "closingLetters": [],
+          "sources": 1,
+          "sourceHash": "257e2864df7918fd",
+          "ids": [
+            "audio-d27c67f6aeb75c22-bd827868"
+          ],
+          "closingLetters": [
+            "audio-failed",
+            "audio-result"
+          ],
           "jobs": [
+            "complete",
             "failed+retry"
           ]
         }
@@ -263,6 +406,7 @@
         },
         "finished": {
           "status": "complete",
+          "clicks": 1,
           "requests": {
             "proofread": 1,
             "translate": 1,
@@ -298,17 +442,26 @@
           ]
         },
         "finished": {
-          "refused": "invalid-store-shape",
-          "requests": {}
+          "status": "complete",
+          "clicks": 1,
+          "requests": {
+            "transcribe": 1,
+            "proofread": 1,
+            "translate": 1,
+            "title": 1
+          }
         },
         "after": {
-          "sources": 0,
-          "sourceHash": "e3b0c44298fc1c14",
-          "ids": [],
-          "closingLetters": [],
+          "sources": 1,
+          "sourceHash": "90fec04d02062fbc",
+          "ids": [
+            "audio-batch-<id>"
+          ],
+          "closingLetters": [
+            "audio-result"
+          ],
           "jobs": [
-            "failed+retry",
-            "running"
+            "complete"
           ]
         }
       },
@@ -316,10 +469,14 @@
         "scenario": "batch",
         "lib": "current",
         "seen": {
-          "sources": 0,
-          "sourceHash": "e3b0c44298fc1c14",
-          "ids": [],
-          "closingLetters": [],
+          "sources": 1,
+          "sourceHash": "90fec04d02062fbc",
+          "ids": [
+            "audio-batch-<id>"
+          ],
+          "closingLetters": [
+            "audio-result"
+          ],
           "jobs": [
             "failed"
           ]
@@ -339,6 +496,8 @@
         },
         "finished": {
           "refused": "remote-result-unknown",
+          "clicks": 1,
+          "firstRefusal": "remote-result-unknown",
           "requests": {}
         },
         "after": {
@@ -368,17 +527,21 @@
           ]
         },
         "finished": {
-          "refused": "invalid-store-shape",
+          "status": "complete",
+          "clicks": 1,
           "requests": {}
         },
         "after": {
-          "sources": 0,
-          "sourceHash": "e3b0c44298fc1c14",
-          "ids": [],
-          "closingLetters": [],
+          "sources": 1,
+          "sourceHash": "dc2865ca0b6155b2",
+          "ids": [
+            "audio-batch-<id>"
+          ],
+          "closingLetters": [
+            "audio-result"
+          ],
           "jobs": [
-            "failed+retry",
-            "running"
+            "complete"
           ]
         }
       },
@@ -386,10 +549,14 @@
         "scenario": "batchAnswered",
         "lib": "current",
         "seen": {
-          "sources": 0,
-          "sourceHash": "e3b0c44298fc1c14",
-          "ids": [],
-          "closingLetters": [],
+          "sources": 1,
+          "sourceHash": "dc2865ca0b6155b2",
+          "ids": [
+            "audio-batch-<id>"
+          ],
+          "closingLetters": [
+            "audio-result"
+          ],
           "jobs": [
             "failed+retry"
           ]
@@ -409,11 +576,12 @@
         },
         "finished": {
           "status": "complete",
+          "clicks": 1,
           "requests": {}
         },
         "after": {
           "sources": 1,
-          "sourceHash": "f499919284057562",
+          "sourceHash": "dc2865ca0b6155b2",
           "ids": [
             "audio-batch-<id>"
           ],

@@ -56,7 +56,9 @@ const complete = async (system, prompt, options = {}) => {
 async function build({ withSwitches }) {
   const { StudyService } = await tree('service.js');
   const options = { fetch, complete, completeLight: complete };
-  if (withSwitches) { const { starts: _starts, ...managed } = managedRuntimeOptions({ complete, paths: SWITCHES }); Object.assign(options, managed); }
+  // The host gives either version the same executor, which says the agent of a process that ended is gone ('lost'); the switches are what differ.
+  const { starts: _starts, ...managed } = managedRuntimeOptions({ complete, paths: withSwitches ? SWITCHES : [] });
+  Object.assign(options, managed);
   const service = new StudyService(root, options);
   await service.call('audio.settings.set', { paidKey: 'AIzaDrillAudio_00000000000000001', textProvider: 'host', transcribeConcurrency: 1 });
   return service;
@@ -87,8 +89,17 @@ const settled = async (service, start) => { try { const job = await settleJob(se
 const finishWork = {
   async retry(service) {
     const [job] = (await service.call('snapshot')).jobs, before = { ...counts };
-    const result = await settled(service, () => service.call('audio.retry', { jobId: job.id }));
-    return { ...result, requests: Object.fromEntries(Object.entries(counts).map(([kind, count]) => [kind, count - before[kind]]).filter(([, count]) => count)) };
+    // The retry a learner clicks right after a start can meet a version's own revision-conflict while the restored job settles (v2.7.1 has it; #303 fixed it later): click again.
+    let result = await settled(service, () => service.call('audio.retry', { jobId: job.id })), clicks = 1;
+    const firstRefusal = result.refused;
+    while (result.refused === 'revision-conflict' && clicks < 2) { await new Promise(resolve => setTimeout(resolve, 3000)); result = await settled(service, () => service.call('audio.retry', { jobId: job.id })); clicks++; }
+    // What the learner does when the button keeps refusing: give the same recordings again (their transcripts are cached, so nothing is transcribed twice).
+    if (result.refused === 'revision-conflict') {
+      const asked = { ...counts };
+      result = { ...result, resubmitted: await settled(service, () => service.call('audio.import', RESUBMIT[scenario])),
+        resubmittedRequests: Object.fromEntries(Object.entries(counts).map(([kind, count]) => [kind, count - asked[kind]]).filter(([, count]) => count)) };
+    }
+    return { ...result, clicks, ...(firstRefusal ? { firstRefusal } : {}), requests: Object.fromEntries(Object.entries(counts).map(([kind, count]) => [kind, count - before[kind]]).filter(([, count]) => count)) };
   },
   async text(service) {
     const done = {};
@@ -100,6 +111,7 @@ const finishWork = {
     return done;
   },
 };
+const RESUBMIT = { single: { path: join(recordings, 'W1.wav') }, batch: { files: files([2, 3]), title: 'Week 3' }, batchAnswered: { files: files([2, 3]), title: 'Week 3' } };
 const PLAN = { settled: null, single: 'retry', batch: 'retry', batchAnswered: 'retry', text: 'text' };
 
 if (mode === 'prepare') {
