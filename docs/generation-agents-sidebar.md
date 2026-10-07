@@ -30,7 +30,7 @@ Generation tasks appear on the **Study library** page. Each task card shows:
 
 At the end of the step list, open **Method, usage and technical details** to see, for each stage, whether it ran as a **DSH subagent** or a **Direct model call**, its reasoning effort and its subagent session ID. The token usage of the whole task is there too.
 
-Generation tasks in one library run one at a time. A later task waits in the queue until the earlier one ends. A task started before StudyHub recorded steps has no step list; start a new task to see one.
+Generation tasks in one library run one at a time. A later task waits in the queue until the earlier one ends. In 任务, a queued task offers **Run in parallel** (要求并行): it starts now, beside the one ahead, which is faster but more likely to hit a model rate limit; if the model returns an error, parallel tasks go back to the queue first and continue by themselves (see the job contract). Tasks that write the same draft or deck cannot run in parallel, and with the unified-runtime switches on the control is hidden. A task started before StudyHub recorded steps has no step list; start a new task to see one.
 
 ### Add a requirement while a task runs
 

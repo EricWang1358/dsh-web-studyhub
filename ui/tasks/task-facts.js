@@ -25,7 +25,8 @@ export function elapsedMs(contract, running, now) {
   const from = Date.parse(runStartOf(contract));
   if (!Number.isFinite(from)) return null;
   const end = running ? now : Date.parse(contract.finishedAt || '') || from;
-  return Math.max(0, end - from);
+  // The time it spent held in the queue after a model error (lib/job-parallel.js) is not run time.
+  return Math.max(0, end - from - (contract.detail?.heldMs > 0 ? contract.detail.heldMs : 0));
 }
 
 function elapsedOf(contract, running, now) {
