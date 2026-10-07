@@ -79,6 +79,8 @@ test('job.parallel starts the queued job at once, beside the first; both finish,
   const a = await generate('s1');
   const holdA = model.hold(a.jobId, 'plan');
   const b = await generate('s2');
+  // The parallel job is held at its review call too: it must still be running (not over) when the card is read, however fast the machine is.
+  const holdB = model.hold(b.jobId, 'review');
   await soon(() => holdA.entered, 'the first job at the model');
   const before = await job(b.jobId);
   assert.equal(before.contract.actions.parallel.available, true, 'a queued job offers 要求并行');
@@ -86,11 +88,12 @@ test('job.parallel starts the queued job at once, beside the first; both finish,
   const reply = await runtime.call('job.parallel', { jobId: b.jobId });
   assert.equal(reply.jobId, b.jobId);
   assert.equal(reply.parallel, true);
-  await soon(() => model.callsOf(b.jobId).includes('review'), 'the parallel job to run on while the first is held');
+  await soon(() => holdB.entered, 'the parallel job to run on while the first is held');
   assert.equal((await job(b.jobId)).contract.detail.parallel.at, (await job(b.jobId)).parallelAt, 'the card says it runs beside the queue, since when');
   assert.equal((await job(a.jobId)).status, 'running');
   assert.equal((await job(b.jobId)).contract.actions.parallel.available, false);
   assert.equal((await job(b.jobId)).contract.actions.parallel.reason.code, 'already-parallel');
+  holdB.open();
   holdA.open();
   const endedA = await settleJob(runtime, a.jobId), endedB = await settleJob(runtime, b.jobId);
   assert.deepEqual([endedA.status, endedB.status], ['complete', 'complete']);
