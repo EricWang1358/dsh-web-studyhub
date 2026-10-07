@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Checkbox, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, Dialog, Disclosure, Icon, InlineMessage, PageHeader, Tooltip, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
@@ -20,6 +20,7 @@ import { modelReadiness } from './generation-status.js';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
+import { adviceTip, pageFacts, pageGapHint, pageGapNote } from './index-scope.js';
 import useIndexCoverage from './use-index-coverage.js';
 import { JevNote, JevProbabilities, JevRunNote, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
 import { JevDecidedBadge } from './JevBadge.jsx';
@@ -181,7 +182,9 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
   }, [isNew]);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
-  const details = [sourceFormatLabel(item), uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, ...documentNotes(item), relationNote(relation)].filter(Boolean);
+  const details = [uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, ...documentNotes(item), relationNote(relation)].filter(Boolean);
+  // One page count for the document (the pages that have text); when the original file has more, that is said once, beside it, with the reason on hover.
+  const gap = pageGapNote(item), pages = pageFacts(item).readable;
   return (
     <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "") + (dragging ? " source-doc--dragging" : "") + (dropMark ? ` source-doc--drop-${dropMark}` : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row=""
       {...(pinned && !editing ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
@@ -200,7 +203,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
             <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
               item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
-            <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
+            <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
             {(slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} />}</small>}
             {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
             {/* 覆盖 beside it: how much of the text has a question at all, drafts included (the mastery is only about published questions). */}
@@ -238,8 +241,9 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           </li>)}
         </ul>}
       </div>}
-      {advice && <Disclosure className="source-doc__advice" summary={uiFormat('这份资料有 {0} 页，建议按章节使用', [Math.max(item.pages.length, item.totalPages || 0)])} meta={ui('大教材建议')}>
-        <LargeDocumentCard reason="long-document" detail={{ name, pages: Math.max(item.pages.length, item.totalPages || 0) }}
+      {advice && <Disclosure className="source-doc__advice" meta={ui('大教材建议')} summary={<Tooltip layer content={adviceTip()}>
+          <span tabIndex={0}>{uiFormat('这份资料有 {0} 页，建议按章节使用', [pages])}</span></Tooltip>}>
+        <LargeDocumentCard reason="long-document" detail={{ name, pages }} document={indexInfo ? { info: indexInfo, courses: item.courses } : undefined}
           retrieval={retrieval} onOpenSettings={actions.openSettings} call={call} courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} />
       </Disclosure>}
     </article>

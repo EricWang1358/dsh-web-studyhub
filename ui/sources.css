@@ -14,6 +14,8 @@
     .source-doc .source-main > span { display: grid; gap: var(--space-half); min-width: 0; }
     .source-doc .source-main strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* “原 PDF 422 页” beside the page count: dotted, so it reads as something to hover for the reason. */
+    .source-doc__gap { text-decoration: underline dotted; text-underline-offset: 0.2em; }
     /* The index badge's line is there from the first paint (the picker's rule, #205): a coverage answer fills it and moves nothing. */
     .source-doc .source-main small.source-doc__index { display: flex; align-items: center; min-width: 0; height: calc(var(--fs-sm) * var(--lh-snug)); }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
@@ -82,6 +84,14 @@
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {
       .source-doc.is-new { animation: none; }
+    }
+  }
+  /* Narrow: the generic row lines are cut at 180px (sources-page.css), which would cut the counts that say what a number counts. The index badge takes its
+     column (it shows its short label, ui/index-badge.css); the line that says the original's page count may use two. */
+  @container study (max-width: 720px) {
+    :is(.study-app, .study-seat) {
+      .source-doc .source-main small.source-doc__index { max-width: none; }
+      .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     }
   }
   @container study (max-width: 640px) {

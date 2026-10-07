@@ -1,11 +1,12 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar, Select } from './components/index.js';
+import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar, Select, Tooltip } from './components/index.js';
 import { usePolling } from './use-polling.js';
-import { indexProgress, runInstall, runUninstall, startIndex } from './retrieval-extension-flow.js';
+import { indexProgress, restartDone, runInstall, runUninstall, startIndex } from './retrieval-extension-flow.js';
+import { courseScopeLine, indexAction } from './index-scope.js';
 import css from './large-documents.css';
-import { refreshRetrievalStatus, setRetrievalStatus } from './retrieval-status.js';
+import { refreshRetrievalStatus, setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useLiveEffect } from './use-async.js';
 
 /* The one-click path to searching a large textbook (WP28b): install the search
@@ -29,8 +30,10 @@ function StartupWait({ refresh }) {
 }
 
 /** Install (or update) the extension: the approval step, the busy state, the error. Shared by the panel and the update notice. */
-function useExtensionInstall({ call, onStatus, initialApproval = null }) {
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(false), [done, setDone] = useState(false);
+function useExtensionInstall({ call, onStatus, initialApproval = null, initialDone = null }) {
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(!!initialDone?.restart), [done, setDone] = useState(!!initialDone);
+  // Which run of DSH the update was made in: when the host reports another one, the restart it asked for has happened.
+  const [boot, setBoot] = useState(initialDone?.boot);
   async function install(approved) {
     setBusy(true); setError('');
     const result = await runInstall(call, approved);
@@ -38,10 +41,10 @@ function useExtensionInstall({ call, onStatus, initialApproval = null }) {
     if (result.phase === 'approval') { setApproval(result.pending); return; }
     setApproval(null);
     if (result.phase === 'error') { setError(result.message); return; }
-    setRestart(result.restartRequired); setDone(true);
+    setRestart(result.restartRequired); setDone(true); setBoot(result.status?.boot);
     if (result.status) onStatus?.(result.status);
   }
-  return { busy, error, approval, restart, done, install, setApproval };
+  return { busy, error, approval, restart, done, boot, install, setApproval };
 }
 
 function ApprovalDialog({ approval, busy, install, close }) {
@@ -59,14 +62,20 @@ function ApprovalDialog({ approval, busy, install, close }) {
 /** An installed extension older than this StudyHub (DSH's update of StudyHub does not touch it): say so, and update it in one click.
  *  Stays mounted once the update finished, so the outcome (and whether DSH must restart) is not lost when the status refresh
  *  clears `outdated`: the parent keeps rendering it for any installed extension. */
-export function ExtensionUpdateNotice({ call, status, onStatus }) {
-  const flow = useExtensionInstall({ call, onStatus });
+export function ExtensionUpdateNotice({ call, status, onStatus, initialDone = null }) {
+  const flow = useExtensionInstall({ call, onStatus, initialDone });
   const extension = status?.extension;
-  if (!extension?.installed || (!extension.outdated && !flow.done)) return null;
+  // After an update that needs a restart, ask the host now and then which run it is: a different one means DSH was restarted, and the notice has done its work.
+  const waiting = flow.done && flow.restart && !!flow.boot;
+  const { data: shared } = useRetrievalStatus({ call, enabled: false });
+  const restarted = restartDone(flow.boot, status?.boot ?? shared?.boot);
+  usePolling(() => refreshRetrievalStatus(call), { intervalMs: 5000, enabled: waiting && !restarted && typeof call === 'function' });
+  if (!extension?.installed || (!extension.outdated && !flow.done) || (flow.done && flow.restart && restarted)) return null;
   if (flow.done) return (
     <div className="extension-panel__update">
       <InlineMessage tone={flow.restart ? 'warning' : 'success'} boxed title={ui('检索扩展已更新')}>
-        {flow.restart ? ui('这次更新要重启 DSH 之后才会生效。') : ui('已更新，无需重启。')}
+        {flow.restart ? <Tooltip layer content={`${ui('重启 DSH 才会换上刚更新的检索扩展；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
+          <span tabIndex={0}>{ui('这次更新要重启 DSH 之后才会生效。')}</span></Tooltip> : ui('已更新，无需重启。')}
       </InlineMessage>
     </div>
   );
@@ -84,7 +93,7 @@ export function ExtensionUpdateNotice({ call, status, onStatus }) {
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
-function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initialRun }) {
+function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
   const list = names(courses);
   const [course, setCourse] = useState(defaultCourse && list.includes(defaultCourse) ? defaultCourse : '');
   const [plan, setPlan] = useState(initialPlan), [run, setRun] = useState(initialRun), [starting, setStarting] = useState(false), [problem, setProblem] = useState('');
@@ -118,6 +127,8 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
   async function stop() { const value = await Promise.resolve(call('retrieval.index.cancel', {})).catch(() => null); if (value && alive.current) setRun(value); }
   const upToDate = plan && plan.toIndex === 0 && plan.toRemove === 0;
   const progress = running ? indexProgress(run) : null;
+  // `document` (the material whose card this is): whose pages the build adds decides how loud the button is and what it is called.
+  const action = indexAction({ plan, document, course, names: list });
   return (
     <div className="extension-panel__index">
       <div className="extension-panel__course">
@@ -126,9 +137,12 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
             options={[{ value: '', label: ui('全部资料') }, ...list.map(name => ({ value: name, label: name }))]} />
         </label>
       </div>
-      {plan && !running && <p className="extension-panel__plan" role="status">{upToDate
-        ? uiFormat('「{0}」共 {1} 页，索引已是最新。', [course || ui('全部资料'), plan.pages])
-        : uiFormat('「{0}」共 {1} 页：需要建立 {2} 页，{3} 页已经建好。', [course || ui('全部资料'), plan.pages, plan.toIndex, plan.unchanged])}</p>}
+      {/* The line keeps its room before the plan arrives, so the card does not grow under the reader. */}
+      {!running && (plan
+        ? <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('课程范围：这门课下所有资料的页（笔记、录音逐字稿每段算一页），检索目录按课程来建。')}\n${ui('所以下面的按钮补建的是整门课还缺的页，不只是某一份资料。')}`}>
+          <p className="extension-panel__plan" role="status" tabIndex={0}>{courseScopeLine(plan, course)}</p></Tooltip>
+        : typeof call === 'function' && <p className="extension-panel__plan extension-panel__plan--waiting" aria-hidden="true" />)}
+      {!running && action.note && <p className="extension-panel__plan extension-panel__plan--note">{action.note}</p>}
       {plan?.firstRun && !upToDate && !running && <Hint>{uiFormat('首次需要下载约 {0} MB 的检索模型，只下载一次，之后可以离线使用。', [plan.modelMb])}</Hint>}
       {running && <div className="extension-panel__progress">
         <ProgressBar value={Math.min(run.done || 0, run.total || 1)} max={run.total || 1} label={ui('索引进度')} size="sm" />
@@ -136,7 +150,8 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
         {run.stage === 'model' && run.firstRun && <Hint>{ui('首次需要下载约 90 MB 的检索模型，只下载一次。')}</Hint>}
         <Button size="sm" variant="quiet" onClick={stop}>{ui('停止')}</Button>
       </div>}
-      {!running && <Button variant="primary" busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{ui('为这门课建立检索索引')}</Button>}
+      {!running && <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}\n${ui('可以随时停止，已建好的部分会保留。')}`}>
+        <span className="extension-panel__action"><Button variant={action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}
       {!running && <Hint>{ui('默认检索模型主要针对英文；中文教材也能检索（会结合关键词匹配），但语义匹配较弱。')}</Hint>}
       {problem && <InlineMessage>{problem}</InlineMessage>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
@@ -157,9 +172,9 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
  * removal or finished build, courses + defaultCourse (for the index), and for previews and tests
  * initialApproval (package names), initialPlan, initialRun.
  */
-export default function ExtensionPanel({ call, status, onStatus, courses = [], defaultCourse = '', initialApproval = null, initialPlan, initialRun }) {
+export default function ExtensionPanel({ call, status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
-  const { busy, error, approval, restart, install, setApproval } = useExtensionInstall({ call, onStatus, initialApproval });
+  const { busy, error, approval, restart, boot, install, setApproval } = useExtensionInstall({ call, onStatus, initialApproval });
   const [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
   if (!status || !extension) return null;
@@ -181,11 +196,11 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
       </>}
       {extension.canInstall && extension.installed && <>
         {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : extension.outdated ? null : <StartupWait refresh={refresh} />}
-        {restart && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
+        {restart && !restartDone(boot, status.boot) && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
         <ExtensionUpdateNotice call={call} status={status} onStatus={onStatus} />
       </>}
       {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
-      {running && <IndexBuilder call={call} courses={courses} defaultCourse={defaultCourse} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
+      {running && <IndexBuilder call={call} courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
       {extension.canInstall && extension.installed && <div>
         <Button size="sm" variant="quiet" disabled={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}

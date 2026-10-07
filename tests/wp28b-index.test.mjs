@@ -155,6 +155,20 @@ test('the plan tells what a build would do, and that the first one downloads the
   assert.equal((await service.call('retrieval.index.plan', { course: '数据库' })).pages, 1);
 });
 
+test('the plan also says whose pages the course holds and whose are missing, and the status says which run of the host this is', async t => {
+  const { service } = await setup(t);
+  const plan = await service.call('retrieval.index.plan', { course: '操作系统' });
+  assert.equal(plan.documents, 1);
+  assert.deepEqual(plan.missing, [{ title: 'os', pages: 6 }]);
+  assert.equal(plan.missingDocuments, 1);
+  const all = await service.call('retrieval.index.plan', { course: '' });
+  assert.equal(all.documents, 2);
+  assert.deepEqual(all.missing.map(entry => entry.pages), [6, 1], 'the biggest first');
+  const status = await service.call('retrieval.status', {});
+  assert.equal(typeof status.boot, 'string');
+  assert.equal((await service.call('retrieval.status', {})).boot, status.boot, 'the same run answers the same');
+});
+
 test('starting returns at once; the work runs in the background with progress, and only the course is indexed', async t => {
   const { service, server } = await setup(t, { delay: 10 });
   const started = await service.call('retrieval.index.start', { course: '操作系统' });
