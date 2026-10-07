@@ -12,6 +12,7 @@ import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, relationNote, sameIndexInfo, sourceFormatLabel } from './SourcePicker.jsx';
 import { materialRelations } from '../lib/source-relations.js';
+import { dropRequest, pinnedKeys, splitPinned, stepRequest } from '../lib/material-pins.js';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import { CoverageChip } from './coverage/Coverage.jsx';
 import DocumentTopUp, { offersDocumentTopUp } from './coverage/DocumentTopUp.jsx';
@@ -39,6 +40,8 @@ import { useRetrievalStatus } from './retrieval-status.js';
    永久删除需再次确认，并以一次事务删除整份文档。 */
 
 const UNKNOWN = "unknown";
+/* The 已置顶 group is not a day: its own key in the open/closed sets (lib/material-pins.js). */
+const PINNED = "__pinned";
 
 /* A day is the midnight (local time) that starts it, as text: groups sort by it and it needs no formatting. */
 const dayKey = (d) => String(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
@@ -121,12 +124,19 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, onRename, onArchive }) {
+export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
   const { call } = useStudy();
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
     {call && <OriginalMenuEntry item={item} />}
     {onRename && <Button disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
+    {/* 置顶: one entry to pin or unpin; a pinned row can also be moved without dragging (the pin's own order, lib/material-pins.js). */}
+    {onPin && !item.archived && <Button disabled={busy} onClick={event => { close(event); onPin(item); }}>{pin?.pinned ? ui('取消置顶') : ui('置顶')}</Button>}
+    {onPin && onPinMove && !item.archived && pin?.pinned && <>
+      <Button disabled={busy || pin.first} onClick={event => { close(event); onPinMove(item, 'up'); }}>{ui('上移')}</Button>
+      <Button disabled={busy || pin.last} onClick={event => { close(event); onPinMove(item, 'down'); }}>{ui('下移')}</Button>
+      <Button disabled={busy || pin.first} onClick={event => { close(event); onPinMove(item, 'front'); }}>{ui('置顶到最前')}</Button>
+    </>}
     {onChangeCourse && <Button disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</Button>}
     {onSegment && <Button disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</Button>}
     {onArchive && <Button disabled={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</Button>}
@@ -135,7 +145,7 @@ export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, 
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
-const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canSegment', 'canRename', 'actions'];
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark'];
 
 /**
  * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
@@ -147,7 +157,7 @@ export function sourceRowPropsEqual(a, b) {
 }
 
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse }) {
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '' }) {
   const { busy, call } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
@@ -173,7 +183,9 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
   const details = [sourceFormatLabel(item), uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, ...documentNotes(item), relationNote(relation)].filter(Boolean);
   return (
-    <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row="">
+    <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "") + (dragging ? " source-doc--dragging" : "") + (dropMark ? ` source-doc--drop-${dropMark}` : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row=""
+      {...(pinned && !editing ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
+        onDrop: event => actions.drop(item.key, event), onDragEnd: actions.dragEnd } : {})}>
       <div className="source-doc__line">
         {organizing && <input type="checkbox" aria-label={uiFormat('选择资料：{0}', [name])}
           checked={selected} onChange={event => actions.select(item.key, event.target.checked)} />}
@@ -185,7 +197,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{name}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
+            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
             <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
               item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
             <small>{details.join(" · ")}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
@@ -206,7 +218,8 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
             <RowMenuItems item={item} busy={busy} onChangeCourse={actions.changeCourse}
-              onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined} />
+              onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
+              onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
           </details>
         </div>
       </div>
@@ -278,6 +291,14 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
   );
 }
 
+/** The head of a group of rows (a day or the pinned ones): one button that opens and closes it. */
+function GroupHead({ expanded, onToggle, children }) {
+  return <button className="source-group-head" aria-expanded={expanded} onClick={onToggle}>
+    <Icon name="caret" size={14} className="sh-caret" />
+    {children}
+  </button>;
+}
+
 export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
   const { busy, act, call } = useStudy();
   useInjectCss(css, "study-sources");
@@ -294,7 +315,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const { data: retrieval } = useRetrievalStatus({ enabled: bigKeys.size > 0 });
-  const groups = useMemo(() => groupByDay(filtered), [filtered]);
+  // 置顶: the pinned rows leave the day groups and form their own group above them; with nothing pinned `rest` is `filtered` itself. The archive has no pins.
+  const pins = useMemo(() => pinnedKeys(data.settings), [data.settings]);
+  const { pinned, rest } = useMemo(() => showArchived ? { pinned: [], rest: filtered } : splitPinned(filtered, pins), [filtered, pins, showArchived]);
+  const groups = useMemo(() => groupByDay(rest), [rest]);
   // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
   const relations = useMemo(() => materialRelations(items), [items]);
   // One index state per document, reusing the previous object while it is unchanged: a coverage answer then touches only the rows whose badge changed (#229).
@@ -316,6 +340,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   useEffect(() => {
     if (!highlight?.at) return;
     const reopen = new Set(groups.filter(group => group.rows.some(item => fresh.has(item.key))).map(group => group.key));
+    if (pinned.some(item => fresh.has(item.key))) reopen.add(PINNED);
     if (reopen.size) setClosed(current => new Set([...current].filter(key => !reopen.has(key))));
   }, [highlight?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
@@ -337,9 +362,14 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     setClosed(current => { const next = new Set(current); open ? next.add(group.key) : next.delete(group.key); return next; });
   };
   const allOpen = groups.length > 0 && groups.every(isOpen);
+  // The pinned group is open unless the learner closed it.
+  const pinnedOpen = !closed.has(PINNED);
+  const togglePinned = () => setClosed(current => { const next = new Set(current); pinnedOpen ? next.add(PINNED) : next.delete(PINNED); return next; });
+  // Dragging a pinned row: `drag` is { key, over, side }; only the rows whose own flag changes are drawn again.
+  const [drag, setDrag] = useState(null);
   // The handlers the rows call: one object that never changes and reads the latest state itself, so a row is drawn again only for its own data (#229).
   const latest = useRef(null);
-  latest.current = { setModal, byId, act, onGenerate, onOpenSettings, renameFor };
+  latest.current = { setModal, byId, act, onGenerate, onOpenSettings, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
   const actions = useMemo(() => ({
     open: id => latest.current.setModal({ type: "source", source: latest.current.byId.get(id) }),
     select: (key, on) => { setSelected(current => on ? [...current, key] : current.filter(entry => entry !== key)); setProposals(null); },
@@ -347,15 +377,44 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     archive: item => latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived }),
     remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), segment: item => setSegmenting(item),
     rename: item => latest.current.renameFor(item),
+    pin: item => latest.current.act('source.pin', { key: item.key, pinned: !latest.current.pinKeys.includes(item.key) }),
+    pinMove: (item, step) => { const request = stepRequest(latest.current.shownPins, item.key, step); if (request) latest.current.act('source.pin.move', request); },
+    // Drag to reorder (as the board's cards): only a drag that started on a pinned row is taken, and it lands as the same request as 上移 / 下移.
+    dragStart: (key, event) => { event.dataTransfer.setData('application/x-study-pinned-material', key); event.dataTransfer.effectAllowed = 'move'; setDrag({ key, over: '', side: '' }); },
+    dragOver: (key, event) => {
+      const { drag: active, shownPins } = latest.current;
+      if (!active || !shownPins.includes(key)) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = 'move';
+      const request = dropRequest(shownPins, active.key, key), side = request ? (request.before ? 'before' : 'after') : '';
+      setDrag(current => current && (current.over !== key || current.side !== side) ? { ...current, over: key, side } : current);
+    },
+    drop: (key, event) => {
+      const { drag: active, shownPins } = latest.current;
+      if (!active) return;
+      event.preventDefault(); setDrag(null);
+      const request = dropRequest(shownPins, active.key, key);
+      if (request) latest.current.act('source.pin.move', request);
+    },
+    dragEnd: () => setDrag(null),
     openSettings: (...args) => latest.current.onOpenSettings?.(...args),
   }), []);
+  // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
+  const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
+    isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
+    canGenerate={!showArchived && !!onGenerate} canSegment={typeof call === 'function'} canRename={!!renameFor}
+    mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
+    topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} slot={indexStatus !== 'unavailable'}
+    relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null}
+    courses={data.focus?.courses} defaultCourse={data.focus?.course}
+    pinned={!!pin.pinned} pinFirst={!!pin.first} pinLast={!!pin.last} dragging={!!pin.pinned && drag?.key === item.key} dropMark={pin.pinned && drag?.over === item.key ? drag.side : ''} />;
   const addButton = <Button variant="primary" icon="plus" data-tour="sources-add" data-usage="import.add"
     onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })}>{ui("添加资料")}</Button>;
   return (
     <section className="page sources-page">
       <PageHeader title={ui("资料")}
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 &&
-          uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length])}</>}
+          (pinned.length ? (rest.length ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [filtered.length, pinned.length, groups.length]) : uiFormat(" 共 {0} 份资料，全部置顶。", [filtered.length]))
+            : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length]))}</>}
         actions={<>
           <Button variant="quiet" aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
           {groups.length > 1 && <Button variant="quiet" onClick={() => {
@@ -429,23 +488,23 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         </section>
       ) : (
         <div className="source-groups" data-tour="sources-list">
+          {pinned.length > 0 && <div className={"source-group" + (pinnedOpen ? " source-group--open" : "")}>
+            <GroupHead expanded={pinnedOpen} onToggle={togglePinned}>
+              <strong>{ui("已置顶")}</strong>
+              <small className="muted">{uiFormat("{0} 份 · {1} 字符", [pinned.length, formatNumber(pinned.reduce((n, item) => n + item.chars, 0))])}</small>
+            </GroupHead>
+            {pinnedOpen && pinned.map((item, at) => renderRow(item, { pinned: true, first: at === 0, last: at === pinned.length - 1 }))}
+          </div>}
           {groups.map((g) => {
             const expanded = isOpen(g);
             return (
               <div key={g.key} className={"source-group" + (expanded ? " source-group--open" : "")}>
-                <button className="source-group-head" aria-expanded={expanded} onClick={() => toggle(g)}>
-                  <Icon name="caret" size={14} className="sh-caret" />
+                <GroupHead expanded={expanded} onToggle={() => toggle(g)}>
                   <strong>{dayLabel(g.key)}</strong>
                   {g.inferred && <Badge size="sm" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</Badge>}
                   <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
-                </button>
-                {expanded && g.rows.map(item => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
-                  isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
-                  canGenerate={!showArchived && !!onGenerate} canSegment={typeof call === 'function'} canRename={!!renameFor}
-                  mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
-                  topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} slot={indexStatus !== 'unavailable'}
-                  relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null}
-                  courses={data.focus?.courses} defaultCourse={data.focus?.course} />)}
+                </GroupHead>
+                {expanded && g.rows.map(item => renderRow(item))}
               </div>
             );
           })}

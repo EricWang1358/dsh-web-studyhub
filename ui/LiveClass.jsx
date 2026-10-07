@@ -8,7 +8,8 @@ import { formatClock, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
 import { Button, Checkbox, IconButton, InlineMessage, PageHeader, Select, SetupRequired, useToast } from './components/index.js';
-import { requestAudioSettingsFocus } from './AudioSettings.jsx';
+import { openAudioSettings } from './audio-focus.js';
+import { tabSharingAllowed } from './live-audio.js';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
 import CourseField from './CourseField.jsx';
@@ -66,7 +67,19 @@ function LiveSetup({ onSettings }) {
     steps={[{ text: ui('用 Google 账号登录 AI Studio'), href: providerOf('free').consoleUrl },
       { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: providerOf('free').keyUrl },
       { text: ui('在音频设置的 Google Gemini 卡片里粘贴，点「保存并验证」') }]}
-    primary={onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: () => { requestAudioSettingsFocus(); onSettings(); } } : undefined} />;
+    primary={onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onSettings } : undefined} />;
+}
+
+/**
+ * Under the 声音来源 select: what the chosen source needs. Where the browser's permissions policy says this frame may not share a tab (a panel embedded
+ * in another page), the usual instruction would be a lie, so a quiet note says so before the first click instead of an error after it. The start
+ * button stays usable: the policy check can be wrong, and the refusal then explains itself (ui/live-audio.js classifyTabRefusal).
+ */
+export function SourceHint({ kind, tabAllowed, onUseMicrophone }) {
+  if (kind !== 'tab') return null;
+  if (tabAllowed === false) return <p className="muted" data-tab-sharing="blocked">{ui('浏览器显示这个面板不允许共享标签页，点「开始实录」多半弹不出选择窗口。请改用麦克风，或在独立的浏览器窗口里打开 StudyHub；也可以课后在「音频转写」里导入录音。')}{' '}
+    {onUseMicrophone && <Button variant="link" size="sm" onClick={onUseMicrophone}>{ui('改用麦克风')}</Button>}</p>;
+  return <p className="muted">{ui('选择正在播放课程的标签页，并勾选「共享标签页音频」。只发送声音，不发送画面。')}</p>;
 }
 
 export default function LiveClass({ call, data, visible, onJobs, onSettings, onSources, initialReadiness = null }) {
@@ -80,6 +93,9 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [working, setWorking] = useState(false);
   const toast = useToast();
   const [follow, setFollow] = useState(true);
+  // Read once, in the first render: the policy of a frame does not change, and a note that arrived later would push the form down.
+  const [tabAllowed] = useState(() => tabSharingAllowed());
+  const openAudio = openAudioSettings(onSettings);
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
   const [readiness, setReadiness] = useState(initialReadiness);
@@ -135,16 +151,16 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   return <section className="page live-class" hidden={!visible} aria-label={ui('课堂实录')}>
     <PageHeader title={ui('课堂实录')}
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
-      actions={<Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>} />
+      actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
-    {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={onSettings} />}
+    {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={openAudio} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
     }}>
       <div className="live-fields"><label>{ui('课堂名称')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
         <label>{ui('声音来源')}<Select value={kind} onChange={setKind}
           options={[{ value: 'microphone', label: ui('麦克风（现场课堂）') }, { value: 'tab', label: ui('标签页 / 系统声音（网课）') }]} /></label></div>
-      {kind === 'tab' && <p className="muted">{ui('选择正在播放课程的标签页，并勾选「共享标签页音频」。只发送声音，不发送画面。')}</p>}
+      <SourceHint kind={kind} tabAllowed={tabAllowed} onUseMicrophone={() => setKind('microphone')} />
       <CourseField value={course} onChange={setCourse} courses={data?.focus?.courses} disabled={disabled} />
       <details><summary>{ui('课程背景与术语（可选）')}</summary>
         <label>{ui('这堂课讲什么')}<input value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>

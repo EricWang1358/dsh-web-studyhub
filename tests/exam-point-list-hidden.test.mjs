@@ -26,8 +26,10 @@ test('the predicate is browser-safe, exact, and the summary is small', () => {
   assert.ok(isExamPointListSource(LIST) && !notExamPointList(LIST));
   assert.ok(!isExamPointListSource(material('x', 't')) && !isExamPointListSource({ ...LIST, blueprint: undefined }) && !isExamPointListSource({ ...LIST, provenance: 'other' }) && !isExamPointListSource(null));
   const summary = examPointListSummary({ ...LIST, createdAt: stamp });
-  assert.deepEqual(Object.keys(summary), ['id', 'title', 'courses', 'createdAt', 'archived', 'scope', 'basis', 'points', 'chars']);
+  assert.deepEqual(Object.keys(summary), ['id', 'title', 'courses', 'createdAt', 'archived', 'scope', 'basis', 'supersedes', 'points', 'chars']);
   assert.ok(!('text' in summary) && !('blueprint' in summary));
+  assert.equal(summary.supersedes, null);
+  assert.equal(examPointListSummary({ ...LIST, blueprint: { ...LIST.blueprint, supersedes: 'older' } }).supersedes, 'older');
 });
 
 test('the 资料 list\'s grouping and the material count leave it out', async t => {

@@ -2,7 +2,7 @@
    words in the UI language, keyed by the backend's stable stage codes, with a
    fix for failures. Raw provider/engine prose is only shown behind 技术详情. */
 import { ui, uiFormat, getUiLanguage, uiIsEnglish } from './i18n.js';
-import { stageCodeOf, stepStageCode } from '../lib/contexts/jobs/contracts.js';
+import { stageCodeOf, stepStageCode, stageArgsOf } from '../lib/contexts/jobs/contracts.js';
 import { isActiveJob, supplementJobLabel } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
@@ -15,7 +15,7 @@ import { DEFAULT_LEVEL } from '../lib/coverage-strength.js';
 import { jobPart, partTitle } from './deck-parts.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
-export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
+export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, kinds: GENERATION_SETTINGS_DEFAULTS.kinds, count: GENERATION_SETTINGS_DEFAULTS.count,
   difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '',
   // 覆盖强度 (lib/coverage-strength.js): the form plans by level; a number of questions is only sent when the learner types one (`customCount`).
   coverageLevel: DEFAULT_LEVEL, customCount: '',
@@ -27,11 +27,13 @@ export function generationFormDefaults(saved, language = getUiLanguage()) {
   return { ...GENERATION_DEFAULTS, ...content };
 }
 
+const sameValue = (left, right) => Object.is(left, right) || (Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, at) => item === right[at]));
+
 /** Only inherited defaults follow a settings update; typed choices stay put. */
 export function syncGenerationDefaults(current, before, after) {
   let next = current;
   for (const [key, value] of Object.entries(current)) {
-    if (!Object.hasOwn(after, key) || value !== before[key] || Object.is(value, after[key])) continue;
+    if (!Object.hasOwn(after, key) || !sameValue(value, before[key]) || sameValue(value, after[key])) continue;
     if (next === current) next = { ...current };
     next[key] = after[key];
   }
@@ -40,7 +42,7 @@ export function syncGenerationDefaults(current, before, after) {
 
 /** Start another deck with saved content defaults and the learner's role. */
 export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => { const { autoComplete: _chosen, ...rest } = gen; return { ...rest,
-  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '' }
+  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, kinds: GENERATION_DEFAULTS.kinds, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '' }
     : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined }; };
 
 /** Plan contract C3 first (`data.model`), then the legacy `modelReady` flag. */
@@ -117,7 +119,31 @@ export function legacyStageText(stage = '') {
     .replace('Reviewing repaired questions', '复审修复后的题目')
     .replace('Reviewing retained questions', '单独验收保留的合格题目')
     .replace('Waiting for the previous generation', '等待前面的任务')
-    .replace('Draft ready for review', '草稿已就绪');
+    .replace('Draft ready for review', '草稿已就绪')
+    .replace(/Fill round (\d+) · (\d+) still missing/, '补做第 $1 轮 · 还差 $2 题')
+    .replace('Fill rounds finished', '补做完成')
+    .replace(/Completed (\d+)\/(\d+) parts/, '已完成 $1/$2 批')
+    .replace(/Retrying (\d+) failed part\(s\) · fill round (\d+)/, '重试 $1 个未完成的批次 · 第 $2 轮')
+    .replace(/Dropping (\d+) question\(s\) that did not pass review/, '丢弃 $1 道没通过审阅的题')
+    .replace('Writing replacement questions from reserve targets', '用备用考点补写题目');
+}
+
+/**
+ * A `stage` line of the log in the UI language, from the words the producer recorded as data (`args`, lib/contexts/jobs/contracts.js stageArgsOf: 「并行生成 · 最多 3 批同时进行」,
+ * 「生成前：规划考点与证据边界 · 第 2/4 组」). A record from before the args were kept is read by its prose; a stage nothing knows is the prose, translated as far as legacyStageText can.
+ */
+export function stageEventText(args, text = '') {
+  const found = args && typeof args.stage === 'string' ? args : stageArgsOf(text);
+  if (!found) return legacyStageText(text);
+  const planning = ui('生成前：规划考点与证据边界');
+  switch (found.stage) {
+    case 'planning':
+      if (found.fill) return uiFormat('{0} · 补做第 {1} 轮', [planning, found.fill]);
+      return found.groups > 1 ? uiFormat('{0} · 第 {1}/{2} 组', [planning, found.group, found.groups]) : planning;
+    case 'weighing': return uiFormat('{0} · 评估各小节的重要性', [planning]);
+    case 'parallel': return uiFormat('并行生成 · 最多 {0} 批同时进行', [found.batches]);
+    default: return legacyStageText(text);
+  }
 }
 
 /** A step of the execution list: its batch and what it did. */
@@ -328,8 +354,8 @@ export function failureRowLabel(row) {
 
 /* Causes only the generation pipeline has, named by lib/generation-failure.js: the learner's wording of each (title, the cause in one clause, what to do). */
 const OWN_FAILURES = Object.freeze({
-  'plan-short': { action: 'retry', title: '模型给出的考点比计划的少', cause: '模型给出的考点不够数',
-    hint: '模型这一次给出的考点不够数，补问一次后仍然不足；这不等于这一节没有可考的内容，再试一次可能就够了。可以点「为没覆盖的部分补题」再试，或换成「精简」强度。' },
+  'plan-short': { action: 'retry', title: '模型给出的考点比计划的少', cause: '模型给出的考点比计划的少',
+    hint: '模型这一次给出的考点比计划的少，补问一次后仍然不足；这不等于这一节没有可考的内容，再试一次可能就够了。可以点「为没覆盖的部分补题」再试，或换成「精简」强度。' },
   'review-protocol': { action: 'retry', title: '审阅回复的格式不对，没能完成审阅', cause: '审阅回复的格式不对',
     hint: '点「为没覆盖的部分补题」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。' },
   'no-reply': { action: 'retry', title: '模型没有返回内容', cause: '模型没有返回内容', hint: '可能是服务暂时的问题，稍后再试。' },

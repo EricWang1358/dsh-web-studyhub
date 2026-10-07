@@ -11,6 +11,8 @@ import { GOAL_QUESTIONS_MAX } from '../lib/limits.js';
 import { nonEvidenceRanges } from '../lib/sections.js';
 import { countOf, levelLabel } from './coverage/copy.js';
 import { META_DOT } from './format.js';
+import { kinds as kindNames } from './shared.js';
+import { BASIC_KINDS, kindsOfLegacyKind, legacyKindOf, requestKinds, splitCount } from '../lib/generation-settings.js';
 
 export const COUNT_MIN = 1;
 /** The most questions a request may ask for (lib/limits.js GOAL_QUESTIONS_MAX): what does not fit in one round of 30 becomes rounds. */
@@ -115,7 +117,7 @@ export function customCountOf(gen) {
 /** The generation request the form sends: the form as typed, the 覆盖强度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
 export function generationRequest(gen, { course, sourceIds }) {
   const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
-  return { ...rest, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
+  return { ...rest, ...kindsPatch(kindsOfForm(gen)), course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
 }
 
 /** Whether the run goes on by itself (「自动补到完整」): what the learner chose, else what the level's row of the table says (lib/coverage-strength.js: 精简 waits for the learner, 标准 and 完整 go on). */
@@ -151,16 +153,36 @@ export function difficultyNote(value) {
   })[value] || '';
 }
 
-/** One line on what the chosen question type is. */
-export function kindNote(value) {
+/** The kinds a form (or a saved setting) asks for, in the order of the checkboxes. `kind` alone (an older form state) reads as a list too. */
+export const kindsOfForm = (gen) => requestKinds({ kind: gen?.kind, kinds: gen?.kinds });
+/** The two fields that go together: the list and the legacy `kind` of it (the old 测验 + 闪卡 is 'mixed'). */
+export const kindsPatch = (list) => ({ kind: legacyKindOf(list), kinds: list });
+/** Tick or untick one kind. The list stays in the order of the checkboxes; the last ticked kind cannot be unticked. */
+export function toggleKind(list, kind, on) {
+  const next = BASIC_KINDS.filter((item) => (item === kind ? on : list.includes(item)));
+  return next.length ? next : [...list];
+}
+/** The kinds in words: 「单选测验 + 闪卡」 (what was one preset, 测验 + 闪卡, is just this combination). */
+export const kindsLabel = (list) => list.map((kind) => kindNames[kind]).join(' + ');
+/** How `count` questions are shared over several kinds, in words: 「共 3 种题型，按 10 题平均分配：4 + 3 + 3」. With fewer questions than kinds only the first kinds get one. */
+export function kindSplitLine(list, count) {
+  if (list.length < 2) return '';
+  if (!(Number(count) >= 1)) return ui('总题数按题型平均分配，多出的几题依次给排在前面的题型。');
+  const total = Math.round(Number(count));
+  if (total < list.length) return uiFormat('共 {0} 种题型，但只有 {1} 题：前 {1} 种题型各出 1 道，其余这次不出。', [list.length, total]);
+  return uiFormat('共 {0} 种题型，按 {1} 题平均分配：{2}', [list.length, total, splitCount(list, total).map(([, n]) => n).join(' + ')]);
+}
+
+/** One line on what the chosen question type (or combination of types) is; `count` is the total the combination is shared out of, when known. */
+export function kindNote(list, count) {
+  if (list.length > 1) return `${kindsLabel(list)} · ${kindSplitLine(list, count)} ${ui('合并为一个待审题组，每种题型各按自己的规则出题和审阅。')}`;
   return ({
-    mixed: ui('“测验 + 闪卡”将总题数分配为一半单选、一半闪卡（奇数多一道单选），合并为一个待审题组。'),
     quiz: ui('单选题：一个正确答案，干扰项逐项解释。'),
     multi: ui('多选题：选出所有正确的选项。'),
     flashcard: ui('闪卡：先想一想，再翻面看答案。'),
     open: ui('开放问答：用自己的话作答，对照评分要点。'),
     cloze: ui('填空卡：句子里挖掉关键词，补全它。'),
-  })[value] || '';
+  })[list[0]] || '';
 }
 
 const languageLabel = (value) => LANGUAGES.find((item) => item.value === value)?.label || String(value || '');
@@ -197,7 +219,7 @@ export function applySuggestion(gen, suggestion = {}) {
   const next = { ...gen };
   if (LEVELS.includes(suggestion.coverage)) next.coverageLevel = suggestion.coverage;
   if (DIFFICULTIES.some((item) => item.value === suggestion.difficulty)) next.difficulty = suggestion.difficulty;
-  if (KINDS.includes(suggestion.kind)) next.kind = suggestion.kind;
+  if (KINDS.includes(suggestion.kind)) Object.assign(next, kindsPatch(kindsOfLegacyKind(suggestion.kind)));
   return next;
 }
 export const hasSettings = (suggestion = {}) => LEVELS.includes(suggestion.coverage)

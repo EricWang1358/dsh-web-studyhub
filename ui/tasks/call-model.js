@@ -2,7 +2,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { STRENGTH_LABEL } from '../../lib/model-effort.js';
 import { formatDuration, joinMeta } from '../format.js';
 import { appliedText } from './task-control.js';
-import { callErrorText } from '../generation-status.js';
+import { callErrorText, stageEventText } from '../generation-status.js';
 import { runEventText } from '../coverage/copy.js';
 
 /* What the console's panels are drawn from: the timeline's lanes and bars, the list of calls in flight, the log's lines. Plain functions over a job's
@@ -175,7 +175,7 @@ export function eventText(event) {
   const a = event.args || {};
   switch (event.code) {
     case 'status': return ['failed', 'interrupted'].includes(a.status) && event.text ? uiFormat('{0}：{1}', [STATUS_WORD(a.status), event.text]) : STATUS_WORD(a.status) || event.text || '';
-    case 'stage': return event.text || '';
+    case 'stage': return stageEventText(a, event.text || '');
     case 'phase': return a.total > 0 ? uiFormat('{0}开始 · 共 {1} 段', [ui(PHASE[a.phase] || a.phase), a.total]) : uiFormat('{0}开始', [ui(PHASE[a.phase] || a.phase)]);
     case 'milestone': return a.partial ? uiFormat('{0}完成；有的段落没有成功，保留原文', [ui(PHASE[a.phase] || a.phase)]) : uiFormat('{0}全部完成', [ui(PHASE[a.phase] || a.phase)]);
     case 'warning': return event.text || '';
