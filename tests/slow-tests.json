@@ -84,6 +84,7 @@
     "tests/unified-runtime-nonmodel-family.test.mjs",
     "tests/unified-runtime-nonmodel-recovery.test.mjs",
     "tests/unified-runtime-pdf-convert.test.mjs",
+    "tests/unified-runtime-rebind-race.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
     "tests/wp28b-companion.test.mjs",
     "tests/wp6-m4a.test.mjs"
