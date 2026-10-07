@@ -34,12 +34,12 @@ export function reasoningNote(task) {
 /**
  * A select for one reasoning preference. `efforts` is the model's list ([{ id, name }]) or null while it is not known yet.
  * `description` is the line under the label (the measured timing, for the audio steps). `follow` adds the choice "follow the session"
- * (value 'follow'; generation only): it is a choice of its own and is never mapped onto a level.
+ * (value 'follow'; generation only): it is a choice of its own and is never mapped onto a level; `followLabel` says which model and level it follows.
  */
-export function EffortSelect({ label, value, efforts = null, disabled = false, onChange, description, className, name, follow = false, error }) {
+export function EffortSelect({ label, value, efforts = null, disabled = false, onChange, description, className, name, follow = false, followLabel, error }) {
   const known = Array.isArray(efforts);
   const choices = effortChoices(known ? efforts : []);
-  const options = [...(follow ? [{ value: 'follow', label: ui('跟随当前会话') }] : []),
+  const options = [...(follow ? [{ value: 'follow', label: followLabel || ui('跟随当前会话') }] : []),
     ...choices.map(choice => ({ value: choice.value, label: choice.value === 'default' ? ui('模型默认') : choice.name }))];
   const choice = known && value !== 'follow' ? chooseEffort(efforts, value) : null;
   // The level in force, not the one the model lacks: the select shows what will be used.

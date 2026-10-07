@@ -38,7 +38,7 @@ export default function GenerationSettings(props) {
 }
 
 /** `efforts` are the reasoning levels of the model in use ([{ id, name }], null until known): the stage selects offer those, like the audio settings. */
-export function GenerationSettingsForm({ root, saved, busy = false, act, efforts = null }) {
+export function GenerationSettingsForm({ root, saved, busy = false, act, efforts = null, followLabel }) {
   const toast = useToast();
   const savedKey = JSON.stringify(normalizeGenerationSettings(saved));
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));
@@ -103,7 +103,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
       {numberField('fillRounds', ui('题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。'))}
       <h3 className="settings-subtitle">{ui('各阶段的推理程度')}</h3>
       <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>
-      {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
+      {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow followLabel={followLabel} name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
         efforts={efforts} disabled={disabled} error={errors[effortKey(stage)]} onChange={value => edit(effortKey(stage), value)} />)}
       <h3 className="settings-subtitle">{ui('审阅建议')}</h3>
       <Checkbox name="applySuggestions" label={ui(labels.applySuggestions)} checked={editor.values.applySuggestions === true} disabled={disabled}

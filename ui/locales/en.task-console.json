@@ -285,5 +285,6 @@
   "最慢的一步": "Slowest step",
   "本日记录 · {0}": "Daily record · {0}",
   "暂无进行中的批次": "No batch currently running",
-  "失败 {0} 批": "{0} failed batches"
+  "失败 {0} 批": "{0} failed batches",
+  "跟随当前会话 · {0} · {1}": "Follow current session · {0} · {1}"
 }

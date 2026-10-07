@@ -61,7 +61,9 @@ test('the preview answers the same contract as a preview edition', async t => {
   assert.deepEqual(bound.host, PREVIEW);
   assert.equal(bound.model, '', 'model stays the custom model id');
   const snapshot = await call('snapshot');
-  assert.deepEqual(snapshot.model, bound.modelStatus);
+  const { session, ...status } = snapshot.model;
+  assert.deepEqual(status, bound.modelStatus);
+  assert.deepEqual(session, { provider: 'preview', model: 'fake-model', reasoningEffort: null }, 'the preview session follows its model');
   assert.equal(snapshot.modelReady, true);
   assert.equal(bound.modelStatus.ready, true);
 });

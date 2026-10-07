@@ -40,10 +40,10 @@ function Toggle({ item, disabled, onChange }) {
 }
 
 export default function ControlRow({ job }) {
-  const { core } = useApp();
+  const { core, data } = useApp();
   const contract = contractOf(job), set = contract.actions.set;
   const [note, setNote] = useState({ text: '', tone: 'idle' }), [working, setWorking] = useState(false), [saved, setSaved] = useState(false);
-  const items = controlItems(job), defaults = defaultsPatch(job);
+  const items = controlItems(job, data?.model?.session), defaults = defaultsPatch(job);
   const send = async (patch) => {
     if (working) return;
     setWorking(true);
