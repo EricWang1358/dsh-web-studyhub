@@ -52,6 +52,7 @@
     "tests/jev-eval.test.mjs",
     "tests/jev-live-check.test.mjs",
     "tests/jev-providers-scripts.test.mjs",
+    "tests/local-command.test.mjs",
     "tests/marker-external.test.mjs",
     "tests/marker-install-service.test.mjs",
     "tests/marker-install.test.mjs",
