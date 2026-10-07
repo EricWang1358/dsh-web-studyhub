@@ -25,7 +25,8 @@ async function diedInsideRequest(t, sideEffect) {
   saved.contract.runtime.activeAttemptId = saved.contract.attemptId;
   const attempt = saved.contract.runtime.attempts.at(-1); attempt.status = 'running'; delete attempt.finishedAt; delete attempt.endReason;
   saved.contract.calls = []; saved.contract.runtime.steps.at(-1).status = 'running';
-  saved.requestIntents[0].status = 'pending';
+  // Only a request with a side effect leaves an intent behind; a side-effect-free one leaves nothing to reconcile.
+  if (saved.requestIntents[0]) saved.requestIntents[0].status = 'pending';
   await f.store.save(saved, { expectedRevision: saved.revision });
   const next = createJobLifecycle(f.root, createRuntimeWork()), ctx = new Context();
   next.register(ctx, 'persist.v1', f.definition);
@@ -40,7 +41,7 @@ test('a request that changes nothing remote and was in flight when the process d
   await port.recover(restored.jobId);
   assert.equal((await port.wait(restored.jobId)).status, 'complete');
   assert.equal(runs(), 2); assert.equal(f.starts(), 2);
-  assert.deepEqual((await f.store.load()).requestIntents.map(intent => intent.status), ['abandoned', 'completed']);
+  assert.deepEqual((await f.store.load()).requestIntents, [], 'a request that changes nothing remote never needed an intent');
 });
 
 test('a request declared as having a side effect stays unknown and blocks recovery', async t => {
