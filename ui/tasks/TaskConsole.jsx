@@ -119,7 +119,7 @@ function ArchivedNote({ task }) {
 }
 
 function Detail({ task, data, openers, full, onFull, onDelete }) {
-  const { core, settingsEntry } = useApp();
+  const { core, settingsEntry, learn } = useApp();
   const quick = useQuickActions();
   const contract = contractOf(task), summary = taskSummary(task), actions = headerActions(task), archived = isArchivedTask(task);
   const live = isRunningTask(task), now = useNow(1000, { enabled: live });
@@ -188,7 +188,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
       </header>
       <Metrics job={task} summary={summary} now={now} />
       <TaskUsage contract={contract} />
-      <RunLine task={task} shortfall={shortfall} now={now} />
+      <RunLine task={task} shortfall={shortfall} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}

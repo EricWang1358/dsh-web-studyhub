@@ -51,6 +51,13 @@
     .cov-run__stop--head { color: var(--text); font-weight: var(--fw-strong); }
     .cov-run__repeating { display: grid; gap: var(--space-1); }
     .cov-run__repeat-list { display: grid; gap: var(--space-half); margin: 0; padding-inline-start: var(--space-4); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* 为什么、怎么办: the explanation under the sections that keep failing, closed until asked for. */
+    .cov-why { flex: 1 1 100%; min-width: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .cov-why > summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-xs); }
+    .cov-why__list, .cov-why__advice { display: grid; gap: var(--space-1); margin: var(--space-1) 0 0; padding-inline-start: var(--space-4); overflow-wrap: anywhere; }
+    .cov-why__list li { display: grid; gap: var(--space-half); }
+    .cov-why__list small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .cov-why__acts { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
     .cov-run__auto { display: grid; gap: var(--space-half); }
     .cov-run__auto small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-run + .cov-topup { padding-top: 0; border-top: 0; }
