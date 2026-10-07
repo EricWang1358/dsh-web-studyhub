@@ -1,7 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { META_DOT, joinMeta } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
-import { classifyFailure } from '../../lib/generation-failure.js';
+import { classifyFailure, shortCauseOf, THIN_CHARS } from '../../lib/generation-failure.js';
 
 /* 覆盖: the words of coverage, written ONCE (README docs/plans/coverage-generation). The 任务 console's 资料部分, the draft page, the 资料 row, the reader's toolbar, outline and
    practice popover all say it through these functions, so one fact has one wording on every screen. Coverage is "asked" (a section has a question), mastery is "learned"
@@ -72,7 +72,7 @@ export function stateMeaning(state, recorded = true, scheduled = false) {
 }
 
 /** Why a planned section did not come out: the words of each failure code (lib/generation-failure.js), the ones the 任务 console and the draft already use. */
-const REASON_WORD = { 'plan-short': '模型给出的考点不够数', quote: '引用在资料里找不到', plan: '考点规划未通过检查', quality: '题没有通过质量审阅', 'review-protocol': '审阅回复格式不对，重新审阅后仍不行',
+const REASON_WORD = { 'plan-short': '模型给出的考点比计划的少', quote: '引用在资料里找不到', plan: '考点规划未通过检查', quality: '题没有通过质量审阅', 'review-protocol': '审阅回复格式不对，重新审阅后仍不行',
   timeout: '模型长时间没有回应', 'rate-limit': '被模型服务限流', 'no-reply': '模型没有返回内容', quota: '模型账户余额或额度不足', credential: '模型服务拒绝了请求（密钥无效或没有权限）',
   budget: '生成用时到限', cancelled: '被停止', unavailable: '模型服务暂时不可用', other: '其他原因' };
 export const reasonWord = (code) => ui(REASON_WORD[code] || REASON_WORD.other);
@@ -84,6 +84,83 @@ export function failedWhy(value) {
   if (typeof value !== 'string' || !value.trim()) return '';
   const code = Object.hasOwn(REASON_WORD, value) ? value : classifyFailure(value).code;
   return code === 'unknown' ? '' : uiFormat('原因：{0}', [reasonWord(code)]);
+}
+
+/* ---------- why a section came back short (lib/assigned-plan.js records the numbers, lib/coverage-run.js recordAttempts keeps them on the plan): what happened, why, what to do ---------- */
+
+const known = (value) => Number.isFinite(value) && value >= 0;
+
+/** 「第 18、19 页」 (all pages) or the sections' own names joined: the sections a line of the log or a list names. A section nothing names is left out. */
+export function refsText(refs) {
+  const list = (Array.isArray(refs) ? refs : []).filter((ref) => ref && sectionName(ref));
+  if (list.length && list.every((ref) => ref.page)) return uiFormat('第 {0} 页', [list.map((ref) => ref.page).join(ui('、'))]);
+  return list.map((ref) => sectionName(ref)).join(ui('、'));
+}
+
+/** 「要 3 个考点，只给出 1 个」: what the plan needed of a section and what the model gave (`short` { needed, got }); '' when the run did not record it. */
+export function needGotText(short) {
+  if (!known(short?.needed) || !(short.needed > 0) || !known(short?.got)) return '';
+  return short.got > 0 ? uiFormat('要 {0} 个考点，只给出 {1} 个', [short.needed, short.got]) : uiFormat('要 {0} 个考点，一个也没给出', [short.needed]);
+}
+
+/** 「第 18 页：计划需要 3 个考点，模型只给出了 1 个」 (an item with a `short`), else ''. */
+export function shortFact(item) {
+  const short = item?.short;
+  if (!known(short?.needed) || !(short.needed > 0) || !known(short?.got)) return '';
+  return short.got > 0 ? uiFormat('{0}：计划需要 {1} 个考点，模型只给出了 {2} 个', [sectionName(item), short.needed, short.got])
+    : uiFormat('{0}：计划需要 {1} 个考点，模型一个也没给出', [sectionName(item), short.needed]);
+}
+
+/** Why the plan came back short, in a sentence, from what the run recorded (lib/generation-failure.js shortCauseOf): only what the record can tell; a page with very little text says so. */
+export function shortWhy(short) {
+  if (!known(short?.needed) || !(short.needed > 0) || !known(short?.got)) return '';
+  const cause = shortCauseOf(short);
+  const said = ({
+    fewer: () => (short.returned === short.got ? uiFormat('补问一次后，模型仍只给出 {0} 个', [short.got]) : uiFormat('补问一次后，模型一共给出 {0} 个，只有 {1} 个能在这一页里找到出处并通过检查', [short.returned, short.got])),
+    empty: () => ui('补问一次后，模型一个考点也没给出'),
+    quote: () => uiFormat('模型给出了 {0} 个考点，但引用的原文在这一页里找不到', [short.returned]),
+    refused: () => ui('模型回复说这一页的内容不足以出考点'),
+    invalid: () => ui('模型给出的考点没有通过检查（引用或格式不对）'),
+    reply: () => ui('模型的回复读不出来（格式错误或被截断）'),
+    short: () => uiFormat('记录里只有数量：计划要 {0} 个，模型给出 {1} 个', [short.needed, short.got]),
+  })[cause]();
+  const thin = known(short.chars) && short.chars < THIN_CHARS ? uiFormat('这一页只有约 {0} 个字，文字很少，可能是空白页、纯图片页或附录', [Math.round(short.chars / 10) * 10]) : '';
+  return thin ? uiFormat('{0}；{1}', [said, thin]) : said;
+}
+
+const roundWord = (item) => (item.fill ? uiFormat('补做第 {0} 轮', [item.round]) : uiFormat('第 {0} 轮', [item.round]));
+const triesText = (item) => (item.attempts > 0 ? uiFormat('已试 {0} 次', [item.attempts]) : '');
+
+/**
+ * The way the failing sections are explained once (the plan block of the console, the draft page): for each section what happened (「第 18 页：计划需要 3 个考点，模型只给出了 1 个 · 已试 2 次（第 1 轮、补做第 2 轮）」)
+ * and why (shortWhy), then what the learner can do, only what is true for the causes present (`needs`: plan | look | protocol | retry): retry, look at the original page, change the planning, or leave them.
+ * `s` is a shortfall (lib/shortfall.js): its `repeating` sections and its coverage in percent. -> { items: [{ key, name, fact, why, thin, cause, reason, sourceId?, start? }], advice: [string], needs: [string] }
+ */
+export function repeatingExplain(s) {
+  const items = (s?.repeating || []).map((item) => {
+    const rounds = Array.isArray(item.rounds) && item.rounds.length ? uiFormat('（{0}）', [item.rounds.map(roundWord).join(ui('、'))]) : '';
+    const head = shortFact(item) || uiFormat('{0}：{1}', [sectionName(item), reasonWord(item.reason)]), tries = triesText(item);
+    const thin = known(item.short?.chars) && item.short.chars < THIN_CHARS, cause = item.short ? shortCauseOf(item.short) : null;
+    return { key: item.key, name: sectionName(item), fact: tries ? joinMeta([head, `${tries}${rounds}`]) : head, why: item.short ? shortWhy(item.short) : '', thin, cause, reason: item.reason, ...(item.sourceId ? { sourceId: item.sourceId, start: item.start } : {}) };
+  });
+  if (!items.length) return { items: [], advice: [], needs: [] };
+  // What each section calls for: a page the model says lacks the points, or a page with very little text, is looked at; a plan that came back short otherwise is asked again (and, if it keeps failing, planned harder).
+  const need = new Set();
+  for (const item of items) {
+    if (item.thin || item.cause === 'refused') need.add('look');
+    else if (item.reason === 'review-protocol') need.add('protocol');
+    else if (item.reason === 'plan-short' || item.cause) need.add('plan');
+    else need.add('retry');
+  }
+  const LINES = {
+    plan: ui('再点「为没覆盖的部分补题」试一次：模型每次的回答不同，可能就够了。总是不行，可以在 设置 › 出题偏好 把规划的推理强度调高，或换一个更强的模型。'),
+    look: ui('在资料里打开这一页，用「看原页」确认它有没有内容；是空白页、附录或只有图的话，不用管它。'),
+    protocol: ui('再点「为没覆盖的部分补题」补上；经常出现的话，可以在设置里换一个输出更稳定的模型。'),
+    retry: ui('再点「为没覆盖的部分补题」试一次。'),
+  };
+  const advice = ['plan', 'look', 'protocol', 'retry'].filter((key) => need.has(key)).map((key) => LINES[key]);
+  if (known(s.coveragePercent)) advice.push(uiFormat('不处理也可以：已出的题都保留，现在覆盖 {0}%，已经可以练习。', [s.coveragePercent]));
+  return { items, advice, needs: [...need] };
 }
 
 /* Why a section has the questions it has: the plan of the draft (`editorial.coverageSpec`, lib/coverage-plan.js) rides on each section as `weight` { importance, kind, reason, source, quota, why }. */
@@ -219,7 +296,8 @@ export function runLine(facts, { interrupted = false, forecast } = {}) {
   if (interrupted) return [uiFormat('中断于第 {0} 轮', [facts.round]), cover, used, uiFormat('接着做会从第 {0} 轮继续', [facts.round])].filter(Boolean).join(META_DOT);
   if (facts.ended) {
     const head = facts.state === 'stopped' ? uiFormat('停在第 {0} 轮之后', [Math.max(1, facts.done)]) : uiFormat('共 {0} 轮', [facts.done]);
-    return [head, cover, facts.tokensUsed > 0 ? uiFormat('共用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : ''].filter(Boolean).join(META_DOT);
+    // A retry (补做) that made no question is said: the rounds that were made are not only the ones counted done.
+    return [head, facts.state === 'stopped' && facts.fillsFailed > 0 && uiFormat('补做 {0} 次没成功', [facts.fillsFailed]), cover, facts.tokensUsed > 0 ? uiFormat('共用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : ''].filter(Boolean).join(META_DOT);
   }
   if (facts.waiting) return [waitingText(facts), cover, used].filter(Boolean).join(META_DOT);
   const left = forecast !== undefined && forecast !== null ? forecastText(forecast) : projectionText(facts.projection);
@@ -227,7 +305,15 @@ export function runLine(facts, { interrupted = false, forecast } = {}) {
   return [roundOfText(facts.round, facts.rounds), cover, used, left].filter(Boolean).join(META_DOT);
 }
 
-/** Why a run stopped, in plain words (the stop of `runFacts`: { reason, round, left?, detail? }). */
+/** 「补做了 1 次（第 2 轮）后，还有 2 页没出成题（第 18、19 页），已经停下；自动补题不再重试它们。」: how many retries were made and in which rounds, which sections are left. */
+function sectionsLeftStop(stop) {
+  const left = countOf(stop.unit || 'part', stop.left ?? 0), names = stop.names?.length ? uiFormat('（{0}）', [refsText(stop.names)]) : '';
+  if (!Array.isArray(stop.fills)) return uiFormat('重试后，还有 {0}没出成题，已经停下。', [left]);
+  if (!stop.fills.length) return uiFormat('这些小节之前已经失败过多次，自动补题不再重试，已经停下；还有 {0}没出成题{1}。', [left, names]);
+  return uiFormat('补做了 {0} 次（{1}）后，还有 {2}没出成题{3}，已经停下；自动补题不再重试它们。', [stop.fills.length, uiFormat('第 {0} 轮', [stop.fills.join(ui('、'))]), left, names]);
+}
+
+/** Why a run stopped, in plain words (the stop of `runFacts`: { reason, round, left?, detail?, unit?, names?, fills? }). */
 export function stopText(stop) {
   if (!stop?.reason) return '';
   const round = stop.round ?? 0, left = stop.left ?? 0, cause = failedWhy(stop.code || stop.detail);
@@ -238,7 +324,7 @@ export function stopText(stop) {
     budget: () => uiFormat('用到了你设的花费上限，在第 {0} 轮之后停下；已通过的题都保留。', [round]),
     'no-progress': () => (left > 0 ? uiFormat('第 {0} 轮重试后仍没有补到新的小节，为免一直重复，已经停下；还有 {1} 个小节没有题，可以点「为没覆盖的部分补题」再试。', [round, left])
       : uiFormat('第 {0} 轮重试后仍没有补到新的小节，为免一直重复，已经停下。', [round])),
-    'sections-left': () => uiFormat('重试了几轮，还有 {0} 个小节没出成题，已经停下。', [left]),
+    'sections-left': () => sectionsLeftStop(stop),
     // The key was refused: said once, in plain words, whatever the provider printed for each part.
     refused: () => (stop.code === 'quota' ? ui('模型账户的余额或额度不足，已经停下；已通过的题都保留。') : ui('模型服务拒绝了请求（密钥无效或没有权限），已经停下；已通过的题都保留。')),
     'round-failed': () => uiFormat('第 {0} 轮出错，已经停下；已通过的题都保留。', [round]),
@@ -307,7 +393,7 @@ export function shortfallWhy(s) {
 /* 这几个小节反复失败: the sections a run no longer tries by itself (lib/shortfall.js `repeating`: they failed again and again, say the review's reply that never came back usable), each with its real
    reason, so the learner can try them later. */
 export const repeatingHead = (n) => uiFormat('这几个小节反复失败 · {0}', [n]);
-export const repeatingItem = (item) => uiFormat('{0}（{1}）', [sectionName(item), reasonWord(item.reason)]);
+export const repeatingItem = (item) => uiFormat('{0}（{1}）', [sectionName(item), joinMeta([needGotText(item.short) || reasonWord(item.reason), triesText(item)])]);
 export const repeatingNote = () => ui('自动补题不再重试它们，免得白白花费；想再试可以点「为没覆盖的部分补题」，它们排在最后。');
 /** One line for the 任务 console: 「这几个小节反复失败：第六部分：…（审阅回复格式不对…）、… 等 4 个」. */
 export function repeatingLine(s, max = 2) {
@@ -340,26 +426,48 @@ export const roundStatusWord = (status) => ({ pending: ui('待做'), running: ui
 /** One row of the list of rounds: 「第 3 轮 · 8 题 · 5 个部分」 (「补做」 for a round that writes again the sections that did not come out). */
 export function roundTitle(round) {
   return [round.fill ? uiFormat('补做 · 第 {0} 轮', [round.round]) : uiFormat('第 {0} 轮', [round.round]), uiFormat('{0} 题', [round.questions]),
-    round.sections !== undefined ? countOf('part', round.sections) : round.sectionIds ? countOf('part', round.sectionIds.length) : ''].filter(Boolean).join(META_DOT);
+    round.sections !== undefined ? countOf(round.unit || 'part', round.sections) : round.sectionIds ? countOf('part', round.sectionIds.length) : ''].filter(Boolean).join(META_DOT);
 }
+
+/** 「2/4 页」 (a round that knows how many sections it tried), else 「2 个小节」: what a round newly covered. */
+const gainText = (covered, tried, unit) => (Number.isFinite(tried) && tried >= 0 && unit ? `${covered ?? 0}/${countOf(unit, tried)}` : countOf('part', covered ?? 0));
 
 /** What a round did, once it has run: 「保留 8 题，新覆盖 5 个部分 · 0.4M tok · 4 分钟」; a failed round says why. */
 export function roundResult(round) {
   if (round.status === 'pending' || round.status === 'running') return '';
   if (round.status === 'skipped') return ui('这一轮的小节都已经有题了');
-  const head = uiFormat('保留 {0} 题，新覆盖 {1} 个小节', [round.kept ?? 0, round.covered ?? 0]);
+  const head = uiFormat('保留 {0} 题，新覆盖 {1}', [round.kept ?? 0, gainText(round.covered, round.sections, round.unit)]);
   const minutes = round.ms > 0 ? minutesText(Math.max(1, Math.round(round.ms / 60000))) : '';
   const word = round.code || round.reason, reason = round.status === 'failed' ? (word === 'timeout' ? ui('这一轮用时到限') : word === 'cancelled' ? ui('被停止') : failedWhy(word)) : '';
   return [head, round.tokens > 0 ? tokensText(round.tokens) : '', minutes, reason].filter(Boolean).join(META_DOT);
 }
 
+/** 「没出成题：第 18 页（要 3 个考点，只给出 1 个）、第 19 页（…）」: the sections a round was asked for and still has no question for, at most three named (the count says the rest). */
+function lostText(a) {
+  const list = Array.isArray(a.lost) ? a.lost.filter((item) => sectionName(item)) : [];
+  if (!list.length) return '';
+  const total = Number.isFinite(a.lostCount) ? a.lostCount : list.length, shown = list.slice(0, 3);
+  const detailed = shown.some((item) => needGotText(item) || item.reason);
+  // A section with its numbers is said with them; one with only a cause, with that; the rest by name (pages together).
+  const body = detailed ? shown.map((item) => { const why = needGotText(item) || (item.reason ? reasonWord(item.reason) : ''); return why ? uiFormat('{0}（{1}）', [sectionName(item), why]) : sectionName(item); }).join(ui('、')) : refsText(shown);
+  return uiFormat('没出成题：{0}', [total > shown.length ? uiFormat('{0} 等 {1} 个', [body, total]) : body]);
+}
+
 /** The log lines of a run (the codes the backend records, in the same words as everywhere else). */
 export function runEventText(code, a = {}) {
   switch (code) {
-    case 'round-start': return a.fill ? uiFormat('补做第 {0} 轮开始 · {1}，{2} 题', [a.round, countOf('part', a.sections), a.questions]) : uiFormat('第 {0}/{1} 轮开始 · {2}，{3} 题', [a.round, a.rounds, countOf('part', a.sections), a.questions]);
-    case 'round-end': return a.status === 'failed'
-      ? [uiFormat('第 {0}/{1} 轮没做成：保留 {2} 题，新覆盖 {3} 个小节', [a.round, a.rounds, a.kept ?? 0, a.covered ?? 0]), failedWhy(a.code || a.reason)].filter(Boolean).join(META_DOT)
-      : uiFormat('第 {0}/{1} 轮完成：保留 {2} 题，新覆盖 {3} 个小节 · 覆盖 {4}%', [a.round, a.rounds, a.kept ?? 0, a.covered ?? 0, a.percent ?? 0]);
+    case 'round-start': {
+      // A record that knows its unit names what the round holds (「4 页（第 3、7、18、19 页）」); a retry says which rounds left its sections without a question.
+      const what = a.unit ? `${countOf(a.unit, a.sections)}${a.names?.length ? uiFormat('（{0}）', [refsText(a.names)]) : ''}` : countOf('part', a.sections);
+      if (a.fill) return a.unit && a.from?.length ? uiFormat('补做第 {0} 轮开始 · 重试{1}里没出成题的 {2}，{3} 题', [a.round, uiFormat('第 {0} 轮', [a.from.join(ui('、'))]), what, a.questions]) : uiFormat('补做第 {0} 轮开始 · {1}，{2} 题', [a.round, what, a.questions]);
+      return uiFormat('第 {0}/{1} 轮开始 · {2}，{3} 题', [a.round, a.rounds, what, a.questions]);
+    }
+    case 'round-end': {
+      const gain = gainText(a.covered, a.tried, a.unit), failed = a.status === 'failed';
+      const head = a.fill ? uiFormat(failed ? '补做第 {0} 轮没做成' : '补做第 {0} 轮完成', [a.round]) : uiFormat(failed ? '第 {0}/{1} 轮没做成' : '第 {0}/{1} 轮完成', [a.round, a.rounds]);
+      const result = uiFormat('{0}：保留 {1} 题，新覆盖 {2}', [head, a.kept ?? 0, gain]);
+      return (failed ? [result, failedWhy(a.code || a.reason), lostText(a)] : [result, uiFormat('覆盖 {0}%', [a.percent ?? 0]), lostText(a)]).filter(Boolean).join(META_DOT);
+    }
     case 'round-rerun': return uiFormat('第 {0} 轮上次没有做完，这次从头重做（半成品不采用，已通过的题保留）', [a.round]);
     case 'run-paused': return uiFormat('暂停于第 {0} 轮之后：不再开始新的一轮', [a.after]);
     case 'run-resumed': return uiFormat('继续：开始第 {0} 轮', [a.next]);

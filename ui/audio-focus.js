@@ -6,3 +6,5 @@ export const requestAudioSettingsFocus = () => { requested = true; };
 export const audioFocusPending = () => requested;
 /** The audio section took the request (it scrolled and focused). */
 export const takeAudioSettingsFocus = () => { const was = requested; requested = false; return was; };
+/** The click handler of every "audio settings" link: ask for the audio section, then open Settings (undefined when the page cannot navigate). */
+export const openAudioSettings = (openSettings) => (openSettings ? () => { requestAudioSettingsFocus(); openSettings(); } : undefined);

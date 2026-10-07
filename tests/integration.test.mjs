@@ -1097,6 +1097,7 @@ test("large selections generate in parts, extra generations queue, and job.wait 
   assert.ok(Array.isArray(compactSource.usedBy));
   assert.equal(compact.drafts.length, 2);
   assert.ok(JSON.stringify(compact).length < 12000);
+  assert.ok(compact.jobs.every(job => !('runStartedAt' in job) && (job.steps || []).every(step => !('counts' in step))), 'what only the console draws stays out of the compact snapshot');
   const page = await service.call("source.get", { id: big.id, offset: 100, limit: 50 });
   assert.equal(page.text, text.slice(100, 150));
 });

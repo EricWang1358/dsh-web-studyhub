@@ -4,7 +4,8 @@ import { useStudy } from "./study-context.jsx";
 import React from "react";
 import Ingest from "./Ingest.jsx";
 import JsonImport from "./JsonImport.jsx";
-import { kinds, useInjectCss } from "./shared.js";
+import { useInjectCss } from "./shared.js";
+import KindPicker from "./KindPicker.jsx";
 import CourseField from './CourseField.jsx';
 import { courseNamesOf, usePageScope } from './PageScope.jsx';
 import SourcePicker from './SourcePicker.jsx';
@@ -23,8 +24,8 @@ import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
-  DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam,
-  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, notationNote, roleOpenByDefault, selectionStats, summaryLine,
+  DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam,
+  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, kindsOfForm, kindsPatch, notationNote, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -33,6 +34,7 @@ import CaseCreate from './CaseCreate.jsx';
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { referenceSelection } from './reference-questions.js';
 import { useLiveEffect } from './use-async.js';
+import { settingsSectionOr } from './settings-groups.js';
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -58,7 +60,7 @@ export default function Generate({
   initialRetrieval = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
-  const { notify, call, busy, act, askInChat } = useStudy();
+  const { notify, call, busy, act, askInChat, openSettings: openSettingsSection } = useStudy();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
@@ -104,6 +106,8 @@ export default function Generate({
   const openReferenceImport = onReferenceImported => setModal({ type: 'add', course: generationCourse,
     referenceQuestions: true, ...(onReferenceImported ? { onReferenceImported } : {}) });
   const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
+  // The long-document card's links: the search extension (检索设置) or the PDF converter's own section, not the top of 设置.
+  const openLargeDocumentSettings = (section) => (openSettingsSection ? openSettingsSection(settingsSectionOr(section, 'settings-extensions')) : setPage?.("settings"));
   // With a single document (one PDF is several page sources) there is nothing to choose; don't make the learner tick it.
   React.useEffect(() => {
     const documents = groupSourcesByDocument(visibleSources.filter(source => !referenceSourceIds.includes(source.id)));
@@ -137,7 +141,7 @@ export default function Generate({
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
   const estimateRequest = { feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, coverageLevel: level,
-    ...(custom ? { count: custom } : {}), kind: gen.kind, difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
+    ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen), difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
   const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason });
   const plannedGoal = planned.status === 'ready' ? planned.estimate?.coverage?.goal : null;
   const summary = summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
@@ -182,7 +186,7 @@ export default function Generate({
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
-              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={() => setPage?.("settings")}
+              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
                 call={call} courses={data.focus?.courses} defaultCourse={generationCourse} />}
               {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel advice={advice} sourceIds={selectedSources}
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
@@ -200,10 +204,8 @@ export default function Generate({
                 <Button variant="link" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
               <div className="generate-rows">
                 <FormRow label={ui("题型")}>
-                  <SegmentedControl label={ui("题型")} className="generate-kind" value={gen.kind}
-                    options={KINDS.map((id) => ({ value: id, label: id === "mixed" ? ui("测验 + 闪卡") : kinds[id] }))}
-                    onChange={(kind) => setGen({ ...gen, kind })} />
-                  <p className="generate-note">{kindNote(gen.kind)}</p>
+                  <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen({ ...gen, ...kindsPatch(list) })} />
+                  <p className="generate-note">{kindNote(kindsOfForm(gen), custom ?? plannedGoal)}</p>
                 </FormRow>
                 <FormRow label={ui("覆盖强度")}>
                   <CoverageStrength level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}

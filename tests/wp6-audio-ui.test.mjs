@@ -230,7 +230,7 @@ test("microphone and tab-sharing failures become localized guidance", async () =
   assert.match(describeCaptureError(named("NotFoundError"), "microphone").message, /没有找到麦克风/);
   assert.match(describeCaptureError(named("NotSupportedError"), "tab").message, /Chrome 或 Edge/);
   assert.match(describeCaptureError(named("NotReadableError"), "microphone").message, /被其他程序占用/);
-  assert.match(describeCaptureError(named("NotAllowedError"), "tab").message, /取消了共享|没有允许共享/);
+  assert.match(describeCaptureError(named("NotAllowedError"), "tab").message, /没有共享标签页/, "no timing, no claim about the cause (tests/live-capture-guidance.test.mjs covers the causes)");
   const plain = new Error("Permission denied");
   assert.equal(describeCaptureError(plain, "microphone"), plain, "unknown errors pass through unchanged");
   // The live class shows these through uiMessage(), which translates them.

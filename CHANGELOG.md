@@ -2,6 +2,21 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.0.1 — 2026-10-08
+
+- **A continued run follows the time limit you set.** 接着做, 为没覆盖的部分补题 and a top-up of a published deck used the limit the draft was written with (20 minutes by default) whatever 设置 said. They now take the current 每轮运行时限; a value you pass for one run still wins.
+- **Pause stops new model calls, then waits only for the ones already running.** It used to wait for the whole round (often 20+ minutes). The round clock does not run while paused. A run with 自动补到完整 switched off can be paused too. A paused run lives only while DSH stays open: after a restart it is Interrupted and 接着做 continues from the draft.
+- **A queued task no longer counts time as if it were working.** 已用 starts when the run really starts; a queued task shows 排队中 · 已等 … instead. The time-limit strip uses the same clock.
+- **Marker no longer says "installed, but the check did not pass" for a good install.** An empty program path now falls back to the environment StudyHub installed. The button is 「检测并保存」: the path is checked first and saved only if it passes, so a blank or wrong box can no longer replace a working path.
+- **课堂实录 says why a tab cannot be shared.** Inside a DSH panel that is not allowed to share a screen the browser refuses at once without showing a picker; the page now says so (and what to do: a separate browser window, or the microphone) instead of telling you to click 开始实录 again. Several 「音频设置」 and settings links now open the section they name instead of the top of 设置.
+- **A stopped run explains itself.** Instead of 「重试了几轮」 and 「考点不够数」 the plan block, the log and the draft page say what happened (needed 3 points, the model gave 1), why when it is known, how many times it was tried, and what you can do. Stage lines that were English in the Chinese interface are translated. (Runs finished before this version keep their old, shorter text.)
+- **Optional: apply the review's suggestions** (off by default, 设置 › 出题偏好 or the 即时控制 box of a running task). A question that passed review with a suggestion gets one rewrite and one more review; if the rewrite does not pass, the approved question stays as it was. It costs more tokens and time.
+- **Default question types are a custom combination** of single-choice, multiple-choice, flashcard, open question and cloze, shared as evenly as possible. The old 「测验 + 闪卡」 is one of the combinations. A library rolled back to an older version sees a valid single type.
+- **Pin materials** (「置顶」 in the 更多 menu) and order the pinned ones by drag or with 上移 / 下移 / 置顶到最前.
+- **The 任务 console says more.** The 日志 shows the batch and how many questions each call wrote, reviewed, flagged and re-wrote; the plan block shows 已用 + 还要 ≈ 共 and a time estimate re-worked from the run's own progress; 「打开资料」 opens the one material a task concerns; 「跟随当前会话」 says which model and reasoning level it follows.
+
+Not fixed or not verified: the last minutes of a run can still be silent; the percentage of a stopped run is still not its coverage; the new options are not in the usage estimate; the 课堂实录 fix was built from a browser reproduction and has not been tried inside a real DSH panel; the full test suite has been run by CI, not as one clean local run.
+
 ## 3.0.0 — 2026-10-07
 
 - **Audio tasks describe the work they actually do.** Imports, subtitle files, transcript review, live-class saves and live corrections have their own details in Jobs. Request messages, timeline legends and file stages follow the task; live correction does not show an unrelated Files tab. Opening the study map while an audio task is running no longer crashes the page.

@@ -69,6 +69,12 @@
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
     }
+    /* 置顶: the pin sits in the title line from the first paint (the row's height never depends on it); a pinned row can be dragged, and the drop mark is a shadow so it takes no room. */
+    .source-pin { display: inline-flex; flex: none; color: var(--accent-text); }
+    .source-doc[draggable="true"] { cursor: grab; }
+    .source-doc--dragging { opacity: 0.45; cursor: grabbing; }
+    .source-doc--drop-before { box-shadow: 0 -3px 0 0 var(--accent-soft); }
+    .source-doc--drop-after { box-shadow: 0 3px 0 0 var(--accent-soft); }
     .sources-empty { display: grid; gap: var(--space-4); margin-top: var(--space-2); }
     .sources-empty__intro h2 { margin: 0 0 var(--space-1); font-size: var(--fs-xl); }
     .sources-empty__intro p { margin: 0; color: var(--text-muted); }

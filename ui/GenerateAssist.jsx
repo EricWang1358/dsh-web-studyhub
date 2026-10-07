@@ -1,9 +1,9 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
-import { kinds } from './shared.js';
 import { Button, Chip } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
-import { DIFFICULTIES, focusIncludes, hasSettings, levelLabel } from './generate-form.js';
+import { DIFFICULTIES, focusIncludes, hasSettings, kindsLabel, levelLabel } from './generate-form.js';
+import { kindsOfLegacyKind } from '../lib/generation-settings.js';
 
 /* The 帮我想想 assist under 这次想练什么 (WP23). It only presents: Generate.jsx
    asks `generate.suggest` and keeps the result. With a model the button says
@@ -19,7 +19,7 @@ export default function GenerateAssist({ ready = false, phase = 'idle', result =
   const items = Array.isArray(result?.focus) ? result.focus : [];
   const settings = [result?.coverage ? uiFormat('覆盖强度：{0}', [levelLabel(result.coverage)]) : '',
     DIFFICULTIES.find((item) => item.value === result?.difficulty)?.label || '',
-    result?.kind ? kinds[result.kind] || (result.kind === 'mixed' ? ui('测验 + 闪卡') : '') : ''].filter(Boolean).join(' · ');
+    result?.kind ? kindsLabel(kindsOfLegacyKind(result.kind) ?? []) : ''].filter(Boolean).join(' · ');
   return (
     <div className="generate-assist" data-tour="generate-assist">
       <div className="generate-assist__bar">

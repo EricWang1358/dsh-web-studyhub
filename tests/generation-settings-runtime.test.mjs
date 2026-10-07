@@ -100,7 +100,7 @@ test('explicit content and performance override one job without rewriting saved 
   assert.equal(draft.cards.length, 5);
   assert.ok(draft.cards.every(card => card.kind === 'quiz'));
   assert.deepEqual(draft.editorial.partReport.parts.map(part => part.asked), [3, 2]);
-  assert.deepEqual((await service.call('snapshot')).settings.generation, original);
+  assert.deepEqual((await service.call('snapshot')).settings.generation, { ...original, kinds: [original.kind] }, 'the saved list is derived from the saved kind');
 });
 
 test('usage estimates follow the saved batch size and match the actual fake-model call counts', async t => {

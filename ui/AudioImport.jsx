@@ -2,7 +2,8 @@ import { ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
 import React, { useRef, useState } from "react";
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { Button, Checkbox, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, useToast } from './components/index.js';
-import { AudioSetupGate, requestAudioSettingsFocus } from './AudioSettings.jsx';
+import { AudioSetupGate } from './AudioSettings.jsx';
+import { openAudioSettings } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
 import { TokenEstimate } from './TokenUsage.jsx';
 import settingsCss from './audio-settings.css';
@@ -63,7 +64,7 @@ export default function AudioImport({
   const { upload } = uploads;
   const { readiness, checks, setChecks, refreshReadiness, recheck, audioFiles } = useAudioPreflight({ call, files, paidOnly, initialReadiness, initialChecks });
   const courses = data.focus?.courses?.map(item => item.name) || [...new Set((data.decks || []).map((deck) => deck.course).filter(Boolean))];
-  const openSettings = onOpenSettings ? () => { requestAudioSettingsFocus(); onOpenSettings(); } : undefined;
+  const openSettings = openAudioSettings(onOpenSettings);
   const gated = !!readiness && !readiness.transcription && !files.length && !upload && !recoveryJobId;
 
   const reject = (message) => { setProblem(message); return false; };
