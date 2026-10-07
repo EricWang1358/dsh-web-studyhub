@@ -38,6 +38,10 @@ test('the assistant cannot choose the program StudyHub runs, install software, s
   assert.equal(await exists(mineruSettingsPath()), false, 'no MinerU token or consent was saved');
   assert.equal((await h.mineruState()).mode, 'disabled', 'local MinerU was not switched on');
   assert.deepEqual(await h.spawns(), [], 'no program was started');
+  // 检测并保存 asks marker.local.status about a path before it is saved: that start-a-program-of-my-choice form is the panel's, not the assistant's.
+  for (const args of [{ command: process.execPath }, { command: '' }, { command: 42 }])
+    await assert.rejects(h.assistant('marker.local.status', args), /marker\.local\.status with a command is not available to the assistant/, JSON.stringify(args));
+  assert.deepEqual(await h.spawns(), [], 'asking about a path started nothing');
   // With no program chosen, Marker is simply not found: nothing the assistant sent was kept.
   assert.equal((await h.assistant('marker.local.status')).state, 'not-installed');
   await assert.rejects(h.assistant('marker.import', { path: h.files.pdf }), /Marker/);
