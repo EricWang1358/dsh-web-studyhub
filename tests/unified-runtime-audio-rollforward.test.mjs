@@ -89,7 +89,7 @@ test('a crash of THIS version right after it published is for the kernel to fini
   assert.equal(record.commits.find(commit => commit.stepKey === ASSEMBLE_STEP)?.status, 'pending', 'the publish step is recorded before the documents are written');
   const service = await reopen(t, crashed);
   assert.deepEqual((await rowsOf(service)).map(row => [row.status, row.retry]), [['failed', true]], 'the documents are in the library but they are the kernel\'s own: not shown as finished');
-  // A restart has one live process: close this one before the next takes the job over (two live services on one library race on its revision).
+  // A restart has one live process: close this one before the next takes the job over (hygiene: the failure this guarded against was NOT two services; see the revision-conflict note in the PR).
   await service.dispose();
   const resumed = await crashed.child('resume');
   assert.equal(resumed.done.status, 'complete', resumed.done.stage);
