@@ -157,8 +157,11 @@ export async function runDshE2e(options) {
       for (let i = 0; i < 4; i++) {
         const next = page.getByRole("button", { name: /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/ });
         if (!await next.count()) break;
-        await next.first().click();
-        await sleep(800);
+        const clicked = await next.first().elementHandle();
+        await clicked.click();
+        // The host disables Continue while saving; wait for this step to leave before finding the next button.
+        await page.waitForFunction((button) => !button.isConnected, clicked);
+        await clicked.dispose();
       }
       await shot("01-dsh-home");
     });
@@ -198,7 +201,7 @@ export async function runDshE2e(options) {
       const inside = async (locator, host) => { const a = await locator.boundingBox(), b = await host.boundingBox(); return !!a && !!b && a.x >= b.x - 1 && a.y >= b.y - 1 && a.x + a.width <= b.x + b.width + 1 && a.y + a.height <= b.y + b.height + 1; };
       await page.setViewportSize({ width: 1440, height: 900 });
       await nav("settings");
-      await page.getByRole("button", { name: /^(出题偏好|Generation preferences)$/ }).first().click();
+      await page.locator('.settings-nav [data-category="generation"]').click();
       await sleep(1000);
       const select = page.locator('.settings-form [role="combobox"]:visible').first();
       await select.waitFor({ timeout: 30000 });

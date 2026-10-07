@@ -1,0 +1,1128 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-07T10:59:17.858Z",
+  "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+  "pluginVersion": "2.7.1",
+  "dshVersion": "0.2.0-rc.2",
+  "status": "passed-after-minimal-sidebar-height-fix",
+  "intendedScope": "16 cases: zh/en x light/dark x 1280/420 x product UI size 100/150; not browser or DSH-shell zoom",
+  "realProviderCalls": 0,
+  "attempts": [
+    {
+      "sourceSummary": "output/qa/3.0.0-host-ui/probe-onboarding-failure.json",
+      "observedFileAt": "2026-10-07T09:44:17.754Z",
+      "ok": false,
+      "cases": 1,
+      "error": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('[data-category=\"appearance\"]').first()\n",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "classification": "Probe had not completed DSH onboarding before navigating StudyHub",
+      "stoppedCleanly": true
+    },
+    {
+      "sourceSummary": "output/qa/3.0.0-host-ui/probe-saving-failure.json",
+      "observedFileAt": "2026-10-07T09:46:57.372Z",
+      "ok": false,
+      "cases": 0,
+      "error": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/ }).first()\n    - locator resolved to <button disabled type=\"button\" class=\"_button_1rv3m_2 _primary_1rv3m_36 _md_1rv3m_23 t1T8VW_primary\">继续</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n      - waiting 100ms\n    7 × waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n      - waiting 500ms\n    - waiting for element to be visible, enabled and stable\n    - element is not stable\n  - retrying click action\n    - waiting 500ms\n    - waiting for element to be visible, enabled and stable\n  - element was detached from the DOM, retrying\n",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "classification": "Probe attempted the same Continue button again while DSH was saving acknowledgment; that node detached",
+      "stoppedCleanly": true
+    },
+    {
+      "sourceSummary": "output/qa/3.0.0-host-ui/probe-history-assumption-failure.json",
+      "observedFileAt": "2026-10-07T10:18:49.824Z",
+      "ok": false,
+      "successfulCases": 0,
+      "cases": 1,
+      "error": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n  - waiting for locator('.tc-row').first() to be visible\n",
+      "classification": "Probe incorrectly assumed unarchived recoveryMode:none subtitle history survives restart; contract only promises explicit archives",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "stoppedCleanly": true
+    },
+    {
+      "sourceSummary": "output/qa/3.0.0-host-ui/probe-navigation-failure.json",
+      "observedFileAt": "2026-10-07T10:25:06.710Z",
+      "ok": false,
+      "successfulCases": 2,
+      "cases": 3,
+      "error": "Error: locator.click: Element is outside of the viewport\nCall log:\n  - waiting for locator('[data-tour=\"nav-settings\"]').first()\n    - locator resolved to <button class=\"nav\" type=\"button\" aria-describedby=\":rp:\" data-tour=\"nav-settings\" data-usage=\"nav.settings\">…</button>\n  - attempting click action\n    - scrolling into view if needed\n    - done scrolling\n",
+      "classification": "Settings unreachable after selecting product150% and switching viewport to420",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "stoppedCleanly": true
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "output/qa/3.0.0-host-ui/diagnostic.png",
+      "sha256": "85f585d2aa50c5736e788754149ab714ef23cc818cc7745408b40b931f198717"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/navigation-420-150-diagnostic.png",
+      "sha256": "95525b5dd8fc0d902d6f3bf9a32564c524d21c2b9f4e76f1c37417db8ec28442"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/red-tasks-zh-light-1280-100.png",
+      "sha256": "6c606fb0dc5abe9fd12d77e8d98e55250a1db990e4bb3417bc2c5cf21e596d0d"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/red-tasks-zh-light-1280-150.png",
+      "sha256": "7f5e3d86b5f63f88701e8869571f6f94aa7eab94d37552e2203684ee88646589"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/sidebar-height-red-diagnostic.png",
+      "sha256": "85f585d2aa50c5736e788754149ab714ef23cc818cc7745408b40b931f198717"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-dark-1280-100.png",
+      "sha256": "aa809d4326af299bc2a90145d14209dffdd71b46f3a6fb7df6b16de32d9f8dd3"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-dark-1280-150.png",
+      "sha256": "18063657f42ddcb9fec3a5304062fc8cb28b53cfc38e3130a82abc3135b16e33"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-dark-420-100.png",
+      "sha256": "835052bbccf53450ce9327ab49a68e5686d2f72ca6ebcc47d6fe8ec556a25915"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-dark-420-150.png",
+      "sha256": "c5ea7fac404b2e6327431a666370cb67bd55137fc9debd2dc4e9c53580adacc2"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-light-1280-100.png",
+      "sha256": "3921c0c9d625a0de1ac5841e1bfa89dc9c4dfbac625ef9818b1081461b076696"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-light-1280-150.png",
+      "sha256": "c81161aac13be85668e610ffa5fe02c03976753cd1e2ba79048e47b9e5a649a1"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-light-420-100.png",
+      "sha256": "07b9c073a12a7175bdcfa7910940ee9f05f48f176562c1ebef8e811c51673097"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-en-light-420-150.png",
+      "sha256": "a1bed90c4ba97bee9b4d68000a486c70558b3e528b1698aa8e2ae11b33eec388"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-dark-1280-100.png",
+      "sha256": "cedba6ac6ce8f3912883c3383f180535f8bb2dbe0c1e96713edfd5845eee4649"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-dark-1280-150.png",
+      "sha256": "6430418c8a81fc1eed01f726e4477731c5d28488903f8b282e4412c1989cd2e8"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-dark-420-100.png",
+      "sha256": "060e27b5869edc3090ee53e0bffbfcfae0cce9f56a0339e67963f512a3ff05fb"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-dark-420-150.png",
+      "sha256": "9d857fb993e91c914567959891111aee43e762b22bab127ed14f3b4471dddf93"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-light-1280-100.png",
+      "sha256": "527bfde12e97e726f6bc5625cd8ad9411f198fa3ea0ecd6bad634b7e599e8c83"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-light-1280-150.png",
+      "sha256": "4a688297b9853a7c7183448ae97536df39b1f55546118a88294e041b3f5bd9c9"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-light-420-100.png",
+      "sha256": "70198b2335157ca0378a582df9be7ab8cc66d3a2fbd8a4c57034db1ff15e5d6c"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/tasks-zh-light-420-150.png",
+      "sha256": "cd48a4d30cd070b1c880090ac60bf0aac767342902b0d18915e4e3ab979440b0"
+    }
+  ],
+  "fix": "ui/shell.css sidebar min-height becomes 0; retains height:100% and overflow-y:auto. Private matrix uses normal pointer clicks (force removed), reaches Settings after every case, checks its bounding box and scaled sidebar height. No navigation redesign.",
+  "result": {
+    "ok": true,
+    "successfulCases": 16,
+    "expectedCases": 16,
+    "fakeModelRequests": 4,
+    "pageErrors": [],
+    "consoleErrors": [],
+    "stoppedCleanly": true,
+    "cases": [
+      {
+        "lang": "zh",
+        "theme": "light",
+        "width": 1280,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 81,
+          "longTasks": 1,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "light",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-light-1280-100.png",
+        "settingsBox": {
+          "x": 290,
+          "y": 847,
+          "width": 86,
+          "height": 36
+        },
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "light",
+        "width": 1280,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 240,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "light",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-light-1280-150.png",
+        "settingsBox": {
+          "x": 289,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "light",
+        "width": 420,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 130,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "light",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-light-420-100.png",
+        "settingsBox": {
+          "x": 62,
+          "y": 837,
+          "width": 20,
+          "height": 42
+        },
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "light",
+        "width": 420,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 121,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "light",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-light-420-150.png",
+        "settingsBox": {
+          "x": 65,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "dark",
+        "width": 1280,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 79,
+          "longTasks": 1,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "dark",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-dark-1280-100.png",
+        "settingsBox": {
+          "x": 290,
+          "y": 847,
+          "width": 86,
+          "height": 36
+        },
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "dark",
+        "width": 1280,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 307,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "dark",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-dark-1280-150.png",
+        "settingsBox": {
+          "x": 289,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "dark",
+        "width": 420,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 148,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "dark",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-dark-420-100.png",
+        "settingsBox": {
+          "x": 62,
+          "y": 837,
+          "width": 20,
+          "height": 42
+        },
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "dark",
+        "width": 420,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 144,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "dark",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-zh-dark-420-150.png",
+        "settingsBox": {
+          "x": 65,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "width": 1280,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 117,
+          "longTasks": 1,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "light",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-light-1280-100.png",
+        "settingsBox": {
+          "x": 290,
+          "y": 847,
+          "width": 116.1875,
+          "height": 36
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "width": 1280,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 109,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "light",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-light-1280-150.png",
+        "settingsBox": {
+          "x": 289,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "width": 420,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 126,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "light",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-light-420-100.png",
+        "settingsBox": {
+          "x": 62,
+          "y": 837,
+          "width": 20,
+          "height": 42
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "width": 420,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 97,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "light",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-light-420-150.png",
+        "settingsBox": {
+          "x": 65,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "width": 1280,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 92,
+          "longTasks": 1,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "dark",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-dark-1280-100.png",
+        "settingsBox": {
+          "x": 290,
+          "y": 847,
+          "width": 116.1875,
+          "height": 36
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "width": 1280,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 122,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "dark",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-dark-1280-150.png",
+        "settingsBox": {
+          "x": 289,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "width": 420,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 126,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "dark",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-dark-420-100.png",
+        "settingsBox": {
+          "x": 62,
+          "y": 837,
+          "width": 20,
+          "height": 42
+        },
+        "ok": true
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "width": 420,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 121,
+          "longTasks": 2,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 420,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "dark",
+          "language": "en",
+          "rows": 1
+        },
+        "navigation": {
+          "sidebarHeight": 900,
+          "hostHeight": 900
+        },
+        "screenshot": "tasks-en-dark-420-150.png",
+        "settingsBox": {
+          "x": 65,
+          "y": 805,
+          "width": 30,
+          "height": 63
+        },
+        "ok": true
+      }
+    ],
+    "sourceSummary": "output/qa/3.0.0-host-ui/summary.json",
+    "recordedAt": "2026-10-07T10:54:25.349Z"
+  },
+  "contractBoundary": "Unarchived audio-subtitles jobs have recoveryMode:none; archived records and source artifacts are persistent, raw call output is not required to persist.",
+  "redResult": {
+    "ok": false,
+    "successfulCases": 2,
+    "expectedCases": 16,
+    "fakeModelRequests": 1,
+    "pageErrors": [],
+    "consoleErrors": [],
+    "stoppedCleanly": true,
+    "cases": [
+      {
+        "lang": "zh",
+        "theme": "light",
+        "width": 1280,
+        "scale": 100,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 0,
+          "longTasks": 0,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "100",
+          "zoom": "1",
+          "theme": "light",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "screenshot": "tasks-zh-light-1280-100.png",
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "light",
+        "width": 1280,
+        "scale": 150,
+        "layout": {
+          "ok": true,
+          "cls": 0,
+          "shiftCount": 0,
+          "longestTask": 51,
+          "longTasks": 1,
+          "rowResizes": 0,
+          "message": "",
+          "shifts": [],
+          "resizes": []
+        },
+        "metrics": {
+          "viewport": 1280,
+          "overflow": 0,
+          "scale": "150",
+          "zoom": "1.5",
+          "theme": "light",
+          "language": "zh-CN",
+          "rows": 1
+        },
+        "screenshot": "tasks-zh-light-1280-150.png",
+        "ok": true
+      },
+      {
+        "lang": "zh",
+        "theme": "light",
+        "width": 420,
+        "scale": 100,
+        "ok": false,
+        "error": "Error: locator.click: Element is outside of the viewport\nCall log:\n  - waiting for locator('[data-tour=\"nav-settings\"]').first()\n    - locator resolved to <button class=\"nav\" type=\"button\" aria-describedby=\":rp:\" data-tour=\"nav-settings\" data-usage=\"nav.settings\">…</button>\n  - attempting click action\n    - scrolling into view if needed\n    - done scrolling\n",
+        "navigation": [
+          {
+            "tag": "BUTTON",
+            "cls": "nav",
+            "box": {
+              "x": 289,
+              "y": 955,
+              "width": 30,
+              "height": 63
+            },
+            "scrollTop": 0,
+            "clientHeight": 42,
+            "scrollHeight": 42,
+            "overflowY": "visible",
+            "zoom": "1"
+          },
+          {
+            "tag": "SPAN",
+            "cls": "sh-popover-anchor nav-tip",
+            "box": {
+              "x": 289,
+              "y": 953.5,
+              "width": 30,
+              "height": 66
+            },
+            "scrollTop": 0,
+            "clientHeight": 44,
+            "scrollHeight": 44,
+            "overflowY": "visible",
+            "zoom": "1"
+          },
+          {
+            "tag": "DIV",
+            "cls": "sidebar-bottom",
+            "box": {
+              "x": 289,
+              "y": 821.5,
+              "width": 74,
+              "height": 198
+            },
+            "scrollTop": 0,
+            "clientHeight": 132,
+            "scrollHeight": 132,
+            "overflowY": "visible",
+            "zoom": "1"
+          },
+          {
+            "tag": "ASIDE",
+            "cls": "sidebar is-narrow",
+            "box": {
+              "x": 280,
+              "y": 0,
+              "width": 93,
+              "height": 1050
+            },
+            "scrollTop": 187.3333282470703,
+            "clientHeight": 700,
+            "scrollHeight": 887,
+            "overflowY": "auto",
+            "zoom": "1"
+          },
+          {
+            "tag": "DIV",
+            "cls": "study-app",
+            "box": {
+              "x": 280,
+              "y": 0,
+              "width": 1000,
+              "height": 900
+            },
+            "scrollTop": 358,
+            "clientHeight": 600,
+            "scrollHeight": 1403,
+            "overflowY": "auto",
+            "zoom": "1.5"
+          },
+          {
+            "tag": "DIV",
+            "cls": "study-seat",
+            "box": {
+              "x": 280,
+              "y": 0,
+              "width": 1000,
+              "height": 900
+            },
+            "scrollTop": 0,
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "overflowY": "hidden",
+            "zoom": "1"
+          },
+          {
+            "tag": "DIV",
+            "cls": "studyhub-page",
+            "box": {
+              "x": 280,
+              "y": 0,
+              "width": 1000,
+              "height": 900
+            },
+            "scrollTop": 0,
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "overflowY": "visible",
+            "zoom": "1"
+          },
+          {
+            "tag": "DIV",
+            "cls": "",
+            "box": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "scrollTop": 0,
+            "clientHeight": 0,
+            "scrollHeight": 0,
+            "overflowY": "visible",
+            "zoom": "1"
+          },
+          {
+            "tag": "DIV",
+            "cls": "",
+            "box": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "scrollTop": 0,
+            "clientHeight": 0,
+            "scrollHeight": 0,
+            "overflowY": "visible",
+            "zoom": "1"
+          },
+          {
+            "tag": "DIV",
+            "cls": "pI_x6G_centerCol",
+            "box": {
+              "x": 280,
+              "y": 0,
+              "width": 1000,
+              "height": 900
+            },
+            "scrollTop": 0,
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "overflowY": "hidden",
+            "zoom": "1"
+          }
+        ]
+      }
+    ],
+    "reproduction": {
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "productScale": 150,
+      "sidebarClientHeight": 700,
+      "sidebarRenderedHeight": 1050,
+      "sidebarScrollTop": 187.3333282470703,
+      "sidebarScrollMax": 187,
+      "settingsTop": 955,
+      "settingsBottom": 1018,
+      "applicationClientHeight": 600,
+      "applicationRenderedHeight": 900,
+      "source": "ui/shell.css:14 min-height:min(700px,100dvh)"
+    },
+    "sourceSummary": "output/qa/3.0.0-host-ui/sidebar-height-red-summary.json"
+  },
+  "redScreenshots": [
+    {
+      "path": "output/qa/3.0.0-host-ui/sidebar-height-red-diagnostic.png",
+      "sha256": "85f585d2aa50c5736e788754149ab714ef23cc818cc7745408b40b931f198717"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/navigation-420-150-diagnostic.png",
+      "sha256": "95525b5dd8fc0d902d6f3bf9a32564c524d21c2b9f4e76f1c37417db8ec28442"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/red-tasks-zh-light-1280-100.png",
+      "sha256": "6c606fb0dc5abe9fd12d77e8d98e55250a1db990e4bb3417bc2c5cf21e596d0d"
+    },
+    {
+      "path": "output/qa/3.0.0-host-ui/red-tasks-zh-light-1280-150.png",
+      "sha256": "7f5e3d86b5f63f88701e8869571f6f94aa7eab94d37552e2203684ee88646589"
+    }
+  ],
+  "workingTreeChanges": [
+    {
+      "path": "ui/shell.css",
+      "sha256": "cc1c9690a1758628d7bac8f76882b07d2ff63ec6239ad0cfb65c1162126e1793"
+    },
+    {
+      "path": "tests/nav-groups-browser.test.mjs",
+      "sha256": "11ad15a12f096f2cae57276c092fe25c6b9d35938ede6eb349119b92f06aae48"
+    },
+    {
+      "path": "scripts/qa/dsh-e2e.mjs",
+      "sha256": "400b0a5f06a1b11eeb082221d2eb3729b5a638319a5f318101dbd64693f4ad50"
+    }
+  ],
+  "notFinal300Package": true,
+  "regression": {
+    "file": "tests/nav-groups-browser.test.mjs",
+    "scope": "1280/420 widths x 900/480 heights x actual product Settings 100/150/200%, normal clicks Library then Settings",
+    "red": {
+      "exitCode": 1,
+      "passedSubcases": 4,
+      "failedSubcases": 8,
+      "nodeTotals": {
+        "tests": 13,
+        "pass": 4,
+        "fail": 9
+      },
+      "log": "output/verification/300-host-nav-red.log",
+      "sha256": "5d7fe5220600ef9a01197bf066eb13263de36c1e72de478192f89e3649250ca6"
+    },
+    "green": {
+      "exitCode": 0,
+      "nodeTotals": {
+        "tests": 14,
+        "pass": 14,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "output/verification/300-host-nav-green.log",
+      "sha256": "d5c9f2bfc9e5a68253da7e80956d71d313e9aa7bf55e73c11d90ad2d192feecd"
+    },
+    "note": "Green includes existing grouped navigation test and parent test; tests use public UI size controls, not injected CSS or browser-shell zoom."
+  },
+  "review": {
+    "mode": "ce-code-review focused local fallback",
+    "receipt": "output/verification/300-host-review/review.json",
+    "externalModel": "not run: previously denied external route; no retry",
+    "independence": "separate root context, same family; shared prior diagnosis and root authored QA script fixes, therefore not blind or cross-model",
+    "verdict": "Ready to merge",
+    "findings": [],
+    "coverage": {
+      "depth": "focused",
+      "scope": "local-aligned working tree",
+      "criteria": "No governing CODING_STANDARDS.md/AGENTS.md/CLAUDE.md found in checkout; active user instructions and unified-runtime agent-rules followed.",
+      "plan": "No plan argument or unambiguous branch-matching plan; explicit task intent governs this scoped fix, not all 3.0.0 release work.",
+      "correctness": "Inspected height/zoom/overflow composition, box sizing, responsive sidebar rules, preview host fixture, real pointer actions, onboarding wait and stable category selector. Red 8/12 failed, green full browser file14/14; focused ESLint and git diff --check pass.",
+      "adversarial": "Terminal schema-shaped artifact collected from separate root context. Same serving family; root shared prior diagnosis and authored the two QA script fixes. Independent of CSS/test implementation but not blind or cross-model.",
+      "external_peer": "Not run: previously rejected external route; explicit instruction prohibits retry. Local fallback supplied the adversarial lens.",
+      "untracked_excluded": [
+        ".local/",
+        ".codex-run/",
+        "docs/plans/unified-job-runtime/s6-9-host-qa.md",
+        "docs/plans/unified-job-runtime/evidence/s6-9-host-baseline.json",
+        "docs/plans/unified-job-runtime/evidence/s6-9-host-ui.json"
+      ],
+      "not_assessed": [
+        "Compound Packs",
+        "learnings",
+        "agent-native gaps",
+        "deployment notes",
+        "full 3.0.0 release acceptance"
+      ],
+      "additional_reviewer_agents": 0,
+      "validator": "not run on focused path"
+    },
+    "receiptSha256": "8600bd5d81102df1a94abb256846854c857ed363b0dd3ee46e8d8be06f2c2560"
+  },
+  "cleanup": {
+    "checkedAt": "2026-10-07T10:59:18.886Z",
+    "ok": true,
+    "results": [
+      {
+        "port": 3297,
+        "closed": true,
+        "code": "ECONNREFUSED"
+      },
+      {
+        "port": 4297,
+        "closed": true,
+        "code": "ECONNREFUSED"
+      }
+    ]
+  },
+  "package": {
+    "path": "output/qa/s67/pack/ericwang1358-dsh-daily-flashcard-2.7.1.tgz",
+    "version": "2.7.1",
+    "sha256": "259de399e2d9b6081ad374fd6fb763b950b0f60f330788d0d650b73a6c676eb6",
+    "note": "Rebuilt after sidebar fix and installed via qa:dsh-runtime; not final 3.0.0 release package."
+  }
+}

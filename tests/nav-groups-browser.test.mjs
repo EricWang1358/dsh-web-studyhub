@@ -81,3 +81,52 @@ test('the grouped sidebar: all thirteen pages reachable, folding remembered, key
     await rm(dist, { recursive: true, force: true });
   }
 });
+
+test('sidebar footer stays clickable within the host at 100%, 150% and 200% interface size', { timeout: 300000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-scaled-nav-dist-'));
+  let running;
+  try {
+    await buildPreview({ outdir: dist });
+    running = await startNavServer({ distDir: dist });
+    for (const width of [1280, 420]) for (const height of [900, 480]) for (const scale of [100, 150, 200]) {
+      await t.test(`${width}x${height} at ${scale}%`, async () => {
+        const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+        await context.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
+        const page = await context.newPage(), errors = [];
+        page.on('pageerror', error => errors.push(String(error)));
+        try {
+          await page.goto(running.server.url);
+          const settings = page.locator('[data-tour="nav-settings"]').first();
+          await settings.click();
+          await page.locator('.settings-nav [data-category="appearance"]').click();
+          await page.getByRole('button', { name: `${scale}%`, exact: true }).first().click();
+          await page.waitForFunction(value => document.querySelector('.study-app')?.getAttribute('data-ui-scale') === String(value), scale);
+          await page.setViewportSize({ width, height });
+          const bounds = await page.locator('.sidebar').first().evaluate(sidebar => {
+            const side = sidebar.getBoundingClientRect(), host = sidebar.closest('.study-app').getBoundingClientRect();
+            return { sidebarHeight: side.height, hostHeight: host.height };
+          });
+          assert.ok(bounds.sidebarHeight <= bounds.hostHeight + 1,
+            `the sidebar must fit its scaled host so its own scrolling can reach the footer: ${JSON.stringify(bounds)}`);
+          // Use real pointer clicks in both directions: scrolling a row into view is not enough if a sticky rail extends below its host.
+          await page.locator('[data-tour="nav-library"]').first().click();
+          await page.locator('.study-app[data-usage-area="library"]').waitFor();
+          await settings.click();
+          await page.locator('.settings-nav').waitFor();
+          const footer = await settings.boundingBox();
+          assert.ok(footer && footer.y >= -1 && footer.y + footer.height <= height + 1,
+            `the clicked Settings button must be visible inside ${height}px: ${JSON.stringify(footer)}`);
+          assert.deepEqual(errors, []);
+        } finally {
+          await context.close();
+        }
+      });
+    }
+  } finally {
+    await browser.close().catch(() => {});
+    await running?.close();
+    await rm(dist, { recursive: true, force: true });
+  }
+});
