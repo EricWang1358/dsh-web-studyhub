@@ -36,7 +36,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "The original in-process assistant request; the panel list of recent requests stays",
-      "removeAt": "S6-2 (the in-process executor); the list: S6-5",
+      "removeAt": "after default flip",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -137,7 +137,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "importAudio has an original provider branch; jobTextModel serves the classroom save until S2-6",
-      "removeAt": "S6-2",
+      "removeAt": "after default flip",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -284,7 +284,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "liveTranslation (per-sentence live translation) stays with the session; the original correction call is bypassed",
-      "removeAt": "S6-2 (correction); the translation stays",
+      "removeAt": "after default flip",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -596,7 +596,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "The classroom save pipeline (proofread): original runner until S2-6",
-      "removeAt": "S2-6 then S6-2",
+      "removeAt": "after default flip",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -881,7 +881,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "The in-process teaching call (the Job runs it behind the gateway when workflow is on)",
-      "removeAt": "S6-2 (in-process path)",
+      "removeAt": "after default flip",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -941,7 +941,8 @@
           "kind": "read-adapter",
           "reached": true
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/audio/operations.js",
@@ -981,7 +982,8 @@
             "audioLiveSave"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/audio/setup/legacy-setup-run.js",
@@ -1003,7 +1005,8 @@
             "mineruSetup"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/audio/worker.js",
@@ -1060,7 +1063,8 @@
             "audioLiveCorrection"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/coach/worker.js",
@@ -1094,7 +1098,8 @@
             "coach"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/generation/jobs/generation.js",
@@ -1144,7 +1149,8 @@
             "generationRepair"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/generation/operations.js",
@@ -1203,7 +1209,8 @@
             "retrievalIndex"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/generation/selection.js",
@@ -1252,7 +1259,8 @@
             "translation"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/generation/translation/jobs/translation.js",
@@ -1341,7 +1349,8 @@
             "dailyRecap"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/contexts/notes/operations.js",
@@ -1369,7 +1378,8 @@
             "noteGenerate"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/generation-continuable.js",
@@ -1528,7 +1538,8 @@
             "audioLiveCorrection"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/live.js",
@@ -1604,7 +1615,8 @@
             "markerInstall"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/marker-local.js",
@@ -1707,7 +1719,8 @@
             "workflow"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/workflow-teaching.js",
@@ -1739,13 +1752,14 @@
             "workflow"
           ]
         }
-      ]
+      ],
+      "removeAt": "after default flip"
     }
   ],
   "dispositions": {
     "migrate": "still runs outside the runtime with every switch on; names the step that migrates it",
     "exception": "kept on purpose; names its kind and why",
-    "delete-s6-2": "unreachable once its switch is on; S6-2 deletes it"
+    "delete-s6-2": "unreachable once its switch is on, but the switch is off by default: the original path IS today's default and the off-switch is the rollback. Deleted only after the default flip (S6-7 sampling and alpha); removeAt says so"
   },
   "kinds": [
     "legacy-bypass",
