@@ -322,6 +322,13 @@
     .tc-run[data-run-state='interrupted'] .tc-run__line, .tc-run[data-run-state='stopped'] .tc-run__line { color: var(--warn-ink, var(--text)); }
     /* The time limit of the task (ui/tasks/TimeLimit.jsx): one quiet strip under the facts, the same register as the line of a coverage run; the link and the steps it names are buttons. */
     .tc-limit { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
+    /* 要求并行 (ui/tasks/ParallelParts.jsx): why a queued task waits, or that a model error sent it back, in the same quiet register as the strip above; the second sentence of an explainer sits under the first. */
+    .tc-queue { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
+    .tc-queue__anchor { min-width: 0; }
+    .tc-queue__line { min-width: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); overflow-wrap: anywhere; }
+    .tc-queue[data-queue-state='requeued'] .tc-queue__line { color: var(--warn-ink, var(--text)); }
+    .tc-queue__blocked { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+    .tc-tip__more { display: block; margin-top: var(--space-1); color: var(--text-muted); }
     .tc-limit__k { font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .tc-limit__line { min-width: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
     .tc-limit__call, .tc-limit__more { font-variant-numeric: tabular-nums; }

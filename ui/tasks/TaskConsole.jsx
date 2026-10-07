@@ -23,6 +23,7 @@ import TaskUsage from './TaskUsage.jsx';
 import { actionLabel, autoLabel } from '../coverage/copy.js';
 import ControlRow from './ControlRow.jsx';
 import ContinuedNote from './ContinuedNote.jsx';
+import QueueNote, { ParallelBadge, ParallelButton } from './ParallelParts.jsx';
 import TaskBody from './TaskBody.jsx';
 import { readJSON, writeJSON } from '../storage.js';
 import { CoverageTopUpPopover } from '../coverage/CoverageTopUp.jsx';
@@ -163,6 +164,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
         </div>
         <div className="tc-head__actions">
           <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>
+          <ParallelBadge task={task} />
+          <ParallelButton task={task} />
           {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
           {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
           {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' ? undefined : 'primary'} disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
@@ -190,6 +193,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
       </header>
       <Metrics job={task} summary={summary} now={now} />
       <TaskUsage contract={contract} />
+      <QueueNote task={task} />
       <RunLine task={task} shortfall={shortfall} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}

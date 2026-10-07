@@ -8,6 +8,7 @@ import { joinMeta } from '../format.js';
 import css from './compact-card.css';
 import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
 import { taskSummary, stageLabel } from './task-summary.js';
+import { badgeText } from './task-parallel.js';
 import { runningCalls, callLabel } from './call-model.js';
 import { resultOpener } from './task-actions.js';
 
@@ -45,7 +46,9 @@ export function cardLine(job) {
   const now = runningCalls(contract.calls).find((call) => call.kind !== 'wait');
   const count = progress.total > 0 && ['files', 'pages', 'paragraphs'].includes(progress.unit) ? uiFormat('{0}/{1} {2}完成', [progress.done, progress.total, ui(UNIT[progress.unit])]) : '';
   const doing = now ? uiFormat('正在{0}', [callLabel(now, { file: true })]) : stageLabel(contract.stage);
-  return joinMeta([contract.status === 'paused' ? ui('已暂停') : contract.status === 'pausing' ? ui('正在暂停') : '', count, doing, pieceOf(contract), noticed]);
+  // 要求并行: a job beside the queue is marked; one a model error sent back says so.
+  const queue = contract.detail?.requeued && status === 'queued' ? ui('已退回排队，等前面的任务完成后自动继续') : contract.detail?.parallel ? badgeText() : '';
+  return joinMeta([contract.status === 'paused' ? ui('已暂停') : contract.status === 'pausing' ? ui('正在暂停') : '', queue, count, doing, pieceOf(contract), noticed]);
 }
 
 export default function CompactJobCard({ job, onStop, onDismiss, primary, title, line, onOpenConsole, className, ...rest }) {
