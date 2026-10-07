@@ -76,6 +76,7 @@
     "tests/test-runner-schedule.test.mjs",
     "tests/unified-runtime-audio-batch.test.mjs",
     "tests/unified-runtime-audio-pilot.test.mjs",
+    "tests/unified-runtime-audio-rollforward.test.mjs",
     "tests/unified-runtime-crash.test.mjs",
     "tests/unified-runtime-gateway.test.mjs",
     "tests/unified-runtime-marker-install.test.mjs",
@@ -83,6 +84,7 @@
     "tests/unified-runtime-nonmodel-family.test.mjs",
     "tests/unified-runtime-nonmodel-recovery.test.mjs",
     "tests/unified-runtime-pdf-convert.test.mjs",
+    "tests/unified-runtime-rebind-race.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
     "tests/wp28b-companion.test.mjs",
     "tests/wp6-m4a.test.mjs"
