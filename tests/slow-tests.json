@@ -76,6 +76,7 @@
     "tests/test-runner-schedule.test.mjs",
     "tests/unified-runtime-audio-batch.test.mjs",
     "tests/unified-runtime-audio-pilot.test.mjs",
+    "tests/unified-runtime-audio-rollforward.test.mjs",
     "tests/unified-runtime-crash.test.mjs",
     "tests/unified-runtime-gateway.test.mjs",
     "tests/unified-runtime-marker-install.test.mjs",
