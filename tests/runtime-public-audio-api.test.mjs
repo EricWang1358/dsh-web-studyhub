@@ -39,4 +39,6 @@ test('runtime: the contract\'s own jobId names the Job to job.wait and job.cance
   assert.equal((await door('job.wait', { jobId: job.contract.jobId, timeoutSeconds: 1 })).id, job.id);
   await door('job.cancel', { jobId: job.contract.jobId });
   await until(() => stopped(), 'the stop to reach the model request');
+  // The library is removed after the test: let the Job settle (and finish writing) first.
+  await until(async () => ['cancelled', 'failed'].includes((await door('job.wait', { jobId: job.contract.jobId, timeoutSeconds: 1 })).status), 'the job to end');
 });
