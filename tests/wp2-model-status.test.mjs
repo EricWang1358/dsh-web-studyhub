@@ -125,12 +125,13 @@ test('binding.get and the panel snapshot carry the model contract and keep model
   assert.deepEqual(bound.modelStatus, { ready: false, reason: 'no-credential', label: 'DeepSeek · deepseek-v4-flash', provider: 'deepseek-official', model: 'deepseek-v4-flash' });
   const blocked = await run('snapshot');
   assert.equal(blocked.modelReady, false, 'Generate must not be offered for a route without a key');
-  assert.deepEqual(blocked.model, bound.modelStatus);
+  // The conversation's own route rides along as `session` (what 「跟随当前会话」 follows).
+  assert.deepEqual(blocked.model, { ...bound.modelStatus, session: { ...DEEPSEEK, reasoningEffort: null } });
   configured.add('DEEPSEEK_API_KEY');
   const ready = await run('snapshot', { since: blocked.fingerprint });
   assert.equal(ready.unchanged, undefined, 'a newly stored key must refresh an otherwise unchanged library');
   assert.equal(ready.modelReady, true);
-  assert.deepEqual(ready.model, { ...bound.modelStatus, ready: true, reason: 'ok' });
+  assert.deepEqual(ready.model, { ...bound.modelStatus, ready: true, reason: 'ok', session: { ...DEEPSEEK, reasoningEffort: null } });
   assert.equal((await run('snapshot', { since: ready.fingerprint })).unchanged, true);
 });
 

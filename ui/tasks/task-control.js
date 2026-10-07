@@ -1,6 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { STRENGTH_LABEL } from '../../lib/model-effort.js';
 import { contractOf, taskKindOf } from './task-model.js';
+import { followLabel } from '../follow-session.js';
 
 /* What the 即时控制 row and the header offer for a job, read from its contract: the live settings (with their limits and the value in force) and which
    actions are available, or why not. Pure: the row is ControlRow.jsx. Nothing here knows more than the contract says, so a job kind that gains a
@@ -15,7 +16,8 @@ const LABELS = {
 };
 export const controlLabel = (key) => ui(LABELS[key] || key);
 
-const optionLabel = (key, value) => ui((key.startsWith('effort') ? GENERATION_EFFORTS : STRENGTH_LABEL)[value] || value);
+const optionLabel = (key, value, session) => key.startsWith('effort') && value === 'follow' ? followLabel(session)
+  : ui((key.startsWith('effort') ? GENERATION_EFFORTS : STRENGTH_LABEL)[value] || value);
 
 /** The settings that live in the header, not in the row: the choice between a manual run and a run that goes on by itself. */
 const HEADER_KEYS = new Set(['autoComplete']);
@@ -26,12 +28,13 @@ export function autoToggle(job) {
   return item ? { value: item.value === true } : null;
 }
 
-/** The settings of a job in the order the row draws them: [{ key, label, type: 'int' | 'enum' | 'bool', value, min, max, options: [{ value, label }] }]. */
-export function controlItems(job) {
+/** The settings of a job in the order the row draws them: [{ key, label, type: 'int' | 'enum' | 'bool', value, min, max, options: [{ value, label }] }].
+    `session` (snapshot.model.session) is what 「跟随当前会话」 follows, named in that option; absent, the option says only that. */
+export function controlItems(job, session) {
   const set = contractOf(job).actions.set;
   if (!set.available) return [];
   return (set.settings || []).filter((setting) => !HEADER_KEYS.has(setting.key)).map((setting) => ({ key: setting.key, label: controlLabel(setting.key), type: setting.type, value: setting.value, min: setting.min, max: setting.max,
-    options: setting.type === 'enum' ? setting.values.map((option) => ({ value: option, label: optionLabel(setting.key, option) })) : [] }));
+    options: setting.type === 'enum' ? setting.values.map((option) => ({ value: option, label: optionLabel(setting.key, option, session) })) : [] }));
 }
 
 /** The value one press of − or + gives, kept inside the limits; the same value when the edge is reached (the button is disabled there). */
