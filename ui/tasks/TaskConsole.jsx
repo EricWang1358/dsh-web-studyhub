@@ -13,8 +13,9 @@ import { isSelectableTask, reconcileSelection, selectionSummary, toggleAll, togg
 import { batchMessage, batchRun } from './task-batch.js';
 import SelectBar from './SelectBar.jsx';
 import DeleteTasksDialog from './DeleteTasksDialog.jsx';
-import { taskSummary, stateLabel } from './task-summary.js';
-import { taskFacts, taskSegments, usageLine } from './task-facts.js';
+import { taskSummary } from './task-summary.js';
+import { usageLine } from './task-facts.js';
+import Metrics from './Metrics.jsx';
 import { headerActions, autoToggle } from './task-control.js';
 import RunLine from './RunLine.jsx';
 import TimeLimit from './TimeLimit.jsx';
@@ -64,46 +65,6 @@ function TaskItem({ task, summary, picked, checked, onPick, onCheck }) {
         : <span className="tc-item__check" aria-hidden="true" />}
       <TaskRow summary={summary} selected={picked} onPick={onPick} />
     </div>
-  );
-}
-
-/** Stage-segmented progress: one segment per stage of the job, as wide as its share of the work, filled by what is done. */
-function SegmentedProgress({ segments, label }) {
-  return (
-    <div className="tc-segments" role="img" aria-label={label}>
-      {segments.map((segment) => (
-        <span key={segment.stage} className="tc-segment" data-stage={segment.stage} style={{ flexGrow: Math.max(segment.total, 1) }}>
-          <i style={{ transform: `scaleX(${segment.total > 0 ? Math.min(1, segment.done / segment.total) : 0})` }} />
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function Metrics({ job, summary, now }) {
-  const segments = taskSegments(job), facts = taskFacts(job, now);
-  const label = segments.map((segment) => uiFormat('{0} {1}/{2}', [segment.label, segment.done, segment.total])).join('，');
-  return (
-    <section className="tc-metrics" aria-label={ui('概览')}>
-      <div className="tc-metric tc-metric--progress">
-        <div className="tc-metric__top">
-          <span className="tc-metric__k">{summary.kind === 'coach'
-            ? uiFormat('本日记录 · {0}', [summary.state === 'done' ? ui('暂无进行中的批次') : stateLabel(summary.state)])
-            : uiFormat('总进度 · {0}', [stateLabel(summary.state)])}</span>
-          <strong className="tc-metric__pct">{summary.percent === null ? '—' : `${summary.percent}%`}</strong>
-        </div>
-        <SegmentedProgress segments={segments} label={label || ui('总进度')} />
-      </div>
-      {facts.map((fact) => (
-        <div className="tc-metric" key={fact.key}>
-          <span className="tc-metric__k">{fact.label}</span>
-          <span className="tc-metric__v">{fact.value}</span>
-          {fact.note !== undefined && (fact.note
-            ? <Tooltip layer content={fact.note} anchorClassName="tc-metric__note-anchor"><span className="tc-metric__note" data-metric-note tabIndex={0}>{fact.note}</span></Tooltip>
-            : <span className="tc-metric__note" data-metric-note />)}
-        </div>
-      ))}
-    </section>
   );
 }
 

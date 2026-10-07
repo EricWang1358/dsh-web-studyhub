@@ -301,5 +301,15 @@
   "{0} · 补做第 {1} 轮": "{0} · Fill round {1}",
   "{0} · 第 {1}/{2} 组": "{0} · Group {1}/{2}",
   "{0} · 评估各小节的重要性": "{0} · Weighing the importance of the sections",
-  "并行生成 · 最多 {0} 批同时进行": "Parallel generation · up to {0} batches"
+  "并行生成 · 最多 {0} 批同时进行": "Parallel generation · up to {0} batches",
+  "这个任务自己的进度：它补上的小节 ÷ 它要补的小节（开始时草稿里有 {0} 个小节没有题）。草稿原有的题和小节不算在内。": "This task's own progress: the sections it has covered ÷ the sections it was asked to cover ({0} sections had no question when it started). Questions and sections the draft already had do not count.",
+  "覆盖：有题的小节 ÷ 计划里的小节。题数多不等于覆盖多，所以这里数小节，不数题。": "Coverage: sections that have a question ÷ sections in the plan. More questions do not mean more coverage, so this counts sections, not questions.",
+  "这个任务自己的进度：它新写的题 ÷ 它要补的题。草稿里原有的题不算在内。": "This task's own progress: the questions it has written ÷ the questions it was asked for. Questions the draft already had do not count.",
+  "已通过审阅并保存的题 ÷ 要求的题数。": "Questions that passed review and are saved ÷ questions asked for.",
+  "本任务新写的题 ÷ 本任务要补的题（约数）。草稿里原有的题不算在内；草稿共 {0} 题。": "Questions written by this task ÷ questions it was asked for (approximate). Questions the draft already had do not count; the draft has {0} in all.",
+  "草稿里现有的题 ÷ 出题计划的题数。题数可以超过计划；有多少小节有题，要看覆盖率。": "Questions in the draft ÷ questions in the plan. The count can exceed the plan; how many sections have a question is the coverage.",
+  "题数 · 本任务": "Questions · this task",
+  "{0} / 约 {1}": "{0} / about {1}",
+  "{0} / {1}": "{0} / {1}",
+  "草稿共 {0} 题": "Draft has {0} questions in all"
 }

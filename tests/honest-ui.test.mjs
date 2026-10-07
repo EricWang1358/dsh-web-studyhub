@@ -113,8 +113,9 @@ test('no screen prints 100% for a draft that is short, stopped, refused, interru
     assert.ok(m.taskSummary(STATES[state].job).percent < 100, `${state}: the list row's percent`);
     assert.ok(shortfall(state).percent < 100);
   }
-  assert.equal(m.taskSummary(STATES.stopped.job).percent, 69, 'questions kept over the plan: 174 of 251');
-  assert.match(text(consoleOf('stopped')), /总进度 · 部分完成 69%/);
+  // The console's headline is the run's 覆盖 (the sections that have a question: tests/progress-honest.test.mjs), not the questions kept over the plan (174 of 251 = 69%, which the draft row says).
+  assert.equal(m.taskSummary(STATES.stopped.job).percent, 83, 'the sections that have a question');
+  assert.match(text(consoleOf('stopped')), /总进度 · 部分完成.*覆盖：有题的小节 ÷ 计划里的小节.*83%/);
 });
 
 test('the badge says what is true of the draft: never 「已复审，待发布」 while it is short, stopped, refused, interrupted or paused (D-1)', () => {

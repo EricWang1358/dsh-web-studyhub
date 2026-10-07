@@ -48,7 +48,9 @@ export function forecastOf(contract, now = Date.now()) {
   const { progress, usage, detail, status } = contract, run = detail?.run || null;
   const phase = status === 'queued' ? 'queued' : status === 'running' ? 'running' : ['pausing', 'paused'].includes(status) ? 'paused' : null;
   if (!phase || (run && (run.ended || run.waiting || !run.auto))) return null;
-  return runForecast({ phase, projection: run?.projection, estimate: run?.estimateTokens, tokens: usage?.tokens, kept: progress?.done, goal: progress?.total, base: detail?.keptAtStart, elapsedMs: elapsedMs(contract, true, now) ?? 0 });
+  // A continued job is measured from its own start: its goal is the draft it started with plus what it was asked for (the draft's total alone would be reached before it began).
+  const own = detail?.own, goal = own ? Math.max(progress?.total ?? 0, own.base + own.asked) : progress?.total;
+  return runForecast({ phase, projection: run?.projection, estimate: run?.estimateTokens, tokens: usage?.tokens, kept: progress?.done, goal, base: detail?.keptAtStart, elapsedMs: elapsedMs(contract, true, now) ?? 0 });
 }
 
 /** "151 · 0 失败": model calls made and how many failed. */
@@ -71,17 +73,41 @@ function coachFacts(contract) {
   ];
 }
 
+/**
+ * What the headline percent and the tile of the questions count, said on hover (ui/tasks/Metrics.jsx): { percent, questions }, '' for a task that is not a question run. A top-up or a continuation counts
+ * only its own work, and says so; a run with a plan counts sections, because questions can exceed the plan while sections are missing (docs/job-contract.md).
+ */
+export function progressHint(job) {
+  const contract = contractOf(job);
+  if (!['generation', 'supplement'].includes(contract.kind)) return { percent: '', questions: '' };
+  const { own, cover, run } = contract.detail, mine = !!own || cover?.atStart > 0;
+  const covering = ui('覆盖：有题的小节 ÷ 计划里的小节。题数多不等于覆盖多，所以这里数小节，不数题。');
+  const percent = cover ? (mine ? uiFormat('这个任务自己的进度：它补上的小节 ÷ 它要补的小节（开始时草稿里有 {0} 个小节没有题）。草稿原有的题和小节不算在内。', [cover.asked]) : covering)
+    : own ? ui('这个任务自己的进度：它新写的题 ÷ 它要补的题。草稿里原有的题不算在内。') : Number.isFinite(run?.percent) ? covering : ui('已通过审阅并保存的题 ÷ 要求的题数。');
+  const questions = own ? uiFormat('本任务新写的题 ÷ 本任务要补的题（约数）。草稿里原有的题不算在内；草稿共 {0} 题。', [contract.progress.done])
+    : run ? ui('草稿里现有的题 ÷ 出题计划的题数。题数可以超过计划；有多少小节有题，要看覆盖率。') : ui('已通过审阅并保存的题 ÷ 要求的题数。');
+  return { percent, questions };
+}
+
 /** The facts row: what is counted for this kind, the clock, the model calls (with their tokens when metered) and the notices. */
 export function taskFacts(job, now = Date.now()) {
   const contract = contractOf(job), { progress, usage } = contract, notices = noticesOf(contract);
   if (contract.kind === 'coach-daily') return coachFacts(contract);
-  const count = progress.total > 0 ? `${progress.done} / ${progress.total}` : dash;
+  let count = progress.total > 0 ? `${progress.done} / ${progress.total}` : dash;
   // A task that waits shows its wait, as a wait: 已用 is the time it RUNS. A question run says under it what is left (the line is there for every one, empty or not, so nothing moves when the numbers come).
   const queued = contract.status === 'queued', note = contract.kind === 'generation' ? { note: forecastTime(forecastOf(contract, now)?.time) } : {};
   // The questions a run with rounds counts are the draft's, over the WHOLE plan (progress.total: every round), not the round that is being made.
-  const unit = progress.unit === 'questions' && contract.detail?.run ? ui('题数 · 全部计划') : ui(UNIT_LABEL[progress.unit] || '进度');
+  let unit = progress.unit === 'questions' && contract.detail?.run ? ui('题数 · 全部计划') : ui(UNIT_LABEL[progress.unit] || '进度');
+  // A continued job counts the questions IT writes over the ones it was asked for (about, when a plan decides), and says under it what the whole draft holds: its tile never starts at the draft's own count.
+  const own = contract.detail?.own, primary = { key: 'primary' };
+  if (own) {
+    unit = ui('题数 · 本任务');
+    count = own.asked > 0 ? uiFormat(contract.detail.run ? '{0} / 约 {1}' : '{0} / {1}', [own.made, own.asked]) : String(own.made);
+    primary.note = uiFormat('草稿共 {0} 题', [progress.done]);
+  }
+  const hint = progressHint(job).questions;
   return [
-    { key: 'primary', label: unit, value: count },
+    { ...primary, label: unit, value: count, ...(hint ? { hint } : {}) },
     { key: 'elapsed', label: queued ? ui('排队中') : ui('已用'), value: queued ? uiFormat('已等 {0}', [waitedOf(contract, now)]) : elapsedOf(contract, isRunningTask(job), now), ...note },
     { key: 'calls', label: ui('模型任务'), value: usage.tokens > 0 ? `${callsFact(contract)} · ${formatCompactTokens(usage.tokens)}` : callsFact(contract) },
     { key: 'warnings', label: ui('提醒'), value: notices ? uiFormat('{0} 条', [formatNumber(notices)]) : dash },
@@ -121,7 +147,10 @@ function textLine(contract, windows) {
 
 /** The stage segments of the progress bar: [{ stage, label, done, total }], in the order the work happens. */
 export function taskSegments(job) {
-  const { progress } = contractOf(job);
+  const contract = contractOf(job), { progress } = contract;
   if (progress.segments?.length) return progress.segments.map((segment) => ({ ...segment, label: ui(SEGMENT_LABEL[segment.stage] || '进度') }));
+  // A question run that counts its own work has a bar of that work (the sections it covered over the ones it was asked for, else its questions over its request): the draft it started from does not fill it.
+  const { cover, own } = contract.detail || {}, mine = cover?.asked > 0 ? { done: cover.covered - cover.atStart, total: cover.asked } : own?.asked > 0 ? { done: own.made, total: own.asked } : null;
+  if (mine) return [{ stage: 'author', label: ui('进度'), done: Math.max(0, Math.min(mine.done, mine.total)), total: mine.total }];
   return [{ stage: 'author', label: ui('进度'), done: progress.done, total: progress.total ?? Math.max(progress.done, 1) }];
 }

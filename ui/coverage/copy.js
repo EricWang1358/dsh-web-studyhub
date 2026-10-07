@@ -1,5 +1,5 @@
 import { ui, uiFormat } from '../i18n.js';
-import { META_DOT, joinMeta } from '../format.js';
+import { META_DOT, joinMeta, formatElapsed } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
 import { classifyFailure, shortCauseOf, THIN_CHARS } from '../../lib/generation-failure.js';
 
@@ -474,6 +474,9 @@ export function runEventText(code, a = {}) {
     case 'run-waiting': return uiFormat('第 {0} 轮完成，还有 {1} 轮：点「为没覆盖的部分补题」继续', [a.round, a.left]);
     case 'run-interrupted': return uiFormat('上次运行在第 {0} 轮被中断；接着做会从第 {0} 轮重新开始，已通过的题保留', [a.round]);
     case 'run-stop': return stopText(a);
+    // After the last round the draft is written once more, with the plan and the record of the run: a line when it starts and one when it is done, so the time between the last call and the end is not silent.
+    case 'run-closing': return a.cards > 0 ? uiFormat('正在保存草稿（{0} 题）和这次运行的记录', [a.cards]) : ui('正在保存草稿和这次运行的记录');
+    case 'run-closed': return a.ms >= 1000 ? uiFormat('草稿已保存 · 用了 {0}', [formatElapsed(a.ms)]) : ui('草稿已保存');
     default: return '';
   }
 }
