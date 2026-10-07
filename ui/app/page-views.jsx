@@ -5,7 +5,7 @@ import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
 import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } from '../workspace-views.jsx';
-import { resultOpener } from '../tasks/task-actions.js';
+import { materialOpener, resultOpener } from '../tasks/task-actions.js';
 import StudyMap from '../StudyMap.jsx';
 import Welcome, { SampleBanner } from '../Welcome.jsx';
 import Dashboard from '../Dashboard.jsx';
@@ -171,7 +171,7 @@ function AudioView() {
 /** 任务: every background job in one place. What each job's 打开结果 leads to is decided here, where the app's navigation lives. */
 function TasksView() {
   const app = useApp(), { data } = app;
-  const openers = { resultOf: (job) => resultOpener(job, app) };
+  const openers = { resultOf: (job) => resultOpener(job, app), materialOf: (job) => materialOpener(job, app) };
   return <TaskConsole data={data} openers={openers} />;
 }
 

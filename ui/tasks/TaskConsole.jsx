@@ -131,7 +131,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   };
   const archive = () => settle(() => (quick ? dismissJobs(quick, task.id) : core.act('job.archive', { jobId: task.id })), ui('已放进「已归档」，之后可以取消归档或删除。'));
   const unarchive = () => settle(() => batchRun('unarchive', [key], { quick, core }), ui('已取消归档'));
-  const result = openers.resultOf(task, data), usage = usageLine(task);
+  // 打开资料: only when the task concerns ONE material of the library; it is the same way in as the result button of a conversion or transcript (which it then stands in for).
+  const material = openers.materialOf?.(task, data) || null, found = openers.resultOf(task, data), result = material && found?.kind === 'source' ? null : found, usage = usageLine(task);
   // The time limit and the steps that took the time (ui/tasks/time-limit.js): drawn by the strip under the facts and marked on the timeline, from the same steps. Only a task whose record knows a limit has them
   // (a transcription that runs long is just a long file). An ended task counts its calls up to its own end, never up to now.
   const limited = limitFacts(contract, { now }), clock = live ? now : Date.parse(contract.finishedAt) || now;
@@ -170,6 +171,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
           {toggle && live && <Checkbox className="tc-head__auto" label={autoLabel()} checked={toggle.value} disabled={core.busy} data-run-auto
             onChange={(value) => core.act('job.control', { jobId: contract.jobId, action: 'set', patch: { autoComplete: value } })} />}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
+          {material && <Button size="sm" data-task-material aria-label={uiFormat('打开「{0}」', [material.title])} onClick={material.run}>{ui('打开资料')}</Button>}
           {shortfall?.action === 'model-settings' && !live && settingsEntry?.openModelSettings && <Button size="sm" variant="primary" data-shortfall-act="model-settings" onClick={settingsEntry.openModelSettings}>{actionLabel('model-settings')}</Button>}
           {draft && !live && !continued && <CoverageTopUpPopover draft={draft} view={covered.view} jobs={data?.jobs || []} modelReady={modelReadiness(data || {}).ready}
             onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
