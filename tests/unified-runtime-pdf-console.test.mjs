@@ -14,7 +14,7 @@ const sides = mode => mode === 'mixed' ? ['off', 'on'] : [mode];
 
 for (const mode of MODES) test(`${mode}: a conversion, while it runs, is a card the console can draw, offers what it declares and refuses the rest in words; finished it can be archived, brought back and deleted`, async t => {
   const h = await pdfConsole(t), cards = [];
-  for (const side of sides(mode)) { h.set(side === 'on'); const started = await h.start(30, { title: `Book ${side}` }); cards.push({ name: 'pdf', side, started }); }
+  for (const side of sides(mode)) { h.set(side === 'on'); const started = await h.start(side === 'on' ? 31 : 30, { title: `Book ${side}` }); cards.push({ name: 'pdf', side, started }); }
   for (const card of cards) {
     const row = await listed(h, card.started.jobId), c = readCard(row, card, { uiKind: 'pdf' });
     readActions(c, card, { running: true });
@@ -55,7 +55,7 @@ for (const mode of MODES) test(`${mode}: a conversion, while it runs, is a card 
 
 for (const mode of MODES) test(`${mode}: stopping a conversion: the card ends cancelled, in words, and dismissing it removes the card`, async t => {
   const h = await pdfConsole(t), cards = [];
-  for (const side of sides(mode)) { h.set(side === 'on'); cards.push({ name: 'pdf', side, started: await h.start(30, { title: `Book ${side}` }) }); }
+  for (const side of sides(mode)) { h.set(side === 'on'); cards.push({ name: 'pdf', side, started: await h.start(side === 'on' ? 31 : 30, { title: `Book ${side}` }) }); }
   for (const card of cards) {
     const row = await listed(h, card.started.jobId);
     assert.equal((await h.call('job.control', { jobId: row.id, action: 'cancel' })).action, 'cancel', card.side);

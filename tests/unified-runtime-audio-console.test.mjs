@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ALL_SWITCHES, KINDS, cardOf, consoleLibrary } from './helpers/audio-console.mjs';
+import { isAudioJob } from '../lib/job-status.js';
 import { ENDED, plain, readActions, readCard as readCardOf, refuse as refuseTo, ui } from './helpers/console-card.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
 
@@ -29,7 +30,7 @@ const live = async (lib, id, what = id) => {
   return cardOf(lib, id);
 };
 
-const readCard = (row, card) => readCardOf(row, card, { find });
+const readCard = (row, card) => readCardOf(row, card);
 
 for (const mode of MODES) test(`${mode}: every kind of audio job, while it runs, is a card the console can draw, offers what it declares and refuses the rest in words`, async t => {
   const lib = await consoleLibrary(t), cards = await startAll(lib, mode);
@@ -54,13 +55,18 @@ for (const mode of MODES) test(`${mode}: every kind of audio job, while it runs,
     for (const action of ['pause', 'resume', 'retry', 'set']) {
       if (c.actions[action].available) continue;
       const { reply, error } = await refuse(lib, { jobId: row.id, action, ...(action === 'set' ? { patch: { textConcurrency: 2 } } : {}) });
-      if (reply) { find('set-accepted-though-not-offered', `${card.name}/${card.side}: job.control ${action} was accepted while its action said "${c.actions[action].reason?.code}"`); continue; }
+      if (reply) {
+        // The contract is the one truth: an action that was not offered a moment ago may have become offered in between (a batch's controls are ready a little after it starts); the card read again says which.
+        const now = ui.model.contractOf(await cardOf(lib, row.id));
+        assert.ok(now.actions[action].available, `${card.name}/${card.side}: job.control ${action} was accepted while its action says "${now.actions[action].reason?.code}"`);
+        continue;
+      }
       assert.ok(plain(error.message), `${card.name}/${card.side}: ${action} refused in words ("${error.message}")`);
-      if (action === 'retry' && /已经完成/.test(error.message)) find('retry-reason-while-running', `${card.name}/${card.side}: retrying a RUNNING job is refused with "${error.message}"`);
+      if (action === 'retry' && c.capabilities?.retry !== false) assert.ok(/还在进行/.test(error.message), `${card.name}/${card.side}: retrying a RUNNING job says it is still running ("${error.message}")`);
     }
     // job.message is the generation tools' door; to an audio job it is a plain refusal, not an internal error.
     const message = await refuse(lib, { jobId: row.id, message: 'hello' }, 'job.message');
-    if (message.error && !plain(message.error.message)) find('message-internal-error', `job.message to an audio job answers "${message.error.message}"`);
+    assert.ok(message.error && plain(message.error.message), `${card.name}/${card.side}: job.message to an audio job is refused in words ("${message.error?.message}")`);
     // The output of a call: readable (or says it cannot be) and with a cursor to go on from.
     const call = c.calls.find(item => item.callId);
     if (call) {
@@ -121,8 +127,7 @@ for (const mode of MODES) test(`${mode}: stopping a job of every kind: the card 
     assert.ok(['cancelled', 'failed'].includes(done.status) && ENDED.includes(c.status), `${where}: ended (${done.status})`);
     readActions(c, item, { running: false });
     const { error } = await refuse(lib, { jobId: item.id, action: 'cancel' });
-    if (error) assert.ok(plain(error.message), `${where}: stopping a stopped job is refused in words ("${error.message}")`);
-    else find('cancel-accepted-after-end', `${where}: job.control cancel on an ended job is answered as done, while its card says cancel is not available`);
+    assert.ok(error && plain(error.message), `${where}: stopping a stopped job is refused in words ("${error?.message}"), as its card says`);
     if (c.actions.retry.available) assert.ok(c.capabilities?.retry ?? true, `${where}: retry only when declared`);
     assert.deepEqual((await lib.service.call('job.dismiss', { jobId: item.id })).dismissed, [item.id], `${where}: dismissed`);
     assert.ok(!(await lib.service.call('snapshot')).jobs.some(job => job.id === item.id), `${where}: no card is left`);
@@ -141,12 +146,69 @@ test('the id of a card and the id of its contract: which operations take which (
     takes[operation] = !error || !/not found/i.test(error.message);
   }
   assert.deepEqual([takes['job.status'], takes['job.wait'], takes['job.control']], [true, true, true], 'the operations of the console take the contract id');
-  if (!takes['job.cancel']) find('cancel-by-contract-id', 'job.cancel does not take the contract id of a runtime job (job.dismiss, job.message and job.output by callId share the gap): D\'s small PR');
-  await lib.service.call('job.control', { jobId: row.id, action: 'cancel' });
-  await settleJob(lib.service, row.id);
+  assert.equal(takes['job.cancel'], true, 'job.cancel takes the contract id of a runtime job');
+  assert.equal((await settleJob(lib.service, row.id)).status, 'cancelled', 'and it stopped the job');
 });
 
 test('the findings of this matrix are exactly the ones written up', () => {
   assert.deepEqual([...findings.keys()].sort(), KNOWN_FINDINGS);
 });
-const KNOWN_FINDINGS = ['cancel-accepted-after-end', 'cancel-by-contract-id', 'correction-not-audio-family', 'message-internal-error', 'retry-reason-while-running', 'set-accepted-though-not-offered', 'status-by-contract-id-original', 'wait-by-contract-id-original'].sort();
+const KNOWN_FINDINGS = ['status-by-contract-id-original', 'wait-by-contract-id-original'].sort();
+
+/* ---- The findings of the first run of this matrix, each with its own test ---------------------------------------------------------------------------------- */
+
+test('every kind of audio job the runtime has is in the audio family of the console, so the console draws it as an audio job (the class correction was missing)', () => {
+  for (const [name, kind] of Object.entries(KINDS)) assert.equal(isAudioJob({ type: kind.kind }), true, `${name} (${kind.kind}) is an audio job`);
+});
+
+for (const side of ['off', 'on']) test(`${side}: a message to a running audio job is refused in the learner's words, not with an internal error`, async t => {
+  const lib = await consoleLibrary(t);
+  lib.set(side === 'on', 'audioSubtitles');
+  const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId);
+  const { reply, error } = await refuse(lib, { jobId: row.id, message: 'please mind the terms' }, 'job.message');
+  assert.equal(reply, undefined);
+  assert.ok(plain(error.message), `refused in words: "${error.message}"`);
+  assert.ok(/补充说明|消息/.test(error.message), 'and it says what the door is for');
+  await lib.service.call('job.control', { jobId: row.id, action: 'cancel' }); await settleJob(lib.service, row.id);
+});
+
+test('retrying a running job on the runtime says it is still running, with the code the card carries', async t => {
+  const lib = await consoleLibrary(t);
+  lib.set(true, 'audioSubtitles');
+  const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId), c = ui.model.contractOf(row);
+  assert.equal(c.actions.retry.reason.code, 'not-ended', 'the card says it is not over yet');
+  const { error } = await refuse(lib, { jobId: row.id, action: 'retry' });
+  assert.deepEqual([error.code, /还在进行/.test(error.message)], ['not-ended', true], error.message);
+  const viaAudio = await refuse(lib, { jobId: row.id }, 'audio.retry');
+  assert.ok(/还在进行/.test(viaAudio.error?.message), `audio.retry too: "${viaAudio.error?.message}"`);
+  await lib.service.call('job.control', { jobId: row.id, action: 'cancel' }); await settleJob(lib.service, row.id);
+});
+
+test('stopping a job that has ended is refused as its card says (cancel is not available), not answered as done', async t => {
+  const lib = await consoleLibrary(t);
+  lib.set(true, 'audioSubtitles');
+  const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId);
+  lib.release();
+  assert.equal((await settleJob(lib.service, row.id)).status, 'complete');
+  const c = ui.model.contractOf(await cardOf(lib, row.id));
+  assert.deepEqual([c.actions.cancel.available, c.actions.cancel.reason.code], [false, 'job-ended']);
+  const { reply, error } = await refuse(lib, { jobId: row.id, action: 'cancel' });
+  assert.equal(reply, undefined, 'not answered as done');
+  assert.deepEqual([error.code, plain(error.message)], ['job-ended', true], error.message);
+  assert.equal((await cardOf(lib, row.id)).status, 'complete', 'and the finished job is left as it was');
+});
+
+test('the settings of a batch: what the card offers and what job.control accepts agree at every moment from the start', async t => {
+  const lib = await consoleLibrary(t);
+  lib.set(true, 'audioBatch');
+  const started = await KINDS.batch.start(lib, 3), disagreements = [];
+  for (let i = 0; i < 40; i++) {
+    const before = ui.model.contractOf(await cardOf(lib, started.jobId)).actions.set.available;
+    const { reply } = await refuse(lib, { jobId: started.jobId, action: 'set', patch: { textConcurrency: 2 } });
+    const after = ui.model.contractOf(await cardOf(lib, started.jobId)).actions.set.available;
+    if (reply && !before && !after) disagreements.push(i);
+    if (!reply && before && after) disagreements.push(i);
+  }
+  assert.deepEqual(disagreements, [], 'accepted while offered neither before nor after, or refused while offered both before and after');
+  await lib.service.call('job.control', { jobId: started.jobId, action: 'cancel' }); await settleJob(lib.service, started.jobId);
+});
