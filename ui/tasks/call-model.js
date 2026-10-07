@@ -209,11 +209,34 @@ export function retryNote(call, calls) {
   if (last.status === 'cancelled') return uiFormat('{0}，已停止', [times]);
   return uiFormat('已重试 {0} 次，仍失败', [later.length]);
 }
+const BATCH_KINDS = new Set(['plan', 'blueprint', 'author', 'review', 'repair', 'publish']);
+const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+
+/**
+ * The second line of a call's log line: which batch (and, in a coverage run, which round) a call of a question run belongs to, and the counts the contract knows of that batch:
+ * what the writing was asked for on the author call, what the batch kept on its LAST review or repair call (detail.partList says them once the run has reported; a call has no
+ * count of its own). undefined for a call that names no batch, so audio (where a part is a segment) and whole-run calls have no second line. The runner, the reasoning level and
+ * the tokens are the 实时输出 header's, not the log's.
+ */
+export function callDetail(call, contract) {
+  const part = Number(call.part);
+  if (!BATCH_KINDS.has(call.kind) || call.part == null || !Number.isInteger(part) || part < 1) return undefined;
+  const detail = contract?.detail || {}, total = Number(call.parts) || Number(detail.parts) || 0, round = Number.isInteger(call.round) ? call.round : undefined;
+  // The list describes the parts of the round in flight (or the last one): the calls of another round are not theirs (job-contract.js generationParts).
+  const listed = round === undefined || detail.run?.round === undefined || detail.run?.round === null || round === detail.run.round ? (detail.partList || []).find((item) => item.part === part) : null;
+  const asked = count(listed?.asked), kept = count(listed?.kept);
+  const mates = (contract?.calls || []).filter((other) => other.part === call.part && other.round === call.round && other.endedAt && (other.kind === 'review' || other.kind === 'repair'));
+  const last = mates.reduce((best, other) => (!best || Date.parse(other.endedAt) >= Date.parse(best.endedAt) ? other : best), null);
+  const said = call.kind === 'author' && asked !== null ? uiFormat('要求 {0} 道', [asked])
+    : (call.kind === 'review' || call.kind === 'repair') && asked !== null && kept !== null && last?.callId === call.callId ? uiFormat('留下 {0}/{1} 道', [kept, asked]) : '';
+  return joinMeta([round !== undefined ? uiFormat('第 {0} 轮', [round]) : '', total > 1 && total >= part ? uiFormat('第 {0}/{1} 批', [part, total]) : uiFormat('第 {0} 批', [part]), said]);
+}
+
 const CALL_STATUS = (status) => ({ ok: ui('完成'), failed: ui('失败'), cancelled: ui('已取消'), skipped: ui('已跳过') })[status] || '';
 
 /**
  * The log, newest first: the producer's own events and one line per finished call, a warning that repeats as ONE line with its count.
- * filter: all | step | warn | done. Line: { id, at, level, kind, text, tag?, count? }.
+ * filter: all | step | warn | done. Line: { id, at, level, kind, text, tag?, count?, detail? } (`detail`: the call's second line, see callDetail).
  */
 export function logLines(contract, filter = 'all') {
   const lines = [];
@@ -231,9 +254,11 @@ export function logLines(contract, filter = 'all') {
   for (const call of contract?.calls || []) {
     if (call.kind === 'wait' || !call.endedAt) continue;
     const took = formatDuration(Date.parse(call.endedAt) - Date.parse(call.startedAt));
-    const failed = call.status === 'failed';
-    lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind,
-      text: joinMeta([`${callLabel(call, { file: true })} ${CALL_STATUS(call.status)}`.trim(), took,
+    const failed = call.status === 'failed', detail = callDetail(call, contract);
+    // A question run's call names its batch on the second line, so the step's own name does not repeat it.
+    const label = callLabel(detail === undefined ? call : { ...call, part: null, parts: null }, { file: true });
+    lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind, ...(detail !== undefined ? { detail } : {}),
+      text: joinMeta([`${label} ${CALL_STATUS(call.status)}`.trim(), took,
         call.reused ? ui('音频内容和转写设置与之前相同') : '',
         failed && call.error ? uiFormat('原因：{0}', [callErrorText(call.error)]) : '', failed ? retryNote(call, contract.calls) : '']) });
   }

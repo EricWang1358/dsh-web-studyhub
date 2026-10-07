@@ -6,7 +6,9 @@ import { logLines, logCounts } from './call-model.js';
 
 /* 日志: the job's events as structured lines, newest first, with level filters and a "follow the latest" switch. A warning several files share is ONE
    line with its count, and the grouped notices sit in ONE fixed-height line above the list (nothing here ever grows a side column): the files they are
-   about are marked on their own rows in the file list. */
+   about are marked on their own rows in the file list.
+   A call of a question run has a second line in a slot of its own (one line, cut with an ellipsis, so it never changes the height of a row after it is drawn):
+   the batch it belongs to and the counts the contract knows of it (call-model.js callDetail). */
 
 const FILTERS = [['all', '全部'], ['step', '步骤'], ['warn', '提醒'], ['done', '里程碑']];
 const TAG = { transcribe: '转写', proofread: '校对', translate: '翻译', author: '出题', review: '审阅', plan: '规划', repair: '修复', blueprint: '情景' };
@@ -46,6 +48,7 @@ export default function LogPanel({ contract }) {
             <span className="tc-line__time">{formatDateTime(line.at, 'timeSeconds')}</span>
             <span className="tc-line__tag">{line.tag && TAG[line.tag] ? ui(TAG[line.tag]) : ''}</span>
             <span className="tc-line__text">{line.text}</span>
+            {typeof line.detail === 'string' && <span className="tc-line__detail" title={line.detail}>{line.detail}</span>}
           </div>
         ))}
       </div>
