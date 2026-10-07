@@ -78,8 +78,10 @@ export async function library(t, { settings = {}, ...options } = {}) {
   t.after(async () => {
     // A live class writes its snapshot in the background: stop its writer before the folder goes, or the folder comes back.
     for (const service of services) for (const { id } of await listSaved(root).catch(() => [])) await service.runtime.liveSessions.registered(root, id)?.retirePersistence();
+    // A job still settling (a cancelled request, its last save) writes into the library: dispose every service first so nothing writes while it goes.
+    for (const service of services) await service.dispose?.().catch(() => {});
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
   const open = async extra => {
     const service = new StudyService(root, { ...audioSwitch({ complete: options.complete }), ...options, ...extra });

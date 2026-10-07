@@ -53,5 +53,6 @@
   "下限按 DSH 的固定估算；上限按 DeepSeek 公布的换算（中文每字约 0.6 token，英文每字符约 0.3）。": "The lower end is DSH's fixed estimate; the upper end uses DeepSeek's published conversion (about 0.6 token per Chinese character, 0.3 per English character).",
   "近 {0} 天，各功能的 token 用量": "Last {0} days, token usage by feature",
   "实际用量超出了预计上限（多 {0}%）。预计只按提示词本身估算；模型实际的分词、推理和出错重试会让它偏高。": "Actual usage went {0}% above the expected upper bound. The estimate only counts the prompts themselves; the model's real tokenization, reasoning and retries push it higher.",
-  "这次没有命中缓存：每个出题、审阅步骤都是各自独立的会话，彼此不共享缓存；预计用量本来就不指望缓存。": "No cache hit this time: each writing and review step is its own separate session, and they do not share a cache. The estimate does not count on one."
+  "这次没有命中缓存：每个出题、审阅步骤都是各自独立的会话，彼此不共享缓存；预计用量本来就不指望缓存。": "No cache hit this time: each writing and review step is its own separate session, and they do not share a cache. The estimate does not count on one.",
+  "自本次启动以来，快速请求（批改、追问、翻译等）有 {0} 次因共享额度排队，共等待 {1}；重启后清零。": "Since this start, quick requests (grading, follow-ups, translation and the like) have waited {0} times for the shared quota, {1} in all; this resets on restart."
 }
