@@ -1810,5 +1810,111 @@
       "removeAt": "S6-2 (the in-process executors) with the callers that read them",
       "evidence": "s6-0-coverage.md; s6-5a-instant.md"
     }
+  ],
+  "boundaries": [
+    {
+      "file": "lib/contexts/audio/jobs/live-correction-models.js",
+      "rule": "gateway-bypass",
+      "api": "tiers.complete",
+      "count": 1,
+      "reason": "The Gemini text leaf of a class correction: the call runs inside a gateway step of the correction Job (`gateway.step(...)`), this module only builds it",
+      "removeAt": "retained: the provider leaf"
+    },
+    {
+      "file": "lib/contexts/audio/jobs/live-correction-models.js",
+      "rule": "provider-import",
+      "api": "../../../gemini.js",
+      "count": 1,
+      "reason": "The Gemini text leaf of a class correction: the call runs inside a gateway step of the correction Job (`gateway.step(...)`), this module only builds it",
+      "removeAt": "retained: the provider leaf"
+    },
+    {
+      "file": "lib/contexts/audio/jobs/text-model.js",
+      "rule": "provider-import",
+      "api": "../../../gemini.js",
+      "count": 1,
+      "reason": "Builds the Gemini tiers the text steps of an audio Job run on, inside gateway steps; no request is made here",
+      "removeAt": "retained: the provider leaf"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/generation.js",
+      "rule": "public-table-write",
+      "api": "binding.work.generationControllers.set",
+      "count": 1,
+      "reason": "The Job puts its cancel controller where the console controls (job.control) read it, until they read the kernel (S6-5)",
+      "removeAt": "S6-5"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "queues.delete",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler replaces it",
+      "removeAt": "S6-5"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "queues.set",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler replaces it",
+      "removeAt": "S6-5"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "settled.delete",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler replaces it",
+      "removeAt": "S6-5"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "settled.set",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler replaces it",
+      "removeAt": "S6-5"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/submit-generation.js",
+      "rule": "public-table-write",
+      "api": "work.generationControllers.set",
+      "count": 1,
+      "reason": "startLegacy: the original generation path (switch generation off) writes its own table, controller and control",
+      "removeAt": "after default flip"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/submit-generation.js",
+      "rule": "public-table-write",
+      "api": "work.jobControls.set",
+      "count": 1,
+      "reason": "startLegacy: the original generation path (switch generation off) writes its own table, controller and control",
+      "removeAt": "after default flip"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/submit-generation.js",
+      "rule": "public-table-write",
+      "api": "work.jobs.set",
+      "count": 1,
+      "reason": "startLegacy: the original generation path (switch generation off) writes its own table, controller and control",
+      "removeAt": "after default flip"
+    },
+    {
+      "file": "lib/contexts/generation/translation/jobs/translation.js",
+      "rule": "public-table-write",
+      "api": "task.work.generationControllers.set",
+      "count": 1,
+      "reason": "The Job puts its cancel controller where the console controls read it, until they read the kernel (S6-5)",
+      "removeAt": "S6-5"
+    },
+    {
+      "file": "lib/contexts/study/jobs/submit-assist.js",
+      "rule": "provider-import",
+      "api": "../../../host-capabilities.js",
+      "count": 1,
+      "reason": "Imports `abortable`, a stop helper; no host request is made by this module",
+      "removeAt": "retained: a stop helper"
+    }
   ]
 }

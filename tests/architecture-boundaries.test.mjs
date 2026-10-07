@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,4 +63,32 @@ test('retired legacy authority and transition container are removed from distrib
   assert.ok(!(await readdir(join(repository, 'lib'))).includes('legacy-kernel.js'));
   assert.ok(!(await readdir(join(repository, 'lib/runtime'))).includes('legacy-registration.js'));
   assert.ok(!(await readdir(join(repository, 'lib/contexts'))).includes('transition'));
+});
+
+// The kernel (lib/jobs) is the layer below every domain: it reaches out of its own folder to exactly these shared infrastructure modules (storage, usage and effort vocabularies, the
+// worker owner marker, the permit pool, the host child helper) and to nothing of a context, a domain pipeline or the UI. A new import is a review, not a wildcard.
+const KERNEL_REACHES = ['lib/atomic-json.js', 'lib/audio-pool.js', 'lib/host-capabilities.js', 'lib/job-output.js', 'lib/model-effort.js', 'lib/model-usage.js', 'lib/reasoning-effort.js',
+  'lib/runtime/work-ownership.js', 'lib/token-usage.js', 'lib/usage-scope.js'];
+
+test('the kernel imports only the reviewed shared infrastructure outside lib/jobs, and no context, pipeline or UI', async () => {
+  const reaches = new Map();
+  for (const file of await javascriptFiles(join(repository, 'lib/jobs'))) {
+    const from = normalize(relative(repository, file));
+    for (const match of (await readFile(file, 'utf8')).matchAll(/(?:from\s+|import\s*\(\s*)['"](\.[^'"]+)['"]/g)) {
+      const target = normalize(relative(repository, resolve(file, '..', match[1])));
+      if (!target.startsWith('lib/jobs/')) reaches.set(target, [...(reaches.get(target) ?? []), from]);
+    }
+  }
+  const unreviewed = [...reaches].filter(([target]) => !KERNEL_REACHES.includes(target)).map(([target, users]) => `${[...new Set(users)].join(', ')} imports ${target}: the kernel does not depend on a module of a context or a domain pipeline; pass it in through the definition`);
+  assert.deepEqual(unreviewed, []);
+  assert.deepEqual(KERNEL_REACHES.filter(target => !reaches.has(target)).map(target => `${target} is no longer imported by the kernel: take it off KERNEL_REACHES`), []);
+  assert.ok(![...reaches.keys()].some(target => /^lib\/(?:contexts|ui)\//.test(target)), 'never a context or the UI');
+});
+
+test('a synthetic import of another context\'s private implementation is what the boundary above would name', () => {
+  const owner = path => path.match(/^lib\/contexts\/([^/]+)\//)?.[1];
+  const violates = (from, to) => owner(to) && owner(to) !== owner(from) && !to.endsWith('/contracts.js');
+  assert.ok(violates('lib/contexts/notes/jobs/note-generate.js', 'lib/contexts/audio/jobs/view.js'), 'a Job of one context reading the private module of another');
+  assert.ok(!violates('lib/contexts/notes/jobs/note-generate.js', 'lib/contexts/audio/contracts.js'), 'the published contract of another context is allowed');
+  assert.ok(!violates('lib/contexts/notes/jobs/note-generate.js', 'lib/contexts/notes/note-generation.js'), 'its own context is allowed');
 });
