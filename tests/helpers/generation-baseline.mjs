@@ -54,8 +54,8 @@ export async function restartedOver(t, root, { options = {}, model } = {}) {
 /** The jobs a snapshot lists (the snapshot also runs coverage.recover, the only restart restoration of a generation job). */
 export const jobsOf = async service => (await service.call('snapshot')).jobs;
 
-/** A wait that fails in seconds, not minutes, when the thing never happens. */
-export const soon = (condition, what) => until(condition, what, { timeoutMs: 20_000 });
+/** A wait on observed state that still fails in well under the test timeout when the thing never happens (a loaded machine takes many seconds for what is instant alone). */
+export const soon = (condition, what) => until(condition, what, { timeoutMs: 90_000 });
 
 /** Open the gate and let the original (pre-crash) job finish, so its folder is quiet before the after-hooks remove it. */
 export async function finish(service, hold, jobId) { hold.open(); return settleJob(service, jobId); }

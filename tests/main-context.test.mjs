@@ -7,6 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { withQualityStages } from './helpers/assessment.mjs';
 import { requestData } from './helpers/request-data.mjs';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
+import { settleJob } from './helpers/wait.mjs';
 
 // The runtime starts a job on a zero-delay timer: with the timers of a test mocked, that start waits for a tick.
 const dispatched = t => { if (SWITCH_MODE === 'runtime') t.mock.timers.tick(1); };
@@ -150,7 +151,7 @@ test('authorized supplementation generates and resumes into exact active target 
   const schedule = { repetitions: 3, interval_days: 16, ease_factor: 2.6, due_at: '2026-10-16T00:00:00.000Z' };
   await service.store.update(s => { s.decks.find(x => x.id === 'target').cards[0].review = schedule; });
   const job = await service.call('generate', { sourceIds: ['p1'], count: 2, kind: 'flashcard', mergeTargetId: 'target', course: 'B' });
-  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  const done = await settleJob(service, job.jobId);
   assert.equal(done.status, 'complete');
   const draft = await service.call('draft.get', { id: done.draftId });
   assert.equal(draft.mergeTargetId, 'target');
@@ -159,7 +160,7 @@ test('authorized supplementation generates and resumes into exact active target 
   assert.match(JSON.stringify(plans[0].existing), /original/, 'the plan is told what the target deck already holds');
   assert.equal('alreadyCovered' in requests[0], false, 'the author is not sent it again');
   const more = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion });
-  const resumed = await service.call('job.wait', { jobId: more.jobId, timeoutSeconds: 5 });
+  const resumed = await settleJob(service, more.jobId);
   assert.equal(resumed.status, 'complete');
   const finalDraft = await service.call('draft.get', { id: draft.id });
   assert.equal(finalDraft.cards.length, 2);
@@ -194,7 +195,7 @@ test('supplement finishes in the exact deck without a leftover draft or phase ou
   service.notify = notice => notices.push(notice);
   const before = await service.call('export');
   const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard' });
-  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  const done = await settleJob(service, job.jobId);
   assert.equal(done.status, 'complete');
   assert.equal(done.publication.deckId, 'target');
   assert.equal(done.publication.added, 1);
@@ -337,7 +338,7 @@ test('supplement retains a checkpoint and reports failure when the target is arc
   });
   service = await fixture(t, model);
   const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard' });
-  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  const done = await settleJob(service, job.jobId);
   assert.equal(done.status, 'failed');
   assert.equal(done.publication, undefined);
   const state = await service.call('export');
@@ -351,7 +352,7 @@ test('supplement refuses duplicate questions already in the target instead of re
     : JSON.stringify({ issues: [], summary: 'Checked' }));
   const service = await fixture(t, model);
   const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard' });
-  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  const done = await settleJob(service, job.jobId);
   assert.equal(done.status, 'failed');
   assert.equal(done.publication.added, 0);
   assert.equal(done.publication.deckId, null);
@@ -374,7 +375,7 @@ test('supplement cancellation stops publication and reports no additions', async
   await entered;
   await service.call('job.cancel', { jobId: job.jobId });
   release();
-  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  const done = await settleJob(service, job.jobId);
   assert.equal(done.status, 'cancelled');
   assert.equal(done.publication, undefined);
   assert.equal((await service.call('export')).decks.find(d => d.id === 'target').cards.length, 1);
@@ -386,7 +387,7 @@ test('partial supplementation returns the remaining checkpoint instead of the re
     : JSON.stringify({ issues: [], summary: 'Checked' }));
   const service = await fixture(t, model);
   const job = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 2, kind: 'flashcard' });
-  const done = await service.call('job.wait', { jobId: job.jobId, timeoutSeconds: 5 });
+  const done = await settleJob(service, job.jobId);
   assert.equal(done.status, 'complete');
   assert.equal(done.publication.added, 1);
   assert.equal(done.publication.rejected, 1);
