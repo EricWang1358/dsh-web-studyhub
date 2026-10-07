@@ -7,18 +7,22 @@ import assert from 'node:assert/strict';
 import { StudyService } from '../lib/service.js';
 import { usageLedger } from '../lib/model-usage.js';
 import { gate } from './helpers/model-family-baseline.mjs';
-import { until, settleJob } from './helpers/wait.mjs';
+import { until as waitUntil, settleJob } from './helpers/wait.mjs';
+
 import { ALL_FAMILIES, ALL_POLICIES, childHost, childReply, mixedLibrary, mixedModel } from './helpers/model-mix.mjs';
+
+/* Every wait here is on observed state; a loaded machine takes minutes for what is instant alone (four families, one snapshot per poll), so the bound is only a hang guard. */
+const until = (condition, what, options = {}) => waitUntil(condition, what, { timeoutMs: 240_000, ...options });
 
 const TYPES = ['translation', 'generation', 'daily-recap', 'workflow-teaching'];
 const rowsOf = async service => (await service.call('snapshot')).jobs.filter(job => TYPES.includes(job.type));
 const idOf = row => row.contract.jobId;
-const allEnded = service => until(async () => { const rows = await rowsOf(service); return rows.length === 4 && rows.every(row => row.contract.finishedAt); }, 'every job of the mix to end', { timeoutMs: 60_000 });
+const allEnded = service => until(async () => { const rows = await rowsOf(service); return rows.length === 4 && rows.every(row => row.contract.finishedAt); }, 'every job of the mix to end');
 const gates = () => ({ translation: gate(), generation: gate(), recap: gate(), workflow: gate() });
 const releaseAll = held => Object.values(held).forEach(item => item.release?.() ?? item.open?.());
 const startAll = async f => ({ translation: await f.translate({ concurrency: 1 }), generation: await f.generate(), recap: await f.recap(), workflow: await f.teach() });
 /** The model has stopped being asked: every family that was started has had its calls. */
-const quiet = model => { let last = -1; return until(() => { const now = model.calls.length, same = now === last && now > 0; last = now; return same; }, 'the model to fall quiet', { timeoutMs: 60_000, intervalMs: 400 }); };
+const quiet = model => { let last = -1; return until(() => { const now = model.calls.length, same = now === last && now > 0; last = now; return same; }, 'the model to fall quiet', { intervalMs: 400 }); };
 const refusal = async (service, jobId, action) => service.call('job.control', { jobId, action }).then(() => 'ok', error => error.code);
 
 test('all four at once: one job table, every family at the model together (translation overlapping the generation), and the same words for list, status, wait and control', async t => {
@@ -93,7 +97,7 @@ test('a switch moves its own family and no other; the translation overlaps the g
 test('with the policies on, the recap, the teaching and the translation ask a host sub-agent through the one gateway, and the usage is still counted once', async t => {
   const host = childHost({ replyFor: childReply }), model = mixedModel(), f = await mixedLibrary(t, { model, host });
   await f.translate(); await f.recap(); await f.teach();
-  await until(async () => { const rows = await rowsOf(f.service); return rows.length === 3 && rows.every(row => row.contract.finishedAt); }, 'the three jobs to end', { timeoutMs: 60_000 });
+  await until(async () => { const rows = await rowsOf(f.service); return rows.length === 3 && rows.every(row => row.contract.finishedAt); }, 'the three jobs to end');
   const rows = await rowsOf(f.service);
   assert.deepEqual(rows.map(row => row.status), ['complete', 'complete', 'complete']);
   const calls = rows.flatMap(row => row.contract.calls);
