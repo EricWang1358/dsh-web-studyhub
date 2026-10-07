@@ -1,5 +1,6 @@
+// Copy of lib/jobs/store.js at v2.7.1 (47f13281); only the atomic-json import is re-pointed at the current file. Do not edit; see README.md.
 import Schema from 'schemastery';
-import { atomicJson, readJsonFile, serializeJsonFile } from '../atomic-json.js';
+import { atomicJson, readJsonFile, serializeJsonFile } from '../../../lib/atomic-json.js';
 import { validateRuntimeContract } from './contract.js';
 
 const failure = code => Object.assign(new Error(code), { code });
@@ -13,15 +14,11 @@ const closed = fields => Schema.transform(Schema.any().required(), value => {
 const Input = closed({ id: word(), hash: word(), size: integer(0) });
 const Checkpoint = closed({ version: Schema.const(1).required(), ref: word(), digest: word(), stepKey: word() });
 const Witness = closed({ pid: integer(1), host: word(), instance: word() });
-// The persisted shapes stay exactly what the previous release (v2.7.1) reads, so turning the switches off and going back to it keeps every library
-// readable (tests/unified-runtime-rollback-shape.test.mjs checks the written manifests against that release's own validators).
-const Intent = closed({ callId: word(), attemptId: word(), stepKey: word(), stepRunId: word(),
-  status: Schema.union(['pending', 'completed', 'not-dispatched']).required(), remoteOperationId: Schema.string().min(1) });
+const Intent = closed({ callId: word(), attemptId: word(), stepKey: word(), stepRunId: word(), status: Schema.union(['pending', 'completed', 'not-dispatched']).required(), remoteOperationId: Schema.string().min(1) });
 const Commit = closed({ stepKey: word(), attemptId: word(), status: Schema.union(['pending', 'complete']).required(), receipt: Schema.any() });
 const Delivery = closed({ eventId: word(), channel: word(), status: Schema.union(['claimed', 'delivered', 'failed']).required() });
 const Envelope = closed({ schemaVersion: Schema.const(1).required(), revision: integer(0), contract: Schema.any().required(), inputRef: Input.required(),
-  checkpoint: nullable(Checkpoint), executorWitness: nullable(Witness), requestIntents: Schema.array(Intent).required(),
-  commits: Schema.array(Commit).required(), deliveries: Schema.array(Delivery).required() });
+  checkpoint: nullable(Checkpoint), executorWitness: nullable(Witness), requestIntents: Schema.array(Intent).required(), commits: Schema.array(Commit).required(), deliveries: Schema.array(Delivery).required() });
 function assertPlain(value) {
   if (value === null || ['string', 'boolean'].includes(typeof value) || (typeof value === 'number' && Number.isFinite(value))) return;
   if (!value || typeof value !== 'object' || (!Array.isArray(value) && ![Object.prototype, null].includes(Object.getPrototypeOf(value)))) throw failure('invalid-store-shape');
@@ -50,10 +47,8 @@ export function validateStoredJob(value) {
   for (const commit of stored.commits) if (!Object.hasOwn(commit, 'receipt')) throw failure('invalid-store-shape');
   unique(stored.requestIntents, item => item.callId); unique(stored.commits, item => `${item.attemptId}:${item.stepKey}`);
   unique(stored.deliveries, item => `${item.eventId}:${item.channel}`);
-  const { attempts, steps } = stored.contract.runtime;
-  for (const item of [...stored.requestIntents, ...stored.commits]) if (!attempts.some(attempt => attempt.attemptId === item.attemptId)) throw failure('invalid-store-reference');
-  const stepMatches = item => step => step.stepRunId === item.stepRunId && step.stepKey === item.stepKey && step.attemptId === item.attemptId;
-  for (const item of stored.requestIntents) if (!steps.some(stepMatches(item))) throw failure('invalid-store-reference');
+  for (const item of [...stored.requestIntents, ...stored.commits]) if (!stored.contract.runtime.attempts.some(attempt => attempt.attemptId === item.attemptId)) throw failure('invalid-store-reference');
+  for (const item of stored.requestIntents) if (!stored.contract.runtime.steps.some(step => step.stepRunId === item.stepRunId && step.stepKey === item.stepKey && step.attemptId === item.attemptId)) throw failure('invalid-store-reference');
   for (const item of stored.deliveries) if (!stored.contract.events.some(event => event.eventId === item.eventId)) throw failure('invalid-store-reference');
   return stored;
 }
