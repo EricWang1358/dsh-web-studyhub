@@ -3,7 +3,7 @@
    and cancellable by either of its names. Before this step `job.cancel` only tried the original controller, which a Job does not have: it answered and stopped nothing. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostModel, library, subtitleText } from './helpers/audio-family.mjs';
+import { library, subtitleText } from './helpers/audio-family.mjs';
 import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 import { until } from './helpers/wait.mjs';
 
