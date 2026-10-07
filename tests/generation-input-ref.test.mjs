@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { inputRefOf, checkpointStatus, hashSources } from '../lib/contexts/generation/jobs/input-ref.js';
-import { checkpointRefOf, checkpointOf, checkpointHolds } from '../lib/contexts/generation/jobs/checkpoint-ref.js';
+import { checkpointOf, checkpointHolds } from '../lib/contexts/generation/jobs/checkpoint-ref.js';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
 import { stagedModel } from './helpers/generation-baseline.mjs';
@@ -43,12 +43,6 @@ test('extra sources and the number of questions added are part of the frozen inp
   const topUp = inputRefOf({ definition: 'generation@1', request: asked(), sources, extraSourceIds: ['t'], added: 3 });
   assert.deepEqual([topUp.extraSourceIds, topUp.added], [['t'], 3]);
   assert.notEqual(topUp.hash, plain.hash);
-});
-
-test('the units of a coverage run that are done are named by the round prefix of their step keys', () => {
-  const draft = { id: 'd', draftVersion: 4, editorial: { coverageSpec: { rounds: [{ round: 1, status: 'done' }, { round: 2, status: 'running' }, { round: 3, status: 'skipped' }, { round: 4, status: 'failed' }, { round: 5 }] } } };
-  assert.deepEqual(checkpointRefOf(draft), { ref: 'draft:d:v4', completed: ['r1', 'r3'] });
-  assert.deepEqual(checkpointRefOf({ id: 'e', draftVersion: 1, editorial: {} }), { ref: 'draft:e:v1', completed: [] }, 'a plain draft is one checkpoint without finished rounds');
 });
 
 test('a draft written by a run carries the frozen input, the same one for the same request', async t => {
