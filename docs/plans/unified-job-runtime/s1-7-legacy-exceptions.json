@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "scope": "AST CallExpression inventory of model-shaped APIs; source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role",
+  "schemaVersion": 2,
+  "scope": "AST CallExpression inventory of model-shaped APIs (`entries`) and of the places background work is started (`starts`); source modules only; explicit legacy exceptions do not authorize new bypasses; named task/queue collection allocations are inventoried by AST binding/property role. Every row carries reviewed `sites` with a disposition (migrate | exception | delete-s6-2); see s6-0-coverage.md",
   "managedDefinitions": [
     "lib/contexts/audio/jobs/batch-import.js",
     "lib/contexts/audio/jobs/live-save.js",
@@ -34,9 +34,26 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The original in-process assistant request; the panel list of recent requests stays",
+      "removeAt": "S6-2 (the in-process executor); the list: S6-5",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "service.complete in process (assistExecutor returns the Job path when assist is on)",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "assist"
+          ]
+        },
+        {
+          "what": "the per-library list of recent requests (snapshot.assist)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/audio-files.js",
@@ -47,9 +64,17 @@
         }
       ],
       "owner": "runtime/domain maintainer",
-      "reason": "Filesystem traversal queue, not a background-job scheduler",
-      "removeAt": "retained non-runtime structure; review if its role changes",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "reason": "Directory traversal queue of the audio file picker",
+      "removeAt": "retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "a queue of folders to read",
+          "disposition": "exception",
+          "kind": "not-a-job",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/audio-gateway-calls.js",
@@ -60,22 +85,17 @@
         }
       ],
       "owner": "audio family (lane A)",
-      "reason": "The Gemini text provider leaf of an audio job on the runtime: it runs inside a gateway step and its request is observed by the gateway transport",
-      "removeAt": "retained: the provider leaf behind the gateway",
-      "evidence": "s2-progress.md S2-4"
-    },
-    {
-      "file": "lib/contexts/audio/jobs/live-correction-models.js",
-      "calls": [
+      "reason": "The text provider leaf behind the gateway (host or Gemini) of an audio job on the runtime",
+      "removeAt": "retained: the provider leaf",
+      "evidence": "s2-progress.md S2-4; s6-0-coverage.md",
+      "sites": [
         {
-          "callee": "tiers.complete",
-          "count": 1
+          "what": "Gemini text call inside a gateway step",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
         }
-      ],
-      "owner": "audio family (lane A)",
-      "reason": "The Gemini text provider leaf of a live class's correction: it runs inside a gateway step and its request is observed by the gateway transport",
-      "removeAt": "retained: the provider leaf behind the gateway",
-      "evidence": "s2-progress.md S2-5"
+      ]
     },
     {
       "file": "lib/audio-import.js",
@@ -90,9 +110,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S2 review; provider leaves may remain behind gateway",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The import pipeline takes its model as an argument: the gateway step on the runtime, the raw model only on the original path",
+      "removeAt": "S6-2 (original callers)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of the shared pipeline (proofread, translate, title): the gateway step on the runtime, the raw model on the original path",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/audio-job.js",
@@ -107,9 +135,30 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S2 review; provider leaves may remain behind gateway",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "importAudio has an original provider branch; jobTextModel serves the classroom save until S2-6",
+      "removeAt": "S2-6 then S6-2",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the original provider branch of importAudio (calls ? calls.text : host / Gemini)",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioSingle",
+            "audioBatch"
+          ]
+        },
+        {
+          "what": "jobTextModel: the text model of the classroom save",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioLiveSave"
+          ]
+        }
+      ]
     },
     {
       "file": "lib/audio-review.js",
@@ -120,9 +169,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S2 review; provider leaves may remain behind gateway",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The review pipeline takes its model as an argument (the gateway step when audioReview is on)",
+      "removeAt": "S6-2 (original callers)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of the shared pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/batch.js",
@@ -133,9 +190,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The generation pipeline takes its model as an argument (the gateway step when generation is on)",
+      "removeAt": "S6-2 (original callers)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of the shared pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/capture.js",
@@ -146,9 +211,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "capture.question: one awaited request, no job record (decision S4-0: instant model requests stay instant)",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "placement and authoring of a captured question",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/coach.js",
@@ -159,9 +232,44 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "Coach: the prep batch is a Job when coach is on; nudge, debrief and rewrite are instant requests (decision S4-0)",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "nudge, debrief, rewrite",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        },
+        {
+          "what": "the prep batch pipeline takes its model as an argument (the gateway light lane when coach is on)",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/audio/jobs/live-correction-models.js",
+      "calls": [
+        {
+          "callee": "tiers.complete",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "reason": "The Gemini text provider leaf of a class correction on the runtime",
+      "removeAt": "retained: the provider leaf",
+      "evidence": "s2-progress.md S2-5; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "Gemini text call inside a gateway step",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/contexts/audio/worker.js",
@@ -172,22 +280,80 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S2 review; provider leaves may remain behind gateway",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "liveTranslation (per-sentence live translation) stays with the session; the original correction call is bypassed",
+      "removeAt": "S6-2 (correction); the translation stays",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the live translation of a class",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
+        },
+        {
+          "what": "the original correction call",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioLiveCorrection"
+          ]
+        }
+      ]
     },
     {
-      "file": "lib/contexts/materials/translation-operations.js",
+      "file": "lib/contexts/authoring/publication.js",
       "calls": [
         {
-          "callee": "collection:tasks:Array",
+          "callee": "providedComplete",
           "count": 1
         }
       ],
-      "owner": "runtime/domain maintainer",
-      "reason": "Existing named work collection; no new second Job authority",
-      "removeAt": "S6 review; canonical work.jobs retained",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "owner": "existing domain maintainer",
+      "reason": "The publication review runs inside draft.publish (the job of S3-6)",
+      "removeAt": "S3-6",
+      "evidence": "s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "review of the cards before publication",
+          "disposition": "migrate",
+          "kind": "legacy-bypass",
+          "reached": true,
+          "step": "S3-6"
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/operations.js",
+      "calls": [
+        {
+          "callee": "providedComplete",
+          "count": 1
+        },
+        {
+          "callee": "providedLight",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "generate.suggest is one awaited request; draft.repair is the background job of S3-5",
+      "removeAt": "S3-5; the suggestion stays",
+      "evidence": "s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "generate.suggest (帮我想想)",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        },
+        {
+          "what": "draft.repair model calls",
+          "disposition": "migrate",
+          "kind": "legacy-bypass",
+          "reached": true,
+          "step": "S3-5"
+        }
+      ]
     },
     {
       "file": "lib/contexts/notes/daily-generation.js",
@@ -198,9 +364,81 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S3",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The recap pipeline takes its model as an argument (the gateway step when dailyRecap is on)",
+      "removeAt": "S6-2 (original caller)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of the shared pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/notes/operations.js",
+      "calls": [
+        {
+          "callee": "providedComplete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "note.generate: a blog-note draft written in the background without a Job",
+      "removeAt": "S4-10",
+      "evidence": "s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "blog-note generation",
+          "disposition": "migrate",
+          "kind": "legacy-bypass",
+          "reached": true,
+          "step": "S4-10"
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/recording/operations.js",
+      "calls": [
+        {
+          "callee": "providedComplete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "capture: one awaited request (decision S4-0)",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "placement and authoring of a captured question",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/study/operations.js",
+      "calls": [
+        {
+          "callee": "providedComplete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "card.grade: one awaited rubric grading request",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "rubric grading of one answer",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/daily-recap.js",
@@ -211,9 +449,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The recap rewrite takes its model as an argument",
+      "removeAt": "S6-2 (original caller)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of the shared pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/followup.js",
@@ -224,9 +470,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "A follow-up question: one awaited request (decision S4-0)",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "follow-up generation for a card",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/generation.js",
@@ -237,9 +491,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S3",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The generation pipeline takes its model as an argument (the gateway step when generation is on)",
+      "removeAt": "S6-2 (original callers)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of the shared pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/index.js",
@@ -254,9 +516,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The host model adapter: DSH ctx.llm.stream and the host sub-agent route; the gateway reaches the model through it",
+      "removeAt": "retained: the provider leaf",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "modelCompletion and its light and correction variants",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/ingest.js",
@@ -267,9 +537,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "Pasted-material ingest: one awaited request",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "ingest of pasted text into cards",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/jobs/gateway.js",
@@ -280,9 +558,17 @@
         }
       ],
       "owner": "runtime kernel maintainer",
-      "reason": "Approved native model gateway; retained authority (default and light lanes of the prepared host)",
-      "removeAt": "retained gateway",
-      "evidence": "s1-6-audio-implementation.md (DSH-04/05/07)"
+      "reason": "The approved model gateway of the runtime",
+      "removeAt": "retained",
+      "evidence": "s1-6-audio-implementation.md (DSH-04/05/07); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "host.complete behind a step",
+          "disposition": "exception",
+          "kind": "kernel",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/library-usage.js",
@@ -293,9 +579,17 @@
         }
       ],
       "owner": "runtime/domain maintainer",
-      "reason": "Filesystem usage traversal queue, not a background-job scheduler",
-      "removeAt": "retained non-runtime structure; review if its role changes",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "reason": "Directory traversal queue of the storage-usage report",
+      "removeAt": "retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "a queue of folders to measure",
+          "disposition": "exception",
+          "kind": "not-a-job",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/live-job.js",
@@ -310,9 +604,20 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S2 review; provider leaves may remain behind gateway",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The classroom save pipeline (proofread): original runner until S2-6",
+      "removeAt": "S2-6 then S6-2",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "executeLiveSaveJob provider calls",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioLiveSave"
+          ]
+        }
+      ]
     },
     {
       "file": "lib/live.js",
@@ -323,9 +628,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "Per-sentence live translation of a class",
+      "removeAt": "retained: with the session",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "live.translate request",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/oral-exam-service.js",
@@ -336,9 +649,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "Oral exam turns: awaited requests",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "examiner turn",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/rubric-grading.js",
@@ -349,9 +670,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "Rubric grading of one answer: one awaited request (card.grade)",
+      "removeAt": "retained; owner decision at S6-5",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "criterion-by-criterion grading",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/runtime/builtins.js",
@@ -366,9 +695,17 @@
         }
       ],
       "owner": "runtime/domain maintainer",
-      "reason": "Static domain capability/name arrays, not live task collections",
-      "removeAt": "retained non-runtime structure; review if its role changes",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "reason": "Static capability and name arrays, not live task collections",
+      "removeAt": "retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "static arrays named jobs/tasks",
+          "disposition": "exception",
+          "kind": "not-a-job",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/runtime/domain-contracts.js",
@@ -383,9 +720,17 @@
         }
       ],
       "owner": "runtime/domain maintainer",
-      "reason": "Static domain schema/capability arrays, not live task collections",
-      "removeAt": "retained non-runtime structure; review if its role changes",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "reason": "Static schema and capability arrays, not live task collections",
+      "removeAt": "retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "static arrays named jobs/queue",
+          "disposition": "exception",
+          "kind": "not-a-job",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/runtime/models.js",
@@ -396,9 +741,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The host model adapter handed to the contexts (prepares the request, keeps spawnCorrection)",
+      "removeAt": "retained: the provider leaf",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "options.complete wrapper",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/runtime/tasks.js",
@@ -409,9 +762,17 @@
         }
       ],
       "owner": "runtime/domain maintainer",
-      "reason": "Existing named work collection; no new second Job authority",
-      "removeAt": "S6 review; canonical work.jobs retained",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "reason": "Extension task queues (public API)",
+      "removeAt": "retained (S6-1 checks the compatibility)",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "queues of extension tasks",
+          "disposition": "exception",
+          "kind": "public-api",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/runtime/work.js",
@@ -450,9 +811,32 @@
         }
       ],
       "owner": "runtime/domain maintainer",
-      "reason": "Existing named work collection; no new second Job authority",
-      "removeAt": "S6 review; canonical work.jobs retained",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "reason": "The work object: the job table the console reads plus the domain single-flight tables of the legacy executors",
+      "removeAt": "S6-5 (what the kernel replaces); the domain tables stay",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "jobs: the canonical table the console and job.* read",
+          "disposition": "exception",
+          "kind": "kernel",
+          "reached": true
+        },
+        {
+          "what": "coachTasks, coachQueues, captureQueues, noteJobs, workflow*Jobs: domain single-flight and lane tables",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "queues, settled: the per-library queue the Jobs of generation and translation still wait in (S3-1 kept it; translationParallel takes translations off the library chain; the kernel scheduler replaces it at S6-5)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true,
+          "switches": [
+            "translationParallel"
+          ]
+        }
+      ]
     },
     {
       "file": "lib/sample-library.js",
@@ -463,9 +847,17 @@
         }
       ],
       "owner": "runtime/domain maintainer",
-      "reason": "Existing synthetic sample-library queue state; not canonical runtime authority",
-      "removeAt": "retained non-runtime structure; review if its role changes",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      "reason": "Queues of the synthetic sample library",
+      "removeAt": "retained",
+      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "sample library queue state",
+          "disposition": "exception",
+          "kind": "not-a-job",
+          "reached": true
+        }
+      ]
     },
     {
       "file": "lib/translation.js",
@@ -476,22 +868,17 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
-    },
-    {
-      "file": "lib/workflow-skeleton.js",
-      "calls": [
+      "reason": "The translation pipeline takes its model as an argument (the reader asks it directly; the translate card is a Job when translation is on)",
+      "removeAt": "retained; S6-2 (original callers)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
         {
-          "callee": "collection:queues:Array",
-          "count": 1
+          "what": "injected complete of the shared pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
         }
-      ],
-      "owner": "runtime/domain maintainer",
-      "reason": "Existing named work collection; no new second Job authority",
-      "removeAt": "S6 review; canonical work.jobs retained",
-      "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js"
+      ]
     },
     {
       "file": "lib/workflow-teaching.js",
@@ -502,9 +889,882 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "Registered legacy/shared pipeline call boundary; not a newly migrated definition",
-      "removeAt": "S4/S6 boundary review",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md"
+      "reason": "The in-process teaching call (the Job runs it behind the gateway when workflow is on)",
+      "removeAt": "S6-2 (in-process path)",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "service.complete in process",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "workflow"
+          ]
+        }
+      ]
     }
-  ]
+  ],
+  "starts": [
+    {
+      "file": "lib/contexts/audio/convert.js",
+      "calls": [
+        {
+          "callee": "generationControllers.set",
+          "count": 1
+        },
+        {
+          "callee": "jobs.set",
+          "count": 3
+        },
+        {
+          "callee": "ownWork",
+          "count": 2
+        },
+        {
+          "callee": "retryable.set",
+          "count": 3
+        }
+      ],
+      "owner": "audio family (lane A/D)",
+      "evidence": "s5-2-pdf-convert.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "startConvertJob: the original conversion run (job record, retry entry, cancel controller)",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "pdfConvert"
+          ]
+        },
+        {
+          "what": "recoverConvertJobs: a conversion a restart left unfinished is listed as a failed, retryable record read from its manifest; 接着做 starts a Job",
+          "disposition": "exception",
+          "kind": "read-adapter",
+          "reached": true
+        },
+        {
+          "what": "mineru.retry: puts the record back when the new start is refused",
+          "disposition": "exception",
+          "kind": "read-adapter",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/audio/operations.js",
+      "calls": [
+        {
+          "callee": "jobs.set",
+          "count": 1
+        },
+        {
+          "callee": "ownWork",
+          "count": 1
+        },
+        {
+          "callee": "retryable.set",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "s2-0-audio-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "live.start: the live class session (a connection with its own lifecycle; its correction and its save are the jobs)",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
+        },
+        {
+          "what": "audio.retry: the original retry path and its put-back; with the five audio switches on (audioLiveSave included, S2-6) nothing is retried through it",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioSingle",
+            "audioBatch",
+            "audioSubtitles",
+            "audioReview",
+            "audioLiveSave"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/audio/setup/legacy-setup-run.js",
+      "calls": [
+        {
+          "callee": "registry:setups",
+          "count": 1
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "s5-4-mineru-setup.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the original background run of the local MinerU setup",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "mineruSetup"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/audio/worker.js",
+      "calls": [
+        {
+          "callee": "generationControllers.set",
+          "count": 1
+        },
+        {
+          "callee": "jobs.set",
+          "count": 4
+        },
+        {
+          "callee": "ownWork",
+          "count": 2
+        },
+        {
+          "callee": "retryable.set",
+          "count": 3
+        },
+        {
+          "callee": "spawn",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "s2-0-audio-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "startAudioJob: the original audio runner. With the five audio switches on (audioLiveSave included, S2-6) nothing calls it",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioSingle",
+            "audioBatch",
+            "audioSubtitles",
+            "audioReview",
+            "audioLiveSave"
+          ]
+        },
+        {
+          "what": "recoverAudioBatches: folders and letters of the last process come back as read-only or retry-only records",
+          "disposition": "exception",
+          "kind": "read-adapter",
+          "reached": true
+        },
+        {
+          "what": "liveCorrector: the original correction agent call (spawnCorrection); a managed class is corrected by its own Job",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioLiveCorrection"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/coach/worker.js",
+      "calls": [
+        {
+          "callee": "ownWork",
+          "count": 2
+        }
+      ],
+      "owner": "coach family (lane C)",
+      "evidence": "s4-4 coach record; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "coachTask: the library lane that queues a prep batch (its body is a Job when coach is on) and runs a card rewrite",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "queuePrep: the pending batch and its delay timer",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "flushPrep runs the batch body in process when coach is off (prepRunner returns writePrepared)",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "coach"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/jobs/generation.js",
+      "calls": [
+        {
+          "callee": "binding.work.generationControllers.set",
+          "count": 1
+        }
+      ],
+      "owner": "generation family (lane B)",
+      "evidence": "s3-1-generation-queue.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the Job registers its cancel controller in the legacy table the console controls read (until the controls read the kernel)",
+          "disposition": "exception",
+          "kind": "control-adapter",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/jobs/submit-generation.js",
+      "calls": [
+        {
+          "callee": "ownWork",
+          "count": 1
+        },
+        {
+          "callee": "work.generationControllers.set",
+          "count": 1
+        },
+        {
+          "callee": "work.jobs.set",
+          "count": 1
+        }
+      ],
+      "owner": "generation family (lane B)",
+      "evidence": "s3-1-generation-queue.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "startLegacy: the original generation run (job record, controller, control, queue turn)",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "generation"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/operations.js",
+      "calls": [
+        {
+          "callee": "generationControllers.set",
+          "count": 2
+        },
+        {
+          "callee": "jobs.set",
+          "count": 3
+        },
+        {
+          "callee": "ownWork",
+          "count": 3
+        }
+      ],
+      "owner": "generation family (lane B)",
+      "evidence": "s3-0-generation-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "draft.publish.start: publication as a background job",
+          "disposition": "migrate",
+          "kind": "legacy-bypass",
+          "reached": true,
+          "step": "S3-6"
+        },
+        {
+          "what": "coverage.recover: a coverage run the last process left unfinished comes back as an interrupted record read from its draft marker (runs kept on disk by generationRestart come back through the kernel)",
+          "disposition": "exception",
+          "kind": "read-adapter",
+          "reached": true,
+          "switches": [
+            "generationRestart"
+          ]
+        },
+        {
+          "what": "draft.repair: background repair of rejected cards",
+          "disposition": "migrate",
+          "kind": "legacy-bypass",
+          "reached": true,
+          "step": "S3-5"
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/retrieval/legacy-index-run.js",
+      "calls": [
+        {
+          "callee": "registry:runs",
+          "count": 1
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "s5-5-retrieval-index.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the original background run of the search-index build",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "retrievalIndex"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/selection.js",
+      "calls": [
+        {
+          "callee": "ownWork",
+          "count": 1
+        }
+      ],
+      "owner": "generation family (lane B)",
+      "evidence": "s3-0-generation-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the single-flight table of selection operations (an operation id is answered once)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/translation-jobs.js",
+      "calls": [
+        {
+          "callee": "generationControllers.set",
+          "count": 1
+        },
+        {
+          "callee": "jobs.set",
+          "count": 1
+        },
+        {
+          "callee": "ownWork",
+          "count": 1
+        }
+      ],
+      "owner": "translation family (lane C)",
+      "evidence": "s4-2 translation record; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the original translation card run (job record, controller, control)",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "translation"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/generation/translation/jobs/translation.js",
+      "calls": [
+        {
+          "callee": "task.work.generationControllers.set",
+          "count": 1
+        }
+      ],
+      "owner": "translation family (lane C)",
+      "evidence": "s4-2 translation record; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the Job registers its cancel controller in the legacy table the console controls read",
+          "disposition": "exception",
+          "kind": "control-adapter",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/jobs/operations.js",
+      "calls": [
+        {
+          "callee": "jobs.set",
+          "count": 1
+        }
+      ],
+      "owner": "jobs context",
+      "evidence": "unified-runtime-archive-read.test.mjs; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "job.* : history rows of the runtime restored into the job table, read-only",
+          "disposition": "exception",
+          "kind": "read-adapter",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/materials/translation-operations.js",
+      "calls": [
+        {
+          "callee": "registry:inflight",
+          "count": 1
+        }
+      ],
+      "owner": "translation family (lane C)",
+      "evidence": "s4-0-model-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the cancel handles of a reader translation call that named a requestId",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/notes/daily.js",
+      "calls": [
+        {
+          "callee": "ownWork",
+          "count": 1
+        },
+        {
+          "callee": "registry:liveGenerations",
+          "count": 1
+        }
+      ],
+      "owner": "notes family (lane C)",
+      "evidence": "s4-5 daily recap record; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the pending generation of a recap (supersede and catch-up); the run itself is a Job when dailyRecap is on",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "runDailyGeneration in process (submit-daily-recap)",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "dailyRecap"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/notes/operations.js",
+      "calls": [
+        {
+          "callee": "ownWork",
+          "count": 1
+        }
+      ],
+      "owner": "notes family",
+      "evidence": "s6-0-coverage.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "note.generate: a blog-note draft written by the model in the background, with its own job table entry and no Job (decided 2026-10-07: S4-10, switch noteGenerate)",
+          "disposition": "migrate",
+          "kind": "legacy-bypass",
+          "reached": true,
+          "step": "S4-10"
+        }
+      ]
+    },
+    {
+      "file": "lib/generation-continuable.js",
+      "calls": [
+        {
+          "callee": "subagents.startContinuable",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "evidence": "plan.md (sub-agents go through the host); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the host sub-agent of a continuable generation phase (agent execution mode behind the model route)",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/groq.js",
+      "calls": [
+        {
+          "callee": "spawn",
+          "count": 2
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "s2-0-audio-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "ffmpeg decode and cut of the audio windows, inside an audio Job (stopped with it; not recorded as a Call)",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/host-capabilities.js",
+      "calls": [
+        {
+          "callee": "subagents.start",
+          "count": 1
+        }
+      ],
+      "owner": "runtime kernel maintainer",
+      "evidence": "plan.md (sub-agents go through the host); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "startBoundedChild: the one place a host sub-agent is started (the gateway uses it; so do the original assist, generation and correction agents)",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/job-control.js",
+      "calls": [
+        {
+          "callee": "setInterval",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "evidence": "s6-0-coverage.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the pause-boundary poll of a job control (the console controls of generation, translation and audio read it)",
+          "disposition": "exception",
+          "kind": "control-adapter",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/jobs/lifecycle/control.js",
+      "calls": [
+        {
+          "callee": "k.work.jobs.set",
+          "count": 2
+        }
+      ],
+      "owner": "runtime kernel maintainer",
+      "evidence": "jobs/ kernel; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the kernel writes its own job into the job table",
+          "disposition": "exception",
+          "kind": "kernel",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/jobs/lifecycle/job-record.js",
+      "calls": [
+        {
+          "callee": "ownWork",
+          "count": 1
+        }
+      ],
+      "owner": "runtime kernel maintainer",
+      "evidence": "jobs/ kernel; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the kernel puts its job under its owner",
+          "disposition": "exception",
+          "kind": "kernel",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/jobs/lifecycle/scoped.js",
+      "calls": [
+        {
+          "callee": "k.work.jobs.set",
+          "count": 2
+        }
+      ],
+      "owner": "runtime kernel maintainer",
+      "evidence": "jobs/ kernel; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the kernel writes its own job into the job table",
+          "disposition": "exception",
+          "kind": "kernel",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/live-correction.js",
+      "calls": [
+        {
+          "callee": "setInterval",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "s2-0-audio-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the rolling-correction timer of a class; a managed class (audioLiveCorrection) starts none",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "audioLiveCorrection"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/live.js",
+      "calls": [
+        {
+          "callee": "setInterval",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "plan.md (the live connection stays with the session subsystem); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the watchdog of a live class connection",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/local-command.js",
+      "calls": [
+        {
+          "callee": "spawn",
+          "count": 2
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "s5-3-marker-install.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "runLocalCommand: the one runner of local programs (process tree stop, KILL_WAIT_MS)",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/marker-install.js",
+      "calls": [
+        {
+          "callee": "registry:live",
+          "count": 1
+        },
+        {
+          "callee": "runLocalCommand",
+          "count": 3
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "s5-3-marker-install.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the install stages (venv, pip, check) inside begin(): a Call of the Job when markerInstall is on",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        },
+        {
+          "what": "the one install slot of a DSH home (shared by the original installer and the Job)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "the original installer start/cancel",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "markerInstall"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/marker-local.js",
+      "calls": [
+        {
+          "callee": "runLocalCommand",
+          "count": 2
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "s5-0-nonmodel-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "detectMarker: the instant \"is Marker ready\" question (awaited by the caller)",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        },
+        {
+          "what": "one Marker conversion window, inside a conversion job",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/mineru-local.js",
+      "calls": [
+        {
+          "callee": "runLocalCommand",
+          "count": 1
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "s5-0-nonmodel-baseline.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "runCli: status, server start and the parse windows of a local conversion",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/runtime/tasks.js",
+      "calls": [
+        {
+          "callee": "ownWork",
+          "count": 1
+        },
+        {
+          "callee": "registry.generationControllers.set",
+          "count": 1
+        },
+        {
+          "callee": "registry.jobs.set",
+          "count": 1
+        }
+      ],
+      "owner": "runtime/domain maintainer",
+      "evidence": "s1-0-runtime-audit.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "extension tasks (kind extension): a published public API of the plugin; no model gateway",
+          "disposition": "exception",
+          "kind": "public-api",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/workflow-skeleton.js",
+      "calls": [
+        {
+          "callee": "jobs.set",
+          "count": 1
+        },
+        {
+          "callee": "ownWork",
+          "count": 1
+        }
+      ],
+      "owner": "workflow family (lane C)",
+      "evidence": "s4-6 workflow record; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the single-flight table of skeleton generation (the run is a Job when workflow is on)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "the in-process execution of a skeleton",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "workflow"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lib/workflow-teaching.js",
+      "calls": [
+        {
+          "callee": "jobs.set",
+          "count": 1
+        },
+        {
+          "callee": "ownWork",
+          "count": 1
+        }
+      ],
+      "owner": "workflow family (lane C)",
+      "evidence": "s4-6 workflow record; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the single-flight table of teachings (the run is a Job when workflow is on)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "the in-process execution of a teaching",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "workflow"
+          ]
+        }
+      ]
+    }
+  ],
+  "dispositions": {
+    "migrate": "still runs outside the runtime with every switch on; names the step that migrates it",
+    "exception": "kept on purpose; names its kind and why",
+    "delete-s6-2": "unreachable once its switch is on; S6-2 deletes it"
+  },
+  "kinds": [
+    "legacy-bypass",
+    "read-adapter",
+    "provider-leaf",
+    "shared-pipeline",
+    "domain-structure",
+    "foreground-request",
+    "session-subsystem",
+    "control-adapter",
+    "public-api",
+    "kernel",
+    "not-a-job"
+  ],
+  "policySwitches": {
+    "dailyRecapAgent": "the daily recap Job asks a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)",
+    "workflowAgent": "teachings and skeletons of the learning workflow ask a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)"
+  }
 }
