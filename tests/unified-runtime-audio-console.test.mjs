@@ -73,8 +73,12 @@ for (const mode of MODES) test(`${mode}: every kind of audio job, while it runs,
   }
   assert.equal(new Set(rows.map(item => item.c.jobId)).size, rows.length, 'every card is its own job: no id is shared');
   // Let the requests answer a few at a time until every job has ended.
-  const states = async () => (await Promise.all(rows.map(async item => { const card = await cardOf(lib, item.row.id); return `${item.name}/${item.side}:${card.status}:${card.stage}:${(card.contract?.calls ?? []).slice(-2).map(call => `${call.kind}.${call.status}`).join('+')}`; }))).join(' ');
-  await until(async () => { lib.trickle(4); return (await Promise.all(rows.map(item => cardOf(lib, item.row.id)))).every(row => ENDED.includes(row.status)); }, 'every job to end', { timeoutMs: 300_000, intervalMs: 250 })
+  const currentCards = async () => {
+    const { jobs } = await lib.service.call('snapshot');
+    return rows.map(item => jobs.find(job => job.id === item.row.id));
+  };
+  const states = async () => (await currentCards()).map((card, index) => `${rows[index].name}/${rows[index].side}:${card.status}:${card.stage}:${(card.contract?.calls ?? []).slice(-2).map(call => `${call.kind}.${call.status}`).join('+')}`).join(' ');
+  await until(async () => { lib.trickle(4); return (await currentCards()).every(row => ENDED.includes(row.status)); }, 'every job to end', { timeoutMs: 300_000, intervalMs: 250 })
     .catch(async error => { throw new Error(`${error.message}: ${await states()}`); });
   for (const item of rows) {
     const done = await settleJob(lib.service, item.row.id);
