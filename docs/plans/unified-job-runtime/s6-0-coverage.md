@@ -43,6 +43,7 @@
 | `audioLiveSave` | 课堂"校对并保存"的旧执行器（`startAudioJob` + `executeLiveSaveJob`，S2-6 #325） | `lib/contexts/audio/operations.js`（`live.save`） | `audio-family-baseline-live.runtime`、`unified-runtime-live-save` |
 | `audioLiveCorrection` | 课堂滚动校正的旧计时器与旧校正调用 | `operations.js:211,257,270`；`lib/live-correction.js:127` | `unified-runtime-live-correction` |
 | `generation` | 出题/补题的旧任务表与旧执行器 | `lib/contexts/generation/jobs/submit-generation.js:9`（`startLegacy`） | `generation-family-baseline-queue.runtime`、`unified-runtime-generation-*` |
+| `generationPublish` | 发布草稿的旧路径（`startLegacy`，需要 `generation`；没有 `generation` 时此开关不起作用） | `lib/contexts/generation/jobs/submit-generation.js:9`（`startLegacy`） | `draft-publish.runtime`、`unified-runtime-publish` |
 | `generationRepair` | 后台修题的旧路径（`startLegacy`，需要 `generation`；没有 `generation` 时此开关不起作用） | `lib/contexts/generation/jobs/submit-generation.js:9`（`startLegacy`） | `draft-repair.runtime`、`unified-runtime-repair` |
 | `generationRestart` | 重启后只靠草稿标记恢复（仍保留，见 §3 `coverage.recover`） | `lib/contexts/generation/operations.js:73` | `unified-runtime-recovery`（本开关的 S3-3 记录） |
 | `translation` | 翻译卡的旧任务表与旧执行器 | `lib/contexts/generation/translation-jobs.js:38,124` | `translation-jobs.runtime`、`unified-runtime-translation` |
@@ -64,7 +65,7 @@
 
 ## 3. 全部后台启动点（`starts`，33 个文件 48 处）
 
-读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量（更新后）：迁移 1、保留例外 31、S6-2 删除 15（§7 给删除清单）。**答案**：全开后仍在运行时之外的后台**路径**只剩 1 条要迁移——发布草稿（S3-6）；原先的另外四条（课堂保存 S2-6、选区补题 S3-4、后台修题 S3-5、`note.generate` S4-10）已迁完；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
+读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量（启动点，S3-6 合并后）：迁移 0、保留例外 31、S6-2 删除 15（§7 给删除清单）。**答案**：全开后已经没有自己起后台任务的旧路径；只剩一处模型调用要迁移——快速发布的审阅（补题运行自己的发布已在 S3-6b 走网关）（`lib/contexts/authoring/publication.js`，S3-7）。课堂保存 S2-6、选区补题 S3-4、后台修题 S3-5、发布草稿 S3-6、`note.generate` S4-10 已迁完；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
 
 ### 3.1 音频
 
@@ -96,7 +97,7 @@
 | 启动点（file:line） | 启动什么 | 全开后 | 处置 |
 |---|---|---|---|
 | `lib/contexts/generation/jobs/submit-generation.js:9-14`（`startLegacy`） | 旧出题执行器 | 不走（`generation`） | S6-2 删除 |
-| `lib/contexts/generation/operations.js:100-103`（`draft.publish.start`） | 发布草稿的后台任务（含发布前审阅，`lib/contexts/authoring/publication.js:87`） | **仍走**，无开关 | **迁移 S3-6** |
+| `lib/contexts/generation/draft-publish.js`（`draft.publish.start`，经 `startGeneration`） | 发布草稿的后台任务 | 不走（`generation` + `generationPublish`；旧实现 = 上一行的 `startLegacy`） | S6-2 删除 `startLegacy` 时一并 |
 | `lib/contexts/generation/draft-repair.js`（`draft.repair`，经 `startGeneration`） | 后台修题 | 不走（`generation` + `generationRepair`；旧实现 = 上一行的 `startLegacy`） | S6-2 删除 `startLegacy` 时一并 |
 | `lib/contexts/generation/selection-jobs.js`（S3-4 #324 后不再自起任务） | 选区补题经 `submit-generation.js` 的 `startGeneration` 分派，旧一侧即上一行的 `startLegacy` | 不走（`generation`） | 随 `startLegacy` 在 S6-2 删除；清单里本文件的 starts 行已删 |
 | `lib/contexts/generation/selection.js:91` | 选区操作的单飞表（同一 operationId 只答一次） | 仍走 | 保留例外：领域单飞结构 |
@@ -161,7 +162,7 @@
 | `lib/runtime/work.js:11-30` | 仍走 | 例外：内核（`jobs`，控制台读的表）+ 领域单飞/队列表；`queues`/`settled` 仍被出题与翻译 Job 排队使用（S3-1 保留，S6-5 由内核调度取代） | |
 | `lib/translation.js:80` | 仍走 | 例外：共享流水线 | 读者直接翻译与翻译卡共用 |
 | `lib/workflow-teaching.js:115` | 不走（`workflow` 打开后由 Job 执行） | S6-2 删除 | 进程内讲解调用 |
-| **新增** `lib/contexts/authoring/publication.js:87` | 仍走 | **迁移 S3-6** | 发布前审阅，随 `draft.publish` |
+| **新增** `lib/contexts/authoring/publication.js:87` | 仍走（快速发布；不落盘的补题运行） | **迁移 S3-7**；发布草稿的任务已经网关（`a.ask`） | 发布前审阅，随 `draft.publish` |
 | **新增** `lib/contexts/generation/operations.js:161` | 仍走 | `generate.suggest` 即时请求（例外）；`draft.repair` 的模型调用已搬到 `draft-repair.js`，经网关一步（S3-5） | |
 | **新增→已更新** `lib/contexts/notes/note-generation.js` | 仍走 | 例外：共享流水线 | S4-10 把 `note.generate` 的模型调用抽到这里，模型由调用方传入（网关步骤 `note:1`） |
 | **新增** `lib/contexts/recording/operations.js:54` | 仍走 | 例外：即时请求 | `capture` 的宿主模型调用 |
@@ -172,6 +173,7 @@
 1. **（已解决：S2-6，`audioLiveSave`）课堂保存（校对）没有开关，仍在旧音频执行器上**（`operations.js:335`、`lib/live-job.js`、`lib/audio-job.js` 的 `jobTextModel`）：它是 S2-6（U7，A 道）；S2-6 迁完才能删 `startAudioJob`（见 §7 顺序）。
 2. **`note.generate`（博客笔记后台起草）完全不在计划里**：模型直接调用、自己的表项、没有 Job、不在任务控制台。**已决定（所有者，2026-10-07）并已完成**：成为新工作包 S4-10（`noteGenerate`），见 `s4-10-note-generate.md`。
 3. **即时模型请求绕过网关**：capture、card.grade、followup、ingest、oral exam、`generate.suggest`、教练的 nudge/debrief/rewrite、实时翻译等直接调用宿主模型。它们是 S4-0 明确保持即时的请求，但这意味着它们**不进统一的资源许可、用量与观测**（只靠既有每日账本）。**已决定（所有者，2026-10-07）**：保持即时，但 S6-5 必须让它们经网关的计量路径共享 provider 配额与用量账本，见下面"所有者决定"。
+   **S6-5a 已做**：这些请求现在经唯一的计量入口 `lib/runtime/instant.js`（共享 provider 配额的 `instant-text` 租约 + 用量账本只记一次）；入口、定义与兼容 getter 之外调用 `modelServices(` 会被守卫拒绝；名单与处置见 `s6-5a-instant.md` 与清单的 `hostModelAccess`。`materials.selection.ask` 今天不记账本，是登记在案的缺口。
 4. **模型调用点清单漏掉了别名调用**：旧匹配只认名为 `complete` 的函数，漏了 `providedComplete/providedLight`（上下文操作拿到的宿主模型）。本步把这两个名字加进匹配，新发现 5 个文件（上表"新增"行）。仍然看不到的：经其他名字传递的模型函数（如 `askLight`、`ask`）——它们出现在注入模型的流水线内，由调用方负责，登记为共享流水线。
 5. **原清单的理由大面积失真**（33 条里 21 条是同一句套话）、2 条误报：理由已重写；误报已随匹配器收紧消失（决定 3）。
 6. **控制适配仍挂着旧表**：托管出题/翻译 Job 仍把控制器登记进 `generationControllers`、控件读 `jobControls`、暂停边界靠 `job-control.js:43` 的轮询、并仍在每库 `work.queues` 里排队（S3-1 的选择）。这些是 S6-5"全家族控制台"要收的。
@@ -202,7 +204,9 @@
 
 ## 7. S6-2 删除清单与顺序
 
-只列处置为 S6-2 删除的旧实现（对应开关打开后不可达）；**不在本步删除**。
+> **决定（协调者，2026-10-07）**：每个开关现在都默认关闭，所以下面这些"旧实现"其实是**今天的默认路径**，关开关就是回滚。S6-2 因此**只删任何开关取值下都没有使用者的代码**（被运行时取代、没人再到的包装，迁移留下的死辅助函数，不可达分支）；下表的整体删除**等默认值翻转之后**——那发生在真实模型抽样与 alpha 之后（S6-7，所有者已授权这两道关）。清单里这些行的 `removeAt` 为 `after default flip`，守卫测试要求如此。`lib/runtime/tasks.js`（扩展任务公开 API）保留。S6-2 的实际删除与证明见 `s6-2-dead-only.md`。
+
+只列处置为 S6-2 删除的旧实现（对应开关打开后不可达）；**不在 S6-2 删除，等默认值翻转**。
 
 | 顺序 | 旧实现 | 前置 |
 |---|---|---|

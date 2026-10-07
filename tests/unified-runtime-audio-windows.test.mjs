@@ -14,17 +14,19 @@ import { join } from 'node:path';
 const LECTURE = Array.from({ length: 9 }, (_, index) => `Window ${index + 1}: ${'lecture evidence '.repeat(260)}`).join('\n\n');
 const reply = text => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: {} }));
 const transcribing = async () => reply(LECTURE);
-const CALL_MS = 120;
-const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-/** A host text model that refuses (429) a call made while more than `capacity` are open; `failFirst` fails the first call of a kind with a 503. */
+/**
+ * A host text model that refuses (429) a call made while more than `capacity` are open; `failFirst` fails the first call of a kind with a 503.
+ * The calls only overlap if the runtime sends them together, which a loaded machine delays (each call saves an intent first): so the first calls are
+ * held until `capacity + 1` of them are open at once, an observed state, not a timer, and then the model pushes back.
+ */
 function fakeHost({ capacity = Infinity, failFirst } = {}) {
-  const answer = hostModel([]), stats = { active: 0, peak: 0, refused: 0, calls: [] }, failed = new Set();
+  const answer = hostModel([]), stats = { active: 0, peak: 0, refused: 0, calls: [] }, failed = new Set(), crowd = Promise.withResolvers();
   const complete = async (system, prompt, options = {}) => {
     stats.active++;
     try {
-      // Long enough for the calls to overlap: the runtime saves an intent for each call before it is sent, one write after another.
-      await pause(CALL_MS);
+      if (stats.active > capacity) crowd.resolve();
+      if (capacity < Infinity) await crowd.promise;
       if (stats.active > capacity) { stats.refused++; throw Object.assign(new Error('429 Too Many Requests'), { status: 429 }); }
       const text = await answer(system, prompt, options);
       const kind = system.startsWith('You translate') ? 'translate' : system.startsWith('You proofread') ? 'proofread' : 'title';
