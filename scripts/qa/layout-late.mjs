@@ -299,6 +299,8 @@ export async function wrongBookScenario({ browser, running, lang = "zh", theme =
   await nav.waitFor({ state: "visible" });
   await nav.dispatchEvent("click");
   await page.locator(".wb-retrain").waitFor({ timeout: 30000 });
+  // The groups open folded: open the first one (dispatched, not real input, for the reason above) so the list has rows to measure.
+  await page.locator(".wb-group .wb-group-toggle").first().dispatchEvent("click");
   await page.locator(".wb-group .wb-row").first().waitFor({ timeout: 30000 });
   await until(() => hold.seen("wrongbook.recommend"), "the page to ask for recommendations");
   await settleAnimations(page);

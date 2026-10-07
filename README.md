@@ -115,7 +115,7 @@ Practice progress counts actual answers, flows use completed steps, and you expl
 
 - Answer, then read the explanation. **Help me understand** asks a tutor about the current question.
 - Rate flashcards and open answers from 0 to 5; SM-2 picks the next review date. Answering and scheduling make no model calls.
-- **Mistakes & weak points** groups wrong answers by topic and can **Generate variants**. **Mock exam** and **Statistics** show what still needs work.
+- **Mistakes & weak points** groups wrong answers by deck (or by topic), filters them by deck, status and keyword, and can **Generate variants**. **Mock exam** and **Statistics** show what still needs work.
 
 <details>
 <summary>How Help me understand keeps context</summary>
