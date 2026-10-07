@@ -35,7 +35,7 @@ export default function RetrievalPanel({ advice, sourceIds = [], focus = '', cou
     <section className="retrieval-panel" aria-label={ui('用检索挑选页面')}>
       <div className="retrieval-panel__head">
         <p>{advice?.needsTopic
-          ? ui('所选资料太大。先在「这次想练什么？」写下主题，StudyHub 才能用检索挑出相关页面。')
+          ? ui('先在「这次想练什么？」写下主题，StudyHub 才能用检索挑出相关页面。')
           : uiFormat('检索已启用：出题时会先挑出和主题相关的页面，只把这些页面发给 AI（所选资料约 {0} 个字符）。', [formatNumber(Number(advice?.chars || 0))])}</p>
         <Button size="sm" variant="secondary" busy={loading} disabled={disabled || !topic} onClick={run}>{ui('预览会用到的页面')}</Button>
       </div>
