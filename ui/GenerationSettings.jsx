@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { Button, Checkbox, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
-import { kinds } from './shared.js';
-import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KINDS, GENERATION_LANGUAGES,
+import KindPicker from './KindPicker.jsx';
+import { kindNote, kindsPatch } from './generate-form.js';
+import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 
-const labels = { kind: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
+const labels = { kinds: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
   effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目', applySuggestions: '采纳审阅建议' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
@@ -53,9 +54,9 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     setEditor(current => current.observed === savedKey ? current : { observed: savedKey, baseline: incoming,
       values: same(numbers(current.values), current.baseline) ? incoming : current.values });
   }, [savedKey]);
-  const edit = (key, value) => {
+  const edit = (key, value, also = {}) => {
     version.current++; setError('');
-    setEditor(current => ({ ...current, values: { ...current.values, [key]: value } }));
+    setEditor(current => ({ ...current, values: { ...current.values, [key]: value, ...also } }));
   };
   const reset = () => {
     version.current++; setError('');
@@ -81,7 +82,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     finally { if (current()) { pending.current = null; setWorking(false); } }
   };
   // The time limit is also a deep link: the 任务 page's 调整时限 opens Settings at this field (ui/tasks/time-limit.js LIMIT_ANCHOR).
-  const field = (key, control, note) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]} {...(key === 'jobTimeoutMinutes' ? { 'data-tour': 'settings-generation-time' } : {})}>{control}</Field>;
+  const field = (key, control, note, group = false) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]} group={group} {...(key === 'jobTimeoutMinutes' ? { 'data-tour': 'settings-generation-time' } : {})}>{control}</Field>;
   const propsFor = key => ({ name: key, value: editor.values[key], disabled, onChange: event => edit(key, event.target.value) });
   const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
     min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
@@ -89,7 +90,8 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
   return <form className="settings-form" onSubmit={save}>
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
-      {choiceField('kind', GENERATION_KINDS, value => value === 'mixed' ? ui('测验 + 闪卡') : kinds[value])}
+      {field('kinds', <KindPicker name="kinds" value={editor.values.kinds} disabled={disabled} onChange={list => edit('kinds', list, kindsPatch(list))} />,
+        kindNote(editor.values.kinds, Number(editor.values.count)), true)}
       {numberField('count', ui('没有指定覆盖强度时（例如让助手在对话里出题）一次请求的总题数；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
