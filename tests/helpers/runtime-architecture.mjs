@@ -59,6 +59,14 @@ export function inspectCalls(source) {
   return [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([callee, count]) => ({ callee, count }));
 }
 
+/** Where the host's model is MADE (as opposed to called): every call of `modelServices(...)`, the one function that turns the host's complete/light into the services a request or an
+ * executor is handed. Outside lib/runtime/instant.js (the metered entry) and the files the inventory lists, a new one fails the guard. */
+export function inspectHostModelAccess(source) {
+  const counts = new Map();
+  walk(tree(source), node => { if (node.type === 'CallExpression' && member(node.callee) === 'modelServices') counts.set('modelServices', (counts.get('modelServices') || 0) + 1); });
+  return [...counts].map(([callee, count]) => ({ callee, count }));
+}
+
 export function auditManagedModule(source) {
   const violations = inspectCalls(source).map(item => `model-bypass:${item.callee}`);
   walk(tree(source), node => {
