@@ -53,3 +53,16 @@
 - PR 描述包含：做了什么、DSH 对照表引用、开关与默认值、测试与红灯记录、真实抽检（如适用）、回退说明、未完成事项。
 - 合并前逐条核对 [review-checklist.md](review-checklist.md)，每项给出证据链接；不适用须说明本 PR 的范围，不得把尚未验证写成不适用。
 - 文档 PR 不能勾选实施步骤或声明运行验证通过。真实模型抽检需要单独记录所有者授权和预算；未授权时保持发布门禁待验证，不能代填结果。
+
+## 8. 迁移之后新增的规则（P6 起）
+
+这些规则由守卫测试强制，违反的 PR 在 CI 里就红：
+
+- **模型只在一处被做出**：`modelServices(` 只在 `lib/runtime/instant.js`（计量入口）、`lib/runtime/models.js`（定义）和 `lib/service.js` 的兼容 getter 里。一次一答的前台请求不建任务，也要经这个入口（共享 provider 配额的租约、用量只记一次）；新增的调用点先在 `s1-7-legacy-exceptions.json` 的 `hostModelAccess` 登记（`tests/instant-model-guard.test.mjs`）。
+- **Job 模块的五条边界、内核向下的依赖**：见 [S6-3](s6-3-boundaries.md)（`unified-runtime-boundaries.test.mjs`、`architecture-boundaries.test.mjs`）。新增例外要精确（模块、规则、API、次数），带理由、负责人和移除时点。
+- **结算通知走内核的 sink，不在执行器里自己通知**：定义同时声明 `notifications`（任务不持久化时）和端口上的 `notifications`（持久化时），两份必须同 channel、同幂等性；持久化一侧的 sink 从 `persistence.open` 的闭包拿通知器，不从 bindings 拿（[s2-architecture.md §4.1](s2-architecture.md)）。
+- **落盘形状**：内核记录不得新增任何字段；每个写出的 manifest 必须被 `tests/fixtures/release-2.7.1/` 里 2.7.1 自己的校验器读入（`unified-runtime-rollback-shape.test.mjs`）。任何新的持久文件种类先登记并写进回退矩阵（`unified-runtime-rollback-read.test.mjs`：每个开关一行）。
+- **文件锁**：库、看板、笔记本登记的写入都经 `lib/store-lock.js` 的进程内队列，文件锁只在进程间仲裁；不要在写入里再开一次同库写入（`STORE_REENTRANT`）。
+- **新增一种普通任务**：只注册定义、执行器和可选详情，不改内核 kind/type 分支，见 [S6-4 的接入说明](s6-4-minimal-integration.md)。
+- **测试的时间**：等待观察到的状态，不跟真实时钟赛跑；性能守卫度量工作量（增长比例）而不是耗时；演练（`tests/fixtures/runtime-s*/run-drill.mjs`）不在 CI 里，发布前手工重跑，旧版树由 `tests/fixtures/extract-release.mjs` 只用 git 取出。会运行 git 的测试登记到 `tests/slow-tests.json`。
+- **没有被验证的东西不写成已验证**：真实模型、真实宿主、真实安装包的结果只有所有者授权后才记录（[S6-7 §8](s6-7-acceptance.md#8-待定门禁pending只有所有者授权后才能做)）；任何文档都不得把某个 commit 记为 alpha 或已发布。
