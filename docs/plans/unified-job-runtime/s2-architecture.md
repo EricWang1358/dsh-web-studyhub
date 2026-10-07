@@ -49,7 +49,8 @@ surface  (operations / tools / ui)     入口、权限、开关读取、控制�
 - `context.persistence`：定义自己 `persistence.open` 返回的端口；admit/run 直接用，不挂在 bindings 上。
 - `initialPresentation(input, bindings)`（可选）：返回一个 reader，submit 返回前装上，记录一进任务表就是完整的（第二次启动、列表、状态在同一轮就能找到它）；admit 里的 `context.present` 随后接管。不要用轮询或旁表等第一轮。
 - `context.admission.state`：admit 返回的 lease 里放本次 attempt 的状态（视图、设置、流水线缓存等），run 读取。
-- `gateway.observe({ boundary, sideEffect })`：观察到结束即已知结果；只有 `sideEffect: true`（重复执行不安全的远端操作）在失败或结果未知时保持 pending，阻止盲目重发。
+- `gateway.observe({ boundary, sideEffect })`：观察到结束即已知结果；只有 `sideEffect: true`（重复执行不安全的远端操作）在失败或结果未知时保持 pending，阻止盲目重发。`sideEffect: false` 的请求不写请求意图（进程死在它中间也没有要核对的东西，恢复后直接再问）。
+- 落盘形状的回退约束：清单（manifest）与契约写到磁盘的形状必须仍能被上一个发布（目前是 v2.7.1）自己的校验器读入，否则关掉开关回退后整个快照会失败。`tests/unified-runtime-rollback-shape.test.mjs` 用 `tests/fixtures/release-2.7.1/` 里原样拷贝的校验器检查；要加新的落盘字段，先改回退目标或放进旧版本本来就开放的位置，不要改那份拷贝。
 - 宿主模型：网关调用的是 `preparedModelHost(services)`——与其他模型调用同一套准备（界面语言、图片/脚注清理、阶段本地化），不记账（网关入账）。家族不要绕开 `gateway.step().complete()` 自己包模型函数。
 - 轻量通道：`gateway.step(key, policy, { model: 'light' })` 走宿主轻量路线（对冲 + 一次瞬时重试），只用于 `direct`。
 - 结算通知：有持久化的定义在 persistence 端口上声明 `notifications`；没有持久化的定义在定义上声明 `notifications: [{ channel, deliver(event, view, bindings) }]`（bindings 是提交时给的，即提交者自己的服务），结算后进程内投递一次、观察者等投递完成；失败记在 `detail.notificationError`，不改变终态。
