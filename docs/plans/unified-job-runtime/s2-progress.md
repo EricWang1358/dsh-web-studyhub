@@ -13,7 +13,8 @@
 | S2-3 | 已合并 | `codex/runtime-s23-audio-windows` / #309 | S2-2 之上 | 窗口与重复许可责任收敛 | 见 S2-3 记录 | S2-4 字幕（A 道） |
 | S2-4 | 已合并 | `codex/runtime-s24-audio-subtitles` / #311 | S2-3 之上 | 字幕导入（`audio-subtitles`）、`audio-gateway-calls`、内核增量一处 | 见 S2-4 记录 | S2-5 复查与课堂校正（A 道） |
 | S2-5 | 已合并 | `codex/runtime-s25-audio-review` / #317 | S2-4 之上 | 复查（`audio-review`）、课堂校正（`audio-live-correction`） | 见 S2-5 记录 | S2-6 课堂保存（A 道） |
-| S2-6 | PR 中 | `codex/runtime-s26-live-save` | S2-5 之上 | 课堂保存（`audio-live-save`） | 见 S2-6 记录 | S2-7 混跑与回退 |
+| S2-6 | 已合并 | `codex/runtime-s26-live-save` / #325 | S2-5 之上 | 课堂保存（`audio-live-save`） | 见 S2-6 记录 | S2-7 混跑与回退 |
+| S2-7 | PR 中 | `codex/runtime-s27-audio-acceptance` | S2-6 与 #331 之后的 main | 音频混跑、回退演练到 v2.7.1、两个时序测试改为等观察到的状态、P2 验收文档（[s2-7-acceptance.md](s2-7-acceptance.md)） | 见 S2-7 记录 | 目标环境 smoke 待做（未授权）；S3 出题家族 |
 
 ## S2-1 记录
 
@@ -188,3 +189,19 @@
 | `startAudioJob`（课堂保存的闭包、`retryable`） | 旧路径保留（开关关）；运行时无闭包，输入在任务里 |
 | `jobTextModel` / `taskTracker` / `withJobUsage`（课堂保存） | 旧路径保留；运行时用网关调用与用量 |
 | 单文件导入里的转写闸门持槽 | 抽成 `holdTranscriptionSlot`，两个定义共用 |
+
+## S2-7 记录（混跑、回退与验收）
+
+验收文档：[s2-7-acceptance.md](s2-7-acceptance.md)；证据：[s2-7-evidence.json](s2-7-evidence.json)（`tests/fixtures/runtime-s27/run-drill.mjs` 生成）。
+
+**改动**：只有测试与文档，加字幕定义里的一处写法统一（行为不变）。
+
+- 新增 `unified-runtime-audio-family`（9 条：同夹具开关关/开一致、新旧混跑无双计数、翻开关不改在途任务、课堂校正开关关闭的评审差异、控制台控制真实）与 `unified-runtime-audio-evidence`（8 条：证据文件与验收文档一致）。
+- 回退演练：`tests/fixtures/runtime-s27/{rollback,run-drill}.mjs` 用 `git archive v2.7.1` 解出旧树，六个开关全开做出产物/未完成工作后硬结束，旧树和当前代码分别读取、继续。**第一次运行发现 2.7.1 读不了当前代码的任务 manifest**（落盘意图的 `sideEffect`/`abandoned`），已在内核修复（#331，带 2.7.1 形状守卫），本步的证据是修复后的结果。
+- 两个有时序的 S2 测试改为等观察到的状态（见验收文档 §3）。
+- `lib/contexts/audio/jobs/subtitles-run.js`：把受保护的 store 直接交给 `storeSubtitle`，不再用"假 store 截取再发布"。
+- `tests/helpers/audio-fakes.mjs`：夹具里不依赖应用代码的部分（录音、字幕、各步骤的假回答），演练的旧树进程也能用。
+
+**已记录的回退差异**：批次"请求在途"的保护在 2.7.1 上不存在；2.7.1 的单文件「接着做」第一次点击可能被它自己的 `revision-conflict` 拒绝；回退再前进后旧的已中断卡片仍在。见验收文档 §4.2、§8。
+
+**未验证**：目标环境 smoke（验收文档 §7）。
