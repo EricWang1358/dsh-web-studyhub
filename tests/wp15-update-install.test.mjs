@@ -9,7 +9,7 @@ import { mkdtemp, readFile, readdir, rm, mkdir, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { installUpdate, prepareVerifiedPackage, updateDownloadDir, pluginInstallSupport } from '../lib/update-install.js';
-import { readUpdateView, releaseFromGithub, installedVersion, updateView } from '../lib/update-check.js';
+import { readUpdateView, releaseFromGithub, installedVersion, updateView, updateStatePath, checkForUpdate, setUpdatePreferences } from '../lib/update-check.js';
 import { createHostHandler } from '../lib/host.js';
 import { githubRelease } from './helpers/wp15-release.mjs';
 
@@ -176,4 +176,65 @@ test('a finished upgrade removes only the older StudyHub packages, never the sea
   await installUpdate({ view: view(), manager, fetch: net.fetch, activeJobs: 0 });
   assert.deepEqual((await readdir(updates)).sort(), [extension, 'ericwang1358-dsh-daily-flashcard-99.0.0.tgz', unrelated].sort(),
     'the old StudyHub package and its leftover download are gone; the extension installer and other files stay');
+});
+
+for (const entry of ['read', 'cached-check', 'disabled-check', 'preferences']) {
+  test(`a confirmed restart consumes the install marker before CLI rollback (${entry})`, async t => {
+    await home(t);
+    await installUpdate({ view: view(), manager: pluginManager(), fetch: releaseHost().fetch });
+    const before = JSON.parse(await readFile(updateStatePath(), 'utf8'));
+    Object.assign(before, { release: releaseFromGithub(githubRelease('v99.0.0')), autoCheck: entry !== 'disabled-check', nextCheckAt: Date.now() + 3600000, snoozed: '98.0.0' });
+    await writeFile(updateStatePath(), JSON.stringify(before));
+    const options = { current: '99.0.0', fetch: () => { throw new Error('cached or disabled checks must not fetch'); } };
+    if (entry === 'read') await readUpdateView(options);
+    else if (entry === 'preferences') await setUpdatePreferences({ autoCheck: false }, options);
+    else await checkForUpdate(options);
+    const saved = JSON.parse(await readFile(updateStatePath(), 'utf8'));
+    const rolledBack = updateView(saved, '98.0.0', '98.0.0');
+    assert.equal(rolledBack.upgradeAvailable, true, 'the old release must offer UI re-upgrade after CLI rollback');
+    assert.equal(rolledBack.pendingRestart, null, 'a completed restart cannot become pending again');
+    assert.equal(Object.hasOwn(saved, 'pending'), false, 'consume the persisted marker, not only its view');
+    assert.equal(saved.installedAt, before.installedAt);
+    assert.equal(saved.snoozed, before.snoozed);
+    assert.deepEqual(saved.release, before.release);
+  });
+}
+
+test('unconfirmed install markers survive reads and newer installs survive concurrent confirmation', async t => {
+  await home(t);
+  const { markUpdateInstalled } = await import('../lib/update-check.js');
+  await markUpdateInstalled('99.0.0');
+  for (const current of ['98.0.0', '99.0.0-rc.1', 'unknown']) {
+    await readUpdateView({ current });
+    assert.equal(JSON.parse(await readFile(updateStatePath(), 'utf8')).pending, '99.0.0');
+  }
+  await Promise.all([readUpdateView({ current: '99.0.0' }), markUpdateInstalled('100.0.0'), setUpdatePreferences({ autoCheck: false }, { current: '99.0.0' })]);
+  const saved = JSON.parse(await readFile(updateStatePath(), 'utf8'));
+  assert.equal(saved.pending, '100.0.0', 'confirmation must not overwrite a newer install receipt');
+  assert.equal(saved.autoCheck, false);
+});
+
+
+test('a delayed release response preserves a newer install receipt and does not hold its lock', { timeout: 10000 }, async t => {
+  await home(t);
+  const { markUpdateInstalled } = await import('../lib/update-check.js');
+  await markUpdateInstalled('99.0.0');
+  let entered, respond;
+  const fetching = new Promise(resolve => { entered = resolve; });
+  const response = new Promise(resolve => { respond = resolve; });
+  const releaseResponse = () => respond(new Response(JSON.stringify(githubRelease('v101.0.0'))));
+  t.after(releaseResponse);
+  const checked = checkForUpdate({ force: true, current: '99.0.0', fetch: () => { entered(); return response; } });
+  await fetching;
+  try {
+    await markUpdateInstalled('100.0.0');
+    await setUpdatePreferences({ autoCheck: false }, { current: '99.0.0' });
+  } finally { releaseResponse(); }
+  assert.equal((await checked).pendingRestart, '100.0.0');
+  const saved = JSON.parse(await readFile(updateStatePath(), 'utf8'));
+  assert.equal(saved.pending, '100.0.0');
+  assert.equal(saved.autoCheck, false);
+  assert.equal(saved.release.latest, '101.0.0');
+  await readUpdateView({ current: '101.0.0' });
+  assert.equal(Object.hasOwn(JSON.parse(await readFile(updateStatePath(), 'utf8')), 'pending'), false, 'a running version beyond the installed marker also confirms the restart');
 });

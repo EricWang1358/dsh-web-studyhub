@@ -30,3 +30,16 @@
 真实浏览器回归拦住公开 snapshot 的实际响应，点击进入练习，等产品自身解除 busy 后用原 `measureSidebar/checkContract` 检查高亮，再释放响应。100%/200% 两场景均先失败后通过；原有导航布局与一致性两文件 14/14 通过，零跳过。未改检查器、未加固定睡眠或扩大超时，ESLint 通过。无新公共部件或存储变更；复用既有宿主 UI 边界，对应 DSH-01/08。
 
 完整红绿日志在私有 `output/verification/publication-scope-{red,green,regression}.log`、`300-model-metadata-{red,green}.log` 与 `nav-busy-{red,green,regression}.log`。`ce-code-review` focused 审查已完成，0 findings，记录在 `output/verification/300-release-review/review.json`；独立本地上下文非代码作者，但此前提供过 QA 发现，不称盲审或跨模型审查。全量验证、双平台 CI、最终安装包复验仍是单独发布门禁。
+
+## 升级后回退旧版的待重启标记
+
+安装成功后，`markUpdateInstalled` 会把目标版本写入 DSH study 目录的 `update.json`。旧逻辑在新版本运行时只把已满足的 pending 标记从返回视图中忽略，磁盘记录仍在。随后通过 CLI 回退真实 2.7.1 包，旧版会把残留标记当作已安装的新版本，隐藏再次升级入口。既有测试只检查 pendingRestart 返回 null，没有检查持久缓存，因此未发现这个往返缺陷。
+
+修复限定在 `lib/update-check.js` 和既有 `tests/wp15-update-install.test.mjs`：当运行版本和 pending 都是有效版本、且运行版本已经达到或超过 pending 时，才持久清除该标记。普通读取、自动检查关闭、缓存仍新鲜、保存偏好四条路径均处理；未知运行版本、尚未实际运行的更高版本，以及低于目标正式版的预发布版本，不会被当作已确认。原 `updateView` 形状与比较规则不变，不删除整个缓存，也保留发布信息、安装时间和用户偏好。
+
+清理标记、新安装回执、偏好及检查结果的读改写复用已有 `withStoreLock` 与原子文件替换，网络请求不持锁，防止并发写入覆盖更新的安装记录。没有新增任务表、调度器或重试层；这属于插件已有升级缓存的生命周期修复，DSH 安装仍交给原有 pluginManager，对应 [DSH 能力边界](s1-0-dsh-capabilities.md)。旧进程若继续运行不带此锁的旧代码，不属于新写入者间互斥的保证范围。
+
+- 原始 5 项红灯：四条路径回退后无法再升级，以及并发写丢失新安装记录。修复后安装/检查两个测试文件 29/29 通过；最后为延迟网络用例加入有界超时及清理后，针对性 1/1 通过，ESLint 通过。
+- 验证包括未重启/未知版本保留、更高安装回执不被确认操作覆盖、网络等待期间仍可写入安装与偏好、实际运行版本高于标记时清除。
+- `ce-code-review` focused 审查已完成，0 findings；作者只提供 correctness 自审，发布负责人作为非作者执行独立本地 adversarial，不称跨模型审查。证据在私有 `output/verification/300-model-update-fix/{packet.json,review.json,metadata.json,stages.jsonl}`。
+- 本单元审查通过不表示正式发布完成。最终全量验证、双平台 CI 和保留 `update.json` 的真实 `2.7.1 → 3.0.0 → 2.7.1 → 3.0.0` 安装包往返，仍由发布验收单独记录。
