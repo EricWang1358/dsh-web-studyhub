@@ -219,13 +219,16 @@ test('a token budget the learner set stops the run at a round boundary and says 
   assert.ok(view.round.sections > 0 && view.canTopUp);
 });
 
-test('pause: the running round finishes, no new round starts, 暂停于第 1 轮之后; resume goes on; no round runs twice', async (t) => {
-  const hold = gate(), plans = [];
+/** Counts every model call the run makes, and holds nothing: what a pause must stop is the NEXT one. */
+const counting = (complete, counter) => async (system, prompt, context = {}) => { counter.calls += 1; return complete(system, prompt, context); };
+
+test('pause stops new model calls and waits for the running ones, not for the round: the call in flight finishes, nothing else starts, resume goes on; no round runs twice', async (t) => {
+  const hold = gate(), counter = { calls: 0 }, plans = [];
   const model = clusteringModel({ onPlan: request => plans.push(request.assignments?.map(item => item.sectionId).join() ?? '') });
   let held;
-  const { service, ids } = await library(t, { model, wrap: complete => { held = gated({ complete }, { at: 1, hold }); return held.complete; } });
+  const { service, ids } = await library(t, { model, wrap: complete => { held = gated({ complete: counting(complete, counter) }, { at: 1, hold }); return held.complete; } });
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
-  await until(() => hold.entered, 'round 1 to be in flight');
+  await until(() => hold.entered, 'the first planning call to be in flight');
   let contract = await contractOfJob(service, started.jobId);
   assert.equal(contract.actions.pause.mode, 'checkpoint');
   assert.equal(contract.actions.pause.available, true);
@@ -234,30 +237,113 @@ test('pause: the running round finishes, no new round starts, 暂停于第 1 轮
   const reply = await service.call('job.control', { jobId: started.jobId, action: 'pause' });
   assert.equal(reply.changed.paused, true);
   contract = await contractOfJob(service, started.jobId);
-  assert.equal(contract.status, 'pausing', 'asked, not reached: the round is still running');
+  assert.equal(contract.status, 'pausing', 'asked, not reached: a model call is still running');
+  assert.ok(contract.actions.pause.waiting.count >= 1, 'and it says what it waits for: the calls in flight');
   hold.open();
-  await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached');
-  await sleep(200);
-  let draft = await draftOf(service);
-  assert.deepEqual(statuses(draft), ['done', 'pending', 'pending'], 'round 1 finished, round 2 did not start');
-  assert.equal(draft.editorial.coverageRun.state, 'paused');
+  await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached once that call is done');
+  const callsAtPause = counter.calls;
+  assert.ok(callsAtPause >= 1, 'the planning call that was in flight when the pause was asked ran to its end');
+  await sleep(250);
+  assert.equal(counter.calls, callsAtPause, 'nothing new starts while it is paused, in the middle of round 1');
   contract = await contractOfJob(service, started.jobId);
   assert.equal(contract.status, 'paused');
   assert.equal(contract.actions.resume.available, true);
-  assert.equal(contract.detail.run.pausedAfter, 1, '暂停于第 1 轮之后');
-  assert.ok(eventCodes(contract).includes('run-paused'));
-  const askedWhilePaused = held.plans();
-  await sleep(150);
-  assert.equal(held.plans(), askedWhilePaused, 'nothing runs while it is paused');
+  assert.equal(contract.detail.run.pausedAfter, undefined, 'it stands inside round 1, not after a round');
+  assert.ok(eventCodes(contract).includes('paused'));
+  assert.ok(!eventCodes(contract).includes('run-paused'), 'no round ended: the run did not reach a boundary');
   await service.call('job.control', { jobId: started.jobId, action: 'resume' });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
-  draft = await draftOf(service);
+  const draft = await draftOf(service);
   assert.deepEqual(statuses(draft), ['done', 'done', 'done']);
   const done = await contractOfJob(service, started.jobId);
   assert.deepEqual(done.events.filter(event => event.code === 'round-start').map(event => event.args.round), [1, 2, 3], 'every round started exactly once, in order');
   assert.ok(plans.length > 0);
   assert.equal(draft.cards.length, draft.editorial.coverageSpec.goal);
+});
+
+test('a pause inside round 2 does not wait for the round: the round stays running on the draft, the questions that passed stay, and resume finishes the same round', async (t) => {
+  const hold = gate(), counter = { calls: 0 };
+  const { service, ids } = await library(t, { wrap: (complete, svc) => gatedAtRound(counting(complete, counter), svc, { round: 2, hold }) });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  await until(() => hold.entered, 'round 2 to be in flight');
+  const before = await draftOf(service);
+  assert.deepEqual(statuses(before), ['done', 'running', 'pending']);
+  const cardsOfRound1 = before.cards.map(card => card.id);
+  await service.call('job.control', { jobId: started.jobId, action: 'pause' });
+  assert.equal((await contractOfJob(service, started.jobId)).status, 'pausing');
+  hold.open();
+  await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached inside round 2');
+  const callsAtPause = counter.calls;
+  await sleep(250);
+  assert.equal(counter.calls, callsAtPause, 'round 2 was not finished: its remaining calls are held');
+  const paused = await draftOf(service);
+  assert.deepEqual(statuses(paused), ['done', 'running', 'pending'], 'round 2 is still the round in flight');
+  assert.deepEqual(paused.cards.map(card => card.id).slice(0, cardsOfRound1.length), cardsOfRound1, 'what passed review is kept');
+  await service.call('job.control', { jobId: started.jobId, action: 'resume' });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  assert.deepEqual(statuses(await draftOf(service)), ['done', 'done', 'done']);
+  const done = await contractOfJob(service, started.jobId);
+  assert.deepEqual(done.events.filter(event => event.code === 'round-start').map(event => event.args.round), [1, 2, 3], 'round 2 was resumed, not started again');
+});
+
+test('cancel while paused inside a round ends the run as stopped by the learner, with what passed review kept', async (t) => {
+  const hold = gate();
+  const { service, ids } = await library(t, { wrap: (complete, svc) => gatedAtRound(complete, svc, { round: 2, hold }) });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  await until(() => hold.entered, 'round 2 to be in flight');
+  const kept = (await draftOf(service)).cards.map(card => card.id);
+  await service.call('job.control', { jobId: started.jobId, action: 'pause' });
+  hold.open();
+  await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached');
+  await service.call('job.control', { jobId: started.jobId, action: 'cancel' });
+  const job = await settleJob(service, started.jobId, { timeoutMs: 20_000 });
+  assert.equal(job.status, 'cancelled');
+  const draft = await draftOf(service);
+  assert.deepEqual(draft.cards.map(card => card.id).slice(0, kept.length), kept);
+  assert.equal(draft.editorial.coverageRun.state, 'stopped');
+  assert.equal(draft.editorial.coverageRun.stop.reason, 'learner');
+});
+
+test('pause and resume more than once in one round: each pause is reached with no call running, and the run still ends complete', async (t) => {
+  const counter = { calls: 0 };
+  // Every call takes a moment, so the run is still working when each of the three pauses is asked.
+  const { service, ids } = await library(t, { wrap: complete => counting(async (system, prompt, context) => { await sleep(40); return complete(system, prompt, context); }, counter) });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  await until(() => counter.calls >= 1, 'the first model call');
+  for (let cycle = 1; cycle <= 3; cycle += 1) {
+    await service.call('job.control', { jobId: started.jobId, action: 'pause' });
+    await until(async () => ['paused', 'complete'].includes((await contractOfJob(service, started.jobId)).status), `pause ${cycle} to be reached`);
+    if ((await contractOfJob(service, started.jobId)).status === 'complete') break;
+    const frozen = counter.calls;
+    await sleep(80);
+    assert.equal(counter.calls, frozen, `nothing starts during pause ${cycle}`);
+    await service.call('job.control', { jobId: started.jobId, action: 'resume' });
+    await until(() => counter.calls > frozen, `the run to go on after resume ${cycle}`);
+  }
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  assert.deepEqual(statuses(await draftOf(service)), ['done', 'done', 'done']);
+});
+
+test('the time limit of a round is the time it works: a pause longer than the limit does not cost the round, and the round records only the time it worked', async (t) => {
+  const hold = gate(), roundMs = 3000;
+  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: roundMs }, wrap: complete => gated({ complete }, { at: 1, hold }).complete });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  await until(() => hold.entered, 'round 1 to be in flight');
+  await service.call('job.control', { jobId: started.jobId, action: 'pause' });
+  hold.open();
+  await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached');
+  const since = Date.now();
+  await until(() => Date.now() - since > roundMs + 500, 'the pause to outlast the limit of a round', { intervalMs: 50 });
+  await service.call('job.control', { jobId: started.jobId, action: 'resume' });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', `the round must not have timed out while paused: ${job.stage}`);
+  const rounds = roundList((await draftOf(service)).editorial.coverageSpec);
+  assert.deepEqual(rounds.map(round => round.status), ['done', 'done', 'done']);
+  assert.ok(rounds[0].ms < roundMs, `the pause is not in the ${rounds[0].ms} ms the round took`);
+  assert.ok(Date.parse(rounds[0].finishedAt) - Date.parse(rounds[0].startedAt) > roundMs, 'although it ended long after it started');
 });
 
 test('stop here (cancel) keeps everything approved: the rounds done stay, the round in flight is marked, the run says the learner stopped it', async (t) => {
@@ -313,15 +399,14 @@ test('the toggle 自动补到完整 can be flipped any time: off makes the run w
   assert.equal(waiting.editorial.coverageRun.autoComplete, false);
   const contract = await contractOfJob(first.service, startedOn.jobId);
   assert.equal(contract.detail.run.auto, false);
-  assert.equal(contract.actions.pause.available, false, 'a run that does not go on has no boundary to pause at');
+  assert.equal(contract.actions.pause.available, false, 'it has ended: nothing to pause');
   assert.equal(contract.actions.pause.reason.code, 'job-ended', 'it has ended: the job is over, nothing to pause');
   const onGate = gate();
   const second = await library(t, { wrap: complete => gated({ complete }, { at: 1, hold: onGate }).complete });
   const startedOff = await second.service.call('generate', { sourceIds: second.ids, coverageLevel: 'standard', kind: 'quiz', autoComplete: false });
   await until(() => onGate.entered, 'the manual round to be in flight');
   const live = await contractOfJob(second.service, startedOff.jobId);
-  assert.equal(live.actions.pause.available, false, 'manual: no boundary to pause at yet');
-  assert.equal(live.actions.pause.reason.code, 'manual-run');
+  assert.equal(live.actions.pause.available, true, 'manual: pause stops the calls, so it needs no boundary between rounds');
   await second.service.call('job.control', { jobId: startedOff.jobId, action: 'set', patch: { autoComplete: true } });
   onGate.open();
   assert.equal((await settleJob(second.service, startedOff.jobId)).status, 'complete');
@@ -410,7 +495,7 @@ test('the contract: a coverage run declares the pause checkpoint, a plain genera
   assert.equal(plain.actions.pause.available, false);
   assert.equal(plain.actions.pause.reason.code, 'single-round');
   const manual = jobContract({ id: 'c', status: 'running', control: { values: {}, limits: {} }, coverageRun: { autoComplete: false, round: 1, rounds: 3, state: 'running', list: [] } });
-  assert.equal(manual.actions.pause.reason.code, 'manual-run');
+  assert.equal(manual.actions.pause.available, true, 'a run that does not go on by itself pauses at its calls too');
   const interrupted = jobContract({ id: 'd', status: 'interrupted', retryable: true, coverageRun: { autoComplete: true, round: 2, rounds: 3, state: 'running', list: [] } });
   assert.equal(interrupted.actions.retry.available, true);
   assert.equal(jobContract({ id: 'e', status: 'interrupted', retryable: true }).actions.retry.available, true, 'a plain generation that kept a draft is continued too (the executor marks it retryable)');

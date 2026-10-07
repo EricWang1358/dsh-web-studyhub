@@ -48,7 +48,6 @@ const REASON = {
   'capability-unsupported': '这类任务不支持这个操作。',
   'no-safe-checkpoint': '这类任务一旦开始就没有安全的暂停点。',
   'single-round': '这次只出一轮，没有可以暂停的地方；可以停止，已通过的题会保留。',
-  'manual-run': '这次只做一轮，做完就停；勾选「自动补到完整」后，轮与轮之间才可以暂停。',
   'already-paused': '任务已经暂停，或正在暂停。',
   'not-paused': '任务没有暂停。',
   'already-cancelling': '任务正在停止。',
@@ -59,7 +58,7 @@ export function reasonText(action, name) {
   if (!action || action.available) return '';
   const code = action.reason?.code;
   // Pause is the one action whose absence deserves its own sentence: the learner expects it, and what to do instead is "stop".
-  if (name === 'pause' && ['single-round', 'manual-run'].includes(code)) return ui(REASON[code]);
+  if (name === 'pause' && code === 'single-round') return ui(REASON[code]);
   if (name === 'pause' && ['capability-unsupported', 'no-safe-checkpoint'].includes(code)) return ui('这类任务没有可以安全暂停的地方；可以停止，已完成的部分会保留。');
   return ui(REASON[code] || '这个操作现在不可用。');
 }
