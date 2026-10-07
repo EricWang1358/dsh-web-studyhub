@@ -96,10 +96,13 @@ test('a switch moves its own family and no other; the translation overlaps the g
 
 test('with the policies on, the recap, the teaching and the translation ask a host sub-agent through the one gateway, and the usage is still counted once', async t => {
   const host = childHost({ replyFor: childReply }), model = mixedModel(), f = await mixedLibrary(t, { model, host });
-  await f.translate(); await f.recap(); await f.teach();
+  // One family after the other: this test is about who answers the calls, not about three writers sharing the library's store lock (whose bounded retries a starved machine can exhaust).
+  const first = await f.translate(); await settleJob(f.service, first.jobId);
+  await f.recap(); await until(async () => (await rowsOf(f.service)).find(row => row.type === 'daily-recap')?.contract.finishedAt, 'the recap to end');
+  await f.teach();
   await until(async () => { const rows = await rowsOf(f.service); return rows.length === 3 && rows.every(row => row.contract.finishedAt); }, 'the three jobs to end');
   const rows = await rowsOf(f.service);
-  assert.deepEqual(rows.map(row => row.status), ['complete', 'complete', 'complete']);
+  assert.deepEqual(rows.map(row => [row.type, row.status, row.status === 'complete' ? '' : [row.stage, row.contract.error?.code, row.contract.error?.message].join(' | ')]), [['translation', 'complete', ''], ['daily-recap', 'complete', ''], ['workflow-teaching', 'complete', '']]);
   const calls = rows.flatMap(row => row.contract.calls);
   assert.ok(calls.length > 0 && calls.every(call => call.runner === 'subagent' && call.executionMode === 'agent-preferred' && call.parentId === 'parent' && call.childId), 'every call was a child of the host');
   assert.equal(model.calls.length, 0, 'the direct model was not asked');
