@@ -1767,5 +1767,49 @@
   "policySwitches": {
     "dailyRecapAgent": "the daily recap Job asks a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)",
     "workflowAgent": "teachings and skeletons of the learning workflow ask a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)"
-  }
+  },
+  "hostModelAccess": [
+    {
+      "file": "lib/runtime/instant.js",
+      "calls": [
+        {
+          "callee": "modelServices",
+          "count": 1
+        }
+      ],
+      "disposition": "entry",
+      "owner": "lane C (S6-5a)",
+      "reason": "The one metered entry: every request's and executor's model services are made here, usage booked once, instant requests under the shared provider quota lease (INSTANT_ACTIONS)",
+      "removeAt": "stays",
+      "evidence": "s6-5a-instant.md; tests/unified-runtime-instant.test.mjs; tests/instant-ledger-characterization.test.mjs"
+    },
+    {
+      "file": "lib/runtime/models.js",
+      "calls": [
+        {
+          "callee": "modelServices",
+          "count": 1
+        }
+      ],
+      "disposition": "definition",
+      "owner": "lane C (S6-5a)",
+      "reason": "Defines modelServices (language, local-content preparation, the light route) and uses it for the host's own service object",
+      "removeAt": "stays",
+      "evidence": "s6-5a-instant.md"
+    },
+    {
+      "file": "lib/service.js",
+      "calls": [
+        {
+          "callee": "modelServices",
+          "count": 4
+        }
+      ],
+      "disposition": "exception",
+      "owner": "existing domain maintainer",
+      "reason": "StudyService's compatibility getters (complete, light, fetch, WebSocket) hand the host's model to in-process callers that predate the runtime ports (the legacy assistant, audio and live paths)",
+      "removeAt": "S6-2 (the in-process executors) with the callers that read them",
+      "evidence": "s6-0-coverage.md; s6-5a-instant.md"
+    }
+  ]
 }

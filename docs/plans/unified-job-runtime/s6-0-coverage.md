@@ -173,6 +173,7 @@
 1. **（已解决：S2-6，`audioLiveSave`）课堂保存（校对）没有开关，仍在旧音频执行器上**（`operations.js:335`、`lib/live-job.js`、`lib/audio-job.js` 的 `jobTextModel`）：它是 S2-6（U7，A 道）；S2-6 迁完才能删 `startAudioJob`（见 §7 顺序）。
 2. **`note.generate`（博客笔记后台起草）完全不在计划里**：模型直接调用、自己的表项、没有 Job、不在任务控制台。**已决定（所有者，2026-10-07）并已完成**：成为新工作包 S4-10（`noteGenerate`），见 `s4-10-note-generate.md`。
 3. **即时模型请求绕过网关**：capture、card.grade、followup、ingest、oral exam、`generate.suggest`、教练的 nudge/debrief/rewrite、实时翻译等直接调用宿主模型。它们是 S4-0 明确保持即时的请求，但这意味着它们**不进统一的资源许可、用量与观测**（只靠既有每日账本）。**已决定（所有者，2026-10-07）**：保持即时，但 S6-5 必须让它们经网关的计量路径共享 provider 配额与用量账本，见下面"所有者决定"。
+   **S6-5a 已做**：这些请求现在经唯一的计量入口 `lib/runtime/instant.js`（共享 provider 配额的 `instant-text` 租约 + 用量账本只记一次）；入口、定义与兼容 getter 之外调用 `modelServices(` 会被守卫拒绝；名单与处置见 `s6-5a-instant.md` 与清单的 `hostModelAccess`。`materials.selection.ask` 今天不记账本，是登记在案的缺口。
 4. **模型调用点清单漏掉了别名调用**：旧匹配只认名为 `complete` 的函数，漏了 `providedComplete/providedLight`（上下文操作拿到的宿主模型）。本步把这两个名字加进匹配，新发现 5 个文件（上表"新增"行）。仍然看不到的：经其他名字传递的模型函数（如 `askLight`、`ask`）——它们出现在注入模型的流水线内，由调用方负责，登记为共享流水线。
 5. **原清单的理由大面积失真**（33 条里 21 条是同一句套话）、2 条误报：理由已重写；误报已随匹配器收紧消失（决定 3）。
 6. **控制适配仍挂着旧表**：托管出题/翻译 Job 仍把控制器登记进 `generationControllers`、控件读 `jobControls`、暂停边界靠 `job-control.js:43` 的轮询、并仍在每库 `work.queues` 里排队（S3-1 的选择）。这些是 S6-5"全家族控制台"要收的。
