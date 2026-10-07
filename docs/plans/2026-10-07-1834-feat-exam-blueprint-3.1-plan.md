@@ -493,7 +493,7 @@ MVP是一个“范围→证据蓝图→综合题→评分→补弱”的闭环�
 | 实现：模块的标志、摘要、计划里的校验、视图的 `detail.targetId`/`supersedes`、保存时写 `createdAt` 并随 ingest 存档旧清单 | 01:17 | 01:19 | 第一次运行 33/35：我的测试读错了任务（取了第一个任务）和传了非字符串（合同本来就拒绝），两处是测试的问题 |
 | CI：`slow-tests.json` 加 `tests/exam-blueprint-material.test.mjs`，跑 `slow-tests-list` 与 `ui-guardrails` | 01:19 | 01:20 | 39 条通过 |
 
-变更量（第三轮）：业务代码与测试 `3e38c62b`：`lib/` 8 个文件共 19 / 12 行，测试 3 个文件加 `slow-tests.json` 共 65 / 1 行；**登记** `55e2201a`：只有 `lib/runtime/builtins.js` 的 **5 / 0** 行（`sources.ingest` 多接受 `archive`，两个 import 和三行逻辑）。登记计数（19 个定义、24 个开关）、授权、`usage.estimate`、清单与文档都没有变。合并 3.0.1（`d932dce4`）无冲突。测试：任务 18 条、模块 9 条、隐藏 8 条（35 条全绿）；`slow-tests-list` + `ui-guardrails` 39 条；守卫与邻近 76 条、邻近 767 条，0 失败。
+变更量（第三轮）：业务代码与测试 `3e38c62b`：`lib/` 8 个文件共 19 / 12 行，测试 3 个文件加 `slow-tests.json` 共 65 / 1 行；**登记** `3178df33`：只有 `lib/runtime/builtins.js` 的 **5 / 0** 行（`sources.ingest` 多接受 `archive`，两个 import 和三行逻辑）。登记计数（19 个定义、24 个开关）、授权、`usage.estimate`、清单与文档都没有变。合并 3.0.1（`d932dce4`）无冲突。测试：任务 18 条、模块 9 条、隐藏 8 条（35 条全绿）；`slow-tests-list` + `ui-guardrails` 39 条；守卫与邻近 76 条、邻近 767 条，0 失败。
 
 ### 修订 5：备考补习学习模型（2026-10-08，第二轮）
 
