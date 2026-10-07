@@ -182,6 +182,20 @@ test('Marker settings load the path promptly and reject a stale initial probe af
   assert.deepEqual(calls.find(item => item.action === 'marker.settings.set').args, { command: 'new-path' });
   mounted.close();
 });
+test('an empty path box never overwrites the saved path: 保存并检测 only checks', async () => {
+  for (const saved of ['', 'F:\StudyHub-Marker\venv\Scripts\marker_single.exe']) {
+    const calls = [];
+    const props = { call: async (action, args) => { calls.push({ action, args }); if (action === 'marker.settings.get') return { command: saved }; if (action === 'marker.local.status') return { state: 'ready' }; return {}; } };
+    const mounted = mountPdf(props, 'MarkerSettings');
+    mounted.render(); await flush();
+    let tree = mounted.render();
+    find(tree, item => item.props?.placeholder === 'marker_single').props.onChange({ target: { value: '   ' } });
+    tree = mounted.render(); await find(tree, item => item.props.children === '保存并检测').props.onClick(); await flush();
+    assert.equal(calls.filter(item => item.action === 'marker.settings.set').length, 0, `a blank box (saved: ${JSON.stringify(saved)}) writes nothing`);
+    assert.equal(calls.filter(item => item.action === 'marker.local.status').length, 2, 'it still checks');
+    mounted.close();
+  }
+});
 test('a host without audio offers external guidance and never calls unavailable converter operations', async () => {
   const calls = [], call = async action => { calls.push(action); return {}; };
   const settings = mountPdf({ call, available: false }, 'MarkerSettings');

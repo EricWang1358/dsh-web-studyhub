@@ -6,7 +6,7 @@ import path from 'node:path';
 import { effectiveMarkerSettings, markerInstallStatePath, venvLayout, MARKER_INSTALL } from '../lib/marker-install.js';
 import { markerSettingsPath, saveMarkerSettings } from '../lib/marker-settings.js';
 
-// Found on the owner's machine (3.0.0): Marker installed by StudyHub (F:\StudyHub-Marker), its path field empty, 保存并检测 said "没有通过" because the empty path only looks in PATH.
+// Found on the owner's machine (3.0.0): Marker installed by StudyHub (F:\StudyHub-Marker), its path field empty, 检测并保存 said "没有通过" because the empty path only looks in PATH.
 // An empty saved path means "find it for me": that includes the environment StudyHub made itself, while it is still there. An explicit path never falls back.
 async function home(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'study-marker-fallback-'));

@@ -31,9 +31,12 @@ export default function MarkerSettings({ call, disabled = false, available = tru
     const generation = ++revision.current;
     setWorking(true); setStatus(null); setError('');
     try {
-      await call('marker.settings.set', { command: command.trim() });
-      const result = await call('marker.local.status', {});
-      if (alive.current && revision.current === generation) setStatus(result);
+      // 检测并保存: the path in the box is checked first and saved only when it passes, so a path that does not work never replaces one that does. A blank box has nothing to save: it only checks what is in use now.
+      const wanted = command.trim();
+      const result = await call('marker.local.status', wanted ? { command: wanted } : {});
+      const passed = result?.state === 'ready';
+      if (wanted && passed) await call('marker.settings.set', { command: wanted });
+      if (alive.current && revision.current === generation) setStatus(wanted && !passed ? { ...result, notSaved: true } : result);
     } catch (failure) { if (alive.current) setError(errorMessage(failure)); }
     finally { saving.current = false; if (alive.current) setWorking(false); }
   }
@@ -56,9 +59,10 @@ export default function MarkerSettings({ call, disabled = false, available = tru
       <TextInput value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCommand(event.target.value); }} />
     </Field>
     {!command.trim() && status?.command && <Hint>{uiFormat('正在使用：{0}', [status.command])}</Hint>}
-    <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('保存并检测')}</Button></div>
+    <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('检测并保存')}</Button></div>
     <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。')}</Hint>
     {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
+    {status?.notSaved && <Hint>{ui('没有通过检测，所以没有保存；原来的路径没有改动。')}</Hint>}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </div>
     <Disclosure summary={ui('安装与使用说明')}>
