@@ -1,59 +1,57 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { access, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { family } from './nonmodel-library.mjs';
-import { soon } from './console-families.mjs';
+import { gate, soon } from './console-families.mjs';
+import { FRESH } from './mineru-setup-harness.mjs';
+import { readJsonFile, writeJsonFile } from './wait.mjs';
 
-/* The families of the 任务 console that run a program, a cloud conversion or an index build instead of a model (S5-7): a PDF conversion, the Marker install, the local MinerU setup and a
-   retrieval index build. Same driver shape as console-families.mjs; every program is a fake (tests/helpers/nonmodel-library.mjs). With a switch off only the PDF conversion is a row of the
-   console (the other three keep their own status door), so `done` waits on the family's own door, which answers the same on both sides of the switch. */
-
+// PDF has its own console matrix. These legacy paths have a family status panel
+// but no job card until their migration switch is enabled.
+const CLI = fileURLToPath(new URL('./console-families-cli.mjs', import.meta.url));
 const ENDED = ['complete', 'done', 'failed', 'cancelled', 'canceled'];
-const patient = { timeoutMs: 240_000 };
-const ownEnded = (read, what) => soon(async () => ENDED.includes((await read()).status), what, patient);
-const rowIs = (world, type, status) => soon(async () => (await world.jobs()).some(job => job.type === type && job.status === status), `a ${type} job to be ${status}`, patient);
-const setPython = (world, state) => writeFile(world.files.py, JSON.stringify(state));
-const open = fakes => async t => {
-  const world = await family(t, { paths: [], fakes });
-  world.holds = []; world.set = (on, names) => { for (const name of names) world.pilot[name] = on; };
+async function open(t) {
+  const index = { hold: null, fail: false };
+  const world = await family(t, { paths: [], fakes: { cliWrapper: CLI, release: () => index.hold?.open(), onIngest: async () => {
+    if (index.hold) { index.hold.entered = true; await index.hold.promise; }
+    if (index.fail) throw new Error('network fixture indexing failed');
+  } } });
+  world.indexControl = index; world.releaseFile = join(world.dir, 'cli-release');
+  world.set = (on, switches) => { for (const name of switches) world.pilot[name] = on; };
+  await writeFile(world.releaseFile, 'release');
   return world;
+}
+const cliHold = async world => {
+  await rm(world.releaseFile, { force: true }); await rm(`${world.releaseFile}.entered`, { force: true });
 };
+const cliEntered = world => soon(() => access(`${world.releaseFile}.entered`).then(() => true, () => false), 'fake installer process to enter its gate');
+const cliRelease = world => writeFile(world.releaseFile, 'release');
+const finish = async (world, driver) => soon(async () => {
+  const state = await world.call(driver.status, driver.args);
+  return ENDED.includes(state.status) && state;
+}, `${driver.id} to finish`);
 
-const pdfDriver = {
-  id: 'pdf', title: 'PDF 转换', kinds: ['pdf-convert'], switches: ['pdfConvert'], message: false, open: open(),
-  async start(world) { return world.call('mineru.import', { uploadId: await world.upload(3), title: 'Book', courses: ['OS'] }); },
-  async done(world) { const started = await this.start(world); await world.ended(started.jobId); return started; },
-  async held(world) { world.hold.pdf = true; const started = await this.start(world); await rowIs(world, 'pdf-convert', 'running'); return { started, release: () => { world.hold.pdf = false; } }; },
+const marker = {
+  id: 'marker', kind: 'marker-install', switches: ['markerInstall'], status: 'marker.install.status', cancel: 'marker.install.cancel', args: {}, open,
+  start: world => world.call('marker.install.start', { confirm: true }),
+  reset: world => world.call('marker.install.uninstall', { confirm: true }),
+  hold: cliHold, entered: cliEntered, release: cliRelease,
+  fail: world => writeJsonFile(world.files.py, { failPip: true }),
 };
-const markerDriver = {
-  id: 'marker', title: 'Marker 安装', kinds: ['marker-install'], switches: ['markerInstall'], message: false, open: open(),
-  async start(world) { return world.call('marker.install.start', { confirm: true }); },
-  async done(world) { const started = await this.start(world); await ownEnded(() => world.call('marker.install.status'), 'the install'); return started; },
-  async held(world) {
-    await setPython(world, { delayPip: true });
-    const started = await this.start(world);
-    await soon(async () => (await world.call('marker.install.status')).stage === 'install', 'the install to reach pip', patient);
-    return { started, release: () => setPython(world, {}) };
-  },
+const setup = {
+  id: 'mineru-setup', kind: 'mineru-setup', switches: ['mineruSetup'], status: 'mineru.local.setup.status', cancel: 'mineru.local.setup.cancel', args: {}, open,
+  start: world => world.call('mineru.local.setup', { tier: 'basic', confirm: true }),
+  reset: async world => writeJsonFile(world.files.mineru, { ...await readJsonFile(world.files.mineru), ...FRESH }),
+  hold: cliHold, entered: cliEntered, release: cliRelease,
+  fail: async world => writeJsonFile(world.files.mineru, { ...await readJsonFile(world.files.mineru), downloadFails: true }),
 };
-const mineruSetupDriver = {
-  id: 'mineru-setup', title: 'MinerU 本地安装', kinds: ['mineru-setup'], switches: ['mineruSetup'], message: false, open: open(),
-  async start(world) { return world.call('mineru.local.setup', { tier: 'basic', confirm: true }); },
-  async done(world) { const started = await this.start(world); await ownEnded(() => world.call('mineru.local.setup.status', {}), 'the setup'); return started; },
-  async held(world) {
-    // every call of the fake command line takes a while, so the setup is still on its first steps when the console looks
-    await writeFile(world.files.mineru, JSON.stringify({ ...JSON.parse(await readFile(world.files.mineru, 'utf8')), delayMs: 20_000 }));
-    const started = await this.start(world);
-    return { started, release: async () => writeFile(world.files.mineru, JSON.stringify({ ...JSON.parse(await readFile(world.files.mineru, 'utf8')), delayMs: 0 })) };
-  },
+const index = {
+  id: 'index', kind: 'retrieval-index', switches: ['retrievalIndex'], status: 'retrieval.index.status', cancel: 'retrieval.index.cancel', args: { course: 'OS' }, open,
+  start: world => world.call('retrieval.index.start', { course: 'OS' }),
+  reset: world => world.service.store.update(state => { for (const source of state.sources) source.text += '\nOne more indexable fact.'; }),
+  hold: async world => { world.indexControl.hold = gate(); },
+  entered: world => soon(() => world.indexControl.hold.entered, 'fake search extension to receive an ingest'),
+  release: async world => { world.indexControl.hold?.open(); },
+  fail: async world => { world.indexControl.fail = true; },
 };
-const indexDriver = {
-  id: 'index', title: '检索索引', kinds: ['retrieval-index'], switches: ['retrievalIndex'], message: false, open: open(),
-  async start(world) { return world.call('retrieval.index.start', { course: 'OS' }); },
-  async done(world) { const started = await this.start(world); await ownEnded(() => world.call('retrieval.index.status', { course: 'OS' }), 'the index build'); return started; },
-  async held(world) {
-    world.hold.index = true; const started = await this.start(world);
-    await soon(() => world.index.calls.length > 0, 'the build to reach the extension', patient);
-    return { started, release: () => { world.hold.index = false; } };
-  },
-};
-
-export const PROCESS_DRIVERS = [pdfDriver, markerDriver, mineruSetupDriver, indexDriver];
+export const PROCESS_DRIVERS = [marker, setup, index].map(driver => ({ ...driver, finish: world => finish(world, driver) }));

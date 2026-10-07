@@ -3,14 +3,14 @@ import { reportUsage } from '../../lib/usage-scope.js';
 import { privateRoot } from './model-family-baseline.mjs';
 import { managedRuntimeOptions } from './runtime-switch.mjs';
 import { until } from './wait.mjs';
-import { stagedModel } from './generation-baseline.mjs';
+import { gate, stagedModel } from './generation-baseline.mjs';
 import { card, SCHEDULE, ONE_BY_ONE, evidence, other } from './supplement-fixtures.mjs';
 
-/* The families of the 任务 console, each as a DRIVER: how to open a library for it with its migration switches flippable at any moment (so old and new jobs can sit in one service), and how to
-   bring a job of each kind of the family to the three states the matrix looks at: finished, running (held at its model or process) and failed. Fakes only; nothing leaves the machine.
-   A driver: { id, title, switches, kinds, open(t) -> world, done(world), held(world) -> { id, release }, failed?(world) }; a job is named by what its own door answered (`started`); `rowOf` finds it. */
+/* Public family submissions for the non-audio console matrix. A driver opens a
+   private library, starts real domain work and waits through its public status.
+   world.model holds/fails only the fake provider; no projected job is fabricated. */
 
-export const gate = () => { let open; const promise = new Promise(resolve => { open = resolve; }); return { promise, open, entered: false }; };
+export { gate };
 const soon = (condition, what) => until(condition, what, { timeoutMs: 90_000 });
 export const rowOf = async (service, started) => {
   const wanted = typeof started === 'string' ? started : started.jobId ?? started.id;
@@ -21,9 +21,19 @@ const settled = (service, started) => until(async () => { const row = await rowO
 /** A service whose switches can be flipped between two submissions: `pilot` is the object every context reads when it decides how to carry a job out. */
 export async function openWorld(t, { complete, prefix = 'console-matrix-', options = {}, setup } = {}) {
   const root = await privateRoot(t, prefix);
-  const { starts: _starts, ...managed } = managedRuntimeOptions({ complete, paths: [] });
-  const service = new StudyService(root, { complete, coach: false, ...managed, ...options });
-  const world = { root, service, pilot: managed.runtimePilot, complete, holds: [] };
+  const model = { gate: null, fail: false, calls: 0 };
+  const wrap = answer => async (...args) => {
+    model.calls++;
+    if (model.gate) { model.gate.entered = true; await model.gate.promise; }
+    args[2]?.signal?.throwIfAborted();
+    if (model.fail) throw new Error('console fixture model failed');
+    return answer(...args);
+  };
+  const controlled = wrap(complete);
+  const { starts: _starts, ...managed } = managedRuntimeOptions({ complete: controlled, paths: [] });
+  const service = new StudyService(root, { coach: false, ...managed, ...options, complete: controlled,
+    ...(options.completeLight ? { completeLight: wrap(options.completeLight) } : {}) });
+  const world = { root, service, pilot: managed.runtimePilot, complete: controlled, model, holds: [] };
   t.after(async () => { for (const hold of world.holds) hold.open?.(); await service.dispose(); });
   world.set = (on, switches) => { for (const name of switches) world.pilot[name] = on; };
   await setup?.(world);
@@ -34,7 +44,7 @@ export async function openWorld(t, { complete, prefix = 'console-matrix-', optio
 
 const GENERATION_SWITCHES = ['generation', 'generationRepair', 'generationPublish'];
 async function generationWorld(t) {
-  const hold = gate(), staged = stagedModel({ holdAt: 'plan', hold });
+  const staged = stagedModel();
   const complete = async (system, prompt, context = {}) => {
     reportUsage({ uncachedInputTokens: 30, outputTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0 });
     if (system.startsWith('Repair one draft card')) { const input = JSON.parse(prompt); return JSON.stringify({ card: { ...input.card, explanation: `Fixed: ${input.card.explanation}` } }); }
@@ -47,7 +57,7 @@ async function generationWorld(t) {
     await service.store.update(state => { state.decks.push({ id: 't', title: 'Target', course: 'A', cards: [{ ...card('old'), review: SCHEDULE }], createdAt: '2026-09-29T00:00:00.000Z' }); });
     const imported = await service.call('materials.document.import', { filename: 'notes.md', dataBase64: Buffer.from(`# Notes\n\n${passage}`).toString('base64') });
     w.selection = (await service.call('materials.selection.resolve', { documentId: imported.documentId, revision: imported.revision, quote: passage })).selection;
-    w.hold = hold; w.staged = staged; w.count = 0; w.holds.push(hold);
+    w.count = 0;
   } });
   return world;
 }
@@ -58,26 +68,24 @@ const draftOf = async (world, kind) => {
   const saved = await world.service.call('draft.save', { deck: { id, title: `Draft ${n}`, cards: [base(`${id}-a`, n), base(`${id}-b`, n + 100)], course: 'A', ...(rejected ? { editorial: rejected } : {}) } });
   return { id, version: saved.draftVersion };
 };
+const targetOf = async world => {
+  const id = `target-${++world.count}`;
+  await world.service.store.update(state => { state.decks.push({ ...structuredClone(state.decks.find(deck => deck.id === 't')), id }); });
+  return id;
+};
 const startGeneration = {
   generate: world => world.service.call('generate', { sourceIds: ['p2'], count: 1, kind: 'flashcard', performance: ONE_BY_ONE }),
-  supplement: world => world.service.call('supplement', { sourceIds: ['p1'], deckId: 't', count: 1, kind: 'flashcard', performance: ONE_BY_ONE }),
-  selection: async world => world.service.call('generation.selection.start', { selection: world.selection, deckId: 't', expectedVersion: (await world.service.call('export')).decks.find(deck => deck.id === 't').version ?? 0,
+  supplement: async world => world.service.call('supplement', { sourceIds: ['p1'], deckId: await targetOf(world), count: 1, kind: 'flashcard', performance: ONE_BY_ONE }),
+  selection: async world => world.service.call('generation.selection.start', { selection: world.selection, deckId: await targetOf(world), expectedVersion: 0,
     count: 1, kind: 'flashcard', operationId: `op-${++world.count}` }),
   repair: async world => { const draft = await draftOf(world, 'repair'); return world.service.call('draft.repair', { id: draft.id, draftVersion: draft.version }); },
   publish: async world => { const draft = await draftOf(world, 'publish'); return world.service.call('draft.publish.start', { id: draft.id, draftVersion: draft.version, mergeTargetId: 't' }); },
 };
 const generationDriver = (name, kind, switches) => ({
-  id: `generation:${name}`, title: `出题 · ${name}`, kinds: [kind], switches, message: name === 'generate' || name === 'supplement',
+  id: `generation:${name}`, title: `出题 · ${name}`, kinds: [kind], switches, message: name !== 'publish',
   open: generationWorld,
-  async done(world) { world.hold.open(); const started = await startGeneration[name](world); await settled(world.service, started); return started; },
-  async held(world) {
-    // the hold of the model stage: the first call of the next job waits for it (a publication or a repair that asks no plan is held by a generate in front of it)
-    world.hold.entered = false; world.hold.promise = new Promise(resolve => { world.hold.open = resolve; });
-    const started = await startGeneration[name](world);
-    if (['generate', 'supplement', 'selection'].includes(name)) await soon(() => world.hold.entered, 'the model to be asked');
-    else await soon(async () => (await rowOf(world.service, started))?.status === 'running' || (await rowOf(world.service, started))?.status === 'complete', 'the job to run');
-    return { started, release: () => world.hold.open() };
-  },
+  start: startGeneration[name],
+  async done(world) { const started = await startGeneration[name](world); await settled(world.service, started); return started; },
 });
 export const GENERATION_DRIVERS = [
   generationDriver('generate', 'generation', GENERATION_SWITCHES), generationDriver('supplement', 'supplement', GENERATION_SWITCHES), generationDriver('selection', 'supplement', GENERATION_SWITCHES),

@@ -31,18 +31,24 @@ export async function family(t, { paths = ALL_PATHS, fakes = {} } = {}) {
   const files = { py: join(dir, 'py.json'), mineru: join(dir, 'mineru.json') };
   await writeFile(files.py, JSON.stringify(fakes.py ?? {})); await writeFile(join(dir, 'py.log'), '');
   await writeFile(files.mineru, JSON.stringify({ version: '4.0.10', ...FRESH, ...fakes.mineru })); await writeFile(join(dir, 'mineru.log'), '');
-  const pyEnv = { FAKE_PY_STATE: files.py, FAKE_PY_LOG: join(dir, 'py.log') };
-  const mineruCli = patientCli({ file: process.execPath, prefix: [FAKE_MINERU], env: { FAKE_MINERU_STATE: files.mineru, FAKE_MINERU_LOG: join(dir, 'mineru.log') } });
+  const prefix = target => [...(fakes.cliWrapper ? [fakes.cliWrapper] : []), target];
+  const cliEnv = fakes.cliWrapper ? { CONSOLE_CLI_GATE: join(dir, 'cli-release') } : {};
+  const pyEnv = { FAKE_PY_STATE: files.py, FAKE_PY_LOG: join(dir, 'py.log'), ...cliEnv };
+  const mineruCli = patientCli({ file: process.execPath, prefix: prefix(FAKE_MINERU), env: { FAKE_MINERU_STATE: files.mineru, FAKE_MINERU_LOG: join(dir, 'mineru.log'), ...cliEnv } });
   const hold = { pdf: false, index: false };
-  const cloud = await startFakeMineru({ holdWhen: () => hold.pdf }), index = fakeIndexPort({ onIngest: async (...args) => { if (hold.index) await untilAborted(...args); } }), fake = model(), clock = { time: 5_000_000 };
+  const cloud = await startFakeMineru({ holdWhen: () => hold.pdf }), index = fakeIndexPort({ onIngest: async (...args) => {
+    if (fakes.onIngest) await fakes.onIngest(...args); else if (hold.index) await untilAborted(...args);
+  } }), fake = model(), clock = { time: 5_000_000 };
   const { starts: _starts, ...managed } = managedRuntimeOptions({ paths, complete: fake.complete });
   const service = new StudyService(join(dir, 'library'), { ...managed, complete: fake.complete, coach: false, retrieval: index.port,
-    marker: { install: { pythons: [patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env: pyEnv })], freeMegabytes: async () => 100_000,
-      venvPython: folder => patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env: { ...pyEnv, FAKE_PY_VENV: venvLayout(folder).venv } }),
+    marker: { install: { pythons: [patientCli({ file: process.execPath, prefix: prefix(FAKE_PYTHON), env: pyEnv })], freeMegabytes: async () => 100_000,
+      venvPython: folder => patientCli({ file: process.execPath, prefix: prefix(FAKE_PYTHON), env: { ...pyEnv, FAKE_PY_VENV: venvLayout(folder).venv } }),
       markerCli: () => patientCli({ file: process.execPath, prefix: [FAKE_MARKER], env: {} }) } },
     mineru: { baseUrl: cloud.baseUrl, now: () => clock.time, sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 10)); },
       local: { cli: mineruCli, home: join(dir, 'mineru-home'), modelsCli: patientCli({ ...mineruCli }) } } });
   t.after(async () => {
+    if (fakes.cliWrapper) await writeFile(join(dir, 'cli-release'), 'release');
+    fakes.release?.();
     await new Promise(resolve => setTimeout(resolve, 20));
     await service.dispose(); await cloud.close();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
