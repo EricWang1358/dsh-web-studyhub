@@ -1,0 +1,417 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 备考补习 (ui/exam-prep/): the list of 考点清单, one list's points, and the create form. Tokens only; every line of a row has a fixed place, so a build that
+       starts or ends, a time that arrives or a quote that opens moves nothing that was already shown. At narrow widths the row stacks. */
+    .exam-prep {
+      display: grid;
+      gap: var(--space-4);
+      align-content: start;
+    }
+    .exam-prep-list {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .exam-prep-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'open counts' 'basis state';
+      align-items: baseline;
+      gap: var(--space-1) var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+    }
+    .exam-prep-row:hover {
+      background: var(--bg-hover);
+    }
+    .exam-prep-row__open {
+      grid-area: open;
+      display: grid;
+      gap: var(--space-half);
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .exam-prep-row__open.is-static {
+      cursor: default;
+    }
+    /* The whole row is the button: its box covers the row, and the controls inside the row sit above it. */
+    .exam-prep-row__open:not(.is-static)::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius-sm);
+    }
+    .exam-prep-row__open:focus-visible {
+      outline: none;
+    }
+    .exam-prep-row__open:focus-visible::after {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+    .exam-prep-row__title {
+      min-width: 0;
+      overflow: hidden;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .exam-prep-row__meta,
+    .exam-prep-row__time,
+    .exam-prep-row__counts,
+    .exam-prep-row__basis {
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+    }
+    .exam-prep-row__meta {
+      min-height: 1lh;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .exam-prep-row__counts {
+      grid-area: counts;
+      justify-self: end;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .exam-prep-row__basis {
+      grid-area: basis;
+      position: relative;
+      z-index: 1;
+      justify-self: start;
+      min-width: 0;
+    }
+    .exam-prep-row__state,
+    .exam-prep-row__time {
+      grid-area: state;
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 1.75rem;
+      position: relative;
+      z-index: 1;
+    }
+    .exam-prep-row.is-building {
+      grid-template-areas: 'open open' 'bar state';
+    }
+    .exam-prep-row__bar {
+      grid-area: bar;
+      min-width: 8rem;
+    }
+    .exam-prep-inputs {
+      display: grid;
+      gap: var(--space-1-5);
+      margin: var(--space-3) 0 0;
+      padding: 0;
+      list-style: none;
+      text-align: left;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .exam-prep-inputs strong {
+      color: var(--text);
+      font-weight: var(--fw-strong);
+    }
+    .exam-prep-empty__other,
+    .exam-prep-none {
+      margin: var(--space-3) 0 0;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .exam-prep-failed {
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--warn-line);
+      border-radius: var(--radius-sm);
+      background: var(--warn-bg);
+      color: var(--warn-ink);
+      font-size: var(--fs-sm);
+    }
+    /* One list: its basis and counts, the filter, the points, what could not be placed. */
+    .exam-prep-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2) var(--space-4);
+      min-height: 1.75rem;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .exam-prep-summary__counts {
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .exam-prep-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .exam-prep-search {
+      flex: 1 1 14rem;
+      min-width: 0;
+      max-width: 24rem;
+    }
+    .exam-prep-soon {
+      display: inline-flex;
+    }
+    .exam-prep-soon > .sh-btn {
+      pointer-events: none;
+    }
+    .exam-prep-tree {
+      display: grid;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+    }
+    .exam-prep-point {
+      padding: var(--space-2) var(--space-3);
+      border-top: 1px solid var(--line-soft);
+    }
+    .exam-prep-point:first-child {
+      border-top: 0;
+    }
+    .exam-prep-point.is-sub {
+      padding-left: var(--space-7);
+    }
+    .exam-prep-point__line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      min-height: 2rem;
+    }
+    .exam-prep-point__toggle {
+      display: inline-flex;
+      flex: 1 1 14rem;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+      padding: var(--space-1) 0;
+      border: 0;
+      background: none;
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .exam-prep-point__toggle:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+      border-radius: var(--radius-xs);
+    }
+    .exam-prep-point__caret {
+      flex: none;
+      color: var(--text-muted);
+      transition: transform var(--dur-fast) var(--ease-out);
+    }
+    .exam-prep-point__toggle[aria-expanded='true'] .exam-prep-point__caret {
+      transform: rotate(90deg);
+    }
+    .exam-prep-point__title {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-weight: var(--fw-medium);
+    }
+    .exam-prep-point__requirement,
+    .exam-prep-point__backing {
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+    }
+    .exam-prep-point__requirement {
+      flex: none;
+    }
+    .exam-prep-point__marks {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5);
+    }
+    .exam-prep-point__body[hidden] {
+      display: none;
+    }
+    .exam-prep-places {
+      display: grid;
+      gap: var(--space-2);
+      margin: var(--space-2) 0 var(--space-1) var(--space-6);
+      padding: 0;
+      list-style: none;
+    }
+    .exam-prep-place {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: baseline;
+      gap: var(--space-3);
+      font-size: var(--fs-sm);
+    }
+    .exam-prep-place__where {
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .exam-prep-place__quote {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      quotes: none;
+      color: var(--text);
+    }
+    .exam-prep-place__quote::before {
+      content: '\201C';
+    }
+    .exam-prep-place__quote::after {
+      content: '\201D';
+    }
+    .exam-prep-section {
+      display: grid;
+      gap: var(--space-1-5);
+    }
+    .exam-prep-section__title {
+      margin: 0;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+    }
+    .exam-prep-section__body,
+    .exam-prep-section__list {
+      margin: 0;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .exam-prep-section__list {
+      padding-left: var(--space-5);
+    }
+    /* The words that explain a control: hidden until hover or keyboard focus (Tooltip), one sentence and at most one line of consequence. */
+    .exam-prep-explain {
+      display: inline-flex;
+      align-items: center;
+      border-radius: var(--radius-xs);
+    }
+    .exam-prep-explain:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+    .exam-prep-explain__line {
+      display: block;
+    }
+    .exam-prep-explain__more {
+      margin-top: var(--space-1);
+      color: var(--text-muted);
+    }
+    /* The create form. */
+    .exam-prep-form {
+      display: grid;
+      gap: var(--space-4);
+    }
+    .exam-prep-form__fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+      gap: var(--space-3) var(--space-4);
+    }
+    .exam-prep-form__others {
+      margin: 0;
+    }
+    .exam-prep-role {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+    }
+    .exam-prep-role__head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 0 var(--space-1);
+    }
+    .exam-prep-role__title {
+      font-weight: var(--fw-strong);
+    }
+    .exam-prep-role__need,
+    .exam-prep-role__count,
+    .exam-prep-role__note {
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+    }
+    .exam-prep-role__count {
+      min-width: 4.5rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .exam-prep-role__note {
+      margin: 0;
+    }
+    .exam-prep-start {
+      display: grid;
+      gap: var(--space-3);
+      justify-items: start;
+    }
+    .exam-prep-estimate {
+      display: grid;
+      gap: var(--space-1);
+      min-height: 3.5rem;
+    }
+    .exam-prep-estimate__label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1-5);
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+    }
+    .exam-prep-estimate__wait {
+      margin: 0;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .exam-prep-check {
+      align-self: stretch;
+      min-height: 3rem;
+    }
+  }
+  @container study (max-width: 700px) {
+    :where(.study-app, .study-seat) {
+      .exam-prep-row {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: 'open' 'counts' 'basis' 'state';
+      }
+      .exam-prep-row__counts,
+      .exam-prep-row__state,
+      .exam-prep-row__time {
+        justify-self: start;
+      }
+      .exam-prep-row.is-building {
+        grid-template-areas: 'open' 'bar' 'state';
+      }
+      .exam-prep-point.is-sub {
+        padding-left: var(--space-5);
+      }
+      .exam-prep-place {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .exam-prep-place__where {
+        grid-column: 1 / -1;
+      }
+      .exam-prep-places {
+        margin-left: var(--space-3);
+      }
+    }
+  }
+}
