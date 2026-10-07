@@ -313,16 +313,16 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "The publication review runs inside draft.publish (the job of S3-6)",
-      "removeAt": "S3-6",
+      "reason": "The review before a publication: the draft-publish job (S3-6) asks it through the gateway (a.ask); the supplement's own publication and the quick publication still ask the host model here",
+      "removeAt": "S3-7",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
-          "what": "review of the cards before publication",
+          "what": "review of the cards before publication, as the supplement run and draft.publish.quick ask it (the draft-publish job passes its gateway as a.ask)",
           "disposition": "migrate",
           "kind": "legacy-bypass",
           "reached": true,
-          "step": "S3-6"
+          "step": "S3-7"
         }
       ]
     },
@@ -1135,13 +1135,14 @@
       "evidence": "s3-1-generation-queue.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "startLegacy: the original generation run (job record, controller, control, queue turn); also the original run of the selected-passage supplement (S3-4) and of the draft repair (S3-5)",
+          "what": "startLegacy: the original generation run (job record, controller, control, queue turn); also the original run of the selected-passage supplement (S3-4), the draft repair (S3-5) and the draft publication (S3-6)",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
           "switches": [
             "generation",
-            "generationRepair"
+            "generationRepair",
+            "generationPublish"
           ]
         }
       ]
@@ -1150,28 +1151,17 @@
       "file": "lib/contexts/generation/operations.js",
       "calls": [
         {
-          "callee": "generationControllers.set",
+          "callee": "jobs.set",
           "count": 1
         },
         {
-          "callee": "jobs.set",
-          "count": 2
-        },
-        {
           "callee": "ownWork",
-          "count": 2
+          "count": 1
         }
       ],
       "owner": "generation family (lane B)",
       "evidence": "s3-0-generation-baseline.md; s6-0-coverage.md",
       "sites": [
-        {
-          "what": "draft.publish.start: publication as a background job",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S3-6"
-        },
         {
           "what": "coverage.recover: a coverage run the last process left unfinished comes back as an interrupted record read from its draft marker (runs kept on disk by generationRestart come back through the kernel)",
           "disposition": "exception",
