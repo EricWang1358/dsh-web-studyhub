@@ -110,10 +110,10 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `delete-s6-2`（旧路径，开关全开后不可达） | 21 | 23 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
 | `exception`（有意保留，写明类别和理由） | 67 | 见下表的类别与理由；没有"待定"类 |
 
-**不是干净清零的几处，如实写下：**
+**不是干净清零的几处，以及所有者对它们的决定（2026-10-07）：**
 
-1. **`removeAt: S6-5` 的六行边界例外没有在 S6-5 里被移除。** 它们是：出题与翻译 Job 把取消控制器放进 `generationControllers`（控制台控件读它）和每库队列 `queues/settled`（`library-queue.js`）。S6-5 实际交付的是控制台回归矩阵（音频与 PDF 一侧）、即时请求入口、选区问答记账和任务名解析，**没有**把控制台控件改读内核、也没有用内核调度取代每库队列（后者的并发改进另有开关 `translationParallel`）。这些行仍然精确匹配、有理由和负责人，所以不是静默绕行；但 `removeAt: S6-5` 现在是**过期的计划**，不是承诺。需要所有者决定：保留为控制适配（建议，行为不变），或另立工作包。
-2. **八条前台即时请求行写着"owner decision at S6-5"**（capture、coach、followup、ingest、oral exam、rubric grading、`study`/`recording` 的操作）。所有者的决定已经做出并落地于 S6-5a：它们**保持即时**（不建 Job、不出卡片），但经唯一的计量入口 `lib/runtime/instant.js` 共享 provider 配额并只记一次用量（[s6-5a-instant.md](s6-5a-instant.md)）。清单文字未更新（改动会牵动对该字段的精确断言，留给下一次清单修订）。
+1. **出题与翻译 Job 的取消控制器登记（`generationControllers`）和每库队列（`queues`/`settled`）保留为控制适配与领域的排队顺序。** 它们原先写着 `removeAt: S6-5`，但 S6-5 交付的是控制台回归矩阵（音频与 PDF 一侧）、即时请求入口、选区问答记账和任务名解析，并没有把控制台控件改读内核、也没有用内核调度取代每库队列。决定：**保留**，清单里这六行现在写 `retained: cancel-controller registration is the control adapter` / `retained: library queue is the domain's admission order`，理由逐行更新；`tests/unified-runtime-boundaries.test.mjs` 和 `unified-runtime-acceptance-doc.test.mjs` 钉住新的写法，旧的 `S6-5` 标签回来会变红。要取消这个保留需要另立工作包。
+2. **八条前台即时请求行**（capture、coach、followup、ingest、oral exam、rubric grading、`study`/`recording` 的操作）原先写着"owner decision at S6-5"。现在写 `decided in S6-5a (#345): no Job, metered through the gateway`：它们**保持即时**（不建 Job、不出卡片），经唯一的计量入口 `lib/runtime/instant.js` 共享 provider 配额并只记一次用量（[s6-5a-instant.md](s6-5a-instant.md)）。
 3. **没有"模型获取"裸奔**：`modelServices(` 只在入口 `lib/runtime/instant.js`、定义 `lib/runtime/models.js` 和 `lib/service.js` 的兼容 getter 里被调用（三行，见下）。getter 随进程内旧执行器（上面 `delete-s6-2`）一起离开。
 
 ### 4.1 模型形状的调用点（36 行）
@@ -127,32 +127,32 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/audio-job.js` | existing domain maintainer | 旧路径（开关关时的默认）（删除待默认值翻转） | importAudio has an original provider branch; jobTextModel serves the classroom save until S2-6 | after default flip |
 | `lib/audio-review.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The review pipeline takes its model as an argument (the gateway step when audioReview is on) | S6-2 (original callers) |
 | `lib/batch.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The generation pipeline takes its model as an argument (the gateway step when generation is on) | S6-2 (original callers) |
-| `lib/capture.js` | existing domain maintainer | 前台即时请求 | capture.question: one awaited request, no job record (decision S4-0: instant model requests stay instant) | retained; owner decision at S6-5 |
-| `lib/coach.js` | existing domain maintainer | 前台即时请求；共享流水线（模型由调用方传入） | Coach: the prep batch is a Job when coach is on; nudge, debrief and rewrite are instant requests (decision S4-0) | retained; owner decision at S6-5 |
+| `lib/capture.js` | existing domain maintainer | 前台即时请求 | capture.question: one awaited request, no job record (decision S4-0: instant model requests stay instant) | decided in S6-5a (#345): no Job, metered through the gateway |
+| `lib/coach.js` | existing domain maintainer | 前台即时请求；共享流水线（模型由调用方传入） | Coach: the prep batch is a Job when coach is on; nudge, debrief and rewrite are instant requests (decision S4-0) | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/contexts/audio/jobs/live-correction-models.js` | audio family (lane A) | 服务商叶子实现 | The Gemini text provider leaf of a class correction on the runtime | retained: the provider leaf |
 | `lib/contexts/audio/worker.js` | existing domain maintainer | 会话子系统；旧路径（开关关时的默认）（删除待默认值翻转） | liveTranslation (per-sentence live translation) stays with the session; the original correction call is bypassed | after default flip |
 | `lib/contexts/authoring/publication.js` | existing domain maintainer | 前台即时请求 | The review before a publication. Asked outside a Job (the learner or an agent calls draft.publish itself) it is an instant request: the model of the … | stays; the Job-owned legacy half goes with startLegacy at S6-2 |
 | `lib/contexts/generation/operations.js` | existing domain maintainer | 前台即时请求 | generate.suggest is one awaited request, never a background job | never; the suggestion stays |
 | `lib/contexts/notes/daily-generation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The recap pipeline takes its model as an argument (the gateway step when dailyRecap is on) | S6-2 (original caller) |
 | `lib/contexts/notes/note-generation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The note draft body takes its model as an argument (the gateway step when noteGenerate is on) | S6-2 (the in-process caller) |
-| `lib/contexts/recording/operations.js` | existing domain maintainer | 前台即时请求 | capture: one awaited request (decision S4-0) | retained; owner decision at S6-5 |
-| `lib/contexts/study/operations.js` | existing domain maintainer | 前台即时请求 | card.grade: one awaited rubric grading request | retained; owner decision at S6-5 |
+| `lib/contexts/recording/operations.js` | existing domain maintainer | 前台即时请求 | capture: one awaited request (decision S4-0) | decided in S6-5a (#345): no Job, metered through the gateway |
+| `lib/contexts/study/operations.js` | existing domain maintainer | 前台即时请求 | card.grade: one awaited rubric grading request | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/daily-recap.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The recap rewrite takes its model as an argument | S6-2 (original caller) |
-| `lib/followup.js` | existing domain maintainer | 前台即时请求 | A follow-up question: one awaited request (decision S4-0) | retained; owner decision at S6-5 |
+| `lib/followup.js` | existing domain maintainer | 前台即时请求 | A follow-up question: one awaited request (decision S4-0) | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/generation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The generation pipeline takes its model as an argument (the gateway step when generation is on) | S6-2 (original callers) |
 | `lib/index.js` | existing domain maintainer | 服务商叶子实现 | The host model adapter: DSH ctx.llm.stream and the host sub-agent route; the gateway reaches the model through it | retained: the provider leaf |
-| `lib/ingest.js` | existing domain maintainer | 前台即时请求 | Pasted-material ingest: one awaited request | retained; owner decision at S6-5 |
+| `lib/ingest.js` | existing domain maintainer | 前台即时请求 | Pasted-material ingest: one awaited request | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/jobs/gateway.js` | runtime kernel maintainer | 内核 | The approved model gateway of the runtime | retained |
 | `lib/library-usage.js` | runtime/domain maintainer | 不是任务 | Directory traversal queue of the storage-usage report | retained |
 | `lib/live-job.js` | existing domain maintainer | 旧路径（开关关时的默认）（删除待默认值翻转） | The classroom save pipeline (proofread): original runner until S2-6 | after default flip |
 | `lib/live.js` | existing domain maintainer | 会话子系统 | Per-sentence live translation of a class | retained: with the session |
-| `lib/oral-exam-service.js` | existing domain maintainer | 前台即时请求 | Oral exam turns: awaited requests | retained; owner decision at S6-5 |
-| `lib/rubric-grading.js` | existing domain maintainer | 前台即时请求 | Rubric grading of one answer: one awaited request (card.grade) | retained; owner decision at S6-5 |
+| `lib/oral-exam-service.js` | existing domain maintainer | 前台即时请求 | Oral exam turns: awaited requests | decided in S6-5a (#345): no Job, metered through the gateway |
+| `lib/rubric-grading.js` | existing domain maintainer | 前台即时请求 | Rubric grading of one answer: one awaited request (card.grade) | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/runtime/builtins.js` | runtime/domain maintainer | 不是任务 | Static capability and name arrays, not live task collections | retained |
 | `lib/runtime/domain-contracts.js` | runtime/domain maintainer | 不是任务 | Static schema and capability arrays, not live task collections | retained |
 | `lib/runtime/models.js` | existing domain maintainer | 服务商叶子实现 | The host model adapter handed to the contexts (prepares the request, keeps spawnCorrection) | retained: the provider leaf |
 | `lib/runtime/tasks.js` | runtime/domain maintainer | 公开 API | Extension task queues (public API) | retained (S6-1 checks the compatibility) |
-| `lib/runtime/work.js` | runtime/domain maintainer | 内核；领域自己的结构（缓存/队列/单飞） | The work object: the job table the console reads plus the domain single-flight tables of the legacy executors | S6-5 (what the kernel replaces); the domain tables stay |
+| `lib/runtime/work.js` | runtime/domain maintainer | 内核；领域自己的结构（缓存/队列/单飞） | The work object: the job table the console reads plus the domain single-flight tables of the legacy executors | retained: the console reads the job table and the library queue is the domain's admission order (S6-7) |
 | `lib/sample-library.js` | runtime/domain maintainer | 不是任务 | Queues of the synthetic sample library | retained |
 | `lib/translation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The translation pipeline takes its model as an argument (the reader asks it directly; the translate card is a Job when translation is on) | retained; S6-2 (original callers) |
 | `lib/workflow-teaching.js` | existing domain maintainer | 旧路径（开关关时的默认）（删除待默认值翻转） | The in-process teaching call (the Job runs it behind the gateway when workflow is on) | after default flip |
@@ -201,15 +201,15 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/contexts/audio/jobs/live-correction-models.js` | `tiers.complete`（gateway-bypass，1） | The Gemini text leaf of a class correction: the call runs inside a gateway step of the correction Job (`gateway.step(...)`), this… | retained: the provider leaf |
 | `lib/contexts/audio/jobs/live-correction-models.js` | `../../../gemini.js`（provider-import，1） | The Gemini text leaf of a class correction: the call runs inside a gateway step of the correction Job (`gateway.step(...)`), this… | retained: the provider leaf |
 | `lib/contexts/audio/jobs/text-model.js` | `../../../gemini.js`（provider-import，1） | Builds the Gemini tiers the text steps of an audio Job run on, inside gateway steps; no request is made here | retained: the provider leaf |
-| `lib/contexts/generation/jobs/generation.js` | `binding.work.generationControllers.set`（public-table-write，1） | The Job puts its cancel controller where the console controls (job.control) read it, until they read the kernel (S6-5) | S6-5 |
-| `lib/contexts/generation/jobs/library-queue.js` | `queues.delete`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler repl… | S6-5 |
-| `lib/contexts/generation/jobs/library-queue.js` | `queues.set`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler repl… | S6-5 |
-| `lib/contexts/generation/jobs/library-queue.js` | `settled.delete`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler repl… | S6-5 |
-| `lib/contexts/generation/jobs/library-queue.js` | `settled.set`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order, the kernel scheduler repl… | S6-5 |
+| `lib/contexts/generation/jobs/generation.js` | `binding.work.generationControllers.set`（public-table-write，1） | The Job puts its cancel controller where the console controls (job.control) read it: this registration is the control adapter | retained: cancel-controller registration is the control adapter |
+| `lib/contexts/generation/jobs/library-queue.js` | `queues.delete`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the … | retained: library queue is the domain's admission order |
+| `lib/contexts/generation/jobs/library-queue.js` | `queues.set`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the … | retained: library queue is the domain's admission order |
+| `lib/contexts/generation/jobs/library-queue.js` | `settled.delete`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the … | retained: library queue is the domain's admission order |
+| `lib/contexts/generation/jobs/library-queue.js` | `settled.set`（public-table-write，1） | The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the … | retained: library queue is the domain's admission order |
 | `lib/contexts/generation/jobs/submit-generation.js` | `work.generationControllers.set`（public-table-write，1） | startLegacy: the original generation path (switch generation off) writes its own table, controller and control | after default flip |
 | `lib/contexts/generation/jobs/submit-generation.js` | `work.jobControls.set`（public-table-write，1） | startLegacy: the original generation path (switch generation off) writes its own table, controller and control | after default flip |
 | `lib/contexts/generation/jobs/submit-generation.js` | `work.jobs.set`（public-table-write，1） | startLegacy: the original generation path (switch generation off) writes its own table, controller and control | after default flip |
-| `lib/contexts/generation/translation/jobs/translation.js` | `task.work.generationControllers.set`（public-table-write，1） | The Job puts its cancel controller where the console controls read it, until they read the kernel (S6-5) | S6-5 |
+| `lib/contexts/generation/translation/jobs/translation.js` | `task.work.generationControllers.set`（public-table-write，1） | The Job puts its cancel controller where the console controls (job.control) read it: this registration is the control adapter | retained: cancel-controller registration is the control adapter |
 | `lib/contexts/study/jobs/submit-assist.js` | `../../../host-capabilities.js`（provider-import，1） | Imports `abortable`, a stop helper; no host request is made by this module | retained: a stop helper |
 
 ### 4.4 模型获取（3 行，S6-5a）
@@ -290,5 +290,5 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 ## 10. 交接
 
-- 下一步（所有者）：§8 的每一项；对 §4 第 1、2 条做决定；决定默认值翻转的范围，之后删除 `delete-s6-2` 的旧路径；`job-archive.json` 等三份版本字段的校验（§5.1 第 6 条）在任何格式升级之前补。
+- 下一步（所有者）：§8 的每一项；决定默认值翻转的范围，之后删除 `delete-s6-2` 的旧路径。§4 的第 1、2 条已经决定（保留控制适配、即时请求保持即时）。`job-archive.json` 等三份版本字段的校验（§5.1 第 6 条）是 #359 之后的一个单独小 PR（未知 `version` 在读取时明确拒绝）。
 - 复现本文的数字：`gh pr list --state merged`（§2）；`node scripts/test.mjs tests/unified-runtime-architecture.test.mjs tests/unified-runtime-boundaries.test.mjs tests/instant-model-guard.test.mjs tests/unified-runtime-acceptance-doc.test.mjs`（§4 的清单与本文一致）；演练见 [S6-6 §8](s6-6-rollback.md)。

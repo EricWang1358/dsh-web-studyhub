@@ -24,6 +24,14 @@ test('the numbers of the exceptions section are the inventory\'s', () => {
   for (const row of [...inventory.entries, ...inventory.starts]) assert.ok(doc.includes(`\`${row.file}\``), `${row.file} is listed`);
 });
 
+test('no exception is scheduled for a step that is over: nothing is left to "S6-5", and the instant rows say what was decided', () => {
+  const text = JSON.stringify(inventory);
+  assert.ok(!/"removeAt": ?"S6-5|owner decision at S6-5|until they read the kernel|scheduler replaces it/.test(text), 'a stale schedule came back');
+  const instant = [...inventory.entries, ...inventory.starts].filter(row => /decided in S6-5a/.test(String(row.removeAt)));
+  assert.equal(instant.length, 8, 'the eight instant request rows record the S6-5a decision');
+  for (const row of inventory.boundaries.filter(item => /^retained:/.test(item.removeAt))) assert.ok(row.reason.length > 20, row.file);
+});
+
 test('every work package of the plan has a line with a merged PR and its SHA, and the earlier phases do too', () => {
   const steps = [...plan.matchAll(/^### U\d+\. (S\d-\d+)$/gm)].map(match => match[1]).filter(step => step !== 'S6-7');
   const table = doc.slice(doc.indexOf('## 2. 工作包'), doc.indexOf('## 3. 没有合并'));
