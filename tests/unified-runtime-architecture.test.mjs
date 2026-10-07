@@ -99,6 +99,7 @@ test('every reviewed site has a disposition that holds: migrate names its step, 
       for (const name of site.switches ?? []) assert.ok(switches.includes(name), `${where}: unknown switch ${name}`);
       if (site.disposition === 'migrate') assert.ok(site.reached && /^S\d-\d{1,2}$/.test(site.step ?? ''), `${where}: a path still outside the runtime needs its step`);
       if (site.disposition === 'delete-s6-2') assert.ok(site.reached === false && site.switches?.length, `${where}: a deletable path is unreachable behind a switch`);
+      if (site.disposition === 'delete-s6-2') assert.equal(entry.removeAt, 'after default flip', `${where}: switches are off by default, so the original path is the rollback until the default flips`);
       if (site.disposition === 'exception') assert.ok(site.reached === true && site.kind !== 'legacy-bypass', `${where}: an exception is reached and says what it is`);
     }
   }
