@@ -50,10 +50,20 @@ test('five entry points share one library queue: the first runs, the others wait
   const states = await runtime.call('snapshot');
   assert.equal(states.jobs.filter(job => job.status === 'queued').length, 4);
   assert.deepEqual(staged.log, ['plan'], 'a queued job has not touched the model: only the first job is at its planning call');
+  const waiting = states.jobs.filter(job => job.status === 'queued');
+  assert.ok(waiting.every(job => !job.contract.detail.runStartedAt), 'a job that waits has not started running: it has no run clock yet (the 任务 console says 排队中, never 已用)');
+  assert.ok(states.jobs.find(job => job.id === first.jobId).contract.detail.runStartedAt, 'the running one has');
   hold.open();
   const ended = [(await runtime.call('job.wait', { jobId: first.jobId, timeoutSeconds: 30 }))];
   for (const [, reply] of entries) ended.push(await runtime.call('job.wait', { jobId: reply.jobId, timeoutSeconds: 30 }));
   assert.deepEqual(ended.map(job => job.status), Array(5).fill('complete'));
   assert.deepEqual(ended.map(job => job.finishedAt), [...ended.map(job => job.finishedAt)].sort(),
     'they ran one at a time, in the order they were accepted (generate, publish, repair, selection, supplement)');
+  // The clock of a queued job starts when it really starts: after the one before it ended, never at its creation.
+  const done = (await runtime.call('snapshot')).jobs, order = [first, ...entries.map(([, reply]) => reply)].map(reply => done.find(job => job.id === reply.jobId));
+  order.forEach((job, at) => {
+    const ran = Date.parse(job.contract.detail.runStartedAt);
+    assert.ok(Number.isFinite(ran) && ran >= Date.parse(job.contract.startedAt), `job ${at} has a run clock`);
+    if (at) assert.ok(ran >= Date.parse(order[at - 1].finishedAt), `job ${at} started running only after job ${at - 1} was over`);
+  });
 });

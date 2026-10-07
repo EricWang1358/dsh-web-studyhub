@@ -310,6 +310,10 @@
     .tc-run__line { min-width: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
     .tc-run__counts { flex: 1 1 100%; min-width: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: 1.45; overflow-wrap: anywhere; }
     .tc-run__stop { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
+    /* What is left, as a sum to check: one line, always (cut with an ellipsis, the whole in its title), so the numbers arriving or changing move nothing. */
+    .tc-run__math { overflow: hidden; color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; min-height: 1.45em; }
+    /* Under the elapsed time of a question run: what is left of it. Two lines are kept for it (cut after two), empty or not. */
+    .tc-metric__note { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; line-height: 1.3; min-height: 2.6em; }
     .tc-run[data-run-state='interrupted'] .tc-run__line, .tc-run[data-run-state='stopped'] .tc-run__line { color: var(--warn-ink, var(--text)); }
     /* The time limit of the task (ui/tasks/TimeLimit.jsx): one quiet strip under the facts, the same register as the line of a coverage run; the link and the steps it names are buttons. */
     .tc-limit { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }

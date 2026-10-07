@@ -1,6 +1,8 @@
 import { ui, uiFormat } from '../i18n.js';
 import { formatElapsed, formatNumber } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
+import { runForecast } from '../../lib/coverage-run.js';
+import { forecastTime } from '../coverage/copy.js';
 import { joinMeta } from '../format.js';
 import { parallelNote, reuseNote } from '../audio/audio-notes.js';
 import { audioCallKinds } from './call-model.js';
@@ -12,16 +14,41 @@ const dash = '—';
 const UNIT_LABEL = { files: '文件', pages: '页', paragraphs: '段落', questions: '题数' };
 const SEGMENT_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', save: '保存', plan: '规划', blueprint: '答案与情景', author: '出题', review: '审阅', repair: '修复' };
 
-/** How long the task has been going (the 已用 fact, and the one number the time-limit strip counts against its limit): null before it has started. */
+/** When the task really began running: the contract's detail.runStartedAt (the wait in the queue is not in it); a record without one that is not queued began at its start (older hosts); a queued task has not begun (null). */
+export function runStartOf(contract) {
+  if (contract.detail?.runStartedAt) return contract.detail.runStartedAt;
+  return contract.status === 'queued' ? null : contract.startedAt || null;
+}
+
+/** How long the task has RUN (the 已用 fact, and the one number the time-limit strip counts against its limit; the queue is not run time): null before it has begun. */
 export function elapsedMs(contract, running, now) {
-  if (!contract.startedAt) return null;
-  const end = running ? now : Date.parse(contract.finishedAt || contract.startedAt);
-  return Math.max(0, end - Date.parse(contract.startedAt));
+  const from = Date.parse(runStartOf(contract));
+  if (!Number.isFinite(from)) return null;
+  const end = running ? now : Date.parse(contract.finishedAt || '') || from;
+  return Math.max(0, end - from);
 }
 
 function elapsedOf(contract, running, now) {
   const ms = elapsedMs(contract, running, now);
   return ms === null ? dash : formatElapsed(ms);
+}
+
+/** How long a queued task has waited (it is not working): null without a start. */
+function waitedOf(contract, now) {
+  const from = Date.parse(contract.startedAt || '');
+  return Number.isFinite(from) ? formatElapsed(Math.max(0, now - from)) : dash;
+}
+
+/**
+ * What is left of a question run, from the contract alone (lib/coverage-run.js runForecast over the questions kept, the tokens and the run clock): null for anything else, for a run that has ended or waits for the
+ * learner (自动补到完整 off: its goal is the whole plan but it makes one round), and for a task that is not queued, running or paused.
+ */
+export function forecastOf(contract, now = Date.now()) {
+  if (contract.kind !== 'generation') return null;
+  const { progress, usage, detail, status } = contract, run = detail?.run || null;
+  const phase = status === 'queued' ? 'queued' : status === 'running' ? 'running' : ['pausing', 'paused'].includes(status) ? 'paused' : null;
+  if (!phase || (run && (run.ended || run.waiting || !run.auto))) return null;
+  return runForecast({ phase, projection: run?.projection, estimate: run?.estimateTokens, tokens: usage?.tokens, kept: progress?.done, goal: progress?.total, base: detail?.keptAtStart, elapsedMs: elapsedMs(contract, true, now) ?? 0 });
 }
 
 /** "151 · 0 失败": model calls made and how many failed. */
@@ -49,9 +76,13 @@ export function taskFacts(job, now = Date.now()) {
   const contract = contractOf(job), { progress, usage } = contract, notices = noticesOf(contract);
   if (contract.kind === 'coach-daily') return coachFacts(contract);
   const count = progress.total > 0 ? `${progress.done} / ${progress.total}` : dash;
+  // A task that waits shows its wait, as a wait: 已用 is the time it RUNS. A question run says under it what is left (the line is there for every one, empty or not, so nothing moves when the numbers come).
+  const queued = contract.status === 'queued', note = contract.kind === 'generation' ? { note: forecastTime(forecastOf(contract, now)?.time) } : {};
+  // The questions a run with rounds counts are the draft's, over the WHOLE plan (progress.total: every round), not the round that is being made.
+  const unit = progress.unit === 'questions' && contract.detail?.run ? ui('题数 · 全部计划') : ui(UNIT_LABEL[progress.unit] || '进度');
   return [
-    { key: 'primary', label: ui(UNIT_LABEL[progress.unit] || '进度'), value: count },
-    { key: 'elapsed', label: ui('已用'), value: elapsedOf(contract, isRunningTask(job), now) },
+    { key: 'primary', label: unit, value: count },
+    { key: 'elapsed', label: queued ? ui('排队中') : ui('已用'), value: queued ? uiFormat('已等 {0}', [waitedOf(contract, now)]) : elapsedOf(contract, isRunningTask(job), now), ...note },
     { key: 'calls', label: ui('模型任务'), value: usage.tokens > 0 ? `${callsFact(contract)} · ${formatCompactTokens(usage.tokens)}` : callsFact(contract) },
     { key: 'warnings', label: ui('提醒'), value: notices ? uiFormat('{0} 条', [formatNumber(notices)]) : dash },
   ];

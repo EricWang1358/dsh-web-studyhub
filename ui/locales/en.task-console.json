@@ -286,5 +286,7 @@
   "本日记录 · {0}": "Daily record · {0}",
   "暂无进行中的批次": "No batch currently running",
   "失败 {0} 批": "{0} failed batches",
-  "跟随当前会话 · {0} · {1}": "Follow current session · {0} · {1}"
+  "跟随当前会话 · {0} · {1}": "Follow current session · {0} · {1}",
+  "已等 {0}": "Waited {0}",
+  "题数 · 全部计划": "Questions · whole plan"
 }
