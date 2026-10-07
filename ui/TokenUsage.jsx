@@ -6,6 +6,7 @@ import { Button, IconButton, LoadingState, Panel, ProgressBar } from './componen
 import css from './token-usage.css';
 import { totalTokens } from '../lib/token-usage.js';
 import { useLiveEffect } from './use-async.js';
+import { formatDuration } from './format.js';
 import {
   USAGE_FEATURE_ORDER, callsText, estimateRows, estimateSummary, estimateText, expectedText, featureLabel, joinRows, methodNote, noteText,
   rangeTok, stageLabel, usageNotes, usageRows, usageText, usedCallsText,
@@ -194,7 +195,15 @@ export function ModelUsageView({ state = { status: 'idle' }, days = 30, onDays, 
       {ui('音频转写按分钟计，不在这里；见「音频转写」页的「用量与额度」。')}
       {onAudio && <> <Button variant="link" size="sm" onClick={onAudio}>{ui('打开音频转写')}</Button></>}
     </p>
+    {instantWait(summary) && <p className="model-usage__audio muted" data-instant-wait>{instantWait(summary)}</p>}
   </Panel>;
+}
+
+/** The quiet line about quick requests (grading, follow-ups, translation) that waited for the shared quota since this start; nothing when none did (a missing block is zero). */
+export function instantWait(summary) {
+  const waited = summary?.instant;
+  if (!(waited?.waitedMs > 0)) return '';
+  return uiFormat('自本次启动以来，快速请求（批改、追问、翻译等）有 {0} 次因共享额度排队，共等待 {1}；重启后清零。', [waited.waitedCalls, formatDuration(waited.waitedMs)]);
 }
 
 /** 模型用量, connected: asks `usage.summary` for the chosen window. */

@@ -59,6 +59,14 @@ export function inspectCalls(source) {
   return [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([callee, count]) => ({ callee, count }));
 }
 
+/** Where the host's model is MADE (as opposed to called): every call of `modelServices(...)`, the one function that turns the host's complete/light into the services a request or an
+ * executor is handed. Outside lib/runtime/instant.js (the metered entry) and the files the inventory lists, a new one fails the guard. */
+export function inspectHostModelAccess(source) {
+  const counts = new Map();
+  walk(tree(source), node => { if (node.type === 'CallExpression' && member(node.callee) === 'modelServices') counts.set('modelServices', (counts.get('modelServices') || 0) + 1); });
+  return [...counts].map(([callee, count]) => ({ callee, count }));
+}
+
 export function auditManagedModule(source) {
   const violations = inspectCalls(source).map(item => `model-bypass:${item.callee}`);
   walk(tree(source), node => {
@@ -97,3 +105,37 @@ export function inspectStarts(source) {
   });
   return [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([callee, count]) => ({ callee, count }));
 }
+
+/* ---- S6-3: the boundary audit of a Job module ---- */
+
+const PUBLIC_TABLES = /(?:^|\.)(?:jobs|tasks|queue|queues|retryable|generationControllers|settled|jobControls|jobOutputs)\.(?:set|add|push|delete)$/;
+const PUBLIC_QUEUE_NAME = /^(?:jobs|tasks|queue|queues|jobTable|taskTable)$/;
+
+/** Why each rule exists, in the words a failure shows (one place, so every message says the same thing). */
+export const RULES = Object.freeze({
+  'gateway-bypass': 'a Job asks a model only through context.gateway.step(key, policy).complete(...) (lib/jobs/gateway.js); a direct call has no Call, no usage, no permit and no stop',
+  'provider-import': 'a Job reaches a provider through the gateway; importing a provider module makes a second, unobserved path to it',
+  'public-table-write': 'the public job table and its controllers belong to the runtime (lib/jobs/lifecycle); a Job module never writes them itself',
+  'public-queue': 'scheduling is the runtime\'s (lib/jobs/scheduler.js, one permit layer); a Job module does not allocate a queue or job table of its own',
+  'lifecycle-write': 'a Job\'s status, attempt, times, calls and events are written by the lifecycle (lib/jobs/lifecycle); a Job module presents them, it does not set them',
+});
+
+/** The violations of one Job module, as `{ rule, api, count }` sorted by rule and api. A legitimate `fetch`, a domain Map (reserve, candidates, writers, controllers) and a private
+ * controller are not violations: the rules look at calls and bindings by their exact shape, not at names that merely resemble them. */
+export function auditJobModule(source) {
+  const counts = new Map();
+  const record = (rule, api) => counts.set(`${rule}\u0000${api}`, (counts.get(`${rule}\u0000${api}`) || 0) + 1);
+  for (const item of inspectCalls(source)) if (!item.callee.startsWith('collection:')) record('gateway-bypass', item.callee);
+  walk(tree(source), node => {
+    if (node.type === 'ImportDeclaration' && /(?:gemini|groq|siliconflow|model-completion|host-capabilities)\.js$/.test(node.source.value)) record('provider-import', node.source.value);
+    if (node.type === 'VariableDeclarator' && PUBLIC_QUEUE_NAME.test(key(node.id)) &&
+      (node.init?.type === 'ArrayExpression' || (node.init?.type === 'NewExpression' && ['Map', 'Set'].includes(key(node.init.callee))))) record('public-queue', key(node.id));
+    if (node.type === 'CallExpression') { const callee = member(node.callee); if (PUBLIC_TABLES.test(callee)) record('public-table-write', callee); }
+    if (node.type === 'AssignmentExpression') { const target = member(node.left); if (/^(?:[\w$]+\.)*contract\.(?:status|attemptId|finishedAt|calls|events)$/.test(target)) record('lifecycle-write', target); }
+  });
+  return [...counts].map(([joined, count]) => { const [rule, api] = joined.split('\u0000'); return { rule, api, count }; })
+    .sort((a, b) => a.rule.localeCompare(b.rule) || a.api.localeCompare(b.api));
+}
+
+/** One readable line per violation: the module, the API, the rule and why. */
+export const diagnose = (file, violation) => `${file}: ${violation.rule} — \`${violation.api}\`${violation.count > 1 ? ` (×${violation.count})` : ''}: ${RULES[violation.rule]}`;
