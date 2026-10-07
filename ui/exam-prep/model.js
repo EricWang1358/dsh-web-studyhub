@@ -27,9 +27,9 @@ export function tierOf(point) {
   return papers ? 'must' : 'extra';
 }
 
-/** A point no slide (or syllabus line) teaches: only a sample paper asks for it. */
-export const lacksSlides = point => point?.backing && Number.isFinite(point.backing.slides)
-  ? point.backing.slides === 0 : !placesOfPoint(point).some(place => isSlideRole(place.role));
+/** A point no slide (or syllabus line) teaches: only a sample paper asks for it. The build writes `noSlidePlace`; a record without it is read from its backing, else its places. */
+export const lacksSlides = point => typeof point?.noSlidePlace === 'boolean' ? point.noSlidePlace
+  : point?.backing && Number.isFinite(point.backing.slides) ? point.backing.slides === 0 : !placesOfPoint(point).some(place => isSlideRole(place.role));
 
 /**
  * The points as a two-level tree by parentId. A parent that is not in the list makes a root; a loop is cut where it closes; a third level is
@@ -156,7 +156,9 @@ export function buildsOf(data) {
   const jobs = (Array.isArray(data?.jobs) ? data.jobs : []).filter(isBuildJob);
   return jobs.map((job, index) => {
     const contract = contractOf(job), progress = contract.progress || {}, live = isRunningTask(job);
+    // `targetId`: the list a rebuild replaces while it runs, the list it saved once saved; null for a first build (its list has no id until it is saved).
     return { jobId: contract.jobId || job.id, taskId: taskId(job), title: contract.title || job.title || '', status: contract.status || job.status, live,
+      targetId: contract.detail?.targetId ?? null, supersedes: contract.detail?.supersedes ?? null,
       failed: contract.status === 'failed' || contract.status === 'interrupted', done: Number(progress.done) || 0, total: Number.isFinite(progress.total) ? progress.total : null,
       stage: contract.stage?.text || '', startedAt: contract.startedAt || job.startedAt || '', finishedAt: contract.finishedAt || job.finishedAt || '',
       resultIds: (contract.result?.refs || []).filter(ref => ref.kind === 'source').map(ref => ref.id), index };
@@ -167,29 +169,30 @@ export function buildsOf(data) {
 
 const timeOf = value => Date.parse(value) || 0;
 
-/** The ids of the lists a newer list says it supersedes (`supersedes` on its summary). */
-export const supersededIds = summaries => new Set(summaries.map(summary => summary.supersedes ?? summary.blueprint?.supersedes).filter(Boolean));
 
 /**
- * One row of the list view, from a summary of the snapshot's `examPointLists` ({ id, title, courses, createdAt, archived, scope, basis, points }):
- * everything a learner needs to choose a list. The counts are the basis's own (the points nothing hangs under); the jobs give the time of a record
- * that has none and the build that is running for it.
+ * One row of the list view, from a summary of the snapshot's `examPointLists` ({ id, title, courses, createdAt, archived, scope, basis, supersedes, points }):
+ * everything a learner needs to choose a list. The counts are the basis's own (the points nothing hangs under); the build that is running for the list
+ * is the live one whose `targetId` is the list's id (a rebuild).
  */
 export function listRow(summary, { jobs = [], builds = buildsOf({ jobs }), older = 0 } = {}) {
-  const basis = summary.basis || null, finished = builds.find(build => build.resultIds?.includes(summary.id))?.finishedAt;
+  const basis = summary.basis || null;
   const must = Number(basis?.must) || 0, extra = Number(basis?.extra) || 0;
   return { id: summary.id, source: summary, title: summary.title, scope: summary.scope || '', course: summary.courses?.[0] || '', basis,
     papers: Number.isFinite(basis?.samplePapers) ? basis.samplePapers : 0, counts: { must, extra, total: must + extra, withoutSlides: Number(basis?.noCourseText) || 0 },
-    updatedAt: summary.createdAt || finished || null, olderVersions: older, build: builds.find(build => build.live && build.title === summary.title) || null };
+    updatedAt: summary.createdAt || null, archived: summary.archived === true, olderVersions: older, build: builds.find(build => build.live && build.targetId === summary.id) || null };
 }
 
-/** The point lists of a course scope ('*' all, '' uncategorised, a course and its sub-courses), newest first; older versions fold into the newer one. */
-export function pointLists(data, { scope = '*', known = [] } = {}) {
-  const all = (Array.isArray(data?.examPointLists) ? data.examPointLists : []).filter(summary => summary && !summary.archived);
-  const replaced = supersededIds(all), byId = new Map(all.map(summary => [summary.id, summary]));
+/**
+ * The point lists of a course scope ('*' all, '' uncategorised, a course and its sub-courses), newest first. A rebuild archives the list it replaces, so the
+ * lists shown are the current ones; `history: true` gives the archived older versions instead (each says how many versions are behind it).
+ */
+export function pointLists(data, { scope = '*', known = [], history = false } = {}) {
+  const all = (Array.isArray(data?.examPointLists) ? data.examPointLists : []).filter(summary => summary && typeof summary === 'object');
+  const byId = new Map(all.map(summary => [summary.id, summary]));
   const chain = summary => { let count = 0, at = summary.supersedes; const seen = new Set(); while (at && byId.has(at) && !seen.has(at)) { seen.add(at); count += 1; at = byId.get(at).supersedes; } return count; };
   const builds = buildsOf(data);
-  return all.filter(summary => !replaced.has(summary.id) && sourceMatchesCourse(summary, scope, known))
+  return all.filter(summary => (summary.archived === true) === history && sourceMatchesCourse(summary, scope, known))
     .map(summary => listRow(summary, { builds, older: chain(summary) }))
     .sort((a, b) => timeOf(b.updatedAt) - timeOf(a.updatedAt) || a.title.localeCompare(b.title));
 }

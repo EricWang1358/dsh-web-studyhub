@@ -133,5 +133,10 @@
   "列考点要调用 AI 模型读课件和样卷。配置好之后回到这里，已填的内容会保留。": "Listing the exam points calls an AI model to read the slides and sample papers. Set it up, then come back here; what you filled in is kept.",
   "回到这里，点「开始生成」": "Come back here and press \"Start building\"",
   "生成考点清单需要先配置模型。": "Building an exam-point list needs a model first.",
-  "可以先选好资料；生成前需要先配置模型。": "You can choose the materials now; a model is needed before building."
+  "可以先选好资料；生成前需要先配置模型。": "You can choose the materials now; a model is needed before building.",
+  "把这个旧版本放回考点清单。": "Put this older version back in the exam-point lists.",
+  "它会和新版本一起显示。": "It is then shown beside the newer version.",
+  "收起历史版本": "Hide older versions",
+  "历史版本（{0}）": "Older versions ({0})",
+  "已恢复「{0}」": "Restored \"{0}\""
 }

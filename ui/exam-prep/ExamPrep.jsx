@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { uiFormat } from '../i18n.js';
 import { useToast } from '../components/index.js';
+import { useStudy } from '../study-context.jsx';
 import { courseNamesOf, usePageScope } from '../PageScope.jsx';
 import { useInjectCss } from '../shared.js';
 import ExamPrepCreate from './ExamPrepCreate.jsx';
@@ -18,15 +19,16 @@ const blankForm = course => ({ title: course ? uiFormat('{0} 考点清单', [cou
 
 export default function ExamPrep({ data, onOpenSource, onOpenTask, openSettings }) {
   useInjectCss(css, 'study-exam-prep');
-  const toast = useToast();
+  const toast = useToast(), { act } = useStudy();
   const [scope, setScope] = usePageScope(data.root, 'examprep', data.focus?.course ?? '*');
   const [view, setView] = useState({ name: 'list' });
   const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
   const everything = useMemo(() => pointLists(data, { scope: '*', known }), [data.sources, data.jobs, known]); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = useMemo(() => scope === '*' ? everything : pointLists(data, { scope, known }), [everything, data.sources, data.jobs, scope, known]); // eslint-disable-line react-hooks/exhaustive-deps
+  const history = useMemo(() => pointLists(data, { scope, known, history: true }), [data.examPointLists, scope, known]); // eslint-disable-line react-hooks/exhaustive-deps
   const builds = useMemo(() => buildsOf(data), [data.jobs]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = useCallback(() => setView({ name: 'list' }), []);
-  const open = view.name === 'detail' ? everything.find(row => row.id === view.id) : null;
+  const open = view.name === 'detail' ? [...everything, ...history].find(row => row.id === view.id) : null;
   const courseNow = scope !== '*' && scope !== '' ? scope : data.focus?.course || '';
   if (view.name === 'create') {
     return <ExamPrepCreate data={data} initial={view.initial} onBack={list} openSettings={openSettings}
@@ -36,6 +38,7 @@ export default function ExamPrep({ data, onOpenSource, onOpenTask, openSettings 
     return <ExamPrepDetail row={open} onBack={list} onOpenSource={onOpenSource} onOpenTask={onOpenTask} onDeleted={row => { toast.success(uiFormat('已删除「{0}」', [row.title])); list(); }}
       onRegenerate={(row, blueprint) => setView({ name: 'create', initial: formFromList(row, blueprint) })} />;
   }
-  return <ExamPrepList data={data} scope={scope} onScope={setScope} rows={rows} builds={builds} otherCount={Math.max(0, everything.length - rows.length)}
-    onOpen={id => setView({ name: 'detail', id })} onCreate={() => setView({ name: 'create', initial: blankForm(courseNow) })} onOpenTask={onOpenTask} />;
+  return <ExamPrepList data={data} scope={scope} onScope={setScope} rows={rows} history={history} builds={builds} otherCount={Math.max(0, everything.length - rows.length)}
+    onOpen={id => setView({ name: 'detail', id })} onCreate={() => setView({ name: 'create', initial: blankForm(courseNow) })} onOpenTask={onOpenTask}
+    onRestore={row => act('source.archive', { sourceIds: [row.id], archived: false }, () => toast.success(uiFormat('已恢复「{0}」', [row.title])))} />;
 }

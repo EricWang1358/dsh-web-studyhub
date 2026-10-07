@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { formatDateTime, joinMeta } from '../format.js';
 import { Badge, Button, EmptyState, PageHeader, ProgressBar } from '../components/index.js';
@@ -20,17 +20,18 @@ function BuildState({ build, onOpenTask }) {
   );
 }
 
-function ListRow({ row, onOpen, onOpenTask }) {
+function ListRow({ row, onOpen, onOpenTask, onRestore }) {
   const meta = joinMeta([row.scope, row.course && row.course !== row.scope ? row.course : '']);
   return (
-    <li className="exam-prep-row" data-list={row.id}>
+    <li className={row.archived ? 'exam-prep-row is-history' : 'exam-prep-row'} data-list={row.id}>
       <Button variant="quiet" wrap className="exam-prep-row__open" data-usage="examprep.open" onClick={() => onOpen(row.id)}>
         <span className="exam-prep-row__title">{row.title}</span>
         {meta && <span className="exam-prep-row__meta">{meta}</span>}
       </Button>
       <Explain k="basis" focusable className="exam-prep-row__basis">{basisLine(row.basis)}</Explain>
       <span className="exam-prep-row__counts">{countsLine(row.counts)}</span>
-      {row.build ? <BuildState build={row.build} onOpenTask={onOpenTask} />
+      {row.archived ? <span className="exam-prep-row__state"><Explain k="restore"><Button variant="quiet" size="sm" icon="undo" data-usage="examprep.restore" onClick={() => onRestore(row)}>{ui('恢复')}</Button></Explain></span>
+        : row.build ? <BuildState build={row.build} onOpenTask={onOpenTask} />
         : <span className="exam-prep-row__time">{[row.updatedAt ? formatDateTime(row.updatedAt, 'short') : '', row.olderVersions ? uiFormat('取代了 {0} 个旧版本', [row.olderVersions]) : ''].filter(Boolean).join(' · ')}</span>}
     </li>
   );
@@ -65,9 +66,11 @@ function Empty({ onCreate, otherCount, scoped }) {
   );
 }
 
-export default function ExamPrepList({ data, scope, onScope, rows, builds, otherCount, onOpen, onCreate, onOpenTask }) {
-  const titles = new Set(rows.map(row => row.title));
-  const fresh = builds.filter(build => build.live && !titles.has(build.title));
+export default function ExamPrepList({ data, scope, onScope, rows, history = [], builds, otherCount, onOpen, onCreate, onOpenTask, onRestore }) {
+  const [older, setOlder] = useState(false);
+  const known = new Set([...rows, ...history].map(row => row.id));
+  // A rebuild shows in the row of the list it replaces; a first build has no list yet (its id is known only when it is saved) and is a row of its own.
+  const fresh = builds.filter(build => build.live && !known.has(build.targetId));
   const failed = builds.filter(build => build.failed).slice(0, 2);
   return (
     <section className="page exam-prep" data-usage-area="examprep">
@@ -86,6 +89,14 @@ export default function ExamPrepList({ data, scope, onScope, rows, builds, other
           {rows.map(row => <ListRow key={row.id} row={row} onOpen={onOpen} onOpenTask={onOpenTask} />)}
         </ul>
       ) : <Empty onCreate={onCreate} otherCount={otherCount} scoped={scope !== '*'} />}
+      {history.length > 0 && (
+        <div className="exam-prep-history">
+          <Button variant="link" size="sm" aria-expanded={older} onClick={() => setOlder(value => !value)}>
+            {older ? ui('收起历史版本') : uiFormat('历史版本（{0}）', [history.length])}
+          </Button>
+          {older && <ul className="exam-prep-list">{history.map(row => <ListRow key={row.id} row={row} onOpen={onOpen} onOpenTask={onOpenTask} onRestore={onRestore} />)}</ul>}
+        </div>
+      )}
     </section>
   );
 }

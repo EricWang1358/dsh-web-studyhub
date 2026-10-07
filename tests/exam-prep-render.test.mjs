@@ -114,12 +114,15 @@ test('with no list the page says what it is for and the three inputs, and offers
 });
 
 test('a running build shows in the row in the place of the time, and as a row of its own when it is a new list; a failed one points to the 任务 console', () => {
-  const running = buildJob({ id: 'blueprint-9', status: 'running', done: 2, total: 5 });
+  const running = buildJob({ id: 'blueprint-9', status: 'running', done: 2, total: 5, targetId: mine.id, supersedes: mine.id });
   const html = render(h(ui.ExamPrep, { data: dataWith([mine], { jobs: [running] }), onOpenSource: noop, onOpenTask: noop }));
   const text = drawn(html);
   assert.match(text, /正在生成 2\/5/);
   assert.match(text, /在任务里查看/);
   assert.equal((html.match(/data-build=/g) || []).length, 0, 'the list it rebuilds already has a row');
+  const firstBuild = drawn(render(h(ui.ExamPrep, { data: dataWith([mine], { jobs: [buildJob({ id: 'blueprint-first' })] }), onOpenSource: noop, onOpenTask: noop })));
+  assert.match(firstBuild, /正在生成 2\/5/);
+  assert.match(render(h(ui.ExamPrep, { data: dataWith([mine], { jobs: [buildJob({ id: 'blueprint-first' })] }), onOpenSource: noop, onOpenTask: noop })), /data-build="blueprint-first"/, 'a first build is a row of its own, found by its job');
   const fresh = drawn(render(h(ui.ExamPrep, { data: dataWith([], { jobs: [buildJob({ title: '新的清单' })] }), onOpenSource: noop, onOpenTask: noop })));
   assert.match(fresh, /新的清单/);
   assert.match(fresh, /正在生成/);
@@ -318,4 +321,16 @@ test('while the record is being read a list shows everything its summary knows a
   const failed = drawn(render(detail({ blueprint: null, failure: { error: new Error('没有这份资料') } })));
   assert.match(failed, /读不出这份考点清单/);
   assert.match(failed, /没有这份资料/);
+});
+
+test('older versions (archived by a rebuild) sit behind a quiet 历史版本 reveal, not among the lists', () => {
+  const old = pointList({ title: '旧版', createdAt: '2026-09-01T00:00:00.000Z' });
+  const data = dataWith([mine, old]);
+  data.examPointLists = data.examPointLists.map(summary => ({ ...summary, archived: summary.id === old.id }));
+  const html = render(h(ui.ExamPrep, { data, onOpenSource: noop, onOpenTask: noop }));
+  const text = drawn(html);
+  assert.match(text, /历史版本（1）/);
+  assert.doesNotMatch(text, /旧版/, 'closed by default');
+  assert.equal((html.match(/data-list=/g) || []).length, 1);
+  english(() => assert.match(drawn(render(h(ui.ExamPrep, { data, onOpenSource: noop, onOpenTask: noop }))), /Older versions \(1\)/));
 });

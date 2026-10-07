@@ -88,6 +88,11 @@ test('the counts are of the points a learner studies: a big point with small one
   assert.equal(m.lacksSlides(orphan.roots[0].point), true);
   assert.equal(m.lacksSlides(pointList().blueprint.points[1]), false);
   assert.equal(m.lacksSlides({ id: 'z', title: 'z', evidence: [{ role: 'past-paper', sourceId: 'p', quote: 'q' }] }), true, 'no backing: the places are counted');
+  const [heading, small] = pointList().blueprint.points;
+  assert.equal(heading.noSlidePlace, false, 'the build writes the flag');
+  assert.equal(m.lacksSlides({ ...small, noSlidePlace: true }), true, 'the flag the build wrote wins over the backing');
+  assert.equal(m.lacksSlides({ ...orphan.roots[0].point, noSlidePlace: false }), false);
+  assert.equal(pointList({ orphan: true }).blueprint.points.find(point => point.id === 'p6').noSlidePlace, true);
 });
 
 test('filters: 全部 / 必学 / 补充 and a text search over titles, requirements and the quotes; a big point stays when a small one matches', () => {
@@ -171,17 +176,23 @@ test('the lists of the page are the point lists of the current course: another c
   assert.equal(m.isPointList({ provenance: 'exam-blueprint' }), false, 'a record without the structured list is an ordinary material');
 });
 
-test('a new version supersedes the old one: the older list is no longer a row of its own, and says how many older versions there are', () => {
+test('a new version replaces the old one: the build archives the old list, so the page shows the newest with a count of the versions behind it, and the older ones as history', () => {
   const first = pointList({ title: '传输层 考点清单', createdAt: '2026-10-01T08:00:00.000Z' });
   const second = pointList({ title: '传输层 考点清单', createdAt: '2026-10-05T08:00:00.000Z', supersedes: first.id, papers: 2 });
-  // the summary does not carry `supersedes` yet (reported to the data side); the page reads it when it does
-  const withLink = lists => { const data = snapshot({ lists }); data.examPointLists = data.examPointLists.map((summary, index) => ({ ...summary, supersedes: lists[index].blueprint.supersedes })); return data; };
-  const rows = m.pointLists(withLink([first, second]), { scope: '*', known: ['网络'] });
+  const withArchived = (lists, ...archived) => { const data = snapshot({ lists }); data.examPointLists = data.examPointLists.map(summary => ({ ...summary, archived: archived.includes(summary.id) })); return data; };
+  assert.equal(examPointListSummary(second).supersedes, first.id, 'the summary carries the link');
+  assert.equal(examPointListSummary(first).supersedes, null);
+  const data = withArchived([first, second], first.id);
+  const rows = m.pointLists(data, { scope: '*', known: ['网络'] });
   assert.deepEqual(rows.map(row => row.id), [second.id]);
   assert.equal(rows[0].olderVersions, 1);
-  assert.deepEqual(m.supersededIds([{ id: first.id }, { id: second.id, supersedes: first.id }]), new Set([first.id]));
+  const history = m.pointLists(data, { scope: '*', known: ['网络'], history: true });
+  assert.deepEqual(history.map(row => [row.id, row.archived]), [[first.id, true]]);
+  assert.deepEqual(m.pointLists(data, { scope: '数据库', known: ['网络', '数据库'], history: true }), [], 'history follows the course scope');
+  // a restored older version is shown beside the newer one
+  assert.deepEqual(m.pointLists(withArchived([first, second]), { scope: '*', known: ['网络'] }).map(row => row.id).sort(), [first.id, second.id].sort());
   const newest = pointList({ title: 'B', createdAt: '2026-10-09T00:00:00.000Z' });
-  assert.deepEqual(m.pointLists(withLink([first, newest]), { scope: '*', known: ['网络'] }).map(row => row.title), ['B', '传输层 考点清单'], 'newest first');
+  assert.deepEqual(m.pointLists(snapshot({ lists: [first, newest] }), { scope: '*', known: ['网络'] }).map(row => row.title), ['B', '传输层 考点清单'], 'newest first');
 });
 
 test('a row says what a learner needs to pick a list: title, scope, how many papers it rests on, the counts, when, and what is building', () => {
@@ -191,13 +202,14 @@ test('a row says what a learner needs to pick a list: title, scope, how many pap
   const row = m.listRow(summary, { jobs: [done] });
   assert.deepEqual([row.title, row.scope, row.papers, row.counts, row.course], ['网络 · 传输层 考点清单', '传输层', 1, { must: 2, extra: 2, total: 4, withoutSlides: 0 }, '网络']);
   assert.equal(row.updatedAt, STAMP, 'the record\'s own time');
-  const undated = { ...summary, createdAt: null };
-  assert.equal(m.listRow(undated, { jobs: [done] }).updatedAt, '2026-10-02T00:00:00.000Z', 'else the time the build that made it finished');
-  assert.equal(m.listRow(undated, { jobs: [] }).updatedAt, null);
-  const running = buildJob({ id: 'blueprint-2', status: 'running', done: 2, total: 5 });
+  assert.equal(row.archived, false);
+  assert.equal(m.listRow({ ...summary, createdAt: null }, { jobs: [done] }).updatedAt, null, 'the time is the record\'s own (the job\'s time is not borrowed: it is gone after a restart)');
+  const running = buildJob({ id: 'blueprint-2', status: 'running', done: 2, total: 5, targetId: source.id, supersedes: source.id });
   const withBuild = m.listRow(summary, { jobs: [running] });
   assert.deepEqual([withBuild.build.jobId, withBuild.build.live, withBuild.build.done, withBuild.build.total], ['blueprint-2', true, 2, 5]);
-  assert.equal(m.listRow(summary, { jobs: [buildJob({ title: '别的清单' })] }).build, null, 'a build of another list is not this list\'s');
+  assert.equal(m.listRow(summary, { jobs: [buildJob({ targetId: 'another-list' })] }).build, null, 'a build of another list is not this list\'s');
+  assert.equal(m.listRow(summary, { jobs: [buildJob()] }).build, null, 'a first build has no list yet: the same title is not enough');
+  assert.equal(m.listRow(summary, { jobs: [buildJob({ status: 'complete', targetId: source.id })] }).build, null, 'a build that has ended is not a state of the row');
 });
 
 test('the builds are the build jobs of the snapshot, running ones first, with the id the 任务 console knows them by', () => {
@@ -205,6 +217,8 @@ test('the builds are the build jobs of the snapshot, running ones first, with th
   const builds = m.buildsOf(data);
   assert.deepEqual(builds.map(build => [build.jobId, build.live]), [['b', true], ['a', false]]);
   assert.equal(builds[0].taskId, 'b');
+  assert.deepEqual(m.buildsOf(snapshot({ jobs: [buildJob({ targetId: 'x', supersedes: 'y' })] }))[0].targetId, 'x');
+  assert.equal(builds[0].targetId, null, 'a first build: null until its list is saved');
   assert.equal(builds[0].title, '网络 · 传输层 考点清单');
   assert.deepEqual(m.buildsOf({}), []);
   assert.equal(m.buildsOf(snapshot({ jobs: [buildJob({ status: 'failed' })] }))[0].failed, true);
@@ -272,7 +286,7 @@ test('the counts line and the backing line use the owner\'s words', () => {
 
 test('every hover explanation is one plain sentence and at most one consequence line, in both languages, and none says 蓝图', () => {
   const keys = Object.keys(m.EXPLAIN);
-  for (const key of ['tier.must', 'tier.extra', 'basis', 'peek', 'noSlides', 'regenerate', 'generate', 'estimate', 'role.lecture', 'role.past-paper', 'role.syllabus', 'role.textbook', 'delete', 'unmatched', 'skipped', 'reading'])
+  for (const key of ['tier.must', 'tier.extra', 'basis', 'peek', 'noSlides', 'regenerate', 'generate', 'estimate', 'role.lecture', 'role.past-paper', 'role.syllabus', 'role.textbook', 'delete', 'restore', 'unmatched', 'skipped', 'reading'])
     assert.ok(keys.includes(key), `${key} has an explanation`);
   for (const key of keys) {
     const [sentence, consequence, extra] = m.explain(key);
