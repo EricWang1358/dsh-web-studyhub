@@ -30,7 +30,7 @@
 
 例外的类别（`kind`）：只读历史适配（read-adapter）、合法 provider 实现（provider-leaf）、共享流水线（shared-pipeline，自己不发请求，模型由调用方传入）、领域缓存/单飞/写队列（domain-structure）、即时请求（foreground-request）、会话子系统（session-subsystem）、控制适配（control-adapter）、公开 API（public-api）、内核本身（kernel）、匹配误报（not-a-job）。
 
-## 2. 17 个开关与它们旁路的旧路径
+## 2. 20 个开关与它们旁路的旧路径
 
 | 开关 | 旁路什么（开关打开后不再被启动） | 分派点 | 运行时一侧的证据 |
 |---|---|---|---|
@@ -38,6 +38,7 @@
 | `audioBatch` | 批次导入/重试的旧执行器 | `worker.js:149` | `audio-batch.runtime`、`unified-runtime-audio-batch` |
 | `audioSubtitles` | 字幕导入的旧执行器 | `lib/contexts/audio/operations.js:164` | `subtitle-review-flow.runtime`、`unified-runtime-subtitles` |
 | `audioReview` | 转写复查的旧执行器 | `operations.js:176` | `subtitle-review-flow.runtime`、`unified-runtime-review` |
+| `audioLiveSave` | 课堂"校对并保存"的旧执行器（`startAudioJob` + `executeLiveSaveJob`，S2-6 #325） | `lib/contexts/audio/operations.js`（`live.save`） | `audio-family-baseline-live.runtime`、`unified-runtime-live-save` |
 | `audioLiveCorrection` | 课堂滚动校正的旧计时器与旧校正调用 | `operations.js:211,257,270`；`lib/live-correction.js:127` | `unified-runtime-live-correction` |
 | `generation` | 出题/补题的旧任务表与旧执行器 | `lib/contexts/generation/jobs/submit-generation.js:9`（`startLegacy`） | `generation-family-baseline-queue.runtime`、`unified-runtime-generation-*` |
 | `generationRepair` | 后台修题的旧路径（`startLegacy`，需要 `generation`；没有 `generation` 时此开关不起作用） | `lib/contexts/generation/jobs/submit-generation.js:9`（`startLegacy`） | `draft-repair.runtime`、`unified-runtime-repair` |
@@ -47,6 +48,8 @@
 | `coach` | 为你定制备题批次的进程内执行 | `lib/contexts/coach/jobs/submit-coach-prep.js:12` | `coach.runtime`、`unified-runtime-coach` |
 | `dailyRecap` | 每日总结的进程内执行 | `lib/contexts/notes/jobs/submit-daily-recap.js:13` | `daily-recap.runtime`、`unified-runtime-daily-recap` |
 | `workflow` | 讲解与骨架的进程内执行 | `lib/contexts/workflows/jobs/submit-workflow.js:21` | `workflow-teaching.runtime`、`unified-runtime-workflows` |
+| `dailyRecapAgent` | 不是旁路旧路径，而是策略（登记在清单 `policySwitches`）：每日总结的模型调用改问宿主子代理，没有时回落直连并记原因（S4-8 #321） | `lib/contexts/notes/jobs/submit-daily-recap.js`（绑定里的 `agent`） | `unified-runtime-agent-policy` |
+| `workflowAgent` | 同上：讲解与骨架的模型调用改问宿主子代理（S4-8 #321） | `lib/contexts/workflows/jobs/submit-workflow.js`（绑定里的 `agent`） | `unified-runtime-agent-policy` |
 | `assist` | 助教请求的进程内执行 | `lib/contexts/study/jobs/submit-assist.js:15` | `assist-host.runtime`、`unified-runtime-assist` |
 | `pdfConvert` | PDF 云端/本地转换的旧后台运行 | `lib/contexts/audio/convert.js:49` | `mineru-service.runtime` 等 4 个孪生、`unified-runtime-pdf-convert` |
 | `markerInstall` | Marker 安装的旧后台运行 | `lib/contexts/audio/install/marker-install-runs.js:13` | `marker-install-service.runtime`、`unified-runtime-marker-install` |
@@ -55,7 +58,7 @@
 
 ## 3. 全部后台启动点（`starts`，33 个文件 48 处）
 
-读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量：迁移 4、保留例外 30、S6-2 删除 12（§7 给删除清单）。**答案**：全开后仍在运行时之外的后台**路径**只有 3 条要迁移——课堂保存（S2-6）、发布草稿（S3-6）、`note.generate`（S4-10）；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
+读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量：迁移 5、保留例外 30、S6-2 删除 12（§7 给删除清单）。**答案**：全开后仍在运行时之外的后台**路径**只有 3 条要迁移——课堂保存（S2-6）、发布草稿（S3-6）、`note.generate`（S4-10）；其余都是有类别、有理由的保留，或被开关旁路的旧实现。
 
 ### 3.1 音频
 
@@ -89,7 +92,7 @@
 | `lib/contexts/generation/jobs/submit-generation.js:9-14`（`startLegacy`） | 旧出题执行器 | 不走（`generation`） | S6-2 删除 |
 | `lib/contexts/generation/operations.js:100-103`（`draft.publish.start`） | 发布草稿的后台任务（含发布前审阅，`lib/contexts/authoring/publication.js:87`） | **仍走**，无开关 | **迁移 S3-6** |
 | `lib/contexts/generation/draft-repair.js`（`draft.repair`，经 `startGeneration`） | 后台修题 | 不走（`generation` + `generationRepair`；旧实现 = 上一行的 `startLegacy`） | S6-2 删除 `startLegacy` 时一并 |
-| `lib/contexts/generation/selection-jobs.js`（经 `startGeneration`） | 选区补题的后台任务 | 不走（`generation`；旧实现 = `startLegacy`） | S6-2 删除 `startLegacy` 时一并 |
+| `lib/contexts/generation/selection-jobs.js`（S3-4 #324 后不再自起任务） | 选区补题经 `submit-generation.js` 的 `startGeneration` 分派，旧一侧即上一行的 `startLegacy` | 不走（`generation`） | 随 `startLegacy` 在 S6-2 删除；清单里本文件的 starts 行已删 |
 | `lib/contexts/generation/selection.js:91` | 选区操作的单飞表（同一 operationId 只答一次） | 仍走 | 保留例外：领域单飞结构 |
 | `lib/contexts/generation/operations.js:998-999`（`coverage.recover`） | 上次进程中断的覆盖运行，从草稿标记恢复成"已中断"记录 | 仍走（开关打开前的遗留；`generationRestart` 打开后的新运行由内核恢复） | 保留例外：只读历史适配 |
 | `lib/contexts/generation/jobs/generation.js:42`、`lib/contexts/generation/translation/jobs/translation.js:40` | Job 把取消控制器登记进旧表，控制台控件读它 | 仍走 | 保留例外：控制适配（S6-5 改读内核） |
@@ -199,7 +202,7 @@
 |---|---|---|
 | 1 | `lib/contexts/audio/convert.js:52-56`（旧转换运行）、`setup/legacy-setup-run.js`、`retrieval/legacy-index-run.js`、`lib/marker-install.js` 旧 `start/cancel`、`lib/contexts/generation/jobs/submit-generation.js` `startLegacy`、`translation-jobs.js:132-134`、`lib/workflow-skeleton.js`/`workflow-teaching.js` 的进程内执行、`submit-coach-prep`/`submit-daily-recap` 的进程内分支、`lib/assist.js` 进程内请求 | 无（对应开关已合并）；S6-1 先核对兼容 |
 | 2 | `lib/live-correction.js:127` 计时器、`worker.js:274` 旧校正调用 | `audioLiveCorrection` 合并后的回退窗口结束 |
-| 3 | `lib/contexts/audio/worker.js` `startAudioJob`、`operations.js:147-148` 旧重试、`audio-job.js` 的 `importAudio` 旧提供者分支 | **S2-6（课堂保存）迁完**，否则课堂保存没有执行器 |
+| 3 | `lib/contexts/audio/worker.js` `startAudioJob`、`operations.js:147-148` 旧重试、`audio-job.js` 的 `importAudio` 旧提供者分支 | S2-6（课堂保存）已合并（#325，开关 `audioLiveSave`）；回退窗口结束后可删 |
 
 ## 8. 本步未做
 
