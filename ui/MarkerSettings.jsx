@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ui, uiMessage, errorMessage } from './i18n.js';
+import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { downloadMarkerScript } from './marker-script.js';
 import { Button, Disclosure, Field, Hint, Icon, InlineMessage, TextInput } from './components/index.js';
 import MarkerInstall from './MarkerInstall.jsx';
@@ -52,9 +52,10 @@ export default function MarkerSettings({ call, disabled = false, available = tru
     {available && call && <MarkerInstall call={call} disabled={disabled} markerReady={status?.state === 'ready'} onChanged={reload} />}
     <div className="marker-settings__manual">
     <h4>{ui('已经有 Marker？手动指定程序路径')}</h4>
-    <Field label={ui('Marker 程序路径')} hint={ui('留空会自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}>
+    <Field label={ui('Marker 程序路径')} hint={ui('留空会先用 StudyHub 装好的那份，没有再自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}>
       <TextInput value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCommand(event.target.value); }} />
     </Field>
+    {!command.trim() && status?.command && <Hint>{uiFormat('正在使用：{0}', [status.command])}</Hint>}
     <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('保存并检测')}</Button></div>
     <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。')}</Hint>
     {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
