@@ -2,7 +2,7 @@
 
 Choose the original PDF in **Add material → Files**, then select **MinerU** or **Marker**. Marker invokes the installed program and automatically imports its paginated result. Both converters share progress, cancellation, retry, and conversion history.
 
-Open **Settings → PDF conversion (MinerU / Marker) → Marker** to save and check the `marker_single` executable. Enter its full path when it is installed in a virtual environment. An empty setting uses `MARKER_BIN` or the system search path. Enter an executable path, not a command with arguments.
+Open **Settings → PDF conversion (MinerU / Marker) → Marker** to check and save the `marker_single` executable: the path in the box is checked first and saved only if the check passes, so a path that does not work never replaces the saved one. A blank box only checks what StudyHub uses now. Enter its full path when it is installed in a virtual environment. An empty setting uses `MARKER_BIN` or the system search path. Enter an executable path, not a command with arguments.
 
 The check confirms that the command runs and supports the required options; it does not verify every model or OCR backend. Once the environment is configured, choose a PDF and start parsing without downloading a script or finding an output file. The program runs on the StudyHub server's computer.
 

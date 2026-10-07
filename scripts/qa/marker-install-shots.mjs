@@ -53,7 +53,8 @@ const handlers = {
   'marker.install.plan': a => installer.plan(a), 'marker.install.start': a => installer.start(a), 'marker.install.status': () => installer.status(),
   'marker.install.cancel': () => installer.cancel(), 'marker.install.uninstall': a => installer.uninstall(a),
   'marker.settings.get': () => readMarkerSettings(), 'marker.settings.set': a => saveMarkerSettings(a),
-  'marker.local.status': async () => ((await readMarkerSettings()).command ? detectMarker({ cli: { file: process.execPath, prefix: [FAKE_MARKER], env: {} } }) : { state: 'not-installed', next: 'install' }),
+  // `a.command` is the path box of 检测并保存, checked before it is saved; without one the saved path decides.
+  'marker.local.status': async a => ((typeof a?.command === 'string' && a.command.trim()) || (await readMarkerSettings()).command ? detectMarker({ cli: { file: process.execPath, prefix: [FAKE_MARKER], env: {} } }) : { state: 'not-installed', next: 'install' }),
 };
 const qa = createServer(async (req, res) => {
   const reply = (status, type, body) => res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' }).end(body);
