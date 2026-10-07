@@ -95,8 +95,10 @@ Finished jobs (`complete`, `failed`, `cancelled`, `interrupted`) can be put away
 ```
 call = { callId, jobId, attemptId?, stepKey, kind, stage, slot | null,
          queuedAt?, startedAt, firstOutputAt?, endedAt, status, runner, childId, parentId,
-         part, parts, reasoning, tokens, outputTokens?, timing?, file?, reason? }
+         part, parts, reasoning, tokens, outputTokens?, timing?, file?, reason?, counts? }
 ```
+
+`counts` is what a call of a question run says about the questions in its own reply, read when the call ends (`lib/call-counts.js`, kept by `lib/contexts/generation/jobs/legacy-model.js` and, for a run of the unified runtime, by the gateway step option `counted`): `{ written }` for the writing, `{ reviewed, passed, flagged }` for a review (the per-card checks of THAT call, so a re-review of repaired cards counts only those; `flagged` is a card with a dimension marked `fail`, a `suggest` never rejects), `{ rewritten }` for a repair. Whole numbers only, absent when the reply could not be read; the 任务 console's 日志 shows them on the second line of the call's row. They are the call's own verdicts, not the result of the part (that is `detail.partList`).
 
 `outputTokens` is the provider's own completion count and `timing` is DSH's `sessionStats` for the child session the
 call ran in, when the host served one (`{ ttftMs, ttftSteps, decodeMs, decodeTokens }`): together with the three

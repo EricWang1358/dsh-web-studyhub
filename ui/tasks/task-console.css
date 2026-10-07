@@ -290,7 +290,7 @@
     .tc-line__time { color: var(--text-faint); white-space: nowrap; }
     .tc-line__tag { overflow: hidden; color: var(--info-ink); text-overflow: ellipsis; white-space: nowrap; }
     .tc-line__text { overflow-wrap: anywhere; }
-    .tc-line__detail { grid-column: 3; min-width: 0; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+    .tc-line__detail { grid-column: 2 / -1; min-width: 0; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
     .tc-line[data-level='warn'] .tc-line__text { color: var(--warn-ink); }
     .tc-line[data-level='done'] .tc-line__text { color: var(--ok-ink); }
     .tc-head__full { margin-inline-end: var(--space-2); }
