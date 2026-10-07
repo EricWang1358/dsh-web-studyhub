@@ -171,14 +171,49 @@ export function projectionText(projection) {
   return projection.minutes ? uiFormat('预计还要 {0}、约 {1}', [tokensText(projection.tokens), minutesText(projection.minutes)]) : uiFormat('预计还要 {0}', [tokensText(projection.tokens)]);
 }
 
+/**
+ * What is left of a running run, from `runForecast` (lib/coverage-run.js), with the basis said: 「预计还要约 2.7M tok（按已跑的进度估算）」, or, before this run has a pace of its own, 「…（出题前的估算）」; when the two
+ * differ by more than a quarter both are said: 「… · 出题前估 3.9M tok」. '' when nothing may be said.
+ */
+export function forecastText(forecast) {
+  const tokens = forecast?.tokens;
+  if (!(tokens?.left > 0)) return '';
+  const head = uiFormat(forecast.basis === 'estimate' ? '预计还要约 {0}（出题前的估算）' : '预计还要约 {0}（按已跑的进度估算）', [tokensText(tokens.left)]);
+  return forecast.preRun > 0 ? joinMeta([head, uiFormat('出题前估 {0}', [tokensText(forecast.preRun)])]) : head;
+}
+
+/** The sum behind the number, to be checked by eye: 「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」 (the parts are rounded to two digits, the whole is their sum). '' while nothing was used or nothing is said. */
+export function forecastMath(forecast) {
+  const tokens = forecast?.tokens;
+  if (!(tokens?.left > 0) || !(tokens.used > 0)) return '';
+  const compact = (value) => formatCompactTokens(Math.round(value));
+  return uiFormat('已用 {0} + 还要约 {1} ≈ 共约 {2} tok', [compact(tokens.used), compact(tokens.left), compact(tokens.total)]);
+}
+
+/** The time left: a figure or a range, or plainly why there is none (too little progress, still queued, paused, nearly done). It is the pace of THIS run, not the limit of a round. */
+export function forecastTime(time) {
+  switch (time?.state) {
+    case 'ok': {
+      if (time.lowMin === time.highMin) return uiFormat('预计还要约 {0}', [minutesText(time.lowMin)]);
+      return time.highMin < 90 ? uiFormat('预计还要约 {0}–{1} 分钟', [time.lowMin, time.highMin]) : uiFormat('预计还要约 {0}–{1}', [minutesText(time.lowMin), minutesText(time.highMin)]);
+    }
+    case 'thin': return ui('还没有足够的进度来估计时间');
+    case 'queued': return ui('开始运行后才估计时间');
+    case 'paused': return ui('已暂停，继续后再估计时间');
+    case 'finishing': return ui('就快做完了');
+    default: return '';
+  }
+}
+
 /** 「第 1 轮完成，还有 11 轮」: a run that waits for the learner. */
 export const waitingText = (facts) => uiFormat('第 {0} 轮完成，还有 {1} 轮', [facts.done, facts.left]);
 
 /**
  * The line of a run, from `runFacts` (lib/coverage-run.js): 「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 2.0M tok、约 25 分钟」. Paused, waiting, stopped, finished and interrupted runs say
- * where they are instead of the round that is being made. `interrupted`: the host stopped while it ran (the job is restored with 接着做).
+ * where they are instead of the round that is being made. `interrupted`: the host stopped while it ran (the job is restored with 接着做). `forecast` (runForecast): the console says what is left from the
+ * run's own progress (forecastText) instead of the projection of the rounds done; without one (the home row) it is the projection.
  */
-export function runLine(facts, { interrupted = false } = {}) {
+export function runLine(facts, { interrupted = false, forecast } = {}) {
   if (!facts?.total) return '';
   const cover = Number.isFinite(facts.percent) ? uiFormat('覆盖 {0}%', [facts.percent]) : '', used = facts.tokensUsed > 0 ? uiFormat('已用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : '';
   if (interrupted) return [uiFormat('中断于第 {0} 轮', [facts.round]), cover, used, uiFormat('接着做会从第 {0} 轮继续', [facts.round])].filter(Boolean).join(META_DOT);
@@ -187,8 +222,9 @@ export function runLine(facts, { interrupted = false } = {}) {
     return [head, cover, facts.tokensUsed > 0 ? uiFormat('共用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : ''].filter(Boolean).join(META_DOT);
   }
   if (facts.waiting) return [waitingText(facts), cover, used].filter(Boolean).join(META_DOT);
-  if (facts.state === 'paused') return [uiFormat('暂停于第 {0} 轮之后', [facts.pausedAfter ?? facts.done]), cover, used, projectionText(facts.projection)].filter(Boolean).join(META_DOT);
-  return [roundOfText(facts.round, facts.rounds), cover, used, projectionText(facts.projection)].filter(Boolean).join(META_DOT);
+  const left = forecast !== undefined && forecast !== null ? forecastText(forecast) : projectionText(facts.projection);
+  if (facts.state === 'paused') return [uiFormat('暂停于第 {0} 轮之后', [facts.pausedAfter ?? facts.done]), cover, used, left].filter(Boolean).join(META_DOT);
+  return [roundOfText(facts.round, facts.rounds), cover, used, left].filter(Boolean).join(META_DOT);
 }
 
 /** Why a run stopped, in plain words (the stop of `runFacts`: { reason, round, left?, detail? }). */

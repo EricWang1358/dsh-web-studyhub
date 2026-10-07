@@ -103,7 +103,11 @@ test('manual: the run does round 1 and waits; the one top-up button runs the nex
   const spec = draft.editorial.coverageSpec, view = await service.call('coverage.get', { draftId: draft.id });
   assert.deepEqual(view.round.picks.map(pick => pick.key).sort(), [...spec.rounds[1].sectionIds].sort(), 'the button is the next round of the plan');
   const next = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: view.round.picks.map(pick => pick.key) } });
+  const startedWith = draft.cards.length;
   assert.equal((await settleJob(service, next.jobId)).status, 'complete');
+  const continuing = await contractOfJob(service, next.jobId);
+  assert.equal(continuing.detail.keptAtStart, startedWith, 'a continued run says how many questions its draft held when it started: a pace is measured from there');
+  assert.ok(Date.parse(continuing.detail.runStartedAt) >= Date.parse(continuing.startedAt), 'and has its own run clock');
   draft = await draftOf(service);
   assert.deepEqual(statuses(draft), ['done', 'done', 'pending'], 'each press runs exactly one round');
   assert.equal(draft.editorial.coverageRun.state, 'waiting');

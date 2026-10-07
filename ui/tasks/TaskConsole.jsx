@@ -98,6 +98,7 @@ function Metrics({ job, summary, now }) {
         <div className="tc-metric" key={fact.key}>
           <span className="tc-metric__k">{fact.label}</span>
           <span className="tc-metric__v">{fact.value}</span>
+          {fact.note !== undefined && <span className="tc-metric__note" data-metric-note title={fact.note || undefined}>{fact.note}</span>}
         </div>
       ))}
     </section>
@@ -185,7 +186,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
       </header>
       <Metrics job={task} summary={summary} now={now} />
       <TaskUsage contract={contract} />
-      <RunLine task={task} shortfall={shortfall} />
+      <RunLine task={task} shortfall={shortfall} now={now} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}
