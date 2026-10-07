@@ -33,7 +33,7 @@
 | `generationPublish` 发布 | ✓ | ✓ | ✓ 写入前：两边题组都是 3 张；写入后回执前：当前代码"看一眼找到写入"，2.7.1 无事可做，都没有重复 | S3-7 §4 |
 | `translation` 翻译 | ✓ | ✓ | ✓ 在途被结束：0 段（一段一段通过后才写），再做一遍两边都是 9 段 | S4-9 §2 |
 | `translationParallel` 翻译不再排在生成后面 | ✓ | ✓ | 无 只改排队，不写任何新东西 | S4-3，`unified-runtime-translation-scheduling.test.mjs` |
-| `coach` 为你定制备题 | ✓ | ✓ | 未演练 备题只在 `prepared` 和 `coach-daily.json` 留记录，这两种文件 2.7.1 本来就写；S4-9 没有把它放进演练 | S4-9 §3 |
+| `coach` 为你定制备题 | ✓ | ✓ | ✓ 在途被结束：库里没有备题、没有当天的行，两个版本读到的相同；再做一遍两边都得到三道变式（S6-6 补进 S4-9 的演练，`coach` 家族） | S4-9 §2 |
 | `dailyRecap` 每日总结 | ✓ | ✓ | ✓ 在途被结束：2.7.1 显示"已中断"（带进程核对），再做一遍两边相同 | S4-9 §2 |
 | `dailyRecapAgent` 总结用子代理 | ✓ | ✓ | 无 只改一次调用怎么执行，不写任何新东西；定义不持久 | S4-8，`unified-runtime-agent-policy.test.mjs` |
 | `workflow` 学习流讲解/骨架 | ✓ | ✓ | △ 讲解记录在进程被结束后一直是"运行中"，2.7.1 与当前代码相同（回退没有让它变坏）；再开始即可 | S4-9 §3 |
@@ -66,10 +66,18 @@
 
 - **旧版无法继续**：批量导入"请求在途"的保护（§2）；2.7.1 对 `revision-conflict` 的首击拒绝；笔记起草和学习流讲解的"运行中"不会自愈。这些是 2.7.1 自己的行为，回退到它时存在。要保留这些保护就不能回退到 2.7.1。
 - **没有授权、待做**：真实 DSH 宿主上的"用户把版本换回 2.7.1"全流程（安装包、真实 Windows 安装目录）；真实模型下的回退抽样（S6-7）；真实 MinerU/Marker/搜索扩展。所有演练用 fake，硬结束是 `process.exit`，不是强杀。
-- **为你定制备题**没有进过演练（矩阵里标"未演练"）；`dailyRecapAgent` / `workflowAgent` 的"无"是按构造（只改一次调用怎么执行、定义不持久）加测试，不是单独演练。
+- `dailyRecapAgent` / `workflowAgent` 的"无"是按构造（只改一次调用怎么执行、定义不持久）加测试，不是单独演练。
 - 通知：出题家族的会话通知现在经内核结算 sink（#352），"通知后、结算前崩溃多一条"的窗口随之关闭（至多一次）；翻译随后（#354）。S3-7 §8 里那条旧限制以此为准。
 
-## 7. 复现
+## 7. 演练是否在 `npm test` 里，以及它们最近一次在哪个提交上跑过
+
+**不在。** 四个演练（`tests/fixtures/runtime-s27|s37|s49|s57/run-drill.mjs`）需要旧版的树（`git archive v2.7.1`）和几分钟，CI 不跑它们；`npm test` 里只有读证据文件的检查（`unified-runtime-audio-evidence`、`-generation-evidence`、`-model-evidence`、`-nonmodel-evidence`）和本步的 `unified-runtime-rollback-read.test.mjs`，它们守住"证据文件自洽、指向同一个版本、矩阵没有漏开关"，不重新演练。所以演练要在**发布前手工重跑**。
+
+**最近一次**：2026-10-07，四个演练在同一台机器上依次重跑，代码是提交 `1db56dd38e794790d580cd1f08de78c544d713cc`（本 PR 里加入 `coach` 家族之后的演练代码；运行时代码与 main 相同）。四个都以 `v2.7.1` / `47f13281` 为目标，退出码 0，并重写了四份证据文件（共约四分钟）。`s2-7`、`s5-7` 证据里的 `sourceHash`/`pageHash` 随生成内容的哈希变了；检查它们的测试比较的是同一份文件里各步之间的相等，不比较固定值，所以仍然成立。
+
+运行注意：Windows 上 `run-drill.mjs` 用 `spawnSync('tar')` 解包可能失败（`could not extract v2.7.1`）；先手工 `git archive v2.7.1 | tar -x -C .local/old-2.7.1`（Git Bash 的 tar），脚本发现 `lib/service.js` 已在就跳过解包。
+
+## 8. 复现
 
 - 矩阵与证据一致性、三条性质：`node scripts/test.mjs tests/unified-runtime-rollback-read.test.mjs`（廉价，CI 里跑）。
 - 演练本身（需要 `v2.7.1` 标签，解包到 `.local`，只用 fake）：`node tests/fixtures/runtime-s27/run-drill.mjs`、`runtime-s37`、`runtime-s49`、`runtime-s57` 各一个（各约几分钟，会重写对应的证据文件）。

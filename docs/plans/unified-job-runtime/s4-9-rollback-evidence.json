@@ -592,10 +592,227 @@
           }
         }
       }
+    },
+    "coach": {
+      "settled": {
+        "rolledBack": {
+          "family": "coach",
+          "phase": "settled",
+          "lib": "older",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "rolledForward": {
+          "family": "coach",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "sameCode": {
+          "family": "coach",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        }
+      },
+      "crash": {
+        "rolledBack": {
+          "family": "coach",
+          "phase": "crash",
+          "lib": "older",
+          "seen": {
+            "prepared": [],
+            "days": 0
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "rolledForward": {
+          "family": "coach",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "sameCode": {
+          "family": "coach",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "prepared": [],
+            "days": 0
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        }
+      }
     }
   },
   "fileKinds": [
     "library/attachments/materials/<id>.md",
+    "library/coach-daily.json",
     "library/shards/attempts/0.<id>.json",
     "library/shards/courses/course-<id>.<id>.json",
     "library/shards/decks/d.<id>.json",
@@ -609,9 +826,11 @@
     "library/shards/misc/skeletons.<id>.json",
     "library/shards/misc/teaching.<id>.json",
     "library/shards/misc/topicGroups.<id>.json",
+    "library/shards/runs/<id>.<id>.json",
     "library/shards/sources/document-<id>.<id>.json",
     "library/shards/sources/s.<id>.json",
     "library/shards/sources/source.<id>.json",
+    "library/shards/sources/src.<id>.json",
     "library/shards/workflowSessions/<id>.<id>.json",
     "library/shards/workflowTemplates/<id>.<id>.json",
     "library/study-workspace.json"
