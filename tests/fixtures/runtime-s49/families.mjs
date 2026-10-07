@@ -28,6 +28,8 @@ export function fakeModel(family, mode) {
   // The coach's variants are made by the study fake model itself (the replies the real pipeline validates); the other families answer with their own canned replies.
   const study = family === 'coach' ? createFakeModel() : null;
   const complete = async (system, prompt, options) => {
+    // The coach's seeding publishes a deck (a review by the model): only the preparation of variants is the call that is still going when the process ends.
+    if (study && !String(prompt).includes('为每个 target')) return study(system, prompt, options);
     reach();
     if (mode === 'hold') return never();
     if (study) return study(system, prompt, options);
