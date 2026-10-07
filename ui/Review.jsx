@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale } from "./i18n.js";
+import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import Cloze from "./Cloze.jsx";
@@ -21,7 +21,7 @@ import ResultBreakdown from "./ResultBreakdown.jsx";
 import { ReadingBlock, ReadingSettingsButton, useReadingProps } from "./reading-settings/ReadingSettings.jsx";
 import resultCss from "./review-results.css";
 import DailyRecap from './DailyRecap.jsx';
-import { Badge, Banner, Button, Chip, Icon, InlineMessage, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner } from "./components/index.js";
+import { Badge, Banner, Button, Chip, Icon, InlineMessage, PageHeader, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "./components/index.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "./agent-prompts/card.js";
@@ -80,10 +80,18 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { run, entry, showBack, showEn, enBusyKey, teachingBusy, teachingError, choice, isCloze, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
-  const { call, act, busy, host, askInChat, navigate, openModal, openSettings } = useStudy();
+  const { call, act, busy, host, askInChat, navigate, openModal, openSettings, notify } = useStudy();
   const { onBackToWorkflow, onCourseFlow, openSkeleton, onOpenNote, onMakeNote, onMakeTask, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
+  // 在右栏打开: busy until the sidebar has the run; when it cannot, say why (never a silent click).
+  const [movingToSidebar, setMovingToSidebar] = React.useState(false);
+  const moveToSidebar = async () => {
+    setMovingToSidebar(true);
+    try { await host.openInSidebar(run.id); }
+    catch (failure) { notify({ text: uiFormat("没能放进右栏：{0}", [errorMessage(failure)]), tone: "warning" }); }
+    finally { setMovingToSidebar(false); }
+  };
   const assistTasks = data?.assist;
   // Where 继续学习 goes (the page decided it with today's plan in view): the coach card and this page's own way back share it.
   const destination = coachProps?.destination;
@@ -226,7 +234,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
         actions={<>
           {host.openInSidebar && !run.complete && (
-            <Button variant="quiet" title={ui("题目放到右栏，主区域回到对话")} onClick={() => host.openInSidebar(run.id)}>{ui("在右栏打开")}</Button>
+            <Tooltip layer content={ui("题目放到右栏，主区域回到对话。在右栏里接着刚才做到的这一题继续。")}>
+              <Button variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
+            </Tooltip>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
           <Button variant="quiet" className="review-return" aria-label={flow ? ui("回到学习流") : ui("返回学习库")} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : navigate("library")}>
