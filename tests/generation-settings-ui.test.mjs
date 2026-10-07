@@ -6,10 +6,12 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { GENERATION_SETTINGS_DEFAULTS } from '../lib/generation-settings.js';
 import { nativeSelects } from './helpers/native-selects.mjs';
+import { GENERATION_KINDS } from '../lib/generation-settings.js';
 
 const require = createRequire(import.meta.url);
 const built = await build({ stdin: { contents: `export { default as GenerationSettings, GenerationSettingsForm, generationFormErrors } from './ui/GenerationSettings.jsx';
-  export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
+  export { setUiLanguage } from './ui/i18n.js';
+  export { toggleKind } from './ui/generate-form.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
   format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const load = requireFn => { const module = { exports: {} }; new Function('require', 'module', 'exports', built.outputFiles[0].text)(requireFn, module, module.exports); return module.exports; };
 const ssr = load(require), noop = () => {};
@@ -47,13 +49,20 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders fourteen usable controls with shared limits in both languages', () => {
+test('the generation settings section renders nineteen usable controls (five of them the question types) with shared limits in both languages', () => {
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 14);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 19);
+    const types = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)];
+    assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'flashcard', 'open', 'cloze'], 'the default question types are five checkboxes, not a select');
+    assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false], 'single choice is ticked by default');
+    assert.match(types[0][0], /disabled/, 'the only ticked type cannot be unticked');
+    assert.equal((html.match(/name="kind"/g) || []).length, 0);
+    const check = html.match(/<input[^>]*name="applySuggestions"[^>]*>/);
+    assert.ok(check && /type="checkbox"/.test(check[0]) && !/checked/.test(check[0]), 'applying the review suggestions is a checkbox, off by default');
     for (const [name, min, max] of [['count', 1, 500], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 180], ['fillRounds', 0, 4]]) {
       const input = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))[0];
       assert.match(input, new RegExp(`min="${min}"`)); assert.match(input, new RegExp(`max="${max}"`));
@@ -126,4 +135,62 @@ test('invalid fields show bounded feedback, and busy or duplicate submits make n
   assert.equal(control(view, 'count').props.disabled, true);
   view.render({ busy: false }); const saving = submit(view); await submit(view); assert.equal(calls, 1);
   response.resolve(); await saving;
+});
+
+const html = (language, saved) => { ssr.setUiLanguage(language); try { return renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', saved, act: noop })); } finally { ssr.setUiLanguage('zh'); } };
+const ticked = markup => [...markup.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)].filter(match => /checked/.test(match[0])).map(match => match[1]);
+
+test('the default question types show the saved combination, in words, in both languages (the old 测验 + 闪卡 is one of them)', () => {
+  const saved = { ...GENERATION_SETTINGS_DEFAULTS, kind: 'mixed', kinds: ['quiz', 'flashcard'], count: 10 };
+  const zh = html('zh', saved), en = html('en', saved);
+  assert.deepEqual(ticked(zh), ['quiz', 'flashcard']);
+  assert.deepEqual(ticked(en), ['quiz', 'flashcard']);
+  assert.doesNotMatch(zh.match(/name="kinds-quiz"[^>]*>/)[0], /disabled/, 'with two ticked, either can be unticked');
+  assert.match(zh, /单选测验 \+ 闪卡 · 共 2 种题型，按 10 题平均分配：5 \+ 5/);
+  assert.match(en, /Single choice \+ Flashcard · 2 types, 10 questions shared evenly: 5 \+ 5/);
+  const three = html('zh', { ...GENERATION_SETTINGS_DEFAULTS, kind: 'quiz', kinds: ['quiz', 'open', 'cloze'], count: 10 });
+  assert.deepEqual(ticked(three), ['quiz', 'open', 'cloze']);
+  assert.match(three, /共 3 种题型，按 10 题平均分配：4 \+ 3 \+ 3/);
+  assert.match(html('zh', { ...GENERATION_SETTINGS_DEFAULTS, kinds: ['quiz', 'open', 'cloze'], count: 2 }), /共 3 种题型，但只有 2 题：前 2 种题型各出 1 道/);
+  assert.doesNotMatch(html('zh', GENERATION_SETTINGS_DEFAULTS), /平均分配/, 'one type has nothing to split');
+  assert.doesNotMatch(en.replace(/\bvalue="(?:中文|中英双语)"/g, '').replaceAll('>中文<', '><'), /[㐀-鿿]/, 'every word of the group is English');
+});
+
+test('an old library (kind only) opens with its types ticked; a corrupt list falls back without losing the kind', () => {
+  assert.deepEqual(ticked(html('zh', { kind: 'mixed' })), ['quiz', 'flashcard']);
+  assert.deepEqual(ticked(html('zh', { kind: 'cloze' })), ['cloze']);
+  assert.deepEqual(ticked(html('zh', { kind: 'multi', kinds: 'x' })), ['multi']);
+  assert.deepEqual(ticked(html('zh', { kinds: ['open', 'nope'] })), ['open']);
+  assert.deepEqual(ticked(html('zh', { kind: 'mixed', kinds: ['open'] })), ['open'], 'kinds wins');
+});
+
+test('ticking types edits the list and the legacy kind together; the last ticked type cannot be unticked; saving sends both', async () => {
+  const calls = [];
+  const view = editor({ act: async (action, args, after) => { calls.push({ action, args }); after({ generation: args.generation }); } });
+  view.render(); view.effects();
+  const picker = () => control(view, 'kinds').props;
+  assert.deepEqual(picker().value, ['quiz']);
+  picker().onChange(['quiz', 'flashcard']);
+  assert.deepEqual(picker().value, ['quiz', 'flashcard']);
+  assert.equal(find(view.render(), node => node.props?.name === 'kinds').props.value.length, 2);
+  picker().onChange(['quiz', 'flashcard', 'cloze']);
+  await submit(view);
+  assert.equal(calls.length, 1);
+  assert.deepEqual([calls[0].args.generation.kind, calls[0].args.generation.kinds], ['quiz', ['quiz', 'flashcard', 'cloze']], 'any other combination: the first kind, for an older version');
+  picker().onChange(['flashcard', 'quiz']);
+  await submit(view);
+  assert.deepEqual([calls[1].args.generation.kind, calls[1].args.generation.kinds], ['mixed', ['flashcard', 'quiz']], 'exactly quiz + flashcard is what the old version called mixed');
+  // reset goes back to the single default quiz
+  find(view.render(), node => node.props?.onClick && node.props.children === '恢复默认值（待保存）').props.onClick();
+  assert.deepEqual(picker().value, ['quiz']);
+  assert.ok(GENERATION_KINDS.includes('mixed'), 'the legacy value stays a valid kind for older readers');
+});
+
+test('the checkbox group cannot reach an empty list, and keeps the order of the boxes', () => {
+  const { toggleKind } = ssr;
+  assert.deepEqual(toggleKind(['quiz'], 'quiz', false), ['quiz'], 'refused');
+  assert.deepEqual(toggleKind(['quiz'], 'cloze', true), ['quiz', 'cloze']);
+  assert.deepEqual(toggleKind(['cloze', 'quiz'], 'open', true), ['quiz', 'open', 'cloze'], 'always the order of the boxes');
+  assert.deepEqual(toggleKind(['quiz', 'open'], 'quiz', false), ['open']);
+  assert.deepEqual(toggleKind(['multi', 'open'], 'multi', true), ['multi', 'open']);
 });

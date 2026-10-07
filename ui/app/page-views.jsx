@@ -5,7 +5,7 @@ import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
 import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } from '../workspace-views.jsx';
-import { resultOpener } from '../tasks/task-actions.js';
+import { materialOpener, resultOpener } from '../tasks/task-actions.js';
 import StudyMap from '../StudyMap.jsx';
 import Welcome, { SampleBanner } from '../Welcome.jsx';
 import Dashboard from '../Dashboard.jsx';
@@ -20,6 +20,7 @@ import Draft from '../Draft.jsx';
 import Review from '../Review.jsx';
 import AudioImport from '../AudioImport.jsx';
 import { Button, PageHeader } from '../components/index.js';
+import { openAudioSettings } from '../audio-focus.js';
 import { useApp } from './app-context.js';
 import { SourceForm } from './modals/AddSourceDialog.jsx';
 import { createSetupHandlers } from './setup-handlers.js';
@@ -27,6 +28,7 @@ import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
 import { formatDateTime } from '../format.js';
+import { kindsOfLegacyKind } from '../../lib/generation-settings.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -50,7 +52,7 @@ function LibraryView() {
           retryGeneration: (job) => {
             const available = new Set(data.sources.map((source) => source.id));
             intents.goGenerate({ sourceIds: (job.sourceIds || []).filter((id) => available.has(id)),
-              genPatch: (current) => ({ kind: job.kind || current.kind, count: job.requestedTotal || job.count || current.count }) });
+              genPatch: (current) => ({ kind: job.kind || current.kind, kinds: job.kinds || (job.kind && kindsOfLegacyKind(job.kind)) || current.kinds, count: job.requestedTotal || job.count || current.count }) });
             notify(ui('已带回可用资料、题型和题数；请核对学习目标后再生成。'));
           },
           addSource: () => set.setModal({ type: 'add' }), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
@@ -154,11 +156,11 @@ export function AudioHeader({ onSettings, onSources }) {
   );
 }
 
-function AudioView() {
+export function AudioView() {
   const { data, host, nav, lib, set, learn } = useApp();
   return (
     <section className="page">
-      <AudioHeader onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')} />
+      <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
       <AudioImport data={data} canAsk={!!host.askInChat}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
@@ -170,7 +172,7 @@ function AudioView() {
 /** 任务: every background job in one place. What each job's 打开结果 leads to is decided here, where the app's navigation lives. */
 function TasksView() {
   const app = useApp(), { data } = app;
-  const openers = { resultOf: (job) => resultOpener(job, app) };
+  const openers = { resultOf: (job) => resultOpener(job, app), materialOf: (job) => materialOpener(job, app) };
   return <TaskConsole data={data} openers={openers} />;
 }
 

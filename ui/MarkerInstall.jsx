@@ -194,7 +194,7 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
 
   const installed = () => <div className="marker-install__done">
     <InlineMessage tone={markerReady ? 'success' : 'warning'} title={markerReady ? ui('Marker 已就绪') : ui('Marker 已安装，但检测没有通过')}>
-      {markerReady ? uiFormat('已安装到 {0}，程序路径已自动填好。', [install.installedFolder]) : uiFormat('已安装到 {0}，但检测没有通过。点下面的「保存并检测」再试，或重新安装。', [install.installedFolder])}
+      {markerReady ? uiFormat('已安装到 {0}，程序路径已自动填好。', [install.installedFolder]) : uiFormat('已安装到 {0}，但检测没有通过。点下面的「检测并保存」再试，或重新安装。', [install.installedFolder])}
     </InlineMessage>
     {markerReady && <Hint>{ui('第一次解析时会下载 Marker 的模型，需要联网和几分钟，之后就不用了。')}</Hint>}
     <div className="marker-install__row">

@@ -2,7 +2,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { STRENGTH_LABEL } from '../../lib/model-effort.js';
 import { formatDuration, joinMeta } from '../format.js';
 import { appliedText } from './task-control.js';
-import { callErrorText } from '../generation-status.js';
+import { callErrorText, stageEventText } from '../generation-status.js';
 import { runEventText } from '../coverage/copy.js';
 
 /* What the console's panels are drawn from: the timeline's lanes and bars, the list of calls in flight, the log's lines. Plain functions over a job's
@@ -175,7 +175,7 @@ export function eventText(event) {
   const a = event.args || {};
   switch (event.code) {
     case 'status': return ['failed', 'interrupted'].includes(a.status) && event.text ? uiFormat('{0}：{1}', [STATUS_WORD(a.status), event.text]) : STATUS_WORD(a.status) || event.text || '';
-    case 'stage': return event.text || '';
+    case 'stage': return stageEventText(a, event.text || '');
     case 'phase': return a.total > 0 ? uiFormat('{0}开始 · 共 {1} 段', [ui(PHASE[a.phase] || a.phase), a.total]) : uiFormat('{0}开始', [ui(PHASE[a.phase] || a.phase)]);
     case 'milestone': return a.partial ? uiFormat('{0}完成；有的段落没有成功，保留原文', [ui(PHASE[a.phase] || a.phase)]) : uiFormat('{0}全部完成', [ui(PHASE[a.phase] || a.phase)]);
     case 'warning': return event.text || '';
@@ -209,11 +209,44 @@ export function retryNote(call, calls) {
   if (last.status === 'cancelled') return uiFormat('{0}，已停止', [times]);
   return uiFormat('已重试 {0} 次，仍失败', [later.length]);
 }
+const BATCH_KINDS = new Set(['plan', 'blueprint', 'author', 'review', 'repair', 'publish']);
+const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+
+/** The review that judged the cards a repair re-worded: the first review of the same batch (and round) that began after the repair ended, once it has ended with counts. */
+function reviewAfter(call, calls) {
+  const from = Date.parse(call.endedAt);
+  return (calls || []).filter((other) => other.kind === 'review' && other.part === call.part && other.round === call.round && other.endedAt && Date.parse(other.startedAt) >= from)
+    .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))[0];
+}
+
+/**
+ * The second line of a call's log line: which batch (and, in a coverage run, which round) a call of a question run belongs to, and the counts of the questions.
+ * The counts are the call's own, recorded from its reply (call.counts, lib/call-counts.js): 写出 (the writing), 审了 / 通过 / 未通过 (a review: the cards of THIS call, so a
+ * re-review counts the repaired cards only), 重写 (a repair) with 通过 taken from the review that judged them. 要求 is what the batch was asked for (detail.partList, once the run
+ * has reported). Whatever is not known is left out. undefined for a call with neither a batch nor a count, so audio (where a part is a segment) and whole-run calls have no second
+ * line. The runner, the reasoning level and the tokens are the 实时输出 header's, not the log's.
+ */
+export function callDetail(call, contract) {
+  const part = Number(call.part), counts = call.counts || {};
+  const batch = BATCH_KINDS.has(call.kind) && call.part != null && Number.isInteger(part) && part >= 1 ? part : null;
+  const detail = contract?.detail || {}, total = Number(call.parts) || Number(detail.parts) || 0, round = Number.isInteger(call.round) ? call.round : undefined;
+  // The list describes the parts of the round in flight (or the last one): the calls of another round are not theirs (job-contract.js generationParts).
+  const listed = batch === null ? null : round === undefined || detail.run?.round === undefined || detail.run?.round === null || round === detail.run.round ? (detail.partList || []).find((item) => item.part === batch) : null;
+  const asked = count(listed?.asked);
+  const written = count(counts.written), reviewed = count(counts.reviewed), passed = count(counts.passed), flagged = count(counts.flagged), rewritten = count(counts.rewritten);
+  const judged = call.kind === 'repair' && rewritten !== null ? count(reviewAfter(call, contract?.calls)?.counts?.passed) : null;
+  const said = [call.kind === 'author' && asked !== null ? uiFormat('要求 {0} 道', [asked]) : '', call.kind === 'author' && written !== null ? uiFormat('写出 {0} 道', [written]) : '',
+    call.kind === 'review' && reviewed !== null ? joinMeta([uiFormat('审了 {0} 道', [reviewed]), passed !== null ? uiFormat('通过 {0}', [passed]) : '', flagged !== null ? uiFormat('未通过 {0}', [flagged]) : '']) : '',
+    call.kind === 'repair' && rewritten !== null ? joinMeta([uiFormat('重写 {0} 道', [rewritten]), judged !== null ? uiFormat('通过 {0}', [judged]) : '']) : ''];
+  const where = [round !== undefined && batch !== null ? uiFormat('第 {0} 轮', [round]) : '', batch === null ? '' : total > 1 && total >= batch ? uiFormat('第 {0}/{1} 批', [batch, total]) : uiFormat('第 {0} 批', [batch])];
+  return joinMeta([...where, ...said]) || undefined;
+}
+
 const CALL_STATUS = (status) => ({ ok: ui('完成'), failed: ui('失败'), cancelled: ui('已取消'), skipped: ui('已跳过') })[status] || '';
 
 /**
  * The log, newest first: the producer's own events and one line per finished call, a warning that repeats as ONE line with its count.
- * filter: all | step | warn | done. Line: { id, at, level, kind, text, tag?, count? }.
+ * filter: all | step | warn | done. Line: { id, at, level, kind, text, tag?, count?, detail? } (`detail`: the call's second line, see callDetail).
  */
 export function logLines(contract, filter = 'all') {
   const lines = [];
@@ -231,9 +264,11 @@ export function logLines(contract, filter = 'all') {
   for (const call of contract?.calls || []) {
     if (call.kind === 'wait' || !call.endedAt) continue;
     const took = formatDuration(Date.parse(call.endedAt) - Date.parse(call.startedAt));
-    const failed = call.status === 'failed';
-    lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind,
-      text: joinMeta([`${callLabel(call, { file: true })} ${CALL_STATUS(call.status)}`.trim(), took,
+    const failed = call.status === 'failed', detail = callDetail(call, contract);
+    // A question run's call names its batch on the second line, so the step's own name does not repeat it.
+    const label = callLabel(detail === undefined ? call : { ...call, part: null, parts: null }, { file: true });
+    lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind, ...(detail !== undefined ? { detail } : {}),
+      text: joinMeta([`${label} ${CALL_STATUS(call.status)}`.trim(), took,
         call.reused ? ui('音频内容和转写设置与之前相同') : '',
         failed && call.error ? uiFormat('原因：{0}', [callErrorText(call.error)]) : '', failed ? retryNote(call, contract.calls) : '']) });
   }

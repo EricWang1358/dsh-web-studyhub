@@ -11,10 +11,10 @@ const spec = (over = {}) => ({ version: 1, level: 'standard', goal: 100, quotas:
 test('recordAttempts counts one more failed attempt per section, with the reason and the round; a section is repeating from REPEAT_LIMIT', () => {
   assert.equal(REPEAT_LIMIT, 2);
   let next = recordAttempts(spec(), ['s#1', 's#2'], key => (key === 's#1' ? 'review-protocol' : 'quote'), 1);
-  assert.deepEqual(next.attempts, { 's#1': { n: 1, reason: 'review-protocol', round: 1 }, 's#2': { n: 1, reason: 'quote', round: 1 } });
+  assert.deepEqual(next.attempts, { 's#1': { n: 1, reason: 'review-protocol', round: 1, rounds: [{ round: 1 }] }, 's#2': { n: 1, reason: 'quote', round: 1, rounds: [{ round: 1 }] } });
   assert.equal(isRepeating(next, 's#1'), false);
   next = recordAttempts(next, ['s#1'], () => 'review-protocol', 4);
-  assert.deepEqual(next.attempts['s#1'], { n: 2, reason: 'review-protocol', round: 4 });
+  assert.deepEqual(next.attempts['s#1'], { n: 2, reason: 'review-protocol', round: 4, rounds: [{ round: 1 }, { round: 4 }] });
   assert.equal(isRepeating(next, 's#1'), true);
   assert.equal(isRepeating(next, 's#2'), false);
   assert.equal(isRepeating(spec(), 's#1'), false, 'a plan from before attempts were kept has none');

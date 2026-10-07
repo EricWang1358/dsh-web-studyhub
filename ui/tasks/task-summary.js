@@ -79,8 +79,9 @@ export function taskLine(job) {
   }
   // A coverage run says which round it is in (lib/coverage-run.js runFacts; the console's header says the rest).
   const run = contract.detail?.run;
-  if (contract.status === STATUS.PAUSING) return run ? uiFormat('正在暂停 · 第 {0} 轮做完后停下', [run.round]) : uiFormat('正在暂停 · 等 {0} 个调用结束', [contract.actions.pause.waiting?.count ?? 0]);
-  if (contract.status === STATUS.PAUSED) return run ? uiFormat('暂停于第 {0} 轮之后', [run.pausedAfter ?? run.done]) : ui('已暂停');
+  // Pausing waits for the model calls that are running, never for a round; paused between two rounds also says after which one.
+  if (contract.status === STATUS.PAUSING) { const waiting = contract.actions.pause.waiting?.count ?? 0; return waiting > 0 ? uiFormat('正在暂停 · 等正在进行的 {0} 个模型调用结束', [waiting]) : ui('正在暂停'); }
+  if (contract.status === STATUS.PAUSED) return run?.pausedAfter ? uiFormat('暂停于第 {0} 轮之后', [run.pausedAfter]) : ui('已暂停 · 点「继续」接着做');
   if (contract.status === STATUS.INTERRUPTED && run) return uiFormat('中断于第 {0} 轮 · 点「接着做」继续', [run.round]);
   // A failed or stopped run that was continued says so (its numbers stay as they were; the task that continued it has the new ones).
   if (contract.continuedBy) return ui('接着做过了 · 新的进度在接着做的任务里');

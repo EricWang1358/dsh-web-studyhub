@@ -60,5 +60,11 @@
   "这篇讲解的资料依据 · {0} 处": "Sources behind this lesson · {0}",
   "把「{0}」的概念、原理和例子连成一条线，再看看它适用于什么情境。": "Connect the concepts, principles and examples of “{0}”, then examine when they apply.",
   "{0} 等 {1} 个主题": "{0} and {1} topics in all",
-  "{0} 条": "{0}"
+  "{0} 条": "{0}",
+  "置顶": "Pin",
+  "取消置顶": "Unpin",
+  "置顶到最前": "Move to top",
+  "已置顶": "Pinned",
+  "共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。": "{0} source(s), {1} pinned, the rest grouped by import date ({2} group(s)).",
+  "共 {0} 份资料，全部置顶。": "{0} source(s), all pinned."
 }

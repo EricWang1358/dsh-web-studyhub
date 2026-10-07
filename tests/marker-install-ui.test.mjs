@@ -122,7 +122,7 @@ test('English: every state is free of Chinese, links use the theme link style, n
 test('Marker settings: the install comes first, the manual path stays, the old guidance stays', () => {
   const html = renderToStaticMarkup(React.createElement(MarkerSettings, { call: async () => ({}) }));
   assert.match(html, /marker-install/);
-  assert.match(html, /placeholder="marker_single"/); assert.match(html, /保存并检测/);
+  assert.match(html, /placeholder="marker_single"/); assert.match(html, /检测并保存/);
   assert.match(html, /marker#installation/); assert.match(html, /marker#commercial-usage/);
   assert.ok(html.indexOf('marker-install') < html.indexOf('placeholder="marker_single"'), 'the one-click install is above the manual path');
   for (const anchor of html.match(/<a [^>]*>/g) || []) assert.match(anchor, /class="[^"]*marker-link/, anchor);

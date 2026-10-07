@@ -70,7 +70,7 @@ test('every reason a run stops has plain words, in both languages', () => {
     inLanguage('en', () => assert.doesNotMatch(m.copy.stopText(stop), han, reason));
   }
   // A failure is said by its CODE in plain words; the provider's own English is never printed (D-5).
-  assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, code: 'plan-short' }), /原因：模型给出的考点不够数/, 'a failure says what it was');
+  assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, code: 'plan-short' }), /原因：模型给出的考点比计划的少/, 'a failure says what it was');
   assert.doesNotMatch(m.copy.stopText({ reason: 'no-progress', round: 2, detail: 'plan is short' }), /plan is short/, 'a text nothing recognises is not printed');
   assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, left: 18 }), /还有 18 个小节没有题，可以点「为没覆盖的部分补题」再试/, 'the stop says how many are left and what to do');
   assert.equal(m.copy.stopText({ reason: 'refused', round: 2, code: 'credential', detail: 'Part 1: 401 Unauthorized: Invalid API key; Part 2: 401 Unauthorized' }), '模型服务拒绝了请求（密钥无效或没有权限），已经停下；已通过的题都保留。', 'ONE sentence, once, not per part');
@@ -123,17 +123,27 @@ test('the rounds tab: a row per round with its state and what it did, the parts 
   assert.match(text(english), /2\/12 rounds done/);
 });
 
-test('paused: 暂停于第 2 轮之后 and 继续; pausing says what it waits for; a manual run says why it cannot pause', () => {
+test('paused: 暂停于第 2 轮之后 and 继续; pausing waits for the running model calls, not for the round; a pause inside a round says how to go on; a manual run can pause too', () => {
   const paused = job({ status: 'running', paused: true, pausedAt: at(900), control: { ...control(), values: { ...control().values, paused: true } } }, { state: 'paused', list: list(['done', 'done', 'pending', ...Array(9).fill('pending')]) });
   const html = render(React.createElement(m.TaskConsole, { data: { jobs: [paused], drafts: [], decks: [] }, openers: { resultOf: () => null } }));
   assert.match(text(html), /暂停于第 2 轮之后 · 覆盖 31%/);
   assert.match(html, />继续</);
   assert.doesNotMatch(html, />暂停</, 'it is paused: the button is 继续');
   assert.match(text(html), /已暂停/);
-  const pausing = job({ status: 'running', paused: true, control: { ...control(), values: { ...control().values, paused: true } } });
-  assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [pausing], drafts: [], decks: [] }, openers: { resultOf: () => null } }))), /正在暂停 · 第 3 轮做完后停下/);
+  const paused_ = { status: 'running', paused: true, control: { ...control(), values: { ...control().values, paused: true } } };
+  const calls = [{ id: 'k1', status: 'starting', startedAt: at(890) }, { id: 'k2', status: 'starting', startedAt: at(891) }, { id: 'k3', status: 'complete', startedAt: at(880), finishedAt: at(895) }];
+  const pausing = job({ ...paused_, steps: calls });
+  const pausingHtml = text(render(React.createElement(m.TaskConsole, { data: { jobs: [pausing], drafts: [], decks: [] }, openers: { resultOf: () => null } })));
+  assert.match(pausingHtml, /正在暂停 · 等正在进行的 2 个模型调用结束/, 'it waits for the two calls that run, and says so');
+  assert.doesNotMatch(pausingHtml, /做完后停下/, 'never for the round');
+  inLanguage('en', () => assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [pausing], drafts: [], decks: [] }, openers: { resultOf: () => null } }), { language: 'en' })), /Pausing · waiting for the 2 model call\(s\) in progress to finish/));
+  const midRound = job({ ...paused_, pausedAt: at(900) });
+  assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [midRound], drafts: [], decks: [] }, openers: { resultOf: () => null } }))), /已暂停 · 点「继续」接着做/);
+  inLanguage('en', () => assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [midRound], drafts: [], decks: [] }, openers: { resultOf: () => null } }), { language: 'en' })), /Paused · press Resume to go on/));
   const manual = job({ control: control(false) }, { autoComplete: false });
-  assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [manual], drafts: [], decks: [] }, openers: { resultOf: () => null } }))), /这次只做一轮，做完就停；勾选「自动补到完整」后，轮与轮之间才可以暂停。/);
+  const manualHtml = render(React.createElement(m.TaskConsole, { data: { jobs: [manual], drafts: [], decks: [] }, openers: { resultOf: () => null } }));
+  assert.doesNotMatch(text(manualHtml), /这次只做一轮，做完就停/, 'a run that does not go on by itself pauses at its calls like any other');
+  assert.match(manualHtml, />暂停</);
   inLanguage('en', () => assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [paused], drafts: [], decks: [] }, openers: { resultOf: () => null } }), { language: 'en' })), /Paused after round 2 · Covered 31%/));
 });
 
@@ -270,6 +280,6 @@ test('a run that stopped before its plan was met is partial in the list and the 
   assert.equal(m.taskSummary(met).state, 'done');
   const html = render(React.createElement(m.TaskConsole, { data: { jobs: [stopped], drafts: [], decks: [] }, openers: { resultOf: () => null } }));
   assert.match(text(html), /停在第 5 轮之后 · 覆盖 31%/);
-  assert.match(text(html), /重试了几轮，还有 2 个小节没出成题，已经停下。/);
+  assert.match(text(html), /重试后，还有 2 个小节没出成题，已经停下。/);
   assert.match(text(html), /部分完成/);
 });

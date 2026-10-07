@@ -156,6 +156,7 @@ test('replacing a PDF while its plan is pending cancels that upload and ignores 
 });
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
+const NOT_SAVED = '没有通过检测，所以没有保存；原来的路径没有改动。';
 test('Marker settings load the path promptly and reject a stale initial probe after saving', async () => {
   let releaseSettings, releaseStatus;
   let probes = 0;
@@ -174,20 +175,77 @@ test('Marker settings load the path promptly and reject a stale initial probe af
   tree = mounted.render();
   assert.equal(find(tree, item => item.props?.placeholder === 'marker_single').props.disabled, false, 'editing does not wait for the CLI probe');
   find(tree, item => item.props?.placeholder === 'marker_single').props.onChange({ target: { value: 'new-path' } });
-  tree = mounted.render(); await find(tree, item => item.props.children === '保存并检测').props.onClick();
+  tree = mounted.render(); await find(tree, item => item.props.children === '检测并保存').props.onClick();
   releaseStatus({ state: 'not-installed' }); await flush();
   tree = mounted.render();
   assert.equal(find(tree, item => item.props?.placeholder === 'marker_single').props.value, 'new-path');
   assert.equal(mounted.states[1].state, 'ready');
   assert.deepEqual(calls.find(item => item.action === 'marker.settings.set').args, { command: 'new-path' });
+  const order = calls.map(item => item.action);
+  assert.ok(order.lastIndexOf('marker.local.status') < order.indexOf('marker.settings.set'), 'the path is checked before it is saved');
   mounted.close();
+});
+test('a blank or whitespace path box never overwrites the saved path: 检测并保存 only checks what is in use now', async () => {
+  for (const saved of ['', 'F:\\StudyHub-Marker\\venv\\Scripts\\marker_single.exe']) for (const typed of ['', '   ']) {
+    const calls = [];
+    const props = { call: async (action, args) => { calls.push({ action, args }); if (action === 'marker.settings.get') return { command: saved }; if (action === 'marker.local.status') return { state: 'ready' }; return {}; } };
+    const mounted = mountPdf(props, 'MarkerSettings');
+    mounted.render(); await flush();
+    let tree = mounted.render();
+    find(tree, item => item.props?.placeholder === 'marker_single').props.onChange({ target: { value: typed } });
+    tree = mounted.render(); await find(tree, item => item.props.children === '检测并保存').props.onClick(); await flush();
+    assert.equal(calls.filter(item => item.action === 'marker.settings.set').length, 0, `a blank box ${JSON.stringify(typed)} (saved: ${JSON.stringify(saved)}) writes nothing`);
+    const probes = calls.filter(item => item.action === 'marker.local.status');
+    assert.equal(probes.length, 2, 'it still checks');
+    assert.deepEqual(probes[1].args, {}, 'with no path in the box it asks about what is in use now');
+    assert.equal(find(mounted.render(), item => item.props.children === NOT_SAVED), undefined, 'a blank box is not a failed save');
+    mounted.close();
+  }
+});
+// Mounts MarkerSettings with a saved path, types `typed`, presses 检测并保存 and returns what was called and what the page shows.
+async function checkAndSave({ saved = 'saved-marker', typed, result }) {
+  const calls = [];
+  const mounted = mountPdf({ call: async (action, args) => { calls.push({ action, args });
+    if (action === 'marker.settings.get') return { command: saved };
+    if (action === 'marker.local.status') return args?.command ? result : { state: 'ready' };
+    return {}; } }, 'MarkerSettings');
+  mounted.render(); await flush();
+  let tree = mounted.render();
+  find(tree, item => item.props?.placeholder === 'marker_single').props.onChange({ target: { value: typed } });
+  tree = mounted.render(); await find(tree, item => item.props.children === '检测并保存').props.onClick(); await flush();
+  tree = mounted.render();
+  return { calls, tree, mounted, hint: find(tree, item => item.props.children === NOT_SAVED), box: find(tree, item => item.props?.placeholder === 'marker_single') };
+}
+test('a path that passes the check is checked first (with the path, unsaved) and then saved with the same path', async () => {
+  const { calls, hint, tree, mounted } = await checkAndSave({ typed: '  new-marker  ', result: { state: 'ready', command: 'new-marker' } });
+  const probe = calls.findIndex(item => item.action === 'marker.local.status' && item.args?.command), save = calls.findIndex(item => item.action === 'marker.settings.set');
+  assert.ok(probe >= 0, 'the typed path was probed'); assert.ok(save > probe, 'saved only after the probe answered');
+  assert.deepEqual(calls[probe].args, { command: 'new-marker' }, 'the probe gets the trimmed path');
+  assert.deepEqual(calls[save].args, { command: 'new-marker' }, 'the same path is what is saved');
+  assert.equal(calls.filter(item => item.action === 'marker.settings.set').length, 1);
+  assert.equal(hint, undefined, 'nothing to explain when it was saved');
+  assert.ok(find(tree, item => item.props?.role === 'status' && item.props['data-ready'] === true), 'the page says Marker is ready');
+  mounted.close();
+});
+test('a path that does not pass the check is never saved: the saved path stays and the page says so', async () => {
+  for (const result of [{ state: 'unavailable', next: 'recheck', command: 'bad', message: 'Marker 程序暂时无法使用，请检查安装和版本。' }, { state: 'not-installed', next: 'recheck', command: 'bad' }]) {
+    const { calls, hint, tree, box, mounted } = await checkAndSave({ typed: 'bad', result });
+    assert.deepEqual(calls.filter(item => item.action === 'marker.local.status').at(-1).args, { command: 'bad' }, 'it did check the typed path');
+    assert.equal(calls.filter(item => item.action === 'marker.settings.set').length, 0, `${result.state}: nothing is written over the saved path`);
+    assert.ok(hint, `${result.state}: the page says nothing was saved`);
+    assert.ok(find(tree, item => item.props?.role === 'status' && item.props['data-ready'] === false), 'and that Marker is not ready');
+    assert.equal(box.props.value, 'bad', 'the typed path stays in the box to fix');
+    box.props.onChange({ target: { value: 'bad2' } });
+    assert.equal(find(mounted.render(), item => item.props.children === NOT_SAVED), undefined, 'editing the box clears the note');
+    mounted.close();
+  }
 });
 test('a host without audio offers external guidance and never calls unavailable converter operations', async () => {
   const calls = [], call = async action => { calls.push(action); return {}; };
   const settings = mountPdf({ call, available: false }, 'MarkerSettings');
   const tree = settings.render();
   assert.equal(find(tree, item => item.props?.placeholder === 'marker_single').props.disabled, true);
-  assert.equal(find(tree, item => item.props.children === '保存并检测').props.disabled, true);
+  assert.equal(find(tree, item => item.props.children === '检测并保存').props.disabled, true);
   assert.equal(find(tree, item => item.props.children === '下载 Marker 转换脚本').props.disabled, false);
   const pdf = mountPdf({ call, available: false, file: new Blob(['PDF']) }); pdf.render(); await flush();
   assert.deepEqual(calls, []);

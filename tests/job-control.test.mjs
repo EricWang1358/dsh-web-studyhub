@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createJobControl, audioControl, generationControl } from '../lib/job-control.js';
 import { createPool } from '../lib/audio-pool.js';
 import { generateBatched } from '../lib/batch.js';
+import { jobCalls } from '../lib/job-calls.js';
 import { finishTranscript } from '../lib/audio-import.js';
 import { StudyService } from '../lib/service.js';
 import { qualityPlan, qualityReview, withQualityStages } from './helpers/assessment.mjs';
@@ -331,4 +332,111 @@ test('job.control refuses a bad request before touching the job', async (t) => {
   assert.equal(snapshot.contract.actions.set.settings.find((item) => item.key === 'concurrency').value, 4, 'nothing moved');
   release();
   await settleJob(service, started.jobId).catch(() => {});
+});
+
+// ---- pause at the admission of a call (a coverage run) ----
+// Pause = no new model call starts; every call that is running finishes; the run is `paused` when none is left; resume goes on exactly where it stopped.
+
+/** `provider`, each call recorded as a step of the job (what the executor's own bookkeeping does). While `held.on` every authoring call waits to be released, one at a time (`releaseOne`) or all (`release`). */
+function pausable(job, { latency = 5 } = {}) {
+  const model = provider({ latency }), held = { on: true, starts: [], waiting: [] };
+  held.release = () => { held.on = false; held.waiting.splice(0).forEach((open) => open()); };
+  held.releaseOne = () => held.waiting.shift()?.();
+  const complete = async (system, prompt, context = {}) => {
+    const step = { id: `step-${job.steps.length + 1}`, status: 'starting', startedAt: new Date().toISOString() };
+    job.steps.push(step);
+    held.starts.push(system.slice(0, 12));
+    try {
+      if (held.on && system.startsWith('You author')) await new Promise((resolve) => held.waiting.push(resolve));
+      const value = await model.complete(system, prompt, context);
+      step.status = 'complete';
+      return value;
+    } catch (error) { step.status = 'failed'; throw error; } finally { step.finishedAt = new Date().toISOString(); }
+  };
+  return { complete, held, log: model.log };
+}
+const coverageControl = (job, concurrency = 3) => generationControl({ job, request: { performance: { concurrency, batchSize: 5, fillRounds: 0 } }, rounds: { autoComplete: true } });
+const runOf = (model, control, extra = {}) => generateBatched(model.complete, { count: 15, kind: 'flashcard', sources, performance: { concurrency: 3, batchSize: 5, fillRounds: 0 }, control, ...extra });
+const startsOf = (model, prefix) => model.held.starts.filter((name) => name.startsWith(prefix)).length;
+const runningNow = (job) => jobCalls(job).filter((call) => call.status === 'running').length;
+
+test('pause at a call: the three running calls finish, no fourth starts, it is paused only when they are done; resume gives the result of a run that was never paused', async () => {
+  const baseJob = { steps: [] }, base = pausable(baseJob);
+  base.held.release();
+  const expected = await runOf(base, coverageControl(baseJob));
+  const job = { steps: [] }, control = coverageControl(job), model = pausable(job);
+  const running = runOf(model, control);
+  await until(() => startsOf(model, 'You author') === 3, 'three authoring calls in flight');
+  assert.equal(runningNow(job), 3);
+  control.patch({ paused: true });
+  assert.equal(job.paused, true);
+  await sleep(200);
+  assert.equal(job.pausedAt, undefined, 'asked, not reached: three calls are still running');
+  model.held.release();
+  await until(() => job.pausedAt, 'the pause to be reached once the three calls are done');
+  const started = model.held.starts.length;
+  assert.equal(runningNow(job), 0, 'reached means no model call is running');
+  assert.equal(jobCalls(job).filter((call) => call.status === 'ok').length, started, 'all of them ended well');
+  await sleep(150);
+  assert.equal(model.held.starts.length, started, 'no fourth call started while it is paused');
+  control.patch({ paused: false });
+  assert.equal('pausedAt' in job, false, 'resuming clears it');
+  const result = await running;
+  assert.equal(result.cards.length, expected.cards.length);
+  assert.equal(result.cards.length, 15);
+  assert.ok(model.held.starts.length > started, 'the held calls started again');
+});
+
+test('pause and resume again and again: the run advances only while it is resumed and ends complete', async () => {
+  const job = { steps: [] }, control = coverageControl(job), model = pausable(job, { latency: 25 });
+  model.held.release();
+  let ended = false;
+  const running = runOf(model, control).finally(() => { ended = true; });
+  await until(() => model.held.starts.length >= 1, 'the first call');
+  for (let cycle = 0; cycle < 3; cycle++) {
+    control.patch({ paused: true });
+    await until(() => job.pausedAt, `pause ${cycle + 1} to be reached`);
+    assert.equal(ended, false);
+    const frozen = model.held.starts.length;
+    await sleep(60);
+    assert.equal(model.held.starts.length, frozen, `nothing starts during pause ${cycle + 1}`);
+    control.patch({ paused: false });
+    await until(() => model.held.starts.length > frozen, `the run to go on after resume ${cycle + 1}`);
+  }
+  assert.equal((await running).cards.length, 15);
+});
+
+test('a call that waited in the queue before the pause does not start while it is paused', async () => {
+  const job = { steps: [] }, control = coverageControl(job), model = pausable(job);
+  const running = runOf(model, control);
+  await until(() => startsOf(model, 'You author') === 3, 'three authoring calls in flight');
+  control.patch({ concurrency: 1 });
+  model.held.releaseOne();
+  await until(() => startsOf(model, 'Act as a str') === 0 && jobCalls(job).filter((call) => call.status === 'ok').length > 5 && runningNow(job) === 2, 'one authoring call done, its review waiting in the queue');
+  await sleep(40);
+  assert.equal(startsOf(model, 'Act as a str'), 0, 'the budget is one and two calls still run: the review waits in the queue');
+  control.patch({ paused: true });
+  model.held.release();
+  await until(() => job.pausedAt, 'the pause to be reached');
+  await sleep(150);
+  assert.equal(startsOf(model, 'Act as a str'), 0, 'the queued review was admitted by the freed budget but held by the pause');
+  assert.equal(runningNow(job), 0);
+  control.patch({ paused: false });
+  assert.equal((await running).cards.length, 15);
+  assert.ok(startsOf(model, 'Act as a str') > 0);
+});
+
+test('cancel while paused ends the run with the stop reason at once, with no call left running', async () => {
+  const job = { steps: [] }, control = coverageControl(job), model = pausable(job), stop = new AbortController();
+  const running = runOf(model, control, { signal: stop.signal });
+  const outcome = running.then(() => 'finished', (error) => error);
+  await until(() => startsOf(model, 'You author') === 3, 'three authoring calls in flight');
+  control.patch({ paused: true });
+  model.held.release();
+  await until(() => job.pausedAt, 'the pause to be reached');
+  stop.abort(new Error('stopped by the learner'));
+  const error = await Promise.race([outcome, sleep(5000).then(() => 'hung')]);
+  assert.ok(error instanceof Error, `the run ended instead of hanging: ${String(error)}`);
+  assert.match(error.message, /stopped by the learner/);
+  assert.equal(runningNow(job), 0);
 });

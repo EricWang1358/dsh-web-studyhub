@@ -7,9 +7,10 @@ import { StudyService } from '../lib/service.js';
 import { normalizeGenerationSettings, normalizeGenerationPerformance, resolveGenerationRequest,
   validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
 
-const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
+// Every performance key that is not a number: the four reasoning levels and whether the review's suggestions are applied (off by default).
+const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const expected = { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS,
-  kind: 'quiz', count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto' };
+  kind: 'quiz', kinds: ['quiz'], count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto' };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-settings-'));
   const service = new StudyService(root);
@@ -62,7 +63,7 @@ test('corrupt persisted generation values fall back without replacing valid sibl
 test('new requests use defaults and explicit one-off choices without mutating the saved settings', () => {
   const saved = { ...expected, concurrency: 6, batchSize: 2, count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs' };
   const before = structuredClone(saved);
-  assert.deepEqual(resolveGenerationRequest(saved), { kind: 'quiz', count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs', notation: 'auto',
+  assert.deepEqual(resolveGenerationRequest(saved), { kind: 'quiz', kinds: ['quiz'], count: 20, language: 'English', difficulty: 'advanced', focus: 'Explain trade-offs', notation: 'auto',
     performance: { concurrency: 6, batchSize: 2, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS } });
   assert.deepEqual(resolveGenerationRequest(saved, { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', performance: { concurrency: 1 } }),
     { kind: 'case', count: 2, language: 'Français', difficulty: 'Expert', focus: '', notation: 'auto', performance: { concurrency: 1, batchSize: 2, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS } });
@@ -76,18 +77,23 @@ test('auto language resolves once from the request interface language', () => {
   assert.equal(resolveGenerationRequest({ language: 'English' }, { language: 'auto' }, { language: 'zh' }).language, '中文');
 });
 
-test('continued work inherits original choices and performance instead of changed library defaults', () => {
+test('continued work inherits original choices and performance instead of changed library defaults, except the time limit, which follows the setting', () => {
   const continuation = { kind: 'mixed', count: 29, language: 'English', difficulty: 'application', focus: 'Original scope',
     performance: { concurrency: 1, batchSize: 3, jobTimeoutMinutes: 40 } };
   const before = structuredClone(continuation);
   const actual = resolveGenerationRequest({ ...expected, count: 30, concurrency: 6, batchSize: 1, language: '中文' },
     { count: 4, performance: { concurrency: 2 } }, { language: 'zh', continuation });
-  assert.deepEqual(actual, { kind: 'mixed', count: 4, language: 'English', difficulty: 'application', focus: 'Original scope', notation: 'auto',
-    performance: { concurrency: 2, batchSize: 3, jobTimeoutMinutes: 40, fillRounds: 2, ...EFFORTS } });
+  // The time limit is how long the learner will wait, not part of what the draft was written with: raising it in 设置 is how a run that hit its limit is continued (3.0.1).
+  assert.deepEqual(actual, { kind: 'mixed', kinds: ['quiz', 'flashcard'], count: 4, language: 'English', difficulty: 'application', focus: 'Original scope', notation: 'auto',
+    performance: { concurrency: 2, batchSize: 3, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS } });
   assert.deepEqual(continuation, before);
+  const raised = resolveGenerationRequest({ ...expected, jobTimeoutMinutes: 90 }, { count: 4 }, { language: 'zh', continuation });
+  assert.deepEqual(raised.performance, { concurrency: 1, batchSize: 3, jobTimeoutMinutes: 90, fillRounds: 2, ...EFFORTS }, 'only the limit follows the setting; the rest stays as the draft was written');
+  const oneOff = resolveGenerationRequest({ ...expected, jobTimeoutMinutes: 90 }, { performance: { jobTimeoutMinutes: 7 } }, { language: 'zh', continuation });
+  assert.equal(oneOff.performance.jobTimeoutMinutes, 7, 'an explicit one-off limit still wins');
   const legacy = resolveGenerationRequest({ ...expected, concurrency: 6, language: 'English', difficulty: 'advanced', focus: 'New setting' },
     { count: 2 }, { language: 'en', continuation: { kind: 'flashcard' } });
-  assert.deepEqual(legacy, { kind: 'flashcard', count: 2, language: '中文', difficulty: 'mixed', focus: '', notation: 'auto',
+  assert.deepEqual(legacy, { kind: 'flashcard', kinds: ['flashcard'], count: 2, language: '中文', difficulty: 'mixed', focus: '', notation: 'auto',
     performance: { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS } });
 });
 

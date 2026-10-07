@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
-import { Button, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
-import { kinds } from './shared.js';
-import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KINDS, GENERATION_LANGUAGES,
+import { Button, Checkbox, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
+import KindPicker from './KindPicker.jsx';
+import { kindNote, kindsPatch } from './generate-form.js';
+import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 
-const labels = { kind: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
+const labels = { kinds: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
-  effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目' };
+  effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目', applySuggestions: '采纳审阅建议' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
@@ -38,7 +39,7 @@ export default function GenerationSettings(props) {
 }
 
 /** `efforts` are the reasoning levels of the model in use ([{ id, name }], null until known): the stage selects offer those, like the audio settings. */
-export function GenerationSettingsForm({ root, saved, busy = false, act, efforts = null }) {
+export function GenerationSettingsForm({ root, saved, busy = false, act, efforts = null, followLabel }) {
   const toast = useToast();
   const savedKey = JSON.stringify(normalizeGenerationSettings(saved));
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));
@@ -53,9 +54,9 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     setEditor(current => current.observed === savedKey ? current : { observed: savedKey, baseline: incoming,
       values: same(numbers(current.values), current.baseline) ? incoming : current.values });
   }, [savedKey]);
-  const edit = (key, value) => {
+  const edit = (key, value, also = {}) => {
     version.current++; setError('');
-    setEditor(current => ({ ...current, values: { ...current.values, [key]: value } }));
+    setEditor(current => ({ ...current, values: { ...current.values, [key]: value, ...also } }));
   };
   const reset = () => {
     version.current++; setError('');
@@ -81,7 +82,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     finally { if (current()) { pending.current = null; setWorking(false); } }
   };
   // The time limit is also a deep link: the 任务 page's 调整时限 opens Settings at this field (ui/tasks/time-limit.js LIMIT_ANCHOR).
-  const field = (key, control, note) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]} {...(key === 'jobTimeoutMinutes' ? { 'data-tour': 'settings-generation-time' } : {})}>{control}</Field>;
+  const field = (key, control, note, group = false) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]} group={group} {...(key === 'jobTimeoutMinutes' ? { 'data-tour': 'settings-generation-time' } : {})}>{control}</Field>;
   const propsFor = key => ({ name: key, value: editor.values[key], disabled, onChange: event => edit(key, event.target.value) });
   const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
     min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
@@ -89,7 +90,8 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
   return <form className="settings-form" onSubmit={save}>
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
-      {choiceField('kind', GENERATION_KINDS, value => value === 'mixed' ? ui('测验 + 闪卡') : kinds[value])}
+      {field('kinds', <KindPicker name="kinds" value={editor.values.kinds} disabled={disabled} onChange={list => edit('kinds', list, kindsPatch(list))} />,
+        kindNote(editor.values.kinds, Number(editor.values.count)), true)}
       {numberField('count', ui('没有指定覆盖强度时（例如让助手在对话里出题）一次请求的总题数；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
@@ -103,8 +105,12 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
       {numberField('fillRounds', ui('题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。'))}
       <h3 className="settings-subtitle">{ui('各阶段的推理程度')}</h3>
       <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>
-      {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
+      {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow followLabel={followLabel} name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
         efforts={efforts} disabled={disabled} error={errors[effortKey(stage)]} onChange={value => edit(effortKey(stage), value)} />)}
+      <h3 className="settings-subtitle">{ui('审阅建议')}</h3>
+      <Checkbox name="applySuggestions" label={ui(labels.applySuggestions)} checked={editor.values.applySuggestions === true} disabled={disabled}
+        hint={ui('审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。')}
+        onChange={value => edit('applySuggestions', value === true)} />
       {error && <Hint tone="error" role="alert">{error}</Hint>}
       <div className="settings-actions">
         <Button variant="primary" type="submit" busy={working} disabled={busy || !dirty || invalid}>{ui('保存出题偏好')}</Button>

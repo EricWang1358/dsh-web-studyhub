@@ -230,7 +230,7 @@ export default function Draft({
         </Button>
       </div>
       {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}>
-        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} />
+        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
         <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready}
           onTopUp={(target, sectionIds) => topUpDraft(target, sectionIds)} />
         {(unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
@@ -268,7 +268,7 @@ export default function Draft({
           {draft.editorial.repairTried > 0 && <Hint data-repair-yield>{uiFormat("修复后保留 {0} 题 · 丢弃 {1} 题（其中 {2} 题修复后仍未通过，原因见「没进入草稿的题」）",
             [draft.editorial.repairedInRun || 0, (draft.editorial.omitted || []).length, draft.editorial.repairTried - (draft.editorial.repairedInRun || 0)])}</Hint>}
           {draft.editorial.suggestions?.length > 0 && <Disclosure className="review-suggestions" summary={uiFormat("审阅建议（已记录，不影响通过）· {0}", [draft.editorial.suggestions.length])}>
-            <ul>{draft.editorial.suggestions.map((item, index) => <li key={index}>{item.text}</li>)}</ul>
+            <ul>{draft.editorial.suggestions.map((item, index) => <li key={index}>{item.applied ? `${ui("已采纳")} · ` : ""}{item.text}</li>)}</ul>
           </Disclosure>}
           <Hint>
             {[reviewStatus

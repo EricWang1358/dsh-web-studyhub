@@ -117,7 +117,7 @@ export function shortfall(draft) {
 export function describePartReport(report) {
   if (!report || !(report.total > 0) || report.passed === report.total) return null;
   const reasons = report.reasons || {}, line = {
-    'plan-short': (n) => uiFormat('{0} 个批次里模型给出的考点不够数，补问一次后仍然不足', [n]),
+    'plan-short': (n) => uiFormat('{0} 个批次里模型给出的考点比计划的少，补问一次后仍然不足', [n]),
     quote: (n) => uiFormat('{0} 个批次的引用在资料里找不到', [n]),
     plan: (n) => uiFormat('{0} 个批次的考点规划没有通过检查', [n]),
     quality: (n) => uiFormat('{0} 个批次的题没有通过质量审阅', [n]),

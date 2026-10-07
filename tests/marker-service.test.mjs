@@ -1,22 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, mkdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { prepareJob } from '../lib/mineru-job.js';
 import { resultsDir } from '../lib/mineru-paths.js';
+import { markerInstallStatePath, venvLayout } from '../lib/marker-install.js';
 import { makePdf } from './helpers/pdf.mjs';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 const fake = fileURLToPath(new URL('./helpers/fake-marker-cli.mjs', import.meta.url));
-async function harness(t, state = {}, limits = { windowPages: 2 }) {
+// `seam: false` leaves out the stand-in CLI, so Marker is looked for the way the app does it (the saved path, StudyHub's own install, PATH).
+async function harness(t, state = {}, limits = { windowPages: 2 }, { seam = true } = {}) {
   const folder = await mkdtemp(join(tmpdir(), 'marker-service-'));
   const before = process.env.DSH_HOME;
   process.env.DSH_HOME = join(folder, 'home');
   const root = join(folder, 'library'), statePath = join(folder, 'state.json'), log = join(folder, 'log.jsonl');
   await writeFile(statePath, JSON.stringify(state)); await writeFile(log, '');
-  const options = { ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), marker: { limits, local: { cli: { file: process.execPath, prefix: [fake], env: { FAKE_MARKER_STATE: statePath, FAKE_MARKER_LOG: log } } } } };
+  const options = { ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), marker: { limits, ...(seam ? { local: { cli: { file: process.execPath, prefix: [fake], env: { FAKE_MARKER_STATE: statePath, FAKE_MARKER_LOG: log } } } } : {}) } };
   let service = new StudyService(root, options);
   const pdfs = new Map();
   const h = {
@@ -99,4 +101,48 @@ test('Marker default adaptive plan covers every original page and automatically 
   const sources = (await h.call('snapshot')).sources;
   assert.equal(sources.length, 35);
   assert.ok(sources.every(source => source.document.converter === 'marker' && source.document.totalPages === 35));
+});
+
+// 检测并保存: marker.local.status {command} checks the path in the box without saving it; without a command it checks what the app would run now.
+function noMarkerOnThisMachine(t, folder) {
+  const keys = ['PATH', 'Path', 'MARKER_BIN', 'HOME', 'USERPROFILE'], before = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const empty = join(folder, 'nothing-here'); process.env.PATH = empty; if (before.Path !== undefined) process.env.Path = empty;
+  delete process.env.MARKER_BIN; process.env.HOME = empty; process.env.USERPROFILE = empty;
+  t.after(() => { for (const key of keys) if (before[key] === undefined) delete process.env[key]; else process.env[key] = before[key]; });
+}
+test('marker.local.status {command} probes that path and never saves it; a missing or non-Marker program is not ready', async t => {
+  const h = await harness(t);
+  assert.deepEqual(await h.call('marker.settings.get'), { command: '' });
+  const missing = await h.call('marker.local.status', { command: join(h.folder, 'no-such-dir', 'marker_single') });
+  assert.equal(missing.state, 'not-installed', 'a path that does not exist is not installed, whatever the stand-in CLI says');
+  assert.equal((await h.call('marker.local.status', { command: process.execPath })).state, 'unavailable', 'a real program that is not Marker answers --help without the Marker options');
+  assert.equal((await h.call('marker.local.status', { command: process.execPath })).command, process.execPath, 'the answer names the program it asked');
+  assert.equal((await h.call('marker.local.status', {})).state, 'ready', 'with no command it still asks what the app uses (here the stand-in CLI)');
+  assert.equal((await h.call('marker.local.status', { command: '   ' })).state, 'ready', 'a blank command is no command');
+  assert.deepEqual(await h.call('marker.settings.get'), { command: '' }, 'probing a path saved nothing');
+  assert.equal((await h.log()).length, 0, 'and converted nothing');
+});
+test('marker.local.status {command} of a program that is Marker is ready and still saves nothing', { skip: process.platform === 'win32' && 'needs an executable script' }, async t => {
+  const h = await harness(t);
+  const program = join(h.folder, 'marker_single'); await writeFile(program, '#!/bin/sh\necho "--output_dir --page_range --paginate_output --output_format --disable_image_extraction"\n'); await chmod(program, 0o755);
+  const ready = await h.call('marker.local.status', { command: program });
+  assert.equal(ready.state, 'ready'); assert.equal(ready.command, program);
+  assert.deepEqual(await h.call('marker.settings.get'), { command: '' });
+});
+test('marker.local.status without a command uses the saved path, else StudyHub\'s own install, and an explicit saved path never falls back', async t => {
+  const h = await harness(t, {}, undefined, { seam: false });
+  noMarkerOnThisMachine(t, h.folder);
+  assert.equal((await h.call('marker.local.status')).state, 'not-installed', 'nothing saved, nothing installed');
+  const env = venvLayout(join(h.folder, 'marker-env'));
+  await mkdir(env.bin, { recursive: true }); await writeFile(env.sentinel, JSON.stringify({ createdBy: 'studyhub-marker-installer' })); await writeFile(env.marker, '');
+  await mkdir(join(markerInstallStatePath(), '..'), { recursive: true });
+  await writeFile(markerInstallStatePath(), JSON.stringify({ version: 1, status: 'complete', stage: 'done', folder: join(h.folder, 'marker-env'), installedFolder: join(h.folder, 'marker-env'), command: env.marker }));
+  const installed = await h.call('marker.local.status', {});
+  assert.equal(installed.command, env.marker, 'a blank saved path finds the Marker StudyHub installed');
+  assert.notEqual(installed.state, 'not-installed');
+  await h.call('marker.settings.set', { command: join(h.folder, 'elsewhere', 'marker_single') });
+  assert.equal((await h.call('marker.local.status')).state, 'not-installed', 'an explicit saved path never falls back to the install');
+  const probed = await h.call('marker.local.status', { command: '' });
+  assert.equal(probed.state, 'not-installed', 'an empty command in the call is no command: the saved path decides');
+  assert.deepEqual(await h.call('marker.settings.get'), { command: join(h.folder, 'elsewhere', 'marker_single') });
 });
