@@ -4,11 +4,14 @@
 // This is how the red list of a migration step is produced; a suite that should stay green on both sides gets a `<suite>.runtime.test.mjs` twin instead.
 import { StudyRuntime } from '../../lib/runtime.js';
 import { managedRuntimeOptions } from './runtime-switch.mjs';
+import { MIGRATION_SWITCHES } from '../../lib/runtime-config.js';
 
 const family = process.env.STUDY_RUNTIME_MATRIX;
 const PILOT_PATHS = { generation: ['generation'], generationRestart: ['generation', 'generationRestart'], generationRepair: ['generation', 'generationRepair'],
   generationRepairRestart: ['generation', 'generationRepair', 'generationRestart'],
-  generationPublish: ['generation', 'generationPublish'], generationPublishRestart: ['generation', 'generationPublish', 'generationRestart'], audio: ['audioSingle'] };
+  generationPublish: ['generation', 'generationPublish'], generationPublishRestart: ['generation', 'generationPublish', 'generationRestart'], audio: ['audioSingle'],
+  // every migration switch at once (S6-7: the whole product on the runtime)
+  all: Object.keys(MIGRATION_SWITCHES) };
 const made = new WeakMap(), invoke = StudyRuntime.prototype.invoke;
 
 StudyRuntime.prototype.invoke = function (api, name, args = {}, requestServices = {}) {

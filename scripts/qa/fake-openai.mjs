@@ -14,7 +14,7 @@ const text = (content) => typeof content === "string" ? content
   : Array.isArray(content) ? content.map((part) => typeof part === "string" ? part : part?.text || "").join("") : "";
 
 /** Start the server. Returns { url (…/v1), log, close() }. */
-export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model } = {}) {
+export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, beforeReply } = {}) {
   const log = [];
   const studyLog = [];
   const study = model || createFakeModel({ log: studyLog });
@@ -32,10 +32,17 @@ export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model } =
         const request = JSON.parse(body || "{}");
         const messages = Array.isArray(request.messages) ? request.messages : [];
         const system = messages.filter((m) => m.role === "system" || m.role === "developer").map((m) => text(m.content)).join("\n");
-        const prompt = text(messages.filter((m) => m.role === "user").at(-1)?.content);
+        // DSH ends the conversation of a delegated call with a runtime-context snapshot of its own: what was asked is the last user turn before it.
+        const turns = messages.filter((m) => m.role === "user").map((m) => text(m.content));
+        const prompt = turns.findLast((turn) => !/^\s*Current runtime context\./.test(turn)) ?? turns.at(-1) ?? "";
+        await beforeReply?.(system, prompt); // a run may hold the model (scripts/qa/dsh-runtime-smoke.mjs shows a job while it runs)
         const before = studyLog.length;
-        let content = await study(system, prompt);
-        const handled = studyLog.slice(before).some((entry) => entry.handler);
+        // DSH prepends <system-reminder> blocks to the user turn of every request, and a delegated call carries the plugin's instruction inside that turn: the study model is
+        // asked what the plugin asked, and its handlers (which match on the system text) are shown the instruction as well.
+        const asked = prompt.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
+        let content = await study(asked, asked);
+        let handled = studyLog.slice(before).some((entry) => entry.handler);
+        if (!handled) { content = await study(system, asked); handled = studyLog.slice(before).some((entry) => entry.handler); }
         // DSH prepends <system-reminder> blocks to the user turn; echo only what the learner wrote.
         if (!handled) content = `【StudyHub QA fake model】收到：${prompt.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim().slice(0, 60)}`;
         log.push({ at: new Date().toISOString(), model: request.model, stream: !!request.stream, handled,

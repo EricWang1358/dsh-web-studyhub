@@ -1,0 +1,407 @@
+{
+  "startedAt": "2026-10-07T06:59:23.807Z",
+  "scrubbedEnvNames": 1,
+  "private": {
+    "home": "output/qa/s67/home",
+    "tmp": "output/qa/s67/tmp"
+  },
+  "steps": [
+    {
+      "name": "pack-plugin",
+      "status": "ok",
+      "ms": 5871
+    },
+    {
+      "name": "create-profile-and-add-plugin",
+      "status": "ok",
+      "ms": 4325
+    },
+    {
+      "name": "boot-dsh",
+      "status": "ok",
+      "ms": 6677
+    },
+    {
+      "name": "settings: the host's own model is the text model",
+      "status": "ok",
+      "ms": 22,
+      "detail": {
+        "textProvider": "host"
+      }
+    },
+    {
+      "name": "list: a new library has no job",
+      "status": "ok",
+      "ms": 28,
+      "detail": {
+        "jobs": 0
+      }
+    },
+    {
+      "name": "subtitles held: a runtime job on the host, running",
+      "status": "ok",
+      "ms": 64,
+      "detail": {
+        "id": "0fdab035-b3b9-4b44-a6d2-a700df27cdbc",
+        "kind": "audio-subtitles",
+        "contractVersion": 2,
+        "status": "running",
+        "stage": {
+          "code": "audio.proofread",
+          "args": {
+            "done": 0,
+            "total": 1
+          },
+          "text": "校对字幕"
+        },
+        "actions": {
+          "cancel": "yes",
+          "pause": "capability-unsupported",
+          "resume": "not-paused",
+          "retry": "not-ended",
+          "set": "capability-unsupported"
+        },
+        "executor": {
+          "service": "dsh-jobs",
+          "handleId": "audio-subtitles-1",
+          "ownerAgentId": "session-64862a26-520c-4066-bf92-e5ae75307824"
+        },
+        "calls": [
+          "proofread:running"
+        ],
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": null
+        },
+        "title": "smoke-1.txt"
+      }
+    },
+    {
+      "name": "console: job.status, job.wait by the card id and the contract id",
+      "status": "ok",
+      "ms": 2066,
+      "detail": {
+        "card": {
+          "status": "running",
+          "wait": "running"
+        },
+        "contract": {
+          "status": "running",
+          "wait": "running"
+        }
+      }
+    },
+    {
+      "name": "console: refusals in words (pause, retry, message) while it runs",
+      "status": "ok",
+      "ms": 26,
+      "detail": {
+        "pause": {
+          "error": "这类任务不支持这个操作。"
+        },
+        "retry": {
+          "error": "任务还在进行，结束后才能重试。"
+        },
+        "message": {
+          "error": "音频任务不接收补充说明：要调整并发或推理强度，请在任务控制台的即时控制里改；要让它停下，请点停止。"
+        }
+      }
+    },
+    {
+      "name": "console screenshot with a running runtime job (1280 wide)",
+      "status": "ok",
+      "ms": 1579,
+      "detail": {
+        "text": "StudyHub\n自己的资料，扎实地学\n«\n每天\n回到题目\n学习库\n资料\n0\n创建题组\n任务\n1\n错题与待巩固\n学习流\n学习笔记\n待办\n0\n阶段性\n模拟考试\n统计\n课程准备与管理\n知识骨架\n音频转写\n课堂实录\n中文\nEN\n功能导览\n本地学习工作区\n外观 · 跟随系统\n设置\nStudyHub\n学习库\n学习库：default-workspace\n正在生成…\n\n开始使用\n\n欢迎使用 StudyHub\n\n把讲义和课件变成标明出处的练习题，按记忆曲线复习，真正学会。\n\n从自己的资料开始\n\nPDF、Markdown、网页或文本都可以，原文件会保留。导入后就能用它出题。\n\n导入我的第一份资料\n\n想先看看效果？\n载入示例并开始导览\n一门示例课程（设计模式）：一份讲义、九道带出处的题和三周练习记录，导览约三分钟；示例数据随时一键移除。\n\n以后再说"
+      }
+    },
+    {
+      "name": "console: stop the running job",
+      "status": "ok",
+      "ms": 110,
+      "detail": {
+        "reply": {
+          "action": "cancel",
+          "status": "cancelling"
+        },
+        "ended": {
+          "id": "0fdab035-b3b9-4b44-a6d2-a700df27cdbc",
+          "kind": "audio-subtitles",
+          "contractVersion": 2,
+          "status": "cancelled",
+          "stage": {
+            "code": "finished",
+            "args": {
+              "status": "cancelled"
+            },
+            "text": "已取消；已完成的部分会保留，再来一次会接着做"
+          },
+          "actions": {
+            "cancel": "job-ended",
+            "pause": "job-ended",
+            "resume": "not-paused",
+            "retry": "yes",
+            "set": "capability-unsupported"
+          },
+          "executor": {
+            "service": "dsh-jobs",
+            "handleId": "audio-subtitles-1",
+            "ownerAgentId": "session-64862a26-520c-4066-bf92-e5ae75307824"
+          },
+          "calls": [
+            "proofread:cancelled"
+          ],
+          "usage": {
+            "tokens": null,
+            "tokenUsage": null,
+            "calls": 1
+          },
+          "title": "smoke-1.txt"
+        }
+      }
+    },
+    {
+      "name": "console: cancelling the ended job again is refused as the card says",
+      "status": "ok",
+      "ms": 32,
+      "detail": {
+        "error": "这个任务已经结束，不能再这样操作。"
+      }
+    },
+    {
+      "name": "console: dismiss the stopped job",
+      "status": "ok",
+      "ms": 189,
+      "detail": {
+        "dismissed": [
+          "0fdab035-b3b9-4b44-a6d2-a700df27cdbc"
+        ],
+        "left": 0
+      }
+    },
+    {
+      "name": "subtitles with the local fake model: a runtime job completes on the host",
+      "status": "ok",
+      "ms": 922,
+      "detail": {
+        "id": "242ac3a5-00e6-418d-b2a5-67f11c8d8cda",
+        "kind": "audio-subtitles",
+        "contractVersion": 2,
+        "status": "complete",
+        "stage": {
+          "code": "finished",
+          "args": {
+            "status": "complete"
+          },
+          "text": "已存为 1 份资料，校对修正 0 处"
+        },
+        "actions": {
+          "cancel": "job-ended",
+          "pause": "job-ended",
+          "resume": "not-paused",
+          "retry": "not-retryable",
+          "set": "capability-unsupported"
+        },
+        "executor": {
+          "service": "dsh-jobs",
+          "handleId": "audio-subtitles-2",
+          "ownerAgentId": "session-64862a26-520c-4066-bf92-e5ae75307824"
+        },
+        "calls": [
+          "proofread:ok",
+          "translate:ok",
+          "title:ok"
+        ],
+        "usage": {
+          "tokens": 4778,
+          "tokenUsage": {
+            "uncachedInputTokens": 4734,
+            "outputTokens": 44,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 3
+        },
+        "title": "smoke-2.txt",
+        "sourceIds": [
+          "subtitle-b553d113"
+        ],
+        "sourcesInLibrary": 1
+      }
+    },
+    {
+      "name": "console: archive, bring back, dismiss a finished job",
+      "status": "ok",
+      "ms": 77,
+      "detail": {
+        "archived": [
+          "242ac3a5-00e6-418d-b2a5-67f11c8d8cda"
+        ],
+        "listedAfterArchive": false,
+        "archivedRecords": 1,
+        "brought": [
+          "242ac3a5-00e6-418d-b2a5-67f11c8d8cda"
+        ]
+      }
+    },
+    {
+      "name": "retrieval index: the host without the search extension",
+      "status": "ok",
+      "ms": 617,
+      "detail": {
+        "status": {
+          "value": {
+            "selected": "builtin",
+            "effective": "builtin",
+            "explicit": false,
+            "companion": {
+              "id": "mcp:mcp__studyhub__query_documents",
+              "running": false
+            },
+            "hostCanSearch": false,
+            "providers": [],
+            "otherTools": [],
+            "limits": {
+              "retrieveAboveChars": 150000,
+              "maxSelectedChars": 600000
+            },
+            "extension": {
+              "canInstall": true,
+              "installed": false,
+              "enabled": false,
+              "desktop": false
+            }
+          }
+        },
+        "start": {
+          "error": "检索扩展还没有运行。请先在「设置 › 检索扩展」安装检索扩展；刚安装完请稍等几秒再试。"
+        }
+      }
+    },
+    {
+      "name": "PDF local route: is anything installed?",
+      "status": "ok",
+      "ms": 4588,
+      "detail": {
+        "marker": {
+          "value": {
+            "state": "not-installed",
+            "next": "install"
+          }
+        },
+        "mineru": {
+          "value": {
+            "version": "4.0.10",
+            "exe": "<home>\\.local\\bin\\mineru.exe",
+            "tier": "",
+            "mode": "",
+            "modelsDownloaded": null,
+            "modelsMb": 800,
+            "state": "server-stopped",
+            "next": "start-server",
+            "running": false,
+            "estimates": {
+              "basic": 1.6,
+              "standard": 2.5
+            },
+            "modelsMbByTier": {
+              "basic": 800,
+              "standard": 1200
+            },
+            "windowPages": 50,
+            "setup": {
+              "status": "idle"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "audio import without a transcription service is refused in words",
+      "status": "ok",
+      "ms": 9,
+      "detail": {
+        "error": "还没有配置转写服务：请在「设置 › 音频转写」里填一个密钥（推荐硅基流动：免费、国内直连）。不要把密钥贴到对话里"
+      }
+    },
+    {
+      "name": "console UI: click 停止 on a running runtime job, then select it and 删除",
+      "status": "ok",
+      "ms": 4822,
+      "detail": {
+        "endedStatus": "cancelled",
+        "cardGoneAfterDelete": true
+      }
+    },
+    {
+      "name": "console screenshots: a finished and a running runtime job at 1280 and 420 wide",
+      "status": "ok",
+      "ms": 4015,
+      "detail": {
+        "420": {
+          "overflowX": 0
+        },
+        "1280": {
+          "overflowX": 0
+        }
+      }
+    }
+  ],
+  "notRun": [
+    {
+      "what": "transcription, real text model, subtitles/review/class jobs on a real model",
+      "why": "no authorized model or key; the only model here is the local fake"
+    },
+    {
+      "what": "Marker install, MinerU setup, cloud PDF conversion, search-extension index build",
+      "why": "needs network or software that is not installed; no installs were made"
+    }
+  ],
+  "dsh": {
+    "version": "0.2.0-rc.2",
+    "expected": "0.2.0-rc.2"
+  },
+  "plugin": {
+    "name": "@ericwang1358/dsh-daily-flashcard",
+    "version": "2.7.1"
+  },
+  "switchesOn": [
+    "audioSingle",
+    "audioLiveSave",
+    "audioLiveCorrection",
+    "audioReview",
+    "audioSubtitles",
+    "audioBatch",
+    "coach",
+    "dailyRecap",
+    "workflow",
+    "dailyRecapAgent",
+    "workflowAgent",
+    "assist",
+    "generation",
+    "generationRestart",
+    "generationRepair",
+    "generationPublish",
+    "markerInstall",
+    "mineruSetup",
+    "noteGenerate",
+    "pdfConvert",
+    "retrievalIndex",
+    "translation",
+    "translationParallel"
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "session": {
+    "listed": 1,
+    "id": "string"
+  },
+  "stoppedCleanly": true,
+  "touched": {
+    "dotDshUnchanged": true,
+    "mineruUnchanged": true
+  },
+  "finishedAt": "2026-10-07T07:00:07.438Z",
+  "ok": true
+}
