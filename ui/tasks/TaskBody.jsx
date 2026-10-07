@@ -38,7 +38,7 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   return (
     <div className="tc-body">
       <div className="tc-col">
-        <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} selected={target?.callId} marks={marks} onSelect={choose} />
+        <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} contractKind={contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />
         <Tabs id={left} className="tc-tabs" itemClassName="tc-tab" label={ui('左侧面板')} value={leftTab} onChange={setLeftTab} items={leftItems} />
         <TabPanel id={left} value="running" selected={leftTab} className="tc-panel" tabIndex={undefined}>
           <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>
