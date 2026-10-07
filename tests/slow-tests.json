@@ -5,6 +5,7 @@
     "tests/daily-recap-navigation.test.mjs",
     "tests/daily-recap-reader.test.mjs",
     "tests/deck-archive-browser.test.mjs",
+    "tests/follow-label-fit-browser.test.mjs",
     "tests/layout-late-picker.test.mjs",
     "tests/layout-late-shell.test.mjs",
     "tests/layout-late-sources.test.mjs",

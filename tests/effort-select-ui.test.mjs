@@ -42,7 +42,7 @@ test('the options of the generation selects are the levels of the current model,
     [['follow', '跟随当前会话'], ['default', '模型默认'], ['lowest', 'Off'], ['low', 'Low'], ['high', 'High'], ['highest', 'Max']], key);
   assert.deepEqual(options(selectOf(generation({ efforts: classic }), 'effortReview')).map(([value]) => value), ['follow', 'default', 'low', 'medium', 'high']);
   assert.match(selectOf(html, 'effortWriting'), /<option value="low" selected/);
-  assert.match(selectOf(html, 'effortReview'), /<option value="follow" selected/, 'following the session is a choice of its own, never mapped');
+  assert.match(selectOf(html, 'effortReview'), /<option value="follow"[^>]*selected/, 'following the session is a choice of its own, never mapped');
 });
 
 test('before the model is known the select does not claim levels it cannot know', () => {
@@ -74,7 +74,7 @@ test('the English page translates the note and keeps the model\'s level names', 
   try {
     const html = generation({ efforts: deepseek }, { effortReview: 'medium' });
     assert.match(html, /You chose (?:&quot;|")Mid(?:&quot;|") before; this model has no such level, so (?:&quot;|")High(?:&quot;|") is used/);
-    assert.match(html, /Follow current session/);
+    assert.match(html, /Follow session/);
     assert.doesNotMatch(html.replace(/\bvalue="(?:中文|中英双语)"/g, '').replaceAll('>中文<', '><'), HAN);
   } finally { setUiLanguage('zh'); }
 });
