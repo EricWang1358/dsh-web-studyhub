@@ -15,7 +15,7 @@ import { DEFAULT_LEVEL } from '../lib/coverage-strength.js';
 import { jobPart, partTitle } from './deck-parts.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
-export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, count: GENERATION_SETTINGS_DEFAULTS.count,
+export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, kinds: GENERATION_SETTINGS_DEFAULTS.kinds, count: GENERATION_SETTINGS_DEFAULTS.count,
   difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '',
   // 覆盖强度 (lib/coverage-strength.js): the form plans by level; a number of questions is only sent when the learner types one (`customCount`).
   coverageLevel: DEFAULT_LEVEL, customCount: '',
@@ -27,11 +27,13 @@ export function generationFormDefaults(saved, language = getUiLanguage()) {
   return { ...GENERATION_DEFAULTS, ...content };
 }
 
+const sameValue = (left, right) => Object.is(left, right) || (Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, at) => item === right[at]));
+
 /** Only inherited defaults follow a settings update; typed choices stay put. */
 export function syncGenerationDefaults(current, before, after) {
   let next = current;
   for (const [key, value] of Object.entries(current)) {
-    if (!Object.hasOwn(after, key) || value !== before[key] || Object.is(value, after[key])) continue;
+    if (!Object.hasOwn(after, key) || !sameValue(value, before[key]) || sameValue(value, after[key])) continue;
     if (next === current) next = { ...current };
     next[key] = after[key];
   }
@@ -40,7 +42,7 @@ export function syncGenerationDefaults(current, before, after) {
 
 /** Start another deck with saved content defaults and the learner's role. */
 export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => { const { autoComplete: _chosen, ...rest } = gen; return { ...rest,
-  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '' }
+  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, kinds: GENERATION_DEFAULTS.kinds, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '' }
     : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined }; };
 
 /** Plan contract C3 first (`data.model`), then the legacy `modelReady` flag. */

@@ -4,7 +4,8 @@ import { useStudy } from "./study-context.jsx";
 import React from "react";
 import Ingest from "./Ingest.jsx";
 import JsonImport from "./JsonImport.jsx";
-import { kinds, useInjectCss } from "./shared.js";
+import { useInjectCss } from "./shared.js";
+import KindPicker from "./KindPicker.jsx";
 import CourseField from './CourseField.jsx';
 import { courseNamesOf, usePageScope } from './PageScope.jsx';
 import SourcePicker from './SourcePicker.jsx';
@@ -23,8 +24,8 @@ import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
-  DIFFICULTIES, KINDS, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam,
-  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, notationNote, roleOpenByDefault, selectionStats, summaryLine,
+  DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam,
+  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, kindsOfForm, kindsPatch, notationNote, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -137,7 +138,7 @@ export default function Generate({
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
   const estimateRequest = { feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, coverageLevel: level,
-    ...(custom ? { count: custom } : {}), kind: gen.kind, difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
+    ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen), difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
   const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason });
   const plannedGoal = planned.status === 'ready' ? planned.estimate?.coverage?.goal : null;
   const summary = summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
@@ -200,10 +201,8 @@ export default function Generate({
                 <Button variant="link" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
               <div className="generate-rows">
                 <FormRow label={ui("题型")}>
-                  <SegmentedControl label={ui("题型")} className="generate-kind" value={gen.kind}
-                    options={KINDS.map((id) => ({ value: id, label: id === "mixed" ? ui("测验 + 闪卡") : kinds[id] }))}
-                    onChange={(kind) => setGen({ ...gen, kind })} />
-                  <p className="generate-note">{kindNote(gen.kind)}</p>
+                  <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen({ ...gen, ...kindsPatch(list) })} />
+                  <p className="generate-note">{kindNote(kindsOfForm(gen), custom ?? plannedGoal)}</p>
                 </FormRow>
                 <FormRow label={ui("覆盖强度")}>
                   <CoverageStrength level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}

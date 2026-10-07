@@ -30,5 +30,10 @@
   "审阅建议": "Review suggestions",
   "采纳审阅建议": "Apply review suggestions",
   "审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。": "For questions that passed review but came with an optional suggestion, spend one more rewrite and one more review to apply it; a rewrite that does not pass leaves the question as it was. Uses more tokens and time, so it is off by default; a running task can also switch it in its live controls.",
-  "已采纳": "Applied"
+  "已采纳": "Applied",
+  "至少保留一种题型": "Keep at least one question type",
+  "总题数按题型平均分配，多出的几题依次给排在前面的题型。": "The total is shared evenly between the types; any extra questions go to the first types in order.",
+  "共 {0} 种题型，但只有 {1} 题：前 {1} 种题型各出 1 道，其余这次不出。": "{0} types but only {1} questions: the first {1} types get one each and the rest are left out this time.",
+  "共 {0} 种题型，按 {1} 题平均分配：{2}": "{0} types, {1} questions shared evenly: {2}",
+  "合并为一个待审题组，每种题型各按自己的规则出题和审阅。": "All in one draft to review; each type is written and reviewed by its own rules."
 }

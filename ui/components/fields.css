@@ -52,6 +52,7 @@
     .sh-switch .sh-check__input:focus-visible + .sh-switch__track { box-shadow: var(--ring); }
     .sh-switch .sh-check__input:disabled + .sh-switch__track { opacity: 0.6; }
     /* ── Radio cards ───────────────────────────────────────────────────── */
+    .sh-check-group { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); min-width: 0; margin: 0; padding: 0; border: 0; }
     .sh-radio-group { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
     .sh-radio-group > legend { margin: 0 0 var(--space-2); padding: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
     .sh-radio-card { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }

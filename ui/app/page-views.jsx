@@ -27,6 +27,7 @@ import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
 import { formatDateTime } from '../format.js';
+import { kindsOfLegacyKind } from '../../lib/generation-settings.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -50,7 +51,7 @@ function LibraryView() {
           retryGeneration: (job) => {
             const available = new Set(data.sources.map((source) => source.id));
             intents.goGenerate({ sourceIds: (job.sourceIds || []).filter((id) => available.has(id)),
-              genPatch: (current) => ({ kind: job.kind || current.kind, count: job.requestedTotal || job.count || current.count }) });
+              genPatch: (current) => ({ kind: job.kind || current.kind, kinds: job.kinds || (job.kind && kindsOfLegacyKind(job.kind)) || current.kinds, count: job.requestedTotal || job.count || current.count }) });
             notify(ui('已带回可用资料、题型和题数；请核对学习目标后再生成。'));
           },
           addSource: () => set.setModal({ type: 'add' }), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),

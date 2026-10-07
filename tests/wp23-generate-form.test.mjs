@@ -61,6 +61,11 @@ test("the form sends a coverage level and a count only when the learner typed on
   assert.equal("count" in plain, false, "the level plans it: no count is sent, not even the saved default");
   assert.equal("customCount" in plain, false);
   assert.deepEqual([plain.course, plain.sourceIds, plain.kind, plain.focus], ["C", ["a"], "quiz", "f"]);
+  assert.deepEqual(plain.kinds, ["quiz"], "the list goes with the kind");
+  const several = form.generationRequest({ ...base, kind: "quiz", kinds: ["quiz", "cloze"] }, { course: "C", sourceIds: ["a"] });
+  assert.deepEqual([several.kind, several.kinds], ["quiz", ["quiz", "cloze"]]);
+  const old = form.generationRequest({ ...base, kind: "mixed" }, { course: "C", sourceIds: ["a"] });
+  assert.deepEqual([old.kind, old.kinds], ["mixed", ["quiz", "flashcard"]], "a form state with only the legacy kind still sends both");
   assert.equal(form.generationRequest({ ...base, customCount: "120" }, { course: "C", sourceIds: ["a"] }).count, 120);
   for (const bad of ["0", "501", "12.5", "abc", " ", "-3"]) assert.equal("count" in form.generationRequest({ ...base, customCount: bad }, { course: "C", sourceIds: ["a"] }), false, bad);
   assert.equal(form.generationRequest({ ...base, coverageLevel: "bogus" }, { course: "C", sourceIds: ["a"] }).coverageLevel, "standard", "an unknown level is the default");
@@ -144,7 +149,8 @@ test("focus chips append once and the form applies a suggestion without touching
   assert.equal(form.focusIncludes("a；b", "c"), false);
   const gen = { kind: "mixed", count: 10, coverageLevel: "standard", difficulty: "mixed", language: "English", focus: "x", role: "r", title: "T" };
   const next = form.applySuggestion(gen, { coverage: "full", count: 8, difficulty: "application", kind: "quiz", focus: ["A"] });
-  assert.deepEqual(next, { ...gen, coverageLevel: "full", difficulty: "application", kind: "quiz" }, "the suggestion speaks in coverage: no number of questions is applied");
+  assert.deepEqual(next, { ...gen, coverageLevel: "full", difficulty: "application", kind: "quiz", kinds: ["quiz"] }, "the suggestion speaks in coverage: no number of questions is applied; its kind sets the list too");
+  assert.deepEqual(form.applySuggestion(gen, { kind: "mixed" }), { ...gen, kind: "mixed", kinds: ["quiz", "flashcard"] }, "the old 测验 + 闪卡 is the combination quiz + flashcard");
   assert.deepEqual(form.applySuggestion(gen, { focus: ["A"] }), gen, "nothing to apply");
   assert.equal(form.hasSettings({ focus: ["A"] }), false);
   assert.equal(form.hasSettings({ count: 8 }), false);
@@ -189,10 +195,15 @@ test("02 / 学习方式 uses segmented controls (the 覆盖强度 among them) an
   assert.ok(section.length > 100, "the new form wrapper exists");
   assert.doesNotMatch(section, /kind-grid|three-col|<select/, "no equal columns, no dropdowns");
   const groups = [...section.matchAll(/<div role="group" aria-label="([^"]+)" class="sh-seg[^"]*"/g)].map((match) => match[1]);
-  for (const label of ["题型", "覆盖强度", "难度", "语言"]) assert.ok(groups.includes(label), `${label} is a segmented control (${groups})`);
+  for (const label of ["覆盖强度", "难度", "语言"]) assert.ok(groups.includes(label), `${label} is a segmented control (${groups})`);
+  assert.ok(!groups.includes("题型"), "the question types are a group of checkboxes, not a single choice");
+  const kindGroup = section.match(/<div role="group" aria-label="题型" class="sh-check-group generate-kind">(.*?)<\/div><p class="generate-note"/)[1];
+  assert.deepEqual([...kindGroup.matchAll(/<input type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)].map((match) => [match[1], /checked=""/.test(match[0])]),
+    [["quiz", true], ["multi", false], ["flashcard", true], ["open", false], ["cloze", false]], "the old 测验 + 闪卡 is the combination quiz + flashcard, ticked");
   assert.match(section, /<div role="group" aria-label="语言" class="sh-seg sh-seg--sm/, "language is the small size");
-  for (const word of ["测验 \\+ 闪卡", "单选测验", "开放问答", "混合", "基础理解", "应用迁移", "深入辨析", "中英双语", "精简", "标准", "完整"])
+  for (const word of ["混合", "基础理解", "应用迁移", "深入辨析", "中英双语", "精简", "标准", "完整"])
     assert.match(section, new RegExp(`sh-seg__item[^>]*>(?:<svg.*?</svg>)?${word}</button>`), word);
+  for (const word of ["单选测验", "多选测验", "闪卡", "开放问答", "填空卡"]) assert.match(kindGroup, new RegExp(`sh-check__label">${word}</span>`), word);
   assert.match(section, /aria-pressed="true"[^>]*>标准</, "the default strength is 标准");
   assert.doesNotMatch(section, /aria-label="减少题数"|aria-label="增加题数"|generate-stepper/, "the bare question-count stepper is gone");
   assert.match(section, /自定义题数/);
@@ -210,7 +221,9 @@ test("the selected difficulty and kind explain themselves in one muted line", ()
   assert.match(render(), /generate-note[^>]*>[^<]*混合/);
   const advanced = render({}, { gen: { ...gen, difficulty: "advanced" } });
   assert.match(advanced, /generate-note[^>]*>[^<]*相似/);
-  assert.match(render({}, { gen: { ...gen, kind: "mixed" } }), /一半单选、一半闪卡/);
+  assert.match(render({}, { gen: { ...gen, kind: "mixed" } }), /单选测验 \+ 闪卡 · 总题数按题型平均分配/, "a combination says which types and how the total is shared");
+  assert.match(render({}, { gen: { ...gen, kind: "quiz", kinds: ["quiz"] } }), /generate-note[^>]*>单选题：一个正确答案/, "one type says what it is");
+  assert.match(render({}, { gen: { ...gen, kind: "open", kinds: ["open", "cloze"] } }), /开放问答 \+ 填空卡 · 总题数/, "the order of the list is the order the remainder is given out in");
 });
 
 test("the title and role sit under a collapsed 更多选项; the role opens for interview preparation", () => {
