@@ -43,8 +43,8 @@ DSH-01（唯一执行责任层：模型调用只经 `context.gateway.step`）、
 
 不改内核：`lib/jobs/**` **零改动**。全部改动只在笔记家族与一行登记：
 
-- 新文件 5 个（`note-generation.js` 与 `jobs/` 下 4 个）；
-- 改动：`lib/runtime-config.js`（开关 1 行）、`lib/runtime/builtins.js`（import 1 行＋`notes` 行 1 处）、`lib/contexts/notes/operations.js`（`note.generate` 变薄）、`lib/application-messages-en.js`（5 条英文）；
+- 新文件 5 个（`lib/` 下 4 个：`note-generation.js` 与 `jobs/` 下的 `note-generate.js`、`note-generate-view.js`、`submit-note-generate.js`；另有本记录）；
+- 改动：`lib/runtime-config.js`（开关 1 行）、`lib/runtime/builtins.js`（import 1 行＋`notes` 行 1 处）、`lib/contexts/notes/operations.js`（`note.generate` 变薄）、`lib/application-messages-en.js`（4 条英文）；
 - 没有新的内核能力：`initialPresentation`、`context.gateway.step`、`notifications`（本任务不需要）都是已有的。
 
 ## 6. 测试
