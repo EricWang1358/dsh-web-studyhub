@@ -15,7 +15,7 @@ const CARD_KEYS = ['jobId', 'kind', 'title', 'status', 'stage', 'progress', 'act
 export const refuse = (service, args, action = 'job.control') => service.call(action, args).then(reply => ({ reply }), error => ({ error }));
 
 /** The card as the console reads it: every field present, every helper of the console able to draw it. Returns the contract. */
-export function readCard(row, { side, name }, { uiKind = 'audio', find } = {}) {
+export function readCard(row, { side, name }, { uiKind = 'audio', find, allowEmptyLine = false } = {}) {
   const c = ui.model.contractOf(row), where = `${name}/${side} ${row.id}`;
   for (const key of CARD_KEYS) assert.ok(key in c, `${where}: the contract has ${key}`);
   const drawn = ui.model.taskKindOf(row);
@@ -23,7 +23,8 @@ export function readCard(row, { side, name }, { uiKind = 'audio', find } = {}) {
   else assert.equal(drawn, uiKind, where);
   assert.ok(ui.summary.taskTitle(row), `${where}: a title`);
   assert.ok(ui.summary.stateLabel(ui.summary.taskState(row)), `${where}: a state the console has a word for (${ui.summary.taskState(row)})`);
-  assert.ok(ui.summary.taskLine(row), `${where}: a line`);
+  if (allowEmptyLine) assert.equal(ui.summary.taskLine(row), '', `${where}: no additional stage prose after completion`);
+  else assert.ok(ui.summary.taskLine(row), `${where}: a line`);
   const facts = ui.facts.taskFacts(row);
   assert.deepEqual(facts.map(fact => fact.key), ['primary', 'elapsed', 'calls', 'warnings'], where);
   for (const fact of facts) assert.ok(plain(fact.label) && typeof fact.value === 'string' && fact.value, `${where}: fact ${fact.key}`);
