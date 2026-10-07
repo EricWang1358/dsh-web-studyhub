@@ -6,6 +6,9 @@ import { usageLedger } from '../../lib/model-usage.js';
 import { reportUsage } from '../../lib/usage-scope.js';
 import { listSaved } from '../../lib/live.js';
 import { audioSwitch } from './audio-switch.mjs';
+import { answerFor, kindOfPrompt, subtitleText, wav } from './audio-fakes.mjs';
+
+export { kindOfPrompt, subtitleText, wav };
 
 /* Shared fixtures of the S2-0 audio-family baseline tests (docs/plans/unified-job-runtime/s2-0-audio-baseline.md).
    Everything is a fake: no network, no key, a private library and DSH_HOME per test. */
@@ -14,27 +17,8 @@ export const KEY = 'AIzaAudioFamilyBase_000000000001';
 /** What every fake host model reply reports to the usage scope (one call = this much). */
 export const REPORTED = Object.freeze({ uncachedInputTokens: 100, outputTokens: 10 });
 
-export const subtitleText = `[00:00:00.080] 朋友们唉
-[00:00:01.900] 今天有点情绪低落
-[00:01:09.550] 就连deep sk也涨价了
-[00:01:19.949] 下个月要么你升级500道套餐`;
-
 const json = body => new Response(JSON.stringify(body));
 const geminiReply = text => json({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: {} });
-export function wav(fill) {
-  const data = Buffer.alloc(16000, fill), header = Buffer.alloc(44);
-  header.write('RIFF'); header.writeUInt32LE(36 + data.length, 4); header.write('WAVEfmt ', 8);
-  header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22); header.writeUInt32LE(8000, 24);
-  header.writeUInt32LE(16000, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
-  header.write('data', 36); header.writeUInt32LE(data.length, 40);
-  return Buffer.concat([header, data]);
-}
-
-/** The step a text prompt asks for, from its system prompt. */
-export const kindOfPrompt = system => system.includes('You proofread speech-to-text') ? 'proofread'
-  : /translate paragraphs|You translate/.test(system) ? 'translate'
-  : system.includes('one English title') || system.startsWith('Write one') ? 'title'
-  : system.includes('re-examine suspected speech-recognition errors') ? 'review' : 'unknown';
 
 /** A DSH-style text model: answers the four text steps deterministically, logs `kind` per call and reports a fixed token usage. */
 export function hostModel(log, { failOn = () => false, corrections } = {}) {
@@ -44,12 +28,7 @@ export function hostModel(log, { failOn = () => false, corrections } = {}) {
     options.signal?.throwIfAborted();
     if (failOn(kind, log.filter(item => item === kind).length)) throw Object.assign(new Error(`${kind} refused`), { code: 'AUTH' });
     reportUsage({ ...REPORTED });
-    const data = kind === 'title' ? {} : JSON.parse(prompt.split('\n\nYour previous')[0]);
-    if (kind === 'proofread') return JSON.stringify({ corrections: corrections ?? [] });
-    if (kind === 'translate') return JSON.stringify({ titleZh: '涨价', titleEn: 'Price Rises', paragraphs: data.paragraphs.map(p => ({ n: p.n, en: `EN ${p.text}`, zh: `译 ${p.text || p.en}` })) });
-    if (kind === 'title') return JSON.stringify({ titleEn: 'Coding Plans Get Pricier' });
-    if (kind === 'review') return JSON.stringify({ decisions: data.items.map(item => ({ n: item.n, verdict: 'apply', right: item.right, reason: 'ok' })) });
-    throw new Error(`unexpected prompt: ${system.slice(0, 60)}`);
+    return answerFor(kind, prompt, { corrections });
   };
 }
 
@@ -99,8 +78,10 @@ export async function library(t, { settings = {}, ...options } = {}) {
   t.after(async () => {
     // A live class writes its snapshot in the background: stop its writer before the folder goes, or the folder comes back.
     for (const service of services) for (const { id } of await listSaved(root).catch(() => [])) await service.runtime.liveSessions.registered(root, id)?.retirePersistence();
+    // A job still settling (a cancelled request, its last save) writes into the library: dispose every service first so nothing writes while it goes.
+    for (const service of services) await service.dispose?.().catch(() => {});
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
   const open = async extra => {
     const service = new StudyService(root, { ...audioSwitch({ complete: options.complete }), ...options, ...extra });
