@@ -79,22 +79,23 @@ test('the panel: steps with sizes and a queue button for a big selection, nothin
   const { createRequire } = await import('node:module');
   const React = (await import('react')).default;
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const out = await build({ stdin: { contents: "export { default as GenerationPath } from './ui/GenerationPath.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
+  const out = await build({ stdin: { contents: "export { default as GenerationPath } from './ui/GenerationPath.jsx'; export { useGenerationPath } from './ui/use-generation-path.js'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
     bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', out.outputFiles[0].text)(createRequire(import.meta.url), mod, mod.exports);
-  const { GenerationPath, StudyServicesContext, setUiLanguage } = mod.exports;
+  const { GenerationPath, useGenerationPath, StudyServicesContext, setUiLanguage } = mod.exports;
+  // The state lives in a hook (the form's own button queues the steps); the panel draws it.
+  const Harness = ({ onUseStep, ...props }) => React.createElement(GenerationPath, { path: useGenerationPath(props), onUseStep });
   const page = (n, chars) => ({ id: `b${n}`, title: `Book · p.${n}`, text: undefined, chars, document: { id: 'h', page: n, totalPages: 12, bookTitle: 'Book', origin: 'converted', converter: 'mineru' } });
   const big = Array.from({ length: 12 }, (_, i) => page(i + 1, 40_000)); // 480k chars
   const noop = () => {};
-  const render = (props = {}, services = {}) => renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(GenerationPath, { sources: big, selectedIds: big.map(source => source.id), gen: {}, course: 'OS', setNotice: noop, onUseStep: noop, ...props }), { call: noop, askInChat: noop, ...services }));
+  const render = (props = {}, services = {}) => renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(Harness, { sources: big, selectedIds: big.map(source => source.id), gen: {}, course: 'OS', setNotice: noop, onUseStep: noop, ...props }), { call: noop, askInChat: noop, ...services }));
   const zh = render();
-  assert.match(zh, /分步生成路径/);
   assert.match(zh, /第 1 步/);
   assert.match(zh, /让 AI 优化路径/);
   assert.match(zh, /和 AI 聊聊怎么学/);
-  assert.match(zh, /按路径逐步出题 · \d+ 步依次排队/);
-  assert.match(zh, /data-usage="generate\.path-queue"/);
+  assert.doesNotMatch(zh, /data-usage="generate\.path-queue"/, 'the one button that queues the steps is the own submit button of the form (Generate.jsx), not a second one in the list');
+  assert.match(zh, /只出这一步/);
   assert.equal(render({ sources: big.slice(0, 2), selectedIds: ['b1', 'b2'] }), '', 'a small selection needs no path');
   assert.doesNotMatch(render({}, { askInChat: undefined }), /和 AI 聊聊怎么学/, 'no chat to open: no button');
   const indexed = render({ indexCoverage: { indexed: big.map(source => source.id), stale: [], missing: [] } });
@@ -102,8 +103,8 @@ test('the panel: steps with sizes and a queue button for a big selection, nothin
   setUiLanguage('en');
   try {
     const en = render();
-    assert.match(en, /Step-by-step path/);
-    assert.match(en, /Generate step by step · queue \d+ steps in order/);
+    assert.match(en, /Only this step/);
+    assert.match(en, /Step 1/);
     assert.match(en, /Pages 1–\d+/, 'step names are in English');
     assert.doesNotMatch(en, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }

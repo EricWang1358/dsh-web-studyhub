@@ -9,11 +9,13 @@ async function load() {
   const { createRequire } = await import('node:module');
   const React = (await import('react')).default;
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const out = await build({ stdin: { contents: "export { default as GenerationPath, stepTitle, stepPages } from './ui/GenerationPath.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
+  const out = await build({ stdin: { contents: "export { default as GenerationPath, stepTitle, stepPages } from './ui/GenerationPath.jsx'; export { useGenerationPath } from './ui/use-generation-path.js'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
     bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', out.outputFiles[0].text)(createRequire(import.meta.url), mod, mod.exports);
-  return { ...mod.exports, React, renderToStaticMarkup };
+  // The state lives in a hook (the form's own button queues the steps); the panel draws it.
+  const Harness = props => React.createElement(mod.exports.GenerationPath, { path: mod.exports.useGenerationPath(props), onUseStep: props.onUseStep });
+  return { ...mod.exports, Harness, React, renderToStaticMarkup };
 }
 
 const page = (n, title, index) => ({ id: `b${n}`, title: `Book · p.${n}`, chars: 1000, document: { id: 'h', page: n, totalPages: 36, bookTitle: 'Book', origin: 'converted', converter: 'mineru', chapter: { index, title, level: 1 } } });
@@ -21,8 +23,8 @@ const book = [...Array.from({ length: 30 }, (_, i) => page(i + 1, 'Alpha', 0)), 
 const noop = () => {};
 
 test('the index of a book is an optional step: off by default, said in words, not counted by the queue button, in both languages', async () => {
-  const { GenerationPath, setUiLanguage, React, renderToStaticMarkup } = await load();
-  const render = () => renderToStaticMarkup(React.createElement(GenerationPath, { sources: book, selectedIds: book.map(source => source.id), gen: {}, course: 'OS', call: noop, askInChat: noop, setNotice: noop, onUseStep: noop }));
+  const { Harness, setUiLanguage, React, renderToStaticMarkup } = await load();
+  const render = () => renderToStaticMarkup(React.createElement(Harness, { sources: book, selectedIds: book.map(source => source.id), gen: {}, course: 'OS', call: noop, askInChat: noop, setNotice: noop, onUseStep: noop }));
   const zh = render();
   assert.match(zh, /可选 · 默认跳过（索引）/);
   assert.match(zh, /勾选就会包含这一步/, 'the way to include it');
@@ -33,14 +35,15 @@ test('the index of a book is an optional step: off by default, said in words, no
   assert.match(optional, /data-included="false"/);
   assert.doesNotMatch(optional.match(/<input type="checkbox"[^>]*>/)[0], /checked/, 'unchecked by default');
   for (const item of items.filter(item => !item.includes('data-optional="true"'))) assert.match(item.match(/<input type="checkbox"[^>]*>/)[0], /checked/, 'the chapter steps are on');
-  assert.match(zh, /按路径逐步出题 · 2 步依次排队/, 'only the steps in use are queued');
+  assert.equal((zh.match(/<input type="checkbox"[^>]*checked/g) || []).length, 2, 'only the two chapter steps are in use (the button of the form counts them)');
+  assert.match(zh, /1 个可选步骤默认跳过（索引等）/, 'the step that is off by default is one folded line');
   assert.match(zh, /第 31–36 页/, 'the pages of the step');
   setUiLanguage('en');
   try {
     const en = render();
     assert.match(en, /Optional · skipped by default \(Index\)/);
     assert.match(en, /Tick the box to include this step/);
-    assert.match(en, /Generate step by step · queue 2 steps in order/);
+    assert.match(en, /1 optional step\(s\) skipped by default \(Index, …\)/);
     assert.match(en, /Pages 31–36/);
     assert.doesNotMatch(en, /[㐀-鿿]/, 'no Han in the English panel');
   } finally { setUiLanguage('zh'); }

@@ -11,9 +11,12 @@ import { courseNamesOf, usePageScope } from './PageScope.jsx';
 import SourcePicker from './SourcePicker.jsx';
 import useIndexCoverage from './use-index-coverage.js';
 import GenerationPath from './GenerationPath.jsx';
+import TooBigChoice, { FocusHelp } from './TooBigChoice.jsx';
+import { useGenerationPath } from './use-generation-path.js';
+import { MODES, availableModes, effectiveMode, pathSummary, showsChoice } from './too-big-choice.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
-import { Button, Disclosure, EmptyState, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs } from './components/index.js';
+import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
@@ -58,6 +61,7 @@ export default function Generate({
   onCourseSettings,
   reasoningEffort = '',
   initialRetrieval = null,
+  initialGenerationMode = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
   const { notify, call, busy, act, askInChat, openSettings: openSettingsSection } = useStudy();
@@ -87,6 +91,16 @@ export default function Generate({
   const assistToken = React.useRef(0);
   const selectionKey = `${generationCourse}|${selectedSources.join(',')}`;
   React.useEffect(() => { assistToken.current += 1; setAssist({ phase: 'idle', result: null, applied: false }); }, [selectionKey]);
+  // 分步出题: the plan of steps and what it does live in one hook so the form's own button can queue it; the choice of how to go on is this page's (TooBigChoice).
+  const path = useGenerationPath({ sources: data.sources, selectedIds: selectedSources, gen, course: generationCourse, goal, indexCoverage,
+    onQueued: () => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); } });
+  const [chosenMode, setChosenMode] = React.useState(initialGenerationMode);
+  const modes = availableModes({ advice, pathReady: path.available, retrieval });
+  const mode = effectiveMode(chosenMode, modes, advice);
+  const choice = showsChoice(modes, advice);
+  const pathMode = choice && mode === MODES.path, retrievalMode = choice && mode === MODES.retrieval;
+  // The steps' buttons: 只出这一步 narrows the selection to the step and goes back to the ordinary form with the step's own count.
+  const narrowToStep = (step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, customCount: String(step.count), ...(step.focus ? { focus: step.focus } : {}) }); setChosenMode(MODES.single); };
   const focusBox = React.useRef(null);
   React.useEffect(() => {
     const box = focusBox.current;
@@ -126,6 +140,7 @@ export default function Generate({
   const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
   function submit(event) {
     event.preventDefault();
+    if (pathMode) { if (model.ready && !busy && !path.queueing && path.included.length && !referenceState.reason) path.queue(); return; }
     if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason) return;
     const materials = documentCount(data.sources.filter((source) => selectedSources.includes(source.id)));
     act("generate", generationRequest(gen, { course: generationCourse, sourceIds: selectedSources }), (job) => {
@@ -142,9 +157,11 @@ export default function Generate({
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
   const estimateRequest = { feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, coverageLevel: level,
     ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen), difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
-  const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason });
+  const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason && !pathMode });
   const plannedGoal = planned.status === 'ready' ? planned.estimate?.coverage?.goal : null;
-  const summary = summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
+  // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
+  const blocked = !pathMode && advice.blocked;
+  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
   return (
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
@@ -186,15 +203,13 @@ export default function Generate({
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
-              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
-                call={call} courses={data.focus?.courses} defaultCourse={generationCourse} />}
-              {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel advice={advice} sourceIds={selectedSources}
-                focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
-              {/* 分步生成路径: a selection too big for one generation, cut into chapters/steps (the AI can name and order them, or the learner shapes them in the chat). */}
-              <GenerationPath sources={data.sources} selectedIds={selectedSources} gen={gen} course={generationCourse} goal={goal}
-                indexCoverage={indexCoverage} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings}
-                onUseStep={(step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, customCount: String(step.count), ...(step.focus ? { focus: step.focus } : {}) }); }}
-                onQueued={() => { setGen(current => freshGeneration(current, data.settings?.generation)); setPage("library"); }} />
+              {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
+              {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}
+                card={advice.tooBig && !retrievalReady(retrieval) ? <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
+                  call={call} courses={data.focus?.courses} defaultCourse={generationCourse} /> : null}>
+                {pathMode && <GenerationPath path={path} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings} onUseStep={narrowToStep} />}
+                {retrievalMode && <RetrievalPanel advice={advice} sourceIds={selectedSources} focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
+              </TooBigChoice>}
             </fieldset>
             <fieldset className="generate-form" data-tour="generate-options">
               <legend>{ui("02 / 学习方式")}</legend>
@@ -207,12 +222,12 @@ export default function Generate({
                   <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen({ ...gen, ...kindsPatch(list) })} />
                   <p className="generate-note">{kindNote(kindsOfForm(gen), custom ?? plannedGoal)}</p>
                 </FormRow>
-                <FormRow label={ui("覆盖强度")}>
+                {!pathMode && <FormRow label={ui("覆盖强度")}>
                   <CoverageStrength level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
                     onLevel={(coverageLevel) => setGen({ ...gen, coverageLevel })} onCustom={(customCount) => setGen({ ...gen, customCount })}
                     auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })}
                     budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
-                </FormRow>
+                </FormRow>}
                 <FormRow label={ui("难度")}>
                   <SegmentedControl label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
                     onChange={(difficulty) => setGen({ ...gen, difficulty })} />
@@ -226,6 +241,7 @@ export default function Generate({
                   <textarea id="generate-focus" ref={focusBox} className="generate-focus" rows={2} value={gen.focus}
                     onChange={(e) => setGen({ ...gen, focus: e.target.value })}
                     placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
+                  {(pathMode || retrievalMode) && <FocusHelp mode={mode} />}
                   <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
                     estimate={<TokenEstimate enabled={model.ready && selectedSources.length > 0}
                       request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
@@ -239,7 +255,7 @@ export default function Generate({
                 format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
                 onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                 courses={data.focus?.courses} busy={busy} />
-              {custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
+              {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
               <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、公式写法、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
                 <div className="generate-rows">
                   <FormRow label={ui("公式写法")}>
@@ -266,13 +282,27 @@ export default function Generate({
               {summary && <p className="generate-summary" role="status">{summary}</p>}
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
-                {advice.blocked && <InlineMessage tone="warning">{advice.needsTopic ? ui("所选资料太大。先在「这次想练什么？」写下主题，再生成。")
-                  : ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>}
+                {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
+                {blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
+                  : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
                 {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
-                <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
-                  data-tour="generate-submit" data-usage="generate.submit">
-                  {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
-                </Button>
+                {pathMode ? <>
+                  <Tooltip layer placement="top-start" content={ui("每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。")}>
+                    <Button variant="primary" type="submit" icon="sparkle" busy={path.queueing} disabled={busy || !path.included.length || !!referenceState.reason}
+                      data-tour="generate-submit" data-usage="generate.path-queue">
+                      {uiFormat("按路径逐步出题 · {0} 步依次排队", [path.included.length])}
+                    </Button>
+                  </Tooltip>
+                  {path.groups.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat("有 {0} 步没能开始", [path.report.failed.length])}>
+                    {path.groups.map(group => <p key={group.message} className="gen-path__failure">{group.message}{" "}<small>{group.steps.length > 3
+                      ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
+                  </InlineMessage>}
+                </> : (
+                  <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
+                    data-tour="generate-submit" data-usage="generate.submit">
+                    {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
+                  </Button>
+                )}
               </> : (
                 /* P14: no usable model, so there is nothing to click into a 20-second failure. */
                 <ModelSetupGate variant="block" feature="generate" model={model} onOpenSettings={openSettings} data-tour="generate-submit" />

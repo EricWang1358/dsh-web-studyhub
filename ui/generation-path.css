@@ -4,11 +4,10 @@
   :is(.study-app, .study-seat) {
     /* 分步生成路径: the step list under the picker when a selection is too big for one generation. */
     .gen-path { display: grid; grid-template-columns: minmax(0, 1fr); box-sizing: border-box; max-width: 100%; gap: var(--space-3); margin-top: var(--space-4); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); min-width: 0; }
-    .gen-path__head h3 { margin: 0 0 var(--space-1); font-size: var(--fs-lg, var(--fs-lg)); }
     .gen-path__head p { margin: 0; overflow-wrap: anywhere; }
     .gen-path__index { margin: var(--space-2) 0 0; color: var(--ok, var(--text-dim)); font-size: var(--fs-sm); }
     .gen-path__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-    .gen-path__steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin: 0; padding: 0; list-style: none; max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
+    .gen-path__steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
     .gen-path__step { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); min-width: 0; }
     .gen-path__step[data-included='false'] { opacity: 0.55; }
     /* A step that is optional by nature (index, colophon, …) is labelled in words, so it stays readable while it is off. */
@@ -22,13 +21,27 @@
     .gen-path__title small, .gen-path__reason { color: var(--text-muted); font-size: var(--fs-xs); }
     .gen-path__edit { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
     .gen-path__edit input { flex: 1 1 auto; min-width: 0; margin: 0; }
-    .gen-path__go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-    /* A long label (in English, with the number of steps) wraps inside the card instead of running out of it. */
-    .gen-path__go > .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: start; }
+    /* The steps that are off by default are one folded line; opened, they are the same rows. */
+    .gen-path__optional { margin: 0; }
+    .gen-path__optional .gen-path__steps { margin-top: var(--space-2); }
+    /* One block for a selection that is too big (创建题组): the way in is a choice, and the chosen panel sits in the block without a second card around it. */
+    .too-big { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); box-sizing: border-box; max-width: 100%; min-width: 0; margin-top: var(--space-4); padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--bg-surface); }
+    .too-big__head { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
+    .too-big__icon { flex: 0 0 auto; margin-top: var(--space-1); color: var(--accent-text); }
+    .too-big__head .too-big__info-anchor { margin-inline-start: auto; }
+    .too-big__title { margin: 0 0 var(--space-1); font-size: var(--fs-lg); line-height: var(--lh-snug); }
+    .too-big__why { margin: 0; overflow-wrap: anywhere; }
+    .too-big__choose { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+    .too-big .gen-path { margin-top: 0; padding: 0; border: 0; background: none; }
+    .too-big__tip { display: grid; gap: var(--space-2); max-width: 32ch; }
+    .too-big__tip-row { display: grid; gap: var(--space-half); }
+    .too-big__tip-then { color: var(--text-muted); }
+    .too-big__card { margin: 0; }
   }
   @media (max-width: 640px) {
     :is(.study-app, .study-seat) {
       .gen-path__edit { flex-wrap: wrap; }
+      .too-big { padding: var(--space-3); }
     }
   }
 }
