@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { managedRuntimeOptions } from '../../helpers/runtime-switch.mjs';
 import { until } from '../../helpers/wait.mjs';
+import { createFakeModel } from '../../../scripts/fake-model.mjs';
+import { seed as seedCoachLibrary, miss } from '../../helpers/coach-library.mjs';
 
 /* The model families of the S4-9 rollback drill. Every family says how its library is seeded (`seed`), how a run is started (`start`, also how it is started AGAIN after a rollback),
    when it has ended (`ended`) and what the library shows of it (`view`: public actions only, so the older version answers the same questions). The fake model knows nothing of the
@@ -18,14 +20,17 @@ const ARTICLE = ['## 从一次请求开始', '## 一步一步推演', '## 边界
 const APPROVED = JSON.stringify({ grounded: true, coherent: true, explained: true, example: true, boundaries: true, issues: [] });
 const body = prefix => `# ${prefix}\n\n${Array.from({ length: 8 }, (_, i) => `${prefix} paragraph ${i} explains one more consequence of the architecture in some detail.`).join('\n\n')}\n`;
 const translated = text => `译文：${'字'.repeat(Math.ceil(text.replace(/\s/g, '').length * 0.5))}`;
-const PATHS = { recap: ['dailyRecap'], note: ['noteGenerate'], translation: ['translation'], workflow: ['workflow'], assist: ['assist'] };
+const PATHS = { recap: ['dailyRecap'], note: ['noteGenerate'], translation: ['translation'], workflow: ['workflow'], assist: ['assist'], coach: ['coach'] };
 
 /** `mode`: 'finish' answers every call; 'hold' never answers (the run is under way when the process ends). `reached` resolves at the first call. */
 export function fakeModel(family, mode) {
   let reach; const reached = new Promise(resolve => { reach = resolve; });
-  const complete = async (system, prompt) => {
+  // The coach's variants are made by the study fake model itself (the replies the real pipeline validates); the other families answer with their own canned replies.
+  const study = family === 'coach' ? createFakeModel() : null;
+  const complete = async (system, prompt, options) => {
     reach();
     if (mode === 'hold') return never();
+    if (study) return study(system, prompt, options);
     if (family === 'translation') return JSON.stringify({ translations: JSON.parse(prompt).passages.map(item => ({ id: item.id, text: translated(item.text) })) });
     if (family === 'workflow') return system.startsWith('Independently') ? APPROVED : JSON.stringify({ markdown: ARTICLE, citations: [{ sourceId: 'source', quote: QUOTE }] });
     if (family === 'assist') return '{"answer":"Two independent dimensions."}';
@@ -35,7 +40,7 @@ export function fakeModel(family, mode) {
 }
 
 /** The service options of one family: the fake model, and, with `on`, the family's migration switch on a controlled executor (the current code only). */
-export const optionsFor = (family, complete, on) => ({ complete, coach: false, ...(on ? (({ starts: _starts, ...rest }) => rest)(managedRuntimeOptions({ complete, paths: PATHS[family] })) : {}) });
+export const optionsFor = (family, complete, on) => ({ complete, ...(family === 'coach' ? { completeLight: complete, coach: true } : { coach: false }), ...(on ? (({ starts: _starts, ...rest }) => rest)(managedRuntimeOptions({ complete, paths: PATHS[family] })) : {}) });
 
 const firstNote = async service => (await service.call('note.list')).notes[0];
 const noteView = async service => {
@@ -125,4 +130,19 @@ const assist = {
   },
 };
 
-export const FAMILIES = { recap, note, translation, workflow, assist };
+/** 为你定制: the variants of three missed cards, prepared in the background by the coach (a batch of the coach's by-the-day job `coach-daily`). */
+const coach = {
+  async seed(service) { const call = service.call.bind(service); await seedCoachLibrary(call); await miss(call, 3); },
+  async start(service) {
+    const refs = [...new Set((await service.call('export')).attempts.map(attempt => `${attempt.deckId}|${attempt.quiz_id ?? attempt.cardId}`))].slice(0, 3).map(key => { const [deckId, cardId] = key.split('|'); return { deckId, cardId }; });
+    return service.call('coach.variants', { cards: refs, consent: true });
+  },
+  ended: service => until(async () => (await service.call('coach.status')).preparing === false, 'the preparation', WAIT),
+  async view(service) {
+    const prepared = (await service.call('export')).prepared.map(item => [item.reason, item.card.kind, item.status]).sort();
+    const days = (await service.call('snapshot', {})).jobs.filter(job => job.type === 'coach-daily');
+    return { prepared, days: days.length };
+  },
+};
+
+export const FAMILIES = { recap, note, translation, workflow, assist, coach };
