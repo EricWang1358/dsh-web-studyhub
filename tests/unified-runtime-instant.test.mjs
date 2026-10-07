@@ -105,6 +105,22 @@ test('a rate-limit answer cools the shared pool and is counted', async t => {
   assert.ok(summary.instant.cooldowns >= 1, JSON.stringify(summary.instant));
 });
 
+test('answering a question about a selection is leased like every instant request, and its usage is booked once', async t => {
+  const f = await library(t, { bindings: [INSTANT] });
+  const imported = await f.service.call('materials.document.import', { filename: 'n.md', dataBase64: Buffer.from('# Notes\n\nFirst paragraph explains the queue in some detail here.\n').toString('base64') });
+  const selection = (await f.service.call('materials.selection.resolve', { documentId: imported.documentId, revision: imported.revision, quote: 'First paragraph explains the queue' })).selection;
+  const hold = gate(); f.fake.holds.push(hold);
+  const before = f.fake.calls, first = f.service.call('materials.selection.ask', { selection, question: 'Why?' }), second = ask(f, 'q1');
+  await until(() => f.fake.calls === before + 1, 'the first request at the model');
+  await new Promise(resolve => setTimeout(resolve, 120));
+  assert.equal(f.fake.calls, before + 1, 'the follow-up waits for the lease held by the question about the selection');
+  hold.release();
+  await Promise.all([first, second]);
+  assert.equal(f.fake.peak, 1);
+  const { byFeature } = await usageLedger(f.root).summary({ days: 1 });
+  assert.ok(byFeature.coach.calls >= 2, 'both are booked');
+});
+
 test('a host-attempt binding is accepted only for the instant route', () => {
   assert.doesNotThrow(() => createProviderResources({ owner: Symbol('o'), scopeId: 'audio.v1', sharedProviderQuota: true, bindings: [INSTANT] }));
   assert.throws(() => createProviderResources({ owner: Symbol('o'), scopeId: 'audio.v1', sharedProviderQuota: true, bindings: [{ ...AUDIO, providerObservation: 'host-attempt' }] }), { code: 'capability-unverified' });
