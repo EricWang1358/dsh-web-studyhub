@@ -11,7 +11,6 @@ import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNoti
 import AskThread, { refusal } from './AskThread.jsx';
 import { itemsOfPassage, nodesToKeep, threadFromItems } from './annotation/model.js';
 import { addNode, answerNode, emptyThread, failNode, nodeOf, planAsk, retryNode, revealNode, threadFor, toggleNode } from './ask-thread.js';
-import SaveAnswerAsCard from './links/SaveAnswerAsCard.jsx';
 import { deckChoices, deckEntries } from '../deck-picker-entries.js';
 import { JOB_STATUS } from '../../lib/job-status.js';
 
