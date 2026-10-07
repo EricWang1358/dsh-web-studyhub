@@ -269,7 +269,18 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 ## 7. 完整 verify 记录
 
-**PENDING：本节在 PR 的最终提交上由完整 `npm run verify` 填写。**
+**完整 `npm run verify` 通过**，在提交 `3934ff7746ecc2408391a652caa6335bda23b880`（本 PR 的代码与清单状态；记录这次运行的提交只改本文件的这一节）上：
+
+| 项 | 记录 |
+|---|---|
+| 命令 | `npm run verify`（= `npm run lint && npm test && npm run build`；`npm test` = `node scripts/test.mjs`，即完整套件，不是 `test:fast`，没有缩小范围） |
+| 环境 | Windows；`TEMP`/`TMP`/`TMPDIR` 指向工作区内的私有目录 `.local/verify-temp`；`SSH_TTY=audit`；进程环境里所有 `*_API_KEY`、`*_TOKEN`、`*BASE_URL` 先清掉（`scripts/test.mjs` 还会再清一次并给每次运行一个私有 `DSH_HOME`）；**没有设置 `STUDY_TEST_NO_LOCK`**（机器级测试锁没有被绕过）；没有网络与真实模型 |
+| lint | 通过（`eslint lib scripts tests ui packages eslint.config.js`，无输出） |
+| 测试 | **tests 6857；pass 6845；fail 0；cancelled 0；skipped 12；todo 0**；耗时 331.6 s（整个 verify 340 s） |
+| build | 通过（`Built DSH client modules and standalone preview`） |
+| 之前的一次 | 同一条命令在 `662802e6396fb7d4463977fa7cf7519bad490c2d`（清单标签修改之前）上也通过：6856 个测试里 6844 通过、0 失败、12 跳过，342 s。两次之间只改了清单的 `removeAt`/理由文字、两处守卫断言和本文 |
+
+这是在本机、fake 模型下的结果。它**不是**真实模型、真实宿主或真实安装包的验证，也不是 CI 在两个平台上的结果（CI 对 PR 的最终提交另外跑）；那些见 §8。
 
 ## 8. 待定门禁（PENDING，只有所有者授权后才能做）
 
