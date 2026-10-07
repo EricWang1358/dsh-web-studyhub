@@ -137,8 +137,6 @@
   "已通过的题都保留": "Every question that passed is kept",
   "停在这里": "Stop here",
   "这次只出一轮，没有可以暂停的地方；可以停止，已通过的题会保留。": "This run makes one round only, so there is nowhere to pause; you can stop it, and the questions that passed are kept.",
-  "这次只做一轮，做完就停；勾选「自动补到完整」后，轮与轮之间才可以暂停。": "This run does one round and stops; once you tick \"Finish automatically\" there is a boundary between rounds to pause at.",
-  "正在暂停 · 第 {0} 轮做完后停下": "Pausing · it stops when round {0} is done",
   "中断于第 {0} 轮 · 点「接着做」继续": "Interrupted at round {0} · press Continue to go on",
   "出题计划的轮次": "Rounds of the plan",
   "{0}/{1} 轮已完成": "{0}/{1} rounds done",
