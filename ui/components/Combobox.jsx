@@ -9,8 +9,9 @@ import { TriggerShell } from './Select.jsx';
 const Impl = lazy(() => import('./combobox-impl.jsx'));
 
 /**
- * options: as Select (options and groups), plus `level` (2 and up hangs an option under the one before it on a hairline, with aria-level)
- * and `keywords` (extra searchable text). value / onChange(value, { option }) / placeholder as Select. Typing in the search box filters
+ * options: as Select (options and groups), plus `level` (2 and up hangs an option under the one before it on a hairline, with aria-level),
+ * `keywords` (extra searchable text) and `wrap` (a long label takes two lines, in a wider popup); a group may carry `indent` (its options hang
+ * under its heading, which is a label and never a choice). value / onChange(value, { option }) / placeholder as Select. Typing in the search box filters
  * by every word, marks the matches, and puts the first match under the highlight, so Enter chooses it; a course shown only to place a
  * matching chapter is not a choice.
  * searchPlaceholder, label (the popup's accessible name), emptyText(query) | string: the sentence when nothing matches.

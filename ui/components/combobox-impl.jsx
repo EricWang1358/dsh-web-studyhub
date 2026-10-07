@@ -39,7 +39,7 @@ export default forwardRef(function ComboboxImpl({ options = [], value, onChange,
   const item = (option, index) => {
     const level = option.level || 1;
     return (
-      <Base.Item key={option.key} value={byKey.get(option.key)} index={index} disabled={option.disabled} className={cx('sh-opt', level > 1 && 'sh-opt--sub')}
+      <Base.Item key={option.key} value={byKey.get(option.key)} index={index} disabled={option.disabled} className={cx('sh-opt', level > 1 && 'sh-opt--sub', option.wrap && 'sh-opt--wrap')}
         data-level={level > 1 ? level : undefined} aria-level={tree ? level : undefined}>
         <span className="sh-opt__check"><Base.ItemIndicator><Icon name="check" size={16} /></Base.ItemIndicator></span>
         <span className="sh-opt__label"><Highlighted text={option.label} query={query} /></span>
@@ -56,9 +56,11 @@ export default forwardRef(function ComboboxImpl({ options = [], value, onChange,
     return item(entry, position++);
   };
   const content = shown.map((entry, at) => (isGroup(entry)
-    ? <Base.Group key={`g${at}`} className="sh-pop__group"><Base.GroupLabel className="sh-pop__group-label">{entry.group}</Base.GroupLabel>{entry.options.map(rowOf)}</Base.Group>
+    ? <Base.Group key={`g${at}`} className={cx('sh-pop__group', entry.indent && 'sh-pop__group--indent')}><Base.GroupLabel className="sh-pop__group-label"><Highlighted text={entry.group} query={query} /></Base.GroupLabel>{entry.options.map(rowOf)}</Base.Group>
     : rowOf(entry)));
   const heading = variant === 'heading';
+  // Titles that may take two lines (option.wrap) are given the wider popup the heading variant has.
+  const roomy = heading || all.some((option) => option.wrap);
   return (
     <Base.Root items={all} filteredItems={choices} value={selected ? byKey.get(selected.key) : null} onValueChange={changed} open={open} disabled={disabled} required={required}
       onOpenChange={(next) => { if (next) setQuery(''); setOpen(next); }} onOpenChangeComplete={(next) => { if (!next) setQuery(''); }}
@@ -72,7 +74,7 @@ export default forwardRef(function ComboboxImpl({ options = [], value, onChange,
       </Base.Trigger>
       <Base.Portal container={popupHost(trigger.current)}>
         <Base.Positioner className="sh-pop" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
-          <Base.Popup className={cx('sh-pop__popup', heading ? 'sh-pop__popup--wide' : 'sh-pop__popup--match', popupClassName)} aria-label={label}>
+          <Base.Popup className={cx('sh-pop__popup', roomy ? 'sh-pop__popup--wide' : 'sh-pop__popup--match', popupClassName)} aria-label={label}>
             <div className="sh-combobox__search">
               <Icon name="search" size={16} />
               <Base.Input className="sh-combobox__input" placeholder={searchPlaceholder || ui('搜索')} aria-label={searchPlaceholder || label || ui('搜索')} onKeyDown={onInputKey} />

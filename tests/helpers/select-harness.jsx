@@ -4,8 +4,9 @@ import { createRoot } from 'react-dom/client';
 import { Button, Combobox, Dialog, Field, Popover, Select } from '../../ui/components/index.js';
 import { courseEntries } from '../../ui/course-picker-entries.js';
 import Ingest from '../../ui/Ingest.jsx';
+import { deckChoices, deckEntries } from '../../ui/deck-picker-entries.js';
 
-window.calls = { select: [], course: [], actions: [], deck: [], dialog: [], heading: [], popover: [], ingest: [] };
+window.calls = { select: [], course: [], actions: [], deck: [], dialog: [], heading: [], popover: [], ingest: [], grouped: [] };
 
 const TONES = [{ value: 'friendly', label: '亲切', hint: '默认' }, { value: 'professional', label: '专业' }, { value: 'strict', label: '严格', disabled: true }];
 const GROUPED = [{ group: '常用', options: [{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }] }, { group: '其他', options: [{ value: 'c', label: 'Gamma' }, { value: '', label: '不选' }] }];
@@ -67,12 +68,35 @@ function IngestScenario() {
   return <div className="study-app" id="scene" style={{ padding: 24, display: 'block', height: 'auto', minHeight: 900 }}><Ingest data={data} busy={false} start={config => window.calls.ingest.push(config)} onOpenSettings={() => {}} /></div>;
 }
 
+/* A library as the owner has it: ~60 decks in a few courses, long titles that only differ at the end, two decks with one title, a chapter, no course. */
+const COURSE_NAMES = ['SWE5001 软件工程', 'Cloud Native Solution Design', 'LLM 大模型应用', 'DSH 数据结构与算法'];
+const LONG = ['解决方案架构导论：概念辨析与情境迁移与应用（第一部分）', '解决方案架构导论：概念辨析与情境迁移与应用（第二部分）', 'SWE5001 MOD1 课堂实录与课后复盘全量题组', 'PDF02 全量名词知识点混合题组'];
+function libraryDecks() {
+  const decks = Array.from({ length: 56 }, (_, i) => ({ id: `d${i}`, title: `${LONG[i % 4]} ${i}`, course: COURSE_NAMES[i % 4], count: 10 + i, createdAt: `2026-09-${String(1 + (i % 28)).padStart(2, '0')}T08:00:00Z` }));
+  decks.push({ id: 'twin-a', title: '解决方案架构导论：概念辨析与情境迁移', course: COURSE_NAMES[1], count: 30, createdAt: '2026-09-01T08:00:00Z' });
+  decks.push({ id: 'twin-b', title: '解决方案架构导论：概念辨析与情境迁移', course: COURSE_NAMES[1], count: 31, createdAt: '2026-09-09T08:00:00Z' });
+  decks.push({ id: 'chap', title: 'Kubernetes 故障诊断', course: 'Cloud Native Solution Design / 05 Kubernetes', count: 24, createdAt: '2026-09-28T08:00:00Z' });
+  decks.push({ id: 'loose', title: '随手记', count: 3, createdAt: '2026-09-30T08:00:00Z' });
+  return decks;
+}
+function DecksScenario() {
+  const [deck, setDeck] = useState('d1');
+  const focus = { course: 'Cloud Native Solution Design', courses: COURSE_NAMES.map(name => ({ name })) };
+  const entries = deckEntries(deckChoices(libraryDecks(), { focus }));
+  return <div className="study-app" id="scene" style={{ padding: 24, display: 'block', height: 'auto', minHeight: 900 }}>
+    <div id="fields" style={{ display: 'grid', gap: 16, maxWidth: 420 }}>
+      <Field label="补充到现有题组"><Combobox value={deck} placeholder="选择题组" onChange={value => { window.calls.grouped.push(value); setDeck(value); }} options={entries} label="补充到现有题组"
+        searchPlaceholder="搜索题组" emptyText={query => `没有叫「${query}」的题组`} /></Field>
+    </div>
+  </div>;
+}
+
 let root;
 window.mountScenario = (name) => {
   root?.unmount();
   const host = document.getElementById('root');
   host.replaceChildren();
   root = createRoot(host);
-  root.render(name === 'ingest' ? <IngestScenario /> : <Scenario />);
+  root.render(name === 'ingest' ? <IngestScenario /> : name === 'decks' ? <DecksScenario /> : <Scenario />);
 };
 window.harnessReady = true;
