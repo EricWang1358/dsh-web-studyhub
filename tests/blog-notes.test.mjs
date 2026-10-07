@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 import { csdnMatches } from "../lib/adapters/csdn-public.js";
+import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
 
 test("notes keep card links through draft, save, and published status", async () => {
   const root = await mkdtemp(join(tmpdir(), "study-notes-"));
@@ -64,10 +65,11 @@ test("unique matching article links automatically only when newer than prepublis
 
 test("AI note draft is generated in the background and keeps review links", async () => {
   const root = await mkdtemp(join(tmpdir(), "study-note-generate-"));
-  const service = new StudyService(root, { complete: async () =>
+  const complete = async () =>
     "# Capacity planning\n\n## 核心概念\n\n容量规划要先定义负载，再估算系统在不同流量下的资源需求。\n\n" +
     "## 常见误区\n\n不能只用一次峰值测量推断所有场景，需要考虑请求组合变化。\n\n" +
-    "## 例子\n\n假设请求速率逐步提高，先测响应时间，再观察瓶颈。" });
+    "## 例子\n\n假设请求速率逐步提高，先测响应时间，再观察瓶颈。";
+  const service = new StudyService(root, { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ["noteGenerate"] }) });
   await service.store.update((state) => {
     state.decks.push({ id: "deck", title: "Private course", cards: [{ id: "card", topic: "Capacity planning",
       prompt: "Private course question", answer: "Answer", explanation: "Explanation", misconception: "Misconception" }] });
@@ -106,9 +108,8 @@ test("note revisions reject stale saves and reading resolves exact card labels a
 
 test("late AI drafting cannot overwrite a subsequently saved note", async () => {
   let finish;
-  const service = new StudyService(await mkdtemp(join(tmpdir(), "study-note-late-")), {
-    complete: () => new Promise(resolve => { finish = resolve; }),
-  });
+  const complete = () => new Promise(resolve => { finish = resolve; });
+  const service = new StudyService(await mkdtemp(join(tmpdir(), "study-note-late-")), { complete, ...switchOptions(SWITCH_MODE, { complete, paths: ["noteGenerate"] }) });
   await service.store.update(state => { state.decks.push({ id: "d", title: "D", cards: [{ id: "q", prompt: "Q", answer: "A" }] }); });
   const note = await service.call("note.create", { title: "Writing", cards: [{ deckId: "d", cardId: "q" }] });
   await service.call("note.generate", { id: note.id });

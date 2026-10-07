@@ -18,7 +18,8 @@
     "lib/contexts/notes/jobs/daily-recap.js",
     "lib/contexts/workflows/jobs/teaching.js",
     "lib/contexts/workflows/jobs/skeleton.js",
-    "lib/contexts/study/jobs/assist.js"
+    "lib/contexts/study/jobs/assist.js",
+    "lib/contexts/notes/jobs/note-generate.js"
   ],
   "entries": [
     {
@@ -136,7 +137,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "importAudio has an original provider branch; jobTextModel serves the classroom save until S2-6",
-      "removeAt": "S2-6 then S6-2",
+      "removeAt": "S6-2",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -150,12 +151,14 @@
           ]
         },
         {
-          "what": "jobTextModel: the text model of the classroom save",
+          "what": "jobTextModel: the original text model of the classroom save and of subtitles and review",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
           "switches": [
-            "audioLiveSave"
+            "audioLiveSave",
+            "audioSubtitles",
+            "audioReview"
           ]
         }
       ]
@@ -366,24 +369,23 @@
       ]
     },
     {
-      "file": "lib/contexts/notes/operations.js",
+      "file": "lib/contexts/notes/note-generation.js",
+      "owner": "existing domain maintainer",
+      "evidence": "s1-0-runtime-audit.md; s6-0-coverage.md",
       "calls": [
         {
-          "callee": "providedComplete",
+          "callee": "complete",
           "count": 1
         }
       ],
-      "owner": "existing domain maintainer",
-      "reason": "note.generate: a blog-note draft written in the background without a Job",
-      "removeAt": "S4-10",
-      "evidence": "s6-0-coverage.md",
+      "reason": "The note draft body takes its model as an argument (the gateway step when noteGenerate is on)",
+      "removeAt": "S6-2 (the in-process caller)",
       "sites": [
         {
-          "what": "blog-note generation",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S4-10"
+          "what": "injected complete of the shared pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
         }
       ]
     },
@@ -1349,15 +1351,23 @@
           "count": 1
         }
       ],
-      "owner": "notes family",
-      "evidence": "s6-0-coverage.md; s6-0-coverage.md",
+      "owner": "notes family (lane D)",
+      "evidence": "s4-10-note-generate.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "note.generate: a blog-note draft written by the model in the background, with its own job table entry and no Job (decided 2026-10-07: S4-10, switch noteGenerate)",
-          "disposition": "migrate",
+          "what": "the pending draft of a note: what a save, a delete or an unloaded plugin stops it by (the draft itself is a Job when noteGenerate is on)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "the in-process draft (the executor runs the same body itself when noteGenerate is off)",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S4-10"
+          "reached": false,
+          "switches": [
+            "noteGenerate"
+          ]
         }
       ]
     },
@@ -1411,10 +1421,14 @@
       "evidence": "plan.md (sub-agents go through the host); s6-0-coverage.md",
       "sites": [
         {
-          "what": "startBoundedChild: the one place a host sub-agent is started (the gateway uses it; so do the original assist, generation and correction agents)",
+          "what": "startBoundedChild: the one place a host sub-agent is started (the gateway uses it, for the policies that prefer an agent: dailyRecapAgent, workflowAgent; so do the original assist, generation and correction agents)",
           "disposition": "exception",
           "kind": "provider-leaf",
-          "reached": true
+          "reached": true,
+          "switches": [
+            "dailyRecapAgent",
+            "workflowAgent"
+          ]
         }
       ]
     },
