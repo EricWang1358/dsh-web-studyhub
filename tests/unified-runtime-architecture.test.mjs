@@ -106,7 +106,10 @@ test('every reviewed site has a disposition that holds: migrate names its step, 
 
 test('every migration switch bypasses something in the inventory, and every inventory row appears in the coverage document', async () => {
   const inventory = JSON.parse(await readFile(INVENTORY)), doc = await readFile(COVERAGE_DOC, 'utf8');
-  const named = new Set([...inventory.entries, ...inventory.starts].flatMap(entry => entry.sites.flatMap(site => site.switches ?? [])));
+  // A switch that changes how a Job runs (who answers its calls) bypasses no original path: it is listed in `policySwitches`, saying what it changes.
+  const policies = Object.entries(inventory.policySwitches ?? {});
+  for (const [name, what] of policies) assert.ok(typeof what === 'string' && what.length > 20, `${name}: say what the policy switch changes`);
+  const named = new Set([...[...inventory.entries, ...inventory.starts].flatMap(entry => entry.sites.flatMap(site => site.switches ?? [])), ...policies.map(([name]) => name)]);
   assert.deepEqual(Object.keys(MIGRATION_SWITCHES).filter(name => !named.has(name)), [], 'a switch whose original path is not recorded');
   for (const entry of [...inventory.entries, ...inventory.starts]) assert.ok(doc.includes(entry.file), `${entry.file} is not in s6-0-coverage.md`);
   for (const name of Object.keys(MIGRATION_SWITCHES)) assert.ok(doc.includes(`\`${name}\``), `${name} is not in s6-0-coverage.md`);
