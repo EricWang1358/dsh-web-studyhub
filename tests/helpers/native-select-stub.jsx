@@ -4,7 +4,8 @@
    actions as buttons. The real components are exercised in a browser by tests/select-combobox-browser.test.mjs. */
 import React from 'react';
 
-const optionNode = (option, index) => <option key={index} value={String(option.value ?? '')} disabled={option.disabled || undefined} data-level={option.level > 1 ? option.level : undefined}>{option.label}{option.hint ? ` · ${option.hint}` : ''}</option>;
+const optionNode = (option, index) => <option key={index} value={String(option.value ?? '')} disabled={option.disabled || undefined} data-level={option.level > 1 ? option.level : undefined}
+  data-trigger={option.triggerLabel} data-tip={option.tip || undefined} data-wrap={option.wrap || undefined}>{option.label}{option.hint ? ` · ${option.hint}` : ''}</option>;
 const groups = (options = []) => options.map((entry, index) => (Array.isArray(entry.options)
   ? <optgroup key={`g${index}`} label={entry.group}>{entry.options.map(optionNode)}</optgroup> : optionNode(entry, index)));
 

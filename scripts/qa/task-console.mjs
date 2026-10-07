@@ -54,9 +54,10 @@ export async function seedCoachDays(root) {
 
 /**
  * The preview with a fake model that streams, a fake Gemini, and a held gate: while held, the calls of the jobs stay in flight (after their text has streamed),
- * so the page can be looked at, measured and screenshot with work in progress.
+ * so the page can be looked at, measured and screenshot with work in progress. `route` ({ provider, model, reasoningEffort? }) is the model of the session that
+ * 「跟随当前会话」 follows (a long id such as `cn:deepseek-v4.1-flash` to see how the 即时控制 row holds it).
  */
-export async function startConsole({ distDir, lang = "zh", hold = true, streamStepMs = 60, transcribeMs = 250 } = {}) {
+export async function startConsole({ distDir, lang = "zh", hold = true, streamStepMs = 60, transcribeMs = 250, route } = {}) {
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), "study-console-")), root = join(base, "library");
   await seedLibrary(root, { sources: 12, decks: 3, cardsPerDeck: 8, runs: 1, attempts: 0, courses: 1, largeSources: 0 });
@@ -88,7 +89,7 @@ export async function startConsole({ distDir, lang = "zh", hold = true, streamSt
     }
     return realFetch(url, init);
   };
-  const server = await createPreviewServer({ libraryRoot: root, home: join(base, "home"), port: 0, model: complete, ...(distDir ? { distDir } : {}) });
+  const server = await createPreviewServer({ libraryRoot: root, home: join(base, "home"), port: 0, model: route ? { complete, route } : complete, ...(distDir ? { distDir } : {}) });
   const api = (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: lang });
   const close = async () => {
     await previewCall(server, "job.cancel", { all: true }).catch(() => {});

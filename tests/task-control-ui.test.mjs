@@ -64,7 +64,7 @@ test('a generation job offers concurrency and the reasoning of each stage, and w
   const html = render(generation());
   for (const key of ['concurrency', 'effortPlanning', 'effortReview', 'effortWriting', 'effortRepair']) assert.match(html, new RegExp(`data-control="${key}"`), key);
   assert.match(html, /规划推理/);
-  assert.match(html, /<option value="follow" selected="">跟随当前会话<\/option>/);
+  assert.match(html, /<option value="follow"[^>]*selected=""[^>]*>跟随当前会话<\/option>/);
   const { defaultsPatch } = m;
   const patch = defaultsPatch(generation());
   assert.equal(patch.action, 'settings');

@@ -26,6 +26,8 @@ const openInGroup = new Map();
  * group: tooltips of one group are mutually exclusive (entering another anchor of the group, or opening it, closes this one at once).
  * outside: a selector of an ancestor the card keeps clear of when it opens beside the anchor (layer only): it is placed outside that
  * ancestor's edge, level with the anchor, and below the anchor itself when there is no room beside.
+ * An empty `content` draws no card (and closes an open one): a caller whose words come and go keeps one anchor in the page, so the control
+ * it wraps is never remounted when the words appear.
  */
 export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside }) {
   useComponentCss(css);
@@ -69,8 +71,10 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
   }, [layer, open, placement, flip, outside]);
   useEffect(() => () => clearTimeout(timer.current), []);
-  const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(visible), delay); };
-  const now = visible => { clearTimeout(timer.current); setOpen(visible); };
+  const worded = Boolean(content);
+  useEffect(() => { if (!worded) { clearTimeout(timer.current); setOpen(false); } }, [worded]);
+  const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(visible && worded), delay); };
+  const now = visible => { clearTimeout(timer.current); setOpen(visible && worded); };
   const child = React.Children.only(children);
   const describedBy = [child.props['aria-describedby'], id].filter(Boolean).join(' ');
   const own = child.props;
@@ -85,7 +89,7 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
         onPointerDown: chain(own.onPointerDown, event => {
           if (event.pointerType !== 'touch') return;
           clearTimeout(timer.current);
-          timer.current = setTimeout(() => { setOpen(true); timer.current = setTimeout(() => setOpen(false), TOUCH_LINGER); }, PRESS_DELAY);
+          timer.current = setTimeout(() => { setOpen(worded); timer.current = setTimeout(() => setOpen(false), TOUCH_LINGER); }, PRESS_DELAY);
         }),
         onPointerUp: chain(own.onPointerUp, event => { if (event.pointerType === 'touch' && !open) clearTimeout(timer.current); }),
         onPointerCancel: chain(own.onPointerCancel, () => { if (!open) clearTimeout(timer.current); }),

@@ -1,5 +1,6 @@
 import React from 'react';
 import { highlightParts } from './option-list.js';
+import Tooltip from './Tooltip.jsx';
 
 /* The pieces Select and Combobox share, with no Base UI in them (so the facades can draw a trigger before the popup code has loaded). */
 
@@ -14,6 +15,19 @@ export function Highlighted({ text, query }) {
 export function TriggerValue({ option, placeholder }) {
   if (!option) return <span className="sh-select__value sh-select__placeholder">{placeholder}</span>;
   return <span className="sh-select__value">{option.triggerLabel ?? option.label}{option.hint ? <small>{option.hint}</small> : null}</span>;
+}
+
+/** A list whose options say more than the closed trigger does: an option's `tip` (a string, '' for none) is the sentence the trigger carries in a
+    tooltip while that option is chosen (hover and keyboard focus), and `wrap` lets its label run over lines in the popup (the popup is then as wide as the
+    label needs, up to a limit) instead of being cut. The trigger shows `triggerLabel`, the short words; the popup shows the whole label. */
+export const hasTips = (flat) => flat.some((option) => typeof option.tip === 'string');
+export const wrapsLabels = (flat) => flat.some((option) => option.wrap);
+
+/** The trigger inside the tooltip of the chosen option's `tip`. The anchor is there whenever any option has a tip (not only while the chosen one has),
+    so choosing another option never remounts the trigger; `open` (the popup is open) draws no card over the popup. */
+export function TriggerTip({ flat, chosen, open = false, children }) {
+  if (!hasTips(flat)) return children;
+  return <Tooltip layer anchorClassName="sh-select__tip" content={open ? '' : chosen?.tip || ''}>{children}</Tooltip>;
 }
 
 /** The option a closed trigger shows: the chosen one, else (a value that is no option, such as "new deck") `valueLabel` as plain text. */
