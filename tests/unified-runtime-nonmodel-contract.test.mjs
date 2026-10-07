@@ -18,7 +18,8 @@ test('G-5/G-8: an unknown outcome of a declared side effect blocks a blind resen
     const job = await f.port.submit('persist', {});
     assert.equal((await f.port.wait(job.jobId)).status, 'failed');
     const intents = (await f.store.load()).requestIntents;
-    assert.deepEqual(intents.map(intent => intent.status), [retryable ? 'completed' : 'pending']);
+    // A side-effect-free process leaves no intent at all; a declared side effect whose end was never observed stays pending.
+    assert.deepEqual(intents.map(intent => intent.status), retryable ? [] : ['pending']);
     if (retryable) { await f.port.control(job.jobId, 'retry'); assert.equal((await f.port.wait(job.jobId)).status, 'failed'); assert.equal(attempts, 2); }
     else {
       await assert.rejects(f.port.control(job.jobId, 'retry'), { code: 'remote-result-unknown' });
@@ -58,7 +59,7 @@ test('G-10: a step budget is the per-operation timeout of a non-model task; no j
   });
   const job = await f.port.submit('persist', {}), end = await f.port.wait(job.jobId);
   assert.equal(end.status, 'failed'); assert.equal(end.calls[0].status, 'cancelled'); assert.equal(end.calls[0].reason, 'aborted');
-  assert.equal((await f.store.load()).requestIntents[0].status, 'completed', 'an observed end is a known outcome');
+  assert.deepEqual((await f.store.load()).requestIntents, [], 'a side-effect-free request leaves nothing that could block a retry');
 });
 
 test('G-9: a job without model calls keeps usage unknown instead of inventing tokens or cost', async t => {

@@ -330,17 +330,13 @@
       "file": "lib/contexts/generation/operations.js",
       "calls": [
         {
-          "callee": "providedComplete",
-          "count": 1
-        },
-        {
           "callee": "providedLight",
           "count": 1
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "generate.suggest is one awaited request; draft.repair is the background job of S3-5",
-      "removeAt": "S3-5; the suggestion stays",
+      "reason": "generate.suggest is one awaited request, never a background job",
+      "removeAt": "never; the suggestion stays",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
@@ -348,13 +344,6 @@
           "disposition": "exception",
           "kind": "foreground-request",
           "reached": true
-        },
-        {
-          "what": "draft.repair model calls",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S3-5"
         }
       ]
     },
@@ -606,12 +595,12 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "The classroom save pipeline: the original runner is bypassed by audioLiveSave; translateLive is shared",
-      "removeAt": "S6-2",
+      "reason": "The classroom save pipeline (proofread): original runner until S2-6",
+      "removeAt": "S2-6 then S6-2",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "executeLiveSaveJob: the original classroom save (the Job shares translateLive)",
+          "what": "executeLiveSaveJob provider calls",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
@@ -980,7 +969,7 @@
           "reached": true
         },
         {
-          "what": "audio.retry: the original retry path and its put-back (nothing is left on the original runner with every audio switch on)",
+          "what": "audio.retry: the original retry path and its put-back; with the five audio switches on (audioLiveSave included, S2-6) nothing is retried through it",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
@@ -1044,7 +1033,7 @@
       "evidence": "s2-0-audio-baseline.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "startAudioJob: the original audio runner (single, batch, subtitles, review and the classroom save); no caller is left with every audio switch on",
+          "what": "startAudioJob: the original audio runner. With the five audio switches on (audioLiveSave included, S2-6) nothing calls it",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
@@ -1146,12 +1135,13 @@
       "evidence": "s3-1-generation-queue.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "startLegacy: the original generation run (job record, controller, control, queue turn)",
+          "what": "startLegacy: the original generation run (job record, controller, control, queue turn); also the original run of the selected-passage supplement (S3-4) and of the draft repair (S3-5)",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
           "switches": [
-            "generation"
+            "generation",
+            "generationRepair"
           ]
         }
       ]
@@ -1161,15 +1151,15 @@
       "calls": [
         {
           "callee": "generationControllers.set",
-          "count": 2
+          "count": 1
         },
         {
           "callee": "jobs.set",
-          "count": 3
+          "count": 2
         },
         {
           "callee": "ownWork",
-          "count": 3
+          "count": 2
         }
       ],
       "owner": "generation family (lane B)",
@@ -1190,13 +1180,6 @@
           "switches": [
             "generationRestart"
           ]
-        },
-        {
-          "what": "draft.repair: background repair of rejected cards",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S3-5"
         }
       ]
     },
@@ -1776,5 +1759,9 @@
     "public-api",
     "kernel",
     "not-a-job"
-  ]
+  ],
+  "policySwitches": {
+    "dailyRecapAgent": "the daily recap Job asks a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)",
+    "workflowAgent": "teachings and skeletons of the learning workflow ask a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)"
+  }
 }

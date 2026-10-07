@@ -47,8 +47,8 @@ test('a local wait is recorded as side-effect free, and declaring one with a sid
   });
   const job = await f.port.submit('persist', {});
   await inWait;
-  // A crash now would leave nothing whose remote outcome is unknown: the wait asked nothing of anyone.
-  assert.deepEqual((await f.store.load()).requestIntents.map(intent => [intent.status, intent.sideEffect]), [['pending', false]]);
+  // A crash now would leave nothing whose remote outcome is unknown: the wait asked nothing of anyone, so it leaves no intent.
+  assert.deepEqual((await f.store.load()).requestIntents, []);
   release();
   assert.equal((await f.port.wait(job.jobId)).status, 'complete');
 });
