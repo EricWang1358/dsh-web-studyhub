@@ -1,0 +1,1512 @@
+{
+  "schema": 1,
+  "rollbackTag": "v2.7.1",
+  "rollbackSha": "47f132815fc2fa65c7352f3f536109bb9c3ddd96",
+  "scenarios": {
+    "settled": {
+      "rolledBack": {
+        "scenario": "settled",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": []
+        },
+        "prepared": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": [
+            "complete",
+            "complete",
+            "complete",
+            "complete",
+            "complete"
+          ]
+        }
+      },
+      "rolledForward": {
+        "scenario": "settled",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": []
+        },
+        "prepared": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": [
+            "complete",
+            "complete",
+            "complete",
+            "complete",
+            "complete"
+          ]
+        }
+      },
+      "sameCode": {
+        "scenario": "settled",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": []
+        },
+        "prepared": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": [
+            "complete",
+            "complete",
+            "complete",
+            "complete",
+            "complete"
+          ]
+        }
+      }
+    },
+    "generate-mid": {
+      "prepared": {
+        "scenario": "generate-mid",
+        "prepared": true,
+        "endedHard": true
+      },
+      "rolledBack": {
+        "scenario": "generate-mid",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            },
+            {
+              "id": "written",
+              "cards": 3,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      },
+      "rolledForward": {
+        "scenario": "generate-mid",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            },
+            {
+              "id": "written",
+              "cards": 3,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        }
+      },
+      "sameCode": {
+        "scenario": "generate-mid",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            },
+            {
+              "id": "written",
+              "cards": 1,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            },
+            {
+              "id": "written",
+              "cards": 3,
+              "fixed": 0,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      }
+    },
+    "repair-mid": {
+      "prepared": {
+        "scenario": "repair-mid",
+        "prepared": true,
+        "endedHard": true
+      },
+      "rolledBack": {
+        "scenario": "repair-mid",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 1,
+              "rejected": [
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      },
+      "rolledForward": {
+        "scenario": "repair-mid",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        }
+      },
+      "sameCode": {
+        "scenario": "repair-mid",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 1,
+              "rejected": [
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 2,
+              "rejected": []
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      }
+    },
+    "publish-before": {
+      "prepared": {
+        "scenario": "publish-before",
+        "prepared": true,
+        "endedHard": true
+      },
+      "rolledBack": {
+        "scenario": "publish-before",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      },
+      "rolledForward": {
+        "scenario": "publish-before",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        }
+      },
+      "sameCode": {
+        "scenario": "publish-before",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      }
+    },
+    "publish-after": {
+      "prepared": {
+        "scenario": "publish-after",
+        "prepared": true,
+        "endedHard": true
+      },
+      "rolledBack": {
+        "scenario": "publish-after",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        },
+        "finished": {
+          "nothingLeft": true
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        }
+      },
+      "rolledForward": {
+        "scenario": "publish-after",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        }
+      },
+      "sameCode": {
+        "scenario": "publish-after",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "a",
+                "b",
+                "old"
+              ],
+              "hash": "77b4d7cecea8e892"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      }
+    },
+    "supplement-after": {
+      "prepared": {
+        "scenario": "supplement-after",
+        "prepared": true,
+        "endedHard": true
+      },
+      "rolledBack": {
+        "scenario": "supplement-after",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        },
+        "finished": {
+          "nothingLeft": true
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        }
+      },
+      "rolledForward": {
+        "scenario": "supplement-after",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        }
+      },
+      "sameCode": {
+        "scenario": "supplement-after",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      }
+    },
+    "case-grading": {
+      "prepared": {
+        "scenario": "case-grading",
+        "prepared": true,
+        "endedHard": true
+      },
+      "rolledBack": {
+        "scenario": "case-grading",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "case",
+              "cards": [
+                "written",
+                "written"
+              ],
+              "hash": "4f53cda18c2baa0c"
+            }
+          ],
+          "drafts": [],
+          "graded": 0,
+          "selection": [],
+          "jobs": []
+        },
+        "finished": {
+          "regraded": 2
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "case",
+              "cards": [
+                "written",
+                "written"
+              ],
+              "hash": "4f53cda18c2baa0c"
+            }
+          ],
+          "drafts": [],
+          "graded": 2,
+          "selection": [],
+          "jobs": []
+        }
+      },
+      "rolledForward": {
+        "scenario": "case-grading",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "case",
+              "cards": [
+                "written",
+                "written"
+              ],
+              "hash": "4f53cda18c2baa0c"
+            }
+          ],
+          "drafts": [],
+          "graded": 2,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        }
+      },
+      "sameCode": {
+        "scenario": "case-grading",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "case",
+              "cards": [
+                "written",
+                "written"
+              ],
+              "hash": "4f53cda18c2baa0c"
+            }
+          ],
+          "drafts": [],
+          "graded": 0,
+          "selection": [],
+          "jobs": [
+            "failed"
+          ]
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "case",
+              "cards": [
+                "written",
+                "written"
+              ],
+              "hash": "4f53cda18c2baa0c"
+            }
+          ],
+          "drafts": [],
+          "graded": 2,
+          "selection": [],
+          "jobs": [
+            "complete"
+          ]
+        }
+      }
+    },
+    "selection-review": {
+      "prepared": {
+        "scenario": "selection-review",
+        "prepared": true,
+        "endedHard": true
+      },
+      "rolledBack": {
+        "scenario": "selection-review",
+        "lib": "older",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "reviewing"
+          ],
+          "jobs": []
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": [
+            "complete"
+          ]
+        }
+      },
+      "rolledForward": {
+        "scenario": "selection-review",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": []
+        }
+      },
+      "sameCode": {
+        "scenario": "selection-review",
+        "lib": "current",
+        "seen": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "reviewing"
+          ],
+          "jobs": []
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "decks": [
+            {
+              "id": "t",
+              "cards": [
+                "old",
+                "written"
+              ],
+              "hash": "96fefc4d2776aaec"
+            }
+          ],
+          "drafts": [
+            {
+              "id": "d",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": []
+            },
+            {
+              "id": "r",
+              "cards": 2,
+              "fixed": 0,
+              "rejected": [
+                "ra",
+                "rb"
+              ]
+            }
+          ],
+          "graded": 0,
+          "selection": [
+            "complete"
+          ],
+          "jobs": [
+            "complete"
+          ]
+        }
+      }
+    }
+  },
+  "fileKinds": [
+    "library/attachments/materials/<id>.md",
+    "library/generation-runs/<id>.json",
+    "library/generation-runs/<id>.publish-quick.json",
+    "library/generation-runs/<id>.publish.json",
+    "library/shards/courses/course-<id>.<id>.json",
+    "library/shards/decks/<id>.<id>.json",
+    "library/shards/decks/t.<id>.json",
+    "library/shards/documents/document-<id>.<id>.json",
+    "library/shards/drafts/<id>.<id>.json",
+    "library/shards/drafts/d.<id>.json",
+    "library/shards/drafts/r.<id>.json",
+    "library/shards/misc/coach.<id>.json",
+    "library/shards/misc/feedback.<id>.json",
+    "library/shards/misc/inbox.<id>.json",
+    "library/shards/misc/notes.<id>.json",
+    "library/shards/misc/prepared.<id>.json",
+    "library/shards/misc/skeletons.<id>.json",
+    "library/shards/misc/teaching.<id>.json",
+    "library/shards/misc/topicGroups.<id>.json",
+    "library/shards/selectionJobs/item.<id>.json",
+    "library/shards/sources/cloud.<id>.json",
+    "library/shards/sources/document-<id>.<id>.json",
+    "library/shards/sources/p1.<id>.json",
+    "library/shards/sources/p2.<id>.json",
+    "library/shards/sources/scenario-<id>.<id>.json",
+    "library/study-workspace.json"
+  ]
+}

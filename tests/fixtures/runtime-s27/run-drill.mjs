@@ -1,8 +1,8 @@
-import { execFileSync, spawnSync } from 'node:child_process';
-import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { cp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractRelease } from '../extract-release.mjs';
 
 /* The S2-7 rollback drill runner: `node tests/fixtures/runtime-s27/run-drill.mjs [rollbackTag]`. It extracts the fixed older version (default v2.7.1, a git tag) next to the work
    folder, then for every scenario: the current code (all audio switches on) prepares artifacts or unfinished work and ends hard; the older tree opens a copy of that library and
@@ -16,12 +16,7 @@ const SCENARIOS = ['settled', 'single', 'batch', 'batchAnswered', 'text'];
 for (const key of Object.keys(process.env)) if (/_API_KEY$|_TOKEN$|BASE_URL$/.test(key)) delete process.env[key];
 process.env.SSH_TTY ||= 'audit';
 
-const sha = execFileSync('git', ['rev-parse', tag], { cwd: repo, encoding: 'utf8' }).trim();
-if (!existsSync(join(older, 'lib', 'service.js'))) {
-  await mkdir(older, { recursive: true });
-  const archive = execFileSync('git', ['archive', tag], { cwd: repo, maxBuffer: 512 * 1024 * 1024 });
-  if (spawnSync('tar', ['-x'], { cwd: older, input: archive }).status !== 0) throw new Error(`could not extract ${tag}`);
-}
+const sha = await extractRelease(repo, tag, older);
 /** One step. A process that ends hard because a preload says so (the batch whose answers were all saved) writes its own report line instead of RESULT. */
 const run = (args, { crashes = false } = {}) => {
   const out = spawnSync(process.execPath, [script, ...args], { cwd: repo, encoding: 'utf8', timeout: 600_000, env: { ...process.env, DSH_HOME: '' } });

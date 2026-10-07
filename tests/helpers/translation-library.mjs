@@ -22,9 +22,9 @@ export function model() {
   return control;
 }
 
-export async function library(t, fake = model(), mode = SWITCH_MODE) {
+export async function library(t, fake = model(), mode = SWITCH_MODE, { notify = () => {} } = {}) {
   const root = await privateRoot(t, 'model-baseline-translation-');
-  const runtime = createStudyRuntime(root, { complete: fake.complete, notify: () => {}, language: 'zh', ...switchOptions(mode, { complete: fake.complete, paths: ['translation'] }) });
+  const runtime = createStudyRuntime(root, { complete: fake.complete, notify, language: 'zh', ...switchOptions(mode, { complete: fake.complete, paths: ['translation'] }) });
   t.after(() => runtime.dispose());
   const one = async (prefix, extra) => {
     const imported = await runtime.call('materials.document.import', upload(`${prefix}.md`, body(prefix, extra)));

@@ -82,13 +82,13 @@ async function ensureDsh(options, env) {
   return join(cli, "node_modules/@deepseek-ai/dsh/lib/bin.js");
 }
 
-function stopTree(child) {
+export function stopTree(child) {
   if (!child || child.exitCode !== null) return;
   if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
   else child.kill("SIGTERM");
 }
 
-async function bootDsh(bin, { env, cwd, patch, port }) {
+export async function bootDsh(bin, { env, cwd, patch, port }) {
   const child = spawn(process.execPath, [bin, "--profile", DSH_PROFILE, "--patch", patch, "--port", String(port), "--no-open"],
     { cwd, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";

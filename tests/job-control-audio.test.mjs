@@ -125,7 +125,7 @@ test('retry is an action: a cancelled import starts again from what is kept, as 
   const started = await service.call('audio.import', { path: a });
   await until(() => held.has('A'), 'the recording is being transcribed');
   const first = (await jobOf(started.jobId)).contract;
-  assert.equal(first.actions.retry.reason.code, RUNTIME ? 'not-retryable' : 'not-ended');
+  assert.equal(first.actions.retry.reason.code, 'not-ended', 'a running job is not over yet, on either side (S6-5: the runtime used to say not-retryable)');
   await service.call('job.control', { jobId: first.jobId, action: 'cancel' });
   // Settled means its notifications are delivered too: a retry that arrives while the runtime is still recording them would find the record moving.
   await settleJob(service, started.jobId);

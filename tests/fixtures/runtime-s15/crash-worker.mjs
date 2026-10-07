@@ -8,8 +8,10 @@ import { createJobLifecycle } from '../../../lib/jobs/lifecycle.js';
 import { createRuntimeWork } from '../../../lib/runtime/work.js';
 import { dshJobExecutor } from '../../../lib/jobs/executor.js';
 
-export function crashRuntime(root, singleId, window = 'recover') {
-  const library = new Store(root), persistence = createSingleAudioPersistence(root, { library });
+export function crashRuntime(root, singleId, window = 'recover', { slowReconcile } = {}) {
+  const library = new Store(root), real = createSingleAudioPersistence(root, { library });
+  // `slowReconcile`: a promise the checking of a recorded publication waits for (a check that takes long, as on a loaded disk).
+  const persistence = slowReconcile ? { ...real, async open(input) { const port = await real.open(input); return { ...port, reconcileCommit: async commit => { await slowReconcile; return port.reconcileCommit(commit); } }; } } : real;
   const ctx = new Context(), agent = { id: `fixture-agent-${process.pid}` }; let sequence = 0;
   // Controlled native-service double. Process death and the real library/ledger
   // files are exercised here; actual rc.2 binding has a separate manual probe.

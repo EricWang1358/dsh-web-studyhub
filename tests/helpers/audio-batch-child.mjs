@@ -39,3 +39,21 @@ export const endAfterMemberResult = index => `import fs from 'node:fs'; import {
     setImmediate(() => { process.stdout.write(JSON.stringify({ batchId: hit[1] })); process.exit(0); });
     await new Promise(() => {});
   }; syncBuiltinESMExports();`;
+
+/**
+ * A preload that ends the process right BEFORE the commit of `stepKey` is written as complete: the step was recorded (pending) and its documents were published,
+ * the runtime record never learned it. That is a crash of this version right after it published.
+ */
+export const endBeforeCommitCompletes = stepKey => `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
+  const rename = fs.promises.rename;
+  fs.promises.rename = async (from, to) => {
+    const manifest = /audio-batches[\\\\/]([\\w-]+)[\\\\/]manifest\\.json$/.exec(String(to));
+    if (manifest) {
+      const saved = JSON.parse(await fs.promises.readFile(from, 'utf8'));
+      if (saved.runtimeJob?.commits?.some(commit => commit.stepKey === ${JSON.stringify(stepKey)} && commit.status === 'complete')) {
+        setImmediate(() => { process.stdout.write(JSON.stringify({ batchId: manifest[1] })); process.exit(0); });
+        await new Promise(() => {});
+      }
+    }
+    return rename(from, to);
+  }; syncBuiltinESMExports();`;

@@ -215,7 +215,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "capture.question: one awaited request, no job record (decision S4-0: instant model requests stay instant)",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -236,7 +236,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "Coach: the prep batch is a Job when coach is on; nudge, debrief and rewrite are instant requests (decision S4-0)",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -313,16 +313,15 @@
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "The review before a publication: the draft-publish job (S3-6) and a kept supplement run (S3-6b) ask it through the gateway (a.ask); the quick publication and a supplement that is not kept on disk still ask the host model here",
-      "removeAt": "S3-7",
+      "reason": "The review before a publication. Asked outside a Job (the learner or an agent calls draft.publish itself) it is an instant request: the model of the action draft.publish.review, metered once in the ledger under the instant-text quota lease (lib/runtime/instant.js, S6-5a). Inside a publish Job it is the Job's: the gateway (a.ask) behind generationPublish and for a kept supplement run, the ledger-only host model for a Job that is not on the runtime",
+      "removeAt": "stays; the Job-owned legacy half goes with startLegacy at S6-2",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
-          "what": "review of the cards before publication, as draft.publish.quick (and a supplement run that is not kept on disk) ask it",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S3-7"
+          "what": "review of the cards before publication: the foreground request (instant, metered) and the review inside a legacy publish Job (ledger-only, deleted with startLegacy)",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
         }
       ]
     },
@@ -399,7 +398,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "capture: one awaited request (decision S4-0)",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
@@ -420,7 +419,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "card.grade: one awaited rubric grading request",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
@@ -462,7 +461,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "A follow-up question: one awaited request (decision S4-0)",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -529,7 +528,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "Pasted-material ingest: one awaited request",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -641,7 +640,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "Oral exam turns: awaited requests",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -662,7 +661,7 @@
       ],
       "owner": "existing domain maintainer",
       "reason": "Rubric grading of one answer: one awaited request (card.grade)",
-      "removeAt": "retained; owner decision at S6-5",
+      "removeAt": "decided in S6-5a (#345): no Job, metered through the gateway",
       "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
       "sites": [
         {
@@ -803,7 +802,7 @@
       ],
       "owner": "runtime/domain maintainer",
       "reason": "The work object: the job table the console reads plus the domain single-flight tables of the legacy executors",
-      "removeAt": "S6-5 (what the kernel replaces); the domain tables stay",
+      "removeAt": "retained: the console reads the job table and the library queue is the domain's admission order (S6-7)",
       "evidence": "s1-0-runtime-audit.md; lib/runtime/work.js; s6-0-coverage.md",
       "sites": [
         {
@@ -819,7 +818,7 @@
           "reached": true
         },
         {
-          "what": "queues, settled: the per-library queue the Jobs of generation and translation still wait in (S3-1 kept it; translationParallel takes translations off the library chain; the kernel scheduler replaces it at S6-5)",
+          "what": "queues, settled: the per-library queue the Jobs of generation and translation still wait in (S3-1 kept it; translationParallel takes translations off the library chain; kept as the domain's admission order, S6-7)",
           "disposition": "exception",
           "kind": "domain-structure",
           "reached": true,
@@ -1810,6 +1809,112 @@
       "reason": "StudyService's compatibility getters (complete, light, fetch, WebSocket) hand the host's model to in-process callers that predate the runtime ports (the legacy assistant, audio and live paths)",
       "removeAt": "S6-2 (the in-process executors) with the callers that read them",
       "evidence": "s6-0-coverage.md; s6-5a-instant.md"
+    }
+  ],
+  "boundaries": [
+    {
+      "file": "lib/contexts/audio/jobs/live-correction-models.js",
+      "rule": "gateway-bypass",
+      "api": "tiers.complete",
+      "count": 1,
+      "reason": "The Gemini text leaf of a class correction: the call runs inside a gateway step of the correction Job (`gateway.step(...)`), this module only builds it",
+      "removeAt": "retained: the provider leaf"
+    },
+    {
+      "file": "lib/contexts/audio/jobs/live-correction-models.js",
+      "rule": "provider-import",
+      "api": "../../../gemini.js",
+      "count": 1,
+      "reason": "The Gemini text leaf of a class correction: the call runs inside a gateway step of the correction Job (`gateway.step(...)`), this module only builds it",
+      "removeAt": "retained: the provider leaf"
+    },
+    {
+      "file": "lib/contexts/audio/jobs/text-model.js",
+      "rule": "provider-import",
+      "api": "../../../gemini.js",
+      "count": 1,
+      "reason": "Builds the Gemini tiers the text steps of an audio Job run on, inside gateway steps; no request is made here",
+      "removeAt": "retained: the provider leaf"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/generation.js",
+      "rule": "public-table-write",
+      "api": "binding.work.generationControllers.set",
+      "count": 1,
+      "reason": "The Job puts its cancel controller where the console controls (job.control) read it: this registration is the control adapter",
+      "removeAt": "retained: cancel-controller registration is the control adapter"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "queues.delete",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the domain's admission order",
+      "removeAt": "retained: library queue is the domain's admission order"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "queues.set",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the domain's admission order",
+      "removeAt": "retained: library queue is the domain's admission order"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "settled.delete",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the domain's admission order",
+      "removeAt": "retained: library queue is the domain's admission order"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/library-queue.js",
+      "rule": "public-table-write",
+      "api": "settled.set",
+      "count": 1,
+      "reason": "The per-library queue Jobs of generation and translation wait in; S3-1 kept it as the scheduling order: the library queue is the domain's admission order",
+      "removeAt": "retained: library queue is the domain's admission order"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/submit-generation.js",
+      "rule": "public-table-write",
+      "api": "work.generationControllers.set",
+      "count": 1,
+      "reason": "startLegacy: the original generation path (switch generation off) writes its own table, controller and control",
+      "removeAt": "after default flip"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/submit-generation.js",
+      "rule": "public-table-write",
+      "api": "work.jobControls.set",
+      "count": 1,
+      "reason": "startLegacy: the original generation path (switch generation off) writes its own table, controller and control",
+      "removeAt": "after default flip"
+    },
+    {
+      "file": "lib/contexts/generation/jobs/submit-generation.js",
+      "rule": "public-table-write",
+      "api": "work.jobs.set",
+      "count": 1,
+      "reason": "startLegacy: the original generation path (switch generation off) writes its own table, controller and control",
+      "removeAt": "after default flip"
+    },
+    {
+      "file": "lib/contexts/generation/translation/jobs/translation.js",
+      "rule": "public-table-write",
+      "api": "task.work.generationControllers.set",
+      "count": 1,
+      "reason": "The Job puts its cancel controller where the console controls (job.control) read it: this registration is the control adapter",
+      "removeAt": "retained: cancel-controller registration is the control adapter"
+    },
+    {
+      "file": "lib/contexts/study/jobs/submit-assist.js",
+      "rule": "provider-import",
+      "api": "../../../host-capabilities.js",
+      "count": 1,
+      "reason": "Imports `abortable`, a stop helper; no host request is made by this module",
+      "removeAt": "retained: a stop helper"
     }
   ]
 }

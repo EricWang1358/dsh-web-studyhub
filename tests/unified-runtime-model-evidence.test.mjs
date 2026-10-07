@@ -8,7 +8,7 @@ import test from 'node:test';
 const DIR = new URL('../docs/plans/unified-job-runtime/', import.meta.url);
 const evidence = JSON.parse(await readFile(new URL('s4-9-rollback-evidence.json', DIR), 'utf8'));
 const doc = await readFile(new URL('s4-9-rollback.md', DIR), 'utf8');
-const FAMILIES = ['recap', 'note', 'translation', 'workflow', 'assist'];
+const FAMILIES = ['recap', 'note', 'translation', 'workflow', 'assist', 'coach'];
 
 test('the evidence names the fixed version it rolled back to, every family and both phases, and the document says the same', () => {
   assert.equal(evidence.schema, 1);
