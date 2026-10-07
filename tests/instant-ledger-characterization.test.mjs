@@ -11,6 +11,7 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { usageLedger } from '../lib/model-usage.js';
 import { seed } from './helpers/coach-library.mjs';
 import { caseLibrary, caseRef, caseAnswer } from './helpers/instant-case-library.mjs';
+import { importExample } from '../ui/json-prompts.js';
 
 const PRINT = process.env.PRINT_INSTANT_TABLE === '1';
 const FIELDS = ['calls', 'uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'];
@@ -32,6 +33,7 @@ const PINNED = {
   "materials.translation.translate (immediate passage)": {"other":[2,728,2,0,0]},
   "materials.selection.ask": {},
   "card.grade": {"case":[1,901,191,0,0]},
+  "draft.publish (foreground review)": {"repair":[1,1820,83,377,0]},
 };
 
 const rows = async root => (await usageLedger(root).summary({ days: 1 })).byFeature;
@@ -93,6 +95,17 @@ test('instant request card.grade (rubric): the ledger rows it adds are the pinne
   const world = await caseLibrary(t), before = await rows(world.root), name = 'card.grade';
   const run = await world.service.call('review.start', { mode: 'path', scope: [caseRef], fresh: true });
   await world.service.call('card.grade', { ...caseRef, runId: run.id, answer: caseAnswer });
+  const added = deltaOf(before, await rows(world.root));
+  if (PRINT) console.log(`PIN ${JSON.stringify(name)}: ${JSON.stringify(added)},`);
+  else assert.ok(near(added, PINNED[name]), `${name}: ${JSON.stringify(added)} is not ${JSON.stringify(PINNED[name])}`);
+});
+
+/* The review a publication asks before it writes, asked outside a Job (the learner or an agent calls `draft.publish` itself): an instant request. Inside a publish Job it is the Job's. */
+test('instant request draft.publish (foreground review): the ledger rows it adds are the pinned ones', async t => {
+  const world = await opened(t), name = 'draft.publish (foreground review)';
+  const draft = await world.call('draft.import', { text: importExample('flashcard') }), before = await rows(world.root);
+  const result = await world.call('draft.publish', { id: draft.id, draftVersion: draft.draftVersion });
+  assert.ok(result.autoReviewed > 0, 'the cards were reviewed by the model');
   const added = deltaOf(before, await rows(world.root));
   if (PRINT) console.log(`PIN ${JSON.stringify(name)}: ${JSON.stringify(added)},`);
   else assert.ok(near(added, PINNED[name]), `${name}: ${JSON.stringify(added)} is not ${JSON.stringify(PINNED[name])}`);
