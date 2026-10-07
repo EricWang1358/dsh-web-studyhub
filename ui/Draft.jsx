@@ -230,7 +230,7 @@ export default function Draft({
         </Button>
       </div>
       {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}>
-        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} />
+        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
         <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready}
           onTopUp={(target, sectionIds) => topUpDraft(target, sectionIds)} />
         {(unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}

@@ -70,7 +70,7 @@ test('every reason a run stops has plain words, in both languages', () => {
     inLanguage('en', () => assert.doesNotMatch(m.copy.stopText(stop), han, reason));
   }
   // A failure is said by its CODE in plain words; the provider's own English is never printed (D-5).
-  assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, code: 'plan-short' }), /原因：模型给出的考点不够数/, 'a failure says what it was');
+  assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, code: 'plan-short' }), /原因：模型给出的考点比计划的少/, 'a failure says what it was');
   assert.doesNotMatch(m.copy.stopText({ reason: 'no-progress', round: 2, detail: 'plan is short' }), /plan is short/, 'a text nothing recognises is not printed');
   assert.match(m.copy.stopText({ reason: 'no-progress', round: 2, left: 18 }), /还有 18 个小节没有题，可以点「为没覆盖的部分补题」再试/, 'the stop says how many are left and what to do');
   assert.equal(m.copy.stopText({ reason: 'refused', round: 2, code: 'credential', detail: 'Part 1: 401 Unauthorized: Invalid API key; Part 2: 401 Unauthorized' }), '模型服务拒绝了请求（密钥无效或没有权限），已经停下；已通过的题都保留。', 'ONE sentence, once, not per part');
@@ -280,6 +280,6 @@ test('a run that stopped before its plan was met is partial in the list and the 
   assert.equal(m.taskSummary(met).state, 'done');
   const html = render(React.createElement(m.TaskConsole, { data: { jobs: [stopped], drafts: [], decks: [] }, openers: { resultOf: () => null } }));
   assert.match(text(html), /停在第 5 轮之后 · 覆盖 31%/);
-  assert.match(text(html), /重试了几轮，还有 2 个小节没出成题，已经停下。/);
+  assert.match(text(html), /重试后，还有 2 个小节没出成题，已经停下。/);
   assert.match(text(html), /部分完成/);
 });

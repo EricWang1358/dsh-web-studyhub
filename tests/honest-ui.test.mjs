@@ -217,10 +217,10 @@ test('the console says a generation batch in 批次 (the lane, the rows, the tab
   const html = consoleOf('stopped');
   assert.match(html, /轮次与批次/, 'the tab');
   assert.doesNotMatch(text(html), /资料部分/);
-  assert.equal(m.copy.reasonWord('plan-short'), '模型给出的考点不够数');
+  assert.equal(m.copy.reasonWord('plan-short'), '模型给出的考点比计划的少');
   assert.doesNotMatch(m.copy.reasonWord('plan-short'), /这一节能出的/);
   inLanguage('en', () => {
-    assert.equal(m.copy.reasonWord('plan-short'), 'the model gave too few knowledge points');
+    assert.equal(m.copy.reasonWord('plan-short'), 'The model gave fewer knowledge points than planned');
     assert.match(text(consoleOf('stopped', 'en')), /Rounds and batches/);
   });
 });
@@ -231,7 +231,7 @@ test('the sections that keep failing are listed with their reason, and a run doe
   const found = m.shortfallOf({ draft, coverage: { ...view.coverage, sections: view.coverage.sections.map((section, index) => (index === view.coverage.sections.findIndex(item => item.state !== 'covered') ? { ...section, key: 'audio#a1' } : section)) }, round: view.round });
   assert.equal(found.repeating.length, 1);
   const line = m.copy.repeatingLine(found);
-  assert.match(line, /^这几个小节反复失败：.*（审阅回复格式不对，重新审阅后仍不行）$/);
+  assert.match(line, /^这几个小节反复失败：.*（审阅回复格式不对，重新审阅后仍不行 · 已试 2 次）$/);
   assert.equal(m.copy.repeatingHead(3), '这几个小节反复失败 · 3');
   assert.match(m.copy.repeatingNote(), /不再重试/);
   inLanguage('en', () => assert.match(m.copy.repeatingLine(found), /^Sections that keep failing: .*stayed malformed/));

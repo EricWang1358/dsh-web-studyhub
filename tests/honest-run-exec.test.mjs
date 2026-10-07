@@ -85,7 +85,7 @@ test('D-16: a section whose review fails again and again is retried by ONE fill 
   const view = await service.call('coverage.get', { draftId: draft.id });
   const open = view.coverage.sections.filter(item => item.state !== 'covered');
   assert.ok(open.length > 0, 'the sections whose review never comes back are still without a question');
-  for (const section of open) assert.deepEqual(spec.attempts[section.key], { n: 2, reason: 'review-protocol', round: fills[0].round }, `${section.key}: two failed attempts, typed, on the plan`);
+  for (const section of open) assert.deepEqual(spec.attempts[section.key], { n: 2, reason: 'review-protocol', round: fills[0].round, rounds: [{ round: spec.attempts[section.key].rounds[0].round }, { round: fills[0].round, fill: true }] }, `${section.key}: two failed attempts, typed, with the rounds they were made in, on the plan`);
   assert.equal(run.state, 'stopped');
   assert.equal(run.stop.reason, 'sections-left');
   assert.equal(run.stop.left, open.length);
