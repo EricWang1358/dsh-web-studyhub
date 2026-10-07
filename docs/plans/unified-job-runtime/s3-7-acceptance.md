@@ -109,7 +109,7 @@
 
 ## 6. 例外表更新（`s1-7-legacy-exceptions.json`）
 
-本步不新增或删除例外条目。出题家族四个定义已在各自的步骤里加入 `managedDefinitions`；仍保留的原路径（开关关闭时使用，`startLegacy` 等）列在 S6-0 的清单里，统一由 S6-2 删除。仍列为迁移的只剩一处模型调用：快速发布的审阅（`authoring/publication.js`，随 S3-7 之后的评审）。
+本步不新增或删除例外条目。出题家族四个定义已在各自的步骤里加入 `managedDefinitions`；仍保留的原路径（开关关闭时使用，`startLegacy` 等）列在 S6-0 的清单里，统一由 S6-2 删除。原先列为迁移的最后一处模型调用（发布前审阅，`authoring/publication.js`）已在 S3-6d 改成即时请求（`draft.publish.review`，经 `lib/runtime/instant.js`），清单里迁移行为 0。
 
 ## 7. 目标环境 smoke（待做，未授权）
 
@@ -125,7 +125,7 @@
 
 ## 8. 已知缺口与限制（记录，不在本步修）
 
-- **快速发布的审阅**（`authoring/publication.js`）仍是宿主模型调用，不经网关（§6）。
+- **发布前审阅（前台）**：学习者或助手自己调 `draft.publish` 的那次审阅，S3-6d 起是即时请求（用量记一次、`instant-text` 租约）；任务里的审阅走网关或随旧任务的 `startLegacy` 在 S6-2 删除。
 - **通知**：出题家族由执行器结算时通知，崩溃的那次 Attempt 不通知、接上的那次通知一次，所以不会重复；但「通知后、结算前」崩溃的窗口仍可能多一条，内核结算通知（`persistence.notifications`）要求定义同时可以声明落盘与非落盘两种，留给 S6-5。
 - **共享供应商配额**：开启时出题拒绝启动（`capability-unverified`），需要观测边界后才能放开（S3-1）。
 - **`card.grade`** 的模型调用在 study 上下文里，不经网关。
