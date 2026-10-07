@@ -64,6 +64,11 @@ for (const managed of [false, true]) test(`an observer wait ends without stoppin
   assert.equal(done.usage.paid.requests, 1, 'the three host calls are not Gemini requests');
   assert.equal(snapshot.sources.length, 1);
   assert.deepEqual(snapshot.sources[0].courses, ['Database course']);
+  const state = await service.store.read();
+  for (const record of [state.sources, state.audioResults].map(rows => rows.find(item => item.id === done.sourceIds[0]))) {
+    assert.equal(record.audio.textProvider, 'host');
+    assert.equal(record.audio.textModel, null, 'host text processing must not record the unused Gemini model');
+  }
   assert.equal(snapshot.decks.length, 0, 'an import does not automatically generate questions');
   assert.equal(f.notifications.length, 1, 'one terminal host notification');
   assert.equal(f.notifications[0].wakeup, false);

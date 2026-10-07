@@ -1,0 +1,468 @@
+{
+  "date": "2026-10-07",
+  "scope": "Read-only private DSH session request headers, only provider/model/effort/maxTokens; direct plugin llm streams without a session event are not covered.",
+  "incomplete": [],
+  "unexpectedRoutes": 0,
+  "hostAgentRequests": 51,
+  "rows": [
+    {
+      "mode": "off",
+      "sessionId": "03547c1d-0745-4616-871f-eb380e690876",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "06db758a-4c02-4331-90a5-54562b1184d7",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "13cc38be-4a0d-4265-8316-a12b0c5d6e92",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "33c27e94-47a1-4009-b4d9-8c6e82ad2d83",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "379ac62f-d7c8-4b5f-85df-49f9847cfa96",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "6945080c-65aa-48e8-bcbc-4fd3b85a7c3d",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "7e243ab1-b8d0-4b6b-ae15-141b6ca295ed",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "96d2fdf2-99bc-4d67-85ad-191523f65315",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "a1753893-903f-477d-a4fa-4105a3a21732",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "ac790b99-fa71-40ef-b30e-e2641ac7a982",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "b8107fb5-70f3-4f7b-a59e-dc4e92c4c1eb",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "c482a074-e0b9-4054-b638-1068c5c76a4b",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "c4cf2ca3-335c-4464-b901-597ee87d5b8d",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "e94a513f-53a1-472b-b2c9-90eea75f5eb2",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off",
+      "sessionId": "f7f4f414-d356-440f-80e4-afb75346a4ec",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "157762c7-a7d2-44e8-948e-58c72baa91e7",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "2f4e9382-77fe-469a-ba2d-48c220ffaa98",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "36931cc0-a2d1-408e-bfc7-9d3dc3a91505",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "48359d61-087e-45c4-8aa8-714e22ec71f4",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "5984ff0d-6bc8-4a6a-ba98-7026b58f7219",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "6454ba51-4a25-4fbd-80d7-23033bb81fd8",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "78beb500-aa49-4c12-9247-c8a768f2358d",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "80940826-6a69-41fa-9a13-0ad64e96f1d5",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "92239303-740e-42ec-9dfa-d9b2727cbdf6",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "9835c2a0-d0d0-4330-9ade-b82bdf8d663f",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "ea579c17-bb12-488a-94a7-202b1717471f",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "f886d378-8ff8-4ba9-b2c1-0564ab2a37e1",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "fdde0771-c0e0-4372-84c0-d39d00812559",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on",
+      "sessionId": "session-7f314b15-b663-49f8-b91f-f3077789adc0",
+      "seq": 12,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "agent",
+      "sessionId": "14ff007f-5352-45ed-9ced-93a88e813957",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "agent",
+      "sessionId": "557b51a7-45ff-49ae-bc85-bb734db33cca",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "agent",
+      "sessionId": "65b89294-8c3b-4d66-88a1-c5d125249a73",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "agent",
+      "sessionId": "a1822ec2-b3b7-4b4b-9c16-913f934f3860",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "agent",
+      "sessionId": "bb9eb0ef-8f0a-403b-a363-d6acb793b14a",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "agent",
+      "sessionId": "f82f135e-da74-423f-b721-191775e3c5c8",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "agent",
+      "sessionId": "session-869412a4-7a00-4655-baf9-ceb5136aeadf",
+      "seq": 13,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off-fixed",
+      "sessionId": "33c17202-b5d6-437c-85e8-cc7b9f3a1b15",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off-fixed",
+      "sessionId": "6e209380-a3b8-4c43-adff-d5e73224b1d5",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off-fixed",
+      "sessionId": "8ae0e8e6-fd81-4006-9010-1a59b91ae408",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off-fixed",
+      "sessionId": "90cb2cc3-086f-423f-9f2e-70dfe6a1148a",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off-fixed",
+      "sessionId": "cf081b72-c2ac-4146-9f69-5f3c975fb597",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off-fixed",
+      "sessionId": "dffb600c-be37-4a44-b078-c3a98d73bc7c",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "off-fixed",
+      "sessionId": "f67dc439-563d-4504-8ab8-6ee279546c0f",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "059b9bbe-44ca-45ab-af6a-fc0006511958",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "33d643fc-022f-469d-85f1-c30795835cf3",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "7c914710-b571-4a9b-bc94-37beadc846b6",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "955a366a-aa6a-47ee-a598-18999cfc0a00",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "e25adab4-db31-4e95-ab02-7ca583688838",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "eadb9b4b-6425-44b6-b1ce-5728a53d7779",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "unknown",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "f560fcab-ad6a-4b4c-84a5-a03eb79eeee3",
+      "seq": 10,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    },
+    {
+      "mode": "on-fixed",
+      "sessionId": "session-9a675830-3cc4-4905-bd08-735c50d1789f",
+      "seq": 12,
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoningEffort": "low",
+      "maxTokens": 64000
+    }
+  ]
+}

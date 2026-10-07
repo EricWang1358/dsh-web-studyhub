@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-07",
+  "mode": "off",
+  "candidateBase": "4d04f751112d30387f295d1e590771931fe557d1",
+  "provider": "commandcode",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "generation": {
+    "requestedKind": "flashcard",
+    "actualKind": "quiz",
+    "actualOptionTypes": [
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "firstOption": "对象 A 负责快照历史管理，只按顺序或数量编排；对象 B 负责用不透明快照保存内部状态并据此恢复。两者互不窥探，是因为历史上只关注快照的外在顺序和数量，内部字段被封装在不透明快照里。",
+    "answer": "对象 A 对应 Caretaker：它只按顺序管理快照历史，不检查快照内部内容。对象 B 对应 Memento：它把内部状态保存为一个不透明快照。两者需要互不窥探内容，是因为 Memento 负责封装快照内容，Caretaker 只依赖快照的顺序或数量来编排历史；若 Caretaker 读取快照字段，就会破坏快照封装与职责分离。",
+    "expected": "Omit options for flashcard; if supplied, every option is an object with id/text/explanation strings and correct boolean (lib/domain.js optionalCardShapeErrors).",
+    "classification": "Model violated the requested card kind and schema; quality gate correctly refused it. Answer also misattributes Originator responsibilities to Memento.",
+    "status": "failed",
+    "error": "Part 1: Quality gate failed: Card 1: options have an invalid shape"
+  },
+  "supplement": {
+    "request": {
+      "sourceIds": [
+        "src"
+      ],
+      "deckId": "d",
+      "count": 1,
+      "kind": "flashcard",
+      "performance": {
+        "concurrency": 1,
+        "batchSize": 1,
+        "jobTimeoutMinutes": 5,
+        "fillRounds": 0,
+        "effortPlanning": "low",
+        "effortReview": "low",
+        "effortWriting": "low",
+        "effortRepair": "low"
+      }
+    },
+    "status": "failed",
+    "error": "A read-only state field was changed in authoring.v1.draft.publish: Cannot assign to read only property 'scope' of object '#<Object>'",
+    "context": "Target deck d had an active workflow session created through workflow.session.start before supplement. No direct store mutation.",
+    "classification": "Product exception reproduced off and on after active workflow session references target deck; root supplied write-declaration correction, follow-up candidate tracked separately.",
+    "onComparison": {
+      "status": "failed",
+      "error": "A read-only state field was changed in authoring.v1.draft.publish: Cannot assign to read only property 'scope' of object '#<Object>'"
+    }
+  },
+  "audioMetadata": {
+    "modes": [
+      "off",
+      "on"
+    ],
+    "actualProvider": "commandcode",
+    "actualModel": "deepseek/deepseek-v4.1-flash",
+    "stored": {
+      "textProvider": "host",
+      "textModel": "gemini-3.8-flash"
+    },
+    "classification": "Unused external text-model setting persisted on host text route; root supplied unknown/null correction."
+  },
+  "followup": {
+    "packageSha256": "41cdfc5904133f9819e0bb2e6d3f81d92bbe06655a02b305e74b7d257035cbb6",
+    "supplement": "off/on public business retests passed with active workflow referencing target deck; original ten retained, one added, scope remains original ten.",
+    "audioMetadata": "off/on host subtitle retests persisted textModel null.",
+    "coach": "One-card on probe passed; original three-card failure remains unresolved.",
+    "initialFailuresPreserved": true
+  }
+}

@@ -1,0 +1,411 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-10-07",
+  "status": "passed-in-segments-after-native-cli-timeout",
+  "uninterruptedPass": false,
+  "candidateStatus": "pre-release-candidate",
+  "finalMainValidated": false,
+  "scope": "Actual package bytes on DSH 0.2.0-rc.2; synthetic private library and loopback fake model. Public UI upgrade, native CLI rollback, then public UI upgrade again.",
+  "candidateCoverage": {
+    "included": [
+      "storage/publication scope fixes",
+      "update pending cleanup",
+      "U1 stop fixes",
+      "model and sidebar fixes",
+      "PR #366"
+    ],
+    "excluded": [
+      "subsequent coach UI summary fix",
+      "subsequent changelog documentation link fix"
+    ]
+  },
+  "packages": {
+    "old": {
+      "path": "C:\\Users\\Eric1\\.codex\\worktrees\\runtime-plan-gates\\dsh-daily-flashcard\\output\\qa\\release-300-assets\\ericwang1358-dsh-daily-flashcard-2.7.1.tgz",
+      "name": "ericwang1358-dsh-daily-flashcard-2.7.1.tgz",
+      "version": "2.7.1",
+      "sha256": "64c6ffc27b3da2f93360ac240a15c077632aa41b3a7d1e7f79e2e30158f774f9"
+    },
+    "candidate": {
+      "path": "C:\\Users\\Eric1\\.codex\\worktrees\\runtime-plan-gates\\dsh-daily-flashcard\\output\\qa\\3.0.0-integrated-candidate\\ericwang1358-dsh-daily-flashcard-3.0.0.tgz",
+      "name": "ericwang1358-dsh-daily-flashcard-3.0.0.tgz",
+      "version": "3.0.0",
+      "sha256": "56f78e4c55e9a235547eb8098336ed4a61829d4179102535a880c3f291a5c80e"
+    }
+  },
+  "environment": {
+    "host": "DSH 0.2.0-rc.2",
+    "profile": "studyhub-e2e",
+    "privateHomePreservedAcrossAttempts": true,
+    "privateWorkspace": true,
+    "credentialsScrubbed": true,
+    "SSH_TTY": "audit",
+    "fakeModelRequests": 6,
+    "realModelRequests": 0,
+    "ports": [
+      3397,
+      4397,
+      5397
+    ],
+    "portsStoppedAfterProbe": true,
+    "ownedProbeNodeProcessesRemaining": 0,
+    "browserTemp": "Continuation uses private TEMP/TMP; initial browser process inherited ambient TEMP/TMP. DSH and CLI used private TEMP/TMP in both attempts."
+  },
+  "attempts": [
+    {
+      "kind": "initial",
+      "ok": false,
+      "error": "Error: node.exe failed null: ",
+      "steps": [
+        {
+          "name": "create isolated profile and install actual 2.7.1",
+          "ok": true,
+          "ms": 5015
+        },
+        {
+          "name": "seed private data through public API",
+          "ok": true,
+          "ms": 1171
+        },
+        {
+          "name": "read actual 2.7.1",
+          "ok": true,
+          "ms": 1247
+        },
+        {
+          "name": "UI upgrade actual old to candidate",
+          "ok": true,
+          "ms": 15326
+        },
+        {
+          "name": "candidate publication pins saved workflow members",
+          "ok": true,
+          "ms": 101
+        },
+        {
+          "name": "read candidate 3.0.0",
+          "ok": true,
+          "ms": 1512
+        },
+        {
+          "name": "stop and rollback to actual 2.7.1",
+          "ok": false,
+          "error": "Error: node.exe failed null: ",
+          "ms": 600894
+        }
+      ],
+      "completedRounds": 2,
+      "pageErrors": [],
+      "consoleErrors": []
+    },
+    {
+      "kind": "bounded-native-cli-retry",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "pid": 12076,
+      "ms": 2624,
+      "CI": true,
+      "preservedUpdateCache": true,
+      "interpretation": "Same original private profile and update cache. CI=true, captured stdout/stderr, exit 0. Original failure stdout was not retained, so a TTY prompt is not established as the cause."
+    },
+    {
+      "kind": "continuation",
+      "ok": true,
+      "steps": [
+        {
+          "name": "resume original library after bounded native rollback retry",
+          "ok": true,
+          "ms": 111
+        },
+        {
+          "name": "read both histories after rollback",
+          "ok": true,
+          "ms": 2193
+        },
+        {
+          "name": "UI upgrade same library again",
+          "ok": true,
+          "ms": 26987
+        },
+        {
+          "name": "read candidate again",
+          "ok": true,
+          "ms": 2192
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "baselineChecks": [
+        "Original source/card content SHA equals first attempt before accepting resumed baseline",
+        "Workflow SHA equals first attempt before accepting resumed baseline"
+      ]
+    }
+  ],
+  "rounds": [
+    {
+      "label": "01-old",
+      "version": "2.7.1",
+      "displayed": {
+        "current": "2.7.1",
+        "installed": "2.7.1"
+      },
+      "contentHash": "b36d88b2426740dbecdd99069c02225a55d17f42d2fa69805dd892a00482d855",
+      "sourceId": "package-source",
+      "deckId": "b909699b-0cce-4444-8b77-d83b28026a40",
+      "cards": 1,
+      "addedCards": [],
+      "workflow": {
+        "id": "b0765381-8239-48f5-8617-99e78d381ed2",
+        "version": 1,
+        "scope": [
+          {
+            "deckId": "b909699b-0cce-4444-8b77-d83b28026a40"
+          }
+        ],
+        "contentHash": "96e2d507a31e39f750ff7576a30a872afa368590e0359c4374731687f890f822"
+      },
+      "jobs": [
+        {
+          "jobId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "archiveId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "status": "complete",
+          "archiveReadable": true,
+          "artifacts": [
+            {
+              "id": "subtitle-cf911c09",
+              "textHash": "9c775fec7a4c891264e6702294a02ddb74455dc4a12ddc4f249683cfe91cd7b0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "02-new",
+      "version": "3.0.0",
+      "displayed": {
+        "current": "3.0.0",
+        "installed": "3.0.0"
+      },
+      "contentHash": "b36d88b2426740dbecdd99069c02225a55d17f42d2fa69805dd892a00482d855",
+      "sourceId": "package-source",
+      "deckId": "b909699b-0cce-4444-8b77-d83b28026a40",
+      "cards": 2,
+      "addedCards": [
+        {
+          "id": "6626204a-b817-4e1e-b1bd-6b262103b081",
+          "prompt": "What changes when software is replatformed?",
+          "answer": "Platform services change while most application code remains."
+        }
+      ],
+      "workflow": {
+        "id": "b0765381-8239-48f5-8617-99e78d381ed2",
+        "version": 2,
+        "scope": [
+          {
+            "deckId": "b909699b-0cce-4444-8b77-d83b28026a40",
+            "cardId": "5afeef62-f476-4874-a81b-0ede5f542919"
+          }
+        ],
+        "contentHash": "94f173f5bf97c111b88c16b11c798c33bb048fbb9b4075ff593ad49ab63f6056"
+      },
+      "jobs": [
+        {
+          "jobId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "archiveId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "status": "complete",
+          "archiveReadable": true,
+          "artifacts": [
+            {
+              "id": "subtitle-cf911c09",
+              "textHash": "9c775fec7a4c891264e6702294a02ddb74455dc4a12ddc4f249683cfe91cd7b0"
+            }
+          ]
+        },
+        {
+          "jobId": "b3796358-a4b3-47d2-bfa4-971d587208fb",
+          "archiveId": "b3796358-a4b3-47d2-bfa4-971d587208fb",
+          "status": "complete",
+          "archiveReadable": true,
+          "artifacts": [
+            {
+              "id": "subtitle-99f4accb",
+              "textHash": "02d3feaa4ff58e104caa8a4068998b161ab9c510b030ff5b38901a3e6b8642bc"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "03-rollback",
+      "version": "2.7.1",
+      "displayed": {
+        "current": "2.7.1",
+        "installed": "2.7.1"
+      },
+      "contentHash": "b36d88b2426740dbecdd99069c02225a55d17f42d2fa69805dd892a00482d855",
+      "sourceId": "package-source",
+      "deckId": "b909699b-0cce-4444-8b77-d83b28026a40",
+      "cards": 2,
+      "addedCards": [
+        {
+          "id": "6626204a-b817-4e1e-b1bd-6b262103b081",
+          "prompt": "What changes when software is replatformed?",
+          "answer": "Platform services change while most application code remains."
+        }
+      ],
+      "workflow": {
+        "id": "b0765381-8239-48f5-8617-99e78d381ed2",
+        "version": 2,
+        "scope": [
+          {
+            "deckId": "b909699b-0cce-4444-8b77-d83b28026a40",
+            "cardId": "5afeef62-f476-4874-a81b-0ede5f542919"
+          }
+        ],
+        "contentHash": "94f173f5bf97c111b88c16b11c798c33bb048fbb9b4075ff593ad49ab63f6056"
+      },
+      "jobs": [
+        {
+          "jobId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "archiveId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "status": "complete",
+          "archiveReadable": true,
+          "artifacts": [
+            {
+              "id": "subtitle-cf911c09",
+              "textHash": "9c775fec7a4c891264e6702294a02ddb74455dc4a12ddc4f249683cfe91cd7b0"
+            }
+          ]
+        },
+        {
+          "jobId": "b3796358-a4b3-47d2-bfa4-971d587208fb",
+          "archiveId": "b3796358-a4b3-47d2-bfa4-971d587208fb",
+          "status": "complete",
+          "archiveReadable": true,
+          "artifacts": [
+            {
+              "id": "subtitle-99f4accb",
+              "textHash": "02d3feaa4ff58e104caa8a4068998b161ab9c510b030ff5b38901a3e6b8642bc"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "04-new-again",
+      "version": "3.0.0",
+      "displayed": {
+        "current": "3.0.0",
+        "installed": "3.0.0"
+      },
+      "contentHash": "b36d88b2426740dbecdd99069c02225a55d17f42d2fa69805dd892a00482d855",
+      "sourceId": "package-source",
+      "deckId": "b909699b-0cce-4444-8b77-d83b28026a40",
+      "cards": 2,
+      "addedCards": [
+        {
+          "id": "6626204a-b817-4e1e-b1bd-6b262103b081",
+          "prompt": "What changes when software is replatformed?",
+          "answer": "Platform services change while most application code remains."
+        }
+      ],
+      "workflow": {
+        "id": "b0765381-8239-48f5-8617-99e78d381ed2",
+        "version": 2,
+        "scope": [
+          {
+            "deckId": "b909699b-0cce-4444-8b77-d83b28026a40",
+            "cardId": "5afeef62-f476-4874-a81b-0ede5f542919"
+          }
+        ],
+        "contentHash": "94f173f5bf97c111b88c16b11c798c33bb048fbb9b4075ff593ad49ab63f6056"
+      },
+      "jobs": [
+        {
+          "jobId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "archiveId": "bf6ced86-c21a-4c05-b324-dec85593bb1b",
+          "status": "complete",
+          "archiveReadable": true,
+          "artifacts": [
+            {
+              "id": "subtitle-cf911c09",
+              "textHash": "9c775fec7a4c891264e6702294a02ddb74455dc4a12ddc4f249683cfe91cd7b0"
+            }
+          ]
+        },
+        {
+          "jobId": "b3796358-a4b3-47d2-bfa4-971d587208fb",
+          "archiveId": "b3796358-a4b3-47d2-bfa4-971d587208fb",
+          "status": "complete",
+          "archiveReadable": true,
+          "artifacts": [
+            {
+              "id": "subtitle-99f4accb",
+              "textHash": "02d3feaa4ff58e104caa8a4068998b161ab9c510b030ff5b38901a3e6b8642bc"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cache": {
+    "manuallyDeleted": false,
+    "checkedAt": "2026-10-07T11:46:56.734Z",
+    "latest": "3.0.0",
+    "pendingFieldPresent": false,
+    "observedUpgradeAvailableAfterRollback": true
+  },
+  "limits": [
+    "The first native CLI rollback timed out after 600894 ms. A verified orphan pnpm child was stopped; a bounded native CLI retry completed in 2624 ms. This is not an uninterrupted four-round pass.",
+    "Original CLI stdout was lost by the first probe wrapper; stderr was empty. Cause of the original wait remains unproven. Retry changed CI mode and followed a partial install.",
+    "Completed archives and their source artifacts were verified; native in-memory task recovery across restart was not tested or claimed.",
+    "Fake-model calls establish packaging and compatibility behavior, not provider/model quality.",
+    "Evidence applies only to candidate SHA 56f78e4c55e9a235547eb8098336ed4a61829d4179102535a880c3f291a5c80e. Final main package needs separate installation/read smoke."
+  ],
+  "artifacts": {
+    "root": "D:\\A\\1NUS\\1Sem\\dsh-daily-flashcard\\.claude\\worktrees\\agent-a94b44318b6ef75b5\\output\\qa",
+    "files": [
+      {
+        "path": "3.0.0-package-probe.mjs",
+        "sha256": "81412ad4de8dc13276ff549635bf7c9bc31721bcfffa235e298b7da699d43a14"
+      },
+      {
+        "path": "3.0.0-package/summary.json",
+        "sha256": "6b6a9015bb9f056c3f69cd89ff7b31565bf59726d2417163c315b76657c8a44f"
+      },
+      {
+        "path": "3.0.0-package/rollback-ci-result.json",
+        "sha256": "5da4414f1800c5bfe29a99aee8a3dc63cd6e489c1f6fe968876b255e4df38e71"
+      },
+      {
+        "path": "3.0.0-package/rollback-ci-stdout.log",
+        "sha256": "a9180b680712025a6243b5462fbb169f19927d0be1b9b025e40a363b9cf1ce7c"
+      },
+      {
+        "path": "3.0.0-package/rollback-ci-stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "3.0.0-package-retry/summary.json",
+        "sha256": "703c528a81234dd151d2fc5beec05d32503b208b2686025cdf99d411fe59b346"
+      },
+      {
+        "path": "3.0.0-package/01-old-settings.png",
+        "sha256": "4d518d6deff112a460b361dc97c341f8722fdb405ae601c23600c8be530e2094"
+      },
+      {
+        "path": "3.0.0-package/02-new-settings.png",
+        "sha256": "65da643dcd5056d0176bc12aedf90168ca1ac08af925896d1b4ae3c5245c50f5"
+      },
+      {
+        "path": "3.0.0-package-retry/03-rollback-settings.png",
+        "sha256": "4907292191eb74a6dc9b5092c6d4755df49c7d8476829609e4ce0f972337e79c"
+      },
+      {
+        "path": "3.0.0-package-retry/04-new-again-settings.png",
+        "sha256": "65da643dcd5056d0176bc12aedf90168ca1ac08af925896d1b4ae3c5245c50f5"
+      }
+    ]
+  }
+}

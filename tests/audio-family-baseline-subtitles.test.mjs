@@ -66,6 +66,10 @@ test('one subtitle file: three requests in order, one source id, usage on the ta
   assert.equal(notices[0].wakeup, false);
   assert.match(notices[0].summary, RUNTIME ? /^字幕「pricing\.txt」已校对并译成中英对照逐字稿$/ : /^音频「pricing\.txt」已转写成中英对照逐字稿$/);
   const source = state.sources.find(item => item.id === SOURCE_ID);
+  for (const record of [source, state.audioResults.find(item => item.id === SOURCE_ID)]) {
+    assert.equal(record.audio.textProvider, 'host');
+    assert.equal(record.audio.textModel, null, 'the unused Gemini setting is not the host model that produced this source');
+  }
   assert.deepEqual([source.courses, source.audio.subtitle, source.audio.sourceIds, source.title], [['Pricing'], true, [SOURCE_ID], '订阅涨价 · 中英对照逐字稿']);
 
   // The same text again: the saved source is found by content and settings, no request, no booking, a second letter for the new job.
@@ -84,6 +88,9 @@ test('a subtitle file on the Gemini text route: the same three requests are coun
   assert.deepEqual([done.usage.paid.requests, done.usage.free.requests, done.usageRun?.paid.requests, done.tokenUsage, done.textProvider], RUNTIME ? [3, 0, 3, undefined, 'gemini'] : [3, 0, undefined, undefined, undefined]);
   assert.match(done.sourceIds[0], /^subtitle-[0-9a-f]{8}$/);
   assert.equal(await lib.ledger(), null);
+  const source = (await lib.state()).sources.find(item => item.id === done.sourceIds[0]);
+  const settings = await lib.service.call('audio.settings.get');
+  assert.equal(source.audio.textModel, settings.textModel, 'the configured Gemini model remains recorded on the Gemini route');
 });
 
 test('a failed subtitle job retries from its checkpoints through the retained closure, which loses the subtitle flag and the gate bypass', async t => {

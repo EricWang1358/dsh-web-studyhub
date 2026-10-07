@@ -58,7 +58,7 @@ export default function AppSidebar() {
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
     observer?.observe(element);
     return () => observer?.disconnect();
-  }, [page, pageTarget, sidebarNarrow, !!data, data?.lastRun?.id, data?.lastRun?.index, navOrder.order, navGroups.folded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, pageTarget, sidebarNarrow, busy, !!data, data?.lastRun?.id, data?.lastRun?.index, navOrder.order, navGroups.folded]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleLabel = sidebarNarrow ? ui('展开侧边栏') : ui('收起侧边栏');
   const announced = navOrder.announce && PAGES[navOrder.announce.id];
   return (

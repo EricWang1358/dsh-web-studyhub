@@ -1,0 +1,2238 @@
+{
+  "date": "2026-10-07",
+  "baseSha": "4d04f751112d30387f295d1e590771931fe557d1",
+  "candidate": "3.0.0 working version; not final main/release",
+  "packageSha256": "41cdfc5904133f9819e0bb2e6d3f81d92bbe06655a02b305e74b7d257035cbb6",
+  "dsh": "0.2.0-rc.2",
+  "provider": "commandcode",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "requestedEffort": "low",
+  "authorization": "Owner authorized configured DSH commandcode subscription only, stop batch on quota exhaustion, no provider fallback",
+  "quotaStopped": false,
+  "scope": "Private synthetic library; RPC business entry → existing gateway/model host → native DSH commandcode provider; no direct provider fetch or CLI proxy.",
+  "comparisonLimits": [
+    "One small sample per family/mode is not a correctness rate estimate.",
+    "Public review shuffle selected different numbered but semantically identical cards for note/coach/assist; exact refs are recorded. Other declared materials and public generation inputs were fixed.",
+    "Legacy note/recap may not expose a public job/call record; unknown remains unknown.",
+    "No real audio STT, long classroom session, process installer or model-provider fallback test."
+  ],
+  "probeCorrections": [
+    "Waited for observable session creation rather than assuming it existed immediately.",
+    "Initial broad quota regexp matched 429 digits in an input SHA, not a provider error. Changed to structured error/status inspection and resumed only missing samples."
+  ],
+  "counts": {
+    "sampled": 25,
+    "businessCompleted": 20,
+    "businessFailed": 5
+  },
+  "rows": [
+    {
+      "mode": "off",
+      "family": "translation",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "text": "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.",
+        "target": "Chinese"
+      },
+      "inputSha256": "3960ed8ce64bf896d21096037579b2b0804feaa8766116b467739d8799f2af6a",
+      "elapsedMs": 11324,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "5e3a4d48-e594-4b2f-82a4-0931e1d3b252",
+        "contractVersion": 1,
+        "kind": "translation",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "usage": {
+          "tokens": 2510,
+          "tokenUsage": {
+            "uncachedInputTokens": 2128,
+            "outputTokens": 382,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "calls": 1
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "32afb22c-65ec-4b0c-b96c-0ceae198de53",
+            "kind": "translate",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "f7f4f414-d356-440f-80e4-afb75346a4ec",
+            "reasoning": "low",
+            "tokens": 2510,
+            "outputTokens": 382
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 2510,
+        "tokenUsage": {
+          "uncachedInputTokens": 2128,
+          "outputTokens": 382,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "calls": 1
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "b113888841665dc6bd0bc6f8fbb6753a65d6da99fa28371bbe9e701cb3bf1468",
+      "artifactExcerpt": "[{\"quote\":\"Memento\",\"text\":\"备忘录\"},{\"quote\":\"The Caretaker manages snapshot history without inspecting snapshot contents. A M\",\"text\":\"管理者在不检查快照内容的情况下管理快照历史。备忘录存储内部状态的不透明快照。\"}]",
+      "quality": {
+        "verdict": "pass-small-sample",
+        "assessment": "Both heading and source paragraph translated; history management, non-inspection and opaque internal-state snapshot preserved."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "note",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "cards": [
+          {
+            "deckId": "d",
+            "cardId": "q7"
+          },
+          {
+            "deckId": "d",
+            "cardId": "q6"
+          }
+        ]
+      },
+      "inputSha256": "422563bc643123bfc554214c369e92cc94a57f7819328c8368a47c1104efa674",
+      "elapsedMs": 26666,
+      "status": "complete",
+      "error": null,
+      "job": null,
+      "observedUsage": "unknown",
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "718e15d65d68827aa1a3e694f7ba8d7e83559984dba25f380dc7ecaea5d66726",
+      "artifactExcerpt": "# Memento 职责：谁保存历史，谁只负责生成快照\n\n## 场景引入\n\n设想两个类似需求。\n\n**场景一：文本编辑器的撤销与重做。**  \n用户每次输入后，系统需要记录当前文本状态；按撤销时回到上一状态，按重做时再前进。这里会出现多个历史状态，因此需要决定：谁保存这些状态？谁决定保留多少步？谁负责撤销/重做指针？\n\n**场景二：游戏中的检查点系统。**  \n玩家到达检查点时，系统保存角色位置、生命值、背包等状态。之后玩家失败，可以回到最近检查点。这里同样有“单个状态快照”和“多个检查点历史”的区别。\n\n这两个场景的共同点是：都需要保存对象在某一时刻的内部状态，以便之后恢复；但“状态快照本身”和“快照集合或历史记录”不是同一个职责。\n\n## 核心知识点\n\n在 Memento 模式中，通常有三个角色：\n\n| 角色 | 职责 |\n|---|---|\n| Originator | 原始对象，负责创建快照，也负责从快照恢复自身状态 |\n| Memento | 保存某一时刻的状态数据，通常不可变，不暴露内部细节 |\n| Caretaker | 保管多个 Memento，维护历史集合、顺序、数量上限、撤销/重做指针等 |\n\n关键区分是：\n\n- **Memento 表示“某时刻的状态是什么”。**\n- **Caretaker 表示“保存了哪些状态、顺序如何、当前使用哪一份、保留多少份”。**\n\n因此，管理历史的是 **Caretaker**，而不是 Memento。Memento 只是被保存的数据载体；它不应该同时承担历史管理器的职责。\n\n## 常见误区\n\n常见的错误理解是：把 Memento 当成历史管理器。\n\n这种误区可能表现为：\n\n- 在 Memento 内部直接放一个列表，用来保存所有历史快照；\n- 让 Memento 自己决定撤销到哪一步；\n- 让 Memento 负责查找上一条或下一条记录；\n- 让 Memento 控制最大保存数量、清理策略或持久化方式。\n\n这样做的根本问题是职责耦合：\n\n1. Memento 既要表示状态，又要管理集合；\n2. Originator ",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Core three roles correct. Generated Java-style illustration was not compiled and does not itself enforce a strict Originator-only interface."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "recap",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "course": "QA Patterns",
+        "reviewed": 10,
+        "wrong": 10
+      },
+      "inputSha256": "eb65708313f769021f3f54e9a1901ae860558d892429d74e62e06ba3351c7148",
+      "elapsedMs": 19208,
+      "status": "complete",
+      "error": null,
+      "job": null,
+      "observedUsage": "unknown",
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "e9ed99b63a22801b8904a9b143326d8252e51e2f5bc3cb526ee711cf83ae53f5",
+      "artifactExcerpt": "今天你连着做了 10 道 Memento 的题，10 道都停在同一个判断上：谁才是历史的管理者。这个卡点很集中，反而好办，它只考角色分工，不需要铺开很多东西。\n\n## Caretaker 才是管理历史的人\n\n你看到“谁管理历史”时，很容易顺着 Memento 这个名字去选它，因为“备忘”听起来就像在管历史。这个直觉很自然；不过判断时要先分清三个角色各自做什么。\n\nMemento 是某一刻的状态快照，它记录的是“当时是什么样”。Caretaker 才是保管这些快照、管理历史的人。Originator 负责创建快照，也负责用快照恢复状态。比如题目问“谁管理历史”，正确应是 Caretaker；Memento 只是快照本身，不负责管理。如果题干问的是“快照是什么”，那才是 Memento；问“谁保存或管理历史”，就要落到 Caretaker。\n\n## 已经稳住的\n\n这一批里暂时没有可以算稳住的角色判断。先把 Caretaker 和 Memento 的分工重新理顺，再回头做同类题，会更稳。\n\n## 明天这样练\n\n1. 先写三张角色小卡：Originator、Memento、Caretaker 各写一句职责，尤其把“Caretaker 管理历史”写成固定句。\n2. 重做今天的 10 道题。看到“谁管理历史”先停一下，问自己：题干要的是快照本身，还是保管快照的人？\n3. 遮住答案，口头过一遍：Memento 是什么？谁保存它？谁恢复状态？说完再对照，确认没有把 Memento 当成管理者。",
+      "quality": {
+        "verdict": "pass-small-sample",
+        "assessment": "Correctly identifies ten wrong role answers, no mastered concept invented, recommends role distinction practice. Ten numbered variants cover one narrow fact."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "workflow",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "topic": "Memento",
+        "scope": [
+          {
+            "deckId": "d"
+          }
+        ]
+      },
+      "inputSha256": "00811eb75bf8c5f6be58c10d35e899353d190ac7590f526273ad137fb881b3f7",
+      "elapsedMs": 39047,
+      "status": "complete",
+      "error": null,
+      "job": null,
+      "observedUsage": {
+        "uncachedInputTokens": 3561,
+        "outputTokens": 3364,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "calls": 2
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "6bbec92cdee53d2d93d65acb7d430c3d984a29f3575c06bb1e70be516b029d29",
+      "artifactExcerpt": "{\"content\":\"# 谁保存状态，谁保存历史：Memento 模式的分工\\n\\n## 一个具体的场景\\n\\n假设你在写一个极简文本编辑器，用户按一次 Ctrl+Z 就要回到上一个编辑状态。每次编辑都会改变两样东西：文本内容和光标位置。一个自然的冲动是把“当前状态”和“所有历史状态”都塞进同一个对象里，让它自己撤销自己。这个冲动会带来一个问题：状态包和历史列表，是不是同一种职责？\\n\\nMemento 模式给出的回答是：把“一个状态包”和“管理状态包的容器”分开。\\n\\n## 三个角色与一句关键证据\\n\\n在标准术语中（这部分是补充知识，供理解使用），通常有三个角色：\\n\\n- **Originator（发起者）**：拥有内部状态，能产生快照，也能依据快照恢复自己。\\n- **Memento（备忘录）**：保存内部状态的不透明快照。\\n- **Caretaker（看护者）**：管理快照历史，但不检查快照内容。\\n\\n讲义中对此的表述是：“The Caretaker manages snapshot history without inspecting snapshot contents.” 以及 “A Memento stores an opaque snapshot of internal state.” 这两句把分工说得很清楚：Caretaker 管的是**历史**，Memento 管的是**一个状态包**。\\n\\n## 为什么要有“不透明”这个限制\\n\\n“不透明”不是故弄玄虚，而是封装边界。如果 Caretaker 能读取 Memento 里的 `text` 或 `cursor` 字段，它就依赖了 Originator 的内部表示。哪天 Originator 把光标改成行列两个字段，Caretaker 也得跟着改。更糟的是，Caretaker 可能会“顺手”基于这些字段做判断，于是恢复逻辑被拆散到两个对象里。\\n\\nMemento 的不透明性让 Caretaker 只能做容器该做的事：拿住、排序、按策略丢弃、归还。它不需要知道里面是什么，所以 Origina",
+      "quality": {
+        "verdict": "needs-content-review",
+        "assessment": "Correct core roles, exact two citations and constructed example labels; unsupported claim that a prev link necessarily requires mutable fields and breaks snapshot stability. Immutable links are possible."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "assist",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "card": {
+          "deckId": "d",
+          "cardId": "q1"
+        },
+        "question": "为什么 Caretaker 不应该读取快照内部字段？请解释并给一个简短例子。"
+      },
+      "inputSha256": "9254e6f842abdabed9a8cca025468237623cd22dbe6420e2f48e3136b172e9c3",
+      "elapsedMs": 14398,
+      "status": "complete",
+      "error": null,
+      "job": null,
+      "observedUsage": "unknown",
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "504e0b32d4398a297fc7ad42e706330d78429e4e5b8aad65f8c7ba518d8012de",
+      "artifactExcerpt": "## 结论\n\nCaretaker 的职责是**保管**快照（历史），不是**理解**快照的内容。资料的表述是：*“The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.”*（Memento lecture，src）——也就是说 Memento 对 Caretaker 而言应当是一个**不透明（opaque）的盒子**，只负责收好、按顺序放回。\n\n## 为什么不该读取内部字段\n\n1. **破坏封装**：快照里的字段属于 Originator 的私有状态表示。Caretaker 一旦读取，就等于把这份私有表示“公开”了，Memento 不再是不透明的。\n2. **产生脆弱耦合**：Originator 以后改内部结构（重命名字段、换数据结构、加密/压缩快照），Caretaker 的代码就会编译失败或行为出错。改动本应局限在 Originator 内部，却扩散到了历史管理者。\n3. **职责越界**：判断“这份快照是什么、该不该回退、回退到什么状态”是 Originator 的职责；Caretaker 只维护“顺序 + 数量 + 生命周期”（例如撤销栈的 push/pop、上限）。\n4. **可能破坏不可变性/完整性**：能读通常也意味着能改。Caretaker 改动快照字段会让恢复出的状态不再是当初保存的状态，撤销语义被破坏。\n5. **恢复逻辑重复且易错**：恢复需要知道不变式（哪些字段必须一起变）。Caretaker 没有这份知识，自己拼装状态很容易产生非法对象。\n\n## 简短例子\n\n```java\n// Originator：内部状态表示属于它自己\nclass Editor {\n    private String text;              // 可能以后变成 Rope / 富文本\n    private int cursor;\n    Memento",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Saved follow-up answers encapsulation question with a concrete example and labels supplemental knowledge. Read access does not in itself imply write access; wording overstates that connection."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "coach",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "cards": [
+          {
+            "deckId": "d",
+            "cardId": "q1"
+          },
+          {
+            "deckId": "d",
+            "cardId": "q2"
+          },
+          {
+            "deckId": "d",
+            "cardId": "q3"
+          }
+        ],
+        "consent": true
+      },
+      "inputSha256": "85e2b6b957cc6866ff5ea0587ec4b31eca73a0ed0cf552658b3dd885a783af59",
+      "elapsedMs": 35748,
+      "status": "complete",
+      "error": [],
+      "job": {
+        "id": "coach:2026-10-07",
+        "contractVersion": 1,
+        "kind": "coach-daily",
+        "status": "complete",
+        "execution": {
+          "mode": "direct"
+        },
+        "usage": {
+          "tokens": 4461,
+          "tokenUsage": {
+            "uncachedInputTokens": 511,
+            "outputTokens": 3950,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "calls": 1
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "d104feec-77db-4bc3-8fe7-61aef5220721",
+            "kind": "prep",
+            "status": "ok",
+            "runner": "direct",
+            "childId": null,
+            "reasoning": null,
+            "tokens": 4461,
+            "outputTokens": 3950
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 4461,
+        "tokenUsage": {
+          "uncachedInputTokens": 511,
+          "outputTokens": 3950,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "calls": 1
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "552c1229a7d718d227dd7103ea97431b06339734342f029b46cc6b3a6b317a3a",
+      "artifactExcerpt": "[{\"status\":\"ready\",\"originCardId\":\"q1\",\"card\":{\"kind\":\"quiz\",\"topic\":\"Memento\",\"objective\":\"objective 1\",\"prompt\":\"在一个文本编辑器里，用户连续输入后点击撤销。系统按时间顺序保存与恢复各次编辑快照，但从不读取快照中的具体文本内容。承担这一历史管理职责的设计模式角色是谁？\",\"answer\":\"Caretaker\",\"hint\":\"先区分“承载快照”与“管理快照历史”两种职责。\",\"explanation\":\"证据指出管理快照历史且不检查快照内容的是 Caretaker；题干中按时间保存与恢复快照的角色正是它。\",\"misconception\":\"看到“快照”就选 Memento，忽略管理历史栈的职责属于 Caretaker。\",\"citations\":[{\"sourceId\":\"src\",\"quote\":\"The Caretaker manages snapshot history without inspecting snapshot contents.\"}],\"options\":[{\"id\":\"a\",\"text\":\"Caretaker\",\"correct\":true,\"explanation\":\"它负责管理快照历史，按顺序保存或恢复快照，且不检查快照内容，与证据一致。\"},{\"id\":\"b\",\"text\":\"Originator\",\"correct\":false,\"explanation\":\"它通常持有当前内部状态并可创建或恢复 Memento，但题目问的是集中管理历史栈的角色。\"},{\"id\":\"c\",\"text\":\"Memento\",\"correct\":false,\"explanation\":\"它是被保存的不透明快照载体，本身不主动管理历史顺序。\"},{\"id\":\"d\",\"text\":\"Client\",\"correct\":false,\"explanation\":\"它可能触发撤销操作，但不会承担保存和恢复快照历史的职责。\"}],\"id\":\"dff771",
+      "quality": {
+        "verdict": "needs-content-review",
+        "assessment": "Three variants saved and answer Caretaker, but variants blur coordinating restoration with Originator actually restoring state."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "audio-text",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "text": "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state."
+      },
+      "inputSha256": "4ac87c567e7fbeb6c48cc8d2da752c38e51833430ec7d4a52cf77214f62e26f4",
+      "elapsedMs": 13868,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "6ee8b129-e8d8-4a64-890a-81969eaff114",
+        "contractVersion": 1,
+        "kind": "audio-import",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "usage": {
+          "tokens": 4290,
+          "tokenUsage": {
+            "uncachedInputTokens": 3882,
+            "outputTokens": 408,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "calls": 3
+          },
+          "calls": 3
+        },
+        "calls": [
+          {
+            "callId": "ece3208f-e6d3-4a0b-98c3-464714760be9",
+            "kind": "proofread",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "e94a513f-53a1-472b-b2c9-90eea75f5eb2",
+            "reasoning": "default",
+            "tokens": 1512,
+            "outputTokens": 56
+          },
+          {
+            "callId": "19bc06bd-0524-462a-af58-c44070113ad1",
+            "kind": "translate",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "7e243ab1-b8d0-4b6b-ae15-141b6ca295ed",
+            "reasoning": "low",
+            "tokens": 1542,
+            "outputTokens": 235
+          },
+          {
+            "callId": "cbb4db1d-da15-40fb-a9b5-b602d250a010",
+            "kind": "title",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "96d2fdf2-99bc-4d67-85ad-191523f65315",
+            "reasoning": "low",
+            "tokens": 1236,
+            "outputTokens": 117
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 4290,
+        "tokenUsage": {
+          "uncachedInputTokens": 3882,
+          "outputTokens": 408,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "calls": 3
+        },
+        "calls": 3
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "087743f3d0033f0e2f628deece594fcd0dc52fd401008a931c25ab45cd697a84",
+      "artifactExcerpt": "[{\"text\":\"================================================================================\\n《memento》全量中英对照逐字稿\\nFull Bilingual Transcript: Memento Pattern Snapshot and Caretaker\\n================================================================================\\n\\n【第一部分：备忘录快照封装与看管者】\\n[Part 1: Memento Snapshot and Caretaker]\\n\\n【英文原句】\\n[0:00] The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.\\n\\n【中文对照】\\n[0:00] 看管者（Caretaker）管理快照历史，而不检查快照内容。备忘录（Memento）存储内部状态的不透明快照。\",\"textProvider\":\"host\",\"textModel\":\"gemini-3.8-flash\"}]",
+      "quality": {
+        "verdict": "content-pass-metadata-fail",
+        "assessment": "Verbatim English and faithful Chinese transcript saved. Metadata falsely names unused Gemini setting for host route; root notified. No actual recording/STT exercised."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "generation",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "sourceIds": [
+          "src"
+        ],
+        "count": 1,
+        "kind": "flashcard",
+        "performance": {
+          "concurrency": 1,
+          "batchSize": 1,
+          "jobTimeoutMinutes": 5,
+          "fillRounds": 0,
+          "effortPlanning": "low",
+          "effortReview": "low",
+          "effortWriting": "low",
+          "effortRepair": "low"
+        }
+      },
+      "inputSha256": "01ff41bb9634082fccd2f648844a34b0ade687eb77f880865e2054a1450f3bee",
+      "elapsedMs": 231346,
+      "status": "failed",
+      "error": {
+        "message": "Part 1: Quality gate failed: Card 1: options have an invalid shape"
+      },
+      "job": {
+        "id": "854d4464-1d6e-4a8e-a8e4-794d96cd0ffb",
+        "contractVersion": 1,
+        "kind": "generation",
+        "status": "failed",
+        "execution": {
+          "mode": "subagent"
+        },
+        "usage": {
+          "tokens": 43524,
+          "tokenUsage": {
+            "uncachedInputTokens": 15795,
+            "outputTokens": 23633,
+            "cacheReadTokens": 4096,
+            "cacheWriteTokens": 0,
+            "calls": 6
+          },
+          "calls": 6
+        },
+        "calls": [
+          {
+            "callId": "7458af88-72cb-46f0-adf4-989ea846567e",
+            "kind": "plan",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "379ac62f-d7c8-4b5f-85df-49f9847cfa96",
+            "reasoning": "low",
+            "tokens": 1891,
+            "outputTokens": 271
+          },
+          {
+            "callId": "db895dcc-fd5b-4492-8fdf-01fb5f1d14d8",
+            "kind": "plan",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "c4cf2ca3-335c-4464-b901-597ee87d5b8d",
+            "reasoning": "low",
+            "tokens": 2065,
+            "outputTokens": 292
+          },
+          {
+            "callId": "1d6b1197-b53f-4094-b645-414a56094af2",
+            "kind": "blueprint",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "ac790b99-fa71-40ef-b30e-e2641ac7a982",
+            "reasoning": "low",
+            "tokens": 6250,
+            "outputTokens": 3828
+          },
+          {
+            "callId": "f8505e80-6d6f-4785-82cc-837ecd5e60aa",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "a1753893-903f-477d-a4fa-4105a3a21732",
+            "reasoning": "low",
+            "tokens": 7081,
+            "outputTokens": 1885
+          },
+          {
+            "callId": "f6e6b03a-ce39-40b3-b95a-ac922d4b5857",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "6945080c-65aa-48e8-bcbc-4fd3b85a7c3d",
+            "reasoning": "low",
+            "tokens": 12246,
+            "outputTokens": 7844
+          },
+          {
+            "callId": "dbbac871-a0ab-40c1-af61-9c3129344d9f",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "33c27e94-47a1-4009-b4d9-8c6e82ad2d83",
+            "reasoning": "low",
+            "tokens": 13991,
+            "outputTokens": 9513
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 43524,
+        "tokenUsage": {
+          "uncachedInputTokens": 15795,
+          "outputTokens": 23633,
+          "cacheReadTokens": 4096,
+          "cacheWriteTokens": 0,
+          "calls": 6
+        },
+        "calls": 6
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "artifactExcerpt": "[]",
+      "quality": {
+        "verdict": "correct-refusal",
+        "assessment": "Author ignored requested flashcard, emitted quiz with string options and confused Memento with Originator. Structural gate rejected it and no draft was saved. This is not a successful question-quality sample."
+      }
+    },
+    {
+      "mode": "off",
+      "family": "supplement",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "sourceIds": [
+          "src"
+        ],
+        "deckId": "d",
+        "count": 1,
+        "kind": "flashcard",
+        "performance": {
+          "concurrency": 1,
+          "batchSize": 1,
+          "jobTimeoutMinutes": 5,
+          "fillRounds": 0,
+          "effortPlanning": "low",
+          "effortReview": "low",
+          "effortWriting": "low",
+          "effortRepair": "low"
+        }
+      },
+      "inputSha256": "bd5c959f6d9db75e1ab71e26590624db335e911a01d0bbbff65770b4107930e2",
+      "elapsedMs": 46422,
+      "status": "failed",
+      "error": {
+        "message": "A read-only state field was changed in authoring.v1.draft.publish: Cannot assign to read only property 'scope' of object '#<Object>'"
+      },
+      "job": {
+        "id": "f8e73b06-2441-4ab8-a89c-2b23656bdee3",
+        "contractVersion": 1,
+        "kind": "supplement",
+        "status": "failed",
+        "execution": {
+          "mode": "subagent"
+        },
+        "usage": {
+          "tokens": 16947,
+          "tokenUsage": {
+            "uncachedInputTokens": 3914,
+            "outputTokens": 4073,
+            "cacheReadTokens": 8960,
+            "cacheWriteTokens": 0,
+            "calls": 4
+          },
+          "calls": 4
+        },
+        "calls": [
+          {
+            "callId": "d5fe73c2-1976-416c-8671-e5c3094f317b",
+            "kind": "plan",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "c482a074-e0b9-4054-b638-1068c5c76a4b",
+            "reasoning": "low",
+            "tokens": 2033,
+            "outputTokens": 373
+          },
+          {
+            "callId": "2a582630-6974-4098-ab07-a69710dbcb1b",
+            "kind": "blueprint",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "06db758a-4c02-4331-90a5-54562b1184d7",
+            "reasoning": "low",
+            "tokens": 4036,
+            "outputTokens": 1607
+          },
+          {
+            "callId": "09f0ea59-18b4-42a4-b427-13e147b9c864",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "b8107fb5-70f3-4f7b-a59e-dc4e92c4c1eb",
+            "reasoning": "low",
+            "tokens": 6183,
+            "outputTokens": 1184
+          },
+          {
+            "callId": "32baa2aa-d424-4436-b472-d16a596020f0",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "03547c1d-0745-4616-871f-eb380e690876",
+            "reasoning": "low",
+            "tokens": 4695,
+            "outputTokens": 909
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 16947,
+        "tokenUsage": {
+          "uncachedInputTokens": 3914,
+          "outputTokens": 4073,
+          "cacheReadTokens": 8960,
+          "cacheWriteTokens": 0,
+          "calls": 4
+        },
+        "calls": 4
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "af75e24cdaf6336c9fb5270c1faeb5bc4c24578c724414d3f5e8d0031a9b747d",
+      "artifactExcerpt": "[{\"id\":\"9025aa9a-c235-468a-a2aa-536358628812\",\"targetId\":\"target-1\",\"kind\":\"flashcard\",\"topic\":\"Memento 与 Caretaker 的职责划分\",\"objective\":\"区分 Memento 与 Caretaker 的职责边界：快照内容的封装与快照历史的维护分别由谁承担\",\"prompt\":\"在一个使用 Memento 模式的设计中，快照被保存下来并可被依次恢复。Memento 与 Caretaker 各自承担什么职责？请分别说明哪一方负责保存内部状态本身、哪一方负责安排快照的保存与恢复时序，并指出两角色之间必须守住的分工边界。\",\"answer\":\"Memento 承担封装职责：存储内部状态的不透明快照，外部无法检查其内容；Caretaker 承担历史维护职责：只管理快照历史，不读取、不检查快照内容。\",\"hint\":\"先分清“状态被装进什么对象”与“这些对象被谁按顺序摆放和取回”，再检查两条规则中哪一条限制了某一方能看到什么。\",\"explanation\":\"证据给出两条可核对的职责规则。第一条规则说明快照由 Memento 存储，而且该快照是不透明的，所以把内部状态封装起来、让外部无法检查内容属于 Memento 的职责。第二条规则说明 Caretaker 在管理快照历史时不检查快照内容，因此它只负责快照历史的维护安排（保存与恢复的时序），不参与内容读取。把两条规则合起来：快照内容的封装归 Memento，快照历史的维护归 Caretaker；“不检查快照内容”正是把两者分开的边界条件。最诱人的错误做法是让 Memento 自己维护历史时序，或让 Caretaker 读取快照内容以便决定恢复哪一条；前者把历史维护错放到封装者身上，后者直接违反“Caretaker 不检查快照内容”这一条件。可复用的判断规则：只要某一步骤需要看到快照内部数据，它就不属于 Caretaker 的职责范围。\",\"misconception\":\"认为 Caretaker 可以读取快照内容来",
+      "quality": {
+        "verdict": "blocked-product-defect",
+        "assessment": "A reviewed one-card draft remains, but automatic publication to target deck failed on read-only workflow scope mutation."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "translation",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "text": "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.",
+        "target": "Chinese"
+      },
+      "inputSha256": "3960ed8ce64bf896d21096037579b2b0804feaa8766116b467739d8799f2af6a",
+      "elapsedMs": 12027,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "a9d2a715-4f36-4d96-8ae9-de3fa7ad0cd6",
+        "contractVersion": 2,
+        "kind": "translation",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "fb92ce7c-c11d-4f97-9452-dcb826f55bc7",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "translation-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 2343,
+          "tokenUsage": {
+            "uncachedInputTokens": 2099,
+            "outputTokens": 244,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "2a360041-f974-4d39-8e34-bba230a3f60c",
+            "kind": "translate",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "5984ff0d-6bc8-4a6a-ba98-7026b58f7219",
+            "requestedEffort": "follow",
+            "appliedEffort": "default",
+            "tokens": 2343
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 2343,
+        "tokenUsage": {
+          "uncachedInputTokens": 2099,
+          "outputTokens": 244,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "3083eb2bb6000c6731bb9b6148daf175ed9125e2a26fe5d3f5e65749e3776847",
+      "artifactExcerpt": "[{\"quote\":\"Memento\",\"text\":\"Memento\"},{\"quote\":\"The Caretaker manages snapshot history without inspecting snapshot contents. A M\",\"text\":\"Caretaker 管理快照历史，而不检查快照内容。Memento 存储内部状态的不透明快照。\"}]",
+      "quality": {
+        "verdict": "pass-small-sample",
+        "assessment": "Source claims preserved in the saved Chinese translation; no extra technical claim in the translated paragraph."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "note",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "cards": [
+          {
+            "deckId": "d",
+            "cardId": "q6"
+          },
+          {
+            "deckId": "d",
+            "cardId": "q3"
+          }
+        ]
+      },
+      "inputSha256": "d6a0ee658aa332199e7acc034245b9f1cf1513782b1582af5751e613da540973",
+      "elapsedMs": 35954,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "257d115b-2041-4577-b1ea-de778f8023d8",
+        "contractVersion": 2,
+        "kind": "note-generate",
+        "status": "complete",
+        "execution": {
+          "mode": "direct"
+        },
+        "attempts": [
+          {
+            "attemptId": "99f3d651-d6e5-414f-981c-aea5a5c3e879",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "note-generate-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 4878,
+          "tokenUsage": {
+            "uncachedInputTokens": 325,
+            "outputTokens": 4553,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "93ba2d91-30dd-4a74-b178-57981691b2d7",
+            "kind": "other",
+            "status": "ok",
+            "runner": "direct",
+            "executionMode": "direct",
+            "requestedEffort": "default",
+            "appliedEffort": null,
+            "tokens": 4878
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 4878,
+        "tokenUsage": {
+          "uncachedInputTokens": 325,
+          "outputTokens": 4553,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "d457384e40725b16ef7e4f306cbb0151a8841c2d6d902b7bc5289a43be3318e6",
+      "artifactExcerpt": "# 备忘录模式中的职责边界：Caretaker 与 Memento 的分工\n\n> 一句话总结：**Caretaker 负责保存与组织历史；Memento 只承载某一时刻的状态快照；Originator 负责产生与恢复状态。**\n\n## 1. 共同知识点\n\nMemento 模式通常涉及三个角色：\n\n- **Originator（原发器）**：持有当前状态；可创建 Memento；可根据 Memento 恢复状态。\n- **Memento（备忘录）**：封装某一时刻的内部状态，通常是不可变值对象；不负责决定保存多少份、保存多久、如何撤销。\n- **Caretaker（管理者）**：持有 Memento 的集合，例如栈、列表、时间线；负责存取顺序，但不修改 Memento 内部数据。\n\n若状态序列为 \\(s_0, s_1, \\dots, s_n\\)，快照为\n\n\\[\nm_i = \\operatorname{Memento}(s_i),\n\\]\n\n历史集合可表示为\n\n\\[\nH = [m_0, m_1, \\dots, m_n].\n\\]\n\n核心结论是：**Caretaker 管理 \\(H\\)；Memento 不是 \\(H\\)。** 无论有多少份历史，历史管理职责都属于 Caretaker，而不是 Memento。\n\n## 2. 常见误解\n\n**误解：** Memento 自己就是历史管理器，应该由它记录所有版本，并提供撤销、重做、清空历史等操作。\n\n**为什么容易错：** “备忘录”这个名字听起来像“记录一切”。但模式的本意，是把“状态快照”和“历史组织”分开。\n\n**纠正：**\n\n- 如果让 Memento 维护列表或栈，它就从“快照载体”变成了“历史容器”。\n- 这样会耦合快照结构与撤销策略；一旦要换成多级撤销、分支历史、持久化，就会更难改。\n- 更清晰的做法是：Memento 尽量只读或不可变，Caretaker 决定何时保存、保存到哪个集合、何时取出。\n\n## 3. 通用场景：文本编辑器的撤销栈\n\n一个编辑器需要支持撤销。这里：\n\n- `Editor` 是 Originator",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Core responsibilities and worked undo sequence correct. Illustration is teaching pseudocode, not validated executable Java or enforced access control."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "recap",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "course": "QA Patterns",
+        "reviewed": 10,
+        "wrong": 10
+      },
+      "inputSha256": "eb65708313f769021f3f54e9a1901ae860558d892429d74e62e06ba3351c7148",
+      "elapsedMs": 23052,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "0871e8af-e892-4203-9584-d3a77ec695c3",
+        "contractVersion": 2,
+        "kind": "daily-recap",
+        "status": "complete",
+        "execution": {
+          "mode": "direct"
+        },
+        "attempts": [
+          {
+            "attemptId": "a58440f3-42ac-451c-b882-80a3117edaba",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "daily-recap-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 5525,
+          "tokenUsage": {
+            "uncachedInputTokens": 3163,
+            "outputTokens": 2362,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "9b55c614-e2e4-4a2e-a0f0-1cb932f2090c",
+            "kind": "other",
+            "status": "ok",
+            "runner": "direct",
+            "executionMode": "direct",
+            "requestedEffort": "default",
+            "appliedEffort": null,
+            "tokens": 5525
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 5525,
+        "tokenUsage": {
+          "uncachedInputTokens": 3163,
+          "outputTokens": 2362,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "25645382e10fa8fb49b622119f65ae31f66aa34eacad967f6906e275df2ce3e8",
+      "artifactExcerpt": "今天你一口气做了十道关于 Memento 的题，主题非常集中，全程围着同一个问题转：谁在管理历史。十道题都停在了同一个地方——这反而好办，我们只需要把一件事讲透，不用东补一块西补一块。\n\n## 三个角色分别负责什么\n\n你心里大概是这样想的：题目问「谁管理历史」，而历史不就是一份份存下来的快照吗？Memento 本身就是快照，那保管历史的活儿自然归它。这个联想很自然，Memento 这个名字也确实和「记忆、存档」连在一起。\n\n但判断时要把两件事分开：谁是「被保存下来的那份东西」，谁是「负责保存它的那个人」。说明里写得很清楚——Memento 是快照本身，Caretaker 负责保管历史，Originator 负责恢复状态。换成一句好记的话：Memento 是货，Caretaker 是仓库，Originator 是来取货的人。\n\n## 「谁管理历史」问的是哪个角色\n\n判断规则很简单：题目一旦出现「管理历史」「保管历史」这类说法，要找的是负责保存快照序列的角色，也就是 Caretaker。看到 Memento，只说明「这里有一份快照」；看到 Originator，只说明「这里能恢复状态」。这两个都不承担保管的职责，所以它们出现在选项里，是干扰，不是答案。\n\n拿今天那道问「谁管理历史」的题来说：你选的那一项，说明里写着「它是快照」；而正确那一项的说明是 “It keeps history.”——保管历史，正是 Caretaker 在做的事。十道题问的是同一件事，所以卡点也只有一个，把它理顺，明天这一整片就通了。\n\n## 已经稳住的\n\n老实讲，这一栏今天还基本是空的，十道题都停在了同一个点上，我不打算硬凑内容给你。\n\n不过有一件事你不需要重学：Caretaker、Memento、Originator 这三个名字你都认得，也都在你眼前出现过。接下来要做的，只是把职责重新挂对位置。\n\n## 明天这样练\n\n1. 写三行小卡片：Caretaker——保管历史；Memento——快照本身；Originator——恢复状态。写完合上，凭记忆默写一遍。写不出来的那一行，就是你明天最该多看两眼的",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Wrong count and role distinction correct; motivational claims about what the learner already recognizes are not established by these answers."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "workflow",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "topic": "Memento",
+        "scope": [
+          {
+            "deckId": "d"
+          }
+        ]
+      },
+      "inputSha256": "00811eb75bf8c5f6be58c10d35e899353d190ac7590f526273ad137fb881b3f7",
+      "elapsedMs": 52926,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "8a58770b-4c2e-4a00-8c1f-36ba048ded75",
+        "contractVersion": 2,
+        "kind": "workflow-teaching",
+        "status": "complete",
+        "execution": {
+          "mode": "direct"
+        },
+        "attempts": [
+          {
+            "attemptId": "f532a42a-4d74-410e-bbf7-10e5e8552a56",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "workflow-teaching-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 9740,
+          "tokenUsage": {
+            "uncachedInputTokens": 3802,
+            "outputTokens": 5938,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 2
+        },
+        "calls": [
+          {
+            "callId": "01e0003d-43c3-4789-a5a3-361274e1fab7",
+            "kind": "author",
+            "status": "ok",
+            "runner": "direct",
+            "executionMode": "direct",
+            "requestedEffort": "default",
+            "appliedEffort": null,
+            "tokens": 4805
+          },
+          {
+            "callId": "5a8c8224-5a52-4a36-9079-487d97615788",
+            "kind": "review",
+            "status": "ok",
+            "runner": "direct",
+            "executionMode": "direct",
+            "requestedEffort": "default",
+            "appliedEffort": null,
+            "tokens": 4935
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 9740,
+        "tokenUsage": {
+          "uncachedInputTokens": 3802,
+          "outputTokens": 5938,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 2
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "a833df372e57addbdbed6488dffb27f8f8636ebfd874e7f31a593a72ac7ef397",
+      "artifactExcerpt": "{\"content\":\"# Memento：为什么要「存得下、却看不懂」\\n\\n## 一个具体场景\\n\\n假设有一个文本编辑器，用户敲了几行字，然后按下 Ctrl+Z，编辑器要回到上一个状态。最直接的做法是：编辑器自己维护一个列表，每次输入就把整个文档复制一份塞进去，撤销时取最后一份。\\n\\n这样能跑，但会引出一个问题：**谁在管这些副本？** 如果编辑器对象既负责编辑、又负责保存历史、又负责决定何时丢弃旧记录，它的职责会越滚越多。更重要的是，历史里的每一份副本，本质上只是「某个时刻的内部状态」——撤销的时候并不需要读懂里面的内容，只需要原样放回去。\\n\\n这就引出了 Memento（备忘录）模式要处理的核心张力：**状态的存取需要被记录下来，但记录本身不该被外人拆开看。**\\n\\n## 三个角色\\n\\n（下表是对经典描述的整理，属于补充知识；本次提供的证据只直接覆盖 Caretaker 与 Memento 两点，Originator 的职责是据此推断的常见配套角色。）\\n\\n| 角色 | 职责 |\\n|---|---|\\n| Originator（原发器） | 持有真实状态，负责「产出」快照和「吃回」快照 |\\n| Memento（备忘录） | 一个不透明的快照盒子，保存某一时刻的内部状态 |\\n| Caretaker（管理者） | 保存一堆 Memento，决定顺序、上限、何时丢弃 |\\n\\n证据里的两句话正好把后两个角色的边界钉死：\\n\\n> The Caretaker manages snapshot history without inspecting snapshot contents.\\n\\n> A Memento stores an opaque snapshot of internal state.\\n\\n第一句说的是**谁管历史**：Caretaker。第二句说的是**Memento 是什么**：一个不透明的状态快照。两句合起来，就框定了这个模式的分工方式。\\n\\n## 为什么「不透明」是关键\\n\\n如果把 Memento 做成一个字段公开的普通对象",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Core mechanism and citations correct; generalization that costly whole-state capture makes the pattern unsuitable is too broad without discussing structural sharing or alternative snapshot representations."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "assist",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "card": {
+          "deckId": "d",
+          "cardId": "q6"
+        },
+        "question": "为什么 Caretaker 不应该读取快照内部字段？请解释并给一个简短例子。"
+      },
+      "inputSha256": "c5df32988e1182386a4bb5b8c2ef9b860ade7ddd1f4611aa22872f83d5a9eb97",
+      "elapsedMs": 15767,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "1cd0d32a-2986-4e7b-943e-6d97dc04fbf7",
+        "contractVersion": 2,
+        "kind": "assist",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "09ab0c4f-0b3e-4f7c-828b-f2bb39258093",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "assist-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": null,
+          "tokenUsage": null,
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "435448f0-60f2-439a-814c-bcfd68afc8c6",
+            "kind": "other",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "direct",
+            "childId": "2f4e9382-77fe-469a-ba2d-48c220ffaa98",
+            "requestedEffort": "default",
+            "appliedEffort": null,
+            "tokens": null
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": null,
+        "tokenUsage": null,
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "e18e938ea0c70994a72965157d833c7f5193cb553b3d791b55055ab3f95d9ef2",
+      "artifactExcerpt": "# 为什么 Caretaker 不应该读取快照内部字段\n\n资料中的关键句是：*\"The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.\"*（Caretaker 管理快照历史，但不检查快照内容；Memento 保存的是**不透明的**内部状态快照。）\n\n这一点正是 Memento 模式成立的前提。理由主要有四条：\n\n1. **封装被破坏（最核心）**  \n   Memento 存在的意义，是让外部对象能够\"保存/归还\"状态，却**看不见**状态本身。一旦 Caretaker 去读 `memento.state`、`memento._fields`，它就不再是\"保管者\"，而变成了第二个知道 Originator 内部细节的对象。信息隐藏随之失效。\n\n2. **职责扩散，耦合上升**  \n   Originator 负责产生/恢复状态，Memento 负责承载状态，Caretaker 只负责**保管与顺序**（栈、列表、历史索引、上限淘汰等）。如果 Caretaker 开始解析字段，它就同时依赖了 Originator 的数据结构与语义；Originator 以后把 `String[] lines` 换成 `Rope` 或加一个缓存字段，Caretaker 也要跟着改。\n\n3. **可变性/生命周期风险**  \n   让 Caretaker 持有可读甚至可写的内部引用，很容易导致它\"顺手修一下\"快照，从而污染历史——撤销功能悄悄失效，而且很难定位。不透明接口把这种误用从\"靠自觉\"变成\"不可能\"。\n\n4. **不可变性更好保证**  \n   不透明快照更容易做成不可变对象（构造时深拷贝、之后只读返回），Caretaker 只当作一个不透明句柄来存，天然安全。\n\n> 补充知识（资料之外，属于通用 GoF 设计说明）：Memento 常被描述为提供**窄接口给 Caretake",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Saved follow-up correctly distinguishes the three roles. Pseudocode package-private accessors do not prove only Originator can read fields; claims of impossibility depend on the actual access design."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "coach",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "cards": [
+          {
+            "deckId": "d",
+            "cardId": "q6"
+          },
+          {
+            "deckId": "d",
+            "cardId": "q3"
+          },
+          {
+            "deckId": "d",
+            "cardId": "q2"
+          }
+        ],
+        "consent": true
+      },
+      "inputSha256": "6a84f85a28fba78a547e2b0d71d273528277d20962a5eb1f65883ba7aa550b3e",
+      "elapsedMs": 33531,
+      "status": "failed",
+      "error": [
+        {
+          "cardId": "q6",
+          "message": "Unterminated string in JSON at position 2898 (line 94 column 45)"
+        },
+        {
+          "cardId": "q3",
+          "message": "Unterminated string in JSON at position 2898 (line 94 column 45)"
+        },
+        {
+          "cardId": "q2",
+          "message": "Unterminated string in JSON at position 2898 (line 94 column 45)"
+        }
+      ],
+      "job": {
+        "id": "coach:2026-10-07",
+        "contractVersion": 1,
+        "kind": "coach-daily",
+        "status": "complete",
+        "execution": {
+          "mode": "direct"
+        },
+        "usage": {
+          "tokens": 4111,
+          "tokenUsage": {
+            "uncachedInputTokens": 511,
+            "outputTokens": 3600,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "calls": 1
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "67cef518-9c7d-4f01-8771-43004090d505",
+            "kind": "prep",
+            "status": "failed",
+            "runner": "direct",
+            "childId": null,
+            "reasoning": null,
+            "tokens": 4111,
+            "outputTokens": 3600
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 4111,
+        "tokenUsage": {
+          "uncachedInputTokens": 511,
+          "outputTokens": 3600,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "calls": 1
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "artifactExcerpt": "[]",
+      "quality": {
+        "verdict": "failed",
+        "assessment": "No variants saved; three failedCards report unterminated JSON. Observed outputTokens=3600 matches configured maxTokens=3600, suggesting truncation; provider finish reason was not observed, so cause remains an inference."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "audio-text",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "text": "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state."
+      },
+      "inputSha256": "4ac87c567e7fbeb6c48cc8d2da752c38e51833430ec7d4a52cf77214f62e26f4",
+      "elapsedMs": 17824,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "2873314e-c13e-4094-be43-9d4a9f5a9129",
+        "contractVersion": 2,
+        "kind": "audio-subtitles",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "411784b2-1af1-4062-9f31-10d7c9f0c663",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "audio-subtitles-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 6563,
+          "tokenUsage": {
+            "uncachedInputTokens": 6093,
+            "outputTokens": 470,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 3
+        },
+        "calls": [
+          {
+            "callId": "6722cecf-ccd5-4910-94fd-526510aa4adb",
+            "kind": "proofread",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "157762c7-a7d2-44e8-948e-58c72baa91e7",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 2292
+          },
+          {
+            "callId": "c31bf7b5-dae8-4222-a084-1fa6079467fa",
+            "kind": "translate",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "6454ba51-4a25-4fbd-80d7-23033bb81fd8",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 2255
+          },
+          {
+            "callId": "1c4ea104-2698-48e9-a967-29981fe29446",
+            "kind": "title",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "ea579c17-bb12-488a-94a7-202b1717471f",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 2016
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 6563,
+        "tokenUsage": {
+          "uncachedInputTokens": 6093,
+          "outputTokens": 470,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 3
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "c809a05af7ae786f501f09e257e1573ad605e0971c599b070aed409cdc944060",
+      "artifactExcerpt": "[{\"text\":\"================================================================================\\n《memento》全量中英对照逐字稿\\nFull Bilingual Transcript: Caretaker & Memento Snapshots Design Pattern Seminar\\n================================================================================\\n\\n【第一部分：管理者与备忘录快照】\\n[Part 1: Caretaker and Memento Snapshots]\\n\\n【英文原句】\\n[0:00] The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.\\n\\n【中文对照】\\n[0:00] 管理者（Caretaker）在不检查快照内容的情况下管理快照历史。备忘录（Memento）存储内部状态的不透明快照。\",\"textProvider\":\"host\",\"textModel\":\"gemini-3.8-flash\"}]",
+      "quality": {
+        "verdict": "content-pass-metadata-fail",
+        "assessment": "Verbatim English and faithful Chinese transcript saved. Same false host textModel metadata; root notified. Generated seminar subtitle is an unverified descriptive title, not evidence of a real seminar."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "generation",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "sourceIds": [
+          "src"
+        ],
+        "count": 1,
+        "kind": "flashcard",
+        "performance": {
+          "concurrency": 1,
+          "batchSize": 1,
+          "jobTimeoutMinutes": 5,
+          "fillRounds": 0,
+          "effortPlanning": "low",
+          "effortReview": "low",
+          "effortWriting": "low",
+          "effortRepair": "low"
+        }
+      },
+      "inputSha256": "01ff41bb9634082fccd2f648844a34b0ade687eb77f880865e2054a1450f3bee",
+      "elapsedMs": 108634,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "5bc8d0b3-f622-455a-af95-e00683d4a4b3",
+        "contractVersion": 2,
+        "kind": "generation",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "430ef318-764a-4056-9e75-140c9fdc7b12",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "generation-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 22804,
+          "tokenUsage": {
+            "uncachedInputTokens": 16621,
+            "outputTokens": 6183,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 4
+        },
+        "calls": [
+          {
+            "callId": "f6b52f83-b4df-4c2b-9c71-8175712c87dc",
+            "kind": "plan",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "36931cc0-a2d1-408e-bfc7-9d3dc3a91505",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 2704
+          },
+          {
+            "callId": "c2498527-e52f-4c47-9024-22b7f3cb00dd",
+            "kind": "blueprint",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "f886d378-8ff8-4ba9-b2c1-0564ab2a37e1",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 4157
+          },
+          {
+            "callId": "ecaf58f6-87a9-41a8-bdec-954424101cd3",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "9835c2a0-d0d0-4330-9ade-b82bdf8d663f",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 7516
+          },
+          {
+            "callId": "b1eb5d7c-c2c3-4892-87c4-39e34b1ec46c",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "80940826-6a69-41fa-9a13-0ad64e96f1d5",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 8427
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 22804,
+        "tokenUsage": {
+          "uncachedInputTokens": 16621,
+          "outputTokens": 6183,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 4
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "b27678220ab77d793f28c9f59a1568928626867a3e99e824879d4f72b67e779b",
+      "artifactExcerpt": "[{\"id\":\"ebae8d3f-ced8-4a9f-95a4-7272eea2da4d\",\"targetId\":\"target-1\",\"kind\":\"flashcard\",\"topic\":\"Memento 模式中快照内容对管理者的可见性\",\"objective\":\"理解 Memento 模式中“封装边界”这一职责划分：发起者内部状态被封装为对管理者不透明的快照，管理者只负责保存与维护历史，无需也不应解析快照内容\",\"prompt\":\"某编辑器用发起者保存文本与光标位置，用管理者持有一串快照以支持撤销和重做；快照在管理者手中是不透明的黑盒对象。现在要为发起者新增一个“高亮区间”状态字段，并让它在撤销时一并恢复。一名开发者提议：让管理者直接读取快照里的字段以便对相同快照去重，同时把恢复逻辑也放进管理者。按 Memento 模式的职责边界，这一提议是否成立？管理者的职责应是什么，新增“高亮区间”字段又需要改动哪些角色？\",\"answer\":\"管理者只负责按历史顺序保存和维护快照，不读取、不解析快照内容；快照对其是不透明的，只有发起者自己能从快照中取用状态来恢复内部状态。因此新增或改变发起者的状态结构时无需修改管理者。\",\"hint\":\"先分清“谁持有并保管快照”和“谁有权解读快照内容”，再检查恢复状态这一动作需要读取哪一方的内部信息。\",\"explanation\":\"结论：该提议越过了封装边界，管理者不应读取或解析快照。\\n\\n推理链：\\n1）证据给出两条约束：快照是“内部状态的不透明快照”，管理者“管理快照历史却不检查快照内容”。\\n2）由“不透明”推出：管理者拿不到也不应依赖快照的任何内部字段，因此无法按字段比较或对相同快照去重；去重提议的前提本身不成立。\\n3）由“不检查”推出：管理者的职责被限定为按历史顺序保存与取回快照条目，把恢复逻辑放进管理者等于让它解读快照内容，与职责边界冲突。\\n4）恢复内部状态所需的信息由发起者自己从快照中取用，所以状态结构的增删只影响发起者与其写出的快照，管理者保持原样。\\n\\n构造情形说明：编辑器、文本与光标位置、新增“高亮区间”字段以",
+      "quality": {
+        "verdict": "pass-small-sample",
+        "assessment": "One legal flashcard saved. Question, answer and explanation distinguish history management from interpretation/restoration, accurately cite both source sentences and label constructed scenario."
+      }
+    },
+    {
+      "mode": "on",
+      "family": "supplement",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "sourceIds": [
+          "src"
+        ],
+        "deckId": "d",
+        "count": 1,
+        "kind": "flashcard",
+        "performance": {
+          "concurrency": 1,
+          "batchSize": 1,
+          "jobTimeoutMinutes": 5,
+          "fillRounds": 0,
+          "effortPlanning": "low",
+          "effortReview": "low",
+          "effortWriting": "low",
+          "effortRepair": "low"
+        }
+      },
+      "inputSha256": "bd5c959f6d9db75e1ab71e26590624db335e911a01d0bbbff65770b4107930e2",
+      "elapsedMs": 129449,
+      "status": "failed",
+      "error": {
+        "message": "A read-only state field was changed in authoring.v1.draft.publish: Cannot assign to read only property 'scope' of object '#<Object>'"
+      },
+      "job": {
+        "id": "f1d73a23-af50-4703-8399-d97f0dc6112e",
+        "contractVersion": 2,
+        "kind": "supplement",
+        "status": "failed",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "f303c0f2-8440-4f38-91aa-3e900c8f4915",
+            "status": "failed",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "supplement-1",
+              "ownerAgentId": "session-7f314b15-b663-49f8-b91f-f3077789adc0"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 23651,
+          "tokenUsage": {
+            "uncachedInputTokens": 4442,
+            "outputTokens": 6921,
+            "cacheReadTokens": 12288,
+            "cacheWriteTokens": 0
+          },
+          "calls": 4
+        },
+        "calls": [
+          {
+            "callId": "8cb80966-ad57-4d2f-bac4-c5834ee144d7",
+            "kind": "plan",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "78beb500-aa49-4c12-9247-c8a768f2358d",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 2719
+          },
+          {
+            "callId": "b7c73297-5226-4ba3-8868-1f4ccd6b2846",
+            "kind": "blueprint",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "fdde0771-c0e0-4372-84c0-d39d00812559",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 4017
+          },
+          {
+            "callId": "44930a51-f285-4238-86e4-b404ccb93174",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "48359d61-087e-45c4-8aa8-714e22ec71f4",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 8331
+          },
+          {
+            "callId": "c78fc4bb-f6ad-48b0-80aa-3bf149690275",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "92239303-740e-42ec-9dfa-d9b2727cbdf6",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 8584
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 23651,
+        "tokenUsage": {
+          "uncachedInputTokens": 4442,
+          "outputTokens": 6921,
+          "cacheReadTokens": 12288,
+          "cacheWriteTokens": 0
+        },
+        "calls": 4
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "082ed415312951d1ebbe9bfa4b8e3ee4418fb921c8fb94133c2fdde9e5ca4fc0",
+      "artifactExcerpt": "[{\"id\":\"bf72244d-1807-43dc-82ba-0d812be284bb\",\"targetId\":\"target-1\",\"kind\":\"flashcard\",\"topic\":\"快照历史的保存调度与内部状态承载\",\"objective\":\"区分 Memento 与 Caretaker 的职责边界：Caretaker 负责按历史顺序保存和恢复快照，但不解读快照内容；Memento 以不透明方式承载内部状态快照\",\"prompt\":\"假设（构造的假想前提）某文本编辑器的撤销功能由一个历史管理器组件实现：每次编辑后生成一个内部状态快照，管理器按时间先后把快照放入列表；用户按下撤销键时，管理器把最近一次快照交还给编辑器去恢复。该管理器在运行期间从不读取、解析或比较快照里的字段；快照对象只携带不透明的状态数据，其内部结构由编辑器在恢复时自行解读。在这个设计中，历史管理器组件与快照对象各自承担什么职责？谁负责解读快照内容？\",\"answer\":\"Caretaker 负责按历史顺序保存快照并按需恢复，但不检查、不解读快照内容；Memento 负责以不透明方式承载对象内部状态快照。快照的产生与解读由发起者（Originator）完成，Caretaker 只做存储与调度。\",\"hint\":\"把两件事分开判断：一件是决定快照的先后顺序并把它交还原主，另一件是承载对象内部状态。再看哪一方需要理解快照内部的字段——需要理解内部字段的一方才是内容的产生者或解读者。\",\"explanation\":\"结论：历史管理器是 Caretaker，只做快照历史的保存与按需恢复；快照对象是 Memento，只以不透明方式承载内部状态；内容的解读权在发起者（编辑器）手里。\\n推理依据：源材料给出两条规则。第一，\\\"The Caretaker manages snapshot history without inspecting snapshot contents.\\\"——Caretaker 的职责被限定在\\\"快照历史\\\"这一层，并明确排除了\\\"检查快照内容\\\"。第二，\\\"A Memento sto",
+      "quality": {
+        "verdict": "blocked-product-defect",
+        "assessment": "Same publication exception as off after an active workflow session referenced the target deck; migration did not avoid it."
+      }
+    },
+    {
+      "mode": "agent",
+      "family": "recap",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "course": "QA Patterns",
+        "reviewed": 10,
+        "wrong": 10
+      },
+      "inputSha256": "eb65708313f769021f3f54e9a1901ae860558d892429d74e62e06ba3351c7148",
+      "elapsedMs": 38948,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "1cd6c81e-ff8f-4f92-9a0e-739f302744fa",
+        "contractVersion": 2,
+        "kind": "daily-recap",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "c09e02ba-967b-4fea-9a79-37207e7fabc5",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "daily-recap-1",
+              "ownerAgentId": "session-869412a4-7a00-4655-baf9-ceb5136aeadf"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 8327,
+          "tokenUsage": {
+            "uncachedInputTokens": 4910,
+            "outputTokens": 3417,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "c551e261-ccab-4701-8bcc-87c7c1a8875c",
+            "kind": "other",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "bb9eb0ef-8f0a-403b-a363-d6acb793b14a",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 8327
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 8327,
+        "tokenUsage": {
+          "uncachedInputTokens": 4910,
+          "outputTokens": 3417,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "1ce6ab0491bf241184cc7bd7f6ce03d2d5d70c355a3d32a5d2d60bcff75e886e",
+      "artifactExcerpt": "今天你一口气练了 10 道题，题面几乎是同一个模子：问的都是回滚这件事里「历史由谁保管」。十道题你的答案都指向了 Memento 这一边，思路非常一致——这说明你在往「谁跟历史、记忆有关」这个方向找，方向感是有的，只是这一步停在了同一个位置。我们把它拆开看看，这十道题会一起顺过来。\n\n## 历史该由谁来管\n\n你大概是这样想的：Memento 这个名字听起来最像「记忆」和「历史」，那保管历史的活儿交给它，很顺。这个直觉不算离谱，只是把「被保存下来的东西」和「负责保存的那个人」看成了一件事。\n\n判断的时候可以先问自己一句：眼前这个角色，是那份被存下来的内容，还是那个动手保存、并且拿着它的负责人？按说明里的分工：\n\n- Caretaker 负责保管历史，所以「谁管理历史」这类问法，答案永远是它；\n- Memento 本身就是被保存下来的那份快照，它是记录，不是管理者；\n- Originator 负责把状态恢复回去。\n\n举个今天的例子：题目问「谁管理历史」，正确答案是 Caretaker，因为说明里写得很直接——是它 keeps history；而 Memento 只是 the snapshot，Originator 负责 restore state。以后再遇到类似问法，先把「管理者 / 快照 / 恢复者」这三个位置在心里排好，再往上对名字，就不容易被名字的字面意思带走了。\n\n## 已经稳住的\n\n老实说，这一轮十道题都撞在同一个点上，能稳稳列出来的不多，今天这份清单短一些：\n\n- Memento 对应的是那份快照，这个身份你在选项里已经反复碰到；\n- Originator 与「恢复状态」绑定——这两条分工来自题目说明本身，可以当成往后的底座。\n\n## 明天这样练\n\n1. 写三张小卡片：Caretaker、Memento、Originator，各配一句自己的话（谁保存历史、谁是快照、谁恢复状态），然后盖上，再默写一遍。\n2. 自己给自己出三句互问的题：「谁管理历史？」「被保存下来的那份是谁？」「谁负责把状态恢复回去？」答完再翻说明对照，重点是别让名字牵着走。\n3. 明天再做一轮 ",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Recap saved through native subagent. Role facts correct, but its already-mastered section repeats source facts despite every observed answer being wrong; no mastery inference is justified."
+      }
+    },
+    {
+      "mode": "agent",
+      "family": "workflow",
+      "packageSha256": "88c0d8d1b0bdcae02b9a93a0163e0aaf05f2c9fba649dfa80492a1897438660d",
+      "candidateNote": "Initial candidate without follow-up fixes",
+      "input": {
+        "topic": "Memento",
+        "scope": [
+          {
+            "deckId": "d"
+          }
+        ]
+      },
+      "inputSha256": "00811eb75bf8c5f6be58c10d35e899353d190ac7590f526273ad137fb881b3f7",
+      "elapsedMs": 176331,
+      "status": "failed",
+      "error": "讲解质量检查未通过：Formatting defect: the paragraph after the quoted evidence contains a literal escaped newline (\"...只负责「装载」一份不可透视的快照。\\n\"), which will render as visible backslash-n text in the lesson; replace it with a real line break.；Minor unlabeled inference: the claim that the Caretaker \"甚至不必知道这些快照属于哪种对象\" goes slightly beyond the two-sentence evidence (the evidence only says it manages history without inspecting contents); qualify it as supplemental knowledge like the other standard-pattern claims.；Minor scope gap: although the article correctly avoids claiming mastery, it does not reflect the cards' \"需要巩固\" status or the learner's repeatedly-missed misconception anywhere in the decision rules; an explicit spot to re-test the Caretaker-vs-Memento boundary would connect the lesson to the supplied learner context.；The constructed worked example's \"每次改动前取快照；取用时后进先出\" convention is stated, but the initial-state recovery outcome (count returning to 10 via the queue variant) should also state whether the su",
+      "job": {
+        "id": "57da2102-470a-4fa9-bda1-d1b0d09d1aa7",
+        "contractVersion": 2,
+        "kind": "workflow-teaching",
+        "status": "failed",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "4b079a0d-222b-410a-a26f-632368c317f6",
+            "status": "failed",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "workflow-teaching-1",
+              "ownerAgentId": "session-869412a4-7a00-4655-baf9-ceb5136aeadf"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 52559,
+          "tokenUsage": {
+            "uncachedInputTokens": 18211,
+            "outputTokens": 17964,
+            "cacheReadTokens": 16384,
+            "cacheWriteTokens": 0
+          },
+          "calls": 5
+        },
+        "calls": [
+          {
+            "callId": "83901e46-2535-4033-96a0-c2c15f834b48",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "f82f135e-da74-423f-b721-191775e3c5c8",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 5275
+          },
+          {
+            "callId": "e9f8ecdf-60e7-4151-ba6c-dd090d00f0a6",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "65b89294-8c3b-4d66-88a1-c5d125249a73",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 7027
+          },
+          {
+            "callId": "2fe240d0-f208-4427-8bbd-b0d6bc9c8f3e",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "14ff007f-5352-45ed-9ced-93a88e813957",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 5314
+          },
+          {
+            "callId": "c44a671a-69ca-4370-8093-1ffab7c44a11",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "557b51a7-45ff-49ae-bc85-bb734db33cca",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 29269
+          },
+          {
+            "callId": "1b426a29-36db-47a1-8672-270fcc663eb3",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "a1822ec2-b3b7-4b4b-9c16-913f934f3860",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 5674
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 52559,
+        "tokenUsage": {
+          "uncachedInputTokens": 18211,
+          "outputTokens": 17964,
+          "cacheReadTokens": 16384,
+          "cacheWriteTokens": 0
+        },
+        "calls": 5
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "artifactExcerpt": "{}",
+      "quality": {
+        "verdict": "correct-refusal",
+        "assessment": "Five native-subagent calls ended in a quality-gate refusal including literal escaped newline and insufficiently marked inference. No lesson content saved. This is not a quality pass."
+      }
+    },
+    {
+      "mode": "off-fixed",
+      "family": "audio-text",
+      "packageSha256": "41cdfc5904133f9819e0bb2e6d3f81d92bbe06655a02b305e74b7d257035cbb6",
+      "candidateNote": "Working candidate with authoring workflow write declarations and null host audio textModel fix; not final release",
+      "input": {
+        "text": "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state."
+      },
+      "inputSha256": "4ac87c567e7fbeb6c48cc8d2da752c38e51833430ec7d4a52cf77214f62e26f4",
+      "elapsedMs": 14514,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "e3314d41-e079-42f8-8a35-c9eebe9aa169",
+        "contractVersion": 1,
+        "kind": "audio-import",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "usage": {
+          "tokens": 6673,
+          "tokenUsage": {
+            "uncachedInputTokens": 6192,
+            "outputTokens": 481,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "calls": 3
+          },
+          "calls": 3
+        },
+        "calls": [
+          {
+            "callId": "e0d294e7-a186-45a9-855d-aaed74e98e41",
+            "kind": "proofread",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "6e209380-a3b8-4c43-adff-d5e73224b1d5",
+            "reasoning": "default",
+            "tokens": 2317,
+            "outputTokens": 91
+          },
+          {
+            "callId": "eb09d7df-3888-442a-8f09-9cbb9e4d3426",
+            "kind": "translate",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "dffb600c-be37-4a44-b078-c3a98d73bc7c",
+            "reasoning": "low",
+            "tokens": 2345,
+            "outputTokens": 268
+          },
+          {
+            "callId": "19674068-60cf-42a3-ba56-4ea93aa98f4e",
+            "kind": "title",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "90cb2cc3-086f-423f-9f2e-70dfe6a1148a",
+            "reasoning": "low",
+            "tokens": 2011,
+            "outputTokens": 122
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 6673,
+        "tokenUsage": {
+          "uncachedInputTokens": 6192,
+          "outputTokens": 481,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "calls": 3
+        },
+        "calls": 3
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "f95de6cc14795b81532695bdf69bb12631af06de13e983e2e6ce044cd13bd351",
+      "artifactExcerpt": "[{\"text\":\"================================================================================\\n《memento》全量中英对照逐字稿\\nFull Bilingual Transcript: Memento Pattern & Caretaker Role Technical Seminar\\n================================================================================\\n\\n【第一部分：备忘录模式与看护者职责】\\n[Part 1: Memento Pattern and Caretaker Role]\\n\\n【英文原句】\\n[0:00] The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.\\n\\n【中文对照】\\n[0:00] 看护者（Caretaker）管理快照历史，而不会查看快照内容。备忘录（Memento）存储内部状态的不透明快照。\",\"textProvider\":\"host\",\"textModel\":null}]",
+      "quality": {
+        "verdict": "pass-small-sample",
+        "assessment": "Faithful bilingual text persisted with host textProvider and null textModel. Model-generated seminar title is descriptive, not evidence of a real event."
+      }
+    },
+    {
+      "mode": "off-fixed",
+      "family": "supplement",
+      "packageSha256": "41cdfc5904133f9819e0bb2e6d3f81d92bbe06655a02b305e74b7d257035cbb6",
+      "candidateNote": "Working candidate with authoring workflow write declarations and null host audio textModel fix; not final release",
+      "input": {
+        "sourceIds": [
+          "src"
+        ],
+        "deckId": "d",
+        "count": 1,
+        "kind": "flashcard",
+        "performance": {
+          "concurrency": 1,
+          "batchSize": 1,
+          "jobTimeoutMinutes": 5,
+          "fillRounds": 0,
+          "effortPlanning": "low",
+          "effortReview": "low",
+          "effortWriting": "low",
+          "effortRepair": "low"
+        }
+      },
+      "inputSha256": "bd5c959f6d9db75e1ab71e26590624db335e911a01d0bbbff65770b4107930e2",
+      "elapsedMs": 60667,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "864751e3-0757-4241-aa25-8b3d0c07e9b9",
+        "contractVersion": 1,
+        "kind": "supplement",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "usage": {
+          "tokens": 21881,
+          "tokenUsage": {
+            "uncachedInputTokens": 16693,
+            "outputTokens": 5188,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "calls": 4
+          },
+          "calls": 4
+        },
+        "calls": [
+          {
+            "callId": "51932850-41ac-42bf-99c5-867ae0844847",
+            "kind": "plan",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "cf081b72-c2ac-4146-9f69-5f3c975fb597",
+            "reasoning": "low",
+            "tokens": 2659,
+            "outputTokens": 229
+          },
+          {
+            "callId": "c1025cb0-7f0a-47e2-b34a-7281eda8131d",
+            "kind": "blueprint",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "f67dc439-563d-4504-8ab8-6ee279546c0f",
+            "reasoning": "low",
+            "tokens": 4008,
+            "outputTokens": 812
+          },
+          {
+            "callId": "972001ab-c281-4d8f-a38f-c57aa94388b1",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "8ae0e8e6-fd81-4006-9010-1a59b91ae408",
+            "reasoning": "low",
+            "tokens": 8481,
+            "outputTokens": 2434
+          },
+          {
+            "callId": "6acfbf96-827c-47e6-aa4a-190efe9991ac",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "childId": "33c17202-b5d6-437c-85e8-cc7b9f3a1b15",
+            "reasoning": "low",
+            "tokens": 6733,
+            "outputTokens": 1713
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 21881,
+        "tokenUsage": {
+          "uncachedInputTokens": 16693,
+          "outputTokens": 5188,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "calls": 4
+        },
+        "calls": 4
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "persistenceChecks": {
+        "targetDeck": "d",
+        "totalCards": 11,
+        "originalTenRetained": true,
+        "newCards": 1,
+        "workflowScopes": [
+          {
+            "sessionId": "da45b27e-a3e5-4945-a536-06b9e7c41706",
+            "scope": [
+              {
+                "deckId": "d",
+                "cardId": "q1"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q2"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q3"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q4"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q5"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q6"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q7"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q8"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q9"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q10"
+              }
+            ]
+          }
+        ],
+        "publication": {
+          "deckId": "d",
+          "added": 1,
+          "total": 11,
+          "accepted": 1,
+          "rejected": 0,
+          "remainingDraftId": null
+        }
+      },
+      "artifactSha256": "3f4cc05c47fa207922bf749903f6a0b629ee24a9ff70ecf6045362b8a4ae87a6",
+      "artifactExcerpt": "[{\"id\":\"e57c850c-0bd6-437f-9a3f-e4fec72ae104\",\"targetId\":\"target-1\",\"kind\":\"flashcard\",\"topic\":\"Memento 模式中状态快照与历史管理的职责归属\",\"objective\":\"区分 Memento 与 Caretaker 的职责：状态快照由谁保存、由谁管理历史，以及为何快照内容对管理者保持不透明\",\"prompt\":\"构造场景（假设，非真实项目）：某文本编辑器要支持撤销/重做。每次编辑前，编辑器把自身当前的内部状态打包成一个快照对象，该对象不对外公开字段含义；另有一个独立的撤销栈只按时间先后保存这些快照，用户点击撤销时按顺序取出并交回编辑器恢复，且撤销栈的代码从不读取快照对象内部的字段。请说明：在这个设计中，Memento 与 Caretaker 分别承担什么职责？快照的历史顺序由谁管理，以及该管理者为什么可以不了解状态内部细节？\",\"answer\":\"内部状态的不透明快照由 Memento 保存；快照的历史顺序由 Caretaker 管理，Caretaker 不查看快照内容。因此二者职责分离：Memento 承载状态本身，Caretaker 只负责按顺序保存、维护并据此恢复快照，而无需了解状态内部细节。\",\"hint\":\"把问题拆成两问分别判断：谁在编辑前产生并持有状态数据，谁只按时间位置排列对象；再检查负责排列的这一方在保存、取出和交回对象时是否读取过对象的内部字段。\",\"explanation\":\"结论先行：快照的状态内容归 Memento，快照的先后顺序归 Caretaker，二者职责分离且 Caretaker 不需要看见快照内部。[1] 指出快照是 internal state 的 opaque snapshot——它承载内部状态，同时“不透明”意味着不向外部暴露状态细节；[2] 指出 Caretaker 管理快照历史却不检查快照内容。两条规则合起来推出分工：既然保存内部状态的只有 Memento，而 Caretaker 在管理历史时明确不查看内容，那么“保存状态”",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Publication succeeds with active workflow precondition; ten originals retained and one flashcard added. Core roles correct, though shorthand Caretaker restores snapshots needs distinction from Originator performing actual restoration."
+      }
+    },
+    {
+      "mode": "on-fixed",
+      "family": "coach",
+      "packageSha256": "41cdfc5904133f9819e0bb2e6d3f81d92bbe06655a02b305e74b7d257035cbb6",
+      "candidateNote": "Working candidate with authoring workflow write declarations and null host audio textModel fix; not final release",
+      "input": {
+        "cards": [
+          {
+            "deckId": "d",
+            "cardId": "q1"
+          }
+        ],
+        "consent": true
+      },
+      "inputSha256": "ec61cdf39b33a0f540b7b5d7b541c9ea87985f7c3ed51c9278a92d53b96a62a5",
+      "elapsedMs": 22638,
+      "status": "complete",
+      "error": [],
+      "job": {
+        "id": "coach:2026-10-07",
+        "contractVersion": 1,
+        "kind": "coach-daily",
+        "status": "complete",
+        "execution": {
+          "mode": "direct"
+        },
+        "usage": {
+          "tokens": 2178,
+          "tokenUsage": {
+            "uncachedInputTokens": 369,
+            "outputTokens": 1809,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "calls": 1
+          },
+          "calls": 1
+        },
+        "calls": [
+          {
+            "callId": "fa4c7457-b42f-40e9-b82a-19dc53de4333",
+            "kind": "prep",
+            "status": "ok",
+            "runner": "direct",
+            "childId": null,
+            "reasoning": null,
+            "tokens": 2178,
+            "outputTokens": 1809
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 2178,
+        "tokenUsage": {
+          "uncachedInputTokens": 369,
+          "outputTokens": 1809,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "calls": 1
+        },
+        "calls": 1
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "bfe7fcdbda92eb94c399465974ce6b18288e4a7a5ef8b9c4d84ec3349479ee54",
+      "artifactExcerpt": "[{\"status\":\"ready\",\"originCardId\":\"q1\",\"card\":{\"kind\":\"quiz\",\"topic\":\"Memento\",\"objective\":\"能在新的撤销栈情境中区分 Caretaker、Memento 与 Originator 的职责边界，判断符合封装要求的做法\",\"prompt\":\"在一个绘图应用中，用户每次移动图形都会生成一个不可变的状态快照，撤销栈保存这些快照以支持回退。若要让撤销机制符合 Memento 模式对封装的要求，下列做法哪一项最合适？\",\"answer\":\"a\",\"hint\":\"从封装边界思考：历史列表的持有者是否应该了解快照内部字段？\",\"explanation\":\"正确答案是 a。撤销栈作为历史保存者，只应持有快照，不应检查或修改快照内部状态；这符合 Caretaker 管理快照历史且不查看快照内容、Memento 保存不透明内部状态快照的职责划分。b、c、d 都让历史持有者接触或改动快照内部数据，破坏了 Memento 的封装边界。\",\"misconception\":\"把“谁保存历史”与“谁创建/恢复状态”混淆，或误以为撤销栈可以直接读取、比较、修改快照内部字段。\",\"citations\":[{\"sourceId\":\"src\",\"quote\":\"The Caretaker manages snapshot history without inspecting snapshot contents.\"},{\"sourceId\":\"src\",\"quote\":\"A Memento stores an opaque snapshot of internal state.\"}],\"options\":[{\"id\":\"a\",\"text\":\"由撤销栈的持有者保存快照，但不读取或修改快照内部字段\",\"correct\":true,\"explanation\":\"正确。历史持有者只负责保存快照，不检查内容，符合 Caretaker 与 Memento 的封装职责。\"},{\"id\":\"b\",\"text\":\"让撤销栈直接访问图形的私",
+      "quality": {
+        "verdict": "pass-small-sample",
+        "assessment": "Single fixed q1 yields one saved legal quiz with correct answer, exact source quotes and explicit role boundaries. This smaller workload does not fix or revalidate the failed three-card batch."
+      }
+    },
+    {
+      "mode": "on-fixed",
+      "family": "audio-text",
+      "packageSha256": "41cdfc5904133f9819e0bb2e6d3f81d92bbe06655a02b305e74b7d257035cbb6",
+      "candidateNote": "Working candidate with authoring workflow write declarations and null host audio textModel fix; not final release",
+      "input": {
+        "text": "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state."
+      },
+      "inputSha256": "4ac87c567e7fbeb6c48cc8d2da752c38e51833430ec7d4a52cf77214f62e26f4",
+      "elapsedMs": 16770,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "bd260802-488c-498f-ba97-d0a0a958ed35",
+        "contractVersion": 2,
+        "kind": "audio-subtitles",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "d7bab8fe-0271-4741-939f-e5cc7a3466e3",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "audio-subtitles-1",
+              "ownerAgentId": "session-9a675830-3cc4-4905-bd08-735c50d1789f"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 6617,
+          "tokenUsage": {
+            "uncachedInputTokens": 6103,
+            "outputTokens": 514,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 3
+        },
+        "calls": [
+          {
+            "callId": "762d68f3-2d49-4ff6-83c8-00aba1eca35d",
+            "kind": "proofread",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "eadb9b4b-6425-44b6-b1ce-5728a53d7779",
+            "requestedEffort": "default",
+            "appliedEffort": "default",
+            "tokens": 2246
+          },
+          {
+            "callId": "73a1c272-ef2b-4922-9ee0-36b5028675ef",
+            "kind": "translate",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "059b9bbe-44ca-45ab-af6a-fc0006511958",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 2322
+          },
+          {
+            "callId": "f52513a1-b12e-42ff-b6cb-b9f8f4793e3e",
+            "kind": "title",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "7c914710-b571-4a9b-bc94-37beadc846b6",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 2049
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 6617,
+        "tokenUsage": {
+          "uncachedInputTokens": 6103,
+          "outputTokens": 514,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 3
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "artifactSha256": "9517af98eee4e9fff1243e66b74cfbd1c9eb1b2d0fbca8b78ca66d6dba77e17f",
+      "artifactExcerpt": "[{\"text\":\"================================================================================\\n《memento》全量中英对照逐字稿\\nFull Bilingual Transcript: Memento Pattern & Managing Snapshot History Safely\\n================================================================================\\n\\n【第一部分：快照历史与不透明状态保存】\\n[Part 1: Managing Snapshot History Safely]\\n\\n【英文原句】\\n[0:00] The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.\\n\\n【中文对照】\\n[0:00] 管理者（Caretaker）负责管理快照历史，而不检查快照的内容。备忘录（Memento）存储内部状态的一份不透明快照。\",\"textProvider\":\"host\",\"textModel\":null}]",
+      "quality": {
+        "verdict": "pass-small-sample",
+        "assessment": "Faithful bilingual text persisted with host textProvider and null textModel."
+      }
+    },
+    {
+      "mode": "on-fixed",
+      "family": "supplement",
+      "packageSha256": "41cdfc5904133f9819e0bb2e6d3f81d92bbe06655a02b305e74b7d257035cbb6",
+      "candidateNote": "Working candidate with authoring workflow write declarations and null host audio textModel fix; not final release",
+      "input": {
+        "sourceIds": [
+          "src"
+        ],
+        "deckId": "d",
+        "count": 1,
+        "kind": "flashcard",
+        "performance": {
+          "concurrency": 1,
+          "batchSize": 1,
+          "jobTimeoutMinutes": 5,
+          "fillRounds": 0,
+          "effortPlanning": "low",
+          "effortReview": "low",
+          "effortWriting": "low",
+          "effortRepair": "low"
+        }
+      },
+      "inputSha256": "bd5c959f6d9db75e1ab71e26590624db335e911a01d0bbbff65770b4107930e2",
+      "elapsedMs": 87880,
+      "status": "complete",
+      "error": null,
+      "job": {
+        "id": "272f8473-a7e1-4556-a3b8-6aa99ad0580a",
+        "contractVersion": 2,
+        "kind": "supplement",
+        "status": "complete",
+        "execution": {
+          "mode": "subagent"
+        },
+        "attempts": [
+          {
+            "attemptId": "17025f64-2f20-4a06-ab06-e53ac8ad921f",
+            "status": "complete",
+            "executor": {
+              "service": "dsh-jobs",
+              "handleId": "supplement-1",
+              "ownerAgentId": "session-9a675830-3cc4-4905-bd08-735c50d1789f"
+            }
+          }
+        ],
+        "usage": {
+          "tokens": 22419,
+          "tokenUsage": {
+            "uncachedInputTokens": 16468,
+            "outputTokens": 5951,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "calls": 4
+        },
+        "calls": [
+          {
+            "callId": "b815c1a9-925d-42d0-8769-eee2824b4dc3",
+            "kind": "plan",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "33d643fc-022f-469d-85f1-c30795835cf3",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 2683
+          },
+          {
+            "callId": "ba76ab4d-f53b-4057-aae6-96d381c4216f",
+            "kind": "blueprint",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "955a366a-aa6a-47ee-a598-18999cfc0a00",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 4286
+          },
+          {
+            "callId": "f46a6461-9d8e-4cb0-b6a3-758150156fba",
+            "kind": "author",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "e25adab4-db31-4e95-ab02-7ca583688838",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 9187
+          },
+          {
+            "callId": "84378a01-5d04-4514-993b-7cc27324d230",
+            "kind": "review",
+            "status": "ok",
+            "runner": "subagent",
+            "executionMode": "agent-preferred",
+            "childId": "f560fcab-ad6a-4b4c-84a5-a03eb79eeee3",
+            "requestedEffort": "low",
+            "appliedEffort": "low",
+            "tokens": 6263
+          }
+        ]
+      },
+      "observedUsage": {
+        "tokens": 22419,
+        "tokenUsage": {
+          "uncachedInputTokens": 16468,
+          "outputTokens": 5951,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "calls": 4
+      },
+      "providerRequestCount": "unknown; public call counts are host/gateway observations, not a guaranteed HTTP request count including retry/hedge",
+      "monetaryCost": "unknown; subscription route only",
+      "persistenceChecks": {
+        "targetDeck": "d",
+        "totalCards": 11,
+        "originalTenRetained": true,
+        "newCards": 1,
+        "workflowScopes": [
+          {
+            "sessionId": "23ab8b93-fc83-4db4-9abb-2054bd4c2590",
+            "scope": [
+              {
+                "deckId": "d",
+                "cardId": "q1"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q2"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q3"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q4"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q5"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q6"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q7"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q8"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q9"
+              },
+              {
+                "deckId": "d",
+                "cardId": "q10"
+              }
+            ]
+          }
+        ],
+        "publication": {
+          "deckId": "d",
+          "added": 1,
+          "total": 11,
+          "accepted": 1,
+          "rejected": 0,
+          "remainingDraftId": null
+        }
+      },
+      "artifactSha256": "bab1d9a5362b9e19f30d35f56a3d33ccdae5dade6af9206224f6787b9e58b8f5",
+      "artifactExcerpt": "[{\"id\":\"ba5747c6-93f7-422f-a189-42bc16e08f14\",\"targetId\":\"target-1\",\"kind\":\"flashcard\",\"topic\":\"撤销功能中的快照职责归属\",\"objective\":\"区分 Memento 与 Caretaker 的职责边界：Memento 封装内部状态的不透明快照，Caretaker 只保存与恢复快照历史而不查看其内容，从而在不破坏封装的前提下支持状态回滚\",\"prompt\":\"构造场景：一个文本编辑器对象要把自身状态做成快照以支持撤销；另有一个历史管理组件按时间顺序登记每个快照，并在用户撤销时把对应的某个快照交回给编辑对象，它既不解析快照里的文本内容，也不改写快照中的任何字段。在这个场景中，Memento 与 Caretaker 各承担什么职责？状态的读取与写回由谁完成？\",\"answer\":\"Memento 持有并封装对象内部状态的不透明快照；Caretaker 只负责保存、排列和恢复这些快照历史，绝不检查快照内容。因此状态内容始终由原发对象自己读取和写回，封装不被破坏。\",\"hint\":\"先判断某个角色是否需要看懂快照里的内容才能完成自己的工作，再问：恢复发生时，谁读取内容并写回自身状态？\",\"explanation\":\"结论：Memento 的职责是持有并封装对象内部状态的不透明快照；Caretaker 的职责是保存、排列这些快照并在需要时把某一个交回，绝不检查快照内容。上面的“文本编辑器 + 历史管理组件”是构造示例，用于说明规则，并非来源原文。把场景条件接到规则上：历史管理组件只按时间登记、排序并选交快照，不需要理解里面有什么，所以它落在 Caretaker 一侧；恢复时它只是把选中的快照交回，真正读取内容并改写自身状态的动作发生在编辑对象内部，所以状态的读写通道没有被打开，编辑对象的封装得以保持。最诱人的错误路径是让历史管理组件自己解析快照里的文本、再直接改写编辑对象的状态：一旦它必须解析或改写快照字段，它就不再是不接触内容的 Caretaker，而是承担了本该由原发对象履行的",
+      "quality": {
+        "verdict": "qualified",
+        "assessment": "Publication succeeds with active workflow precondition; ten originals retained and one flashcard added. Explanation explicitly assigns state read/write to originating editor; answer shorthand restores history is less precise."
+      }
+    }
+  ]
+}

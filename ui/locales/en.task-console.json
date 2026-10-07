@@ -282,5 +282,8 @@
   "到了单次调用上限": "hit the one-call limit",
   "偏久": "slow",
   "运行偏久": "Running long",
-  "最慢的一步": "Slowest step"
+  "最慢的一步": "Slowest step",
+  "本日记录 · {0}": "Daily record · {0}",
+  "暂无进行中的批次": "No batch currently running",
+  "失败 {0} 批": "{0} failed batches"
 }

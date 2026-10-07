@@ -230,3 +230,39 @@ test('recording context and queued pasted source keep their chosen course and de
   assert.deepEqual(state.sources.map(s => s.courses), [['A'], ['A']]);
   assert.equal((await service.call('ingest.status')).added, 0, 'a replacement recording does not inherit an older submission count');
 });
+
+for (const action of ['draft.publish.quick', 'draft.publish', 'draft.publish.start', 'deck.import']) {
+  test(`${action} into a deck preserves the members of an active workflow`, async t => {
+    const service = await setup(t);
+    const original = await service.call('draft.import', { text: JSON.stringify(input('Original')) });
+    await service.call('draft.publish.quick', { id: original.id, draftVersion: original.draftVersion });
+    const template = await service.call('workflow.save', { title: 'Recall', steps: [{ id: 'recall', kind: 'recall', title: 'Recall' }] });
+    const session = await service.call('workflow.session.start', { templateId: template.id, topic: 'Original', scope: [{ deckId: original.id }], requestId: 'original' });
+    const unrelated = await service.call('workflow.session.start', { templateId: template.id, topic: 'Other', scope: [], requestId: 'other' });
+    if (action === 'deck.import') {
+      const result = await service.call(action, { text: JSON.stringify(input('Additional')), into: original.id });
+      assert.equal(result.failed, 0, JSON.stringify(result.results));
+      assert.equal(result.added, 1);
+    } else {
+      const next = await service.call('draft.import', { text: JSON.stringify(input('Additional')), mergeTargetId: original.id });
+      const args = { id: next.id, draftVersion: next.draftVersion };
+      const before = await service.call('export');
+      const plan = await service.runtime.invoke('authoring.v1', 'draft.publish.plan', { ...args, quick: action === 'draft.publish.quick' });
+      assert.equal(plan.expect.deckId, original.id);
+      assert.deepEqual(await service.call('export'), before, 'planning does not persist cards or normalize workflow scopes');
+      const result = await service.call(action, args);
+      if (action.endsWith('.start')) {
+        const done = await service.call('job.wait', { jobId: result.jobId, timeoutSeconds: 5 });
+        assert.equal(done.status, 'complete', done.error || done.stage);
+      }
+    }
+    const state = await new StudyService(service.store.root).call('export');
+    assert.equal(state.decks.length, 1);
+    assert.equal(state.decks[0].cards.length, 2);
+    const saved = state.workflowSessions.find(item => item.id === session.id);
+    assert.deepEqual(saved.scope, original.cards.map(card => ({ deckId: original.id, cardId: card.id })), 'new cards are not silently added to the running workflow');
+    assert.equal(saved.version, session.version + 1);
+    assert.deepEqual(saved.template, session.template);
+    assert.deepEqual(state.workflowSessions.find(item => item.id === unrelated.id), unrelated);
+  });
+}

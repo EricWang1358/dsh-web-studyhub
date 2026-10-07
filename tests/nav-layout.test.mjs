@@ -1,3 +1,4 @@
+/* global document, localStorage -- page callbacks run in the browser */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -5,7 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildPreview } from "../scripts/build.mjs";
 import { launchChromium } from "../scripts/qa/browser.mjs";
-import { startNavServer, collectStates, checkContract, compareStates } from "../scripts/qa/nav-layout.mjs";
+import { previewCall } from "../scripts/preview-server.mjs";
+import { until } from "./helpers/wait.mjs";
+import { startNavServer, collectStates, checkContract, compareStates, measureSidebar } from "../scripts/qa/nav-layout.mjs";
 
 /* The sidebar in a real browser (scripts/qa/nav-layout.mjs measures every row with getBoundingClientRect): the rows must
    keep their y position and height from "no run" to "run open" and back, on every page, in both languages, wide and
@@ -46,6 +49,65 @@ test("no sidebar row moves or changes height when a run starts, ends or the page
   } finally {
     await browser.close().catch(() => {});
     await Promise.all(servers.map((running) => running.close().catch(() => {})));
+    await rm(dist, { recursive: true, force: true });
+  }
+});
+
+test('the resume highlight returns when saving finishes before its snapshot arrives', { timeout: 180000 }, async t => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split("\n")[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-nav-busy-'));
+  let running;
+  try {
+    await buildPreview({ outdir: dist });
+    running = await startNavServer({ distDir: dist });
+    const quote = 'Bridge separates an abstraction from its implementation so the two can vary independently.';
+    await previewCall(running.server, 'source.add', { id: 's', title: 'Bridge', text: quote });
+    await previewCall(running.server, 'draft.save', { deck: { id: 'd', title: 'Patterns', cards: [{
+      id: 'c', kind: 'flashcard', topic: 'Bridge', objective: 'Explain Bridge', prompt: 'Why separate reports and renderers?',
+      answer: 'Two dimensions vary independently.', hint: 'Two reasons to change.', explanation: 'Composition over inheritance.',
+      misconception: 'It adapts interfaces.', citations: [{ sourceId: 's', quote }],
+    }] } });
+    await previewCall(running.server, 'draft.publish', { id: 'd' });
+    for (const scale of [100, 200]) await t.test(`${scale}% scale`, async () => {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      await context.addInitScript(value => {
+        localStorage.setItem('study-ui-language', 'zh');
+        localStorage.setItem('study-theme', 'dark');
+        localStorage.setItem('study-interface', JSON.stringify({ scale: value }));
+      }, scale);
+      const page = await context.newPage(), errors = [];
+      page.on('pageerror', error => errors.push(String(error)));
+      let started = false, held = 0, release;
+      const gate = new Promise(resolve => { release = resolve; });
+      await page.route('**/api/call', async route => {
+        const { action } = route.request().postDataJSON();
+        if (['review.start', 'review.get'].includes(action)) started = true;
+        if (action !== 'snapshot' || !started) return route.continue();
+        const response = await route.fetch();
+        held++;
+        await gate;
+        await route.fulfill({ response }).catch(() => {});
+      });
+      try {
+        await page.goto(running.server.url);
+        await page.waitForFunction(() => document.querySelector('.resume-nav')?.disabled === false);
+        await page.locator('.resume-nav').click();
+        await until(() => held > 0, 'the post-action snapshot response to be held');
+        // The action runner releases busy independently of the held refresh. The row must regain its highlight at that point.
+        await page.waitForFunction(() => document.querySelector('.resume-nav')?.getAttribute('aria-current') === 'page');
+        const state = await measureSidebar(page);
+        assert.equal(state.rows.find(row => row.key === 'resume-nav').disabled, false);
+        assert.deepEqual(checkContract({ ready: state }, `${scale}% after busy`), []);
+        assert.deepEqual(errors, []);
+      } finally {
+        release();
+        await context.close();
+      }
+    });
+  } finally {
+    await browser.close().catch(() => {});
+    await running?.close();
     await rm(dist, { recursive: true, force: true });
   }
 });
