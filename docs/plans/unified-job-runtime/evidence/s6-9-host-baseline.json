@@ -1,0 +1,647 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-07T10:59:17.858Z",
+  "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+  "pluginVersion": "2.7.1",
+  "notFinal300Package": true,
+  "realProviderCalls": 0,
+  "scope": "Actual isolated DSH rc.2 with loopback fake model; baseline package 2.7.1; no real provider or local conversion installs.",
+  "runs": [
+    {
+      "name": "3.0.0-dsh-zh",
+      "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+      "pluginVersion": "2.7.1",
+      "dshVersion": "0.2.0-rc.2",
+      "startedAt": "2026-10-07T09:37:25.062Z",
+      "finishedAt": "2026-10-07T09:38:23.657Z",
+      "ok": true,
+      "steps": [
+        {
+          "name": "install-dsh",
+          "status": "ok",
+          "ms": 0
+        },
+        {
+          "name": "pack-plugin",
+          "status": "ok",
+          "ms": 11850
+        },
+        {
+          "name": "create-profile",
+          "status": "ok",
+          "ms": 13290
+        },
+        {
+          "name": "boot-dsh",
+          "status": "ok",
+          "ms": 11623
+        },
+        {
+          "name": "open-dsh",
+          "status": "ok",
+          "ms": 4523
+        },
+        {
+          "name": "first-message",
+          "status": "ok",
+          "ms": 68
+        },
+        {
+          "name": "open-study",
+          "status": "ok",
+          "ms": 4734
+        },
+        {
+          "name": "select-and-combobox",
+          "status": "ok",
+          "ms": 8212
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "fakeModelRequests": 0,
+      "screenshots": [
+        {
+          "path": "output/qa/3.0.0-dsh-zh/01-dsh-home.png",
+          "sha256": "6d7a18cb26ab176b4b98a202f7da37eeb76196b811ecb9d525d2a4fe56a9ce9f"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-zh/02-study-already-open.png",
+          "sha256": "6d7a18cb26ab176b4b98a202f7da37eeb76196b811ecb9d525d2a4fe56a9ce9f"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-zh/03-study.png",
+          "sha256": "6d7a18cb26ab176b4b98a202f7da37eeb76196b811ecb9d525d2a4fe56a9ce9f"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-zh/04-study-900.png",
+          "sha256": "cfa02beb31e607c7db11b555f12595926639e6abd4f82d14680534717569f46a"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-zh/05-select-open.png",
+          "sha256": "481c7a41daa300fbb14eaba97745fc72f65dc2189f83527807cfa103abdf0187"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-zh/06-select-in-dialog.png",
+          "sha256": "bb7ce897f850c1479eadceb13de0d8d6270f429a82b7c44494ca5aea538caee1"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-zh/07-combobox-empty.png",
+          "sha256": "b86c7209ebdef2227a4176cbccb9b909f8cbf4d67835b9dd53ce8220547d11fb"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-zh/08-combobox-open.png",
+          "sha256": "8522ede5133304f17da0f52f5e4134a13848230921b324613b20da063c4fa4c2"
+        }
+      ],
+      "sourceSummary": "output/qa/3.0.0-dsh-zh/summary.json"
+    },
+    {
+      "name": "3.0.0-dsh-en-first-run",
+      "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+      "pluginVersion": "2.7.1",
+      "dshVersion": "0.2.0-rc.2",
+      "startedAt": "2026-10-07T09:38:24.620Z",
+      "finishedAt": "2026-10-07T09:39:43.001Z",
+      "ok": false,
+      "steps": [
+        {
+          "name": "install-dsh",
+          "status": "ok",
+          "ms": 0
+        },
+        {
+          "name": "pack-plugin",
+          "status": "ok",
+          "ms": 8580
+        },
+        {
+          "name": "create-profile",
+          "status": "ok",
+          "ms": 14950
+        },
+        {
+          "name": "boot-dsh",
+          "status": "ok",
+          "ms": 11370
+        },
+        {
+          "name": "open-dsh",
+          "status": "ok",
+          "ms": 4160
+        },
+        {
+          "name": "first-message",
+          "status": "ok",
+          "ms": 54
+        },
+        {
+          "name": "open-study",
+          "status": "ok",
+          "ms": 4646
+        },
+        {
+          "name": "select-and-combobox",
+          "status": "failed",
+          "ms": 31271,
+          "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^(出题偏好|Generation preferences)$/ }).first()\n"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^(出题偏好|Generation preferences)$/ }).first()\n",
+      "screenshots": [
+        {
+          "path": "output/qa/3.0.0-dsh-en-first-run/01-dsh-home.png",
+          "sha256": "cee2ed454c2851b19482a65f5ae51401b2b49a82377ae29a525128739fdedbda"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-first-run/02-study-already-open.png",
+          "sha256": "cee2ed454c2851b19482a65f5ae51401b2b49a82377ae29a525128739fdedbda"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-first-run/03-study.png",
+          "sha256": "cee2ed454c2851b19482a65f5ae51401b2b49a82377ae29a525128739fdedbda"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-first-run/04-study-900.png",
+          "sha256": "bf082f4296e68b8ad9ad85cbd84f5de97b6d108aa979c09f2895ea7dca26bde4"
+        }
+      ],
+      "sourceSummary": "output/qa/3.0.0-dsh-en-first-run/summary.json"
+    },
+    {
+      "name": "3.0.0-runtime",
+      "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+      "pluginVersion": "2.7.1",
+      "dshVersion": "0.2.0-rc.2",
+      "startedAt": "2026-10-07T09:40:35.567Z",
+      "finishedAt": "2026-10-07T09:41:38.771Z",
+      "ok": true,
+      "steps": [
+        {
+          "name": "pack-plugin",
+          "status": "ok",
+          "ms": 10662
+        },
+        {
+          "name": "create-profile-and-add-plugin",
+          "status": "ok",
+          "ms": 9550
+        },
+        {
+          "name": "boot-dsh",
+          "status": "ok",
+          "ms": 8358
+        },
+        {
+          "name": "settings: the host's own model is the text model",
+          "status": "ok",
+          "ms": 32
+        },
+        {
+          "name": "list: a new library has no job",
+          "status": "ok",
+          "ms": 48
+        },
+        {
+          "name": "subtitles held: a runtime job on the host, running",
+          "status": "ok",
+          "ms": 129
+        },
+        {
+          "name": "console: job.status, job.wait by the card id and the contract id",
+          "status": "ok",
+          "ms": 2078
+        },
+        {
+          "name": "console: refusals in words (pause, retry, message) while it runs",
+          "status": "ok",
+          "ms": 33
+        },
+        {
+          "name": "console screenshot with a running runtime job (1280 wide)",
+          "status": "ok",
+          "ms": 1589
+        },
+        {
+          "name": "console: stop the running job",
+          "status": "ok",
+          "ms": 138
+        },
+        {
+          "name": "console: cancelling the ended job again is refused as the card says",
+          "status": "ok",
+          "ms": 18
+        },
+        {
+          "name": "console: dismiss the stopped job",
+          "status": "ok",
+          "ms": 316
+        },
+        {
+          "name": "subtitles with the local fake model: a runtime job completes on the host",
+          "status": "ok",
+          "ms": 1359
+        },
+        {
+          "name": "console: archive, bring back, dismiss a finished job",
+          "status": "ok",
+          "ms": 109
+        },
+        {
+          "name": "retrieval index: the host without the search extension",
+          "status": "ok",
+          "ms": 958
+        },
+        {
+          "name": "PDF local route: is anything installed?",
+          "status": "ok",
+          "ms": 8158
+        },
+        {
+          "name": "audio import without a transcription service is refused in words",
+          "status": "ok",
+          "ms": 11
+        },
+        {
+          "name": "console UI: click 停止 on a running runtime job, then select it and 删除",
+          "status": "ok",
+          "ms": 6198
+        },
+        {
+          "name": "console screenshots: a finished and a running runtime job at 1280 and 420 wide",
+          "status": "ok",
+          "ms": 4360
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "stoppedCleanly": true,
+      "ownerDirectoryNamesUnchanged": {
+        "dotDshUnchanged": true,
+        "mineruUnchanged": true
+      },
+      "testOverlaySwitchesOn": [
+        "audioSingle",
+        "audioLiveSave",
+        "audioLiveCorrection",
+        "audioReview",
+        "audioSubtitles",
+        "audioBatch",
+        "coach",
+        "dailyRecap",
+        "workflow",
+        "dailyRecapAgent",
+        "workflowAgent",
+        "assist",
+        "generation",
+        "generationRestart",
+        "generationRepair",
+        "generationPublish",
+        "markerInstall",
+        "mineruSetup",
+        "noteGenerate",
+        "pdfConvert",
+        "retrievalIndex",
+        "translation",
+        "translationParallel"
+      ],
+      "screenshots": [
+        {
+          "path": "output/qa/3.0.0-runtime/tasks-1280.png",
+          "sha256": "5be12fa92d76389f523ec994b1cbe09c68b33dba2ec03d51d4340fc1f491582a"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime/tasks-420.png",
+          "sha256": "fdd9d4f86a381e8d2373c92e604d2a819852f7f8bdf7339177d1d45cf59c95c6"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime/tasks-running-1280.png",
+          "sha256": "597d8832e1a27bc6a127b3bcf1061e309cf43b2f5d3860a191d1785375bf62d0"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime/tasks-ui-after-stop-1280.png",
+          "sha256": "c0b7db1efaf9ff4f3c56ac40314d634bb80ff514d3e2694b9b590729dcce6486"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime/tasks-ui-before-stop-1280.png",
+          "sha256": "edb4ce1586a7467f3918abe328868348af3f832b1f4591703b186c40f6365b3c"
+        }
+      ],
+      "sourceSummary": "output/qa/3.0.0-runtime/summary.json"
+    },
+    {
+      "name": "3.0.0-dsh-en-onboarding-failure",
+      "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+      "pluginVersion": "2.7.1",
+      "dshVersion": "0.2.0-rc.2",
+      "startedAt": "2026-10-07T10:16:43.618Z",
+      "finishedAt": "2026-10-07T10:17:58.997Z",
+      "ok": false,
+      "steps": [
+        {
+          "name": "install-dsh",
+          "status": "ok",
+          "ms": 0
+        },
+        {
+          "name": "pack-plugin",
+          "status": "ok",
+          "ms": 10066
+        },
+        {
+          "name": "create-profile",
+          "status": "ok",
+          "ms": 15423
+        },
+        {
+          "name": "boot-dsh",
+          "status": "ok",
+          "ms": 11760
+        },
+        {
+          "name": "open-dsh",
+          "status": "failed",
+          "ms": 34207,
+          "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/ }).first()\n    - locator resolved to <button disabled type=\"button\" class=\"_button_1rv3m_2 _primary_1rv3m_36 _md_1rv3m_23 t1T8VW_primary\">Continue</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n    - waiting 20ms\n    - waiting for element to be visible, enabled and stable\n    - element is not enabled\n  - retrying click action\n    - waiting 100ms\n    - waiting for element to be visible, enabled and stable\n  - element was detached from the DOM, retrying\n"
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^(继续|稍后配置|跳过|Continue|Configure later|Skip)$/ }).first()\n    - locator resolved to <button disabled type=\"button\" class=\"_button_1rv3m_2 _primary_1rv3m_36 _md_1rv3m_23 t1T8VW_primary\">Continue</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n    - waiting 20ms\n    - waiting for element to be visible, enabled and stable\n    - element is not enabled\n  - retrying click action\n    - waiting 100ms\n    - waiting for element to be visible, enabled and stable\n  - element was detached from the DOM, retrying\n",
+      "fakeModelRequests": null,
+      "screenshots": [],
+      "sourceSummary": "output/qa/3.0.0-dsh-en-onboarding-failure/summary.json"
+    },
+    {
+      "name": "3.0.0-dsh-en-fixed",
+      "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+      "pluginVersion": "2.7.1",
+      "dshVersion": "0.2.0-rc.2",
+      "startedAt": "2026-10-07T10:21:18.556Z",
+      "finishedAt": "2026-10-07T10:22:23.590Z",
+      "ok": true,
+      "steps": [
+        {
+          "name": "install-dsh",
+          "status": "ok",
+          "ms": 1
+        },
+        {
+          "name": "pack-plugin",
+          "status": "ok",
+          "ms": 9355
+        },
+        {
+          "name": "create-profile",
+          "status": "ok",
+          "ms": 18115
+        },
+        {
+          "name": "boot-dsh",
+          "status": "ok",
+          "ms": 14726
+        },
+        {
+          "name": "open-dsh",
+          "status": "ok",
+          "ms": 5402
+        },
+        {
+          "name": "first-message",
+          "status": "ok",
+          "ms": 100
+        },
+        {
+          "name": "open-study",
+          "status": "ok",
+          "ms": 4684
+        },
+        {
+          "name": "select-and-combobox",
+          "status": "ok",
+          "ms": 7715
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "fakeModelRequests": 0,
+      "screenshots": [
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/01-dsh-home.png",
+          "sha256": "cee2ed454c2851b19482a65f5ae51401b2b49a82377ae29a525128739fdedbda"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/02-study-already-open.png",
+          "sha256": "cee2ed454c2851b19482a65f5ae51401b2b49a82377ae29a525128739fdedbda"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/03-study.png",
+          "sha256": "cee2ed454c2851b19482a65f5ae51401b2b49a82377ae29a525128739fdedbda"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/04-study-900.png",
+          "sha256": "bf082f4296e68b8ad9ad85cbd84f5de97b6d108aa979c09f2895ea7dca26bde4"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/05-select-open.png",
+          "sha256": "2a7841a8480eb5c63c35ef9841442cacc180111c70f8cae2e09bbbc4bc22a8f5"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/06-select-in-dialog.png",
+          "sha256": "98c10834530fe5e86dfc41c91c97cef0bbd9025a1e0f8bb7e8e7dbcd0062f5b1"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/07-combobox-empty.png",
+          "sha256": "824d4cff7d8db7d1fd965740c18ef9115b71f50d260fc44cc12e61bd59d2d8af"
+        },
+        {
+          "path": "output/qa/3.0.0-dsh-en-fixed/08-combobox-open.png",
+          "sha256": "8e7b378e0caae9c647a2d97097bc3eac22d1c0f4dc8084bb0d0d362330f0ca9b"
+        }
+      ],
+      "sourceSummary": "output/qa/3.0.0-dsh-en-fixed/summary.json"
+    },
+    {
+      "name": "3.0.0-runtime-fixed",
+      "baseline": "4d04f751112d30387f295d1e590771931fe557d1",
+      "workingTreeChanges": [
+        {
+          "path": "ui/shell.css",
+          "sha256": "cc1c9690a1758628d7bac8f76882b07d2ff63ec6239ad0cfb65c1162126e1793"
+        },
+        {
+          "path": "tests/nav-groups-browser.test.mjs",
+          "sha256": "11ad15a12f096f2cae57276c092fe25c6b9d35938ede6eb349119b92f06aae48"
+        },
+        {
+          "path": "scripts/qa/dsh-e2e.mjs",
+          "sha256": "400b0a5f06a1b11eeb082221d2eb3729b5a638319a5f318101dbd64693f4ad50"
+        }
+      ],
+      "pluginVersion": "2.7.1",
+      "dshVersion": "0.2.0-rc.2",
+      "startedAt": "2026-10-07T10:50:28.361Z",
+      "finishedAt": "2026-10-07T10:54:06.520Z",
+      "ok": true,
+      "steps": [
+        {
+          "name": "pack-plugin",
+          "status": "ok",
+          "ms": 51790
+        },
+        {
+          "name": "create-profile-and-add-plugin",
+          "status": "ok",
+          "ms": 39918
+        },
+        {
+          "name": "boot-dsh",
+          "status": "ok",
+          "ms": 47977
+        },
+        {
+          "name": "settings: the host's own model is the text model",
+          "status": "ok",
+          "ms": 141
+        },
+        {
+          "name": "list: a new library has no job",
+          "status": "ok",
+          "ms": 216
+        },
+        {
+          "name": "subtitles held: a runtime job on the host, running",
+          "status": "ok",
+          "ms": 424
+        },
+        {
+          "name": "console: job.status, job.wait by the card id and the contract id",
+          "status": "ok",
+          "ms": 3832
+        },
+        {
+          "name": "console: refusals in words (pause, retry, message) while it runs",
+          "status": "ok",
+          "ms": 84
+        },
+        {
+          "name": "console screenshot with a running runtime job (1280 wide)",
+          "status": "ok",
+          "ms": 1829
+        },
+        {
+          "name": "console: stop the running job",
+          "status": "ok",
+          "ms": 814
+        },
+        {
+          "name": "console: cancelling the ended job again is refused as the card says",
+          "status": "ok",
+          "ms": 83
+        },
+        {
+          "name": "console: dismiss the stopped job",
+          "status": "ok",
+          "ms": 1300
+        },
+        {
+          "name": "subtitles with the local fake model: a runtime job completes on the host",
+          "status": "ok",
+          "ms": 5515
+        },
+        {
+          "name": "console: archive, bring back, dismiss a finished job",
+          "status": "ok",
+          "ms": 1049
+        },
+        {
+          "name": "retrieval index: the host without the search extension",
+          "status": "ok",
+          "ms": 4302
+        },
+        {
+          "name": "PDF local route: is anything installed?",
+          "status": "ok",
+          "ms": 23448
+        },
+        {
+          "name": "audio import without a transcription service is refused in words",
+          "status": "ok",
+          "ms": 46
+        },
+        {
+          "name": "console UI: click 停止 on a running runtime job, then select it and 删除",
+          "status": "ok",
+          "ms": 7661
+        },
+        {
+          "name": "console screenshots: a finished and a running runtime job at 1280 and 420 wide",
+          "status": "ok",
+          "ms": 6417
+        }
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "stoppedCleanly": true,
+      "ownerDirectoryNamesUnchanged": {
+        "dotDshUnchanged": true,
+        "mineruUnchanged": true
+      },
+      "fakeModelRequests": null,
+      "testOverlaySwitchesOn": [
+        "audioSingle",
+        "audioLiveSave",
+        "audioLiveCorrection",
+        "audioReview",
+        "audioSubtitles",
+        "audioBatch",
+        "coach",
+        "dailyRecap",
+        "workflow",
+        "dailyRecapAgent",
+        "workflowAgent",
+        "assist",
+        "generation",
+        "generationRestart",
+        "generationRepair",
+        "generationPublish",
+        "markerInstall",
+        "mineruSetup",
+        "noteGenerate",
+        "pdfConvert",
+        "retrievalIndex",
+        "translation",
+        "translationParallel"
+      ],
+      "screenshots": [
+        {
+          "path": "output/qa/3.0.0-runtime-fixed/tasks-1280.png",
+          "sha256": "86f38f71b442fd19f0a1bd9dd71760f4c7b79856158368ff9ed71d6928a62009"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime-fixed/tasks-420.png",
+          "sha256": "0610d2e8a1bab3d5d760cc40ccd42bf179537405b0d428bf3f54fe41e6504214"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime-fixed/tasks-running-1280.png",
+          "sha256": "8d957abc2605c0aa83e2d661b9d50a6b2485403b466e93d6727978424f5077b2"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime-fixed/tasks-ui-after-stop-1280.png",
+          "sha256": "d58dc3f1e7eb2212ad8b05fefb6a55406e2dccc9768563ba254c561ee2bce8c4"
+        },
+        {
+          "path": "output/qa/3.0.0-runtime-fixed/tasks-ui-before-stop-1280.png",
+          "sha256": "2580cb688ebcbb55163f16d0769e80f2f5ac3f48acdebdf0dcb7df19a64ad733"
+        }
+      ],
+      "sourceSummary": "output/qa/3.0.0-runtime-fixed/summary.json"
+    }
+  ],
+  "pending": [
+    "Actual 3.0.0 package upgrade/rollback probe",
+    "Real subscription model and experience/stable-channel acceptance"
+  ]
+}
