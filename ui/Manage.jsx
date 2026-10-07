@@ -10,6 +10,7 @@ import { Badge, Banner, Button, Combobox, ConfirmDialog, PageHeader, Panel, Segm
 import { partOf, partsOf } from "../lib/deck-parts.js";
 import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
+import { deckChoices, deckEntries } from './deck-picker-entries.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -25,6 +26,7 @@ export default function Manage({
   setPage,
   managedDeck,
   decks = [],
+  focus,
   sources,
   setManagedDeck,
   folderDraft,
@@ -130,7 +132,7 @@ export default function Manage({
           <div className="manage-row">
             <Combobox id="manage-merge-target" value={targetId} onChange={setTargetId} placeholder={ui("选择合并目标")} label={ui("合并到题组")} searchPlaceholder={ui("搜索题组")}
               emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
-              options={peers.map((d) => ({ value: d.id, label: d.title, hint: d.folder || ui("顶层") }))} />
+              options={deckEntries(deckChoices(peers, { focus }))} />
             <Button disabled={busy || !targetId} type="submit">{ui("合并到目标题组")}</Button>
           </div>
         </form>

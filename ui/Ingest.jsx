@@ -5,6 +5,7 @@ import { Button, Combobox, SegmentedControl } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 import { INGEST_KINDS, INGEST_MISTAKES } from './agent-prompts/ingest.js';
+import { deckChoices, deckEntries } from './deck-picker-entries.js';
 
 /** Setup for recording questions straight from the conversation. */
 export default function Ingest({ data, busy, start, onOpenSettings }) {
@@ -18,11 +19,8 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
     [mistakes, setMistakes] = useState("auto");
   const selectedDeck = decks.find(deck => deck.id === target);
   const newDeck = target === "new";
-  // Decks under their course (the current course first); 新建题组 is a footer action of the picker, not a row in it.
-  const byCourse = new Map();
-  for (const deck of decks) { const key = (deck.course ?? deck.folder) || ""; byCourse.set(key, [...(byCourse.get(key) || []), deck]); }
-  const deckEntries = [...byCourse].sort(([a], [b]) => (b === currentCourse) - (a === currentCourse)).map(([course, list]) => ({ group: course || ui("未分类"),
-    options: list.map(deck => ({ value: deck.id, label: deck.title, hint: typeof deck.count === "number" ? uiFormat("{0} 题", [deck.count]) : undefined })) }));
+  // Decks under their course (the current course first, ui/deck-picker-entries.js); 新建题组 is a footer action of the picker, not a row in it.
+  const deckOptions = deckEntries(deckChoices(decks, data));
   return (
     <form
       className="ingest-setup"
@@ -38,7 +36,7 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
       <p className="muted">{ui("刷题软件、Canvas 错题记录、截图都可以直接贴进对话。开启后这段对话里贴的题会自动录入，不需要先整理成文档；贴的原文会作为这些题的资料保存。")}</p>
       <fieldset>
         <legend>{ui("01 / 放进哪个题组")}</legend>
-        <label>{ui("题组")}<Combobox value={target} valueLabel={ui("＋ 新建题组")} onChange={setTarget} options={deckEntries} label={ui("题组")} searchPlaceholder={ui("搜索题组")}
+        <label>{ui("题组")}<Combobox value={target} valueLabel={ui("＋ 新建题组")} onChange={setTarget} options={deckOptions} label={ui("题组")} searchPlaceholder={ui("搜索题组")}
             emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
             actions={[{ id: "new-deck", icon: "plus", enter: true, label: (query) => query ? uiFormat("新建题组「{0}」", [query]) : ui("新建题组"),
               onSelect: (query) => { setTarget("new"); if (query) setTitle(query); } }]} />

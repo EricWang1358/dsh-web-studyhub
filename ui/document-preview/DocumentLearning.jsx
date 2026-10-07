@@ -9,6 +9,7 @@ import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
 import SaveAnswerAsCard from './links/SaveAnswerAsCard.jsx';
+import { deckChoices, deckEntries } from '../deck-picker-entries.js';
 import { JOB_STATUS } from '../../lib/job-status.js';
 
 const statusLabels = {
@@ -65,7 +66,7 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
       <form onSubmit={onStart}>
         <label>{ui('补充到现有题组')}<Combobox value={deckId} required onChange={value => onDeck?.(value)} placeholder={ui('选择题组')} label={ui('补充到现有题组')} searchPlaceholder={ui('搜索题组')}
           emptyText={query => uiFormat('没有叫「{0}」的题组', [query])}
-          options={decks.map(deck => ({ value: deck.id, label: deck.title, hint: typeof deck.count === 'number' ? uiFormat('{0} 题', [deck.count]) : undefined }))} /></label>
+          options={deckEntries(decks)} /></label>
         {!decks.length && <p className="muted">{ui('请先创建或导入一个题组，再从资料中补题。')}</p>}
         <div className="study-selection-options">
           <label>{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)} options={[
@@ -118,7 +119,7 @@ export default function DocumentLearning({ call, document, capture, data, onPubl
       .catch(e => { if (current) setError(e.message); }).finally(() => { if (current) setResolving(false); });
     return () => { current = false; };
   }, [call, document, capture]);
-  const decks = (bankDecks ?? snapshot?.decks ?? []).filter(deck => !deck.archived);
+  const decks = deckChoices(bankDecks ?? snapshot?.decks ?? [], snapshot).filter(deck => !deck.archived);
   const available = (domain, operation) => (capabilities || []).find(item => item.id === domain)?.operations
     ?.some(item => item.name === operation && item.available !== false) === true;
   const askReady = available('materials', 'selection.ask'), generateReady = available('generation', 'selection.start'), modelReady = askReady || generateReady;
