@@ -66,6 +66,11 @@ test('proofread save is an audio-import job that waits on the transcription gate
   assert.deepEqual(lib.log, ['proofread', 'translate', 'title']);
   assert.deepEqual([done.type, done.filename, done.titleEn, done.sourceIds.length], [RUNTIME ? 'audio-live-save' : 'audio-import', 'Databases week 5', 'Coding Plans Get Pricier', 1]);
   assert.match(done.sourceIds[0], /^live-saved-cl-[0-9a-f]{8}$/);
+  const state = await lib.state();
+  for (const record of [state.sources, state.audioResults].map(rows => rows.find(item => item.id === done.sourceIds[0]))) {
+    assert.equal(record.audio.textProvider, 'host');
+    assert.equal(record.audio.textModel, null, 'a host proofread save must not claim the unused Gemini model');
+  }
   // Unlike audio, subtitle and review jobs, nothing wraps the host call in withJobUsage: the ledger has the tokens, the task shows none.
   assert.deepEqual(await lib.ledger(), calls(3));
   assert.equal(done.tokenUsage, undefined);
