@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { Store } from '../lib/store.js';
 import { legacyModels } from '../lib/contexts/generation/jobs/legacy-model.js';
-import { pressureCause } from '../lib/job-parallel.js';
+import { pressureCause, workClock, clockSource } from '../lib/job-parallel.js';
+import { loadUi } from './helpers/ui-module.mjs';
 import { stagedModel } from './helpers/generation-baseline.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { until, settleJob, sleep } from './helpers/wait.mjs';
@@ -301,6 +302,74 @@ test('audio imports and PDF conversions are counted in `queuedBehind`, but they 
   assert.notEqual((await job(reply.jobId)).status, 'queued', 'the audio and PDF jobs do not hold the chain: the job is running');
   runtime.work.jobs.delete('audio-1'); runtime.work.jobs.delete('pdf-1');
   await settleJob(runtime, reply.jobId);
+});
+
+/* The time limit is the time a run WORKS: a job held in the queue does not spend it. The budget clocks read `clockSource`, so a test can move time by hand. */
+function fakeClock(t) {
+  const timers = new Set(), saved = { ...clockSource };
+  let now = 0;
+  Object.assign(clockSource, {
+    now: () => now,
+    // Only the long budget timers are the test's; anything shorter stays real.
+    setTimeout: (fn, ms) => { if (ms < 60_000) return saved.setTimeout(fn, ms); const timer = { fn, at: now + ms, ms }; timers.add(timer); return timer; },
+    clearTimeout: handle => { if (!timers.delete(handle)) saved.clearTimeout(handle); },
+  });
+  t.after(() => Object.assign(clockSource, saved));
+  return { pending: () => [...timers], advance(ms) { now += ms; for (const timer of [...timers]) if (timer.at <= now) { timers.delete(timer); timer.fn(); } } };
+}
+
+test('a work clock stops while its job is held and goes on with what was left', t => {
+  const clock = fakeClock(t), fired = [], work = workClock({ id: 'unit-clock' }, 100_000, () => fired.push('expired'));
+  clock.advance(40_000);
+  assert.equal(clock.pending().length, 1);
+  work.stop();
+  assert.equal(clock.pending().length, 0, 'a stopped clock has no timer');
+  clock.advance(3_600_000);
+  assert.deepEqual(fired, [], 'nothing expires while it stands still');
+  work.resume();
+  assert.equal(clock.pending()[0].ms, 60_000, 'it goes on with the 60 s that were left');
+  clock.advance(59_000);
+  assert.deepEqual(fired, []);
+  clock.advance(1_000);
+  assert.deepEqual(fired, ['expired']);
+  work.stop(); work.resume(); work.clear();
+  assert.equal(clock.pending().length, 0, 'an expired or cleared clock stays quiet');
+});
+
+test('a job held longer than its time limit still completes after it goes on; its held time is recorded and its clock stood still', async t => {
+  const clock = fakeClock(t);
+  const { model, generate, job, runtime } = await library(t);
+  const a = await runtime.call('generate', { sourceIds: ['s1'], count: 1, kind: 'flashcard', performance: { jobTimeoutMinutes: 180 } }), holdA = model.hold(a.jobId, 'plan'), holdReview = model.hold(a.jobId, 'review');
+  const b = await generate('s2'), holdB = model.hold(b.jobId, 'plan');
+  await soon(() => holdA.entered, 'the first job at the model');
+  await runtime.call('job.parallel', { jobId: b.jobId });
+  await soon(() => holdB.entered, 'the parallel job at its first call');
+  const own = () => clock.pending().filter(timer => timer.ms === 20 * 60 * 1000), hers = () => clock.pending().filter(timer => timer.ms === 180 * 60 * 1000);
+  assert.equal(own().length + hers().length, 2, 'both plain runs have their clock running');
+  model.fail(a.jobId, 'blueprint', rateLimit());
+  holdA.open();
+  await soon(async () => (await job(b.jobId)).contract.detail.requeued, 'the parallel job to be sent back');
+  assert.equal(own().length, 1, 'its call is still in flight, so it is still working: the clock runs until the last call ends');
+  holdB.open();
+  await soon(() => model.inflight(b.jobId) === 0, 'the call in flight to finish');
+  await soon(() => own().length === 0, 'its clock to stand still once nothing is in flight');
+  clock.advance(2 * 3_600_000);
+  assert.equal((await job(b.jobId)).status, 'queued', 'two hours in the queue did not end it by its limit');
+  holdReview.open();
+  await settleJob(runtime, a.jobId);
+  const ended = await settleJob(runtime, b.jobId);
+  assert.equal(ended.status, 'complete', 'after the hold it finished instead of being stopped by a limit that ran meanwhile');
+  const view = await job(b.jobId);
+  assert.ok(view.contract.detail.heldMs > 0, 'the held time is in the contract, to be subtracted from 已用');
+  assert.equal(view.contract.events.some(event => /budget/i.test(event.text || '')), false);
+});
+
+test('已用 does not count the time a job was held', async () => {
+  const m = await loadUi(`export { elapsedMs } from './ui/tasks/task-facts.js';`);
+  const contract = { status: 'running', startedAt: '2026-10-08T10:00:00.000Z', detail: { runStartedAt: '2026-10-08T10:00:00.000Z', heldMs: 600_000 } };
+  assert.equal(m.elapsedMs(contract, true, Date.parse('2026-10-08T10:30:00.000Z')), 1_200_000, '30 minutes since it began, 10 of them held');
+  assert.equal(m.elapsedMs({ ...contract, detail: { runStartedAt: contract.detail.runStartedAt } }, true, Date.parse('2026-10-08T10:30:00.000Z')), 1_800_000);
+  assert.equal(m.elapsedMs({ ...contract, status: 'complete', finishedAt: '2026-10-08T10:20:00.000Z' }, false, Date.parse('2026-10-08T12:00:00.000Z')), 600_000);
 });
 
 test('pressure is a rate limit, an overload or a timeout; a refused key, a stop or an ordinary error is not', () => {
