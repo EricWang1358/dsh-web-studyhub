@@ -311,5 +311,7 @@
   "题数 · 本任务": "Questions · this task",
   "{0} / 约 {1}": "{0} / about {1}",
   "{0} / {1}": "{0} / {1}",
-  "草稿共 {0} 题": "Draft has {0} questions in all"
+  "草稿共 {0} 题": "Draft has {0} questions in all",
+  "停在 {0}": "Stopped at {0}",
+  "本任务 {0}/{1} 题": "This task {0}/{1} questions"
 }

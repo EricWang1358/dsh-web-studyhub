@@ -185,13 +185,13 @@ test("home: English renders without Chinese", () => {
 });
 
 test("home: an active top-up exposes saved progress and stop; its execution and usage are in the console", () => {
-  const job = { id: "t", status: "running", stageCode: "planning", continued: true, draftId: "dr", count: 10, savedCount: 10,
+  const job = { id: "t", status: "running", stageCode: "planning", continued: true, savedAtStart: 10, askedQuestions: 10, draftId: "dr", count: 10, savedCount: 10,
     requestedTotal: 20, generationTimeoutSeconds: 300, totalTimeoutSeconds: 1200,
     estimate: { totalTokens: { low: 139000, high: 235000 }, calls: { low: 18, high: 22 } },
     steps: [{ id: "s", stage: "Planning evidence and learning targets", stageCode: "planning", status: "running" }] };
   const html = home({ drafts: [legacyDraft()], jobs: [job] });
-  assert.match(html, /role="progressbar"[^>]*aria-valuenow="50"/);
-  assert.match(html, /草稿已保存 10\/20 题/);
+  assert.match(html, /role="progressbar"[^>]*aria-valuenow="0"/, "a top-up that has just started is at 0, whatever its draft held");
+  assert.match(html, /本次已保存 0\/10 题/, "it counts the questions it writes over the ones it was asked for; the draft row says 10\/20");
   assert.match(html, /<button[^>]*>[^]*?停止<\/button>/, "the stop control is the card's");
   assert.doesNotMatch(html, /generation-trace|生成方式、用量与技术详情/, "the execution and usage details are in the console");
   assert.match(html, /查看详情/);

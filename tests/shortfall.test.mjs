@@ -28,7 +28,7 @@ test('a run that stopped with 2 sections left: 174 of 251 questions, 2 sections,
   assert.equal(s.sectionsAfterNextRound, 0);
   assert.equal(s.ready, false, 'a short draft is never ready');
   assert.equal(s.action, 'topup');
-  assert.ok(s.percent < 100 && s.percent === 69, `progress is questions kept over the goal (${s.percent})`);
+  assert.ok(s.percent < 100 && s.percent === 98, `a draft with a plan says its coverage (81 of 83 sections), the number the 任务 console says; the 174 of 251 questions are said as questions (${s.percent})`);
 });
 
 test('18 sections without a question and a round that covers 15: the sentence numbers are the same everywhere and 3 are left', () => {
@@ -82,7 +82,7 @@ test('a manual 精简 run waits for the learner: stopped, reason manual, automat
   const marker = { jobId: 'j1', autoComplete: false, state: 'waiting', startedAt: 'x', tokensUsed: 9 };
   const s = shortfallOf({ draft: draft({ cards: 25, specOver: { level: 'lean', goal: 126, rounds: [{ round: 1, questions: 28, sectionIds: [key(0)], status: 'done' }, { round: 2, questions: 30, sectionIds: [key(1)] }, { round: 3, questions: 30, sectionIds: [key(2)] }] }, marker }), coverage: coverageOf(81, 71), round: round(10, 30, 61, 3) });
   assert.deepEqual([s.state, s.reason, s.auto, s.level, s.action], ['stopped', 'manual', false, 'lean', 'topup']);
-  assert.equal(s.percent, 20, 'questions kept over the plan goal: 25 of 126');
+  assert.equal(s.percent, 12, 'the coverage (10 of 81 sections), not the questions kept over the plan goal (25 of 126 = 20): one fact, one number');
 });
 
 test('a draft with no plan and no run: its own request is the goal, and a covered material is done', () => {
@@ -175,4 +175,13 @@ test('a coverage run that stopped because a round failed (the time limit of a ro
   assert.deepEqual([s.state, s.reason, s.action, s.continueKind], ['stopped', 'round-failed', 'continue', 'rounds']);
   const gone = shortfallOf({ draft: draft({ cards: 80, marker }), coverage: coverageOf(81, 40), round: round(5, 10, 35, 8) });
   assert.equal(gone.action, 'topup', 'without a job to continue (the record is gone) the top-up is what is left');
+});
+
+test('the percent is the one the 任务 console says: the coverage of a draft with a plan, the questions over the request for a plain one, never 99 for "not done"', () => {
+  const planned = shortfallOf({ draft: draft({ cards: 251, marker: stopped({}) }), coverage: coverageOf(81, 2), round: round(2, 3, 0) });
+  assert.equal(planned.percent, 98, 'every question made, two sections without one: the coverage, not 100');
+  const plain = shortfallOf({ draft: plainDraft({ cards: 10, requested: 20 }), coverage: coverageOf(4, 0), round: round(0, 0, 0, 0) });
+  assert.equal(plain.percent, 50, 'no plan: the questions kept over what the draft was asked for');
+  const done = shortfallOf({ draft: draft({ cards: 251, marker: { jobId: 'j1', autoComplete: true, state: 'complete', startedAt: 'x', tokensUsed: 1, stop: { reason: 'complete', round: 9 } } }), coverage: coverageOf(81, 0), round: round(0, 0, 0, 0) });
+  assert.equal(done.percent, 100);
 });

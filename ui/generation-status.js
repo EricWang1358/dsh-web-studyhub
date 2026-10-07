@@ -177,6 +177,9 @@ export function jobSavedProgress(job = {}, drafts = []) {
   if (ownProse(job) || !(job.requestedTotal > 0)) return null;
   const supplement = job.type === JOB_TYPES.SUPPLEMENT, draft = draftOf(job, drafts);
   const saved = supplement ? job.savedCount ?? 0 : Math.max(job.savedCount ?? 0, draft?.cards?.length ?? 0);
+  // A job that started from a draft counts the questions IT writes over the ones it was asked for (the draft's own count would read 86/86 before it began; lib/job-contract.js detail.own).
+  if (!supplement && Number.isFinite(job.savedAtStart) && job.askedQuestions > 0)
+    return { saved: Math.max(0, saved - job.savedAtStart), total: job.askedQuestions, label: ui('本次已保存'), note: uiFormat('草稿共 {0} 题', [saved]) };
   return { saved, total: job.requestedTotal,
     label: supplement ? job.publication || job.origin === 'selection' ? ui('本次已补入') : ui('本次已保存') : ui('草稿已保存'),
     note: supplement && job.publication?.total >= 0 ? uiFormat('题组现有 {0} 题', [job.publication.total])

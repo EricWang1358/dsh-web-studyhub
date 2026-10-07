@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { inApp } from './helpers/fake-app.mjs';
 import { jobContract } from '../lib/job-contract.js';
 
 /* The progress numbers of a question run (the owner's screenshots of 2026-10-08, 「API 粒度与产品思维 · 第二部分」): the headline is what the run is FOR (the sections that have a question, not the questions
@@ -11,12 +12,16 @@ import { jobContract } from '../lib/job-contract.js';
 
 const m = await loadUi(`
   export { default as Metrics } from './ui/tasks/Metrics.jsx';
+  export { default as CompactJobCard, cardLine } from './ui/tasks/CompactJobCard.jsx';
+  export { jobSavedProgress } from './ui/generation-status.js';
+  export { AppContext } from './ui/app/app-context.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { taskFacts, progressHint, forecastOf } from './ui/tasks/task-facts.js';
   export { taskSummary } from './ui/tasks/task-summary.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 const inLanguage = (language, run) => { m.setUiLanguage(language); try { return run(); } finally { m.setUiLanguage('zh'); } };
-const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
 
 const T0 = Date.UTC(2026, 9, 8, 0, 0, 0);
 const at = (minutes) => new Date(T0 + minutes * 60_000).toISOString();
@@ -153,4 +158,21 @@ test('the metrics: the percent, the label and each question tile carry a focusab
   const plainHtml = renderToStaticMarkup(React.createElement(m.Metrics, { job: card(audio), summary: m.taskSummary(card(audio)), now: T0 }));
   assert.doesNotMatch(plainHtml, /data-metric-hint/);
   assert.match(text(inLanguage('en', () => renderToStaticMarkup(React.createElement(m.Metrics, { job: card(continuation()), summary: m.taskSummary(card(continuation())), now: T0 + 71 * 60_000 })))), /Questions · this task/);
+});
+
+test('the other rows say the same: the home card and the compact card of a continuation count its own questions, and the percent explains itself on hover', () => {
+  const started = continuation();
+  assert.deepEqual(m.jobSavedProgress(started, []), { saved: 0, total: 30, label: '本次已保存', note: '草稿共 86 题' }, 'was 草稿已保存 86/86');
+  assert.deepEqual(m.jobSavedProgress({ ...started, savedCount: 100 }, []).saved, 14);
+  assert.equal(m.jobSavedProgress(stoppedRun(), []).total, 77, 'a run that began a draft is what it was');
+  assert.equal(m.cardLine(card({ ...started, status: 'complete', finishedAt: at(90), savedCount: 100 })).includes('本任务 14/30 题'), true);
+  assert.match(m.cardLine(card({ ...started, status: 'cancelled', finishedAt: at(80), savedCount: 90 })), /停在 本任务 4\/30 题/);
+  const html = (job, language = 'zh') => { m.setUiLanguage(language); try { return renderToStaticMarkup(inApp(m, React.createElement(m.CompactJobCard, { job: card(job) }), {})); } finally { m.setUiLanguage('zh'); } };
+  const running = html(started);
+  assert.match(running, /<span(?=[^>]*data-metric-hint)(?=[^>]*tabindex="0")[^>]*>0%<\/span>/);
+  assert.doesNotMatch(running, /title="/);
+  assert.match(text(running), /这个任务自己的进度.*26 个小节/);
+  assert.match(text(html(stoppedRun())), /覆盖：有题的小节 ÷ 计划里的小节.*76%|76%.*覆盖：有题的小节/);
+  assert.match(text(html(started, 'en')), /This task's own progress/);
+  assert.doesNotMatch(html({ id: 'f', type: 'pdf-convert', status: 'running', startedAt: at(0), total: 4, done: 1 }), /data-metric-hint/);
 });
