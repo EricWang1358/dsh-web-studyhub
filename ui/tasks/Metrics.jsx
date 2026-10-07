@@ -45,9 +45,9 @@ export default function Metrics({ job, summary, now }) {
         <div className="tc-metric" key={fact.key}>
           <Label hint={fact.hint}>{fact.label}</Label>
           <span className="tc-metric__v">{fact.value}</span>
-          {fact.note !== undefined && (fact.note
+          {fact.note
             ? <Tooltip layer content={fact.note} anchorClassName="tc-metric__note-anchor"><span className="tc-metric__note" data-metric-note tabIndex={0}>{fact.note}</span></Tooltip>
-            : <span className="tc-metric__note" data-metric-note />)}
+            : <span className="tc-metric__note" data-metric-note />}
         </div>
       ))}
     </section>

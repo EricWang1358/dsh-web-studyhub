@@ -149,10 +149,12 @@
       grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(0, 1fr));
       border-bottom: 1px solid var(--line);
     }
+    /* One structure for every tile of the overview: the label on the first line, the value on the second, the note on the third (always there, empty or not), all from the TOP of the tile, so the
+       labels and the values of the tiles of a row stand on the same lines whichever of them has a note. */
     .tc-metric {
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       gap: var(--space-half);
       min-width: 0;
       min-height: 52px;
@@ -161,9 +163,9 @@
     }
     .tc-metric:last-child { border-right: 0; }
     .tc-metric--progress { gap: var(--space-2); padding-inline: var(--space-5); }
-    .tc-metric__k { color: var(--text-muted); font-size: var(--fs-xs); }
-    .tc-metric__v { overflow: hidden; font-family: var(--font-stack-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-    .tc-metric__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+    .tc-metric__k { display: block; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.3; }
+    .tc-metric__v { overflow: hidden; font-family: var(--font-stack-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-metric__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
     .tc-metric__pct { font-family: var(--font-stack-mono); font-size: var(--fs-lg); font-variant-numeric: tabular-nums; }
     .tc-segments { display: flex; gap: var(--space-half); height: 5px; }
     .tc-segment { flex-basis: 0; min-width: 6px; background: var(--line); }
@@ -318,7 +320,7 @@
     .tc-run__math { display: block; overflow: hidden; color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; min-height: 1.45em; }
     /* Under the elapsed time of a question run: what is left of it. Two lines are kept for it (cut after two), empty or not. */
     .tc-metric__note-anchor { display: block; min-width: 0; }
-    .tc-metric__hint-anchor { display: block; min-width: 0; }
+    .tc-metric__hint-anchor { display: block; min-width: 0; font-size: var(--fs-xs); line-height: 1.3; }
     .tc-metric__note { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; line-height: 1.3; min-height: 2.6em; }
     .tc-run[data-run-state='interrupted'] .tc-run__line, .tc-run[data-run-state='stopped'] .tc-run__line { color: var(--warn-ink, var(--text)); }
     /* The time limit of the task (ui/tasks/TimeLimit.jsx): one quiet strip under the facts, the same register as the line of a coverage run; the link and the steps it names are buttons. */
