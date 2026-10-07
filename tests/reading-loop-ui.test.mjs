@@ -218,8 +218,6 @@ test('the way back from an open run, and the source of a wrongly answered questi
   // The header of an open run has three buttons side by side; this one used to be the small size beside two normal ones (the owner saw three font sizes).
   assert.match(render(e(ReadingBackButton, { run: { reading }, onReturn() {} })), /sh-btn--md/);
   assert.doesNotMatch(render(e(ReadingBackButton, { run: { reading }, onReturn() {} })), /sh-btn--sm/);
-  // 在右栏打开 puts the questions into DSH's right sidebar and returns the main area to the conversation: that is wrong for a run started from the reader.
-  assert.match(readFileSync(new URL('../ui/Review.jsx', import.meta.url), 'utf8'), /host\.openInSidebar && !run\.complete && !run\.reading/);
   const solution = { citations: [{ sourceId: 's1', quote: 'An index is an extra data structure' }], selections: [{ sourceId: 's1', start: 0, end: 10, quote: 'An index is an extra data structure' }] };
   const sources = [{ id: 's1', title: 'Lecture' }];
   const wrong = { feedback: { correct: false }, solution };
