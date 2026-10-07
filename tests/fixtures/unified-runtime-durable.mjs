@@ -8,7 +8,7 @@ import { createRuntimeWork } from '../../lib/runtime/work.js';
 import { createManifestJobStore } from '../../lib/jobs/store.js';
 import { saveAudioBatch } from '../../lib/audio-batch.js';
 
-export async function durableFixture(t, run, { recoveryMode = 'retry-from-start', pauseMode = 'unsupported', notifications = [], waitForDelivery = false, admit } = {}) {
+export async function durableFixture(t, run, { recoveryMode = 'retry-from-start', pauseMode = 'unsupported', notifications = [], waitForDelivery = false, admit, declared, durable = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'durable-life-')), id = 'single-fixture-1';
   t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   await mkdir(join(root, 'audio-batches', id), { recursive: true });
@@ -20,7 +20,8 @@ export async function durableFixture(t, run, { recoveryMode = 'retry-from-start'
     inspect: () => ({ state, reason: 'controlled-fixture' }), start({ run, cancel }) { const id = `native-${++starts}`; void run(); return { id, ownerAgentId: 'actual-test-owner', stop: cancel, append() {} }; } };
   const ctx = new Context(), work = createRuntimeWork(), lifecycle = createJobLifecycle(root, work);
   const definition = { kind: 'persist', version: 1, capabilities: { retry: true, recoveryMode, pauseMode },
-    persistence: { open: async input => ({ store, inputRef, input, notifications, waitForDelivery,
+    ...(declared ? { notifications: declared } : {}),
+    persistence: { open: async input => durable === false ? null : ({ store, inputRef, input, notifications, waitForDelivery,
       validateInput: async () => { if (invalid) throw Object.assign(new Error(invalid), { code: invalid }); }, validateCheckpoint: async () => {}, reconcileCommit: async () => null }) }, run, ...(admit ? { admit } : {}) };
   lifecycle.register(ctx, 'persist.v1', definition);
   const owner = Symbol('owner'), port = lifecycle.scoped({ owner, domain: 'persist.v1', executor });
