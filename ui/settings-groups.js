@@ -61,6 +61,9 @@ export const partAvailable = (id, part, capabilities = {}) => {
 /** The category a deep link or a tour anchor (a data-tour id) lives in, or null. */
 export const categoryForAnchor = (anchor) => SETTINGS_CATEGORIES.find(category => category.anchors.includes(anchor))?.id ?? null;
 
+/** The section a settings link names, else `fallback`: a click handler is also handed the click event (or nothing), and only an id of the registry is a target. */
+export const settingsSectionOr = (section, fallback) => (typeof section === 'string' && categoryForAnchor(section) ? section : fallback);
+
 /** What starts selected: the deep link, else the first category (in list order) that needs attention, else the one used last, else the first. */
 export function initialCategory({ available, focusSection = '', missing = [], last = '' } = {}) {
   const ids = (available ?? SETTINGS_CATEGORIES).map(category => category.id);

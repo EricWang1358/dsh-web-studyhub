@@ -80,7 +80,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { run, entry, showBack, showEn, enBusyKey, teachingBusy, teachingError, choice, isCloze, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
-  const { call, act, busy, host, askInChat, navigate, openModal } = useStudy();
+  const { call, act, busy, host, askInChat, navigate, openModal, openSettings } = useStudy();
   const { onBackToWorkflow, onCourseFlow, openSkeleton, onOpenNote, onMakeNote, onMakeTask, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
@@ -536,7 +536,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               ) : rubricCard ? (
                 <>
                   <RubricAnswer run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
-                    onSubmit={(text) => assistCard("grade", text)} onSetupModel={() => navigate("settings")} />
+                    onSubmit={(text) => assistCard("grade", text)} onSetupModel={onModelSettings || (() => openSettings("settings-model"))} />
                   {prereqStrip}
                 </>
               ) : (
