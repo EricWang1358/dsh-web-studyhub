@@ -10,8 +10,6 @@ import { settleJob, until } from './helpers/wait.mjs';
    with the kind's switch off, on, and both kinds of job in one service. Fakes only. What is not as it should be is recorded as a finding (FINDINGS below, written up in
    docs/plans/unified-job-runtime/s6-5-audio-console.md) and asserted as it is today, so the document and the code cannot drift apart and a fix turns a finding into a test to update. */
 
-const findings = new Map();
-const find = (id, detail) => { if (!findings.has(id)) findings.set(id, detail); };
 const MODES = ['off', 'on', 'mixed'];
 const INDEX = { single: { off: 1, on: 2 }, batch: { off: 3, on: 5 }, subtitles: { off: 1, on: 2 }, review: { off: 1, on: 2 }, save: { off: 1, on: 2 }, correction: { off: 3, on: 4 } };
 const refuse = (lib, args, action = 'job.control') => refuseTo(lib.service, args, action);
@@ -45,8 +43,7 @@ for (const mode of MODES) test(`${mode}: every kind of audio job, while it runs,
     for (const id of [row.id, c.jobId]) {
       const byContract = id !== row.id, status = await refuse(lib, { jobId: id }, 'job.status'), waited = await refuse(lib, { jobId: id, timeoutSeconds: 1 }, 'job.wait');
       for (const [operation, answer] of [['status', status], ['wait', waited]]) {
-        if (answer.error && byContract && card.side === 'off') find(`${operation}-by-contract-id-original`, `job.${operation} does not take the contract id of an original-path audio job (${card.name}); the card id works`);
-        else assert.ok(answer.reply, `${card.name}/${card.side}: job.${operation} by ${byContract ? 'contract' : 'card'} id: ${answer.error?.message}`);
+        assert.ok(answer.reply, `${card.name}/${card.side}: job.${operation} by ${byContract ? 'contract' : 'card'} id: ${answer.error?.message}`);
       }
       if (status.reply) assert.deepEqual([status.reply.finished, status.reply.id], [false, row.id]);
       if (waited.reply) assert.ok(['queued', 'running'].includes(waited.reply.status), `${card.name}/${card.side}: job.wait answers while it runs`);
@@ -149,11 +146,6 @@ test('the id of a card and the id of its contract: which operations take which (
   assert.equal(takes['job.cancel'], true, 'job.cancel takes the contract id of a runtime job');
   assert.equal((await settleJob(lib.service, row.id)).status, 'cancelled', 'and it stopped the job');
 });
-
-test('the findings of this matrix are exactly the ones written up', () => {
-  assert.deepEqual([...findings.keys()].sort(), KNOWN_FINDINGS);
-});
-const KNOWN_FINDINGS = ['status-by-contract-id-original', 'wait-by-contract-id-original'].sort();
 
 /* ---- The findings of the first run of this matrix, each with its own test ---------------------------------------------------------------------------------- */
 

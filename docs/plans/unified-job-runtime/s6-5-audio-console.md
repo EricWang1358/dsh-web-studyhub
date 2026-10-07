@@ -49,11 +49,7 @@
 
 ## 5. 已知限制与剩余缺口
 
-- **原路径音频任务按 `contract.jobId` 叫 `job.status` / `job.wait`**（开关关闭时）：
-  - 单文件：`contract.jobId` 是单文件的 id（`singleId`，与卡片 id 不同）——`job.status` 找不到（"Job not found"），`job.wait` 认得。
-  - 批次：`contract.jobId` 是批次 id（`batchId`）——`job.status` 与 `job.wait` 都找不到。
-  - 字幕、复查、课堂保存：两个 id 相同，没有问题。
-  - `job.control` 与 `job.output` 对它们都认。这条由测试里的两个"已知发现"（`status-by-contract-id-original`、`wait-by-contract-id-original`）记录，修复后改测试即可；修法是 `job.status` / `job.wait` 用 `jobs/operations.js` 里已有的 `matching` 找任务。
+- ~~原路径音频任务按 `contract.jobId` 叫 `job.status` / `job.wait` 找不到~~：已由 #358 修好（两者经 `jobs/operations.js` 的 `resolve` 认卡片 id、`singleId`、`batchId`、`contract.jobId` 与归档别名）。矩阵现在对开关关闭的每一种卡片都断言两个 id 都认。
 - **课堂校正对一个沉默的模型 20 秒就放弃一轮**（`RollingCorrection` 的 `requestMs`，按设计：一个卡住的请求不能拖住整堂课的校正；那一轮会在下一个周期重来）。矩阵里据此先看校正的卡片，再看别的。
 - 音频页 `AudioJobs` 现在也会列课堂校正的卡片（修复 1 的后果）。
 - 没有覆盖：PDF 的本地路线（`mineru-local-service`、`marker-service` 自己的孪生测试覆盖）、真实宿主与真实浏览器里 React 组件的渲染（这里读的是控制台的纯代码，不渲染 DOM）、重启后的卡片（S2-7、S2-7b 与恢复测试覆盖）。
