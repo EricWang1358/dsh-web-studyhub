@@ -7,7 +7,7 @@ import { readFile, mkdir, access } from "node:fs/promises";
 import { join, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { createHostHandler, unverifiedModelStatus } from "../lib/host.js";
+import { createHostHandler, servicesForHost, unverifiedModelStatus } from "../lib/host.js";
 import { localizeAppMessage } from "../lib/application-messages.js";
 import { MAX_REQUEST_BYTES } from "../lib/documents.js";
 import { createFakeModel, FAKE_MODEL_ROUTE } from "./fake-model.mjs";
@@ -69,7 +69,7 @@ function previewModel(model, fakeLatencyMs) {
  * state: the library is the --library folder itself, and choosing another one
  * in Settings lasts for this preview without writing a binding file.
  */
-function previewHost(workspaceRoot, model, efforts = [], retrieval = null, coverage = null) {
+function previewHost(workspaceRoot, model, efforts = [], retrieval = null, coverage = null, runtimePilot = null) {
   const disposers = [];
   const extension = retrieval === "extension" ? createFakeExtension({}) : null;
   const ctx = {
@@ -87,6 +87,8 @@ function previewHost(workspaceRoot, model, efforts = [], retrieval = null, cover
     (options.light && model.light) || model.complete : undefined;
   // binding() in lib/host.js reads these on every request.
   const config = { libraryRoot: workspaceRoot };
+  // The host's default-off switches (runtime.pilot): a test turns one on for its preview, like a host's config does.
+  if (runtimePilot) servicesForHost(ctx, undefined, runtimePilot);
   const handle = createHostHandler(ctx, config, makeComplete, { owner: ctx });
   let chosen = { root: "", provider: "", model: "", reasoningEffort: "" };
   const view = async () => {
@@ -142,7 +144,7 @@ async function readBody(req) {
  * settings) while the preview runs, so it never reads or writes ~/.dsh.
  * `port: 0` picks a free port.
  */
-export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900, efforts = [], retrieval = null, coverage = null,
+export async function createPreviewServer({ libraryRoot, port = 4178, model = null, home, fakeLatencyMs = 900, efforts = [], retrieval = null, coverage = null, runtimePilot = null,
   distDir = resolve(repoRoot, "dist") } = {}) {
   const workspaceRoot = resolve(libraryRoot || resolve(repoRoot, "output/preview-library"));
   const homeDir = resolve(home || resolve(repoRoot, "output/preview-home"));
@@ -154,7 +156,7 @@ export async function createPreviewServer({ libraryRoot, port = 4178, model = nu
   if (await access(join(workspaceRoot, ".dsh-study-binding.json")).then(() => true, () => false))
     console.warn(`[study-preview] ${join(workspaceRoot, ".dsh-study-binding.json")} (saved by DSH) chooses the library; pass another --library to preview this folder itself.`);
   const token = randomBytes(24).toString("hex");
-  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts, retrieval, coverage);
+  const host = previewHost(workspaceRoot, previewModel(model, fakeLatencyMs), efforts, retrieval, coverage, runtimePilot);
   let actualPort = port;
   const json = (res, status, value) => res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" })
     .end(JSON.stringify(value));

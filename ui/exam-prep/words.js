@@ -21,14 +21,14 @@ export function backingLine(point) {
   return papers ? uiFormat('只出现在 {0}', [papersPart(papers)]) : '';
 }
 
-/** What the list rests on, in one line: how many sample papers, and what that cannot tell. */
-export function basisLine(blueprint) {
-  const papers = blueprint?.basis?.samplePapers;
+/** What the list rests on, in one line (the wording of the data's own `basis.label`, in the current language): how many sample papers, and what that cannot tell. */
+export function basisLine(basis) {
+  const papers = basis?.samplePapers;
   if (!Number.isFinite(papers)) return '';
-  if (papers === 0) return ui('没有样卷：所有考点都只是补充范围');
+  if (papers === 0) return ui('没有样卷，无法判断哪些是必学');
   if (papers === 1) return ui('依据 1 份样卷；必学范围可能不全');
-  if (papers < 3) return uiFormat('依据 {0} 份样卷；必学范围可能不全', [papers]);
-  return uiFormat('依据 {0} 份样卷；样卷由你选定，必学范围以它们为准', [papers]);
+  if (papers < 3) return uiFormat('依据 {0} 份样卷（取并集）；必学范围可能不全', [papers]);
+  return uiFormat('依据 {0} 份样卷（取并集）；样本由学生选定，不是随机样本', [papers]);
 }
 
 /** Said under the sample-paper choice when none is chosen. */
@@ -61,18 +61,23 @@ export function explain(key) {
   return Object.hasOwn(EXPLAIN, key) ? EXPLAIN[key].map(text => ui(text)) : null;
 }
 
-/** A refusal of the build, said in plain words by its code (the operation refuses before any model call, so nothing was spent). */
+/**
+ * A refusal of the build in plain words. The operation answers in the learner's language (a message per code, nothing was spent), and that message is shown as given;
+ * these are the words for the same codes when none came with it.
+ */
 export function refusalWords(error) {
+  const given = typeof error?.message === 'string' ? error.message.trim() : '';
+  if (given) return given;
   switch (error?.code) {
-    case 'blueprint-needs-primary-input': return ui('请先选课件（或考试大纲）：考点要从课件里列出来，只有样卷不够。');
-    case 'blueprint-no-readable-text': return ui('所选资料里没有可读的文字（可能只有图片）。换一份有文字的课件，或先导出成 PDF 再导入。');
-    case 'blueprint-input-missing': return ui('所选的某份资料已不在资料库里，请重新选择。');
-    case 'blueprint-input-invalid': return ui('所选资料的用途不对，请重新选择。');
-    case 'blueprint-title-required': return ui('请给这份考点清单起个名字。');
-    case 'blueprint-disabled': return ui('备考补习还没有开放。');
-    case 'capability-unverified': return ui('共享的模型额度还没有验证，暂时不能生成考点清单。');
-    case 'executor-unavailable': return ui('后台执行器暂时不可用，请稍后再试。');
-    case 'scope-unloaded': return ui('学习插件正在关闭，没有开始。');
-    default: return typeof error?.message === 'string' && error.message.trim() ? error.message : ui('没有完成，请再试一次。');
+    case 'blueprint-needs-primary-input': return ui('请选择课件（或考试大纲）：考点要从它们里列出来');
+    case 'blueprint-no-readable-text': return ui('所选资料里没有可读的文字（只有图片？）');
+    case 'blueprint-input-missing': return ui('所选的某份资料不在资料库里');
+    case 'blueprint-input-invalid': return ui('资料的选择有误：每份资料都要有用途，而且考点清单不能当作资料');
+    case 'blueprint-title-required': return ui('请给考点清单起个名字');
+    case 'blueprint-disabled': return ui('备考补习还没有开放');
+    case 'capability-unverified': return ui('共享的模型额度还没有验证，暂时不能建考点清单');
+    case 'executor-unavailable': return ui('后台执行器暂时不可用，请稍后再试');
+    case 'scope-unloaded': return ui('学习插件正在关闭，没有开始');
+    default: return ui('没有完成，请再试一次。');
   }
 }

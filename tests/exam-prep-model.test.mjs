@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
+import { examPointListSummary } from '../lib/exam-point-list.js';
 import { STAMP, library, pointList, buildJob, snapshot } from './helpers/exam-prep-fixtures.mjs';
 
 /* The 备考补习 page, its pure part (ui/exam-prep/model.js and words.js): the point list a learner sees is read from a source record of
@@ -59,9 +60,9 @@ test('a point is 必学 when a chosen sample paper tests it and 补充 when only
   const { backing, ...bare } = byId.p2;
   assert.equal(m.tierOf(bare), 'must', 'without a backing the places are counted');
   assert.equal(m.tierOf({ id: 'x', title: 'x', evidence: [] }), 'extra');
-  // the tier the job writes and the derived one agree on the fixture
-  const written = pointList({ tier: true }).blueprint.points;
-  assert.deepEqual(written.map(point => m.tierOf(point)), source.blueprint.points.map(point => m.tierOf(point)));
+  // the tier the build writes and the one derived from the backing agree
+  const derived = source.blueprint.points.map(({ tier, ...rest }) => m.tierOf(rest));
+  assert.deepEqual(derived, source.blueprint.points.map(point => point.tier));
 });
 
 test('points are a two-level tree by parentId: big points hold small ones, a stray parent makes a root, a loop does not hang', () => {
@@ -162,7 +163,9 @@ test('the lists of the page are the point lists of the current course: another c
   assert.equal(m.pointLists(nested, { scope: '网络', known: ['网络', '网络/传输层'] }).length, 1);
   // ordinary materials are not point lists, archived and historical records are not shown
   assert.equal(m.pointLists(snapshot({ lists: [] }), { scope: '*', known }).length, 0);
-  assert.equal(m.pointLists(snapshot({ lists: [{ ...mine, archived: true }, { ...other, historical: true }] }), { scope: '*', known }).length, 0);
+  assert.equal(m.pointLists({ ...snapshot({ lists: [] }), sources: [mine] }, { scope: '*', known }).length, 0, 'the lists are the snapshot examPointLists, not whatever the sources hold');
+  assert.equal(m.pointLists({}, {}).length, 0);
+  assert.equal(m.pointLists(snapshot({ lists: [{ ...mine, archived: true }, { ...other, archived: true }] }), { scope: '*', known }).length, 0);
   assert.equal(m.isPointList(mine), true);
   assert.equal(m.isPointList(library()[0]), false);
   assert.equal(m.isPointList({ provenance: 'exam-blueprint' }), false, 'a record without the structured list is an ordinary material');
@@ -171,28 +174,30 @@ test('the lists of the page are the point lists of the current course: another c
 test('a new version supersedes the old one: the older list is no longer a row of its own, and says how many older versions there are', () => {
   const first = pointList({ title: '传输层 考点清单', createdAt: '2026-10-01T08:00:00.000Z' });
   const second = pointList({ title: '传输层 考点清单', createdAt: '2026-10-05T08:00:00.000Z', supersedes: first.id, papers: 2 });
-  const rows = m.pointLists(snapshot({ lists: [first, second] }), { scope: '*', known: ['网络'] });
+  // the summary does not carry `supersedes` yet (reported to the data side); the page reads it when it does
+  const withLink = lists => { const data = snapshot({ lists }); data.examPointLists = data.examPointLists.map((summary, index) => ({ ...summary, supersedes: lists[index].blueprint.supersedes })); return data; };
+  const rows = m.pointLists(withLink([first, second]), { scope: '*', known: ['网络'] });
   assert.deepEqual(rows.map(row => row.id), [second.id]);
   assert.equal(rows[0].olderVersions, 1);
-  assert.deepEqual(m.supersededIds([first, second]), new Set([first.id]));
+  assert.deepEqual(m.supersededIds([{ id: first.id }, { id: second.id, supersedes: first.id }]), new Set([first.id]));
   const newest = pointList({ title: 'B', createdAt: '2026-10-09T00:00:00.000Z' });
-  assert.deepEqual(m.pointLists(snapshot({ lists: [first, newest] }), { scope: '*', known: ['网络'] }).map(row => row.title), ['B', '传输层 考点清单'], 'newest first');
+  assert.deepEqual(m.pointLists(withLink([first, newest]), { scope: '*', known: ['网络'] }).map(row => row.title), ['B', '传输层 考点清单'], 'newest first');
 });
 
 test('a row says what a learner needs to pick a list: title, scope, how many papers it rests on, the counts, when, and what is building', () => {
   const source = pointList();
   const done = buildJob({ id: 'blueprint-done', status: 'complete', refs: [{ kind: 'source', id: source.id }], finishedAt: '2026-10-02T00:00:00.000Z' });
-  const row = m.listRow(source, { jobs: [done] });
+  const summary = examPointListSummary(source);
+  const row = m.listRow(summary, { jobs: [done] });
   assert.deepEqual([row.title, row.scope, row.papers, row.counts, row.course], ['网络 · 传输层 考点清单', '传输层', 1, { must: 2, extra: 2, total: 4, withoutSlides: 0 }, '网络']);
   assert.equal(row.updatedAt, STAMP, 'the record\'s own time');
-  const undated = { ...source }; delete undated.createdAt;
+  const undated = { ...summary, createdAt: null };
   assert.equal(m.listRow(undated, { jobs: [done] }).updatedAt, '2026-10-02T00:00:00.000Z', 'else the time the build that made it finished');
   assert.equal(m.listRow(undated, { jobs: [] }).updatedAt, null);
-  assert.equal(m.listRow({ ...source, blueprint: { ...source.blueprint, builtAt: '2026-10-03T00:00:00.000Z' } }, {}).updatedAt, '2026-10-03T00:00:00.000Z', 'a time the build wrote wins');
   const running = buildJob({ id: 'blueprint-2', status: 'running', done: 2, total: 5 });
-  const withBuild = m.listRow(source, { jobs: [running] });
+  const withBuild = m.listRow(summary, { jobs: [running] });
   assert.deepEqual([withBuild.build.jobId, withBuild.build.live, withBuild.build.done, withBuild.build.total], ['blueprint-2', true, 2, 5]);
-  assert.equal(m.listRow(source, { jobs: [buildJob({ title: '别的清单' })] }).build, null, 'a build of another list is not this list\'s');
+  assert.equal(m.listRow(summary, { jobs: [buildJob({ title: '别的清单' })] }).build, null, 'a build of another list is not this list\'s');
 });
 
 test('the builds are the build jobs of the snapshot, running ones first, with the id the 任务 console knows them by', () => {
@@ -203,16 +208,6 @@ test('the builds are the build jobs of the snapshot, running ones first, with th
   assert.equal(builds[0].title, '网络 · 传输层 考点清单');
   assert.deepEqual(m.buildsOf({}), []);
   assert.equal(m.buildsOf(snapshot({ jobs: [buildJob({ status: 'failed' })] }))[0].failed, true);
-});
-
-test('the 资料 page keeps its own list: point lists are left out of it only while the page is on', () => {
-  const data = snapshot({ lists: [pointList()] });
-  assert.ok(data.sources.some(source => m.isPointList(source)));
-  assert.equal(m.materialSources(data).some(source => m.isPointList(source)), false);
-  assert.equal(m.materialSources(data).length, library().length);
-  const off = snapshot({ on: false, lists: [pointList()] });
-  assert.equal(m.materialSources(off).some(source => m.isPointList(source)), true, 'off, nothing changes: the record stays reachable as a material');
-  assert.equal(m.materialSources(off), off.sources);
 });
 
 /* ---------- what is under a point ---------- */
@@ -238,20 +233,22 @@ test('what is left over: sample-paper questions with no point, and slides with n
 
 /* ---------- the words ---------- */
 
-test('the basis line says how many sample papers the list rests on and what that cannot tell, in plain words and in English', () => {
-  const basis = papers => m.basisLine(pointList({ papers }).blueprint);
+test('the basis line says how many sample papers the list rests on and what that cannot tell, in the data\'s own words and in English', () => {
+  const basis = papers => m.basisLine(pointList({ papers }).blueprint.basis);
   assert.equal(basis(1), '依据 1 份样卷；必学范围可能不全');
-  assert.equal(basis(2), '依据 2 份样卷；必学范围可能不全');
-  assert.match(basis(3), /^依据 3 份样卷；/);
-  assert.match(basis(0), /^没有样卷/);
-  assert.doesNotMatch(basis(0) + basis(1) + basis(3), /蓝图|blueprint/i);
+  assert.equal(basis(2), '依据 2 份样卷（取并集）；必学范围可能不全');
+  assert.match(basis(3), /^依据 3 份样卷（取并集）；/);
+  assert.equal(basis(0), '没有样卷，无法判断哪些是必学');
+  for (const papers of [0, 1, 2, 3]) assert.equal(basis(papers), pointList({ papers }).blueprint.basis.label, `${papers}: the same words as the label the data wrote`);
+  assert.doesNotMatch([0, 1, 2, 3].map(basis).join(''), /蓝图|blueprint/i);
   english(() => {
     assert.equal(basis(1), 'Based on 1 sample paper; the must-learn range may be incomplete');
-    assert.equal(basis(2), 'Based on 2 sample papers; the must-learn range may be incomplete');
+    assert.equal(basis(2), 'Based on 2 sample papers (united); the must-learn range may be incomplete');
     assert.match(basis(0), /^No sample paper/);
-    assert.doesNotMatch(basis(0) + basis(1) + basis(2) + basis(3), han);
+    assert.doesNotMatch([0, 1, 2, 3].map(basis).join(''), han);
   });
   assert.equal(m.basisLine({}), '', 'a record without a basis says nothing it does not know');
+  assert.equal(m.basisLine(null), '');
 });
 
 test('the counts line and the backing line use the owner\'s words', () => {
@@ -296,19 +293,20 @@ test('every hover explanation is one plain sentence and at most one consequence 
   assert.equal(m.explain('no-such-key'), null);
 });
 
-test('refusals of the build are said in plain words, by their code, in both languages', () => {
+test('a refusal of the build is shown as the operation worded it; with no message, in plain words by its code, in both languages', () => {
   const codes = ['blueprint-needs-primary-input', 'blueprint-no-readable-text', 'blueprint-input-missing', 'blueprint-title-required', 'blueprint-input-invalid', 'blueprint-disabled', 'capability-unverified', 'executor-unavailable', 'scope-unloaded'];
   for (const refusal of codes) {
-    const zh = m.refusalWords({ code: refusal, message: 'raw message' });
-    assert.ok(han.test(zh) && zh !== 'raw message', refusal);
+    assert.equal(m.refusalWords({ code: refusal, message: '请选择课件' }), '请选择课件', 'the operation answers in the learner language: shown as given');
+    const zh = m.refusalWords({ code: refusal });
+    assert.ok(han.test(zh), refusal);
     assert.doesNotMatch(zh, /蓝图/);
     english(() => { const en = m.refusalWords({ code: refusal }); assert.ok(en.length > 10 && !han.test(en), refusal); });
   }
   assert.match(m.refusalWords({ code: 'blueprint-needs-primary-input' }), /课件/);
   assert.match(m.refusalWords({ code: 'blueprint-no-readable-text' }), /文字/);
-  assert.equal(m.refusalWords({ code: 'something-new', message: '服务暂时不可用' }), '服务暂时不可用', 'an unknown code shows the host\'s own message');
+  assert.equal(m.refusalWords({ code: 'something-new', message: '服务暂时不可用' }), '服务暂时不可用');
   assert.ok(m.refusalWords(new Error('')).length > 5);
-  assert.equal(m.refusalWords(null).length > 5, true);
+  assert.ok(m.refusalWords(null).length > 5);
 });
 
 /* ---------- the create form ---------- */
@@ -349,7 +347,7 @@ test('the form is ready when it has a name and slides, and says what is missing;
 
 test('a list is opened for a new version with the inputs it was built from', () => {
   const source = pointList({ papers: 2 });
-  const form = m.formFromList(source);
+  const form = m.formFromList(m.listRow(examPointListSummary(source)), source.blueprint);
   assert.equal(form.title, source.title);
   assert.equal(form.supersedes, source.id);
   assert.equal(form.course, '网络');

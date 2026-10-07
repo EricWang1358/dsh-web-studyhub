@@ -54,6 +54,7 @@ test('availability reads the registry and matches the table it replaced', () => 
     generate: ['materials', 'bank', 'authoring', 'generation'], draft: ['bank', 'authoring'],
     sources: ['materials'], audio: ['audio'], live: ['audio', 'recording'],
     workflows: ['workflows', 'bank', 'study'], skeleton: ['skeleton'], notes: ['notes'],
+    examprep: ['materials', 'generation'], // added later, behind a host switch (pages.js `flag`)
   };
   for (const id of PAGE_IDS) assert.deepEqual(pageNeeds(id), old[id] || [], id);
   assert.deepEqual(pageNeeds('nope'), []);

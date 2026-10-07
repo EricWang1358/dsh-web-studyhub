@@ -34,7 +34,7 @@ export default function ExamPrep({ data, onOpenSource, onOpenTask, openSettings 
   }
   if (open) {
     return <ExamPrepDetail row={open} onBack={list} onOpenSource={onOpenSource} onOpenTask={onOpenTask} onDeleted={row => { toast.success(uiFormat('已删除「{0}」', [row.title])); list(); }}
-      onRegenerate={row => setView({ name: 'create', initial: formFromList(row.source) })} />;
+      onRegenerate={(row, blueprint) => setView({ name: 'create', initial: formFromList(row, blueprint) })} />;
   }
   return <ExamPrepList data={data} scope={scope} onScope={setScope} rows={rows} builds={builds} otherCount={Math.max(0, everything.length - rows.length)}
     onOpen={id => setView({ name: 'detail', id })} onCreate={() => setView({ name: 'create', initial: blankForm(courseNow) })} onOpenTask={onOpenTask} />;

@@ -3,6 +3,7 @@ import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button, Field, Icon, InlineMessage, PageHeader, TextInput, Disclosure } from '../components/index.js';
 import CourseField from '../CourseField.jsx';
 import SourcePicker from '../SourcePicker.jsx';
+import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
 import { TokenEstimateView, useUsageEstimate } from '../TokenUsage.jsx';
 import { modelReadiness } from '../generation-status.js';
@@ -37,14 +38,17 @@ export function useBuildCheck(call, request, enabled, delay = 350) {
   return state;
 }
 
-function Role({ role, required, count, pool, selected, onChange, courses, disabled, note, defaultOpen }) {
+/** How many materials (documents, as the picker counts them) of the pool the chosen pages belong to. */
+const documentsChosen = (pool, selected) => groupSourcesByDocument(pool).filter(item => item.sourceIds.some(id => selected.includes(id))).length;
+
+function Role({ role, required, pool, selected, onChange, courses, disabled, note, defaultOpen }) {
   return (
     <fieldset className="exam-prep-role" data-role={role}>
       <legend className="exam-prep-role__head">
         <span className="exam-prep-role__title">{ROLE_TITLE[role]()}</span>
         <span className="exam-prep-role__need">{required ? ui('必选') : ui('可选')}</span>
         <Explain k={`role.${role}`} focusable label={uiFormat('「{0}」是什么', [ROLE_TITLE[role]()])}><Icon name="info" size={16} /></Explain>
-        <span className="exam-prep-role__count" role="status">{uiFormat('已选 {0} 份', [count])}</span>
+        <span className="exam-prep-role__count" role="status">{uiFormat('已选 {0} 份', [documentsChosen(pool, selected)])}</span>
       </legend>
       {note}
       <Disclosure summary={ROLE_PICK[role]()} defaultOpen={defaultOpen}>
@@ -100,12 +104,12 @@ export default function ExamPrepCreate({ data, initial, onBack, onStarted, openS
             {others ? ui('只看这门课的资料') : ui('也显示其它课程的资料')}
           </Button>
         </p>
-        <Role role="lecture" required count={form.picks.lecture.length} pool={pools.lecture} selected={form.picks.lecture} onChange={ids => pick('lecture', ids)}
+        <Role role="lecture" required pool={pools.lecture} selected={form.picks.lecture} onChange={ids => pick('lecture', ids)}
           courses={data.focus?.courses} disabled={busy} defaultOpen />
-        <Role role="past-paper" count={form.picks['past-paper'].length} pool={pools['past-paper']} selected={form.picks['past-paper']} onChange={ids => pick('past-paper', ids)}
+        <Role role="past-paper" pool={pools['past-paper']} selected={form.picks['past-paper']} onChange={ids => pick('past-paper', ids)}
           courses={data.focus?.courses} disabled={busy} defaultOpen={form.picks['past-paper'].length > 0}
           note={form.picks['past-paper'].length === 0 ? <p className="exam-prep-role__note">{noPaperNote()}</p> : null} />
-        <Role role="syllabus" count={form.picks.syllabus.length} pool={pools.syllabus} selected={form.picks.syllabus} onChange={ids => pick('syllabus', ids)}
+        <Role role="syllabus" pool={pools.syllabus} selected={form.picks.syllabus} onChange={ids => pick('syllabus', ids)}
           courses={data.focus?.courses} disabled={busy} defaultOpen={form.picks.syllabus.length > 0} />
         <fieldset className="exam-prep-role" data-role="textbook">
           <legend className="exam-prep-role__head">

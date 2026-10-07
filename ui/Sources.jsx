@@ -8,7 +8,6 @@ import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
 import { Badge, Button, Checkbox, Dialog, Disclosure, Icon, InlineMessage, PageHeader, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { materialSources } from './exam-prep/model.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, inScope, relationNote, sameIndexInfo, sourceFormatLabel } from './SourcePicker.jsx';
@@ -285,8 +284,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const [showArchived, setShowArchived] = useState(false);
-  // A 考点清单 has its own page (备考补习) while that page is on: it is not one of the materials listed here.
-  const allItems = useMemo(() => groupSourcesByDocument(materialSources(data)), [data.sources, data.features]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
   const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps

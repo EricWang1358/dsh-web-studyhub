@@ -24,11 +24,11 @@ function ListRow({ row, onOpen, onOpenTask }) {
   const meta = joinMeta([row.scope, row.course && row.course !== row.scope ? row.course : '']);
   return (
     <li className="exam-prep-row" data-list={row.id}>
-      <button type="button" className="exam-prep-row__open" data-usage="examprep.open" onClick={() => onOpen(row.id)}>
+      <Button variant="quiet" wrap className="exam-prep-row__open" data-usage="examprep.open" onClick={() => onOpen(row.id)}>
         <span className="exam-prep-row__title">{row.title}</span>
         {meta && <span className="exam-prep-row__meta">{meta}</span>}
-      </button>
-      <Explain k="basis" focusable className="exam-prep-row__basis">{basisLine(row.source.blueprint)}</Explain>
+      </Button>
+      <Explain k="basis" focusable className="exam-prep-row__basis">{basisLine(row.basis)}</Explain>
       <span className="exam-prep-row__counts">{countsLine(row.counts)}</span>
       {row.build ? <BuildState build={row.build} onOpenTask={onOpenTask} />
         : <span className="exam-prep-row__time">{[row.updatedAt ? formatDateTime(row.updatedAt, 'short') : '', row.olderVersions ? uiFormat('取代了 {0} 个旧版本', [row.olderVersions]) : ''].filter(Boolean).join(' · ')}</span>}

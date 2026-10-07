@@ -38,11 +38,11 @@ const Row = memo(function Row({ node, level, open, tabStop, onOpenSource, bodyId
   return (
     <li className={cx('exam-prep-point', level > 1 && 'is-sub')} data-point={node.id} data-tier={node.tier}>
       <div className="exam-prep-point__line">
-        <button type="button" className="exam-prep-point__toggle" data-point-toggle={node.id} tabIndex={tabStop ? 0 : -1} aria-expanded={open} aria-controls={bodyId}>
+        <Button variant="quiet" size="sm" wrap className="exam-prep-point__toggle" data-point-toggle={node.id} tabIndex={tabStop ? 0 : -1} aria-expanded={open} aria-controls={bodyId}>
           <Icon name="caret" size={14} className="exam-prep-point__caret" />
           <span className="exam-prep-point__title">{point.title}</span>
           {point.requirement && <span className="exam-prep-point__requirement">{point.requirement}</span>}
-        </button>
+        </Button>
         <span className="exam-prep-point__marks">
           <Explain k={`tier.${node.tier}`} focusable>
             <Badge size="sm" tone={node.tier === 'must' ? 'accent' : 'neutral'}>{tierName(node.tier)}</Badge>
@@ -59,11 +59,11 @@ const Row = memo(function Row({ node, level, open, tabStop, onOpenSource, bodyId
 });
 
 /**
- * `roots`: the (filtered) roots of ./model.js buildTree. `forceOpen` opens every big point (a search is on). The row buttons are one tab stop:
+ * `roots`: the (filtered) roots of ./model.js buildTree. `forceOpen` opens every big point (a search is on); `initialOpen` lists the points open at first. The row buttons are one tab stop:
  * the arrow keys, Home and End walk the rows on screen, Right and Left open and close, Enter and Space toggle (the button's own click).
  */
-export default function PointTree({ roots, forceOpen = false, onOpenSource, label }) {
-  const [openIds, setOpenIds] = useState(() => new Set());
+export default function PointTree({ roots, forceOpen = false, initialOpen = [], onOpenSource, label }) {
+  const [openIds, setOpenIds] = useState(() => new Set(initialOpen));
   const [active, setActive] = useState(null);
   const listId = useId();
   const open = useMemo(() => forceOpen ? new Set([...openIds, ...roots.filter(node => node.children.length).map(node => node.id)]) : openIds, [forceOpen, openIds, roots]);

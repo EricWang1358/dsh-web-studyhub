@@ -1,4 +1,5 @@
 import { examBlueprintMaterial } from '../../lib/exam-blueprint-material.js';
+import { examPointListSummary } from '../../lib/exam-point-list.js';
 
 /* Fixtures of the 备考补习 page: a point list built by the real module (examBlueprintMaterial) and shaped like a snapshot source,
    a library of slides and sample papers to build one from, and the snapshot `data` around them. */
@@ -30,10 +31,10 @@ const place = (sourceId, quote, page, role = 'lecture') => ({ sourceId, quote, p
 const ABSENT = Symbol('absent');
 
 /**
- * A point list as the library holds it. `papers` is how many sample papers it rests on (0, 1, 2 or 3); `tier: true` writes the `tier` field
- * the build job is going to write, otherwise the page derives it from the backing. Two big points (TCP, UDP), TCP with two small ones.
+ * A point list as the library holds it (`source.get` reads it whole; the snapshot carries `examPointListSummary` of it). `papers` is how many sample papers it rests on.
+ * Two big points (TCP, congestion control) and UDP, TCP with two small ones.
  */
-export function pointList({ title = '网络 · 传输层 考点清单', courses = ['网络'], papers = 1, tier = false, createdAt = STAMP, supersedes, scope = '传输层', many = 0, id } = {}) {
+export function pointList({ title = '网络 · 传输层 考点清单', courses = ['网络'], papers = 1, createdAt = STAMP, supersedes, scope = '传输层', many = 0, orphan = false, id } = {}) {
   const inputs = [{ role: 'lecture', documentId: '传输层', sourceIds: ['传输层-1', '传输层-2', '传输层-3', '传输层-4'], title: '传输层.pptx', skippedPages: [5] },
     ...Array.from({ length: papers }, (_, index) => ({ role: 'past-paper', sourceIds: [`paper-${index + 1}`], title: index ? '去年的卷子' : '老师给的样卷' }))];
   const paper = quote => ({ sourceId: 'paper-1', quote, role: 'past-paper' });
@@ -43,6 +44,7 @@ export function pointList({ title = '网络 · 传输层 考点清单', courses 
     { id: 'p3', title: '四次挥手', parentId: 'p1', evidence: [place('传输层-1', '四次挥手释放连接', 1)] },
     { id: 'p4', title: '拥塞控制', requirement: '掌握', evidence: [place('传输层-2', '慢启动与拥塞避免通过窗口调节发送速率', 2), ...(papers ? [paper('比较慢启动与拥塞避免')] : [])] },
     { id: 'p5', title: 'UDP 的特点', evidence: [place('传输层-3', 'UDP 无连接，不保证可靠交付', 3)] },
+    ...(orphan && papers ? [{ id: 'p6', title: '校验和的计算', evidence: [paper('简述三次握手')] }] : []),
     ...Array.from({ length: many }, (_, index) => ({ id: `m${index}`, title: `补充考点 ${index}`, parentId: index % 7 ? `m${index - (index % 7)}` : undefined,
       evidence: [place('传输层-4', '接收方通过窗口通告控制发送方', 4)] })),
   ];
@@ -50,8 +52,7 @@ export function pointList({ title = '网络 · 传输层 考点清单', courses 
     recommendedReading: { title: '计算机网络：自顶向下方法', author: 'Kurose', note: '老师推荐，未导入' },
     ...(papers ? { examShape: { questions: [{ label: 'Q1', type: '简答', marks: 10, pointIds: ['p2'] }, { label: 'Q2', type: '比较', marks: 10, pointIds: ['p4'] },
       { label: 'Q3', type: '简答', marks: 5, pointIds: [] }], unmatched: ['Q3'] } } : {}) });
-  const source = { ...material, createdAt, chars: material.text.length, excerpt: material.text.slice(0, 160), ...(id ? { id } : {}), };
-  if (tier) source.blueprint = { ...source.blueprint, points: source.blueprint.points.map(point => ({ ...point, tier: point.backing.samplePapers > 0 ? 'must' : 'extra' })) };
+  const source = { ...material, createdAt, ...(id ? { id } : {}) };
   return source;
 }
 
@@ -64,10 +65,10 @@ export function buildJob({ id = 'blueprint-1', title = '网络 · 传输层 考�
       usage: { tokens: null, tokenUsage: null, calls: 0 }, calls: [], events: [], startedAt: STAMP, ...(finishedAt ? { finishedAt } : {}), actions: {} } };
 }
 
-/** The snapshot around them. `on` switches the page on the way the host does (`features.examBlueprint`). */
+/** The snapshot around them: the library's materials (no point list among them), the lists as summaries (`examPointLists`), the jobs. `on` switches the page on the way the host does (`features.examBlueprint`). */
 export function snapshot({ on = true, lists = [pointList()], sources = library(), jobs = [], course = '网络', courses = ['网络', '数据库'], experimental = false } = {}) {
   return { root: '/tmp/library', contexts: ['materials', 'bank', 'study', 'generation', 'authoring'], ...(on === ABSENT ? {} : { features: { examBlueprint: on } }), experimental,
-    sources: [...sources, ...lists], jobs, decks: [], drafts: [], model: { ready: true }, modelReady: true,
+    sources, examPointLists: lists.map(examPointListSummary), jobs, decks: [], drafts: [], model: { ready: true }, modelReady: true,
     focus: { course, courses: courses.map(name => ({ name, count: 1, active: true })) } };
 }
 

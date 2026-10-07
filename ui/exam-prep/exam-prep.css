@@ -31,10 +31,14 @@
     .exam-prep-row:hover {
       background: var(--bg-hover);
     }
-    .exam-prep-row__open {
+    .exam-prep-row__open,
+    .exam-prep-row__open:hover {
       grid-area: open;
       display: grid;
+      justify-content: stretch;
       gap: var(--space-half);
+      height: auto;
+      min-height: 0;
       min-width: 0;
       padding: 0;
       border: 0;
@@ -170,7 +174,7 @@
     .exam-prep-soon {
       display: inline-flex;
     }
-    .exam-prep-soon > .sh-btn {
+    .exam-prep-soon__button {
       pointer-events: none;
     }
     .exam-prep-tree {
@@ -181,6 +185,10 @@
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
       background: var(--bg-raised);
+    }
+    .exam-prep-tree.is-loading {
+      min-height: 16rem;
+      background: var(--bg-sunken);
     }
     .exam-prep-point {
       padding: var(--space-2) var(--space-3);
@@ -199,11 +207,14 @@
       gap: var(--space-1) var(--space-3);
       min-height: 2rem;
     }
-    .exam-prep-point__toggle {
+    .exam-prep-point__toggle,
+    .exam-prep-point__toggle:hover {
       display: inline-flex;
       flex: 1 1 14rem;
       align-items: center;
+      justify-content: flex-start;
       gap: var(--space-2);
+      height: auto;
       min-width: 0;
       padding: var(--space-1) 0;
       border: 0;

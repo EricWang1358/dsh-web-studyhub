@@ -1,4 +1,4 @@
-import { isExamBlueprintSource } from '../../lib/exam-blueprint-material.js';
+import { isExamPointListSource } from '../../lib/exam-point-list.js';
 import { sourceMatchesCourse } from '../../lib/source-courses.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { contractOf, isRunningTask, taskId } from '../tasks/task-model.js';
@@ -10,14 +10,8 @@ import { contractOf, isRunningTask, taskId } from '../tasks/task-model.js';
 /** The host's switch (`runtime.pilot.examBlueprint`, default off) as the snapshot publishes it. Only a literal true. */
 export const examPrepEnabled = data => data?.features?.examBlueprint === true;
 
-/** Is this record a point list? (The one predicate; the data module renames it `isExamPointListSource` when the build job is reworked: change it here.) */
-export const isPointList = isExamBlueprintSource;
-
-/** The materials of the 资料 page and its nav badge: point lists have a page of their own while that page is on; off, nothing changes. */
-export function materialSources(data) {
-  const sources = Array.isArray(data?.sources) ? data.sources : [];
-  return examPrepEnabled(data) && sources.some(isPointList) ? sources.filter(source => !isPointList(source)) : sources;
-}
+/** Is this record a point list? (The data module's own predicate; the library's lists of materials already leave these records out.) */
+export const isPointList = isExamPointListSource;
 
 export const BUILD_KIND = 'exam-blueprint-build';
 const SLIDE_ROLES = ['lecture', 'syllabus'];
@@ -173,26 +167,30 @@ export function buildsOf(data) {
 
 const timeOf = value => Date.parse(value) || 0;
 
-/** The ids of the lists a newer list says it supersedes (its `blueprint.supersedes`). */
-export const supersededIds = lists => new Set(lists.map(source => source.blueprint?.supersedes).filter(Boolean));
+/** The ids of the lists a newer list says it supersedes (`supersedes` on its summary). */
+export const supersededIds = summaries => new Set(summaries.map(summary => summary.supersedes ?? summary.blueprint?.supersedes).filter(Boolean));
 
-/** One row of the list view: everything a learner needs to choose a list, read from the record (and the snapshot's jobs, or their `builds`, for its time and its build). */
-export function listRow(source, { jobs = [], builds = buildsOf({ jobs }), older = 0 } = {}) {
-  const blueprint = source.blueprint || {}, tree = buildTree(blueprint.points);
-  const finished = builds.find(build => build.resultIds?.includes(source.id))?.finishedAt;
-  const papers = Number.isFinite(blueprint.basis?.samplePapers) ? blueprint.basis.samplePapers : (blueprint.inputs || []).filter(input => input.role === 'past-paper').length;
-  return { id: source.id, source, title: source.title, scope: blueprint.scope?.label || '', course: source.courses?.[0] || '', papers, counts: countPoints(tree),
-    updatedAt: blueprint.builtAt || source.createdAt || finished || null, olderVersions: older, build: builds.find(build => build.live && build.title === source.title) || null };
+/**
+ * One row of the list view, from a summary of the snapshot's `examPointLists` ({ id, title, courses, createdAt, archived, scope, basis, points }):
+ * everything a learner needs to choose a list. The counts are the basis's own (the points nothing hangs under); the jobs give the time of a record
+ * that has none and the build that is running for it.
+ */
+export function listRow(summary, { jobs = [], builds = buildsOf({ jobs }), older = 0 } = {}) {
+  const basis = summary.basis || null, finished = builds.find(build => build.resultIds?.includes(summary.id))?.finishedAt;
+  const must = Number(basis?.must) || 0, extra = Number(basis?.extra) || 0;
+  return { id: summary.id, source: summary, title: summary.title, scope: summary.scope || '', course: summary.courses?.[0] || '', basis,
+    papers: Number.isFinite(basis?.samplePapers) ? basis.samplePapers : 0, counts: { must, extra, total: must + extra, withoutSlides: Number(basis?.noCourseText) || 0 },
+    updatedAt: summary.createdAt || finished || null, olderVersions: older, build: builds.find(build => build.live && build.title === summary.title) || null };
 }
 
 /** The point lists of a course scope ('*' all, '' uncategorised, a course and its sub-courses), newest first; older versions fold into the newer one. */
 export function pointLists(data, { scope = '*', known = [] } = {}) {
-  const all = (Array.isArray(data?.sources) ? data.sources : []).filter(source => isPointList(source) && !source.archived && !source.historical);
-  const replaced = supersededIds(all), byId = new Map(all.map(source => [source.id, source]));
-  const chain = source => { let count = 0, at = source.blueprint?.supersedes; const seen = new Set(); while (at && byId.has(at) && !seen.has(at)) { seen.add(at); count += 1; at = byId.get(at).blueprint?.supersedes; } return count; };
+  const all = (Array.isArray(data?.examPointLists) ? data.examPointLists : []).filter(summary => summary && !summary.archived);
+  const replaced = supersededIds(all), byId = new Map(all.map(summary => [summary.id, summary]));
+  const chain = summary => { let count = 0, at = summary.supersedes; const seen = new Set(); while (at && byId.has(at) && !seen.has(at)) { seen.add(at); count += 1; at = byId.get(at).supersedes; } return count; };
   const builds = buildsOf(data);
-  return all.filter(source => !replaced.has(source.id) && sourceMatchesCourse(source, scope, known))
-    .map(source => listRow(source, { builds, older: chain(source) }))
+  return all.filter(summary => !replaced.has(summary.id) && sourceMatchesCourse(summary, scope, known))
+    .map(summary => listRow(summary, { builds, older: chain(summary) }))
     .sort((a, b) => timeOf(b.updatedAt) - timeOf(a.updatedAt) || a.title.localeCompare(b.title));
 }
 
@@ -234,10 +232,10 @@ export function formProblems(form) {
   return problems;
 }
 
-/** The form of a new version of a list: the same name, course, scope, inputs and note, to be checked and asked again. */
-export function formFromList(source) {
-  const blueprint = source.blueprint || {}, book = blueprint.recommendedReading || {};
+/** The form of a new version of a list: the same name, course, scope, inputs and note (from its summary `row` and its whole `blueprint`), to be checked and asked again. */
+export function formFromList(row, blueprint = {}) {
+  const book = blueprint.recommendedReading || {};
   const idsOf = role => [...new Set((blueprint.inputs || []).filter(input => input.role === role).flatMap(input => input.sourceIds || []))];
-  return { title: source.title, supersedes: source.id, course: source.courses?.[0] || '', scope: blueprint.scope?.label || '',
+  return { title: row.title, supersedes: row.id, course: row.course || '', scope: row.scope || '',
     picks: Object.fromEntries(ROLES.map(role => [role, idsOf(role)])), reading: { title: book.title || '', author: book.author || '', url: book.url || '', note: book.note || '' } };
 }
