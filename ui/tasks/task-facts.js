@@ -89,6 +89,12 @@ export function progressHint(job) {
   return { percent, questions };
 }
 
+/**
+ * Whether the facts row of this kind of task can carry a note under a tile (the estimate under 已用, the draft's total under the questions of a continuation): the console reserves the line in EVERY tile of such a
+ * row, and in no tile of any other, so a note that comes or goes moves nothing and a row that never has one is not taller for it. Decided from the kind, never from the data of the moment.
+ */
+export const rowHasNotes = (kind) => kind === 'generation' || kind === 'supplement';
+
 /** The facts row: what is counted for this kind, the clock, the model calls (with their tokens when metered) and the notices. */
 export function taskFacts(job, now = Date.now()) {
   const contract = contractOf(job), { progress, usage } = contract, notices = noticesOf(contract);

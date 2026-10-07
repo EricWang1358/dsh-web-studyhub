@@ -16,7 +16,7 @@ const m = await loadUi(`
   export { jobSavedProgress } from './ui/generation-status.js';
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { taskFacts, progressHint, forecastOf } from './ui/tasks/task-facts.js';
+  export { taskFacts, progressHint, forecastOf, rowHasNotes } from './ui/tasks/task-facts.js';
   export { taskSummary } from './ui/tasks/task-summary.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -175,4 +175,14 @@ test('the other rows say the same: the home card and the compact card of a conti
   assert.match(text(html(stoppedRun())), /覆盖：有题的小节 ÷ 计划里的小节.*76%|76%.*覆盖：有题的小节/);
   assert.match(text(html(started, 'en')), /This task's own progress/);
   assert.doesNotMatch(html({ id: 'f', type: 'pdf-convert', status: 'running', startedAt: at(0), total: 4, done: 1 }), /data-metric-hint/);
+});
+
+test('rowHasNotes: decided from the kind, never from the data of the moment: only a question run reserves the note line', () => {
+  assert.deepEqual(['generation', 'supplement'].map(m.rowHasNotes), [true, true]);
+  assert.deepEqual(['audio-import', 'audio-batch', 'pdf-convert', 'translation', 'coach-daily', 'extension', 'draft-repair'].map(m.rowHasNotes), [false, false, false, false, false, false, false]);
+  // the tile builder says a note for a question run only (the elapsed estimate, the draft total of a continuation) and never for another kind
+  const noted = (job) => m.taskFacts(card(job), T0 + 71 * 60_000).filter((fact) => fact.note !== undefined).map((fact) => fact.key);
+  assert.deepEqual(noted(continuation()), ['primary', 'elapsed']);
+  assert.deepEqual(noted(stoppedRun()), ['elapsed']);
+  assert.deepEqual(noted({ id: 'a', type: 'pdf-convert', status: 'running', startedAt: at(0), total: 4, done: 1 }), []);
 });

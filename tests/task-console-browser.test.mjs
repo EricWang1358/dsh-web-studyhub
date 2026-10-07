@@ -392,7 +392,8 @@ test('the archived read-only detail: the name keeps its room, the actions fit an
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
 
-/* The overview of every kind of task (a question run, an audio batch, a day of 为你定制) is one structure: label, value and a note line that is always there, from the TOP of each tile. In every row of tiles
+/* The overview of every kind of task (a question run, an audio batch, a day of 为你定制) is one structure: label, value, from the TOP of each tile, and - only for the kinds whose row can carry a note (a question run) -
+   a note line that is always there in EVERY tile of the row; a row that never has a note is not taller for it (an audio batch, a conversion, a day of 为你定制 keep the 53px they had). In every row of tiles
    (one row at 1280, two rows beside the progress tile when it wraps at 768 and 420) the labels stand on one line and the values on one line, whichever tile has a note (the owner's 「UI不整齐」). */
 test('the tiles of the overview share their lines: the labels and the values of a row have the same top (within 1px), whichever tile has a note, at 1280, 768 and 420', { timeout: 600000 }, async (t) => {
   let browser;
@@ -421,8 +422,11 @@ test('the tiles of the overview share their lines: the labels and the values of 
           const where = `${lang}/${theme}/${width} task ${index}`;
           const facts = tiles.filter((tile) => !tile.progress);
           assert.equal(facts.length, 4, `${where}: four facts`);
-          assert.ok(facts.every((tile) => tile.note !== null), `${where}: every tile has its note line, empty or not`);
-          if (facts.some((tile) => tile.noteText)) withNote += 1;
+          const reserved = facts.some((tile) => tile.note !== null);
+          assert.ok(!reserved || facts.every((tile) => tile.note !== null), `${where}: a row that has a note line has it in every tile, empty or not`);
+          if (facts.some((tile) => tile.noteText)) { withNote += 1; assert.ok(reserved); }
+          // a row that never has a note keeps the height it had before the line existed (a tile of a row that does not hold the progress tile: 53px)
+          if (!reserved) for (const tile of facts) if (!tiles.some((other) => other.progress && Math.round(other.top) === Math.round(tile.top))) assert.ok(Math.abs(tile.height - 53) <= 1, `${where}: a tile without a note is ${tile.height}px high, as before`);
           // rows of tiles: the tiles with the same top are a row
           const rowsOf = new Map();
           for (const tile of tiles) { const key = Math.round(tile.top); (rowsOf.get(key) || rowsOf.set(key, []).get(key)).push(tile); }

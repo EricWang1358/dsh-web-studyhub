@@ -2,7 +2,8 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Tooltip } from '../components/index.js';
 import { stateLabel } from './task-summary.js';
-import { progressHint, taskFacts, taskSegments } from './task-facts.js';
+import { progressHint, rowHasNotes, taskFacts, taskSegments } from './task-facts.js';
+import { contractOf } from './task-model.js';
 
 /* The overview of a task: its overall progress (a percent and the stage segments of the bar) and the four facts beside it. The label of the percent and of the question tile carry what they count, on hover and
    on keyboard focus (the project's Tooltip, never a title attribute): a top-up counts only its own work, a run with a plan counts sections (docs/job-contract.md). */
@@ -28,7 +29,7 @@ function Label({ hint, children }) {
 }
 
 export default function Metrics({ job, summary, now }) {
-  const segments = taskSegments(job), facts = taskFacts(job, now), hints = progressHint(job);
+  const segments = taskSegments(job), facts = taskFacts(job, now), hints = progressHint(job), reserved = rowHasNotes(contractOf(job).kind);
   const label = segments.map((segment) => uiFormat('{0} {1}/{2}', [segment.label, segment.done, segment.total])).join('，');
   return (
     <section className="tc-metrics" aria-label={ui('概览')}>
@@ -47,7 +48,7 @@ export default function Metrics({ job, summary, now }) {
           <span className="tc-metric__v">{fact.value}</span>
           {fact.note
             ? <Tooltip layer content={fact.note} anchorClassName="tc-metric__note-anchor"><span className="tc-metric__note" data-metric-note tabIndex={0}>{fact.note}</span></Tooltip>
-            : <span className="tc-metric__note" data-metric-note />}
+            : reserved ? <span className="tc-metric__note" data-metric-note /> : null}
         </div>
       ))}
     </section>
