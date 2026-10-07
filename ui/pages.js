@@ -6,6 +6,7 @@
    glyph    the icon (nav-<glyph> in components/Icon.jsx) shown in the sidebar
    group    the sidebar group (ui/nav-order.js NAV_DEFAULTS); null for pages that are reached from elsewhere
    needs    the host contexts the page is useless without (ui/capabilities.js pageAvailable)
+   flag     a switch the host publishes in the snapshot's `features` (default off): without it the page is not available, has no sidebar entry and no link
    onEnter  what entering the page resets: onEnter(ctx, how). how is 'user' when the learner clicked its sidebar entry and
             'tour' when the feature tour switched to it; a plain navigate() calls nothing. ctx carries the resets.
    Free of ui() and React on purpose: the registry is plain data that a DOM-free test can read. */
@@ -22,6 +23,7 @@ export const PAGES = Object.freeze({
   notes: { label: '学习笔记', title: '学习笔记', glyph: 'notes', group: 'daily', needs: ['notes'], onEnter: user((ctx) => ctx.clearNote()) },
   board: { label: '待办', title: '待办看板', glyph: 'board', group: 'daily', needs: [], onEnter: user((ctx) => ctx.openBoardFresh()) },
   exam: { label: '模拟考试', title: '模拟考试', glyph: 'exam', group: 'periodic', needs: ['bank', 'study'], onEnter: (ctx) => ctx.resetExam() },
+  examprep: { label: '备考补习', title: '备考补习', glyph: 'examprep', group: 'periodic', needs: ['materials', 'generation'], flag: 'examBlueprint' },
   dashboard: { label: '统计', title: '学习统计', glyph: 'dashboard', group: 'periodic', needs: ['bank', 'study'] },
   skeleton: { label: '知识骨架', title: '知识骨架', glyph: 'skeleton', group: 'setup', needs: ['skeleton'] },
   audio: { label: '音频转写', title: '音频转写', glyph: 'audio', group: 'setup', needs: ['audio'] },
@@ -40,6 +42,9 @@ export const pageOf = (id) => (Object.hasOwn(PAGES, id) ? PAGES[id] : undefined)
 
 /** The contexts a page needs ([] for pages without needs and for unknown names). */
 export const pageNeeds = (id) => pageOf(id)?.needs || [];
+
+/** The host switch a page waits for (a key of the snapshot's `features`), or undefined. */
+export const pageFlag = (id) => pageOf(id)?.flag;
 
 /** The pages of one sidebar group, in registry order (NAV_DEFAULTS is the saved, reorderable version of this). */
 export const pagesInGroup = (group) => PAGE_IDS.filter((id) => PAGES[id].group === group);

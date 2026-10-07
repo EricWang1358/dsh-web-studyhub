@@ -13,6 +13,7 @@ import Exam from '../Exam.jsx';
 import WrongBook from '../WrongBook.jsx';
 import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
+import ExamPrep from '../exam-prep/ExamPrep.jsx';
 import Manage from '../Manage.jsx';
 import Settings, { backupFileName } from '../Settings.jsx';
 import Generate from '../Generate.jsx';
@@ -176,6 +177,15 @@ function TasksView() {
   return <TaskConsole data={data} openers={openers} />;
 }
 
+/** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console. */
+function ExamPrepView() {
+  const { data, nav, learn, settingsEntry } = useApp();
+  return (
+    <ExamPrep key={data.root} data={data} openSettings={settingsEntry.openModelSettings}
+      onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenTask={nav.show.task} />
+  );
+}
+
 function GenerateView() {
   const { data, nav, lib, set, drafts, intents, connection, settingsEntry, canChat } = useApp();
   return (
@@ -294,6 +304,7 @@ function NotesView() {
 export const PAGE_VIEWS = {
   library: LibraryView, workflows: WorkflowsView, skeleton: SkeletonView, dashboard: DashboardView, exam: ExamView, wrongbook: WrongBookView, graph: GraphView,
   manage: ManageView, sources: SourcesView, audio: AudioView, tasks: TasksView, generate: GenerateView, draft: DraftView, settings: SettingsView, review: ReviewView, notes: NotesView,
+  examprep: ExamPrepView,
 };
 
 /** What the learner sees when the host has switched the page's components off. */
