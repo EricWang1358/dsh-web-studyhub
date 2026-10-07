@@ -75,7 +75,7 @@
 
 **最近一次**：2026-10-07，四个演练在同一台机器上依次重跑，代码是提交 `1db56dd38e794790d580cd1f08de78c544d713cc`（本 PR 里加入 `coach` 家族之后的演练代码；运行时代码与 main 相同）。四个都以 `v2.7.1` / `47f13281` 为目标，退出码 0，并重写了四份证据文件（共约四分钟）。`s2-7`、`s5-7` 证据里的 `sourceHash`/`pageHash` 随生成内容的哈希变了；检查它们的测试比较的是同一份文件里各步之间的相等，不比较固定值，所以仍然成立。
 
-运行注意：Windows 上 `run-drill.mjs` 用 `spawnSync('tar')` 解包可能失败（`could not extract v2.7.1`）；先手工 `git archive v2.7.1 | tar -x -C .local/old-2.7.1`（Git Bash 的 tar），脚本发现 `lib/service.js` 已在就跳过解包。
+解包旧版不需要手工步骤：四个演练共用 `tests/fixtures/extract-release.mjs`，只用 git 把标签写成文件树（临时索引文件 + `checkout-index --prefix`，不碰仓库自己的索引和工作区，不用系统 `tar`），Windows、macOS、Linux 一样；树已经在 `.local/old-<版本>` 就跳过。`tests/extract-release.test.mjs` 钉住字节一致、CRLF 保留、仓库不被改动。
 
 ## 8. 复现
 
