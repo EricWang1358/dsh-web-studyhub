@@ -59,7 +59,7 @@ leaves with S6-2.
 `lib/service.js`. The three files are registered in `s1-7-legacy-exceptions.json` under `hostModelAccess` with a disposition (`entry`, `definition`, `exception`). The remaining
 exception, the `StudyService` getters, leaves with the in-process executors (S6-2).
 
-## Known gap, kept on purpose
+## Known gap, fixed in S6-5b
 
-`materials.selection.ask` books no ledger row today: the materials operation prefers the request's own model (`request.complete`), which is not ledger-wrapped. The characterization
-pins `{}` for it; the lease does not cover it either. It is listed here so that fixing it is a decision (it adds a ledger row), not a side effect of this step.
+`materials.selection.ask` booked no ledger row (the operation preferred the request's own, unwrapped model; the usage the learner spent was invisible and the lease did not cover it).
+S6-5b makes it prefer the metered model like `outline.suggest` and `translation.translate`: one `coach` call is booked and the lease applies.

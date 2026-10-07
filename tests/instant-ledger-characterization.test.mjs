@@ -16,8 +16,8 @@ import { importExample } from '../ui/json-prompts.js';
 const PRINT = process.env.PRINT_INSTANT_TABLE === '1';
 const FIELDS = ['calls', 'uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'];
 /* request -> { feature: [calls, uncached input, output, cache read, cache write] }, taken on main (PRINT_INSTANT_TABLE=1 prints it). Calls and features are exact; tokens may differ by a
-   few because a prompt carries a generated id whose length varies. `materials.selection.ask` adds NO row today (its model is the request's own, which is not ledger-wrapped): a gap the
-   S6-0 inventory lists, kept as it is here so that moving the sites changes nothing. */
+   few because a prompt carries a generated id whose length varies. `materials.selection.ask` added NO row on main (it preferred the request's own, unwrapped model, so the usage the learner spent was invisible): that was a bug,
+   fixed on purpose in S6-5b; its row below is the one the fix adds (before: `{}`, after: one `coach` call). */
 const PINNED = {
   "capture": {"generate":[1,767,158,0,0]},
   "card.followup.suggest": {"coach":[1,230,19,0,0]},
@@ -31,7 +31,7 @@ const PINNED = {
   "teach.start": {"coach":[1,424,52,0,0]},
   "materials.outline.suggest": {"other":[1,438,14,0,0]},
   "materials.translation.translate (immediate passage)": {"other":[2,728,2,0,0]},
-  "materials.selection.ask": {},
+  "materials.selection.ask": {"coach":[1,254,21,0,0]},
   "card.grade": {"case":[1,901,191,0,0]},
   "draft.publish (foreground review)": {"repair":[1,1820,83,377,0]},
 };
