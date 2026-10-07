@@ -67,6 +67,7 @@ revision: 5 (2026-10-08，按所有者的新决定改学习模型与第 2 步；
 - **保守的几条（见开放决定 21）：** 样卷里一道题的引文在样卷原文里找不到，它的点保留，但这道题不提供出处，也就不能让这些点成为「必学」；一个点最后一处出处都没有（既无课件也无样卷出处）会被丢弃并计数，不会靠编造留下。
 - **隐藏（“不是资料”）：** `lib/exam-point-list.js`（浏览器可用、无依赖）导出 `isExamPointListSource`、`notExamPointList`、`examPointListSummary`、`assertMaterials`。已隐藏的地方（后端）：`groupSourcesByDocument`（资料页分组与资料数、覆盖、掌握度、大纲建议都经它）、`querySources`（`source.list / search / coverage`；按 `id` 取不受影响）、`library.context` 的资料数、课程的资料数与总数、`focus` 的资料数与活动时间、`snapshot.sources`、`materials.document.list`、检索索引的页清单与覆盖、每日计划的阅读候选、新建题组时的“任意资料”、出题建议。**被拒绝当作资料的请求**（错误码 `exam-point-list-not-material`，中英文都写了「考点清单不是资料」）：出题的 `sourceIds`、补题的 `extraSourceIds`、参考题 `referenceSourceIds`、课程的考官指引；价格估算里它不被计入。**仍可读：** `materials.document.get`、`source.get {id}`（多返回 `blueprint`）、引用。**给备考补习页的数据：** `snapshot.examPointLists`（每份的 `id / title / courses / createdAt / archived / scope / basis / points / chars`，不含文本和结构，整份用 `source.get` 取）。课程范围：清单的 `courses` 与资料一样，页面按它过滤。
 - **没有覆盖的（已知）：** 实验性的 `jev-eval`、`jev-course-suggest` 仍会遍历所有 source；`materials.enrich` 会给它补 `format`（无害）；`libraryCourses / knownCourseNames` 会把清单的课程名算作一个课程（见开放决定 23）；资料库用量统计按字节算，清单的字节算在“资料”里。
+- **重建与版本（修订 5 的补充，2026-10-08）：** `generation.blueprint.build` 多一个可选参数 `supersedes`（要替换的清单 id）：必须是本库里的一份考点清单，否则以 `blueprint-supersedes-invalid` 拒绝（中英文都写了「要替换的考点清单不存在，或不是考点清单」），零模型调用、不建任务。新清单的 `blueprint.supersedes` 记录它；**构建成功、保存新清单的同一次写入里**旧清单被存档（用资料已有的存档机制，`archived: true`，整份仍可读，不删除）；失败或停止时旧清单原样不动（测试覆盖）。`snapshot.examPointLists[].supersedes` 让页面把版本折叠起来。保存时写入真实的 `createdAt`（与普通资料同一字段），重启后摘要里的时间仍然是真的。任务的 `detail.targetId` 是这次构建对应的页面行：重建时在运行中就是被替换的那份清单的 id，保存后变成新清单的 id；第一次构建运行中为 `null`（新清单的 id 是内容指纹，保存前不知道），保存后是新 id；`detail.supersedes` 是被替换的 id 或 `null`。每个点多一个明确的标志 `noSlidePlace`（布尔，由与 `backing.slides` 同一份出处算出：该点及其子点在课件/大纲里都没有出处），`backing.slides` 不变。
 - **旧版本：** 3.0.x 不认识隐藏规则，会把清单当作一份普通的 Markdown 资料列在资料页里、能打开阅读，改写库时字段原样保留（第 1 步的旧版读写测试仍断言这一点）。这是接受的退化。
 
 ## 组织原则：考点清单是一种特殊的资料（代码名 blueprint）
@@ -444,6 +445,8 @@ MVP是一个“范围→证据蓝图→综合题→评分→补弱”的闭环�
 24. **总点数的上限**（推荐：构建里再加一个 150 的上限，超出时丢掉最晚出现的补充点并在详情里说明；模块的 300 是存储上限，不是学习上限。一个窗口最多 12 个补充点，几十页的课件就可能很多）。
 25. **一份卷分多块读的合并**（推荐：一份卷超过 8000 字符就分块，每块一次调用，同一份卷的块用同一个卷键、标签重复的题只留第一次；对很长的卷这可能漏掉跨块的题，首版接受）。
 26. **谁来过滤课程范围**（推荐：页面按 `examPointLists[].courses` 过滤，与资料一样；后端不再加一个按课程列出清单的操作）。
+27. **存档旧清单是否要在页面上可恢复**（推荐：可以。存档用的是资料已有的存档机制，页面“恢复”就是 `source.archive {archived:false}`；清单被存档后不会出现在资料页，也不影响新清单）。
+28. **第一次构建的 `targetId`**（推荐：保持“运行中为 null、保存后为新 id”，页面用任务本身的行显示进度；若页面需要运行中就有稳定 id，要把清单 id 改成由范围（输入和标题）算出而不是由内容算出，那会改变“同 id 异文本拒绝”的语义，不建议）。
 
 ---
 
@@ -480,6 +483,17 @@ MVP是一个“范围→证据蓝图→综合题→评分→补弱”的闭环�
 返工原因记入度量：第 1 版把 `inputs[]` 写成“一份资料 = 一个 sourceId”，而一份 `.pptx` 是每张幻灯片一个 source；这是设计时把“一份资料”与“一个 source 记录”混为一谈，不是框架缺陷。`tests/exam-blueprint-material.test.mjs` 因此改动较大，但 v3.0.0 旧版读写的断言未变。
 
 推送：第 1 次提交后的 `git push -u origin codex/exam-blueprint-3.1` 成功；修订 3 的推送结果见最终报告。
+
+### 修订 5 之后：与 3.0.1 合并、重建与版本（2026-10-08，第三轮）
+
+| 部分 | 开始 | 结束 | 备注 |
+|---|---|---|---|
+| `git merge origin/main`（3.0.1 发布） | 01:13 | 01:14 | 没有冲突；合并后 `unified-runtime-*` 守卫与 `ui-guardrails` 全绿 |
+| 先写测试并取红灯：重建与存档（3 条）、`supersedes` 摘要、`noSlidePlace`、`supersedes` 记录 | 01:14 | 01:17 | 红灯：4 条失败（摘要键、`noSlidePlace`/`supersedes` 记录、重建、非法 `supersedes`）；其余 31 条仍绿 |
+| 实现：模块的标志、摘要、计划里的校验、视图的 `detail.targetId`/`supersedes`、保存时写 `createdAt` 并随 ingest 存档旧清单 | 01:17 | 01:19 | 第一次运行 33/35：我的测试读错了任务（取了第一个任务）和传了非字符串（合同本来就拒绝），两处是测试的问题 |
+| CI：`slow-tests.json` 加 `tests/exam-blueprint-material.test.mjs`，跑 `slow-tests-list` 与 `ui-guardrails` | 01:19 | 01:20 | 39 条通过 |
+
+变更量（第三轮）：业务代码与测试 `3e38c62b`：`lib/` 8 个文件共 19 / 12 行，测试 3 个文件加 `slow-tests.json` 共 65 / 1 行；**登记** `55e2201a`：只有 `lib/runtime/builtins.js` 的 **5 / 0** 行（`sources.ingest` 多接受 `archive`，两个 import 和三行逻辑）。登记计数（19 个定义、24 个开关）、授权、`usage.estimate`、清单与文档都没有变。合并 3.0.1（`d932dce4`）无冲突。测试：任务 18 条、模块 9 条、隐藏 8 条（35 条全绿）；`slow-tests-list` + `ui-guardrails` 39 条；守卫与邻近 76 条、邻近 767 条，0 失败。
 
 ### 修订 5：备考补习学习模型（2026-10-08，第二轮）
 
