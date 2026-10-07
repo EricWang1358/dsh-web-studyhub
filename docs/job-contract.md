@@ -38,7 +38,7 @@ Legacy statuses map as follows: `done` is `complete`; `partial` is `complete` wi
 
 ## Actions
 
-`job.control {jobId, action, patch?}`, with `action` one of `cancel`, `pause`, `resume`, `retry`, `set`. A patch without an action is `set`. `job.cancel` and `job.dismiss` remain as before. `jobId` may be the contract's `jobId` or the id of an attempt.
+`job.control {jobId, action, patch?}`, with `action` one of `cancel`, `pause`, `resume`, `retry`, `set`. A patch without an action is `set`. `job.cancel` and `job.dismiss` remain as before. `jobId` may be the contract's `jobId` or the id of an attempt. Every `job.*` door (`status`, `wait`, `control`, `output`, `cancel`, `dismiss`, `archive`, `delete`, `message`) names a job the same way: by its list id, by what survives a retry (an audio batch's id) or by the contract's `jobId`; for a Job of the unified runtime that has no `legacyId` the contract's `jobId` is not its list id.
 
 Each entry of `contract.actions` is `{ available: true }` or `{ available: false, reason: { code } }`. Legality is decided in ONE place (`checkAction`), from what the kind of job declares and the state it is in; calling an action that is not available is an error carrying the same `code` (`error.code`) and a clear message. A UI draws a button only for an available action and says the reason otherwise.
 
