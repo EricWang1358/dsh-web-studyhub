@@ -180,3 +180,15 @@ test('a library holding a blueprint stays readable, and is not damaged by a writ
   assert.equal(kept.provenance, 'exam-blueprint');
   assert.ok(after.sources.some(item => item.id === 'later'));
 });
+
+test('the shape of the sample paper is kept beside the points: question labels, types, marks and the points each reaches; it needs a paper and real points', () => {
+  const shaped = patch => { const value = input(); value.examShape = { questions: [{ label: 'Q1', type: '简答', marks: 10, pointIds: ['p1'] }, { label: 'Q2', marks: 5, pointIds: [] }], unmatched: ['Q2'] }; patch?.(value); return value; };
+  const { blueprint, text } = examBlueprintMaterial(shaped());
+  assert.deepEqual(blueprint.examShape, { questions: [{ label: 'Q1', type: '简答', marks: 10, pointIds: ['p1'] }, { label: 'Q2', marks: 5, pointIds: [] }], unmatched: ['Q2'] });
+  for (const word of ['样卷形态', 'Q1 简答 10 分 → p1', 'Q2 5 分 → 讲义里找不到对应考点']) assert.ok(text.includes(word), word);
+  assert.equal(examBlueprintMaterial(input()).blueprint.examShape, undefined, 'no shape unless the build read a sample paper');
+  assert.throws(() => examBlueprintMaterial(shaped(v => { v.examShape.questions[0].pointIds = ['p9']; })), /not in the list/);
+  assert.throws(() => examBlueprintMaterial(shaped(v => { v.inputs.pop(); v.points[0].evidence.pop(); })), /needs a sample paper/);
+  assert.throws(() => examBlueprintMaterial(shaped(v => { v.examShape.questions[1].marks = -1; })), /marks/);
+  assert.throws(() => examBlueprintMaterial(shaped(v => { v.examShape.questions.push({ label: 'Q1', pointIds: [] }); })), /repeated/);
+});
