@@ -150,6 +150,27 @@
     .md .md-link {
       text-decoration-style: dotted;
     }
+    /* A [[term]] of an answer: a button that asks about the term (never a link). It sits in the line like a word. */
+    .md .md-term {
+      display: inline-flex;
+      margin: 0;
+      padding: 0 var(--space-1);
+      border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      color: inherit;
+      font: inherit;
+      line-height: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .md .md-term:hover {
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .md .md-term--asked {
+      border-style: dashed;
+      background: transparent;
+    }
     .md-table {
       margin: 0.4em 0 0.9em;
       overflow-x: auto;

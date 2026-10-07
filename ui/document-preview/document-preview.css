@@ -18,7 +18,7 @@
     .study-document-selection { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .study-document-selection > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .study-document-selection .study-document-learning { padding: 0; border: 0; border-radius: 0; }
-    .study-document-selection .study-document-learning form button { width: 100%; }
+    .study-document-selection .study-document-learning form > button { width: 100%; }
     .study-document-wide { width: 100%; justify-content: center; }
     .study-document-links-heading { margin: var(--space-3) 0 0; font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .study-document-side > .sh-btn { justify-self: start; }
@@ -110,13 +110,34 @@
     border-radius: var(--radius);
   }
   .study-document-learning blockquote {
-    max-height: 8rem;
-    overflow: auto;
     border-left: 3px solid var(--accent);
     padding: .5rem;
     margin: .2rem 0 1rem;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
+  /* The selected passage: a few lines, the rest one toggle away (long selections used to be cut off with no way to read them). */
+  .study-passage { display: grid; justify-items: start; gap: var(--space-1); margin: .2rem 0 1rem; }
+  .study-passage blockquote { margin: 0; max-width: 100%; box-sizing: border-box; }
+  .study-passage:not([data-open]) blockquote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+  .study-passage[data-open] blockquote { max-height: 40vh; overflow: auto; }
+  /* Questions inside answers (AskThread.jsx): each answer opens under its parent, indented, and folds. */
+  .ask-thread { display: grid; gap: var(--space-3); min-width: 0; }
+  .ask-quick { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+  .ask-node { display: grid; gap: var(--space-2); min-width: 0; }
+  .ask-node .ask-node { margin-left: var(--space-2); padding-left: var(--space-2); border-left: 2px solid var(--line); }
+  .ask-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ask-node__head { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
+  .ask-node__title { margin: 0; min-width: 0; font-size: var(--fs-sm); font-weight: var(--fw-strong); overflow-wrap: anywhere; }
+  .ask-node__body { display: grid; gap: var(--space-2); min-width: 0; }
+  .ask-node__body[hidden] { display: none; }
+  .ask-node__pending { margin: 0; min-height: 4.5rem; }
+  .ask-node__failed { display: grid; justify-items: start; gap: var(--space-2); }
+  .ask-node__follow { display: grid; gap: var(--space-2); }
+  .ask-node__follow-row { display: flex; gap: var(--space-2); }
+  .study-document-learning .ask-node__follow-input { flex: 1 1 auto; min-width: 0; width: auto; }
+  .ask-thread__notice { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+  .study-grounded-answer { min-width: 0; overflow-wrap: anywhere; }
   .study-document-learning form {
     display: grid;
     gap: .6rem;
