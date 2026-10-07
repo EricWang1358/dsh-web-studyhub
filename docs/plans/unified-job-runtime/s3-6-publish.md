@@ -42,8 +42,8 @@
 | 同上，分部草稿 | 指纹按写入后的样子算（`part` 标记），不被当成冲突 | #5 |
 | 检查后草稿被改 | 拒绝，`publish-draft-changed`，什么也没写 | #6 |
 | 写入后题组被改 | 拒绝，`publish-deck-changed`，什么也没再写 | #7 |
-| case 快速发布 + 批改（V4） | **未做**：快速发布不是后台任务，批改循环无回执；留给 S3-7 评审 | — |
-| 补题运行里的发布（`publish()` 在执行器里） | **未做**，且有一个已知的窗口：写入之后、任务完成之前崩溃，重试会因草稿已删而按原请求重新补一遍。同一个 `commit` 工具可以接上，但要先让重试在执行前读已完成的提交；留给 S3-7 | — |
+| case 快速发布 + 批改（V4） | 见 [S3-6c](s3-6c-case-publish.md)：同一条路，批改由 attempt 认出 | `unified-runtime-case-publish` |
+| 补题运行里的发布（`publish()` 在执行器里） | 见 [S3-6b](s3-6b-supplement-publish.md)：同一条路，写入后回执前崩溃由看一眼接上 | `unified-runtime-supplement-publish` |
 
 ## 4. 内核没改
 
