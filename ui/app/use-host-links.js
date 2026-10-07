@@ -3,6 +3,7 @@ import { ui } from '../i18n.js';
 import { activeNotice } from '../CourseActive.jsx';
 import { useStudyReferenceHandoff } from '../daily-plan.js';
 import { createUsageController } from '../usage/controller.js';
+import { failureText } from '../failure.js';
 
 /* What the host reaches the app through, apart from the snapshot: a run handed over from the conversation, a study reference from
    the board, the usage frequency record, and the 有效课程 switch that any page may flip. */
@@ -10,7 +11,14 @@ export function useHostLinks({ host, core, nav, session, learn, rootRef, data, l
   const { act, call, setError, notify } = core;
   const { navigate } = nav;
   const handoff = useRef(null);
-  handoff.current = (runId) => act('review.get', { runId }, session.enterRun);
+  // A run handed over by the host (in the sidebar: 在右栏打开, 选段学习). The host waits for this to settle, so it rejects instead of being silent
+  // when the run cannot be opened or another write holds act() (a dropped act() resolves with nothing).
+  handoff.current = async (runId) => {
+    let opened;
+    try { opened = await act('review.get', { runId }, session.enterRun, { rethrow: true }); }
+    catch (failure) { setError(failureText(failure)); throw failure; }
+    if (!opened) throw new Error(ui('正在处理上一个操作，请稍后再点一次'));
+  };
   const takeHandoff = host.takeHandoff;
   useEffect(() => takeHandoff?.((runId) => handoff.current?.(runId)), [takeHandoff]);
   useStudyReferenceHandoff(host.takeStudyReference, data?.root, (reference) => learn.openBoardReference(reference).catch((failure) => setError(failure.message)));

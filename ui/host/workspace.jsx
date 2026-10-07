@@ -29,6 +29,9 @@ const handoff = new Map(),
   handoffListeners = new Set();
 const studyReferences = new Map(),
   studyReferenceListeners = new Set();
+// 在右栏打开 waits until the sidebar seat has opened the run it was handed (session id → { runId, settle }).
+const handoffWaits = new Map();
+const HANDOFF_WAIT_MS = 6000;
 const knownSessions = new Map(),
   candidates = new Map(),
   candidateListeners = new Set();
@@ -37,6 +40,26 @@ function deliverRun(sessionId, runId) {
   handoff.set(sessionId, runId);
   handoffListeners.forEach((fn) => fn(sessionId));
 }
+/** Resolves when the sidebar seat has opened `runId`; rejects with its reason, or when no seat took it in time (the handoff is then taken back). */
+function awaitHandoff(sessionId, runId) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    const settle = (failure) => {
+      clearTimeout(timer);
+      if (handoffWaits.get(sessionId)?.runId === runId) handoffWaits.delete(sessionId);
+      if (!failure) { resolve(); return; }
+      // Told it did not move: a sidebar that opens later must not find the run waiting for it.
+      if (handoff.get(sessionId) === runId) handoff.delete(sessionId);
+      reject(failure);
+    };
+    timer = setTimeout(() => settle(new Error(ui("右栏没有接收这道题，可以稍后再点一次。"))), HANDOFF_WAIT_MS);
+    handoffWaits.set(sessionId, { runId, settle });
+  });
+}
+const settleHandoff = (sessionId, runId, failure) => {
+  const wait = handoffWaits.get(sessionId);
+  if (wait?.runId === runId) wait.settle(failure);
+};
 function deliverStudyReference(sessionId, studyRef) {
   handoff.delete(sessionId);
   studyReferences.set(sessionId, studyRef);
@@ -246,17 +269,26 @@ export function apply(ctx, registerDocumentLearning) {
             index: run.index, total: run.total, mode: run.mode, feedback: run.feedback,
             picks: run.picks, revealed: run.revealed, complete: run.complete } : null }).catch(() => {}),
         // Optional: keep the question in the right sidebar while the main area shows chat.
+        // Resolves once the sidebar seat shows the run (then the main area returns to chat); rejects with the reason it could not, for the button to say.
         openInSidebar:
           placement !== "sidebar" && ctx.get("sidebarRight")?.openTab
-            ? (runId) => {
-                if (runId) deliverRun(sessionId, runId);
-                ctx.get("sidebarRight").openTab("study-workspace");
-                showChat();
+            ? async (runId) => {
+                const sidebar = ctx.get("sidebarRight");
+                if (!sidebar?.openTab) throw new Error(ui("当前 DSH 没有右栏，题目留在这里。"));
+                const taken = awaitHandoff(sessionId, runId);
+                deliverRun(sessionId, runId);
+                try { sidebar.openTab("study-workspace"); }
+                catch (failure) { settleHandoff(sessionId, runId, failure); }
+                await taken;
+                try { showChat(); } catch { /* the run is in the sidebar; the learner can switch views themselves */ }
               }
             : undefined,
         takeHandoff:
           placement === "sidebar"
-            ? listener => takeDelivery(handoff, handoffListeners, sessionId, listener)
+            ? listener => takeDelivery(handoff, handoffListeners, sessionId, runId =>
+              Promise.resolve().then(() => listener(runId)).then(
+                () => settleHandoff(sessionId, runId),
+                failure => settleHandoff(sessionId, runId, failure)))
             : undefined,
         takeStudyReference:
           placement === "sidebar"
