@@ -26,14 +26,14 @@
 - `inputRefOf({ definition, request, sources, extraSourceIds, added })`：`{ version, definition: "generation@1" | "supplement@1", sources: [{ id, hash }], hash, extraSourceIds?, added? }`。`hash` 只由**决定单元的东西**算出：种类与各类题数、题数、语言、难度、侧重、角色、约束、公式写法、并入目标、覆盖强度、参考资料及其格式、课程、`batchSize`、各资料文本的哈希、定义标识。并发、补位轮数、时限、推理档位**不**参与（它们改变怎么跑，不改变单元是什么）。
 - 每次保存草稿都写入 `editorial.generation.inputRef`（`operations.js saveProgress`）；这是 S3-0 要求的「`extraSourceIds`/count 与哈希进 inputRef」：用未覆盖资料补题带 `extraSourceIds` 与 `added`，定向补题的定义标识是 `supplement@1`。
 - `checkpointStatus(saved, current)`：`{ valid: true }` 或 `{ valid: false, reason: 'none' | 'definition' | 'sources' (changed: [id]) | 'request' }`。S3-3 用它拒绝"输入或定义变了"的恢复；本步**不**用它拒绝任何现有的继续路径（行为不变）。
-- `checkpointRefOf(draft)`：`{ ref: "draft:<id>:v<draftVersion>", completed: ["r1", "r3"] }`——检查点就是草稿（公共侧只存引用，不另建产物表）；`completed` 是覆盖运行已完成/跳过的轮的键前缀。普通运行没有已完成的轮：它是一个单元，从草稿已有的题继续。
+- （S3-3 以 `checkpointOf/checkpointHolds` 取代，S6-2 已删除，下面是 S3-2 当时的记录）`checkpointRefOf(draft)`：`{ ref: "draft:<id>:v<draftVersion>", completed: ["r1", "r3"] }`——检查点就是草稿（公共侧只存引用，不另建产物表）；`completed` 是覆盖运行已完成/跳过的轮的键前缀。普通运行没有已完成的轮：它是一个单元，从草稿已有的题继续。
 
 ## 3. S3-0 恢复矩阵中本步负责的行
 
 | 行 | 本步交付 | 仍待 |
 |---|---|---|
 | plain / mixed / case 首份草稿前 | 请求被冻结的内容与哈希已定义（`inputRef`），Step 键稳定 | 首份草稿之前没有地方存：持久化请求 = S3-3 |
-| plain/case 首个 part 之后 | 草稿带 `inputRef`；`checkpointRefOf` 引用该草稿版本 | interrupted 可见、同逻辑 Job 新 attempt = S3-3 |
+| plain/case 首个 part 之后 | 草稿带 `inputRef`；`checkpointRefOf`（已被 S3-3 的 `checkpointOf` 取代）引用该草稿版本 | interrupted 可见、同逻辑 Job 新 attempt = S3-3 |
 | `resumeDraftId` 续补 | 继续时可比较旧 `inputRef` 与新请求（`checkpointStatus`） | 同上 |
 | `extraSourceIds` 补题 | `extraSourceIds`、`added` 进入冻结输入 | 请求在首次保存前仍只在内存：S3-3 |
 | target supplement | 定义标识 `supplement@1` 进入冻结输入 | 恢复 / 自动发布 = S3-3 / S3-6 |
