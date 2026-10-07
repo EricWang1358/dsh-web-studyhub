@@ -6,7 +6,7 @@ topic: exam-blueprint-3.1
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-brainstorm
 execution: code
-revision: 3 (2026-10-07，按所有者对首版输入的回答修订；第 1 步已实现并随之更新，第 2–7 步未开始)
+revision: 4 (2026-10-08，第 2 步已实现并据实际代码更新；第 3–7 步未开始)
 ---
 
 # Exam Blueprint and Integrated Practice 3.1 - Plan
@@ -15,7 +15,7 @@ revision: 3 (2026-10-07，按所有者对首版输入的回答修订；第 1 步
 
 **Objective**：学生能从自己的考试大纲和历年试卷看清复习依据，完成一个板块的综合题，并知道哪些考点已有独立作答证据、哪些还需练习。
 
-**Authority**：所有者于 2026-10-07 指定本功能进入 3.1.0，要求先设计、再用统一任务框架实现，并用开发记录检验框架的收益。所有者随后补充了组织原则（见下一节）：**考试蓝图是一种特殊的资料，有自己独特的工作流，并且可以选择性地与若干其他资料协作。** 本文仍是供讨论的设计；只有第 1 步（数据模型与登记）已在本分支实现，第 2–7 步和下面的开放决定尚未获得批准，不授权发布。
+**Authority**：所有者于 2026-10-07 指定本功能进入 3.1.0，要求先设计、再用统一任务框架实现，并用开发记录检验框架的收益。所有者随后补充了组织原则（见下一节）：**考试蓝图是一种特殊的资料，有自己独特的工作流，并且可以选择性地与若干其他资料协作。** 本文仍是供讨论的设计；只有第 1 步（数据模型）和第 2 步（蓝图构建任务，默认关闭）已在本分支实现，第 3–7 步和下面的开放决定尚未获得批准，不授权发布。
 
 **Baseline**：源码核验基于本地分支 `codex/studyhub-3.0.1`（HEAD `16f80101`，包版本仍为 3.0.0）；回退目标为 tag `v3.0.0`（`d18a501c`）。草案原基线 `4d04f751` 作废。3.0.1 的内容合入 main 前，本分支不得先于它发布。
 
@@ -188,7 +188,7 @@ R6–R10 的首个试点建议限定为一个课程板块、一份可用文本�
 | 步 | 交付 | 复用的现有代码 | 新增 | 草案切片 | 状态 |
 |---|---|---|---|---|---|
 | 1 | 蓝图资料种类：数据模型与登记 | `materials.v1 sources.ingest`、`resolveSelectionState`、`groupSourcesByDocument`、阅读器 `materials.document.get` | `lib/exam-blueprint-material.js`（纯函数）、`tests/exam-blueprint-material.test.mjs` | 契约与兼容（资料部分） | **已实现于本分支** |
-| 2 | 蓝图工作流：任务种类 `exam-blueprint-build` | 网关 `context.gateway.step`、`commitArtifact`、`context.checkpoint`、控制台通用卡片、`sectionsOf`、`quote-locate` | 定义 + 执行器 + 估算构建器 + 开关 + 登记 | 证据分析 | 未开始 |
+| 2 | 蓝图工作流：任务种类 `exam-blueprint-build` | 网关 `context.gateway.step`、`commitArtifact`、`context.checkpoint`、控制台通用卡片、`sectionsOf`、`quote-locate` | 定义 + 执行器 + 估算构建器 + 开关 + 登记（实际：`lib/contexts/generation/blueprint/`，公开操作 `generation.blueprint.build`） | 证据分析 | **已实现于本分支（默认关闭，开关 `examBlueprint`）** |
 | 3 | 协作与考频：角色选择、降级、确定性汇总、人工修正 | `SourcePicker`、`sourceMatchesCourse`、`coverageOf`（待核验：以考点充当“卡片”）、`materials` 操作 | 汇总纯函数、`materials.blueprint.save` 操作（校验 + 入库 + 版本链） | 证据分析 + 契约 | 未开始 |
 | 4 | 综合大题 | `generate { kind: 'case' }` → `generateCaseDeck`、`caseGenerationArgs`、`fromDeckId` | `pointId`/`examPointIds` 附加字段、提示词变体、覆盖表检查 | 综合题 | 未开始 |
 | 5 | 小题诊断 | `card.grade`、`gradeCase`、`commitRubricGrade`、`weakCriteria`、`latestOutcomes`、`case.drills` | `pointDiagnosis` 纯函数、完整评分保护 | 练习闭环 | 未开始 |
@@ -240,7 +240,7 @@ R6–R10 的首个试点建议限定为一个课程板块、一份可用文本�
 | 1 讲义考点 | 按幻灯片窗口（相邻若干页，每批受字符/页数约束，仿 `assigned-plan`；`sectionsOf` 已把 pptx 按页分段）抽取考点，每个考点附具体页的原文引文；标题/目录/致谢页排除；无文字页只记录、不抽取 | 是（逐批） | 已核验的考点与跳过页 | 批与批之间 |
 | 2 样卷切题 | 样卷（首版 1 份）切出题号、题型、题干引文、分值、是否节选；无样卷则跳过此阶段 | 是（逐卷） | 已核验的题目 | 卷与卷之间 |
 | 3 映射 | 把样卷题目提议映射到阶段 1 的考点；每个映射带讲义出处，定位失败或对应不到已有考点的题归入“未能对应” | 是（逐批） | 已核验的映射 | 批与批之间 |
-| 4 核验与汇总 | 逐处出处用 `resolveSelectionState` 核验，丢弃无法定位的并计数；确定性计算每个考点的 `backing`、`basis` 与分值分布（样卷不足 3 份不算频率） | 否 | 汇总表与丢弃计数 | 是 |
+| 4 核验与汇总 | 逐处出处用 `resolveSelectionState` 核验，丢弃无法定位的并计数；确定性计算每个考点的 `backing`、`basis` 与分值分布（样卷不足 3 份不算频率）。**实际：核验在每个窗口/每个样卷题的答案一返回就做**（结果与丢弃计数一起进内存缓存，暂停后继续时不重复核验），汇总与保存在最后 | 否 | 汇总表与丢弃计数 | 是 |
 | 5 保存 | `context.commitArtifact` → `examBlueprintMaterial()` → `sources.ingest` | 否 | 结果引用 `{kind:'source', id}` | 否（提交点） |
 
 **取消/暂停/继续**（已核验的内核事实）：
@@ -252,7 +252,19 @@ R6–R10 的首个试点建议限定为一个课程板块、一份可用文本�
 
 **控制台详情**：`context.present()` 返回 `detail`（各阶段完成数/总数、输入表摘要、已核验/丢弃的条数、未处理范围）、`stage.text`（未知阶段族时控制台用文本）、`progress`（真实完成的单元数；未知总数时 `total: null`）；调用的 `purpose` 取已有标签（`plan`、`blueprint`、`review`），`blueprint` 这个词在出题评估里已有含义，起名要在界面文案里区分。结果引用 `{kind:'source'}` 让“打开结果”直接进阅读器。所以第 2 步**不需要改 `ui/tasks/**`**，也不改 `lib/jobs/**`。
 
-**必须同步的公共登记**（计入框架成本，不是业务成本）：`lib/runtime/builtins.js` 的 `managedDefinitions`；`lib/runtime-config.js` 的 `MIGRATION_SWITCHES` 增一个默认关闭的 `examBlueprint`；`docs/plans/unified-job-runtime/s1-7-legacy-exceptions.json` 的 managed 清单（18→19）与背景启动登记；`s6-6-rollback.md` 的开关行；`s6-7-acceptance.md`、`s6-0-coverage.md` 内嵌的计数；`lib/runtime/domain-contracts.js` 的写入字段表与 `actionGrants`（生成上下文需授权 `materials: ['sources.ingest']`）；`lib/contexts/library/operations.js` 的 `usage.estimate`（只接受 generate/selection/case/grade/suggest/audio，须加 `blueprint`）；`lib/application-messages-en.js` 的英文文案。这些文档只有内核负责人能合并（开放决定 13）。
+**第 2 步实际怎么做的（与上面设计不同处，2026-10-08）：**
+- **阶段编号：** 0 检查（`planBuild`，零模型调用）→ 1 讲义窗口（每窗口 ≤10 页且 ≤6000 字符）→ 2 样卷切题（每块 ≤8000 字符）→ 3 映射 → 4 保存。进度单位是“步”：窗口数 + 2 × 样卷块数（总数开始前已知）。
+- **拒绝码**（阶段 0，均不调模型、不建任务）：`blueprint-disabled`（开关关）、`blueprint-title-required`、`blueprint-input-invalid`、`blueprint-needs-primary-input`、`blueprint-input-missing`、`blueprint-no-readable-text`。
+- **答案读不出来：** 同一窗口再问一次（step key 加 `:r`），仍读不出就让整个构建**失败**并说明哪几页，不保存带洞的蓝图（设计原先含糊；此处定为失败，见开放决定 19）。模型调用本身出错（额度、网络）同样是失败。
+- **继续 vs 重试：** 暂停后继续复用内存里已完成的单元（控制台显示为复用的调用，不记令牌）；失败/中断后重试**清空缓存、全部重问**，与决定 2 一致。实现靠一个“上一次是在检查点停下的”标记：只有 `context.checkpoint` 抛出暂停时标记为真。
+- **只读一次的东西：** 提交时对每份资料取文本哈希做 `scopeHash`；同一范围已有一个在途构建时第二次点击得到同一个任务（`alreadyRunning`），不会重复花额度。
+- **估算：** `generation.blueprint.build { estimate: true }` 与 `usage.estimate { feature: 'blueprint', …同样的参数 }` 给出同一个范围，按真实提示词计价（`token-estimate.js` 新增 `blueprint` 构建器），不调模型、不建任务。**控制台没有通用估算控件**，所以估算只由这两个操作返回，不进任务卡（任务卡只显示实际用量）。
+- **控制台：** 没有改 `ui/tasks/**` 或 `lib/jobs/**`（测试扫描保证）。任务卡按通用任务画出标题、阶段文字、进度、调用与用量；`contract.detail.blueprint`（各阶段数、丢弃数、无字页、未能对应的题）已在合同里，但控制台不专门画——是否值得加一个面板见开放决定 18。
+- **英文文案** 与中文一起写在 `jobs/messages.js`（按请求语言选），没有改 `lib/application-messages-en.js`。
+- **`examBlueprint` 开关** 在 `MIGRATION_SWITCHES` 里没有“旧路径”可旁路，登记在清单的 `policySwitches`；关闭时操作拒绝，已保存的蓝图资料照常可读。
+- **第 1 步模块的一处追加：** 样卷形态需要地方存，`examShape`（题目标签/题型/分值/所达考点，`unmatched` 列出对应不到的题）加进了 `normalizeExamBlueprint`（附加字段；v3.0.0 读写测试未变）。
+
+**必须同步的公共登记**（计入框架成本，不是业务成本；第 2 步里它们集中在**一个单独的提交**，见开发记录）：`lib/runtime/builtins.js` 的 `managedDefinitions`；`lib/runtime-config.js` 的 `MIGRATION_SWITCHES` 增一个默认关闭的 `examBlueprint`；`docs/plans/unified-job-runtime/s1-7-legacy-exceptions.json` 的 managed 清单（18→19）与背景启动登记；`s6-6-rollback.md` 的开关行；`s6-7-acceptance.md`、`s6-0-coverage.md` 内嵌的计数；`lib/runtime/domain-contracts.js` 的写入字段表与 `actionGrants`（生成上下文需授权 `materials: ['sources.ingest']`）；`lib/contexts/library/operations.js` 的 `usage.estimate`（只接受 generate/selection/case/grade/suggest/audio，须加 `blueprint`）。这些文档只有内核负责人能合并（开放决定 13，已答复：本功能所需的登记改动由 lead 负责，范围见该条）。
 
 ### (c) 与若干资料的选择性协作（第 3 步）
 
@@ -377,6 +389,8 @@ MVP是一个“范围→证据蓝图→综合题→评分→补弱”的闭环�
 15. **“看原页”的依赖**（推荐：第 1–3 步的出处已带 `sourceId + page`，先用现有阅读器按 `sourceId` 打开；“看原页”浮层属阅读器路线图，不阻塞本功能，两边约定出处形状不变）。请所有者确认是否要等浮层。
 16. **推荐教材如何记录**（推荐：蓝图上的纯文本备注 `recommendedReading { title, author?, url?, note? }`，在蓝图页显示为“推荐阅读（未导入，不作依据）”，创建蓝图时可填也可不填；若日后有摘录，作为普通 `textbook` 输入导入，不迁移备注）。备选：写进课程设置，使多份蓝图共用——会动课程记录，不建议首版。
 17. **是否允许标记“不在考试范围”的幻灯片**（推荐：允许，且作为附加字段 `input.excludedPages: [页码]`，与 `skippedPages` 分开显示；被排除的页不参与提取，也不算“漏掉”。老师常说“第 X 章不考”，这是最便宜且最能提高准确度的人工输入。需要所有者确认交互形式：在阅读器勾选，还是在创建蓝图时填页码范围）。
+18. **任务控制台是否要为蓝图任务画专门的详情**（推荐：先不画。无字页、丢弃数和未能对应的题已在 `contract.detail.blueprint`，蓝图资料本身也列出它们；真有需要时再给 `ui/tasks` 加一个按 kind 的面板，那是第 6 步的可选项，且按 `s6-4` 的规则属于允许的 UI 改动）。
+19. **某个窗口两次都读不出来：整个构建失败，还是保存带标注缺口的部分蓝图**（推荐：失败，由学生重试。部分蓝图要给“缺哪几页”设计持久的标注字段，还会让“依据 N 页”的计数误导；第 2 步按失败实现）。
 
 ---
 
@@ -413,3 +427,31 @@ MVP是一个“范围→证据蓝图→综合题→评分→补弱”的闭环�
 返工原因记入度量：第 1 版把 `inputs[]` 写成“一份资料 = 一个 sourceId”，而一份 `.pptx` 是每张幻灯片一个 source；这是设计时把“一份资料”与“一个 source 记录”混为一谈，不是框架缺陷。`tests/exam-blueprint-material.test.mjs` 因此改动较大，但 v3.0.0 旧版读写的断言未变。
 
 推送：第 1 次提交后的 `git push -u origin codex/exam-blueprint-3.1` 成功；修订 3 的推送结果见最终报告。
+
+### 第 2 步（蓝图构建任务，2026-10-08）
+
+| 部分 | 开始 | 结束 | 备注 |
+|---|---|---|---|
+| 读登记和接入先例（`note-generate`、翻译、`unified-runtime-new-kind`） | 00:05 | 00:08 | 只读；这次没有再用子代理 |
+| 文档：决定 2、3 已答复 | 00:08 | 00:09 | 提交 `29fd3955` |
+| 先写测试：`tests/exam-blueprint-job.test.mjs`（12 条）和 `examShape` 的测试 | 00:09 | 00:10 | **红灯记录：** 任务测试第一次运行即 `ERR_MODULE_NOT_FOUND: lib/contexts/generation/blueprint/plan.js`（整文件不能加载，12 条全红）；`examShape` 测试在追加后**没有单独跑红灯**（直接和模块一起做的），如实记录 |
+| 实现业务代码（`plan.js`、定义、视图、文案、启动操作、合同、估算构建器、`examShape`） | 00:10 | 00:16 | 第一次全套运行 11/12，唯一失败是**测试替身**的问题（重问时提示词末尾多了一句话，替身的 JSON 解析失败），改替身后 12/12 |
+| 登记（`builtins.js`、开关、授权、`usage.estimate`、清单与文档计数） | 00:15 | 00:18 | 守卫测试逐个点出缺失的登记：4 个红灯（`unified-runtime-architecture` 2 条、`rollback-read`、`acceptance-doc`）→ 全绿 46/46 |
+| 邻近测试、ESLint、提交 | 00:18 | 00:21 | 61 条邻近测试全绿 |
+| 文档修订 4（本节） | 00:21 | 00:24 | |
+
+总用时：约 19 分钟（00:05–00:24）。无真实模型调用；这次没有使用子代理，因此没有子代理令牌；主会话令牌 unknown。
+
+提交与变更量（`git diff --numstat`，新增行 / 删除行）：
+
+| 类别 | 文件 | 新增 / 删除 |
+|---|---|---|
+| **业务代码** | `lib/contexts/generation/blueprint/plan.js` 227、`jobs/exam-blueprint-build.js` 133、`jobs/blueprint-view.js` 24、`jobs/messages.js` 28、`start.js` 40、`contracts.js` 14，`lib/token-estimate.js`（构建器）14/1，`lib/contexts/generation/index.js` 1，`lib/exam-blueprint-material.js`（`examShape`）27/2 | 508 / 3 |
+| **测试** | `tests/exam-blueprint-job.test.mjs` 278（12 条）、`tests/exam-blueprint-material.test.mjs` 追加 12（1 条，共 8 条） | 290 / 0 |
+| **登记**（单独提交 `a6be4465`） | `lib/runtime/builtins.js` 14/1、`lib/runtime-config.js` 1、`lib/runtime/domain-contracts.js` 3/1、`lib/contexts/library/operations.js` 1/1、`s1-7-legacy-exceptions.json` 3/1、`s6-0-coverage.md` 1、`s6-6-rollback.md` 1、`s6-7-acceptance.md` 4/4 | 28 / 8 |
+| 对 `lib/jobs/**`、`ui/**` 的改动 | — | 0 |
+| 新增依赖 / 新增队列、任务表、退避、账本 | — | 0 / 0 |
+
+读法：登记只占业务代码的约 5%（28 对 508 行），其中 `builtins.js` 的 14 行是“注册一个定义 + 一个公开操作”的固有样板；其余 14 行是开关、授权、清单和计数。登记改动**没有**越出协调者列出的文件，但 `builtins.js` 里多了一个与 `translation.start` 同样写法的“注册公开操作”区块（定义本身只需要一行）——若认为这算越界，请指出。第 2 步没有遇到需要改 `lib/jobs/**` 的地方。单独的业务提交 `7a2a03a1` 不能独立通过守卫（缺登记），两个提交合在一起才是绿的。
+
+测试：新增 12 + 1 = 13 条；跑过的邻近文件：`exam-blueprint-job`（12）、`exam-blueprint-material`（8）、`unified-runtime-architecture` / `boundaries` / `rollback-read` / `rollback-shape` / `acceptance-doc` / `new-kind`、`architecture-boundaries`、`instant-model-guard`、`docs-links`（合计 46）、`coverage-estimate`、`wp27-usage-jobs`、`unified-runtime-model-family`、`translation-jobs`、`unified-runtime-translation`（合计 61，含上面两个新文件）。没有跑全量。
