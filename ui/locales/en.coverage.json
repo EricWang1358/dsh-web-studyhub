@@ -237,5 +237,10 @@
   "没出成题：{0}": "No question: {0}",
   "补做了 {0} 次（{1}）后，还有 {2}没出成题{3}，已经停下；自动补题不再重试它们。": "After {0} retry round(s) ({1}), {2} still have no question{3}, so the run stopped; the automatic top-up does not try them again.",
   "这些小节之前已经失败过多次，自动补题不再重试，已经停下；还有 {0}没出成题{1}。": "These sections already failed several times, so the automatic top-up does not try them again and the run stopped; {0} still have no question{1}.",
-  "补做第 {0} 轮开始 · 重试{1}里没出成题的 {2}，{3} 题": "Retry round {0} started · retrying {2} that {1} left without a question, {3} questions"
+  "补做第 {0} 轮开始 · 重试{1}里没出成题的 {2}，{3} 题": "Retry round {0} started · retrying {2} that {1} left without a question, {3} questions",
+  "因为这一轮的时间用完了，没做完的批次被停止": "because the time for this round ran out; the batches that were not finished were stopped",
+  "因为你停止了任务": "because you stopped the task",
+  "模型服务暂时不可用，或中断了这次请求": "the model service is temporarily unavailable, or it cut the request off",
+  "{0} 道题通过了审阅，但没有对上任何小节": "{0} question(s) passed review but were not credited to any section",
+  "第 {0} 轮保留了 {1} 道题，但它们没有对上任何还没有题的小节，没有新的进展，为免一直重复，已经停下；还有 {2} 个小节没有题，可以点「为没覆盖的部分补题」再试。": "Round {0} kept {1} question(s), but none of them was credited to a section that had no question, so there was no progress and the run stopped instead of repeating itself; {2} sections still have no question. Press \"Add questions for the uncovered parts\" to try again."
 }
