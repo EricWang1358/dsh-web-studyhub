@@ -137,11 +137,12 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
 export default function DocumentLearning({ call, document, capture, data, annotation, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
   const toast = useToast();
   const [resolution, setResolution] = useState(null), [resolving, setResolving] = useState(false);
-  const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [notice, setNotice] = useState(''), [noticeWhy, setNoticeWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
+  const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [refused, setRefused] = useState(''), [refusedWhy, setRefusedWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
   // The thread of this selection lives here only: planning a click reads the latest one, even before React has rendered the last change.
   const threadRef = useRef(thread);
   const commit = next => { threadRef.current = next; setThread(next); };
-  const say = (text = '', why = '') => { setNotice(text); setNoticeWhy(why); };
+  // The inline refusal of the thread (what it cannot ask, and why): it sits in the thread, not in a toast, and a new selection or question clears it.
+  const say = (text = '', why = '') => { setRefused(text); setRefusedWhy(why); };
   const [deckId, setDeckId] = useState(''), [count, setCount] = useState(3), [kind, setKind] = useState('flashcard');
   const [starting, setStarting] = useState(false), [error, setError] = useState('');
   const [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set());
@@ -339,7 +340,7 @@ export default function DocumentLearning({ call, document, capture, data, annota
     } catch (e) { setError(e.message); }
   }
   const shown = jobs.filter(job => !dismissed.has(job.operationId));
-  return <LearningPanel capture={capture} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={notice} noticeWhy={noticeWhy}
+  return <LearningPanel capture={capture} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={refused} noticeWhy={refusedWhy}
     mode={mode} onMode={annotation?.onMode} annotateReady={annotateReady} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError} onKeep={keep} onDeleteThread={deleteThread}
     onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode}
     deckId={deckId} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}

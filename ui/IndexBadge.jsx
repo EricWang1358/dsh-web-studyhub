@@ -3,8 +3,6 @@ import { ui, uiFormat } from './i18n.js';
 import { Badge, Spinner, Tooltip } from './components/index.js';
 import { formatNumber } from './format.js';
 import { indexTip } from './index-scope.js';
-import { useInjectCss } from './shared.js';
-import css from './index-badge.css';
 
 /* One quiet badge on a material row: whether its search index is built (资料 page and the picker of 创建题组). The index is what lets a big book be asked about
    and turned into questions page by page; the row says where it stands, so nobody has to open the settings to find out. It counts THIS document's pages
@@ -38,7 +36,6 @@ export function indexShortLabel(info, coverage = {}) {
 const LOOK = { indexed: ['success', 'check'], partial: ['warning', 'warning'], stale: ['warning', 'refresh'], building: ['info', null], missing: ['neutral', null] };
 
 export default function IndexBadge({ info, coverage }) {
-  useInjectCss(css, 'study-index-badge');
   if (!info) return null;
   const label = indexLabel(info, coverage), short = indexShortLabel(info, coverage);
   const [tone, icon] = LOOK[info.state] || LOOK.missing;

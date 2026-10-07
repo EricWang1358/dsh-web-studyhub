@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { formatDateTime, formatList, joinMeta } from '../format.js';
 import { Badge, Button, ConfirmDialog, ErrorState, PageHeader, SegmentedControl, TextInput } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
+import { useLiveEffect } from '../use-async.js';
 import Explain from './Explain.jsx';
 import PointTree from './PointTree.jsx';
 import { buildTree, countPoints, filterTree, skippedPages, unmatchedQuestions } from './model.js';
@@ -50,14 +51,12 @@ function Sections({ blueprint }) {
 /** The whole record of a list (`source.get`: the snapshot carries only its summary). A record never changes under its id, so it is read once. */
 export function useListRecord(call, id) {
   const [state, setState] = useState({ status: 'loading' });
-  useEffect(() => {
-    let live = true;
+  useLiveEffect(live => {
     setState({ status: 'loading' });
     Promise.resolve().then(() => call('source.get', { id, limit: 1 })).then(
-      record => { if (live) setState(record?.blueprint ? { status: 'ready', record } : { status: 'error' }); },
-      error => { if (live) setState({ status: 'error', error }); });
-    return () => { live = false; };
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+      record => { if (live()) setState(record?.blueprint ? { status: 'ready', record } : { status: 'error' }); },
+      error => { if (live()) setState({ status: 'error', error }); });
+  }, [id]);
   return state;
 }
 

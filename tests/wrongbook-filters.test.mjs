@@ -264,7 +264,7 @@ test('an empty result says so in plain words and offers to clear the filter', ()
 test('hover words: 答错 vs 未掌握, 生成变式, 只看这个题组, the grouping and the cap, all in the project Tooltip with a focusable anchor', () => {
   const html = render({ initial: { groups: 'all' } });
   assert.doesNotMatch(html, /<span[^>]*class="wb-grade[^"]*"[^>]*\stitle=/, 'the 答错 / 未掌握 mark explains itself in a Tooltip, not a title attribute');
-  assert.doesNotMatch(html, /<(?:span|div|small|strong)\b[^>]*class="[^"]*wb-(?:group|filter|summary|chips)[^"]*"[^>]*\stitle=/);
+  assert.doesNotMatch(html, /<(?:span|div|small|strong)\b[^>]*class="[^"]*wb-(?:group|filter|summary|status-group)[^"]*"[^>]*\stitle=/);
   const tips = html.match(/<span[^>]*role="tooltip"[^>]*>[\s\S]*?<\/span>/g) || [];
   const said = (pattern) => tips.filter((tip) => pattern.test(tip));
   assert.ok(said(/答错：/).length >= 2, 'the chip and the row badge explain 答错');

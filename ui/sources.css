@@ -87,7 +87,7 @@
     }
   }
   /* Narrow: the generic row lines are cut at 180px (sources-page.css), which would cut the counts that say what a number counts. The index badge takes its
-     column (it shows its short label, ui/index-badge.css); the line that says the original's page count may use two. */
+     column (it shows its short label, ui/sources-page.css); the line that says the original's page count may use two. */
   @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {
       .source-doc .source-main small.source-doc__index { max-width: none; }

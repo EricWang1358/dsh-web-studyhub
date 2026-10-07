@@ -293,7 +293,10 @@ export function apply(ctx, registerDocumentLearning) {
                   catch (failure) { if (!onPage) settleHandoff(sessionId, runId, failure); }
                 };
                 openTab();
-                const retry = onPage ? setInterval(openTab, HANDOFF_RETRY_MS) : 0;
+                // The sidebar mounts a moment after it is asked: ask again every HANDOFF_RETRY_MS until it takes the run (a self-scheduling timeout, stopped below).
+                let retry = 0, asking = onPage;
+                const askAgain = () => { if (!asking) return; retry = setTimeout(() => { openTab(); askAgain(); }, HANDOFF_RETRY_MS); };
+                askAgain();
                 try { await taken; }
                 catch (failure) {
                   if (!onPage) throw failure;
@@ -301,7 +304,7 @@ export function apply(ctx, registerDocumentLearning) {
                   handoffNotes.set(sessionId, uiFormat("没能放进右栏：{0}", [reason]));
                   try { ctx.get("layout")?.selectPanel(STUDYHUB_PANEL); } catch { /* the page may still be showing */ }
                   throw new Error(reason);
-                } finally { clearInterval(retry); }
+                } finally { asking = false; clearTimeout(retry); }
                 if (!onPage) try { showChat(); } catch { /* the run is in the sidebar; the learner can switch views themselves */ }
               }
             : undefined,

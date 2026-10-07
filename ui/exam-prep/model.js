@@ -207,6 +207,9 @@ export function pickPool(sources, picks, role) {
   return sources.filter(source => !isPointList(source) && !taken.has(source.id));
 }
 
+/** The languages a build can write in (the request names one; anything else is the default). Data for the request, not a choice of interface wording. */
+const REQUEST_LANGUAGES = ['en', 'zh'];
+
 const clean = value => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 
 /** What `generation.blueprint.build` takes: the name, the course, the scope and the inputs by role (one input per document). */
@@ -221,7 +224,7 @@ export function buildRequest(form, sources, { language = 'zh' } = {}) {
   });
   const reading = form.reading || {}, book = { title: clean(reading.title), author: clean(reading.author), url: clean(reading.url), note: clean(reading.note) };
   const scope = clean(form.scope), course = clean(form.course);
-  return { title: clean(form.title), ...(course ? { course } : {}), ...(scope ? { scope: { label: scope } } : {}), language: language === 'en' ? 'en' : 'zh', inputs,
+  return { title: clean(form.title), ...(course ? { course } : {}), ...(scope ? { scope: { label: scope } } : {}), language: REQUEST_LANGUAGES.includes(language) ? language : 'zh', inputs,
     ...(book.title ? { recommendedReading: Object.fromEntries(Object.entries(book).filter(([, value]) => value)) } : {}), ...(form.supersedes ? { supersedes: form.supersedes } : {}) };
 }
 

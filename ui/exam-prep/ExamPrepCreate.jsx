@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button, Field, Icon, InlineMessage, PageHeader, TextInput, Disclosure } from '../components/index.js';
 import CourseField from '../CourseField.jsx';
@@ -10,6 +10,7 @@ import { modelReadiness } from '../generation-status.js';
 import { courseNamesOf } from '../PageScope.jsx';
 import { sourceMatchesCourse } from '../../lib/source-courses.js';
 import { useStudy } from '../study-context.jsx';
+import { useLiveEffect } from '../use-async.js';
 import Explain from './Explain.jsx';
 import { ROLES, buildRequest, formProblems, pickPool } from './model.js';
 import { noPaperNote, refusalWords } from './words.js';
@@ -25,16 +26,15 @@ const ROLE_PICK = { lecture: () => ui('选择课件'), 'past-paper': () => ui('�
 export function useBuildCheck(call, request, enabled, delay = 350) {
   const key = JSON.stringify(request);
   const [state, setState] = useState({ status: 'idle' });
-  useEffect(() => {
+  useLiveEffect(live => {
     if (!enabled || typeof call !== 'function') { setState({ status: 'idle' }); return undefined; }
-    let live = true;
     setState(current => current.status === 'ok' ? current : { status: 'loading' });
     const timer = setTimeout(() => {
       Promise.resolve().then(() => call('generation.blueprint.build', { ...request, estimate: true }))
-        .then(() => { if (live) setState({ status: 'ok' }); }, error => { if (live) setState({ status: 'refused', error }); });
+        .then(() => { if (live()) setState({ status: 'ok' }); }, error => { if (live()) setState({ status: 'refused', error }); });
     }, delay);
-    return () => { live = false; clearTimeout(timer); };
-  }, [key, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => clearTimeout(timer);
+  }, [key, enabled]);
   return state;
 }
 

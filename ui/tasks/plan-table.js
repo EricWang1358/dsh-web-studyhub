@@ -1,5 +1,6 @@
 import { ui, uiFormat } from '../i18n.js';
 import { joinMeta } from '../format.js';
+import { JOB_STATUS } from '../../lib/job-status.js';
 import { filterItems } from '../components/index.js';
 import { roundOfText, runPathText, needGotText, reasonWord } from '../coverage/copy.js';
 
@@ -78,7 +79,7 @@ const keyOf = (round, part) => `${round ?? 0}:${part}`;
  * kind lists none) has no groups. `counts` are over all listed points: passed, failed, stopped, running (being written / reviewed), pending.
  */
 export function planTable(contract) {
-  const targets = contract.detail?.targets, run = contract.detail?.run, live = ['queued', 'running', 'pausing', 'paused', 'cancelling'].includes(contract.status);
+  const targets = contract.detail?.targets, run = contract.detail?.run, live = [JOB_STATUS.QUEUED, JOB_STATUS.RUNNING, 'pausing', 'paused', JOB_STATUS.CANCELLING].includes(contract.status);
   const round = run ? (run.running ?? run.round) : undefined, parts = activityOf(contract.calls, Number.isInteger(round) ? round : undefined), ranges = new Map((contract.detail?.partList || []).map((part) => [part.part, part.range]));
   const context = { live, status: contract.status, round: Number.isInteger(round) ? round : undefined, parts };
   const counts = { passed: 0, failed: 0, stopped: 0, running: 0, pending: 0 }, groups = [], by = new Map();

@@ -7,7 +7,7 @@ import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Banner, Button, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip } from './components/index.js';
+import { Banner, Button, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { NO_FILTER, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, readGroupBy, readOpenGroups, reasonText, retrainOptions,
   sameVariantState, saveGroupBy, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
@@ -441,17 +441,17 @@ export function WrongBookView({
             </label>
           </div>
           <div className="wb-filter-status">
-            <div className="wb-chips" role="group" aria-label={ui("按状态筛选")}>
+            <div className="wb-status-group" role="group" aria-label={ui("按状态筛选")}>
               <Tooltip layer content={tip(ui('显示所有待巩固的题。'))}>
-                <Button size="sm" shape="pill" aria-pressed={filter.status === 'all'} onClick={() => patchFilter({ status: 'all' })}>
+                <Chip size="sm" selected={filter.status === 'all'} onClick={() => patchFilter({ status: 'all' })}>
                   {ui("全部")} <span className="wb-num">{STATUS_KINDS.reduce((sum, kind) => sum + kindsShown[kind], 0)}</span>
-                </Button>
+                </Chip>
               </Tooltip>
               {STATUS_KINDS.filter((kind) => kind === 'graded' || kind === 'self' || kindsHere[kind] > 0 || filter.status === kind).map((kind) => (
                 <Tooltip key={kind} layer content={statusTip(kind)}>
-                  <Button size="sm" shape="pill" aria-pressed={filter.status === kind} onClick={() => patchFilter({ status: filter.status === kind ? 'all' : kind })}>
+                  <Chip size="sm" selected={filter.status === kind} onClick={() => patchFilter({ status: filter.status === kind ? 'all' : kind })}>
                     {statusLabel(kind)} <span className="wb-num">{kindsShown[kind]}</span>
-                  </Button>
+                  </Chip>
                 </Tooltip>
               ))}
             </div>
