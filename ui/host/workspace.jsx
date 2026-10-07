@@ -1,6 +1,6 @@
 import StudyBoundary from "./StudyBoundary.jsx";
 import { Dialog, InlineMessage } from "../components/index.js";
-import { getUiLanguage, ui } from "../i18n.js";
+import { getUiLanguage, ui, uiFormat } from "../i18n.js";
 import { browserStorage } from "../storage.js";
 import React from "react";
 import App from "../App.jsx";
@@ -31,7 +31,9 @@ const studyReferences = new Map(),
   studyReferenceListeners = new Set();
 // 在右栏打开 waits until the sidebar seat has opened the run it was handed (session id → { runId, settle }).
 const handoffWaits = new Map();
-const HANDOFF_WAIT_MS = 6000;
+const HANDOFF_WAIT_MS = 6000, HANDOFF_RETRY_MS = 250;
+// Why a run could not be moved when the page that asked is gone (session id → sentence): the top-level page shows it when it is back.
+const handoffNotes = new Map();
 const knownSessions = new Map(),
   candidates = new Map(),
   candidateListeners = new Set();
@@ -169,6 +171,12 @@ export function apply(ctx, registerDocumentLearning) {
       knownSessions.set(sessionId, call);
       if (knownSessions.size > 8) knownSessions.delete(knownSessions.keys().next().value);
     }, [sessionId, call]);
+    // The reason a 在右栏打开 from this page failed, shown once when the page is back (the page was covered by then).
+    const [movedNote, setMovedNote] = React.useState(() => {
+      const note = placement === "page" ? handoffNotes.get(sessionId) : undefined;
+      handoffNotes.delete(sessionId);
+      return note || "";
+    });
     const [candidateIntent, setCandidateIntent] = React.useState(() => candidates.get(sessionId) || null);
     const [candidateError, setCandidateError] = React.useState("");
     React.useEffect(() => {
@@ -270,17 +278,31 @@ export function apply(ctx, registerDocumentLearning) {
             picks: run.picks, revealed: run.revealed, complete: run.complete } : null }).catch(() => {}),
         // Optional: keep the question in the right sidebar while the main area shows chat.
         // Resolves once the sidebar seat shows the run (then the main area returns to chat); rejects with the reason it could not, for the button to say.
+        // The top-level page covers the conversation and with it the right sidebar, so there the conversation is revealed first and the sidebar is
+        // asked to open until it takes the run (it mounts a moment later); if it never does, the page is brought back with the reason.
         openInSidebar:
           placement !== "sidebar" && ctx.get("sidebarRight")?.openTab
             ? async (runId) => {
-                const sidebar = ctx.get("sidebarRight");
-                if (!sidebar?.openTab) throw new Error(ui("当前 DSH 没有右栏，题目留在这里。"));
+                if (!ctx.get("sidebarRight")?.openTab) throw new Error(ui("当前 DSH 没有右栏，题目留在这里。"));
+                const onPage = placement === "page";
                 const taken = awaitHandoff(sessionId, runId);
                 deliverRun(sessionId, runId);
-                try { sidebar.openTab("study-workspace"); }
-                catch (failure) { settleHandoff(sessionId, runId, failure); }
-                await taken;
-                try { showChat(); } catch { /* the run is in the sidebar; the learner can switch views themselves */ }
+                if (onPage) try { showChat(); } catch (failure) { settleHandoff(sessionId, runId, failure); }
+                const openTab = () => {
+                  try { ctx.get("sidebarRight")?.openTab("study-workspace"); }
+                  catch (failure) { if (!onPage) settleHandoff(sessionId, runId, failure); }
+                };
+                openTab();
+                const retry = onPage ? setInterval(openTab, HANDOFF_RETRY_MS) : 0;
+                try { await taken; }
+                catch (failure) {
+                  if (!onPage) throw failure;
+                  const reason = ui("右栏没有打开。请先回到对话并打开右栏，再回来点「在右栏打开」。");
+                  handoffNotes.set(sessionId, uiFormat("没能放进右栏：{0}", [reason]));
+                  try { ctx.get("layout")?.selectPanel(STUDYHUB_PANEL); } catch { /* the page may still be showing */ }
+                  throw new Error(reason);
+                } finally { clearInterval(retry); }
+                if (!onPage) try { showChat(); } catch { /* the run is in the sidebar; the learner can switch views themselves */ }
               }
             : undefined,
         takeHandoff:
@@ -300,6 +322,7 @@ export function apply(ctx, registerDocumentLearning) {
     );
     const seat = (
       <div className="study-seat"><StudyBoundary>
+        {movedNote && <InlineMessage tone="warning" onDismiss={() => setMovedNote("")}>{movedNote}</InlineMessage>}
         {placement === "sidebar" && candidateIntent?.candidates?.length > 0 &&
           <Dialog title={ui("选择要打开的题目")} size="md" onClose={() => deliverCandidates(sessionId, null)}>
             {candidateError && <InlineMessage tone="error">{candidateError}</InlineMessage>}
