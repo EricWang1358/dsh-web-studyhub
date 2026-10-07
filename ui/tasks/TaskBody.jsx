@@ -27,7 +27,7 @@ const SECTIONS = {
 /* `marks` (callId -> 'long' | 'slowest', time-limit.js) draws the steps the time-limit strip points at on the timeline; `focusCall` ({ id, at }) is that strip asking for one of them: it is selected and its output shown, like a click on its bar. */
 export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const contract = contractOf(task), calls = contract.calls, live = isRunningTask(task), kind = taskKindOf(task);
-  const section = SECTIONS[kind], left = useId(), right = useId();
+  const section = contract.kind === 'audio-live-correction' ? null : SECTIONS[kind], left = useId(), right = useId();
   const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState('running'), [rightTab, setRightTab] = useState('output');
   const running = useMemo(() => runningCalls(calls), [calls]);
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || null;
