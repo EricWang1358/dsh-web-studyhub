@@ -2,7 +2,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { describeFailure, failureSentence, stageCodeLabel } from '../generation-status.js';
 import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
-import { contractOf, taskKindOf, isRunningTask } from './task-model.js';
+import { contractOf, taskKindOf, isRunningTask, hasDailyFailures } from './task-model.js';
 import { roundOfText, waitingText } from '../coverage/copy.js';
 import { partTitle } from '../deck-parts.js';
 
@@ -21,7 +21,8 @@ export const audioKindLabel = (contract) => ui(AUDIO_LABEL[contract.kind] || (co
 
 /** run | queued | paused | stopping | done | partial | fail | stopped: what a row's dot, colour and word are drawn from. */
 export function taskState(job) {
-  const { status, result } = contractOf(job);
+  const contract = contractOf(job), { status, result } = contract;
+  if (hasDailyFailures(contract)) return contract.detail.metrics?.passed > 0 ? 'partial' : 'fail';
   switch (status) {
     case STATUS.QUEUED: return 'queued';
     case STATUS.PAUSING: case STATUS.PAUSED: return 'paused';
@@ -73,7 +74,8 @@ export function taskLine(job) {
   const contract = contractOf(job), state = taskState(job);
   if (contract.kind === 'coach-daily') {
     const { batches = [], metrics = {}, paused } = contract.detail, ran = batches.filter((batch) => batch.status !== 'skipped').length;
-    return joinMeta([paused ? ui('今天已暂停') : '', batches.length ? uiFormat('{0} 批 · 备好 {1} 道', [ran, metrics.passed ?? 0]) : ui('今天还没有备题'), metrics.practised > 0 ? uiFormat('练了 {0} 道 · 对 {1}%', [metrics.practised, metrics.accuracy]) : '']);
+    const failed = batches.filter(batch => batch.status === 'failed').length;
+    return joinMeta([paused ? ui('今天已暂停') : '', batches.length ? uiFormat('{0} 批 · 备好 {1} 道', [ran, metrics.passed ?? 0]) : ui('今天还没有备题'), failed ? uiFormat('失败 {0} 批', [failed]) : '', metrics.practised > 0 ? uiFormat('练了 {0} 道 · 对 {1}%', [metrics.practised, metrics.accuracy]) : '']);
   }
   // A coverage run says which round it is in (lib/coverage-run.js runFacts; the console's header says the rest).
   const run = contract.detail?.run;

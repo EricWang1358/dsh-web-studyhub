@@ -12,6 +12,7 @@ const m = await loadUi(`
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { default as CoachBatches } from './ui/tasks/CoachBatches.jsx';
   export { taskSummary } from './ui/tasks/task-summary.js';
+  export { taskFilters, filterTasks } from './ui/tasks/task-model.js';
   export { taskFacts } from './ui/tasks/task-facts.js';
   export { coachDailyJobs, dayOf, DAILY } from './lib/coach-daily.js';
   export { jobContract, snapshotJob } from './lib/job-contract.js';
@@ -43,6 +44,32 @@ test('the console lists a row a day, named by the day, with one line of what it 
   assert.notEqual(m.taskSummary(today).title, m.taskSummary(past).title, 'each day is its own row');
   const out = consoleOf([today, past]);
   assert.equal((out.match(/data-task-id="coach:/g) || []).length >= 2, true);
+});
+
+const failedBatch = () => batch(1, { status: 'failed', generated: 0, passed: 0, reason: 'error', message: 'Invalid JSON' });
+const skippedBatch = () => batch(2, { status: 'skipped', generated: 0, passed: 0, reason: 'full' });
+for (const scenario of [
+  { name: 'all failed', batches: [failedBatch()], state: 'fail', failures: 1 },
+  { name: 'failed and skipped without a saved card', batches: [failedBatch(), skippedBatch()], state: 'fail', failures: 1 },
+  { name: 'failed and successful with saved cards', batches: [failedBatch(), batch(2)], state: 'partial', failures: 1 },
+  { name: 'all successful', batches: [batch(1)], state: 'done', failures: 0 },
+  { name: 'only skipped', batches: [skippedBatch()], state: 'done', failures: 0 },
+  { name: 'running again after failure', batches: [failedBatch()], preparing: true, state: 'run', failures: 0 },
+  { name: 'paused after failure', batches: [failedBatch()], paused: true, state: 'fail', failures: 1 },
+]) test(`daily console distinguishes idle from business success: ${scenario.name}`, () => {
+  const [today] = rows(scenario), summary = m.taskSummary(today);
+  assert.equal(today.contract.status, scenario.preparing ? 'running' : 'complete', 'the daily record public lifecycle stays unchanged');
+  assert.equal(summary.state, scenario.state);
+  assert.equal(m.taskFilters([today]).find(filter => filter.id === 'failed').count, scenario.failures);
+  assert.equal(m.filterTasks([today], 'failed').length, scenario.failures, 'the public failure filter includes ended daily failures');
+  const out = consoleOf([today]);
+  assert.match(out, /本日记录/);
+  assert.doesNotMatch(out, /总进度 · 已完成/);
+  if (scenario.batches.some(item => item.status === 'failed')) assert.match(summary.line, /失败 1 批/);
+  if (scenario.state === 'done') assert.match(out, /暂无进行中的批次/);
+  if (scenario.paused) assert.match(out, />继续</, 'daily pause/resume controls survive a failed batch');
+  else assert.match(out, />暂停</, 'daily limits and pause remain available');
+  assert.doesNotMatch(consoleOf([today], 'en'), HAN, 'daily outcome wording is translated');
 });
 
 test('the facts of the day: kept over written, practised and accuracy, the tokens in, out and from cache, what was skipped', () => {

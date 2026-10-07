@@ -26,7 +26,9 @@ export const taskId = (job) => contractOf(job).jobId;
 
 /** Still a live task: waiting, working, pausing or paused, or stopping. */
 export const isRunningTask = (job) => isLiveStatus(contractOf(job).status);
-const isFailed = (job) => [STATUS.FAILED, STATUS.INTERRUPTED].includes(contractOf(job).status);
+/** A resting daily record may contain failed work; its lifecycle only says whether a batch is in flight. */
+export const hasDailyFailures = (contract) => contract.kind === 'coach-daily' && !isLiveStatus(contract.status) && contract.detail.batches?.some(batch => batch.status === 'failed');
+const isFailed = (job) => { const contract = contractOf(job); return [STATUS.FAILED, STATUS.INTERRUPTED].includes(contract.status) || hasDailyFailures(contract); };
 
 /** How many tasks are waiting or running: the badge on the sidebar entry. */
 export function runningTaskCount(data) {

@@ -87,7 +87,9 @@ function Metrics({ job, summary, now }) {
     <section className="tc-metrics" aria-label={ui('概览')}>
       <div className="tc-metric tc-metric--progress">
         <div className="tc-metric__top">
-          <span className="tc-metric__k">{uiFormat('总进度 · {0}', [stateLabel(summary.state)])}</span>
+          <span className="tc-metric__k">{summary.kind === 'coach'
+            ? uiFormat('本日记录 · {0}', [summary.state === 'done' ? ui('暂无进行中的批次') : stateLabel(summary.state)])
+            : uiFormat('总进度 · {0}', [stateLabel(summary.state)])}</span>
           <strong className="tc-metric__pct">{summary.percent === null ? '—' : `${summary.percent}%`}</strong>
         </div>
         <SegmentedProgress segments={segments} label={label || ui('总进度')} />
