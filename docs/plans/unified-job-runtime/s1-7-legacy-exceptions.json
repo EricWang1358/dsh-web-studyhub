@@ -19,7 +19,8 @@
     "lib/contexts/workflows/jobs/teaching.js",
     "lib/contexts/workflows/jobs/skeleton.js",
     "lib/contexts/study/jobs/assist.js",
-    "lib/contexts/notes/jobs/note-generate.js"
+    "lib/contexts/notes/jobs/note-generate.js",
+    "lib/contexts/generation/blueprint/jobs/exam-blueprint-build.js"
   ],
   "entries": [
     {
@@ -1764,6 +1765,7 @@
     "not-a-job"
   ],
   "policySwitches": {
+    "examBlueprint": "the exam blueprint build is a new Job kind with no original in-process path to bypass: the switch only admits new builds (off: the operation refuses and does nothing; the blueprint material already saved stays readable)",
     "dailyRecapAgent": "the daily recap Job asks a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)",
     "workflowAgent": "teachings and skeletons of the learning workflow ask a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)"
   },

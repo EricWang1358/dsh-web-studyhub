@@ -2,7 +2,7 @@
 
 核验日期：2026-10-07。分支 `codex/runtime-s67-acceptance`，基于 main `82478c27`（含 #355–#358；核验时没有未合并的 PR）。工作包文本见 [U42](sprints-2-6.md#u42-s6-7)；前序：[S6-0 覆盖复核](s6-0-coverage.md)、[S6-1 兼容核对](s6-1-compat.md)、[S6-2 只删无使用者的代码](s6-2-dead-only.md)、[S6-3 边界护栏](s6-3-boundaries.md)、[S6-4 新增任务的最小接入证明](s6-4-minimal-integration.md)、[S6-5 控制台矩阵（音频与 PDF 一侧）](s6-5-audio-console.md)与[即时请求入口](s6-5a-instant.md)、[S6-6 最终读兼容与回退](s6-6-rollback.md)。
 
-**这份文件声明什么，不声明什么。** 它把 P1–P6 实际合并的 PR 和 SHA、剩余的旁路例外、不支持的能力和保留的历史 reader、证据入口放在一处，并记录合并前完整 `npm run verify` 的结果。它**没有**声明：任何 alpha 版本号、tag、GitHub 发布或"某个 commit 是 alpha"——这些需要所有者授权，见 §8（待定门禁）。23 个迁移开关**全部默认关闭**，关闭时一切与 2.7.1 相同（这是回退本身）；默认值没有翻转。不替正式 main 声明完成。
+**这份文件声明什么，不声明什么。** 它把 P1–P6 实际合并的 PR 和 SHA、剩余的旁路例外、不支持的能力和保留的历史 reader、证据入口放在一处，并记录合并前完整 `npm run verify` 的结果。它**没有**声明：任何 alpha 版本号、tag、GitHub 发布或"某个 commit 是 alpha"——这些需要所有者授权，见 §8（待定门禁）。24 个迁移开关**全部默认关闭**，关闭时一切与 2.7.1 相同（这是回退本身）；默认值没有翻转。不替正式 main 声明完成。
 
 ## 1. R1–R6 逐项可追溯
 
@@ -15,7 +15,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | R3 | P4 翻译、为你定制、每日总结、学习流、助手（+ 笔记起草 S4-10） | [S4-9](s4-9-rollback.md) | 四个家族在一个服务里同时在途，一个任务表、一个账本写入点、能力拒绝用同样的话、开关各自独立、策略开启时调用是宿主子代理（`unified-runtime-model-family.test.mjs`）；翻译不排在整库生成后面且同文档仍互斥（`unified-runtime-translation-scheduling.test.mjs`）；为你定制的 #234 行为保留（`model-family-baseline-coach*.test.mjs`）；回退演练六个家族 `s4-9-rollback-evidence.json`。 |
 | R4 | P5 PDF 转换、Marker 安装、MinerU 配置、检索索引 | [S5-7](s5-7-acceptance.md)、[S5-6 矩阵](s5-6-recovery-matrix.md) | 四条路径与模型任务混跑、共同目录互斥（`unified-runtime-nonmodel-family.test.mjs`）；未知副作用/停止/恢复的路径 × 失败点矩阵；回退演练五个场景 `s5-7-evidence.json`。 |
 | R5 | P6 删除无使用者的旧实现，新增普通任务无需内核分支 | [S6-2](s6-2-dead-only.md)、[S6-3](s6-3-boundaries.md)、[S6-4](s6-4-minimal-integration.md) | 调用图守卫：执行区域里没有"任何开关取值下都没有使用者"的代码，删过的不会回来（`unified-runtime-architecture.test.mjs`）；Job 模块五条边界规则、内核向下的依赖、持久化形状与回退夹具同进同退（`unified-runtime-boundaries.test.mjs`、`architecture-boundaries.test.mjs`、`unified-runtime-rollback-shape.test.mjs`）；合成新类型只注册定义和执行器就能 submit/list/status/wait/control/output（`unified-runtime-new-kind.test.mjs`，9 条），真实旁证是 S4-10（#333）。**未删的旧执行实现见 §4：它们是开关关闭时的默认路径，等默认值翻转。** |
-| R6 | DSH 优先、唯一责任边界、行为保持、独立开关、alpha 交付约定 | [agent-rules.md](agent-rules.md)、[review-checklist.md](review-checklist.md) | 23 个开关各一行（`lib/runtime-config.js`），回退矩阵每个开关一行（`unified-runtime-rollback-read.test.mjs`）；模型只在一处被做出（`instant-model-guard.test.mjs`）、一处被计量；公共操作的名字解析（S6-1、#337、#358）；迁移前后同一组特征测试各跑一次（各家族 `*.runtime.test.mjs` 孪生）。 |
+| R6 | DSH 优先、唯一责任边界、行为保持、独立开关、alpha 交付约定 | [agent-rules.md](agent-rules.md)、[review-checklist.md](review-checklist.md) | 24 个开关各一行（`lib/runtime-config.js`），回退矩阵每个开关一行（`unified-runtime-rollback-read.test.mjs`）；模型只在一处被做出（`instant-model-guard.test.mjs`）、一处被计量；公共操作的名字解析（S6-1、#337、#358）；迁移前后同一组特征测试各跑一次（各家族 `*.runtime.test.mjs` 孪生）。 |
 
 ## 2. 工作包 → 已合并 PR 与合并 SHA
 
@@ -100,14 +100,14 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 ## 4. 旧实现与旁路的剩余例外
 
-清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **18 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"）；其余全部在下面。
+清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **19 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"）；其余全部在下面。
 
 **数量**：模型形状的调用点 36 行、后台启动点 32 行（合计 88 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
 
 | 处置 | 数量 | 含义 |
 |---|---|---|
 | `migrate`（开关全开后仍在运行时之外，须由某一步迁移） | **0** | 没有。每一个迁移位置都已迁移，没有"以后再迁"的静默旁路 |
-| `delete-s6-2`（旧路径，开关全开后不可达） | 21 | 23 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
+| `delete-s6-2`（旧路径，开关全开后不可达） | 21 | 24 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
 | `exception`（有意保留，写明类别和理由） | 67 | 见下表的类别与理由；没有"待定"类 |
 
 **不是干净清零的几处，以及所有者对它们的决定（2026-10-07）：**
