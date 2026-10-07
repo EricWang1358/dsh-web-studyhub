@@ -108,7 +108,7 @@ test('restart, cut short in the reviews: the retry asks them again and writes on
 });
 
 test('restart, the write happened and its receipt was lost: the retry finds it by looking, writes nothing, asks nothing, and the session hears of it once', async t => {
-  const first = await dying(t, 'after');
+  const first = await dying(t, 'after'), logical = (await rowOf(first.service, first.started.jobId)).contract.jobId;
   const written = await deckOf(first.service);
   assert.deepEqual(written.cards.map(item => item.id), ['old', 'a', 'b'], 'the library holds the publication');
   const after = await afterRestart(t, first.root, RESTART), [job] = await jobsOf(after.service);
@@ -120,7 +120,7 @@ test('restart, the write happened and its receipt was lost: the retry finds it b
   assert.deepEqual((await deckOf(after.service)).cards, written.cards, 'the deck is exactly as the write left it: nothing was written twice');
   assert.equal(done.recovered, true);
   assert.match(done.stage, /没有重复写入/, 'the console says it was found by looking');
-  const row = await rowOf(after.service, job.id);
+  const row = (await jobsOf(after.service)).find(item => item.contract.jobId === logical);
   assert.ok(row.contract.events.some(event => event.code === 'publish-recovered'), 'a domain event on the record, not a log line');
   assert.equal(after.notices.filter(notice => /发布任务/.test(notice.text)).length, 1, 'one notice, from the Attempt that settled');
   first.hold.open();
@@ -139,10 +139,11 @@ test('restart, the write happened to a part draft: the cards are fingerprinted a
 });
 
 test('restart, the draft was edited after the check and before the write: the retry is refused, in words that say what changed and what to do', async t => {
-  const first = await dying(t, 'before'), after = await afterRestart(t, first.root, RESTART), [job] = await jobsOf(after.service);
-  const [draft] = (await draftsOf(after.service)).filter(item => item.id === 'd');
-  await after.service.call('draft.save', { deck: { ...draft, cards: draft.cards.map(item => (item.id === 'a' ? { ...item, hint: 'Edited by hand.' } : item)) }, requireExisting: true });
-  await assert.rejects(after.service.call('job.control', { jobId: job.id, action: 'retry' }), { code: 'artifact-conflict', message: /草稿.*被改动或删除.*重新发布/ });
+  const first = await dying(t, 'before');
+  // The learner edits the draft while the publication is held at its write (the library notes the new version, as any edit does).
+  await first.service.store.update(state => { const draft = state.drafts.find(item => item.id === 'd'); draft.cards[0].hint = 'Edited by hand.'; draft.draftVersion++; });
+  const after = await afterRestart(t, first.root, RESTART), [job] = await jobsOf(after.service);
+  await assert.rejects(after.service.call('job.control', { jobId: job.id, action: 'retry' }), { code: 'publish-draft-changed', message: /草稿.*被改动或删除.*重新发布/ });
   assert.deepEqual((await deckOf(after.service)).cards.map(item => item.id), ['old'], 'nothing was written');
   first.hold.open();
 });
@@ -151,7 +152,7 @@ test('restart, the deck was changed after the write: the retry is refused, in wo
   const first = await dying(t, 'after'), after = await afterRestart(t, first.root, RESTART), [job] = await jobsOf(after.service);
   await after.service.store.update(state => { const deck = state.decks.find(item => item.id === 't'); deck.cards.find(item => item.id === 'a').answer = 'Changed by the learner.'; });
   const before = await deckOf(after.service);
-  await assert.rejects(after.service.call('job.control', { jobId: job.id, action: 'retry' }), { code: 'artifact-conflict', message: /题组.*被改动.*重新发布/ });
+  await assert.rejects(after.service.call('job.control', { jobId: job.id, action: 'retry' }), { code: 'publish-deck-changed', message: /题组.*被改动.*重新发布/ });
   assert.deepEqual((await deckOf(after.service)).cards, before.cards, 'nothing was written');
   first.hold.open();
 });
@@ -172,4 +173,12 @@ test('a card that does not pass its review stays in the draft, and the job says 
   assert.deepEqual((await deckOf(service)).cards.map(item => item.id), ['old', 'a']);
   assert.equal(done.rejected, 1);
   assert.ok(done.rejectedDraftId, 'the remainder is a draft of its own');
+});
+
+test('the switch generationPublish without generation does nothing: the publication is the job it always was', async t => {
+  const { service, args } = await library(t, stagedModel(), ['generationPublish']);
+  const started = await service.call('draft.publish.start', args), done = await settleJob(service, started.jobId);
+  assert.equal(done.status, 'complete', done.stage);
+  assert.notEqual((await rowOf(service, started.jobId)).contract.contractVersion, 2, 'not a job of the runtime');
+  assert.deepEqual((await deckOf(service)).cards.map(item => item.id), ['old', 'a', 'b']);
 });
