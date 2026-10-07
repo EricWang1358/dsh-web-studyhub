@@ -215,6 +215,9 @@ test('the way back from an open run, and the source of a wrongly answered questi
   setUiLanguage('zh');
   assert.ok(render(e(ReadingBackButton, { run: { reading }, onReturn() {} })).includes('回到原文'));
   assert.equal(render(e(ReadingBackButton, { run: {}, onReturn() {} })), '');
+  // The header of an open run has three buttons side by side; this one used to be the small size beside two normal ones (the owner saw three font sizes).
+  assert.match(render(e(ReadingBackButton, { run: { reading }, onReturn() {} })), /sh-btn--md/);
+  assert.doesNotMatch(render(e(ReadingBackButton, { run: { reading }, onReturn() {} })), /sh-btn--sm/);
   const solution = { citations: [{ sourceId: 's1', quote: 'An index is an extra data structure' }], selections: [{ sourceId: 's1', start: 0, end: 10, quote: 'An index is an extra data structure' }] };
   const sources = [{ id: 's1', title: 'Lecture' }];
   const wrong = { feedback: { correct: false }, solution };

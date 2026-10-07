@@ -42,7 +42,8 @@ export function ReadingResult({ run, onReturn, busy }) {
 export function ReadingBackButton({ run, onReturn, busy }) {
   useInjectCss(css, 'study-reading-loop');
   if (!run?.reading) return null;
-  return <Button variant="quiet" size="sm" className="reading-back" disabled={busy} title={placeText(run.reading)} onClick={() => onReturn(run.reading)}>{ui('回到原文')}</Button>;
+  // The same size as its neighbours in the header (在右栏打开, 返回学习库): a smaller one beside two larger ones read as a mistake.
+  return <Button variant="quiet" className="reading-back" disabled={busy} title={placeText(run.reading)} onClick={() => onReturn(run.reading)}>{ui('回到原文')}</Button>;
 }
 
 /** After a wrong answer: open the passage the question points at, with a way back to this very question. */
