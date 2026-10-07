@@ -1,8 +1,8 @@
-import { execFileSync, spawnSync } from 'node:child_process';
-import { cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { cp, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractRelease } from '../extract-release.mjs';
 
 /* The S4-9 rollback drill runner: `node tests/fixtures/runtime-s49/run-drill.mjs [rollbackTag]`. For every model family (recap, note draft, translation, learning workflow, assistant) and for both a
    FINISHED run and one that is still going when the process ends hard: the current code (the family's switch on) leaves its records; the fixed older version (default v2.7.1, `git archive` of the
@@ -17,12 +17,7 @@ const FAMILIES = ['recap', 'note', 'translation', 'workflow', 'assist'], PHASES 
 for (const key of Object.keys(process.env)) if (/_API_KEY$|_TOKEN$|BASE_URL$/.test(key)) delete process.env[key];
 process.env.SSH_TTY ||= 'audit';
 
-const sha = execFileSync('git', ['rev-parse', tag], { cwd: repo, encoding: 'utf8' }).trim();
-if (!existsSync(join(older, 'lib', 'service.js'))) {
-  await mkdir(older, { recursive: true });
-  const archive = execFileSync('git', ['archive', tag], { cwd: repo, maxBuffer: 512 * 1024 * 1024 });
-  if (spawnSync('tar', ['-x', '-C', older], { input: archive }).status !== 0) throw new Error(`could not extract ${tag}`);
-}
+const sha = await extractRelease(repo, tag, older);
 const run = args => {
   const out = spawnSync(process.execPath, [script, ...args], { cwd: repo, encoding: 'utf8', timeout: 600_000, env: { ...process.env, DSH_HOME: '' } });
   const line = `${out.stdout}`.split('\n').find(text => text.startsWith('RESULT '));
