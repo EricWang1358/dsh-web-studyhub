@@ -4,6 +4,7 @@ import MathText from '../../MathText.jsx';
 import { Badge, Button, InlineMessage } from '../../components/index.js';
 import { ui, uiFormat } from '../../i18n.js';
 import { answerText, clip, displayPrompt, groupTitle, linkKind } from './link-model.js';
+import { stripTermMarkers } from '../../term-marker.js';
 
 const REASON_TEXT = {
   stale: '资料已更新，这段引用需要在当前原文中重新选择。',
@@ -25,8 +26,15 @@ function LazyDetails({ summary, className, open: forced = false, children, ...re
 }
 
 /** One question or Q&A card of a passage: its prompt, a short answer, its deck, the jump, and the extra Q&A asked about it. */
-function LinkItem({ link, onOpen }) {
-  const kind = linkKind(link), followups = link.followups || [], answer = answerText(link.answer);
+function LinkItem({ link, onOpen, onAnnotation }) {
+  const kind = linkKind(link), followups = link.followups || [], answer = kind === 'annotation' ? stripTermMarkers(answerText(link.answer)) : answerText(link.answer);
+  // A kept thread (批注): its first question, a short answer, and the way back into it in the panel above.
+  if (kind === 'annotation') return <article className="reader-link-item" data-kind={kind}>
+    <p className="reader-link-item__head"><Badge size="sm" className="origin-note">{ui('批注')}</Badge> <strong>{link.prompt}</strong></p>
+    <p className="reader-link-item__deck">{uiFormat('{0} 条问答', [link.nodes || 1])}</p>
+    {answer && <div className="reader-link-item__answer"><Markdown text={clip(answer, 280)} /></div>}
+    {onAnnotation && <div className="reader-link-item__actions"><Button size="sm" variant="quiet" onClick={() => onAnnotation(link)}>{ui('打开问答')}</Button></div>}
+  </article>;
   return <article className="reader-link-item" data-kind={kind}>
     <p className="reader-link-item__head">
       {kind === 'qa' && <Badge size="sm" className="origin-note">{ui('问答')}</Badge>}
@@ -47,16 +55,16 @@ function LinkItem({ link, onOpen }) {
 }
 
 /** The words of "题目 2 · 问答卡 1 · 笔记 1" (no plurals to get wrong), shared by the list and the hover text of an underline. */
-export const linkTitleWords = () => ({ questions: count => uiFormat('题目 {0}', [count]), qa: count => uiFormat('问答卡 {0}', [count]), notes: count => uiFormat('笔记 {0}', [count]) });
+export const linkTitleWords = () => ({ questions: count => uiFormat('题目 {0}', [count]), qa: count => uiFormat('问答卡 {0}', [count]), annotations: count => uiFormat('批注 {0}', [count]), notes: count => uiFormat('笔记 {0}', [count]) });
 
-function Group({ group, focused, onOpen }) {
+function Group({ group, focused, onOpen, onAnnotation }) {
   return <LazyDetails className="reader-link-group" data-kind={group.kind} data-focused={focused || undefined} open={focused}
     summary={<>
       <span className="reader-link-group__no">[{group.number}]</span>
       <span className="reader-link-group__quote"><MathText text={group.selection.quote} /></span>
       <small className="reader-link-group__count">{groupTitle(group, linkTitleWords())}</small>
     </>}>
-    {group.links.map(link => <LinkItem key={`${link.deckId}:${link.cardId}`} link={link} onOpen={onOpen} />)}
+    {group.links.map(link => <LinkItem key={`${link.deckId}:${link.cardId}`} link={link} onOpen={onOpen} onAnnotation={onAnnotation} />)}
     {group.notes.map(note => <p className="reader-link-note" key={note.noteId}>
       <span className="reader-link-note__label">{ui('笔记')}</span>
       <span className="reader-link-note__title">{note.title}</span>
@@ -71,14 +79,14 @@ function Group({ group, focused, onOpen }) {
  * `focusedKey` narrows the list to one passage (set by clicking its underline); `onOpen` receives
  * { deckId, cardId } or { kind: 'note', id }.
  */
-export default function PassageLinksPanel({ model, focusedKey, onFocus, onOpen }) {
+export default function PassageLinksPanel({ model, focusedKey, onFocus, onOpen, onAnnotation }) {
   const focused = model.groups.some(group => group.key === focusedKey) ? focusedKey : null;
   const shown = focused ? model.groups.filter(group => group.key === focused) : model.groups;
   if (!model.groups.length && !model.stale.length) return null;
   return <section className="reader-links" aria-label={ui('原文关联题目与解析')}>
     <h3 className="study-document-links-heading">{ui('原文关联题目与解析')}</h3>
     <div className="reader-links__list">
-      {shown.map(group => <Group key={group.key} group={group} focused={group.key === focused} onOpen={onOpen} />)}
+      {shown.map(group => <Group key={group.key} group={group} focused={group.key === focused} onOpen={onOpen} onAnnotation={onAnnotation} />)}
     </div>
     {focused && <Button size="sm" variant="quiet" onClick={() => onFocus(null)}>{ui('显示全部引用')}</Button>}
     {!focused && model.stale.length > 0 && <LazyDetails className="reader-links__stale" summary={uiFormat('需要重新选择 · {0}', [model.stale.length])}>

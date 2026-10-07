@@ -1,4 +1,7 @@
-import { ui } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
+import { TERM_SOURCE } from "./term-marker.js";
+import { Button } from "./components/Button.jsx";
+import Tooltip from "./components/Tooltip.jsx";
 import React from "react";
 import { prepareStudyMath, STUDY_IMAGE_PATTERN } from "./study-media.js";
 import StudyMath from "./StudyMath.jsx";
@@ -14,6 +17,7 @@ const COLOR_OPEN = "c",
   COLOR_CLOSE = "/c";
 const INLINE = [
   ["code", /`([^`\n]+)`/],
+  ["term", new RegExp(TERM_SOURCE)],
   ["math", /\uE000(\d+)\uE001/],
   ["image", STUDY_IMAGE_PATTERN],
   ["color", /c(#[0-9a-fA-F]{3,8})([\s\S]*?)\/c/],
@@ -64,6 +68,8 @@ function inline(text, options, key = "i") {
   while (rest) {
     let best = null;
     for (const [type, re] of INLINE) {
+      // `[[term]]` is a button only where a handler is given; elsewhere it stays the text it was written as.
+      if (type === "term" && !options.onTerm) continue;
       const m = re.exec(rest);
       if (m && (!best || m.index < best.m.index)) best = { type, m };
     }
@@ -77,7 +83,23 @@ function inline(text, options, key = "i") {
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
     else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
     else if (type === "image") out.push(<StudyImage key={k} alt={m[1]} src={m[2] || m[3]} interactive={options.mediaInteractive} />);
-    else if (type === "color")
+    else if (type === "term") {
+      const term = m[1],
+        asked = options.askedTerms?.includes(term);
+      out.push(
+        <Tooltip key={k} layer group="ask-help" content={ui("只用选中的这段原文解释这个词；答案会开在这条回答下面。点击前不会提问。")}>
+          <Button
+            variant="link"
+            size="sm"
+            className={asked ? "md-term md-term--asked" : "md-term"}
+            aria-label={uiFormat("追问「{0}」", [term])}
+            onClick={() => options.onTerm(term)}
+          >
+            {term}
+          </Button>
+        </Tooltip>,
+      );
+    } else if (type === "color")
       out.push(
         <span key={k} className="md-color" style={{ color: m[1] }}>
           {inline(m[2], options, k)}
@@ -289,10 +311,10 @@ function list(items, options, key) {
 }
 
 /** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. */
-export default function Markdown({ text, links = true, mediaInteractive = links, className = "" }) {
+export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms }) {
   const content = React.useMemo(() => {
     const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
-    return blocks(prepare(value), { links, mediaInteractive, formulas });
-  }, [text, links, mediaInteractive]);
+    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms });
+  }, [text, links, mediaInteractive, onTerm, askedTerms]);
   return <div className={("md " + className).trim()}>{content}</div>;
 }

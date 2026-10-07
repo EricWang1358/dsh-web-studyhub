@@ -4,9 +4,9 @@
    again with Range.isPointInRange on click. Pure helpers over a DOM-like container, so they run under node:test. */
 import { spanFormulas } from '../reader/formula.js';
 
-export const HIGHLIGHT_NAMES = Object.freeze({ question: 'study-link-question', qa: 'study-link-qa', note: 'study-link-note' });
-/** Where two kinds overlap, the higher priority decides the look: a question over a Q&A card over a note. */
-const PRIORITY = { question: 2, qa: 1, note: 0 };
+export const HIGHLIGHT_NAMES = Object.freeze({ question: 'study-link-question', qa: 'study-link-qa', annotation: 'study-link-annotation', note: 'study-link-note' });
+/** Where two kinds overlap, the higher priority decides the look: a question over a Q&A card over an annotation over a note. */
+const PRIORITY = { question: 3, qa: 2, annotation: 1, note: 0 };
 
 const SHOW_TEXT = 4;
 const isSpace = char => /\s/.test(char);

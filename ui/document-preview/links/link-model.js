@@ -2,8 +2,8 @@
    Input: the groups of `groupPassageLinks` (one per selected passage, all its links). Output: the passages that
    can be underlined and the ones that must be selected again. */
 
-/** What kind of look a link gets: a question card, a Q&A card saved from an answer, or (when notes carry a passage) a note. */
-export const linkKind = link => (link?.kind === 'note' ? 'note' : link?.sourceQa ? 'qa' : 'question');
+/** What kind of look a link gets: a question card, a Q&A card saved from an answer, an annotation (kept questions and answers, 批注 mode) or (when notes carry a passage) a note. */
+export const linkKind = link => (link?.kind === 'note' ? 'note' : link?.kind === 'annotation' ? 'annotation' : link?.sourceQa ? 'qa' : 'question');
 
 /** A stable identity for a passage, used to keep one passage focused across refreshes of the links. */
 export const groupKey = selection => JSON.stringify([selection?.documentId, selection?.revision, selection?.sourceId, selection?.start, selection?.end, selection?.quote]);
@@ -28,9 +28,9 @@ export function buildLinkModel(groups = [], { noteBadges } = {}) {
     if (!group.selection?.quote) continue;
     const key = groupKey(group.selection), links = group.links || [];
     if (links.some(item => item.status === 'resolved')) {
-      const counts = { question: 0, qa: 0 };
+      const counts = { question: 0, qa: 0, annotation: 0 };
       for (const item of links) { const kind = linkKind(item); if (kind in counts) counts[kind]++; }
-      const kind = counts.question ? 'question' : counts.qa ? 'qa' : links.some(item => linkKind(item) === 'note') ? 'note' : 'question';
+      const kind = counts.question ? 'question' : counts.qa ? 'qa' : counts.annotation ? 'annotation' : links.some(item => linkKind(item) === 'note') ? 'note' : 'question';
       active.push({ key, number: group.number, selection: group.selection, kind, links, counts, notes: notesOf(links, noteBadges),
         followups: links.reduce((total, item) => total + (item.followups?.length || 0), 0) });
     } else stale.push({ key, number: group.number, selection: group.selection, reason: reasonOf(links[0]?.status), links });
@@ -40,7 +40,7 @@ export function buildLinkModel(groups = [], { noteBadges } = {}) {
 
 /** "2 questions · 1 Q&A · 1 note" for the hover text of an underline; `t` supplies the words. */
 export function groupTitle(group, t) {
-  return [group.counts?.question && t.questions(group.counts.question), group.counts?.qa && t.qa(group.counts.qa), group.notes?.length && t.notes(group.notes.length)]
+  return [group.counts?.question && t.questions(group.counts.question), group.counts?.qa && t.qa(group.counts.qa), group.counts?.annotation && t.annotations(group.counts.annotation), group.notes?.length && t.notes(group.notes.length)]
     .filter(Boolean).join(' · ');
 }
 
