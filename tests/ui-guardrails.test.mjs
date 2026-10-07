@@ -65,20 +65,24 @@ test('allow-list entries that no longer match anything are removed', () => {
 });
 
 /* A performance guard that does not depend on the machine: it asks how the scan GROWS, not how long it takes. The same real stylesheet and component are scanned at 1x and 8x
-   the size, each measured several times, keeping the best of them (a loaded machine only ever makes a run slower, never faster), and the cost must grow about eight
-   times (linear), nowhere near sixty-four (quadratic: a regex that backtracks, a list searched per rule). The only absolute bound is a hang guard. */
+   the size and the cost must grow about eight times (linear), nowhere near sixty-four (quadratic: a regex that backtracks, a list searched per rule). The cost is the CPU the
+   process used, over a window long enough for the clock (a Windows process clock ticks every ~16 ms), and the best of three windows (a loaded machine only ever makes a window
+   slower, never faster). The only absolute bound is a hang guard. */
+const WINDOW_MS = 400;
 const costOf = (copies) => {
   const dir = mkdtempSync(join(tmpdir(), 'ui-scan-'));
   try {
     mkdirSync(join(dir, 'ui'), { recursive: true });
     const css = readFileSync(join(ROOT, 'ui/tasks/task-console.css'), 'utf8'), jsx = readFileSync(join(ROOT, 'ui/components/Button.jsx'), 'utf8');
     for (let i = 0; i < copies; i++) { writeFileSync(join(dir, 'ui', `a${i}.css`), css); writeFileSync(join(dir, 'ui', `a${i}.jsx`), jsx); }
+    scanUi(dir); // the first scan warms the code up
     let best = Infinity;
-    for (let run = 0; run < 5; run++) {
+    for (let window = 0; window < 3; window++) {
       const before = process.cpuUsage();
-      scanUi(dir);
+      let scans = 0;
+      do { scanUi(dir); scans += 1; const used = process.cpuUsage(before); if ((used.user + used.system) / 1000 >= WINDOW_MS) break; } while (true);
       const used = process.cpuUsage(before);
-      best = Math.min(best, used.user + used.system);
+      best = Math.min(best, (used.user + used.system) / scans);
     }
     return best;
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -87,10 +91,10 @@ const costOf = (copies) => {
 test('the scan reads every file of ui/ and its cost grows with the work, not with the square of it', (t) => {
   t.diagnostic(`ui scan took ${scanMs} ms`);
   assert.ok(scanMs < 120_000, `scan took ${scanMs} ms: it is not merely slow, it is stuck`); // a hang guard, not a speed budget
-  const small = costOf(4), large = costOf(32), ratio = large / Math.max(small, 1000);
+  const small = costOf(4), large = costOf(32), ratio = large / small;
   t.diagnostic(`8x the files cost ${ratio.toFixed(1)}x`);
   assert.ok(ratio < 24, `8x the work cost ${ratio.toFixed(1)}x (linear is 8, quadratic 64)`);
-});
+}, { timeout: 120_000 });
 
 test('the CSS reader handles comments, nesting, CRLF, strings and data urls', () => {
   const css = '/* a { color: #fff; } */\r\n.a {\r\n  color: red; /* c */\r\n  &:hover { color: #abc }\r\n  background: url("data:image/svg+xml;base64,AAA") no-repeat;\r\n}\r\n@media (prefers-reduced-motion: reduce) {\r\n  .b { transition: none !important; content: "展开; {" }\r\n}\r\n@keyframes spin { to { transform: rotate(1turn) } }\r\n';
