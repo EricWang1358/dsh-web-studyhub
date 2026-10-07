@@ -151,10 +151,12 @@
         },
         {
           "what": "jobTextModel: the text model of the classroom save",
-          "disposition": "migrate",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S2-6"
+          "reached": false,
+          "switches": [
+            "audioLiveSave"
+          ]
         }
       ]
     },
@@ -608,10 +610,12 @@
       "sites": [
         {
           "what": "executeLiveSaveJob provider calls",
-          "disposition": "migrate",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S2-6"
+          "reached": false,
+          "switches": [
+            "audioLiveSave"
+          ]
         }
       ]
     },
@@ -974,17 +978,17 @@
           "reached": true
         },
         {
-          "what": "audio.retry: the original retry path and its put-back; with the four audio switches on, only a classroom save is retried through it",
-          "disposition": "migrate",
+          "what": "audio.retry: the original retry path and its put-back; with the five audio switches on (audioLiveSave included, S2-6) nothing is retried through it",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
+          "reached": false,
           "switches": [
             "audioSingle",
             "audioBatch",
             "audioSubtitles",
-            "audioReview"
-          ],
-          "step": "S2-6"
+            "audioReview",
+            "audioLiveSave"
+          ]
         }
       ]
     },
@@ -1038,17 +1042,17 @@
       "evidence": "s2-0-audio-baseline.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "startAudioJob: the original audio runner. With the four audio switches on, the one caller left is live.save {proofread:true} (the classroom save has no switch yet)",
-          "disposition": "migrate",
+          "what": "startAudioJob: the original audio runner. With the five audio switches on (audioLiveSave included, S2-6) nothing calls it",
+          "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
-          "reached": true,
+          "reached": false,
           "switches": [
             "audioSingle",
             "audioBatch",
             "audioSubtitles",
-            "audioReview"
-          ],
-          "step": "S2-6"
+            "audioReview",
+            "audioLiveSave"
+          ]
         },
         {
           "what": "recoverAudioBatches: folders and letters of the last process come back as read-only or retry-only records",
@@ -1213,34 +1217,6 @@
           "switches": [
             "retrievalIndex"
           ]
-        }
-      ]
-    },
-    {
-      "file": "lib/contexts/generation/selection-jobs.js",
-      "calls": [
-        {
-          "callee": "generationControllers.set",
-          "count": 1
-        },
-        {
-          "callee": "jobs.set",
-          "count": 1
-        },
-        {
-          "callee": "ownWork",
-          "count": 1
-        }
-      ],
-      "owner": "generation family (lane B)",
-      "evidence": "s3-0-generation-baseline.md; s6-0-coverage.md",
-      "sites": [
-        {
-          "what": "supplement from a selected passage as a background job",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S3-4"
         }
       ]
     },
@@ -1786,5 +1762,9 @@
     "public-api",
     "kernel",
     "not-a-job"
-  ]
+  ],
+  "policySwitches": {
+    "dailyRecapAgent": "the daily recap Job asks a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)",
+    "workflowAgent": "teachings and skeletons of the learning workflow ask a host sub-agent when there is one instead of the direct call (gateway policy agent-preferred; falls back to direct and records why)"
+  }
 }
