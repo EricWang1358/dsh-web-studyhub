@@ -346,6 +346,65 @@ test('a slide that is a picture only is never sent to the model and never invent
   assert.deepEqual(blueprint.inputs[0].skippedPages, [3]);
 });
 
+/** A world that has already built one list (a single call of the fake), so a rebuild is the second build. */
+async function withList(t, options = {}) {
+  const w = await world(t, { papers: [], ...options });
+  await settleJob(w.service, (await w.build()).jobId);
+  const [old] = await w.lists();
+  return { w, old };
+}
+const sourceOf = async (w, id) => (await w.service.store.read()).sources.find(source => source.id === id);
+
+test('a rebuild names the list it replaces: recorded on the new list, the old one is archived (never deleted) only when the new one is saved, and the page can match the running build to its row', async t => {
+  const held = { at: 2, gate: gate() };
+  t.after(() => held.gate.release());
+  const before = Date.now();
+  const { w, old } = await withList(t, { fake: model({ held }) });
+  assert.equal(Date.parse(old.createdAt) >= before - 1000 && Date.parse(old.createdAt) <= Date.now() + 1000, true, `a real creation time is written at ingest: ${old.createdAt}`);
+  const started = await w.build({ supersedes: old.id });
+  await until(() => w.fake.calls.length === 2, 'the rebuild to reach the model');
+  // while it runs: the old list stands untouched, and the job says which row it is about
+  assert.deepEqual([w.jobs().at(-1).contract.detail.targetId, w.jobs().at(-1).contract.detail.supersedes], [old.id, old.id]);
+  assert.equal((await sourceOf(w, old.id)).archived, undefined);
+  held.gate.release();
+  assert.equal((await settleJob(w.service, started.jobId)).status, 'complete');
+  const fresh = (await w.lists()).find(list => list.id !== old.id);
+  assert.equal(fresh.blueprint.supersedes, old.id);
+  assert.deepEqual([w.jobs().at(-1).contract.detail.targetId, w.jobs().at(-1).contract.detail.supersedes], [fresh.id, old.id], 'once saved, the job points at the new list');
+  const archived = await sourceOf(w, old.id);
+  assert.deepEqual([archived.archived, archived.blueprint.points.length > 0, archived.text.length > 0], [true, true, true], 'archived, still whole and readable');
+  const { examPointLists } = await w.service.call('snapshot');
+  assert.deepEqual(examPointLists.map(item => [item.id, item.supersedes, item.archived]).sort((a, b) => String(a[1]).localeCompare(String(b[1]))), [[old.id, null, true], [fresh.id, old.id, false]].sort((a, b) => String(a[1]).localeCompare(String(b[1]))));
+  assert.ok(examPointLists.every(item => Date.parse(item.createdAt) > 0), 'the summary\'s time is real');
+});
+
+test('a failure or a stop leaves the list being replaced exactly as it was', async t => {
+  const { w, old } = await withList(t, { fake: model({ fail: (call, calls) => calls.length === 2 }) });
+  const failed = await settleJob(w.service, (await w.build({ supersedes: old.id })).jobId);
+  assert.equal(failed.status, 'failed');
+  assert.deepEqual([(await sourceOf(w, old.id)).archived, (await w.lists()).length], [undefined, 1]);
+  const held = { at: 2, gate: gate() };
+  t.after(() => held.gate.release());
+  const stopping = await withList(t, { fake: model({ held }) });
+  const started = await stopping.w.build({ supersedes: stopping.old.id });
+  await until(() => stopping.w.fake.calls.length === 2, 'the model to be asked');
+  await stopping.w.service.call('job.control', { jobId: started.jobId, action: 'cancel' });
+  held.gate.release();
+  assert.equal((await settleJob(stopping.w.service, started.jobId)).status, 'cancelled');
+  assert.deepEqual([(await sourceOf(stopping.w, stopping.old.id)).archived, (await stopping.w.lists()).length], [undefined, 1]);
+});
+
+test('supersedes must be a 考点清单 of this library: anything else is refused in words, with no model call and no Job', async t => {
+  const { w, old } = await withList(t);
+  const calls = w.fake.calls.length, jobs = w.jobs().length;
+  await refused(w.build({ supersedes: 'no-such-list' }), 'blueprint-supersedes-invalid');
+  await refused(w.build({ supersedes: w.slides[0] }), 'blueprint-supersedes-invalid');
+  await assert.rejects(w.build({ supersedes: 42 }), /supersedes must be string/, 'the contract already refuses a non-string');
+  for (const language of ['zh', 'en']) await assert.rejects(w.build({ supersedes: 'no-such-list', language }), error => { assert.ok(error.message.includes(language === 'zh' ? '考点清单' : 'exam point list'), error.message); assert.ok(!/blueprint|蓝图/i.test(error.message)); return true; });
+  assert.deepEqual([w.fake.calls.length, w.jobs().length], [calls, jobs]);
+  assert.equal((await sourceOf(w, old.id)).archived, undefined);
+});
+
 test('the console draws it as a task without a branch for its kind, and no kernel or console file knows its name', async t => {
   const w = await world(t);
   await settleJob(w.service, (await w.build()).jobId);

@@ -50,6 +50,8 @@ test('the record is deterministic, readable text that exports the two-level outl
   assert.match(a.id, /^exam-blueprint-[0-9a-f]{40}$/);
   assert.deepEqual([a.provenance, a.format, a.courses, a.blueprint.version], ['exam-blueprint', 'md', ['网络'], 1]);
   assert.deepEqual(a.blueprint.points.map(point => [point.id, point.parentId ?? null, point.tier]), [['p1', null, 'must'], ['p2', 'p1', 'must'], ['p3', 'p1', 'extra'], ['p4', 'p1', 'must']]);
+  assert.deepEqual(a.blueprint.points.map(point => point.noSlidePlace), [false, false, false, true], 'the flag is derived from the same evidence: only the point the slides never mention');
+  assert.equal(examBlueprintMaterial({ ...input(), supersedes: 'older-list' }).blueprint.supersedes, 'older-list', 'a rebuild records the list it replaces');
   const lines = a.text.split('\n');
   const at = word => lines.findIndex(line => line.includes(word));
   assert.ok(at('1. [p1] 传输层协议（必学') >= 0 && at('1.1 [p2] TCP 连接管理（必学') > at('1. [p1]') && at('1.2 [p3] 可靠传输（补充') > at('1.1 [p2]') && at('1.3 [p4] 拥塞控制（必学') > at('1.2 [p3]'), 'a 大/小 outline, children under their 大考点');
