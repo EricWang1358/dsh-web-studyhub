@@ -127,8 +127,8 @@ export function describePartReport(report) {
     'no-reply': (n) => uiFormat('{0} 个批次因模型没有返回内容而没有完成', [n]),
     quota: (n) => uiFormat('{0} 个批次因模型账户余额或额度不足而没有完成', [n]),
     credential: (n) => uiFormat('{0} 个批次因模型密钥缺失或被拒绝而没有完成', [n]),
-    budget: (n) => uiFormat('{0} 个批次因生成用时到限而没有完成', [n]),
-    cancelled: (n) => uiFormat('{0} 个批次被停止', [n]),
+    budget: (n) => uiFormat('{0} 个批次因为这一轮的时间用完了而被停止，没有完成', [n]),
+    cancelled: (n) => uiFormat('{0} 个批次因为你停止了任务而没有完成', [n]),
     unavailable: (n) => uiFormat('{0} 个批次因模型服务暂时不可用而没有完成', [n]),
     other: (n) => uiFormat('{0} 个批次因其他原因没有完成', [n]),
   };
