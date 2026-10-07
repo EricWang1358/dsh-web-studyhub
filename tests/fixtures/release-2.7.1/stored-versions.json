@@ -1,0 +1,6 @@
+{
+  "note": "The `version` each single-file format wrote in release 2.7.1 (tag v2.7.1, 47f13281): job-archive.json `{ version: 1, records }`, the PDF conversion manifest `{ version: 1, kind: 'pdf-convert', ... }` and marker-install.json `{ version: 1, ...state }`. A reader must accept these and refuse any other number; change this file only together with the writers and the rollback matrix (docs/plans/unified-job-runtime/s6-6-rollback.md).",
+  "jobArchive": [1],
+  "pdfConvertManifest": [1],
+  "markerInstall": [1]
+}

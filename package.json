@@ -154,6 +154,7 @@
     "qa:coverage-formats": "node scripts/qa/coverage-formats.mjs",
     "qa:reader-formulas": "node scripts/qa/reader-formulas.mjs",
     "qa:dsh": "node scripts/qa/dsh-e2e.mjs",
+    "qa:dsh-runtime": "node scripts/qa/dsh-runtime-smoke.mjs",
     "verify": "npm run lint && npm test && npm run build",
     "release:pack": "node scripts/release-alpha.mjs",
     "sync:main": "node scripts/sync-main.mjs",

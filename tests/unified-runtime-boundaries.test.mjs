@@ -107,13 +107,13 @@ test('reviewed boundary rows are exact: a module, a rule, an API and a count, ea
   assert.ok(/[*?[\]{}|^$\\]/.test(widened.api), 'a wildcard API is refused');
 });
 
-test('a Job definition has no reviewed exception to the model, provider, queue or lifecycle rules; the only rows it may carry are the two control-adapter writes of S6-0', async () => {
+test('a Job definition has no reviewed exception to the model, provider, queue or lifecycle rules; the only rows it may carry are the two control-adapter writes of S6-0, kept on purpose', async () => {
   const { inventory } = await jobModules(), definitions = new Set(inventory.managedDefinitions);
   const rows = inventory.boundaries.filter(row => definitions.has(row.file));
   assert.deepEqual(rows.map(row => `${row.file} ${row.rule} ${row.api}`).sort(), [
     'lib/contexts/generation/jobs/generation.js public-table-write binding.work.generationControllers.set',
     'lib/contexts/generation/translation/jobs/translation.js public-table-write task.work.generationControllers.set']);
-  assert.ok(rows.every(row => row.removeAt === 'S6-5'), 'both go when the console controls read the kernel (S6-5)');
+  assert.ok(rows.every(row => row.removeAt === 'retained: cancel-controller registration is the control adapter'), 'kept on purpose (S6-7): the console controls read this table, the registration is the control adapter');
 });
 
 /* ---------- persisted kernel shapes change only together with the rollback fixtures ---------- */
