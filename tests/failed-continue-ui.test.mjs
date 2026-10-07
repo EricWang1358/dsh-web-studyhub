@@ -14,7 +14,7 @@ import { draftView, seedView } from './helpers/coverage-view.mjs';
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx';
+  export { default as HomeActivity, HomeDrafts } from './ui/study-map/HomeActivity.jsx';
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { CoverageTopUp } from './ui/coverage/CoverageTopUp.jsx';
   export { PartCoverage } from './ui/coverage/PartCoverage.jsx';
@@ -42,7 +42,8 @@ const failed = (over = {}) => ({ id: 'j1', type: 'generate', status: 'failed', s
   retryable: true, startedAt: at(0), finishedAt: at(100), ...over });
 const dataOf = (jobs, extra = {}) => ({ revision: undefined, jobs, drafts: [draft], decks: [], sources: [], model: { ready: true }, ...extra });
 const seed = () => { m.forgetCoverage(); seedView(m, view); };
-const home = (jobs, language = 'zh') => { seed(); const d = dataOf(jobs); return render(React.createElement(m.HomeActivity, { jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop,
+const HomeBoth = (props) => React.createElement(React.Fragment, null, React.createElement(m.HomeActivity, props), React.createElement(m.HomeDrafts, { ...props, defaultOpen: true }));
+const home = (jobs, language = 'zh') => { seed(); const d = dataOf(jobs); return render(React.createElement(HomeBoth, { jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop,
   manage: noop, start: noop, topUpDraft: noop, openModelSettings: noop, modelReady: true, data: d }), { language, data: d }); };
 const consoleOf = (jobs, language = 'zh') => { seed(); const d = dataOf(jobs); return render(React.createElement(m.TaskConsole, { data: d, openers: { resultOf: () => null } }), { language, data: d }); };
 const pageOf = (jobs, language = 'zh') => { seed(); const d = dataOf(jobs); return render(React.createElement(m.CoverageTopUp, { draft, view, jobs: d.jobs, onTopUp: noop }), { language, data: d }); };

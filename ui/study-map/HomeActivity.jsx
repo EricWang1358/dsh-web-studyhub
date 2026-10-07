@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, InlineMessage } from '../components/index.js';
+import { Badge, Button, Disclosure, InlineMessage } from '../components/index.js';
 import { CoverageTopUp } from '../coverage/CoverageTopUp.jsx';
 import { coverageHead, shortfallLine, shortfallTag } from '../coverage/copy.js';
 import { runSummary } from '../coverage/RunPanel.jsx';
@@ -58,7 +58,7 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
 export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, topUpDraft }) {
   const { busy } = useStudy();
   const quick = useQuickActions();
-  if (!jobs.length && !drafts.length) return null;
+  if (!jobs.length) return null;
   // One card per deck: the older jobs of a draft fold into its newest job's card.
   const cards = foldJobsByDraft(jobs);
   const finishedCount = cards.filter(({ job }) => !isActiveJob(job) && !job.leaving).length;
@@ -75,14 +75,19 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, modelRead
           <Button variant="link" size="sm" className="jobs-dismiss-all" onClick={() => dismissJob()}>{ui('全部知道了')}</Button>
         </div>}
       </div>}
-      {drafts.length > 0 && <div className="home-drafts">
-        <div className="section-heading">
-          <h2>{ui('待发布')}{' '}<span>{drafts.length}</span></h2>
-          <small>{ui('发布时逐题检查；问题题留在草稿')}</small>
-        </div>
-        {[...drafts].reverse().map((d) => <DraftRow key={d.id} draft={d} data={data} modelReady={modelReady}
-          openDraft={openDraft} topUpDraft={topUpDraft} />)}
-      </div>}
     </section>
+  );
+}
+
+/* 待发布: the drafts waiting for their check. One quiet, folded line (with the count) under the day's work: the rows are long and used to sit above everything
+   else on the home, pushing the learner's own day down. `defaultOpen` is for tests and for a caller that has just sent the learner here. */
+export function HomeDrafts({ drafts, data, modelReady, openDraft, topUpDraft, defaultOpen = false }) {
+  if (!drafts.length) return null;
+  return (
+    <Disclosure className="home-drafts" defaultOpen={defaultOpen} aria-label={ui('待发布草稿')}
+      summary={<>{ui('待发布')}{' '}<span>{drafts.length}</span></>} meta={ui('发布时逐题检查；问题题留在草稿')}>
+      {[...drafts].reverse().map((d) => <DraftRow key={d.id} draft={d} data={data} modelReady={modelReady}
+        openDraft={openDraft} topUpDraft={topUpDraft} />)}
+    </Disclosure>
   );
 }

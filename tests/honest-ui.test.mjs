@@ -13,7 +13,7 @@ import { draftView, seedView } from './helpers/coverage-view.mjs';
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx';
+  export { default as HomeActivity, HomeDrafts } from './ui/study-map/HomeActivity.jsx';
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { default as RunPanel } from './ui/coverage/RunPanel.jsx';
   export { CoverageTopUp } from './ui/coverage/CoverageTopUp.jsx';
@@ -58,7 +58,8 @@ const STATES = {
 };
 const data = (state, extra = {}) => ({ revision: undefined, jobs: [STATES[state].job], drafts: [STATES[state].draft], decks: [], sources: [], model: { ready: true }, ...extra });
 const seed = () => { m.forgetCoverage(); seedView(m, view); };
-const home = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(m.HomeActivity, { jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop,
+const HomeBoth = (props) => React.createElement(React.Fragment, null, React.createElement(m.HomeActivity, props), React.createElement(m.HomeDrafts, { ...props, defaultOpen: true }));
+const home = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(HomeBoth, { jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop,
   start: noop, topUpDraft: noop, openModelSettings: noop, modelReady: true, data: d }), { language, data: d }); };
 const consoleOf = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(m.TaskConsole, { data: d, openers: { resultOf: () => null } }), { language, data: d }); };
 const pageOf = (state, language = 'zh') => { seed(); const d = data(state), draft = STATES[state].draft; return render(React.createElement(React.Fragment, null,
