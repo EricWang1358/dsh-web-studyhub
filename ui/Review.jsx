@@ -225,7 +225,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
         actions={<>
-          {host.openInSidebar && !run.complete && (
+          {/* Not for a run started from the reader: there the learner is working with the text, and 「主区域回到对话」 would throw them out of it. */}
+          {host.openInSidebar && !run.complete && !run.reading && (
             <Button variant="quiet" title={ui("题目放到右栏，主区域回到对话")} onClick={() => host.openInSidebar(run.id)}>{ui("在右栏打开")}</Button>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
