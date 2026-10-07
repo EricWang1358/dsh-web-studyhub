@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pathBrief, queueSteps, selectedItems } from '../ui/generation-path-flow.js';
+import { failureGroups, pathBrief, queueSteps, selectedItems } from '../ui/generation-path-flow.js';
 import { withStudy } from './helpers/study-services.mjs';
 
 /* The flow around a step plan: the brief that opens a conversation (so the learner can shape the chapters with the AI), queuing the steps as generation jobs
@@ -30,6 +30,25 @@ test('a long plan keeps the brief short: ids are dropped beyond a budget and the
   const brief = pathBrief({ steps: many, course: 'C', goal: '', indexed: true, language: 'zh' });
   assert.ok(brief.length < 9000, `${brief.length} chars`);
   assert.match(brief, /source\.list/, 'when ids are left out, the AI is told to list the pages');
+});
+
+test('a step is a plain request with its own count: the form-only fields (spending limit, typed count, level, auto-complete) are not sent, so the backend does not take it for a coverage run (21 steps all refused with 「tokenBudget 需要是不小于 1000 的整数」)', async () => {
+  const calls = [];
+  const call = async (action, args) => { calls.push(args); return { jobId: 'j' }; };
+  // the form as the 创建题组 page holds it by default: an empty 花费上限, an empty typed count, a 覆盖强度
+  await queueSteps(call, steps, { kind: 'quiz', kinds: ['quiz'], difficulty: 'mixed', language: 'zh', focus: '', notation: 'auto', count: 10, customCount: '', coverageLevel: 'standard', tokenBudget: '' }, { course: 'C' });
+  for (const args of calls) {
+    for (const key of ['tokenBudget', 'customCount', 'coverageLevel', 'autoComplete']) assert.equal(key in args, false, `${key} is not sent with a step`);
+    assert.ok(Number.isInteger(args.count) && args.count >= 1, 'the step keeps its own count');
+    assert.deepEqual(args.kinds, ['quiz'], 'the kinds of the form carry over');
+  }
+});
+
+test('failures that share one reason are said once, with the steps they hit', () => {
+  const failed = [{ step: { id: 'a', title: 'A' }, message: 'x 失败' }, { step: { id: 'b', title: 'B' }, message: 'x 失败' }, { step: { id: 'c', title: 'C' }, message: 'y 失败' }];
+  const groups = failureGroups(failed, step => step.title);
+  assert.deepEqual(groups, [{ message: 'x 失败', steps: ['A', 'B'] }, { message: 'y 失败', steps: ['C'] }]);
+  assert.deepEqual(failureGroups([], step => step.title), []);
 });
 
 test('queueing sends one generation per included step, in order, with its pages, focus and count; a failure is reported and the rest still go', async () => {

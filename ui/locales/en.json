@@ -572,6 +572,8 @@
   "只用这一步": "Use only this step",
   "按路径逐步出题 · {0} 步依次排队": "Generate step by step · queue {0} steps in order",
   "每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。": "Each step is its own generation job, queued in order; the first one to finish can be practised straight away.",
+  "（{0}）": "({0})",
+  "（{0} 等 {1} 步）": "({0} and {1} steps in all)",
   "有 {0} 步没能开始": "{0} steps could not start",
   "已按顺序排队 {0} 个出题任务。": "{0} generation jobs queued in order.",
   "索引已建好 · {0} 页": "Index built · {0} pages",

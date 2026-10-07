@@ -5,7 +5,7 @@ import { Button, InlineMessage, useToast } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
 import { useStudy } from './study-context.jsx';
 import { applyPathRefinement, planGenerationPath, stepTitleOf, STEP_CHARS } from '../lib/generation-path.js';
-import { MATTER_WORDS, pathBrief, queueSteps, selectedItems } from './generation-path-flow.js';
+import { MATTER_WORDS, failureGroups, pathBrief, queueSteps, selectedItems } from './generation-path-flow.js';
 import css from './generation-path.css';
 import { formatNumber } from './format.js';
 
@@ -114,7 +114,7 @@ export default function GenerationPath({ sources, selectedIds, onUseStep, gen, c
         <small className="muted">{ui('每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。')}</small>
       </div>
       {report?.failed.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat('有 {0} 步没能开始', [report.failed.length])}>
-        {report.failed.map(item => `${stepTitle(item.step)}：${item.message}`).join('；')}
+        {failureGroups(report.failed, stepTitle).map(group => <p key={group.message} className="gen-path__failure">{group.message}{' '}<small>{group.steps.length > 3 ? uiFormat('（{0} 等 {1} 步）', [group.steps.slice(0, 3).join('、'), group.steps.length]) : uiFormat('（{0}）', [group.steps.join('、')])}</small></p>)}
       </InlineMessage>}
     </section>
   );
