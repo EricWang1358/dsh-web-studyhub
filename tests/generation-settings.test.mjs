@@ -76,15 +76,20 @@ test('auto language resolves once from the request interface language', () => {
   assert.equal(resolveGenerationRequest({ language: 'English' }, { language: 'auto' }, { language: 'zh' }).language, '中文');
 });
 
-test('continued work inherits original choices and performance instead of changed library defaults', () => {
+test('continued work inherits original choices and performance instead of changed library defaults, except the time limit, which follows the setting', () => {
   const continuation = { kind: 'mixed', count: 29, language: 'English', difficulty: 'application', focus: 'Original scope',
     performance: { concurrency: 1, batchSize: 3, jobTimeoutMinutes: 40 } };
   const before = structuredClone(continuation);
   const actual = resolveGenerationRequest({ ...expected, count: 30, concurrency: 6, batchSize: 1, language: '中文' },
     { count: 4, performance: { concurrency: 2 } }, { language: 'zh', continuation });
+  // The time limit is how long the learner will wait, not part of what the draft was written with: raising it in 设置 is how a run that hit its limit is continued (3.0.1).
   assert.deepEqual(actual, { kind: 'mixed', count: 4, language: 'English', difficulty: 'application', focus: 'Original scope', notation: 'auto',
-    performance: { concurrency: 2, batchSize: 3, jobTimeoutMinutes: 40, fillRounds: 2, ...EFFORTS } });
+    performance: { concurrency: 2, batchSize: 3, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS } });
   assert.deepEqual(continuation, before);
+  const raised = resolveGenerationRequest({ ...expected, jobTimeoutMinutes: 90 }, { count: 4 }, { language: 'zh', continuation });
+  assert.deepEqual(raised.performance, { concurrency: 1, batchSize: 3, jobTimeoutMinutes: 90, fillRounds: 2, ...EFFORTS }, 'only the limit follows the setting; the rest stays as the draft was written');
+  const oneOff = resolveGenerationRequest({ ...expected, jobTimeoutMinutes: 90 }, { performance: { jobTimeoutMinutes: 7 } }, { language: 'zh', continuation });
+  assert.equal(oneOff.performance.jobTimeoutMinutes, 7, 'an explicit one-off limit still wins');
   const legacy = resolveGenerationRequest({ ...expected, concurrency: 6, language: 'English', difficulty: 'advanced', focus: 'New setting' },
     { count: 2 }, { language: 'en', continuation: { kind: 'flashcard' } });
   assert.deepEqual(legacy, { kind: 'flashcard', count: 2, language: '中文', difficulty: 'mixed', focus: '', notation: 'auto',

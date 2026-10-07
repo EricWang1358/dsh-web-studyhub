@@ -123,7 +123,7 @@ test('usage estimates follow the saved batch size and match the actual fake-mode
   assert.ok(results[1].actual > results[0].actual);
 });
 
-test('queued continuation retains original content and performance; legacy drafts use 4/5/20', async t => {
+test('queued continuation retains original content and performance, but its time limit is the setting at submission; legacy drafts use 4/5 and that limit', async t => {
   const ctx = await library(t), { service, sourceIds } = ctx;
   await service.call('settings', { generation: original });
   const initial = await wait(service, (await service.call('generate', { sourceIds, count: 2, title: 'Original draft' })).jobId);
@@ -140,7 +140,9 @@ test('queued continuation retains original content and performance; legacy draft
   await service.call('settings', { generation: { concurrency: 2, batchSize: 5, jobTimeoutMinutes: 10 } });
   gate.release(); await wait(service, blocker.jobId);
   const job = await wait(service, started.jobId), completed = await draftFor(service, job);
-  checkJob(job, { ...original, count: 6 }, 3); checkContent(completed, original);
+  // The limit is read when the continuation is submitted (60 here, not the 5 the draft was written with, and not the 10 set while it waited); the rest is the draft's own.
+  const submitted = { ...original, jobTimeoutMinutes: 60 };
+  checkJob(job, { ...submitted, count: 6 }, 3); checkContent(completed, submitted);
   assert.equal(completed.id, partial.id); assert.equal(completed.cards.length, 8);
   assert.deepEqual(completed.cards.slice(0, draft.cards.length), draft.cards, 'approved cards survive continuation');
   assert.equal(ctx.peak.get(job.id), 1); assert.deepEqual(job.estimate.calls, estimate.calls);
@@ -150,7 +152,7 @@ test('queued continuation retains original content and performance; legacy draft
     editorial: { ...draft.editorial, requested: 7, generated: 1, generation: legacyGeneration } } });
   await service.call('settings', { generation: { concurrency: 6, batchSize: 1, jobTimeoutMinutes: 60 } });
   const resumed = await wait(service, (await service.call('generate', { resumeDraftId: legacy.id, draftVersion: legacy.draftVersion })).jobId);
-  const expected = { ...original, count: 6, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20 };
+  const expected = { ...original, count: 6, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 60 }; // the limit follows the setting (60 set just above); the rest falls back to the defaults
   const legacyCompleted = await draftFor(service, resumed);
   checkJob(resumed, expected, 2); checkContent(legacyCompleted, expected);
   assert.ok(ctx.peak.get(resumed.id) <= 3);
@@ -195,6 +197,24 @@ test('corrupt retained draft performance falls back safely while explicit overri
   checkJob(resumed, { kind: 'flashcard', count: 1, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20 }, 1);
   assert.deepEqual((await draftFor(service, resumed)).editorial.generation.performance,
     { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS });
+});
+
+test('a continued run takes the time limit from the setting as it is now, not the one the draft was written with (3.0.1)', async t => {
+  const ctx = await library(t), { service, sourceIds } = ctx;
+  await service.call('settings', { generation: { jobTimeoutMinutes: 5 } });
+  const first = await wait(service, (await service.call('generate', { sourceIds, count: 1, kind: 'flashcard' })).jobId);
+  assert.equal(first.totalTimeoutSeconds, 5 * 60);
+  const draft = await draftFor(service, first);
+  assert.equal(draft.editorial.generation.performance.jobTimeoutMinutes, 5, 'the draft was written with 5 minutes');
+  const saved = await service.call('draft.save', { deck: { ...draft, editorial: { ...draft.editorial, requested: 2 } } });
+  await service.call('settings', { generation: { jobTimeoutMinutes: 45 } });
+  const resumed = await wait(service, (await service.call('generate', { resumeDraftId: saved.id, draftVersion: saved.draftVersion })).jobId);
+  assert.equal(resumed.totalTimeoutSeconds, 45 * 60, 'the console and the timer say 45 minutes, not the 5 the draft started with');
+  assert.equal((await draftFor(service, resumed)).editorial.generation.performance.jobTimeoutMinutes, 45);
+  await service.call('settings', { generation: { jobTimeoutMinutes: 90 } });
+  const again = await service.call('draft.save', { deck: { ...(await draftFor(service, resumed)), editorial: { ...(await draftFor(service, resumed)).editorial, requested: 3 } } });
+  const oneOff = await wait(service, (await service.call('generate', { resumeDraftId: again.id, draftVersion: again.draftVersion, performance: { jobTimeoutMinutes: 7 } })).jobId);
+  assert.equal(oneOff.totalTimeoutSeconds, 7 * 60, 'an explicit one-off limit still wins');
 });
 
 test('invalid one-off performance is rejected before jobs, drafts or model calls are created', async t => {
