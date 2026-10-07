@@ -216,7 +216,9 @@ test('StudyMap keeps every live audio family out of question-generation cards', 
       const started = await kind.start(lib, index + 1);
       const row = await until(async () => {
         const current = await cardOf(lib, started.jobId);
-        return ['queued', 'running'].includes(current?.status) && current;
+        // The subtitle pipeline adds the non-iterable counters only after its first progress callback.
+        const countersReady = name !== 'subtitles' || (current?.steps && !Array.isArray(current.steps));
+        return ['queued', 'running'].includes(current?.status) && countersReady && current;
       }, `${name} live snapshot`, { timeoutMs: 10_000 });
       assert.equal(row.contract.kind, kind.kind, `${name} uses its real public contract`);
       rows.push(row);
