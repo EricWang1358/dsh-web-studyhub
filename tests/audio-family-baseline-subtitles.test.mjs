@@ -151,7 +151,7 @@ test('cancelling a running subtitle job stops its request, keeps it retryable an
   // The contract of every audio-import kind offers pause and set, but a text-only job registers no control: they read "no control yet".
   const running = (await jobOf(lib.service, started.jobId)).contract.actions;
   assert.deepEqual([running.cancel.available, running.pause.reason?.code, running.set.reason?.code, running.retry.reason?.code],
-    RUNTIME ? [true, 'capability-unsupported', 'capability-unsupported', 'not-retryable'] : [true, 'no-control-yet', 'no-control-yet', 'not-ended']);
+    RUNTIME ? [true, 'capability-unsupported', 'capability-unsupported', 'not-ended'] : [true, 'no-control-yet', 'no-control-yet', 'not-ended']);
   const another = subtitleText.replace('朋友们唉', '各位同学');
   let other;
   if (RUNTIME) {

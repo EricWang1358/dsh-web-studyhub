@@ -202,7 +202,8 @@ test('a stop that arrives late changes nothing: the Job ends cancelled, publishe
   const end = await ended(h, job.jobId), row = await h.row('widget-slow');
   assert.deepEqual([end.status, row.contract.result.refs, row.contract.runtime.attempts.length], ['cancelled', [], 1], 'the late result was dropped');
   assert.equal(row.contract.events.filter(event => event.type === 'settled').length, 1, 'one ending');
-  await h.service.call('job.control', { jobId: job.jobId, action: 'cancel' }); // a stop after the end is harmless: it answers, and ends nothing twice
+  // A stop after the end is refused as the card says (S6-5: cancel is not available, job-ended) and ends nothing twice.
+  await assert.rejects(h.service.call('job.control', { jobId: job.jobId, action: 'cancel' }), { code: 'job-ended' });
   const again = await h.row('widget-slow');
   assert.deepEqual([again.status, again.contract.events.filter(event => event.type === 'settled').length, again.contract.runtime.attempts.length], ['cancelled', 1, 1]);
 });
