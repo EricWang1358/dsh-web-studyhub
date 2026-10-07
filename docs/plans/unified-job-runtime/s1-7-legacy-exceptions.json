@@ -327,17 +327,13 @@
       "file": "lib/contexts/generation/operations.js",
       "calls": [
         {
-          "callee": "providedComplete",
-          "count": 1
-        },
-        {
           "callee": "providedLight",
           "count": 1
         }
       ],
       "owner": "existing domain maintainer",
-      "reason": "generate.suggest is one awaited request; draft.repair is the background job of S3-5",
-      "removeAt": "S3-5; the suggestion stays",
+      "reason": "generate.suggest is one awaited request, never a background job",
+      "removeAt": "never; the suggestion stays",
       "evidence": "s6-0-coverage.md",
       "sites": [
         {
@@ -345,13 +341,6 @@
           "disposition": "exception",
           "kind": "foreground-request",
           "reached": true
-        },
-        {
-          "what": "draft.repair model calls",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S3-5"
         }
       ]
     },
@@ -1144,12 +1133,13 @@
       "evidence": "s3-1-generation-queue.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "startLegacy: the original generation run (job record, controller, control, queue turn)",
+          "what": "startLegacy: the original generation run (job record, controller, control, queue turn); also the original run of the selected-passage supplement (S3-4) and of the draft repair (S3-5)",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
           "switches": [
-            "generation"
+            "generation",
+            "generationRepair"
           ]
         }
       ]
@@ -1159,15 +1149,15 @@
       "calls": [
         {
           "callee": "generationControllers.set",
-          "count": 2
+          "count": 1
         },
         {
           "callee": "jobs.set",
-          "count": 3
+          "count": 2
         },
         {
           "callee": "ownWork",
-          "count": 3
+          "count": 2
         }
       ],
       "owner": "generation family (lane B)",
@@ -1188,13 +1178,6 @@
           "switches": [
             "generationRestart"
           ]
-        },
-        {
-          "what": "draft.repair: background repair of rejected cards",
-          "disposition": "migrate",
-          "kind": "legacy-bypass",
-          "reached": true,
-          "step": "S3-5"
         }
       ]
     },
