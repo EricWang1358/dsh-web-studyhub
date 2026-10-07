@@ -20,6 +20,7 @@ import Draft from '../Draft.jsx';
 import Review from '../Review.jsx';
 import AudioImport from '../AudioImport.jsx';
 import { Button, PageHeader } from '../components/index.js';
+import { openAudioSettings } from '../audio-focus.js';
 import { useApp } from './app-context.js';
 import { SourceForm } from './modals/AddSourceDialog.jsx';
 import { createSetupHandlers } from './setup-handlers.js';
@@ -155,11 +156,11 @@ export function AudioHeader({ onSettings, onSources }) {
   );
 }
 
-function AudioView() {
+export function AudioView() {
   const { data, host, nav, lib, set, learn } = useApp();
   return (
     <section className="page">
-      <AudioHeader onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')} />
+      <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
       <AudioImport data={data} canAsk={!!host.askInChat}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />

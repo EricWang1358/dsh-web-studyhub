@@ -34,6 +34,7 @@ import CaseCreate from './CaseCreate.jsx';
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { referenceSelection } from './reference-questions.js';
 import { useLiveEffect } from './use-async.js';
+import { settingsSectionOr } from './settings-groups.js';
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -59,7 +60,7 @@ export default function Generate({
   initialRetrieval = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
-  const { notify, call, busy, act, askInChat } = useStudy();
+  const { notify, call, busy, act, askInChat, openSettings: openSettingsSection } = useStudy();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
@@ -105,6 +106,8 @@ export default function Generate({
   const openReferenceImport = onReferenceImported => setModal({ type: 'add', course: generationCourse,
     referenceQuestions: true, ...(onReferenceImported ? { onReferenceImported } : {}) });
   const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
+  // The long-document card's links: the search extension (检索设置) or the PDF converter's own section, not the top of 设置.
+  const openLargeDocumentSettings = (section) => (openSettingsSection ? openSettingsSection(settingsSectionOr(section, 'settings-extensions')) : setPage?.("settings"));
   // With a single document (one PDF is several page sources) there is nothing to choose; don't make the learner tick it.
   React.useEffect(() => {
     const documents = groupSourcesByDocument(visibleSources.filter(source => !referenceSourceIds.includes(source.id)));
@@ -183,7 +186,7 @@ export default function Generate({
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
               </div>
-              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={() => setPage?.("settings")}
+              {advice.tooBig && !retrievalReady(retrieval) && <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
                 call={call} courses={data.focus?.courses} defaultCourse={generationCourse} />}
               {retrievalReady(retrieval) && (advice.willRetrieve || advice.needsTopic) && <RetrievalPanel advice={advice} sourceIds={selectedSources}
                 focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
