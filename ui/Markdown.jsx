@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import { TERM_SOURCE } from "./term-marker.js";
 import { Button } from "./components/Button.jsx";
+import Tooltip from "./components/Tooltip.jsx";
 import React from "react";
 import { prepareStudyMath, STUDY_IMAGE_PATTERN } from "./study-media.js";
 import StudyMath from "./StudyMath.jsx";
@@ -86,16 +87,17 @@ function inline(text, options, key = "i") {
       const term = m[1],
         asked = options.askedTerms?.includes(term);
       out.push(
-        <Button
-          key={k}
-          variant="link"
-          size="sm"
-          className={asked ? "md-term md-term--asked" : "md-term"}
-          aria-label={uiFormat("追问「{0}」", [term])}
-          onClick={() => options.onTerm(term)}
-        >
-          {term}
-        </Button>,
+        <Tooltip key={k} layer group="ask-help" content={ui("只用选中的这段原文解释这个词；答案会开在这条回答下面。点击前不会提问。")}>
+          <Button
+            variant="link"
+            size="sm"
+            className={asked ? "md-term md-term--asked" : "md-term"}
+            aria-label={uiFormat("追问「{0}」", [term])}
+            onClick={() => options.onTerm(term)}
+          >
+            {term}
+          </Button>
+        </Tooltip>,
       );
     } else if (type === "color")
       out.push(

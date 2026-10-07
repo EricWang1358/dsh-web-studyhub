@@ -19,6 +19,12 @@
       text-decoration-thickness: 2px;
       text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
     }
+    ::highlight(study-link-annotation) {
+      text-decoration-line: underline;
+      text-decoration-style: wavy;
+      text-decoration-thickness: 1px;
+      text-decoration-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    }
     ::highlight(study-link-note) {
       text-decoration-line: underline;
       text-decoration-style: dashed;
@@ -60,6 +66,7 @@
     .reader-link-group__no { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .reader-link-group[data-kind='question'] .reader-link-group__no { text-decoration: underline solid; }
     .reader-link-group[data-kind='qa'] .reader-link-group__no { text-decoration: underline dotted; }
+    .reader-link-group[data-kind='annotation'] .reader-link-group__no { text-decoration: underline wavy; }
     .reader-link-group[data-kind='note'] .reader-link-group__no { text-decoration: underline dashed; }
     .reader-link-group__quote {
       display: -webkit-box;

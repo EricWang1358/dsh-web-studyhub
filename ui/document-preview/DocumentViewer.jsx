@@ -14,6 +14,8 @@ import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx
 import { buildLinkModel, groupTitle } from './links/link-model.js';
 import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
 import useBilingual from './translation/useBilingual.jsx';
+import { annotationLinks, loadAnnotationMode, saveAnnotationMode } from './annotation/model.js';
+import StaleAnnotations from './annotation/StaleAnnotations.jsx';
 import { isOfficeFormat } from '../../lib/office/limits.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
@@ -110,6 +112,8 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   const loading = !localMode && fetching;
   const [capture, setCapture] = useState(null), [links, setLinks] = useState([]), [focusedKey, setFocusedKey] = useState(null);
   const [settings, updateSettings, resetSettings] = useReaderSettings();
+  // 阅读 / 批注: in 批注 the answers of the learning panel are kept with their passage, and the annotated passages are marked like the linked ones.
+  const [annotationMode, setAnnotationMode] = useState(loadAnnotationMode), [kept, setKept] = useState({ items: [], stale: [] }), [keptReload, setKeptReload] = useState(0);
   const [narrow, setNarrow] = useState(false), [overlay, setOverlay] = useState(null);
   const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
   const [headings, setHeadings] = useState([]);
@@ -167,7 +171,22 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { setError(e.message); }
   };
-  const groups = useMemo(() => groupPassageLinks(localMode ? [] : links), [links, localMode]);
+  useEffect(() => {
+    if (localMode || annotationMode !== 'annotate' || !document) return undefined;
+    let current = true;
+    call('materials.annotation.list', { documentId: document.documentId || document.id, revision: document.revision })
+      .then(value => { if (current) setKept({ items: value.items || [], stale: value.stale || [] }); })
+      .catch(() => { if (current) setKept({ items: [], stale: [] }); });
+    return () => { current = false; };
+  }, [call, document, annotationMode, keptReload, localMode]);
+  const annotationMarks = useMemo(() => (annotationMode === 'annotate' && !localMode ? annotationLinks(kept.items) : []), [annotationMode, kept.items, localMode]);
+  const groups = useMemo(() => groupPassageLinks(localMode ? [] : [...links, ...annotationMarks]), [links, annotationMarks, localMode]);
+  const annotation = useMemo(() => ({ mode: annotationMode, items: kept.items, stale: kept.stale,
+    onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1) }), [annotationMode, kept]);
+  const clearStaleAnnotations = async () => {
+    await call('materials.annotation.delete', { documentId: document.documentId || document.id, revision: document.revision, stale: true });
+    setKeptReload(count => count + 1);
+  };
   // Which passages are underlined (resolved links) and which must be selected again; notes follow their cards.
   const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
@@ -254,9 +273,18 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
   // Link layer: [n] markers, underlines (when shown) and their click. Ranges are located once per links/text change.
   const rendered = useMemo(() => ({ html, content, view, sections, document, language }), [html, content, view, sections, document, language]);
   const linkTitle = group => groupTitle(group, linkTitleWords());
+  // A kept thread is opened in the learning panel: its passage becomes the selection there, and the panel brings its answers back.
+  const openAnnotation = link => {
+    const at = link.selection;
+    setCapture(previous => previous?.sourceId === at.sourceId && previous?.start === at.start && previous?.end === at.end ? previous
+      : { quote: at.quote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
+    if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
+  };
   const openGroup = group => {
     setFocusedKey(group.key);
-    if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
+    const note = group.links.find(link => link.kind === 'annotation');
+    if (note) openAnnotation(note);
+    else if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
   };
   usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
@@ -428,13 +456,14 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>
-          <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} onPublished={refreshLinks} onOpenCard={onOpenCard}
+          <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} annotation={annotation} onPublished={refreshLinks} onOpenCard={onOpenCard}
             onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
           {onCaseFromPassage && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
-        <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} />
+        <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} onAnnotation={openAnnotation} />
+        {annotationMode === 'annotate' && <StaleAnnotations stale={kept.stale} onClear={clearStaleAnnotations} />}
       </aside>}
     </div>
     {bilingual.layer}

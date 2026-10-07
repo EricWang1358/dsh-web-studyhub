@@ -110,7 +110,7 @@ test('terms work inside bold and lists, and duplicates each get a button', () =>
   const out = html('**See [[ELK]]**\n\n- [[ELK]] stores\n- `[[code]]` stays');
   assert.equal((out.match(/class="[^"]*md-term/g) || []).length, 2);
   assert.match(out, /<code>\[\[code\]\]<\/code>/);
-  assert.match(out, /<strong>See <button/);
+  assert.match(out, /<strong>See <span class="sh-popover-anchor"><button/);
 });
 
 test('terms inside code blocks are untouched; malformed markers stay plain text', () => {

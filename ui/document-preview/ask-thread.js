@@ -1,9 +1,12 @@
+import { ANNOTATION_LIMITS } from '../../lib/annotation.js';
+
 /**
  * The questions-within-an-answer ("问中问") of one selection, as plain data: the nodes, the limits and the rules for
  * when a click asks the model and when it only jumps to what is already there. No React, no storage: the owner of
  * the selection keeps the state and drops it when the selection changes.
  */
-export const MAX_DEPTH = 3, MAX_NODES = 8, THREAD_ANCESTORS = 3, LABEL_MAX = 24;
+/** The same limits the kept annotations obey (lib/annotation.js): what can be asked is what can be kept. */
+export const MAX_DEPTH = ANNOTATION_LIMITS.depth, MAX_NODES = ANNOTATION_LIMITS.thread, THREAD_ANCESTORS = 3, LABEL_MAX = 24;
 
 export const emptyThread = () => ({ nodes: [] });
 export const ROOT = null;

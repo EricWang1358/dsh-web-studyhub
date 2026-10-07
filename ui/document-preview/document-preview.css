@@ -136,6 +136,11 @@
   .ask-node__follow { display: grid; gap: var(--space-2); }
   .ask-node__follow-row { display: flex; gap: var(--space-2); }
   .study-document-learning .ask-node__follow-input { flex: 1 1 auto; min-width: 0; width: auto; }
+  .ask-tip { display: grid; gap: var(--space-1); }
+  .ask-note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+  .ask-node__keep { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  .ask-node__keep-error { flex-basis: 100%; margin: 0; }
+  .ask-node__kept { color: var(--text-muted); font-size: var(--fs-sm); }
   .ask-thread__notice { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
   .study-grounded-answer { min-width: 0; overflow-wrap: anywhere; }
   .study-document-learning form {
