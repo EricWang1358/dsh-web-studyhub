@@ -1,0 +1,394 @@
+{
+  "synthetic": true,
+  "source": {
+    "id": "src",
+    "title": "Memento lecture",
+    "text": "The Caretaker manages snapshot history without inspecting snapshot contents. A Memento stores an opaque snapshot of internal state.",
+    "courses": [
+      "QA Patterns"
+    ]
+  },
+  "deck": {
+    "id": "d",
+    "title": "Patterns",
+    "course": "QA Patterns",
+    "cards": [
+      {
+        "id": "q1",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 1",
+        "prompt": "第 1 个关于 Memento 的问题：谁管理历史 1？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q2",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 2",
+        "prompt": "第 2 个关于 Memento 的问题：谁管理历史 2？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q3",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 3",
+        "prompt": "第 3 个关于 Memento 的问题：谁管理历史 3？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q4",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 4",
+        "prompt": "第 4 个关于 Memento 的问题：谁管理历史 4？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q5",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 5",
+        "prompt": "第 5 个关于 Memento 的问题：谁管理历史 5？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q6",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 6",
+        "prompt": "第 6 个关于 Memento 的问题：谁管理历史 6？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q7",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 7",
+        "prompt": "第 7 个关于 Memento 的问题：谁管理历史 7？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q8",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 8",
+        "prompt": "第 8 个关于 Memento 的问题：谁管理历史 8？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q9",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 9",
+        "prompt": "第 9 个关于 Memento 的问题：谁管理历史 9？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      },
+      {
+        "id": "q10",
+        "kind": "quiz",
+        "topic": "Memento",
+        "objective": "objective 10",
+        "prompt": "第 10 个关于 Memento 的问题：谁管理历史 10？",
+        "answer": "Caretaker",
+        "hint": "Who keeps the history?",
+        "explanation": "The Caretaker keeps history.",
+        "misconception": "Treating the Memento as the history manager.",
+        "citations": [
+          {
+            "sourceId": "src",
+            "quote": "The Caretaker manages snapshot history without inspecting snapshot contents."
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "text": "Caretaker",
+            "correct": true,
+            "explanation": "It keeps history."
+          },
+          {
+            "id": "b",
+            "text": "Memento",
+            "correct": false,
+            "explanation": "It is the snapshot."
+          },
+          {
+            "id": "c",
+            "text": "Originator",
+            "correct": false,
+            "explanation": "It restores state."
+          }
+        ]
+      }
+    ]
+  },
+  "review": {
+    "count": 10,
+    "selectedAnswer": "Memento",
+    "expectedCorrectAnswer": "Caretaker"
+  },
+  "scopeLimitation": "Ten intentionally repetitive role-identification questions exercise recap eligibility; they are not ten independent conceptual coverage points."
+}

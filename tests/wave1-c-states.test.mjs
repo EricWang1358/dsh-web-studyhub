@@ -117,6 +117,15 @@ test('error boundaries share one CrashFallback: no emoji, no raw message as the 
   assert.match(loading, /role="status"/);
 });
 
+test('a deferred view that is kept mounted out of sight shows no loading bar while its chunk is on the way (3.0.0: the page moved 46 px when it arrived)', () => {
+  m.setUiLanguage('zh');
+  const View = m.deferredView(() => new Promise(() => {}));
+  const status = props => /role="status"/.test(renderToStaticMarkup(new View(props).render()));
+  assert.equal(status({ visible: false }), false, 'LiveClass stays mounted for recording and is hidden on every other page: its fallback must not push the page down');
+  assert.equal(status({ visible: true }), true, 'the page the learner opened still says it is loading');
+  assert.equal(status({}), true, 'views without a visible prop keep their fallback');
+});
+
 test('IndexBadge is a Badge whose tone and icon follow the index state', () => {
   m.setUiLanguage('zh');
   const badge = info => html(m.IndexBadge, { info });

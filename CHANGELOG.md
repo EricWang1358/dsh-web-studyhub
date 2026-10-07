@@ -2,6 +2,18 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.0.0 — 2026-10-07
+
+- **Audio tasks describe the work they actually do.** Imports, subtitle files, transcript review, live-class saves and live corrections have their own details in Jobs. Request messages, timeline legends and file stages follow the task; live correction does not show an unrelated Files tab. Opening the study map while an audio task is running no longer crashes the page.
+- **A stopped local program keeps its slot until it has actually exited.** Cancelling an install or conversion no longer frees its resources after an arbitrary ten-second wait while the program may still be running. A failed stop remains pending, so a second operation cannot silently overlap it.
+- **Navigation remains reachable when the interface is enlarged.** Settings stays inside the sidebar's scroll area; the current-page highlight returns after starting a practice session.
+- **Adding questions to a deck used by a learning workflow no longer fails at publication.** The active workflow keeps its original selected questions. Audio processed by the host records an unknown aggregate model instead of an unused Gemini setting.
+- **Failed personalized batches remain visible.** A resting daily record no longer makes failed work look successful; the console names failed batches and includes the day in the failure filter.
+- **An upgrade can be repeated after rolling back.** Once the new version starts, it clears its completed restart marker so returning to 2.7.1 does not block another upgrade from Settings.
+- **A narrow window no longer shifts the first screen.** A "opening the study workspace…" bar for the live-class view, which stays mounted out of sight so recording survives page changes, was drawn above every page while its code loaded, then vanished and moved the page up 46 px. A view kept out of sight now shows nothing while it loads. It appeared only on a busy machine.
+- **A task board or notebook list edit is no longer lost to a passing Windows file lock.** Saving the board or the notebook registry replaced its file once and failed if a scanner held it for a moment; it now retries the same completed file as the study library already did.
+- **The unified job runtime covers audio, question generation, translations, notes, study workflows and local tools.** It shares task status, cancellation, model usage and recovery contracts. All 23 migration and enhancement switches remain off by default; existing explicit opt-ins keep working. The [release acceptance record](https://github.com/EricWang1358/dsh-web-studyhub/blob/v3.0.0/docs/plans/unified-job-runtime/release-3.0.0-acceptance.md) lists the checks and limitations. Existing task files remain compatible with 2.7.1, and the previous execution paths remain available for rollback.
+
 ## 2.7.1 — 2026-10-06
 
 - **Top up a published deck.** The 资料 row and the reader's outline now offer 「为没覆盖的部分补题」 for a material whose deck is already published but still has sections without questions. It writes a NEW draft for only the uncovered sections, in rounds of at most 30 questions, automatically until covered and pausable, with the estimate 「覆盖现在 5/81 → 本轮后约 43% → 目标 100%」 before it starts. When you publish it, you choose to merge it into that deck as its **second part** (or make a new deck); the deck page then says 「第一部分 7 题 · 第二部分 109 题」 and can filter by part, while practice, mastery and coverage count the deck as a whole. The published deck is not touched until you confirm.

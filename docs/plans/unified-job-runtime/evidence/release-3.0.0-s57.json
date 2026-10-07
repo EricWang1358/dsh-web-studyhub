@@ -1,0 +1,405 @@
+{
+  "schema": 1,
+  "rollbackTag": "v2.7.1",
+  "rollbackSha": "47f132815fc2fa65c7352f3f536109bb9c3ddd96",
+  "scenarios": {
+    "settled": {
+      "rolledBack": {
+        "scenario": "settled",
+        "lib": "older",
+        "seen": {
+          "pages": 7,
+          "pageHash": "776a5698156e56ca",
+          "history": [
+            "complete"
+          ],
+          "indexed": 7,
+          "missing": 0,
+          "install": "complete",
+          "installed": true,
+          "setup": "idle"
+        },
+        "prepared": {
+          "pages": 7,
+          "pageHash": "776a5698156e56ca",
+          "history": [
+            "complete"
+          ],
+          "indexed": 7,
+          "missing": 0,
+          "install": "complete",
+          "installed": true,
+          "setup": "complete"
+        }
+      },
+      "rolledForward": {
+        "scenario": "settled",
+        "lib": "current",
+        "seen": {
+          "pages": 7,
+          "pageHash": "776a5698156e56ca",
+          "history": [
+            "complete"
+          ],
+          "indexed": 7,
+          "missing": 0,
+          "install": "complete",
+          "installed": true,
+          "setup": "idle"
+        },
+        "prepared": {
+          "pages": 7,
+          "pageHash": "776a5698156e56ca",
+          "history": [
+            "complete"
+          ],
+          "indexed": 7,
+          "missing": 0,
+          "install": "complete",
+          "installed": true,
+          "setup": "complete"
+        }
+      },
+      "sameCode": {
+        "scenario": "settled",
+        "lib": "current",
+        "seen": {
+          "pages": 7,
+          "pageHash": "776a5698156e56ca",
+          "history": [
+            "complete"
+          ],
+          "indexed": 7,
+          "missing": 0,
+          "install": "complete",
+          "installed": true,
+          "setup": "idle"
+        },
+        "prepared": {
+          "pages": 7,
+          "pageHash": "776a5698156e56ca",
+          "history": [
+            "complete"
+          ],
+          "indexed": 7,
+          "missing": 0,
+          "install": "complete",
+          "installed": true,
+          "setup": "complete"
+        }
+      }
+    },
+    "pdf": {
+      "rolledBack": {
+        "scenario": "pdf",
+        "lib": "older",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [
+            "interrupted+retry"
+          ],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "pagesAdded": 120
+        },
+        "after": {
+          "pages": 124,
+          "pageHash": "b5be053bbc0d09c6",
+          "history": [
+            "complete"
+          ],
+          "indexed": 0,
+          "missing": 124,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        }
+      },
+      "rolledForward": {
+        "scenario": "pdf",
+        "lib": "current",
+        "seen": {
+          "pages": 124,
+          "pageHash": "b5be053bbc0d09c6",
+          "history": [
+            "complete"
+          ],
+          "indexed": 0,
+          "missing": 124,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        }
+      },
+      "sameCode": {
+        "scenario": "pdf",
+        "lib": "current",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [
+            "interrupted+retry"
+          ],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "pagesAdded": 120
+        },
+        "after": {
+          "pages": 124,
+          "pageHash": "b5be053bbc0d09c6",
+          "history": [
+            "complete"
+          ],
+          "indexed": 0,
+          "missing": 124,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        }
+      }
+    },
+    "install": {
+      "rolledBack": {
+        "scenario": "install",
+        "lib": "older",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "interrupted",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "complete",
+          "installed": true,
+          "setup": "idle"
+        }
+      },
+      "rolledForward": {
+        "scenario": "install",
+        "lib": "current",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "complete",
+          "installed": true,
+          "setup": "idle"
+        }
+      },
+      "sameCode": {
+        "scenario": "install",
+        "lib": "current",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "interrupted",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "complete",
+          "installed": true,
+          "setup": "idle"
+        }
+      }
+    },
+    "setup": {
+      "rolledBack": {
+        "scenario": "setup",
+        "lib": "older",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "complete"
+        }
+      },
+      "rolledForward": {
+        "scenario": "setup",
+        "lib": "current",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        }
+      },
+      "sameCode": {
+        "scenario": "setup",
+        "lib": "current",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "status": "complete"
+        },
+        "after": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "complete"
+        }
+      }
+    },
+    "index": {
+      "rolledBack": {
+        "scenario": "index",
+        "lib": "older",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "indexed": 4
+        },
+        "after": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 4,
+          "missing": 0,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        }
+      },
+      "rolledForward": {
+        "scenario": "index",
+        "lib": "current",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 4,
+          "missing": 0,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        }
+      },
+      "sameCode": {
+        "scenario": "index",
+        "lib": "current",
+        "seen": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 0,
+          "missing": 4,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        },
+        "finished": {
+          "indexed": 4
+        },
+        "after": {
+          "pages": 4,
+          "pageHash": "ddb2b02e74e8a515",
+          "history": [],
+          "indexed": 4,
+          "missing": 0,
+          "install": "idle",
+          "installed": false,
+          "setup": "idle"
+        }
+      }
+    }
+  },
+  "fileKinds": [
+    "home/study/marker-install.json",
+    "home/study/marker.json",
+    "home/study/mineru.json",
+    "home/study/retrieval/manifests/<id>.json",
+    "home/studyhub/marker/.studyhub-marker.json",
+    "home/studyhub/marker/venv/Scripts/marker_single.exe",
+    "home/studyhub/marker/venv/pyvenv.cfg",
+    "library/conversion-history/<id>.json",
+    "library/shards/courses/course-<id>.<id>.json",
+    "library/shards/documents/document-<id>.<id>.json",
+    "library/shards/misc/coach.<id>.json",
+    "library/shards/misc/feedback.<id>.json",
+    "library/shards/misc/inbox.<id>.json",
+    "library/shards/misc/notes.<id>.json",
+    "library/shards/misc/prepared.<id>.json",
+    "library/shards/misc/skeletons.<id>.json",
+    "library/shards/misc/teaching.<id>.json",
+    "library/shards/misc/topicGroups.<id>.json",
+    "library/shards/sources/document-<id>.<id>.json",
+    "library/study-workspace.json"
+  ]
+}

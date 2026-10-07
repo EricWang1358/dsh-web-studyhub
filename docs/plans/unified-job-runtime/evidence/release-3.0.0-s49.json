@@ -1,0 +1,838 @@
+{
+  "schema": 1,
+  "rollbackTag": "v2.7.1",
+  "rollbackSha": "47f132815fc2fa65c7352f3f536109bb9c3ddd96",
+  "families": {
+    "recap": {
+      "settled": {
+        "rolledBack": {
+          "family": "recap",
+          "phase": "settled",
+          "lib": "older",
+          "seen": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          }
+        },
+        "rolledForward": {
+          "family": "recap",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          }
+        },
+        "sameCode": {
+          "family": "recap",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          }
+        }
+      },
+      "crash": {
+        "rolledBack": {
+          "family": "recap",
+          "phase": "crash",
+          "lib": "older",
+          "seen": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "12ae32cb1ec02d01",
+                "generation": "interrupted",
+                "revision": 0,
+                "dated": true
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          }
+        },
+        "rolledForward": {
+          "family": "recap",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          }
+        },
+        "sameCode": {
+          "family": "recap",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "12ae32cb1ec02d01",
+                "generation": "interrupted",
+                "revision": 0,
+                "dated": true
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "kind": "daily-recap",
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    "note": {
+      "settled": {
+        "rolledBack": {
+          "family": "note",
+          "phase": "settled",
+          "lib": "older",
+          "seen": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": false
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 2,
+                "dated": false
+              }
+            ]
+          }
+        },
+        "rolledForward": {
+          "family": "note",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 2,
+                "dated": false
+              }
+            ]
+          }
+        },
+        "sameCode": {
+          "family": "note",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": false
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 2,
+                "dated": false
+              }
+            ]
+          }
+        }
+      },
+      "crash": {
+        "rolledBack": {
+          "family": "note",
+          "phase": "crash",
+          "lib": "older",
+          "seen": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "5a19e3815b189d1e",
+                "generation": "running",
+                "revision": 0,
+                "dated": false
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": false
+              }
+            ]
+          }
+        },
+        "rolledForward": {
+          "family": "note",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": false
+              }
+            ]
+          }
+        },
+        "sameCode": {
+          "family": "note",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "5a19e3815b189d1e",
+                "generation": "running",
+                "revision": 0,
+                "dated": false
+              }
+            ]
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "notes": [
+              {
+                "status": "draft",
+                "markdown": "2ef3246d96e7b075",
+                "generation": "done",
+                "revision": 1,
+                "dated": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    "translation": {
+      "settled": {
+        "rolledBack": {
+          "family": "translation",
+          "phase": "settled",
+          "lib": "older",
+          "seen": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          }
+        },
+        "rolledForward": {
+          "family": "translation",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          }
+        },
+        "sameCode": {
+          "family": "translation",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          }
+        }
+      },
+      "crash": {
+        "rolledBack": {
+          "family": "translation",
+          "phase": "crash",
+          "lib": "older",
+          "seen": {
+            "items": 0,
+            "text": "4f53cda18c2baa0c"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          }
+        },
+        "rolledForward": {
+          "family": "translation",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          }
+        },
+        "sameCode": {
+          "family": "translation",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "items": 0,
+            "text": "4f53cda18c2baa0c"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "items": 9,
+            "text": "96b7d953a4f86438"
+          }
+        }
+      }
+    },
+    "workflow": {
+      "settled": {
+        "rolledBack": {
+          "family": "workflow",
+          "phase": "settled",
+          "lib": "older",
+          "seen": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          }
+        },
+        "rolledForward": {
+          "family": "workflow",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          }
+        },
+        "sameCode": {
+          "family": "workflow",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          }
+        }
+      },
+      "crash": {
+        "rolledBack": {
+          "family": "workflow",
+          "phase": "crash",
+          "lib": "older",
+          "seen": {
+            "status": "running",
+            "text": "74234e98afe7498f"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          }
+        },
+        "rolledForward": {
+          "family": "workflow",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          }
+        },
+        "sameCode": {
+          "family": "workflow",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "status": "running",
+            "text": "74234e98afe7498f"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "status": "done",
+            "text": "74234e98afe7498f"
+          }
+        }
+      }
+    },
+    "assist": {
+      "settled": {
+        "rolledBack": {
+          "family": "assist",
+          "phase": "settled",
+          "lib": "older",
+          "seen": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          }
+        },
+        "rolledForward": {
+          "family": "assist",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          }
+        },
+        "sameCode": {
+          "family": "assist",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          }
+        }
+      },
+      "crash": {
+        "rolledBack": {
+          "family": "assist",
+          "phase": "crash",
+          "lib": "older",
+          "seen": {
+            "followups": 0,
+            "text": "4f53cda18c2baa0c"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          }
+        },
+        "rolledForward": {
+          "family": "assist",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          }
+        },
+        "sameCode": {
+          "family": "assist",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "followups": 0,
+            "text": "4f53cda18c2baa0c"
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "followups": 1,
+            "text": "e53871a1088835a3"
+          }
+        }
+      }
+    },
+    "coach": {
+      "settled": {
+        "rolledBack": {
+          "family": "coach",
+          "phase": "settled",
+          "lib": "older",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "rolledForward": {
+          "family": "coach",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "sameCode": {
+          "family": "coach",
+          "phase": "settled",
+          "lib": "current",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        }
+      },
+      "crash": {
+        "rolledBack": {
+          "family": "coach",
+          "phase": "crash",
+          "lib": "older",
+          "seen": {
+            "prepared": [],
+            "days": 0
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "rolledForward": {
+          "family": "coach",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        },
+        "sameCode": {
+          "family": "coach",
+          "phase": "crash",
+          "lib": "current",
+          "seen": {
+            "prepared": [],
+            "days": 0
+          },
+          "again": {
+            "outcome": "finished"
+          },
+          "after": {
+            "prepared": [
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ],
+              [
+                "wrong",
+                "quiz",
+                "ready"
+              ]
+            ],
+            "days": 1
+          }
+        }
+      }
+    }
+  },
+  "fileKinds": [
+    "library/attachments/materials/<id>.md",
+    "library/coach-daily.json",
+    "library/shards/attempts/0.<id>.json",
+    "library/shards/courses/course-<id>.<id>.json",
+    "library/shards/decks/d.<id>.json",
+    "library/shards/decks/deck.<id>.json",
+    "library/shards/documents/document-<id>.<id>.json",
+    "library/shards/misc/coach.<id>.json",
+    "library/shards/misc/feedback.<id>.json",
+    "library/shards/misc/inbox.<id>.json",
+    "library/shards/misc/notes.<id>.json",
+    "library/shards/misc/prepared.<id>.json",
+    "library/shards/misc/skeletons.<id>.json",
+    "library/shards/misc/teaching.<id>.json",
+    "library/shards/misc/topicGroups.<id>.json",
+    "library/shards/runs/<id>.<id>.json",
+    "library/shards/sources/document-<id>.<id>.json",
+    "library/shards/sources/s.<id>.json",
+    "library/shards/sources/source.<id>.json",
+    "library/shards/sources/src.<id>.json",
+    "library/shards/workflowSessions/<id>.<id>.json",
+    "library/shards/workflowTemplates/<id>.<id>.json",
+    "library/study-workspace.json"
+  ]
+}
