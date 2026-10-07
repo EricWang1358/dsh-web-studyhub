@@ -9,7 +9,16 @@ import { runEventText } from '../coverage/copy.js';
    contract (docs/job-contract.md); no React, so a test can read them. */
 
 const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', title: '生成标题', plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查',
-  review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用' };
+  review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用', 'live.correct': '课堂校正' };
+
+/** The calls each kind of audio job can make, in the order the work goes: what its timeline legend may name. A task of the original path is one kind for all of them. */
+const AUDIO_CALLS = { 'audio-subtitles': ['proofread', 'translate'], 'audio-review': ['proofread'], 'audio-live-save': ['proofread', 'translate'], 'audio-live-correction': ['live.correct'] };
+export const audioCallKinds = (contractKind) => AUDIO_CALLS[contractKind] || ['transcribe', 'proofread', 'translate'];
+const LEGEND = { generation: ['plan', 'author', 'review', 'repair'], coach: ['prep'] };
+const LEGEND_LABEL = { plan: '规划', author: '出题', review: '审阅', repair: '修复', prep: '备题' };
+/** The legend of the parallel timeline for a family of tasks (and, for audio, for the kind): [[call kind, label]]. */
+export const timelineLegend = (family, contractKind) => family === 'audio' ? audioCallKinds(contractKind).map((kind) => [kind, KIND_LABEL[kind]])
+  : (LEGEND[family] || LEGEND.generation).map((kind) => [kind, LEGEND_LABEL[kind]]);
 
 /** A call as a short phrase: "校对 6/9", "限流等待"; `file` adds the recording it belongs to. */
 export function callLabel(call, { file = false } = {}) {

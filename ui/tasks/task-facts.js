@@ -3,6 +3,7 @@ import { formatElapsed, formatNumber } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
 import { joinMeta } from '../format.js';
 import { parallelNote, reuseNote } from '../audio/audio-notes.js';
+import { audioCallKinds } from './call-model.js';
 import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
 
 /* The four facts beside a task's progress and the stage segments of its bar, read from the job's contract. */
@@ -63,17 +64,28 @@ export function taskFacts(job, now = Date.now()) {
 export function usageLine(job) {
   const contract = contractOf(job), usage = contract.detail?.usage;
   if (taskKindOf(job) !== 'audio') return '';
-  const files = contract.detail.files || [], total = files.reduce((sum, file) => sum + (file.steps?.transcribe?.total || 0), 0);
-  const reused = reuseNote(total > 0 ? { transcribe: { total, done: total, reused: files.reduce((sum, file) => sum + (file.steps?.transcribe?.reused || 0), 0) } } : undefined);
+  const files = contract.detail.files || [];
   const windows = contract.status === 'running' && files.some((file) => file.status === 'running' && ['proofread', 'translate'].includes(file.phase)) ? parallelNote(contract.detail.parallel?.text) : '';
+  // A task that only works on text never asks the transcription service: it says what the model did, not what the service did not.
+  if (!audioCallKinds(contract.kind).includes('transcribe')) return textLine(contract, windows);
+  const total = files.reduce((sum, file) => sum + (file.steps?.transcribe?.total || 0), 0);
+  const reused = reuseNote(total > 0 ? { transcribe: { total, done: total, reused: files.reduce((sum, file) => sum + (file.steps?.transcribe?.reused || 0), 0) } } : undefined);
   if (!usage) return joinMeta([ui('还没有向转写服务发请求'), reused, windows]);
   const gemini = usage.gemini.free + usage.gemini.paid;
-  const text = contract.detail.textProvider === 'host' && contract.progress.segments?.some((segment) => ['proofread', 'translate'].includes(segment.stage) && segment.done > 0)
+  const text = hostTextDone(contract)
     ? ui('校对和翻译由 DSH 模型完成') : '';
   return joinMeta([gemini > 0 ? uiFormat('Gemini 请求：免费 {0} · 付费 {1}', [usage.gemini.free, usage.gemini.paid]) : '',
     gemini > 0 && usage.paidUsd > 0 ? uiFormat('转写付费约 ${0}', [usage.paidUsd]) : '',
     usage.thisRun ? uiFormat('本次：免费 {0} · 付费 {1}', [usage.thisRun.free, usage.thisRun.paid]) : gemini === 0 && usage.siliconflow + usage.groq === 0 ? ui('这次没有新发转写请求') : '',
     usage.siliconflow > 0 ? uiFormat('硅基流动 {0}（免费）', [usage.siliconflow]) : '', usage.groq > 0 ? uiFormat('Groq {0}（免费额度）', [usage.groq]) : '', text, reused, windows]);
+}
+
+const hostTextDone = (contract) => contract.detail.textProvider === 'host' && contract.progress.segments?.some((segment) => ['proofread', 'translate'].includes(segment.stage) && segment.done > 0);
+
+/** The request line of a task that makes no transcription: who did the text steps, the parallel windows; else what kind of work it is. */
+function textLine(contract, windows) {
+  const host = hostTextDone(contract);
+  return joinMeta([host ? ui('文字处理由 DSH 模型完成') : '', windows]) || ui('文字处理任务');
 }
 
 /** The stage segments of the progress bar: [{ stage, label, done, total }], in the order the work happens. */

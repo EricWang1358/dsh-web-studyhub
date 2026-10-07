@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Tooltip, useNow } from '../components/index.js';
 import { formatDateTime, formatElapsed, joinMeta } from '../format.js';
-import { shortFile, timelineModel } from './call-model.js';
+import { shortFile, timelineLegend, timelineModel } from './call-model.js';
 import { callMs, longRuleText, slowestText } from './time-limit.js';
 
 /* The parallel timeline: one lane per unit of work (a file of an audio import, a part of a question run, 整体 for the rest; one lane per pool slot only when the
@@ -10,7 +10,6 @@ import { callMs, longRuleText, slowestText } from './time-limit.js';
    it selects the call, whose live output the right panel shows; its title also says which slot it ran in. The chart has a fixed height and scrolls inside
    itself, so more lanes never push the panels below it. */
 
-const LEGEND = { audio: [['transcribe', '转写'], ['proofread', '校对'], ['translate', '翻译']], generation: [['plan', '规划'], ['author', '出题'], ['review', '审阅'], ['repair', '修复']], coach: [['prep', '备题']] };
 const LANE_WORD = { transcribe: '转写', slot: '槽', other: '其他', whole: '整体' };
 
 /** What a lane is called: { text, title }. The extra lanes of a unit (row 2, 3) carry no label: they continue the lane above. */
@@ -26,10 +25,10 @@ const barTitle = (bar) => (bar.slot ? uiFormat('{0} · 槽 {1}', [bar.label, bar
 /** A bar the strip points at (time-limit.js slowSteps): its title also says how long the call took and why it is marked. */
 const markTitle = (bar, mark, ms) => joinMeta([barTitle(bar), ms === null ? '' : formatElapsed(ms), mark === 'long' ? longRuleText() : slowestText()]);
 
-export default function Timeline({ calls, running, family, selected, marks, onSelect }) {
+export default function Timeline({ calls, running, family, contractKind, selected, marks, onSelect }) {
   const now = useNow(2000, { enabled: running });
   const model = useMemo(() => timelineModel(calls, { now, running, pinned: marks ? [...marks.keys()] : [] }), [calls, now, running, marks]);
-  const legend = LEGEND[family] || LEGEND.generation;
+  const legend = useMemo(() => timelineLegend(family, contractKind), [family, contractKind]);
   const byId = useMemo(() => new Map((calls || []).map((call) => [call.callId, call])), [calls]);
   const ticks = [0, 1 / 3, 2 / 3, 1].map((fraction) => model.begin + (model.end - model.begin) * fraction);
   return (

@@ -203,3 +203,33 @@ test('the study map no longer carries hand-built menus, glyph carets or raw warn
     assert.doesNotMatch(source, /"[▸▾] "/, `${file}: glyph text prefix`);
   }
 });
+
+
+test('StudyMap keeps every live audio family out of question-generation cards', async t => {
+  const { ALL_SWITCHES, KINDS, cardOf, consoleLibrary } = await import('./helpers/audio-console.mjs');
+  const { until } = await import('./helpers/wait.mjs');
+  const lib = await consoleLibrary(t);
+  lib.set(true, ...ALL_SWITCHES);
+  const rows = [];
+  try {
+    for (const [index, [name, kind]] of Object.entries(KINDS).entries()) {
+      const started = await kind.start(lib, index + 1);
+      const row = await until(async () => {
+        const current = await cardOf(lib, started.jobId);
+        // The subtitle pipeline adds the non-iterable counters only after its first progress callback.
+        const countersReady = name !== 'subtitles' || (current?.steps && !Array.isArray(current.steps));
+        return ['queued', 'running'].includes(current?.status) && countersReady && current;
+      }, `${name} live snapshot`, { timeoutMs: 10_000 });
+      assert.equal(row.contract.kind, kind.kind, `${name} uses its real public contract`);
+      rows.push(row);
+    }
+    assert.ok(rows.some(row => row.steps && !Array.isArray(row.steps)), 'audio step counters differ from generation steps');
+    const baseline = page(baseData());
+    assert.equal(page(baseData({ jobs: rows })), baseline, 'mixed audio snapshot renders without generation cards');
+    for (const row of rows) assert.equal(page(baseData({ jobs: [row] })), baseline, `${row.type} does not enter the generation home`);
+    const generation = { id: 'question-run', type: 'generate', status: 'running', deckTitle: 'Question generation stays visible', steps: [] };
+    const withGeneration = page(baseData({ jobs: [generation] }));
+    assert.match(withGeneration, /Question generation stays visible/);
+    assert.equal(page(baseData({ jobs: [...rows, generation] })), withGeneration, 'mixed snapshots retain only the question card');
+  } finally { lib.release(); }
+});

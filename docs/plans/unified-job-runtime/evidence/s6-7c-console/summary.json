@@ -1,0 +1,1308 @@
+{
+  "baseline": "fceafd60",
+  "mode": "preview with controlled runtime and fake model",
+  "zoomMethod": "CSS zoom on documentElement; preview only, not real DSH qa:dsh",
+  "checks": [
+    {
+      "kind": "audio-import",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 2.914873758951823e-06,
+            "startTime": 5917,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 2/3 · Lecture-1.wav\"",
+                "from": {
+                  "x": 851,
+                  "y": 312,
+                  "width": 16,
+                  "height": 14
+                },
+                "to": {
+                  "x": 845,
+                  "y": 312,
+                  "width": 22,
+                  "height": 14
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/3 · Lecture-1.wav\"",
+                "from": {
+                  "x": 853,
+                  "y": 296,
+                  "width": 12,
+                  "height": 10
+                },
+                "to": {
+                  "x": 847,
+                  "y": 296,
+                  "width": 18,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 3/3 · Lecture-1.wav\"",
+                "from": {
+                  "x": 853,
+                  "y": 332,
+                  "width": 12,
+                  "height": 10
+                },
+                "to": {
+                  "x": 847,
+                  "y": 332,
+                  "width": 18,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"转写 1/1 · Lecture-1.wav\"",
+                "from": {
+                  "x": 851,
+                  "y": 296,
+                  "width": 2,
+                  "height": 10
+                },
+                "to": {
+                  "x": 845,
+                  "y": 296,
+                  "width": 2,
+                  "height": 10
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 3.899955749511719e-06,
+            "startTime": 8196,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/3 · Lecture-2.wav\"",
+                "from": {
+                  "x": 845,
+                  "y": 312,
+                  "width": 23,
+                  "height": 14
+                },
+                "to": {
+                  "x": 839,
+                  "y": 312,
+                  "width": 29,
+                  "height": 14
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 2/3 · Lecture-2.wav\"",
+                "from": {
+                  "x": 847,
+                  "y": 296,
+                  "width": 19,
+                  "height": 10
+                },
+                "to": {
+                  "x": 841,
+                  "y": 296,
+                  "width": 25,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 3/3 · Lecture-2.wav\"",
+                "from": {
+                  "x": 847,
+                  "y": 332,
+                  "width": 19,
+                  "height": 10
+                },
+                "to": {
+                  "x": 841,
+                  "y": 332,
+                  "width": 25,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"转写 1/1 · Lecture-2.wav\"",
+                "from": {
+                  "x": 845,
+                  "y": 296,
+                  "width": 2,
+                  "height": 10
+                },
+                "to": {
+                  "x": 839,
+                  "y": 296,
+                  "width": 2,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"转写 1/1 · Lecture-3.wav\"",
+                "from": {
+                  "x": 845,
+                  "y": 350,
+                  "width": 2,
+                  "height": 10
+                },
+                "to": {
+                  "x": 839,
+                  "y": 350,
+                  "width": 2,
+                  "height": 10
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 2.1421644422743057e-06,
+            "startTime": 10349,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/1 · pricing-3.txt\"",
+                "from": {
+                  "x": 836,
+                  "y": 263,
+                  "width": 31,
+                  "height": 14
+                },
+                "to": {
+                  "x": 830,
+                  "y": 263,
+                  "width": 37,
+                  "height": 14
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 2.4869283040364585e-06,
+            "startTime": 12523,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/1 · 复核 · talk-4 · 中英对照逐字稿\"",
+                "from": {
+                  "x": 830,
+                  "y": 263,
+                  "width": 37,
+                  "height": 14
+                },
+                "to": {
+                  "x": 824,
+                  "y": 263,
+                  "width": 43,
+                  "height": 14
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 2.818637424045139e-06,
+            "startTime": 14669,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/1 · Databases class 5\"",
+                "from": {
+                  "x": 824,
+                  "y": 263,
+                  "width": 43,
+                  "height": 14
+                },
+                "to": {
+                  "x": 818,
+                  "y": 263,
+                  "width": 49,
+                  "height": 14
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 3.1485663519965277e-06,
+            "startTime": 16877,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"课堂校正\"",
+                "from": {
+                  "x": 818,
+                  "y": 263,
+                  "width": 50,
+                  "height": 14
+                },
+                "to": {
+                  "x": 812,
+                  "y": 263,
+                  "width": 55,
+                  "height": 14
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-import",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "zh",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-import",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0.0001,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 8.21626984126984e-05,
+            "startTime": 5876,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 2/3 · Lecture-1.wav\"",
+                "from": {
+                  "x": 271,
+                  "y": 868,
+                  "width": 125,
+                  "height": 14
+                },
+                "to": {
+                  "x": 264,
+                  "y": 868,
+                  "width": 132,
+                  "height": 14
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/3 · Lecture-1.wav\"",
+                "from": {
+                  "x": 273,
+                  "y": 852,
+                  "width": 121,
+                  "height": 10
+                },
+                "to": {
+                  "x": 266,
+                  "y": 852,
+                  "width": 128,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 3/3 · Lecture-1.wav\"",
+                "from": {
+                  "x": 273,
+                  "y": 888,
+                  "width": 121,
+                  "height": 10
+                },
+                "to": {
+                  "x": 266,
+                  "y": 888,
+                  "width": 128,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"转写 1/1 · Lecture-1.wav\"",
+                "from": {
+                  "x": 271,
+                  "y": 852,
+                  "width": 2,
+                  "height": 10
+                },
+                "to": {
+                  "x": 264,
+                  "y": 852,
+                  "width": 2,
+                  "height": 10
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0.0001,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 8.53097442680776e-05,
+            "startTime": 8053,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/3 · Lecture-2.wav\"",
+                "from": {
+                  "x": 264,
+                  "y": 868,
+                  "width": 132,
+                  "height": 14
+                },
+                "to": {
+                  "x": 258,
+                  "y": 868,
+                  "width": 138,
+                  "height": 14
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 2/3 · Lecture-2.wav\"",
+                "from": {
+                  "x": 266,
+                  "y": 852,
+                  "width": 128,
+                  "height": 10
+                },
+                "to": {
+                  "x": 260,
+                  "y": 852,
+                  "width": 134,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 3/3 · Lecture-2.wav\"",
+                "from": {
+                  "x": 266,
+                  "y": 888,
+                  "width": 128,
+                  "height": 10
+                },
+                "to": {
+                  "x": 260,
+                  "y": 888,
+                  "width": 134,
+                  "height": 10
+                }
+              },
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"转写 1/1 · Lecture-2.wav\"",
+                "from": {
+                  "x": 264,
+                  "y": 852,
+                  "width": 2,
+                  "height": 10
+                },
+                "to": {
+                  "x": 258,
+                  "y": 852,
+                  "width": 2,
+                  "height": 10
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 3.818672839506173e-05,
+            "startTime": 10218,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/1 · pricing-3.txt\"",
+                "from": {
+                  "x": 255,
+                  "y": 763,
+                  "width": 141,
+                  "height": 14
+                },
+                "to": {
+                  "x": 249,
+                  "y": 763,
+                  "width": 147,
+                  "height": 14
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 3.964699074074074e-05,
+            "startTime": 12367,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/1 · 复核 · talk-4 · 中英对照逐字稿\"",
+                "from": {
+                  "x": 249,
+                  "y": 763,
+                  "width": 147,
+                  "height": 14
+                },
+                "to": {
+                  "x": 243,
+                  "y": 763,
+                  "width": 153,
+                  "height": 14
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 1,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [
+          {
+            "value": 4.135802469135802e-05,
+            "startTime": 14489,
+            "sources": [
+              {
+                "element": "button.sh-btn.sh-btn--quiet.sh-btn--md \"校对 1/1 · Databases class 5\"",
+                "from": {
+                  "x": 243,
+                  "y": 763,
+                  "width": 153,
+                  "height": 14
+                },
+                "to": {
+                  "x": 236,
+                  "y": 763,
+                  "width": 160,
+                  "height": 14
+                }
+              }
+            ]
+          }
+        ],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-import",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "zh",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-import",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-import",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "en",
+      "width": 1280,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-import",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-import",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-batch",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-subtitles",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-review",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-save",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    },
+    {
+      "kind": "audio-live-correction",
+      "lang": "en",
+      "width": 420,
+      "zoom": 1.5,
+      "horizontalOverflow": false,
+      "layout": {
+        "ok": true,
+        "cls": 0,
+        "shiftCount": 0,
+        "longestTask": 0,
+        "longTasks": 0,
+        "rowResizes": 0,
+        "message": "",
+        "shifts": [],
+        "resizes": []
+      }
+    }
+  ]
+}

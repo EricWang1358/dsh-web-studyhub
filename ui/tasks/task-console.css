@@ -197,7 +197,7 @@
     .tc-track { position: relative; height: 14px; background: var(--bg-sunken); }
     .tc-callbar { position: absolute; top: 2px; bottom: 2px; min-width: 2px; min-height: 0; height: auto; padding: 0; border: 0; background: var(--sh-bar, var(--accent)); }
     .tc-callbar[data-kind='transcribe'], .tc-callbar[data-kind='plan'], .tc-callbar[data-kind='blueprint'], .tc-legend [data-kind='transcribe'], .tc-legend [data-kind='plan'] { --sh-bar: var(--info); }
-    .tc-callbar[data-kind='proofread'], .tc-callbar[data-kind='author'], .tc-callbar[data-kind='prep'], .tc-legend [data-kind='proofread'], .tc-legend [data-kind='author'], .tc-legend [data-kind='prep'] { --sh-bar: var(--accent); }
+    .tc-callbar[data-kind='proofread'], .tc-callbar[data-kind='author'], .tc-callbar[data-kind='prep'], .tc-callbar[data-kind='live.correct'], .tc-legend [data-kind='proofread'], .tc-legend [data-kind='author'], .tc-legend [data-kind='prep'], .tc-legend [data-kind='live.correct'] { --sh-bar: var(--accent); }
     .tc-callbar[data-kind='translate'], .tc-callbar[data-kind='review'], .tc-legend [data-kind='translate'], .tc-legend [data-kind='review'] { --sh-bar: var(--ok); }
     .tc-callbar[data-kind='repair'], .tc-legend [data-kind='repair'] { --sh-bar: var(--warn); }
     .tc-callbar[data-kind='title'], .tc-callbar[data-kind='publish'], .tc-callbar[data-kind='other'] { --sh-bar: var(--decor-faint); }
