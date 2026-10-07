@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractRelease } from '../extract-release.mjs';
 
-/* The S4-9 rollback drill runner: `node tests/fixtures/runtime-s49/run-drill.mjs [rollbackTag]`. For every model family (recap, note draft, translation, learning workflow, assistant) and for both a
+/* The S4-9 rollback drill runner: `node tests/fixtures/runtime-s49/run-drill.mjs [rollbackTag]`. For every model family (recap, note draft, translation, learning workflow, assistant, coach preparation) and for both a
    FINISHED run and one that is still going when the process ends hard: the current code (the family's switch on) leaves its records; the fixed older version (default v2.7.1, `git archive` of the
    tag, unpacked under .local) opens a copy of that library and DSH home, reports what it shows and starts the work again; the current code opens the library after that; and a second copy is
    put back for the current code to do the same itself (the comparison). Everything is a fake: no network, no key, DSH_HOME is a folder under .local. The evidence goes to
@@ -13,7 +13,7 @@ import { extractRelease } from '../extract-release.mjs';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const tag = process.argv[2] || 'v2.7.1', scratch = join(repo, '.local', 'drill49'), older = join(repo, '.local', `old-${tag.replace(/^v/, '')}`);
 const script = join(dirname(fileURLToPath(import.meta.url)), 'rollback.mjs');
-const FAMILIES = ['recap', 'note', 'translation', 'workflow', 'assist'], PHASES = ['settled', 'crash'];
+const FAMILIES = ['recap', 'note', 'translation', 'workflow', 'assist', 'coach'], PHASES = ['settled', 'crash'];
 for (const key of Object.keys(process.env)) if (/_API_KEY$|_TOKEN$|BASE_URL$/.test(key)) delete process.env[key];
 process.env.SSH_TTY ||= 'audit';
 
