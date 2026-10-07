@@ -98,7 +98,9 @@ function Metrics({ job, summary, now }) {
         <div className="tc-metric" key={fact.key}>
           <span className="tc-metric__k">{fact.label}</span>
           <span className="tc-metric__v">{fact.value}</span>
-          {fact.note !== undefined && <span className="tc-metric__note" data-metric-note title={fact.note || undefined}>{fact.note}</span>}
+          {fact.note !== undefined && (fact.note
+            ? <Tooltip layer content={fact.note} anchorClassName="tc-metric__note-anchor"><span className="tc-metric__note" data-metric-note tabIndex={0}>{fact.note}</span></Tooltip>
+            : <span className="tc-metric__note" data-metric-note />)}
         </div>
       ))}
     </section>

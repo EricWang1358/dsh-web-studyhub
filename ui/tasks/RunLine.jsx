@@ -1,5 +1,6 @@
 import React from 'react';
 import { ui } from '../i18n.js';
+import { Tooltip } from '../components/index.js';
 import { contractOf } from './task-model.js';
 import { joinMeta } from '../format.js';
 import { continueLine, coveragePathText, forecastMath, nextRoundText, repeatingLine, runLine, runPathText, shortfallLine, shortfallWhy, stopText } from '../coverage/copy.js';
@@ -34,7 +35,9 @@ export default function RunLine({ task, shortfall, now = Date.now() }) {
     <div className="tc-run" role="status" aria-label={ui('出题计划')} data-run-state={interrupted ? 'interrupted' : run.state || 'running'}>
       <span className="tc-run__k">{ui('出题计划')}</span>
       <strong className="tc-run__line" data-run-line>{runLine(run, { interrupted, forecast })}</strong>
-      {forecast && <span className="tc-run__counts tc-run__math" data-run-math title={math || undefined}>{math || '\u00a0'}</span>}
+      {forecast && (math
+        ? <Tooltip layer content={math} anchorClassName="tc-run__counts tc-run__math-anchor"><span className="tc-run__math" data-run-math tabIndex={0}>{math}</span></Tooltip>
+        : <span className="tc-run__counts tc-run__math" data-run-math>{'\u00a0'}</span>)}
       {counts && <span className="tc-run__counts" data-shortfall-line>{counts}</span>}
       {path && <span className="tc-run__counts" data-coverage-path>{path}</span>}
       {stop && <span className="tc-run__stop" data-run-stop>{stop}</span>}
