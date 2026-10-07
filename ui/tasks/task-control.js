@@ -11,7 +11,7 @@ const GENERATION_EFFORTS = { follow: '跟随当前会话', lowest: '最低', low
 const LABELS = {
   textConcurrency: '校对/翻译并发', transcribeConcurrency: '转写并发', proofreadReasoning: '剩余校对推理', translateReasoning: '剩余翻译推理',
   autoBackoff: '限流时自动降并发', concurrency: '并发', effortPlanning: '规划推理', effortReview: '审阅推理', effortWriting: '出题推理', effortRepair: '修复推理',
-  maxBatchesPerDay: '每天最多批数', maxReady: '备好的题上限', reasoning: '备题推理', autoComplete: '自动补到完整',
+  applySuggestions: '采纳审阅建议', maxBatchesPerDay: '每天最多批数', maxReady: '备好的题上限', reasoning: '备题推理', autoComplete: '自动补到完整',
 };
 export const controlLabel = (key) => ui(LABELS[key] || key);
 
@@ -86,7 +86,7 @@ export function defaultsPatch(job) {
   const pick = (keys) => Object.fromEntries(keys.filter((key) => items[key] !== undefined).map((key) => [key, items[key]]));
   switch (taskKindOf(job)) {
     case 'audio': return { action: 'audio.settings.set', args: pick(['textConcurrency', 'transcribeConcurrency', 'proofreadReasoning', 'translateReasoning']) };
-    case 'generation': case 'supplement': return { action: 'settings', args: { generation: pick(['concurrency', 'effortPlanning', 'effortReview', 'effortWriting', 'effortRepair']) } };
+    case 'generation': case 'supplement': return { action: 'settings', args: { generation: pick(['concurrency', 'effortPlanning', 'effortReview', 'effortWriting', 'effortRepair', 'applySuggestions']) } };
     default: return null;
   }
 }

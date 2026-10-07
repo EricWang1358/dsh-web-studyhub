@@ -67,7 +67,7 @@ A kind declares its `pause.mode` (`actions.pause.mode`):
 
 ### Set
 
-`actions.set.settings` lists what can be changed while the job runs, each `{ key, type: int | enum | bool, min?, max?, values?, value }`: audio `textConcurrency` (1-6), `transcribeConcurrency` (1-3), `proofreadReasoning`, `translateReasoning`, `autoBackoff`; generation `concurrency` (1-8) and the reasoning of each stage; translation `concurrency`. A change applies to LATER dispatch only and interrupts nothing: lowering a limit makes new calls wait, raising it admits waiting ones, and the automatic back-off never raises the limit above the configured cap. The reply is `{ applied, changed, values }`: `applied` is what is now in force for the keys asked. `pause` and `resume` are actions, not settings.
+`actions.set.settings` lists what can be changed while the job runs, each `{ key, type: int | enum | bool, min?, max?, values?, value }`: audio `textConcurrency` (1-6), `transcribeConcurrency` (1-3), `proofreadReasoning`, `translateReasoning`, `autoBackoff`; generation `concurrency` (1-8), the reasoning of each stage and `applySuggestions` (bool: after the review, one more rewrite and one more review on the cards that passed with a suggestion; read when a part's review is done); translation `concurrency`. A change applies to LATER dispatch only and interrupts nothing: lowering a limit makes new calls wait, raising it admits waiting ones, and the automatic back-off never raises the limit above the configured cap. The reply is `{ applied, changed, values }`: `applied` is what is now in force for the keys asked. `pause` and `resume` are actions, not settings.
 
 ### Retry
 

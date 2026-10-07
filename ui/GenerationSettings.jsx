@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
-import { Button, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
+import { Button, Checkbox, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
 import { kinds } from './shared.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_KINDS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
@@ -9,7 +9,7 @@ import { EffortSelect } from './EffortSelect.jsx';
 
 const labels = { kind: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
-  effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目' };
+  effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目', applySuggestions: '采纳审阅建议' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
@@ -105,6 +105,10 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
       <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>
       {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
         efforts={efforts} disabled={disabled} error={errors[effortKey(stage)]} onChange={value => edit(effortKey(stage), value)} />)}
+      <h3 className="settings-subtitle">{ui('审阅建议')}</h3>
+      <Checkbox name="applySuggestions" label={ui(labels.applySuggestions)} checked={editor.values.applySuggestions === true} disabled={disabled}
+        hint={ui('审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。')}
+        onChange={value => edit('applySuggestions', value === true)} />
       {error && <Hint tone="error" role="alert">{error}</Hint>}
       <div className="settings-actions">
         <Button variant="primary" type="submit" busy={working} disabled={busy || !dirty || invalid}>{ui('保存出题偏好')}</Button>
