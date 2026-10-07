@@ -47,13 +47,15 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders fourteen usable controls with shared limits in both languages', () => {
+test('the generation settings section renders fifteen usable controls with shared limits in both languages', () => {
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 14);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 15);
+    const check = html.match(/<input[^>]*name="applySuggestions"[^>]*>/);
+    assert.ok(check && /type="checkbox"/.test(check[0]) && !/checked/.test(check[0]), 'applying the review suggestions is a checkbox, off by default');
     for (const [name, min, max] of [['count', 1, 500], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 180], ['fillRounds', 0, 4]]) {
       const input = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))[0];
       assert.match(input, new RegExp(`min="${min}"`)); assert.match(input, new RegExp(`max="${max}"`));

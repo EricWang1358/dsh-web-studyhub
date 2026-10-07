@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 
-const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
+// Every performance key that is not a number: the four reasoning levels and whether the review's suggestions are applied (off by default).
+const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const original = { kind: 'flashcard', count: 7, language: 'English', difficulty: 'foundation', focus: 'Explain independent deployment',
   concurrency: 1, batchSize: 2, jobTimeoutMinutes: 5, fillRounds: 2, ...EFFORTS, notation: 'auto' };
 const performance = ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds = 2 }) => ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds, ...EFFORTS });

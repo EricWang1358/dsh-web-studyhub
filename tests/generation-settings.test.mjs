@@ -7,7 +7,8 @@ import { StudyService } from '../lib/service.js';
 import { normalizeGenerationSettings, normalizeGenerationPerformance, resolveGenerationRequest,
   validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
 
-const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
+// Every performance key that is not a number: the four reasoning levels and whether the review's suggestions are applied (off by default).
+const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const expected = { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS,
   kind: 'quiz', count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto' };
 async function library(t) {
