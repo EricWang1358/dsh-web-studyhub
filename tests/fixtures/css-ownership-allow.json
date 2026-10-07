@@ -278,10 +278,6 @@
       "ui/focus.css",
       "ui/study-map/desk.css"
     ],
-    "section-heading": [
-      "ui/generate-home.css",
-      "ui/study-map/catalog.css"
-    ],
     "section-heading-actions": [
       "ui/shell.css",
       "ui/study-map/catalog.css"

@@ -67,6 +67,7 @@
     "tests/marker-install.test.mjs",
     "tests/marker-service.runtime.test.mjs",
     "tests/marker-service.test.mjs",
+    "tests/materials-annotation.test.mjs",
     "tests/mineru-adaptive-service.runtime.test.mjs",
     "tests/mineru-adaptive-service.test.mjs",
     "tests/mineru-environment.test.mjs",
