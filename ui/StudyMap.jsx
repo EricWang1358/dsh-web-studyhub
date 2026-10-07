@@ -18,7 +18,7 @@ import { useDeckTree } from "./study-map/useDeckTree.js";
 import { useCourseFolders } from "./study-map/useCourseFolders.js";
 import { useCourseMastery } from "./study-map/useCourseMastery.js";
 import { buildHomePlan } from "./study-map/home-plan.js";
-import HomeActivity from "./study-map/HomeActivity.jsx";
+import HomeActivity, { HomeDrafts } from "./study-map/HomeActivity.jsx";
 import DeskIntro from "./study-map/DeskIntro.jsx";
 import TodayCard from "./study-map/TodayCard.jsx";
 import { useRoleDraft } from "./study-map/RoleSuggestion.jsx";
@@ -110,6 +110,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
           onFocus={onFocus} onCourseSettings={onCourseSettings} suggestRole={suggestRole} />
         <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} />
       </div>
+      {/* 待发布 is folded and sits under the day's work, not above it. */}
+      <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} />
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} busy={busy} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph} />

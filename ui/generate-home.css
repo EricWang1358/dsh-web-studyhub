@@ -14,7 +14,7 @@
     .home-activity .sh-job .generation-trace > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
     .home-activity .sh-job .generation-trace > summary:hover { color: var(--text); }
     .home-activity .sh-job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
-    .home-activity .home-drafts > .section-heading { margin-top: 0; }
+    .home-drafts { margin: var(--space-4) 0 var(--space-2); }
     /* ── Home: a newcomer's first deck, three steps on the card ───────────── */
     .today-card .starter-steps { list-style: none; display: grid; margin: 0 0 var(--space-5); padding: 0; }
     .today-card .starter-steps li {

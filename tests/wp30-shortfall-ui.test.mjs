@@ -154,7 +154,8 @@ test("home: a short draft says how much of its material has questions and offers
   assert.match(facts, /覆盖 1\/12 个小节（8%）/, "the coverage is the draft's fact");
   assert.doesNotMatch(html, /继续补齐/);
   assert.doesNotMatch(html, /answerLeak|Assessment plan/, "no raw backend prose on the card");
-  assert.doesNotMatch(html, /<details/, "the card folds nothing: the reasons and the process are in the 任务 console and on the draft page");
+  assert.equal((html.match(/<details/g) || []).length, 1, "only the 待发布 section itself is folded (closed by default); the card inside folds nothing: the reasons and the process are in the 任务 console and on the draft page");
+  assert.match(html, /<details class="sh-disclosure home-drafts"(?![^>]*\sopen)/, "the 待发布 section is closed until the learner opens it");
 });
 
 test("home: while a top-up runs the button says so, the old card stops advising it and nothing says 补题中 for publishing", () => {

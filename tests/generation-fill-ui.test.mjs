@@ -10,7 +10,7 @@ import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 /* #196 (the one top-up says what it covers and is off while a fill runs), #200/#203 and #201 draw from the draft page and the home, rendered here.
    The top-up is 为没覆盖的部分补题 (ui/coverage): it is asked for the sections with no question, so the pages are rendered with a real coverage answer seeded in their memo. */
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx'; export { foldJobsByDraft } from './ui/job-visibility.js'; export { seedCoverage, forgetCoverage } from './ui/coverage/use-coverage.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { default as Draft } from './ui/Draft.jsx'; export { default as JobCard } from './ui/study-map/JobCard.jsx'; export { default as GenerationTrace } from './ui/GenerationTrace.jsx'; export { default as HomeActivity, HomeDrafts } from './ui/study-map/HomeActivity.jsx'; export { foldJobsByDraft } from './ui/job-visibility.js'; export { seedCoverage, forgetCoverage } from './ui/coverage/use-coverage.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -176,7 +176,8 @@ test('generation details show queue vs model-call time per stage, and a rate lim
 });
 
 /* #200 / #203: one card per deck. */
-const home = (jobs, drafts, extra = {}) => renderToStaticMarkup(React.createElement(m.HomeActivity, { jobs, drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop,
+const HomeBoth = (props) => React.createElement(React.Fragment, null, React.createElement(m.HomeActivity, props), React.createElement(m.HomeDrafts, { ...props, defaultOpen: true }));
+const home = (jobs, drafts, extra = {}) => renderToStaticMarkup(React.createElement(HomeBoth, { jobs, drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop,
   manage: noop, start: noop, call: noop, topUpDraft: noop, modelReady: true, data: { jobs, drafts, decks: [], sources: [] }, ...extra }));
 const steps = (n, label = 'Part 1/1 · Writing and self-checking questions') => Array.from({ length: n }, (_, index) => ({ id: `s${n}-${index}`, stage: label, status: 'complete' }));
 const fillJob = (id, status, extra = {}) => ({ id, status, type: undefined, stage: 'Draft ready with 12/15 questions', parts: 2, draftId: 'd1', continued: true, deckTitle: '架构的语境性', savedCount: 12, requestedTotal: 15, count: 8,

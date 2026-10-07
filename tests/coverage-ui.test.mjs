@@ -24,7 +24,7 @@ const m = await loadUi(`
   export { default as OutlinePanel } from './ui/document-preview/reader/OutlinePanel.jsx';
   export { default as ReadingPractice } from './ui/document-preview/practice/ReadingPractice.jsx';
   export { default as Sources } from './ui/Sources.jsx';
-  export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx';
+  export { default as HomeActivity, HomeDrafts } from './ui/study-map/HomeActivity.jsx';
   export { readingSections } from './ui/document-preview/reader/text-sections.js';
   export { outlineFromSections, structureOutline } from './ui/document-preview/reader/outline.js';
   export { AppContext } from './ui/app/app-context.js';
@@ -326,7 +326,8 @@ test('student-side: before practising, every screen tells the same story about t
   const page = text(summaryHtml(view)), row = text(sourcesPage(rowData(coverageDigest(cov))));
   const homeData = { jobs: [], drafts: [{ id: 'd1', title: 'T', draftVersion: 3, cards: [{ id: 'c1' }], editorial: { requested: 10, generated: 1, completedParts: 1, parts: 1, failures: [], generation: { sourceIds: [small.sources[0].id], kind: 'quiz' } } }], decks: [], sources: [] };
   m.forgetCoverage(); seedView(m, view);
-  const home = text(renderToStaticMarkup(React.createElement(m.HomeActivity, { jobs: [], drafts: homeData.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop, start: noop, topUpDraft: noop, modelReady: true, data: homeData })));
+const HomeBoth = (props) => React.createElement(React.Fragment, null, React.createElement(m.HomeActivity, props), React.createElement(m.HomeDrafts, { ...props, defaultOpen: true }));
+  const home = text(renderToStaticMarkup(React.createElement(HomeBoth, { jobs: [], drafts: homeData.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop, start: noop, topUpDraft: noop, modelReady: true, data: homeData })));
   assert.match(home, /覆盖 3\/12 个小节（25%）/, 'the home 待发布 row');
   assert.match(page, /覆盖 3\/12 个小节（25%）/, 'the draft page');
   assert.match(row, /覆盖 25%/, 'the 资料 row: the same percentage');
