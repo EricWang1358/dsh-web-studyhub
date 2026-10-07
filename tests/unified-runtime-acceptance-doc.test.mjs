@@ -45,8 +45,8 @@ test('every work package of the plan has a line with a merged PR and its SHA, an
 test('the switches are counted, the pending gates stay pending and no version is recorded as released', () => {
   assert.match(doc, new RegExp(`${Object.keys(MIGRATION_SWITCHES).length} 个迁移开关\\*\\*全部默认关闭`));
   const gates = doc.slice(doc.indexOf('## 8. 待定门禁'), doc.indexOf('## 9.'));
-  for (const gate of ['真实模型质量抽检', 'alpha 版本号 / tag / GitHub 发布', '真实安装包', '真实宿主 smoke']) assert.match(gates, new RegExp(`${gate.replace(/[/.]/g, '\\$&')}[^\\n]*\\*\\*PENDING`), `${gate} is pending`);
+  for (const gate of ['真实模型质量抽检', 'alpha 版本号 / tag / GitHub 发布', '真实安装包']) assert.match(gates, new RegExp(`${gate.replace(/[/.]/g, '\\$&')}[^\\n]*\\*\\*PENDING`), `${gate} is pending`);
   assert.deepEqual([...new Set(doc.match(/\bv\d+\.\d+\.\d+\b/g))], ['v2.7.1'], 'the only release the record names is the fixed rollback target');
   assert.ok(!/已发布为|released as|发布了 alpha/i.test(doc));
-  assert.match(doc, /## 9\. 宿主与浏览器证据（A 道，待并入）/);
+  assert.match(doc, /## 9\. 宿主与浏览器证据\s+全文见 \[s6-7-host-evidence\.md\]/, 'the host evidence is linked, not summarised from memory');
 });

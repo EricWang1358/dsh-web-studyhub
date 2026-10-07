@@ -291,15 +291,21 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | 真实模型质量抽检 | **PENDING** | 所有者对线路与预算的授权；每个受影响家族（出题、补题、翻译、每日总结、学习流、为你定制、助手、笔记起草、音频文本）固定输入、模型、档位、预算；运行时 vs 进程内、`agent-preferred` vs 直连各一组；记录质量、耗时、请求数、用量、样本范围。同时测 `INSTANT_COOLDOWN_MS`（5 s）与 `instant-text` 租约上限在真实服务商上的合适值。（[Verification Contract 的"模型质量"行](sprints-2-6.md#verification-contract)） |
 | alpha 版本号 / tag / GitHub 发布 | **PENDING，未记录任何版本** | 所有者决定版本号与要翻转默认值的开关；翻转后才能删 `delete-s6-2` 的旧路径（§4）；发布流程（从 `codex/studyhub-<版本>` 开 PR、所有者合并、在 main 上打包、`gh release create`）。本文**不**把任何 commit 记为 alpha 或已发布。 |
 | 真实安装包 | **PENDING** | 真实 Windows 上从安装包安装、在 2.7.1 之上升级、再换回 2.7.1 的全流程；演练只验证了"同一个库交给两棵代码树"，用的是 fake 与 `process.exit`，不是用户换安装包 |
-| 真实宿主 smoke 与浏览器控制台测试 | **PENDING（A 道进行中，见 §9）** | 隔离的真实 DSH 0.2.0-rc.2、私有 TEMP/DSH_HOME、清空的凭据环境；记录实际服务 composition/作用域/版本与卸载收尾；浏览器里 100%/150%、1280/420 的控制台 |
+| 真实宿主 smoke 与浏览器控制台测试 | **部分完成，见 §9** | 已做：非模型路径在隔离的真实 DSH 上 18/18，控制台浏览器测试开关全关、全开各 54/54，1280/420 截图。仍待定：所有模型路径、复查、检索索引构建、PDF 本地转换、Marker/MinerU 安装、宿主内重启恢复、150% 缩放 |
 | `npm run qa:dsh`（React 18 宿主 vs 预览的 React 19） | **PENDING（所有者在 alpha 前跑）** | 联网安装 DSH rc.2；S6-5a 的用量页新增一行，不依赖 React 版本相关接口，但需要在真实宿主里看一眼 |
 | 真实音频与外部工具 | **PENDING** | 真实 Gemini 转写一段真实录音（含窗口、429、取消）；一堂约 90 分钟的真实课堂校正；真实 MinerU 云端与本地、Marker 安装、搜索扩展；宿主没有 Agent 时的行为；Windows `taskkill` 真机退出时机 |
 
-## 9. 宿主与浏览器证据（A 道，待并入）
+## 9. 宿主与浏览器证据
 
-**PENDING。** 此节留给 A 道：真实宿主 DSH smoke 与浏览器控制台测试的命令、环境、实际服务版本、结果与已知限制。未并入前，§8 里对应两行保持待定。
+全文见 [s6-7-host-evidence.md](s6-7-host-evidence.md)（#361，截图与脱敏的 `summary.json` 在 `evidence/`，复现命令 `npm run qa:dsh-runtime`）。摘要：
+
+- 环境：本机 DSH 0.2.0-rc.2，从 main `82478c27` 打包的插件，私有 `DSH_HOME`/`TEMP`/`TMP`，清空所有 key/token/base-url 变量，`SSH_TTY=audit`，插件配置里 23 个迁移开关全开；唯一的模型是本地 fake。
+- 真实宿主 18/18：运行时字幕任务（`contractVersion: 2`，执行者 `dsh-jobs`）运行中可见、按卡片 id 与契约 id 都能查、拒绝都是学习者的话、停止后再停被拒（`job-ended`）、关闭、第二个任务完成、归档与取消归档；控制台里真实点击 停止 → 勾选 → 删除 → 确认删除；1280/420 无横向溢出、无控制台或页面错误；收尾后 `~/.dsh`、`~/.mineru` 不变，无残留进程与端口。
+- 控制台浏览器测试及配套边界测试：开关全关 54/54、全开 54/54，0 跳过。
+- 发现：F-1 控制台把所有音频家族卡片都叫「音频批量转写」，由 #362 修复；F-2 QA 的 fake 模型接不住经 DSH 子代理转来的提示，已在 #361 的 harness 里修复；F-3 `mineru.local.status` 会只读地运行一次本机已装的 mineru 取版本号。
+- 没有跑（理由见该文 §7）：所有模型路径、复查、检索索引构建、PDF 本地转换、Marker/MinerU 安装、云端 PDF、宿主内重启恢复。
 
 ## 10. 交接
 
-- 下一步（所有者）：§8 的每一项；决定默认值翻转的范围，之后删除 `delete-s6-2` 的旧路径。§4 的第 1、2 条已经决定（保留控制适配、即时请求保持即时）。`job-archive.json` 等三份版本字段的校验（§5.1 第 6 条）是 #359 之后的一个单独小 PR（未知 `version` 在读取时明确拒绝）。
+- 下一步（所有者）：§8 的每一项；决定默认值翻转的范围，之后删除 `delete-s6-2` 的旧路径。§4 的第 1、2 条已经决定（保留控制适配、即时请求保持即时）。`job-archive.json` 等三份版本字段的校验（§5.1 第 6 条）在 #360（未知 `version` 在读取时明确拒绝）。
 - 复现本文的数字：`gh pr list --state merged`（§2）；`node scripts/test.mjs tests/unified-runtime-architecture.test.mjs tests/unified-runtime-boundaries.test.mjs tests/instant-model-guard.test.mjs tests/unified-runtime-acceptance-doc.test.mjs`（§4 的清单与本文一致）；演练见 [S6-6 §8](s6-6-rollback.md)。
