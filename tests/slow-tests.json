@@ -35,7 +35,8 @@
     "tests/wp-e-inbox-browser.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
     "tests/wp2f-shell-browser.test.mjs",
-    "tests/wp5-tour-steps.test.mjs"
+    "tests/wp5-tour-steps.test.mjs",
+    "tests/wrongbook-filters-browser.test.mjs"
   ],
   "ffmpeg": [
     "tests/groq-split.test.mjs",

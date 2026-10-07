@@ -45,17 +45,17 @@ test('topic grouping merges the same topic across decks and names where each que
   assert.deepEqual(groups[0].deckTitles, ['期末综合卷04', '期末综合卷02']);
   const byDeck = groupRows(items, 'deck', decks);
   assert.deepEqual(byDeck.map((g) => [g.title, g.rows.length]), [['期末综合卷04', 3], ['期末综合卷02', 2]]);
-  const html = text(render());
-  assert.match(html, /保护状态 2 题 来自 期末综合卷04、期末综合卷02/);
+  const html = text(render({ initial: { groupBy: 'topic' } }));
+  assert.match(html, /保护状态 2 题 答错 2 来自 期末综合卷04、期末综合卷02/);
   assert.doesNotMatch(html, /Platform Engineering｜/, 'the repeated course prefix is shortened');
 });
 
-test('the segmented control switches to deck grouping', () => {
-  assert.match(render(), /aria-pressed="true"[^>]*>按主题/);
-  const html = render({ initial: { groupBy: 'deck' } });
-  assert.match(html, /aria-pressed="true"[^>]*>按题组/);
+test('the segmented control opens on by deck (3.0.2) and switches to topic grouping', () => {
+  assert.match(render(), /aria-pressed="true"[^>]*>按题组/);
+  const html = render();
   assert.match(text(html), /期末综合卷04 3 题/);
   assert.doesNotMatch(text(html), /来自 期末综合卷/);
+  assert.match(render({ initial: { groupBy: 'topic' } }), /aria-pressed="true"[^>]*>按主题/);
 });
 
 test('为你推荐 lists similar bank questions with why, a cap and a practise-these action', () => {
@@ -81,7 +81,7 @@ test('variant states per row: none, generating, ready with a way to practise, fa
   assert.equal(variantState(coach, 'c2').kind, 'preparing');
   assert.equal(variantState(coach, 'c5').kind, 'none');
   assert.equal(variantState(coach, 'c5', new Set(['c5'])).kind, 'preparing', 'a just-requested card shows progress at once');
-  const html = text(render());
+  const html = text(render({ initial: { groups: 'all' } }));
   assert.match(html, /已备好 2 道/);
   assert.match(html, /生成中…/);
   assert.match(html, /这批变式没有通过质量校验/);
@@ -118,14 +118,14 @@ test('重练 is a three-way choice and defaults to the richest available', () =>
 
 test('an opened row shows your answer, the correct answer, the explanation and its variants', () => {
   const details = { c1: { yourAnswer: 'Memento', correctAnswer: 'Caretaker', explanation: '它只保管历史。', misconception: '', selfGrade: null } };
-  const html = text(render({ initial: { expanded: ['c1'] }, details }));
+  const html = text(render({ initial: { expanded: ['c1'], groups: 'all' }, details }));
   assert.match(html, /你的答案 Memento/);
   assert.match(html, /正确答案 Caretaker/);
   assert.match(html, /解析 它只保管历史。/);
   assert.match(html, /变式一/);
   assert.match(html, /变式二/);
-  assert.match(text(render({ initial: { expanded: ['c1'] }, details: { c1: 'loading' } })), /正在读取详情/);
-  const self = text(render({ initial: { expanded: ['c3'] }, details: { c3: { yourAnswer: null, selfGrade: 2, correctAnswer: '答案', explanation: '' } } }));
+  assert.match(text(render({ initial: { expanded: ['c1'], groups: 'all' }, details: { c1: 'loading' } })), /正在读取详情/);
+  const self = text(render({ initial: { expanded: ['c3'], groups: 'all' }, details: { c3: { yourAnswer: null, selfGrade: 2, correctAnswer: '答案', explanation: '' } } }));
   assert.match(self, /自评 2 分/);
 });
 
@@ -133,7 +133,7 @@ test('an opened row lists similar questions with the reason that fits that row',
   const rec = { deckId: 'd2', deckTitle: decks[1].title, cardId: 'x1', topic: '其它', kind: 'quiz', prompt: '同页的另一题', score: 6, forCardIds: ['c1', 'c2'],
     reasons: [{ type: 'topic', topic: '集成收益' }],
     matches: [{ cardId: 'c2', score: 6, reasons: [{ type: 'topic', topic: '集成收益' }] }, { cardId: 'c1', score: 4, reasons: [{ type: 'page', sourceTitle: '05 Platform Management', page: 21 }] }] };
-  const html = text(render({ recs: { items: [rec] }, initial: { expanded: ['c1'] }, details: { c1: { yourAnswer: 'A', correctAnswer: 'B', explanation: '', misconception: '' } } }));
+  const html = text(render({ recs: { items: [rec] }, initial: { expanded: ['c1'], groups: 'all' }, details: { c1: { yourAnswer: 'A', correctAnswer: 'B', explanation: '', misconception: '' } } }));
   assert.match(html, /同类题 同页的另一题 引用同一页：05 Platform Management 第 21 页/);
 });
 
