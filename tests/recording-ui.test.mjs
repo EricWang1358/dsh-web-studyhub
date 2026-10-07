@@ -21,7 +21,7 @@ const render = course => renderToStaticMarkup(React.createElement(Ingest, {
 
 test('recording defaults to the current course and omits system and archived targets', () => {
   const html = render('A');
-  assert.match(html, /<option value="a" selected="">/);
+  assert.match(html, /<option value="a"[^>]*selected="">/);
   assert.doesNotMatch(html, /<option value="(?:system|archived)"/);
   assert.match(html, /<option value="b"/,'other courses remain explicitly reachable');
 });

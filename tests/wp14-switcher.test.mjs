@@ -31,7 +31,7 @@ test('the course switcher puts chapters under their course, in a Combobox that s
   assert.equal(options.filter(([, value]) => value === CNSD || value.startsWith(`${CNSD} /`) || value.startsWith(`${CNSD}/`)).length, 4, 'the parent (a scope of its own, nothing is filed under it) and three chapters');
   assert.match(select, new RegExp(`<option value="${CNSD}"[^>]*>${CNSD} · 3 章</option>`), 'the parent carries its chapter count');
   assert.match(select, new RegExp(`<option value="${CNSD} / 01 云计算概览与参考架构"[^>]*data-level="2"[^>]*>01 云计算概览与参考架构</option>`), 'the chapter is shown by its last segment at level 2, the full name is the value');
-  assert.match(select, new RegExp(`value="${CNSD} / 02 容器与镜像" data-level="2" selected="">02 容器与镜像<`));
+  assert.match(select, new RegExp(`value="${CNSD} / 02 容器与镜像" data-level="2"[^>]*selected="">02 容器与镜像<`), 'the current chapter is the selected one (the option may carry more attributes: its trigger label)');
   assert.match(select, /<option value="Databases"[^>]*>Databases<\/option>/);
   assert.match(select, /<option value="TCP\/IP Basics"[^>]*>TCP\/IP Basics<\/option>/);
   assert.ok(select.indexOf(`value="${CNSD}"`) < select.indexOf('value="Databases"'), 'ranked like the other pickers: the current course (and its tree) first');
