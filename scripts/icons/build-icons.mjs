@@ -55,6 +55,7 @@ export const ICON_MAP = {
   edit: 'pencil-simple',
   trash: 'trash',
   archive: 'archive',
+  pin: 'push-pin',
   link: 'link',
   checklist: 'list-checks',
   move: 'arrow-line-right',
