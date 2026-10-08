@@ -1,11 +1,13 @@
-/* node scripts/qa/run-tests.mjs [--fast] [--test-concurrency=N] [--test-reporter=X [--test-reporter-destination=Y]]... [--test-name-pattern=P]... [--test-skip-pattern=P]...
+/* node scripts/qa/run-tests.mjs [--fast] [--shard=I/N [--list]] [--test-concurrency=N] [--test-reporter=X [--test-reporter-destination=Y]]... [--test-name-pattern=P]... [--test-skip-pattern=P]...
    The whole suite, longest file first (started by scripts/test.mjs, which sets up the environment).
 
    `node --test` sorts its files by name, so the slowest ones start whenever their name comes up and the run ends with whatever is
    left of them. `run()` from node:test takes the files in the order given, so this runner lists them itself: files with no recorded
    time first, then the longest of the last run down to the shortest, and it records the times of this run for the next one
    (node_modules/.cache/studyhub-tests/durations.json, never committed). Reports are node's own: TAP when piped, spec on a terminal.
-   --fast leaves out the files of tests/slow-tests.json (browsers, ffmpeg, other programs). */
+   --fast leaves out the files of tests/slow-tests.json (browsers, ffmpeg, other programs).
+   --shard=I/N runs shard I of N: the suite is cut by the committed weights of tests/test-weights.json (the same cut on every machine, shards of about equal weight),
+   so N machines can each run one shard. --list prints the files that would run and stops. A fresh machine has no timings of its own and orders by the weights. */
 import { run } from 'node:test';
 import * as builtInReporters from 'node:test/reporters';
 import { createWriteStream } from 'node:fs';
@@ -13,7 +15,7 @@ import { once } from 'node:events';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
-import { durationsFile, listTestFiles, mergeDurations, orderLongestFirst, readDurations, readSlowList, repoRoot } from './test-schedule.mjs';
+import { durationsFile, listTestFiles, mergeDurations, orderLongestFirst, parseShard, readDurations, readSlowList, readWeights, repoRoot, shardKeys } from './test-schedule.mjs';
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');
@@ -22,10 +24,18 @@ const concurrency = Number(values('--test-concurrency').at(-1)) || undefined;
 const guard = new URL('./test-network.mjs', import.meta.url).href;
 const keyOf = file => relative(repoRoot, file).split(sep).join('/');
 
+const shardText = values('--shard').at(-1), shard = shardText === undefined ? null : parseShard(shardText);
+if (shardText !== undefined && !shard) { console.error(`--shard needs index/count, for example 2/5 (got "${shardText}")`); process.exit(2); }
+
 const slow = fast ? await readSlowList() : new Set();
-const durations = await readDurations();
-const byKey = new Map((await listTestFiles()).map(file => [keyOf(file), file]).filter(([key]) => !slow.has(key)));
-const files = orderLongestFirst([...byKey.keys()], durations).map(key => byKey.get(key));
+const durations = await readDurations(), weights = await readWeights();
+const all = new Map((await listTestFiles()).map(file => [keyOf(file), file]));
+// A shard is cut from the whole suite, not from what --fast leaves, so a shard names the same files either way.
+const mine = shard ? shardKeys([...all.keys()], weights, shard) : [...all.keys()];
+const byKey = new Map(mine.filter(key => !slow.has(key)).map(key => [key, all.get(key)]));
+// This machine's own timings first, else the committed weights: a fresh machine starts the longest files first too.
+const files = orderLongestFirst([...byKey.keys()], { ...weights, ...durations }).map(key => byKey.get(key));
+if (args.includes('--list')) { console.log(files.map(keyOf).join('\n')); process.exit(0); }
 
 /** A reporter from `--test-reporter`: one of node's own by name, or a module whose default export is a reporter. */
 async function loadReporter(name) {
