@@ -4,10 +4,10 @@ import Markdown from "./Markdown.jsx";
 import css from "./views.css";
 import { useInjectCss } from "./shared.js";
 import { createWriteQueue } from "./async.js";
-import { EXAM_LIMIT_MS } from "../lib/exam-timing.js";
+import { LIMIT_MINUTES, defaultLimitMinutes, examLimitMs } from "../lib/exam-timing.js";
 import OralExam from "./OralExam.jsx";
 import { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { readExamTarget } from './learning-navigation.js';
+import { practiceArgs, readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
 import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 import caseCss from './case-study.css';
@@ -25,8 +25,8 @@ import { useStudy } from './study-context.jsx';
    ui/exam/useExamRun.js，三种考试形式共用；这里只管作答界面和各形式的外壳。
    选中状态存本地（picks，按 deckId:cardId 键控），每次选择通过 review.answer 静默保存（exam 运行中
    服务端只存 entry.selected，不判分、不给反馈）；上一题/下一题走 review.move 自由导航，允许未作答移动。
-   挂载时从快照 runs 里找回进行中的 exam run 并 review.get 恢复；计时满 30 分钟自动交卷；卸载不交卷，
-   未交卷的考试保留在服务端可再次接回。 */
+   挂载时从快照 runs 里找回进行中的 exam run 并 review.get 恢复；计时满限时自动交卷（限时在开考前选好，默认取课程的
+   作答时间，没有就 30 分钟，存在 run 上，lib/exam-timing.js）；卸载不交卷，未交卷的考试保留在服务端可再次接回。 */
 
 const RETRY_SUBMIT_MS = 5000;
 
@@ -37,6 +37,8 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'exam');
   const [deckChoice, setDeckChoice] = usePageScope(data?.root, 'exam-decks', '');
+  // The time limit the learner chose for this course (kept for this tab like the decks); unchosen follows the course's own 作答时间.
+  const [limitChoice, setLimitChoice] = usePageScope(data?.root, 'exam-limit', '');
   // The format: a deep link wins, then the learner's last choice (kept for this tab), then what the course's exam profile points at.
   const [savedFormat, setSavedFormat] = usePageScope(data?.root, 'exam-format', '');
   const [picked, setPicked] = useState(() => initialKind === 'oral' || initialKind === 'case' ? initialKind : initialRunId ? 'written' : isExamFormat(savedFormat) ? savedFormat : '');
@@ -48,10 +50,16 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     [confirming, setConfirming] = useState(false),
     [pathNote, setPathNote] = useState("");
   const picksRef = useRef({}), writes = useRef(createWriteQueue());
-  const exam = useExamRun({ kind: 'exam', call, initialRunId, onLocation, limitMs: EXAM_LIMIT_MS, retryMs: RETRY_SUBMIT_MS, locate: examMode === 'written',
+  const exam = useExamRun({ kind: 'exam', call, initialRunId, onLocation, limitMs: (current) => examLimitMs(current) ?? Infinity, retryMs: RETRY_SUBMIT_MS, locate: examMode === 'written',
     autoSubmit: { when: (timing) => timing.expired, run: () => submit() } });
   const { phase, run, report, busy, error: err, elapsedMs, startMs, expired } = exam;
   const count = clampCount(countDraft);
+  // How long this paper lasts: what the run says once it is running; before that, the learner's choice for this course, else the course's own time.
+  const runLimitMs = examLimitMs(run) ?? Infinity;
+  const limitDefault = defaultLimitMinutes(data, course);
+  const savedLimit = useMemo(() => { try { return JSON.parse(limitChoice); } catch { return null; } }, [limitChoice]);
+  const limitMinutes = savedLimit?.course === course && Number.isInteger(savedLimit.minutes) && savedLimit.minutes >= LIMIT_MINUTES.min && savedLimit.minutes <= LIMIT_MINUTES.max
+    ? savedLimit.minutes : limitDefault.minutes;
   const pageRef = useRef(null);
   useEffect(() => {
     if (!initialRunId || !['running', 'report'].includes(phase)) return;
@@ -122,6 +130,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
         scope: [...pickedDecks].map((deckId) => ({ deckId })),
         count,
         examKinds: typeMode,
+        limitMinutes,
         fresh: true,
       });
       writes.current = createWriteQueue();
@@ -148,7 +157,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       runId: run.id,
       cardId: run.card.id,
       selected: next,
-    })).then(() => exam.setError(""), (e) => exam.setError(startMs && Date.now() - startMs >= EXAM_LIMIT_MS
+    })).then(() => exam.setError(""), (e) => exam.setError(startMs && Date.now() - startMs >= runLimitMs
       ? ui("考试时间已到，未确认保存的选择可能不会计入成绩。")
       : uiFormat("选择尚未保存，请重新选择后继续：{0}", [errorMessage(e)])));
   }
@@ -173,7 +182,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
         try {
           await writes.current.flush();
         } catch (writeError) {
-          if (startMs && Date.now() - startMs >= EXAM_LIMIT_MS) {
+          if (startMs && Date.now() - startMs >= runLimitMs) {
             unsavedChoice = true;
           } else {
             // A failed last pick can still be retried before the time limit.
@@ -188,10 +197,10 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       after: (_report, { unsavedChoice }) => { if (unsavedChoice) exam.setError(ui("最后一次选择未确认保存，成绩按服务端已保存的答案计算。")); },
       describeError: (e) => {
         const message = errorMessage(e);
-        return startMs && Date.now() - startMs >= EXAM_LIMIT_MS ? uiFormat("交卷失败，正在自动重试：{0}", [message]) : message;
+        return startMs && Date.now() - startMs >= runLimitMs ? uiFormat("交卷失败，正在自动重试：{0}", [message]) : message;
       },
     });
-  }, [call, exam.submit, exam.setError, run, curKey, startMs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [call, exam.submit, exam.setError, run, curKey, startMs, runLimitMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const answeredCount = useMemo(
     () => Object.values(picks).filter((a) => Array.isArray(a) && a.length).length,
@@ -207,6 +216,13 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       else setPathNote(uiFormat("已把 {0} 道答错或未答题排进学习路径，回到学习库即可开始练习。", [report.weakScope.length]));
     });
   };
+
+  // One weak topic of the report: the same practice the dashboard's 练这个主题 starts (a path round over that topic of that deck), with the way back to this report.
+  const practiceTopic = (row) => exam.perform(async () => {
+    const nextRun = await call("review.start", practiceArgs([{ deckId: row.deckId, topic: row.topic }], { fresh: false }));
+    if (onStartRun) onStartRun(nextRun, { kind: 'exam', runId: report.runId });
+    else setPathNote(uiFormat("已把「{0}」的题排进学习路径，回到学习库即可开始练习。", [row.topic]));
+  });
 
   const openReport = async (runId) => { if (await exam.openReport(runId)) setPathNote(""); };
 
@@ -237,6 +253,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       {phase === "setup" && <WrittenSetup data={data} header={header} recent={recent} decks={decks} deckNames={deckNames} picked={pickedDecks}
         onPick={setPickedDecks} kinds={pickedKinds} typeMode={typeMode} onTypeMode={setTypeMode} count={count}
         onCount={(next) => setCountDraft(String(next))} busy={busy} error={err} flashOnly={flashOnly}
+        limit={{ minutes: limitMinutes, defaults: limitDefault, course }} onLimit={(minutes) => setLimitChoice(JSON.stringify({ course, minutes }))}
         onStart={startExam} onCreate={onCreate} onExit={onExit} />}
 
       {phase === "running" && run?.card && (
@@ -281,7 +298,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
             </Button>
             <p className="muted small">
               {expired ? ui("时间已到，已停止作答；交卷失败时会自动重试。")
-                : ui("未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷")}
+                : uiFormat("未交卷的考试会保留在回到题目里 · 计时满 {0} 分钟自动交卷", [Math.round(runLimitMs / 60000)])}
             </p>
           </div>
           {confirming && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
@@ -296,7 +313,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       )}
 
       {phase === "report" && report && <WrittenReport report={report} busy={busy} pathNote={pathNote} error={err}
-        onQueueWeak={queueWeak} onExit={onExit} onAgain={() => exam.leave({ clear: false })} />}
+        onQueueWeak={queueWeak} onPracticeTopic={practiceTopic} onExit={onExit} onAgain={() => exam.leave({ clear: false })} />}
     </section>
   );
 }

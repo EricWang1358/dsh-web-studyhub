@@ -18,3 +18,28 @@ export const TERMS = Object.freeze({
 
 /** The hint of each mastery level, for the legend. */
 export const LEVEL_HINT = Object.freeze({ mastered: TERMS.mastered.hint, familiar: TERMS.familiar.hint, learning: TERMS.learning.hint, weak: TERMS.weak.hint, new: TERMS.new.hint });
+
+/* ── Every "how well" number has its own name ────────────────────────────────────────────────────────────────────────────
+   A learner meets five of them: the state of the questions (Home, 资料, the reader), the 30-day rates on the dashboard (three of
+   them), and the counts of one round (the result page, the coach card). They measure different things, so they carry different
+   names, said here and nowhere else:
+     掌握度        the state of the questions NOW: each question's level averaged (TERMS.mastery above). The only number called this.
+     达标率        of the last 30 days' answers, the share that scored 3 or more, by cognitive level or question type; auto-graded and self-rated together.
+     客观题通过率   the same share for auto-graded answers only (choice, fill-in, exams).
+     自评达标率     the same share for self-rated answers only (flashcards, open questions).
+     客观题答对 / 自评达标   how many answers of this round (a count, not a rate), split the same two ways.
+   A rate over fewer than MIN_ANSWERS answers is shown as 数据不足, never as a percentage that proves nothing. */
+export const MIN_ANSWERS = 3;
+export const THIN_DATA = "数据不足";
+
+export const MEASURES = Object.freeze({
+  mastery: TERMS.mastery,
+  passRate: { label: "达标率" },
+  gradedRate: { label: "客观题通过率", hint: "近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练" },
+  selfRate: { label: "自评达标率", hint: "近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标" },
+  roundGraded: { label: "客观题答对" },
+  roundSelf: { label: "自评达标" },
+});
+
+/** Is a rate over `answers` answers worth showing as a number? */
+export const enoughAnswers = (answers, minimum = MIN_ANSWERS) => Number.isFinite(answers) && answers >= minimum;

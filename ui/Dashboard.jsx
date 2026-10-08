@@ -13,6 +13,7 @@ import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
+import { MEASURES, THIN_DATA, enoughAnswers } from "./mastery-terms.js";
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 CSS grid；三张图（每日平均分、
@@ -44,6 +45,21 @@ function weakRows(weak, course) {
     detail: [course === "*" && w.course ? w.course : "", short[i], uiFormat("当前薄弱 {0} 题", [w.wrong])]
       .filter(Boolean).join(" · "),
   }));
+}
+
+/* One 30-day rate of the hero: the numeral (— with no answers, 数据不足 with fewer than the minimum, else the percentage), its name and how many answers
+   it stands on. The name and its hover explanation come from ui/mastery-terms.js, the one place the words of these numbers are said. */
+function RateTile({ measure, rate, answers, minimum, markClass }) {
+  const thin = rate != null && !enoughAnswers(answers, minimum);
+  return (
+    <Tooltip layer content={ui(measure.hint)}>
+      <div tabIndex={0}>
+        {thin ? <strong className="is-thin">{ui(THIN_DATA)}</strong>
+          : <strong>{rate == null ? "—" : rate}<small>{rate == null ? "" : "%"}</small></strong>}
+        <span className="dash-rate__label"><i className={markClass} />{uiFormat("{0} · {1} 次", [ui(measure.label), answers ?? 0])}</span>
+      </div>
+    </Tooltip>
+  );
 }
 
 export function StatsView({ stats, course, data, busy, localDecks = [], onStartScope, onLibrary, onCreate, onSources, onManageCourses }) {
@@ -133,18 +149,8 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
         <section className="dash-section dash-metrics">
           <h2>{ui("判分与自评")}<small>{" · "}{ui("近 30 天")}</small></h2>
           <div className="dash-rates">
-            <Tooltip layer content={ui("近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练")}>
-              <div tabIndex={0}>
-                <strong>{totals.gradedRate == null ? "—" : totals.gradedRate}<small>{totals.gradedRate == null ? "" : "%"}</small></strong>
-                <span className="dash-rate__label"><i />{uiFormat("客观题通过率 · {0} 次", [totals.gradedAttempts ?? 0])}</span>
-              </div>
-            </Tooltip>
-            <Tooltip layer content={ui("近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标")}>
-              <div tabIndex={0}>
-                <strong>{totals.selfRate == null ? "—" : totals.selfRate}<small>{totals.selfRate == null ? "" : "%"}</small></strong>
-                <span className="dash-rate__label"><i className="self" />{uiFormat("自评达标率 · {0} 次", [totals.selfAttempts ?? 0])}</span>
-              </div>
-            </Tooltip>
+            <RateTile measure={MEASURES.gradedRate} rate={totals.gradedRate} answers={totals.gradedAttempts} minimum={stats?.mastery?.minAnswers} />
+            <RateTile measure={MEASURES.selfRate} rate={totals.selfRate} answers={totals.selfAttempts} minimum={stats?.mastery?.minAnswers} markClass="self" />
           </div>
           {totals.oralAttempts > 0 && (
             <p className="dash-footnote muted">{uiFormat("口头 AI 评估 · {0} 次，其中回答扎实 {1} 次；不计入客观题通过率。", [totals.oralAttempts, totals.oralStrong ?? 0])}</p>

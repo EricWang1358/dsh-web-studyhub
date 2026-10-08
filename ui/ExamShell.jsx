@@ -1,8 +1,8 @@
-import React, { useId, useState } from "react";
+import React, { useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { useInjectCss } from "./shared.js";
 import PageScope from "./PageScope.jsx";
-import { Badge, Button, PageHeader, Panel, SegmentedControl } from "./components/index.js";
+import { Badge, Button, Disclosure, PageHeader, Panel, SegmentedControl } from "./components/index.js";
 import { formatDateTime } from "./format.js";
 import { filterRecent } from "./exam-format.js";
 import { QUESTION_COUNT } from "../lib/limits.js";
@@ -44,20 +44,19 @@ export function ExamHeader({ courses, course, onCourse, format, onFormat, showIn
  */
 export function ExamSetupCard({ title, intro, steps = [], children, summary, action, className = "", ...rest }) {
   useInjectCss(css, "study-exam-setup");
-  const how = useId();
   return (
     <section className={`es-sheet sh-paper-card sh-paper-card--flush ${className}`.trim()} {...rest}>
       <header className="es-head">
         <h2 className="es-title">{title}</h2>
         {intro && <p className="es-intro">{intro}</p>}
       </header>
+      {/* 怎么考 is read once, not on every visit: folded, so the settings and the start button come first. */}
+      <Disclosure className="es-how" summary={ui("怎么考")}>
+        <ol aria-label={ui("怎么考")}>
+          {steps.map((step, index) => <li className="es-step" key={index}><span className="es-num" aria-hidden="true">{index + 1}</span><span>{step}</span></li>)}
+        </ol>
+      </Disclosure>
       <div className="es-body">
-        <div className="es-how">
-          <h3 id={how}>{ui("怎么考")}</h3>
-          <ol aria-labelledby={how}>
-            {steps.map((step, index) => <li className="es-step" key={index}><span className="es-num" aria-hidden="true">{index + 1}</span><span>{step}</span></li>)}
-          </ol>
-        </div>
         <div className="es-settings">{children}</div>
       </div>
       <footer className="es-foot">

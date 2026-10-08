@@ -139,12 +139,13 @@ function ManageView() {
 }
 
 function SourcesView() {
-  const { data, host, nav, lib, set, learn, sources, settingsEntry } = useApp();
+  const { data, host, nav, lib, set, learn, sources, intents, settingsEntry } = useApp();
   return (
     <Sources key={data.root} data={data} setModal={set.setModal} sourceForm={<SourceForm />}
       highlight={lib.sourceHighlight} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
       onLegacyRetry={(job) => { set.setLegacyAudioJobId(job.id); nav.navigate('audio'); }}
-      onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onGenerate={sources.generateFromSources} />
+      onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onGenerate={sources.generateFromSources}
+      onPractice={(scope) => intents.practice(scope)} />
   );
 }
 
