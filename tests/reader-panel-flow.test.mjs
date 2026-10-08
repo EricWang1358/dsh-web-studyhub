@@ -73,7 +73,7 @@ test('with no model the panel shows the gate with its button, not a plain line',
   const out = render(React.createElement(lib.LearningPanel, panel({ modelReady: false, askReady: false, generateReady: false })), gone);
   assert.match(text(out), /还没有可用的 AI 模型/);
   assert.match(text(out), /提问和补题需要先配置模型/);
-  assert.match(out, /<button[^>]*>(?:<[^>]+>)*打开模型设置/);
+  assert.match(out, /<button[^>]*>(?:<[^>]+>)*前往设置/);
   assert.doesNotMatch(text(out), /连接模型后可提问和补题/);
   // The gate is in the open: above the forms, where the learner is looking.
   assert.ok(out.indexOf('还没有可用的 AI 模型') < out.indexOf('针对这段原文提问'));
@@ -85,24 +85,24 @@ test('the gate offers the settings handler of the app when the reader was not gi
   lib.setUiLanguage('zh');
   const out = render(React.createElement(lib.ModelSettingsContext.Provider, { value() {} },
     React.createElement(lib.LearningPanel, panel({ modelReady: false, askReady: false, generateReady: false }))));
-  assert.match(out, /<button[^>]*>(?:<[^>]+>)*打开模型设置/);
+  assert.match(out, /<button[^>]*>(?:<[^>]+>)*前往设置/);
   const none = render(React.createElement(lib.LearningPanel, panel({ modelReady: false, askReady: false, generateReady: false })));
-  assert.doesNotMatch(none, /打开模型设置/, 'no handler anywhere: no button that goes nowhere');
+  assert.doesNotMatch(none, /前往设置/, 'no handler anywhere: no button that goes nowhere');
 });
 
 test('translation, a paragraph\'s translation and the AI outline offer the same gate when there is no model', () => {
   lib.setUiLanguage('zh');
   const outline = render(React.createElement(lib.OutlineAssistView, { state: { phase: 'nomodel' }, onDiscard() {} }), gone);
   assert.match(text(outline), /还没有可用的 AI 模型/); assert.match(text(outline), /让 AI 整理目录需要先配置模型/);
-  assert.match(outline, /<button[^>]*>(?:<[^>]+>)*打开模型设置/);
+  assert.match(outline, /<button[^>]*>(?:<[^>]+>)*前往设置/);
   assert.match(text(outline), /知道了/, 'the way to dismiss it stays');
   const block = render(React.createElement(lib.TranslationBlock, { state: 'error', target: 'zh', error: { code: 'model' }, onDismiss() {} }), gone);
   assert.match(text(block), /翻译需要先在设置里连接模型/);
-  assert.match(block, /<button[^>]*>(?:<[^>]+>)*打开模型设置/);
+  assert.match(block, /<button[^>]*>(?:<[^>]+>)*前往设置/);
   assert.doesNotMatch(block, /重试/, 'a retry cannot help before a model is there');
   const menu = render(React.createElement(lib.TranslationMenu, { open: true, onOpenChange() {}, scopes: [], target: 'zh', modelAvailable: false, hasTranslations: false }), gone);
   assert.match(text(menu), /翻译需要先在设置里连接模型/);
-  assert.match(menu, /<button[^>]*>(?:<[^>]+>)*打开模型设置/);
+  assert.match(menu, /<button[^>]*>(?:<[^>]+>)*前往设置/);
 });
 
 test('English: the fold, the gate and the reasons are English', () => {
@@ -110,7 +110,7 @@ test('English: the fold, the gate and the reasons are English', () => {
   try {
     const out = render(React.createElement(lib.LearningPanel, panel({ deckNote: 'The only deck this material is used by.', onQuick() {}, modelReady: false })), gone);
     assert.doesNotMatch(out, han, 'no Chinese anywhere, attributes included');
-    assert.match(text(out), /More settings/); assert.match(text(out), /Go to settings/); assert.match(text(out), /Open model settings/);
+    assert.match(text(out), /More settings/); assert.match(text(out), /Go to settings/);
     const outline = render(React.createElement(lib.OutlineAssistView, { state: { phase: 'nomodel' }, onDiscard() {} }), gone);
     assert.doesNotMatch(outline, han);
     const block = render(React.createElement(lib.TranslationBlock, { state: 'error', target: 'zh', error: { code: 'model' }, onDismiss() {} }), gone);

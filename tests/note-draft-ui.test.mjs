@@ -44,7 +44,7 @@ test('without a model the button waits and the gate says why, with the way to th
   assert.match(out, /<button[^>]*disabled[^>]*>(?:<[^>]+>)*AI 起草解析/);
   assert.match(text(out), /还没有可用的 AI 模型/);
   assert.match(text(out), /AI 起草需要先配置模型；也可以自己写/);
-  assert.match(out, /<button[^>]*>(?:<[^>]+>)*打开模型设置/);
+  assert.match(out, /<button[^>]*>(?:<[^>]+>)*前往设置/);
   assert.doesNotMatch(out, /data-token-estimate/, 'no estimate for a call that cannot be made');
 });
 

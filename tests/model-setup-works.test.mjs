@@ -225,7 +225,7 @@ test('every page that said "no model" in its own words says it with the gate\'s 
   assert.match(text(welcome), /在 DSH 打开「设置 › 模型」，在「DeepSeek」卡片填入 API Key 并保存/);
   assert.doesNotMatch(welcome, /连接一个 AI 模型|打开模型设置，选择一个服务商和模型/);
   assert.equal(render(h(m.Welcome, { model: READY, sample: null, onSetupModel: noop })).includes('sh-setup'), false);
-  assert.equal(labelOf(welcome, 'primary'), '导入我的第一份资料', 'the first screen leads with its own button');
+  assert.equal(labelOf(welcome, 'primary'), '添加资料', 'the first screen leads with its own button');
   assert.equal(labelOf(welcome, 'secondary'), '前往设置', 'the model button is a secondary one');
   const note = render(h(m.ModelErrorNote, { error: 'NO_ADAPTER: Configure a model provider', onSettings: noop }));
   assert.match(note, />前往设置<\/button>/);

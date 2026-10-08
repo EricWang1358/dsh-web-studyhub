@@ -90,8 +90,8 @@ test('an AI proposal does not offer AI 重排 (the adjust menu already does), an
   const gated = render({ plan: controls(), modelReady: false, openModelSettings: noop });
   assert.doesNotMatch(gated, /AI 重排/, 'no button that cannot work');
   assert.match(gated, /接受这份安排/, 'the local proposal can still be accepted');
-  assert.equal((text(gated).match(/配置模型后可以协商安排/g) || []).length, 1);
-  assert.match(gated, /打开模型设置/);
+  assert.equal((text(gated).match(/协商安排需要先配置模型/g) || []).length, 1, 'the gate says it once, in its own words');
+  assert.match(gated, /前往设置/);
 });
 
 test('English: the new lines are translated', () => {
