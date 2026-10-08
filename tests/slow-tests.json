@@ -12,6 +12,7 @@
     "tests/generate-flow-browser.test.mjs",
     "tests/generate-short-browser.test.mjs",
     "tests/import-hop-browser.test.mjs",
+    "tests/job-model-choice-browser.test.mjs",
     "tests/layout-late-picker.test.mjs",
     "tests/layout-late-shell.test.mjs",
     "tests/layout-late-sources.test.mjs",

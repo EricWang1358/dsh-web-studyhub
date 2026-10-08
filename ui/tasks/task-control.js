@@ -1,7 +1,9 @@
 import { ui, uiFormat } from '../i18n.js';
 import { STRENGTH_LABEL } from '../../lib/model-effort.js';
+import { FOLLOW_MODEL, modelKey, modelOfKey } from '../../lib/job-model.js';
 import { contractOf, taskKindOf } from './task-model.js';
 import { followOption } from '../follow-session.js';
+import { effortNoteText, effortSelectModel } from '../EffortSelect.jsx';
 
 /* What the 即时控制 row and the header offer for a job, read from its contract: the live settings (with their limits and the value in force) and which
    actions are available, or why not. Pure: the row is ControlRow.jsx. Nothing here knows more than the contract says, so a job kind that gains a
@@ -12,12 +14,41 @@ const GENERATION_EFFORTS = { follow: '跟随当前会话', lowest: '最低', low
 const LABELS = {
   textConcurrency: '校对/翻译并发', transcribeConcurrency: '转写并发', proofreadReasoning: '剩余校对推理', translateReasoning: '剩余翻译推理',
   autoBackoff: '限流时自动降并发', concurrency: '并发', effortPlanning: '规划推理', effortReview: '审阅推理', effortWriting: '出题推理', effortRepair: '修复推理',
-  applySuggestions: '采纳审阅建议', maxBatchesPerDay: '每天最多批数', maxReady: '备好的题上限', reasoning: '备题推理', autoComplete: '自动补到完整',
+  applySuggestions: '采纳审阅建议', maxBatchesPerDay: '每天最多批数', maxReady: '备好的题上限', reasoning: '备题推理', autoComplete: '自动补到完整', model: '模型',
 };
 export const controlLabel = (key) => ui(LABELS[key] || key);
 
-const optionLabel = (key, value) => ui((key.startsWith('effort') ? GENERATION_EFFORTS : STRENGTH_LABEL)[value] || value);
+// The model of a run is named by its id where only the value is known (the log); the row names it as the host's catalog does.
+const optionLabel = (key, value) => key === 'model' ? (modelOfKey(value)?.model || ui('跟随设置'))
+  : ui((key.startsWith('effort') ? GENERATION_EFFORTS : STRENGTH_LABEL)[value] || value);
 const optionOf = (key, value, session) => key.startsWith('effort') && value === 'follow' ? followOption(session) : { value, label: optionLabel(key, value) };
+
+/* The model of THIS run (lib/job-model.js): the models the host lists (host.modelGroups, the catalog Settings' 生成模型 lists, by display name and grouped
+   by provider), and first 「跟随设置」, the generation model Settings resolves (`generation`: snapshot.model, named in the popup and the tooltip). Nothing
+   to offer (a host that lists no models, and the run follows) draws no select. */
+const ONLY_THIS_TASK = '只用于这个任务：设置里的生成模型和其他任务不变。';
+function followModelOption(generation) {
+  const name = typeof generation?.label === 'string' && generation.label.trim() ? generation.label : '';
+  return { value: FOLLOW_MODEL, label: name ? uiFormat('跟随设置 · {0}', [name]) : ui('跟随设置'), triggerLabel: ui('跟随设置'),
+    tip: name ? uiFormat('用「设置 › 学习库与模型」里的生成模型：现在是 {0}。', [name]) : '', wrap: true };
+}
+function modelOptions(value, groups) {
+  const chosen = modelOfKey(value), lists = (Array.isArray(groups) ? groups : []).filter((group) => group?.id && Array.isArray(group.models) && group.models.length);
+  if (!lists.length && !chosen) return null;
+  const listed = lists.some((group) => group.id === chosen?.provider && group.models.some((model) => model.id === chosen?.model));
+  return [...lists.map((group) => ({ group: group.name || group.id, options: group.models.map((model) => ({ value: modelKey({ provider: group.id, model: model.id }), label: model.name || model.id, tip: ui(ONLY_THIS_TASK) })) })),
+    ...(chosen && !listed ? [{ value, label: chosen.model, tip: ui(ONLY_THIS_TASK) }] : [])];
+}
+
+/* The level of one stage among the levels of the model in force (`efforts`: [{ id, name }], [] for a model without levels, null while unknown), through
+   the one mapping of 出题偏好 (ui/EffortSelect.jsx effortSelectModel): the select shows the level really used and its tooltip says why when that is not
+   the one asked for. Unknown levels keep the relative choices of the contract. */
+function effortItem(item, efforts, session) {
+  if (!Array.isArray(efforts)) return item;
+  const { options, shown, note } = effortSelectModel({ value: item.value, efforts, follow: true, session });
+  const tip = note ? effortNoteText(note) : '';
+  return { ...item, value: shown, options: tip ? options.map((option) => (option.value === shown ? { ...option, tip } : option)) : options };
+}
 
 /** The settings that live in the header, not in the row: the choice between a manual run and a run that goes on by itself. */
 const HEADER_KEYS = new Set(['autoComplete']);
@@ -30,12 +61,26 @@ export function autoToggle(job) {
 
 /** The settings of a job in the order the row draws them: [{ key, label, type: 'int' | 'enum' | 'bool', value, min, max, options: [{ value, label }] }].
     `session` (snapshot.model.session) is what 「跟随当前会话」 follows (ui/follow-session.js: the option in the popup names it,
-    the closed select says the short words); absent, the option says only that. */
-export function controlItems(job, session) {
+    the closed select says the short words); absent, the option says only that. `env` (the row's, all optional): `groups` (host.modelGroups) and
+    `generation` (snapshot.model) for the 模型 of a run, `efforts` (the levels of the model in force) for the levels of its stages. */
+export function controlItems(job, session, env = {}) {
   const set = contractOf(job).actions.set;
   if (!set.available) return [];
-  return (set.settings || []).filter((setting) => !HEADER_KEYS.has(setting.key)).map((setting) => ({ key: setting.key, label: controlLabel(setting.key), type: setting.type, value: setting.value, min: setting.min, max: setting.max,
-    options: setting.type === 'enum' ? setting.values.map((option) => optionOf(setting.key, option, session)) : [] }));
+  return (set.settings || []).filter((setting) => !HEADER_KEYS.has(setting.key)).flatMap((setting) => {
+    if (setting.type === 'model') {
+      const choices = modelOptions(setting.value, env.groups);
+      return choices ? [{ key: setting.key, label: controlLabel(setting.key), type: 'enum', value: setting.value, options: [followModelOption(env.generation), ...choices] }] : [];
+    }
+    const item = { key: setting.key, label: controlLabel(setting.key), type: setting.type, value: setting.value, min: setting.min, max: setting.max,
+      options: setting.type === 'enum' ? setting.values.map((option) => optionOf(setting.key, option, session)) : [] };
+    return [setting.key.startsWith('effort') ? effortItem(item, env.efforts, session) : item];
+  });
+}
+
+/** The model a run's next calls use, as { provider, model }: its own choice, else the generation model in force (`generation`: snapshot.model); null when unknown. */
+export function modelInForce(job, generation) {
+  const own = modelOfKey((contractOf(job).actions.set.settings || []).find((setting) => setting.key === 'model')?.value);
+  return own || (generation?.provider && generation?.model ? { provider: generation.provider, model: generation.model } : null);
 }
 
 /** The value one press of − or + gives, kept inside the limits; the same value when the edge is reached (the button is disabled there). */
@@ -70,10 +115,15 @@ export function headerActions(job) {
   return { pause: actions.pause.available, resume: actions.resume.available, cancel: actions.cancel.available, retry: actions.retry.available };
 }
 
-/** The wording of "✓ 已生效 · 校对/翻译并发 → 4" for what a reply says is now in force. */
-export function appliedText(applied = {}) {
+/** The wording of "✓ 已生效 · 校对/翻译并发 → 4" for what a reply says is now in force. `items` (the row's controlItems) names a choice as its select does. */
+export function appliedText(applied = {}, items = []) {
+  const shown = (key, value) => {
+    const options = items.find((item) => item.key === key)?.options.flatMap((option) => option.options || [option]) || [];
+    const option = options.find((item) => item.value === value);
+    return option?.triggerLabel || option?.label || optionLabel(key, value);
+  };
   const parts = Object.entries(applied).map(([key, value]) => typeof value === 'boolean' ? uiFormat('{0}：{1}', [controlLabel(key), value ? ui('开') : ui('关')])
-    : uiFormat('{0} → {1}', [controlLabel(key), typeof value === 'string' ? optionLabel(key, value) : value]));
+    : uiFormat('{0} → {1}', [controlLabel(key), typeof value === 'string' ? shown(key, value) : value]));
   return parts.length ? uiFormat('✓ 已生效 · {0}', [parts.join('；')]) : '';
 }
 

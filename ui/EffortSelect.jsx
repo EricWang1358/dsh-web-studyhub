@@ -33,12 +33,10 @@ export function reasoningNote(task) {
 }
 
 /**
- * A select for one reasoning preference. `efforts` is the model's list ([{ id, name }]) or null while it is not known yet.
- * `description` is the line under the label (the measured timing, for the audio steps). `follow` adds the choice "follow the session"
- * (value 'follow'; generation only): it is a choice of its own and is never mapped onto a level; `session` (snapshot.model.session) says which model and
- * level it follows: the popup names them in full, the closed select says only 「跟随当前会话」 and carries the rest in a tooltip (ui/follow-session.js).
+ * What the select of one preference offers and shows (pure; this select and the per-stage levels of the 即时控制 row draw it): `options`, the value
+ * `shown` (the level in force) and the `note` when the model cannot meet the preference exactly (effortNote, or null).
  */
-export function EffortSelect({ label, value, efforts = null, disabled = false, onChange, description, className, name, follow = false, session, error }) {
+export function effortSelectModel({ value, efforts = null, follow = false, session }) {
   const known = Array.isArray(efforts);
   const choices = effortChoices(known ? efforts : []);
   const options = [...(follow ? [followOption(session)] : []),
@@ -48,7 +46,17 @@ export function EffortSelect({ label, value, efforts = null, disabled = false, o
   const shown = choice && !choice.exact ? choice.applied : value;
   // Before the levels are known the saved strength stays visible as what it is.
   if (!options.some(option => option.value === shown)) options.push({ value: shown, label: ui(STRENGTH_LABEL[shown] || shown) });
-  const note = choice ? effortNote(choice) : null;
+  return { options, shown, note: choice ? effortNote(choice) : null };
+}
+
+/**
+ * A select for one reasoning preference. `efforts` is the model's list ([{ id, name }]) or null while it is not known yet.
+ * `description` is the line under the label (the measured timing, for the audio steps). `follow` adds the choice "follow the session"
+ * (value 'follow'; generation only): it is a choice of its own and is never mapped onto a level; `session` (snapshot.model.session) says which model and
+ * level it follows: the popup names them in full, the closed select says only 「跟随当前会话」 and carries the rest in a tooltip (ui/follow-session.js).
+ */
+export function EffortSelect({ label, value, efforts = null, disabled = false, onChange, description, className, name, follow = false, session, error }) {
+  const { options, shown, note } = effortSelectModel({ value, efforts, follow, session });
   return <div className={['effort-select', className].filter(Boolean).join(' ')}>
     <Field label={label} hint={description} error={error}>
       <Select name={name} value={shown} disabled={disabled} onChange={onChange} options={options} />
