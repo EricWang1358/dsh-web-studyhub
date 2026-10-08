@@ -71,9 +71,10 @@ function model({ held, fail, junk, merge = GOOD_MERGE, replies = PAPER_REPLIES, 
   return { calls, complete, of: stage => calls.filter(call => call.stage === stage) };
 }
 
-async function world(t, { sources = deck(5, { blank: [6] }), papers = [PAPER_A], fake = model(), enabled = true, inputs } = {}) {
+// `hostSwitch: false` is a runtime without the host's runtime.pilot.examBlueprint: then the learner's own switch (on by default) decides.
+async function world(t, { sources = deck(5, { blank: [6] }), papers = [PAPER_A], fake = model(), enabled = true, hostSwitch = true, inputs } = {}) {
   const root = await privateRoot(t, 'exam-blueprint-job-');
-  const service = new StudyService(root, { complete: fake.complete, ...switchOptions(enabled ? 'runtime' : 'legacy', { complete: fake.complete, paths: enabled ? ['examBlueprint'] : [] }) });
+  const service = new StudyService(root, { complete: fake.complete, ...switchOptions(enabled ? 'runtime' : 'legacy', { complete: fake.complete, paths: enabled && hostSwitch ? ['examBlueprint'] : [] }) });
   t.after(() => service.dispose());
   await service.store.update(state => { state.sources.push(...structuredClone(sources), ...structuredClone(papers)); });
   const slides = sources.map(source => source.id);
@@ -89,9 +90,28 @@ const refused = (promise, code) => assert.rejects(promise, error => { assert.equ
 const leaves = blueprint => blueprint.points.filter(point => !blueprint.points.some(other => other.parentId === point.id));
 const byTitle = blueprint => Object.fromEntries(blueprint.points.map(point => [point.title, point]));
 
-test('stage 0 refuses, with a code, in the learner\'s words, with no model call and no Job: switch off, no slides, a paper or a textbook alone, a missing material, no text, a list used as a material', async t => {
-  const off = await world(t, { enabled: false });
+test('the page switch: the build runs unless the learner turned the page off, and the host switch forces it on', async t => {
+  // The runtime is there, the host switch is not: the learner's own switch decides, and it is on by default.
+  const own = await world(t, { hostSwitch: false });
+  await settleJob(own.service, (await own.build()).jobId);
+  assert.equal((await own.lists()).length, 1, 'on by default: no host switch needed');
+  const off = await world(t, { hostSwitch: false });
+  await off.service.call('settings.examPrep.set', { patch: { enabled: false } });
   await refused(off.build(), 'blueprint-disabled');
+  assert.equal(off.jobs().length, 0, 'nothing was started');
+  // The host switch forces the page on whatever the learner chose.
+  const forced = await world(t);
+  await forced.service.call('settings.examPrep.set', { patch: { enabled: false } });
+  await settleJob(forced.service, (await forced.build()).jobId);
+  assert.equal((await forced.lists()).length, 1);
+});
+
+test('stage 0 refuses, with a code, in the learner\'s words, with no model call and no Job: page turned off, no slides, a paper or a textbook alone, a missing material, no text, a list used as a material', async t => {
+  const off = await world(t, { hostSwitch: false });
+  await off.service.call('settings.examPrep.set', { patch: { enabled: false } });
+  await refused(off.build(), 'blueprint-disabled');
+  // Without a background task service (a preview, a bare service) the page may be on but the build says plainly that it cannot run.
+  await refused((await world(t, { enabled: false })).build(), 'executor-unavailable');
   const w = await world(t);
   await refused(w.build({ inputs: [] }), 'blueprint-needs-primary-input');
   await refused(w.build({ inputs: [{ role: 'past-paper', sourceIds: [PAPER_A.id] }] }), 'blueprint-needs-primary-input');
