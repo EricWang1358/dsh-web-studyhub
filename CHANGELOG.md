@@ -19,7 +19,7 @@ There is no separate 3.0.2: the fixes that were queued for it ship here together
 - **Ask about a passage with follow-ups.** Ask about a selection, ask about a term in the answer (up to 3 levels and 8 questions per thread), and keep notes per document revision, with 阅读 and 批注 modes.
 - The reading header buttons are the same size.
 
-Not fixed or not verified: 在右栏打开 and the 课堂实录 fix were only tried in a simulated DSH; 备考补习 was not tried with real slides, a sample paper and a real model (its form was only exercised in a browser preview that has no background task service); audio and PDF tasks do not record a start time; the usage estimate does not include 采纳审阅建议; a review issue with no owner still discards its whole part; opening a dropdown far down the settings page can jump the scroll position; the CI test that a library with an exam-point list stays readable in 3.0.0 is skipped there because the checkout has no tags.
+Not fixed or not verified: 在右栏打开 and the 课堂实录 fix were only tried in a simulated DSH; 备考补习 was not tried with real slides, a sample paper and a real model (its form was only exercised in a browser preview that has no background task service); audio and PDF tasks do not record a start time; the usage estimate does not include 采纳审阅建议; a review issue with no owner still discards its whole part; opening a dropdown far down the settings page can jump the scroll position; the CI test that a library with an exam-point list stays readable in 3.0.0 is skipped there because the checkout has no tags; the final package passed the archive check (npm run release:check) but was not installed into a real DSH, so the first upgrade is the first real test of it.
 
 ## 3.0.1 — 2026-10-08
 
