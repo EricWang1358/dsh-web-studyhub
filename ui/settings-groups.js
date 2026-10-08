@@ -39,6 +39,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   category({ id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation', 'settings-generation-time'], needs: 'generation' }, () => import('./settings/GenerationPane.jsx')),
   category({ id: 'daily-recap', group: 'common', title: '每日讲解合集', anchors: ['settings-daily-recap'] }, () => import('./settings/DailyRecapPane.jsx')),
   category({ id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] }, () => import('./settings/CoursesPane.jsx')),
+  category({ id: 'exam-prep', group: 'once', title: '备考补习', anchors: ['settings-exam-prep'], needs: 'generation' }, () => import('./settings/ExamPrepPane.jsx')),
   category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio' }, () => import('./settings/AudioPane.jsx')),
   category({ id: 'mineru', group: 'once', title: 'PDF 转换（MinerU / Marker）', anchors: ['settings-mineru', 'settings-marker'], partNeeds: { routes: 'audio' } }, () => import('./settings/MineruPane.jsx')),
   category({ id: 'retrieval', group: 'once', title: '检索扩展', anchors: ['settings-extensions'], needs: 'generation' }, () => import('./settings/RetrievalPane.jsx')),
