@@ -1105,7 +1105,6 @@
   "重试交卷": "Retry submission",
   "交卷": "Submit exam",
   "时间已到，已停止作答；交卷失败时会自动重试。": "Time is up. Answers are locked; failed submissions retry automatically.",
-  "未交卷的考试会保留在回到题目里 · 计时满 30 分钟自动交卷": "Unsubmitted exams remain in Return to question · automatic submission after 30 minutes",
   "多选": "Multiple choice",
   "全部收起": "Collapse all",
   "全部展开": "Expand all",

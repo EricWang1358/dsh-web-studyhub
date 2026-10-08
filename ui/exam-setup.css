@@ -20,17 +20,17 @@
     .es-head { padding: var(--space-5) var(--space-7) var(--space-4); border-bottom: 2px solid var(--accent); }
     .es-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-xl); line-height: var(--lh-tight); }
     .es-intro { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-md); max-width: 70ch; }
-    .es-body { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); min-width: 0; }
-    .es-how { padding: var(--space-5) var(--space-6) var(--space-5) var(--space-7); background: color-mix(in srgb, var(--text) 4%, transparent); border-right: 1px solid var(--line-soft); }
-    .es-how h3 { margin: 0 0 var(--space-3); font-size: var(--fs-md); color: var(--text-dim); }
-    .es-how ol { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+    .es-body { min-width: 0; }
+    /* 怎么考 is a fold under the heading: closed, it is one quiet line; open, the steps run in two columns where there is room. */
+    .es-how { padding-inline: var(--space-7); background: color-mix(in srgb, var(--text) 4%, transparent); border-top: 0; border-bottom: 1px solid var(--line-soft); }
+    .es-how ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: var(--space-3) var(--space-6); }
     .es-step { display: flex; gap: var(--space-2); align-items: flex-start; font-size: var(--fs-md); line-height: var(--lh-snug); color: var(--text-dim); }
     .es-num {
       flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-top: 1px;
       border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-muted);
       font-size: var(--fs-xs); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: 1;
     }
-    .es-settings { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-5) var(--space-7) var(--space-5) var(--space-6); min-width: 0; }
+    .es-settings { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-5) var(--space-7); min-width: 0; }
     .es-foot {
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-5);
       padding: var(--space-4) var(--space-7); border-top: 1px solid var(--line-soft);
@@ -48,6 +48,7 @@
     .es-note { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; padding: var(--space-3); border-radius: var(--radius-sm); background: var(--info-bg); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .es-note svg { flex: none; margin-top: 1px; color: var(--info); }
     .es-warning { margin: 0; color: var(--warn); font-size: var(--fs-sm); }
+    .es-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: var(--space-5) var(--space-6); align-items: start; }
     .es-count { display: grid; gap: var(--space-2); }
     .es-count__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
     .es-count__custom { display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
@@ -85,8 +86,7 @@
   }
   @container study (max-width: 760px) {
     :where(.study-app, .study-seat) {
-      .es-body { grid-template-columns: minmax(0, 1fr); }
-      .es-how { border-right: 0; border-bottom: 1px solid var(--line-soft); padding: var(--space-4) var(--space-5); }
+      .es-how { padding-inline: var(--space-5); }
       .es-head, .es-foot { padding-inline: var(--space-5); }
       .es-settings { padding: var(--space-4) var(--space-5); }
     }

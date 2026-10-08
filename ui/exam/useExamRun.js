@@ -15,7 +15,8 @@ const REPORT_POLL_MS = 4000;
 /**
  * kind: 'exam' | 'case' | 'oral'. `call` is the host call. `onLocation({ kind, runId })` tells the app which run is on screen
  * (`locate: false` stays quiet, for a shell that only sometimes shows this format). `limitMs` makes `expired` true that long
- * after the run started; `retryMs` is the pause before an automatic submit is tried again after a failure.
+ * after the run started (a number, or `run => number` when the run carries its own limit); `retryMs` is the pause before an
+ * automatic submit is tried again after a failure.
  * `autoSubmit` is { when(timing), run }: while running, `run()` fires as soon as `when(timing)` is true (it is asked at every tick of the
  * clock) and no submit is in flight or waiting to retry.
  * `pollReport(report)` says a report is still being filled in (the case grading): it is re-read every few seconds, not while the page is hidden.
@@ -31,7 +32,7 @@ export function useExamRun({ kind, call, initialRunId, onLocation, submitAction,
   const { phase, run, report } = state;
 
   const now = useNow(1000, { enabled: phase === 'running' && !!run?.startedAt });
-  const timing = examTiming(run, now, limitMs);
+  const timing = examTiming(run, now, typeof limitMs === 'function' ? limitMs(run) : limitMs);
 
   const place = EXAM_KINDS[kind] || EXAM_KINDS.exam;
   const runId = phase === 'report' ? report?.runId ?? run?.id : run?.id;

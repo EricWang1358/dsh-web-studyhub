@@ -1,18 +1,28 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, ErrorState, Icon, InlineMessage, SegmentedControl } from '../components/index.js';
-import { EXAM_LIMIT_MS } from '../../lib/exam-timing.js';
+import { LIMIT_MINUTES, limitPresets } from '../../lib/exam-timing.js';
 import { QUESTION_COUNT } from '../../lib/limits.js';
 import { ExamSetupCard, CountField } from '../ExamShell.jsx';
 import { DEFAULT_COUNT, EXAM_KIND_LABELS, typeAvailableOf } from './exam-written.js';
 
-/* The written exam's setup card: which decks, which kinds of question, how many. The choices live in Exam.jsx
-   (they are kept per course); this draws them and reports changes. */
+/* The written exam's setup card: which decks, which kinds of question, how many, how long. The choices live in Exam.jsx
+   (they are kept per course); this draws them and reports changes. The paper is handed in at the limit, so the limit is on the card
+   with where it comes from, and one click changes it. */
 
-const MINUTES = EXAM_LIMIT_MS / 60000;
+/** Where the limit comes from, in a line: the course's own 作答时间, the default, or the learner's own choice (with what it replaced). */
+function limitHint({ minutes, defaults, course }) {
+  if (minutes !== defaults.minutes) {
+    return defaults.source === 'course' ? uiFormat('已改；课程设置是 {0} 分钟 · 到时自动交卷', [defaults.minutes]) : uiFormat('已改；默认是 {0} 分钟 · 到时自动交卷', [defaults.minutes]);
+  }
+  return defaults.source === 'course'
+    ? uiFormat('取自课程「{0}」的作答时间 {1} 分钟 · 到时自动交卷', [course, minutes])
+    : uiFormat('默认 {0} 分钟 · 到时自动交卷', [minutes]);
+}
 
-export default function WrittenSetup({ data, header, recent, decks, deckNames, picked, onPick, kinds, typeMode, onTypeMode, count, onCount, busy, error,
+export default function WrittenSetup({ data, header, recent, decks, deckNames, picked, onPick, kinds, typeMode, onTypeMode, count, onCount, limit, onLimit, busy, error,
   flashOnly, onStart, onCreate, onExit }) {
+  const minutes = limit.minutes;
   const pickedTotal = kinds.quiz + kinds.multi;
   const typeAvailable = typeAvailableOf(kinds, typeMode);
   const canStart = decks.length > 0 && picked.size > 0 && typeAvailable > 0;
@@ -24,12 +34,12 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
         intro={ui('从勾选的题组里抽单选 / 多选题，先覆盖不同主题；交卷后统一判分。')}
         steps={[
           ui('勾选要考的题组，选好题型和题数。'),
-          uiFormat('点「开始考试」，限时 {0} 分钟，到时自动交卷。', [MINUTES]),
+          uiFormat('点「开始考试」，限时 {0} 分钟，到时自动交卷。', [minutes]),
           ui('作答中不显示对错，可以上一题 / 下一题，反复修改。'),
           ui('交卷后看成绩单；答错和没答的题可以一键排进学习路径。'),
           ui('再考一次时，优先抽没考过的题；题库不够时会重复。'),
         ]}
-        summary={[uiFormat('{0} 题 · 限时 {1} 分钟', [count, MINUTES]),
+        summary={[uiFormat('{0} 题 · 限时 {1} 分钟', [count, minutes]),
           decks.length ? (picked.size ? pickedLine : uiFormat('{0} 个题组可用于模考', [decks.length])) : ''].filter(Boolean).join(' · ')}
         action={<Button variant="primary" busy={busy} disabled={!canStart} onClick={onStart}>
           {busy ? ui('正在出卷…') : decks.length && !picked.size ? ui('先勾选题组') : decks.length && !typeAvailable ? ui('没有符合题型的题') : ui('开始考试')}
@@ -75,12 +85,16 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
               <small className="muted">{uiFormat('已选题组：单选 {0} 道，多选 {1} 道。均衡模式尽量各占一半，不足时由另一类补齐。', [kinds.quiz, kinds.multi])}</small>
               {picked.size > 0 && !typeAvailable && <InlineMessage tone="warning">{ui('所选题组没有这种题型，请换题型或题组。')}</InlineMessage>}
             </div>
-            <CountField value={count} presets={[5, 10, 20]} min={QUESTION_COUNT.min} max={QUESTION_COUNT.max} onChange={onCount}
-              hint={picked.size && !typeAvailable
-                ? ui('当前题型可选 0 道')
-                : picked.size && typeAvailable < count
-                  ? uiFormat('符合题型的题只有 {0} 道，将全部出题', [typeAvailable])
-                  : uiFormat('{0}–{1} · 默认 {2}', [QUESTION_COUNT.min, QUESTION_COUNT.max, DEFAULT_COUNT])} />
+            <div className="es-pair">
+              <CountField value={count} presets={[5, 10, 20]} min={QUESTION_COUNT.min} max={QUESTION_COUNT.max} onChange={onCount}
+                hint={picked.size && !typeAvailable
+                  ? ui('当前题型可选 0 道')
+                  : picked.size && typeAvailable < count
+                    ? uiFormat('符合题型的题只有 {0} 道，将全部出题', [typeAvailable])
+                    : uiFormat('{0}–{1} · 默认 {2}', [QUESTION_COUNT.min, QUESTION_COUNT.max, DEFAULT_COUNT])} />
+              <CountField key={`limit:${limit.course}`} label={ui('限时（分钟）')} value={minutes} presets={limitPresets(limit.defaults.minutes)} min={LIMIT_MINUTES.min} max={LIMIT_MINUTES.max}
+                onChange={onLimit} hint={limitHint(limit)} />
+            </div>
           </>
         ) : (
           <div className="es-empty">

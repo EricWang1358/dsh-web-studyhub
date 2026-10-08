@@ -38,7 +38,10 @@ function QuestionList({ title, items, empty }) {
   );
 }
 
-export default function WrittenReport({ report, busy, pathNote, error, onQueueWeak, onExit, onAgain }) {
+/** The name of a topic row: the deck is named only when the same topic name also stands in another deck. */
+const topicLabel = (report, row) => (report.byTopic.filter((other) => other.topic === row.topic).length > 1 ? `${row.deckTitle} · ` : '') + (row.topic || ui('未分类'));
+
+export default function WrittenReport({ report, busy, pathNote, error, onQueueWeak, onPracticeTopic, onExit, onAgain }) {
   const weakTopicRows = (report.byTopic || [])
     .filter((topic) => topic.total > topic.correct)
     .sort((a, b) => (b.total - b.correct) - (a.total - a.correct))
@@ -60,7 +63,9 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
       <div className="result-weak">
         <h2>{ui('下次先练这些主题')}</h2>
         {weakTopicRows.length ? <ol>{weakTopicRows.map((topic) => <li key={`${topic.deckId}:${topic.topic}`}>
-          {topic.topic || ui('未分类')} <span className="muted">· {uiFormat('{0}/{1} 题答错或未答', [topic.total - topic.correct, topic.total])}</span>
+          {topicLabel(report, topic)} <span className="muted">· {uiFormat('{0}/{1} 题答错或未答', [topic.total - topic.correct, topic.total])}</span>
+          {onPracticeTopic && <Button variant="link" size="sm" iconEnd="arrow-right" className="exam-topic-practice" disabled={busy || !!pathNote}
+            onClick={() => onPracticeTopic(topic)}>{ui('练这个主题')}</Button>}
         </li>)}</ol> : <p className="muted">{ui('本次已答题全部答对。')}</p>}
         {report.weakScope?.length > 0 && <Button busy={busy} disabled={!!pathNote} onClick={onQueueWeak}>{uiFormat('练习答错与未答的 {0} 道 →', [report.weakScope.length])}</Button>}
         {pathNote && <p className="muted exam-path-note">{pathNote}</p>}
