@@ -14,9 +14,9 @@ const ui = await loadUi(`
   export { default as ExamPrep } from './ui/exam-prep/ExamPrep.jsx';
   export { default as ExamPrepList } from './ui/exam-prep/ExamPrepList.jsx';
   export { ExamPrepDetailView } from './ui/exam-prep/ExamPrepDetail.jsx';
-  export { default as ExamPrepCreate } from './ui/exam-prep/ExamPrepCreate.jsx';
   export { default as PointTree } from './ui/exam-prep/PointTree.jsx';
   export * from './ui/exam-prep/model.js';
+  export * from './ui/exam-prep/form.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
   export { pageAvailable } from './ui/capabilities.js';
@@ -289,74 +289,11 @@ test('the list in English: names, tiers and explanations', () => {
   });
 });
 
-/* ---------- the create form ---------- */
+/* ---------- the create form: see exam-prep-form.test.mjs ---------- */
 
-const blank = (extra = {}) => ({ title: '网络 考点清单', scope: '', course: '网络', supersedes: undefined, picks: { lecture: [], 'past-paper': [], syllabus: [] },
-  reading: { title: '', author: '', url: '', note: '' }, ...extra });
-const create = (form, data = dataWith([]), extra = {}) => h(ui.ExamPrepCreate, { data, initial: form, onBack: noop, onStarted: noop, openSettings: noop, ...extra });
-
-test('the form picks the inputs by role from the library of the course, says what a missing sample paper means, and every role explains itself', () => {
-  const html = render(create(blank()));
-  const text = drawn(html);
-  for (const word of ['新建考点清单', '名称', '课程', '课件', '样卷', '大纲', '推荐教材', '必选', '可选', '预计用量', '开始生成', '也显示其它课程的资料']) assert.match(text, new RegExp(word), word);
-  assert.match(text, /不选样卷也可以：所有考点都会列为「补充」/, 'what happens with no sample paper');
-  assert.match(text, /先选好课件，这里就会显示预计用量/);
-  assert.match(text, /PowerPoint · 5 页/, 'the slides of the course are offered');
-  assert.match(text, /老师给的样卷/);
-  assert.doesNotMatch(text, /别的课的讲义/, 'another course\'s materials stay hidden until asked for');
-  assert.doesNotMatch(text, /蓝图|blueprint/i);
-  const start = dom(html).all.find(item => item.tagName === 'BUTTON' && /开始生成/.test(item.textContent));
-  assert.ok(start && start.hasAttribute('disabled'), 'cannot start with no slides');
-  const tips = everyReachable(html, 'form');
-  for (const part of [/课件：/, /样卷：/, /大纲：/, /推荐教材：/, /不是账单/]) assert.ok(tips.some(tip => part.test(tip.text)), `${part} explained`);
-  assert.ok(tips.some(tip => /不会被读取/.test(tip.text)), 'the textbook note says it is never read');
-  const pickers = dom(html).all.filter(item => (item.getAttribute('class') || '').split(/\s+/).includes('source-picker'));
-  assert.equal(pickers.length, 3, 'one picker per role');
-});
-
-test('with a name and slides the form is ready: the estimate slot is there before the answer, and a material of the other course appears on request', () => {
-  const form = blank({ picks: { lecture: ['传输层-1', '传输层-2'], 'past-paper': ['paper-1'], syllabus: [] } });
-  const html = render(create(form));
-  const text = drawn(html);
-  assert.doesNotMatch(text, /先选好课件/);
-  assert.match(html, /data-token-estimate|预计用量/);
-  assert.match(text, /已选 1 份/, 'two pages of one deck are one material, as the picker counts');
-  const start = dom(html).all.find(item => item.tagName === 'BUTTON' && /开始生成/.test(item.textContent));
-  assert.ok(start, 'the start button');
-  assert.doesNotMatch(text, /不选样卷也可以/, 'with a sample paper chosen the note is gone');
-  assert.match(drawn(render(create(blank(), dataWith([]), {}))), /也显示其它课程的资料/);
-});
-
-test('a new version of a list opens the same form, filled in, and says the old one is kept', () => {
-  const again = ui.formFromList(row(mine), mine.blueprint);
-  const text = drawn(render(create(again, dataWith([mine]))));
-  assert.match(text, /重新生成考点清单/);
-  assert.match(text, /旧清单保留为历史版本/);
-  assert.match(text, /已选 1 份/);
-  assert.match(text, /已选 1 份[\s\S]*已选 1 份/, 'the slides and the sample paper of the list');
-  english(() => assert.match(drawn(render(create(again, dataWith([mine])))), /Rebuild the exam-point list/));
-});
-
-test('without a model the form says so instead of the start button', () => {
-  const data = { ...dataWith([]), model: { ready: false, reason: 'no-route' }, modelReady: false };
-  const text = drawn(render(create(blank({ picks: { lecture: ['传输层-1'], 'past-paper': [], syllabus: [] } }), data)));
-  assert.match(text, /先配置一个 AI 模型/);
-  assert.match(text, /列考点要调用 AI 模型/);
-});
-
-test('the form in English', () => {
-  english(() => {
-    const html = render(create(blank()));
-    const text = drawn(html);
-    for (const word of ['New exam-point list', 'Name', 'Slides', 'Sample paper', 'Syllabus', 'Recommended textbook', 'Required', 'Optional', 'Expected use', 'Start building']) assert.match(text, new RegExp(word), word);
-    assert.match(text, /You can leave sample papers out/);
-    for (const tip of everyReachable(html, 'form (en)')) assert.doesNotMatch(tip.text, han, tip.text);
-    assert.doesNotMatch(ownWords(text), han);
-  });
-});
-
-test('the library for the form has no point list in it, and a point list is never offered as an input', () => {
-  assert.equal(ui.pickPool([...library(), mine], { lecture: [] }, 'lecture').some(source => source.id === mine.id), false);
+test('the library for the form has no point list in it, and a point list is never offered as a document', () => {
+  assert.equal(ui.documentsOf([...library(), mine]).some(item => item.sourceIds.includes(mine.id)), false);
+  assert.equal(ui.documentsOf([...library(), mine]).length, ui.documentsOf(library()).length);
 });
 
 test('while the record is being read a list shows everything its summary knows and a slot for the points, and says so when it cannot be read', () => {

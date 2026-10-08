@@ -137,7 +137,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} /> : null}
                         onClearStudyRef={() => set.setBoardStudyRef(null)} onStudyRef={learn.openBoardReference} />
                     ) : !data ? <StartPage />
-                      : !pageAvailable(data, page) ? <DisabledPage />
+                      : !pageAvailable(data, page) ? <DisabledPage page={page} />
                         : <PageView page={page} feedback={feedback} />}
                     {/* Page toasts stick to the bottom of the view: the top-right is where every PageHeader keeps its actions. */}
                     {!(page === 'review' && run && !run.complete) && feedback}

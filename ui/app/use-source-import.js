@@ -3,6 +3,7 @@ import { ui } from '../i18n.js';
 import { importOutcome } from '../ImportHub.jsx';
 import { importedReferences } from '../reference-questions.js';
 import { usePageScope } from '../PageScope.jsx';
+import { importHandoff } from './import-handoff.js';
 
 /* Adding materials: the one entry (ImportHub) for the 添加资料 dialog and the empty Sources page. What the learner typed into
    the paste box and which courses are ticked survive closing the dialog; what an import leads to (a draft, the sources page, a
@@ -24,15 +25,16 @@ export function useSourceImport({ core, lib, nav, drafts, intents, data }) {
 
   function finishImport(summary) {
     const { page, modal: open } = latest.current;
-    if (open?.referenceQuestions && summary?.sourceIds?.length) {
-      const ids = summary.sourceIds;
-      if (open.onReferenceImported) open.onReferenceImported(ids);
-      else {
+    const handoff = importHandoff(open, summary);
+    if (handoff) {
+      const { ids } = handoff;
+      if (handoff.call) handoff.call(ids);
+      else if (handoff.reference) {
         setGen((current) => ({ ...current, referenceSourceIds: importedReferences(current.referenceSourceIds, ids).referenceSourceIds }));
         setSelectedSources((current) => importedReferences([], ids, current).sourceIds);
       }
       setModal(null);
-      notify({ text: ui('参考样题已保存到资料库并选中。请确认样题范围，再开始生成。'), tone: 'success' });
+      notify(handoff.notice);
       return;
     }
     const outcome = importOutcome(summary, { page });

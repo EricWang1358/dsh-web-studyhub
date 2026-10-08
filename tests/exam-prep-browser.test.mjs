@@ -122,25 +122,59 @@ test('with the host switch off the page has no sidebar entry; on, it lists, open
         assert.ok((await page.locator('.exam-prep-point').count()) > 0 && (await page.locator('.exam-prep-point').count()) < 40);
         const detailVerdict = judgeLayoutStability(await drainLayoutStability(page), { maxCls: 0.05 });
         assert.ok(detailVerdict.ok, `${width}px list: ${detailVerdict.message}`);
-        // the create form
+        // the short flow: the form opens filled in, and 开始生成 is the one thing left to press
         await page.locator('.sh-page-header__back').first().click();
         await page.locator('[data-usage="examprep.create"]').first().click();
         await page.locator('.exam-prep-form').waitFor({ timeout: 30000 });
+        await page.locator('[data-doc]').first().waitFor({ timeout: 30000 });
         await settleAnimations(page);
         await drainLayoutStability(page);
         assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll on the form`);
-        const pick = page.locator('[data-role="lecture"] .source-picker input[type="checkbox"]').first();
-        await pick.waitFor({ state: 'attached', timeout: 30000 });
-        await pick.dispatchEvent('click');
+        assert.ok((await page.locator('[data-doc]').count()) >= 3, 'the documents of the course are in one table');
+        assert.match(await page.locator('.exam-prep-docs__counts').innerText(), /\d+ 份课件 · \d+ 份样卷/, 'the sentence counts them');
+        assert.equal(await page.locator('[data-doc][data-role="past-paper"]').count() > 0, true, 'the sample paper was told by its name');
+        assert.match(await page.locator('[data-doc][data-role="past-paper"]').first().innerText(), /文件名含「样卷」/, 'and says why');
+        assert.equal(await page.locator('.source-picker').count(), 0, 'no picker on the main path');
+        assert.equal(await page.locator('.exam-prep-more').evaluate(element => element.open), false, '更多设置 is closed');
+        assert.equal(await page.locator('.exam-prep-more input').first().isVisible(), false, 'the name is not asked');
         await until(async () => (await page.locator('[data-token-estimate][data-status="ready"]').count()) > 0, 'the estimate', { timeoutMs: 60000 });
         assert.match(await page.locator('[data-token-estimate]').first().innerText(), /预计/);
+        assert.equal(await page.locator('.exam-prep-plan').count(), 0, 'the counts are said once, above the table: no second plan line');
         await shot(page, `form-${width}`);
         const startButton = page.locator('[data-usage="examprep.start"]');
-        await until(async () => !(await startButton.isDisabled()), 'the start button', { timeoutMs: 30000 });
+        await until(async () => !(await startButton.isDisabled()), 'the start button, with nothing pressed', { timeoutMs: 30000 });
+        // a wrong guess is one click: the paper becomes 不用, the sentence follows, and a click brings it back
+        const paper = page.locator('[data-doc][data-role="past-paper"]').first();
+        const before = await page.locator('.exam-prep-docs__counts').innerText();
+        await paper.getByRole('button', { name: '不用' }).click();
+        await until(async () => (await page.locator('.exam-prep-docs__counts').innerText()) !== before, 'the sentence follows the role');
+        assert.match(await page.locator('.exam-prep-docs__counts').innerText(), /0 份样卷/);
+        assert.match(await page.locator('.exam-prep-docs__none').innerText(), /没有样卷/);
+        // only some pages of a deck: the page list sits behind its row, and the row says how many are used
+        const deck = page.locator('[data-doc][data-role="lecture"]').first();
+        await deck.getByRole('button', { name: /选择页面/ }).click();
+        const pages = deck.locator('.source-picker__pages input[type="checkbox"]');
+        await pages.first().waitFor({ timeout: 10000 });
+        await pages.first().uncheck();
+        await until(async () => /已选 \d+ \/ \d+ 页/.test(await deck.locator('.exam-prep-doc__meta').innerText()), 'the row says how many pages are used');
+        await pages.first().check();
+        await deck.locator('.exam-prep-doc__why').getByRole('button', { name: '收起' }).click();
+        // stepping out to Settings and back keeps the form as it was
+        await page.locator('.exam-prep-more > summary').click();
+        await shot(page, `form-more-${width}`);
+        await page.locator('.exam-prep-more__settings button').click();
+        await page.locator('[data-tour="nav-examprep"]').first().waitFor({ state: 'attached', timeout: 30000 });
+        await page.locator('.exam-prep-form').waitFor({ state: 'detached', timeout: 30000 });
+        await page.locator('[data-tour="nav-examprep"]').first().dispatchEvent('click');
+        await page.locator('.exam-prep-form').waitFor({ timeout: 30000 });
+        assert.match(await page.locator('.exam-prep-docs__counts').innerText(), /0 份样卷/, 'the change survived the detour');
+        assert.equal(await page.locator('.exam-prep-more').evaluate(element => element.open), true, 'and so did the fold');
+        await page.locator('[data-doc]').first().waitFor({ timeout: 30000 });
         const formVerdict = judgeLayoutStability(await drainLayoutStability(page), { maxCls: 0.1 });
         assert.ok(formVerdict.ok, `${width}px form: ${formVerdict.message}`);
         if (width === 1280) {
           // start: the build is a job of the runtime; the page answers in words (a running row, or the refusal of the operation), never with a raw error
+          await until(async () => !(await startButton.isDisabled()), 'the start button again', { timeoutMs: 30000 });
           await startButton.click();
           await until(async () => (await page.locator('.exam-prep-row.is-building, .exam-prep-row[data-list]').count()) > 1 || (await page.locator('.exam-prep-check').innerText()).trim().length > 0, 'the answer to start', { timeoutMs: 30000 });
           const said = (await page.locator('.exam-prep-check').count()) ? (await page.locator('.exam-prep-check').innerText()).trim() : '';

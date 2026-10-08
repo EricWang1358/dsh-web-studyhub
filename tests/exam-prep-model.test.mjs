@@ -239,15 +239,15 @@ test('a build carries the course it was asked for (detail.course), null when the
   assert.deepEqual(m.buildsOf(snapshot({ jobs: [done] }))[0].resultIds, ['list-1']);
 });
 
-test('builds of the page: only those of the page\'s course are shown, a build that names no course is shown nowhere, and "all courses" shows every named course', () => {
+test('builds of the page: the rule of the lists, so a build is never out of sight: named courses by course, a build with no course under all courses and uncategorised', () => {
   const known = ['网络', '数据库'];
   const builds = m.buildsOf(snapshot({ jobs: [buildJob({ id: 'net', course: '网络' }), buildJob({ id: 'db', course: '数据库' }), buildJob({ id: 'none', course: null }),
     buildJob({ id: 'sub', course: '网络/传输层' })] }));
   const ids = scope => m.buildsInScope(builds, scope, known).map(build => build.jobId).sort();
   assert.deepEqual(ids('网络'), ['net', 'sub'].sort(), 'the course and its sub-courses, like the rows of the page');
   assert.deepEqual(ids('数据库'), ['db']);
-  assert.deepEqual(ids('*'), ['db', 'net', 'sub']);
-  assert.deepEqual(ids(''), [], 'uncategorised: a build without a course is not guessed into it');
+  assert.deepEqual(ids('*'), ['db', 'net', 'none', 'sub'], 'every build, the one with no course too');
+  assert.deepEqual(ids(''), ['none'], 'uncategorised: the list a build with no course makes is uncategorised');
 });
 
 /* ---------- what is under a point ---------- */
@@ -325,7 +325,7 @@ test('a point tested by a sample paper says in how many of the papers; any other
 
 test('every hover explanation is one plain sentence and at most one consequence line, in both languages, and none says 蓝图', () => {
   const keys = Object.keys(m.EXPLAIN);
-  for (const key of ['tier.must', 'tier.extra', 'basis', 'peek', 'noSlides', 'regenerate', 'estimate', 'role.lecture', 'role.past-paper', 'role.syllabus', 'role.textbook', 'delete', 'restore', 'unmatched', 'skipped', 'reading'])
+  for (const key of ['tier.must', 'tier.extra', 'basis', 'peek', 'noSlides', 'regenerate', 'estimate', 'roles', 'role.textbook', 'delete', 'restore', 'unmatched', 'skipped', 'reading'])
     assert.ok(keys.includes(key), `${key} has an explanation`);
   for (const key of keys) {
     const [sentence, consequence, extra] = m.explain(key);
@@ -364,7 +364,7 @@ test('a refusal of the build is shown as the operation worded it; with no messag
 
 /* ---------- the create form ---------- */
 
-test('the inputs of a build are chosen by role from the library: slides required, papers optional, and no material in two roles', () => {
+test('the inputs of a build are chosen by role from the library: slides required, papers optional', () => {
   const sources = library();
   const lecture = ['传输层-1', '传输层-2', '传输层-3', '传输层-4', '传输层-6'];
   const request = m.buildRequest({ title: ' 网络 · 传输层 考点清单 ', scope: '传输层', course: '网络', picks: { lecture, 'past-paper': ['paper-1'], syllabus: [] },
@@ -385,17 +385,16 @@ test('the inputs of a build are chosen by role from the library: slides required
   assert.deepEqual(bare.inputs[0].sourceIds, ['传输层-1']);
   assert.equal(bare.inputs[0].documentId, undefined, 'part of a deck: only the pages chosen');
   assert.equal(m.buildRequest({ title: 'T', picks: { lecture: ['传输层-1'] }, supersedes: 'old-id' }, sources, {}).supersedes, 'old-id');
-  assert.deepEqual(m.pickPool(sources, { lecture: ['传输层-1'], 'past-paper': [], syllabus: [] }, 'past-paper').some(source => source.id === '传输层-1'), false, 'a material chosen as slides is not offered as a sample paper');
-  assert.equal(m.pickPool(sources, { lecture: [] }, 'lecture').some(source => source.id === 'paper-1'), true);
 });
 
-test('the form is ready when it has a name and slides, and says what is missing; with no sample paper it says what happens', () => {
-  assert.deepEqual(m.formProblems({ title: '', picks: { lecture: [] } }), ['title', 'lecture']);
-  assert.deepEqual(m.formProblems({ title: 'x', picks: { lecture: ['a'] } }), []);
-  assert.deepEqual(m.formProblems({ title: 'x', picks: { lecture: [], syllabus: ['s'] } }), [], 'a syllabus stands in for slides');
-  assert.deepEqual(m.formProblems({ title: 'x', picks: { lecture: ['a'] }, reading: { title: '', url: 'ftp://x' } }), ['reading-url']);
-  assert.match(m.noPaperNote(), /补充/);
-  assert.equal(english(() => han.test(m.noPaperNote())), false);
+test('the form is ready when it has slides or a syllabus, and says what is missing; the name is never missing', () => {
+  assert.deepEqual(m.formProblems({ picks: { lecture: [] } }), ['lecture']);
+  assert.deepEqual(m.formProblems({ title: '', picks: { lecture: ['a'] } }), [], 'no name: the request carries a default');
+  assert.deepEqual(m.formProblems({ picks: { lecture: [], syllabus: ['s'] } }), [], 'a syllabus stands in for slides');
+  assert.deepEqual(m.formProblems({ picks: { lecture: ['a'] }, reading: { title: '', url: 'ftp://x' } }), ['reading-url']);
+  const nothing = { inputs: [{ role: 'past-paper', sourceIds: ['p'] }] }, slides = { inputs: [{ role: 'lecture', sourceIds: ['a'] }] };
+  assert.deepEqual(m.formProblems({ picks: { lecture: ['gone'] } }, nothing), ['lecture'], 'the request is what counts: a pick the library no longer holds is no slides');
+  assert.deepEqual(m.formProblems({ picks: { lecture: [] } }, slides), []);
 });
 
 test('a list is opened for a new version with the inputs it was built from', () => {
