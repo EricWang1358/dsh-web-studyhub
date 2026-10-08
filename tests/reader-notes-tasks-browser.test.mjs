@@ -331,7 +331,7 @@ test('the reader with no model shows the gate where a question would be asked, w
         await learning.locator('form').first().waitFor({ timeout: 30000 });
         assert.match(await learning.innerText(), /还没有可用的 AI 模型/, `${width}px: the gate`);
         assert.match(await learning.innerText(), /提问和补题需要先配置模型/);
-        assert.equal(await learning.getByRole('button', { name: '打开模型设置' }).count(), 1, `${width}px: the button`);
+        assert.equal(await learning.getByRole('button', { name: '前往设置' }).count(), 1, `${width}px: the button`);
         assert.equal(await learning.getByRole('button', { name: '没听懂' }).isDisabled(), true, `${width}px: a chip cannot ask without a model`);
         await shot(page, `reader-${width}-nomodel`);
         assert.deepEqual(errors, [], `${width}px: no console errors`);

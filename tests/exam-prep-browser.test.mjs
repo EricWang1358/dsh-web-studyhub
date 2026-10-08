@@ -74,7 +74,7 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
       await page.locator('.sources-page').waitFor({ timeout: 30000 });
       assert.match(await page.locator('.sources-page').innerText(), /传输层/, 'the slides are materials');
       await page.locator('aside').getByText('设置', { exact: true }).first().click();
-      await page.getByText('工作区设置').first().waitFor({ timeout: 30000 });
+      await page.getByText('备考补习', { exact: true }).last().waitFor({ timeout: 30000 });
       await page.getByText('备考补习', { exact: true }).last().click();
       const switchOn = page.getByLabel('开启备考补习');
       await switchOn.waitFor({ timeout: 30000 });
