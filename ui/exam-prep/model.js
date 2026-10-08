@@ -20,7 +20,7 @@ const placesOfPoint = point => Array.isArray(point?.evidence) ? point.evidence :
 
 /* ---------- tiers and the tree ---------- */
 
-/** 必学 or 补充. The build writes `tier` next to `backing`; a list without it is read the same way: must = a sample paper is among the places. */
+/** 样卷考过 (`must`) or 补充 (`extra`). The build writes `tier` next to `backing`; a list without it is read the same way: must = a sample paper is among the places. */
 export function tierOf(point) {
   if (point?.tier === 'must' || point?.tier === 'extra') return point.tier;
   const papers = point?.backing ? Number(point.backing.samplePapers) > 0 : placesOfPoint(point).some(place => place.role === 'past-paper');
@@ -151,18 +151,27 @@ export function skippedPages(blueprint) {
 
 const isBuildJob = job => job?.type === BUILD_KIND || job?.contract?.kind === BUILD_KIND;
 
-/** The build jobs of the snapshot, running ones first then the newest; `taskId` is the id the 任务 console opens them by. */
+/** The build jobs of the snapshot, running ones first then the newest; `taskId` is the id the 任务 console opens them by. `course` is the course the build was asked for (null when the job does not say). */
 export function buildsOf(data) {
   const jobs = (Array.isArray(data?.jobs) ? data.jobs : []).filter(isBuildJob);
   return jobs.map((job, index) => {
     const contract = contractOf(job), progress = contract.progress || {}, live = isRunningTask(job);
     // `targetId`: the list a rebuild replaces while it runs, the list it saved once saved; null for a first build (its list has no id until it is saved).
     return { jobId: contract.jobId || job.id, taskId: taskId(job), title: contract.title || job.title || '', status: contract.status || job.status, live,
-      targetId: contract.detail?.targetId ?? null, supersedes: contract.detail?.supersedes ?? null,
+      targetId: contract.detail?.targetId ?? null, supersedes: contract.detail?.supersedes ?? null, course: typeof contract.detail?.course === 'string' && contract.detail.course ? contract.detail.course : null,
       failed: contract.status === 'failed' || contract.status === 'interrupted', done: Number(progress.done) || 0, total: Number.isFinite(progress.total) ? progress.total : null,
       stage: contract.stage?.text || '', startedAt: contract.startedAt || job.startedAt || '', finishedAt: contract.finishedAt || job.finishedAt || '',
-      resultIds: (contract.result?.refs || []).filter(ref => ref.kind === 'source').map(ref => ref.id), index };
+      resultIds: (contract.result?.refs || []).filter(ref => ref.kind === 'exam-point-list' || ref.kind === 'source').map(ref => ref.id), index };
   }).sort((a, b) => Number(b.live) - Number(a.live) || (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0) || a.index - b.index);
+}
+
+/**
+ * The builds that belong on the page of a course scope: a build shows only where its own course is (the scope's course or one of its sub-courses; every named
+ * course under '*'). A build that names no course is shown nowhere: it cannot be told from another course's, and a notice of someone else's build is worse than none.
+ */
+export function buildsInScope(builds, scope, known = []) {
+  if (scope === '') return [];
+  return (builds || []).filter(build => build.course !== null && sourceMatchesCourse({ courses: [build.course] }, scope, known));
 }
 
 /* ---------- the lists ---------- */
@@ -172,7 +181,7 @@ const timeOf = value => Date.parse(value) || 0;
 
 /**
  * One row of the list view, from a summary of the snapshot's `examPointLists` ({ id, title, courses, createdAt, archived, scope, basis, supersedes, points }):
- * everything a learner needs to choose a list. The counts are the basis's own (the points nothing hangs under); the build that is running for the list
+ * everything a learner needs to choose a list (`stale`: the snapshot says the materials it was made from have changed). The counts are the basis's own (the points nothing hangs under); the build that is running for the list
  * is the live one whose `targetId` is the list's id (a rebuild).
  */
 export function listRow(summary, { jobs = [], builds = buildsOf({ jobs }), older = 0 } = {}) {
@@ -180,7 +189,7 @@ export function listRow(summary, { jobs = [], builds = buildsOf({ jobs }), older
   const must = Number(basis?.must) || 0, extra = Number(basis?.extra) || 0;
   return { id: summary.id, source: summary, title: summary.title, scope: summary.scope || '', course: summary.courses?.[0] || '', basis,
     papers: Number.isFinite(basis?.samplePapers) ? basis.samplePapers : 0, counts: { must, extra, total: must + extra, withoutSlides: Number(basis?.noCourseText) || 0 },
-    updatedAt: summary.createdAt || null, archived: summary.archived === true, olderVersions: older, build: builds.find(build => build.live && build.targetId === summary.id) || null };
+    updatedAt: summary.createdAt || null, archived: summary.archived === true, stale: summary.stale === true, olderVersions: older, build: builds.find(build => build.live && build.targetId === summary.id) || null };
 }
 
 /**

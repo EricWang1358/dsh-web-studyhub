@@ -113,12 +113,9 @@ test('with the host switch off the page has no sidebar entry; on, it lists, open
         await shot(page, `reader-${width}`);
         await page.keyboard.press('Escape');
         await until(async () => (await page.locator('dialog[open]').count()) === 0, 'the reader closed');
-        // 针对这些考点出题 is there, disabled, and says why on focus
-        const soon = page.locator('.exam-prep-soon').first();
-        assert.ok(await page.locator('.exam-prep-soon__button').first().isDisabled());
-        await soon.focus();
-        await until(async () => page.locator('.exam-prep-soon + [role="tooltip"]').first().isVisible(), 'the reason on focus');
-        assert.match(await page.locator('.exam-prep-soon + [role="tooltip"]').first().innerText(), /以后的版本/);
+        // nothing on the page is offered and cannot be pressed: the always-off 针对这些考点出题 is gone
+        assert.equal(await page.locator('.exam-prep-soon').count(), 0);
+        assert.equal(await page.getByText('针对这些考点出题').count(), 0);
         // search
         await page.locator('.exam-prep-search').fill('补充考点 3');
         await frames(page, 3);

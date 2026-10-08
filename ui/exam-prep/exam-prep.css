@@ -110,6 +110,10 @@
       position: relative;
       z-index: 1;
     }
+    .exam-prep-row__time {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
     .exam-prep-row.is-building {
       grid-template-areas: 'open open' 'bar state';
     }
@@ -178,12 +182,6 @@
       flex: 1 1 14rem;
       min-width: 0;
       max-width: 24rem;
-    }
-    .exam-prep-soon {
-      display: inline-flex;
-    }
-    .exam-prep-soon__button {
-      pointer-events: none;
     }
     .exam-prep-tree {
       display: grid;

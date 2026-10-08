@@ -4,7 +4,7 @@ import { Button, Checkbox, IconButton, Select } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { failureText } from '../failure.js';
 import { contractOf, isRunningTask } from './task-model.js';
-import { controlItems, stepValue, appliedText, defaultsPatch, controlLabel, reasonText } from './task-control.js';
+import { controlItems, stepValue, appliedText, defaultsPatch, controlLabel, reasonText, endedNote } from './task-control.js';
 
 /* 即时控制: the knobs of a running job, in one block of the same shape for every job, drawn from its contract (actions.set). A change goes to job.control {action: 'set'}
    and applies from the job's next call (a call in flight is never interrupted); the reply says what is now in force and the row says so. The row is
@@ -62,8 +62,8 @@ export default function ControlRow({ job }) {
       <div className="tc-controls__bar">
         <span className="tc-controls__title">{ui('即时控制')}</span>
         {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。')
-          : contract.status === 'interrupted' && contract.actions.retry.available ? ui('任务被中断了，已完成的部分都保留着；点「接着做」继续。')
-            : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? ui('任务没有做完，已出的题都保留着；点「接着做」继续。') : reasonText(set)}</span>}
+          : contract.status === 'interrupted' && contract.actions.retry.available ? endedNote(job, true)
+            : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? endedNote(job) : reasonText(set)}</span>}
         {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved || core.busy} onClick={save}
           title={uiFormat('把这里的{0}存为以后新任务的默认', [items.slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
         {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint', 'single-round', 'manual-run'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}

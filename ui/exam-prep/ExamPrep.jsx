@@ -7,7 +7,7 @@ import { useInjectCss } from '../shared.js';
 import ExamPrepCreate from './ExamPrepCreate.jsx';
 import ExamPrepDetail from './ExamPrepDetail.jsx';
 import ExamPrepList from './ExamPrepList.jsx';
-import { ROLES, buildsOf, formFromList, pointLists } from './model.js';
+import { ROLES, buildsInScope, buildsOf, formFromList, pointLists } from './model.js';
 import css from './exam-prep.css';
 
 /* 备考补习: the page. It lists the 考点清单 of the current course (a list is a material of the library with a course, ./model.js), opens one, and builds a
@@ -26,7 +26,9 @@ export default function ExamPrep({ data, onOpenSource, onOpenTask, openSettings 
   const everything = useMemo(() => pointLists(data, { scope: '*', known }), [data.sources, data.jobs, known]); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = useMemo(() => scope === '*' ? everything : pointLists(data, { scope, known }), [everything, data.sources, data.jobs, scope, known]); // eslint-disable-line react-hooks/exhaustive-deps
   const history = useMemo(() => pointLists(data, { scope, known, history: true }), [data.examPointLists, scope, known]); // eslint-disable-line react-hooks/exhaustive-deps
-  const builds = useMemo(() => buildsOf(data), [data.jobs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A build shows only on the page of its own course, and a rebuild is matched to its list among all the lists, not only those of this scope.
+  const builds = useMemo(() => buildsInScope(buildsOf(data), scope, known), [data.jobs, scope, known]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listIds = useMemo(() => new Set((Array.isArray(data.examPointLists) ? data.examPointLists : []).map(summary => summary?.id)), [data.examPointLists]);
   const list = useCallback(() => setView({ name: 'list' }), []);
   const open = view.name === 'detail' ? [...everything, ...history].find(row => row.id === view.id) : null;
   const courseNow = scope !== '*' && scope !== '' ? scope : data.focus?.course || '';
@@ -38,7 +40,7 @@ export default function ExamPrep({ data, onOpenSource, onOpenTask, openSettings 
     return <ExamPrepDetail row={open} onBack={list} onOpenSource={onOpenSource} onOpenTask={onOpenTask} onDeleted={row => { toast.success(uiFormat('已删除「{0}」', [row.title])); list(); }}
       onRegenerate={(row, blueprint) => setView({ name: 'create', initial: formFromList(row, blueprint) })} />;
   }
-  return <ExamPrepList data={data} scope={scope} onScope={setScope} rows={rows} history={history} builds={builds} otherCount={Math.max(0, everything.length - rows.length)}
+  return <ExamPrepList data={data} scope={scope} onScope={setScope} rows={rows} history={history} builds={builds} listIds={listIds} otherCount={Math.max(0, everything.length - rows.length)}
     onOpen={id => setView({ name: 'detail', id })} onCreate={() => setView({ name: 'create', initial: blankForm(courseNow) })} onOpenTask={onOpenTask}
     onRestore={row => act('source.archive', { sourceIds: [row.id], archived: false }, () => toast.success(uiFormat('已恢复「{0}」', [row.title])))} />;
 }

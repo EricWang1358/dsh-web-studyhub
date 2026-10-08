@@ -4,7 +4,7 @@ import { Badge, Button, Icon } from '../components/index.js';
 import { cx } from '../components/css.js';
 import Explain from './Explain.jsx';
 import { lacksSlides, placesOf, treeKey, treeRows } from './model.js';
-import { backingLine, tierName } from './words.js';
+import { backingLine, tierWords } from './words.js';
 
 /* The exam points as a two-level list: a big point opens its small points, any point opens the places it came from (quotes with 看原页).
    A disclosure list, not an ARIA tree: a row also holds a badge and buttons the keyboard must reach, so it is the repository's disclosure
@@ -33,7 +33,7 @@ function Places({ point, onOpenSource }) {
   );
 }
 
-const Row = memo(function Row({ node, level, open, tabStop, onOpenSource, bodyId }) {
+const Row = memo(function Row({ node, level, open, tabStop, basis, onOpenSource, bodyId }) {
   const point = node.point, flagged = lacksSlides(point);
   return (
     <li className={cx('exam-prep-point', level > 1 && 'is-sub')} data-point={node.id} data-tier={node.tier}>
@@ -45,7 +45,7 @@ const Row = memo(function Row({ node, level, open, tabStop, onOpenSource, bodyId
         </Button>
         <span className="exam-prep-point__marks">
           <Explain k={`tier.${node.tier}`} focusable>
-            <Badge size="sm" tone={node.tier === 'must' ? 'accent' : 'neutral'}>{tierName(node.tier)}</Badge>
+            <Badge size="sm" tone={node.tier === 'must' ? 'accent' : 'neutral'}>{tierWords(node.tier, point, basis)}</Badge>
           </Explain>
           {flagged && <Explain k="noSlides" focusable><Badge size="sm" tone="warning" icon="warning">{ui('课件里没找到对应内容')}</Badge></Explain>}
         </span>
@@ -59,10 +59,10 @@ const Row = memo(function Row({ node, level, open, tabStop, onOpenSource, bodyId
 });
 
 /**
- * `roots`: the (filtered) roots of ./model.js buildTree. `forceOpen` opens every big point (a search is on); `initialOpen` lists the points open at first. The row buttons are one tab stop:
+ * `roots`: the (filtered) roots of ./model.js buildTree. `basis`: what the list rests on (its sample-paper count is the total of 样卷考过（N/M 份）). `forceOpen` opens every big point (a search is on); `initialOpen` lists the points open at first. The row buttons are one tab stop:
  * the arrow keys, Home and End walk the rows on screen, Right and Left open and close, Enter and Space toggle (the button's own click).
  */
-export default function PointTree({ roots, forceOpen = false, initialOpen = [], onOpenSource, label }) {
+export default function PointTree({ roots, basis = null, forceOpen = false, initialOpen = [], onOpenSource, label }) {
   const [openIds, setOpenIds] = useState(() => new Set(initialOpen));
   const [active, setActive] = useState(null);
   const listId = useId();
@@ -92,7 +92,7 @@ export default function PointTree({ roots, forceOpen = false, initialOpen = [], 
   return (
     <ul className="exam-prep-tree" aria-label={label} onClick={onClick} onKeyDown={onKeyDown}>
       {rows.map(row => <Row key={row.id} node={row.node} level={row.level} open={!!(row.hasChildren ? row.expanded : open.has(row.id))}
-        tabStop={row.id === stop} onOpenSource={onOpenSource} bodyId={`${listId}-${row.id}`} />)}
+        tabStop={row.id === stop} basis={basis} onOpenSource={onOpenSource} bodyId={`${listId}-${row.id}`} />)}
     </ul>
   );
 }

@@ -56,12 +56,12 @@ export function pointList({ title = '网络 · 传输层 考点清单', courses 
   return source;
 }
 
-/** A job of the snapshot for the build (the shape the runtime publishes: type, status, contract.detail.blueprint, contract.result). */
-export function buildJob({ id = 'blueprint-1', title = '网络 · 传输层 考点清单', status = 'running', done = 2, total = 5, refs = [], finishedAt, targetId = null, supersedes = null } = {}) {
+/** A job of the snapshot for the build (the shape the runtime publishes: type, status, contract.detail.blueprint, contract.result). `course` is the build's course (`contract.detail.course`: the name, or null). */
+export function buildJob({ id = 'blueprint-1', title = '网络 · 传输层 考点清单', status = 'running', done = 2, total = 5, refs = [], finishedAt, targetId = null, supersedes = null, course = '网络' } = {}) {
   return { id, type: 'exam-blueprint-build', status, startedAt: STAMP, ...(finishedAt ? { finishedAt } : {}),
     contract: { contractVersion: 1, jobId: id, kind: 'exam-blueprint-build', title, status, stage: { code: `blueprint.${status === 'complete' ? 'complete' : 'slides'}`, text: '正在读讲义' },
       progress: { done, total, unit: 'steps', percent: null, segments: [] }, result: { refs, completeness: status === 'complete' ? 'complete' : null },
-      detail: { targetId, supersedes, blueprint: { stage: 'slides', windows: { done, total }, paper: { done: 0, total: 0 }, points: 0, dropped: { evidence: 0, points: 0 }, reused: 0, skippedPages: [], unmatchedQuestions: [] } },
+      detail: { targetId, supersedes, course, blueprint: { stage: 'slides', windows: { done, total }, paper: { done: 0, total: 0 }, points: 0, dropped: { evidence: 0, points: 0 }, reused: 0, skippedPages: [], unmatchedQuestions: [] } },
       usage: { tokens: null, tokenUsage: null, calls: 0 }, calls: [], events: [], startedAt: STAMP, ...(finishedAt ? { finishedAt } : {}), actions: {} } };
 }
 

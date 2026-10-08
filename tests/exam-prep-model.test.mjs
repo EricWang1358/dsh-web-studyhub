@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
-import { examPointListSummary } from '../lib/exam-point-list.js';
+import { TIER_LABEL, examPointListSummary } from '../lib/exam-point-list.js';
 import { STAMP, library, pointList, buildJob, snapshot } from './helpers/exam-prep-fixtures.mjs';
 
 /* The 备考补习 page, its pure part (ui/exam-prep/model.js and words.js): the point list a learner sees is read from a source record of
@@ -197,7 +197,7 @@ test('a new version replaces the old one: the build archives the old list, so th
 
 test('a row says what a learner needs to pick a list: title, scope, how many papers it rests on, the counts, when, and what is building', () => {
   const source = pointList();
-  const done = buildJob({ id: 'blueprint-done', status: 'complete', refs: [{ kind: 'source', id: source.id }], finishedAt: '2026-10-02T00:00:00.000Z' });
+  const done = buildJob({ id: 'blueprint-done', status: 'complete', refs: [{ kind: 'exam-point-list', id: source.id }], finishedAt: '2026-10-02T00:00:00.000Z' });
   const summary = examPointListSummary(source);
   const row = m.listRow(summary, { jobs: [done] });
   assert.deepEqual([row.title, row.scope, row.papers, row.counts, row.course], ['网络 · 传输层 考点清单', '传输层', 1, { must: 2, extra: 2, total: 4, withoutSlides: 0 }, '网络']);
@@ -212,6 +212,13 @@ test('a row says what a learner needs to pick a list: title, scope, how many pap
   assert.equal(m.listRow(summary, { jobs: [buildJob({ status: 'complete', targetId: source.id })] }).build, null, 'a build that has ended is not a state of the row');
 });
 
+test('a row is stale only when the snapshot says so: no flag, no warning', () => {
+  const summary = examPointListSummary(pointList());
+  assert.equal(m.listRow(summary).stale, false, 'a list saved before this release has no flag');
+  assert.equal(m.listRow({ ...summary, stale: true }).stale, true);
+  assert.equal(m.listRow({ ...summary, stale: 'yes' }).stale, false, 'only a literal true');
+});
+
 test('the builds are the build jobs of the snapshot, running ones first, with the id the 任务 console knows them by', () => {
   const data = snapshot({ jobs: [buildJob({ id: 'a', status: 'complete', finishedAt: '2026-10-02T00:00:00.000Z' }), buildJob({ id: 'b', status: 'running' }), { id: 'x', type: 'generation', status: 'running' }] });
   const builds = m.buildsOf(data);
@@ -222,6 +229,25 @@ test('the builds are the build jobs of the snapshot, running ones first, with th
   assert.equal(builds[0].title, '网络 · 传输层 考点清单');
   assert.deepEqual(m.buildsOf({}), []);
   assert.equal(m.buildsOf(snapshot({ jobs: [buildJob({ status: 'failed' })] }))[0].failed, true);
+});
+
+test('a build carries the course it was asked for (detail.course), null when the job does not say, and its result lists as exam-point-list refs', () => {
+  const [mineBuild] = m.buildsOf(snapshot({ jobs: [buildJob({ course: '网络' })] }));
+  assert.equal(mineBuild.course, '网络');
+  assert.equal(m.buildsOf(snapshot({ jobs: [buildJob({ course: null })] }))[0].course, null);
+  const done = buildJob({ status: 'complete', refs: [{ kind: 'exam-point-list', id: 'list-1' }], finishedAt: '2026-10-02T00:00:00.000Z' });
+  assert.deepEqual(m.buildsOf(snapshot({ jobs: [done] }))[0].resultIds, ['list-1']);
+});
+
+test('builds of the page: only those of the page\'s course are shown, a build that names no course is shown nowhere, and "all courses" shows every named course', () => {
+  const known = ['网络', '数据库'];
+  const builds = m.buildsOf(snapshot({ jobs: [buildJob({ id: 'net', course: '网络' }), buildJob({ id: 'db', course: '数据库' }), buildJob({ id: 'none', course: null }),
+    buildJob({ id: 'sub', course: '网络/传输层' })] }));
+  const ids = scope => m.buildsInScope(builds, scope, known).map(build => build.jobId).sort();
+  assert.deepEqual(ids('网络'), ['net', 'sub'].sort(), 'the course and its sub-courses, like the rows of the page');
+  assert.deepEqual(ids('数据库'), ['db']);
+  assert.deepEqual(ids('*'), ['db', 'net', 'sub']);
+  assert.deepEqual(ids(''), [], 'uncategorised: a build without a course is not guessed into it');
 });
 
 /* ---------- what is under a point ---------- */
@@ -249,15 +275,14 @@ test('what is left over: sample-paper questions with no point, and slides with n
 
 test('the basis line says how many sample papers the list rests on and what that cannot tell, in the data\'s own words and in English', () => {
   const basis = papers => m.basisLine(pointList({ papers }).blueprint.basis);
-  assert.equal(basis(1), '依据 1 份样卷；必学范围可能不全');
-  assert.equal(basis(2), '依据 2 份样卷（取并集）；必学范围可能不全');
+  assert.equal(basis(1), '依据 1 份样卷；样卷考过的范围可能不全');
+  assert.equal(basis(2), '依据 2 份样卷（取并集）；样卷考过的范围可能不全');
   assert.match(basis(3), /^依据 3 份样卷（取并集）；/);
-  assert.equal(basis(0), '没有样卷，无法判断哪些是必学');
-  for (const papers of [0, 1, 2, 3]) assert.equal(basis(papers), pointList({ papers }).blueprint.basis.label, `${papers}: the same words as the label the data wrote`);
-  assert.doesNotMatch([0, 1, 2, 3].map(basis).join(''), /蓝图|blueprint/i);
+  assert.equal(basis(0), '没有样卷，无法判断哪些考点样卷考过');
+  assert.doesNotMatch([0, 1, 2, 3].map(basis).join(''), /蓝图|blueprint|必学/i);
   english(() => {
-    assert.equal(basis(1), 'Based on 1 sample paper; the must-learn range may be incomplete');
-    assert.equal(basis(2), 'Based on 2 sample papers (united); the must-learn range may be incomplete');
+    assert.equal(basis(1), 'Based on 1 sample paper; the range tested in sample papers may be incomplete');
+    assert.equal(basis(2), 'Based on 2 sample papers (united); the range tested in sample papers may be incomplete');
     assert.match(basis(0), /^No sample paper/);
     assert.doesNotMatch([0, 1, 2, 3].map(basis).join(''), han);
   });
@@ -266,8 +291,8 @@ test('the basis line says how many sample papers the list rests on and what that
 });
 
 test('the counts line and the backing line use the owner\'s words', () => {
-  assert.equal(m.countsLine({ must: 12, extra: 30 }), '必学 12 · 补充 30');
-  assert.equal(english(() => m.countsLine({ must: 12, extra: 30 })), 'Must-learn 12 · Extra 30');
+  assert.equal(m.countsLine({ must: 12, extra: 30 }), '样卷考过 12 · 补充 30');
+  assert.equal(english(() => m.countsLine({ must: 12, extra: 30 })), 'Tested in sample papers 12 · Extra 30');
   const [p1, p2, p3] = pointList().blueprint.points;
   assert.equal(m.backingLine(p2), '出现在 1 页课件 + 1 份样卷');
   assert.equal(m.backingLine(p3), '出现在 1 页课件');
@@ -278,15 +303,29 @@ test('the counts line and the backing line use the owner\'s words', () => {
     assert.equal(m.backingLine({ ...p1, backing: { slides: 2, samplePapers: 2, kind: 'both' } }), 'In 2 slides + 2 sample papers');
     assert.equal(m.backingLine({ id: 'q', title: 'q', backing: { slides: 0, samplePapers: 1, kind: 'sample-paper' }, evidence: [] }), 'Only in 1 sample paper');
   });
-  assert.equal(m.tierName('must'), '必学');
-  assert.equal(m.tierName('extra'), '补充');
-  assert.equal(english(() => m.tierName('must')), 'Must-learn');
+  assert.equal(m.tierName('must'), TIER_LABEL.must, 'the library\'s own word, not a second one');
+  assert.equal(m.tierName('must'), '样卷考过');
+  assert.equal(m.tierName('extra'), TIER_LABEL.extra);
+  assert.equal(english(() => m.tierName('must')), 'Tested in sample papers');
   assert.equal(english(() => m.tierName('extra')), 'Extra');
+});
+
+test('a point tested by a sample paper says in how many of the papers; any other point says 补充; the word 必学 is nowhere', () => {
+  const [, p2, p3] = pointList({ papers: 2 }).blueprint.points;
+  const basis = { samplePapers: 2 };
+  assert.equal(m.tierWords('must', { ...p2, backing: { slides: 1, samplePapers: 1 } }, basis), '样卷考过（1/2 份）');
+  assert.equal(m.tierWords('must', { ...p2, backing: { slides: 1, samplePapers: 2 } }, basis), '样卷考过（2/2 份）');
+  assert.equal(m.tierWords('must', { ...p2, backing: undefined }, basis), '样卷考过（1/2 份）', 'a record without backing is counted from its places');
+  assert.equal(m.tierWords('extra', p3, basis), '补充');
+  assert.equal(m.tierWords('must', p2, null), '样卷考过', 'no basis: the word alone, no invented total');
+  assert.equal(english(() => m.tierWords('must', { ...p2, backing: { slides: 1, samplePapers: 1 } }, basis)), 'Tested in sample papers (1/2 papers)');
+  assert.equal(english(() => m.tierWords('extra', p3, basis)), 'Extra');
+  for (const words of [m.tierWords('must', p2, basis), m.countsLine({ must: 1, extra: 2 }), ...Object.keys(m.EXPLAIN).flatMap(key => m.explain(key))]) assert.doesNotMatch(words, /必学/);
 });
 
 test('every hover explanation is one plain sentence and at most one consequence line, in both languages, and none says 蓝图', () => {
   const keys = Object.keys(m.EXPLAIN);
-  for (const key of ['tier.must', 'tier.extra', 'basis', 'peek', 'noSlides', 'regenerate', 'generate', 'estimate', 'role.lecture', 'role.past-paper', 'role.syllabus', 'role.textbook', 'delete', 'restore', 'unmatched', 'skipped', 'reading'])
+  for (const key of ['tier.must', 'tier.extra', 'basis', 'peek', 'noSlides', 'regenerate', 'estimate', 'role.lecture', 'role.past-paper', 'role.syllabus', 'role.textbook', 'delete', 'restore', 'unmatched', 'skipped', 'reading'])
     assert.ok(keys.includes(key), `${key} has an explanation`);
   for (const key of keys) {
     const [sentence, consequence, extra] = m.explain(key);
@@ -303,7 +342,7 @@ test('every hover explanation is one plain sentence and at most one consequence 
   assert.match(m.explain('tier.must').join(''), /样卷/);
   assert.match(m.explain('tier.extra').join(''), /课件/);
   assert.match(m.explain('regenerate').join(''), /额度|Token|token/);
-  assert.match(m.explain('generate').join(''), /之后|以后|后续/);
+  assert.equal(m.explain('generate'), null, 'the action that was never built has no explanation left');
   assert.equal(m.explain('no-such-key'), null);
 });
 

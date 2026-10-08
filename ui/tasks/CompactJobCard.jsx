@@ -12,6 +12,7 @@ import { badgeText } from './task-parallel.js';
 import { progressHint } from './task-facts.js';
 import { runningCalls, callLabel } from './call-model.js';
 import { resultOpener } from './task-actions.js';
+import { keepsOf } from './task-control.js';
 
 /* The compact job card that replaces the big per-feature cards on the pages (音频转写, the home's question runs, PDF conversions): a status dot, the
    title and its percent, a thin bar, ONE status line, a stop (or 知道了) slot of fixed width and a primary button of fixed width, so the cards line up.
@@ -33,7 +34,8 @@ export function cardLine(job) {
   const notices = contract.detail?.notices?.length || contract.detail?.warnings?.length || 0, noticed = notices ? uiFormat('{0} 条提醒', [notices]) : '';
   if (status === 'failed' || status === 'interrupted') return uiMessage(error?.message || stageLabel(contract.stage));
   const own = contract.detail?.own, ownCount = own?.asked > 0 ? uiFormat('本任务 {0}/{1} 题', [own.made, own.asked]) : '';
-  if (status === 'cancelled') return joinMeta([ui('已停止'), ownCount ? uiFormat('停在 {0}', [ownCount]) : progress.total > 0 ? uiFormat('停在 {0}/{1}', [progress.done, progress.total]) : '', ui('已完成的部分已保留')]);
+  if (status === 'cancelled') return joinMeta([ui('已停止'), ownCount ? uiFormat('停在 {0}', [ownCount]) : progress.total > 0 ? uiFormat('停在 {0}/{1}', [progress.done, progress.total]) : '',
+    keepsOf(job, 'cancel') === 'nothing' ? ui('没有保存任何结果') : ui('已完成的部分已保留')]);
   if (status === 'complete' && taskKindOf(job) === 'audio') {
     const { review, reusedWhole, corrected, uncertain } = contract.detail, sources = result.refs.filter((ref) => ref.kind === 'source').length;
     if (review) return uiFormat('复核完成：改进正稿 {0} 处 · 判定原文无误 {1} 处 · 仍拿不准 {2} 处', [review.applied, review.rejected, review.unsure]);
@@ -42,7 +44,9 @@ export function cardLine(job) {
   }
   if (status === 'complete') {
     const sources = result.refs.filter((ref) => ref.kind === 'source').length;
-    return joinMeta([sources ? uiFormat('已存为 {0} 份资料', [sources]) : result.refs.some((ref) => ref.kind === 'draft') ? ui('草稿已生成') : ui('已完成'),
+    // A 考点清单 is not course material: its own words, not a count of sources.
+    return joinMeta([sources ? uiFormat('已存为 {0} 份资料', [sources]) : result.refs.some((ref) => ref.kind === 'exam-point-list') ? ui('已保存考点清单')
+      : result.refs.some((ref) => ref.kind === 'draft') ? ui('草稿已生成') : ui('已完成'),
       result.completeness === 'partial' ? ui('只完成了一部分') : '', ownCount || (progress.unit && progress.total > 0 ? uiFormat('{0}/{1} {2}', [progress.done, progress.total, ui(UNIT[progress.unit])]) : ''), noticed]);
   }
   const now = runningCalls(contract.calls).find((call) => call.kind !== 'wait');

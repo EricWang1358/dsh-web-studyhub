@@ -20,6 +20,7 @@ const RULES = [
   { root: 'lib/contexts/workflows/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/coach/jobs', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/generation/retrieval', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'] },
+  { root: 'lib/contexts/generation/blueprint', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
 ];
 const CJK = /[㐀-鿿]/;
 const repo = fileURLToPath(new URL('../', import.meta.url));
