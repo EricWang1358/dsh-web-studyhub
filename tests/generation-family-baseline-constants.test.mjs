@@ -15,7 +15,7 @@ import { MAX_SELECTED_CHARS, MAX_PLAN_TARGETS } from '../lib/batch.js';
 
 test('the bounds of a generation run have the values the baseline document lists', () => {
   assert.deepEqual({ fillRoundsOfARun: FILL_ROUNDS, repeatLimit: REPEAT_LIMIT, roundLimit: ROUND_LIMIT, goalMax: GOAL_QUESTIONS_MAX, reviewReasks: REVIEW_REASKS, callChars: CALL_CHARS, callTargets: CALL_TARGETS, planTargets: MAX_PLAN_TARGETS },
-    { fillRoundsOfARun: 2, repeatLimit: 2, roundLimit: 30, goalMax: 500, reviewReasks: 2, callChars: 60000, callTargets: 10, planTargets: 10 });
+    { fillRoundsOfARun: 5, repeatLimit: 4, roundLimit: 30, goalMax: 500, reviewReasks: 2, callChars: 60000, callTargets: 10, planTargets: 10 });
   assert.equal(GENERATION_TIMEOUT_MS, 10 * 60 * 1000, 'one model call');
   assert.equal(GENERATION_JOB_TIMEOUT_MS, 20 * 60 * 1000, 'a repair run, a selection fill (fixed), the default of a plain run');
   assert.ok(MAX_SELECTED_CHARS > 0);

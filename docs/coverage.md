@@ -89,7 +89,7 @@ Nothing is kept in a second store:
 | `autoComplete` is off | wait for the learner (`waiting`) |
 | the token budget the learner set is spent | stop: `budget`, at the boundary |
 | the next planned round has sections without a question | run it (a round whose sections were all covered meanwhile is `skipped`) |
-| every planned round is done and sections are still without a question | a **fill round** for them, at most `fillRounds` (2) of them per job; then stop: `sections-left` |
+| every planned round is done and sections are still without a question | a **fill round** for just those sections, and another while the last one gained a section: at most `FILL_ROUNDS` (5) of them per job, and a section is written again until it has failed `REPEAT_LIMIT` (4) times; then stop: `sections-left` |
 | a planned round covered no section that had none, after its own retries | the next step is a fill round when the plan has no planned round left (bounded); otherwise stop: `no-progress` (how many sections are left, and the cause as a code); a fill round that gains nothing stops the same way |
 | the learner stopped it (停在这里 = cancel) | stop: `learner`; everything approved is kept, the round in flight is marked `failed` (`cancelled`) |
 | a refused key or no credit | stop: `refused` (typed: `credential` / `quota`), and the job is retryable from its next round; a round that failed otherwise and covered nothing is `no-progress`; a first round that left no draft fails the job as it always did |
@@ -201,7 +201,7 @@ The failure is typed (`stop.code`, `round.code`: `lib/generation-failure.js`, `c
 - A **planned** round that covers nothing no longer ends the run while a bounded fill round can still write the sections that did not come out again (the last planned round with sections left, say): the run is `no-progress` only when the round that gained nothing is followed by another planned round, or is itself a fill round. Every loop stays bounded (`FILL_ROUNDS`).
 - The stop says how many sections are left and what to do: 「第 9 轮重试后仍没有补到新的小节，为免一直重复，已经停下；还有 18 个小节没有题，可以点「为没覆盖的部分补题」再试。」
 - `plan-short` blames the model, not the section: 「模型给出的考点不够数」.
-- A section a round was asked for that still has no question has failed one more time: `editorial.coverageSpec.attempts = { [section key]: { n, reason, round } }`. From `REPEAT_LIMIT` (2: its planned round and one fill round) an automatic fill round no longer writes it again (a permanently failing review, say, would otherwise cost the same tokens every time); it is listed under 「这几个小节反复失败」 with its reason on the draft page and the console, and the default top-up round puts such sections last. A manual press may still try it.
+- A section a round was asked for that still has no question has failed one more time: `editorial.coverageSpec.attempts = { [section key]: { n, reason, round } }`. From `REPEAT_LIMIT` (4: its planned round and three fill rounds) an automatic fill round no longer writes it again (a permanently failing review, say, would otherwise cost the same tokens every time); it is listed under 「这几个小节反复失败」 with its reason on the draft page and the console, and the default top-up round puts such sections last. A manual press may still try it. From `REPLAN_AFTER` (2) the next try, automatic or by press, plans the section anew from its text instead of writing the target it failed with again (`needsReplan`, `topUpRound`).
 
 ### Words: 小节 and 批次
 

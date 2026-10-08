@@ -8,7 +8,7 @@ import { generateBatched } from '../lib/batch.js';
 import { parseJson } from '../lib/generation.js';
 import { coverageOf, sectionKey } from '../lib/coverage.js';
 import { sectionsOf } from '../lib/sections.js';
-import { roundList, uncreditedOf } from '../lib/coverage-run.js';
+import { roundList, uncreditedOf, REPEAT_LIMIT, REPLAN_AFTER } from '../lib/coverage-run.js';
 import { planRound, roundRequest } from '../lib/coverage-round.js';
 import { classifyFailure } from '../lib/generation-failure.js';
 import { settleJob } from './helpers/wait.mjs';
@@ -207,12 +207,13 @@ test('a retry round that covers nothing is not repeated: the run stops after the
   assert.equal(fills.length, 1, 'one retry round ran and covered nothing: it is not run a second time');
   assert.equal(fills[0].covered, 0);
   assert.ok(refused >= 2, 'the section was asked for in its round and again in the retry');
-  assert.equal(draft.editorial.coverageRun.stop.reason, 'sections-left');
-  assert.deepEqual(Object.values(draft.editorial.coverageSpec.attempts).map(item => item.n), [2], 'the one section that failed was tried twice, not more');
+  assert.equal(draft.editorial.coverageRun.stop.reason, 'no-progress');
+  assert.deepEqual(Object.values(draft.editorial.coverageSpec.attempts).map(item => item.n), [1 + fills.length], 'the one section that failed was tried in its planned round and in the one retry, not more');
+  assert.ok(1 + fills.length < REPEAT_LIMIT, 'it stopped for lack of progress, with attempts to spare');
 });
 
-test('the learner presses 为没覆盖的部分补题 for sections that failed again and again: the round plans them anew instead of writing the same failed targets a third time', async (t) => {
-  // The review fails every batch that holds a question about section 10 (an issue no question owns): its batch is lost, in the planned round and in the retry that writes them again.
+test('the learner presses 为没覆盖的部分补题 for sections that failed again and again: the round plans them anew instead of writing the same failed targets once more', async (t) => {
+  // The review fails every batch that holds a question about section 10 (an issue no question owns): its batch is lost, in the planned round, in the retry that writes them again and in the press that plans them anew.
   const base = repeatingModel({ quoteNth: 1 }), counts = { plans: 0 };
   const model = { complete: async (system, prompt, context = {}) => {
     if (system.startsWith('Plan a source-grounded assessment')) counts.plans++;
@@ -223,17 +224,19 @@ test('the learner presses 为没覆盖的部分补题 for sections that failed a
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', kind: 'quiz', performance: { concurrency: 1, batchSize: 2, fillRounds: 0 } });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
-  let draft = (await service.call('export')).drafts[0];
+  const read = async () => { const current = (await service.call('export')).drafts[0]; return { draft: current, view: await service.call('coverage.get', { draftId: current.id }) }; };
+  let { draft, view } = await read();
   const fills = roundList(draft.editorial.coverageSpec).filter(round => round.fill);
-  assert.equal(fills.length, 1, 'one automatic retry (it wrote the failed targets again), then the run stopped');
-  const view = await service.call('coverage.get', { draftId: draft.id });
+  assert.equal(fills.length, 1, 'one automatic retry (it wrote the failed targets again), covered nothing, and the run stopped');
+  const attempts = Object.values(draft.editorial.coverageSpec.attempts || {}).map(item => item.n);
+  assert.ok(attempts.length && attempts.every(n => n >= REPLAN_AFTER && n < REPEAT_LIMIT), 'the sections failed in their planned round and in the retry: enough to plan them anew, not yet enough to be given up');
   assert.ok(view.round.sections >= 1);
-  assert.equal(view.round.reused, 0, 'the button plans them anew: no failed target is written again');
+  assert.equal(view.round.reused, 0, 'after REPLAN_AFTER failed attempts the button plans them anew: no failed target is written again');
   assert.ok(view.round.picks.every(pick => pick.reuse === 0));
   const before = counts.plans;
   const next = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: view.round.picks.map(pick => pick.key) } });
   await settleJob(service, next.jobId);
   assert.ok(counts.plans > before, 'the planner was asked again for those sections');
-  draft = (await service.call('export')).drafts[0];
+  ({ draft } = await read());
   assert.ok(draft.editorial.coverageSpec.rounds.length >= 3);
 });

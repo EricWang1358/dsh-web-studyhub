@@ -4,14 +4,15 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { roundList } from '../lib/coverage-run.js';
+import { roundList, REPEAT_LIMIT, FILL_ROUNDS } from '../lib/coverage-run.js';
 import { shortfallOf } from '../lib/shortfall.js';
 import { settleJob } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
+import { stuckRun, refusePlannerUntilFill } from './helpers/staggered-refusals.mjs';
 
 /* The honest states of a coverage run (the evaluation of 2026-10-06): D-15 a last planned round that covers nothing does not end the run before its bounded fill rounds, and the stop
-   says how many sections are left; D-16 a section that fails again and again is remembered on the plan and left to the learner after one more try; D-5 a refused key is one plain
+   says how many sections are left; D-16 a section that fails again and again is remembered on the plan and left to the learner (after REPEAT_LIMIT tries; sooner when a retry round gains no section at all); D-5 a refused key is one plain
    typed cause, and the run can be continued once the key is fixed; D-1 a stopped run is never 100%. Fake models only; the round size is injected (a run is a few seconds). */
 
 const world = mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 });
@@ -69,7 +70,7 @@ test('D-15: a planned round that covers nothing, with another planned round behi
   assert.ok(contract.progress.percent < 100, `a stopped run is not 100% (${contract.progress.percent})`);
 });
 
-test('D-16: a section whose review fails again and again is retried by ONE fill round, remembered on the plan with its reason, and left to the learner', async (t) => {
+test('D-16: a section whose review fails every time is retried by ONE fill round, which gains nothing and ends the run; the plan remembers it with its reason and the learner is offered the top-up', async (t) => {
   let broken = 0;
   const wrap = complete => async (system, prompt, context = {}) => {
     if (system.startsWith(REVIEW) && JSON.parse(prompt).candidate.cards.some(card => card.citations.some(citation => /Recording 1, part 2, point/.test(citation.quote)))) { broken += 1; return '{"issues":'; }
@@ -81,17 +82,57 @@ test('D-16: a section whose review fails again and again is retried by ONE fill 
   assert.equal(job.status, 'complete', job.stage);
   const draft = await draftOf(service), spec = draft.editorial.coverageSpec, run = draft.editorial.coverageRun;
   const fills = roundList(spec).filter(round => round.fill);
-  assert.equal(fills.length, 1, 'the planned round and one fill round tried it; a second fill round would only repeat it');
+  assert.equal(fills.length, 1, 'the planned round and one fill round tried it; the fill round gained no section, so a second one would only repeat it');
   const view = await service.call('coverage.get', { draftId: draft.id });
   const open = view.coverage.sections.filter(item => item.state !== 'covered');
   assert.ok(open.length > 0, 'the sections whose review never comes back are still without a question');
-  for (const section of open) assert.deepEqual(spec.attempts[section.key], { n: 2, reason: 'review-protocol', round: fills[0].round, rounds: [{ round: spec.attempts[section.key].rounds[0].round }, { round: fills[0].round, fill: true }] }, `${section.key}: two failed attempts, typed, with the rounds they were made in, on the plan`);
+  for (const section of open) assert.deepEqual(spec.attempts[section.key], { n: 1 + fills.length, reason: 'review-protocol', round: fills[0].round, rounds: [{ round: spec.attempts[section.key].rounds[0].round }, { round: fills[0].round, fill: true }] }, `${section.key}: the planned round and the retry, typed, with the rounds they were made in, on the plan`);
+  assert.ok(1 + fills.length < REPEAT_LIMIT, 'the run ended with attempts to spare: the retry gained nothing');
   assert.equal(run.state, 'stopped');
-  assert.equal(run.stop.reason, 'sections-left');
+  assert.equal(run.stop.reason, 'no-progress');
   assert.equal(run.stop.left, open.length);
   const found = shortfallOf({ draft, coverage: view.coverage, round: view.round });
-  assert.deepEqual(found.repeating.map(item => [item.key, item.reason, item.attempts]), open.map(section => [section.key, 'review-protocol', 2]));
   assert.equal(found.state, 'stopped');
+  assert.equal(found.reason, 'no-progress');
+  assert.equal(found.action, 'topup', 'left to the learner: the one action offered is 为没覆盖的部分补题');
+  assert.equal(found.sectionsUncovered, open.length);
+  assert.ok(broken > 0);
+});
+
+test('D-16: a section whose review never comes back usable is written again by every fill round that still gains a section, until it has REPEAT_LIMIT failed attempts; then it is listed with its reason and left to the learner', async (t) => {
+  // The owner's report (「自动补到完整」 ticked, 92%): the stuck section is part REPEAT_LIMIT + 1; the helpers before it come out one fill round later each (tests/helpers/staggered-refusals.mjs), so every fill round gains a section
+  // and the run goes on. Small batches (2 questions): the review of the stuck section's batch must not take a helper's question with it.
+  const { stuck, freeFrom } = stuckRun();
+  let broken = 0;
+  const reviewBroken = new RegExp(`Recording 1, part ${stuck}, point`);
+  const wrap = (complete, service) => refusePlannerUntilFill(freeFrom)(async (system, prompt, context = {}) => {
+    if (system.startsWith(REVIEW) && JSON.parse(prompt).candidate.cards.some(card => card.citations.some(citation => reviewBroken.test(citation.quote)))) { broken += 1; return '{"issues":'; }
+    return complete(system, prompt, context);
+  }, service);
+  const { service, ids } = await library(t, { wrap });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz', performance: { batchSize: 2 } });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  const draft = await draftOf(service), spec = draft.editorial.coverageSpec, run = draft.editorial.coverageRun;
+  const fills = roundList(spec).filter(round => round.fill);
+  assert.equal(fills.length, REPEAT_LIMIT - 1, 'the planned round and REPEAT_LIMIT - 1 fill rounds: the run went on while each fill round gained a section');
+  assert.ok(fills.length <= FILL_ROUNDS);
+  assert.ok(fills.every(round => round.covered >= 1), 'every fill round gained at least one section');
+  const view = await service.call('coverage.get', { draftId: draft.id });
+  const open = view.coverage.sections.filter(item => item.state !== 'covered');
+  assert.equal(open.length, 1, 'only the stuck section has no question');
+  assert.ok(open[0].key.endsWith(`.p${stuck}`), open[0].key);
+  const record = spec.attempts[open[0].key];
+  assert.deepEqual(record, { n: REPEAT_LIMIT, reason: 'review-protocol', round: fills.at(-1).round, rounds: [{ round: record.rounds[0].round }, ...fills.map(round => ({ round: round.round, fill: true }))] }, 'REPEAT_LIMIT failed attempts, typed, with the rounds they were made in');
+  assert.ok(Object.values(spec.attempts).every(item => item.n <= REPEAT_LIMIT), 'no section was tried more often than REPEAT_LIMIT');
+  assert.equal(run.state, 'stopped');
+  assert.equal(run.stop.reason, 'sections-left');
+  assert.equal(run.stop.left, 1);
+  const found = shortfallOf({ draft, coverage: view.coverage, round: view.round });
+  assert.deepEqual(found.repeating.map(item => [item.key, item.reason, item.attempts]), [[open[0].key, 'review-protocol', REPEAT_LIMIT]], 'listed as failing again and again');
+  assert.equal(found.state, 'stopped');
+  assert.equal(found.reason, 'sections-left');
+  assert.equal(found.action, 'topup');
   assert.ok(broken > 0);
 });
 

@@ -6,10 +6,11 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { jobContract } from '../lib/job-contract.js';
-import { roundList } from '../lib/coverage-run.js';
+import { roundList, FILL_ROUNDS, REPEAT_LIMIT } from '../lib/coverage-run.js';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
+import { stuckRun, refusePlannerUntilFill } from './helpers/staggered-refusals.mjs';
 
 /* The EXECUTOR of a coverage run (phase 3b): the rounds of the plan one after another on the same draft, each round the coverage top-up (the enforced assignments, at most one round of questions),
    the draft as the checkpoint (editorial.coverageSpec.rounds[i].status and editorial.coverageRun), pause between rounds, resume, restart, the stop conditions and their true reasons.
@@ -196,11 +197,72 @@ test('a section that failed after its retries is retried by a fill round, at mos
   const draft = await draftOf(service), rounds = roundList(draft.editorial.coverageSpec);
   assert.equal(refused, 3);
   assert.ok(rounds.some(round => round.fill), 'a fill round was appended');
-  assert.ok(rounds.filter(round => round.fill).length <= 2, 'bounded');
+  assert.ok(rounds.filter(round => round.fill).length <= FILL_ROUNDS, 'bounded');
   assert.ok(rounds.every(round => round.status === 'done'));
   assert.equal(draft.editorial.coverageRun.state, 'complete');
   const view = await service.call('coverage.get', { draftId: draft.id });
   assert.equal(view.coverage.covered, view.coverage.leaves);
+});
+
+test('自动补到完整 goes on while a fill round gains a section: a section that failed its planned round AND the first fill round is written by the NEXT fill round (2 fill rounds and 2 attempts, the old limits, stopped at 92% with sections-left)', async (t) => {
+  let refused = 0;
+  // The test above, with twice the refusals: three sections fail the planned round; the first fill round gets two of them and fails the third (two more refusals); the second fill round writes that one.
+  // (11 of the 12 sections is the 92% of the owner's report.)
+  const model = clusteringModel({ refuse: request => { const single = request.assignments?.length === 1 && request.assignments[0].quota === 2; if (single && refused < 6) { refused += 1; return true; } return false; } });
+  const { service, ids } = await library(t, { model, coverage: { roundLimit: 12 } });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  const draft = await draftOf(service), spec = draft.editorial.coverageSpec, rounds = roundList(spec), fills = rounds.filter(round => round.fill);
+  assert.equal(draft.editorial.coverageRun.stop.reason, 'complete', 'the run did not stop with a section left');
+  assert.equal(draft.editorial.coverageRun.state, 'complete');
+  assert.equal(refused, 6);
+  assert.equal(fills.length, 2, 'the second fill round was run');
+  assert.ok(rounds.every(round => round.status === 'done'), statuses(draft).join(', '));
+  const view = await service.call('coverage.get', { draftId: draft.id });
+  assert.equal(view.coverage.covered, view.coverage.leaves, 'every section has a question');
+  const twice = Object.entries(spec.attempts).filter(([, record]) => record.n === 2);
+  assert.equal(twice.length, 1, 'one section failed its planned round and the first fill round');
+  assert.deepEqual(twice[0][1].rounds.map(item => !!item.fill), [false, true]);
+  assert.deepEqual(fills[1].sectionIds, [twice[0][0]], 'the second fill round was asked for exactly that section');
+  assert.ok(twice[0][1].n < REPEAT_LIMIT, 'two failed attempts are below the limit after which a run leaves a section to the learner');
+});
+
+test('the bounds hold: a section that never comes out is asked for by its planned round and REPEAT_LIMIT - 1 fill rounds, no more; the run then stops with sections-left', async (t) => {
+  // The planner refuses the stuck section every time; the helpers before it come out one fill round later each (tests/helpers/staggered-refusals.mjs), so every fill round gains a section and the run goes on.
+  const { stuck, freeFrom } = stuckRun();
+  const { service, ids } = await library(t, { wrap: refusePlannerUntilFill({ ...freeFrom, [stuck]: Infinity }), coverage: { roundLimit: 12 } });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  const draft = await draftOf(service), spec = draft.editorial.coverageSpec, run = draft.editorial.coverageRun, fills = roundList(spec).filter(round => round.fill);
+  assert.ok(fills.length <= FILL_ROUNDS, 'bounded');
+  assert.equal(fills.length, REPEAT_LIMIT - 1, 'each fill round gained a section, so the run went on until the stuck section had REPEAT_LIMIT failed attempts');
+  assert.ok(fills.every(round => round.covered >= 1));
+  assert.ok(Object.values(spec.attempts).every(record => record.n <= REPEAT_LIMIT), 'no section was asked for more than REPEAT_LIMIT times');
+  const key = Object.keys(spec.attempts).find(name => name.endsWith(`.p${stuck}`));
+  assert.equal(spec.attempts[key].n, REPEAT_LIMIT);
+  assert.equal(run.state, 'stopped');
+  assert.equal(run.stop.reason, 'sections-left');
+  assert.equal(run.stop.left, 1);
+  const view = await service.call('coverage.get', { draftId: draft.id });
+  assert.equal(view.coverage.covered, view.coverage.leaves - 1, 'the other sections have a question');
+});
+
+test('a section refused every time ends the run within the bounds: the fill round that gains nothing stops it (no-progress), and no section has more than REPEAT_LIMIT attempts', async (t) => {
+  // Whenever the planner is asked alone for one of the sections of the first round (the quota of the first assignments fills a call of 10) it refuses; a fill round wins what a group ask plans, and the round that wins nothing ends the run.
+  const model = clusteringModel({ refuse: request => request.assignments?.length === 1 && request.assignments[0].quota === 2 });
+  const { service, ids } = await library(t, { model, coverage: { roundLimit: 12 } });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  const draft = await draftOf(service), spec = draft.editorial.coverageSpec, run = draft.editorial.coverageRun, fills = roundList(spec).filter(round => round.fill);
+  assert.ok(fills.length >= 1 && fills.length <= FILL_ROUNDS, `${fills.length} fill rounds`);
+  assert.ok(['no-progress', 'sections-left'].includes(run.stop.reason), run.stop.reason);
+  assert.ok(Object.values(spec.attempts).every(record => record.n <= REPEAT_LIMIT), 'no section was asked for more than REPEAT_LIMIT times');
+  const view = await service.call('coverage.get', { draftId: draft.id });
+  assert.ok(view.coverage.covered < view.coverage.leaves, 'the refused section has no question');
+  assert.equal(run.stop.left, view.coverage.leaves - view.coverage.covered);
 });
 
 test('a token budget the learner set stops the run at a round boundary and says so; the rest is one press away', async (t) => {

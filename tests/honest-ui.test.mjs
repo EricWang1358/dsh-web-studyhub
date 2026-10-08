@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { draftView, seedView } from './helpers/coverage-view.mjs';
+import { REPEAT_LIMIT } from '../lib/coverage-run.js';
 
 /* The honest states on screen (the evaluation of 2026-10-06, D-1 D-2 D-5 D-6 D-10 D-12 D-16 and the default of 精简): the home banner, the 待发布 row, the 任务 console and the draft page tell ONE story
    about a draft that is short, stopped, refused, interrupted or paused: the same questions, the same sections, the same next round, the same ONE action; no screen says 100% while questions are
@@ -228,12 +229,12 @@ test('the console says a generation batch in 批次 (the lane, the rows, the tab
 });
 
 test('the sections that keep failing are listed with their reason, and a run does not try them by itself (D-16)', () => {
-  const attempts = { 'audio#a1': { n: 2, reason: 'review-protocol', round: 11 } };
+  const attempts = { 'audio#a1': { n: REPEAT_LIMIT, reason: 'review-protocol', round: 11 } };
   const draft = draftOf({ marker: stopped({}), over: { attempts } });
   const found = m.shortfallOf({ draft, coverage: { ...view.coverage, sections: view.coverage.sections.map((section, index) => (index === view.coverage.sections.findIndex(item => item.state !== 'covered') ? { ...section, key: 'audio#a1' } : section)) }, round: view.round });
   assert.equal(found.repeating.length, 1);
   const line = m.copy.repeatingLine(found);
-  assert.match(line, /^这几个小节反复失败：.*（审阅回复格式不对，重新审阅后仍不行 · 已试 2 次）$/);
+  assert.match(line, new RegExp(`^这几个小节反复失败：.*（审阅回复格式不对，重新审阅后仍不行 · 已试 ${REPEAT_LIMIT} 次）$`));
   assert.equal(m.copy.repeatingHead(3), '这几个小节反复失败 · 3');
   assert.match(m.copy.repeatingNote(), /不再重试/);
   inLanguage('en', () => assert.match(m.copy.repeatingLine(found), /^Sections that keep failing: .*stayed malformed/));

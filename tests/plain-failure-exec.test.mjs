@@ -9,7 +9,7 @@ import { planAssigned } from '../lib/assigned-plan.js';
 import { generateBatched } from '../lib/batch.js';
 import { shortCauseOf } from '../lib/generation-failure.js';
 import { sectionKey } from '../lib/coverage.js';
-import { roundList } from '../lib/coverage-run.js';
+import { roundList, REPEAT_LIMIT } from '../lib/coverage-run.js';
 import { settleJob } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
@@ -91,16 +91,17 @@ test('a run whose planner refuses one section: the plan keeps what it needed and
   const open = view.coverage.sections.filter(item => item.state !== 'covered');
   assert.ok(open.length > 0 && open.every(item => /预览段落 2/.test(item.title)), 'the sections the planner refuses have no question');
   const fills = roundList(spec).filter(round => round.fill);
-  assert.equal(fills.length, 1, 'one retry round');
+  assert.equal(fills.length, 1, 'one retry round: it covered nothing, so the run did not ask again');
   const tried = open.map(section => spec.attempts[section.key]);
   for (const attempt of tried) {
     assert.equal(attempt.reason, 'plan-short');
-    assert.equal(attempt.n, 2);
+    assert.equal(attempt.n, 1 + fills.length, 'the planned round and the one retry');
+    assert.ok(attempt.n < REPEAT_LIMIT, 'the run ended because the retry gained nothing, not because the section ran out of attempts');
     assert.deepEqual(attempt.rounds.map(item => !!item.fill), [false, true], 'tried in its planned round, then in the retry round');
     assert.ok(attempt.short.needed >= 1 && attempt.short.got < attempt.short.needed && attempt.short.chars > 0);
     assert.equal(attempt.short.why, 'refused', 'the model said the section does not support the points');
   }
-  assert.equal(run.stop.reason, 'sections-left');
+  assert.equal(run.stop.reason, 'no-progress', 'a retry round that gains no section ends the run');
   assert.deepEqual(run.stop.fills, fills.map(round => round.round), 'the stop says which retry rounds were made');
   assert.equal(run.stop.left, open.length);
   assert.ok(run.stop.unit === 'part' && run.stop.names.length === open.length, 'and names the sections that are left');
@@ -121,8 +122,8 @@ test('a run whose planner refuses one section: the plan keeps what it needed and
 
 test('a draft written before the numbers were kept reads as it did: no short, no rounds, nothing invented', async () => {
   const { shortfallOf } = await import('../lib/shortfall.js');
-  const draft = { cards: [{ id: 'c' }], editorial: { requested: 4, coverageSpec: { version: 1, level: 'standard', goal: 4, quotas: [], rounds: [{ round: 1, questions: 4, sectionIds: ['s#a'], status: 'done' }], attempts: { 's#a': { n: 2, reason: 'plan-short', round: 2 } } } } };
+  const draft = { cards: [{ id: 'c' }], editorial: { requested: 4, coverageSpec: { version: 1, level: 'standard', goal: 4, quotas: [], rounds: [{ round: 1, questions: 4, sectionIds: ['s#a'], status: 'done' }], attempts: { 's#a': { n: REPEAT_LIMIT, reason: 'plan-short', round: REPEAT_LIMIT } } } } };
   const coverage = { leaves: 1, covered: 0, percentLeaves: 0, units: 'page', sections: [{ key: 's#a', id: 'a', title: '', page: 18, state: 'planned-failed' }] };
   const found = shortfallOf({ draft, coverage });
-  assert.deepEqual(found.repeating.map(item => [item.key, item.reason, item.attempts, item.short, item.rounds]), [['s#a', 'plan-short', 2, undefined, undefined]]);
+  assert.deepEqual(found.repeating.map(item => [item.key, item.reason, item.attempts, item.short, item.rounds]), [['s#a', 'plan-short', REPEAT_LIMIT, undefined, undefined]]);
 });

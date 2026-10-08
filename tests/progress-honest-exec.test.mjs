@@ -74,7 +74,9 @@ test('the end of a coverage run is written in the log when it happened; the savi
   const codes = contract.events.map(event => event.code);
   const stop = contract.events.find(event => event.code === 'run-stop'), closing = contract.events.find(event => event.code === 'run-closing'), closed = contract.events.find(event => event.code === 'run-closed');
   const ended = contract.events.find(event => event.code === 'status' && event.args.status === 'complete');
-  assert.equal(stop.args.reason, 'sections-left');
+  // The planner refuses one section every time it is shown it: the retry round covers nothing, so the run ends with sections left (no-progress; sections-left when the section reached REPEAT_LIMIT first).
+  assert.ok(['no-progress', 'sections-left'].includes(stop.args.reason), stop.args.reason);
+  assert.ok(stop.args.left > 0, 'and it ended with sections left');
   assert.ok(closing && closed && ended, `the saving and the end are lines of the log (${codes.join(', ')})`);
   assert.equal(closing.args.cards, job.savedCount);
   const at = event => Date.parse(event.at);
