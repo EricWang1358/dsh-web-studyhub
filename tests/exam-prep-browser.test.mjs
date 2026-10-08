@@ -20,19 +20,22 @@ import { library, pointList } from './helpers/exam-prep-fixtures.mjs';
 
 const SHOTS = process.env.EXAM_PREP_SHOTS || '';
 
-async function seed(root) {
+async function seed(root, { off = false } = {}) {
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
   await service.call('snapshot');
-  await service.store.update(state => { state.sources.push(...structuredClone(library()), structuredClone(pointList({ orphan: true, many: 40 }))); });
+  await service.store.update(state => {
+    state.sources.push(...structuredClone(library()), structuredClone(pointList({ orphan: true, many: 40 })));
+    if (off) state.settings.examPrep = { enabled: false }; // the learner turned the page off in Settings
+  });
   service.dispose?.();
 }
 
-async function start(distDir, pilot) {
+async function start(distDir, pilot, options) {
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), 'study-exam-prep-'));
   const root = join(base, 'library');
-  await seed(root);
+  await seed(root, options);
   const server = await createPreviewServer({ libraryRoot: root, home: join(base, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir, runtimePilot: pilot });
   return { server, base, close: async () => { await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 }); } };
 }
@@ -47,21 +50,39 @@ async function openApp(browser, running, { lang = 'zh', width = 1280, height = 9
 const overflow = page => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 
-test('with the host switch off the page has no sidebar entry; on, it lists, opens, explains itself and builds, at 1280 and 420 px', { timeout: 900000 }, async t => {
+test('turned off in Settings the page has no sidebar entry and one switch there brings it back; on, it lists, opens, explains itself and builds, at 1280 and 420 px', { timeout: 900000 }, async t => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-exam-prep-dist-'));
   await buildPreview({ outdir: dist });
   try {
-    // off: nothing
-    const off = await start(dist, null);
+    // on by default: no host switch is needed
+    const byDefault = await start(dist, null);
+    try {
+      const { page, context } = await openApp(browser, byDefault);
+      await page.locator('[data-tour="nav-examprep"]').first().waitFor({ state: 'attached', timeout: 30000 });
+      await context.close();
+    } finally { await byDefault.close(); }
+
+    // off (the learner turned it off): nothing in the sidebar, and the switch in Settings brings it back at once
+    const off = await start(dist, null, { off: true });
     try {
       const { page, context } = await openApp(browser, off);
       await page.locator('[data-tour="nav-sources"]').first().waitFor({ state: 'attached' });
-      assert.equal(await page.locator('[data-tour="nav-examprep"]').count(), 0, 'no sidebar entry while the switch is off');
+      assert.equal(await page.locator('[data-tour="nav-examprep"]').count(), 0, 'no sidebar entry while the learner has it off');
       await page.locator('[data-tour="nav-sources"]').first().dispatchEvent('click');
       await page.locator('.sources-page').waitFor({ timeout: 30000 });
       assert.match(await page.locator('.sources-page').innerText(), /传输层/, 'the slides are materials');
+      await page.locator('aside').getByText('设置', { exact: true }).first().click();
+      await page.getByText('工作区设置').first().waitFor({ timeout: 30000 });
+      await page.getByText('备考补习', { exact: true }).last().click();
+      const switchOn = page.getByLabel('开启备考补习');
+      await switchOn.waitFor({ timeout: 30000 });
+      assert.equal(await switchOn.isChecked(), false, 'the switch shows it is off');
+      await switchOn.click();
+      await page.locator('[data-tour="nav-examprep"]').first().waitFor({ state: 'attached', timeout: 30000 });
+      assert.equal(await switchOn.isChecked(), true);
+      await shot(page, 'settings-switch');
       await context.close();
     } finally { await off.close(); }
 
