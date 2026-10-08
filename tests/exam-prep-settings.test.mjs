@@ -10,7 +10,7 @@ import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { EXAM_PREP_DEFAULTS, EXAM_PREP_LIMITS, EXAM_PREP_LANGUAGES, checkPaperWord, mergeExamPrepSettings,
   normalizeExamPrepSettings, resolveExamPrepSettings, validateExamPrepPatch } from '../lib/exam-prep-settings.js';
 
-const expected = { autoRoles: true, paperWords: [], language: 'auto', showOtherCourses: false };
+const expected = { autoRoles: true, paperWords: [], language: 'auto', showOtherCourses: false, enabled: true };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-exam-prep-settings-'));
   const service = new StudyService(root);
@@ -42,7 +42,7 @@ test('normalize is lenient: a wrong value falls back to its default and valid si
   for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(normalizeExamPrepSettings(raw), expected);
   assert.deepEqual(normalizeExamPrepSettings({ autoRoles: 'yes', language: 'fr', showOtherCourses: 1, paperWords: 'mock', unknown: 1 }), expected);
   assert.deepEqual(normalizeExamPrepSettings({ autoRoles: false, language: 'zh', showOtherCourses: true, paperWords: ['mock'] }),
-    { autoRoles: false, paperWords: ['mock'], language: 'zh', showOtherCourses: true });
+    { autoRoles: false, paperWords: ['mock'], language: 'zh', showOtherCourses: true, enabled: true });
   assert.deepEqual(normalizeExamPrepSettings({ autoRoles: false, language: 'klingon' }), { ...expected, autoRoles: false });
 });
 
@@ -66,7 +66,7 @@ test('a patch is strict: it names known keys with valid values, and a refused pa
 test('merge keeps the saved siblings and applies the patch on top', () => {
   assert.deepEqual(mergeExamPrepSettings(undefined, { language: 'zh' }), { ...expected, language: 'zh' });
   assert.deepEqual(mergeExamPrepSettings({ language: 'en', paperWords: ['mock'] }, { autoRoles: false }),
-    { autoRoles: false, paperWords: ['mock'], language: 'en', showOtherCourses: false });
+    { autoRoles: false, paperWords: ['mock'], language: 'en', showOtherCourses: false, enabled: true });
   assert.throws(() => mergeExamPrepSettings({ language: 'en' }, { language: 'x' }));
 });
 
@@ -96,8 +96,8 @@ test('settings.examPrep.set merges per field into the saved settings and returns
   assert.deepEqual(await service.call('settings.examPrep.set', { patch: { language: 'en' } }), { ...expected, language: 'en' });
   assert.deepEqual(await service.call('settings.examPrep.set', { patch: { paperWords: [' mock ', 'Mock'] } }), { ...expected, language: 'en', paperWords: ['mock'] });
   assert.deepEqual(await service.call('settings.examPrep.set', { patch: { showOtherCourses: true, autoRoles: false } }),
-    { autoRoles: false, paperWords: ['mock'], language: 'en', showOtherCourses: true });
-  assert.deepEqual(await saved(service), { autoRoles: false, paperWords: ['mock'], language: 'en', showOtherCourses: true });
+    { autoRoles: false, paperWords: ['mock'], language: 'en', showOtherCourses: true, enabled: true });
+  assert.deepEqual(await saved(service), { autoRoles: false, paperWords: ['mock'], language: 'en', showOtherCourses: true, enabled: true });
   assert.deepEqual(await service.call('settings.examPrep.set', { patch: {} }), await saved(service), 'an empty patch changes nothing');
 });
 
@@ -135,6 +135,22 @@ test('settings.examPrep.reset forgets the saved choices: the defaults come back 
   assert.deepEqual(await service.call('settings.examPrep.set', { patch: { language: 'zh' } }), { ...expected, language: 'zh' }, 'and the next save starts from the defaults');
 });
 
+test('the page switch: on by default, the learner can turn it off, and forgetting the defaults keeps that choice', async t => {
+  const { service } = await library(t);
+  assert.equal(resolveExamPrepSettings(undefined).enabled, true, 'on unless the learner turned it off');
+  assert.equal((await service.call('settings.examPrep.set', { patch: { enabled: false } })).enabled, false);
+  assert.equal((await saved(service)).enabled, false);
+  await service.call('settings.examPrep.set', { patch: { language: 'en', paperWords: ['mock'] } });
+  const reset = await service.call('settings.examPrep.reset');
+  assert.deepEqual(reset, { ...expected, enabled: false }, 'the defaults come back, the switch stays off');
+  assert.equal((await saved(service)).enabled, false);
+  assert.equal((await saved(service)).language, 'auto');
+  await service.call('settings.examPrep.set', { patch: { enabled: true } });
+  await service.call('settings.examPrep.reset');
+  assert.equal(await saved(service), undefined, 'switched on, nothing is kept: the key leaves the library');
+  await assert.rejects(service.call('settings.examPrep.set', { patch: { enabled: 'yes' } }), /exam prep/i);
+});
+
 test('the generic settings action also merges an examPrep patch through the same checks', async t => {
   const { service } = await library(t);
   assert.equal((await service.call('settings', { examPrep: { language: 'en' } })).examPrep.language, 'en');
@@ -151,7 +167,7 @@ test('stored format: one optional key inside the library settings; no version mo
   const after = JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8'));
   assert.equal(after.version, LATEST_VERSION);
   assert.equal(after.version, before.version);
-  assert.deepEqual(after.settings.examPrep, { autoRoles: true, paperWords: ['mock'], language: 'en', showOtherCourses: false });
+  assert.deepEqual(after.settings.examPrep, { autoRoles: true, paperWords: ['mock'], language: 'en', showOtherCourses: false, enabled: true });
   const { examPrep, ...rest } = after.settings;
   assert.deepEqual(rest, before.settings, 'every other setting is as it was');
   assert.deepEqual(Object.keys(after).filter(key => !(key in before)), [], 'no top-level field was added');
@@ -173,7 +189,7 @@ test('backup and restore carry it like the other settings; a corrupt value falls
   const { service } = await library(t);
   await service.call('settings.examPrep.set', { patch: { language: 'en', paperWords: ['mock'], showOtherCourses: true } });
   const backup = await service.call('export');
-  assert.deepEqual(backup.settings.examPrep, { autoRoles: true, paperWords: ['mock'], language: 'en', showOtherCourses: true });
+  assert.deepEqual(backup.settings.examPrep, { autoRoles: true, paperWords: ['mock'], language: 'en', showOtherCourses: true, enabled: true });
   await service.call('settings.examPrep.reset');
   assert.equal(await saved(service), undefined);
   await service.call('restore', { state: backup });
@@ -181,7 +197,7 @@ test('backup and restore carry it like the other settings; a corrupt value falls
   const corrupt = JSON.parse(JSON.stringify(backup));
   corrupt.settings.examPrep = { autoRoles: 'x', language: 'zh', paperWords: ['ok', '', 5], showOtherCourses: 'y', extra: 1 };
   await service.call('restore', { state: corrupt });
-  assert.deepEqual(await saved(service), { autoRoles: true, paperWords: ['ok'], language: 'zh', showOtherCourses: false });
+  assert.deepEqual(await saved(service), { autoRoles: true, paperWords: ['ok'], language: 'zh', showOtherCourses: false, enabled: true });
   corrupt.settings.examPrep = 'garbage';
   await service.call('restore', { state: corrupt });
   assert.deepEqual(await saved(service), expected);

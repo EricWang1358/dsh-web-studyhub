@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shortfallOf, SHORTFALL_STATES } from '../lib/shortfall.js';
+import { shortfallOf, SHORTFALL_STATES, REPEAT_LIMIT } from '../lib/shortfall.js';
 
 /* D-2: ONE shortfall object for the home banner, the 待发布 row, the console and the draft page. Pure: a draft, the coverage view of it, the round a top-up would run now, and the job (if any). */
 
@@ -107,9 +107,10 @@ test('without the coverage view (it has not arrived) the questions are still sai
 });
 
 test('the sections that failed again and again are listed with their reason (D-16), and a run does not count them as a next round', () => {
-  const attempts = { [key(79)]: { n: 3, reason: 'review-protocol' }, [key(80)]: { n: 1, reason: 'quote' } };
+  // The limit is the border: a section at REPEAT_LIMIT failed attempts is listed, one attempt fewer is still written by the run.
+  const attempts = { [key(79)]: { n: REPEAT_LIMIT, reason: 'review-protocol' }, [key(80)]: { n: REPEAT_LIMIT - 1, reason: 'quote' } };
   const s = shortfallOf({ draft: draft({ marker: stopped({}), specOver: { attempts } }), coverage: coverageOf(81, 2, { 79: { state: 'planned-failed', reason: 'review-protocol' }, 80: { state: 'planned-failed', reason: 'quote' } }), round: round(2, 3, 0) });
-  assert.deepEqual(s.repeating.map(item => [item.key, item.reason, item.attempts, item.title]), [[key(79), 'review-protocol', 3, 'Section 79']]);
+  assert.deepEqual(s.repeating.map(item => [item.key, item.reason, item.attempts, item.title]), [[key(79), 'review-protocol', REPEAT_LIMIT, 'Section 79']]);
 });
 
 /* The owner's draft: a plain run (a count, no plan) that kept 13 of the 15 questions it was asked for, on a material with 94 sections that have no question. */

@@ -9,26 +9,36 @@ import { jobContract } from '../lib/job-contract.js';
 const spec = (over = {}) => ({ version: 1, level: 'standard', goal: 100, quotas: [], rounds: [{ round: 1, questions: 10, sectionIds: ['s#1', 's#2'], status: 'done' }], ...over });
 
 test('recordAttempts counts one more failed attempt per section, with the reason and the round; a section is repeating from REPEAT_LIMIT', () => {
-  assert.equal(REPEAT_LIMIT, 2);
+  assert.ok(Number.isInteger(REPEAT_LIMIT) && REPEAT_LIMIT >= 2, 'a section is asked for more than once before a run gives up on it');
   let next = recordAttempts(spec(), ['s#1', 's#2'], key => (key === 's#1' ? 'review-protocol' : 'quote'), 1);
   assert.deepEqual(next.attempts, { 's#1': { n: 1, reason: 'review-protocol', round: 1, rounds: [{ round: 1 }] }, 's#2': { n: 1, reason: 'quote', round: 1, rounds: [{ round: 1 }] } });
-  assert.equal(isRepeating(next, 's#1'), false);
-  next = recordAttempts(next, ['s#1'], () => 'review-protocol', 4);
-  assert.deepEqual(next.attempts['s#1'], { n: 2, reason: 'review-protocol', round: 4, rounds: [{ round: 1 }, { round: 4 }] });
-  assert.equal(isRepeating(next, 's#1'), true);
-  assert.equal(isRepeating(next, 's#2'), false);
+  // s#1 fails once more in each later round: it is repeating exactly when its attempts reach REPEAT_LIMIT, not one attempt before.
+  const tried = [{ round: 1 }];
+  for (let n = 2; n <= REPEAT_LIMIT; n += 1) {
+    assert.equal(isRepeating(next, 's#1'), false, `${n - 1} failed attempt(s) are fewer than REPEAT_LIMIT: the run still writes it`);
+    next = recordAttempts(next, ['s#1'], () => 'review-protocol', n + 2);
+    tried.push({ round: n + 2 });
+    assert.deepEqual(next.attempts['s#1'], { n, reason: 'review-protocol', round: n + 2, rounds: tried });
+  }
+  assert.equal(isRepeating(next, 's#1'), true, 'REPEAT_LIMIT failed attempts: the run stops trying it by itself');
+  assert.equal(isRepeating(next, 's#2'), false, 'a section with one failed attempt is not');
   assert.equal(isRepeating(spec(), 's#1'), false, 'a plan from before attempts were kept has none');
   assert.deepEqual(spec().attempts, undefined, 'recording never mutates the plan it was given');
 });
 
 test('a fill round writes again only the sections that have not failed again and again; when only those are left the run stops with sections-left and says how many', () => {
-  const planned = spec({ rounds: [{ round: 1, questions: 10, sectionIds: ['s#1', 's#2', 's#3'], status: 'done' }], attempts: { 's#2': { n: 2, reason: 'review-protocol', round: 2 } } });
+  const rounds = [{ round: 1, questions: 10, sectionIds: ['s#1', 's#2', 's#3'], status: 'done' }];
+  const planned = spec({ rounds, attempts: { 's#2': { n: REPEAT_LIMIT, reason: 'review-protocol', round: REPEAT_LIMIT } } });
   const uncovered = new Set(['s#2', 's#3']);
   const step = stepOf({ spec: planned, uncovered, run: { autoComplete: true, fillUsed: 0, tokensUsed: 0 } });
   assert.deepEqual([step.type, step.keys], ['fill', ['s#3']]);
   const only = stepOf({ spec: planned, uncovered: new Set(['s#2']), run: { autoComplete: true, fillUsed: 1, tokensUsed: 0 } });
   assert.deepEqual([only.type, only.reason, only.left], ['stop', 'sections-left', 1]);
   assert.equal(stepOf({ spec: planned, uncovered, run: { autoComplete: true, fillUsed: FILL_ROUNDS } }).reason, 'sections-left', 'the bound on fill rounds stays');
+  // One failed attempt fewer than the limit: the section is still written again (this is what 「自动补到完整」 asks for).
+  const almost = spec({ rounds, attempts: { 's#2': { n: REPEAT_LIMIT - 1, reason: 'review-protocol', round: REPEAT_LIMIT - 1 } } });
+  const again = stepOf({ spec: almost, uncovered, run: { autoComplete: true, fillUsed: 1, tokensUsed: 0 } });
+  assert.deepEqual([again.type, again.keys], ['fill', ['s#2', 's#3']]);
 });
 
 test('a round that failed keeps its cause as a code', () => {

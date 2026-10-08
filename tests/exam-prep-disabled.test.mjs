@@ -39,25 +39,25 @@ test('with the switch off, 备考补习 says so in its own words and does not bl
   const { html } = render('examprep', { features: { examBlueprint: false } });
   const words = text(html);
   assert.match(words, /备考补习还没有开启/);
-  assert.match(words, /由 DSH 开启/);
+  assert.match(words, /在设置里被关掉了/);
+  assert.doesNotMatch(words, /由 DSH 开启/);
   assert.match(words, /已保存的考点清单仍可阅读/);
   assert.doesNotMatch(words, /启用所需组件|此功能已停用/);
   assert.doesNotMatch(words, /蓝图|blueprint/i);
   assert.match(html, /role="status"/);
 });
 
-test('前往设置 opens the exam-prep section; 打开 DSH 插件管理器 appears only when the host has one', () => {
-  const without = render('examprep', { features: {} });
-  assert.match(text(without.html), /前往设置/);
-  assert.doesNotMatch(text(without.html), /插件管理器/);
-  const withHost = render('examprep', { features: { examBlueprint: false }, host: { openPluginManager: true } });
-  assert.match(text(withHost.html), /打开 DSH 插件管理器/);
-  const buttons = findAll(withHost.tree, node => typeof node.props.onClick === 'function');
-  assert.equal(buttons.length, 2);
-  buttons.find(node => node.props.children === '前往设置').props.onClick();
-  buttons.find(node => node.props.children === '打开 DSH 插件管理器').props.onClick();
-  assert.deepEqual(withHost.calls.settings, ['settings-exam-prep']);
-  assert.equal(withHost.calls.plugins, 1);
+test('前往设置 opens the exam-prep section, and no plugin manager is offered: the switch is not there', () => {
+  for (const host of [{}, { openPluginManager: true }]) {
+    const off = render('examprep', { features: { examBlueprint: false }, host });
+    assert.match(text(off.html), /前往设置/);
+    assert.doesNotMatch(text(off.html), /插件管理器/);
+    const buttons = findAll(off.tree, node => typeof node.props.onClick === 'function');
+    assert.equal(buttons.length, 1);
+    buttons[0].props.onClick();
+    assert.deepEqual(off.calls.settings, ['settings-exam-prep']);
+    assert.equal(off.calls.plugins, 0);
+  }
 });
 
 test('the off state is in English too, with no Chinese left over', () => {
@@ -66,8 +66,9 @@ test('the off state is in English too, with no Chinese left over', () => {
     const { html } = render('examprep', { features: {}, host: { openPluginManager: true } });
     const words = text(html);
     assert.match(words, /Exam prep is not turned on yet/);
+    assert.match(words, /Exam prep is turned off in Settings/);
     assert.match(words, /Go to settings/);
-    assert.match(words, /Open the DSH plugin manager/);
+    assert.doesNotMatch(words, /plugin manager/i);
     assert.doesNotMatch(words, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }
 });

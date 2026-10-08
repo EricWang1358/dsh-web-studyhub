@@ -44,34 +44,43 @@ test('备考补习 is a category of the once group with its own anchor, gated by
 
 const pane = (props = {}) => renderToStaticMarkup(h(ssr.ExamPrepPane, { data: { settings: {}, features: { examBlueprint: true } }, busy: false, act: noop, ...props }));
 
-test('with the page on: one line says so, and there is no plugin manager button', () => {
+test('the page is on by default: one switch is on, one line says so, and no text sends the learner to the plugin manager', () => {
   ssr.setUiLanguage('zh');
   const html = pane({ host: { openPluginManager: noop } });
   assert.match(html, /data-tour="settings-exam-prep"/);
-  assert.match(words(html), /备考补习已经开启/);
+  assert.match(input(html, 'enabled'), /checked/);
+  assert.match(words(html), /开启备考补习/);
+  assert.match(words(html), /可以去「备考补习」页新建考点清单/);
   assert.doesNotMatch(words(html), /插件管理器|还没有开启/);
+  assert.match(words(html), /runtime\.pilot\.examBlueprint/, 'the host switch is named once, as a hint for deployments');
 });
 
-test('with the page off the pane is still there: it says whose switch it is and names it, and offers the plugin manager only when the host has one', () => {
+test('turned off by the learner: the switch shows it, the defaults are still there, and nothing says to ask DSH', () => {
   ssr.setUiLanguage('zh');
-  for (const data of [{ settings: {}, features: { examBlueprint: false } }, { settings: {} }, { settings: {}, features: { examBlueprint: 'true' } }]) {
-    const text = words(pane({ data, host: { openPluginManager: noop } }));
-    assert.match(text, /备考补习还没有开启/);
-    assert.match(text, /由 DSH 管理，不在这里切换/);
-    assert.match(text, /runtime/);
-    assert.match(text, /examBlueprint/);
-    assert.match(text, /打开 DSH 插件管理器/);
-    assert.match(text, /自动识别资料用途/, 'the defaults can be set while the page is off');
-  }
-  assert.doesNotMatch(words(pane({ data: { settings: {}, features: {} } })), /打开 DSH 插件管理器/);
-  assert.doesNotMatch(words(pane({ data: { settings: {}, features: {} }, host: {} })), /打开 DSH 插件管理器/);
+  const html = pane({ data: { settings: { examPrep: { enabled: false } }, features: { examBlueprint: false } }, host: { openPluginManager: noop } });
+  assert.doesNotMatch(input(html, 'enabled'), /checked/);
+  assert.doesNotMatch(words(html), /已开启|插件管理器/);
+  assert.match(words(html), /自动识别资料用途/, 'the defaults can be set while the page is off');
 });
 
-test('the plugin manager button opens the host plugin manager', () => {
-  let opened = 0;
-  const status = ssr.ExamPrepStatus({ enabled: false, host: { openPluginManager: () => { opened++; } } });
-  status.props.action.onClick();
-  assert.equal(opened, 1);
+test('forced on by the host configuration: the pane says so and has no switch to flip', () => {
+  ssr.setUiLanguage('zh');
+  const html = pane({ data: { settings: { examPrep: { enabled: false } }, features: { examBlueprint: true, examBlueprintByHost: true } } });
+  assert.match(words(html), /已经由 DSH 的配置开启/);
+  assert.equal(input(html, 'enabled'), '');
+  assert.match(words(html), /自动识别资料用途/);
+});
+
+test('the page switch saves at once like the others, and 恢复默认 does not turn the page back on', async () => {
+  const { view, calls } = paneView();
+  const status = () => find(view.render(), node => node.type === live.ExamPrepStatus).props;
+  assert.equal(status().checked, true, 'on by default');
+  await status().onChange(false);
+  assert.deepEqual(calls[0].slice(0, 2), ['settings.examPrep.set', { patch: { enabled: false } }]);
+  assert.equal(status().checked, false);
+  await button(view, '恢复默认').props.onClick();
+  assert.equal(calls.at(-1)[0], 'settings.examPrep.reset');
+  assert.equal(status().checked, false, 'the switch is not a personal default');
 });
 
 test('nothing saved: the four defaults show as the contract says, the built-in words are read-only, and there is nothing to reset', () => {
@@ -112,7 +121,8 @@ test('English: every word of the pane is translated, off and on, and no learner 
   ssr.setUiLanguage('en');
   try {
     const saved = { examPrep: { paperWords: ['mock'], language: 'zh' } };
-    for (const data of [{ settings: {}, features: { examBlueprint: false } }, { settings: saved, features: { examBlueprint: true } }]) {
+    for (const data of [{ settings: { examPrep: { enabled: false } }, features: { examBlueprint: false } }, { settings: saved, features: { examBlueprint: true } },
+      { settings: {}, features: { examBlueprint: true, examBlueprintByHost: true } }]) {
       const html = pane({ data, host: { openPluginManager: noop } });
       assert.doesNotMatch(words(html), han);
       assert.doesNotMatch(words(html).replace(/examBlueprint/g, ''), /blueprint/i);

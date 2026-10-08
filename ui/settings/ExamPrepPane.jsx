@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiIsEnglish, errorMessage } from '../i18n.js';
-import { Badge, Button, Chip, Field, Hint, InlineMessage, Select, SettingsSection, Switch, TextInput, useToast } from '../components/index.js';
+import { Badge, Button, Chip, Field, Hint, Select, SettingsSection, Switch, TextInput, useToast } from '../components/index.js';
 import { EXAM_PREP_DEFAULTS, EXAM_PREP_LIMITS, checkPaperWord, resolveExamPrepSettings } from '../../lib/exam-prep-settings.js';
 import { PAPER_WORDS } from '../../lib/exam-prep-roles.js';
 
-/* 设置 › 备考补习: whether the page is on (the host's switch, read from the snapshot), and the learner's personal defaults for the create form.
+/* 设置 › 备考补习: the switch that turns the page on (the learner's own; the host's runtime.pilot.examBlueprint also turns it on), and the learner's personal defaults for the create form.
    Each control saves at once (settings.examPrep.set); 恢复默认 forgets the saved choices (settings.examPrep.reset). The pane works with the page off. */
 const { max: WORDS_MAX, wordMax: WORD_MAX } = EXAM_PREP_LIMITS.paperWords;
 // The English page lists the Latin words only (the Chinese ones are matching data, and the sentence says they exist).
@@ -14,14 +14,15 @@ const LANGUAGES = [{ value: 'auto', label: '自动（跟随界面语言）' }, {
 const problems = { long: () => uiFormat('每个关键词最多 {0} 个字符。', [WORD_MAX]), duplicate: () => ui('这个关键词已经在列表里了。'),
   full: () => uiFormat('最多 {0} 个关键词，先移除一个。', [WORDS_MAX]) };
 
-/** Is the page on? When it is off: whose switch it is and where it is. */
-export function ExamPrepStatus({ enabled, host }) {
-  if (enabled) return <p className="settings-section__lead"><Badge tone="success" icon>{ui('已开启')}</Badge> {ui('备考补习已经开启，可以去「备考补习」页新建考点清单。')}</p>;
-  return <InlineMessage tone="info" boxed title={ui('备考补习还没有开启')}
-    action={host?.openPluginManager ? { label: ui('打开 DSH 插件管理器'), onClick: () => host.openPluginManager() } : undefined}>
-    <span>{ui('这个开关由 DSH 管理，不在这里切换。')} {ui('开关是 StudyHub 运行时（runtime）设置里的 examBlueprint，在 DSH 插件管理器里打开即可。')}</span>
-    <span> {ui('下面的个人默认值现在就可以先设好，已保存的考点清单仍可阅读。')}</span>
-  </InlineMessage>;
+/** The switch for the page: on by default, the learner's to turn off here; when the host's configuration forces it on, there is nothing to switch. */
+export function ExamPrepStatus({ byHost, checked, disabled, onChange }) {
+  if (byHost) return <p className="settings-section__lead"><Badge tone="success" icon>{ui('已开启')}</Badge> {ui('备考补习已经由 DSH 的配置开启，可以去「备考补习」页新建考点清单。')}</p>;
+  return <>
+    <Switch name="enabled" label={ui('开启备考补习')} checked={checked} disabled={disabled} onChange={onChange}
+      hint={ui('关掉后侧栏不再显示「备考补习」，已保存的考点清单仍可阅读。它是新功能，还没有用大量真实的课件和模型试过。')} />
+    {checked && <p className="settings-section__lead">{ui('可以去「备考补习」页新建考点清单。')}</p>}
+    <Hint size="xs">{ui('部署时也可以在插件配置里把 runtime.pilot.examBlueprint 设为 true，无论这里怎么选都开启。')}</Hint>
+  </>;
 }
 
 /** The learner's own sample-paper words as removable tags, one input to add, and the built-in words read-only below. */
@@ -50,7 +51,7 @@ export function PaperWords({ words, disabled, onChange }) {
   </Field>;
 }
 
-export default function ExamPrepPane({ data, busy, act, host }) {
+export default function ExamPrepPane({ data, busy, act }) {
   const toast = useToast();
   const saved = data?.settings?.examPrep, savedValues = resolveExamPrepSettings(saved), key = JSON.stringify(savedValues);
   const [values, setValues] = useState(savedValues), [working, setWorking] = useState(false), [error, setError] = useState('');
@@ -72,7 +73,7 @@ export default function ExamPrepPane({ data, busy, act, host }) {
   return <div className="settings-form">
     <SettingsSection tour="settings-exam-prep" disabled={disabled} title={ui('备考补习')}
       lead={ui('备考补习把课件、大纲和样卷整理成一份考点清单。这里是你的个人默认值：新建清单时会自动填好，每次仍可单独改。')}>
-      <ExamPrepStatus enabled={data?.features?.examBlueprint === true} host={host} />
+      <ExamPrepStatus byHost={data?.features?.examBlueprintByHost === true} checked={values.enabled} disabled={disabled} onChange={enabled => set({ enabled })} />
       <h3 className="settings-subtitle">{ui('个人默认值')}</h3>
       <Switch name="autoRoles" label={ui('自动识别资料用途')} checked={values.autoRoles} disabled={disabled} onChange={autoRoles => set({ autoRoles })}
         hint={ui('按文件名和篇幅猜每份资料是课件、样卷还是大纲，并写明依据；猜错点一下就能改。关掉后，所有资料都先当作课件。')} />
@@ -86,8 +87,8 @@ export default function ExamPrepPane({ data, busy, act, host }) {
         hint={ui('打开后，新建清单时挑选资料会连其它课程的一起列出，并标明所属课程；默认只列当前课程的。')} />
       {error && <Hint tone="error" role="alert">{error}</Hint>}
       <div className="settings-actions">
-        <Button disabled={disabled || (saved === undefined && same(values, EXAM_PREP_DEFAULTS))}
-          onClick={() => run('settings.examPrep.reset', {}, resolveExamPrepSettings())}>{ui('恢复默认')}</Button>
+        <Button disabled={disabled || same(values, { ...EXAM_PREP_DEFAULTS, enabled: values.enabled })}
+          onClick={() => run('settings.examPrep.reset', {}, { ...resolveExamPrepSettings(), enabled: values.enabled })}>{ui('恢复默认')}</Button>
       </div>
       <Hint>{ui('改动立即保存，只影响之后新建的清单；已经建好的清单不会变。')}</Hint>
     </SettingsSection>
