@@ -26,6 +26,9 @@ import LocalImagePicker from './LocalImagePicker.jsx';
 import { useStudy } from "./study-context.jsx";
 import { useSciencePreferences } from './SciencePreferences.jsx';
 import { DraftPartLine, NEW_DECK, PartTargetChoice, defaultPartTarget, partTargets } from './DraftPart.jsx';
+import { publishAndPractice } from './app/use-drafts.js';
+import { canStopWork, holdLine, stopLabel } from './draft-publish.js';
+import { topUpArgs, topUpNotice } from './coverage/top-up.js';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -114,6 +117,22 @@ export default function Draft({
   React.useEffect(() => {
     if (staleDraft && !updatingDraft && !unsavedDraft) openDraft(latestDraft);
   }, [staleDraft, updatingDraft, unsavedDraft, latestDraft, openDraft]);
+  // While a job works on this draft 保存并发布 waits: the reason is said under the buttons (which job, which round) with the way out (stop it; what passed the checks stays).
+  const hold = work && !staleDraft ? holdLine(work, draft, covered.view?.coverage?.percentLeaves) : "";
+  function stopWork() {
+    const { job } = work;
+    if (work.kind === "repair") act("job.cancel", { jobId: job.id }, () => toast.success(ui("正在停止后台修题；已修好的题目会保留在草稿中。")));
+    else act("job.control", { jobId: job.contract?.jobId || job.id, action: "cancel" }, () => toast.success(ui("正在停止；已通过检查的题会保留在草稿里。")));
+  }
+  // 补题 with edits on the page saves them first (a top-up asks for the saved version); the page opens the saved draft and the top-up goes on from it.
+  function saveThen(next) {
+    let d;
+    try { d = jsonMode ? parseDraft(draftText) : draft; } catch (error) { toast.error(uiFormat("JSON 格式不正确：{0}", [error.message])); return undefined; }
+    return act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => { if (isCurrent()) openDraft(saved); await next(saved); }, { afterNavigation: true });
+  }
+  const topUp = (target, sectionIds) => (unsavedDraft
+    ? saveThen(async (saved) => toast.success(topUpNotice(saved, await call("generate", topUpArgs(saved, sectionIds)))))
+    : topUpDraft(target, sectionIds));
   const activeReview = draft.editingDeckId && data.runs?.some((run) =>
     run.deckIds?.includes(draft.editingDeckId) || run.deckId === draft.editingDeckId);
   function saveAsNewDraft() {
@@ -171,6 +190,7 @@ export default function Draft({
         <Button variant="primary"
           disabled={busy || updatingDraft || staleDraft || missingDraft || activeReview}
           title={activeReview ? ui("先完成或结束原题组的学习") : undefined}
+          aria-describedby={hold ? "draft-hold" : undefined}
           onClick={async () => {
             let d;
             try {
@@ -179,28 +199,8 @@ export default function Draft({
               toast.error("JSON 格式不正确：" + e.message);
               return;
             }
-            await act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => {
-              if (isCurrent()) openDraft(saved);
-              const published = await call("draft.publish.quick", {
-                id: saved.id,
-                draftVersion: saved.draftVersion,
-                ...(intoDeck ? { mergeTargetId: intoDeck } : {}),
-              });
-              if (isCurrent()) clearRecovery();
-              try {
-                const run = await call("review.start", { deckId: published.id,
-                  mode: "new", count: 10, ordered: true, fresh: true });
-                if (isCurrent()) {
-                  onStartPublished(run);
-                  toast.success(uiFormat("已发布，开始学习本轮 {0} 道新题。",[run.total]));
-                }
-              } catch {
-                if (isCurrent()) {
-                  setPage("library");
-                  toast.success(ui("题组已发布；当前没有可开始的新题。"));
-                }
-              }
-            }, { afterNavigation: true });
+            // The same quick publication as 发布并练习 on the finished card of a run (ui/app/use-drafts.js).
+            await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage });
           }}
         >
           {publicationLabel}
@@ -229,11 +229,13 @@ export default function Draft({
             : updatingDraft ? ui("删除草稿并停止任务") : ui("删除草稿")}
         </Button>
       </div>
+      {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
+        action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}
       {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}>
-        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
-        <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={unsavedDraft || staleDraft} modelReady={modelReadiness(data).ready}
-          onTopUp={(target, sectionIds) => topUpDraft(target, sectionIds)} />
-        {(unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{ui("先保存草稿，再补题。")}</Hint>}
+        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} saveThen={unsavedDraft ? saveThen : undefined} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
+        <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} modelReady={modelReadiness(data).ready}
+          onTopUp={topUp} />
+        {(unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{staleDraft ? ui("草稿已在后台更新，先载入最新草稿，再补题。") : ui("补题前会先保存草稿。")}</Hint>}
       </CoverageSummary>}
       <div className="draft-notices">
         {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
@@ -246,9 +248,6 @@ export default function Draft({
         </Banner>}
         {staleDraft && !unsavedDraft && <Banner tone="info" role="status">
           {updatingDraft ? ui("后台修题正在更新草稿，完成后会自动载入。") : ui("正在载入后台修好的题目…")}
-        </Banner>}
-        {updatingDraft && !staleDraft && <Banner tone="info" role="status">
-          {publishJob ? publishJob.stage : ui("后台任务正在更新这份草稿，完成后可继续保存或发布。")}
         </Banner>}
         {activeReview && <Banner tone="warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</Banner>}
         {rejectedCount > 0 && unsavedDraft && !staleDraft && <Banner tone="warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</Banner>}

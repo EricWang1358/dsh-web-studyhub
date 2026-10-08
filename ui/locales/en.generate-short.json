@@ -21,5 +21,20 @@
   "课程：{0}": "Course: {0}",
   "题型、覆盖强度、难度、语言、课程、想练什么": "Question types, coverage strength, difficulty, language, course, focus",
   "覆盖 {0}/{1}，{2}，": "Covering {0}/{1}, {2}. ",
-  "自定义题数，覆盖 {0}/{1}，{2}，": "Custom number of questions, covering {0}/{1}, {2}. "
+  "自定义题数，覆盖 {0}/{1}，{2}，": "Custom number of questions, covering {0}/{1}, {2}. ",
+  "发布并练习": "Publish and practise",
+  "{0}。这期间不能保存或发布；想现在发布，先停止它（已通过检查的题都保留在草稿里）。": "{0}. Saving and publishing wait until it is done; to publish now, stop it first (the questions that passed the checks stay in the draft).",
+  "{0}。修题期间不能保存或发布；想现在发布，先停止修题（已修好的题保留）。": "{0}. Saving and publishing wait while questions are being fixed; to publish now, stop the fix first (the questions already fixed stay).",
+  "正在停止；停下后就可以保存或发布。": "Stopping; once it has stopped you can save or publish.",
+  "发布检查正在进行，完成后可继续保存或发布。": "A publication check is running; you can save or publish once it is done.",
+  "停止并保留已出的题": "Stop and keep the questions so far",
+  "草稿已在后台更新，先载入最新草稿，再补题。": "The draft was updated in the background; load the latest draft before topping it up.",
+  "补题前会先保存草稿。": "The draft is saved first, then the top-up starts.",
+  "正在停止；已通过检查的题会保留在草稿里。": "Stopping; the questions that passed the checks stay in the draft.",
+  "本轮：{0}": "This round: {0}",
+  "本轮：{0}；之后还有 1 轮会接着做，另算。": "This round: {0}; 1 more round follows by itself, counted separately.",
+  "本轮：{0}；之后还有 {1} 轮会接着做，每轮另算。": "This round: {0}; {1} more rounds follow by themselves, each counted separately.",
+  "勾选后，最后 1 轮会自动做完；可以随时暂停，或停在这里（已出的题都保留）。": "Ticked, the last round is made by itself; you can pause any time, or stop here (the questions already made stay).",
+  "勾选后，剩下的 {0} 轮一轮接一轮自动做完；可以随时暂停，或停在这里（已出的题都保留）。": "Ticked, the other {0} rounds are made one after another by themselves; you can pause any time, or stop here (the questions already made stay).",
+  "已带入刚才选好的 {0} 份资料；不合适就在下面改。": "Brought over the {0} materials you ticked a moment ago; change them below if they do not fit."
 }

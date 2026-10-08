@@ -256,5 +256,15 @@ export function moreValuesOf(gen = {}, defaults = {}) {
   return !sameList(kindsOfForm(gen), kindsOfForm(defaults));
 }
 
+/** The materials a case paper is written from: no reference sample (a style, not evidence) and no case written by an earlier run (案例：…, kept as a source so it can be graded against). */
+export const caseEvidence = (sources = [], referenceSourceIds = []) => sources.filter((source) => !referenceSourceIds.includes(source.id) && !/^(案例：|Case: )/.test(source.title || ''));
+
+/** The import dialog (the app's modal `{ type: 'add' }`) opened for a course; `onImported(sourceIds)` is the page that wants the new materials itself (the app's hand-off: ui/app/import-handoff.js), so they
+    go into ITS selection and not into another tab's. A click passes an event as the options: no hand-off is made up for it. */
+export const importDialog = (course, options) => ({ type: 'add', course, ...(typeof options?.onImported === 'function' ? { onImported: options.onImported } : {}) });
+
+/** What is imported joins a selection once, after what was there. */
+export const takeImported = (current = [], ids = []) => [...new Set([...current, ...ids])];
+
 /** A stated exam with case or open questions (the course's own record). */
 export const courseHasCaseExam = (course) => ['open-book-case', 'mixed'].includes(course?.exam?.format);

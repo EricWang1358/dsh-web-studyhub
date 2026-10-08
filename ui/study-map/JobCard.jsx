@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import CompactJobCard from '../tasks/CompactJobCard.jsx';
 import { isActiveJob } from '../job-visibility.js';
 import { shortfall as shortfallReport } from '../draft-shortfall.js';
 import { joinMeta } from '../format.js';
-import { describeFailure, jobHeadline, jobSavedProgress, jobStageLabel } from '../generation-status.js';
+import { describeFailure, hitTimeLimit, jobCode, jobHeadline, jobSavedProgress, jobStageLabel } from '../generation-status.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { useStudy } from '../study-context.jsx';
+import { AppContext } from '../app/app-context.js';
+import { partTargets } from '../DraftPart.jsx';
+import { canPublishAtOnce } from '../draft-publish.js';
+import { contractOf } from '../tasks/task-model.js';
+import { LIMIT_ANCHOR } from '../tasks/time-limit.js';
 import { useDraftShortfall } from '../coverage/use-shortfall.js';
 import { actionLabel, continueLine, reasonWord, shortfallLine } from '../coverage/copy.js';
 import { continueArgs, continueNotice } from '../coverage/top-up.js';
@@ -18,7 +23,8 @@ import { continueArgs, continueNotice } from '../coverage/top-up.js';
    A run that has left a draft says where it stands the way every screen does (lib/shortfall.js: the same questions, sections and next step as the 待发布 row, the console and the draft
    page), and its button is the shortfall's ONE action: 接着做 (interrupted), 继续 (paused), 去配置模型 (a refused key), 为没覆盖的部分补题 (it stopped with sections left). */
 export default function JobCard({ job: j, jobs = [], drafts, data, busy, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards, topUpDraft, modelReady = true }) {
-  const { act, notify } = useStudy();
+  const { act, notify, openSettings } = useStudy();
+  const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const active = isActiveJob(j);
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
   const generation = !['draft-publish', 'draft-repair'].includes(j.type);
@@ -44,6 +50,11 @@ export default function JobCard({ job: j, jobs = [], drafts, data, busy, openDra
     : shortfall.state === 'paused' ? uiFormat('暂停于第 {0} 轮之后', [shortfall.pausedAfter ?? shortfall.roundsDone ?? 0])
     : shortfall.state === 'refused' ? reasonWord(shortfall.failure || 'credential') : why]) : '';
   const stage = standing || (failure ? failure.title : joinMeta([jobStageLabel(j, drafts, jobs, { includeSaved: !progress }), why]));
+  // A finished run of a clean draft is published and practised in one press (发布并练习: the draft page's quick publication); 打开草稿 stays beside it, so the learner can still look first.
+  const atOnce = !active && generation && !!publishDraft && j.type !== JOB_TYPES.SUPPLEMENT && j.origin !== 'selection' && j.status === 'complete' && !j.continuedBy && !j.publication && jobCode(j) === 'done'
+    && canPublishAtOnce({ draft, shortfall, jobs, targets: partTargets(draft, data) });
+  // A failed run the contract can retry (a run with a draft goes through 接着做 above) is one press, and it carries the whole request: the contract's retry prepares the run again from what the job was asked with.
+  const retryAgain = generation && !draft && j.type !== JOB_TYPES.SUPPLEMENT && !active && ['failed', 'cancelled'].includes(j.status) && !j.continuedBy && contractOf(j).actions?.retry?.available === true;
   const published = j.origin === 'selection' && j.status === 'complete' && j.publication?.cardIds?.length > 0 ? j.publication : null;
   const jobId = j.contract?.jobId || j.id;
   // The shortfall's action first: the same button as the 待发布 row of this draft.
@@ -55,15 +66,23 @@ export default function JobCard({ job: j, jobs = [], drafts, data, busy, openDra
     topup: view?.canTopUp && view.round?.sections > 0 && topUpDraft && { label: actionLabel('topup'), run: () => topUpDraft(draft, view.round.picks.map((pick) => pick.key), view.round), disabled: !modelReady },
   })[shortfall.action];
   const choices = [
+    atOnce && { label: ui('发布并练习'), run: () => publishDraft(draft) },
     published && practiceCards && { label: published.cardIds.length === 1 ? ui('马上练这 1 张') : uiFormat('马上练这 {0} 张', [published.cardIds.length]),
       run: () => practiceCards(published.deckId, published.cardIds) },
     own,
     failure?.action === 'settings' && openModelSettings && { label: ui('去配置模型'), run: openModelSettings },
-    draft && !active && { label: ui('打开草稿'), run: () => openDraft(draft) },
-    retryGeneration && generation && j.type !== JOB_TYPES.SUPPLEMENT && ['failed', 'cancelled'].includes(j.status) && !draft && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
+    retryAgain && { label: ui('再试一次'), disabled: !modelReady, run: () => act('job.control', { jobId, action: 'retry' }) },
+    draft && !active && !atOnce && { label: ui('打开草稿'), run: () => openDraft(draft) },
+    retryGeneration && generation && j.type !== JOB_TYPES.SUPPLEMENT && ['failed', 'cancelled'].includes(j.status) && !draft && !retryAgain && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
     published && openDeck && { label: ui('打开题组'), run: () => openDeck(published.deckId) },
   ].filter(Boolean);
-  return <CompactJobCard job={j} primary={choices[0] && { ...choices[0], disabled: busy || choices[0].disabled }} title={jobHeadline(j, drafts)} line={progress && !standing ? [`${progress.label} ${uiFormat("{0}/{1} 题", [progress.saved, progress.total])}`, stage].filter(Boolean).join(' · ') : stage}
+  // The quiet other ways, under the card: look at the draft first; the limit that ended the run is one press from its setting (设置 › 出题偏好); the form again when the one-press retry is the button.
+  const links = [
+    atOnce && { label: ui('打开草稿'), run: () => openDraft(draft), disabled: busy },
+    failure && hitTimeLimit(j.stage) && openSettings && { label: ui('调整时限'), run: () => openSettings(LIMIT_ANCHOR) },
+    retryAgain && choices[0]?.label === ui('再试一次') && retryGeneration && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
+  ].filter(Boolean);
+  return <CompactJobCard job={j} primary={choices[0] && { ...choices[0], disabled: busy || choices[0].disabled }} links={links.length ? links : undefined} title={jobHeadline(j, drafts)} line={progress && !standing ? [`${progress.label} ${uiFormat("{0}/{1} 题", [progress.saved, progress.total])}`, stage].filter(Boolean).join(' · ') : stage}
     onStop={cancelJob && j.type !== JOB_TYPES.DRAFT_PUBLISH ? () => cancelJob(j.id) : undefined}
     onDismiss={dismissJob ? () => dismissJob(j.id) : undefined} />;
 }

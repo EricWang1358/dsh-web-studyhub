@@ -29,7 +29,7 @@ import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
   DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, kindsOfForm, kindsPatch, moreValuesOf, notationNote, planLine, roleOpenByDefault, selectionStats, summaryLine,
+  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, generationRequest, importDialog, kindNote, kindsOfForm, kindsPatch, moreValuesOf, notationNote, planLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -121,7 +121,8 @@ export default function Generate({
     catch (error) { result = { source: 'local', focus: [], unavailable: { reason: 'failed', message: String(error?.message || '') } }; }
     if (token === assistToken.current) setAssist({ phase: 'done', result, applied: false });
   }
-  const openImport = () => setModal({ type: "add", course: sourceScope === '*' ? '' : sourceScope });
+  // `options` ({ course, onImported }) is for a tab that takes the new materials itself (案例分析题); a click passes an event, which means neither.
+  const openImport = (options) => setModal(importDialog(options?.course ?? (sourceScope === '*' ? '' : sourceScope), options));
   const openReferenceImport = onReferenceImported => setModal({ type: 'add', course: generationCourse,
     referenceQuestions: true, ...(onReferenceImported ? { onReferenceImported } : {}) });
   const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
@@ -162,6 +163,9 @@ export default function Generate({
       else setPage("library");
     });
   }
+  // The case form opens with the materials ticked on this tab (its own selection when it comes from the reader): the learner already chose them, and the form says so.
+  const carried = caseEvidence(data.sources, referenceSourceIds).filter((source) => selectedSources.includes(source.id)).map((source) => source.id);
+  const caseStart = caseInitial?.sourceIds ? caseInitial : { ...(carried.length ? { sourceIds: carried, broughtOver: carried.length, ...(generationCourse ? { course: generationCourse } : {}) } : {}), ...caseInitial };
   const caseExam = courseHasCaseExam((data.courses || []).find((course) => course?.name === generationCourse));
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
@@ -183,7 +187,7 @@ export default function Generate({
         <JsonImport data={data} openDraft={openDraft} />
       ) : current === "case" ? (
         <CaseCreate data={data} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
-          initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
+          initial={caseStart} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
           data={data}

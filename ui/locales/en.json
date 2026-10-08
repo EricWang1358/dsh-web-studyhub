@@ -1064,7 +1064,6 @@
   "删除草稿": "Delete draft",
   "后台修题正在更新草稿，完成后会自动载入。": "Background repairs are updating the draft; it will reload when ready.",
   "正在载入后台修好的题目…": "Loading repaired questions…",
-  "后台任务正在更新这份草稿，完成后可继续保存或发布。": "A background task is updating this draft. Save or publish when it finishes.",
   "{0} / {1} 题与上次模型审阅时一致。": "{0} / {1} questions match their last model-reviewed version.",
   "这份草稿没有可核对的逐题审阅版本。": "This draft has no verifiable per-question review versions.",
   "仍在生成": "Still generating",
