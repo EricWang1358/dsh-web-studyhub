@@ -4,13 +4,14 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
 ## 3.1.1 — 2026-10-08
 
-A fix for 3.1.0, whose 备考补习 page could not be turned on the way its notes said.
+Two fixes for 3.1.0: its 备考补习 page could not be turned on the way its notes said, and 自动补到完整 gave up too early.
 
 - **备考补习 is on by default, and you can turn it off yourself.** 3.1.0 told you to turn on `examBlueprint` in DSH's plugin manager. That page lists only the components and has no such switch, so the page stayed hidden. Now the sidebar entry is there unless you switch it off in 设置 › 备考补习, where the switch is the first control. Building a 考点清单 still starts only when you click it and shows a usage estimate first; a 考点清单 never mixes into the materials list; switching the page off keeps the lists you already made. 恢复默认 in that pane leaves the switch alone.
 - The host setting `runtime.pilot.examBlueprint` still works, but only to force the page on whatever you chose. When it does, the pane says so and shows no switch.
 - With the page switched off, it says that you turned it off in Settings and has one button, 前往设置. It no longer points to the plugin manager.
+- **自动补到完整 goes on until every section has a question, not until the last planned round.** With it ticked, a run still stopped after its last round when questions that failed review had left some sections without one (92%, say): it allowed two retry rounds and two tries per section. It now writes those sections again, each retry round asked only for what is still missing, up to 5 retry rounds and 4 tries per section, and ends sooner when a retry round gains no section. If some are still left, the stop names them and 为没覆盖的部分补题 does one more round on demand.
 
-Not fixed or not verified: 备考补习 has still not been tried with real slides, a sample paper and a real model; the 3.1.0 notes already published on GitHub still carry the old plugin-manager instruction, and this entry replaces it; the final package passed the archive check (npm run release:check) but was not installed into a real DSH.
+Not fixed or not verified: a section that fails review 4 times is still left to you (it is listed with its reason); 备考补习 has still not been tried with real slides, a sample paper and a real model; the 3.1.0 notes already published on GitHub still carry the old plugin-manager instruction, and this entry replaces it; the final package passed the archive check (npm run release:check) but was not installed into a real DSH.
 
 ## 3.1.0 — 2026-10-08
 
