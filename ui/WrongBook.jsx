@@ -182,7 +182,7 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
 
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
-  recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, busy,
+  recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings, busy,
   onLibrary, onCreate, onSources, openKey, initial = {},
 }) {
   useInjectCss(css, "study-views");
@@ -344,8 +344,13 @@ export function WrongBookView({
           <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} />
           <Button variant="primary" icon="arrow-right" disabled={busy || loading || !total} onClick={startRetrain}
             title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>
-            {uiFormat("开始重练 ({0})", [current.count])}
+            {uiFormat("开始重练 · 全部 {0} 题", [current.count])}
           </Button>
+          {/* The main button takes every mistake of the page, whatever the filter shows; with a filter on, what is shown has its own button. */}
+          {filtering && shown.length > 0 && shown.length < rows.length && (
+            <Button variant="secondary" icon="arrow-right" disabled={busy || loading} onClick={() => onPractice(shown.map(refOf))}
+              title={ui("只练下面筛选出来的错题")}>{uiFormat("练筛选的 {0} 道", [shown.length])}</Button>
+          )}
         </div>
       )}
 
@@ -474,7 +479,8 @@ export function WrongBookView({
       {ask && canGenerate && (
         <div className="wb-consent" ref={consentRef} role="group" aria-label={ui("先确认是否备变式题")}>
           <strong>{ui("要让 AI 为错题备变式题吗？")}</strong>
-          <p>{ui("生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在「设置 › 学习画像与导览」里的「陪学」关闭。")}</p>
+          <p>{ui("生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在设置里关闭「陪学」。")}
+            {onSettings && <>{" "}<Button variant="link" size="sm" onClick={() => onSettings("settings-profile")}>{ui("前往设置")}</Button></>}</p>
           <div className="wb-consent-actions">
             <Button variant="secondary" icon="sparkle" busy={working} disabled={!ask.cards.length}
               onClick={() => run(ask.cards, true)}>{ui("同意并生成")}</Button>
@@ -507,6 +513,8 @@ export function WrongBookView({
                 </span>
               </FoldButton>
               <div className="wb-group-actions">
+                <Button variant="quiet" size="sm" icon="arrow-right" disabled={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                  onClick={() => onPractice(group.rows.map(refOf))}>{ui("练这一组")}</Button>
                 {group.deckIds.length === 1 && applied.deck !== group.deckIds[0] && (
                   <Tooltip layer content={tip(ui('只显示这个题组里的错题。'), ui('点「清除筛选」可以回到全部。'))}>
                     <Button variant="quiet" size="sm" icon="filter" onClick={() => onlyThisDeck(group)}>{ui("只看这个题组")}</Button>
@@ -544,7 +552,7 @@ export function WrongBookView({
 }
 
 export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
-  const { call, busy } = useStudy();
+  const { call, busy, openSettings } = useStudy();
   const [course, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
   const key = JSON.stringify(scopeArgs(course, showInactive));
@@ -635,7 +643,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     <WrongBookView data={data} course={course} onCourse={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} items={items} counts={counts} loading={loading} err={err}
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={!!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
-      onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings}
+      onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
       busy={busy} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }

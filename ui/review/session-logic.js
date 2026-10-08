@@ -6,6 +6,8 @@ import { reviewEntryKey } from '../async.js';
 
 /** Autopilot waits this long after a pass before opening the next question (a CSS bar of the same length runs meanwhile). */
 export const AUTO_ADVANCE_MS = 1500;
+/** On the result page the autopilot waits this many seconds before it takes the suggested next step (the 点评 card counts them down). */
+export const RESULT_COUNTDOWN_SECONDS = 5;
 
 /** What the learner has typed or picked on the open question. One object, so every reset is one assignment. */
 export const emptyEntry = () => ({ selected: [], hint: false, explain: false, response: '', clozeValues: {}, teaching: null, teachAnswer: '' });
@@ -148,7 +150,7 @@ const planActionable = (task) => task.status !== 'done' && task.available !== fa
  * The destination of 继续学习. run: the finished run (id, scope, returnTo, questions, answered); runs: the open runs of the
  * snapshot (undefined when unknown); progress: the snapshot's per-deck progress; tasks: today's plan tasks (the one linked to
  * this run, if any, is skipped: it is the work just done). Returns { kind: 'original', runId } | { kind: 'scope', scope } |
- * { kind: 'plan', taskId, title } | { kind: 'path', reason: 'continuing' | 'scope-done' | 'original-gone' }.
+ * { kind: 'plan', taskId, title } | { kind: 'path', reason: 'continuing' | 'scope-done' | 'original-gone', course? (the course whose next daily round it is) }.
  */
 export function continueDestination({ run, runs, progress = {}, tasks = [] } = {}) {
   if (!run) return { kind: 'path', reason: 'continuing' };
@@ -156,6 +158,8 @@ export function continueDestination({ run, runs, progress = {}, tasks = [] } = {
     const original = Array.isArray(runs) ? runs.find((item) => item.id === run.returnTo) : { id: run.returnTo };
     return original && !original.complete ? { kind: 'original', runId: original.id } : { kind: 'path', reason: 'original-gone' };
   }
+  // A course's daily round (lib/daily-path.js) is a round of that course, not a scope the learner chose: the next one is the same course's next round.
+  if (run.dailyCourse !== undefined) return { kind: 'path', reason: 'continuing', course: run.dailyCourse };
   if (!run.scope?.length) return { kind: 'path', reason: 'continuing' };
   if (scopeRemaining(run, progress) > 0) return { kind: 'scope', scope: run.scope };
   const linked = tasks.find((task) => task.runId === run.id);

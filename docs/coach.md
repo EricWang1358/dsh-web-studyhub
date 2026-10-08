@@ -11,10 +11,10 @@ Answering a question in practice never calls a model by itself. Everything the c
 | Feature | Where | Model calls |
 | --- | --- | --- |
 | Rate a question | Thumbs-up / thumbs-down in the practice toolbar, or G / B | Recording a rating: none. Fixing a reported problem: one background call per fix |
-| Round summary | The **Coach · next step** card on the result page | Numbers and next step: none. Wording: one light call once you have answered 3 or more questions |
+| Round summary | The **Coach · next step** card on the result page | Numbers and next step: none. Wording: one light call once you have answered 3 or more questions; Settings › Practice switches it off, and then no model is called |
 | Personalised questions | Sidebar entry **Personalised**, the result page, **Study library** | One call per batch, only after you agree |
 | Help after a wrong answer | **Help me understand** in the practice toolbar | Only when you click it |
-| Autopilot | Key A | None |
+| Autopilot | Key A, or the Autopilot switch in the practice toolbar | None |
 
 ## Set up the coach
 
@@ -121,7 +121,7 @@ Starting them moves them into the system deck **Personalised**. From there they 
 
 ## Use autopilot
 
-- Press A to turn autopilot on or off. The setting is saved only in this browser.
+- Press A, or use the Autopilot switch in the practice toolbar. The default is in Settings › Practice and is saved in your library.
 - After a correct answer, or a self-rating of 3 or higher, the next question opens after 1.5 seconds. Click anywhere or press any key to stop it. Wrong answers and low self-ratings never advance on their own.
 - At the end of an ordinary round, the summary's recommended step runs after a 5-second countdown. Click anywhere, or click **Cancel**, to stop it. A suggestion to rest does nothing automatically.
 - There is no countdown on result pages reached from a **Learning flow** or from a detour (a side round that ends with a button back to the earlier question), or on result pages that offer **Return to original question**.
@@ -166,7 +166,7 @@ Coach data is stored in your library, not in the browser.
 | `feedback` | `shards/misc/` | Your ratings and tags | Latest 400 records |
 | `prepared` | `shards/misc/` | Personalised questions | 12 waiting; the latest 100 used ones are kept |
 
-Autopilot's on/off state is the exception: it is kept in this browser.
+The Settings › Practice choices (autopilot, round size, the round review) are saved in the library settings too (`settings.practice`), not in the browser.
 
 **Clear profile** in Settings deletes the goal, the profile summary, the feedback counts and any unused personalised questions. It also resets your preparation consent, so the next result page asks again. It keeps your practice records, review progress and feedback records. Follow-up Q&A, suggested follow-ups and EN translations saved on questions are not part of the profile and stay too.
 

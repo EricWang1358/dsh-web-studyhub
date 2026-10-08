@@ -9,7 +9,6 @@ import { usePersistentState } from '../storage.js';
 
 export const SIDEBAR_KEY = 'study-sidebar';
 export const EN_KEY = 'study-en';
-export const AUTOPILOT_KEY = 'study-autopilot';
 
 /** Stored as readable words, as they always were: 'collapsed' | 'open', '1' | '0', 'on' | 'off'. */
 export const flag = (on, off) => ({ parse: (raw) => raw === on, serialize: (value) => (value ? on : off) });

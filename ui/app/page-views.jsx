@@ -278,6 +278,7 @@ function ReviewView({ feedback }) {
     onCourseFlow: intents.startCourseFlow,
     onOpenNote: (noteId) => learn.openLearningTarget({ kind: 'note', id: noteId }),
     onRecapSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); },
+    onPracticeSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-practice'); nav.show.page('settings'); },
     onModelSettings: settingsEntry.openModelSettings,
     onMakeNote: () => {
       const origin = learn.captureContext();

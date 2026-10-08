@@ -112,7 +112,7 @@ test('重练 is a three-way choice and defaults to the richest available', () =>
   assert.match(text(html), /错题 \+ 同类题 \(5\+8\)/);
   assert.match(text(html), /错题 \+ 变式 \(5\+3\)/);
   assert.match(html, /aria-pressed="true"[^>]*>错题 \+ 变式/);
-  assert.match(text(html), /开始重练 \(8\)/);
+  assert.match(text(html), /开始重练 · 全部 8 题/);
   assert.match(text(render({ hasMore: true, counts: { total: 150, graded: 3, self: 1, oral: 0 } })), /只练本页错题 \(5\)/);
 });
 
@@ -183,7 +183,7 @@ test('English: every UI string is translated while question content stays as wri
     assert.match(text(html), /Recommended for you/);
     assert.match(text(html), /Same topic: Circuit breaker/);
     assert.match(text(html), /Generate variants/);
-    assert.match(text(html), /Start retraining \(\d+\)/);
+    assert.match(text(html), /Start retraining · all \d+/);
     const gate = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, coach: { ...english.coach, enabled: false } }));
     assert.doesNotMatch(gate, han);
     const consent = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, coach: { ...english.coach, consent: null }, initial: { askConsent: true } }));

@@ -9,7 +9,7 @@ const NEXT_HINT_ID = "review-next-hint";
  * The tools under a question: hint / explanation, EN, ask for help, the reading settings, 更多 (a menu: note, task, fix the
  * question, derive a prerequisite, slay it) and the previous / next buttons. `moreDefaultOpen` opens the menu at first render.
  */
-export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
@@ -37,6 +37,11 @@ export default function ReviewToolbar({ run, busy, expanded, onToggleHelp, onAsk
           >
             {enBusy ? "EN…" : "EN"}
           </Button>
+        )}
+        {/* 自动驾驶: the setting of 设置 › 练习 (default off), switchable here and with the A key; it only flips a setting, so a saving step does not block it. */}
+        {run.mode !== "exam" && onToggleAutopilot && (
+          <Button variant="quiet" className={"tool-action tool-autopilot" + (autopilot ? " is-active" : "")} aria-pressed={!!autopilot} aria-keyshortcuts="A"
+            title={ui("答对后自动进入下一题，点任意处或按键可停下 · 按 A 键开关")} onClick={onToggleAutopilot}>{ui("自动驾驶")}</Button>
         )}
         <Button variant="quiet" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
         <ReadingSettingsButton className="review-reading" />

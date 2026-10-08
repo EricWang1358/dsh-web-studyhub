@@ -103,22 +103,8 @@
     }
     .coach-consent .coach-consent__problem { margin: var(--space-2) 0 0; }
     .coach-consent-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
-    /* One filled primary per screen: when the 雷霆建议 hands over its own next
-       step (定制题 or 补薄弱), the generic next-step buttons on the page step back. */
-    /* Features sit above components in the cascade layers, so no !important is needed. */
-    .result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .sh-btn--primary:not(:disabled)) .summary-actions > .sh-btn--primary {
-      background: color-mix(in srgb, var(--text) 5%, transparent);
-      border-color: var(--line);
-      color: inherit;
-      box-shadow: none;
-      font-weight: var(--fw-regular);
-    }
-    .result-page:has(.coach-debrief:is([data-next="practice_prepared"], [data-next="review_weak"]) .coach-actions .sh-btn--primary:not(:disabled)) .summary-actions > .sh-btn--primary:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--text) 11%, transparent);
-      border-color: var(--line-strong);
-      box-shadow: none;
-      transform: none;
-    }
+    /* One filled primary per screen: the page's next step (ui/Review.jsx .result-next) is it; the 雷霆建议's own suggestion (定制题 or 补薄弱) is a secondary button. */
+    .coach-model-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
     .coach-countdown { font-size: var(--fs-md); color: var(--text-muted); }
     .skeleton {
       border-radius: var(--radius-sm);

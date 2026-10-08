@@ -4,6 +4,8 @@ import { useInjectCss } from './shared.js';
 import { Button } from './components/Button.jsx';
 import { ProgressBar } from './components/Progress.jsx';
 import { LoadingState, Spinner } from './components/Loading.jsx';
+import { InlineMessage } from './components/Feedback.jsx';
+import { gateTitle } from './ModelSetupGate.jsx';
 import { recapGroupKey, useDailyRecap } from './useDailyRecap.js';
 import css from './DailyRecap.css';
 
@@ -23,22 +25,31 @@ function presentation(group) {
 const stateLabels = { running: '整理中', protected: '你的版本', failed: '待重试', paused: '已停止', update: '有新作答', ready: '已留存', available: '可以生成', locked: '今日进度' };
 
 export function DailyRecapPanel(props) {
-  const { busy = false, onOpenNote, onSettings, onModelSettings } = props;
+  // `primary` false: the page already has its one filled button (the result page's next step), so this panel's buttons are plain.
+  const { busy = false, onOpenNote, onSettings, onModelSettings, primary = true } = props;
   useInjectCss(css, 'study-daily-recap');
   const recap = useDailyRecap(props), prefix = useId();
   const { status, error, working } = recap;
-  const toneControl = group => <fieldset className="daily-recap-tone" aria-label={uiFormat('{0}的讲解口吻', [group.course])} disabled={busy || !!working}>
-    <legend>{ui('讲解口吻')}</legend>
-    {['friendly', 'professional'].map(tone => <label key={tone}>
-      <input type="radio" name={prefix + '-' + recapGroupKey(group)} value={tone} checked={recap.toneFor(group) === tone}
-        onChange={() => recap.setTone(group, tone)} />{ui(tone === 'friendly' ? '亲切' : '专业')}
-    </label>)}
-  </fieldset>;
+  // The host says whether a model can write it; an older host that does not say is taken as ready.
+  const modelReady = status?.modelReady !== false;
+  // The tone has a default in Settings; the choice is folded, named on the fold, and one click inside it.
+  const toneControl = group => <details className="daily-recap-tone-fold">
+    <summary>{uiFormat('讲解口吻 · {0}', [ui(recap.toneFor(group) === 'friendly' ? '亲切' : '专业')])}</summary>
+    <fieldset className="daily-recap-tone" aria-label={uiFormat('{0}的讲解口吻', [group.course])} disabled={busy || !!working}>
+      <legend>{ui('讲解口吻')}</legend>
+      {['friendly', 'professional'].map(tone => <label key={tone}>
+        <input type="radio" name={prefix + '-' + recapGroupKey(group)} value={tone} checked={recap.toneFor(group) === tone}
+          onChange={() => recap.setTone(group, tone)} />{ui(tone === 'friendly' ? '亲切' : '专业')}
+      </label>)}
+    </fieldset>
+  </details>;
   return <section className="daily-recap" aria-labelledby={prefix + '-title'}>
     <div className="daily-recap-heading"><h2 id={prefix + '-title'}>{ui('今日学习总结')}</h2>
       {onSettings && <Button size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
     </div>
     <p className="daily-recap-lead">{ui('把今天各章的练习串起来，收好错因、思路和下一步。')}</p>
+    {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), onClick: onModelSettings } : undefined}>
+      {ui('整理合集需要先配置模型；已经写好的合集仍可阅读。')}</InlineMessage>}
     {error && <div className="daily-recap-error" role="alert"><p>{ui('暂时没能完成这一步，请重试。')}
       <Button size="sm" variant="link" disabled={!!working} onClick={recap.refresh}>{ui('重新加载状态')}</Button></p>
       <details><summary>{ui('查看原因')}</summary><p>{error}</p></details>
@@ -73,18 +84,19 @@ export function DailyRecapPanel(props) {
         <div className="daily-recap-actions">
           {canGenerate && toneControl(group)}
           <div className="daily-recap-buttons">
-            {group.noteId && group.hasContent && <Button variant="primary" disabled={!onOpenNote || busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
-            {canGenerate && <Button variant={group.hasContent ? 'secondary' : 'primary'} busy={working === recapGroupKey(group)} disabled={busy || !!working || !group.eligible}
+            {group.noteId && group.hasContent && <Button variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote || busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
+            {canGenerate && <Button variant={group.hasContent || !primary ? 'secondary' : 'primary'} busy={working === recapGroupKey(group)} disabled={busy || !!working || !group.eligible || !modelReady}
               onClick={() => recap.generate(group)}>{ui(retry ? '重试生成合集' : group.hasContent ? '更新今日合集' : '生成今日合集')}</Button>}
             {running && <Button size="sm" variant="quiet" disabled={busy || !!working} onClick={() => recap.cancel(group)}>{ui('停止生成')}</Button>}
           </div>
         </div>
         {protectedEdit && <details className="daily-recap-replace"><summary>{ui('重新整理这篇合集')}</summary>
           <p>{ui('重新整理会替换你手动编辑的标题和正文，请先保存需要保留的内容。')}</p>{toneControl(group)}
-          <Button size="sm" disabled={busy || !!working || !group.eligible} onClick={() => recap.generate(group, true)}>{ui('替换手动内容并重新整理')}</Button></details>}
+          <Button size="sm" disabled={busy || !!working || !group.eligible || !modelReady} onClick={() => recap.generate(group, true)}>{ui('替换手动内容并重新整理')}</Button></details>}
       </article>;
     })}
     {status && <div className="daily-recap-footer"><span>{ui(status.automatic ? '自动整理已开启' : '由你决定何时生成')}</span>
-      <details><summary>{ui('合集如何生成')}</summary><p>{ui('同日同课程合成一篇。累计作答 10 道不同题目后生成，重练只计一次。自动生成可在设置里开启。')}</p></details></div>}
+      <details><summary>{ui('合集如何生成')}</summary><p>{ui('同日同课程合成一篇。累计作答 10 道不同题目后生成，重练只计一次。自动生成可在设置里开启。')}
+        {onSettings && <>{' '}<Button size="sm" variant="link" onClick={onSettings}>{ui('前往设置')}</Button></>}</p></details></div>}
   </section>;
 }

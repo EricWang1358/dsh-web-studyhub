@@ -36,6 +36,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   category({ id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'] }, () => import('./settings/ModelPane.jsx')),
   category({ id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation', 'settings-generation-time'], needs: 'generation' }, () => import('./settings/GenerationPane.jsx')),
   category({ id: 'daily-recap', group: 'common', title: '每日讲解合集', anchors: ['settings-daily-recap'] }, () => import('./settings/DailyRecapPane.jsx')),
+  category({ id: 'practice', group: 'common', title: '练习', anchors: ['settings-practice'] }, () => import('./settings/PracticePane.jsx')),
   category({ id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] }, () => import('./settings/CoursesPane.jsx')),
   category({ id: 'exam-prep', group: 'once', title: '备考补习', anchors: ['settings-exam-prep'], needs: 'generation' }, () => import('./settings/ExamPrepPane.jsx')),
   category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio' }, () => import('./settings/AudioPane.jsx')),

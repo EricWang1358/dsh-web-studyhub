@@ -94,7 +94,7 @@ test('the legacy focus trap is gone from the shell: Dialog owns focus, Escape an
 test('the shell reads its preferences through usePersistentState, and the poll through usePolling', async () => {
   const shell = await readAppSource();
   assert.doesNotMatch(shell, /localStorage\./);
-  assert.ok(count(shell, /usePersistentState\(/g) >= 4, 'science, sidebar, EN and autopilot');
+  assert.ok(count(shell, /usePersistentState\(/g) >= 3, 'science, sidebar and EN (autopilot is a library setting now: 设置 › 练习)');
   assert.doesNotMatch(shell, /setInterval\(|setTimeout\(tick/);
 });
 
