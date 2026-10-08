@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { shortCauseOf, THIN_CHARS } from '../lib/generation-failure.js';
-import { recordAttempts, runFacts, roundList } from '../lib/coverage-run.js';
+import { recordAttempts, runFacts, roundList, REPEAT_LIMIT } from '../lib/coverage-run.js';
 import { stageArgsOf } from '../lib/contexts/jobs/contracts.js';
 import { observeJob } from '../lib/job-calls.js';
 import { jobContract } from '../lib/job-contract.js';
@@ -209,9 +209,11 @@ test('the same plan block in English has no Chinese in it', () => {
 });
 
 test('the draft page says the failing sections with the same sentences as the console', () => {
-  const html = render(React.createElement(m.RunPanel, { draft: { id: 'd1', title: 'T', draftVersion: 1, cards: [{ id: 'c' }], editorial: { requested: 19, generation: { sourceIds: ['pdf'] }, coverageSpec: { version: 1, level: 'standard', goal: 19, quotas: [], rounds: [{ round: 1, questions: 4, sectionIds: ['pdf#p18'], status: 'done' }], attempts: { 'pdf#p18': { n: 2, reason: 'plan-short', round: 2, rounds: [{ round: 1 }, { round: 2, fill: true }], short: p18.short } } }, coverageRun: { jobId: 'run-1', state: 'stopped', autoComplete: true, tokensUsed: 5, stop } } },
+  // A section is listed once a run stopped trying it by itself: REPEAT_LIMIT failed attempts, the planned round and then the retry (补做) rounds.
+  const tried = Array.from({ length: REPEAT_LIMIT }, (_, at) => (at === 0 ? { round: 1 } : { round: at + 1, fill: true }));
+  const html = render(React.createElement(m.RunPanel, { draft: { id: 'd1', title: 'T', draftVersion: 1, cards: [{ id: 'c' }], editorial: { requested: 19, generation: { sourceIds: ['pdf'] }, coverageSpec: { version: 1, level: 'standard', goal: 19, quotas: [], rounds: [{ round: 1, questions: 4, sectionIds: ['pdf#p18'], status: 'done' }], attempts: { 'pdf#p18': { n: REPEAT_LIMIT, reason: 'plan-short', round: REPEAT_LIMIT, rounds: tried, short: p18.short } } }, coverageRun: { jobId: 'run-1', state: 'stopped', autoComplete: true, tokensUsed: 5, stop } } },
     view: { status: 'ok', canTopUp: true, coverage: { percentLeaves: 86, units: 'page', leaves: 14, covered: 12, sections: [{ key: 'pdf#p18', id: 'p18', title: '', page: 18, state: 'planned-failed', reason: 'plan-short', cards: 0, start: 1000, end: 2600, sourceId: 'pdf' }] }, round: { sections: 1, questions: 3, rounds: 1, left: 0, allQuestions: 3 } }, jobs: [] }));
-  assert.match(text(html), /第 18 页（要 3 个考点，只给出 1 个 · 已试 2 次）/);
+  assert.match(text(html), new RegExp(`第 18 页（要 3 个考点，只给出 1 个 · 已试 ${REPEAT_LIMIT} 次）`));
   assert.match(text(html), /补问一次后，模型仍只给出 1 个/);
 });
 

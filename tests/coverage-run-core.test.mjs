@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { roundList, markRound, finishRound, appendFillRound, interruptedRounds, nextPlannedKeys, stepOf, progressOf, runFacts, draftRunFacts, parseTokenBudget, STOP_REASONS, FILL_ROUNDS, RUN_STATES } from '../lib/coverage-run.js';
+import { roundList, markRound, finishRound, appendFillRound, interruptedRounds, nextPlannedKeys, stepOf, progressOf, recordAttempts, runFacts, draftRunFacts, parseTokenBudget, STOP_REASONS, FILL_ROUNDS, REPEAT_LIMIT, RUN_STATES } from '../lib/coverage-run.js';
 import { STRENGTH, autoCompleteOf } from '../lib/coverage-strength.js';
 
 /* The pure core of a coverage run (lib/coverage-run.js): the state of the rounds a draft keeps, what to do after each round, why a run stops, and the numbers every screen shows. */
@@ -73,6 +73,48 @@ test('after a round: all done and covered; the target reached early; manual wait
   assert.equal(stepOf({ spec: spec(), uncovered: all, run: run() }).index, 0);
   assert.deepEqual(Object.keys(STOP_REASONS).sort(), ['budget', 'complete', 'learner', 'no-progress', 'refused', 'round-failed', 'sections-left', 'target']);
   for (const reason of Object.values(STOP_REASONS)) assert.ok(typeof reason.level === 'string');
+});
+
+test('自动补到完整 keeps filling a section until it has failed REPEAT_LIMIT times: sections-left only when every section left has, or the fill rounds are used up; with it off the run waits', () => {
+  const done = spec(['done', 'done', 'done']), left = new Set(['b']);
+  const failed = n => ({ ...done, attempts: { b: { n, reason: 'review-protocol', round: n } } });
+  // The owner's report: a run with the checkbox ticked stopped at 92% because a section whose question failed review had already failed once or twice. Fewer than REPEAT_LIMIT failed attempts: it is written again.
+  for (const n of [1, 2, REPEAT_LIMIT - 1]) {
+    assert.deepEqual(stepOf({ spec: failed(n), uncovered: left, run: run({ fillUsed: Math.min(n - 1, FILL_ROUNDS - 1) }) }), { type: 'fill', keys: ['b'], skipped: [] }, `${n} failed attempt(s): the run writes the section again`);
+  }
+  assert.deepEqual(stepOf({ spec: done, uncovered: left, run: run() }), { type: 'fill', keys: ['b'], skipped: [] }, 'a section with no recorded attempt is written too');
+  // REPEAT_LIMIT failed attempts: the run stops trying it by itself.
+  assert.deepEqual(stepOf({ spec: failed(REPEAT_LIMIT), uncovered: left, run: run({ fillUsed: REPEAT_LIMIT - 1 }) }), { type: 'stop', reason: 'sections-left', left: 1, skipped: [] });
+  // One section with attempts to spare keeps the run going, and only that one is written.
+  const mixed = { ...done, attempts: { b: { n: REPEAT_LIMIT, reason: 'review-protocol', round: 4 }, c: { n: 1, reason: 'quote', round: 3 } } };
+  assert.deepEqual(stepOf({ spec: mixed, uncovered: new Set(['b', 'c']), run: run({ fillUsed: 1 }) }), { type: 'fill', keys: ['c'], skipped: [] });
+  // The bound on the fill rounds stays, whatever the attempts say.
+  assert.deepEqual(stepOf({ spec: failed(1), uncovered: left, run: run({ fillUsed: FILL_ROUNDS }) }), { type: 'stop', reason: 'sections-left', left: 1 });
+  // Without 自动补到完整 the run waits for the learner, with attempts to spare or not.
+  for (const n of [1, REPEAT_LIMIT]) assert.deepEqual(stepOf({ spec: failed(n), uncovered: left, run: run({ autoComplete: false }) }), { type: 'wait', next: -1 }, `${n} failed attempt(s), 自动补到完整 off`);
+});
+
+test('a run whose every fill round gains a section goes on to the last one, which is written REPEAT_LIMIT times (its planned round and REPEAT_LIMIT - 1 fill rounds) and no more', () => {
+  assert.ok(FILL_ROUNDS >= REPEAT_LIMIT - 1, 'the attempts of a section run out before the fill rounds do: a section that fails every time is not what uses up the fill rounds');
+  // The bookkeeping of the executor (lib/contexts/generation/operations.js), round by round: the sections a round was asked for that still have no question get one more failed attempt; a fill round that
+  // gains no section ends the run (no-progress), so here every fill round gains one: helper k comes out in fill round k, the stuck section never.
+  const helpers = Array.from({ length: REPEAT_LIMIT - 1 }, (_, at) => `h${at + 1}`);
+  let uncovered = new Set([...helpers, 'stuck']), current = recordAttempts(spec(['done', 'done', 'done']), [...uncovered], () => 'review-protocol', 3);
+  let fills = 0, step = stepOf({ spec: current, uncovered, run: run({ fillUsed: fills }) });
+  while (step.type === 'fill' && fills < 20) {
+    fills += 1;
+    assert.ok(step.keys.includes('stuck') && fills <= FILL_ROUNDS, `fill round ${fills} writes the stuck section again`);
+    const before = uncovered;
+    uncovered = new Set([...before].filter(key => key !== `h${fills}`));
+    assert.equal(progressOf(before, uncovered).progress, true, `fill round ${fills} gains a section`);
+    current = recordAttempts(current, step.keys.filter(key => uncovered.has(key)), () => 'review-protocol', 3 + fills, undefined, true);
+    step = stepOf({ spec: current, uncovered, run: run({ fillUsed: fills }) });
+  }
+  assert.equal(fills, REPEAT_LIMIT - 1);
+  assert.deepEqual([step.type, step.reason, step.left], ['stop', 'sections-left', 1]);
+  assert.equal(current.attempts.stuck.n, REPEAT_LIMIT, 'the stuck section was asked for exactly REPEAT_LIMIT times');
+  assert.deepEqual(current.attempts.stuck.rounds.map(item => !!item.fill), Array.from({ length: REPEAT_LIMIT }, (_, at) => at > 0), 'its planned round, then fill rounds');
+  assert.deepEqual(helpers.map(key => current.attempts[key].n), helpers.map((_, at) => at + 1), 'a helper failed in every round before the one it came out in');
 });
 
 test('progress of a round: the sections it covered that had none; a round that covered none made no progress', () => {
