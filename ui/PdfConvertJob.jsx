@@ -29,7 +29,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
     await send('mineru.retry', { jobId: job.id });
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
-  const primary = tokenProblem && onOpenSettings ? { label: ui('去设置里换一个令牌'), run: onOpenSettings }
+  const primary = tokenProblem && onOpenSettings ? { label: ui('去设置里换一个令牌'), run: () => onOpenSettings('settings-mineru') }
     : job.status === 'failed' && job.retryable && !tokenProblem ? { label: job.errorCode === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做'), run: retry, disabled: !!working }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
@@ -268,7 +268,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
           {row.canRetry && !tokenProblem && <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])}
             title={ui('已完成的段落会直接复用，不会重复上传或重复解析')} onClick={() => onRetry(row)}>
             {status === 'failed' ? (row.failure?.code === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做（不重复已完成的段落）')) : ui('接着做')}</Button>}
-          {tokenProblem && onOpenSettings && <Button variant="primary" size="sm" onClick={onOpenSettings}>{ui('去设置里换一个令牌')}</Button>}
+          {tokenProblem && onOpenSettings && <Button variant="primary" size="sm" onClick={() => onOpenSettings('settings-mineru')}>{ui('去设置里换一个令牌')}</Button>}
           {status !== 'running' && <Button variant="link" size="sm" disabled={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
       </JobRow>
