@@ -6,7 +6,6 @@
   "文件超过 {0} MB。请压缩图片或拆分后再导入。": "The file is larger than {0} MB. Compress its pictures or split it, then import it again.",
   "PDF 超过 {0} 页。请按章节拆分后再导入。": "The PDF has more than {0} pages. Split it by chapter and import the parts.",
   "提取出的文字超过 {0} 字符。请按章节拆分后再导入。": "The extracted text is longer than {0} characters. Split the file by chapter and import the parts.",
-  "字幕文件超过 {0} MB。": "The subtitle file exceeds {0} MB.",
   "{0} / {1} 字符": "{0} / {1} characters",
   "生成题目需要先配置模型。": "Generating questions needs a model first.",
   "批改要调用 AI 模型。答案会先保存；配置好模型后点「重新提交批改」。": "Grading calls an AI model. Your answers are saved first; once a model is set up, select “Resubmit for grading”.",

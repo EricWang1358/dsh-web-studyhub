@@ -1,15 +1,16 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, FileDrop, Icon, InlineMessage, SegmentedControl } from './components/index.js';
+import { Button, Disclosure, FileDrop, Icon, InlineMessage, SegmentedControl } from './components/index.js';
 import CourseField, { parseCourses } from './CourseField.jsx';
+import { coursesForFile } from './import-course.js';
 import { sourceFormatLabel } from './SourcePicker.jsx';
-import LargeDocumentCard from './LargeDocumentCard.jsx';
+import LargeDocumentCard, { ConverterMain } from './LargeDocumentCard.jsx';
 import PdfConversion from './PdfConversion.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { LARGE_DOCUMENT_LIMITS, classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
-import { AUDIO_EXTENSIONS, MAX_SUBTITLE_BYTES, SUBTITLE_TIMED_EXTENSIONS } from '../lib/audio-formats.js';
+import { AUDIO_EXTENSIONS, SUBTITLE_TIMED_EXTENSIONS } from '../lib/audio-formats.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import { IMPORT_ERROR } from '../lib/import-errors.js';
 import { SELECTION_CHARS } from '../lib/limits.js';
@@ -20,19 +21,22 @@ import css from './import-hub.css';
 import { hasContext } from './capabilities.js';
 import { useStudy } from './study-context.jsx';
 
-/* The one way to add material (O-3, O-4, P19–P21, P05). The course is chosen
-   first; one drop zone takes documents, JSON decks and subtitles together and
-   routes each file by type; pasting text and audio are the other two tabs.
+/* The one way to add material (O-3, O-4, P19–P21, P05). The course is one line
+   (the current course, or what the learner chose, or the course a file name
+   names when nothing is chosen) with 更改 beside it; one drop zone takes documents
+   and JSON decks together and routes each file by type; recordings and subtitles
+   go to the audio tab (which shows the estimate first), pasting text is the third.
    Every file shows its own status, failures stay next to the file with a plain
-   reason, and a fully successful batch hands its summary to onComplete (the
-   App closes the dialog, shows the toast and highlights the new material). */
+   reason (a PDF with no text, or too large, with the converter staged right under
+   it), and a fully successful batch hands its summary to onComplete (the App
+   closes the dialog, shows the toast and highlights the new material). */
 
 /** PDF, Markdown, HTML and TXT. Word and PowerPoint have MAX_OFFICE_BYTES (one constant per format: lib/office/limits.js). */
 export const MAX_DOCUMENT_BYTES = MAX_TEXT_DOCUMENT_BYTES;
 export { MAX_OFFICE_BYTES };
 export const MAX_DECK_BYTES = 2_000_000;
-/** PDF and text documents (the compact DocumentImport takes only these; Word and PowerPoint go through the hub). */
-export const DOCUMENT_EXTENSIONS = ['.pdf', '.md', '.markdown', '.html', '.htm', '.txt'];
+/** PDF and text documents; Word and PowerPoint follow them in the picker (HUB_DOCUMENTS). */
+const DOCUMENT_EXTENSIONS = ['.pdf', '.md', '.markdown', '.html', '.htm', '.txt'];
 const OFFICE_EXTENSIONS = ['.docx', '.pptx'];
 // Documents in the order the native picker shows them: .docx and .pptx right after .pdf.
 const HUB_DOCUMENTS = ['.pdf', ...OFFICE_EXTENSIONS, ...DOCUMENT_EXTENSIONS.slice(1)];
@@ -150,40 +154,46 @@ export function plainImportError(error, context) {
   return String(error?.message ?? error ?? '').trim() || ui('导入失败，请重试。');
 }
 
-/* One document through the ordinary import (a PDF, Word, text, or a converter's JSON/Markdown). */
-async function importDocumentFile(file, { call, courses = [] }) {
+/* One document through the ordinary import (a PDF, Word, text, or a converter's JSON/Markdown). `courses` is the field (the learner's choice or the
+   current course); when it is empty the file's own name may name one course (ui/import-course.js), and the result says so. `convertible`: the PDF
+   converters are there, so a PDF with no text can be handed to them (the hub offers it; nothing runs until the learner presses start). */
+async function importDocumentFile(file, { call, courses = [], known = [], convertible = false }) {
   const limit = documentLimit(file.name);
   if (file.size > limit) throw limitError(limit > MAX_DOCUMENT_BYTES ? IMPORT_ERROR.OFFICE_TOO_LARGE : IMPORT_ERROR.DOCUMENT_TOO_LARGE, limit);
-  const value = await call('materials.document.import', { dataBase64: await toBase64(file), filename: file.name, courses });
+  const filed = coursesForFile(file, { chosen: courses, known });
+  const value = await call('materials.document.import', { dataBase64: await toBase64(file), filename: file.name, courses: filed.courses });
   const sourceIds = value?.sourceIds || value?.document?.sourceIds || [];
   const format = value?.document?.format || FORMAT_OF[extensionOf(file.name)];
   const converted = value?.document?.sources?.find(source => source?.document?.converter)?.document.converter;
-  if (!sourceIds.length) throw permanentError(format === 'pdf'
-    ? ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。')
-    : format === 'pptx' ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
+  if (!sourceIds.length) {
+    if (format === 'pdf') throw permanentError(convertible
+      ? ui('没有读到可用的文字，可能是扫描件或图片。下面可以在本机解析它（带文字识别，不会上传）。')
+      : ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。'), convertible ? { scanned: true } : {});
+    throw permanentError(format === 'pptx' ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
+  }
   return { kind: 'document', title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
-    pages: sourceIds.length, skippedPages: value?.skippedPages || [], ...(converted ? { converted } : {}) };
+    pages: sourceIds.length, skippedPages: value?.skippedPages || [], courses: filed.courses, courseHow: filed.how, ...(converted ? { converted } : {}) };
 }
 
-async function importOne(file, { call, courses = [], audio = false }) {
+async function importOne(file, { call, courses = [], known = [], audio = false, convertible = false }) {
   const kind = routeImportFile(file, { audio });
-  if (kind === 'audio') throw permanentError(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'));
+  if (kind === 'audio') throw permanentError(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'), { carry: true });
+  if (kind === 'subtitle') throw permanentError(ui('字幕要在「音频 / 录音」里确认后再导入：那里会先估算用量。'), { carry: true });
   if (kind === 'legacy') throw permanentError(ui(LEGACY_MESSAGES[extensionOf(file.name)]));
   if (!kind) throw permanentError(ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'));
-  if (kind === 'document') return importDocumentFile(file, { call, courses });
+  if (kind === 'document') return importDocumentFile(file, { call, courses, known, convertible });
   const text = await file.text();
   // A converter's JSON (WP28) is a textbook, not a question deck.
-  if (kind === 'deck' && looksLikeConvertedJson(text)) return importDocumentFile(file, { call, courses });
+  if (kind === 'deck' && looksLikeConvertedJson(text)) return importDocumentFile(file, { call, courses, known, convertible });
   if (kind === 'deck' && !looksLikeSubtitleJson(text)) {
     if (file.size > MAX_DECK_BYTES) throw permanentError(ui('题组文件不能超过 2 MB。'));
     const proposal = await call('draft.import.propose', { text });
+    // A JSON deck keeps one course: the first (a deck belongs to one course).
     const deck = await call('draft.import', { text, title: proposal?.title, course: courses[0] ?? proposal?.course ?? '' });
     return { kind: 'deck', title: deck.title, deck, count: deck.cards?.length || 0 };
   }
-  if (!audio) throw permanentError(ui('这是字幕文件，需要启用音频组件后才能导入。'));
-  if (file.size > MAX_SUBTITLE_BYTES) throw permanentError(uiFormat('字幕文件超过 {0} MB。', [megabytes(MAX_SUBTITLE_BYTES)]));
-  const job = await call('audio.subtitles.import', { filename: file.name, text, courses });
-  return { kind: 'subtitle', title: file.name, job };
+  // Bilibili-style subtitle JSON: a subtitle, so it is confirmed in the audio form like .srt and .vtt.
+  throw permanentError(audio ? ui('字幕要在「音频 / 录音」里确认后再导入：那里会先估算用量。') : ui('这是字幕文件，需要启用音频组件后才能导入。'), audio ? { carry: true } : {});
 }
 
 /**
@@ -191,48 +201,53 @@ async function importOne(file, { call, courses = [], audio = false }) {
  * reports 'working', then 'done' or 'error'. Resolves to
  * [{ file, status: 'done'|'error', result?, error?, permanent? }]; it never
  * throws. `permanent` errors repeat on retry (offer removal instead).
+ * `known`: the library's courses (a file name may name one when `courses` is empty); `convertible`: PDF conversion is available.
+ * An error may carry `carry` (the file belongs in the audio form), `scanned` (a PDF with no text that the converters can read) or `large`.
  */
-export async function runImport(files, { call, courses = [], audio = false, onUpdate } = {}) {
+export async function runImport(files, { call, courses = [], known = [], audio = false, convertible = false, onUpdate } = {}) {
   const results = [];
   for (const [index, file] of [...files].entries()) {
     onUpdate?.(index, { status: 'working' });
     try {
-      const result = await importOne(file, { call, courses, audio });
+      const result = await importOne(file, { call, courses, known, audio, convertible });
       results.push({ file, status: 'done', result });
       onUpdate?.(index, { status: 'done', result });
     } catch (error) {
-      const context = { format: routeImportFile(file, { audio }) === 'document' ? FORMAT_OF[extensionOf(file.name)] : undefined };
+      const format = FORMAT_OF[extensionOf(file.name)];
+      const context = { format: routeImportFile(file, { audio }) === 'document' ? format : undefined };
       const message = plainImportError(error, context), permanent = isPermanentImportError(error, context);
-      // Too large to import as it is (WP28): the hub explains how a big book is used instead.
-      const kind = classifyImportFailure(error), large = kind === 'pdf-size' || kind === 'pdf-pages' || kind === 'text-chars' ? kind : undefined;
-      results.push({ file, status: 'error', error: message, permanent, ...(large ? { large } : {}) });
-      onUpdate?.(index, { status: 'error', error: message, permanent, ...(large ? { large } : {}) });
+      /* Too large to import as it is (WP28): the hub explains how a big book is used instead. Only a PDF can be converted:
+         a text file over the limit is split by chapter, as the message says. */
+      const kind = classifyImportFailure(error), large = format === 'pdf' && (kind === 'pdf-size' || kind === 'pdf-pages' || kind === 'text-chars') ? kind : undefined;
+      const flags = { ...(large ? { large } : {}), ...(error?.scanned ? { scanned: true } : {}), ...(error?.carry ? { carry: true } : {}) };
+      results.push({ file, status: 'error', error: message, permanent, ...flags });
+      onUpdate?.(index, { status: 'error', error: message, permanent, ...flags });
     }
   }
   return results;
 }
 
-/** { done, failed, documents, decks, subtitles, sourceIds } of finished imports. */
+/** { done, failed, documents, decks, sourceIds } of finished imports. */
 export function importSummary(results) {
   const done = results.filter(item => item.status === 'done' && item.result);
   const of = kind => done.map(item => item.result).filter(result => result.kind === kind);
   const documents = of('document');
   return { done: done.length, failed: results.filter(item => item.status === 'error').length, documents,
-    decks: of('deck').map(result => result.deck), subtitles: of('subtitle').map(result => ({ name: result.title, job: result.job })),
-    sourceIds: documents.flatMap(document => document.sourceIds) };
+    decks: of('deck').map(result => result.deck), sourceIds: documents.flatMap(document => document.sourceIds) };
 }
 
 /** The confirmation toast: “已导入「X」（N 页）” and what else happened. */
-export function importDoneMessage({ documents = [], decks = [], subtitles = [], conversions = [] } = {}) {
+export function importDoneMessage({ documents = [], decks = [], conversions = [] } = {}) {
   const parts = [];
   if (documents.length === 1) {
     const [document] = documents;
     parts.push(document.format !== 'pdf' && document.format !== 'pptx' ? uiFormat('已导入「{0}」', [document.title])
       : document.pages === 1 ? uiFormat('已导入「{0}」（1 页）', [document.title]) : uiFormat('已导入「{0}」（{1} 页）', [document.title, document.pages]));
+    // A course the name of the file suggested is said (it was a guess); the learner's own choice is already on the screen.
+    if (document.courseHow === 'file-name' && document.courses?.[0]) parts.push(uiFormat('归入「{0}」（文件名里有课程名）', [document.courses[0]]));
   } else if (documents.length > 1) parts.push(uiFormat('已导入 {0} 份资料', [documents.length]));
   if (decks.length === 1) parts.push(uiFormat('题组「{0}」已存为草稿（{1} 题）', [decks[0].title, decks[0].cards?.length || 0]));
   else if (decks.length > 1) parts.push(uiFormat('{0} 个题组已存为草稿', [decks.length]));
-  if (subtitles.length) parts.push(uiFormat('{0} 份字幕正在后台校对，完成后出现在资料页', [subtitles.length]));
   const providers = new Set(conversions.map(job => job.converter === 'marker' ? 'Marker' : 'MinerU'));
   const provider = providers.size === 1 ? [...providers][0] : '';
   if (conversions.length === 1) parts.push(uiFormat('「{0}」正在后台用 {2} 解析（{1} 页），进度在资料页', [conversions[0].name, conversions[0].pages, provider]));
@@ -250,12 +265,12 @@ export function importDoneMessage({ documents = [], decks = [], subtitles = [], 
  */
 export function importOutcome(summary, { page } = {}) {
   if (!summary?.done) return null;
-  const ids = summary.sourceIds || [], decks = summary.decks || [], subtitles = summary.subtitles || [];
+  const ids = summary.sourceIds || [], decks = summary.decks || [];
   const text = importDoneMessage(summary);
   if (ids.length && page === 'generate')
     return { select: ids, notice: { text: uiFormat('{0}。已勾选，可以直接生成题组。', [text]), tone: 'success' } };
   if (ids.length) return { page: 'sources', highlight: ids, select: ids, notice: { text, tone: 'success', action: 'generate' } };
-  if (decks.length === 1 && !subtitles.length)
+  if (decks.length === 1)
     return { openDraft: decks[0], notice: { text: uiFormat('已导入「{0}」共 {1} 题。可检查后直接发布。', [decks[0].title, decks[0].cards?.length || 0]), tone: 'success' } };
   if (decks.length) return { page: 'library', notice: { text, tone: 'success' } };
   return { page: 'sources', notice: { text, tone: 'success' } };
@@ -287,8 +302,8 @@ export function hubDropHandler(onStray) {
   };
 }
 
-const WORKING = { document: '正在保存并提取文字…', deck: '正在检查题目…', subtitle: '正在读取字幕…' };
-const PENDING = { document: '讲义 / 笔记 → 资料', deck: '题组 JSON → 草稿', subtitle: '字幕 → 后台校对', audio: '音频' };
+const WORKING = { document: '正在保存并提取文字…', deck: '正在检查题目…' };
+const PENDING = { document: '讲义 / 笔记 → 资料', deck: '题组 JSON → 草稿', audio: '音频' };
 
 /** The line under a file in the hub: what it is, or what happened to it. */
 export function itemDetail(item) {
@@ -297,7 +312,6 @@ export function itemDetail(item) {
   if (item.status !== 'done') return PENDING[item.kind] ? ui(PENDING[item.kind]) : '';
   const result = item.result;
   if (result.kind === 'deck') return uiFormat('已存为草稿「{0}」 · {1} 题', [result.title, result.count]);
-  if (result.kind === 'subtitle') return ui('已开始后台校对，完成后出现在资料页');
   const label = result.format === 'docx' ? ui('Word') : result.format === 'pptx'
     ? (result.sourceIds.length === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [result.sourceIds.length]))
     : sourceFormatLabel({ format: result.format, sourceIds: result.sourceIds });
@@ -306,7 +320,8 @@ export function itemDetail(item) {
     : uiFormat('{0} · 已保存到资料', [label]);
 }
 
-function PasteForm({ call, courses, disabled, draft, onDraft, onSaved }) {
+function PasteForm({ courses, disabled, draft, onDraft, onSaved }) {
+  const { call } = useStudy();
   const [saving, setSaving] = useState(false), [error, setError] = useState('');
   const errorId = useId();
   async function submit(event) {
@@ -316,7 +331,7 @@ function PasteForm({ call, courses, disabled, draft, onDraft, onSaved }) {
       const source = await call('source.add', { title: draft.title, text: draft.text, courses });
       onDraft({ title: '', text: '' });
       await onSaved({ done: 1, failed: 0, documents: [{ kind: 'document', title: source?.title || draft.title, format: 'text', pages: 1, sourceIds: [source?.id].filter(Boolean) }],
-        decks: [], subtitles: [], sourceIds: [source?.id].filter(Boolean) });
+        decks: [], sourceIds: [source?.id].filter(Boolean) });
     } catch (failure) { setError(plainImportError(failure)); }
     finally { setSaving(false); }
   }
@@ -336,19 +351,45 @@ function PasteForm({ call, courses, disabled, draft, onDraft, onSaved }) {
   );
 }
 
+/** Where the new materials are filed, in one line: the course and the reason, with 更改 to pick another. The field itself is behind 更改. */
+function CourseChoice({ value, focus, from, courses, onChange, disabled }) {
+  const [editing, setEditing] = useState(false);
+  const openedWith = useRef(value), fieldId = useId();
+  const chosen = parseCourses(value);
+  // No course yet and none to be named: nothing to explain (a first-time learner has no courses).
+  const reason = !chosen.length ? (courses.length ? ui('文件名里有课程名时，会按它归入') : '')
+    : chosen.length === 1 && chosen[0] === focus ? ui('当前课程')
+      : from === 'page' && value === openedWith.current ? ui('沿用当前页面的课程') : ui('你选的课程');
+  return (
+    <div className="import-hub__course">
+      <p className="import-hub__chip">
+        <strong>{chosen.length ? uiFormat('归入「{0}」', [chosen.join(ui('、'))]) : ui('未分类')}</strong>
+        {reason && <small>{reason}</small>}
+        <Button variant="link" size="sm" aria-expanded={editing} aria-controls={fieldId} disabled={disabled} onClick={() => setEditing(open => !open)}>
+          {editing ? ui('收起') : ui('更改')}
+        </Button>
+      </p>
+      {editing && <div id={fieldId}><CourseField label={ui('这些资料属于哪门课？')} value={value} onChange={onChange} courses={courses} multiple disabled={disabled} /></div>}
+    </div>
+  );
+}
+
 /**
  * Props: data (for the course list), call(action, args), busy, course +
  * onCourseChange (course text, chosen first), audio (node for the audio tab;
  * omit when the audio component is off), initialTab 'files'|'paste'|'audio',
  * pasteDraft + onPasteDraftChange ({ title, text }, optional), onImported(summary)
  * after anything was saved (refresh data), onComplete(summary) when the batch
- * is finished without failures or the learner confirms a partial one, and
- * onOpenSources(sourceIds) to jump to a material the 解析历史 lists.
+ * is finished without failures or the learner confirms a partial one,
+ * onOpenSources(sourceIds) to jump to a material the 解析历史 lists, onOpenSettings(section, { file?, courses? })
+ * (the file is the PDF being prepared, so the caller can bring the learner back to it), resumeFile (a PDF to prepare at once, after Settings),
+ * and courseFrom ('page': the course came from the page that opened the dialog).
  */
 export default function ImportHub({
   data,
   course,
   onCourseChange,
+  courseFrom,
   audio,
   initialTab = 'files',
   pasteDraft,
@@ -357,12 +398,14 @@ export default function ImportHub({
   onComplete,
   onOpenSettings,
   onOpenSources,
+  resumeFile = null,
   className,
   ...rest
 }) {
   const { call, busy } = useStudy();
   useInjectCss(css, 'study-import-hub');
   const audioOn = audio !== undefined && audio !== null && audio !== false;
+  const convertible = hasContext(data, 'audio');
   const [tab, setTab] = useState(initialTab === 'audio' && !audioOn ? 'files' : initialTab);
   const [ownCourse, setOwnCourse] = useState(() => data?.focus?.course || '');
   const courseText = course ?? ownCourse, setCourseText = onCourseChange || setOwnCourse;
@@ -370,7 +413,10 @@ export default function ImportHub({
   const draft = pasteDraft ?? ownDraft, setDraft = onPasteDraftChange || setOwnDraft;
   const [items, setItemsState] = useState([]), itemsRef = useRef([]);
   const [running, setRunning] = useState(false), [stray, setStray] = useState(false);
-  const root = useRef(null), alive = useRef(true), nextId = useRef(0), strayTimer = useRef(0), strayRef = useRef(null);
+  // Audio and subtitle files dropped on the Files tab go to the audio form (which asks for confirmation and shows the estimate).
+  const [carried, setCarried] = useState(null);
+  const converterBox = useRef(null);
+  const root = useRef(null), alive = useRef(true), nextId = useRef(0), strayTimer = useRef(0), strayRef = useRef(null), pdfPicker = useRef(null);
   const setItems = update => { itemsRef.current = typeof update === 'function' ? update(itemsRef.current) : update; setItemsState(itemsRef.current); };
   strayRef.current = type => {
     if (!alive.current) return;
@@ -380,12 +426,14 @@ export default function ImportHub({
     strayTimer.current = setTimeout(() => { if (alive.current) setStray(false); }, type === 'drop' ? 4000 : 900);
   };
   const handleDrag = useMemo(() => hubDropHandler(type => strayRef.current?.(type)), []);
-  // A file that is too large gets the 大教材建议 card; what DSH can search with is read once, then.
+  // A PDF that is too large gets the 大教材建议 card; what DSH can search with is read once, then. A PDF with no text goes straight to the converter, staged.
   const largeItem = items.find(item => item.status === 'error' && item.large);
+  const scannedItem = items.find(item => item.status === 'error' && item.scanned);
   // The PDF conversion panel also handles files refused by the ordinary import size limit.
-  const [converter, setConverter] = useState('mineru');
-  const [conversionOpen, setConversionOpen] = useState(false), [conversionFile, setConversionFile] = useState(null), [conversionHistory, setConversionHistory] = useState(false);
+  const [conversionOpen, setConversionOpen] = useState(!!resumeFile), [conversionFile, setConversionFile] = useState(resumeFile), [conversionHistory, setConversionHistory] = useState(false);
   const { data: retrieval } = useRetrievalStatus({ enabled: !!largeItem });
+  // A PDF with no text puts its converter under the row: bring it into view, the learner's next press is there.
+  useEffect(() => { if (scannedItem) converterBox.current?.scrollIntoView?.({ block: 'nearest' }); }, [scannedItem?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     alive.current = true;
     const element = root.current, types = ['dragenter', 'dragover', 'dragleave', 'drop'];
@@ -393,10 +441,15 @@ export default function ImportHub({
     return () => { alive.current = false; clearTimeout(strayTimer.current); types.forEach(type => element?.removeEventListener(type, handleDrag)); };
   }, [handleDrag]);
 
-  const courses = parseCourses(courseText);
+  // The course records carry the aliases a file name may use (data.courses); the picker lists the courses with their counts (data.focus.courses).
+  const courses = parseCourses(courseText), choices = data?.focus?.courses || [], known = data?.courses?.length ? data.courses : choices;
+  // The courses a PDF headed for the converter is filed under: the field, else the one course its name names.
+  const coursesOf = file => (file ? coursesForFile(file, { chosen: courses, known }).courses : courses);
+  // Leaving for Settings with a PDF in hand: the caller keeps it so the learner can come back to it.
+  const settingsFor = (section, extra) => onOpenSettings?.(section, { ...extra, courses: courseText });
   // The conversion runs in the background as a job (progress is on the Sources page); the hub reports it and closes.
   async function conversionStarted(job) {
-    const summary = { done: 1, failed: 0, documents: [], decks: [], subtitles: [], sourceIds: [], conversions: [{ name: job.filename, pages: job.pages, route: job.route, converter: job.converter, jobId: job.jobId }] };
+    const summary = { done: 1, failed: 0, documents: [], decks: [], sourceIds: [], conversions: [{ name: job.filename, pages: job.pages, route: job.route, converter: job.converter, jobId: job.jobId }] };
     await onImported?.(summary);
     if (alive.current) onComplete?.(summary);
   }
@@ -408,15 +461,21 @@ export default function ImportHub({
   }
   async function run(batch) {
     setRunning(true);
-    const results = await runImport(batch.map(item => item.file), { call, courses, audio: audioOn,
+    const results = await runImport(batch.map(item => item.file), { call, courses, known, audio: audioOn, convertible,
       onUpdate: (index, patch) => { if (alive.current) setItems(current => current.map(item => item.id === batch[index].id ? { ...item, ...patch } : item)); } });
     if (!alive.current) return;
     setRunning(false);
     const summary = importSummary(results);
     await finish(summary, summary.done > 0);
   }
+  function carryToAudio(files) {
+    setCarried(current => ({ files, nonce: (current?.nonce ?? 0) + 1 }));
+    setTab('audio');
+  }
   function add(files) {
     if (!files.length || busy || running) return;
+    // Only recordings and subtitles: they belong in the audio form, not in a list of failures.
+    if (audioOn && files.every(file => ['audio', 'subtitle'].includes(routeImportFile(file, { audio: true })))) return void carryToAudio(files);
     const names = new Set(files.map(file => file.name));
     const batch = files.map(file => ({ id: `file-${++nextId.current}`, file, name: file.name, kind: routeImportFile(file, { audio: audioOn }), status: 'pending' }));
     // A file dropped again replaces its failed attempt.
@@ -429,20 +488,19 @@ export default function ImportHub({
     setItems(current => current.map(entry => entry.id === id ? { ...entry, status: 'pending', error: undefined } : entry));
     void run([item]);
   }
+  const drop = id => setItems(current => current.filter(entry => entry.id !== id));
   const shown = items.map(item => ({ id: item.id, name: item.name, status: item.status, detail: itemDetail(item),
-    action: item.status !== 'error' ? undefined : item.kind === 'audio' && audioOn ? { label: ui('去音频页'), onClick: () => setTab('audio') }
-      : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => setItems(current => current.filter(entry => entry.id !== item.id)), disabled: running }
+    action: item.status !== 'error' ? undefined : item.carry && audioOn ? { label: ui('去音频页'), onClick: () => { carryToAudio([item.file]); drop(item.id); } }
+      : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => drop(item.id), disabled: running }
         : { label: ui('重试'), onClick: () => retry(item.id), disabled: running } }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
   const tabs = [{ value: 'files', label: ui('文件'), icon: 'upload' }, { value: 'paste', label: ui('粘贴文本'), icon: 'file' },
     ...(audioOn ? [{ value: 'audio', label: ui('音频 / 录音'), icon: 'audio' }] : [])];
   const strayText = tab === 'audio' ? ui('把音频放进虚线框里才会导入。') : ui('把文件放进虚线框里才会导入。');
+  const staged = !largeItem && !scannedItem && conversionOpen;
   return (
     <div ref={root} className={`import-hub${className ? ` ${className}` : ''}`} data-tab={tab} {...rest}>
-      <div className="import-hub__course">
-        <CourseField label={ui('这些资料属于哪门课？')} value={courseText} onChange={setCourseText} courses={data?.focus?.courses || []}
-          multiple disabled={busy || running} />
-      </div>
+      <CourseChoice value={courseText} focus={data?.focus?.course || ''} from={courseFrom} courses={choices} onChange={setCourseText} disabled={busy || running} />
       <SegmentedControl className="import-hub__tabs" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
       {stray && <p className="import-hub__stray" role="status"><Icon name="info" size={16} />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
@@ -457,43 +515,37 @@ export default function ImportHub({
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />}
-        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={onOpenSettings}
+        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={settingsFor}
           call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course}
-          conversionAvailable={hasContext(data, 'audio')} courseNames={courses} onConversionStarted={conversionStarted} />}
-        {!largeItem && conversionOpen && <>
-          <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); }}>{ui('返回文件导入')}</Button>
-          <PdfConversion available={hasContext(data, 'audio')} initialConverter={converter} file={conversionFile} onFile={setConversionFile} call={call} courses={courses} onStarted={conversionStarted} onOpenSettings={onOpenSettings}
+          conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} onConversionStarted={conversionStarted} />}
+        {/* A PDF with no text: the same staged converter, one press from started. Nothing runs before that press. */}
+        {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain available={convertible} call={call} file={scannedItem.file} courses={coursesOf(scannedItem.file)}
+          onOpenSettings={settingsFor} onStarted={conversionStarted} /></div>}
+        {staged && <>
+          <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
+          <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} call={call} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}
           jobs={data?.jobs} historyOpen={conversionHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route, converter: job.converter })}
           onChanged={() => onImported?.()} />
         </>}
-        {!conversionOpen && <section className="import-hub__conversion" aria-label={ui('PDF 解析方案')}>
-          <p className="import-hub__routes">{ui('扫描件、公式多，或大文件？选择 PDF 解析方案。')}</p>
-          {!hasContext(data, 'audio') && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。请在设置查看启用方式或手动转换说明。')}</InlineMessage>}
-          <div className="import-hub__converters">
-            <section className="import-hub__converter" aria-label="MinerU" data-tour="import-mineru">
-              <h3>MinerU</h3>
-              <p>{ui('在应用内解析 PDF，自动分段并导入。')}</p>
-              <div className="import-hub__converter-actions">
-                <Button size="sm" disabled={busy || running || !hasContext(data, 'audio')} onClick={() => { setConverter('mineru'); setConversionOpen(true); }}>{ui('用 MinerU 解析')}</Button>
-                <Button variant="link" size="sm" disabled={busy || running} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
-              </div>
-            </section>
-            <section className="import-hub__converter" aria-label="Marker">
-              <h3>Marker</h3><p>{ui('在应用内解析 PDF，自动分段并导入。')}</p>
-              <div className="import-hub__converter-actions">
-                <Button size="sm" disabled={busy || running || !hasContext(data, 'audio')} onClick={() => { setConverter('marker'); setConversionOpen(true); }}>{ui('用 Marker 解析')}</Button>
-                {onOpenSettings && <Button variant="link" size="sm" disabled={busy || running} onClick={() => onOpenSettings('settings-marker')}>{ui('安装与使用设置')}</Button>}
-              </div>
-            </section>
+        {/* Rarely needed, so folded: the converters are suggested above for a PDF that fails, and here for one the learner already knows is hard. */}
+        {!conversionOpen && <Disclosure className="import-hub__conversion" summary={ui('PDF 解析')} meta={ui('扫描件、公式多或大文件')}>
+          <p className="import-hub__routes">{ui('文字读不出来、公式多，或超过 8 MB 的 PDF，可以先在本机解析成带页码的文字，再存为资料。')}</p>
+          {!convertible && <InlineMessage tone="info">{ui('PDF 解析随音频组件一起提供，这个安装没有启用它。请在 DSH 插件管理器中启用音频组件。')}</InlineMessage>}
+          <input ref={pdfPicker} type="file" accept=".pdf,application/pdf" className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
+            onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) { setConversionFile(chosen); setConversionOpen(true); } }} />
+          <div className="import-hub__converter-actions">
+            <Button size="sm" icon="upload" disabled={busy || running || !convertible} data-tour="import-mineru" onClick={() => pdfPicker.current?.click()}>{ui('选择 PDF 解析…')}</Button>
+            <Button variant="link" size="sm" disabled={busy || running || !convertible} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
+            {onOpenSettings && convertible && <Button variant="link" size="sm" disabled={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
           </div>
-        </section>}
+        </Disclosure>}
         {!items.length && !conversionOpen && <p className="import-hub__routes">{audioOn
-          ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕在后台校对后成为资料。')
+          ? ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕和录音在「音频 / 录音」里确认用量后导入。')
           : ui('讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿。')}</p>}
       </div>}
-      {tab === 'paste' && <PasteForm call={call} courses={courses} disabled={busy} draft={draft} onDraft={setDraft}
+      {tab === 'paste' && <PasteForm courses={courses} disabled={busy} draft={draft} onDraft={setDraft}
         onSaved={async summary => { await onImported?.(summary); if (alive.current) onComplete?.(summary); }} />}
-      {tab === 'audio' && audioOn && <div className="import-hub__audio">{audio}</div>}
+      {tab === 'audio' && audioOn && <div className="import-hub__audio">{isValidElement(audio) && typeof audio.type !== 'string' && carried ? cloneElement(audio, { incoming: carried, onIncomingTaken: () => setCarried(null) }) : audio}</div>}
     </div>
   );
 }

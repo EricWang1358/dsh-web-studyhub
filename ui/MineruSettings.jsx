@@ -184,9 +184,8 @@ export default function MineruSettings({ call, busy = false, initialSettings = n
         <ProviderCard layout="stack" data-route="cloud" set={!!settings?.token?.set} title={ui('云端（MinerU 令牌）')}
           badges={<><Badge size="sm" tone="success">{ui('目前免费')}</Badge><Badge size="sm">{ui('文档会上传')}</Badge></>}
           status={settings?.token?.set ? uiFormat('已保存 {0}', [settings.token.hint]) : ui('未配置')}
-          steps={[{ text: ui('打开 MinerU 的 API 管理页，创建一个令牌'), href: settings?.docsUrl || DOCS_URL }, { text: ui('复制令牌，粘贴到下面，点「保存并验证」') },
-            { text: ui('导入 PDF 时选「用 MinerU 云端解析」，其余全自动') }]}>
-          <InlineMessage tone="warning">{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</InlineMessage>
+          steps={[{ text: ui('打开 MinerU 的 API 管理页，创建一个令牌'), href: settings?.docsUrl || DOCS_URL }, { text: ui('复制令牌，粘贴到下面，点「保存并验证」') }]}>
+          <InlineMessage tone="warning">{ui('云端暂不可用：现在导入 PDF 都在本机解析，已保存的令牌暂时不会被用到。')}</InlineMessage>
           <MineruTokenForm call={call} settings={settings} onSaved={setSettings} busy={busy} />
           <PrivacyConfirm checked={!!settings?.acknowledged} disabled={busy || acknowledging || !settings} onChange={acknowledge} />
         </ProviderCard>

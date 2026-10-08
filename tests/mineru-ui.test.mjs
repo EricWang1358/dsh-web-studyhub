@@ -14,14 +14,14 @@ const compiled = await build({ stdin: { contents: `
   export { PdfConvertJobs, PdfDetail } from './ui/PdfConvertJob.jsx';
   export { default as LargeDocumentCard, ConverterMain } from './ui/LargeDocumentCard.jsx';
   export { importDoneMessage, importOutcome } from './ui/ImportHub.jsx';
-  export { chooseRoute, uploadPdf, localEstimate, minutesOf, sizeLabel, pageRange } from './ui/mineru-flow.js';
+  export { uploadPdf, localEstimate, minutesOf, sizeLabel, pageRange } from './ui/mineru-flow.js';
   export { TOOLS } from './lib/large-documents.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { MineruSettings, LocalMineruPanel, MineruTokenForm, PrivacyConfirm, MineruRoute, PdfConvertJobs, PdfDetail, LargeDocumentCard, importDoneMessage, importOutcome,
-  chooseRoute, uploadPdf, localEstimate, minutesOf, sizeLabel, pageRange, TOOLS, setUiLanguage } = module.exports;
+  uploadPdf, localEstimate, minutesOf, sizeLabel, pageRange, TOOLS, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -44,14 +44,6 @@ const plan = { name: 'Book.pdf', pages: 450, bytes: 12 * 1024 * 1024, byChapters
   windows: Array.from({ length: 9 }, (_, i) => ({ index: i + 1, startPage: i * 50 + 1, endPage: Math.min(450, i * 50 + 50), pages: 50 })), tokenSet: false, acknowledged: false };
 const file = { name: 'Book.pdf', size: 12 * 1024 * 1024 };
 
-/* ---------- which route leads ---------- */
-
-test('local conversion or local setup leads in every state, including with a saved cloud token', () => {
-  for (const local of [...Object.values(states), null]) {
-    for (const settings of [saved, unset, null]) assert.equal(chooseRoute({ local, settings }), 'local');
-  }
-});
-
 /* ---------- settings ---------- */
 
 test('settings: where to create the token (the documentation page), a password field, and only the last four characters of a saved token', () => {
@@ -67,7 +59,8 @@ test('settings: where to create the token (the documentation page), a password f
   assert.match(html, /文档会上传到 MinerU 的云端解析，目前不收费，规则可能变化/);
   assert.match(html, /本地解析不会上传任何内容/);
   assert.ok(html.indexOf('data-route="local"') < html.indexOf('data-route="cloud"'), 'local setup appears before cloud setup');
-  assert.match(html, /云端暂不可用，优先使用本地模型/);
+  assert.match(html, /云端暂不可用：现在导入 PDF 都在本机解析/);
+  assert.doesNotMatch(html, /选用它|手动选择云端/, 'no promise of a route the import does not offer');
 });
 
 test('settings without a token: unconfigured, the check button is not offered, the privacy confirmation is unchecked', () => {
@@ -129,22 +122,9 @@ test('the privacy confirmation is a checkbox with the plain sentence', () => {
 
 /* ---------- the import route panel ---------- */
 
-test('an explicitly chosen cloud route still shows its piece plan and both routes', () => {
-  const html = render(h(MineruRoute, { file, call, initialSettings: saved, initialLocal: states.needs, initialPlan: plan, initialRoute: 'cloud' }));
-  assert.match(html, /这本书会分 3 段处理/);
-  assert.match(html, /共 450 页/);
-  assert.match(html, /每 200 页切一段/);
-  assert.match(html, /第 1 段 · 第 1–200 页/);
-  assert.match(html, /第 3 段 · 第 401–450 页/);
-  assert.match(html, /用 MinerU 云端解析/);
-  assert.match(html, /本地 mineru/);
-  assert.match(html, /文档会上传到 MinerU 的云端解析，目前不收费，规则可能变化/);
-  assert.match(html, /开始云端解析/);
-});
-
-test('local ready: the local route is selected, with an estimate labelled as one, and no privacy checkbox is needed', () => {
+test('local ready: the plan, an estimate labelled as one, and no privacy checkbox, no cloud route to choose from (it is unavailable, so it is not offered)', () => {
   const html = render(h(MineruRoute, { file, call, initialSettings: unset, initialLocal: states.ready, initialPlan: plan }));
-  assert.match(html, /name="mineru-route" checked="" value="local"/);
+  assert.doesNotMatch(html, /name="mineru-route"|云端|暂不可用/);
   assert.match(html, /这本书会分 9 段处理/);
   assert.match(html, /每 50 页一段/);
   assert.match(html, /约 12 分钟（估算：basic 档每页约 1\.6 秒/);
@@ -155,35 +135,15 @@ test('local ready: the local route is selected, with an estimate labelled as one
   assert.doesNotMatch(html, /disabled=""[^>]*>(?:(?!<\/button>).)*开始本地解析/s, 'the start button is enabled');
 });
 
-test('an explicit cloud choice keeps the warning and one-time privacy confirmation, even when local is ready', () => {
-  const html = render(h(MineruRoute, { file, call, initialSettings: { ...saved, acknowledged: false }, initialLocal: states.ready, initialPlan: plan, initialRoute: 'cloud' }));
-  assert.match(html, /name="mineru-route" checked="" value="cloud"/);
-  assert.match(html, /type="checkbox"/);
-  assert.match(html, /同意用云端解析/);
-  assert.match(html, /云端暂不可用，优先使用本地模型/);
-  assert.match(html, /disabled=""[^>]*>(?:(?!<\/button>).)*开始云端解析/s, 'cannot start before confirming');
-  const confirmed = render(h(MineruRoute, { file, call, initialSettings: saved, initialLocal: states.missing, initialPlan: plan, initialRoute: 'cloud' }));
-  assert.match(confirmed, /已确认：文档会上传到 MinerU 的云端/);
-  assert.doesNotMatch(confirmed, /disabled=""[^>]*>(?:(?!<\/button>).)*开始云端解析/s);
-});
-
 test('a saved token never bypasses local installation or model-download setup', () => {
   for (const local of [states.missing, states.needs, states.stopped]) {
     const html = render(h(MineruRoute, { file, call, initialSettings: saved, initialLocal: local, initialPlan: plan }));
-    assert.match(html, /name="mineru-route" checked="" value="local"/);
+    assert.doesNotMatch(html, /name="mineru-route"/);
     assert.match(html, /disabled=""[^>]*>(?:(?!<\/button>).)*开始本地解析/s);
     assert.doesNotMatch(html, /type="checkbox"|type="password"/);
     assert.match(html, /先在设置里准备本机 MinerU/);
     assert.doesNotMatch(html, /uv tool install|下载模型并启用本地解析/);
   }
-});
-
-test('explicitly choosing unconfigured cloud directs token setup to settings', () => {
-  const html = render(h(MineruRoute, { file, call, initialSettings: unset, initialLocal: states.missing, initialPlan: plan, onOpenSettings() {}, initialRoute: 'cloud' }));
-  assert.match(html, /先在设置里配置 MinerU 云端令牌/);
-  assert.doesNotMatch(html, /type="password"|apiManage/);
-  assert.match(html, /打开设置/);
-  assert.match(html, /disabled=""[^>]*>(?:(?!<\/button>).)*开始云端解析/s);
 });
 
 test('without a file the entry offers a PDF picker and peer converters without manual instructions', () => {
@@ -325,7 +285,7 @@ test('English: no Chinese in any state of settings, the route panel, the job car
     h(MineruRoute, { file, call, initialSettings: unset, initialLocal: states.missing, initialPlan: plan, onOpenSettings() {} }),
     h(MineruRoute, { file, call, initialSettings: { ...saved, acknowledged: false }, initialLocal: states.needs, initialPlan: plan }),
     h(MineruRoute, { file, call, initialSettings: saved, initialLocal: states.ready, initialPlan: plan }),
-    h(MineruRoute, { file, call, initialSettings: saved, initialLocal: states.ready, initialPlan: { ...plan, pieces: [plan.pieces[0]], windows: [plan.windows[0]] } }),
+    h(MineruRoute, { file, call, initialSettings: saved, initialLocal: states.ready, initialPlan: { ...plan, windows: [plan.windows[0]] } }),
     jobs([job(), job({ id: 'j2', route: 'local', phase: 'local', note: 'MinerU 请求太频繁，正在等一会儿再继续（不是失败）。' }), job({ id: 'j3', status: 'failed', retryable: true, errorCode: 'server-stopped', route: 'local', stage: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。' }),
       job({ id: 'j4', status: 'failed', retryable: true, errorCode: 'invalid-token', stage: 'MinerU 令牌无效：请到「设置 › MinerU 云端解析」重新粘贴一个有效的令牌。' }),
       job({ id: 'j5', status: 'cancelled', stage: '已取消；已解析好的段落会保留，再导入同一个文件不会重复解析' }),
@@ -334,8 +294,8 @@ test('English: no Chinese in any state of settings, the route panel, the job car
     h(LargeDocumentCard, { reason: 'long-document', detail: { name: 'book.pdf', pages: 412 }, retrieval: null }),
   ];
   for (const element of everything) assert.doesNotMatch(render(element, 'en'), han);
-  const english = render(h(MineruRoute, { file, call, initialSettings: { ...saved, acknowledged: false }, initialLocal: states.needs, initialPlan: plan, initialRoute: 'cloud' }), 'en');
-  assert.match(english, /This book will be processed in 3 pieces/);
-  assert.match(english, /Use MinerU cloud conversion/);
-  assert.match(english, /free at the moment; the rules may change/);
+  const english = render(h(MineruRoute, { file, call, initialSettings: { ...saved, acknowledged: false }, initialLocal: states.needs, initialPlan: plan }), 'en');
+  assert.match(english, /This book will be processed in 9 pieces/);
+  assert.match(english, /Start local conversion/);
+  assert.doesNotMatch(english, /cloud/i);
 });

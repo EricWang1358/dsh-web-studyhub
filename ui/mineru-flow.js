@@ -14,14 +14,6 @@ const MB = 1024 * 1024;
  */
 export const uploadPdf = (call, file, { onProgress, signal } = {}) => uploadInChunks(call, 'mineru', file, { onProgress: onProgress && ((fraction) => onProgress(fraction)), signal });
 
-/**
- * Lead with local conversion and its setup, even when a cloud token is saved. Cloud conversion remains an explicit choice.
- * This only chooses the panel: installation, downloads and conversion still require the learner's confirmation.
- */
-export function chooseRoute() {
-  return 'local';
-}
-
 /** Whole minutes for a duration in seconds, at least 1 (an estimate is never shown as "0 minutes"). */
 export const minutesOf = seconds => Math.max(1, Math.round(Number(seconds) / 60));
 

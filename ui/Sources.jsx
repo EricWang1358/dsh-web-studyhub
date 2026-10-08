@@ -352,6 +352,16 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     if (pinned.some(item => fresh.has(item.key))) reopen.add(PINNED);
     if (reopen.size) setClosed(current => new Set([...current].filter(key => !reopen.has(key))));
   }, [highlight?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* A material that was just imported must be on the page the import lands on. The page is filtered by course, and the new material may belong to another one
+     (or to none): then the page shows all courses, once per import, instead of hiding what the learner just added. */
+  const widened = useRef(0);
+  useEffect(() => {
+    if (!highlight?.at || widened.current === highlight.at || !highlight.ids?.length) return;
+    const landed = allItems.filter(item => item.sourceIds.some(id => highlight.ids.includes(id)));
+    if (!landed.length) return;
+    widened.current = highlight.at;
+    if (landed.some(item => !inScope(item, scope, known))) setScope('*');
+  }, [highlight?.at, allItems]); // eslint-disable-line react-hooks/exhaustive-deps
   const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
   // EXPERIMENTAL (hidden unless "Show experimental features" is on, off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
@@ -493,8 +503,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         </details>
         {!filtered.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       </>}
-      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} />
-      <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} />
+      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onGenerate={onGenerate} />
+      <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
       <PdfConvertHistory data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
       {!items.length ? (
         <section className="sources-empty" data-tour="sources-list">

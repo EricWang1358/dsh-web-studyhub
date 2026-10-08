@@ -23,6 +23,7 @@
     .mineru-plan__line strong { color: var(--text); font-size: var(--fs-md, var(--fs-sm)); }
     .mineru-plan__line span { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mineru-plan__why { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .mineru-plan__estimate { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
     .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

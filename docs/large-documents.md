@@ -31,7 +31,7 @@ A converted book has no page or character limit on import; only the file size co
 
 ## Use a large textbook
 
-1. **Convert the PDF.** In **Add source**, on the **Files** tab, click **Convert with MinerU**. If a PDF was refused as too large, the **Large textbooks** card under it offers the same conversion for that file. A ready local `mineru` is used first; otherwise your own MinerU token. Books over 200 pages are processed in pieces and merged. See [Convert a PDF with MinerU](mineru-conversion.md).
+1. **Convert the PDF.** Drop it in **Add source** on the **Files** tab: a PDF that is over 8 MB or has no readable text gets the converter right under its row, with the file already read on this computer. To convert on purpose, open the folded **PDF conversion** section. The conversion runs with the local `mineru` (or Marker) on this computer. Books over 200 pages are processed in pieces and merged. See [Convert a PDF with MinerU](mineru-conversion.md).
 2. **Or import a converted file.** If you converted the book yourself, drop the exported file into **Add source**. StudyHub recognises converter output by its content, saves one source per page and splits the book into chapters by its headings. Every page keeps its page number for citations. The manual routes are under **Advanced: other ways (desktop client, command line, Docker)**.
 3. **Choose chapters.** In **Create deck**, find the book in the source list, click **Choose chapters** and tick the chapters to study. A chapter is a group of pages; **Choose by page instead** is still there.
 4. **Search the whole book (optional).**
@@ -164,7 +164,7 @@ Dropping a converted file into **Add source** is enough; the format is detected 
 - **Skipped pages.** Pages without text are skipped and reported.
 - **Other JSON.** A JSON file that is neither MinerU nor Docling output is refused, with a pointer to **Import JSON deck**.
 - **No original file.** An imported converted book keeps no PDF: the pages are the evidence, and citations point at them. Importing the same file again adds nothing.
-- **Markdown from `mineru parse`.** The MinerU command line (4.0.x) marks pages as `<!-- page N of TOTAL -->`. The importer does not read that form, so a file you converted by hand needs `<!-- page: N -->` markers. **Convert with MinerU** reads the command line's markers itself.
+- **Markdown from `mineru parse`.** The MinerU command line (4.0.x) marks pages as `<!-- page N of TOTAL -->`. The importer does not read that form, so a file you converted by hand needs `<!-- page: N -->` markers. The in-app conversion reads the command line's markers itself.
 
 ## For plugin and tool authors
 

@@ -42,12 +42,11 @@ test('rendered table marks use context across source separators and keep repeate
 });
 
 const compiled = await build({ stdin: { contents: `export { registerDocumentLearning } from './ui/document-preview/native.jsx';
-  export { default as DocumentImport } from './ui/document-preview/DocumentImport.jsx';
   export { default as CitationDisclosure } from './ui/CitationDisclosure.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { registerDocumentLearning, DocumentImport, CitationDisclosure } = module.exports;
+const { registerDocumentLearning, CitationDisclosure } = module.exports;
 
 test('native document extension uses the public toolbar and renderer registrations and disposes both', () => {
   const registrations = [], definitions = [], effects = [], disposed = [];
@@ -73,9 +72,7 @@ test('native document extension uses the public toolbar and renderer registratio
   } finally { delete globalThis.window; }
 });
 
-test('retained file import accepts four text document formats and card selections expose a source entry', () => {
-  const html = renderToStaticMarkup(React.createElement(DocumentImport, { act: () => {} }));
-  assert.match(html, /accept="\.pdf,\.md,\.markdown,\.html,\.htm,\.txt"/);
+test('card selections expose a source entry', () => {
   const citations = renderToStaticMarkup(React.createElement(CitationDisclosure, { card: { selections: [{ sourceId: 's1', quote: 'passage', revision: 'r1' }] },
     sources: [{ id: 's1', text: 'passage' }], onOpenSource: () => {} }));
   assert.match(citations, /引用与来源核对/);

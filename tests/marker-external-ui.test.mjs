@@ -44,13 +44,14 @@ test('Marker settings show executable configuration and usage guidance in both l
   } finally { components.setUiLanguage('zh'); }
 });
 
-test('import portal presents peer converters and keeps installation details in settings', () => {
+test('import portal folds the converters into one entry, offers the peer tools once in the panel, and keeps installation details in settings', () => {
   const html = renderToStaticMarkup(React.createElement(components.ImportHub, { data: { focus: {} }, call: async () => ({}), onOpenSettings: () => {} }));
-  assert.match(html, /aria-label="MinerU"/);
-  assert.match(html, /aria-label="Marker"/);
-  assert.match(html, /用 Marker 解析/);
-  assert.match(html, /安装与使用设置/);
+  assert.match(html, /<details class="sh-disclosure import-hub__conversion"(?![^>]*open)/);
+  assert.match(html, /选择 PDF 解析…/);
+  assert.doesNotMatch(html, /aria-label="MinerU"|aria-label="Marker"|用 Marker 解析|用 MinerU 解析|安装与使用设置/, 'no card per tool on the Files tab');
   assert.doesNotMatch(html, /marker#installation|studyhub-marker-convert.py|Apache-2.0|llama-server|选择转换结果/);
+  const panel = renderToStaticMarkup(React.createElement(components.PdfConversion, { call: async () => ({}), onFile() {}, initialSettings: {}, initialLocal: { state: 'ready' } }));
+  assert.match(panel, /value="mineru"/); assert.match(panel, /value="marker"/);
 });
 
 test('Marker starts from original PDF with course routing, without cloud acknowledgement or manual results', async () => {
@@ -69,7 +70,7 @@ test('Marker setup is a settings jump rather than installation instructions insi
   let anchor;
   const tree = events.PdfConversion({ file: { name: 'Lecture.pdf', size: 1000 }, initialPlan: { pages: 5, bytes: 1000 }, initialConverter: 'marker', initialMarker: { state: 'not-installed' },
     initialSettings: {}, initialLocal: { state: 'ready' }, onOpenSettings: value => { anchor = value; } });
-  find(tree, item => item.props.children === '打开设置').props.onClick();
+  find(tree, item => item.props.children === '前往设置').props.onClick();
   assert.equal(anchor, 'settings-marker');
   assert.equal(find(tree, item => item.props.children === '用 Marker 开始解析').props.disabled, true);
 });
@@ -250,7 +251,8 @@ test('a host without audio offers external guidance and never calls unavailable 
   const pdf = mountPdf({ call, available: false, file: new Blob(['PDF']) }); pdf.render(); await flush();
   assert.deepEqual(calls, []);
   const html = renderToStaticMarkup(React.createElement(components.ImportHub, { data: { contexts: ['materials'], focus: {} }, call, onOpenSettings: () => {} }));
-  assert.match(html, /未启用 PDF 解析组件/);
-  assert.match(html, /<button[^>]*disabled[^>]*>用 Marker 解析/);
+  assert.match(html, /PDF 解析随音频组件一起提供/);
+  assert.match(html, /<button[^>]*disabled[^>]*>(?:(?!<\/button>).)*选择 PDF 解析…/s);
+  assert.doesNotMatch(html, /前往设置/, 'nothing to set up while the component is off');
   settings.close(); pdf.close();
 });

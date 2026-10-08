@@ -61,7 +61,6 @@
   "将无损分成 {0} 段转写（占用 {1} 次请求）": "Will be split losslessly into {0} parts ({1} requests)",
   "等待「{0}」处理": "Waiting for “{0}”",
   "因「{0}」未通过预检尚未开始": "Not started: waiting for “{0}”, which did not pass the pre-flight check",
-  "分段并继续": "Split and continue",
   "跳过此文件继续": "Skip this file and continue",
   "换一个文件": "Choose another file",
   "用量与额度": "Usage and limits",
@@ -84,5 +83,14 @@
   "这个页面不能采集声音。请用最新版 Chrome 或 Edge，通过 HTTPS 或 localhost 打开。": "This page cannot capture audio. Open it in a recent Chrome or Edge, over HTTPS or localhost.",
   "麦克风正被其他程序占用（例如会议软件）。关闭占用它的程序后再试。": "Another program (a meeting app, for example) is using the microphone. Close it and try again.",
   "采集声音被中断了，请再试一次。": "Audio capture was interrupted; try again.",
-  "这个麦克风不支持所需的设置，请在系统里换一个麦克风后再试。": "This microphone does not support the required settings; choose another microphone in the system and try again."
+  "这个麦克风不支持所需的设置，请在系统里换一个麦克风后再试。": "This microphone does not support the required settings; choose another microphone in the system and try again.",
+  "开始（约 {0} 分钟，分 {1} 段，{2} 次请求；{3} 个录音合成 1 份逐字稿）": "Start (about {0} min, {1} parts, {2} requests; {3} recordings merged into 1 transcript)",
+  "开始（约 {0} 分钟，分 {1} 段，{2} 次请求）": "Start (about {0} min, {1} parts, {2} requests)",
+  "开始（{0} 个录音合成 1 份逐字稿）": "Start ({0} recordings merged into 1 transcript)",
+  "名称 · 术语 · 付费密钥": "Name · terms · paid key",
+  "{0} 个术语": "{0} terms",
+  "课程里已有题组的标题和知识点，会自动用来纠正术语。": "The titles and topics of the decks already in the course are used automatically to correct terms.",
+  "「只用付费密钥」的默认值可以在设置里修改。": "The default for \"Use the paid key only\" can be changed in Settings.",
+  "导入录音时默认只用付费密钥": "Use the paid key only by default when importing recordings",
+  "添加录音时，「更多设置」里的「只用付费密钥」会默认勾上，每次仍可单独改。需要先填写上面的付费密钥。": "\"Use the paid key only\" under \"More settings\" of the add-recording form will be ticked by default, and can still be changed each time. Fill in the paid key above first."
 }

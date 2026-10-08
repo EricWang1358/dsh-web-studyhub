@@ -21,17 +21,14 @@ When you convert, StudyHub picks the route to lead with:
 1. the local route, when it is ready;
 2. otherwise local setup: install mineru, start its service and confirm the model download as needed.
 
-**Cloud conversion is temporarily unavailable. Use local models first.** A saved token does not change the default route or prove that the service is available. The cloud route remains a manual choice for when service recovers.
-
-You can switch routes before you start. Nothing is uploaded and nothing starts until a route is set up and you click its start button.
+**Cloud conversion is temporarily unavailable. Use local models first.** A saved token does not prove that the service is available, and the import dialog does not offer the cloud route while it is unavailable: a PDF is converted on this computer. Nothing is uploaded and nothing starts until the converter is set up and you click its start button.
 
 ## Convert a PDF
 
-1. Open **Add source**. On the **Files** tab, next to "A scanned PDF, one with many formulas, or one over 200 pages?", click **Convert with MinerU**. If a PDF was refused as too large, the **Large textbooks** card under it offers the same conversion for that file.
-2. Click **Choose a PDF**. The file is read on this computer only. StudyHub shows its pages and size and how the book will be cut, for example "This book will be processed in 3 pieces".
-3. Under **How to convert it**, choose **Local mineru** or **Use MinerU cloud conversion**.
-4. The first time you use the cloud route, tick "I understand the document is uploaded to MinerU's cloud, and I agree to use cloud conversion". You are asked once; you can withdraw the consent in Settings.
-5. Click **Start local conversion** or **Start cloud conversion**. The dialog closes, and the conversion runs in the background as a job.
+1. Open **Add source** and drop the PDF on the **Files** tab. If it has no readable text (a scan) or is over 8 MB, its row says so and the converter is shown right under it, with that file already read on this computer: go to step 3. To convert a PDF on purpose (many formulas, or a Chinese textbook), open the folded **PDF conversion** section and click **Choose a PDF to convert…**.
+2. The file is read on this computer only. StudyHub shows its pages and size and how the book will be cut, for example "This book will be processed in 3 pieces", and the estimated time.
+3. The tool is **MinerU**; choose Marker under **Conversion tool** to use it instead. If it is not set up, the panel says so: **Go to settings** closes the dialog, and the notice on the Settings page has **Continue converting**, which reopens the dialog with the same file.
+4. Click **Start local conversion**. The dialog closes, and the conversion runs in the background as a job. Nothing runs before that click.
 6. Follow it on the **Sources** page. When it ends, a letter arrives in the **Inbox** (unless you stopped it yourself).
 
 The result is imported like any converted document: one source per page, chapters from the headings, and the same citations as a MinerU file you drag in by hand. There is no file to drag in. StudyHub keeps the text and image captions; the pictures themselves are not imported.
@@ -137,7 +134,7 @@ What to do on **No response**: wait a little longer. If nothing changes, click *
 
 ## Conversion history
 
-Every conversion, cloud or local, leaves a record that survives dismissing the card and restarting the app. Open it with **Conversion history** next to **Convert with MinerU** in **Add source**. It also appears on the **Sources** page, under the running cards.
+Every conversion, cloud or local, leaves a record that survives dismissing the card and restarting the app. Open it with **Conversion history** in the folded **PDF conversion** section of **Add source**. It also appears on the **Sources** page, under the running cards.
 
 - **A row shows:**
   - the file name, its size and pages, and the route (cloud, or local with its tier);

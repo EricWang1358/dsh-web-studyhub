@@ -10,36 +10,32 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // text follows the browser language, and the PDF summary no longer says
 // “0 pages have too little text” next to “pages 2–4 have very little text”.
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default as DocumentImport } from './ui/document-preview/DocumentImport.jsx';
-  export { default as ImportHub, itemDetail } from './ui/ImportHub.jsx'; export { default as JsonImport } from './ui/JsonImport.jsx';
+const compiled = await build({ stdin: { contents: `export { default as ImportHub, itemDetail } from './ui/ImportHub.jsx'; export { default as JsonImport } from './ui/JsonImport.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { DocumentImport, ImportHub, itemDetail, JsonImport, setUiLanguage } = module.exports;
+const { ImportHub, itemDetail, JsonImport, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const data = { root: 'lib', sources: [], decks: [], drafts: [], focus: { course: 'Systems', courses: [{ name: 'Systems' }] } };
 const h = React.createElement;
 const visibleText = html => html.replace(/<[^>]+>/g, ' ');
 
-test('document, hub and JSON entries use the shared drop zone with a localized button', () => {
+test('hub and JSON entries use the shared drop zone with a localized button', () => {
   setUiLanguage('zh');
-  const documents = renderToStaticMarkup(h(DocumentImport, { act() {}, call: async () => ({}) }));
   const pdf = renderToStaticMarkup(h(ImportHub, { data, call: async () => ({}) }));
   const json = renderToStaticMarkup(h(JsonImport, { data, act() {}, call: async () => ({}), openDraft() {}, setNotice() {} }));
-  for (const [name, html] of [['document', documents], ['pdf', pdf], ['json', json]]) {
+  for (const [name, html] of [['pdf', pdf], ['json', json]]) {
     assert.match(html, /class="[^"]*sh-drop/, `${name} uses FileDrop`);
     assert.match(html, /<input[^>]*type="file"[^>]*hidden/, `${name} keeps its native input hidden`);
     assert.match(visibleText(html), /选择/, `${name} has a real, localized button`);
   }
-  assert.match(documents, /multiple/, 'several documents at once');
-  assert.match(documents, /accept="\.pdf,\.md,\.markdown,\.html,\.htm,\.txt"/);
+  assert.match(pdf, /multiple/, 'several documents at once');
   assert.match(pdf, /accept="\.pdf,\.docx,\.pptx,/);
   assert.match(json, /accept="\.json,\.txt"/);
   setUiLanguage('en');
   try {
-    const english = [renderToStaticMarkup(h(DocumentImport, { act() {}, call: async () => ({}) })),
-      renderToStaticMarkup(h(ImportHub, { data, call: async () => ({}) }))];
+    const english = [renderToStaticMarkup(h(ImportHub, { data, call: async () => ({}) }))];
     for (const html of english) assert.doesNotMatch(visibleText(html).replace(/Systems/g, ''), han);
   } finally { setUiLanguage('zh'); }
 });

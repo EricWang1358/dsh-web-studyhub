@@ -15,16 +15,17 @@
     .import-hub__course label { margin: 0; gap: var(--space-1-5); font-weight: var(--fw-strong); }
     .import-hub__course input { font-weight: var(--fw-regular); }
     .import-hub__course small { font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
+    /* The course as one line: where the files go, why, and the way to change it. The field opens under it. */
+    .import-hub__chip { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0; min-width: 0; }
+    .import-hub__chip strong { font-weight: var(--fw-strong); overflow-wrap: anywhere; }
+    .import-hub__chip small { color: var(--text-muted); }
+    .import-hub__chip + div { margin-top: var(--space-3); }
     .import-hub__tabs { justify-self: start; max-width: 100%; }
     .import-hub__files { display: grid; gap: var(--space-3); min-width: 0; }
     .import-hub__routes { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .import-hub__summary { margin: 0; }
-    .import-hub__conversion { display: grid; gap: var(--space-2); }
-    .import-hub__converters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-    .import-hub__converter { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); }
-    .import-hub__converter h3 { margin: 0; font-size: var(--fs-md); }
-    .import-hub__converter p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .import-hub__converter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: auto; }
+    .import-hub__conversion { min-width: 0; }
+    .import-hub__converter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .import-hub__stray {
       display: flex;
       align-items: center;
@@ -54,7 +55,6 @@
   }
   @container (max-width: 520px) {
     :is(.study-app, .study-seat) {
-      .import-hub__converters { grid-template-columns: minmax(0, 1fr); }
       .import-hub__course { padding: var(--space-3); }
       .import-hub__tabs { justify-self: stretch; }
       .import-hub__tabs .sh-icon { display: none; }
