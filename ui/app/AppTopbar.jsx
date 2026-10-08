@@ -14,7 +14,7 @@ export function libraryFolderName(root) {
   return last === '.dsh-study' && parts.length > 1 ? parts.at(-2) : last;
 }
 
-/** Top-bar "学习库：<folder>" (P03): where the library lives, one click from Settings. */
+/** Top-bar "学习库：<folder>" (P03): where the library lives, one click from the folder control in Settings (学习库与模型). */
 export function LibraryChip({ root, onOpen }) {
   if (!root) return null;
   return (
@@ -34,7 +34,7 @@ function statusText({ busy, running, publishing, syncIssue, data }) {
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
 export default function AppTopbar({ title }) {
-  const { data, core, nav, connection, inbox } = useApp();
+  const { data, core, nav, connection, inbox, settingsEntry } = useApp();
   const { busy, act, quick, quickApi } = core;
   const { binding, running, publishing, syncIssue } = connection;
   const idle = !busy && !running && !syncIssue && data;
@@ -46,7 +46,7 @@ export default function AppTopbar({ title }) {
         <span className="crumb" aria-current="page">{title}</span>
       </nav>
       <div className="top-right">
-        <LibraryChip root={binding.root} onOpen={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
+        <LibraryChip root={binding.root} onOpen={() => { settingsEntry.setSettingsFocus('settings-model'); nav.navigate('settings', { animate: true, keepTrail: false }); }} />
         <span className={'top-status' + (idle ? ' idle' : '')} role="status" title={syncIssue || undefined}>
           <i className={`dot ${busy || running ? 'busy' : data && !syncIssue ? 'is-online' : ''}`} aria-hidden="true" />
           <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data })}</span>

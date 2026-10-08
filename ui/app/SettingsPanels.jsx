@@ -26,6 +26,6 @@ export function OnboardingControls() {
   const { data, core, tour } = app;
   return (
     <OnboardingPanel sample={data.sample} progress={tour.tourResume} busy={core.busy || tour.sampleBusy} onTour={() => tour.startTour()}
-      onRestart={() => tour.startTour({ restart: true })} onLoad={data.sample ? tour.loadSampleOnly : undefined} onRemove={() => tour.setRemovingSample(true)} />
+      onRestart={() => tour.startTour({ restart: true })} onFullTour={tour.startFullTour} onLoad={data.sample ? tour.loadSampleOnly : undefined} onRemove={() => tour.setRemovingSample(true)} />
   );
 }

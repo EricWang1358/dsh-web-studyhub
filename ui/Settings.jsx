@@ -138,7 +138,7 @@ export default function Settings({
   const selected = available.find((item) => item.id === active) || available[0];
   return (
     <section className="page settings-page">
-      <PageHeader title={ui('工作区设置')} description={ui('资料、题库、调度与模型，由你掌控。')} />
+      <PageHeader title={ui('设置')} description={ui('资料、题库、调度与模型，由你掌控。')} />
       {tourActive ? (
         /* The tour points at sections anywhere on the page: show every category, one after another. */
         <div className="settings-all">{available.map((item) => <Pane key={item.id} category={item} services={services} />)}</div>

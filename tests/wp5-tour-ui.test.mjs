@@ -35,13 +35,13 @@ test("the welcome page offers the sample tour, a first import and — without a 
   const empty = html(React.createElement(ui.Welcome, props));
   assert.match(empty, /<h1[^>]*>/);
   assert.match(empty, /载入示例并开始导览/);
-  assert.match(empty, /导入我的第一份资料/);
+  assert.match(empty, /添加资料/);
   assert.match(empty, /以后再说/);
   // The walkthrough of new learners: the first screen leads with "my first material"; the sample is a quiet link after it.
   const primary = empty.match(/<button[^>]*sh-btn--primary[^>]*>(?:(?!<\/button>).)*<\/button>/s)[0];
-  assert.match(primary, /导入我的第一份资料/, "the one primary action imports the learner's own material");
+  assert.match(primary, /添加资料/, "the one primary action imports the learner's own material");
   assert.match(empty, /<button[^>]*sh-btn--link[^>]*>(?:(?!<\/button>).)*载入示例并开始导览/s, "the sample is a link, not the lead");
-  assert.ok(empty.indexOf("导入我的第一份资料") < empty.indexOf("载入示例并开始导览"), "the import comes first");
+  assert.ok(empty.indexOf("添加资料") < empty.indexOf("载入示例并开始导览"), "the import comes first");
   assert.match(empty, /sh-setup/, "the model gate is a SetupRequired card");
   assert.match(empty, /AI 模型/);
   assert.doesNotMatch(empty, /JSON/);
@@ -82,7 +82,7 @@ test("the tour popover is a labelled, non-modal dialog with progress and Back / 
   assert.doesNotMatch(first, /上一步/, "no Back on the first step");
   const last = html(React.createElement(ui.TourPopover, { step: ui.TOUR_STEPS.at(-1), index: 16, total: 17, onNext: noop, onBack: noop, onClose: noop,
     onSkip: noop, onImport: noop, onRemoveSample: noop }));
-  assert.match(last, /导入我的第一份资料/);
+  assert.match(last, /添加资料/);
   assert.match(last, /移除示例数据/);
   assert.match(last, /完成导览/);
   ui.setUiLanguage("en");

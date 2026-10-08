@@ -37,45 +37,40 @@ const big = () => Array.from({ length: 320 }, (_, i) => ({ id: `b${i}`, title: `
 const data = (extra = {}) => ({ root: 'D:\\Study\\library', settings: { ...defaults }, sources: [], decks: [], drafts: [], courses: [], model: { ready: true }, focus: { mode: 'class', course: 'A', courses: [{ name: 'A' }] }, ...extra });
 const all = { audio: { configured: true }, mineru: { configured: true }, retrieval: { status: { extension: { installed: true, canInstall: true }, companion: { running: true } }, plan: null } };
 
-test('three groups, in this order, each with a plain title and one line about what it holds', () => {
+test('three groups, in this order, each with a plain title (the page draws only the title: nothing else is kept for a group)', () => {
   assert.deepEqual(SETTINGS_GROUPS.map((group) => [group.id, group.title]), [['common', '常用'], ['once', '一次性设置'], ['advanced', '高级']]);
-  for (const group of SETTINGS_GROUPS) assert.ok(group.lead && han.test(group.lead));
+  for (const group of SETTINGS_GROUPS) assert.deepEqual(Object.keys(group), ['id', 'title'], group.id);
 });
 
-test('everything the library needs is set up: both groups are closed and nothing is marked', () => {
+test('everything the library needs is set up: nothing is marked', () => {
   const state = settingsGroupState({ data: data({ sources: [{ id: 'n', title: 'Note', text: 't', courses: ['A'] }] }), status: all });
-  assert.deepEqual(state.common, { open: false, missing: [] });
-  assert.deepEqual(state.once, { open: false, missing: [] });
+  assert.deepEqual(state.common, { missing: [] });
+  assert.deepEqual(state.once, { missing: [] });
 });
 
-test('no AI model: the common group opens and says the model is not set up', () => {
+test('no AI model: the common group says the model is not set up', () => {
   const state = settingsGroupState({ data: data({ model: { ready: false } }), status: all });
-  assert.deepEqual(state.common, { open: true, missing: ['model'] });
-  assert.equal(state.once.open, false);
+  assert.deepEqual(state.common, { missing: ['model'] });
 });
 
 test('what only a feature the library already uses needs is marked: audio for recordings, MinerU for a book, search for a big book', () => {
   const audio = settingsGroupState({ data: data({ sources: [{ id: 'a1', title: 'Lecture', text: 't', courses: ['A'], audio: { fileName: 'l.m4a' } }] }), status: { ...all, audio: { configured: false } } });
-  assert.deepEqual(audio.once, { open: true, missing: ['audio'] });
+  assert.deepEqual(audio.once, { missing: ['audio'] });
   const noAudioUse = settingsGroupState({ data: data(), status: { ...all, audio: { configured: false } } });
-  assert.deepEqual(noAudioUse.once, { open: false, missing: [] }, 'a library with no recordings has no use for a transcription key');
+  assert.deepEqual(noAudioUse.once, { missing: [] }, 'a library with no recordings has no use for a transcription key');
   const book = settingsGroupState({ data: data({ sources: big() }), status: { ...all, mineru: { configured: false } } });
   assert.deepEqual(book.once.missing, ['mineru']);
   const search = settingsGroupState({ data: data({ sources: big().map((page) => ({ ...page, document: { ...page.document, origin: 'converted', converter: 'mineru', chapter: { index: 0, title: 'One', level: 1 } } })) }),
     status: { ...all, retrieval: { status: { extension: { installed: false, canInstall: true } }, plan: null } } });
   assert.deepEqual(search.once.missing, ['retrieval']);
-  assert.equal(search.once.open, true);
 });
 
-test('a status that has not arrived yet marks nothing; the learner\'s own choice beats the default, the tour and a deep link beat both', () => {
+test('a status that has not arrived yet marks nothing; the state names what is missing and nothing else (groups no longer fold)', () => {
   const unknown = settingsGroupState({ data: data({ sources: big() }), status: {} });
   assert.deepEqual(unknown.once.missing, []);
-  const missingModel = data({ model: { ready: false } });
-  assert.equal(settingsGroupState({ data: missingModel, status: all, saved: { common: false } }).common.open, false, 'folded by the learner');
-  assert.equal(settingsGroupState({ data: data(), status: all, saved: { once: true } }).once.open, true, 'opened by the learner');
-  assert.equal(settingsGroupState({ data: missingModel, status: all, saved: { common: false }, forceOpen: true }).common.open, true, 'the tour opens everything');
-  assert.equal(settingsGroupState({ data: data(), status: all, forceOpen: ['once'] }).once.open, true, 'a deep link opens its own group');
-  assert.equal(settingsGroupState({ data: data(), status: all, forceOpen: ['once'] }).common.open, false);
+  const missingModel = settingsGroupState({ data: data({ model: { ready: false } }), status: all });
+  assert.deepEqual(missingModel.common, { missing: ['model'] });
+  for (const group of Object.values(missingModel)) assert.deepEqual(Object.keys(group), ['missing']);
 });
 
 test('the category list sits under the three group headings, marks the selected one and says in words which need attention', () => {

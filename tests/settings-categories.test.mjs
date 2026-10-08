@@ -60,5 +60,4 @@ test('what starts selected: the deep link, else the first category that needs at
 test('what needs attention is still read from the library (the group state keeps working and names the categories)', () => {
   const state = settingsGroupState({ data: { modelReady: false, sources: [], jobs: [] }, status: {} });
   assert.deepEqual(state.common.missing, ['model']);
-  assert.equal(state.common.open, true);
 });
