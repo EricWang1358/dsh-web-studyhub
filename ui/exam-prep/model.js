@@ -166,12 +166,12 @@ export function buildsOf(data) {
 }
 
 /**
- * The builds that belong on the page of a course scope: a build shows only where its own course is (the scope's course or one of its sub-courses; every named
- * course under '*'). A build that names no course is shown nowhere: it cannot be told from another course's, and a notice of someone else's build is worse than none.
+ * The builds that belong on the page of a course scope: a build shows where the list it will make is shown (the same rule as the lists, so a learner never loses sight
+ * of a build). A named course shows on the scope's course or on a scope that holds it (every named course under '*'); a build that names no course makes a list with no course,
+ * so it shows under '*' and under '' (uncategorised), and nowhere else.
  */
 export function buildsInScope(builds, scope, known = []) {
-  if (scope === '') return [];
-  return (builds || []).filter(build => build.course !== null && sourceMatchesCourse({ courses: [build.course] }, scope, known));
+  return (builds || []).filter(build => sourceMatchesCourse({ courses: build.course ? [build.course] : [] }, scope, known));
 }
 
 /* ---------- the lists ---------- */
@@ -210,19 +210,13 @@ export function pointLists(data, { scope = '*', known = [], history = false } = 
 
 export const ROLES = Object.freeze(['lecture', 'past-paper', 'syllabus']);
 
-/** The materials offered for a role: not point lists, and not what another role already took (one material has one role in one list). */
-export function pickPool(sources, picks, role) {
-  const taken = new Set(ROLES.filter(other => other !== role).flatMap(other => picks?.[other] || []));
-  return sources.filter(source => !isPointList(source) && !taken.has(source.id));
-}
-
 /** The languages a build can write in (the request names one; anything else is the default). Data for the request, not a choice of interface wording. */
 const REQUEST_LANGUAGES = ['en', 'zh'];
 
 const clean = value => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 
-/** What `generation.blueprint.build` takes: the name, the course, the scope and the inputs by role (one input per document). */
-export function buildRequest(form, sources, { language = 'zh' } = {}) {
+/** What `generation.blueprint.build` takes: the name (the one typed, else `defaultTitle`), the course, the scope and the inputs by role (one input per document). */
+export function buildRequest(form, sources, { language = 'zh', defaultTitle = '' } = {}) {
   const items = groupSourcesByDocument(sources);
   const inputs = ROLES.flatMap(role => {
     const chosen = new Set(form.picks?.[role] || []);
@@ -233,15 +227,16 @@ export function buildRequest(form, sources, { language = 'zh' } = {}) {
   });
   const reading = form.reading || {}, book = { title: clean(reading.title), author: clean(reading.author), url: clean(reading.url), note: clean(reading.note) };
   const scope = clean(form.scope), course = clean(form.course);
-  return { title: clean(form.title), ...(course ? { course } : {}), ...(scope ? { scope: { label: scope } } : {}), language: REQUEST_LANGUAGES.includes(language) ? language : 'zh', inputs,
+  return { title: clean(form.title) || clean(defaultTitle), ...(course ? { course } : {}), ...(scope ? { scope: { label: scope } } : {}), language: REQUEST_LANGUAGES.includes(language) ? language : 'zh', inputs,
     ...(book.title ? { recommendedReading: Object.fromEntries(Object.entries(book).filter(([, value]) => value)) } : {}), ...(form.supersedes ? { supersedes: form.supersedes } : {}) };
 }
 
-/** What is still missing from the form: 'title', 'lecture' (slides or a syllabus), 'reading-url' (an address that is not http or https). */
-export function formProblems(form) {
+/** What is still missing from the form: 'lecture' (slides or a syllabus; read from `request` when given, so a pick the library no longer holds does not count)
+    and 'reading-url' (an address that is not http or https). The name is never missing: the request carries a default. */
+export function formProblems(form, request) {
   const problems = [];
-  if (!clean(form.title)) problems.push('title');
-  if (!(form.picks?.lecture?.length || form.picks?.syllabus?.length)) problems.push('lecture');
+  const primary = request ? request.inputs.some(input => input.role === 'lecture' || input.role === 'syllabus') : !!(form.picks?.lecture?.length || form.picks?.syllabus?.length);
+  if (!primary) problems.push('lecture');
   const url = clean(form.reading?.url);
   if (url && !/^https?:\/\//i.test(url)) problems.push('reading-url');
   return problems;

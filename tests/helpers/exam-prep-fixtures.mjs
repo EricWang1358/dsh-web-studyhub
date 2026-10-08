@@ -66,10 +66,11 @@ export function buildJob({ id = 'blueprint-1', title = '网络 · 传输层 考�
 }
 
 /** The snapshot around them: the library's materials (no point list among them), the lists as summaries (`examPointLists`), the jobs. `on` switches the page on the way the host does (`features.examBlueprint`). */
-export function snapshot({ on = true, lists = [pointList()], sources = library(), jobs = [], course = '网络', courses = ['网络', '数据库'], experimental = false } = {}) {
+export function snapshot({ on = true, lists = [pointList()], sources = library(), jobs = [], course = '网络', courses = ['网络', '数据库'], experimental = false, examPrep, courseRecords } = {}) {
   return { root: '/tmp/library', contexts: ['materials', 'bank', 'study', 'generation', 'authoring'], ...(on === ABSENT ? {} : { features: { examBlueprint: on } }), experimental,
     sources, examPointLists: lists.map(examPointListSummary), jobs, decks: [], drafts: [], model: { ready: true }, modelReady: true,
-    focus: { course, courses: courses.map(name => ({ name, count: 1, active: true })) } };
+    focus: { course, courses: courses.map(name => ({ name, count: 1, active: true })) },
+    ...(examPrep ? { settings: { examPrep } } : {}), ...(courseRecords ? { courses: courseRecords } : {}) };
 }
 
 export { ABSENT };

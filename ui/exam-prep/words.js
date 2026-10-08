@@ -48,9 +48,6 @@ export function basisLine(basis) {
   return uiFormat('依据 {0} 份样卷（取并集）；样本由学生选定，不是随机样本', [papers]);
 }
 
-/** Said under the sample-paper choice when none is chosen. */
-export const noPaperNote = () => ui('不选样卷也可以：所有考点都会列为「补充」，因为没有样卷说明哪些考点样卷考过。');
-
 /* The hover explanations: one plain sentence and at most one line of consequence, each reachable by hover and by keyboard focus (Tooltip). */
 export const EXPLAIN = Object.freeze({
   'tier.must': ['样卷考过：你选的样卷里有题考到这个考点。', '只代表这几份样卷考过，不保证期末一定考。'],
@@ -61,9 +58,7 @@ export const EXPLAIN = Object.freeze({
   'noSlides': ['样卷里有题考到它，但你选的课件里找不到讲它的内容。', '可能是课件没导入全，或老师没讲过；先别当作已经学过。'],
   'regenerate': ['按现在选的资料重新列一份考点清单。', '会消耗模型额度；新清单取代旧清单，旧清单作为历史版本保留。'],
   'estimate': ['这是按你选的资料估出的范围，不是账单。', '实际用量取决于模型的回答和重试，可能有出入。'],
-  'role.lecture': ['课件：考点从这里列出来，每个考点都标出在哪几页。', '至少要选一份；只有图片的页没有文字，会被跳过并列出来。'],
-  'role.past-paper': ['样卷：用来看哪些考点真的被考过，由它定出「样卷考过」。', '可以不选；不选时所有考点都是补充。'],
-  'role.syllabus': ['大纲：老师给的考试范围，和课件一样用来列考点。', '可以不选；没有课件时可以只用大纲。'],
+  'roles': ['每份资料有一个用途：课件和大纲用来列考点，样卷用来标出样卷考过的点，「不用」是这次不读它。', '用途是按文件名和篇幅猜好的，猜错了点一下就能改。'],
   'role.textbook': ['推荐教材：只记下书名，提醒你有这本书。', '它不是依据，不会被读取，也不会用来列考点。'],
   'delete': ['删除这份考点清单。', '删除后无法恢复。'],
   'restore': ['把这个旧版本放回考点清单。', '它会和新版本一起显示。'],
