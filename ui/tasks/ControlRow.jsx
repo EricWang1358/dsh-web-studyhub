@@ -4,7 +4,8 @@ import { Button, Checkbox, IconButton, Select } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { failureText } from '../failure.js';
 import { contractOf, isRunningTask } from './task-model.js';
-import { controlItems, stepValue, appliedText, defaultsPatch, controlLabel, reasonText, endedNote } from './task-control.js';
+import { controlItems, stepValue, appliedText, defaultsPatch, controlLabel, reasonText, endedNote, modelInForce } from './task-control.js';
+import { useRouteEfforts } from '../use-model-efforts.js';
 
 /* 即时控制: the knobs of a running job, in one block of the same shape for every job, drawn from its contract (actions.set). A change goes to job.control {action: 'set'}
    and applies from the job's next call (a call in flight is never interrupted); the reply says what is now in force and the row says so. The row is
@@ -41,16 +42,21 @@ function Toggle({ item, disabled, onChange }) {
 }
 
 export default function ControlRow({ job }) {
-  const { core, data } = useApp();
+  const { core, data, host } = useApp();
   const contract = contractOf(job), set = contract.actions.set;
   const [note, setNote] = useState({ text: '', tone: 'idle' }), [working, setWorking] = useState(false), [saved, setSaved] = useState(false);
-  const items = controlItems(job, data?.model?.session), defaults = defaultsPatch(job);
+  // A run's stages offer the levels of the model in force (its own choice or the generation model), as the host reports them (lib/job-model.js).
+  const staged = (set.settings || []).some((setting) => setting.key.startsWith('effort'));
+  const efforts = useRouteEfforts(core.call, staged ? modelInForce(job, data?.model) : null);
+  const items = controlItems(job, data?.model?.session, { groups: host?.modelGroups, generation: data?.model, efforts }), defaults = defaultsPatch(job);
+  const saves = defaults ? Object.keys(defaults.action === 'settings' ? defaults.args.generation : defaults.args) : [];
+  const ownModel = items.some((item) => item.key === 'model');
   const send = async (patch) => {
     if (working) return;
     setWorking(true);
     try {
       const reply = await core.call('job.control', { jobId: contract.jobId, action: 'set', patch });
-      setNote({ text: appliedText(reply?.applied), tone: 'success' });
+      setNote({ text: appliedText(reply?.applied, items), tone: 'success' });
       setSaved(false);
     } catch (error) { setNote({ text: failureText(error), tone: 'error' }); } finally { setWorking(false); }
   };
@@ -65,9 +71,10 @@ export default function ControlRow({ job }) {
           : contract.status === 'interrupted' && contract.actions.retry.available ? endedNote(job, true)
             : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? endedNote(job) : reasonText(set)}</span>}
         {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved || core.busy} onClick={save}
-          title={uiFormat('把这里的{0}存为以后新任务的默认', [items.slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
+          title={uiFormat('把这里的{0}存为以后新任务的默认', [items.filter((item) => saves.includes(item.key)).slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
         {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint', 'single-round', 'manual-run'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}
-        <span className="tc-controls__applied" role="status" data-tone={note.tone}>{note.text || (items.length ? ui('改动从下一次调用生效') : '')}</span>
+        {staged && Array.isArray(efforts) && efforts.length === 0 && <span className="tc-controls__note">{ui('当前模型不支持推理程度设置，已使用模型默认。')}</span>}
+        <span className="tc-controls__applied" role="status" data-tone={note.tone}>{note.text || (ownModel ? ui('改动从下一次调用生效，模型仅本任务生效') : items.length ? ui('改动从下一次调用生效') : '')}</span>
       </div>
       {items.length > 0 && <div className="tc-controls__items">
         {items.map((item) => {
