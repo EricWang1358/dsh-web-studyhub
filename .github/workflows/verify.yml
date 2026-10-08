@@ -5,13 +5,19 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+# A new push to a pull request replaces the checks still running for it; a push to main always runs to the end.
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  verify:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  # Lint and the bundle do not depend on the system, so they run once (they used to run on both systems, one after the other with the tests).
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,4 +25,54 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run verify
+      - run: npm run lint
+      - run: npm run build
+
+  # The suite is cut into shards of about equal weight (tests/test-weights.json, scripts/qa/test-schedule.mjs) and each shard runs on its own machine.
+  # Windows is slower than Linux, so it gets more shards. tests/test-runner-shards.test.mjs checks that the shards below are 1..N for each system.
+  test:
+    name: test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, shard: 1, shards: 3 }
+          - { os: ubuntu-latest, shard: 2, shards: 3 }
+          - { os: ubuntu-latest, shard: 3, shards: 3 }
+          - { os: windows-latest, shard: 1, shards: 5 }
+          - { os: windows-latest, shard: 2, shards: 5 }
+          - { os: windows-latest, shard: 3, shards: 5 }
+          - { os: windows-latest, shard: 4, shards: 5 }
+          - { os: windows-latest, shard: 5, shards: 5 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: node scripts/test.mjs --shard=${{ matrix.shard }}/${{ matrix.shards }}
+      # What this shard measured, to refresh tests/test-weights.json: node scripts/qa/test-weights.mjs --sum --write durations-*/durations.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: durations-${{ matrix.os }}-${{ matrix.shard }}of${{ matrix.shards }}
+          path: node_modules/.cache/studyhub-tests/durations.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The one result to look at (and to require, if a branch ever needs a required check): green only when lint and every shard are green.
+  verify:
+    if: always()
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint and every test shard passed
+        env:
+          LINT: ${{ needs.lint.result }}
+          TEST: ${{ needs.test.result }}
+        run: |
+          echo "lint: $LINT, test shards: $TEST"
+          [ "$LINT" = success ] && [ "$TEST" = success ]
