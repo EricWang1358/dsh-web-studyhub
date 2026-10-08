@@ -33,17 +33,17 @@ export function Badge({ tone = 'neutral', size = 'md', icon, dot = false, classN
 /**
  * A chip you can act on. With onClick it is a toggle button (aria-pressed
  * follows `selected`, `disabled` dims it); without it the label is plain text. onRemove adds a
- * separate, named remove button.
+ * separate, named remove button. An aria-describedby (a Tooltip around the chip) goes to the button, the control a keyboard reaches.
  */
-export function Chip({ selected = false, disabled = false, onClick, onRemove, removeLabel, tone = 'neutral', size = 'md', icon, className, children, ...rest }) {
+export function Chip({ selected = false, disabled = false, onClick, onRemove, removeLabel, tone = 'neutral', size = 'md', icon, className, children, 'aria-describedby': describedBy, ...rest }) {
   useComponentCss(css, 'study-feedback');
   const kind = toneOf(tone);
   const scale = size === 'sm' ? 'sm' : 'md';
   const mark = glyph(icon, kind, scale === 'sm' ? 12 : 14);
   return (
-    <span className={cx('sh-chip', `sh-chip--${scale}`, selected && 'is-selected', className)} data-tone={kind} {...rest}>
+    <span className={cx('sh-chip', `sh-chip--${scale}`, selected && 'is-selected', className)} data-tone={kind} aria-describedby={onClick ? undefined : describedBy} {...rest}>
       {onClick
-        ? <button type="button" className="sh-chip__main" aria-pressed={!!selected} disabled={disabled} onClick={onClick}>{mark}{children}</button>
+        ? <button type="button" className="sh-chip__main" aria-pressed={!!selected} aria-describedby={describedBy} disabled={disabled} onClick={onClick}>{mark}{children}</button>
         : <span className="sh-chip__label">{mark}{children}</span>}
       {onRemove && <IconButton icon="close" size="sm" className="sh-chip__remove" label={removeLabel || ui('移除')} onClick={onRemove} />}
     </span>

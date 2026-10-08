@@ -149,10 +149,12 @@
       grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(0, 1fr));
       border-bottom: 1px solid var(--line);
     }
+    /* One structure for every tile of the overview: the label on the first line, the value on the second, the note on the third (always there, empty or not), all from the TOP of the tile, so the
+       labels and the values of the tiles of a row stand on the same lines whichever of them has a note. */
     .tc-metric {
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       gap: var(--space-half);
       min-width: 0;
       min-height: 52px;
@@ -161,9 +163,9 @@
     }
     .tc-metric:last-child { border-right: 0; }
     .tc-metric--progress { gap: var(--space-2); padding-inline: var(--space-5); }
-    .tc-metric__k { color: var(--text-muted); font-size: var(--fs-xs); }
-    .tc-metric__v { overflow: hidden; font-family: var(--font-stack-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-    .tc-metric__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+    .tc-metric__k { display: block; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.3; }
+    .tc-metric__v { overflow: hidden; font-family: var(--font-stack-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-metric__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
     .tc-metric__pct { font-family: var(--font-stack-mono); font-size: var(--fs-lg); font-variant-numeric: tabular-nums; }
     .tc-segments { display: flex; gap: var(--space-half); height: 5px; }
     .tc-segment { flex-basis: 0; min-width: 6px; background: var(--line); }
@@ -181,6 +183,12 @@
     .tc-tabs { flex: none; flex-wrap: nowrap; gap: 0; height: 32px; border-bottom: 1px solid var(--line); }
     .tc-tab { min-height: 32px; padding-inline: var(--space-5); border: 0; background: transparent; box-shadow: none; color: var(--text-muted); font-weight: var(--fw-strong); }
     .tc-tab[aria-selected='true'] { background: transparent; box-shadow: inset 0 -2px 0 var(--accent); color: var(--text); }
+    /* Three tabs in the left panel: the strip measures ITSELF. Where the labels do not fit, the third tab shortens to 「目标」 (a long label, as English has, sooner; the tooltip has the whole name) and the tabs
+       close up; what still does not fit scrolls sideways inside the strip. */
+    .tc-tabs { container-type: inline-size; overflow-x: auto; scrollbar-width: none; }
+    .tc-tab, .tc-tabs > * { flex: none; white-space: nowrap; }
+    .tc-tab__short { display: none; }
+    .tc-tab__count { font-variant-numeric: tabular-nums; }
     .tc-panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-4); flex: none; min-height: 32px; padding: var(--space-1) var(--space-5); border-bottom: 1px solid var(--line-soft); }
     .tc-panel-head h3 { margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-strong); white-space: nowrap; }
     .tc-panel-head small { color: var(--text-faint); font-weight: var(--fw-regular); }
@@ -318,10 +326,18 @@
     .tc-run__math { display: block; overflow: hidden; color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; min-height: 1.45em; }
     /* Under the elapsed time of a question run: what is left of it. Two lines are kept for it (cut after two), empty or not. */
     .tc-metric__note-anchor { display: block; min-width: 0; }
+    .tc-metric__hint-anchor { display: block; min-width: 0; font-size: var(--fs-xs); line-height: 1.3; }
     .tc-metric__note { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; line-height: 1.3; min-height: 2.6em; }
     .tc-run[data-run-state='interrupted'] .tc-run__line, .tc-run[data-run-state='stopped'] .tc-run__line { color: var(--warn-ink, var(--text)); }
     /* The time limit of the task (ui/tasks/TimeLimit.jsx): one quiet strip under the facts, the same register as the line of a coverage run; the link and the steps it names are buttons. */
     .tc-limit { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
+    /* 要求并行 (ui/tasks/ParallelParts.jsx): why a queued task waits, or that a model error sent it back, in the same quiet register as the strip above; the second sentence of an explainer sits under the first. */
+    .tc-queue { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
+    .tc-queue__anchor { min-width: 0; }
+    .tc-queue__line { min-width: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); overflow-wrap: anywhere; }
+    .tc-queue[data-queue-state='requeued'] .tc-queue__line { color: var(--warn-ink, var(--text)); }
+    .tc-queue__blocked { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+    .tc-tip__more { display: block; margin-top: var(--space-1); color: var(--text-muted); }
     .tc-limit__k { font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .tc-limit__line { min-width: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
     .tc-limit__call, .tc-limit__more { font-variant-numeric: tabular-nums; }
@@ -385,18 +401,41 @@
     }
     .tc-output__facts { flex: none; height: var(--control-h-sm, 28px); margin: 0; padding: 0 var(--space-4); overflow: hidden; border-bottom: 1px solid var(--line-soft);
       color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--control-h-sm, 28px); text-overflow: ellipsis; white-space: nowrap; }
+    /* The bar and the controls are two lines of their own (a block of the same shape whatever the job); the controls are cells of a grid, as many columns as the
+       width holds, each a label over its widget, so the widgets line up and a control is never split across lines. */
+    .tc-controls__bar { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); min-width: 0; min-height: var(--control-h-sm, 28px); }
+    .tc-controls__items { display: grid; flex: 1 1 100%; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr)); gap: var(--space-2) var(--space-3); min-width: 0; }
     .tc-controls__title { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .tc-controls__idle { color: var(--text-muted); font-size: var(--fs-sm); }
-    .tc-controls__note { color: var(--text-muted); font-size: var(--fs-xs); }
-    .tc-controls__applied { margin-inline-start: auto; min-width: 0; color: var(--text-faint); font-size: var(--fs-xs); }
+    .tc-controls__note { flex: 1 1 100%; min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); }
+    .tc-controls__save { margin-inline-start: auto; }
+    /* What is in force: a line of its own with its height kept (the hint, then what a change did), so those sentences move nothing under them; only an error longer than the line makes room. */
+    .tc-controls__applied { flex: 1 1 100%; min-width: 0; min-height: 1.4em; color: var(--text-faint); font-size: var(--fs-xs); line-height: 1.4; }
+    .tc-controls[data-empty] .tc-controls__applied { display: none; }
     .tc-controls__applied[data-tone='success'] { color: var(--ok-ink); }
     .tc-controls__applied[data-tone='error'] { color: var(--bad-ink); }
-    .tc-control { display: inline-flex; align-items: center; gap: var(--space-3); flex: none; }
-    .tc-control__label { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
+    /* One control = its label over its widget, never apart; a longer label wraps within its cell, the widget sits at the foot of it. */
+    .tc-control { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: var(--space-1); min-width: 0; }
+    .tc-control__label { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: break-word; }
     .tc-stepper { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); }
     .tc-stepper__btn { min-width: 24px; --control-h-sm: 24px; padding-inline: 0; border-width: 0; background: var(--bg-raised); }
     .tc-stepper__value { min-width: 28px; font-family: var(--font-stack-mono); font-weight: var(--fw-medium); text-align: center; font-variant-numeric: tabular-nums; }
-    .tc-select { width: auto; min-width: 0; max-width: 11rem; min-height: 28px; padding-block: 0; padding-inline: var(--space-3); font-size: var(--fs-sm); }
+    /* The width of its cell whatever it shows (no shift when another level is chosen); the cell is wide enough for the longest of the short words (「跟随当前会话」, "Follow session") and 模型默认 / 最低 / 低 / 中 / 高 / 最高; the long label of the follow option is in the popup. */
+    .tc-select { width: 100%; min-height: 28px; padding-block: 0; padding-inline: var(--space-3); font-size: var(--fs-sm); }
+  }
+
+  @container (max-width: 560px) {
+    :is(.study-app, .study-seat) {
+      .tc-tab { padding-inline: var(--space-3); }
+      .tc-tab[data-long] .tc-tab__full { display: none; }
+      .tc-tab[data-long] .tc-tab__short { display: inline; }
+    }
+  }
+  @container (max-width: 300px) {
+    :is(.study-app, .study-seat) {
+      .tc-tab__full { display: none; }
+      .tc-tab__short { display: inline; }
+    }
   }
 
   /* Narrow: the console is a page again. The list sits above the detail, every panel gets a height of its own, and the page scrolls. */

@@ -13,8 +13,9 @@ import { isSelectableTask, reconcileSelection, selectionSummary, toggleAll, togg
 import { batchMessage, batchRun } from './task-batch.js';
 import SelectBar from './SelectBar.jsx';
 import DeleteTasksDialog from './DeleteTasksDialog.jsx';
-import { taskSummary, stateLabel } from './task-summary.js';
-import { taskFacts, taskSegments, usageLine } from './task-facts.js';
+import { taskSummary } from './task-summary.js';
+import { usageLine } from './task-facts.js';
+import Metrics from './Metrics.jsx';
 import { headerActions, autoToggle } from './task-control.js';
 import RunLine from './RunLine.jsx';
 import TimeLimit from './TimeLimit.jsx';
@@ -23,6 +24,7 @@ import TaskUsage from './TaskUsage.jsx';
 import { actionLabel, autoLabel } from '../coverage/copy.js';
 import ControlRow from './ControlRow.jsx';
 import ContinuedNote from './ContinuedNote.jsx';
+import QueueNote, { ParallelBadge, ParallelButton } from './ParallelParts.jsx';
 import TaskBody from './TaskBody.jsx';
 import { readJSON, writeJSON } from '../storage.js';
 import { CoverageTopUpPopover } from '../coverage/CoverageTopUp.jsx';
@@ -64,46 +66,6 @@ function TaskItem({ task, summary, picked, checked, onPick, onCheck }) {
         : <span className="tc-item__check" aria-hidden="true" />}
       <TaskRow summary={summary} selected={picked} onPick={onPick} />
     </div>
-  );
-}
-
-/** Stage-segmented progress: one segment per stage of the job, as wide as its share of the work, filled by what is done. */
-function SegmentedProgress({ segments, label }) {
-  return (
-    <div className="tc-segments" role="img" aria-label={label}>
-      {segments.map((segment) => (
-        <span key={segment.stage} className="tc-segment" data-stage={segment.stage} style={{ flexGrow: Math.max(segment.total, 1) }}>
-          <i style={{ transform: `scaleX(${segment.total > 0 ? Math.min(1, segment.done / segment.total) : 0})` }} />
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function Metrics({ job, summary, now }) {
-  const segments = taskSegments(job), facts = taskFacts(job, now);
-  const label = segments.map((segment) => uiFormat('{0} {1}/{2}', [segment.label, segment.done, segment.total])).join('，');
-  return (
-    <section className="tc-metrics" aria-label={ui('概览')}>
-      <div className="tc-metric tc-metric--progress">
-        <div className="tc-metric__top">
-          <span className="tc-metric__k">{summary.kind === 'coach'
-            ? uiFormat('本日记录 · {0}', [summary.state === 'done' ? ui('暂无进行中的批次') : stateLabel(summary.state)])
-            : uiFormat('总进度 · {0}', [stateLabel(summary.state)])}</span>
-          <strong className="tc-metric__pct">{summary.percent === null ? '—' : `${summary.percent}%`}</strong>
-        </div>
-        <SegmentedProgress segments={segments} label={label || ui('总进度')} />
-      </div>
-      {facts.map((fact) => (
-        <div className="tc-metric" key={fact.key}>
-          <span className="tc-metric__k">{fact.label}</span>
-          <span className="tc-metric__v">{fact.value}</span>
-          {fact.note !== undefined && (fact.note
-            ? <Tooltip layer content={fact.note} anchorClassName="tc-metric__note-anchor"><span className="tc-metric__note" data-metric-note tabIndex={0}>{fact.note}</span></Tooltip>
-            : <span className="tc-metric__note" data-metric-note />)}
-        </div>
-      ))}
-    </section>
   );
 }
 
@@ -163,6 +125,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
         </div>
         <div className="tc-head__actions">
           <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>
+          <ParallelBadge task={task} />
+          <ParallelButton task={task} />
           {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
           {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
           {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' ? undefined : 'primary'} disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : ui('已完成的部分会直接复用，不会重复付费')} onClick={() => act('retry')}>{ui('接着做')}</Button>}
@@ -190,6 +154,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
       </header>
       <Metrics job={task} summary={summary} now={now} />
       <TaskUsage contract={contract} />
+      <QueueNote task={task} />
       <RunLine task={task} shortfall={shortfall} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}

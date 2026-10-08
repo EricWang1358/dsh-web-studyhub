@@ -60,6 +60,7 @@ import taskConsole from './locales/en.task-console.json';
 import coverageCopy from './locales/en.coverage.json';
 import integration from './locales/en.integration.json';
 import deckParts from './locales/en.deck-parts.json';
+import examPrep from './locales/en.exam-prep.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -122,6 +123,7 @@ export const ENGLISH_SOURCES = {
   'en.coverage.json': coverageCopy,
   'en.integration.json': integration,
   'en.deck-parts.json': deckParts,
+  'en.exam-prep.json': examPrep,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

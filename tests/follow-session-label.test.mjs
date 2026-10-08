@@ -10,14 +10,16 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 
 /* 「跟随当前会话」 says which model and reasoning level it follows: the conversation's own default (the DSH session route),
-   not the learner's saved generation preference. The host puts it on snapshot.model.session; the 即时控制 row and 出题偏好 draw it. */
+   not the learner's saved generation preference. The host puts it on snapshot.model.session; the 即时控制 row and 出题偏好 draw it:
+   the popup's option carries the whole label, the closed select the short words, and a tooltip on it the sentence (tests/follow-session-select.test.mjs
+   draws the real Select; the native stand-in used here keeps the three on the option as data-trigger / data-tip / data-wrap). */
 
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { default as GenerationSettings } from './ui/GenerationSettings.jsx';
-  export { followLabel } from './ui/follow-session.js';
+  export { followLabel, followTip, followOption } from './ui/follow-session.js';
   export { controlItems } from './ui/tasks/task-control.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -35,9 +37,30 @@ test('the label names the model and the level, or the word default when the sess
 test('an unknown session model keeps the plain label', () => {
   for (const session of [undefined, null, {}, { provider: 'p' }, { model: '' }]) assert.equal(m.followLabel(session), '跟随当前会话');
   m.setUiLanguage('en');
-  assert.equal(m.followLabel(SESSION), 'Follow current session · deepseek-v4.1-flash · high');
-  assert.equal(m.followLabel(null), 'Follow current session');
+  assert.equal(m.followLabel(SESSION), 'Follow session · deepseek-v4.1-flash · high');
+  assert.equal(m.followLabel(null), 'Follow session');
   m.setUiLanguage('zh');
+});
+
+test('the option splits the words: the closed select is short, the popup says it all, the tooltip is one sentence', () => {
+  const prefixed = { provider: 'cn', model: 'cn:deepseek-v4.1-flash', reasoningEffort: 'high' };
+  const option = m.followOption(prefixed);
+  assert.deepEqual(option, { value: 'follow', label: '跟随当前会话 · cn:deepseek-v4.1-flash · high', triggerLabel: '跟随当前会话',
+    tip: '跟随当前会话：现在是 cn:deepseek-v4.1-flash，推理档位 high。会话换了模型，这里也跟着换。', wrap: true });
+  assert.equal(m.followOption({ ...prefixed, reasoningEffort: null }).tip, '跟随当前会话：现在是 cn:deepseek-v4.1-flash，推理档位 default。会话换了模型，这里也跟着换。', 'the level the session does not set is the word default');
+  assert.equal(m.followOption({ ...prefixed, reasoningEffort: null }).label, '跟随当前会话 · cn:deepseek-v4.1-flash · default');
+  for (const session of [undefined, null, {}, { model: ' ' }]) {
+    assert.deepEqual(m.followOption(session), { value: 'follow', label: '跟随当前会话', triggerLabel: '跟随当前会话', tip: '', wrap: true }, 'no known model: nothing to add, and the tip is the empty string (the anchor stays)');
+    assert.equal(m.followTip(session), '');
+  }
+  m.setUiLanguage('en');
+  try {
+    const english = m.followOption(prefixed);
+    assert.equal(english.triggerLabel, 'Follow session');
+    assert.equal(english.label, 'Follow session · cn:deepseek-v4.1-flash · high');
+    assert.equal(english.tip, 'Follows the current session: right now cn:deepseek-v4.1-flash, reasoning level high. If the session switches model, this follows it too.');
+    assert.doesNotMatch(JSON.stringify(english), /[㐀-鿿]/);
+  } finally { m.setUiLanguage('zh'); }
 });
 
 const generation = () => ({ id: 'g1', status: 'running', deckTitle: 'Deck', requestedTotal: 10, savedCount: 2, startedAt: '2026-10-05T10:00:00.000Z', paused: false,
@@ -51,6 +74,13 @@ test('controlItems puts the label on the follow option of the four reasoning sel
   for (const key of EFFORTS) assert.equal(labelOf(plain, key), '跟随当前会话', key);
   const enriched = m.controlItems(job, SESSION);
   for (const key of EFFORTS) assert.equal(labelOf(enriched, key), '跟随当前会话 · deepseek-v4.1-flash · high', key);
+  for (const key of EFFORTS) {
+    const options = enriched.find((item) => item.key === key).options, follow = options.find((option) => option.value === 'follow');
+    assert.equal(follow.triggerLabel, '跟随当前会话', `${key}: the closed select says the short words`);
+    assert.match(follow.tip, /^跟随当前会话：现在是 deepseek-v4\.1-flash，推理档位 high。/, key);
+    assert.equal(follow.wrap, true, key);
+    for (const option of options.filter((entry) => entry.value !== 'follow')) assert.deepEqual(Object.keys(option), ['value', 'label'], `${key}: ${option.value} is a plain option`);
+  }
   assert.deepEqual(enriched.find((item) => item.key === 'concurrency').options, []);
   assert.deepEqual(enriched.map((item) => item.value), plain.map((item) => item.value), 'the values in force are untouched');
 });
@@ -65,15 +95,42 @@ test('the 即时控制 row shows the followed model in the follow option, and th
   const html = render({ model: { ready: true, reason: 'ok', label: 'DeepSeek · deepseek-v4.1-flash', provider: SESSION.provider, model: SESSION.model, session: SESSION } });
   assert.equal((html.match(/<option value="follow"[^>]*>跟随当前会话 · deepseek-v4\.1-flash · high<\/option>/g) || []).length, 4, 'every reasoning select offers it');
   const noLevel = render({ model: { ready: true, session: { ...SESSION, reasoningEffort: null } } });
-  assert.match(noLevel, /<option value="follow" selected="">跟随当前会话 · deepseek-v4\.1-flash · default<\/option>/);
-  assert.match(render({ model: { ready: true } }), /<option value="follow" selected="">跟随当前会话<\/option>/);
-  assert.match(render({}), /<option value="follow" selected="">跟随当前会话<\/option>/);
+  assert.match(noLevel, /<option value="follow"[^>]*selected=""[^>]*>跟随当前会话 · deepseek-v4\.1-flash · default<\/option>/);
+  assert.match(render({ model: { ready: true } }), /<option value="follow"[^>]*selected=""[^>]*>跟随当前会话<\/option>/);
+  assert.match(render({}), /<option value="follow"[^>]*selected=""[^>]*>跟随当前会话<\/option>/);
+});
+
+test('the 即时控制 row carries the short words, the sentence and the wrap on the follow option, and in English too', () => {
+  const html = render({ model: { ready: true, session: { provider: 'cn', model: 'cn:deepseek-v4.1-flash', reasoningEffort: 'high' } } });
+  const follow = html.match(/<option value="follow"[^>]*>[^<]*<\/option>/g);
+  assert.equal(follow.length, 4);
+  for (const option of follow) {
+    assert.match(option, /data-trigger="跟随当前会话"/);
+    assert.match(option, /data-tip="跟随当前会话：现在是 cn:deepseek-v4\.1-flash，推理档位 high。会话换了模型，这里也跟着换。"/);
+    assert.match(option, /data-wrap="true"/);
+    assert.match(option, />跟随当前会话 · cn:deepseek-v4\.1-flash · high<\/option>/);
+  }
+  m.setUiLanguage('en');
+  try {
+    const english = render({ model: { ready: true, session: { provider: 'cn', model: 'cn:deepseek-v4.1-flash', reasoningEffort: 'high' } } });
+    const row = english.slice(english.indexOf('aria-label="Live controls"'), english.indexOf('class="tc-body"'));
+    assert.equal((row.match(/data-trigger="Follow session"/g) || []).length, 4);
+    assert.match(row, />Follow session · cn:deepseek-v4\.1-flash · high<\/option>/);
+    assert.match(row, /data-tip="Follows the current session: right now cn:deepseek-v4\.1-flash, reasoning level high\./);
+    assert.doesNotMatch(row, /[㐀-鿿]/);
+  } finally { m.setUiLanguage('zh'); }
 });
 
 test('出题偏好 shows the same label on its follow options', () => {
-  const html = renderToStaticMarkup(React.createElement(m.GenerationSettings, { root: '/library', act: () => {}, followLabel: m.followLabel(SESSION) }));
+  const html = renderToStaticMarkup(React.createElement(m.GenerationSettings, { root: '/library', act: () => {}, session: SESSION }));
   assert.equal((html.match(/<option value="follow"[^>]*>跟随当前会话 · deepseek-v4\.1-flash · high<\/option>/g) || []).length, 4);
+  assert.equal((html.match(/<option value="follow"[^>]*data-trigger="跟随当前会话"[^>]*data-tip="跟随当前会话：现在是 deepseek-v4\.1-flash，推理档位 high。/g) || []).length, 4, 'the same option as the row\'s');
   assert.match(renderToStaticMarkup(React.createElement(m.GenerationSettings, { root: '/library', act: () => {} })), /<option value="follow"[^>]*>跟随当前会话<\/option>/);
+  m.setUiLanguage('en');
+  try {
+    const english = renderToStaticMarkup(React.createElement(m.GenerationSettings, { root: '/library', act: () => {}, session: SESSION }));
+    assert.equal((english.match(/<option value="follow"[^>]*data-trigger="Follow session"[^>]*>Follow session · deepseek-v4\.1-flash · high<\/option>/g) || []).length, 4);
+  } finally { m.setUiLanguage('zh'); }
 });
 
 /* The host: the session route rides on the model status of the snapshot. */

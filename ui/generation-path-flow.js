@@ -104,11 +104,24 @@ export function pathBrief({ steps, course = '', goal = '', indexed = false, lang
  */
 export async function queueSteps(call, steps, form, { course = '' } = {}) {
   const started = [], failed = [];
+  // A step is a plain request with its OWN count. The form-only fields stay at home: its empty spending limit ('') made the backend take every step for a coverage run and refuse
+  // all of them (「tokenBudget 需要是不小于 1000 的整数」), and the level / auto-complete / typed total belong to a whole-material run, not to one step of a path.
+  const { customCount: _typed, tokenBudget: _budget, autoComplete: _auto, coverageLevel: _level, ...base } = form || {};
   for (const step of steps) {
     try {
-      const job = await call('generate', { ...form, course, count: step.count, sourceIds: step.sourceIds, focus: step.focus || form?.focus || '' });
+      const job = await call('generate', { ...base, course, count: step.count, sourceIds: step.sourceIds, focus: step.focus || form?.focus || '' });
       started.push({ step, job });
     } catch (error) { failed.push({ step, message: String(error?.message || error) }); }
   }
   return { started, failed };
+}
+
+/** The failed steps grouped by their reason, in the order the reasons first appeared: [{ message, steps: [title] }]. One reason that hit 21 steps is said once. */
+export function failureGroups(failed, titleOf) {
+  const groups = new Map();
+  for (const { step, message } of failed || []) {
+    if (!groups.has(message)) groups.set(message, []);
+    groups.get(message).push(titleOf(step));
+  }
+  return [...groups].map(([message, steps]) => ({ message, steps }));
 }

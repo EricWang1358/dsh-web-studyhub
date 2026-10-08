@@ -1,4 +1,4 @@
-/* global getComputedStyle */
+/* global getComputedStyle, document */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
@@ -387,6 +387,63 @@ test('the archived read-only detail: the name keeps its room, the actions fit an
             assert.deepEqual(errors, [], where);
           } finally { await context.close(); }
         }
+      } finally { await running.close(); }
+    }
+  } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+/* The overview of every kind of task (a question run, an audio batch, a day of 为你定制) is one structure: label, value, from the TOP of each tile, and - only for the kinds whose row can carry a note (a question run) -
+   a note line that is always there in EVERY tile of the row; a row that never has a note is not taller for it (an audio batch, a conversion, a day of 为你定制 keep the 53px they had). In every row of tiles
+   (one row at 1280, two rows beside the progress tile when it wraps at 768 and 420) the labels stand on one line and the values on one line, whichever tile has a note (the owner's 「UI不整齐」). */
+test('the tiles of the overview share their lines: the labels and the values of a row have the same top (within 1px), whichever tile has a note, at 1280, 768 and 420', { timeout: 600000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-console-dist-'));
+  await buildPreview({ outdir: dist });
+  try {
+    for (const [lang, theme, width] of [['zh', 'dark', 1280], ['en', 'light', 768], ['zh', 'dark', 420]]) {
+      const running = await startConsole({ distDir: dist, lang });
+      try {
+        await startJobs(running);
+        const { page, errors, context } = await openConsole(browser, running, { lang, theme, width, height: 900 });
+        await until(async () => (await page.locator('.tc-row').count()) >= 4, 'the jobs and the days of 为你定制 in the list');
+        await frames(page, 6);
+        const rows = await page.locator('.tc-row').count();
+        let withNote = 0;
+        for (let index = 0; index < rows; index++) {
+          await page.locator('.tc-row').nth(index).dispatchEvent('click');
+          await frames(page, 4);
+          const tiles = await page.evaluate(() => [...document.querySelectorAll('.tc-metrics > .tc-metric')].map((tile) => {
+            const top = (selector) => { const element = tile.querySelector(selector); return element ? element.getBoundingClientRect().top : null; };
+            const box = tile.getBoundingClientRect();
+            return { top: box.top, height: box.height, progress: tile.classList.contains('tc-metric--progress'), label: top('.tc-metric__k'), value: top('.tc-metric__v'),
+              note: top('[data-metric-note]'), noteText: tile.querySelector('[data-metric-note]')?.textContent.trim() || '' };
+          }));
+          const where = `${lang}/${theme}/${width} task ${index}`;
+          const facts = tiles.filter((tile) => !tile.progress);
+          assert.equal(facts.length, 4, `${where}: four facts`);
+          const reserved = facts.some((tile) => tile.note !== null);
+          assert.ok(!reserved || facts.every((tile) => tile.note !== null), `${where}: a row that has a note line has it in every tile, empty or not`);
+          if (facts.some((tile) => tile.noteText)) { withNote += 1; assert.ok(reserved); }
+          // a row that never has a note keeps the height it had before the line existed (a tile of a row that does not hold the progress tile: 53px)
+          if (!reserved) for (const tile of facts) if (!tiles.some((other) => other.progress && Math.round(other.top) === Math.round(tile.top))) assert.ok(Math.abs(tile.height - 53) <= 1, `${where}: a tile without a note is ${tile.height}px high, as before`);
+          // rows of tiles: the tiles with the same top are a row
+          const rowsOf = new Map();
+          for (const tile of tiles) { const key = Math.round(tile.top); (rowsOf.get(key) || rowsOf.set(key, []).get(key)).push(tile); }
+          for (const [key, row] of rowsOf) {
+            const spread = (name, list) => { const values = list.map((tile) => tile[name]); return Math.max(...values) - Math.min(...values); };
+            assert.ok(spread('label', row) <= 1, `${where}, row at ${key}: the labels are on one line (spread ${spread('label', row)}px)`);
+            assert.ok(spread('height', row) <= 1, `${where}, row at ${key}: the tiles are as tall as each other`);
+            const only = row.filter((tile) => !tile.progress);
+            if (only.length) {
+              assert.ok(spread('value', only) <= 1, `${where}, row at ${key}: the values are on one line (spread ${spread('value', only)}px)`);
+              assert.ok(spread('note', only) <= 1, `${where}, row at ${key}: the notes are on one line (spread ${spread('note', only)}px)`);
+            }
+          }
+        }
+        assert.ok(withNote >= 1, `${lang}/${width}: at least one task shows a note under a tile (the question run's elapsed time)`);
+        assert.deepEqual(errors, []);
+        await context.close();
       } finally { await running.close(); }
     }
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }

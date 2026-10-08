@@ -13,6 +13,8 @@
     .sh-select__value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sh-select__value small { margin-inline-start: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-sm); }
     .sh-select__placeholder { color: var(--text-faint); }
+    /* The anchor of the trigger's tooltip (option.tip): a box of its own that gives the trigger the room it would have had without it. */
+    .sh-select__tip { display: flex; align-self: stretch; min-width: 0; max-width: 100%; }
     .sh-select__caret { flex: none; display: inline-flex; color: var(--text-muted); transition: transform var(--dur-fast) var(--ease); }
     .sh-select__trigger[data-popup-open] .sh-select__caret, .sh-combobox__heading[data-popup-open] .sh-select__caret { transform: rotate(180deg); }
 
@@ -40,6 +42,8 @@
     .sh-pop__popup[data-starting-style], .sh-pop__popup[data-ending-style] { opacity: 0; transform: scale(0.97) translateY(-2px); }
     .sh-pop__popup[data-side="top"][data-starting-style], .sh-pop__popup[data-side="top"][data-ending-style] { transform: scale(0.97) translateY(2px); }
     .sh-pop__popup--match { width: var(--anchor-width); }
+    /* A list with long labels that wrap (option.wrap): as wide as the longest label asks, never narrower than the trigger, never wider than the room or 24rem. */
+    .sh-pop__popup--fit { width: max-content; min-width: var(--anchor-width); max-width: min(var(--available-width), 24rem); }
     .sh-pop__popup--wide { min-width: min(max(var(--anchor-width), 21rem), var(--available-width)); }
     .sh-pop__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-1); outline: 0; }
     .sh-pop__list:empty { display: none; }
@@ -52,13 +56,22 @@
     .sh-opt[data-disabled] { color: var(--text-faint); cursor: default; }
     .sh-opt__check { flex: none; display: inline-flex; width: 16px; color: var(--text); }
     .sh-opt__label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sh-opt--wrap { align-items: flex-start; }
+    .sh-opt--wrap .sh-opt__check { align-items: center; height: calc(var(--fs-md) * var(--lh-snug)); }
+    .sh-opt--wrap .sh-opt__label { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
     .sh-opt__hint { flex: none; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-    .sh-opt mark { background: none; color: inherit; font-weight: var(--fw-strong); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+    .sh-opt mark, .sh-pop__group-label mark { background: none; color: inherit; font-weight: var(--fw-strong); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
     /* Chapters hang off their course on one hairline: the tree the old picker faked with spaces. */
     .sh-opt--context { min-height: 0; padding-block: var(--space-1); color: var(--text-muted); cursor: default; font-size: var(--fs-sm); }
     .sh-opt--sub { margin-inline-start: var(--space-4); padding-inline-start: var(--space-3); border-radius: 0 calc(var(--radius) - var(--sh-inset) - var(--hairline)) calc(var(--radius) - var(--sh-inset) - var(--hairline)) 0; box-shadow: inset 1px 0 0 var(--line-strong); }
     .sh-opt--sub[data-level="3"] { margin-inline-start: calc(var(--space-4) * 2); }
     .sh-opt--sub[data-selected], .sh-opt--sub[data-highlighted] { box-shadow: inset 2px 0 0 var(--text-muted); }
+    /* A long title (option.wrap) takes up to two lines and keeps its hint (a chapter, a count) at the side; a group with `indent` hangs its options under its heading. */
+    .sh-opt--wrap { align-items: flex-start; }
+    .sh-opt--wrap .sh-opt__label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+    .sh-opt--wrap .sh-opt__hint { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sh-pop__group--indent > .sh-opt { margin-inline-start: var(--space-3); }
+    .sh-pop__group-label + .sh-opt { scroll-margin-block-start: 2.25rem; } /* reaching a group's first option keeps its heading in view */
     .sh-pop__group { padding-bottom: var(--space-1); }
     .sh-pop__group-label { margin: 0; padding: var(--space-2) var(--space-2-5) var(--space-half); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.03em; }
 

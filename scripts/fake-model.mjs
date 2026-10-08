@@ -589,9 +589,18 @@ const HANDLERS = [
         paragraphs: (input.paragraphs || []).map((p) => ({ n: p.n, [key]: `${key === "zh" ? "【预览译文】" : "[Preview translation] "}${p.text}` })) };
     } },
   { name: "selection.answer", text: true, match: (s) => s.startsWith("Answer the learner question using only the selected source evidence"),
-    reply: ({ input, english }) => english
-      ? `Preview answer (no real model was called): the selected passage “${input.selection?.quote || ""}” is the evidence. Read the neighbouring text to see how it constrains later changes.`
-      : `预览示例回答（未调用真实模型）：选段「${input.selection?.quote || ""}」提供了依据。可结合相邻文字检查设计原则如何约束后续变化。` },
+    // When the prompt asks for [[term]] markers the preview marks the first long word of the passage (and the term it was asked about), so the clickable terms can be tried without a real model.
+    reply: ({ system, input, english }) => {
+      const quote = input.selection?.quote || "", marked = system.includes("[[term]]");
+      const word = marked ? (quote.match(/[A-Za-z][A-Za-z-]{3,}/) || quote.match(/[\u4e00-\u9fff]{2,4}/) || [""])[0] : "";
+      const mark = (value) => (value ? `[[${value}]]` : "");
+      if (input.term) return english
+        ? `Preview answer about ${input.term}: the passage does not define it. General knowledge, not from the source: a short generic explanation. See also ${mark(word)}.`
+        : `预览示例回答，关于「${input.term}」：原文没有解释它。以下是通用知识，不是原文内容：一句简短的通用说明。另见 ${mark(word)}。`;
+      return english
+        ? `Preview answer (no real model was called): the selected passage “${quote}” is the evidence, see ${mark(word)}. Read the neighbouring text to see how it constrains later changes.`
+        : `预览示例回答（未调用真实模型）：选段「${quote}」提供了依据，见 ${mark(word)}。可结合相邻文字检查设计原则如何约束后续变化。`;
+    } },
   { name: "outline.suggest", match: (s) => s.startsWith("You write the table of contents of one document") || s.startsWith("You find the chapter boundaries of one document"),
     reply: ({ system, input }) => {
       // The numbered blocks of the prompt: a part/chapter line is level 1 (level 2 under a document title), a numbered "2.1 …" line level 2.

@@ -40,6 +40,7 @@
 | `workflowAgent` 学习流用子代理 | ✓ | ✓ | 无 同 `dailyRecapAgent` | S4-8 |
 | `assist` 助教 | ✓ | ✓ | 无 助教任务只在内存里，重启后没有留下东西，再做一遍两边都是一条记录 | S4-9 §2 |
 | `noteGenerate` 笔记起草 | ✓ | ✓ | △ 状态仍是"运行中"（两个版本都没有核对死进程的逻辑），再点一次起草即可 | S4-9 §2 |
+| `examBlueprint` 备考补习：考点清单构建 | △ 按 v3.0.0 标签树演练，不是 2.7.1：旧版读写含 `blueprint` 字段的库，字段原样保留；2.7.1 未单独演练 | △ 蓝图是一份带附加字段的普通 source，旧版把它当普通 Markdown 资料读出并列在资料里（它不认识「考点清单不算资料」的隐藏规则，这是接受的退化）；同样只对 v3.0.0 演练 | 无 构建任务不持久（`recoveryMode: none`），重启后没有留下东西，再点一次构建；蓝图只在最后一步一次性入库，不会有半成品 | 3.1 步骤 1–2，`exam-blueprint-material.test.mjs`、`exam-blueprint-job.test.mjs` |
 | `pdfConvert` PDF 转换 | ✓ | ✓ | ✓ 在途：2.7.1 列为已中断并续做，两边多出同样的 120 页，只加一次 | S5-7 §4 |
 | `markerInstall` Marker 安装 | ✓ | ✓ | ✓ 两个版本都是"未完成"，再开始即完成 | S5-7 §4 |
 | `mineruSetup` MinerU 配置 | ✓ | ✓ | ✓ 同上 | S5-7 §4 |

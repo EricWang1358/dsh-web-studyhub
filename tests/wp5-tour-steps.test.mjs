@@ -51,14 +51,14 @@ const PAGES = new Set(["library", "sources", "generate", "draft", "review", "wro
 test("navigation is grouped by when a page is used: every day, now and then, once per course", () => {
   assert.deepEqual(NAV_DEFAULTS, {
     daily: ["library", "sources", "generate", "tasks", "wrongbook", "workflows", "notes", "board"],
-    periodic: ["exam", "dashboard"],
+    periodic: ["exam", "examprep", "dashboard"],
     setup: ["skeleton", "audio", "live"],
   });
   // A learner's saved order still applies; pages it does not mention join at the end of their group.
   const saved = { daily: ["board", "library"], setup: ["live", "audio"] };
   assert.deepEqual(mergeOrder(saved, NAV_DEFAULTS), {
     daily: ["board", "library", "sources", "generate", "tasks", "wrongbook", "workflows", "notes"],
-    periodic: ["exam", "dashboard"],
+    periodic: ["exam", "examprep", "dashboard"],
     setup: ["live", "audio", "skeleton"],
   });
   // An order saved before the regrouping (main / upkeep) keeps working: its order is applied inside the new groups.

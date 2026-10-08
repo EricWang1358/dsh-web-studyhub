@@ -26,6 +26,7 @@
     .cjc__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); min-width: 0; }
     .cjc__title { min-width: 0; overflow: hidden; font-size: var(--fs-md); font-weight: var(--fw-strong); text-overflow: ellipsis; white-space: nowrap; }
     .cjc__pct { flex: none; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--text-muted); }
+    .cjc__pct-anchor { flex: none; }
     .cjc__pct[data-state='run'] { color: var(--accent-text); }
     .cjc__pct[data-state='done'] { color: var(--ok-ink); }
     .cjc__pct[data-state='partial'] { color: var(--warn-ink); }

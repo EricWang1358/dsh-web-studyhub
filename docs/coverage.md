@@ -8,7 +8,7 @@ Phase 2 of [coverage-driven generation](plans/coverage-generation/README.md). A 
 
 | state | meaning |
 | --- | --- |
-| `covered` | at least one question's place falls in it. The place is the question's selection offsets, else where its quote stands in the source (a quote written a little differently from the stored text is still found: `lib/quote-locate.js`); a question that cites a source with a single section covers it with no offset. |
+| `covered` | at least one question's place falls in it. The place is the question's selection offsets, else the place its plan verified (`citation.at = { start, end }`, written by `lib/card-places.js stampPlaces` for a question written for an assigned section, so the same words standing earlier in the material do not credit another section), else where its quote first stands in the source (a quote written a little differently from the stored text is still found: `lib/quote-locate.js`); a question that cites a source with a single section covers it with no offset. |
 | `planned-failed` | a planned target of a run (`editorial.partPlans`, `lib/plan-record.js`: offsets, else the quote, else the range of its part) with status `failed` or `omitted` falls in it and no question does; a part that never reached targets is its range. `reason` is the code of `lib/generation-failure.js`. |
 | `never-planned` | neither. A draft from before plans were kept has no `partPlans` (`recorded: false`): its uncovered sections are said to have *no record*. |
 

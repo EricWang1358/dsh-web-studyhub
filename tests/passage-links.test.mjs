@@ -34,7 +34,7 @@ test('one passage with a question and a Q&A card is one underline, looks like a 
   assert.equal(model.groups.length, 1);
   const [group] = model.groups;
   assert.equal(group.kind, 'question');
-  assert.deepEqual(group.counts, { question: 1, qa: 1 });
+  assert.deepEqual(group.counts, { question: 1, qa: 1, annotation: 0 });
   assert.equal(group.followups, 1);
   assert.equal(buildLinkModel(groupPassageLinks([link('qa1', s, { sourceQa: true })])).groups[0].kind, 'qa');
 });
@@ -145,12 +145,13 @@ const rangeFake = (name, contains = () => false) => ({ name, isPointInRange: con
 
 test('every link kind has its own named highlight; overlapping passages share one and merge visually', () => {
   const env = fakeHighlightEnv();
-  const a = rangeFake('a'), b = rangeFake('b'), c = rangeFake('c'), d = rangeFake('d');
-  const clear = paintLinkHighlights([{ group: { kind: 'question' }, range: a }, { group: { kind: 'question' }, range: b }, { group: { kind: 'qa' }, range: c }, { group: { kind: 'note' }, range: d }], env);
+  const a = rangeFake('a'), b = rangeFake('b'), c = rangeFake('c'), d = rangeFake('d'), e = rangeFake('e');
+  const clear = paintLinkHighlights([{ group: { kind: 'question' }, range: a }, { group: { kind: 'question' }, range: b }, { group: { kind: 'qa' }, range: c }, { group: { kind: 'annotation' }, range: e }, { group: { kind: 'note' }, range: d }], env);
   assert.deepEqual([...env.registry.keys()].sort(), Object.values(HIGHLIGHT_NAMES).sort());
   assert.deepEqual(env.registry.get(HIGHLIGHT_NAMES.question).ranges, [a, b], 'two overlapping ranges, one highlight');
   assert.ok(env.registry.get(HIGHLIGHT_NAMES.question).priority > env.registry.get(HIGHLIGHT_NAMES.qa).priority, 'a question wins over a Q&A card where they overlap');
-  assert.ok(env.registry.get(HIGHLIGHT_NAMES.qa).priority > env.registry.get(HIGHLIGHT_NAMES.note).priority);
+  assert.ok(env.registry.get(HIGHLIGHT_NAMES.qa).priority > env.registry.get(HIGHLIGHT_NAMES.annotation).priority, 'a kept annotation yields to a card');
+  assert.ok(env.registry.get(HIGHLIGHT_NAMES.annotation).priority > env.registry.get(HIGHLIGHT_NAMES.note).priority);
   clear();
   assert.equal(env.registry.size, 0, 'clearing leaves nothing painted');
 });

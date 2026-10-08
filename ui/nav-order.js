@@ -19,7 +19,7 @@ const GROUPS_KEY = "study-nav-groups";
 /** The sidebar's default order: the pages of every day, then those of now and then, then the once-per-course ones. */
 export const NAV_DEFAULTS = Object.freeze({
   daily: ["library", "sources", "generate", "tasks", "wrongbook", "workflows", "notes", "board"],
-  periodic: ["exam", "dashboard"],
+  periodic: ["exam", "examprep", "dashboard"],
   setup: ["skeleton", "audio", "live"],
 });
 /** The groups as drawn: a plain label, one line saying what they hold, and whether the learner can fold them. */

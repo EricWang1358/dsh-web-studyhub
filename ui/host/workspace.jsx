@@ -1,6 +1,6 @@
 import StudyBoundary from "./StudyBoundary.jsx";
 import { Dialog, InlineMessage } from "../components/index.js";
-import { getUiLanguage, ui } from "../i18n.js";
+import { getUiLanguage, ui, uiFormat } from "../i18n.js";
 import { browserStorage } from "../storage.js";
 import React from "react";
 import App from "../App.jsx";
@@ -29,6 +29,11 @@ const handoff = new Map(),
   handoffListeners = new Set();
 const studyReferences = new Map(),
   studyReferenceListeners = new Set();
+// 在右栏打开 waits until the sidebar seat has opened the run it was handed (session id → { runId, settle }).
+const handoffWaits = new Map();
+const HANDOFF_WAIT_MS = 6000, HANDOFF_RETRY_MS = 250;
+// Why a run could not be moved when the page that asked is gone (session id → sentence): the top-level page shows it when it is back.
+const handoffNotes = new Map();
 const knownSessions = new Map(),
   candidates = new Map(),
   candidateListeners = new Set();
@@ -37,6 +42,26 @@ function deliverRun(sessionId, runId) {
   handoff.set(sessionId, runId);
   handoffListeners.forEach((fn) => fn(sessionId));
 }
+/** Resolves when the sidebar seat has opened `runId`; rejects with its reason, or when no seat took it in time (the handoff is then taken back). */
+function awaitHandoff(sessionId, runId) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    const settle = (failure) => {
+      clearTimeout(timer);
+      if (handoffWaits.get(sessionId)?.runId === runId) handoffWaits.delete(sessionId);
+      if (!failure) { resolve(); return; }
+      // Told it did not move: a sidebar that opens later must not find the run waiting for it.
+      if (handoff.get(sessionId) === runId) handoff.delete(sessionId);
+      reject(failure);
+    };
+    timer = setTimeout(() => settle(new Error(ui("右栏没有接收这道题，可以稍后再点一次。"))), HANDOFF_WAIT_MS);
+    handoffWaits.set(sessionId, { runId, settle });
+  });
+}
+const settleHandoff = (sessionId, runId, failure) => {
+  const wait = handoffWaits.get(sessionId);
+  if (wait?.runId === runId) wait.settle(failure);
+};
 function deliverStudyReference(sessionId, studyRef) {
   handoff.delete(sessionId);
   studyReferences.set(sessionId, studyRef);
@@ -146,6 +171,12 @@ export function apply(ctx, registerDocumentLearning) {
       knownSessions.set(sessionId, call);
       if (knownSessions.size > 8) knownSessions.delete(knownSessions.keys().next().value);
     }, [sessionId, call]);
+    // The reason a 在右栏打开 from this page failed, shown once when the page is back (the page was covered by then).
+    const [movedNote, setMovedNote] = React.useState(() => {
+      const note = placement === "page" ? handoffNotes.get(sessionId) : undefined;
+      handoffNotes.delete(sessionId);
+      return note || "";
+    });
     const [candidateIntent, setCandidateIntent] = React.useState(() => candidates.get(sessionId) || null);
     const [candidateError, setCandidateError] = React.useState("");
     React.useEffect(() => {
@@ -246,17 +277,43 @@ export function apply(ctx, registerDocumentLearning) {
             index: run.index, total: run.total, mode: run.mode, feedback: run.feedback,
             picks: run.picks, revealed: run.revealed, complete: run.complete } : null }).catch(() => {}),
         // Optional: keep the question in the right sidebar while the main area shows chat.
+        // Resolves once the sidebar seat shows the run (then the main area returns to chat); rejects with the reason it could not, for the button to say.
+        // The top-level page covers the conversation and with it the right sidebar, so there the conversation is revealed first and the sidebar is
+        // asked to open until it takes the run (it mounts a moment later); if it never does, the page is brought back with the reason.
         openInSidebar:
           placement !== "sidebar" && ctx.get("sidebarRight")?.openTab
-            ? (runId) => {
-                if (runId) deliverRun(sessionId, runId);
-                ctx.get("sidebarRight").openTab("study-workspace");
-                showChat();
+            ? async (runId) => {
+                if (!ctx.get("sidebarRight")?.openTab) throw new Error(ui("当前 DSH 没有右栏，题目留在这里。"));
+                const onPage = placement === "page";
+                const taken = awaitHandoff(sessionId, runId);
+                deliverRun(sessionId, runId);
+                if (onPage) try { showChat(); } catch (failure) { settleHandoff(sessionId, runId, failure); }
+                const openTab = () => {
+                  try { ctx.get("sidebarRight")?.openTab("study-workspace"); }
+                  catch (failure) { if (!onPage) settleHandoff(sessionId, runId, failure); }
+                };
+                openTab();
+                // The sidebar mounts a moment after it is asked: ask again every HANDOFF_RETRY_MS until it takes the run (a self-scheduling timeout, stopped below).
+                let retry = 0, asking = onPage;
+                const askAgain = () => { if (!asking) return; retry = setTimeout(() => { openTab(); askAgain(); }, HANDOFF_RETRY_MS); };
+                askAgain();
+                try { await taken; }
+                catch (failure) {
+                  if (!onPage) throw failure;
+                  const reason = ui("右栏没有打开。请先回到对话并打开右栏，再回来点「在右栏打开」。");
+                  handoffNotes.set(sessionId, uiFormat("没能放进右栏：{0}", [reason]));
+                  try { ctx.get("layout")?.selectPanel(STUDYHUB_PANEL); } catch { /* the page may still be showing */ }
+                  throw new Error(reason);
+                } finally { asking = false; clearTimeout(retry); }
+                if (!onPage) try { showChat(); } catch { /* the run is in the sidebar; the learner can switch views themselves */ }
               }
             : undefined,
         takeHandoff:
           placement === "sidebar"
-            ? listener => takeDelivery(handoff, handoffListeners, sessionId, listener)
+            ? listener => takeDelivery(handoff, handoffListeners, sessionId, runId =>
+              Promise.resolve().then(() => listener(runId)).then(
+                () => settleHandoff(sessionId, runId),
+                failure => settleHandoff(sessionId, runId, failure)))
             : undefined,
         takeStudyReference:
           placement === "sidebar"
@@ -268,6 +325,7 @@ export function apply(ctx, registerDocumentLearning) {
     );
     const seat = (
       <div className="study-seat"><StudyBoundary>
+        {movedNote && <InlineMessage tone="warning" onDismiss={() => setMovedNote("")}>{movedNote}</InlineMessage>}
         {placement === "sidebar" && candidateIntent?.candidates?.length > 0 &&
           <Dialog title={ui("选择要打开的题目")} size="md" onClose={() => deliverCandidates(sessionId, null)}>
             {candidateError && <InlineMessage tone="error">{candidateError}</InlineMessage>}

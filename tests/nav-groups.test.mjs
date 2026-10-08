@@ -27,10 +27,10 @@ const BEFORE = ['library', 'sources', 'generate', 'wrongbook', 'exam', 'dashboar
 test('three groups by when a page is used, and every page the sidebar had is still in exactly one of them', () => {
   assert.deepEqual(Object.keys(NAV_DEFAULTS), ['daily', 'periodic', 'setup']);
   assert.deepEqual(NAV_DEFAULTS.daily, ['library', 'sources', 'generate', 'tasks', 'wrongbook', 'workflows', 'notes', 'board'], 'adding the weekly material and making questions from it recur every week: they are daily');
-  assert.deepEqual(NAV_DEFAULTS.periodic, ['exam', 'dashboard']);
+  assert.deepEqual(NAV_DEFAULTS.periodic, ['exam', 'examprep', 'dashboard']);
   assert.deepEqual(NAV_DEFAULTS.setup, ['skeleton', 'audio', 'live']);
   const all = Object.values(NAV_DEFAULTS).flat();
-  assert.deepEqual([...all].sort(), [...BEFORE, 'tasks'].sort(), 'no page dropped; 任务 (the console of background jobs) is the one added');
+  assert.deepEqual([...all].sort(), [...BEFORE, 'tasks', 'examprep'].sort(), 'no page dropped; 任务 (the console of background jobs) and 备考补习 (behind a host switch) are the ones added');
   assert.equal(new Set(all).size, all.length, 'no page in two groups');
 });
 
@@ -45,7 +45,7 @@ test('an order saved before the regrouping keeps its order inside the new groups
   const saved = { main: ['dashboard', 'library', 'generate'], upkeep: ['board', 'notes', 'live'] };
   const merged = mergeOrder(saved, NAV_DEFAULTS);
   assert.deepEqual(merged.daily, ['library', 'generate', 'board', 'notes', 'sources', 'tasks', 'wrongbook', 'workflows']);
-  assert.deepEqual(merged.periodic, ['dashboard', 'exam']);
+  assert.deepEqual(merged.periodic, ['dashboard', 'exam', 'examprep']);
   assert.deepEqual(merged.setup, ['live', 'skeleton', 'audio']);
   assert.deepEqual(mergeOrder({ daily: ['notes'], periodic: 5 }, NAV_DEFAULTS).daily, ['notes', 'library', 'sources', 'generate', 'tasks', 'wrongbook', 'workflows', 'board'], 'an order in the new shape is used as it is');
   // 2.5.0 to 2.5.2 put 资料 and 创建题组 in the setup group: a saved order from then still ends up with them in 每天, and keeps its own order inside the groups

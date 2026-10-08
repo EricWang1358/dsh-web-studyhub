@@ -39,3 +39,9 @@ export function indexProgress(run) {
     : run?.stage === 'preparing' ? ui('正在准备…') : uiFormat('正在建立索引 {0} / {1} 页', [done, total]);
   return { percent, label };
 }
+
+/**
+ * Has DSH been restarted since an update that asked for it? `was` is the host's run (retrieval.status `boot`) when the update finished,
+ * `now` the one it reports today: a different one is a restart. Either unknown (a host that reports none): not known, so the notice stays.
+ */
+export const restartDone = (was, now) => !!was && !!now && was !== now;

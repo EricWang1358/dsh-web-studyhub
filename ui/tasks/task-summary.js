@@ -3,6 +3,7 @@ import { describeFailure, failureSentence, stageCodeLabel } from '../generation-
 import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
 import { contractOf, taskKindOf, isRunningTask, hasDailyFailures } from './task-model.js';
+import { badgeText } from './task-parallel.js';
 import { roundOfText, waitingText } from '../coverage/copy.js';
 import { partTitle } from '../deck-parts.js';
 
@@ -91,8 +92,11 @@ export function taskLine(job) {
   if (run && contract.status === STATUS.COMPLETE && run.waiting) return waitingText(run);
   // A run that ended short of its plan is 部分完成, here as in the header and the badge (not 「已完成」).
   if (state === 'partial' && run) return ui('部分完成');
-  if (run && isRunningTask(job) && run.rounds > 1) return joinMeta([roundOfText(run.round, run.rounds), stageLabel(contract.stage)]);
-  return stageLabel(contract.stage);
+  // 要求并行 (lib/job-parallel.js): a job a model error sent back to the queue says so; one that runs beside the queue is marked.
+  if (contract.detail?.requeued && contract.status === STATUS.QUEUED) return ui('已退回排队 · 等前面的任务完成后自动继续');
+  const beside = contract.detail?.parallel && isRunningTask(job) ? badgeText() : '';
+  if (run && isRunningTask(job) && run.rounds > 1) return joinMeta([beside, roundOfText(run.round, run.rounds), stageLabel(contract.stage)]);
+  return beside ? joinMeta([beside, stageLabel(contract.stage)]) : stageLabel(contract.stage);
 }
 
 /** Everything a list row needs. */

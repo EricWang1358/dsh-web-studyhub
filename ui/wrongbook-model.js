@@ -1,11 +1,15 @@
 import { ui, uiFormat } from './i18n.js';
 import { normalizeTopic, deckShortTitles } from '../lib/recommend-text.js';
+import { queryTokens } from './components/option-list.js';
+import { plainPrompt } from './shared.js';
+import { browserSession, browserStorage, readJSON, readText, writeJSON, writeText } from './storage.js';
 
-/* Pure helpers behind the wrong-book page: grouping, variant state, retrain
-   options and the plain-language copy for recommendation reasons. */
+/* Pure helpers behind the wrong-book page: grouping, filtering, variant state,
+   retrain options and the plain-language copy for recommendation reasons. */
 
 export const VARIANT_BATCH_CAP = 8;
 export const RECS_PREVIEW = 3;
+export const DEFAULT_GROUP_BY = 'deck';
 
 /** Short deck names, trimmed per course so "课程｜卷名｜90题" reads as "卷名". */
 export function shortDeckNames(items, decks = []) {
@@ -36,10 +40,11 @@ export function groupRows(items = [], mode = 'topic', decks = []) {
     const key = mode === 'deck' ? `deck:${item.deckId}` : `topic:${topicKey || '*'}`;
     if (!map.has(key)) {
       map.set(key, { key, mode, title: mode === 'deck' ? short(item.deckTitle) : String(item.topic || '').trim() || ui('未分类'),
-        unclassified: mode === 'topic' && !topicKey, rows: [], deckTitles: [], latest: '' });
+        unclassified: mode === 'topic' && !topicKey, rows: [], deckTitles: [], deckIds: [], latest: '' });
     }
     const group = map.get(key);
     group.rows.push(item);
+    if (!group.deckIds.includes(item.deckId)) group.deckIds.push(item.deckId);
     const label = short(item.deckTitle);
     if (!group.deckTitles.includes(label)) group.deckTitles.push(label);
     if (item.lastAt > group.latest) group.latest = item.lastAt;
@@ -98,3 +103,93 @@ export function retrainOptions({ mistakes, similar, variants, paged }) {
   const fallback = variants ? 'variants' : similar ? 'similar' : 'wrong';
   return { options, fallback };
 }
+
+/* ---- status, filters and what a folded group says about itself ---- */
+
+/** The kinds of low outcome a row can carry, in display order: 答错 (auto-graded), 未掌握 (self-rated), then oral and rubric. */
+export const STATUS_KINDS = ['graded', 'self', 'oral', 'rubric'];
+
+/** A row's kind: the one its label has always shown. Anything that is not graded, oral or rubric reads as 未掌握. */
+export function statusOf(item) {
+  return item?.assessment === 'oral' ? 'oral' : item?.assessment === 'rubric' ? 'rubric' : item?.assessment === 'graded' ? 'graded' : 'self';
+}
+
+export function statusLabel(kind) {
+  switch (kind) {
+    case 'graded': return ui('答错');
+    case 'oral': return ui('口头评估');
+    case 'rubric': return ui('批改未达标');
+    default: return ui('未掌握');
+  }
+}
+
+/** How many rows of each kind. */
+export function statusCounts(rows = []) {
+  const counts = { graded: 0, self: 0, oral: 0, rubric: 0 };
+  for (const item of rows) counts[statusOf(item)]++;
+  return counts;
+}
+
+/** The kinds present in a group, as [{ kind, count }] without zeros. */
+export const groupSummary = (rows = []) => {
+  const counts = statusCounts(rows);
+  return STATUS_KINDS.filter((kind) => counts[kind] > 0).map((kind) => ({ kind, count: counts[kind] }));
+};
+
+/** "答错 2 · 未掌握 1". */
+export const groupSummaryText = (rows = []) => groupSummary(rows).map(({ kind, count }) => `${statusLabel(kind)} ${count}`).join(' · ');
+
+/** The page's filter: one deck, one status ('all' or a kind), and words that must all appear in the question or its topic. */
+export const NO_FILTER = Object.freeze({ deck: '', status: 'all', query: '' });
+
+export const filterActive = (filter) => !!filter && (!!filter.deck || (!!filter.status && filter.status !== 'all') || queryTokens(filter.query).length > 0);
+
+/** The rows a filter lets through, in their order. Cloze markers are not question text; the same rule as the list. */
+export function filterRows(rows = [], filter = NO_FILTER) {
+  if (!filterActive(filter)) return rows;
+  const words = queryTokens(filter.query);
+  return rows.filter((item) => {
+    if (filter.deck && item.deckId !== filter.deck) return false;
+    if (filter.status && filter.status !== 'all' && statusOf(item) !== filter.status) return false;
+    if (!words.length) return true;
+    const text = `${plainPrompt(item.prompt)}
+${item.topic ?? ''}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
+}
+
+/** The decks that have mistakes, for the deck picker: [{ value, label, count }], newest miss first. */
+export function deckChoices(rows = [], decks = []) {
+  return groupRows(rows, 'deck', decks).map((group) => ({ value: group.deckIds[0], label: group.title, count: group.rows.length }));
+}
+
+/** The filter of `state` ({ scope, filter }) when it was made in this scope; another course scope starts clean. */
+export const scopedFilter = (state, scope) => (state && state.scope === scope ? state.filter : NO_FILTER);
+
+/** Two variant states that say the same thing (a poll builds a new object every time). */
+export function sameVariantState(a, b) {
+  if (a === b) return true;
+  return a.kind === b.kind && a.count === b.count && a.message === b.message
+    && (a.prompts === b.prompts || (a.prompts?.length === b.prompts?.length && (a.prompts || []).every((prompt, index) => prompt === b.prompts[index])));
+}
+
+/* ---- what the learner chose, kept in the browser ---- */
+
+const GROUP_BY_KEY = 'study-wrongbook-groupby';
+const OPEN_CAP = 500;
+
+/** The grouping the learner chose last time (kept per viewer), else by deck. A missing, blocked or corrupt store is the default. */
+export function readGroupBy(storage = browserStorage()) {
+  const saved = readText(GROUP_BY_KEY, '', storage);
+  return saved === 'topic' || saved === 'deck' ? saved : DEFAULT_GROUP_BY;
+}
+
+export const saveGroupBy = (value, storage = browserStorage()) => writeText(GROUP_BY_KEY, value, storage);
+
+/** The ids of the groups the learner opened in this tab (kept for the session under `key`). */
+export function readOpenGroups(key, storage = browserSession()) {
+  const saved = key ? readJSON(key, [], storage) : [];
+  return new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string').slice(0, OPEN_CAP) : []);
+}
+
+export const saveOpenGroups = (key, open, storage = browserSession()) => !!key && writeJSON(key, [...open].slice(0, OPEN_CAP), storage);

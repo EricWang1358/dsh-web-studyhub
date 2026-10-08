@@ -45,9 +45,9 @@ test('nothing is said when nothing is known: no coverage yet, an empty document,
 });
 
 test('plain words, with the page counts, in both languages and without telling what cannot be done', () => {
-  assert.equal(indexLabel({ state: 'indexed', indexed: 404, total: 404 }, { canIndex: true }), '索引已建好 · 404 页');
-  assert.equal(indexLabel({ state: 'partial', indexed: 120, total: 404, stale: 0 }, { canIndex: true }), '索引建了一部分 · 120 / 404 页');
-  assert.equal(indexLabel({ state: 'stale', stale: 3, indexed: 401, total: 404 }, { canIndex: true }), '索引需要更新 · 3 页改过');
+  assert.equal(indexLabel({ state: 'indexed', indexed: 404, total: 404 }, { canIndex: true }), '索引已建好 · 这份资料 404/404 页');
+  assert.equal(indexLabel({ state: 'partial', indexed: 120, total: 404, stale: 0 }, { canIndex: true }), '索引建了一部分 · 这份资料 120/404 页');
+  assert.equal(indexLabel({ state: 'stale', stale: 3, indexed: 401, total: 404 }, { canIndex: true }), '索引需要更新 · 这份资料有 3 页改过');
   assert.equal(indexLabel({ state: 'missing', total: 404 }, { canIndex: true }), '还没建索引');
   assert.equal(indexLabel({ state: 'missing', total: 404 }, { canIndex: false }), '还没建索引（需要先安装检索扩展）');
   assert.equal(indexLabel({ state: 'building', indexed: 10, total: 404 }, { canIndex: true, building: { done: 3, total: 20 } }), '正在建立索引…');
@@ -58,12 +58,12 @@ test('the badge renders as a quiet chip with the state on it, in both languages,
   const html = renderToStaticMarkup(React.createElement(IndexBadge, { info, coverage: { canIndex: true, building: null } }));
   assert.match(html, /class="sh-badge sh-badge--sm index-badge"[^>]*data-state="indexed"/);
   assert.match(html, /data-tone="success"/);
-  assert.match(html, /索引已建好 · 404 页/);
+  assert.match(html, /索引已建好 · 这份资料 404\/404 页/);
   assert.equal(renderToStaticMarkup(React.createElement(IndexBadge, { info: null, coverage: null })), '');
   setUiLanguage('en');
   try {
     const en = renderToStaticMarkup(React.createElement(IndexBadge, { info: { state: 'partial', indexed: 120, total: 404, stale: 0 }, coverage: { canIndex: true } }));
-    assert.match(en, /Index partly built · 120 \/ 404 pages/);
+    assert.match(en, /Index partly built · this material 120\/404 pages/);
     assert.doesNotMatch(en, /[㐀-鿿]/);
     assert.match(renderToStaticMarkup(React.createElement(IndexBadge, { info: { state: 'missing', total: 4 }, coverage: { canIndex: false } })), /Not indexed yet \(install the search extension first\)/);
   } finally { setUiLanguage('zh'); }

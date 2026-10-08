@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pathBrief, queueSteps, selectedItems } from '../ui/generation-path-flow.js';
+import { failureGroups, pathBrief, queueSteps, selectedItems } from '../ui/generation-path-flow.js';
 import { withStudy } from './helpers/study-services.mjs';
 
 /* The flow around a step plan: the brief that opens a conversation (so the learner can shape the chapters with the AI), queuing the steps as generation jobs
@@ -32,6 +32,25 @@ test('a long plan keeps the brief short: ids are dropped beyond a budget and the
   assert.match(brief, /source\.list/, 'when ids are left out, the AI is told to list the pages');
 });
 
+test('a step is a plain request with its own count: the form-only fields (spending limit, typed count, level, auto-complete) are not sent, so the backend does not take it for a coverage run (21 steps all refused with 「tokenBudget 需要是不小于 1000 的整数」)', async () => {
+  const calls = [];
+  const call = async (action, args) => { calls.push(args); return { jobId: 'j' }; };
+  // the form as the 创建题组 page holds it by default: an empty 花费上限, an empty typed count, a 覆盖强度
+  await queueSteps(call, steps, { kind: 'quiz', kinds: ['quiz'], difficulty: 'mixed', language: 'zh', focus: '', notation: 'auto', count: 10, customCount: '', coverageLevel: 'standard', tokenBudget: '' }, { course: 'C' });
+  for (const args of calls) {
+    for (const key of ['tokenBudget', 'customCount', 'coverageLevel', 'autoComplete']) assert.equal(key in args, false, `${key} is not sent with a step`);
+    assert.ok(Number.isInteger(args.count) && args.count >= 1, 'the step keeps its own count');
+    assert.deepEqual(args.kinds, ['quiz'], 'the kinds of the form carry over');
+  }
+});
+
+test('failures that share one reason are said once, with the steps they hit', () => {
+  const failed = [{ step: { id: 'a', title: 'A' }, message: 'x 失败' }, { step: { id: 'b', title: 'B' }, message: 'x 失败' }, { step: { id: 'c', title: 'C' }, message: 'y 失败' }];
+  const groups = failureGroups(failed, step => step.title);
+  assert.deepEqual(groups, [{ message: 'x 失败', steps: ['A', 'B'] }, { message: 'y 失败', steps: ['C'] }]);
+  assert.deepEqual(failureGroups([], step => step.title), []);
+});
+
 test('queueing sends one generation per included step, in order, with its pages, focus and count; a failure is reported and the rest still go', async () => {
   const calls = [];
   const call = async (action, args) => { calls.push({ action, args }); if (args.sourceIds.includes('p3')) throw new Error('额度不足'); return { jobId: `job-${calls.length}` }; };
@@ -60,22 +79,23 @@ test('the panel: steps with sizes and a queue button for a big selection, nothin
   const { createRequire } = await import('node:module');
   const React = (await import('react')).default;
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const out = await build({ stdin: { contents: "export { default as GenerationPath } from './ui/GenerationPath.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
+  const out = await build({ stdin: { contents: "export { default as GenerationPath } from './ui/GenerationPath.jsx'; export { useGenerationPath } from './ui/use-generation-path.js'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
     bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', out.outputFiles[0].text)(createRequire(import.meta.url), mod, mod.exports);
-  const { GenerationPath, StudyServicesContext, setUiLanguage } = mod.exports;
+  const { GenerationPath, useGenerationPath, StudyServicesContext, setUiLanguage } = mod.exports;
+  // The state lives in a hook (the form's own button queues the steps); the panel draws it.
+  const Harness = ({ onUseStep, ...props }) => React.createElement(GenerationPath, { path: useGenerationPath(props), onUseStep });
   const page = (n, chars) => ({ id: `b${n}`, title: `Book · p.${n}`, text: undefined, chars, document: { id: 'h', page: n, totalPages: 12, bookTitle: 'Book', origin: 'converted', converter: 'mineru' } });
   const big = Array.from({ length: 12 }, (_, i) => page(i + 1, 40_000)); // 480k chars
   const noop = () => {};
-  const render = (props = {}, services = {}) => renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(GenerationPath, { sources: big, selectedIds: big.map(source => source.id), gen: {}, course: 'OS', setNotice: noop, onUseStep: noop, ...props }), { call: noop, askInChat: noop, ...services }));
+  const render = (props = {}, services = {}) => renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(Harness, { sources: big, selectedIds: big.map(source => source.id), gen: {}, course: 'OS', setNotice: noop, onUseStep: noop, ...props }), { call: noop, askInChat: noop, ...services }));
   const zh = render();
-  assert.match(zh, /分步生成路径/);
   assert.match(zh, /第 1 步/);
   assert.match(zh, /让 AI 优化路径/);
   assert.match(zh, /和 AI 聊聊怎么学/);
-  assert.match(zh, /按路径逐步出题 · \d+ 步依次排队/);
-  assert.match(zh, /data-usage="generate\.path-queue"/);
+  assert.doesNotMatch(zh, /data-usage="generate\.path-queue"/, 'the one button that queues the steps is the own submit button of the form (Generate.jsx), not a second one in the list');
+  assert.match(zh, /只出这一步/);
   assert.equal(render({ sources: big.slice(0, 2), selectedIds: ['b1', 'b2'] }), '', 'a small selection needs no path');
   assert.doesNotMatch(render({}, { askInChat: undefined }), /和 AI 聊聊怎么学/, 'no chat to open: no button');
   const indexed = render({ indexCoverage: { indexed: big.map(source => source.id), stale: [], missing: [] } });
@@ -83,8 +103,8 @@ test('the panel: steps with sizes and a queue button for a big selection, nothin
   setUiLanguage('en');
   try {
     const en = render();
-    assert.match(en, /Step-by-step path/);
-    assert.match(en, /Generate step by step · queue \d+ steps in order/);
+    assert.match(en, /Only this step/);
+    assert.match(en, /Step 1/);
     assert.match(en, /Pages 1–\d+/, 'step names are in English');
     assert.doesNotMatch(en, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }

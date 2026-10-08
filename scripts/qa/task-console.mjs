@@ -1,4 +1,5 @@
 /* node scripts/qa/task-console.mjs [--lang zh|en] [--theme dark|light] [--width 1280|420] [--out output/task-console] [--dist dist] [--ended [--bar N]] [--output]
+   [--plan [--tab=目标|Goal]]  the question run already has its plan listed: 目标与知识点 has its points.
    [--flow=select|archived|dialog]  (2.6.1) two tasks have ended and one runs: select (everything selected, the bar of the selection), archived (archived, 已归档 open, read-only),
    dialog (the confirmation of 删除 open).
    [--accent=jade|ochre|graphite|plum] [--palette=oled|paper]  an accent preset / a theme of Settings; [--hover=all|archive|delete|clear|row [--focus]] points at (or focuses) that control so its tooltip is open.
@@ -54,9 +55,10 @@ export async function seedCoachDays(root) {
 
 /**
  * The preview with a fake model that streams, a fake Gemini, and a held gate: while held, the calls of the jobs stay in flight (after their text has streamed),
- * so the page can be looked at, measured and screenshot with work in progress.
+ * so the page can be looked at, measured and screenshot with work in progress. `route` ({ provider, model, reasoningEffort? }) is the model of the session that
+ * 「跟随当前会话」 follows (a long id such as `cn:deepseek-v4.1-flash` to see how the 即时控制 row holds it).
  */
-export async function startConsole({ distDir, lang = "zh", hold = true, streamStepMs = 60, transcribeMs = 250 } = {}) {
+export async function startConsole({ distDir, lang = "zh", hold = true, streamStepMs = 60, transcribeMs = 250, route, passPlan = false } = {}) {
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), "study-console-")), root = join(base, "library");
   await seedLibrary(root, { sources: 12, decks: 3, cardsPerDeck: 8, runs: 1, attempts: 0, courses: 1, largeSources: 0 });
@@ -76,7 +78,8 @@ export async function startConsole({ distDir, lang = "zh", hold = true, streamSt
       const text = String(reply), size = Math.max(16, Math.ceil(text.length / 16));
       for (let at = 0; at < text.length; at += size) { options.signal?.throwIfAborted(); options.onOutput(text.slice(at, at + size)); await sleep(streamStepMs, options.signal); }
     }
-    await holdHere(options.signal);
+    // `passPlan`: the planning call is answered at once, so a held run already has its knowledge points listed (目标与知识点) while its later calls stay in flight.
+    if (!(passPlan && String(system).startsWith("Plan a source-grounded"))) await holdHere(options.signal);
     return reply;
   };
   const realFetch = globalThis.fetch;
@@ -88,7 +91,7 @@ export async function startConsole({ distDir, lang = "zh", hold = true, streamSt
     }
     return realFetch(url, init);
   };
-  const server = await createPreviewServer({ libraryRoot: root, home: join(base, "home"), port: 0, model: complete, ...(distDir ? { distDir } : {}) });
+  const server = await createPreviewServer({ libraryRoot: root, home: join(base, "home"), port: 0, model: route ? { complete, route } : complete, ...(distDir ? { distDir } : {}) });
   const api = (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: lang });
   const close = async () => {
     await previewCall(server, "job.cancel", { all: true }).catch(() => {});
@@ -216,7 +219,7 @@ async function main() {
   const out = resolve(repoRoot, args.out || "output/task-console");
   await mkdir(out, { recursive: true });
   const browser = await launchChromium();
-  const running = await startConsole({ lang, ...(args.dist ? { distDir: resolve(repoRoot, args.dist) } : {}) });
+  const running = await startConsole({ lang, passPlan: !!args.plan, ...(args.dist ? { distDir: resolve(repoRoot, args.dist) } : {}) });
   try {
     await startJobs(running);
     if (args.flow) await finishJobsThenHoldOne(running);
@@ -264,6 +267,8 @@ async function main() {
     // stacked (narrow): the panel is below the fold; bring it into the picture
     if (args.output) await page.locator(".tc-output").first().scrollIntoViewIfNeeded();
     if (args.tab) await page.getByRole("tab", { name: new RegExp(args.tab) }).first().dispatchEvent("click");
+    // stacked (narrow): the plan panel is below the fold too
+    if (args.plan && args.tab) await page.locator(".tc-plan").first().scrollIntoViewIfNeeded();
     if (args.rtab) await page.getByRole("tab", { name: new RegExp(args.rtab) }).last().dispatchEvent("click");
     await frames(page, 6);
     await page.waitForTimeout(1500);

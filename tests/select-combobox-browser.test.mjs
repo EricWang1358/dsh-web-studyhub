@@ -29,7 +29,7 @@ async function open(t, { scale = '100', width = 1000, height = 900, reducedMotio
   await page.locator('#scene').waitFor();
   await page.evaluate(value => { document.getElementById('scene').dataset.uiScale = value; }, scale);
   // The real trigger replaces the closed shell once the popup code has loaded.
-  await page.locator(scenario === 'ingest' ? 'button[role="combobox"][aria-haspopup="dialog"]' : '#fields .sh-select__valuebox').first().waitFor({ state: 'attached' });
+  await page.locator(scenario === 'ingest' || scenario === 'decks' ? 'button[role="combobox"][aria-haspopup="dialog"]' : '#fields .sh-select__valuebox').first().waitFor({ state: 'attached' });
   return { page, errors };
 }
 const calls = page => page.evaluate(() => JSON.parse(JSON.stringify(window.calls)));
@@ -338,3 +338,116 @@ test('the popup animates from the trigger with opacity and a small scale, and no
   const none = await popup(reduced.page).evaluate(element => getComputedStyle(element).transitionDuration);
   assert.equal(none.split(',')[0].trim(), '0s', 'reduced motion: no transition');
 });
+
+// The grouped deck picker (a library of ~60 decks in four courses): headings are labels, titles keep their end, search reads the course, the popup is steady.
+const deckPicker = page => page.getByRole('combobox', { name: '补充到现有题组', exact: true });
+const optionsOf = page => page.getByRole('option');
+const headings = page => page.locator('.sh-pop__group-label').allTextContents();
+
+test('deck picker: decks sit under their course heading (the current course first, 未分类 last); headings are labelled groups, not options; the chosen deck has the check mark', { skip: unavailable }, async t => {
+  const { page, errors } = await open(t, { scenario: 'decks', width: 1280 });
+  await deckPicker(page).click();
+  await popup(page).waitFor();
+  await settled(page);
+  const found = await headings(page);
+  assert.equal(found[0], 'Cloud Native Solution Design', 'the course in focus comes first, with its chapter deck inside it');
+  assert.equal(found.at(-1), '未分类');
+  assert.equal(found.length, 5, 'one heading per course: a chapter is no group of its own');
+  assert.equal(new Set(found).size, 5);
+  assert.equal(await optionsOf(page).count(), 60, 'every deck is offered once');
+  assert.equal(await page.locator('.sh-pop__group-label[role="option"]').count(), 0, 'a heading is not an option');
+  const group = page.getByRole('group', { name: 'Cloud Native Solution Design' });
+  assert.equal(await group.count(), 1, 'a heading names its group (role=group, aria-labelledby)');
+  assert.ok((await group.getByRole('option').count()) > 10);
+  const chosen = page.getByRole('option', { selected: true });
+  assert.equal(await chosen.count(), 1);
+  assert.equal(await chosen.locator('svg').count(), 1, 'the chosen deck carries the check mark');
+  const chapter = page.getByRole('option', { name: /Kubernetes 故障诊断/ });
+  assert.match(await chapter.textContent(), /05 Kubernetes · 24 题/, 'the chapter leads the hint');
+  const twins = page.getByRole('option', { name: /^解决方案架构导论：概念辨析与情境迁移 \d+ 题/ });
+  assert.deepEqual((await twins.allTextContents()).map(text => text.replace(/\s+/g, ' ').trim()), ['解决方案架构导论：概念辨析与情境迁移31 题 · 2026-09-09', '解决方案架构导论：概念辨析与情境迁移30 题 · 2026-09-01'], 'twins are told apart, the newer first');
+  const label = await box(page.locator('.sh-pop__group-label').first()), item = await box(optionsOf(page).first());
+  assert.ok(item.x > label.x, 'the decks hang under their heading');
+  assert.deepEqual(errors, []);
+});
+
+test('deck picker: the arrow keys, Home and End walk the decks and skip the headings; Enter chooses; Escape closes without choosing', { skip: unavailable }, async t => {
+  const { page, errors } = await open(t, { scenario: 'decks', width: 1280 });
+  const trigger = deckPicker(page);
+  await trigger.click();
+  await popup(page).waitFor();
+  await settled(page);
+  const highlighted = () => page.locator('[role="option"][data-highlighted]').evaluateAll(nodes => nodes.map(node => node.textContent));
+  assert.equal((await highlighted()).length, 1, 'one deck has the highlight');
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('ArrowDown');
+    assert.equal((await highlighted()).length, 1, `step ${i}: a deck, never a heading, is highlighted`);
+  }
+  await page.keyboard.press('End');
+  assert.match((await highlighted())[0], /随手记/, 'End goes to the last deck (under 未分类)');
+  await page.keyboard.press('Home');
+  assert.equal((await highlighted())[0], await optionsOf(page).first().textContent(), 'Home goes to the first deck');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await popup(page).waitFor({ state: 'hidden' });
+  assert.equal((await calls(page)).grouped.length, 1);
+  await trigger.click();
+  await popup(page).waitFor();
+  await page.keyboard.press('Escape');
+  await popup(page).waitFor({ state: 'hidden' });
+  await focusedOn(trigger, 'Escape returns focus to the trigger');
+  assert.equal((await calls(page)).grouped.length, 1, 'Escape chooses nothing');
+  assert.deepEqual(errors, []);
+});
+
+test('deck picker: search reads the title and the course name; a course name shows its whole group; headings of groups with no match go; nothing found says so; the popup stays put', { skip: unavailable }, async t => {
+  const { page, errors } = await open(t, { scenario: 'decks', width: 1280 });
+  await deckPicker(page).click();
+  await popup(page).waitFor();
+  await settled(page);
+  const top = Math.round((await box(popup(page))).y);
+  await page.keyboard.type('软件工程');
+  assert.deepEqual(await headings(page), ['SWE5001 软件工程'], 'typing a course name shows that group, whole, and no other heading');
+  assert.equal(await optionsOf(page).count(), 14, 'every deck of the course is there, though no title says its name');
+  assert.equal(await page.locator('.sh-pop__group-label mark').first().textContent(), '软件工程', 'the matched part of the course heading is marked');
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('软件工程 第一部分');
+  assert.deepEqual(await headings(page), ['SWE5001 软件工程'], 'a course word and a title word combine; the other headings are gone');
+  assert.equal(await optionsOf(page).count(), 14, 'the course word and the title word are both found in those decks');
+  assert.equal(Math.round((await box(popup(page))).y), top, 'the popup does not jump when the filter changes');
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('随手');
+  assert.deepEqual(await headings(page), ['未分类']);
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('量子力学');
+  assert.equal(await optionsOf(page).count(), 0);
+  assert.equal(await page.locator('.sh-pop__group-label').count(), 0);
+  assert.match(await page.locator('.sh-combobox__empty').textContent(), /没有叫「量子力学」的题组/);
+  assert.equal(Math.round((await box(popup(page))).y), top);
+  assert.deepEqual(errors, []);
+});
+
+for (const width of [1280, 420]) {
+  test(`deck picker at ${width}px: long titles take at most two lines and stay different, nothing overflows sideways, a long list scrolls inside the popup`, { skip: unavailable }, async t => {
+    const { page, errors } = await open(t, { scenario: 'decks', width, height: 800 });
+    await deckPicker(page).click();
+    await popup(page).waitFor();
+    await settled(page);
+    const view = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight, scroll: document.documentElement.scrollWidth }));
+    const pop = await box(popup(page));
+    assert.ok(pop.x >= 0 && pop.x + pop.width <= view.w + 1, `inside the window (${JSON.stringify(pop)})`);
+    assert.ok(view.scroll <= view.w, 'the page does not scroll sideways');
+    const metrics = await page.locator('.sh-pop__list').evaluate(element => ({ client: element.clientHeight, scroll: element.scrollHeight, overflowY: getComputedStyle(element).overflowY, sideways: element.scrollWidth - element.clientWidth }));
+    assert.ok(metrics.scroll > metrics.client && metrics.overflowY === 'auto', 'the list scrolls inside the popup');
+    assert.ok(metrics.sideways <= 1, 'no sideways scroll in the list');
+    assert.ok(pop.height <= 26 * 16 + 2 && pop.height <= view.h, 'the popup keeps its fixed maximum height');
+    const shape = await optionsOf(page).nth(1).locator('.sh-opt__label').evaluate(element => { const style = getComputedStyle(element); return { lines: Math.round(element.getBoundingClientRect().height / parseFloat(style.lineHeight)), clamp: style.webkitLineClamp, white: style.whiteSpace }; });
+    assert.equal(shape.clamp, '2');
+    assert.notEqual(shape.white, 'nowrap');
+    assert.ok(shape.lines <= 2, `two lines at most (${shape.lines})`);
+    const rows = await optionsOf(page).evaluateAll(nodes => nodes.map(node => `${node.querySelector('.sh-opt__label').textContent}|${node.querySelector('.sh-opt__hint')?.textContent ?? ''}`));
+    assert.equal(new Set(rows).size, rows.length, 'no two rows are the same text');
+    if (process.env.DECK_PICKER_SHOTS) await page.screenshot({ path: `${process.env.DECK_PICKER_SHOTS}/deck-picker-${width}.png` });
+    assert.deepEqual(errors, []);
+  });
+}

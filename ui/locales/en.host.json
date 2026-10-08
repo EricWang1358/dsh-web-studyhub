@@ -11,5 +11,10 @@
   "没能打开后台助手。": "Could not open the background assistant.",
   "正在打开…": "Opening…",
   "后台助手已打开，但未能切换到对话区：{0}": "The assistant opened, but the conversation could not be shown: {0}",
-  "请从会话列表打开助手。": "Open the assistant from the session list."
+  "请从会话列表打开助手。": "Open the assistant from the session list.",
+  "题目放到右栏，主区域回到对话。在右栏里接着刚才做到的这一题继续。": "Moves this round into the right panel and returns the main area to chat. In the panel it continues on the question you stopped at.",
+  "没能放进右栏：{0}": "Could not move it to the right panel: {0}",
+  "当前 DSH 没有右栏，题目留在这里。": "This DSH has no right panel, so the questions stay here.",
+  "右栏没有打开。请先回到对话并打开右栏，再回来点「在右栏打开」。": "The right panel did not open. Go back to the conversation, open the right panel, then come back and press Open in right panel.",
+  "右栏没有接收这道题，可以稍后再点一次。": "The right panel did not take the questions. Try again in a moment."
 }

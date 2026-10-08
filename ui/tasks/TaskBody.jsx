@@ -9,6 +9,7 @@ import OutputPanel from './OutputPanel.jsx';
 import LogPanel from './LogPanel.jsx';
 import AudioFiles from './AudioFiles.jsx';
 import GenerationParts from './GenerationParts.jsx';
+import PlanTable, { planTabItem } from './PlanTable.jsx';
 import CoachBatches from './CoachBatches.jsx';
 import { PdfDetail } from '../PdfConvertJob.jsx';
 
@@ -34,16 +35,21 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const choose = (callId) => { setSelected(callId); setRightTab('output'); };
   useEffect(() => { if (focusCall?.id) { setSelected(focusCall.id); setRightTab('output'); } }, [focusCall]);
   const leftItems = [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }, ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
+  // 目标与知识点: a question run or a top-up lists the points its plan holds (ui/tasks/PlanTable.jsx), as a third tab beside the two.
+  const planned = kind === 'generation' || kind === 'supplement';
+  if (planned) leftItems.push(planTabItem(contract));
+  const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : 'running';
   const View = section?.View;
   return (
     <div className="tc-body">
       <div className="tc-col">
         <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} contractKind={contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />
-        <Tabs id={left} className="tc-tabs" itemClassName="tc-tab" label={ui('左侧面板')} value={leftTab} onChange={setLeftTab} items={leftItems} />
-        <TabPanel id={left} value="running" selected={leftTab} className="tc-panel" tabIndex={undefined}>
+        <Tabs id={left} className="tc-tabs" itemClassName="tc-tab" label={ui('左侧面板')} value={tab} onChange={setLeftTab} items={leftItems} />
+        <TabPanel id={left} value="running" selected={tab} className="tc-panel" tabIndex={undefined}>
           <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>
         </TabPanel>
-        {section && <TabPanel id={left} value={section.value} selected={leftTab} className="tc-panel" tabIndex={undefined}><View contract={contract} task={task} /></TabPanel>}
+        {section && <TabPanel id={left} value={section.value} selected={tab} className="tc-panel" tabIndex={undefined}><View contract={contract} task={task} /></TabPanel>}
+        {planned && <TabPanel id={left} value="plan" selected={tab} className="tc-panel" tabIndex={undefined}><PlanTable contract={contract} task={task} /></TabPanel>}
       </div>
       <div className="tc-col">
         <Tabs id={right} className="tc-tabs" itemClassName="tc-tab" label={ui('右侧面板')} value={rightTab} onChange={setRightTab}

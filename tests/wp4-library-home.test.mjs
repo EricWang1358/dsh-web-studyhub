@@ -92,7 +92,7 @@ test("tour anchors mark the hero, today's card and the catalogue", () => {
   }
 });
 
-test("running jobs and pending drafts sit above the desk, naming the deck in plain words", () => {
+test("running jobs sit above the desk and pending drafts are a folded section under it, naming the deck in plain words", () => {
   const job = { id: "j1", status: "running", stageCode: "authoring", deckTitle: "索引小测", parts: 2, savedCount: 0, requestedTotal: 4,
     stage: "Parallel generation · up to 3 batches",
     steps: [{ id: "s1", stage: "Part 1/2 · Writing and self-checking questions", part: 1, status: "running", runtime: "subagent", childId: "child-1",
@@ -100,7 +100,8 @@ test("running jobs and pending drafts sit above the desk, naming the deck in pla
   const html = render({ sources: pdfPages, jobs: [job], drafts: [{ id: "dr", title: "旧草稿", cards: [{ id: "c" }], editorial: {} }] });
   const jobAt = html.indexOf('class="cjc"'), draftAt = html.indexOf('class="draft-row"'), deskAt = html.indexOf('class="desk');
   assert.ok(jobAt > 0 && jobAt < deskAt, "the job card comes before the desk");
-  assert.ok(draftAt > 0 && draftAt < deskAt, "pending drafts come before the desk");
+  assert.ok(draftAt > deskAt, "pending drafts come after the desk: a folded 待发布 section under the day's work, not a block above it");
+  assert.match(html, /<details class="sh-disclosure home-drafts"(?![^>]*\sopen)/, "the drafts are folded until the learner opens them");
   assert.match(html, /正在生成「索引小测」/);
   assert.match(html, /正在出题/);
   assert.match(html, /查看详情/, "the card opens the job in the 任务 console");

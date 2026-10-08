@@ -2,6 +2,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { STRENGTH_LABEL } from '../../lib/model-effort.js';
 import { formatDuration, joinMeta } from '../format.js';
 import { appliedText } from './task-control.js';
+import { causeWord } from './task-parallel.js';
 import { callErrorText, stageEventText } from '../generation-status.js';
 import { runEventText } from '../coverage/copy.js';
 
@@ -184,9 +185,13 @@ export function eventText(event) {
     case 'throttle': return a.reason === 'rate-limit' ? uiFormat('模型限流，同时调用数降到 {0}（设置为 {1}）', [a.concurrency, a.configured]) : uiFormat('限流已缓解，同时调用数回到 {0}', [a.concurrency]);
     case 'control': return appliedText(a.changed);
     case 'paused': return ui('已暂停：没有调用在进行');
+    // 要求并行 (lib/job-parallel.js): started beside the queue, sent back to it by a model error, and gone on by itself.
+    case 'parallel-started': return ui('已要求并行：不再等前面的任务，现在就开始');
+    case 'parallel-requeued': return uiFormat('模型报错（{0}），已退回排队：不再开始新的调用，等前面的任务完成后自动继续', [causeWord(a.cause)]);
+    case 'parallel-resumed': return ui('前面的任务已完成，自动继续');
     case 'batch': return batchText(a, event.text);
     // The rounds of a coverage run: one line per round boundary and one for the reason a run stops (ui/coverage/copy.js is the one wording).
-    case 'round-start': case 'round-end': case 'round-rerun': case 'run-paused': case 'run-resumed': case 'run-waiting': case 'run-interrupted': case 'run-stop': return runEventText(event.code, a);
+    case 'round-start': case 'round-end': case 'round-rerun': case 'run-paused': case 'run-resumed': case 'run-waiting': case 'run-interrupted': case 'run-stop': case 'run-closing': case 'run-closed': return runEventText(event.code, a);
     default: return event.text || String(event.code || '');
   }
 }

@@ -13,7 +13,7 @@ import { draftView, seedView } from './helpers/coverage-view.mjs';
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx';
+  export { default as HomeActivity, HomeDrafts } from './ui/study-map/HomeActivity.jsx';
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { default as RunPanel } from './ui/coverage/RunPanel.jsx';
   export { CoverageTopUp } from './ui/coverage/CoverageTopUp.jsx';
@@ -58,7 +58,8 @@ const STATES = {
 };
 const data = (state, extra = {}) => ({ revision: undefined, jobs: [STATES[state].job], drafts: [STATES[state].draft], decks: [], sources: [], model: { ready: true }, ...extra });
 const seed = () => { m.forgetCoverage(); seedView(m, view); };
-const home = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(m.HomeActivity, { jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop,
+const HomeBoth = (props) => React.createElement(React.Fragment, null, React.createElement(m.HomeActivity, props), React.createElement(m.HomeDrafts, { ...props, defaultOpen: true }));
+const home = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(HomeBoth, { jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop,
   start: noop, topUpDraft: noop, openModelSettings: noop, modelReady: true, data: d }), { language, data: d }); };
 const consoleOf = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(m.TaskConsole, { data: d, openers: { resultOf: () => null } }), { language, data: d }); };
 const pageOf = (state, language = 'zh') => { seed(); const d = data(state), draft = STATES[state].draft; return render(React.createElement(React.Fragment, null,
@@ -113,8 +114,9 @@ test('no screen prints 100% for a draft that is short, stopped, refused, interru
     assert.ok(m.taskSummary(STATES[state].job).percent < 100, `${state}: the list row's percent`);
     assert.ok(shortfall(state).percent < 100);
   }
-  assert.equal(m.taskSummary(STATES.stopped.job).percent, 69, 'questions kept over the plan: 174 of 251');
-  assert.match(text(consoleOf('stopped')), /总进度 · 部分完成 69%/);
+  // The console's headline is the run's 覆盖 (the sections that have a question: tests/progress-honest.test.mjs), not the questions kept over the plan (174 of 251 = 69%, which the draft row says).
+  assert.equal(m.taskSummary(STATES.stopped.job).percent, 83, 'the sections that have a question');
+  assert.match(text(consoleOf('stopped')), /总进度 · 部分完成.*覆盖：有题的小节 ÷ 计划里的小节.*83%/);
 });
 
 test('the badge says what is true of the draft: never 「已复审，待发布」 while it is short, stopped, refused, interrupted or paused (D-1)', () => {
