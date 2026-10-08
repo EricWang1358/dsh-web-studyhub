@@ -35,6 +35,28 @@ export function runningTaskCount(data) {
   return (Array.isArray(data?.jobs) ? data.jobs : []).filter(isRunningTask).length;
 }
 
+/* What ended since the learner last had the console open. Audio, PDF conversion, translation and a passage top-up already come as a letter in the 信箱
+   (lib/inbox-kinds.js), a day of 为你定制 has its own entry, and a job the learner stopped needs no news: the rest (a question run, a publication, a repair,
+   an extension) has no other way to say it finished or failed, so the badge does. */
+const HAS_LETTER = new Set(['audio-import', 'pdf-convert', 'translation', 'supplement', 'coach-daily']);
+const NEWS = new Set([STATUS.COMPLETE, STATUS.FAILED, STATUS.INTERRUPTED]);
+const isNews = (job, seenAt) => {
+  const contract = contractOf(job);
+  return NEWS.has(contract.status) && !HAS_LETTER.has(contract.kind) && (Date.parse(contract.finishedAt || contract.startedAt) || 0) > seenAt;
+};
+
+/** The jobs of the snapshot that ended after `seenAt` (ms) and have no letter. */
+export function unseenResults(data, seenAt) {
+  return (Array.isArray(data?.jobs) ? data.jobs : []).filter((job) => isNews(job, seenAt));
+}
+
+/** What the sidebar badge counts: `running` (waiting or working), `unseen` (ended since the last visit), `failed` (of those, the ones that did not finish) and their `total`. */
+export function taskBadge(data, seenAt) {
+  const running = runningTaskCount(data), news = unseenResults(data, seenAt);
+  const failed = news.filter((job) => contractOf(job).status !== STATUS.COMPLETE).length;
+  return { running, unseen: news.length, failed, total: running + news.length };
+}
+
 const time = (task) => Date.parse(contractOf(task).startedAt) || 0;
 
 /** The console's task list, newest first (a stable order for equal times). */
