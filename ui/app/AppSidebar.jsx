@@ -4,7 +4,7 @@ import { PAGES } from '../pages.js';
 import { pageAvailable } from '../capabilities.js';
 import { countDocuments } from '../../lib/source-groups.js';
 import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from '../SideNav.jsx';
-import { runningTaskCount } from '../tasks/task-model.js';
+import { useTaskBadge } from '../tasks/use-task-badge.js';
 import { NAV_DEFAULTS, NAV_GROUPS, groupIsOpen, useNavGroups, useNavOrder } from '../nav-order.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
@@ -29,6 +29,10 @@ function ThemeCycle() {
   );
 }
 
+/** What the number on 任务 says: what is running, and what ended since the console was last opened (and how many of those did not finish). */
+const taskBadgeTitle = ({ running, unseen, failed }) => [running > 0 ? uiFormat('{0} 个任务正在进行', [running]) : '',
+  unseen > 0 ? (failed > 0 ? uiFormat('{0} 个任务有新结果，其中 {1} 个没有完成', [unseen, failed]) : uiFormat('{0} 个任务有新结果', [unseen])) : ''].filter(Boolean).join(' · ');
+
 /** Where a nav page's "go there" press leads: the old page lifts away, the new one settles in, the context trail starts afresh. */
 const gotoPage = (nav, id) => nav.navigate(id, { animate: true, keepTrail: false, enter: 'user' });
 
@@ -41,6 +45,7 @@ export default function AppSidebar() {
   const navRef = useRef(null), [navMark, setNavMark] = useState(null);
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
   const navGroups = useNavGroups();
+  const tasks = useTaskBadge({ root: data?.root, data, viewing: navPage === 'tasks' });
   const lastRun = data?.lastRun && page === 'review' && session.run?.id === data.lastRun.id
     ? { ...data.lastRun, index: session.run.index, total: session.run.total } : data?.lastRun;
   /* One highlight glides to the active nav item instead of each item switching its own background, so a page change reads as movement. */
@@ -90,15 +95,15 @@ export default function AppSidebar() {
               {ids.map((id) => {
                 const label = ui(PAGES[id].label);
                 const due = id === 'board' && board.due.overdue + board.due.today > 0;
-                const running = id === 'tasks' ? runningTaskCount(data) : 0;
+                const news = id === 'tasks' ? tasks : null;
                 return (
                   <NavItem key={id} {...navOrder.bind(id)} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
                     className={navOrder.lifted === id ? 'is-dragging' : ''} upkeep={group.id === 'setup'} active={navPage === id}
                     glyph={PAGES[id].glyph} label={label} title={`${label}\n${ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）')}`}
                     onClick={() => gotoPage(nav, id)} disabled={!data && id !== 'board'}
-                    hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : running > 0 ? running : undefined}
-                    hintClass={due ? 'nav-count is-due' : running > 0 ? 'nav-count is-live' : 'nav-count'}
-                    hintTitle={due ? uiFormat('{0} 项已逾期 · {1} 项今天截止', [board.due.overdue, board.due.today]) : running > 0 ? uiFormat('{0} 个任务正在进行', [running]) : undefined} />
+                    hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : news?.total > 0 ? news.total : undefined}
+                    hintClass={due || news?.failed > 0 ? 'nav-count is-due' : news?.total > 0 ? 'nav-count is-live' : 'nav-count'}
+                    hintTitle={due ? uiFormat('{0} 项已逾期 · {1} 项今天截止', [board.due.overdue, board.due.today]) : news?.total > 0 ? taskBadgeTitle(news) : undefined} />
                 );
               })}
             </NavGroup>

@@ -142,9 +142,9 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
           {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} title={run ? ui('已通过的题都保留') : undefined} onClick={() => act('cancel')}>{run ? ui('停在这里') : ui('停止')}</Button>}
           {archived && <Button size="sm" disabled={core.busy} onClick={unarchive}>{ui('取消归档')}</Button>}
           {!live && !archived && !contract.detail.today && (day
-            // A past day of 为你定制 is a record its own file ages out (fourteen days): 知道了 removes it, as it always did.
+            // A past day of 为你定制 is a record its own file ages out (fourteen days): this button removes it, so it says so (知道了 archives everywhere else).
             ? <Tooltip content={ui('删除这一天的记录；为你定制只保留最近 14 天。')} layer placement="bottom-end">
-              <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => core.act('job.dismiss', { jobId: task.id })}>{ui('知道了')}</Button>
+              <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => core.act('job.dismiss', { jobId: task.id })}>{ui('删除这一天')}</Button>
             </Tooltip>
             : <Tooltip content={ui('放进「已归档」，不会删除任何东西；之后可以取消归档或删除。')} layer placement="bottom-end">
               <Button size="sm" variant="quiet" disabled={core.busy} onClick={archive}>{ui('知道了')}</Button>

@@ -155,13 +155,14 @@ test('the confirmation says what is removed (the task record; for audio the work
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('a past day of 为你定制 has no box and no 删除: 知道了 removes it as before (its file keeps fourteen days), it is not archived', () => {
+test('a past day of 为你定制 has no box and no 删除: its one button says it deletes the day (its file keeps fourteen days), it is not archived', () => {
   const day = { id: 'coach:2026-10-01', type: 'coach-daily', date: '2026-10-01', status: 'complete', today: false, startedAt: iso(0),
     coachDaily: { date: '2026-10-01', batches: [], metrics: {}, tokens: { input: 0, output: 0, cache: 0 }, paused: false, limits: null } };
   const html = render({ data: { jobs: [day] } });
   assert.equal([...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].filter((match) => /选择任务/.test(match[0])).length, 0, 'no box on a day');
   const detail = html.slice(html.indexOf('class="tc-detail"'));
-  assert.match(detail, />知道了</);
+  assert.match(detail, />删除这一天</);
+  assert.doesNotMatch(detail, />知道了</, '知道了 archives, and a day is not archived');
   assert.match(detail, /只保留最近 14 天/);
   assert.doesNotMatch(detail, />删除</);
 });

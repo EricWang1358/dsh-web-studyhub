@@ -122,7 +122,8 @@ test('running does not block reading: a status line and a way out, no dialog', (
 
 test('without a model: said plainly, the automatic outline stays, no start button', () => {
   const none = view({ phase: 'nomodel' });
-  assert.match(none, /还没有连接模型/);
+  assert.match(none, /还没有可用的 AI 模型/);
+  assert.match(none, /让 AI 整理目录需要先配置模型；仍使用自动目录/);
   assert.match(none, /自动目录/);
   assert.doesNotMatch(none, />开始</);
   assert.doesNotMatch(view({ phase: 'nomodel' }, {}, 'en'), han);

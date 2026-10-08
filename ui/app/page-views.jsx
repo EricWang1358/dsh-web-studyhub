@@ -283,7 +283,7 @@ function ReviewView({ feedback }) {
     onMakeNote: () => {
       const origin = learn.captureContext();
       return core.act('note.create', { title: uiFormat('学习笔记 · {0}', [formatDateTime(Date.now(), 'date')]),
-        cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }] }, (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
+        cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }], reuse: true }, (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
     },
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),

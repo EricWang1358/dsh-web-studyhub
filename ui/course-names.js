@@ -74,6 +74,44 @@ export function findDuplicateCourses(courses = []) {
   return found;
 }
 
+/** The edit distance of two keys where swapping two neighbouring letters counts once (a typed "Desgin"). `limit` stops early: more than that returns limit + 1. */
+function editDistance(a, b, limit) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  const rows = [Array.from({ length: b.length + 1 }, (_, j) => j)];
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row[j] = Math.min(rows[i - 1][j] + 1, row[j - 1] + 1, rows[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], rows[i - 2][j - 2] + 1);
+    }
+    rows.push(row);
+    if (Math.min(...row) > limit) return limit + 1;
+  }
+  return rows[a.length][b.length];
+}
+
+/**
+ * The existing courses a typed name is probably a second spelling of, for the place a course is typed (the import dialog, 新建课程): the same name in another case, width or spacing, or a
+ * name one slip away (a missing, extra, wrong or swapped letter; two slips in a name of ten letters or more). Asked, never decided: the caller shows "和已有的「X」很像" with the
+ * way to use that course, and the learner keeps what they typed with one click. Not suggested: the existing name itself (that IS the course), names under three letters, and names that
+ * differ in their digits (CS2030 and CS2040 are two courses). `courses` are names or course records; the originals are returned, the closest first, at most three.
+ */
+export function similarCourses(typed, courses = []) {
+  const text = nameOf(typed).trim().replace(/\s+/g, ' '), key = courseNameKey(text);
+  if (key.length < 3) return [];
+  const digits = value => value.replace(/\D/g, '');
+  const reach = key.length >= 10 ? 2 : 1;
+  return courses.map(course => {
+    const own = nameOf(course).trim().replace(/\s+/g, ' '), ownKey = courseNameKey(own);
+    if (!ownKey || own === text) return null;
+    if (ownKey === key) return { course, distance: 0 };
+    if (ownKey.length < 3 || digits(ownKey) !== digits(key)) return null;
+    const distance = editDistance(key, ownKey, reach);
+    return distance <= reach ? { course, distance } : null;
+  }).filter(Boolean).sort((a, b) => a.distance - b.distance).slice(0, 3).map(item => item.course);
+}
+
 /** A parked course (lib/course-active.js; the snapshot lists `active: false`): pickers offer it last. */
 export const isParkedCourse = course => typeof course === 'object' && course !== null && course.active === false;
 

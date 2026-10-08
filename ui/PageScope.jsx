@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
-import { browserSession, readJSON, writeJSON } from './storage.js';
+import { browserSession, readJSON, removeKey, writeJSON } from './storage.js';
+import { AppContext } from './app/app-context.js';
 import { courseScope, courseSegments, courseTree } from '../lib/course-tree.js';
 import { isParked, parkedWithin, useCourseActive } from './CourseActive.jsx';
 import { useInjectCss } from './shared.js';
@@ -48,7 +49,10 @@ export function useShowInactive(root, page) {
 /** The arguments a page sends with its scope: the course, and `includeInactive` when the learner chose to show parked courses. */
 export const scopeArgs = (course, showInactive = false) => showInactive ? { course, includeInactive: true } : { course };
 
-/** Unchosen follows the visible default; explicit all (*) and unassigned ('') persist per library/page. */
+/**
+ * Unchosen follows the visible default; explicit all (*) and unassigned ('') persist per library/page.
+ * The setter says whether the page is pinned and can let it follow again (`choose.scope = { pinned, follow }`): PageScope shows it when it is handed this very setter.
+ */
 export function usePageScope(root, page, defaultValue = '*') {
   const key = storageKey(root, page);
   const [saved, setSaved] = useState(() => ({ key, value: read(key) }));
@@ -57,7 +61,19 @@ export function usePageScope(root, page, defaultValue = '*') {
     setSaved({ key, value });
     writeJSON(key, value, browserSession()); // memory still works when the storage refuses it
   };
+  // Without a library (the first render while it loads) nothing is known about a pin.
+  choose.scope = { pinned: root ? value !== undefined : undefined, follow: () => { setSaved({ key, value: undefined }); removeKey(key, browserSession()); } };
   return [value ?? defaultValue, choose];
+}
+
+/**
+ * Does this page follow the current course? 'following' (nothing was picked and the page shows the current course), 'pinned' (the learner picked a scope; it stays when the
+ * current course changes, even when it is the current one now), or null: no claim (the page does not say, there is no current course, or its default is not the current course).
+ */
+export function followState({ pinned, value, current }) {
+  if (typeof pinned !== 'boolean' || typeof current !== 'string' || !current || current === '*') return null;
+  if (pinned) return 'pinned';
+  return value === current ? 'following' : null;
 }
 
 /**
@@ -67,6 +83,8 @@ export function usePageScope(root, page, defaultValue = '*') {
 export default function PageScope({ courses = [], value, onChange, disabled, unassigned = true, label = ui('课程范围'), selectedLabel, showInactive, onShowInactive }) {
   useInjectCss(activeCss, 'study-course-active');
   const active = useCourseActive();
+  const current = useContext(AppContext)?.data?.focus?.course, remembered = onChange?.scope;
+  const follows = remembered ? followState({ pinned: remembered.pinned, value, current }) : null;
   const entries = courses.map(course => typeof course === 'string' ? { name: course } : course).filter(course => course?.name && course.name !== '*');
   const names = entries.map(course => course.name);
   const rows = courseTree(names);
@@ -97,6 +115,12 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
       <span>{ui('这门课未激活')}</span>
       {active && <span aria-hidden="true">·</span>}
       {active && <Button variant="link" size="sm" onClick={() => active.activate(chosenCourse).catch(() => {})}>{ui('激活')}</Button>}
+    </small>}
+    {follows === 'following' && <small className="page-scope__note" data-follow="following">{ui('跟随当前课程')}</small>}
+    {follows === 'pinned' && <small className="page-scope__note" data-follow="pinned">
+      <span>{ui('已固定')}</span>
+      <span aria-hidden="true">·</span>
+      <Button variant="link" size="sm" onClick={remembered.follow}>{ui('改为跟随当前课程')}</Button>
     </small>}
     {onShowInactive && hidden > 0 && <small className="page-scope__note">
       <span>{showInactive ? uiFormat('含 {0} 门未激活的课程', [hidden]) : uiFormat('不含 {0} 门未激活的课程', [hidden])}</span>

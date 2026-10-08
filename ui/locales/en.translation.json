@@ -76,7 +76,6 @@
   "中英对照翻译": "Bilingual translation",
   "中英对照": "Bilingual",
   "译成": "Translate into",
-  "还没有连接模型，没法翻译；已有的译文照常显示，阅读不受影响。": "No model is connected, so nothing new can be translated; existing translations still show and reading is not affected.",
   "开始翻译": "Start translating",
   "只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。": "Only paragraphs without a translation are translated. It runs in the background: keep reading, closing the reader does not stop it, and a letter arrives in the inbox when it finishes.",
   "展开本页全部译文": "Expand all translations here",

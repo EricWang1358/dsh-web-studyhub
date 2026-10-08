@@ -37,6 +37,10 @@
     .note-reuse-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-3); }
     .note-reuse-actions > details { flex: 1 1 250px; margin-top: var(--space-3); border-width: 0 0 1px; border-radius: 0; padding: var(--space-3) 0; }
     .note-reuse-actions > details[open] { flex-basis: 100%; }
+    .note-draft { display: grid; gap: var(--space-2); max-width: 700px; margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
+    .note-draft p { margin: 0; }
+    .note-draft__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .note-draft__about { font-size: var(--fs-sm); }
     .note-card-search { display: flex; gap: var(--space-2); margin: var(--space-2-5) 0; }
     .note-card-search input { flex: 1; min-width: 0; }
     .note-search-result { display: block; width: 100%; margin: var(--space-1) 0; text-align: left; }

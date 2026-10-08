@@ -15,7 +15,8 @@ export function CoursesPanel() {
   return (
     <CourseList courses={data.courses || []} busy={core.busy} onOpen={settingsEntry.setCourseSettings} currentId={data.focus?.courseId}
       recent={Object.fromEntries((data.focus?.courses || []).map((course) => [course.name, course.lastUsedAt]))}
-      onMerge={(id, mergeFrom) => settingsEntry.setCourseSettings({ id, mergeFrom })} />
+      onMerge={(id, mergeFrom) => settingsEntry.setCourseSettings({ id, mergeFrom })}
+      onCreate={(name) => core.act('course.save', { name }, (course) => { if (course?.id) settingsEntry.setCourseSettings(course.id); }, { rethrow: true })} />
   );
 }
 

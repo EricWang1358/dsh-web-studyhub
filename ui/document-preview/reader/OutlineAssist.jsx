@@ -5,6 +5,7 @@ import { TokenEstimateView, TokenUsage } from '../../TokenUsage.jsx';
 import { useInjectCss } from '../../shared.js';
 import { ASSIST_IDLE, assistReducer, rejectionKind } from './ai-outline.js';
 import SegmentDialog from './SegmentDialog.jsx';
+import ReaderModelGate from '../ReaderModelGate.jsx';
 import readerCss from './reader.css';
 
 /* The "让 AI 帮你" flow (materials.outline.*), one component wherever it is offered: under the reader's outline and in the
@@ -72,7 +73,7 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
   </div>;
   if (phase === 'proposal') return <p className="reader-assist__status" role="status">{ui('已生成一份建议目录，请在弹出的窗口里确认。')}</p>;
   if (phase === 'nomodel') return <div className="reader-assist" data-phase="nomodel">
-    <p className="reader-assist__note" role="status">{ui('还没有连接模型，没法让 AI 整理目录；仍使用自动目录。')}</p>
+    <ReaderModelGate feature="outline" className="reader-assist__note" />
     <div className="reader-assist__actions"><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('知道了')}</Button></div>
   </div>;
   if (phase === 'empty') return <div className="reader-assist" data-phase="empty">

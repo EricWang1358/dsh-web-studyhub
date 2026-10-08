@@ -6,6 +6,7 @@ import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
 import { isCancellable, JOB_STATUS } from '../../../lib/job-status.js';
 import { DISPLAY_MODES, jobActive, jobClock } from './model.js';
+import ReaderModelGate from '../ReaderModelGate.jsx';
 
 /* The reader's controls for the bilingual reading: one row in the Aa popover (how translations are drawn), one 译 popover in
    the toolbar (translate this page / chapter, show or fold them all, the glossary, the target language) and the progress line
@@ -53,7 +54,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
         <strong>{ui('中英对照')}</strong>
         <SegmentedControl size="sm" label={ui('译成')} value={target} onChange={onTarget} options={[{ value: 'zh', label: names.zh }, { value: 'en', label: names.en }]} />
       </div>
-      {!modelAvailable && <p className="tr-panel__note" role="status">{ui('还没有连接模型，没法翻译；已有的译文照常显示，阅读不受影响。')}</p>}
+      {!modelAvailable && <ReaderModelGate feature="translate" />}
       {scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
         <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
         {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} />}

@@ -100,7 +100,8 @@ export default function AskThread({ thread, notice = '', noticeWhy = '', mode = 
   if (!roots.length) return null;
   const keep = onKeep ? { answered, saved, mode, busy: keepBusy, error: keepError, onKeep, onDelete } : null;
   return <div className="ask-thread" aria-label={ui('提问与回答')}>
-    {roots.map(node => <AskNode key={node.id} thread={thread} node={node} keep={keep} {...handlers} />)}
+    {/* Several first-level questions can sit on one passage; keeping is for the whole thread, so its button is under the last one only. */}
+    {roots.map((node, index) => <AskNode key={node.id} thread={thread} node={node} keep={index === roots.length - 1 ? keep : null} {...handlers} />)}
     {/* After the answers, never above them: a refusal must not move what is already shown. */}
     {notice && (noticeWhy
       ? <Tooltip layer group="ask-help" content={noticeWhy}><p className="ask-thread__notice" role="status" tabIndex={0}>{notice}</p></Tooltip>
