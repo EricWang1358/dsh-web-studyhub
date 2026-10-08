@@ -14,6 +14,7 @@
     "tests/layout-stability-guard.test.mjs",
     "tests/live-capture-browser.test.mjs",
     "tests/local-study-image.test.mjs",
+    "tests/model-setup-browser.test.mjs",
     "tests/nav-groups-browser.test.mjs",
     "tests/nav-layout.test.mjs",
     "tests/open-agent.test.mjs",
