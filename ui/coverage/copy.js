@@ -230,8 +230,13 @@ export const autoLine = (auto, rounds, first) => (auto
   : Number.isFinite(first?.percent) ? uiFormat('{0}：先出第 1 轮，覆盖约 {1}%；点「自动补到完整」继续，或在草稿页点「为没覆盖的部分补题」一次补一轮（剩下 {2} 轮）。', [levelLabel(first.level), first.percent, Math.max(0, rounds - 1)])
     : uiFormat('只出第 1 轮；其余 {0} 轮在草稿页点「为没覆盖的部分补题」，一次补一轮。', [Math.max(0, rounds - 1)]));
 
-/** On the draft page, for a run that is not going on by itself: what ticking 「自动补到完整」 does. */
-export const autoStartLine = (left) => (left === 1 ? ui('勾选后，最后 1 轮会自动补完；可以随时暂停或停下。') : uiFormat('勾选后，剩下的 {0} 轮会一轮接一轮自动补完；可以随时暂停或停下。', [left]));
+/** On the draft page, for a run that is not going on by itself: what ticking 「自动补到完整」 does, in the words of the form's own option (autoLine). */
+export const autoStartLine = (left) => (left === 1 ? ui('勾选后，最后 1 轮会自动做完；可以随时暂停，或停在这里（已出的题都保留）。')
+  : uiFormat('勾选后，剩下的 {0} 轮一轮接一轮自动做完；可以随时暂停，或停在这里（已出的题都保留）。', [left]));
+
+/** What a top-up that goes on by itself is expected to use: the round it starts with (`summary` is ui/token-usage.js estimateSummary of its estimate), and that the rounds after it are on top of that. */
+export const roundCostLine = (summary, roundsAfter = 0) => (roundsAfter > 1 ? uiFormat('本轮：{0}；之后还有 {1} 轮会接着做，每轮另算。', [summary, roundsAfter])
+  : roundsAfter === 1 ? uiFormat('本轮：{0}；之后还有 1 轮会接着做，另算。', [summary]) : uiFormat('本轮：{0}', [summary]));
 
 /** 「第 3/12 轮」 */
 export const roundOfText = (round, rounds) => uiFormat('第 {0}/{1} 轮', [round, rounds]);

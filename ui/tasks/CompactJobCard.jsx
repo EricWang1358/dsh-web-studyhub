@@ -57,7 +57,7 @@ export function cardLine(job) {
   return joinMeta([contract.status === 'paused' ? ui('已暂停') : contract.status === 'pausing' ? ui('正在暂停') : '', queue, count, doing, pieceOf(contract), noticed]);
 }
 
-export default function CompactJobCard({ job, onStop, onDismiss, primary, title, line, onOpenConsole, className, ...rest }) {
+export default function CompactJobCard({ job, onStop, onDismiss, primary, links, title, line, onOpenConsole, className, ...rest }) {
   useInjectCss(css, 'study-compact-card');
   const app = useContext(AppContext) || {}, quick = useQuickActions();
   const contract = contractOf(job), summary = { ...taskSummary(job) }, percentHint = progressHint(job).percent, live = isRunningTask(job), unknown = summary.percent === null && live;
@@ -91,6 +91,8 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, title,
         {stoppable ? <Button variant="quiet" size="sm" aria-label={uiFormat('停止：{0}', [summary.title])} onClick={cancel}>{ui('停止')}</Button>
           : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('知道了：{0}', [summary.title])} onClick={dismiss}>{ui('知道了')}</Button> : null}
       </div>
+      {/* The other ways on, as quiet links under the card ([{ label, run, disabled }]): the card keeps ONE primary button. */}
+      {links?.length > 0 && <div className="cjc__links">{links.map((link) => <Button key={link.label} variant="link" size="sm" disabled={link.disabled} onClick={link.run}>{link.label}</Button>)}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}
       {dismissFailure && <InlineMessage className="cjc__problem" tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
       <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={<span aria-hidden="true">→</span>} onClick={go.run}>{go.label}</Button>

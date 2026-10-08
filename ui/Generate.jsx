@@ -14,21 +14,22 @@ import GenerationPath from './GenerationPath.jsx';
 import TooBigChoice, { FocusHelp } from './TooBigChoice.jsx';
 import { useGenerationPath } from './use-generation-path.js';
 import { MODES, availableModes, effectiveMode, pathSummary, showsChoice } from './too-big-choice.js';
-import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { courseForSources, sourceMatchesCourse } from '../lib/source-courses.js';
+import { courseForSources } from '../lib/source-courses.js';
 import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
-import { documentCount, freshGeneration, generationStartedNotice, modelReadiness } from './generation-status.js';
+import { documentCount, freshGeneration, generationFormDefaults, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
-import { TokenEstimate, useUsageEstimate } from './TokenUsage.jsx';
+import { TokenEstimate, TokenEstimateView, useUsageEstimate } from './TokenUsage.jsx';
 import CoverageStrength from './coverage/CoverageStrength.jsx';
+import { autoLine } from './coverage/copy.js';
+import { openingLine, openingSelection, openingStands } from './generate-opening.js';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import RetrievalPanel from './RetrievalPanel.jsx';
 import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
-  DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam,
-  NOTATION_CHOICES, difficultyNote, estimateMinutes, generationRequest, kindNote, kindsOfForm, kindsPatch, notationNote, roleOpenByDefault, selectionStats, summaryLine,
+  DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
+  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, generationRequest, importDialog, kindNote, kindsOfForm, kindsPatch, moreValuesOf, notationNote, planLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -70,7 +71,6 @@ export default function Generate({
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const known = courseNamesOf(data);
-  const visibleSources = data.sources.filter(source => sourceMatchesCourse(source, sourceScope, known));
   const referenceSourceIds = gen.referenceSourceIds || [];
   const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources, gen.referenceLimits, gen.referenceFormat);
   const evidenceSources = data.sources.filter(source => !referenceSourceIds.includes(source.id));
@@ -99,6 +99,11 @@ export default function Generate({
   const mode = effectiveMode(chosenMode, modes, advice);
   const choice = showsChoice(modes, advice);
   const pathMode = choice && mode === MODES.path, retrievalMode = choice && mode === MODES.retrieval;
+  // 更多选项 holds every optional choice; it stays shut unless the form carries one (something typed, a choice that is not the saved default) or the way on needs a topic, so nothing set is hidden.
+  const saved = React.useMemo(() => generationFormDefaults(data.settings?.generation), [data.settings?.generation]);
+  const [moreChoice, setMoreChoice] = React.useState(null);
+  const foldOpen = moreChoice ?? (moreValuesOf(gen, saved) || roleOpenByDefault({ goal, focus: data.focus, role: gen.role }) || retrievalMode);
+  const setMoreOpen = (open) => setMoreChoice(open);
   // The steps' buttons: 只出这一步 narrows the selection to the step and goes back to the ordinary form with the step's own count.
   const narrowToStep = (step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, customCount: String(step.count), ...(step.focus ? { focus: step.focus } : {}) }); setChosenMode(MODES.single); };
   const focusBox = React.useRef(null);
@@ -116,18 +121,24 @@ export default function Generate({
     catch (error) { result = { source: 'local', focus: [], unavailable: { reason: 'failed', message: String(error?.message || '') } }; }
     if (token === assistToken.current) setAssist({ phase: 'done', result, applied: false });
   }
-  const openImport = () => setModal({ type: "add", course: sourceScope === '*' ? '' : sourceScope });
+  // `options` ({ course, onImported }) is for a tab that takes the new materials itself (案例分析题); a click passes an event, which means neither.
+  const openImport = (options) => setModal(importDialog(options?.course ?? (sourceScope === '*' ? '' : sourceScope), options));
   const openReferenceImport = onReferenceImported => setModal({ type: 'add', course: generationCourse,
     referenceQuestions: true, ...(onReferenceImported ? { onReferenceImported } : {}) });
   const openSettings = () => (openModelSettings ? openModelSettings() : setPage?.("settings"));
   // The long-document card's links: the search extension (检索设置) or the PDF converter's own section, not the top of 设置.
   const openLargeDocumentSettings = (section) => (openSettingsSection ? openSettingsSection(settingsSectionOr(section, 'settings-extensions')) : setPage?.("settings"));
-  // With a single document (one PDF is several page sources) there is nothing to choose; don't make the learner tick it.
+  // 前往设置 on the form's line: the defaults of the types, the strength, the difficulty and the language are 设置 › 出题偏好.
+  const openGenerationSettings = () => (openSettingsSection ? openSettingsSection(settingsSectionOr('settings-generation', 'settings-generation')) : setPage?.("settings"));
+  // The page opens filled in (ui/generate-opening.js): with nothing ticked yet (the sidebar entry; the home and the checklist tick their own) the current course's documents that have no question
+  // are ticked and one line says why; one document (a PDF is several page sources) is ticked because there is nothing to choose. Only on entering the page, so 清空选择 still sticks.
+  const [opening, setOpening] = React.useState(null);
   React.useEffect(() => {
-    const documents = groupSourcesByDocument(visibleSources.filter(source => !referenceSourceIds.includes(source.id)));
-    if (documents.length === 1 && !selectedSources.length)
-      setSelectedSources(documents[0].sourceIds);
-    // Only on entering the page, so 清空选择 still sticks.
+    if (selectedSources.length) return;
+    const found = openingSelection(data, { scope: sourceScope, known, exclude: referenceSourceIds });
+    if (!found.sourceIds.length) return;
+    setSelectedSources(found.sourceIds);
+    setOpening(found);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [
     { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", attrs: { "data-tour": "generate-from-sources" } },
@@ -152,20 +163,23 @@ export default function Generate({
       else setPage("library");
     });
   }
+  // The case form opens with the materials ticked on this tab (its own selection when it comes from the reader): the learner already chose them, and the form says so.
+  const carried = caseEvidence(data.sources, referenceSourceIds).filter((source) => selectedSources.includes(source.id)).map((source) => source.id);
+  const caseStart = caseInitial?.sourceIds ? caseInitial : { ...(carried.length ? { sourceIds: carried, broughtOver: carried.length, ...(generationCourse ? { course: generationCourse } : {}) } : {}), ...caseInitial };
   const caseExam = courseHasCaseExam((data.courses || []).find((course) => course?.name === generationCourse));
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
   const estimateRequest = { feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, coverageLevel: level,
     ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen), difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
   const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason && !pathMode });
-  const plannedGoal = planned.status === 'ready' ? planned.estimate?.coverage?.goal : null;
+  const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
   const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
   return (
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
-        description={ui("用你的资料让 AI 出题，逐题检查后再发布；已经有现成的题目，也可以直接导入。")} />
+        description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")} />
       <Tabs id="generate" className="source-mode" itemClassName="source-tab" label={ui("创建方式")} value={current} onChange={setGenSource}
         items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
       <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
@@ -173,7 +187,7 @@ export default function Generate({
         <JsonImport data={data} openDraft={openDraft} />
       ) : current === "case" ? (
         <CaseCreate data={data} openImport={openImport} openReferenceImport={openReferenceImport} openSettings={openSettings} onCourseSettings={onCourseSettings}
-          initial={caseInitial} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
+          initial={caseStart} onStarted={() => (onStarted ? onStarted() : setPage("library"))} />
       ) : current === "chat" ? (
         <Ingest
           data={data}
@@ -193,10 +207,12 @@ export default function Generate({
       ) : (
         <>
           <ModelSetupGate variant="banner" feature="generate" model={model} onOpenSettings={openSettings} />
-          <p className="muted">{ui("先选资料，再设定学习目标。生成结果会先进入草稿；发布时逐题检查，通过的题先进入学习库。")}</p>
+          <p className="muted">{ui("选好资料就能生成。生成结果先进入草稿，你看过再发布。")}</p>
           <form onSubmit={submit}>
             <fieldset data-tour="generate-sources">
               <legend>{ui("01 / 选择资料")}</legend>
+              {/* Why these are ticked (only while the ticks are still the ones the page opened with). */}
+              {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexSlot={indexStatus !== "unavailable"}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} />
@@ -214,55 +230,51 @@ export default function Generate({
             </fieldset>
             <fieldset className="generate-form" data-tour="generate-options">
               <legend>{ui("02 / 学习方式")}</legend>
-              <CourseField courses={data.focus?.courses} value={generationCourse} onChange={course => setGen({ ...gen, course })} />
-              {!generationCourse && selectedSources.length > 0 && <p className="muted">{ui('当前生成结果将归为未分类；可在上方指定课程。')}</p>}
+              {/* The main path says what will be made in one line; every choice behind it is in 更多选项, and the defaults of the ones that have one are in the settings. */}
+              <div className="generate-plan" data-generate-plan>
+                <p className="generate-plan__line">{planLine({ kinds: kindsOfForm(gen), level, custom: !!custom, course: generationCourse })}</p>
+                <Button variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
+              </div>
               {caseExam && <p className="generate-case-hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
                 <Button variant="link" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
-              <div className="generate-rows">
-                <FormRow label={ui("题型")}>
-                  <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen({ ...gen, ...kindsPatch(list) })} />
-                  <p className="generate-note">{kindNote(kindsOfForm(gen), custom ?? plannedGoal)}</p>
-                </FormRow>
-                {!pathMode && <FormRow label={ui("覆盖强度")}>
-                  <CoverageStrength level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
-                    onLevel={(coverageLevel) => setGen({ ...gen, coverageLevel })} onCustom={(customCount) => setGen({ ...gen, customCount })}
-                    auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })}
-                    budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
-                </FormRow>}
-                <FormRow label={ui("难度")}>
-                  <SegmentedControl label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
-                    onChange={(difficulty) => setGen({ ...gen, difficulty })} />
-                  <p className="generate-note">{difficultyNote(gen.difficulty)}</p>
-                </FormRow>
-                <FormRow label={ui("语言")}>
-                  <SegmentedControl label={ui("语言")} size="sm" value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
-                    onChange={(language) => setGen({ ...gen, language })} />
-                </FormRow>
-                <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus">
-                  <textarea id="generate-focus" ref={focusBox} className="generate-focus" rows={2} value={gen.focus}
-                    onChange={(e) => setGen({ ...gen, focus: e.target.value })}
-                    placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
-                  {(pathMode || retrievalMode) && <FocusHelp mode={mode} />}
-                  <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
-                    estimate={<TokenEstimate enabled={model.ready && selectedSources.length > 0}
-                      request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
-                    onAsk={askAssist} onSettings={openSettings}
-                    onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
-                    onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
-                </FormRow>
-              </div>
-              <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={selectedSources}
-                limits={gen.referenceLimits} onLimitsChange={referenceLimits => setGen({ ...gen, referenceLimits })}
-                format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
-                onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
-                courses={data.focus?.courses} busy={busy} />
-              {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
-              <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题组名称、公式写法、目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
+              <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题型、覆盖强度、难度、语言、课程、想练什么")} open={foldOpen} onToggle={setMoreOpen}>
+                <CourseField courses={data.focus?.courses} value={generationCourse} onChange={course => setGen({ ...gen, course })} />
                 <div className="generate-rows">
+                  <FormRow label={ui("题型")}>
+                    <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen({ ...gen, ...kindsPatch(list) })} />
+                    <p className="generate-note">{kindNote(kindsOfForm(gen))}</p>
+                  </FormRow>
+                  {!pathMode && <FormRow label={ui("覆盖强度")}>
+                    <CoverageStrength compact level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
+                      onLevel={(coverageLevel) => setGen({ ...gen, coverageLevel })} onCustom={(customCount) => setGen({ ...gen, customCount })}
+                      auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })}
+                      budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
+                  </FormRow>}
+                  <FormRow label={ui("难度")}>
+                    <SegmentedControl label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
+                      onChange={(difficulty) => setGen({ ...gen, difficulty })} />
+                    <p className="generate-note">{difficultyNote(gen.difficulty)}</p>
+                  </FormRow>
+                  <FormRow label={ui("语言")}>
+                    <SegmentedControl label={ui("语言")} size="sm" value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
+                      onChange={(language) => setGen({ ...gen, language })} />
+                  </FormRow>
                   <FormRow label={ui("公式写法")}>
                     <SegmentedControl label={ui("公式写法")} size="sm" value={gen.notation ?? 'auto'} options={NOTATION_CHOICES.map(({ value, label }) => ({ value, label }))}
                       onChange={(notation) => setGen({ ...gen, notation })} />
                     <p className="generate-note">{notationNote()}</p>
+                  </FormRow>
+                  <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus">
+                    <textarea id="generate-focus" ref={focusBox} className="generate-focus" rows={2} value={gen.focus}
+                      onChange={(e) => setGen({ ...gen, focus: e.target.value })}
+                      placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
+                    {(pathMode || retrievalMode) && <FocusHelp mode={mode} />}
+                    <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
+                      estimate={<TokenEstimate enabled={model.ready && selectedSources.length > 0}
+                        request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
+                      onAsk={askAssist} onSettings={openSettings}
+                      onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
+                      onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
                   </FormRow>
                   <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
                     <input id="generate-title" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
@@ -271,16 +283,28 @@ export default function Generate({
                     <input id="generate-role" value={gen.role} onChange={(e) => setGen({ ...gen, role: e.target.value })} placeholder={ui("例如：后端工程师 · 系统设计")} />
                   </FormRow>
                 </div>
+                <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={selectedSources}
+                  limits={gen.referenceLimits} onLimitsChange={referenceLimits => setGen({ ...gen, referenceLimits })}
+                  format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
+                  onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
+                  courses={data.focus?.courses} busy={busy} />
               </Disclosure>
+              {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
             </fieldset>
             <div className="generate-submit" data-tour="generate-summary">
               <div className="quality-note">
                 <Icon name="sparkle" />
                 <p>{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}<br />
-                  <small>{ui("发布时会再次逐题检查；合格题先发布，未通过的题可选择交给后台修复。")}</small>
+                  <small>{ui("出题时已逐题核验并审阅；发布前想再检查一遍，在草稿页点「保存并校验」。")}</small>
                 </p>
               </div>
               {summary && <p className="generate-summary" role="status">{summary}</p>}
+              {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the line above's). */}
+              {!pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason && <div className="generate-estimate" data-generate-estimate>
+                <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} tight />
+                {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
+                  plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
+              </div>}
               {model.ready ? <>
                 {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}

@@ -137,6 +137,14 @@ export function coverageLead(coverage) {
     : uiFormat('{0}：约 {1} 道题，覆盖 {2}/{3}，{4}，', [levelLabel(coverage.level), coverage.goal, coverage.sections, parts, rounds]);
 }
 
+/** The same estimate without the level and the count (the form's summary line says those, once): 「覆盖 81/81 个小节，分 12 轮，」 (the estimate's tokens and calls follow). */
+export function coverageStructure(coverage) {
+  if (!coverage?.goal) return '';
+  const rounds = coverage.rounds > 1 ? uiFormat('分 {0} 轮', [coverage.rounds]) : ui('一轮出完');
+  const parts = countOf(coverage.units, coverage.leaves);
+  return coverage.custom ? uiFormat('自定义题数，覆盖 {0}/{1}，{2}，', [coverage.sections, parts, rounds]) : uiFormat('覆盖 {0}/{1}，{2}，', [coverage.sections, parts, rounds]);
+}
+
 /** The three levels side by side for the same sources: 「精简约 172 题 · 标准约 343 题 · 完整约 500 题」. */
 export function levelsLine(coverage) {
   if (!coverage?.levels) return '';
@@ -229,6 +237,34 @@ export const hasSettings = (suggestion = {}) => LEVELS.includes(suggestion.cover
 
 /** The target role is for interview preparation; a role already typed stays visible. */
 export const roleOpenByDefault = ({ goal, focus, role } = {}) => goal === 'interview' || focus?.mode === 'interview' || !!String(role || '').trim();
+
+/** The one line the main path says about the choices that live in 更多选项: the question types, the 覆盖强度 (or that a number of questions was typed) and the course the questions go to. */
+export function planLine({ kinds, level, custom = false, course = '' }) {
+  return [kindsLabel(kinds), custom ? ui('覆盖强度：自定义题数') : uiFormat('覆盖强度：{0}', [levelLabel(level)]), uiFormat('课程：{0}', [course || ui('未分类')])].join(META_DOT);
+}
+
+const sameList = (left, right) => left.length === right.length && left.every((item, at) => item === right[at]);
+/**
+ * Does the form carry a choice of its own in the fold (something typed, or a choice that is not the saved default)? Then 更多选项 opens at once, so nothing the learner set is hidden. `defaults` are the
+ * form's defaults from Settings (generationFormDefaults). The course is not one: it stands on the main path's line.
+ */
+export function moreValuesOf(gen = {}, defaults = {}) {
+  const typed = key => String(gen[key] ?? '').trim() !== '';
+  if (['focus', 'title', 'role', 'customCount', 'tokenBudget'].some(typed) || (gen.referenceSourceIds || []).length > 0 || typeof gen.autoComplete === 'boolean') return true;
+  if (['difficulty', 'language', 'coverageLevel'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
+  if ((gen.notation ?? 'auto') !== (defaults.notation ?? 'auto')) return true;
+  return !sameList(kindsOfForm(gen), kindsOfForm(defaults));
+}
+
+/** The materials a case paper is written from: no reference sample (a style, not evidence) and no case written by an earlier run (案例：…, kept as a source so it can be graded against). */
+export const caseEvidence = (sources = [], referenceSourceIds = []) => sources.filter((source) => !referenceSourceIds.includes(source.id) && !/^(案例：|Case: )/.test(source.title || ''));
+
+/** The import dialog (the app's modal `{ type: 'add' }`) opened for a course; `onImported(sourceIds)` is the page that wants the new materials itself (the app's hand-off: ui/app/import-handoff.js), so they
+    go into ITS selection and not into another tab's. A click passes an event as the options: no hand-off is made up for it. */
+export const importDialog = (course, options) => ({ type: 'add', course, ...(typeof options?.onImported === 'function' ? { onImported: options.onImported } : {}) });
+
+/** What is imported joins a selection once, after what was there. */
+export const takeImported = (current = [], ids = []) => [...new Set([...current, ...ids])];
 
 /** A stated exam with case or open questions (the course's own record). */
 export const courseHasCaseExam = (course) => ['open-book-case', 'mixed'].includes(course?.exam?.format);

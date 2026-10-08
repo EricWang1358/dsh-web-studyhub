@@ -43,7 +43,7 @@ function TopUpBody({ draft, view, shortfall, modelReady, held, onTopUp, variant 
     <p className="cov-topup__plan" data-coverage-round>{nextRoundText(shortfall)}</p>
     {coveragePathText(shortfall) && <p className="cov-topup__path" data-coverage-path>{coveragePathText(shortfall)}</p>}
     <div className="cov-topup__act">
-      <Button className="cov-topup__button" disabled={blocked} data-coverage-start title={!modelReady ? gateTitle('block') : held ? ui('先保存草稿，再补题。') : shortfall.reason === 'manual' ? ui('一次补一轮') : ui('补完这一轮后自动做下一轮，直到每个小节都有题；可以随时暂停或停下。')}
+      <Button className="cov-topup__button" disabled={blocked} data-coverage-start title={!modelReady ? gateTitle('block') : held ? ui('草稿已在后台更新，先载入最新草稿，再补题。') : shortfall.reason === 'manual' ? ui('一次补一轮') : ui('补完这一轮后自动做下一轮，直到每个小节都有题；可以随时暂停或停下。')}
         onClick={() => onTopUp?.(draft, sectionIds, round)}>{actionLabel('topup')}</Button>
       {modelReady && call && <div className="cov-topup__estimate"><TokenEstimate enabled align="end" request={{ feature: 'generate', resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds } }} /></div>}
     </div>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ui } from '../i18n.js';
 import { Button, LoadingState, Popover, Select } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
-import { TokenEstimate } from '../TokenUsage.jsx';
+import RoundCost from './RoundCost.jsx';
 import { useStudy } from '../study-context.jsx';
 import { isActiveJob } from '../job-visibility.js';
 import { shortfallOf } from '../../lib/shortfall.js';
@@ -46,9 +46,12 @@ export function DocumentTopUpBody({ view, onStart }) {
     <p className="cov-topup__plan" data-coverage-round>{nextRoundText(shortfall)}</p>
     {coveragePathText(shortfall) && <p className="cov-topup__path" data-coverage-path>{coveragePathText(shortfall)}</p>}
     <div className="cov-topup__act">
-      <Button className="cov-topup__button" variant="primary" disabled={busy} data-coverage-start title={ui('补完这一轮后自动做下一轮，直到每个小节都有题；可以随时暂停或停下。')}
-        onClick={() => onStart?.(args, chosen)}>{actionLabel('topup')}</Button>
-      <div className="cov-topup__estimate"><TokenEstimate enabled align="end" request={{ feature: 'generate', ...args }} /></div>
+      {/* The cost is on the button that spends it: this round's estimate, and that the rounds after it go on by themselves and are counted on their own. */}
+      <Button className="cov-topup__button cov-topup__button--cost" variant="primary" disabled={busy} data-coverage-start title={ui('补完这一轮后自动做下一轮，直到每个小节都有题；可以随时暂停或停下。')}
+        onClick={() => onStart?.(args, chosen)}>
+        <span>{actionLabel('topup')}</span>
+        <RoundCost request={{ feature: 'generate', ...args }} roundsAfter={Math.max(0, (shortfall.roundsToFull ?? 1) - 1)} />
+      </Button>
     </div>
   </div>;
 }

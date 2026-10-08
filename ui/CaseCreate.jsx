@@ -6,6 +6,9 @@ import SourcePicker from "./SourcePicker.jsx";
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { importedReferences, referenceSelection } from './reference-questions.js';
 import { Button, SegmentedControl, IconButton, Select, useToast } from "./components/index.js";
+import { usePageScope } from "./PageScope.jsx";
+import { caseEvidence, takeImported } from "./generate-form.js";
+import { openingStands } from "./generate-opening.js";
 import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
@@ -29,6 +32,8 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
   const [mode, setMode] = useState(initial.mode || "new");
   const [course, setCourse] = useState(initial.course ?? (data.focus?.course && data.focus.course !== "*" ? data.focus.course : ""));
   const [sourceIds, setSourceIds] = useState(initial.sourceIds || []);
+  // The picker lists the course's materials (the course of the form, until the learner widens it): 选择当前范围 means this course's, not the library's.
+  const [scope, setScope] = usePageScope(data.root, "case-sources", course || "*");
   const [referenceSourceIds, setReferenceSourceIds] = useState(initial.referenceSourceIds || []);
   const [referenceLimits, setReferenceLimits] = useState(initial.referenceLimits);
   const [referenceFormat, setReferenceFormat] = useState(initial.referenceFormat);
@@ -86,8 +91,10 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
             ? <Button size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
             : <small className="muted">{ui("选好课程后，可以在课程设置里指定评分说明资料和重点主题。")}</small>}
         </div>
-        <SourcePicker sources={data.sources.filter((source) => !referenceSourceIds.includes(source.id) && !/^(案例：|Case: )/.test(source.title || ""))} selected={sourceIds} onChange={setSourceIds}
-          courses={data.focus?.courses} onAdd={openImport} disabled={busy} />
+        {initial.broughtOver > 0 && mode !== "import" && openingStands({ sourceIds: initial.sourceIds }, sourceIds) && <p className="muted" data-brought-over>{uiFormat("已带入刚才选好的 {0} 份资料；不合适就在下面改。", [initial.broughtOver])}</p>}
+        {/* A material imported from here goes into THIS selection, through the import dialog's own hand-off. */}
+        <SourcePicker sources={caseEvidence(data.sources, referenceSourceIds)} selected={sourceIds} onChange={setSourceIds}
+          courses={data.focus?.courses} scope={scope} onScopeChange={setScope} onAdd={() => openImport?.({ course, onImported: (ids) => setSourceIds((current) => takeImported(current, ids)) })} disabled={busy} />
         <p className="muted">{mode === "import" ? ui("可选：勾选课程资料，评分标准会用到其中的概念。") : ui("勾选要考查的课程资料；案例和题目都基于这些概念。")}</p>
         {passage && mode !== "import" && <div className="case-create__passage">
           <strong>{ui("围绕这段资料出题")}</strong>

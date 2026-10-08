@@ -63,6 +63,7 @@ import deckParts from './locales/en.deck-parts.json';
 import examPrep from './locales/en.exam-prep.json';
 import examPrepSettings from './locales/en.exam-prep-settings.json';
 import modelSetup from './locales/en.model-setup.json';
+import generateShort from './locales/en.generate-short.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -128,6 +129,7 @@ export const ENGLISH_SOURCES = {
   'en.exam-prep.json': examPrep,
   'en.exam-prep-settings.json': examPrepSettings,
   'en.model-setup.json': modelSetup,
+  'en.generate-short.json': generateShort,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,
