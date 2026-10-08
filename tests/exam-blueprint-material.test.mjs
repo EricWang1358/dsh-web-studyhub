@@ -14,6 +14,7 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { resolveSelectionState } from '../lib/contexts/materials/operations.js';
 import { sourceFormat } from '../lib/source-groups.js';
 import { extractRelease } from './fixtures/extract-release.mjs';
+import { TIER_LABEL, inputFingerprint } from '../lib/exam-point-list.js';
 import { BLUEPRINT_LIMITS, blueprintEvidenceIssues, examBlueprintMaterial, isExamBlueprintSource, isExamPointListSource, normalizeExamBlueprint } from '../lib/exam-blueprint-material.js';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -54,33 +55,34 @@ test('the record is deterministic, readable text that exports the two-level outl
   assert.equal(examBlueprintMaterial({ ...input(), supersedes: 'older-list' }).blueprint.supersedes, 'older-list', 'a rebuild records the list it replaces');
   const lines = a.text.split('\n');
   const at = word => lines.findIndex(line => line.includes(word));
-  assert.ok(at('1. [p1] 传输层协议（必学') >= 0 && at('1.1 [p2] TCP 连接管理（必学') > at('1. [p1]') && at('1.2 [p3] 可靠传输（补充') > at('1.1 [p2]') && at('1.3 [p4] 拥塞控制（必学') > at('1.2 [p3]'), 'a 大/小 outline, children under their 大考点');
+  assert.ok(at('1. [p1] 传输层协议（样卷考过（1/1 份）') >= 0 && at('1.1 [p2] TCP 连接管理（样卷考过（1/1 份）') > at('1. [p1]') && at('1.2 [p3] 可靠传输（补充') > at('1.1 [p2]') && at('1.3 [p4] 拥塞控制（样卷考过（1/1 份）') > at('1.2 [p3]'), 'a 大/小 outline, children under their 大考点');
   for (const word of ['依据（讲义 第 3 页）：“三次握手：SYN、SYN-ACK、ACK”', '传输层.pptx', '范围：传输层', '课件里没找到对应内容']) assert.ok(a.text.includes(word), word);
   assert.equal(lines.filter(line => line.includes('课件里没找到对应内容')).length, 1, 'only the point the slides never mention is flagged');
   assert.ok(!/蓝图|blueprint/i.test(a.text), 'the words of the learner never say blueprint');
+  assert.ok(!a.text.includes('必学'), 'the tier is told as what is known: a sample paper tested it');
   assert.ok(isExamBlueprintSource(a) && isExamPointListSource(a));
   assert.ok(!isExamPointListSource({ id: 'x', text: 'plain' }) && !isExamPointListSource({ provenance: 'exam-blueprint' }) && !isExamPointListSource(null));
   const changed = input(); changed.points[2].title = '可靠数据传输';
   assert.notEqual(examBlueprintMaterial(changed).id, a.id, 'a changed list is a new material; the old stays');
 });
 
-test('the tier comes from the evidence: 必学 when a sample paper reached the point, 补充 when only the slides did; no paper means every point is 补充 and the list says so', () => {
+test('the tier comes from the evidence: 样卷考过 when a sample paper reached the point, 补充 when only the slides did; no paper means every point is 补充 and the list says so', () => {
   const { blueprint, text } = examBlueprintMaterial(input());
   const byId = Object.fromEntries(blueprint.points.map(point => [point.id, point]));
   assert.deepEqual([byId.p2.backing, byId.p3.backing, byId.p4.backing],
     [{ slides: 1, samplePapers: 1, papers: [PAPER.id], kind: 'both' }, { slides: 1, samplePapers: 0, papers: [], kind: 'slides' }, { slides: 0, samplePapers: 1, papers: [PAPER.id], kind: 'sample-paper' }]);
   assert.deepEqual(byId.p1.backing, { slides: 2, samplePapers: 1, papers: [PAPER.id], kind: 'both' }, 'a 大考点 is backed by what its children are');
-  assert.equal(byId.p1.tier, 'must', 'a 大考点 is 必学 when any 小考点 is');
-  assert.deepEqual(blueprint.basis, { samplePapers: 1, frequency: 'not-computed', skippedSlides: 1, must: 2, extra: 1, noCourseText: 1, label: '依据 1 份样卷；必学范围可能不全' });
-  assert.ok(text.includes('依据 1 份样卷；必学范围可能不全'));
+  assert.equal(byId.p1.tier, 'must', 'a 大考点 is 样卷考过 when any 小考点 is');
+  assert.deepEqual(blueprint.basis, { samplePapers: 1, frequency: 'not-computed', skippedSlides: 1, must: 2, extra: 1, noCourseText: 1, label: '依据 1 份样卷；样卷考过的点可能不全' });
+  assert.ok(text.includes('依据 1 份样卷；样卷考过的点可能不全'));
   // no sample paper at all
   const none = input();
   none.inputs.pop(); none.points = none.points.filter(point => point.id !== 'p4'); none.points[1].evidence.pop();
   const bare = normalizeExamBlueprint(none);
   assert.deepEqual(bare.points.map(point => point.tier), ['extra', 'extra', 'extra']);
-  assert.deepEqual(bare.basis, { samplePapers: 0, frequency: 'not-computed', skippedSlides: 1, must: 0, extra: 2, noCourseText: 0, label: '没有样卷，无法判断哪些是必学' });
-  assert.ok(examBlueprintMaterial(none).text.includes('没有样卷，无法判断哪些是必学'));
-  assert.ok(!examBlueprintMaterial(none).text.includes('必学）'), 'no point is called 必学 without a paper');
+  assert.deepEqual(bare.basis, { samplePapers: 0, frequency: 'not-computed', skippedSlides: 1, must: 0, extra: 2, noCourseText: 0, label: '没有样卷，无法标出样卷考过的点' });
+  assert.ok(examBlueprintMaterial(none).text.includes('没有样卷，无法标出样卷考过的点'));
+  assert.ok(!examBlueprintMaterial(none).text.includes('样卷考过（'), 'no point is called 样卷考过 without a paper');
   // the recommended textbook stays a note
   assert.deepEqual(blueprint.recommendedReading, { title: 'Computer Networking: A Top-Down Approach', author: 'Kurose & Ross' });
   assert.equal(blueprint.inputs.some(item => item.role === 'textbook'), false);
@@ -94,9 +96,9 @@ test('several sample papers: a point reached by two papers records both, one rea
   const { blueprint } = examBlueprintMaterial(two);
   const byId = Object.fromEntries(blueprint.points.map(point => [point.id, point]));
   assert.deepEqual([byId.p2.backing.samplePapers, byId.p2.backing.papers], [2, [PAPER.id, PAPER_B.id]]);
-  assert.deepEqual([byId.p3.backing.samplePapers, byId.p3.backing.papers, byId.p3.tier], [1, [PAPER_B.id], 'must'], 'a paper reaching a point makes it 必学');
+  assert.deepEqual([byId.p3.backing.samplePapers, byId.p3.backing.papers, byId.p3.tier], [1, [PAPER_B.id], 'must'], 'a paper reaching a point makes it 样卷考过');
   assert.deepEqual([byId.p4.backing.papers], [[PAPER.id]]);
-  assert.deepEqual(blueprint.basis, { samplePapers: 2, frequency: 'not-computed', skippedSlides: 1, must: 3, extra: 0, noCourseText: 1, label: '依据 2 份样卷（取并集）；必学范围可能不全' });
+  assert.deepEqual(blueprint.basis, { samplePapers: 2, frequency: 'not-computed', skippedSlides: 1, must: 3, extra: 0, noCourseText: 1, label: '依据 2 份样卷（取并集）；样卷考过的点可能不全' });
   const three = structuredClone(two);
   three.inputs.push({ role: 'past-paper', sourceId: 'paper-c' });
   three.points[3].evidence.push({ sourceId: 'paper-c', quote: '拥塞' });
@@ -221,4 +223,47 @@ test('the shape of the sample papers is kept beside the points: question labels,
   assert.throws(() => examBlueprintMaterial({ ...input(), inputs: input().inputs.filter(item => item.role !== 'past-paper'), points: [{ id: 'p1', title: 't', evidence: [{ sourceId: SLIDE_3.id, quote: '三次握手' }] }], examShape: { questions: [] } }), /needs a sample paper/);
   assert.throws(() => examBlueprintMaterial(shaped(v => { v.examShape.questions[1].marks = -1; })), /marks/);
   assert.throws(() => examBlueprintMaterial(shaped(v => { v.examShape.questions.push({ paper: PAPER.id, label: 'Q1', pointIds: [] }); })), /repeated/);
+});
+
+test('G-5: the tier words are the shared TIER_LABEL, and each point shows N of M sample papers', () => {
+  assert.deepEqual(TIER_LABEL, { must: '样卷考过', extra: '补充' });
+  const two = input();
+  two.inputs.push({ role: 'past-paper', sourceId: PAPER_B.id, title: PAPER_B.title });
+  two.points[1].evidence.push({ sourceId: PAPER_B.id, quote: '写出三次握手的报文' });
+  const { text } = examBlueprintMaterial(two);
+  assert.ok(text.includes('[p2] TCP 连接管理（样卷考过（2/2 份）') && text.includes('[p4] 拥塞控制（样卷考过（1/2 份）') && text.includes('[p3] 可靠传输（补充'), text);
+  assert.ok(!text.includes('必学'));
+});
+
+test('G-7: an input keeps the fingerprint of the texts it was built from; a malformed one is refused', () => {
+  const value = input();
+  value.inputs[0].fingerprint = inputFingerprint([SLIDE_3.text, SLIDE_4.text]);
+  value.inputs[1].fingerprint = inputFingerprint([PAPER.text]);
+  const { blueprint } = examBlueprintMaterial(value);
+  assert.deepEqual(blueprint.inputs.map(item => item.fingerprint), [inputFingerprint([SLIDE_3.text, SLIDE_4.text]), inputFingerprint([PAPER.text])]);
+  assert.equal(examBlueprintMaterial(input()).blueprint.inputs[0].fingerprint, undefined, 'a list saved before has none');
+  assert.notEqual(examBlueprintMaterial(value).id, examBlueprintMaterial(input()).id);
+  const bad = value => { const item = input(); item.inputs[0].fingerprint = value; return () => examBlueprintMaterial(item); };
+  assert.throws(bad('not-hex'), /fingerprint/);
+  assert.throws(bad(42), /fingerprint/);
+});
+
+test('G-3: a list that skipped a window of slides says so: marked partial in the basis, with the pages in the text', () => {
+  const value = input();
+  value.skippedWindows = [{ pages: [11, 12, 13, 14, 15], slides: 5 }, { pages: [], slides: 3 }];
+  const { blueprint, text } = examBlueprintMaterial(value);
+  assert.equal(blueprint.basis.partial, true);
+  assert.ok(blueprint.basis.label.includes('不完整') && blueprint.basis.label.startsWith('依据 1 份样卷；样卷考过的点可能不全'), blueprint.basis.label);
+  assert.deepEqual(blueprint.skippedWindows, [{ pages: [11, 12, 13, 14, 15], slides: 5 }, { pages: [], slides: 3 }]);
+  assert.ok(text.includes('课件第 11–15 页没能读出来') && text.includes('另有 3 张课件没能读出来'), text.slice(0, 400));
+  assert.ok(!/蓝图|blueprint/i.test(text));
+  const plain = examBlueprintMaterial(input());
+  assert.deepEqual([plain.blueprint.basis.partial, plain.blueprint.skippedWindows], [undefined, undefined]);
+  const bad = skipped => { const item = input(); item.skippedWindows = skipped; return () => examBlueprintMaterial(item); };
+  assert.throws(bad([{ pages: ['x'] }]), /skippedWindows/);
+  assert.throws(bad('no'), /skippedWindows/);
+});
+
+test('G-2: the limits are one shared set: points, places of a point, sources of an input, titles and questions', () => {
+  assert.deepEqual(BLUEPRINT_LIMITS, { points: 300, evidence: 12, inputs: 60, inputSources: 500, quoteChars: 400, titleChars: 200, noteChars: 600, questions: 400 });
 });
