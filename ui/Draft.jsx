@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
-import { Banner, Button, Disclosure, Hint, PageHeader, Panel, Select, useToast } from "./components/index.js";
+import { Banner, Button, Disclosure, Hint, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
@@ -248,7 +248,7 @@ export default function Draft({
           action={{ label: ui("另存为新草稿"), disabled: busy, onClick: saveAsNewDraft }}>
           {ui("当前页面是旧版本，无法继续保存。可以把页面中的内容另存为独立的新草稿，发布前会重新检查。")}
         </Banner>}
-        {staleDraft && !unsavedDraft && !updatingDraft && <Banner tone="info" role="status">{ui("正在载入后台修好的题目…")}</Banner>}
+        {staleDraft && !unsavedDraft && !updatingDraft && <LoadingState label={ui("正在载入后台修好的题目…")} />}
         {activeReview && <Banner tone="warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</Banner>}
         {rejectedCount > 0 && unsavedDraft && !staleDraft && <Banner tone="warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</Banner>}
         {shortBlock && <Banner tone="warning" role="status" className="draft-shortfall" title={ui("有题没能进入草稿")}>

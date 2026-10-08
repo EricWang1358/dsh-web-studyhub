@@ -74,7 +74,6 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 const area = page => page.locator('.study-app').first().getAttribute('data-usage-area');
 const nav = async (page, id) => { await page.locator(`[data-tour="nav-${id}"]`).first().dispatchEvent('click'); };
-const snapshot = (running) => fetch(`${running.server.url}api/call`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'snapshot', args: {} }) }).then(response => response.json()).catch(() => null);
 
 test('a finished run of a clean draft is published and practised from its card in one press, and the draft page can be reached from a quiet link', { timeout: 900000 }, async t => {
   let browser;

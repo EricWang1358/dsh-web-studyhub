@@ -51,9 +51,10 @@
     .generate-estimate { display: grid; gap: var(--space-1); }
     /* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
     .generate-more { margin-top: var(--space-4); }
-    .generate-more > .sh-disclosure__body { display: grid; gap: var(--space-5); }
+    /* The disclosure's body and summary are reached by element: components.css owns .sh-disclosure__body and .sh-disclosure__summary. */
+    .generate-more > div { display: grid; gap: var(--space-5); }
     /* The list of what is inside wraps under the name on a narrow pane instead of squeezing it. */
-    .generate-more > .sh-disclosure__summary { flex-wrap: wrap; }
+    .generate-more > summary { flex-wrap: wrap; }
     .generate-more .sh-disclosure__label { white-space: nowrap; }
     .generate-more .generate-rows { margin-top: 0; }
     .generate-case-hint { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
