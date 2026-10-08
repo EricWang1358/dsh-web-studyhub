@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { practiceArgs } from '../learning-navigation.js';
+import { dailyPathArgs } from '../study-map/home-plan.js';
 
 /* What the learner means, said once (ui-consistency #114): "go and make questions", "open this deck", "practise these".
    Every button that means one of these calls it here, so a change such as "always keep the way back" is made in one place. */
@@ -32,8 +33,8 @@ export function useIntents({ core, lib, nav, session, learn }) {
   const openDeck = useCallback((id) => act('deck.get', { id }, nav.show.deck), [act, nav.show]);
 
   /**
-   * Start a practice round on a scope of cards. fresh (default) skips what is already learned; returnTo offers a way back to
-   * that run; extra goes to the host as is; then (default: open the run) says what happens with the started run.
+   * Start a practice round on a scope of cards. fresh (default) starts a new run instead of resuming the open run of the same scope;
+   * returnTo offers a way back to that run; extra goes to the host as is; then (default: open the run) says what happens with the started run.
    */
   const practice = useCallback((scope, { fresh = true, returnTo, extra, then } = {}) =>
     act('review.start', practiceArgs(scope, { fresh, returnTo, ...extra }), then || session.enterRun), [act, session.enterRun]);
@@ -54,15 +55,15 @@ export function useIntents({ core, lib, nav, session, learn }) {
   const startCourseFlow = useCallback((extra = {}) => act('workflow.quickstart', { course: true, requestId: crypto.randomUUID(), ...extra },
     (result) => nav.show.workflow(result.session.id)), [act, nav.show]);
 
-  /** S from anywhere: resume the last round, start today's path, or (with no decks) go and make some. */
+  /** S from anywhere: resume the last round, start today's path (the one the home card starts), or (with no decks) go and make some. */
   const resumeOrStart = useCallback(() => {
     setError('');
     const { page, run } = latest.current, data = refs.dataRef.current;
     if (page === 'review' && run && !run.complete) return;
     if (data?.lastRun) openRun(data.lastRun.id);
-    else if (data?.decks.length) practice(undefined, { fresh: false });
+    else if (data?.decks.length) act('review.start', dailyPathArgs(data.today), session.enterRun);
     else goGenerate();
-  }, [goGenerate, openRun, practice, refs, setError]);
+  }, [act, goGenerate, openRun, refs, session.enterRun, setError]);
 
   return useMemo(() => ({ genSource, setGenSource, revealHome, setRevealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading,
     startCourseFlow, resumeOrStart }),

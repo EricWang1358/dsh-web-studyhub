@@ -59,11 +59,13 @@ test('the other ways to start sit under one folded line: new questions, due revi
   const html = render();
   assert.match(html, /<details class="desk-more"><summary>其他开始方式<\/summary>/);
   const more = html.slice(html.indexOf('<details class="desk-more">'), html.indexOf('</details>', html.indexOf('<details class="desk-more">')));
-  assert.match(more, /到期复习与巩固 · 4 题/);
+  assert.match(more, /课程下一批 · 3 题/);
+  assert.match(more, /只学当前课程新题 · 10 题/);
   assert.match(more, /先讲后练 · 学习流/);
   assert.match(more, /刷 4 道为你定制的题/);
   assert.match(more, /2 题薄弱/);
-  assert.doesNotMatch(html.replace(more, ''), /到期复习与巩固 · 4 题/, 'not shown twice');
+  assert.doesNotMatch(html.replace(more, ''), /课程下一批 · 3 题/, 'not shown twice');
+  assert.match(html, /<div class="today-count"><strong>4<\/strong><span>题待学<\/span>/, 'the card itself is the day\'s path, one number');
   assert.equal(count(html, /class="coach-offer"/g), 0, 'the personalised questions are a link here, not a third card');
   // Nothing to fold: no line.
   assert.doesNotMatch(render({ coach: { ready: 0 }, today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } }), /desk-more/);
