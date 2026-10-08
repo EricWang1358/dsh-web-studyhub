@@ -260,11 +260,12 @@ export function forecastText(forecast) {
 }
 
 /** The sum behind the number, to be checked by eye: 「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」 (the parts are rounded to two digits, the whole is their sum). '' while nothing was used or nothing is said. */
-export function forecastMath(forecast) {
+export function forecastMath(forecast, { own = false } = {}) {
   const tokens = forecast?.tokens;
   if (!(tokens?.left > 0) || !(tokens.used > 0)) return '';
   const compact = (value) => formatCompactTokens(Math.round(value));
-  return uiFormat('已用 {0} + 还要约 {1} ≈ 共约 {2} tok', [compact(tokens.used), compact(tokens.left), compact(tokens.total)]);
+  // `own`: the job continues a run that spent tokens before it (runFacts ownTokens): its 已用 is said as its own, in the same words as the line above.
+  return uiFormat(own ? '本任务已用 {0} + 还要约 {1} ≈ 共约 {2} tok' : '已用 {0} + 还要约 {1} ≈ 共约 {2} tok', [compact(tokens.used), compact(tokens.left), compact(tokens.total)]);
 }
 
 /** The time left: a figure or a range, or plainly why there is none (too little progress, still queued, paused, nearly done). It is the pace of THIS run, not the limit of a round. */
@@ -288,16 +289,18 @@ export const waitingText = (facts) => uiFormat('第 {0} 轮完成，还有 {1} �
 /**
  * The line of a run, from `runFacts` (lib/coverage-run.js): 「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 2.0M tok、约 25 分钟」. Paused, waiting, stopped, finished and interrupted runs say
  * where they are instead of the round that is being made. `interrupted`: the host stopped while it ran (the job is restored with 接着做). `forecast` (runForecast): the console says what is left from the
- * run's own progress (forecastText) instead of the projection of the rounds done; without one (the home row) it is the projection.
+ * run's own progress (forecastText) instead of the projection of the rounds done; without one (the home row) it is the projection. 已用 is runFacts' tokensUsed: a job's own tokens on the line of a job (the same
+ * number as its usage), the run's on the line of a draft; a job that continues a run that spent tokens before it says 「本任务已用」 (`ownTokens`), so it is never read as the run's.
  */
 export function runLine(facts, { interrupted = false, forecast } = {}) {
   if (!facts?.total) return '';
-  const cover = Number.isFinite(facts.percent) ? uiFormat('覆盖 {0}%', [facts.percent]) : '', used = facts.tokensUsed > 0 ? uiFormat('已用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : '';
+  const tokens = formatCompactTokens(Math.round(facts.tokensUsed || 0));
+  const cover = Number.isFinite(facts.percent) ? uiFormat('覆盖 {0}%', [facts.percent]) : '', used = facts.tokensUsed > 0 ? uiFormat(facts.ownTokens ? '本任务已用 {0} tok' : '已用 {0} tok', [tokens]) : '';
   if (interrupted) return [uiFormat('中断于第 {0} 轮', [facts.round]), cover, used, uiFormat('接着做会从第 {0} 轮继续', [facts.round])].filter(Boolean).join(META_DOT);
   if (facts.ended) {
     const head = facts.state === 'stopped' ? uiFormat('停在第 {0} 轮之后', [Math.max(1, facts.done)]) : uiFormat('共 {0} 轮', [facts.done]);
     // A retry (补做) that made no question is said: the rounds that were made are not only the ones counted done.
-    return [head, facts.state === 'stopped' && facts.fillsFailed > 0 && uiFormat('补做 {0} 次没成功', [facts.fillsFailed]), cover, facts.tokensUsed > 0 ? uiFormat('共用 {0} tok', [formatCompactTokens(Math.round(facts.tokensUsed))]) : ''].filter(Boolean).join(META_DOT);
+    return [head, facts.state === 'stopped' && facts.fillsFailed > 0 && uiFormat('补做 {0} 次没成功', [facts.fillsFailed]), cover, facts.tokensUsed > 0 ? uiFormat(facts.ownTokens ? '本任务共用 {0} tok' : '共用 {0} tok', [tokens]) : ''].filter(Boolean).join(META_DOT);
   }
   if (facts.waiting) return [waitingText(facts), cover, used].filter(Boolean).join(META_DOT);
   const left = forecast !== undefined && forecast !== null ? forecastText(forecast) : projectionText(facts.projection);
@@ -371,11 +374,13 @@ export function coveragePathText(s) {
     : uiFormat('覆盖现在 {0}（{1}%）→ 本轮后约 {2}% → 目标 100%，还要 {3} 轮、约 {4} 题', [now, s.coveragePercent, s.afterRoundPercent, s.roundsToFull, s.questionsToFull]);
 }
 
-/** The same way, said by a run that works (its rounds are the job's): 「覆盖现在 31% → 目标 100%，还要 3 轮、约 90 题」. */
+/** The same way, said by a run that works (its rounds are the job's): 「覆盖现在 31% → 目标 100%，还要 3 轮、约 90 题」. The questions are what is LEFT (runFacts questionsLeft: the sections that still have
+    no question, the points the planner returned for the round in flight), the rounds those that still have something to make (`roundsLeft`; a round whose sections all have a question is skipped). */
 export function runPathText(run) {
-  if (!run?.total || run.ended || !Number.isFinite(run.percent) || !(run.left > 0) || !(run.questionsLeft > 0)) return '';
-  return run.left === 1 ? uiFormat('覆盖现在 {0}% → 目标 100%，还要 1 轮、约 {1} 题', [run.percent, run.questionsLeft])
-    : uiFormat('覆盖现在 {0}% → 目标 100%，还要 {1} 轮、约 {2} 题', [run.percent, run.left, run.questionsLeft]);
+  const rounds = Number.isInteger(run?.roundsLeft) ? run.roundsLeft : run?.left;
+  if (!run?.total || run.ended || !Number.isFinite(run.percent) || !(rounds > 0) || !(run.questionsLeft > 0)) return '';
+  return rounds === 1 ? uiFormat('覆盖现在 {0}% → 目标 100%，还要 1 轮、约 {1} 题', [run.percent, run.questionsLeft])
+    : uiFormat('覆盖现在 {0}% → 目标 100%，还要 {1} 轮、约 {2} 题', [run.percent, rounds, run.questionsLeft]);
 }
 
 /** 「精简：先出第 1 轮，覆盖 12%；点「自动补到完整」继续」: what a run that waits for the learner (自动补到完整 is off) has done, and how it goes on. */

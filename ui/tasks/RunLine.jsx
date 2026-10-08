@@ -33,7 +33,7 @@ export default function RunLine({ task, shortfall, now = Date.now(), onOpenSourc
   const standing = shortfall && !['running', 'paused'].includes(shortfall.state);
   const counts = standing ? joinMeta([continuing ? continueLine(shortfall) : shortfallLine(shortfall), shortfall.state === 'done' ? '' : nextRoundText(shortfall)]) : '';
   const path = standing ? coveragePathText(shortfall) : runPathText(run);
-  const forecast = interrupted ? null : forecastOf(contract, now), math = forecast ? forecastMath(forecast) : '';
+  const forecast = interrupted ? null : forecastOf(contract, now), math = forecast ? forecastMath(forecast, { own: !!run.ownTokens }) : '';
   return (
     <div className="tc-run" role="status" aria-label={ui('出题计划')} data-run-state={interrupted ? 'interrupted' : run.state || 'running'}>
       <span className="tc-run__k">{ui('出题计划')}</span>
