@@ -45,9 +45,9 @@ test('the switch is there, names both modes and explains them on hover and focus
   const out = render(lib.LearningPanel, panel());
   assert.match(out, /role="group"[^>]*aria-label="阅读与批注"/);
   assert.match(out, /aria-pressed="true"[^>]*>阅读<\/button>/); assert.match(out, /aria-pressed="false"[^>]*>批注<\/button>/);
-  const tip = tips(out).find(item => /阅读：回答不保存/.test(item.text));
+  const tip = tips(out).find(item => /阅读：回答只在阅读器打开期间保留/.test(item.text));
   assert.ok(tip, 'the explanation exists');
-  assert.match(tip.text, /换一段原文或离开阅读器就会丢失/); assert.match(tip.text, /批注：每条回答都和这段原文一起保存，再选中这段时会回来/);
+  assert.match(tip.text, /关闭阅读器就会丢失/); assert.match(tip.text, /批注：每条回答都和这段原文一起保存，再选中这段时会回来/);
   assert.ok(anchored(out, tip), 'and the switch is tied to it');
   assert.match(out, /<button[^>]*tabindex="0"[^>]*aria-pressed="true"|<button[^>]*aria-pressed="true"[^>]*tabindex="0"/, 'the active segment can be focused');
   assert.doesNotMatch(out, /title="[^"]*批注/, 'no title attribute carries it');
@@ -58,7 +58,7 @@ test('the switch is there, names both modes and explains them on hover and focus
 test('the note under the ask box stays visible and says what 阅读 does; 批注 says it keeps', () => {
   lib.setUiLanguage('zh');
   const read = text(render(lib.LearningPanel, panel()));
-  assert.match(read, /阅读模式：问答不会保存。要留下来，切到批注，或点「存为批注」。/);
+  assert.match(read, /阅读模式：问答只在阅读器打开时保留。要留下来，点「存为批注」或切到批注。/);
   const annotate = text(render(lib.LearningPanel, panel({ mode: 'annotate' })));
   assert.match(annotate, /批注模式：每条回答都会和这段原文一起保存。/); assert.doesNotMatch(annotate, /阅读模式/);
   const markup = render(lib.LearningPanel, panel());
@@ -89,13 +89,13 @@ test('a thread restored from kept items is shown as kept, with its path heading'
   assert.match(text(out), /已存为批注/); assert.match(out, /md-term--asked/, 'the term that was asked is marked, so a click finds it');
 });
 
-test('the quick questions say which question they fill in and that nothing is sent yet', () => {
+test('the quick questions say which question they send, and that clicking sends it', () => {
   lib.setUiLanguage('zh');
   const out = render(lib.LearningPanel, panel());
   const found = tips(out);
   for (const question of ['这段我没听懂，请按原文顺序讲一下。', '请依据这段原文举一个例子。', '为什么会这样？请依据这段原文回答。', '这里的内容和什么容易混淆？有什么区别？']) {
-    const tip = found.find(item => item.text.includes(`会填入：「${question}」`));
-    assert.ok(tip, question); assert.match(tip.text, /按「依据原文回答」后才会发送/); assert.ok(anchored(out, tip), question);
+    const tip = found.find(item => item.text.includes(`点击即发送：「${question}」`));
+    assert.ok(tip, question); assert.doesNotMatch(tip.text, /按「依据原文回答」/); assert.ok(anchored(out, tip), question);
   }
   const quiz = found.find(item => /补充到现有题组/.test(item.text) && /不会自动出题/.test(item.text));
   assert.ok(quiz && anchored(out, quiz));
@@ -164,10 +164,10 @@ test('English: the switch, the note, the keeping and every explanation are Engli
     const markup = render(lib.LearningPanel, panel({ thread, notice: 'x', noticeWhy: lib.refusal('depth').why }));
     assert.doesNotMatch(markup, han, 'no Chinese anywhere, attributes included');
     const out = text(markup);
-    for (const phrase of ['Read', 'Annotation', 'Read mode: questions and answers are not saved. To keep them, switch to Annotation, or press “Keep as annotation”.', 'Keep as annotation',
+    for (const phrase of ['Read', 'Annotation', 'Read mode: answers are kept only while the reader is open. To keep them, press “Keep as annotation” or switch to Annotation.', 'Keep as annotation',
       'Keeps these questions and answers together with this passage.', 'Every question calls the model once; the limits keep the usage down.',
-      'Read: answers are not saved; they are lost when you change the passage or leave the reader.', 'Annotation: every answer is kept with the passage and comes back when you select it again.',
-      'Nothing is sent until you press “Answer using the source”.', 'Fills in: “I didn\'t get this passage. Please walk me through it in the order of the source.”', 'Nothing is generated automatically.',
+      'Read: answers are kept only while the reader is open; closing the reader loses them.', 'Annotation: every answer is kept with the passage and comes back when you select it again.',
+      'Sends at once: “I didn\'t get this passage. Please walk me through it in the order of the source.”', 'Nothing is generated automatically.',
       'Explains this word using only the selected passage; the answer opens under this one. Nothing is asked until you click.']) assert.ok(out.includes(phrase), phrase);
     assert.match(render(lib.LearningPanel, panel({ mode: 'annotate' })), /Annotation mode: every answer is kept with this passage\./);
     const kept = text(render(lib.LearningPanel, panel({ thread, savedIds: new Set(['n1', 'n2']), mode: 'annotate' })));

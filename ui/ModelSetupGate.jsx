@@ -61,13 +61,33 @@ const FEATURES = {
     line: ui('翻译需要先在设置里连接模型。'),
     note: ui('阅读可以继续；翻译前需要先配置模型。'),
   }),
+  // The reader (ui/document-preview/ReaderModelGate.jsx): questions about a selected passage and top-up questions from it, and the AI outline.
+  passage: () => ({
+    why: ui('针对原文提问和补题要调用 AI 模型。配置好之后回到这里再试一次。'),
+    then: ui('回到这里，再提一次问'),
+    line: ui('提问和补题需要先配置模型；原文与已有引用仍可浏览。'),
+    note: ui('阅读可以继续；提问和补题前需要先配置模型。'),
+  }),
+  outline: () => ({
+    why: ui('让 AI 整理目录要调用 AI 模型。配置好之后回到这里再试一次。'),
+    then: ui('回到这里，再让 AI 整理一次'),
+    line: ui('让 AI 整理目录需要先配置模型；仍使用自动目录。'),
+    note: ui('阅读可以继续；整理目录前需要先配置模型。'),
+  }),
+  // Drafting a note from questions (ui/BlogNotes.jsx).
+  note: () => ({
+    why: ui('AI 起草要调用 AI 模型。配置好之后回到这里，点「AI 起草解析」。'),
+    then: ui('回到这里，点「AI 起草解析」'),
+    line: ui('AI 起草需要先配置模型；也可以自己写。'),
+    note: ui('可以先自己写；AI 起草前需要先配置模型。'),
+  }),
 };
 
 /** The one-line wording of the gate for a feature, for a message that is thrown or toasted rather than drawn (feature: see FEATURES). */
 export const gateMessage = (feature = 'generate', model) => (FEATURES[feature] || FEATURES.generate)(model || {}).line;
 
 /**
- * variant: 'block' | 'inline' | 'banner'; feature: 'generate' | 'case' | 'grade' | 'ingest' | 'translate' | 'variants' | 'examprep'. `model` is the readiness
+ * variant: 'block' | 'inline' | 'banner'; feature: 'generate' | 'case' | 'grade' | 'ingest' | 'translate' | 'variants' | 'examprep' | 'passage' | 'outline' | 'note'. `model` is the readiness
  * ({ ready, reason, label }, see modelReadiness): a ready model renders nothing. Without onOpenSettings there is no button.
  * Other props (data-tour…) go to the outer element.
  */

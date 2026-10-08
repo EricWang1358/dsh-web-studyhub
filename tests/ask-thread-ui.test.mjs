@@ -30,7 +30,7 @@ const built = () => {
   return answerNode(addNode(thread, { id: 'n2', parentId: 'n1', question: 'what is ELK', term: 'ELK' }), 'n2', 'ELK 是 [[Kibana]] 的上游。');
 };
 
-test('the ask box offers quick questions that only fill the box, and a jump to the quiz form', () => {
+test('the ask box offers quick questions that send at once, and a jump to the quiz form', () => {
   lib.setUiLanguage('zh');
   const out = render(panel());
   for (const chip of ['没听懂', '举个例子', '为什么', '和什么有区别', '出题考我']) assert.match(text(out), new RegExp(chip), chip);

@@ -3,18 +3,25 @@ import Markdown from '../Markdown.jsx';
 import { ui, uiFormat, uiLanguageName } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
-import { Badge, Button, Combobox, InlineMessage, SegmentedControl, Select, Tooltip, useNow, useToast } from '../components/index.js';
+import { Badge, Button, Combobox, Disclosure, InlineMessage, SegmentedControl, Select, Tooltip, useNow, useToast } from '../components/index.js';
+import { joinMeta } from '../format.js';
+import { kinds } from '../shared.js';
 import { usePolling } from '../use-polling.js';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
 import AskThread, { refusal } from './AskThread.jsx';
-import { itemsOfPassage, nodesToKeep, threadFromItems } from './annotation/model.js';
+import { itemsOfPassage, keyOfSelection, nodesToKeep, threadFromItems } from './annotation/model.js';
 import { addNode, answerNode, emptyThread, failNode, nodeOf, planAsk, retryNode, revealNode, threadFor, toggleNode } from './ask-thread.js';
+import { createThreadMemory } from './thread-memory.js';
+import { recallDeck, rememberDeck, suggestDeck, supplementDefaults } from './supplement-defaults.js';
+import ReaderModelGate, { useReaderServices } from './ReaderModelGate.jsx';
 import { deckChoices, deckEntries } from '../deck-picker-entries.js';
 import { JOB_STATUS } from '../../lib/job-status.js';
 
 const noop = () => {};
+/** The key a passage's unsaved thread is held under: where it is and what it says (a text that changed under the same offsets is another passage). */
+const heldKey = selection => (keyOfSelection(selection) ? `${keyOfSelection(selection)}|${selection.quote || ''}` : '');
 const statusLabels = {
   ambiguous: '原文中有多处相同文字，请缩小选区或加入前后文后重新选择。',
   stale: '资料已更新，这段引用需要在当前原文中重新选择。',
@@ -45,11 +52,13 @@ function PassageQuote({ quote }) {
   </div>;
 }
 
-/** First-level questions in one click: they fill the box (and focus it) so the learner can edit before asking; nothing is asked by itself. */
-function QuickIntents({ onPick, onQuiz }) {
-  // The chip's name stays with the thread as the first step of its path; hovering or focusing a chip says the exact question it fills in.
-  const chip = (label, question) => <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{uiFormat('会填入：「{0}」', [question])}</span><span>{ui('按「依据原文回答」后才会发送。')}</span></span>}>
-    <Button size="sm" onClick={() => onPick(question, label)}>{label}</Button>
+/**
+ * First-level questions in one click: a chip asks at once, like the follow-up chips under an answer (typing a question of one's own still takes the box and the button).
+ * The chip's name stays with the thread as the first step of its path; hovering or focusing a chip says the exact question it sends.
+ */
+function QuickIntents({ onAsk, onQuiz, disabled = false }) {
+  const chip = (label, question) => <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{uiFormat('点击即发送：「{0}」', [question])}</span></span>}>
+    <Button size="sm" disabled={disabled} onClick={() => onAsk(question, label)}>{label}</Button>
   </Tooltip>;
   return <div className="ask-quick" role="group" aria-label={ui('快捷提问')}>
     {chip(ui('没听懂'), ui('这段我没听懂，请按原文顺序讲一下。'))}
@@ -64,7 +73,7 @@ function QuickIntents({ onPick, onQuiz }) {
 
 /** 阅读 / 批注: whether the answers of this panel are kept. The words on hover and focus say what each mode does to them. */
 export function ModeSwitch({ mode, onMode }) {
-  return <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{ui('阅读：回答不保存，换一段原文或离开阅读器就会丢失。')}</span><span>{ui('批注：每条回答都和这段原文一起保存，再选中这段时会回来。')}</span></span>}>
+  return <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{ui('阅读：回答只在阅读器打开期间保留，关闭阅读器就会丢失。')}</span><span>{ui('批注：每条回答都和这段原文一起保存，再选中这段时会回来。')}</span></span>}>
     <SegmentedControl size="sm" label={ui('阅读与批注')} value={mode} onChange={onMode}
       options={[{ value: 'read', label: ui('阅读') }, { value: 'annotate', label: ui('批注') }]} />
   </Tooltip>;
@@ -75,12 +84,13 @@ export function ModeSwitch({ mode, onMode }) {
  * this material. Nothing here waits: asking is only blocked while it is itself answering, and the supplement form stays
  * editable while a job runs (the same passage and deck is refused, another one is fine).
  */
-export function LearningPanel({ capture, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', count = 3, kind = 'flashcard',
+export function LearningPanel({ capture, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 10, kind = 'quiz',
   decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, jobs = [], now = Date.now(), call, sectionRef,
-  onQuestion, onAsk, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
+  onQuestion, onAsk, onQuick, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
   const asking = thread.nodes.some(node => node.parentId === null && node.status === 'asking');
   const area = useRef(null), supplement = useRef(null);
+  const { openSettings } = useReaderServices();
   const blocking = resolved && deckId ? blockingJob(jobs, resolution.selection, deckId) : null;
   const list = <SelectionJobList jobs={jobs} now={now} {...jobHandlers} />;
   // The jobs come first: progress is what the learner looks for after pressing the button, and it must not scroll away below the forms.
@@ -98,16 +108,17 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
     {resolution && !resolved && <InlineMessage tone="warning">{ui(statusLabels[resolution.status] || '这段文字暂时无法使用。')}</InlineMessage>}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     {resolved && <>
+      {!modelReady && <ReaderModelGate feature="passage" />}
       <form onSubmit={onAsk}>
         <label>{ui('针对这段原文提问')}<textarea ref={area} value={question} required rows={2} disabled={asking}
           onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('例如：这里的因果关系是什么？')} /></label>
-        <QuickIntents onPick={(text, label) => { onQuestion?.(text, label); area.current?.focus(); }} onQuiz={() => {
+        <QuickIntents disabled={!askReady || asking} onAsk={(text, label) => onQuick?.(text, label)} onQuiz={() => {
           supplement.current?.scrollIntoView?.({ block: 'nearest' });
           supplement.current?.querySelector('input, button, select')?.focus();
         }} />
         <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim()}>{ui('依据原文回答')}</Button>
       </form>
-      {modeSwitch && <p className="muted ask-note">{mode === 'annotate' ? ui('批注模式：每条回答都会和这段原文一起保存。') : ui('阅读模式：问答不会保存。要留下来，切到批注，或点「存为批注」。')}</p>}
+      {modeSwitch && <p className="muted ask-note">{mode === 'annotate' ? ui('批注模式：每条回答都会和这段原文一起保存。') : ui('阅读模式：问答只在阅读器打开时保留。要留下来，点「存为批注」或切到批注。')}</p>}
       <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} mode={mode} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError}
         onKeep={annotateReady ? onKeep : undefined} onDelete={onDeleteThread} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop}
         save={{ call, selection: resolution.selection, deckId, decks, ready: saveReady, onSaved, onOpenCard: jobHandlers.onOpenCard, isCurrent }} />
@@ -116,34 +127,44 @@ export function LearningPanel({ capture, resolution, resolving = false, error = 
           emptyText={query => uiFormat('没有叫「{0}」的题组', [query])}
           options={deckEntries(decks)} /></label>
         {!decks.length && <p className="muted">{ui('请先创建或导入一个题组，再从资料中补题。')}</p>}
-        <div className="study-selection-options">
-          <label>{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)} options={[
-            { value: 'flashcard', label: ui('闪卡') }, { value: 'quiz', label: ui('单选测验') }, { value: 'multi', label: ui('多选测验') },
-            { value: 'open', label: ui('开放问答') }, { value: 'cloze', label: ui('填空卡') }]} /></label>
-          <label>{ui('题数')}<input type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
-        </div>
+        {deckNote && deckId && <p className="muted study-selection-reason" role="status">{deckNote}</p>}
+        {/* The kind and the number are the ones of 设置 › 出题偏好, said here and changeable for this run; the settings themselves are not touched. */}
+        <Disclosure className="study-selection-more" summary={ui('更多设置')} meta={joinMeta([kinds[kind], uiFormat('{0} 题', [Number(count) || 1])])}>
+          <div className="study-selection-options">
+            <label>{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)} options={[
+              { value: 'flashcard', label: ui('闪卡') }, { value: 'quiz', label: ui('单选测验') }, { value: 'multi', label: ui('多选测验') },
+              { value: 'open', label: ui('开放问答') }, { value: 'cloze', label: ui('填空卡') }]} /></label>
+            <label>{ui('题数')}<input type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
+          </div>
+          <p className="muted">{ui('题型和题数取自设置里的出题偏好；在这里改，不会改动设置。')}
+            {openSettings && <> <Button variant="link" size="sm" onClick={() => openSettings('settings-generation')}>{ui('前往设置')}</Button></>}</p>
+        </Disclosure>
         <p className="muted">{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</p>
         {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
           request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: uiLanguageName() }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
         <Button type="submit" variant="primary" busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
       </form>
-      {!modelReady && <p className="muted">{ui('连接模型后可提问和补题；原文与已有引用仍可浏览。')}</p>}
     </>}
   </section>;
 }
 
 /** One resolved selection feeds both grounded questions and reviewed, incremental publication (a background job). */
-export default function DocumentLearning({ call, document, capture, data, annotation, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
+export default function DocumentLearning({ call, document, capture, data, annotation, usedBy, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
   const toast = useToast();
   const [resolution, setResolution] = useState(null), [resolving, setResolving] = useState(false);
   const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [refused, setRefused] = useState(''), [refusedWhy, setRefusedWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
   // The thread of this selection lives here only: planning a click reads the latest one, even before React has rendered the last change.
   const threadRef = useRef(thread);
   const commit = next => { threadRef.current = next; setThread(next); };
+  // What 阅读 mode did not keep, held per passage while the reader is open (thread-memory.js).
+  const memory = useRef(null);
+  if (!memory.current) memory.current = createThreadMemory();
   // The inline refusal of the thread (what it cannot ask, and why): it sits in the thread, not in a toast, and a new selection or question clears it.
   const say = (text = '', why = '') => { setRefused(text); setRefusedWhy(why); };
-  const [deckId, setDeckId] = useState(''), [count, setCount] = useState(3), [kind, setKind] = useState('flashcard');
+  // The top-up form starts filled in: a deck guessed from the material (or the last one used), the kind and the number of 设置 › 出题偏好. What the learner picks is held here (null: not picked yet).
+  const [pickedDeck, setPickedDeck] = useState(null), [pickedCount, setPickedCount] = useState(null), [pickedKind, setPickedKind] = useState(null);
+  const [lastDeck, setLastDeck] = useState(recallDeck);
   const [starting, setStarting] = useState(false), [error, setError] = useState('');
   const [jobs, setJobs] = useState([]), [dismissed, setDismissed] = useState(() => new Set());
   const [fallbackSnapshot, setFallbackSnapshot] = useState(null), [capabilities, setCapabilities] = useState(null), [bankDecks, setBankDecks] = useState(null);
@@ -173,6 +194,9 @@ export default function DocumentLearning({ call, document, capture, data, annota
     return () => { current = false; };
   }, [call, document, capture]);
   const decks = deckChoices(bankDecks ?? snapshot?.decks ?? [], snapshot).filter(deck => !deck.archived);
+  const guess = suggestDeck({ usedBy, decks, last: lastDeck }), deckId = pickedDeck ?? guess.deckId;
+  const deckNote = pickedDeck === null && guess.reason ? (guess.reason === 'material' ? ui('已选这份资料唯一的题组。') : ui('已选你上次补题用的题组。')) : '';
+  const defaults = supplementDefaults(snapshot?.settings?.generation), kind = pickedKind ?? defaults.kind, count = pickedCount ?? defaults.count;
   const available = (domain, operation) => (capabilities || []).find(item => item.id === domain)?.operations
     ?.some(item => item.name === operation && item.available !== false) === true;
   const askReady = available('materials', 'selection.ask'), generateReady = available('generation', 'selection.start'), modelReady = askReady || generateReady;
@@ -185,6 +209,14 @@ export default function DocumentLearning({ call, document, capture, data, annota
   const ensureCurrent = () => {
     if (!isCurrent()) throw new Error(ui('预览页已切换，请在当前资料中重新选择文字。'));
   };
+  // A new selection starts a new thread, but an answer that was paid for is not lost: the thread of this passage is held (also while its question is waiting) and comes back when the passage is selected again.
+  const passageKey = resolution?.status === 'resolved' ? heldKey(resolution.selection) : '';
+  useEffect(() => {
+    if (!passageKey || modeRef.current === 'annotate' || threadRef.current.nodes.length) return;
+    const held = memory.current.recall(passageKey);
+    if (held) { commit(held.thread); setSavedLocal(held.saved); }
+  }, [passageKey]);
+  useEffect(() => { memory.current.remember(passageKey, thread, savedLocal); }, [passageKey, thread, savedLocal]);
 
   // Supplements still running (or just finished) when the reader was closed come back with it.
   useEffect(() => {
@@ -225,8 +257,9 @@ export default function DocumentLearning({ call, document, capture, data, annota
 
   /** Ask the model for one node of the thread; a thread that was dropped meanwhile (another selection) is left alone. */
   async function run(id, { question: asked, term = '', context = [] }) {
-    const selection = resolution.selection;
-    const settle = change => { if (nodeOf(threadRef.current, id)) commit(change(threadRef.current)); };
+    const selection = resolution.selection, held = heldKey(selection);
+    // The answer lands in the thread on screen; when the learner has moved to another passage meanwhile, in the thread held for this one.
+    const settle = change => { if (nodeOf(threadRef.current, id)) commit(change(threadRef.current)); else memory.current.settle(held, id, change); };
     try {
       ensureCurrent();
       const value = await call('materials.selection.ask', { selection, question: asked, language: uiLanguageName(), terms: true,
@@ -258,6 +291,7 @@ export default function DocumentLearning({ call, document, capture, data, annota
   }
   async function deleteThread() {
     await call('materials.annotation.delete', { documentId, revision: document.revision, selection: resolution.selection });
+    memory.current.forget(passageKey);
     commit(emptyThread()); setSavedLocal(new Set());
     await annotation.onChanged?.();
   }
@@ -267,12 +301,22 @@ export default function DocumentLearning({ call, document, capture, data, annota
     const kept = itemsOfPassage(annotation?.items, resolution.selection);
     if (kept.length) commit(threadFromItems(kept));
   }, [mode, resolution, annotation?.items]);
-  /** A new first-level question starts a new thread. */
+  /**
+   * A new first-level question: the box's own, or a chip's (which asks at once, and does not touch what the learner typed). It joins the answers already on this passage, so a
+   * second chip does not make the first answer (paid for) disappear; only a thread that has reached its limit is started again.
+   */
+  function askFirst(text, label = '') {
+    const current = threadRef.current;
+    if (!resolution || !text.trim() || current.nodes.some(node => node.parentId === null && node.status === 'asking')) return undefined;
+    setError(''); say();
+    const id = crypto.randomUUID(), base = current.nodes.length && planAsk(current, { parentId: null }).action === 'ask' ? current : emptyThread();
+    commit(addNode(base, { id, parentId: null, question: text, label }));
+    setFocusId(id); // the answer comes in under the chips and the form: bring it into view
+    return run(id, { question: text });
+  }
   function ask(event) {
-    event.preventDefault(); setError(''); say();
-    const id = crypto.randomUUID();
-    commit(addNode(emptyThread(), { id, parentId: null, question, label: questionLabel }));
-    return run(id, { question });
+    event.preventDefault();
+    return askFirst(question, questionLabel);
   }
   /** A click on a term, a quick follow-up or the box under an answer: a child of `parentId`. Only the refusal or the jump needs no model. */
   function askInside({ parentId, term = '', question: typed = '' }) {
@@ -320,6 +364,7 @@ export default function DocumentLearning({ call, document, capture, data, annota
       ensureCurrent();
       const { started, deck } = await begin({ selection: resolution.selection, deckId, count: Number(count), kind, operationId: crypto.randomUUID() });
       setReveal(started.operationId);
+      rememberDeck(deckId); setLastDeck(deckId);
       await onStarted?.(started);
       noticeRef.current?.(startedNotice(started, deck.title || deckName(started.job)));
     } catch (e) { setError(startErrorText(e.message)); }
@@ -342,11 +387,11 @@ export default function DocumentLearning({ call, document, capture, data, annota
   const shown = jobs.filter(job => !dismissed.has(job.operationId));
   return <LearningPanel capture={capture} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={refused} noticeWhy={refusedWhy}
     mode={mode} onMode={annotation?.onMode} annotateReady={annotateReady} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError} onKeep={keep} onDeleteThread={deleteThread}
-    onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode}
-    deckId={deckId} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}
+    onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} onQuick={askFirst}
+    deckId={deckId} deckNote={deckNote} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}
     starting={starting} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
     saveReady={available('generation', 'selection.saveAnswer')} onSaved={onPublished} isCurrent={isCurrent}
-    onQuestion={(text, label = '') => { setQuestion(text); setQuestionLabel(label); }} onAsk={ask} onDeck={setDeckId} onCount={setCount} onKind={setKind} onStart={start}
+    onQuestion={(text, label = '') => { setQuestion(text); setQuestionLabel(label); }} onAsk={ask} onDeck={setPickedDeck} onCount={setPickedCount} onKind={setPickedKind} onStart={start}
     onCancel={cancel} onRetry={retry} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}
     onPractice={onPractice} onOpenDeck={onOpenDeck} onOpenCard={onOpenCard} />;
 }

@@ -4,6 +4,7 @@ import { Badge, Button, Icon, InlineMessage, Menu, Spinner } from '../../compone
 import { useCopyFeedback } from '../../use-copy-feedback.js';
 import MathText from '../../MathText.jsx';
 import { failureKind, shortQuote, versionOf } from './model.js';
+import ReaderModelGate from '../ReaderModelGate.jsx';
 
 /* One paragraph's translation, drawn as a block right after the paragraph (逐段对照), in the right column beside it (左右分栏),
    or instead of it (仅译文). It is a note about the passage, not the passage: role="note", the language of the translation
@@ -77,6 +78,11 @@ export default function TranslationBlock({ state, item, target, open, pendingKin
   const lang = targetLang(target), tag = targetTag(target);
   if (state === 'undo') return <div className="tr-block tr-block--note" role="status" data-state="undo">
     <span>{ui('已删除这段翻译')}</span><Button size="sm" variant="quiet" onClick={onUndo}>{ui('撤销')}</Button>
+  </div>;
+  // No model: the gate (what to do and the button to do it), not a line of text to read.
+  if (state === 'error' && error?.code === 'model') return <div className="tr-block" role="alert" data-state="error">
+    <div className="tr-block__bar"><span className="tr-block__tag tr-block__tag--static" aria-hidden="true">{tag}</span><span className="tr-block__bar-actions"><Button size="sm" variant="quiet" onClick={onDismiss}>{ui('关闭')}</Button></span></div>
+    <ReaderModelGate feature="translate" />
   </div>;
   if (state === 'error') return <div className="tr-block" role="alert" data-state="error">
     <div className="tr-block__bar"><span className="tr-block__tag tr-block__tag--static" aria-hidden="true">{tag}</span><span className="tr-block__error">{failureText(error)}</span>

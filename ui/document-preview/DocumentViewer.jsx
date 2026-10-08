@@ -6,6 +6,7 @@ import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, IconButton, InlineMessage, LoadingState, SegmentedControl } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
+import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
 import { peekStatus } from './peek/peek-logic.js';
@@ -96,8 +97,15 @@ function QuotedText({ text, quote, anchor, format }) {
  * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows "从这份资料出题" as the
  * toolbar's primary action), generateDisabled, initialMode ('read' | 'text' | 'original').
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
+ * onOpenModelSettings / onOpenSettings(section): where the gates of the reader's model features and the 前往设置 link lead (ReaderModelGate.jsx); without them the app's own are used.
  */
-export default function DocumentViewer({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
+export default function DocumentViewer(props) {
+  const { data, onOpenModelSettings, onOpenSettings } = props, model = modelReadiness(data);
+  const services = useMemo(() => ({ model, openModelSettings: onOpenModelSettings, openSettings: onOpenSettings }), [model.ready, model.reason, model.label, onOpenModelSettings, onOpenSettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <ReaderModelContext.Provider value={services}><DocumentReader {...props} /></ReaderModelContext.Provider>;
+}
+
+function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
   onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
@@ -456,7 +464,7 @@ export default function DocumentViewer({ source, quote, call, data, host, onOpen
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>
-          <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} annotation={annotation} onPublished={refreshLinks} onOpenCard={onOpenCard}
+          <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} annotation={annotation} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
             onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
           {onCaseFromPassage && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}

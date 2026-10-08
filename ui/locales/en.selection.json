@@ -68,7 +68,7 @@
   "这里的内容和什么容易混淆？有什么区别？": "What is this easily confused with, and how is it different?",
   "不会自动出题。": "Nothing is generated automatically.",
   "之后在批注模式下再次选中这段，它们会回来，原文里也会标出这段。": "Select this passage again in Annotation mode and they come back; the passage is also marked in the text.",
-  "会填入：「{0}」": "Fills in: “{0}”",
+  "点击即发送：「{0}」": "Sends at once: “{0}”",
   "删除这组批注": "Delete these annotations",
   "删除这组批注？": "Delete these annotations?",
   "原文已更新 · {0} 条批注": "Text updated · {0} annotations",
@@ -81,7 +81,6 @@
   "批注模式：每条回答都会和这段原文一起保存。": "Annotation mode: every answer is kept with this passage.",
   "批注：每条回答都和这段原文一起保存，再选中这段时会回来。": "Annotation: every answer is kept with the passage and comes back when you select it again.",
   "把这组问答和这段原文一起存下来。": "Keeps these questions and answers together with this passage.",
-  "按「依据原文回答」后才会发送。": "Nothing is sent until you press “Answer using the source”.",
   "接着这条回答问：「{0}」。点击即发送。": "Asks, under this answer: “{0}”. Clicking sends it at once.",
   "暂时无法保存为批注。": "These could not be kept as annotations right now.",
   "每次提问都会调用一次模型，限制层数和条数是为了控制用量。": "Every question calls the model once; the limits keep the usage down.",
@@ -91,6 +90,9 @@
   "这些批注属于已被替换的旧版本原文，清除后无法恢复。": "These annotations belong to an older version of the text that was replaced. They cannot be restored once cleared.",
   "这段原文上的问答会从批注中删除，不会影响原文和题目。": "The questions and answers on this passage are removed from your annotations. The text and your questions are not affected.",
   "阅读与批注": "Read or annotation mode",
-  "阅读模式：问答不会保存。要留下来，切到批注，或点「存为批注」。": "Read mode: questions and answers are not saved. To keep them, switch to Annotation, or press “Keep as annotation”.",
-  "阅读：回答不保存，换一段原文或离开阅读器就会丢失。": "Read: answers are not saved; they are lost when you change the passage or leave the reader."
+  "阅读模式：问答只在阅读器打开时保留。要留下来，点「存为批注」或切到批注。": "Read mode: answers are kept only while the reader is open. To keep them, press “Keep as annotation” or switch to Annotation.",
+  "阅读：回答只在阅读器打开期间保留，关闭阅读器就会丢失。": "Read: answers are kept only while the reader is open; closing the reader loses them.",
+  "已选这份资料唯一的题组。": "Selected the only deck this material is used by.",
+  "已选你上次补题用的题组。": "Selected the deck you last added questions to.",
+  "题型和题数取自设置里的出题偏好；在这里改，不会改动设置。": "Kind and number come from the question preferences in Settings; changing them here does not change the settings."
 }

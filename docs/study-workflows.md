@@ -151,7 +151,7 @@ What each call sends is listed in [Token usage](token-usage.md).
 
 A study note is an article built from questions you choose. You publish it on CSDN yourself; StudyHub then keeps a link to it.
 
-1. Open **Study notes** and click **＋ Turn questions into a note**. Write a **Note title**, search for questions, tick 1–30 of them and click **Create note draft**. During practice you can also choose **More › Write a note**.
+1. Open **Study notes** and click **＋ Turn questions into a note**. Write a **Note title**, search for questions, tick 1–30 of them and click **Create note draft**. During practice you can also choose **More › Write a note**; if that question already has a note draft, it opens that draft instead of making another one with the same title.
 2. Write in **Edit Markdown**. **Live preview** renders formulas with libraries bundled in StudyHub, so nothing is downloaded.
 3. Optional: **Draft explanation with AI** writes the article in the background, and the result arrives in your **Inbox**. You can keep studying meanwhile. The model gets each question with its topic, objective, answer, explanation, common misconception and your latest result. It is asked to use generic examples, with no slides, handouts, courses or personal information. A draft that still mentions slides, handouts or a file path is rejected, and you write the public version yourself.
 4. Under **Public CSDN profile and article link**, enter your profile address in the form `https://blog.csdn.net/<username>` and click **Save profile**. You do this once.

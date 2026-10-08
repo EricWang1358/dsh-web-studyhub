@@ -10,10 +10,13 @@ import { useApp } from '../app-context.js';
 
 /** The reader: a material full-size, with the questions and tasks that belong to it. Opens at a quote or where the learner stopped reading. */
 export default function SourceReaderDialog({ modal, onClose }) {
-  const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices } = useApp();
+  const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices, settingsEntry } = useApp();
   const { call, act, busy, refresh } = core;
   const toast = useToast();
   const source = modal.source;
+  // The reader is a dialog over the page: a Settings page opened from it is not seen unless the dialog goes (the host's own model settings open beside it and the reader stays).
+  const openSettings = (section) => { onClose(); settingsEntry.openSettings(section); };
+  const openModelSettings = () => { if (!host.openModelSettings) onClose(); settingsEntry.openModelSettings(); };
   const title = source
     ? <ReaderHeading data={data} source={source} act={act} call={call}
       onRenamed={(done) => toast.success(done.status === 'renamed' ? uiFormat('已重命名为「{0}」', [done.title]) : ui('名称没有变化'))} />
@@ -36,6 +39,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
             </div>
           )}
           <DocumentViewer source={source} quote={modal.quote} call={call} data={data} host={host} generateDisabled={busy}
+            onOpenModelSettings={openModelSettings} onOpenSettings={openSettings}
             onGenerate={() => intents.goGenerate({ sourceIds: documentSourceIds(data.sources, source.id), remember: true, closeModal: true })}
             onPublished={() => refresh()} onOpenCard={(reference) => { onClose(); learn.openLearningTarget({ kind: 'card', ...reference }); }}
             onOpenDeck={(deckId) => learn.openLearningTarget({ kind: 'deck', id: deckId })}

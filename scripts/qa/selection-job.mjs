@@ -122,12 +122,18 @@ export async function run(options) {
     };
     const learning = () => page.locator(".study-document-learning");
     const deckSelect = () => learning().locator("form").nth(1).locator('[role="combobox"]').first();
+    // The kind and the number are behind 更多设置 (they start as the ones of 设置 › 出题偏好): open the fold before changing them.
+    const setCount = async (value) => {
+      const fold = learning().locator("details.study-selection-more");
+      if (!(await fold.evaluate((node) => node.open))) await fold.locator("summary").click();
+      await learning().locator('input[type="number"]').fill(value);
+    };
 
     await check("select a passage and see the form with its estimate", async () => {
       await select(0);
       await learning().locator("form").nth(1).waitFor({ timeout: 15000 });
       await pickNth(page, deckSelect(), 0);
-      await learning().locator('input[type="number"]').fill("2");
+      await setCount("2");
       await page.locator("[data-token-estimate] .token-estimate__line:not(.token-estimate__line--loading)").waitFor({ timeout: 15000 });
       const estimate = await page.locator("[data-token-estimate] .token-estimate__line:not(.token-estimate__line--loading)").innerText();
       if (!/tok/.test(estimate)) throw new Error(`no estimate line: ${estimate}`);
@@ -173,7 +179,7 @@ export async function run(options) {
       await check("a second job for another passage can be started and stopped without touching the deck", async () => {
         await select(1);
         await pickNth(page, deckSelect(), 0);
-        await learning().locator('input[type="number"]').fill("1");
+        await setCount("1");
         await sleep(500);
         await learning().locator("button.primary").click();
         await until(async () => (await page.locator(".selection-job").count()) >= 2, "second job card");
