@@ -77,8 +77,17 @@ export function appliedText(applied = {}) {
   return parts.length ? uiFormat('✓ 已生效 · {0}', [parts.join('；')]) : '';
 }
 
-/** What a reply to pause / resume / cancel / retry says, in words. */
-export const actionText = (action) => ({ pause: ui('已暂停：新的调用不再开始，跑完正在进行的调用就停'), resume: ui('已继续'), cancel: ui('正在停止；已完成的部分会保留'), retry: ui('已接着做') })[action] || '';
+/** What a retry ('retry') or a stop ('cancel') keeps of the work done so far, from the contract: 'completed' (the finished part; also when the contract does not say) or 'nothing' (a job that saves only when it is whole). */
+export const keepsOf = (job, name) => (contractOf(job).actions?.[name]?.keeps === 'nothing' ? 'nothing' : 'completed');
+
+/** What a reply to pause / resume / cancel / retry says, in words. `job` (optional) is the job the reply is about: a stop says what it keeps by the job's contract. */
+export const actionText = (action, job) => ({ pause: ui('已暂停：新的调用不再开始，跑完正在进行的调用就停'), resume: ui('已继续'),
+  cancel: job && keepsOf(job, 'cancel') === 'nothing' ? ui('正在停止；这次不会保存任何结果') : ui('正在停止；已完成的部分会保留'), retry: ui('已接着做') })[action] || '';
+
+/** The words under 接着做: what pressing it does with the work already done (the title of the button), and what an ended job left (the note of 即时控制). */
+export const retryTitle = (job) => (keepsOf(job, 'retry') === 'nothing' ? ui('重新开始：会从头读取，已用的模型调用会再次计费') : ui('已完成的部分会直接复用，不会重复付费'));
+export const endedNote = (job, interrupted) => (keepsOf(job, 'retry') === 'nothing' ? ui('没有保存任何结果，点「接着做」会从头开始')
+  : interrupted ? ui('任务被中断了，已完成的部分都保留着；点「接着做」继续。') : ui('任务没有做完，已出的题都保留着；点「接着做」继续。'));
 
 /**
  * What 存为默认 writes: the action and its arguments, from the values in force, or null when this kind of job has no saved default
