@@ -46,7 +46,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
    ```
 
    Check that the package is `@ericwang1358/dsh-daily-flashcard`, version **3.1.1**. StudyHub then opens by itself. Later, open it from **StudyHub** in DSH's left sidebar (the session tab and the right sidebar also work); you do not need to send a chat message first.
-3. **Take the tour (optional, about 3 minutes).** On the welcome page, click **Load the sample and start the tour**. The 21-step tour moves through sources, generation, practice, mistakes, exams and statistics and points at the real controls. The sample makes no model calls and can be removed with one click.
+3. **Take the tour (optional, a minute or two).** On the welcome page, click **Load the sample and start the tour**. The 8-step tour follows the main line (add a source, make questions, practise), then shows where Jobs and the model settings are, pointing at the real controls. A full tour of every page is offered at its end. The sample makes no model calls and can be removed with one click.
 4. **Add a model.** Paste a key in DSH **Settings › Models** and choose a model in your session. Until then, StudyHub shows **Open model settings** wherever a step needs a model, instead of letting the step fail later.
 5. **Start with your own material.** Click **Add source** and drop several PDFs, slides or notes at once. Then use **Generate from sources**, review the draft, publish it and practise.
 

@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
-import { TOUR_STEPS, availableTourSteps, tourNeighbour, tourKeyAction, tourStepCopy } from "../ui/tour/steps.js";
+import { TOUR_STEPS, availableTourSteps, tourNeighbour, tourKeyAction, tourStepCopy, CORE_TOUR_LENGTH } from "../ui/tour/steps.js";
 import { NAV_DEFAULTS, mergeOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
@@ -46,7 +46,7 @@ const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-
   // 2.1.2 refresh (WP29)
   "generate-sources", "generate-options", "generate-summary", "wrongbook-recs", "dashboard-charts", "settings-extensions", "settings-update"];
 const PAGES = new Set(["library", "sources", "generate", "draft", "review", "wrongbook", "exam", "dashboard", "skeleton", "workflows",
-  "settings", "notes", "board", "audio", "live", "graph", "manage"]);
+  "settings", "notes", "board", "audio", "live", "graph", "manage", "tasks", "examprep"]);
 
 test("navigation is grouped by when a page is used: every day, now and then, once per course", () => {
   assert.deepEqual(NAV_DEFAULTS, {
@@ -66,16 +66,30 @@ test("navigation is grouped by when a page is used: every day, now and then, onc
     ["live", "audio", "skeleton"]);
 });
 
-test("the tour walks the key features in order: welcome → navigation → home → materials → … → settings → finish", () => {
-  assert.deepEqual(TOUR_STEPS.map((step) => step.id), ["welcome", "nav", "home", "course", "sources", "document", "generate", "generate-tune", "generate-cost",
-    "draft", "practice", "help", "wrongbook", "exam", "dashboard", "skeleton", "workflows", "settings-model", "settings-audio", "settings-extensions", "finish"]);
+const ALL = { sample: { loaded: true, deckId: "d", sourceId: "s", draftId: "r" }, pageAvailable: () => true, hasContext: () => true };
+const idsOf = (ctx) => availableTourSteps(TOUR_STEPS, { ...ALL, ...ctx }).map((step) => step.id);
+
+test("the default tour is the core chain: add a source, make questions, 任务, check and practise, the model, then the way on", () => {
+  const core = idsOf({});
+  assert.deepEqual(core, ["welcome", "sources", "generate-quick", "tasks", "draft", "practice", "settings-model", "finish"]);
+  assert.equal(core.length, CORE_TOUR_LENGTH, "the number the welcome page says");
+  assert.ok(core.length <= 9, "about eight steps");
+  assert.ok(core.indexOf("settings-model") >= core.length - 3, "the model step is among the last, not in the middle of a long tour");
+  assert.equal(TOUR_STEPS.at(-1).final, true);
+});
+
+test("the full tour is the explicit extra: every step but the short-tour-only ones, in order, with 任务, notes, 备考补习 and the reader's two controls", () => {
+  assert.deepEqual(idsOf({ full: true }), ["welcome", "nav", "home", "course", "sources", "document", "reader-practice", "translation", "generate", "generate-tune", "generate-cost",
+    "tasks", "draft", "practice", "help", "wrongbook", "exam", "examprep", "dashboard", "notes", "skeleton", "workflows", "settings-model", "settings-audio", "settings-extensions", "finish"]);
+  assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
   assert.equal(TOUR_STEPS[0].anchor, undefined, "the welcome step is centred");
-  assert.equal(TOUR_STEPS.at(-1).final, true);
+  const anchors = new Set(TOUR_STEPS.flatMap((step) => [step.anchor].flat()).filter(Boolean));
+  for (const anchor of ["reader-practice", "translation-toggle", "nav-tasks", "nav-notes", "nav-examprep"]) assert.ok(anchors.has(anchor), `${anchor} is toured`);
   for (const step of TOUR_STEPS) {
     if (step.page) assert.ok(PAGES.has(step.page), `${step.id}: unknown page ${step.page}`);
-    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "source-tools-toggle", "draft-publish", "exam-case", "home-course"].includes(anchor),
-      `${step.id}: anchor ${anchor} is not in the plan's list`);
+    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "source-tools-toggle", "draft-publish", "exam-case", "home-course",
+      "reader-practice", "translation-toggle", "nav-tasks", "nav-notes", "nav-examprep"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
   }
 });
 
@@ -108,15 +122,28 @@ test("every step has Chinese copy with an English translation", () => {
 });
 
 test("steps that need sample data, a page or a component are left out when it is missing", () => {
-  const all = { sample: { loaded: true, deckId: "d", sourceId: "s", draftId: "r" }, pageAvailable: () => true, hasContext: () => true };
-  assert.equal(availableTourSteps(TOUR_STEPS, all).length, TOUR_STEPS.length);
+  const all = { ...ALL, full: true };
+  assert.equal(availableTourSteps(TOUR_STEPS, all).length, TOUR_STEPS.filter((step) => step.only !== "core").length);
   const ids = (ctx) => availableTourSteps(TOUR_STEPS, ctx).map((step) => step.id);
   const bare = ids({ ...all, sample: { loaded: false } });
-  for (const id of ["document", "draft", "practice", "help"]) assert.ok(!bare.includes(id), id);
-  for (const id of ["welcome", "nav", "home", "sources", "generate", "wrongbook", "settings-model", "finish"]) assert.ok(bare.includes(id), id);
+  for (const id of ["document", "reader-practice", "translation", "draft", "practice", "help"]) assert.ok(!bare.includes(id), id);
+  for (const id of ["welcome", "nav", "home", "sources", "generate", "tasks", "wrongbook", "settings-model", "finish"]) assert.ok(bare.includes(id), id);
   assert.ok(!ids({ ...all, sample: { ...all.sample, draftId: null } }).includes("draft"), "a published sample draft drops the draft step");
   assert.ok(!ids({ ...all, hasContext: (id) => id !== "audio" }).includes("settings-audio"));
   assert.ok(!ids({ ...all, pageAvailable: (page) => page !== "workflows" }).includes("workflows"));
+  assert.ok(!ids({ ...all, pageAvailable: (page) => page !== "examprep" }).includes("examprep"), "备考补习 is toured only while the host has it on");
+  // Without the sample the short tour is still a tour: add, make, 任务, the model.
+  assert.deepEqual(ids({ ...ALL, sample: { loaded: false } }), ["welcome", "sources", "generate-quick", "tasks", "settings-model", "finish"]);
+});
+
+test("the group hints and the tour's sidebar step name every page of the group (任务 and 备考补习 included)", async () => {
+  const { NAV_GROUPS } = await import("../ui/nav-order.js");
+  const { PAGES: registry } = await import("../ui/pages.js");
+  const nav = TOUR_STEPS.find((step) => step.id === "nav").body;
+  for (const group of NAV_GROUPS) for (const id of NAV_DEFAULTS[group.id]) {
+    assert.ok(group.hint.includes(registry[id].label), `${group.id} hint names ${registry[id].label}`);
+    assert.ok(nav.includes(registry[id].label), `the sidebar step names ${registry[id].label}`);
+  }
 });
 
 test("back, next and the keyboard move one step; Escape pauses", () => {

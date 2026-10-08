@@ -2,6 +2,7 @@ import React from "react";
 import { ui, uiFormat } from "./i18n.js";
 import { Banner, Button, Icon, Panel, SetupRequired } from "./components/index.js";
 import { useInjectCss } from "./shared.js";
+import { CORE_TOUR_LENGTH } from "./tour/steps.js";
 import css from "./welcome.css";
 
 /**
@@ -30,7 +31,7 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
           <Panel as="article" tone="paper" className="welcome-card welcome-card--lead">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="sparkle" size={22} /></span>
             <h2 className="welcome-card__title">{ui("跟着导览走一遍")}</h2>
-            <p className="welcome-card__text">{ui("两三分钟，依次切到资料、出题、练习、错题和统计等页面，看看每一步怎么用。")}</p>
+            <p className="welcome-card__text">{uiFormat("{0} 步，一两分钟，只走主线：添加资料、出题、练习，再看任务和模型设置在哪里。想看全部功能，最后可以接着看完整导览。", [CORE_TOUR_LENGTH])}</p>
             <div className="welcome-card__action">
               <Button variant="primary" iconEnd="arrow-right" disabled={busy} onClick={onStartTour}>{ui("开始导览")}</Button>
             </div>
@@ -38,9 +39,9 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
           <Panel as="article" tone="paper" className="welcome-card">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="upload" size={22} /></span>
             <h2 className="welcome-card__title">{ui("从自己的资料开始")}</h2>
-            <p className="welcome-card__text">{ui("PDF、Markdown、网页或文本都可以，原文件会保留。导入后就能用它出题。")}</p>
+            <p className="welcome-card__text">{ui("PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。")}</p>
             <div className="welcome-card__action">
-              <Button icon="upload" disabled={busy} onClick={onImport}>{ui("导入我的第一份资料")}</Button>
+              <Button icon="upload" disabled={busy} onClick={onImport}>{ui("添加资料")}</Button>
             </div>
           </Panel>
         </div>
@@ -49,16 +50,16 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
           <Panel as="article" tone="paper" className="welcome-card welcome-card--lead">
             <span className="welcome-card__icon" aria-hidden="true"><Icon name="upload" size={22} /></span>
             <h2 className="welcome-card__title">{ui("从自己的资料开始")}</h2>
-            <p className="welcome-card__text">{ui("PDF、Markdown、网页或文本都可以，原文件会保留。导入后就能用它出题。")}</p>
+            <p className="welcome-card__text">{ui("PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。")}</p>
             <div className="welcome-card__action">
-              <Button variant="primary" icon="upload" disabled={busy} onClick={onImport}>{ui("导入我的第一份资料")}</Button>
+              <Button variant="primary" icon="upload" disabled={busy} onClick={onImport}>{ui("添加资料")}</Button>
             </div>
           </Panel>
           {/* The sample is for looking around first: a quiet link, never the lead. */}
           <p className="welcome__sample">
             <span>{ui("想先看看效果？")}</span>
             <Button variant="link" size="sm" busy={busy} onClick={onStartSample}>{ui("载入示例并开始导览")}</Button>
-            <small>{ui("一门示例课程（设计模式）：一份讲义、九道带出处的题和三周练习记录，导览约三分钟；示例数据随时一键移除。")}</small>
+            <small>{uiFormat("一门示例课程（设计模式）：一份讲义、九道带出处的题和三周练习记录，导览 {0} 步、一两分钟；示例数据随时一键移除。", [CORE_TOUR_LENGTH])}</small>
           </p>
         </div>
       )}

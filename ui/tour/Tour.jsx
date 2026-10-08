@@ -14,12 +14,13 @@ const cx = (...names) => names.filter(Boolean).join(" ");
 const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
- * One step's card: eyebrow and "3 / 17" progress, title, body, an optional
+ * One step's card: eyebrow and "3 / 8" progress, title, body, an optional
  * note (model missing / connected), and Back / Next / Skip. The final step
- * offers the first import and removing the sample instead of more touring.
+ * offers the first import, the full tour (only when this is the short one:
+ * `onFullTour`) and removing the sample instead of more touring.
  */
 export function TourPopover({ step, index, total, model, sampleLoaded = true, busy = false, docked = false, side, style, popoverRef,
-  onNext, onBack, onClose, onSkip, onLoadSample, onBrowse, onImport, onRemoveSample, onKeyDown }) {
+  onNext, onBack, onClose, onSkip, onLoadSample, onBrowse, onImport, onFullTour, onRemoveSample, onKeyDown }) {
   const titleId = useId(), bodyId = useId();
   const note = step.modelNote && model && !model.ready ? ui(step.modelNote)
     : step.readyNote && model?.ready && model.label ? uiFormat(step.readyNote, [model.label]) : "";
@@ -42,7 +43,8 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
         {onBrowse && <Button variant="quiet" disabled={busy} onClick={onBrowse}>{ui("只看界面")}</Button>}
       </div>}
       {step.final && <div className="tour-pop__choices">
-        {onImport && <Button variant="primary" icon="upload" onClick={onImport}>{ui("导入我的第一份资料")}</Button>}
+        {onImport && <Button variant="primary" icon="upload" onClick={onImport}>{ui("添加资料")}</Button>}
+        {onFullTour && <Button variant="quiet" onClick={onFullTour}>{ui("看完整导览")}</Button>}
         {onRemoveSample && <Button variant="quiet" onClick={onRemoveSample}>{ui("移除示例数据")}</Button>}
       </div>}
       <div className="tour-pop__foot">
@@ -77,7 +79,7 @@ const sameBox = (a, b) => !a === !b && (!a || ["left", "top", "width", "height"]
  * is open the layer moves into it, because a modal dialog makes the page inert.
  */
 export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy, onEnter, onMove, onClose, onFinish,
-  onLoadSample, onBrowse, onImport, onRemoveSample }) {
+  onLoadSample, onBrowse, onImport, onFullTour, onRemoveSample }) {
   useInjectCss(css, "study-tour");
   const step = steps.find((item) => item.id === stepId) || steps[0];
   const index = Math.max(0, steps.indexOf(step));
@@ -223,7 +225,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
         style={place && !place.docked ? { left: 0, top: 0, transform: `translate(${place.left}px, ${place.top}px)`, ...(layout.caret != null ? { "--tour-caret": `${layout.caret}px` } : {}) }
           : undefined}
         onNext={next} onBack={() => onMove(-1)} onClose={() => onClose("close")} onSkip={() => onClose("skip")}
-        onLoadSample={onLoadSample} onBrowse={onBrowse} onImport={onImport} onRemoveSample={onRemoveSample} />
+        onLoadSample={onLoadSample} onBrowse={onBrowse} onImport={onImport} onFullTour={onFullTour} onRemoveSample={onRemoveSample} />
       <p className="sh-visually-hidden" role="status" aria-live="polite">{uiFormat("功能导览 · 第 {0} / {1} 步：{2}", [index + 1, steps.length, ui(step.title)])}</p>
     </div>
   );

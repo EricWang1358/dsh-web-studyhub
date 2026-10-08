@@ -147,7 +147,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                     <Tour steps={tour.tourSteps} stepId={tour.tourStep} rootRef={shell.rootRef} model={tour.modelState} sampleLoaded={!data.sample || !!data.sample.loaded}
                       busy={tour.sampleBusy} onEnter={tour.enterTourStep} onMove={tour.moveTour} onClose={tour.closeTour} onFinish={tour.finishTour}
                       onLoadSample={data.sample ? tour.loadSampleInTour : undefined} onBrowse={() => tour.moveTour(1)}
-                      onImport={() => tour.endTour({ then: tour.openFirstImport })}
+                      onImport={() => tour.endTour({ then: tour.openFirstImport })} onFullTour={tour.fullTour ? undefined : tour.startFullTour}
                       onRemoveSample={data.sample?.loaded ? () => tour.endTour({ then: () => tour.setRemovingSample(true) }) : undefined} />
                   )}
                   <AppModalHost />
