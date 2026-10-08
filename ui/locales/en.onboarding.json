@@ -108,5 +108,9 @@
   "点「添加资料」就能开始。示例数据可以随时在这里移除，你自己的资料和记录不受影响。": "Choose “Add source” to begin. You can remove the sample data here at any time; your own sources and records are not affected.",
   "看完整导览": "See the full tour",
   "{0} 步，一两分钟，只走主线：添加资料、出题、练习，再看任务和模型设置在哪里。想看全部功能，最后可以接着看完整导览。": "{0} steps, a minute or two, along the main line only: add a source, make questions, practise, then see where Jobs and the model settings are. For every feature, carry on to the full tour at the end.",
-  "PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。": "PDF, Word, PowerPoint, Markdown, saved web pages (.html) or plain text all work, and the original file is kept. Once added, you can make questions from it."
+  "PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。": "PDF, Word, PowerPoint, Markdown, saved web pages (.html) or plain text all work, and the original file is kept. Once added, you can make questions from it.",
+  "侧重点": "Focus",
+  "已带回可用资料和上次的设置；{0}当时没有记录，请重新选。": "The sources that still exist and your earlier settings are back on the form; {0} were not recorded, so choose them again.",
+  "已带回可用资料、题型、题数、覆盖强度、侧重点和难度；请核对后再生成。": "The sources that still exist, question type, count, coverage strength, focus and difficulty are back on the form; check them, then generate.",
+  "另有资料已不在资料库里，没有带回。": "Some sources are no longer in the library and were not brought back."
 }
