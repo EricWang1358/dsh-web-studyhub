@@ -76,9 +76,10 @@ test('the list shows one row per list of the current course: title, scope, basis
   assert.match(text, /备考补习/);
   assert.match(text, /网络 · 传输层 考点清单/);
   assert.match(text, /传输层/);
-  assert.match(text, /依据 1 份样卷；必学范围可能不全/);
-  assert.match(text, /必学 3 · 补充 2/);
+  assert.match(text, /依据 1 份样卷；样卷考过的范围可能不全/);
+  assert.match(text, /样卷考过 3 · 补充 2/);
   assert.match(text, /新建考点清单/);
+  assert.doesNotMatch(text, /必学/);
   assert.doesNotMatch(text, /蓝图|blueprint/i);
   assert.match(html, /<button[^>]*exam-prep-row__open[^>]*>/, 'the row opens the list');
   assert.match(text, /2026/, 'the time of the list');
@@ -99,7 +100,7 @@ test('another course\'s list is not shown; the same course\'s is; a parent cours
 test('with no list the page says what it is for and the three inputs, and offers 新建考点清单', () => {
   const html = render(h(ui.ExamPrep, { data: dataWith([]), onOpenSource: noop, onOpenTask: noop }));
   const text = drawn(html);
-  for (const word of ['课件', '样卷', '大纲', '推荐教材', '必学', '补充', '新建考点清单']) assert.match(text, new RegExp(word), word);
+  for (const word of ['课件', '样卷', '大纲', '推荐教材', '样卷考过', '补充', '新建考点清单']) assert.match(text, new RegExp(word), word);
   assert.match(text, /必选/);
   assert.match(text, /不选时所有考点都是补充/);
   assert.ok((html.match(/新建考点清单/g) || []).length >= 2, 'the header button and the empty state button');
@@ -133,14 +134,62 @@ test('a running build shows in the row in the place of the time, and as a row of
   assert.ok(tip, 'the running state explains itself');
 });
 
+test('a build of another course is not shown on this course\'s page, not as a row and not as a failed notice; a build that names no course is shown nowhere', () => {
+  const other = buildJob({ id: 'blueprint-db', title: '数据库的清单', course: '数据库' });
+  const otherFailed = buildJob({ id: 'blueprint-db-bad', title: '数据库坏了的', status: 'failed', course: '数据库' });
+  const nameless = buildJob({ id: 'blueprint-none', title: '没写课程的', course: null });
+  const namelessFailed = buildJob({ id: 'blueprint-none-bad', title: '没写课程坏了的', status: 'failed', course: null });
+  const html = render(h(ui.ExamPrep, { data: dataWith([mine], { jobs: [other, otherFailed, nameless, namelessFailed] }), onOpenSource: noop, onOpenTask: noop }));
+  const text = drawn(html);
+  for (const title of ['数据库的清单', '数据库坏了的', '没写课程的', '没写课程坏了的']) assert.doesNotMatch(text, new RegExp(title), title);
+  assert.doesNotMatch(text, /没有生成完/);
+  assert.equal((html.match(/data-build=/g) || []).length, 0);
+  const own = drawn(render(h(ui.ExamPrep, { data: dataWith([mine], { jobs: [buildJob({ id: 'blueprint-own', title: '本课的清单' }), buildJob({ id: 'blueprint-own-bad', title: '本课坏了的', status: 'failed' })] }), onOpenSource: noop, onOpenTask: noop })));
+  assert.match(own, /本课的清单/);
+  assert.match(own, /「本课坏了的」没有生成完/);
+  const onDatabase = drawn(render(h(ui.ExamPrep, { data: dataWith([mine], { jobs: [other], course: '数据库' }), onOpenSource: noop, onOpenTask: noop })));
+  assert.match(onDatabase, /数据库的清单/, 'on its own course\'s page it shows');
+});
+
+test('a rebuild is matched to its own list among all the lists, so it is a state of that list\'s row and not a second row', () => {
+  const dbList = pointList({ title: '数据库 · 考点清单', courses: ['数据库'] });
+  const rebuild = buildJob({ id: 'blueprint-re', title: '数据库 · 考点清单', targetId: dbList.id, supersedes: dbList.id, course: '数据库' });
+  const data = dataWith([mine, dbList], { jobs: [rebuild], course: '数据库' });
+  const html = render(h(ui.ExamPrep, { data, onOpenSource: noop, onOpenTask: noop }));
+  assert.equal((html.match(/data-build=/g) || []).length, 0, 'no extra row');
+  assert.match(drawn(html), /正在生成 2\/5/, 'the list\'s own row carries it');
+});
+
+test('a list whose materials changed says so on its row and in its detail, and keeps 重新生成; a list that did not does not say it', () => {
+  const stale = { ...ui.listRow({ ...examPointListSummary(mine), stale: true }) };
+  const data = dataWith([mine]);
+  data.examPointLists = data.examPointLists.map(summary => ({ ...summary, stale: true }));
+  const listHtml = render(h(ui.ExamPrep, { data, onOpenSource: noop, onOpenTask: noop }));
+  assert.match(drawn(listHtml), /资料已更新，建议重新生成/);
+  assert.match(listHtml, /exam-prep-row__stale/);
+  const detailHtml = render(detail({ row: stale }));
+  assert.match(drawn(detailHtml), /资料已更新，建议重新生成/);
+  const regenerate = dom(detailHtml).all.find(item => item.tagName === 'BUTTON' && /重新生成/.test(item.textContent));
+  assert.ok(regenerate && !regenerate.hasAttribute('disabled'), '重新生成 stays');
+  assert.doesNotMatch(drawn(render(h(ui.ExamPrep, { data: dataWith([mine]), onOpenSource: noop, onOpenTask: noop }))), /资料已更新/);
+  assert.doesNotMatch(drawn(render(detail())), /资料已更新/);
+  english(() => {
+    assert.match(drawn(render(h(ui.ExamPrep, { data, onOpenSource: noop, onOpenTask: noop }))), /Materials have changed; rebuilding is recommended/);
+    const plain = pointList({ title: 'Networks list' });
+    const en = drawn(render(detail({ row: { ...ui.listRow({ ...examPointListSummary(plain), stale: true }) }, blueprint: plain.blueprint })));
+    assert.match(en, /Materials have changed; rebuilding is recommended/);
+    assert.doesNotMatch(ownWords(en), han);
+  });
+});
+
 test('the list in English: the owner\'s names and no Chinese UI text', () => {
   const data = dataWith([pointList({ title: 'Networks list', courses: ['网络'], scope: 'Transport' })]);
   english(() => {
     const html = render(h(ui.ExamPrep, { data, onOpenSource: noop, onOpenTask: noop }));
     const text = drawn(html);
     assert.match(text, /Exam prep/);
-    assert.match(text, /Must-learn 2 · Extra 2/);
-    assert.match(text, /Based on 1 sample paper; the must-learn range may be incomplete/);
+    assert.match(text, /Tested in sample papers 2 · Extra 2/);
+    assert.match(text, /Based on 1 sample paper; the range tested in sample papers may be incomplete/);
     assert.match(text, /New exam-point list/);
     assert.doesNotMatch(ownWords(text), han, text);
     for (const tip of tooltips(html)) assert.doesNotMatch(tip.text, han, tip.text);
@@ -151,13 +200,14 @@ test('the list in English: the owner\'s names and no Chinese UI text', () => {
 
 const detail = (extra = {}) => h(ui.ExamPrepDetailView, { row: row(mine), blueprint: mine.blueprint, onBack: noop, onOpenSource: noop, onOpenTask: noop, onRegenerate: noop, onDeleted: noop, ...extra });
 
-test('a list: the basis, the counts, the filter and search, the tree, and the leftovers; 针对这些考点出题 is shown but cannot be pressed', () => {
+test('a list: the basis, the counts, the filter and search, the tree, and the leftovers; nothing is offered that cannot be pressed', () => {
   const html = render(detail());
   const text = drawn(html);
   assert.match(text, /网络 · 传输层 考点清单/);
-  assert.match(text, /依据 1 份样卷；必学范围可能不全/);
-  assert.match(text, /必学 3 · 补充 2/);
-  for (const word of ['全部 5', '必学 3', '补充 2', 'TCP 连接管理', '拥塞控制', 'UDP 的特点', '校验和的计算']) assert.match(text, new RegExp(word), word);
+  assert.match(text, /依据 1 份样卷；样卷考过的范围可能不全/);
+  assert.match(text, /样卷考过 3 · 补充 2/);
+  assert.doesNotMatch(text, /必学/);
+  for (const word of ['全部 5', '样卷考过 3', '补充 2', 'TCP 连接管理', '拥塞控制', 'UDP 的特点', '校验和的计算']) assert.match(text, new RegExp(word), word);
   assert.doesNotMatch(text, /四次挥手/, 'the small points show when their big point is opened');
   assert.match(html, /type="search"/);
   assert.match(text, /样卷里没对上的题/);
@@ -169,12 +219,13 @@ test('a list: the basis, the counts, the filter and search, the tree, and the le
   assert.match(text, /重新生成/);
   assert.match(text, /删除/);
   assert.doesNotMatch(text, /蓝图|blueprint/i);
-  const soon = dom(html).all.find(item => item.tagName === 'BUTTON' && /针对这些考点出题/.test(item.textContent));
-  assert.ok(soon && soon.hasAttribute('disabled'), 'visible, and disabled');
+  assert.doesNotMatch(text, /针对这些考点出题/, 'a button that is always off is not shown');
+  assert.doesNotMatch(html, /exam-prep-soon/);
+  assert.ok(dom(html).all.filter(item => item.tagName === 'BUTTON').every(item => !item.hasAttribute('disabled')), 'no control is permanently disabled');
   const tips = everyReachable(html, 'detail');
-  assert.ok(tips.some(tip => /以后的版本/.test(tip.text)), 'the disabled button says it comes later, on hover and focus');
+  assert.ok(!tips.some(tip => /以后的版本/.test(tip.text)));
   assert.ok(tips.some(tip => /额度/.test(tip.text) && /旧清单/.test(tip.text)), '重新生成: costs quota, keeps the old one');
-  assert.ok(tips.some(tip => /必学：/.test(tip.text) && /样卷/.test(tip.text)) && tips.some(tip => /补充：/.test(tip.text) && /课件/.test(tip.text)), 'the two tiers say how they are decided');
+  assert.ok(tips.some(tip => /^样卷考过：/.test(tip.text) && /样卷/.test(tip.text)) && tips.some(tip => /补充：/.test(tip.text) && /课件/.test(tip.text)), 'the two tiers say how they are decided');
   assert.ok(tips.some(tip => /找不到讲它的内容/.test(tip.text)), '课件里没找到对应内容 explains itself');
   assert.ok(tips.some(tip => /样卷题/.test(tip.text)) && tips.some(tip => /只有图片/.test(tip.text)) && tips.some(tip => /不是依据/.test(tip.text)), 'the leftovers and the reading note explain themselves');
   assert.ok(tips.some(tip => /无法恢复/.test(tip.text)), 'delete');
@@ -185,7 +236,9 @@ test('every point has its tier badge, and a point only a sample paper reached ca
   const page = dom(html);
   const points = page.all.filter(item => item.hasAttribute('data-point'));
   assert.equal(points.length, 4, 'the four big points; the small ones show when TCP is opened');
-  assert.equal((html.match(/>必学</g) || []).length >= 1, true);
+  assert.doesNotMatch(drawn(html), /必学/);
+  assert.equal((html.match(/>样卷考过（1\/1 份）</g) || []).length >= 1, true, 'a point a paper tested says in how many of the papers');
+  assert.equal((html.match(/>补充</g) || []).length >= 1, true);
   assert.match(drawn(html), /课件里没找到对应内容/);
   assert.match(drawn(html), /出现在 1 页课件/);
 });
@@ -228,7 +281,8 @@ test('the list in English: names, tiers and explanations', () => {
   english(() => {
     const html = render(detail({ row: row(pointList({ title: 'Networks list', orphan: true })) }));
     const text = drawn(html);
-    for (const word of ['Rebuild|Regenerate', 'Delete', 'Make questions for these points', 'Must-learn', 'Extra', 'Sample-paper questions with no match', 'Slides with no readable text', 'Recommended reading', 'All 5', 'Not found in the slides'])
+    assert.doesNotMatch(text, /Make questions for these points|Must-learn/);
+    for (const word of ['Rebuild|Regenerate', 'Delete', 'Tested in sample papers \\(1\\/1 papers\\)', 'Extra', 'Sample-paper questions with no match', 'Slides with no readable text', 'Recommended reading', 'All 5', 'Not found in the slides'])
       assert.match(text, new RegExp(word), word);
     for (const tip of everyReachable(html, 'detail (en)')) assert.doesNotMatch(tip.text, han, tip.text);
     assert.doesNotMatch(ownWords(text), han);
@@ -309,8 +363,8 @@ test('while the record is being read a list shows everything its summary knows a
   const html = render(detail({ blueprint: null }));
   const text = drawn(html);
   assert.match(text, /网络 · 传输层 考点清单/);
-  assert.match(text, /依据 1 份样卷；必学范围可能不全/);
-  assert.match(text, /必学 3 · 补充 2/);
+  assert.match(text, /依据 1 份样卷；样卷考过的范围可能不全/);
+  assert.match(text, /样卷考过 3 · 补充 2/);
   assert.match(text, /全部 5/);
   assert.match(html, /exam-prep-tree is-loading/);
   assert.match(html, /aria-busy="true"/);

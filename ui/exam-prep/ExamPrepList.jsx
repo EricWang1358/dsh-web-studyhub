@@ -4,7 +4,7 @@ import { formatDateTime, joinMeta } from '../format.js';
 import { Badge, Button, EmptyState, PageHeader, ProgressBar } from '../components/index.js';
 import PageScope from '../PageScope.jsx';
 import Explain from './Explain.jsx';
-import { basisLine, countsLine } from './words.js';
+import { basisLine, countsLine, staleNote } from './words.js';
 
 /* 备考补习, the list view: one row per 考点清单 of the current course. A row opens the list; the basis it rests on and its counts are
    on the row, because they decide whether a learner can trust it. A build that is running shows in the place of the time, never as an extra line. */
@@ -32,7 +32,12 @@ function ListRow({ row, onOpen, onOpenTask, onRestore }) {
       <span className="exam-prep-row__counts">{countsLine(row.counts)}</span>
       {row.archived ? <span className="exam-prep-row__state"><Explain k="restore"><Button variant="quiet" size="sm" icon="undo" data-usage="examprep.restore" onClick={() => onRestore(row)}>{ui('恢复')}</Button></Explain></span>
         : row.build ? <BuildState build={row.build} onOpenTask={onOpenTask} />
-        : <span className="exam-prep-row__time">{[row.updatedAt ? formatDateTime(row.updatedAt, 'short') : '', row.olderVersions ? uiFormat('取代了 {0} 个旧版本', [row.olderVersions]) : ''].filter(Boolean).join(' · ')}</span>}
+        : (
+          <span className="exam-prep-row__time">
+            {row.stale && <Badge size="sm" tone="warning" icon="warning" className="exam-prep-row__stale">{staleNote()}</Badge>}
+            {[row.updatedAt ? formatDateTime(row.updatedAt, 'short') : '', row.olderVersions ? uiFormat('取代了 {0} 个旧版本', [row.olderVersions]) : ''].filter(Boolean).join(' · ')}
+          </span>
+        )}
     </li>
   );
 }
@@ -54,11 +59,11 @@ function BuildingRow({ build, onOpenTask }) {
 function Empty({ onCreate, otherCount, scoped }) {
   return (
     <EmptyState icon="file" title={scoped ? ui('这门课还没有考点清单') : ui('还没有考点清单')}
-      description={ui('备考补习把课件和样卷整理成一份考点清单：哪些必学，哪些是补充，每个考点出自课件的哪一页。')}
+      description={ui('备考补习把课件和样卷整理成一份考点清单：哪些样卷考过，哪些是补充，每个考点出自课件的哪一页。')}
       primary={{ label: ui('新建考点清单'), icon: 'plus', onClick: onCreate }}>
       <ul className="exam-prep-inputs">
         <li><strong>{ui('课件')}</strong>{ui('：必选。考点从这里列出来。')}</li>
-        <li><strong>{ui('样卷')}</strong>{ui('：可选。由它定出哪些考点必学；不选时所有考点都是补充。')}</li>
+        <li><strong>{ui('样卷')}</strong>{ui('：可选。由它定出哪些考点样卷考过；不选时所有考点都是补充。')}</li>
         <li><strong>{ui('大纲、推荐教材')}</strong>{ui('：可选。大纲和课件一样用来列考点；推荐教材只记一条备注。')}</li>
       </ul>
       {otherCount > 0 && <p className="exam-prep-empty__other">{uiFormat('其它课程里有 {0} 份考点清单，可在上面切换课程范围查看。', [otherCount])}</p>}
@@ -66,15 +71,16 @@ function Empty({ onCreate, otherCount, scoped }) {
   );
 }
 
-export default function ExamPrepList({ data, scope, onScope, rows, history = [], builds, otherCount, onOpen, onCreate, onOpenTask, onRestore }) {
+export default function ExamPrepList({ data, scope, onScope, rows, history = [], builds, listIds, otherCount, onOpen, onCreate, onOpenTask, onRestore }) {
   const [older, setOlder] = useState(false);
-  const known = new Set([...rows, ...history].map(row => row.id));
+  // The lists a rebuild can belong to are all the lists (`listIds`), not only those of this scope.
+  const known = listIds ?? new Set([...rows, ...history].map(row => row.id));
   // A rebuild shows in the row of the list it replaces; a first build has no list yet (its id is known only when it is saved) and is a row of its own.
   const fresh = builds.filter(build => build.live && !known.has(build.targetId));
   const failed = builds.filter(build => build.failed).slice(0, 2);
   return (
     <section className="page exam-prep" data-usage-area="examprep">
-      <PageHeader title={ui('备考补习')} description={ui('把课件和样卷整理成考点清单：哪些必学，哪些是补充，每个考点出自哪一页。')}
+      <PageHeader title={ui('备考补习')} description={ui('把课件和样卷整理成考点清单：哪些样卷考过，哪些是补充，每个考点出自哪一页。')}
         actions={<Button variant="primary" icon="plus" data-usage="examprep.create" onClick={onCreate}>{ui('新建考点清单')}</Button>}
         scope={<PageScope courses={data.focus?.courses} value={scope} onChange={onScope} />} />
       {failed.map(build => (

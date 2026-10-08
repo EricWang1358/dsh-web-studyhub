@@ -1,20 +1,37 @@
+import { TIER_LABEL } from '../../lib/exam-point-list.js';
 import { ui, uiFormat } from '../i18n.js';
 
 /* 备考补习: the sentences of the page. Chinese is the source text and English sits beside it (ui/locales/en.exam-prep.json).
    The learner-facing names are 备考补习 (the page) and 考点清单 (what it lists); the internal word for a list never appears in a string. */
 
-export const tierName = tier => tier === 'must' ? ui('必学') : ui('补充');
+/** The word of a tier is the library's own (lib/exam-point-list.js TIER_LABEL), so the page, the console and the data say the same thing. */
+export const tierName = tier => ui(TIER_LABEL[tier === 'must' ? 'must' : 'extra']);
 
-export const countsLine = ({ must, extra }) => uiFormat('必学 {0} · 补充 {1}', [must, extra]);
+export const countsLine = ({ must, extra }) => `${tierName('must')} ${must} · ${tierName('extra')} ${extra}`;
+
+/** How a point is backed: the record's own count, else the sample papers among its places. */
+const backingOf = point => {
+  const places = Array.isArray(point?.evidence) ? point.evidence : [];
+  return point?.backing || { slides: new Set(places.filter(place => place.role === 'lecture' || place.role === 'syllabus').map(place => place.sourceId)).size,
+    samplePapers: new Set(places.filter(place => place.role === 'past-paper').map(place => place.sourceId)).size };
+};
+
+/** The tier badge of a point: 样卷考过（N/M 份）, N the papers that tested it and M the papers the list rests on (the total is left out when the list does not say it); 补充 otherwise. */
+export function tierWords(tier, point, basis) {
+  if (tier !== 'must') return tierName('extra');
+  const tested = Number(backingOf(point).samplePapers) || 0, total = basis?.samplePapers;
+  return Number.isFinite(total) && tested > 0 ? uiFormat('{0}（{1}/{2} 份）', [tierName('must'), tested, total]) : tierName('must');
+}
+
+/** Said on a list whose materials changed after it was made (the snapshot's `stale`). */
+export const staleNote = () => ui('资料已更新，建议重新生成');
 
 const slidesPart = count => count === 1 ? ui('1 页课件') : uiFormat('{0} 页课件', [count]);
 const papersPart = count => count === 1 ? ui('1 份样卷') : uiFormat('{0} 份样卷', [count]);
 
 /** How a point is backed, in words: 「出现在 2 页课件 + 1 份样卷」. Counted from the record's backing, else from its places. */
 export function backingLine(point) {
-  const places = Array.isArray(point?.evidence) ? point.evidence : [];
-  const backing = point?.backing || { slides: new Set(places.filter(place => place.role === 'lecture' || place.role === 'syllabus').map(place => place.sourceId)).size,
-    samplePapers: new Set(places.filter(place => place.role === 'past-paper').map(place => place.sourceId)).size };
+  const backing = backingOf(point);
   const slides = Number(backing.slides) || 0, papers = Number(backing.samplePapers) || 0;
   if (slides && papers) return uiFormat('出现在 {0}', [`${slidesPart(slides)} + ${papersPart(papers)}`]);
   if (slides) return uiFormat('出现在 {0}', [slidesPart(slides)]);
@@ -25,28 +42,27 @@ export function backingLine(point) {
 export function basisLine(basis) {
   const papers = basis?.samplePapers;
   if (!Number.isFinite(papers)) return '';
-  if (papers === 0) return ui('没有样卷，无法判断哪些是必学');
-  if (papers === 1) return ui('依据 1 份样卷；必学范围可能不全');
-  if (papers < 3) return uiFormat('依据 {0} 份样卷（取并集）；必学范围可能不全', [papers]);
+  if (papers === 0) return ui('没有样卷，无法判断哪些考点样卷考过');
+  if (papers === 1) return ui('依据 1 份样卷；样卷考过的范围可能不全');
+  if (papers < 3) return uiFormat('依据 {0} 份样卷（取并集）；样卷考过的范围可能不全', [papers]);
   return uiFormat('依据 {0} 份样卷（取并集）；样本由学生选定，不是随机样本', [papers]);
 }
 
 /** Said under the sample-paper choice when none is chosen. */
-export const noPaperNote = () => ui('不选样卷也可以：所有考点都会列为「补充」，因为没有样卷说明哪些必学。');
+export const noPaperNote = () => ui('不选样卷也可以：所有考点都会列为「补充」，因为没有样卷说明哪些考点样卷考过。');
 
 /* The hover explanations: one plain sentence and at most one line of consequence, each reachable by hover and by keyboard focus (Tooltip). */
 export const EXPLAIN = Object.freeze({
-  'tier.must': ['必学：你选的样卷里有题考到这个考点。', '只代表这几份样卷考过，不保证期末一定考。'],
+  'tier.must': ['样卷考过：你选的样卷里有题考到这个考点。', '只代表这几份样卷考过，不保证期末一定考。'],
   'tier.extra': ['补充：只在课件里讲到，样卷里没有题考它。', '它可能考也可能不考；没选样卷时，所有考点都是补充。'],
-  'basis': ['必学范围是按你选的样卷划出来的。', '样卷少于 3 份时必学范围可能不全；没标必学的也不等于不考。'],
+  'basis': ['样卷考过的范围是按你选的样卷划出来的。', '样卷少于 3 份时这个范围可能不全；没标样卷考过的也不等于不考。'],
   'peek': ['打开这条依据所在的那一页。', '会在阅读器里打开，关闭后回到这里。'],
   'peek.paper': ['打开这道样卷题所在的位置。', '会在阅读器里打开，关闭后回到这里。'],
   'noSlides': ['样卷里有题考到它，但你选的课件里找不到讲它的内容。', '可能是课件没导入全，或老师没讲过；先别当作已经学过。'],
   'regenerate': ['按现在选的资料重新列一份考点清单。', '会消耗模型额度；新清单取代旧清单，旧清单作为历史版本保留。'],
-  'generate': ['针对这些考点出题：以后的版本会提供。', '现在还不能点，这一步还没有做。'],
   'estimate': ['这是按你选的资料估出的范围，不是账单。', '实际用量取决于模型的回答和重试，可能有出入。'],
   'role.lecture': ['课件：考点从这里列出来，每个考点都标出在哪几页。', '至少要选一份；只有图片的页没有文字，会被跳过并列出来。'],
-  'role.past-paper': ['样卷：用来看哪些考点真的被考过，由它定出「必学」。', '可以不选；不选时所有考点都是补充。'],
+  'role.past-paper': ['样卷：用来看哪些考点真的被考过，由它定出「样卷考过」。', '可以不选；不选时所有考点都是补充。'],
   'role.syllabus': ['大纲：老师给的考试范围，和课件一样用来列考点。', '可以不选；没有课件时可以只用大纲。'],
   'role.textbook': ['推荐教材：只记下书名，提醒你有这本书。', '它不是依据，不会被读取，也不会用来列考点。'],
   'delete': ['删除这份考点清单。', '删除后无法恢复。'],
