@@ -120,15 +120,15 @@ test('rate limit, key, timeout and an unusable reply each say their own reason',
   assert.match(copy.get('invalid-response'), /没有通过检查/);
 });
 
-test('settings failures offer 打开模型设置, the others a retry', () => {
+test('settings failures offer 前往设置 (this host has no model panel of its own), the others a retry', () => {
   const key = open(withFailure({ kind: 'credential', message: 'Incorrect API key provided' }, { openModelSettings: noop }));
-  assert.match(key, /sh-btn[^>]*>[^<]*打开模型设置/);
+  assert.match(key, /sh-btn[^>]*>[^<]*前往设置/);
   const quota = open(withFailure({ kind: 'quota', message: 'insufficient_quota' }, { openModelSettings: noop }));
-  assert.match(quota, /sh-btn[^>]*>[^<]*打开模型设置/);
+  assert.match(quota, /sh-btn[^>]*>[^<]*前往设置/);
   for (const [kind, message] of [['rate-limit', '429'], ['timeout', 'timed out'], ['network', 'fetch failed']]) {
     const html = open(withFailure({ kind, message }, { openModelSettings: noop }));
     assert.match(html, /daily-plan__failure[\s\S]*?sh-btn[^>]*>[^<]*重试/, kind);
-    assert.doesNotMatch(html.match(/daily-plan__failure[\s\S]*?<\/details>/)[0], /打开模型设置/, kind);
+    assert.doesNotMatch(html.match(/daily-plan__failure[\s\S]*?<\/details>/)[0], /前往设置|打开模型设置/, kind);
   }
   assert.match(open(withFailure({ kind: 'invalid-response', message: 'Invalid planner response' })), /daily-plan__failure[\s\S]*?sh-btn[^>]*>[^<]*再试一次/);
 });

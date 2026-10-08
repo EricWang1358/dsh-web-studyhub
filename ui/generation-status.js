@@ -6,25 +6,25 @@ import { stageCodeOf, stepStageCode, stageArgsOf } from '../lib/contexts/jobs/co
 import { isActiveJob, supplementJobLabel } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
-import { GENERATION_SETTINGS_DEFAULTS, resolveGenerationRequest } from '../lib/generation-settings.js';
+import { GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings, resolveGenerationRequest } from '../lib/generation-settings.js';
 import { DIMENSIONS, issueCode, reasonLabel } from './quality-reasons.js';
 import { classifyFailure } from '../lib/generation-failure.js';
 import { formatClauses } from './format.js';
 import { USAGE_STAGES, stageUsage } from '../lib/stage-usage.js';
-import { DEFAULT_LEVEL } from '../lib/coverage-strength.js';
 import { jobPart, partTitle } from './deck-parts.js';
 
 /** The generate form after a job starts: one source of the defaults (P27). */
 export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEFAULTS.kind, kinds: GENERATION_SETTINGS_DEFAULTS.kinds, count: GENERATION_SETTINGS_DEFAULTS.count,
   difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '',
   // 覆盖强度 (lib/coverage-strength.js): the form plans by level; a number of questions is only sent when the learner types one (`customCount`).
-  coverageLevel: DEFAULT_LEVEL, customCount: '',
+  coverageLevel: GENERATION_SETTINGS_DEFAULTS.coverageLevel, customCount: '',
   // 花费上限 is typed as 800K / 2.5M (lib/coverage-run.js parseTokenBudget) and optional. (自动补到完整 has no default of its own: it follows the level until the learner ticks it, `gen.autoComplete`.)
   tokenBudget: '' });
 
 export function generationFormDefaults(saved, language = getUiLanguage()) {
   const { performance: _performance, ...content } = resolveGenerationRequest(saved, {}, { language });
-  return { ...GENERATION_DEFAULTS, ...content };
+  // 覆盖强度 is the form's own default (Settings > 出题偏好): a request resolved for an assistant carries none.
+  return { ...GENERATION_DEFAULTS, ...content, coverageLevel: normalizeGenerationSettings(saved).coverageLevel };
 }
 
 const sameValue = (left, right) => Object.is(left, right) || (Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, at) => item === right[at]));
@@ -455,6 +455,16 @@ export function describeModelError(text = '') {
 /** A background-assistant task's failure text without the prefix the backend puts on it (the page adds its own sentence). */
 export const plainAssistFailure = (text = '') => String(text || '').replace(/^\s*后台助教未完成[：:]\s*/, '');
 
+/** The sentence about the rounds of a plan (with a leading space), or ''. Claims only what the job said: with no answer about continuing, it promises neither. */
+function roundsNotice(job) {
+  const plan = job.plan;
+  if (!(plan?.rounds > 1)) return '';
+  const left = plan.rounds - 1;
+  if (job.autoComplete === true) return ` ${uiFormat('分 {0} 轮；这次先出第 1 轮（约 {1} 题），其余 {2} 轮会自动接着做，可以在「任务」里暂停或停下。', [plan.rounds, plan.questions, left])}`;
+  if (job.autoComplete === false) return ` ${uiFormat('分 {0} 轮；这次只出第 1 轮（约 {1} 题），其余 {2} 轮要到草稿页点「为没覆盖的部分补题」，一次补一轮。', [plan.rounds, plan.questions, left])}`;
+  return ` ${uiFormat('分 {0} 轮；这次先出第 1 轮（约 {1} 题）。', [plan.rounds, plan.questions])}`;
+}
+
 /** The toast after a generation starts (P26): which deck, and that it is on its way. */
 export function generationStartedNotice(job = {}, gen = {}, materials = 0) {
   const title = String(gen.title || '').trim();
@@ -463,7 +473,7 @@ export function generationStartedNotice(job = {}, gen = {}, materials = 0) {
       : uiFormat('已加入队列，前面还有 {0} 个任务。', [job.queuedBehind ?? 1])
     : title ? uiFormat('已开始生成「{0}」…完成后在这里打开草稿。', [title])
       : uiFormat('已开始用 {0} 份资料出题…完成后在这里打开草稿。', [materials]);
-  // A plan of several rounds: this run makes the first (the heaviest sections); the rest is said, not left to be found out.
-  const rounds = job.plan?.rounds > 1 ? ` ${uiFormat('共分 {0} 轮、约 {1} 题；这次先出第 1 轮（约 {2} 题），其余在草稿页继续。', [job.plan.rounds, job.plan.goal, job.plan.questions])}` : '';
-  return { text: text + rounds, tone: 'success' };
+  // A plan of several rounds: this run makes the first (the heaviest sections); whether the rest goes on by itself is the job's own answer (job.autoComplete: 标准 and 完整 do, 精简 waits),
+  // so the notice never sends the learner to the draft page for rounds that are coming without them. The total number of questions is the form's to say (once), not this notice's.
+  return { text: text + roundsNotice(job), tone: 'success' };
 }

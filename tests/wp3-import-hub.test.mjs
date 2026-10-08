@@ -47,7 +47,7 @@ test('Bilibili subtitle JSON is told apart from a JSON deck', () => {
   assert.equal(looksLikeSubtitleJson('not json'), false);
 });
 
-test('one batch imports documents, decks and subtitles, each with its own status and plain reasons', async () => {
+test('one batch imports documents and decks, each with its own status and plain reasons; subtitles and audio wait for the audio form', async () => {
   setUiLanguage('zh');
   const calls = [];
   const call = async (action, args) => {
@@ -61,14 +61,14 @@ test('one batch imports documents, decks and subtitles, each with its own status
     }
     if (action === 'draft.import.propose') return { title: '期中复习', course: 'Elsewhere', originalTitle: '期中复习', method: 'rules' };
     if (action === 'draft.import') return { id: 'draft-1', title: args.title, course: args.course, cards: [{}, {}] };
-    if (action === 'audio.subtitles.import') return { id: 'job-1', status: 'running' };
+    if (action === 'audio.subtitles.import') throw new Error('a subtitle file must not start a model job from the file list');
     throw new Error(`unexpected ${action}`);
   };
   const updates = [];
   const files = [new File(['%PDF-1.7'], 'lecture.pdf'), new File(['# x'], 'notes.md'), new File([deckJson], 'deck.json'),
     new File(['1\n00:00:01,000 --> 00:00:02,000\n你好'], 'talk.srt'), new File(['%PDF'], 'huge.pdf'), new File(['%PDF'], 'scan.pdf'), new File(['ID3'], 'talk.mp3')];
   const results = await runImport(files, { call, courses: ['操作系统'], audio: true, onUpdate: (index, patch) => updates.push([index, patch.status]) });
-  assert.deepEqual(results.map(result => result.status), ['done', 'done', 'done', 'done', 'error', 'error', 'error']);
+  assert.deepEqual(results.map(result => result.status), ['done', 'done', 'done', 'error', 'error', 'error', 'error']);
   const documentCalls = calls.filter(([action]) => action === 'materials.document.import');
   assert.deepEqual(documentCalls.map(([, args]) => args.filename), ['lecture.pdf', 'notes.md', 'huge.pdf', 'scan.pdf']);
   assert.deepEqual(documentCalls[0][1].courses, ['操作系统']);
@@ -76,7 +76,7 @@ test('one batch imports documents, decks and subtitles, each with its own status
   const draft = calls.find(([action]) => action === 'draft.import')[1];
   assert.equal(draft.course, '操作系统', 'the course chosen first applies to decks too');
   assert.equal(draft.text, deckJson);
-  assert.deepEqual(calls.find(([action]) => action === 'audio.subtitles.import')[1].courses, ['操作系统']);
+  assert.ok(!calls.some(([action]) => action === 'audio.subtitles.import'), 'a subtitle file is confirmed in the audio form (with its estimate), not started here');
   assert.ok(!calls.some(([, args]) => args?.filename === 'talk.mp3'), 'audio is never sent to the document importer');
   assert.deepEqual(updates.filter(([index]) => index === 0).map(([, status]) => status), ['working', 'done'], 'each file shows working, then its result');
   assert.equal(results[0].result.pages, 6);
@@ -85,26 +85,28 @@ test('one batch imports documents, decks and subtitles, each with its own status
   assert.doesNotMatch(results[4].error, /Document exceeds/);
   assert.match(results[5].error, /OCR|扫描/);
   assert.match(results[6].error, /音频/);
+  assert.match(results[3].error, /估算/);
   for (const result of results.filter(item => item.status === 'error')) assert.match(result.error, han);
-  assert.deepEqual(results.filter(item => item.status === 'error').map(item => item.permanent), [true, true, true],
-    'a file that is too large, has no text or is audio will fail again: offer removal, not retry');
+  assert.deepEqual(results.filter(item => item.status === 'error').map(item => item.permanent), [true, true, true, true],
+    'a file that is too large, has no text, is audio or a subtitle will fail again here: offer removal (or the audio form), not retry');
+  assert.deepEqual(results.filter(item => item.status === 'error').map(item => !!item.carry), [true, false, false, true], 'the subtitle and the recording belong to the audio form');
   const flaky = await runImport([new File(['# x'], 'notes.md')], { call: async () => { throw new Error('连接中断'); } });
   assert.equal(flaky[0].permanent, false, 'a dropped connection is worth a retry');
   assert.equal(flaky[0].error, '连接中断');
   const summary = importSummary(results);
-  assert.equal(summary.done, 4);
-  assert.equal(summary.failed, 3);
+  assert.equal(summary.done, 3);
+  assert.equal(summary.failed, 4);
   assert.deepEqual(summary.documents.map(item => item.title), ['lecture.pdf', 'notes.md']);
   assert.deepEqual(summary.sourceIds, ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'm1']);
   assert.equal(summary.decks[0].id, 'draft-1');
-  assert.equal(summary.subtitles.length, 1);
 });
 
-test('a subtitle JSON dropped with the decks goes to the subtitle path', async () => {
+test('a subtitle JSON dropped with the decks goes to the audio form, which shows the estimate first', async () => {
   const calls = [];
   const results = await runImport([new File([bilibili], 'bili.json')], { call: async (action, args) => { calls.push(action); return { id: 'job', args }; }, courses: [], audio: true });
-  assert.equal(results[0].status, 'done');
-  assert.deepEqual(calls, ['audio.subtitles.import']);
+  assert.equal(results[0].status, 'error');
+  assert.equal(results[0].carry, true);
+  assert.deepEqual(calls, [], 'nothing was started');
 });
 
 test('the success message names the document and its pages, in either language', () => {
@@ -112,10 +114,9 @@ test('the success message names the document and its pages, in either language',
   const one = { documents: [{ title: 'lecture.pdf', format: 'pdf', pages: 6, sourceIds: ['p1'] }], decks: [], subtitles: [], done: 1, failed: 0, sourceIds: ['p1'] };
   assert.equal(importDoneMessage(one), '已导入「lecture.pdf」（6 页）');
   assert.equal(importDoneMessage({ ...one, documents: [{ title: 'notes.md', format: 'md', pages: 1, sourceIds: ['m'] }] }), '已导入「notes.md」');
-  const many = { ...one, documents: [one.documents[0], { title: 'notes.md', format: 'md', pages: 1 }], decks: [{ title: '期中复习', cards: [{}, {}] }], subtitles: [{ name: 'talk.srt' }] };
+  const many = { ...one, documents: [one.documents[0], { title: 'notes.md', format: 'md', pages: 1 }], decks: [{ title: '期中复习', cards: [{}, {}] }] };
   assert.match(importDoneMessage(many), /已导入 2 份资料/);
   assert.match(importDoneMessage(many), /题组/);
-  assert.match(importDoneMessage(many), /字幕/);
   setUiLanguage('en');
   try {
     assert.equal(importDoneMessage(one), 'Imported “lecture.pdf” (6 pages)');
@@ -135,12 +136,12 @@ test('import errors are rewritten in plain language and keep unknown details', (
 test('the dialog asks for the course first and offers one drop zone for every file type', () => {
   setUiLanguage('zh');
   const html = render({ audio: React.createElement('div', { className: 'audio-stub' }, 'audio') });
-  const course = html.indexOf('这些资料属于哪门课'), drop = html.indexOf('data-tour="import-drop"');
-  assert.ok(course >= 0 && drop > course, 'the course field sits above the controls it affects');
-  assert.match(html, /value="操作系统"/);
-  const ordinaryInputs = [...html.matchAll(/<input[^>]*type="file"[^>]*>/g)].map(match => match[0]).filter(input => /accept="[^"]*\.pdf/.test(input));
-  assert.equal(ordinaryInputs.length, 1, 'one shared file input for documents, decks and subtitles; external converters have separate result pickers');
-  assert.match(ordinaryInputs[0], /accept="[^"]*\.pdf[^"]*\.json[^"]*\.srt/);
+  const course = html.indexOf('归入「操作系统」'), drop = html.indexOf('data-tour="import-drop"');
+  assert.ok(course >= 0 && drop > course, 'the course line sits above the controls it affects');
+  assert.doesNotMatch(html, /value="操作系统"/, 'the field itself is behind 更改');
+  const ordinaryInputs = [...html.matchAll(/<input[^>]*type="file"[^>]*>/g)].map(match => match[0]).filter(input => /accept="[^"]*\.pdf[^"]*\.json/.test(input));
+  assert.equal(ordinaryInputs.length, 1, 'one shared file input for documents and decks; the PDF picker of the converter is another input');
+  assert.match(ordinaryInputs[0], /accept="[^"]*\.pdf[^"]*\.json/);
   assert.match(ordinaryInputs[0], /multiple/);
   assert.match(html, /aria-pressed="true"[^>]*>(?:<svg[\s\S]*?<\/svg>)?文件/);
   assert.match(html, /粘贴文本/);

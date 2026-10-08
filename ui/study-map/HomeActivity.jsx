@@ -85,7 +85,7 @@ export function HomeDrafts({ drafts, data, modelReady, openDraft, topUpDraft, de
   if (!drafts.length) return null;
   return (
     <Disclosure className="home-drafts" defaultOpen={defaultOpen} aria-label={ui('待发布草稿')}
-      summary={<>{ui('待发布')}{' '}<span>{drafts.length}</span></>} meta={ui('发布时逐题检查；问题题留在草稿')}>
+      summary={<>{ui('待发布')}{' '}<span>{drafts.length}</span></>} meta={ui('看过再发布')}>
       {[...drafts].reverse().map((d) => <DraftRow key={d.id} draft={d} data={data} modelReady={modelReady}
         openDraft={openDraft} topUpDraft={topUpDraft} />)}
     </Disclosure>

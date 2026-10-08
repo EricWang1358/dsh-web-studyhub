@@ -22,6 +22,13 @@ export function useSourceImport({ core, lib, nav, drafts, intents, data }) {
   const changeFormCourse = (course) => (ownCourse ? setModal((current) => ({ ...current, course })) : setSourceCourses(course));
   useEffect(() => { if (nav.page !== 'sources') setSourceHighlight(null); }, [nav.page, setSourceHighlight]);
   const generateFromSources = (ids) => intents.goGenerate({ sourceIds: ids, remember: true });
+  /* A recording was handed to the background (there is no material to tick yet): the dialog closes and the learner stays where the work is, 创建题组 or the
+     page that asked for the import, else lands on 资料 where the job card shows the progress. */
+  function finishAudioStart() {
+    const { page, modal: open } = latest.current;
+    setModal(null);
+    if (page !== 'generate' && !open?.onImported) nav.show.page('sources');
+  }
 
   function finishImport(summary) {
     const { page, modal: open } = latest.current;
@@ -48,5 +55,5 @@ export function useSourceImport({ core, lib, nav, drafts, intents, data }) {
     notify({ text: outcome.notice.text, tone: outcome.notice.tone,
       ...(outcome.notice.action === 'generate' ? { action: { label: ui('用它出题'), run: () => generateFromSources(ids) } } : {}) });
   }
-  return { paste, setPaste, formCourse, changeFormCourse, finishImport, generateFromSources };
+  return { paste, setPaste, formCourse, courseFrom: ownCourse ? 'page' : undefined, changeFormCourse, finishImport, finishAudioStart, generateFromSources };
 }

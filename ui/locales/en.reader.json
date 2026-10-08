@@ -54,7 +54,6 @@
   "取消": "Cancel",
   "AI 正在整理目录…可以继续阅读，完成后会提示。": "AI is organising the headings… You can keep reading; this panel says when it is done.",
   "已生成一份建议目录，请在弹出的窗口里确认。": "A proposed outline is ready. Please check it in the window that opened.",
-  "还没有连接模型，没法让 AI 整理目录；仍使用自动目录。": "No model is connected, so AI cannot organise the headings. The automatic headings stay.",
   "这份资料里没有可以整理的文字。": "This document has no text to organise.",
   "关闭": "Close",
   "没能完成：{0}": "Could not finish: {0}",

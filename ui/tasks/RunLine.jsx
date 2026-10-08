@@ -12,7 +12,8 @@ import RepeatingExplain from '../coverage/RepeatingExplain.jsx';
    the true reason in plain words. The numbers are lib/coverage-run.js runFacts' (the contract's detail.run). The way to full coverage (「覆盖现在 31% → 目标 100%，还要 3 轮、约 90 题」) is said here too: by the
    shortfall once the run stands still (with what the next round makes it), by the run's own rounds while it works.
    A plain run (a count, no plan) that ended before it was done has no rounds: its strip says what 接着做 will do (「已出 13/15 题保留，接着补 2 题」).
-   What is left is the run's own forecast (task-facts.js forecastOf: lib/coverage-run.js runForecast): the tokens with their basis in the line, the sum behind them under it (「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」).
+   What is left is the run's own forecast (task-facts.js forecastOf: lib/coverage-run.js runForecast): the tokens with their basis in the line, the sum behind them under it (「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」),
+   whose 已用 is the job's count as the line and the usage panel say it.
    That second line is there, one line high, for as long as the run is going, empty when there is nothing to say, so nothing moves when the numbers arrive or change.
    The sections that keep failing are one line (ui/coverage/copy.js repeatingLine) and, under it, an explanation to open: what happened to each with its numbers, why, and what to do (RepeatingExplain);
    `onOpenSource(sourceId, offset)` and `onOpenSettings(section)` are the host's, and a control is drawn only when the host gave it. */
@@ -33,7 +34,7 @@ export default function RunLine({ task, shortfall, now = Date.now(), onOpenSourc
   const standing = shortfall && !['running', 'paused'].includes(shortfall.state);
   const counts = standing ? joinMeta([continuing ? continueLine(shortfall) : shortfallLine(shortfall), shortfall.state === 'done' ? '' : nextRoundText(shortfall)]) : '';
   const path = standing ? coveragePathText(shortfall) : runPathText(run);
-  const forecast = interrupted ? null : forecastOf(contract, now), math = forecast ? forecastMath(forecast) : '';
+  const forecast = interrupted ? null : forecastOf(contract, now), math = forecast ? forecastMath(forecast, { own: !!run.ownTokens, used: contract.usage?.tokens }) : '';
   return (
     <div className="tc-run" role="status" aria-label={ui('出题计划')} data-run-state={interrupted ? 'interrupted' : run.state || 'running'}>
       <span className="tc-run__k">{ui('出题计划')}</span>

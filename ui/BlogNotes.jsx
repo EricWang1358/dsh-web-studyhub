@@ -16,6 +16,8 @@ import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
 import { Button, InlineMessage, PageHeader, useToast } from './components/index.js';
 import { useStudy } from './study-context.jsx';
+import NoteDraft from './NoteDraft.jsx';
+import { modelReadiness } from './generation-status.js';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
@@ -163,6 +165,16 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
       });
     }, { lockEditing: true });
   };
+  /** The AI draft: the note is saved as it is, then the draft is written in the background (it replaces the text when it arrives, and the inbox says so). */
+  const startDraft = () => perform(async live => {
+    const saved = await persistCurrent();
+    if (!live()) return;
+    await act('note.generate', { id: saved.id, expectedRevision: saved.revision }, () => {
+      if (!live()) return;
+      applyNote({ ...current.current, generation: { status: 'running' } });
+      toast.info(ui("正在后台起草；完成后会进入信箱，你可以继续学习。"));
+    });
+  });
   async function saveMaterial() {
     return perform(async live => {
       const submitted = writable ? await persistCurrent() : current.current;
@@ -224,12 +236,14 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
     </div>}
     {note && <>
       {daily && note.daily?.unassessedCount > 0 && <p className="muted">{uiFormat('其中 {0} 题尚待批改，合集先回顾作答内容，批改后可更新。', [note.daily.unassessedCount])}</p>}
-      {note.generation?.status === 'running' && <p role="status">{ui('正在整理今天的讲解与总结，你可以继续学习。')}</p>}
+      {daily && note.generation?.status === 'running' && <p role="status">{ui('正在整理今天的讲解与总结，你可以继续学习。')}</p>}
       {daily && ['cancelled', 'interrupted'].includes(note.generation?.status) && <p role="status">{ui('生成已停止，已完成的合集仍然保留。')}</p>}
       {note.generation?.status === "failed" && <p role="alert">{ui("起草失败：")}{note.generation.message}</p>}
       {serverVersion && <details className="note-linking"><summary>{ui('已保存版本有更新，展开核对；你的输入已保留')}</summary>
         <strong>{serverVersion.title}</strong><ReadingBlock as="article" prose className="note-preview" dangerouslySetInnerHTML={{ __html: renderNoteMarkdown(serverVersion.markdown || '') }} />
       </details>}
+      {note.status === 'draft' && !daily && <NoteDraft note={note} model={modelReadiness(data)} running={note.generation?.status === 'running'} disabled={saving || publishing}
+        onStart={startDraft} onModelSettings={onModelSettings} />}
       {!editing && note.markdown && <div className="note-reader"><DocumentViewer key={note.id} source={{ id: note.id, title: note.title, text: note.markdown, format: 'md' }}
         localContent={{ id: note.id, title: note.title, markdown: note.markdown }} data={data} call={call} /></div>}
       {editing && writable && <>
@@ -250,16 +264,6 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
         {daily && <p className="muted">{ui('链接只关联公开文章；更新本地合集不会自动修改 CSDN 正文。')}</p>}
         <p className="muted">{ui("公开文章请使用通用案例，不写课程、PPT 或个人信息。原题关联只保存在学习库。")}</p>
         <div className="note-actions">
-        {note.status === "draft" && !daily && <Button disabled={saving || note.generation?.status === "running"}
-          onClick={() => perform(async live => {
-              const saved = await persistCurrent();
-              if (!live()) return;
-              await act('note.generate', { id: saved.id, expectedRevision: saved.revision }, () => {
-                if (!live()) return;
-                applyNote({ ...current.current, generation: { status: 'running' } });
-                toast.info(ui("正在后台起草；完成后会进入信箱，你可以继续学习。"));
-              });
-          })}>{ui("AI 起草解析")}</Button>}
         {writable && <Button disabled={saving || note.generation?.status === "running"} onClick={() => perform(async live => {
           const editorTab = window.open("", "_blank");
           try {

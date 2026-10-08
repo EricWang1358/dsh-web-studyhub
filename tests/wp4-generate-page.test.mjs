@@ -73,17 +73,17 @@ test("with no materials the tab says what to do first and opens the import dialo
   assert.doesNotMatch(html, /type="submit"/, "nothing to generate from yet");
 });
 
-test("without a usable model the submit area becomes a setup gate", () => {
+test("without a usable model the gate is a banner on top of the form and the submit stays, off", () => {
   for (const patch of [{ model: { ready: false, reason: "no-credential", label: "DeepSeek V3" } }, { modelReady: false }]) {
     const html = render(patch);
-    assert.match(html, /sh-setup/);
-    assert.match(html, /先配置一个 AI 模型/);
-    assert.match(html, /打开模型设置/);
-    assert.doesNotMatch(html, /type="submit"/, "Generate cannot be clicked into a 20-second failure");
-    assert.match(html, /<section[^>]*sh-setup[^>]*data-tour="generate-submit"|data-tour="generate-submit"[^>]*sh-setup/);
+    assert.match(html, /sh-banner--warning/);
+    assert.match(html, /还没有可用的 AI 模型/);
+    assert.match(html, /前往设置/);
+    assert.ok(html.indexOf("sh-banner--warning") < html.indexOf("<form"), "the banner comes before the form");
+    assert.doesNotMatch(html, /sh-setup/, "no block under the form any more");
+    assert.match(html.match(/<button[^>]*data-tour="generate-submit"[^>]*>/)[0], /type="submit"[^>]*disabled|disabled[^>]*type="submit"/, "Generate cannot be clicked into a 20-second failure");
   }
-  assert.match(render({ model: { ready: false, reason: "no-credential", label: "DeepSeek V3" } }), /DeepSeek V3/);
-  assert.doesNotMatch(render({ model: { ready: true, reason: "ok" }, modelReady: false }), /sh-setup/, "the host contract wins over the legacy flag");
+  assert.doesNotMatch(render({ model: { ready: true, reason: "ok" }, modelReady: false }), /sh-banner--warning/, "the host contract wins over the legacy flag");
 });
 
 test("a freshly imported Markdown file is not called a legacy extraction (P22)", () => {

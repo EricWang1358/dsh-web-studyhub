@@ -36,7 +36,7 @@ test('from 创建题组 the new material is ticked in place instead', () => {
   assert.match(outcome.notice.text, /已勾选/);
 });
 
-test('a single JSON deck opens its draft; subtitles land in 资料', () => {
+test('a single JSON deck opens its draft; several decks land in 题库', () => {
   setUiLanguage('zh');
   const deck = { id: 'd1', title: '期中复习', cards: [{}, {}, {}] };
   const draft = importOutcome(summary({ documents: [], sourceIds: [], decks: [deck] }), { page: 'sources' });
@@ -44,9 +44,6 @@ test('a single JSON deck opens its draft; subtitles land in 资料', () => {
   assert.match(draft.notice.text, /期中复习/);
   const many = importOutcome(summary({ documents: [], sourceIds: [], decks: [deck, { ...deck, id: 'd2' }] }), { page: 'sources' });
   assert.equal(many.page, 'library');
-  const subtitles = importOutcome(summary({ documents: [], sourceIds: [], subtitles: [{ name: 'talk.srt' }] }), { page: 'library' });
-  assert.equal(subtitles.page, 'sources');
-  assert.match(subtitles.notice.text, /字幕/);
   assert.equal(importOutcome(summary({ done: 0, documents: [], sourceIds: [] }), { page: 'library' }), null);
 });
 

@@ -21,8 +21,8 @@ import { sampleMaterial } from "./fixtures.mjs";
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const TEXT = {
-  zh: { importFirst: "导入我的第一份资料", paste: "粘贴文本", title: "资料名称", body: "原文", save: "保存资料", makeFirst: "从这份资料出题", makeCourse: "用这门课的资料出题" },
-  en: { importFirst: "Import my first source", paste: "Paste text", title: "Source name", body: "Original text", save: "Save source", makeFirst: "Generate from this source", makeCourse: "Make questions from this course's materials" },
+  zh: { importFirst: "添加资料", paste: "粘贴文本", title: "资料名称", body: "原文", save: "保存资料", makeFirst: "从这份资料出题", makeCourse: "用这门课的资料出题" },
+  en: { importFirst: "Add source", paste: "Paste text", title: "Source name", body: "Original text", save: "Save source", makeFirst: "Generate from this source", makeCourse: "Make questions from this course's materials" },
 };
 
 export async function runJourney({ browser, running, name, lang, width = 1440 }) {

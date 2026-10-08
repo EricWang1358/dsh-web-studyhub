@@ -5,8 +5,9 @@ import { readJSON, removeKey, writeJSON } from "./storage.js";
    with the left button and dragging it.
 
    - 每天 (daily): what a learner opens every session, including adding the week's material and making questions from it
-     (a new lecture arrives every week, so 资料 and 创建题组 are part of the daily loop, not a once-per-course step);
-   - 阶段性 (periodic): what is opened now and then (a mock exam, the statistics);
+     (a new lecture arrives every week, so 资料 and 创建题组 are part of the daily loop, not a once-per-course step), and
+     the places the work goes on in (任务, 错题与待巩固, 学习流, 学习笔记, 待办);
+   - 阶段性 (periodic): what is opened now and then (a mock exam, 备考补习 once DSH has turned it on, the statistics);
    - 课程准备与管理 (setup): what is done once at the start of a course (draw the skeleton) or only by those who record
      their classes (audio transcription, class recordings), and when a course is looked after.
 
@@ -24,8 +25,8 @@ export const NAV_DEFAULTS = Object.freeze({
 });
 /** The groups as drawn: a plain label, one line saying what they hold, and whether the learner can fold them. */
 export const NAV_GROUPS = Object.freeze([
-  { id: "daily", label: "每天", hint: "每天都会用：今日学习、加资料、出题、错题、学习流、笔记、待办", collapsible: false },
-  { id: "periodic", label: "阶段性", hint: "隔一阵用一次：模拟考试、统计", collapsible: true },
+  { id: "daily", label: "每天", hint: "每天都会用：学习库、资料、创建题组、任务、错题与待巩固、学习流、学习笔记、待办", collapsible: false },
+  { id: "periodic", label: "阶段性", hint: "隔一阵用一次：模拟考试、备考补习（DSH 开启后出现）、统计", collapsible: true },
   { id: "setup", label: "课程准备与管理", hint: "每门课开头做一次或按需用：知识骨架、音频转写、课堂实录", collapsible: true },
 ]);
 const HOLD_MS = 350; // the item lifts only after this long, so an ordinary click or a slip never reorders

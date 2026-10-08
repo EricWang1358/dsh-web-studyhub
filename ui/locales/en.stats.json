@@ -38,8 +38,12 @@
   "数据不足": "Insufficient data",
   "{0} 次作答": "{0} answers",
   "近 {0} 天还没有足够的作答": "Not enough answers in the last {0} days yet",
-  "多做几道题，这里会显示各层次的掌握度。": "Answer a few more questions to see mastery here.",
   "填空": "Cloze",
   "开放": "Open",
-  "当前薄弱 {0} 题": "Weak questions: {0}"
+  "当前薄弱 {0} 题": "Weak questions: {0}",
+  "客观题通过率": "Objective pass rate",
+  "自评达标率": "Self-assessment pass rate",
+  "达标率": "Met rate",
+  "{0} · {1} 次": "{0} · Attempts: {1}",
+  "多做几道题，这里会显示各层次的达标率。": "Answer a few more questions to see the met rate here."
 }

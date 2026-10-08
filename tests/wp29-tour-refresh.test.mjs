@@ -8,18 +8,25 @@ import { mkdir, mkdtemp, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPreviewServer } from "../scripts/preview-server.mjs";
-import { TOUR_STEPS, availableTourSteps } from "../ui/tour/steps.js";
+import { TOUR_STEPS, availableTourSteps, CORE_TOUR_LENGTH } from "../ui/tour/steps.js";
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
 const read = (path) => readFile(join(repo, path), "utf8");
 const step = (id) => TOUR_STEPS.find((item) => item.id === id);
 const anchorsOf = (item) => [item.anchor].flat().filter(Boolean);
 
-test("the tour stays short: at most 22 steps, welcome first and the sample hand-off last", () => {
-  assert.ok(TOUR_STEPS.length <= 22, `${TOUR_STEPS.length} steps`);
-  assert.equal(TOUR_STEPS[0].id, "welcome");
-  assert.equal(TOUR_STEPS.at(-1).id, "finish");
-  assert.equal(availableTourSteps(TOUR_STEPS, { sample: { loaded: true, deckId: "d", sourceId: "s", draftId: "r" } }).length, TOUR_STEPS.length);
+test("the default tour stays short: at most 9 steps; the full one is the extra, with welcome first and the sample hand-off last in both", () => {
+  const sample = { loaded: true, deckId: "d", sourceId: "s", draftId: "r" };
+  const core = availableTourSteps(TOUR_STEPS, { sample }), full = availableTourSteps(TOUR_STEPS, { sample, full: true });
+  assert.ok(core.length <= 9, `${core.length} steps`);
+  assert.equal(core.length, CORE_TOUR_LENGTH);
+  assert.ok(full.length <= 28, `${full.length} steps`);
+  assert.ok(full.length > core.length);
+  for (const list of [core, full]) {
+    assert.equal(list[0].id, "welcome");
+    assert.equal(list.at(-1).id, "finish");
+  }
+  assert.equal(full.length, TOUR_STEPS.filter((item) => item.only !== "core").length);
 });
 
 test("the new generate form is toured: the picker, the switches with 帮我想想, then the 预计 token line", () => {
@@ -108,14 +115,10 @@ test("the sample course gives every step what it shows, without a model", async 
   assert.equal(calls, 0, "no model call");
 });
 
-test("README and the changelog state the same step count as the tour", async () => {
-  const count = TOUR_STEPS.length;
+test("README states the step count of the default tour and no longer promises three minutes (the changelog is written at release time)", async () => {
+  const count = CORE_TOUR_LENGTH;
   const readme = await read("README.md"), readmeZh = await read("README.zh-CN.md");
   assert.match(readme, new RegExp(`The ${count}-step tour`));
   assert.match(readmeZh, new RegExp(`${count} 步导览`));
-  for (const [file, text] of [["README.md", readme], ["README.zh-CN.md", readmeZh]]) assert.doesNotMatch(text, /\b(17|19)[- ]?step|(17|19) 步导览/, file);
-  const unreleased = (await read("CHANGELOG.md")).split(/\n## 2\.1\.1/)[0];
-  const unreleasedZh = (await read("CHANGELOG.zh-CN.md")).split(/\n## 2\.1\.1/)[0];
-  assert.match(unreleased, new RegExp(`feature tour[^\\n]*${count} steps|${count}-step[^\\n]*tour`, "i"));
-  assert.match(unreleasedZh, new RegExp(`${count} 步`));
+  for (const [file, text] of [["README.md", readme], ["README.zh-CN.md", readmeZh]]) assert.doesNotMatch(text, /\b(17|19|21)[- ]?step|(17|19|21) 步导览|3 minutes|3 分钟/, file);
 });

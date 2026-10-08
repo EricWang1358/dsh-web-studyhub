@@ -2,6 +2,24 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.2.0 — 2026-10-08
+
+The long flows got shorter: the first minutes, model setup, making questions, importing, daily practice, exams and the task console. The settings stay, behind a fold or in Settings; the main path is the short one.
+
+- **Model setup says where to go.** Settings › 学习库与模型 opens with 模型已连接 or 模型未连接 and the exact steps; the key is set only in DSH. Every place that needs a model uses the same gate and the same words, and a link to the model settings is shown only where it works.
+- **A shorter first run.** The sample tour is 8 steps (6 without the sample) instead of 21; the full tour is offered at its end and in Settings. The first step is called 添加资料 everywhere. 按原资料重新设置 puts the whole failed request back on the form (a generation job now records what was asked; jobs made before keep less).
+- **The first import lands on 创建题组** with the new material ticked; the course is one line, and is read from the file name only when exactly one course is named in it. A scanned or over-8 MB PDF is handled in one place with the reason on its row; a recording import closes its dialog and offers 用它出题 when it finishes. The audio estimate no longer assumes English.
+- **创建题组** opens ticked and on one line (types, coverage strength, course); the rest is under 更多选项. A clean finished run is published and practised with one click (发布并练习), and a draft being worked on says why saving waits.
+- **Daily practice.** The home card is the current course's daily path; the result page puts the one next step first; Settings has a 练习 page (autopilot, round size, 练习点评); 错题 has 练这一组 and 练筛选的 M 道; 待办 starts from a local proposal that needs no model.
+- **Exams and the report.** The time limit is set on the exam's setup card (default: the course's own time); each weak topic in the report is one click from practice; a chapter row has 练这一章; the "how well" numbers have distinct names (达标率 on the dashboard, 数据不足 under 3 answers).
+- **Reader, notes and courses.** One-click first-level questions; making questions from a passage is prefilled; a note has AI 起草解析 as a button; the 任务 sidebar entry shows finished tasks; a page's scope says 跟随当前课程 or 已固定; the course panel opens on the exam date.
+- **Choose the model for one task.** The 任务 console's 即时控制 has a 模型 choice for the running task only; the reasoning levels shown are those of that model. Settings and other tasks are untouched.
+- **The 任务 console's figures about what is left agree.** Questions left and the token forecast come from what is really left (the sections still uncovered, or the points the planner returned), and 已用 is this job's (「本任务已用」).
+
+Changes to know about: autopilot (key A) starts off once after upgrading, because it is a setting now (设置 › 练习); 待办 writes an unaccepted local proposal on its first view each day.
+
+Not fixed or not verified: nothing here was tried in a real DSH (the model settings links, the model choice for a task and its model list); 备考补习 has still not been tried with real slides, a sample paper and a real model; every generated card still shows 未自动审阅 on the draft page (a field stamped after the review changes its fingerprint), which 发布并练习 works around; 交卷 always asks 「还有 0 题未作答」; the final package passed the archive check (npm run release:check) but was not installed into a real DSH.
+
 ## 3.1.1 — 2026-10-08
 
 Two fixes for 3.1.0: its 备考补习 page could not be turned on the way its notes said, and 自动补到完整 gave up too early.

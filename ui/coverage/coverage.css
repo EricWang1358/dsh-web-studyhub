@@ -69,6 +69,10 @@
     .cov-topup__act { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2) var(--space-4); }
     /* The button names the action in full: on a narrow screen it wraps instead of pushing the block past the edge. */
     .cov-topup__button { max-width: 100%; height: auto; padding-block: var(--space-2); text-align: center; white-space: normal; overflow-wrap: anywhere; }
+    /* The button that spends names what it is expected to use under its label (ui/coverage/RoundCost.jsx). */
+    .cov-topup__button--cost { display: inline-grid; justify-items: center; gap: var(--space-half); }
+    .cov-cost { color: inherit; font-size: var(--fs-xs); font-weight: var(--fw-regular); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; opacity: 0.85; }
+    .cov-run__auto .cov-cost { color: var(--text-muted); opacity: 1; }
     .cov-topup__estimate { flex: 1 1 14em; max-width: 34em; min-width: 0; }
     .cov-topup__done { color: var(--text-dim); font-size: var(--fs-sm); }
     .cov-topup--compact { padding-top: 0; border-top: 0; justify-items: end; width: min(20rem, 100%); margin-inline-start: auto; text-align: end; }

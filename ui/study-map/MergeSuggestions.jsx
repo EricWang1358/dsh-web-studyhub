@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, CloseButton, Hint, InlineMessage } from '../components/index.js';
+import ModelSetupGate from '../ModelSetupGate.jsx';
 
 /**
  * Asking the model which decks of a course are worth merging, and merging the
@@ -38,9 +39,9 @@ export default function MergeSuggestions({ merge, busy }) {
           <strong>{uiFormat('{0} · 合并建议', [suggestions.course])}</strong>
           <CloseButton onClick={merge.close} />
         </div>
-        {!suggestions.proposals.length && <Hint>
-          {suggestions.method === 'unavailable' ? ui('当前没有可用模型；可以在题组管理中手动合并。') : ui('没有发现值得合并的题组。')}
-        </Hint>}
+        {!suggestions.proposals.length && (suggestions.method === 'unavailable'
+          ? <ModelSetupGate variant="compact" feature="merge" model={{ ready: false }} />
+          : <Hint>{ui('没有发现值得合并的题组。')}</Hint>)}
         {suggestions.proposals.map((item) => <div className="merge-suggestion" key={item.targetId}>
           <div><strong>{item.sourceTitles.join('、')} → {item.targetTitle}</strong>
             <p>{item.reason}{' · '}{uiFormat('合并后共 {0} 题，全部题目保留。', [item.count])}</p></div>

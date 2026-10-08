@@ -32,6 +32,8 @@ import { useInjectCss } from "./shared.js";
 import { RubricAnswer, ScenarioPanel } from "./CaseWorkspace.jsx";
 import { ReadingBackButton, ReadingResult, WrongAnswerSource } from "./document-preview/practice/ReadingReturn.jsx";
 import { NextDue } from './NextDue.jsx';
+import { practiceArgs } from "./learning-navigation.js";
+import { resolvePracticeSettings } from "../lib/practice-settings.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -75,9 +77,15 @@ function AssistFailure({ task, busy, onSettings, onResubmit, onEdit }) {
   );
 }
 
+/* The score's words follow how the answers were measured, as the 点评 splits them: a choice is answered right, a flashcard is graded by the learner. */
+function scoreWording(run) {
+  const self = run.selfAnswered || 0;
+  return self === 0 ? "道题答对 / {0} 道" : self >= (run.answered || 0) ? "道题自评达标 / {0} 道" : "道题达标 / {0} 道";
+}
+
 export default function Review({ session, data, shellTitle, feedback, coachProps, links = {}, context = {} }) {
   useInjectCss(reviewCss, "study-review");
-  const { run, entry, showBack, showEn, enBusyKey, teachingBusy, teachingError, choice, isCloze, actions } = session;
+  const { run, entry, showBack, showEn, enBusyKey, teachingBusy, teachingError, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
   const { call, act, busy, host, askInChat, navigate, openModal, openSettings, notify } = useStudy();
@@ -182,6 +190,19 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
   const nextFreshCount = run.freshRemaining ?? [...new Set((run.scope || []).map((scope) => scope.deckId))]
     .reduce((count, deckId) => count + (data?.progress?.[deckId]?.counts?.new || 0), 0);
+  // 练习点评 (设置 › 练习) and its 前往设置: the result page says once that the 点评 asks the model, and where to switch that.
+  const practice = resolvePracticeSettings(data?.settings?.practice);
+  const goPracticeSettings = links.onPracticeSettings || (() => openSettings("settings-practice"));
+  /* The one next step of a finished round, by what the round was: a learning flow, a detour, the question a prerequisite round came from, the next
+     course batch or batch of new questions, else wherever the page decided 继续学习 goes. null: nothing to offer (a mock exam, no library). */
+  const nextStep = !run.complete ? null
+    : flow ? { label: flow.current ? ui("回到学习流，继续下一步 →") : ui("回到学习流 →"), run: () => onBackToWorkflow(flow.sessionId) }
+      : detour ? { label: uiFormat("回到之前的第 {0} 题 →", [detour.index + 1]), run: onReturnFromDetour }
+        : destination?.kind === "original" ? { label: destination.label, run: destination.go }
+          : run.course?.next ? { label: ui("继续课程下一批 →"), run: () => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun) }
+            : run.mode === "new" && nextFreshCount > 0 ? { label: ui("继续下一批新题 →"),
+              run: () => act("review.start", { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: 10, ordered: true, fresh: true }, enterRun) }
+              : destination ? { label: destination.label, run: destination.go } : null;
   const prereqStrip = run.prerequisites?.length > 0 && !run.complete && (
     <details className="prereq-strip">
       <summary>
@@ -264,15 +285,21 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="result-hero sh-paper-card sh-paper-card--roomy">
             <div className="result-headline">
               <strong>{run.correct}</strong>
-              <span>{uiFormat("道题答对 / {0} 道", [run.questions ?? run.total])}</span>
+              <span>{uiFormat(scoreWording(run), [run.questions ?? run.total])}</span>
               {run.retries > 0 && <small>{uiFormat("另有 {0} 次队尾重练", [run.retries])}</small>}
             </div>
             <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
           </div>
-          {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap} call={call} act={act}
-            busy={busy} poll onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
-          {/* The 雷霆建议 sits right under the score: it carries the one-click
-              「刷 N 道为你定制的题」, so it must not hide inside the fold. */}
+          {/* The next step comes first (the page decided it with today's plan in view): one filled button, then the 点评 and the rest. */}
+          {nextStep && (
+            <div className="result-next">
+              <Button variant="primary" disabled={busy} onClick={nextStep.run}>{nextStep.label}</Button>
+              {run.course?.next?.fresh > 0 && onCourseFlow && <Button disabled={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</Button>}
+              {contextReturnLabel && <Button disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</Button>}
+            </div>
+          )}
+          {destination?.note && <p className="muted" role="status">{destination.note}</p>}
+          {/* The 雷霆建议 sits right under the next step: its own suggestion (定制题 or 补薄弱) is one click, so it must not hide inside the fold. */}
           {coachProps && run.mode !== "exam" && run.answered > 0 && (
             <CoachDebrief
               key={"debrief-" + run.id}
@@ -286,13 +313,19 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
               onReviewWeak={coachProps.onReviewWeak}
+              nextShown={!!nextStep}
+              debriefModel={practice.debrief}
+              onSettings={goPracticeSettings} onProfileSettings={() => openSettings("settings-profile")}
             />
           )}
+          {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap} call={call} act={act}
+            busy={busy} poll primary={!nextStep} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
           <div className="summary-topics sh-paper-card">
             <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
-            {(run.weakTopics || []).slice(0, 3).map((t) => (
-              <Badge className="summary-topic" key={t}>{t}</Badge>
-            ))}
+            {(run.weakTopics || []).slice(0, 3).map((t) => run.weakScopes?.[t]?.length
+              ? <Button key={t} size="sm" className="summary-topic" iconEnd="arrow-right" disabled={busy} title={ui("练这个主题")} aria-label={uiFormat("练这个主题：{0}", [t])}
+                onClick={() => act("review.start", practiceArgs(run.weakScopes[t]), enterRun)}>{t}</Button>
+              : <Badge className="summary-topic" key={t}>{t}</Badge>)}
             {!run.weakTopics?.length && (
               <p className="muted">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
             )}
@@ -303,18 +336,6 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </p>
           )}
           <div className="summary-actions">
-            {run.course?.next && <Button variant="primary" disabled={busy}
-              onClick={() => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun)}>{ui("继续课程下一批 →")}</Button>}
-            {run.course?.next?.fresh > 0 && onCourseFlow && <Button disabled={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</Button>}
-            {run.mode === "new" && nextFreshCount > 0 && (
-              <Button variant="primary" disabled={busy} onClick={() => act("review.start",
-                { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: 10, ordered: true, fresh: true }, enterRun)}>{ui("继续下一批新题 →")}</Button>
-            )}
-            {flow && <Button variant="primary" disabled={busy} onClick={() => onBackToWorkflow(flow.sessionId)}>
-              {flow.current ? ui("回到学习流，继续下一步 →") : ui("回到学习流 →")}</Button>}
-            {contextReturnLabel && <Button disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</Button>}
-            {detour && <Button variant="primary" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题 →", [detour.index + 1])}</Button>}
-            {destination?.kind === "original" && !detour && <Button variant="primary" disabled={busy} onClick={destination.go}>{destination.label}</Button>}
             {summaryCase && <>
               <Button disabled={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
                 setCaseNote(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count])))}>
@@ -324,19 +345,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </>}
             <Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
           </div>
-          {destination?.note && <p className="muted" role="status">{destination.note}</p>}
           {caseNote && <p className="muted" role="status">{caseNote}</p>}
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
             <div className="summary-actions">
-            {run.mode === "path" && !run.returnTo && !flow && (
-              <Button variant="primary"
-                disabled={busy}
-                onClick={() => act("review.start", { mode: "path", scope: run.scope || [], fresh: true }, enterRun)}
-              >
-                {run.scope?.length ? ui("再练此范围") : ui("继续学习")}
-              </Button>
+            {run.mode === "path" && !run.returnTo && !flow && run.scope?.length > 0 && run.dailyCourse === undefined && (
+              <Button disabled={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
             )}
             {run.weakTopics?.length > 0 && (
               <Button
@@ -629,6 +644,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               enOn={enOn}
               enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
               onToggleEn={toggleEn}
+              autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
               thumbs={coachProps && run.mode !== "exam" && (
                 <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
                   onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />

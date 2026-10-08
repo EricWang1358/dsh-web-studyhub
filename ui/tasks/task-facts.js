@@ -50,8 +50,10 @@ export function forecastOf(contract, now = Date.now()) {
   const phase = status === 'queued' ? 'queued' : status === 'running' ? 'running' : ['pausing', 'paused'].includes(status) ? 'paused' : null;
   if (!phase || (run && (run.ended || run.waiting || !run.auto))) return null;
   // A continued job is measured from its own start: its goal is the draft it started with plus what it was asked for (the draft's total alone would be reached before it began).
+  // What is left is the run's own count when its rounds carry it (`dueKnown`: the sections still without a question, the points the planner returned), the same number as 「还要 … 约 n 题」.
   const own = detail?.own, goal = own ? Math.max(progress?.total ?? 0, own.base + own.asked) : progress?.total;
-  return runForecast({ phase, projection: run?.projection, estimate: run?.estimateTokens, tokens: usage?.tokens, kept: progress?.done, goal, base: detail?.keptAtStart, elapsedMs: elapsedMs(contract, true, now) ?? 0 });
+  return runForecast({ phase, projection: run?.projection, estimate: run?.estimateTokens, tokens: usage?.tokens, kept: progress?.done, goal, base: detail?.keptAtStart, elapsedMs: elapsedMs(contract, true, now) ?? 0,
+    ...(run?.dueKnown ? { left: run.questionsLeft } : {}) });
 }
 
 /** "151 · 0 失败": model calls made and how many failed. */

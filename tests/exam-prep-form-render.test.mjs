@@ -141,7 +141,7 @@ test('without a model the banner is at the top of the form, the table is still t
   assert.ok(html.indexOf('sh-banner') < html.indexOf('data-token-estimate') || !html.includes('data-token-estimate'));
   const start = dom(html).all.find(item => item.tagName === 'BUTTON' && /开始生成/.test(item.textContent));
   assert.ok(start && start.hasAttribute('disabled'), 'the one primary button stays at the bottom, disabled');
-  assert.ok(dom(html).all.some(item => item.tagName === 'BUTTON' && /打开模型设置/.test(item.textContent)));
+  assert.ok(dom(html).all.some(item => item.tagName === 'BUTTON' && /前往设置/.test(item.textContent)));
   const ready = render(create(snapshot({ lists: [] })));
   assert.doesNotMatch(ready, /sh-banner/);
   assert.ok(!dom(ready).all.find(item => item.tagName === 'BUTTON' && /开始生成/.test(item.textContent)).hasAttribute('disabled'));

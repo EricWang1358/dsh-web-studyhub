@@ -17,6 +17,7 @@ import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import { CoverageChip } from './coverage/Coverage.jsx';
 import DocumentTopUp, { offersDocumentTopUp } from './coverage/DocumentTopUp.jsx';
 import { modelReadiness } from './generation-status.js';
+import ModelSetupGate from './ModelSetupGate.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
@@ -102,13 +103,15 @@ const pageLabel = (item, page) => item.format === 'pdf'
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
 /**
- * The chapters of one document, each with where it lies and its own 出题 button. A chapter that starts and ends inside one page holds
+ * The chapters of one document, each with where it lies and its own 练这一章 / 出题 button. A chapter that starts and ends inside one page holds
  * no whole page, so generation cannot be scoped to it (the button is off); it still opens the document at its start.
+ * 练这一章 practises the chapter's published questions (the very set its mastery counts) in one click; a chapter with none offers 出题 as its one action.
  */
-export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery }) {
+export function ChapterList({ item, busy, onOpen, onGenerate, onPractice, listId, mastery }) {
   return <ul id={listId} className="source-doc__page-list source-doc__chapters" role="region" aria-label={ui('章节列表')} tabIndex={0}>
     {item.chapters.map(chapter => {
       const inside = chapter.sourceIds.length === 0, partial = chapter.partial && item.chapterUnit !== 'text';
+      const practisable = !!onPractice && mastery?.chapters?.[chapter.index]?.total > 0;
       return <li key={chapter.index} data-chapter-index={chapter.index}>
         <Button variant="quiet" block align="start" className="source-doc__row" onClick={() => onOpen(chapter.startSourceId || chapter.sourceIds[0])}>
           <span>{chapterLabel(chapter, item.chapterUnit)}</span>
@@ -116,7 +119,8 @@ export function ChapterList({ item, busy, onOpen, onGenerate, listId, mastery })
             item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, formatNumber(chapter.chars)])].filter(Boolean).join(' · ')}</small>
           <MasteryLine className="source-doc__mastery" summary={mastery?.chapters?.[chapter.index] ?? null} title={chapterLabel(chapter, item.chapterUnit)} />
         </Button>
-        {onGenerate && <Button size="sm" variant="quiet" icon="sparkle" disabled={busy || inside}
+        {practisable && <Button size="sm" variant="secondary" icon="success" disabled={busy} onClick={() => onPractice(item, chapter)}>{ui('练这一章')}</Button>}
+        {onGenerate && <Button size="sm" variant={onPractice && !practisable ? 'secondary' : 'quiet'} icon="sparkle" disabled={busy || inside}
           title={inside ? (item.chapterUnit === 'text' ? ui('这份资料是一整段文字，出题仍以整份资料为单位') : ui('这一章在同一页内，不能单独出题')) : undefined}
           onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
       </li>;
@@ -146,7 +150,7 @@ export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, 
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
-const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark'];
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark'];
 
 /**
  * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
@@ -158,7 +162,7 @@ export function sourceRowPropsEqual(a, b) {
 }
 
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '' }) {
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '' }) {
   const { busy, call } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
@@ -231,7 +235,8 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           onClick={() => setPagesOpen(open => !open)}>
           {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={actions.open} onGenerate={canGenerate ? actions.generate : undefined} listId={listId} mastery={mastery} />}
+        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={actions.open} onGenerate={canGenerate ? actions.generate : undefined}
+          onPractice={canPractice ? actions.practiceChapter : undefined} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>
             <Button variant="quiet" block align="start" className="source-doc__row" onClick={() => actions.open(page.sourceId)}>
@@ -303,7 +308,7 @@ function GroupHead({ expanded, onToggle, children }) {
   </button>;
 }
 
-export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
+export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onPractice, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
   const { busy, act, call } = useStudy();
   useInjectCss(css, "study-sources");
   const toast = useToast();
@@ -347,6 +352,16 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     if (pinned.some(item => fresh.has(item.key))) reopen.add(PINNED);
     if (reopen.size) setClosed(current => new Set([...current].filter(key => !reopen.has(key))));
   }, [highlight?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* A material that was just imported must be on the page the import lands on. The page is filtered by course, and the new material may belong to another one
+     (or to none): then the page shows all courses, once per import, instead of hiding what the learner just added. */
+  const widened = useRef(0);
+  useEffect(() => {
+    if (!highlight?.at || widened.current === highlight.at || !highlight.ids?.length) return;
+    const landed = allItems.filter(item => item.sourceIds.some(id => highlight.ids.includes(id)));
+    if (!landed.length) return;
+    widened.current = highlight.at;
+    if (landed.some(item => !inScope(item, scope, known))) setScope('*');
+  }, [highlight?.at, allItems]); // eslint-disable-line react-hooks/exhaustive-deps
   const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
   // EXPERIMENTAL (hidden unless "Show experimental features" is on, off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
@@ -373,11 +388,19 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [drag, setDrag] = useState(null);
   // The handlers the rows call: one object that never changes and reads the latest state itself, so a row is drawn again only for its own data (#229).
   const latest = useRef(null);
-  latest.current = { setModal, byId, act, onGenerate, onOpenSettings, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
+  latest.current = { setModal, byId, act, onGenerate, onPractice, toast, onOpenSettings, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
   const actions = useMemo(() => ({
     open: id => latest.current.setModal({ type: "source", source: latest.current.byId.get(id) }),
     select: (key, on) => { setSelected(current => on ? [...current, key] : current.filter(entry => entry !== key)); setProposals(null); },
     generate: ids => latest.current.onGenerate?.(ids),
+    // 练这一章: ask which questions the chapter's number counts (materials.pages.cards { chapter }), then start the ordinary practice round on them.
+    practiceChapter: async (item, chapter) => {
+      const { act, onPractice: start, toast: say } = latest.current;
+      const view = await act('materials.pages.cards', { documentId: item.documentId || item.key, sourceId: item.sourceIds[0], chapter: chapter.index }, undefined, { refreshAfter: false });
+      if (!view) return;
+      const refs = (view.cards || []).map(({ deckId, cardId }) => ({ deckId, cardId }));
+      if (refs.length) start?.(refs); else say.info(ui('这一章现在没有可练习的题。'));
+    },
     archive: item => latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived }),
     remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), segment: item => setSegmenting(item),
     rename: item => latest.current.renameFor(item),
@@ -405,7 +428,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
   const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
     isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
-    canGenerate={!showArchived && !!onGenerate} canSegment={typeof call === 'function'} canRename={!!renameFor}
+    canGenerate={!showArchived && !!onGenerate} canPractice={!showArchived && !!onPractice} canSegment={typeof call === 'function'} canRename={!!renameFor}
     mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
     topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} slot={indexStatus !== 'unavailable'}
     relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null}
@@ -441,7 +464,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             <Button disabled={busy || !selectedItems.length} onClick={() => act('source.courses.set', {
               assignments: courseAssignments(items, selected, parseCourses(courseText), byId),
             }, finish)}>{ui('应用课程归属')}</Button>
-            <Button disabled={busy || !data.modelReady || !selectedItems.length || selectedItems.length > 100}
+            <Button disabled={busy || !modelReadiness(data).ready || !selectedItems.length || selectedItems.length > 100}
               onClick={() => act('source.organize.suggest', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
                 setJevRun(result.jev ?? null);
                 setProposals(result.proposals.map(proposal => {
@@ -459,6 +482,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                 }));
               }); }} />
           </div>
+          <ModelSetupGate variant="compact" feature="organize" model={modelReadiness(data)} />
           {experimental && <JevNote note={jevNote} />}
           {experimental && <JevRunNote jev={jevRun} />}
           {proposals && <div className="source-course-proposals">
@@ -479,8 +503,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         </details>
         {!filtered.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       </>}
-      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} />
-      <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} />
+      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onGenerate={onGenerate} />
+      <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
       <PdfConvertHistory data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
       {!items.length ? (
         <section className="sources-empty" data-tour="sources-list">

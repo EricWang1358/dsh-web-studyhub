@@ -4,6 +4,7 @@ import { hasContext, pageAvailable } from '../capabilities.js';
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from '../tour/steps.js';
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from '../tour/progress.js';
 import { practiceArgs } from '../learning-navigation.js';
+import { importForQuestions } from './import-handoff.js';
 
 /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────────
    The welcome page of an empty library, the sample course (sample.* host actions, C6) and the feature tour that switches to
@@ -13,6 +14,8 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const { call, act, setError, notify, refresh, refs } = core;
   const { setModal, setDraft, setSelectedSources, setSkeletonFocus } = lib.set;
   const [tourStep, setTourStep] = useState(null), [sampleBusy, setSampleBusy] = useState(false);
+  // Which tour is running: the short one (the core chain) or, when the learner asked for it, the full one.
+  const [fullTour, setFullTour] = useState(false);
   const [removingSample, setRemovingSample] = useState(false), [hiddenWelcome, setHiddenWelcome] = useState('');
   const tourOrigin = useRef(null), tourRound = useRef(null);
   const latest = useRef(null);
@@ -20,9 +23,13 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const page = nav.page;
 
   const modelState = data ? data.model || { ready: !!data.modelReady } : null;
-  const tourSteps = useMemo(() => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample,
-    pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [], [data]);
+  /** The steps of the short tour or of the full one, for what this library and host can show. */
+  const stepsFor = (full) => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample, full,
+    pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [];
   const savedTour = data?.root && !tourStep ? readTourProgress(data.root) : null;
+  // While paused, the tour on offer is the one that was paused (the sidebar says "继续 3/8" for it).
+  const shownFull = tourStep ? fullTour : !!savedTour?.full;
+  const tourSteps = useMemo(() => stepsFor(shownFull), [data, shownFull]); // eslint-disable-line react-hooks/exhaustive-deps
   const resumeAt = savedTour && !savedTour.done ? tourSteps.findIndex((step) => step.id === savedTour.stepId) : -1;
   const tourResume = resumeAt > 0 ? { index: resumeAt, total: tourSteps.length } : null;
   const ownLibraryEmpty = !!data && !data.sources.some((source) => !source.sample) && !data.drafts.some((item) => !item.sample) &&
@@ -34,21 +41,32 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     dismissWelcome(data.root);
     setHiddenWelcome(data.root);
   }
-  const openFirstImport = () => setModal({ type: 'add' });
+  // The first import goes on to 创建题组 with the file ticked (ui/app/import-handoff.js), not to 资料 with a toast to press.
+  const openFirstImport = () => setModal(importForQuestions(intents.goGenerate));
   /** The tour switches pages at once: no leave animation, no stale context trail, each step starts at the top of its page. */
   const showPage = (id) => nav.navigate(id, { keepTrail: false, enter: 'tour', scroll: true });
 
-  function startTour({ restart = false } = {}) {
-    if (!data || !tourSteps.length) return;
+  /** Start (or resume) a tour. It is the short one unless `full` says so; a paused tour comes back as the kind it was. */
+  function startTour({ restart = false, full } = {}) {
+    if (!data) return;
     const saved = readTourProgress(data.root);
-    const first = !restart && saved && !saved.done && tourSteps.some((step) => step.id === saved.stepId) ? saved.stepId : tourSteps[0].id;
+    const paused = saved && !saved.done ? saved : null;
+    const wantFull = full ?? !!paused?.full;
+    const steps = stepsFor(wantFull);
+    if (!steps.length) return;
+    // The full tour offered from the end of the short one carries on past the welcome step, unless the sample still has to be chosen there.
+    const skipWelcome = full === true && (!data.sample || data.sample.loaded) && steps[0].id === 'welcome' && steps.length > 1;
+    const first = !restart && paused && !!paused.full === wantFull && steps.some((step) => step.id === paused.stepId) ? paused.stepId : steps[skipWelcome ? 1 : 0].id;
     if (!tourStep) tourOrigin.current = { page, runId: page === 'review' ? session.run?.id : null,
       opener: rootRef.current?.contains(document.activeElement) ? document.activeElement : null };
     hideWelcome();
     setError('');
+    setFullTour(wantFull);
     setTourStep(first);
-    writeTourProgress(data.root, { stepId: first });
+    writeTourProgress(data.root, { stepId: first, full: wantFull });
   }
+  /** 看完整导览: the explicit extra, from the end of the short tour or from Settings. */
+  const startFullTour = () => startTour({ restart: true, full: true });
   function moveTour(direction) {
     const next = tourNeighbour(tourSteps, tourStep, direction);
     if (!next) {
@@ -56,7 +74,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
       return;
     }
     setTourStep(next);
-    if (data?.root) writeTourProgress(data.root, { stepId: next });
+    if (data?.root) writeTourProgress(data.root, { stepId: next, full: fullTour });
   }
   /** Leave the tour: close what it opened, go back to where it started, return focus. */
   function endTour({ then } = {}) {
@@ -78,12 +96,12 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     });
   }
   function closeTour(reason) {
-    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: reason === 'skip' });
+    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: reason === 'skip', full: fullTour });
     endTour();
     if (reason !== 'skip') notify({ text: ui('导览已暂停，可以从侧栏「功能导览」接着看。'), tone: 'info' });
   }
   function finishTour() {
-    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: true });
+    if (data?.root) writeTourProgress(data.root, { stepId: tourStep, done: true, full: fullTour });
     endTour();
     notify({ text: ui('导览完成。想再看一遍，点侧栏的「功能导览」。'), tone: 'success' });
   }
@@ -177,6 +195,6 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     }
   }
 
-  return { tourStep, sampleBusy, removingSample, setRemovingSample, modelState, tourSteps, tourResume, showWelcome, hideWelcome, openFirstImport, startTour,
-    moveTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
+  return { tourStep, fullTour, sampleBusy, removingSample, setRemovingSample, modelState, tourSteps, tourResume, showWelcome, hideWelcome, openFirstImport, startTour,
+    startFullTour, moveTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
 }

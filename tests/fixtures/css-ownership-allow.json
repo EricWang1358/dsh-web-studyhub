@@ -349,7 +349,6 @@
       "ui/wrongbook.css"
     ],
     "sh-btn--primary": [
-      "ui/coach.css",
       "ui/components/components.css",
       "ui/exam-setup.css",
       "ui/generate-home.css",

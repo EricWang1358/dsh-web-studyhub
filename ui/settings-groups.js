@@ -1,15 +1,16 @@
-/* Which Settings group is open, and what is marked "not set up" (ui/Settings.jsx; docs/feature-tiers.md).
+/* The Settings categories, the three groups they sit under, and what is marked "待设置" (ui/Settings.jsx; docs/feature-tiers.md).
 
-   Settings are grouped by when they are touched:
-   - 常用: what is touched whenever something is off (the interface language and appearance, the AI model);
-   - 一次性设置: what is set once, for a feature or a course (keys, the search extension, MinerU, audio, courses, import, backup);
+   Settings are grouped by how often they are touched:
+   - 常用: what a learner adjusts in daily use or whenever something is off, one category each (for example the interface, formulas and
+     calculation tools, the library folder and the AI model, the question preferences, the daily recap);
+   - 一次性设置: what is set once, for a feature or a course (keys, the search extension, MinerU, audio, courses, 备考补习, import, backup);
    - 高级: what almost nobody needs: the usage frequency record (opt-in, local; docs/usage-frequency.md) and the one switch "显示实验性功能"
      (the experimental block appears under it only when it is on). Both are off by default and independent of each other.
 
-   A group is closed while what THIS library needs is set up, and open, with the names of what is missing, when it is not.
-   "Needs" is read from the library, never assumed: a transcription key is missing only when the library has recordings,
-   MinerU only when it holds a long book that was never converted, the search extension only when it holds a big book.
-   `status` is what the host reported ({ audio: { configured }, mineru: { configured }, retrieval: { status, plan } });
+   The page lists the categories under the group headings, one at a time on the right. A category that THIS library still needs set up carries
+   the mark "待设置", and the first such category is the one that opens first. "Needs" is read from the library, never assumed: a transcription
+   key is missing only when the library has recordings, MinerU only when it holds a long book that was never converted, the search extension
+   only when it holds a big book. `status` is what the host reported ({ audio: { configured }, mineru: { configured }, retrieval: { status, plan } });
    a status that has not arrived marks nothing. The registry below is the one place a category is declared: its title, group, deep-link anchors, the
    host component it needs, and the pane it renders (loaded lazily). */
 import { lazy } from 'react';
@@ -18,13 +19,10 @@ import { bigDocuments } from '../lib/large-documents.js';
 import { JOB_TYPES } from '../lib/job-status.js';
 
 export const SETTINGS_GROUPS = Object.freeze([
-  { id: 'common', title: '常用', lead: '界面语言、外观和 AI 模型：哪里不对劲时才需要来看看。' },
-  { id: 'once', title: '一次性设置', lead: '第一次用某项功能、或开始一门新课时设一次：密钥、检索扩展、MinerU、音频转写、课程、导入与备份。' },
-  { id: 'advanced', title: '高级', lead: '多数人用不到：使用频率记录和实验性功能的开关，默认都关闭。' },
+  { id: 'common', title: '常用' },
+  { id: 'once', title: '一次性设置' },
+  { id: 'advanced', title: '高级' },
 ]);
-
-/** Which group each deep-linkable section lives in. */
-export const SECTION_GROUP = Object.freeze({ 'settings-model': 'common' });
 
 /* The categories of the Settings page: a list on the left under the three group headings, and one category at a time on the right. `needs` is the component of
    the host a category depends on (a host without it shows no such category); `partNeeds` gates ONE part inside a category that stays visible without it (the
@@ -38,6 +36,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   category({ id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'] }, () => import('./settings/ModelPane.jsx')),
   category({ id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation', 'settings-generation-time'], needs: 'generation' }, () => import('./settings/GenerationPane.jsx')),
   category({ id: 'daily-recap', group: 'common', title: '每日讲解合集', anchors: ['settings-daily-recap'] }, () => import('./settings/DailyRecapPane.jsx')),
+  category({ id: 'practice', group: 'common', title: '练习', anchors: ['settings-practice'] }, () => import('./settings/PracticePane.jsx')),
   category({ id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'] }, () => import('./settings/CoursesPane.jsx')),
   category({ id: 'exam-prep', group: 'once', title: '备考补习', anchors: ['settings-exam-prep'], needs: 'generation' }, () => import('./settings/ExamPrepPane.jsx')),
   category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio' }, () => import('./settings/AudioPane.jsx')),
@@ -75,7 +74,8 @@ export function initialCategory({ available, focusSection = '', missing = [], la
   return ids.includes(last) ? last : ids[0];
 }
 
-export function settingsGroupState({ data, status = {}, saved = {}, forceOpen = false } = {}) {
+/** { common: { missing: [category id…] }, once: { … }, advanced: { … } }: the categories this library still needs set up, by group. */
+export function settingsGroupState({ data, status = {} } = {}) {
   const missing = { common: [], once: [], advanced: [] };
   const modelMissing = data?.model ? data.model.ready === false : data?.modelReady === false;
   if (modelMissing) missing.common.push('model');
@@ -88,8 +88,7 @@ export function settingsGroupState({ data, status = {}, saved = {}, forceOpen = 
   const search = status.retrieval?.status;
   if (books.length && search?.extension && !search.extension.installed && search.extension.canInstall !== false && (!search.effective || search.effective === 'builtin')) missing.once.push('retrieval');
 
-  const forced = (id) => forceOpen === true || (Array.isArray(forceOpen) && forceOpen.includes(id));
   const state = {};
-  for (const { id } of SETTINGS_GROUPS) state[id] = { open: forced(id) || (typeof saved[id] === 'boolean' ? saved[id] : missing[id].length > 0), missing: missing[id] };
+  for (const { id } of SETTINGS_GROUPS) state[id] = { missing: missing[id] };
   return state;
 }

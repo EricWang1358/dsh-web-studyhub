@@ -49,13 +49,13 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders nineteen usable controls (five of them the question types) with shared limits in both languages', () => {
+test('the generation settings section renders twenty usable controls (five of them the question types) with shared limits in both languages', () => {
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 19);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 20);
     const types = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)];
     assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'flashcard', 'open', 'cloze'], 'the default question types are five checkboxes, not a select');
     assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false], 'single choice is ticked by default');
@@ -71,6 +71,31 @@ test('the generation settings section renders nineteen usable controls (five of 
     if (language === 'en') assert.doesNotMatch(html.replace(/\bvalue="(?:中文|中英双语)"/g, '').replaceAll('>中文<', '><'), /[㐀-鿿]/);
   }
   ssr.setUiLanguage('zh');
+});
+
+test('覆盖强度 is the default the page really uses, and the count the page ignores says so in its name', async () => {
+  for (const language of ['zh', 'en']) {
+    const markup = html(language, GENERATION_SETTINGS_DEFAULTS);
+    const level = markup.match(/<select[^>]*name="coverageLevel"[^>]*>(.*?)<\/select>/)?.[1] || '';
+    assert.equal((level.match(/<option/g) || []).length, 3, `${language}: three levels to choose from`);
+    assert.match(level, /value="standard"[^>]*selected|selected[^>]*value="standard"/, `${language}: the default level is chosen`);
+    assert.doesNotMatch(markup, language === 'zh' ? />默认题数</ : />Default question count</, `${language}: no row promises a count the page does not use`);
+  }
+  const zh = html('zh', GENERATION_SETTINGS_DEFAULTS);
+  assert.match(zh, /默认覆盖强度/);
+  assert.match(zh, /对话里出题的默认题数/, 'the count is named for where it applies');
+  assert.match(zh, /创建题组页按「覆盖强度」出题，不用它/, 'and the hint says the page does not use it');
+  assert.ok(zh.indexOf('默认覆盖强度') < zh.indexOf('对话里出题的默认题数'), 'the default the page uses comes before the one it does not');
+  assert.match(html('zh', { ...GENERATION_SETTINGS_DEFAULTS, coverageLevel: 'lean' }), /精简：只给最重要的小节出题/, 'the hint explains the chosen level');
+  const calls = [];
+  const view = editor({ act: async (action, args, after) => { calls.push({ action, args }); after({ generation: args.generation }); } });
+  view.render(); view.effects();
+  assert.equal(control(view, 'coverageLevel').props.value, 'standard');
+  edit(view, 'coverageLevel', 'full');
+  await submit(view);
+  assert.equal(calls[0].args.generation.coverageLevel, 'full', 'saving sends the level');
+  edit(view, 'coverageLevel', 'huge');
+  assert.ok(find(view.render(), node => typeof node.props?.error === 'string' && node.props.name !== 'x'), 'an unknown level is refused before saving');
 });
 
 test('saving submits exact numeric settings and reset only edits the pending form', async () => {
@@ -146,12 +171,13 @@ test('the default question types show the saved combination, in words, in both l
   assert.deepEqual(ticked(zh), ['quiz', 'flashcard']);
   assert.deepEqual(ticked(en), ['quiz', 'flashcard']);
   assert.doesNotMatch(zh.match(/name="kinds-quiz"[^>]*>/)[0], /disabled/, 'with two ticked, either can be unticked');
-  assert.match(zh, /单选测验 \+ 闪卡 · 共 2 种题型，按 10 题平均分配：5 \+ 5/);
-  assert.match(en, /Single choice \+ Flashcard · 2 types, 10 questions shared evenly: 5 \+ 5/);
+  // The question count is not a number of this group: the form plans by 覆盖强度, so the split is said without one (a count shown here would be a plan nobody makes).
+  assert.match(zh, /单选测验 \+ 闪卡 · 总题数按题型平均分配/);
+  assert.match(en, /Single choice \+ Flashcard · The total is shared evenly between the types/);
+  assert.doesNotMatch(zh, /按 10 题平均分配|5 \+ 5/);
   const three = html('zh', { ...GENERATION_SETTINGS_DEFAULTS, kind: 'quiz', kinds: ['quiz', 'open', 'cloze'], count: 10 });
   assert.deepEqual(ticked(three), ['quiz', 'open', 'cloze']);
-  assert.match(three, /共 3 种题型，按 10 题平均分配：4 \+ 3 \+ 3/);
-  assert.match(html('zh', { ...GENERATION_SETTINGS_DEFAULTS, kinds: ['quiz', 'open', 'cloze'], count: 2 }), /共 3 种题型，但只有 2 题：前 2 种题型各出 1 道/);
+  assert.match(three, /总题数按题型平均分配/);
   assert.doesNotMatch(html('zh', GENERATION_SETTINGS_DEFAULTS), /平均分配/, 'one type has nothing to split');
   assert.doesNotMatch(en.replace(/\bvalue="(?:中文|中英双语)"/g, '').replaceAll('>中文<', '><'), /[㐀-鿿]/, 'every word of the group is English');
 });

@@ -98,7 +98,8 @@ test('a block under way says so and can be cancelled; a retranslation keeps the 
 test('every reason a passage was not translated is said plainly, with a retry only where one can help', () => {
   const model = block({ state: 'error', error: { code: 'model' } });
   assert.match(model, /role="alert"/);
-  assert.match(model, /还没有连接模型/);
+  assert.match(model, /还没有可用的 AI 模型/);
+  assert.match(model, /翻译需要先在设置里连接模型/);
   assert.doesNotMatch(model, />重试</, 'a retry cannot help without a model');
   assert.match(block({ state: 'error', error: { code: 'refusal' } }), /模型拒绝或在解释，没有翻译/);
   assert.match(block({ state: 'error', error: { code: 'length' } }), /译文的长度和原文对不上/);
@@ -166,7 +167,8 @@ test('the 译 popover prices each scope before anything starts, says what is lef
 
 test('without a model the popover says so plainly and the start button is off; a running job also switches it off', () => {
   const none = menu({ modelAvailable: false });
-  assert.match(none, /还没有连接模型，没法翻译；已有的译文照常显示，阅读不受影响。/);
+  assert.match(none, /还没有可用的 AI 模型/);
+  assert.match(none, /翻译需要先在设置里连接模型。/);
   assert.match(none, /<button[^>]*disabled[^>]*>开始翻译</);
   assert.match(menu({ busy: true }), /<button[^>]*disabled[^>]*>开始翻译</);
   assert.match(menu({ scopes: [{ id: 'page', label: '翻译本页', status: 'loading' }] }), /正在数段落…/);
@@ -181,7 +183,7 @@ test('English: the popover has no Chinese', () => {
   assert.doesNotMatch(english, han);
   assert.match(english, /8 to translate · 4 done/);
   assert.match(english, /Start translating/);
-  assert.match(english, /No model is connected/);
+  assert.match(english, /Translating needs a model connected in the settings first/);
 });
 
 /* ---------- the job ---------- */

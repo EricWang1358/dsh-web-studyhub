@@ -99,3 +99,29 @@ test("the More menu has 出前置题… next to 修题 (only when the page can s
     assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
   } finally { setUiLanguage("zh"); }
 });
+
+test("自动驾驶 has a visible switch in the toolbar, bound to what the page gives it, with its key said", () => {
+  setUiLanguage("zh");
+  const off = render({ feedback: null }, { autopilot: false, onToggleAutopilot() {} });
+  const button = (html) => html.match(/<button[^>]*>自动驾驶<\/button>/)?.[0] || "";
+  assert.match(button(off), /aria-pressed="false"/);
+  assert.match(button(off), /aria-keyshortcuts="A"/);
+  assert.doesNotMatch(button(off), /is-active/);
+  const on = render({ feedback: null }, { autopilot: true, onToggleAutopilot() {} });
+  assert.match(button(on), /aria-pressed="true"/);
+  assert.match(button(on), /is-active/);
+  assert.doesNotMatch(render({ feedback: null }), /自动驾驶/, "a page without the setting draws no dead switch");
+  assert.doesNotMatch(render({ mode: "exam", feedback: null }, { autopilot: true, onToggleAutopilot() {} }), /自动驾驶/, "a mock exam does not move on by itself");
+});
+
+test("the switch is a button that calls the page, and it is not disabled while a step is saving (it only flips a setting)", () => {
+  setUiLanguage("zh");
+  const html = render({ feedback: { correct: true } }, { autopilot: false, onToggleAutopilot() {}, busy: true });
+  assert.doesNotMatch(html.match(/<button[^>]*>自动驾驶<\/button>/)?.[0] || "", /disabled/);
+  setUiLanguage("en");
+  try {
+    const english = render({ feedback: null }, { autopilot: true, onToggleAutopilot() {} });
+    assert.match(english, />Autopilot<\/button>/);
+    assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
+  } finally { setUiLanguage("zh"); }
+});

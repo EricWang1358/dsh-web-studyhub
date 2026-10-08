@@ -8,6 +8,7 @@ import { isActiveJob } from './job-visibility.js';
 import { megabytes } from '../lib/office/limits.js';
 import { HISTORY_PAGE, groupHistoryByDay, historyRefreshKey, pageRange, isConvertJob } from './mineru-flow.js';
 import CompactJobCard from './tasks/CompactJobCard.jsx';
+import JobFollowUp from './JobFollowUp.jsx';
 import css from './mineru.css';
 
 /* The compact card of a PDF conversion (cloud or local), the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
@@ -15,7 +16,7 @@ import css from './mineru.css';
    change the token; open the pages). What used to fill the card (the 运行环境, the window in hand and the service's own state, the pace, the windows) is
    `PdfDetail`, the kind's section of the 任务 console. */
 
-function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) {
+function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
   const [working, setWorking] = useState('');
   const run = async (name, work) => {
     if (working) return;
@@ -28,12 +29,14 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged }) 
     await send('mineru.retry', { jobId: job.id });
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
-  const primary = tokenProblem && onOpenSettings ? { label: ui('去设置里换一个令牌'), run: onOpenSettings }
+  const primary = tokenProblem && onOpenSettings ? { label: ui('去设置里换一个令牌'), run: () => onOpenSettings('settings-mineru') }
     : job.status === 'failed' && job.retryable && !tokenProblem ? { label: job.errorCode === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做'), run: retry, disabled: !!working }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
-  return <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'cloud'}
-    onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
-    onDismiss={() => void run('dismiss', () => send('job.archive', { jobId: job.id }))} />;
+  return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
+    <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'cloud'}
+      onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
+      onDismiss={() => void run('dismiss', () => send('job.archive', { jobId: job.id }))} />
+  </JobFollowUp>;
 }
 
 /**
@@ -62,13 +65,14 @@ export function PdfDetail({ job, expandChunks }) {
 
 /**
  * The conversion jobs of the library: `data.jobs` (the snapshot) filtered to PDF conversions, or only `ids` of them.
- * `act(action, args)` (single-flight, from the app) or `call` sends the stop / retry / dismiss; `onChanged` refreshes the data afterwards.
+ * `act(action, args)` (single-flight, from the app) or `call` sends the stop / retry / dismiss; `onChanged` refreshes the data afterwards;
+ * `onGenerate(sourceIds)` adds 用它出题 to a finished conversion.
  */
-export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOpenSettings, onChanged, expandChunks }) {
+export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOpenSettings, onChanged, onGenerate, expandChunks }) {
   useInjectCss(css, 'study-mineru');
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
   const send = (action, args) => (act ? act(action, args) : call(action, args));
-  return list.length ? <div className="cjc-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} expandChunks={expandChunks} />)}</div> : null;
+  return list.length ? <div className="cjc-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} onGenerate={onGenerate} expandChunks={expandChunks} />)}</div> : null;
 }
 
 /* ---------- the window in hand: what the service says about it ---------- */
@@ -264,7 +268,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
           {row.canRetry && !tokenProblem && <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])}
             title={ui('已完成的段落会直接复用，不会重复上传或重复解析')} onClick={() => onRetry(row)}>
             {status === 'failed' ? (row.failure?.code === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做（不重复已完成的段落）')) : ui('接着做')}</Button>}
-          {tokenProblem && onOpenSettings && <Button variant="primary" size="sm" onClick={onOpenSettings}>{ui('去设置里换一个令牌')}</Button>}
+          {tokenProblem && onOpenSettings && <Button variant="primary" size="sm" onClick={() => onOpenSettings('settings-mineru')}>{ui('去设置里换一个令牌')}</Button>}
           {status !== 'running' && <Button variant="link" size="sm" disabled={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
       </JobRow>

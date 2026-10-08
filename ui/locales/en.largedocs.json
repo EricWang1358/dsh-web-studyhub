@@ -158,5 +158,7 @@
   "正在建立索引 {0} / {1} 页": "Building the index {0} / {1} pages",
   "检索扩展需要更新": "The search extension needs updating",
   "已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。": "The installed search extension is {0}, older than this StudyHub ({1}), so it may never start. Restart DSH after updating.",
-  "更新检索扩展": "Update the search extension"
+  "更新检索扩展": "Update the search extension",
+  "练这一章": "Practise this chapter",
+  "这一章现在没有可练习的题。": "This chapter has no questions to practise right now."
 }

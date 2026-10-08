@@ -84,7 +84,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const learn = useLearningNavigation({ core, lib: handle, nav, session, rootRef: shell.rootRef });
   const intents = useIntents({ core, lib: handle, nav, session, learn });
   late.current.resume = intents.resumeOrStart;
-  const drafts = useDrafts({ core, lib: handle, nav, data });
+  const drafts = useDrafts({ core, lib: handle, nav, data, session });
   const inbox = useInbox({ core, lib: handle, nav, session, learn, data });
   const settingsEntry = useSettingsEntry({ nav, host });
   const notebooks = useNotebooks({ core, lib: handle, nav, host, root: connection.binding.root });
@@ -147,7 +147,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                     <Tour steps={tour.tourSteps} stepId={tour.tourStep} rootRef={shell.rootRef} model={tour.modelState} sampleLoaded={!data.sample || !!data.sample.loaded}
                       busy={tour.sampleBusy} onEnter={tour.enterTourStep} onMove={tour.moveTour} onClose={tour.closeTour} onFinish={tour.finishTour}
                       onLoadSample={data.sample ? tour.loadSampleInTour : undefined} onBrowse={() => tour.moveTour(1)}
-                      onImport={() => tour.endTour({ then: tour.openFirstImport })}
+                      onImport={() => tour.endTour({ then: tour.openFirstImport })} onFullTour={tour.fullTour ? undefined : tour.startFullTour}
                       onRemoveSample={data.sample?.loaded ? () => tour.endTour({ then: () => tour.setRemovingSample(true) }) : undefined} />
                   )}
                   <AppModalHost />

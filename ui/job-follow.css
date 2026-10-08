@@ -1,0 +1,9 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The link under a finished job's card sits at the card's right edge, under its button. */
+    .job-follow { display: grid; gap: var(--space-1); min-width: 0; }
+    .job-follow__go { justify-self: end; }
+  }
+}

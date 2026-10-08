@@ -47,8 +47,9 @@ test("the home card offers exactly one primary action in every state", () => {
   assert.match(states.path, /1 题到期 · 2 题薄弱/);
   assert.deepEqual(count(states.resume), ["3", "题未完成"]);
   assert.match(states.resume, /继续学习/);
-  assert.deepEqual(count(states.fresh), ["10", "道新题"]);
-  assert.match(states.fresh, /到期复习与巩固 · 3 题/, "the other start stays reachable as a link");
+  assert.deepEqual(count(states.fresh), ["3", "题待学"], "unlearned cards no longer take the card from the day's path");
+  assert.match(states.fresh, /只学当前课程新题 · 10 题/, "the other start stays reachable as a link");
+  assert.doesNotMatch(states.fresh, /到期复习与巩固/);
   assert.match(states.clear, /今天已经清空/);
   assert.match(states.clear, /class="sh-btn sh-btn--primary sh-btn--md today-go" disabled/);
   assert.match(states.empty, /导入 JSON 题组/);
@@ -65,7 +66,7 @@ test("the run the learner was last inside takes the card, and a new start stays 
   assert.deepEqual(count(html), ["6", "题未完成"]);
   assert.match(html, /行为型模式 · 已做到第 5 \/ 10 题/);
   assert.match(html, /接着做<svg/);
-  assert.match(html, /到期复习与巩固 · 3 题/, "what the card would have started becomes a link");
+  assert.match(html, /今日学习 · 3 题/, "what the card would have started becomes a link");
   assert.match(html, /<summary>另有 1 组练习未完成<\/summary>/, "the card's run is not listed again in the fold");
 });
 

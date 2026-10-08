@@ -17,5 +17,5 @@ export function activeJobOf(draft, jobs = []) {
 export function jobRunLine(job, percent) {
   const run = job?.coverageRun;
   if (!run || !Array.isArray(run.list) || !run.list.length) return '';
-  return runLine(runFacts({ rounds: roundList({ rounds: run.list }), run, percent: Number.isFinite(percent) ? percent : run.percent ?? null }), { interrupted: job.status === 'interrupted' });
+  return runLine(runFacts({ rounds: roundList({ rounds: run.list }), run, percent: Number.isFinite(percent) ? percent : run.percent ?? null, job }), { interrupted: job.status === 'interrupted' });
 }

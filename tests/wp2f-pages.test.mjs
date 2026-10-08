@@ -33,7 +33,8 @@ test('the labels that differ from the titles keep their old words', () => {
   assert.equal(PAGES.dashboard.title, '学习统计');
   assert.equal(PAGES.board.label, '待办');
   assert.equal(PAGES.board.title, '待办看板');
-  assert.equal(PAGES.settings.title, '工作区设置');
+  assert.equal(PAGES.settings.title, '设置', 'the sidebar entry and the page title are one name');
+  assert.equal(PAGES.settings.label, PAGES.settings.title);
   assert.equal(pageTitleOf('draft'), '草稿与发布');
   assert.equal(pageTitleOf('manage'), '维护题组');
   assert.equal(pageTitleOf('graph'), '知识图谱');

@@ -26,6 +26,7 @@
   "备考补习还没有开启": "Exam prep is not turned on yet",
   "备考补习在设置里被关掉了，要用的话在设置里重新打开；已保存的考点清单仍可阅读。": "Exam prep is turned off in Settings. Turn it back on there to use it; saved point lists stay readable.",
   "前往设置": "Go to settings",
+  "打开 DSH 插件管理器": "Open the DSH plugin manager",
   "在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。": "Enable its components in the DSH plugin manager to continue. Your saved learning data is retained.",
   "你的学习空间": "YOUR LEARNING SPACE",
   "请在 DSH 插件管理器中启用资料组件，再导入资料。": "Enable materials in the DSH plugin manager to import sources.",

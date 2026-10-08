@@ -102,10 +102,14 @@ test('the top-up is a status, not a button, while a fill or generation runs on t
   const finished = page(draft(), { jobs: [{ ...running, status: 'complete' }] });
   assert.ok(buttonTag(finished, '为没覆盖的部分补题'), 'once the fill is done the draft can be topped up again');
   assert.doesNotMatch(buttonTag(finished, '为没覆盖的部分补题'), /disabled/);
-  // unsaved edits keep it from starting from this page, and say why
+  // unsaved edits do not keep it from starting: the button works and the page says it saves them first (the top-up asks for the saved version)
   const unsaved = page(draft(), {}, { draftLoaded: '' });
-  assert.match(buttonTag(unsaved, '为没覆盖的部分补题'), /disabled/);
-  assert.match(text(unsaved), /先保存草稿，再补题。/);
+  assert.doesNotMatch(buttonTag(unsaved, '为没覆盖的部分补题'), /disabled/);
+  assert.match(text(unsaved), /补题前会先保存草稿。/);
+  // a newer version in the background does: it is loaded first, and the page says so
+  const stale = page(draft(), { drafts: [{ ...draft(), draftVersion: 4 }] });
+  assert.match(buttonTag(stale, '为没覆盖的部分补题'), /disabled/);
+  assert.match(text(stale), /草稿已在后台更新，先载入最新草稿，再补题。/);
 });
 
 test('generation details say how many questions the repair kept and how many were dropped (#202)', () => {

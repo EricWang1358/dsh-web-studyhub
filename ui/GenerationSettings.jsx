@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { Button, Checkbox, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
 import KindPicker from './KindPicker.jsx';
-import { kindNote, kindsPatch } from './generate-form.js';
+import { COVERAGE_LEVELS, kindNote, kindsPatch, levelNote } from './generate-form.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 
-const labels = { kinds: '默认题型', count: '默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
+const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', count: '对话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
   effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目', applySuggestions: '采纳审阅建议' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
@@ -91,13 +91,16 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
       {field('kinds', <KindPicker name="kinds" value={editor.values.kinds} disabled={disabled} onChange={list => edit('kinds', list, kindsPatch(list))} />,
-        kindNote(editor.values.kinds, Number(editor.values.count)), true)}
-      {numberField('count', ui('没有指定覆盖强度时（例如让助手在对话里出题）一次请求的总题数；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
+        kindNote(editor.values.kinds), true)}
+      {/* The one default the 创建题组 page plans by (it also decides whether the rounds go on by themselves); the count below is for requests made without a level. */}
+      {field('coverageLevel', <Select {...propsFor('coverageLevel')} onChange={value => edit('coverageLevel', value)} options={COVERAGE_LEVELS.map(({ value, label }) => ({ value, label }))} />,
+        levelNote(editor.values.coverageLevel))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
       {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
       {field('focus', <TextArea {...propsFor('focus')} rows={3} maxLength={GENERATION_SETTINGS_LIMITS.focus.max}
         placeholder={ui('例如：重点解释成立条件，再比较相似概念。')} />, ui('可留空；这次出题的侧重点可以覆盖这里的默认值。'))}
+      {numberField('count', ui('只在让助手在对话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
       <h3 className="settings-subtitle">{ui('生成安排')}</h3>
       {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
       {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}

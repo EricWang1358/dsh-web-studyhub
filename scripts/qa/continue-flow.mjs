@@ -1,5 +1,5 @@
 /* npm-less QA: node scripts/qa/continue-flow.mjs [--lang zh|en --theme dark|light --width 1280|420 --out <dir>]
-   Browser check of where 继续学习 goes after a round (#175, #177), on a seeded temporary library with the fake model:
+   Browser check of where 继续学习 goes after a round (#175, #177), on a seeded temporary library with the fake model (the next step is the page's own button, .result-next):
      A  one chosen question → answer → results page → the coach card does not start the same 1/1 question again
         (without a plan: back to the learning path; with an accepted plan: its next action)
      B  question 2 of a round → 前置题 → finish the prerequisite round → the only primary action is 回到原题, and it lands on
@@ -56,15 +56,13 @@ const summary = await runQa({ name: "continue-flow", options,
     await finishRound();
     const first = await page.locator(".question-meta").count();
     await step("a-results", async () => {
-      const coach = page.locator(".coach-debrief");
-      await coach.waitFor({ timeout: 15000 });
-      const label = (await coach.locator("button.sh-btn--primary").first().innerText()).trim();
-      assert.ok(!/^继续学习|^Continue studying/.test(label) || label.length > 0);
-      assert.match(label, t(/回到学习路径|继续学习/, /Back to the learning path|Continue studying/), `the card names where it goes: ${label}`);
+      await page.locator(".result-next").waitFor({ timeout: 15000 });
+      const label = (await page.locator(".result-next button.sh-btn--primary").first().innerText()).trim();
+      assert.match(label, t(/回到学习路径|继续学习/, /Back to the learning path|Continue studying/), `the next step names where it goes: ${label}`);
       return label;
     });
     await step("a-continue", async () => {
-      await page.locator(".coach-debrief button.sh-btn--primary").first().click();
+      await page.locator(".result-next button.sh-btn--primary").first().click();
       await page.locator(".review-page .question-meta").waitFor({ timeout: 15000 });
       const text = await header();
       assert.doesNotMatch(text, /^1 \/ 1$/, `a new path round, not the same 1/1 question: ${text}`);
@@ -81,13 +79,12 @@ const summary = await runQa({ name: "continue-flow", options,
     await resume();
     await finishRound();
     await step("a2-plan-results", async () => {
-      const coach = page.locator(".coach-debrief");
-      await coach.waitFor({ timeout: 15000 });
-      const label = (await coach.locator("button.sh-btn--primary").first().innerText()).trim();
+      await page.locator(".result-next").waitFor({ timeout: 15000 });
+      const label = (await page.locator(".result-next button.sh-btn--primary").first().innerText()).trim();
       return label;
     });
     await step("a2-plan-next", async () => {
-      await page.locator(".coach-debrief button.sh-btn--primary").first().click();
+      await page.locator(".result-next button.sh-btn--primary").first().click();
       await page.locator(".review-page .question-meta").waitFor({ timeout: 15000 });
       const text = await header();
       assert.doesNotMatch(text, /^1 \/ 1$/, `the plan's next action, not the same question: ${text}`);
@@ -110,8 +107,7 @@ const summary = await runQa({ name: "continue-flow", options,
     await step("b-prerequisite-round", async () => { assert.match(await header(), /1 \/ 1/); });
     await finishRound();
     await step("b-results", async () => {
-      const coach = page.locator(".coach-debrief");
-      await coach.waitFor({ timeout: 15000 });
+      await page.locator(".result-next").waitFor({ timeout: 15000 });
       const primaries = page.locator(".result-page button.sh-btn--primary");
       const names = (await primaries.allInnerTexts()).map((text) => text.trim());
       assert.equal(names.filter((name) => /继续学习|Continue studying/.test(name)).length, 0, `no competing 继续学习: ${names.join(" | ")}`);

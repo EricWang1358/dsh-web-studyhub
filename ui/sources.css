@@ -105,6 +105,10 @@
       .source-doc__chapters .source-doc__row > span:first-child { flex: 1 0 100%; }
       .source-doc__chapters .source-doc__row small { margin-left: 0; }
       .source-doc__chapters li > button:first-child small { text-align: left; white-space: nowrap; }
+      /* With 练这一章 and 从这一章出题 together the two buttons do not fit beside the title: they take their own line under it. */
+      .source-doc__chapters li { flex-wrap: wrap; row-gap: var(--space-half); }
+      .source-doc__chapters li > .source-doc__row { flex: 1 0 100%; }
+      .source-doc__chapters li > .source-doc__row + .sh-btn { margin-left: var(--space-2); }
     }
   }
 }

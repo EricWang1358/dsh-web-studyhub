@@ -93,7 +93,6 @@
       padding-top: var(--space-4);
     }
     .welcome__model { margin-bottom: var(--space-4); }
-    .welcome__model-action { margin-top: var(--space-3); }
     .welcome__footer {
       display: flex;
       flex-wrap: wrap;

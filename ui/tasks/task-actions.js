@@ -14,6 +14,9 @@ export function resultOpener(job, app) {
   if (sourceIds.length && app?.learn?.openAudioSources) return { kind: 'source', label: ui('打开资料'), run: () => app.learn.openAudioSources(sourceIds) };
   const deck = refs.find((ref) => ref.kind === 'deck');
   if (deck && app?.intents?.openDeck && data?.decks?.some((item) => item.id === deck.id)) return { label: ui('打开题组'), run: () => app.intents.openDeck(deck.id) };
+  // The note an AI draft wrote (lib/contexts/notes/jobs/note-generate.js): offered while the note is still there.
+  const note = refs.find((ref) => ref.kind === 'note' && Array.isArray(data?.notes) && data.notes.some((item) => item.id === ref.id));
+  if (note && app?.learn?.openLearningTarget) return { label: ui('打开笔记'), run: () => app.learn.openLearningTarget({ kind: 'note', id: note.id }) };
   // A 考点清单 lives on the 备考补习 page, which lists the lists of the course and takes no id: the page is the way in.
   if (refs.some((ref) => ref.kind === 'exam-point-list') && !isLiveStatus(contract.status) && app?.nav?.show?.page) return { label: ui('打开考点清单'), run: () => app.nav.show.page('examprep') };
   const draft = refs.find((ref) => ref.kind === 'draft'), found = draft && data?.drafts?.find((item) => item.id === draft.id);

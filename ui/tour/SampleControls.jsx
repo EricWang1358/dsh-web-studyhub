@@ -8,7 +8,7 @@ import css from "./onboarding.css";
  * Settings › 学习画像与导览 › 上手与示例: start or resume the feature tour, and load or remove
  * the sample course. `progress` is the paused tour position ({ index, total }).
  */
-export function OnboardingPanel({ sample, progress, busy = false, onTour, onRestart, onLoad, onRemove }) {
+export function OnboardingPanel({ sample, progress, busy = false, onTour, onRestart, onFullTour, onLoad, onRemove }) {
   useInjectCss(css, "study-onboarding");
   const loaded = !!sample?.loaded;
   return (
@@ -21,6 +21,7 @@ export function OnboardingPanel({ sample, progress, busy = false, onTour, onRest
         <Button icon="sparkle" disabled={busy} onClick={onTour}>{progress
           ? uiFormat("继续功能导览（{0}/{1}）", [progress.index + 1, progress.total]) : ui("开始功能导览")}</Button>
         {progress && onRestart && <Button variant="quiet" disabled={busy} onClick={onRestart}>{ui("从头开始")}</Button>}
+        {onFullTour && <Button variant="quiet" disabled={busy} onClick={onFullTour}>{ui("看完整导览")}</Button>}
         {loaded
           ? <Button variant="danger" disabled={busy} onClick={onRemove}>{ui("移除示例数据")}</Button>
           : onLoad && <Button disabled={busy} onClick={onLoad}>{ui("载入示例数据")}</Button>}

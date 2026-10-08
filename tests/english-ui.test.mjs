@@ -10,7 +10,7 @@ import { groupPrompt } from '../ui/topic-group-prompt.js';
 const require = createRequire(import.meta.url);
 const { parse } = createRequire(require.resolve('eslint/package.json'))('espree');
 const han = /[\u3400-\u9fff]/;
-const compiled = await build({ stdin: { contents: `export * from './ui/i18n.js'; export { boardColumnLabel } from './ui/Board.jsx'; export { default as DocumentImport } from './ui/document-preview/DocumentImport.jsx'; export { default as DocumentLearning, PassageLinks } from './ui/document-preview/DocumentLearning.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
+const compiled = await build({ stdin: { contents: `export * from './ui/i18n.js'; export { boardColumnLabel } from './ui/Board.jsx'; export { default as DocumentLearning, PassageLinks } from './ui/document-preview/DocumentLearning.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 test('English topic-group handoffs retain API names and preserve existing questions', () => {
   for (const mode of ['merge', 'replace']) {
     const text = groupPrompt({ mode, ungrouped: 12, topicCount: 36 }, 'en');
@@ -60,12 +60,9 @@ test('first-time browser language chooses English while an explicit Chinese pref
   }
 });
 
-test('English document import and passage learning localize UI while retaining original citations', () => {
-  const { setUiLanguage, DocumentImport, DocumentLearning, PassageLinks } = load();
+test('English passage learning localizes UI while retaining original citations', () => {
+  const { setUiLanguage, DocumentLearning, PassageLinks } = load();
   setUiLanguage('en');
-  const html = renderToStaticMarkup(React.createElement(DocumentImport, { act() {} }));
-  assert.doesNotMatch(html, han);
-  assert.match(html, /PDF, Markdown, HTML/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(DocumentLearning, { call() {}, document: {} })), han);
   const original = '原文引用保持中文';
   const links = renderToStaticMarkup(React.createElement(PassageLinks, { onOpenCard() {}, groups: [{ selection: { quote: original }, links: [{ deckId: 'd', cardId: 'c', prompt: 'Question', status: 'stale' }] }] }));
@@ -73,7 +70,6 @@ test('English document import and passage learning localize UI while retaining o
   assert.match(links, /Open question and explanation/);
   assert.doesNotMatch(links.replace(original, ''), han);
   setUiLanguage('zh');
-  assert.match(renderToStaticMarkup(React.createElement(DocumentImport, { act() {} })), /导入资料原文件/);
 });
 
 async function files(dir) {

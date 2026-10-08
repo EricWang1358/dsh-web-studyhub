@@ -87,7 +87,12 @@ test("选择题笔试 setup: 怎么考 steps, compact decks, 题型, 题数 pres
   const html = render(Exam, { call: noop, data, onExit: noop });
   assert.match(html, /怎么考/);
   assert.equal((html.match(/<li class="es-step"/g) || []).length, 5);
+  assert.match(html, /<details class="sh-disclosure es-how"(?![^>]*\sopen)[^>]*>\s*<summary[^>]*>[\s\S]*?怎么考/, "怎么考 is folded: the five steps are one click away, not on the way to 开始考试");
   assert.match(html, /限时 30 分钟/);
+  assert.match(html, /aria-label="限时（分钟）"/, "the limit is a field on the card, not only a sentence");
+  for (const preset of ["15", "30", "45", "60"]) assert.match(html, new RegExp(`aria-pressed="(true|false)"[^>]*>${preset}<`));
+  assert.match(html, /aria-pressed="true"[^>]*>30</, "the default limit is the pressed preset");
+  assert.match(html, /默认 30 分钟 · 到时自动交卷/, "and the card says why, and that the paper is handed in at the limit");
   assert.match(html, /Final paper 05[\s\S]*单选 18 · 多选 18/);
   assert.doesNotMatch(html, />CS5224 · Final paper 05</, "the shared prefix is dropped from the visible deck name");
   assert.match(html, /title="CS5224 · Final paper 05"/, "the full title stays as a tooltip");
@@ -100,6 +105,32 @@ test("选择题笔试 setup: 怎么考 steps, compact decks, 题型, 题数 pres
   assert.equal((html.match(/sh-btn--primary/g) || []).length, 1, "one primary action");
   assert.match(html, /开始考试/);
 }));
+
+test("the limit follows the course's own 作答时间 and says so; a limit the learner chose is kept for this tab", () => {
+  const scoped = { ...data, focus: { ...data.focus, course: "CS5224" } };
+  const formatKey = `study-page-scope:v1:${JSON.stringify(["wp25", "exam-format"])}`;
+  const limitKey = `study-page-scope:v1:${JSON.stringify(["wp25", "exam-limit"])}`;
+  withStorage({ [formatKey]: JSON.stringify("written") }, () => {
+    const html = render(Exam, { call: noop, data: scoped, onExit: noop });
+    assert.match(html, /10 题 · 限时 120 分钟/);
+    assert.match(html, /取自课程「CS5224」的作答时间 120 分钟 · 到时自动交卷/);
+    assert.match(html, /aria-pressed="true"[^>]*>120</, "the course's own time is a one-click preset");
+    assert.match(html, /点「开始考试」，限时 120 分钟/);
+  });
+  withStorage({ [formatKey]: JSON.stringify("written"), [limitKey]: JSON.stringify(JSON.stringify({ course: "CS5224", minutes: 45 })) }, () => {
+    const html = render(Exam, { call: noop, data: scoped, onExit: noop });
+    assert.match(html, /10 题 · 限时 45 分钟/);
+    assert.match(html, /aria-pressed="true"[^>]*>45</);
+    assert.match(html, /已改；课程设置是 120 分钟 · 到时自动交卷/);
+  });
+  withStorage({ [formatKey]: JSON.stringify("written"), [limitKey]: JSON.stringify(JSON.stringify({ course: "Databases", minutes: 45 })) }, () => {
+    assert.match(render(Exam, { call: noop, data: scoped, onExit: noop }), /限时 120 分钟/, "a limit chosen for another course is not carried over");
+  });
+  withStorage({}, () => {
+    const several = render(Exam, { call: noop, data, onExit: noop });
+    assert.match(several, /限时 30 分钟/, "all courses: no single profile, the default");
+  });
+});
 
 test("the chosen format survives a reload: a saved choice wins over the profile default", () => {
   const key = `study-page-scope:v1:${JSON.stringify(["wp25", "exam-format"])}`;
@@ -125,6 +156,7 @@ test("案例分析卷 setup: pick a paper, reading and writing time from the cou
   const props = { call: async () => { throw new Error("Capability unavailable"); }, data: { ...data, focus: { ...data.focus, course: "CS5224" } }, onExit: noop, onCreate: noop, course: "CS5224", onCourseChange: noop };
   const html = render(CasePaper, props);
   assert.match(html, /怎么考/);
+  assert.match(html, /<details class="sh-disclosure es-how"(?![^>]*\sopen)/, "the same fold on every format's card");
   assert.match(html, /Orchard case[\s\S]*2 题 · 10 分[\s\S]*最好成绩 7\/10/);
   assert.match(html, /新出一份案例卷/);
   assert.match(html, /开卷案例/, "the course's exam format is shown");
@@ -140,7 +172,7 @@ test("案例分析卷 setup: pick a paper, reading and writing time from the cou
   const gated = render(CasePaper, { ...props, data: { ...props.data, model: { ready: false, reason: "no-route" } }, onSetupModel: noop });
   assert.match(gated, /sh-setup/);
   assert.match(gated, /批改要调用 AI 模型/, "the one shared 批改 gate (ModelSetupGate), not a page-own card");
-  assert.match(gated, /打开模型设置/);
+  assert.match(gated, /前往设置/);
   assert.equal((gated.match(/sh-btn--primary/g) || []).length, 2, "the start button plus the gate's own fix action");
   const empty = render(CasePaper, { ...props, data: { ...props.data, decks: [] } });
   assert.match(empty, /还没有案例分析题组/);
@@ -165,7 +197,7 @@ test("口头面试 setup explains itself plainly, with 3/5/8 presets and without
   const noModel = render(OralSetup, { data: { ...data, model: { ready: false, reason: "no-route" } }, count: 3, onCount: noop, onStart: noop, onSetupModel: noop, canStart: true });
   assert.match(noModel, /还没有可用的 AI 模型/, "the shared inline gate");
   assert.match(noModel, /追问会用固定问题/, "and what the oral exam does without a model");
-  assert.match(noModel, /打开模型设置/);
+  assert.match(noModel, /前往设置/);
   const none = render(OralSetup, { data, count: 3, onCount: noop, onStart: noop, canStart: false });
   assert.match(none, /disabled=""[^>]*>[^<]*开始口头模拟|disabled=""[^>]*>[\s\S]*?先出一些题/);
 });
@@ -203,6 +235,14 @@ test("English: every format's setup and the recent list are fully translated", (
     render(OralSetup, { data: { ...data, model: { ready: false } }, count: 5, onCount: noop, onStart: noop, onSetupModel: noop, canStart: true, scopeNote: "" }, "en"),
     render(RecentExams, { items: recentExams(data), format: "written", filter: "all", onOpen: noop }, "en"),
   ];
+  // The written setup with the course's own time, and with a time the learner changed.
+  const formatKey = `study-page-scope:v1:${JSON.stringify(["wp25", "exam-format"])}`, limitKey = `study-page-scope:v1:${JSON.stringify(["wp25", "exam-limit"])}`;
+  pages.push(withStorage({ [formatKey]: JSON.stringify("written") }, () => render(Exam, { call: noop, data: english, onExit: noop }, "en")));
+  pages.push(withStorage({ [formatKey]: JSON.stringify("written"), [limitKey]: JSON.stringify(JSON.stringify({ course: "CS5224", minutes: 45 })) }, () => render(Exam, { call: noop, data: english, onExit: noop }, "en")));
+  pages.push(withStorage({ [formatKey]: JSON.stringify("written") }, () => render(Exam, { call: noop, data: { ...english, focus: { ...english.focus, course: "Networks" } }, onExit: noop }, "en")));
+  assert.match(pages[5], /Time limit \(minutes\)/);
+  assert.match(pages[5], /From the answering time of course “CS5224”: 120 minutes/);
+  assert.match(pages[6], /Changed; the course setting is 120 minutes/);
   for (const html of pages) assert.doesNotMatch(html.replace(/CS5224 · Final paper 0\d|Orchard case|Final paper 0\d/g, ""), han, "no untranslated application copy");
   assert.match(pages[0], /Exam format/);
   assert.match(pages[0], /How it works/);

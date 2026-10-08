@@ -4,13 +4,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { normalizeGenerationSettings, normalizeGenerationPerformance, resolveGenerationRequest,
+import { GENERATION_COVERAGE_LEVELS, GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings, normalizeGenerationPerformance, resolveGenerationRequest,
   validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
+import { DEFAULT_LEVEL, LEVELS } from '../lib/coverage-strength.js';
 
 // Every performance key that is not a number: the four reasoning levels and whether the review's suggestions are applied (off by default).
 const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const expected = { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS,
-  kind: 'quiz', kinds: ['quiz'], count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto' };
+  kind: 'quiz', kinds: ['quiz'], count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto', coverageLevel: 'standard' };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-settings-'));
   const service = new StudyService(root);
@@ -107,6 +108,22 @@ test('explicit performance accepts only the three bounded fields, while persiste
     assert.throws(() => validateGenerationPerformance(performance), /generation/i);
     assert.throws(() => resolveGenerationRequest(undefined, { performance }), /generation/i);
   }
+});
+
+test('覆盖强度 is a saved default of the 创建题组 form: three levels, anything else refused, and a request is never given one', async t => {
+  assert.deepEqual([...GENERATION_COVERAGE_LEVELS], [...LEVELS], 'the setting offers exactly the levels of the table');
+  assert.equal(GENERATION_SETTINGS_DEFAULTS.coverageLevel, DEFAULT_LEVEL, 'the default is the table default');
+  for (const coverageLevel of LEVELS) assert.deepEqual(validateGenerationPatch({ coverageLevel }), { coverageLevel });
+  for (const coverageLevel of ['', 'huge', 'Standard', 3, null]) assert.throws(() => validateGenerationPatch({ coverageLevel }), /coverageLevel/);
+  assert.equal(normalizeGenerationSettings({ coverageLevel: 'full' }).coverageLevel, 'full');
+  assert.equal(normalizeGenerationSettings({ coverageLevel: 'everything', language: 'English' }).coverageLevel, 'standard', 'a corrupt value falls back, siblings survive');
+  assert.equal(normalizeGenerationSettings({ coverageLevel: 'everything', language: 'English' }).language, 'English');
+  // The form reads it; a request made without one (an assistant in the conversation) is planned by count as before: the setting must not switch coverage planning on there.
+  assert.equal('coverageLevel' in resolveGenerationRequest({ ...expected, coverageLevel: 'lean' }), false);
+  const service = await library(t);
+  assert.equal((await service.call('settings', { generation: { coverageLevel: 'lean' } })).generation.coverageLevel, 'lean');
+  assert.equal((await service.call('snapshot')).settings.generation.coverageLevel, 'lean');
+  await assert.rejects(service.call('settings', { generation: { coverageLevel: 'huge' } }), /generation/i);
 });
 
 test('saved generation preferences stay within their own library', async t => {

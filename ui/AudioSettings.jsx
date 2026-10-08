@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import AudioReasoning from './AudioReasoning.jsx';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useModelEfforts } from './use-model-efforts.js';
-import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, Select, SetupRequired, SettingsSection, TextInput, useToast } from './components/index.js';
+import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, Select, SetupRequired, SettingsSection, Switch, TextInput, useToast } from './components/index.js';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
@@ -137,6 +137,9 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
           <Hint>{ui('来自另一个开通计费并充值的 Google 项目，免费额度都用完时才用；导入时勾选「只用付费密钥」可以完全不经过免费服务。余额用完时请求会失败，不会自动降回免费。')}</Hint>
           <ProviderKeyForm provider={{ tier: 'paid', field: providerOf('paid').keyField, name: providerOf('paid').name, placeholder: '粘贴付费项目的 AI Studio 密钥' }}
             state={view.paidKey} call={call} busy={busy} primary={false} onSaved={saved} />
+          <Switch name="paidOnlyByDefault" label={ui('导入录音时默认只用付费密钥')} checked={view.paidOnlyByDefault === true} disabled={busy}
+            onChange={(value) => save({ paidOnlyByDefault: value })}
+            hint={ui('添加录音时，「更多设置」里的「只用付费密钥」会默认勾上，每次仍可单独改。需要先填写上面的付费密钥。')} />
         </div>
         <Disclosure className="audio-expert settings-disclosure" summary={ui('专家选项')} meta={ui('模型、并发')}>
           <Field label={ui('校对与翻译用哪个模型')}>

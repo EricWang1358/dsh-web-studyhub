@@ -46,7 +46,7 @@ test('the component shows the answer on request, and only offers what can help',
   assert.doesNotMatch(quiet, />再试一次<\/button>/, 'no retry button when the page has its own');
   assert.doesNotMatch(quiet, /<details/);
   const key = render({ unavailable: { reason: 'failed', message: '401 Unauthorized: invalid api key' }, fallback: PATH, onRetry: noop, onSettings: noop });
-  assert.match(key, /打开模型设置/, 'a missing or rejected key is fixed in the settings, not by retrying');
+  assert.match(key, /前往设置/, 'a missing or rejected key is fixed in the settings, not by retrying');
   assert.doesNotMatch(key, />再试一次<\/button>/);
   assert.equal(render({ unavailable: { reason: 'no-signal' }, fallback: PATH }), '');
 });

@@ -92,12 +92,24 @@ test('the English control has no Chinese text', () => inLanguage('en', () => {
   assert.match(lineOf(custom), /^Custom: 100 questions, covering 81\/81 sections, in 4 rounds. Estimated /);
 }));
 
-test('the started notice says that a plan of several rounds starts with the first', () => {
-  assert.equal(m.generationStartedNotice({ status: 'running' }, { title: 'T' }, 2).text, '已开始生成「T」…完成后在这里打开草稿。');
-  const text1 = m.generationStartedNotice({ status: 'running', plan: { rounds: 12, goal: 343, questions: 30 } }, { title: 'T' }, 2).text;
-  assert.equal(text1, '已开始生成「T」…完成后在这里打开草稿。 共分 12 轮、约 343 题；这次先出第 1 轮（约 30 题），其余在草稿页继续。');
-  assert.equal(m.generationStartedNotice({ status: 'running', plan: { rounds: 1, goal: 20, questions: 20 } }, { title: 'T' }, 2).text, '已开始生成「T」…完成后在这里打开草稿。');
-  inLanguage('en', () => assert.doesNotMatch(m.generationStartedNotice({ status: 'running', plan: { rounds: 12, goal: 343, questions: 30 } }, {}, 2).text, han));
+test('the started notice says whether the rest of a plan of several rounds goes on by itself, and says the total only on the form', () => {
+  const started = (extra, gen = { title: 'T' }) => m.generationStartedNotice({ status: 'running', ...extra }, gen, 2).text;
+  assert.equal(started({}), '已开始生成「T」…完成后在这里打开草稿。');
+  const head = '已开始生成「T」…完成后在这里打开草稿。 ';
+  // The run goes on by itself (标准 and 完整 default to 自动补到完整): the notice must not send the learner to the draft page for the rest.
+  const auto = started({ plan: { rounds: 12, goal: 343, questions: 30 }, autoComplete: true });
+  assert.equal(auto, head + '分 12 轮；这次先出第 1 轮（约 30 题），其余 11 轮会自动接着做，可以在「任务」里暂停或停下。');
+  assert.doesNotMatch(auto, /其余在草稿页继续|343/, 'the old promise and the total (said once, on the form) are gone');
+  // 精简, or 自动补到完整 unticked: it stops after the first round and says how to go on.
+  const manual = started({ plan: { rounds: 12, goal: 343, questions: 30 }, autoComplete: false });
+  assert.equal(manual, head + '分 12 轮；这次只出第 1 轮（约 30 题），其余 11 轮要到草稿页点「为没覆盖的部分补题」，一次补一轮。');
+  // The job did not say: nothing is promised either way.
+  assert.equal(started({ plan: { rounds: 12, goal: 343, questions: 30 } }), head + '分 12 轮；这次先出第 1 轮（约 30 题）。');
+  assert.equal(started({ plan: { rounds: 1, goal: 20, questions: 20 }, autoComplete: true }), '已开始生成「T」…完成后在这里打开草稿。');
+  inLanguage('en', () => {
+    for (const autoComplete of [true, false, undefined]) assert.doesNotMatch(started({ plan: { rounds: 12, goal: 343, questions: 30 }, autoComplete }, {}), han);
+    assert.match(started({ plan: { rounds: 12, goal: 343, questions: 30 }, autoComplete: true }, {}), /continue by themselves/);
+  });
 });
 
 /* ---------- why a section has its questions ---------- */

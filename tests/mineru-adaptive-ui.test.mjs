@@ -172,7 +172,7 @@ const adaptivePlan = { name: 'Book.pdf', pages: 450, bytes: 12 * 1024 * 1024, by
   adaptive: { firstPages: 10, rampPages: [10, 20, 20], targetSeconds: 75, minPages: 5, maxPages: 50 }, tokenSet: true, acknowledged: true };
 
 test('before a local run starts the plan is told as what it will do, not as a count of windows nobody has decided yet', () => {
-  const html = render(h(MineruRoute, { file: { name: 'Book.pdf', size: 12 * 1024 * 1024 }, call, initialSettings: saved, initialLocal: states.ready, initialPlan: adaptivePlan, initialRoute: 'local' }));
+  const html = render(h(MineruRoute, { file: { name: 'Book.pdf', size: 12 * 1024 * 1024 }, call, initialSettings: saved, initialLocal: states.ready, initialPlan: adaptivePlan }));
   const said = text(html);
   assert.match(said, /共 450 页/);
   assert.match(said, /先做 10 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 75 秒，5–50 页）/);
@@ -196,7 +196,7 @@ test('English: no Chinese anywhere in the live card, in any state, nor in the hi
   const row = text(render(history([record()]), 'en'));
   assert.doesNotMatch(row, han);
   assert.match(row, /about 3\.1 sec a page/i);
-  const route = text(render(h(MineruRoute, { file: { name: 'Book.pdf', size: 1e6 }, call, initialSettings: saved, initialLocal: states.ready, initialPlan: adaptivePlan, initialRoute: 'local' }), 'en'));
+  const route = text(render(h(MineruRoute, { file: { name: 'Book.pdf', size: 1e6 }, call, initialSettings: saved, initialLocal: states.ready, initialPlan: adaptivePlan }), 'en'));
   assert.doesNotMatch(route, han);
   assert.match(route, /starts with 10 pages/i);
 });

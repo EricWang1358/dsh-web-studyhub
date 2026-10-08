@@ -881,7 +881,8 @@ test("learning path orders weak before new in syllabus order, resumes the same s
   await publish("a", [card("a1", "Intro"), card("a2", "Intro"), card("a3", "Advanced")]);
   await publish("b", [card("b1", "Other")]);
   let map = await service.call("map");
-  assert.deepEqual(map.today, { due: 0, weak: 0, new: 4, size: 4, ahead: false });
+  // The home number is the current course's round (here the decks without a course); the breakdown counts the round's own cards.
+  assert.deepEqual(map.today, { due: 0, weak: 0, new: 4, size: 4, ahead: false, more: 0, course: "", scope: [{ deckId: "a" }, { deckId: "b" }], elsewhere: 0 });
   assert.deepEqual(map.next, { deckId: "a", deckTitle: "a", topic: "Intro", mastery: 0 });
   const run = await service.call("review.start", { mode: "path" });
   assert.equal(run.title, "今日学习");

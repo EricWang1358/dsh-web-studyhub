@@ -26,16 +26,21 @@ const chosen = { kind: "upload", uploadId: "u1", name: "lecture.mp3", size: 45 *
 const audio = { corrections: { appliedCount: 1, applied: [{ wrong: "patient", right: "partition", reason: "why", context: "into a patient by date" }],
   skipped: [{ wrong: "unit", right: "init", context: "business unit of work", skipped: "low-confidence" }] } };
 
-test('multiple audio inputs expose ordered removal, keyboard sorting, a transcript name and multi-course ownership', () => {
+test('multiple audio inputs expose ordered removal, keyboard sorting, and the optional settings in one fold: a transcript name, and the course only on a page of its own', () => {
   try {
     setUiLanguage('en');
-    const html = render({ initialFiles: [chosen, { kind: 'path', path: '/A.wav', name: 'A.wav' }], defaultCourses: ['Biology', 'Medicine'] });
+    const files = [chosen, { kind: 'path', path: '/A.wav', name: 'A.wav' }];
+    const html = render({ initialFiles: files, defaultCourses: ['Biology', 'Medicine'] });
+    assert.match(html, /<details class="sh-disclosure audio-more"(?![^>]*\bopen\b)/, 'More settings is closed');
     assert.match(html, /Transcript name/);
     assert.match(html, /Move A.wav up/);
     assert.match(html, /Remove lecture.mp3/);
-    assert.match(html, /Biology; Medicine/);
-    assert.match(html, /multiple=""/);
+    assert.doesNotMatch(html, /Biology; Medicine/, 'inside the add-source dialog the course is that dialog\'s own line: asked once');
     assert.doesNotMatch(html.replace(/lecture\.mp3|数据库|server says no/g, ''), /[㐀-鿿]/);
+    const alone = render({ initialFiles: files, defaultCourse: 'Biology; Medicine' });
+    assert.match(alone, /Biology; Medicine/);
+    assert.match(alone, /multiple=""/);
+    assert.match(html, /Start \(2 recordings merged into 1 transcript\)/, 'the button says that several recordings become one transcript');
   } finally { setUiLanguage('zh'); }
 });
 

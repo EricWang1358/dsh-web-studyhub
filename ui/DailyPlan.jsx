@@ -11,6 +11,7 @@ import Menu from './components/Menu.jsx';
 import { ProgressBar } from './components/Progress.jsx';
 import { InlineMessage } from './components/Feedback.jsx';
 import ModelErrorNote from './ModelErrorNote.jsx';
+import ModelSetupGate from './ModelSetupGate.jsx';
 import { usePersistentState } from './storage.js';
 import { useStudy } from './study-context.jsx';
 import { normalizeRoot } from './board/meta.js';
@@ -131,9 +132,10 @@ function EmptyProposal({ proposal, plan, onSettings, onAdjust }) {
   </div>;
 }
 
-function Proposal({ proposal, plan, primary, onSettings, onAdjust }) {
+function Proposal({ proposal, plan, primary, modelReady, onSettings, onAdjust }) {
   if (!proposal.items.length) return <EmptyProposal proposal={proposal} plan={plan} onSettings={onSettings} onAdjust={onAdjust} />;
   const total = proposal.items.reduce((sum, item) => sum + item.minutes, 0);
+  const local = proposal.method !== 'ai';
   return <div className="daily-plan__proposal">
     <p className="daily-plan__eyebrow">{proposal.method === 'ai' ? ui('AI 为你建议') : ui('本地建议')} · {ui('尚未加入待办')}</p>
     {proposal.failure && <PlanFailure failure={proposal.failure} plan={plan} onSettings={onSettings} />}
@@ -142,7 +144,12 @@ function Proposal({ proposal, plan, primary, onSettings, onAdjust }) {
     <ol>{proposal.items.map((item, index) => <li key={item.candidateId || index}>
       <div><strong>{item.title}</strong><p>{item.reason}</p></div><span className="daily-plan__meta">{estimated(item.minutes)}</span>
     </li>)}</ol>
-    <Button variant={primary ? 'primary' : 'secondary'} busy={plan.busy === 'accept'} disabled={!!plan.busy} onClick={() => plan.accept(proposal.id)}>{ui('接受这份安排')}</Button>
+    {local && !proposal.failure && <p className="daily-plan__footnote">{ui('按到期、薄弱程度和你的时间排出，没有调用模型。')}</p>}
+    <div className="daily-plan__actions">
+      <Button variant={primary ? 'primary' : 'secondary'} busy={plan.busy === 'accept'} disabled={!!plan.busy} onClick={() => plan.accept(proposal.id)}>{ui('接受这份安排')}</Button>
+      {/* The optional second step: the model plans the day again. Without a model the line at the bottom of the block says so, once. */}
+      {local && modelReady && <Button variant="secondary" busy={plan.busy === 'suggest'} disabled={!!plan.busy} onClick={() => plan.suggest({ proposalId: proposal.id })}>{ui('AI 重排')}</Button>}
+    </div>
   </div>;
 }
 
@@ -188,8 +195,19 @@ function summaryOf({ state, plan, next, proposal, budget, spent }) {
   return parts.join(' · ');
 }
 
+/** Is it time to ask for today's local proposal (no model call)? Once a day, when the plan is loaded and there is nothing to accept, nothing planned, nothing settled and nothing the board says is wrong (a read-only board). */
+export const shouldSuggestLocal = ({ state, busy, error }, asked) => !!state && !state.proposal && !state.tasks?.length && !state.accepted && !state.warnings?.length
+  && !busy && !error && !asked.has(state.date);
+
 export default function DailyPlan({ plan, onBoard, modelReady = true, openModelSettings, primaryAction = true }) {
   useInjectCss(css, 'study-daily-plan');
+  // The plan opens with the program's own proposal, so the first click is 接受 (and no model is needed for it): AI 重排 is the optional second step.
+  const asked = useRef(new Set());
+  useEffect(() => {
+    if (!shouldSuggestLocal(plan, asked.current)) return;
+    asked.current.add(plan.state.date);
+    plan.suggest({ local: true });
+  }, [plan.state, plan.busy, plan.error]); // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = usePersistentState(OPEN_KEY, false);
   const [editor, setEditor] = useState(null);
   const editorId = useId(), bodyId = useId();
@@ -238,7 +256,7 @@ export default function DailyPlan({ plan, onBoard, modelReady = true, openModelS
       </div>}
       {plan.error && <InlineMessage tone="error" boxed action={{ label: ui('重试'), onClick: plan.refresh, disabled: !!plan.busy }}>{plan.error}</InlineMessage>}
       {!state ? !plan.error && <LoadingState label={ui('正在读取学习安排…')} /> : <>
-        {proposal ? <Proposal proposal={proposal} plan={plan} primary={primaryAction} onSettings={openModelSettings} onAdjust={modelReady ? () => choose('adjust') : undefined}
+        {proposal ? <Proposal proposal={proposal} plan={plan} primary={primaryAction} modelReady={modelReady} onSettings={openModelSettings} onAdjust={modelReady ? () => choose('adjust') : undefined}
           /> : next ? <NextAction task={next} plan={plan} primary={primaryAction} /> : <EmptyPlan plan={plan} modelReady={modelReady} primary={primaryAction} />}
         {warnings.map(warning => <InlineMessage key={warning} tone="warning">{warning}</InlineMessage>)}
         {tasks.length > 0 && <details className="daily-plan__list"><summary>{uiFormat('完整安排 · 已完成 {0}/{1}', [completed, tasks.length])}</summary>
@@ -249,8 +267,7 @@ export default function DailyPlan({ plan, onBoard, modelReady = true, openModelS
           {editor === 'adjust' && <Adjustment plan={plan} onClose={closeEditor} />}
           {editor === 'profile' && <Profile plan={plan} onClose={closeEditor} />}
         </div>
-        {!modelReady && <InlineMessage tone="info" action={openModelSettings ? { label: ui('打开模型设置'), onClick: openModelSettings } : undefined}>
-          {ui('配置模型后可以协商安排；已接受的行动可以继续。')}</InlineMessage>}
+        {!modelReady && <ModelSetupGate variant="compact" feature="plan" model={{ ready: false }} onOpenSettings={openModelSettings} />}
       </>}
     </div>
   </section>;

@@ -30,7 +30,7 @@ test('while recommendations are being found the bar is already there, and nothin
   assert.match(html, /为你推荐/);
   assert.match(html, /正在查找同类题/);
   assert.doesNotMatch(html, /练这 \d+ 道/);
-  assert.match(html, /开始重练 \(3\)/);
+  assert.match(html, /开始重练 · 全部 3 题/);
   assert.match(html, /错题 \+ 同类题 \(3\+0\)/);
   assert.doesNotMatch(text(render({ recs: null })), /为你推荐/, 'a view that was never told about recommendations shows no bar');
 });
@@ -48,13 +48,13 @@ test('the bar is one folded line when recommendations are in; the list is behind
   assert.match(open, /id="wb-recs-body"/);
   const none = text(render({ recs: { items: [] } }));
   assert.match(none, /暂时没有合适的同类题/, 'the bar stays, so an empty answer changes nothing either');
-  assert.doesNotMatch(none, /练这/);
+  assert.doesNotMatch(none, /练这 \d+ 道/);
 });
 
 test('with recommendations in at the first draw the default is still the richest, and a note says what was found', () => {
   const html = render({ recs: { items: recItems } });
   assert.match(html, /aria-pressed="true"[^>]*>错题 \+ 同类题 \(3\+4\)/);
-  assert.match(text(html), /开始重练 \(7\)/);
+  assert.match(text(html), /开始重练 · 全部 7 题/);
 });
 
 test('English: the new bar and note are translated', () => {

@@ -171,6 +171,19 @@ test("saved generation defaults populate and reset forms without carrying worker
   assert.equal(m.generationFormDefaults(saved, 'zh').language, '中文');
 });
 
+test("the saved 覆盖强度 fills the form, comes back after each deck, follows a settings update and never overrides a level the learner picked", () => {
+  assert.equal(m.generationFormDefaults({}, 'zh').coverageLevel, 'standard');
+  assert.equal(m.generationFormDefaults({ coverageLevel: 'lean' }, 'zh').coverageLevel, 'lean');
+  assert.equal(m.generationFormDefaults({ coverageLevel: 'bogus' }, 'zh').coverageLevel, 'standard', 'a corrupt value is the table default');
+  // after a deck the form starts again from the saved level (and a form that has no saved settings yet from the table default)
+  assert.equal(m.freshGeneration({ coverageLevel: 'full' }, { coverageLevel: 'lean' }, 'zh').coverageLevel, 'lean');
+  assert.equal(m.freshGeneration({ coverageLevel: 'full' }).coverageLevel, 'standard');
+  // an inherited level follows the setting; a level picked on the form stays
+  const before = m.generationFormDefaults({}, 'zh'), after = m.generationFormDefaults({ coverageLevel: 'lean' }, 'zh');
+  assert.equal(m.syncGenerationDefaults({ ...before }, before, after).coverageLevel, 'lean');
+  assert.equal(m.syncGenerationDefaults({ ...before, coverageLevel: 'full' }, before, after).coverageLevel, 'full');
+});
+
 test("settings snapshots update inherited choices while preserving the typed generation form", () => {
   const before = m.generationFormDefaults({}, 'zh');
   const current = { ...before, count: '4', focus: 'My input', title: 'My title', course: 'CS' };

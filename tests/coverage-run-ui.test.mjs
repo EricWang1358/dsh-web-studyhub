@@ -186,7 +186,7 @@ test('the draft page: where the run is, why it stopped, the choice 自动补到�
   let html = render(React.createElement(m.RunPanel, { draft: waiting, view, jobs: [] }));
   assert.match(text(html), /第 1 轮完成，还有 2 轮 · 覆盖 9% · 已用 400K tok/);
   assert.match(html, /data-run-auto/);
-  assert.match(text(html), /勾选后，剩下的 2 轮会一轮接一轮自动补完/);
+  assert.match(text(html), /勾选后，剩下的 2 轮一轮接一轮自动做完；可以随时暂停，或停在这里/);
   assert.doesNotMatch(html, /checked/, 'a run that waits is not going on by itself');
   const stopped = draft(['done', 'failed', 'pending'], { jobId: 'run-1', autoComplete: true, state: 'stopped', tokensUsed: 900_000, startedAt: at(0), updatedAt: at(100), stop: { reason: 'budget', round: 2 } });
   html = render(React.createElement(m.RunPanel, { draft: stopped, view, jobs: [] }));

@@ -39,13 +39,13 @@ export function markSetupDone(root, course) {
 export function stepAction(step, setup, on = {}) {
   const course = setup.course;
   const table = {
-    import: [ui("导入资料"), on.import && (() => on.import(course))],
+    import: [ui("添加资料"), on.import && (() => on.import(course))],
     sources: [step.id === "convert" ? ui("去资料页转换") : ui("去资料页处理"), on.sources],
     index: [ui("打开检索设置"), on.index],
     generate: [ui("用这门课的资料出题"), on.generate && (() => on.generate(course))],
     draft: [ui("检查并发布草稿"), on.draft && (() => on.draft(step.detail.draftId))],
     course: [ui("设置考试信息"), on.course && (() => on.course(step.detail.courseId))],
-    skeleton: [ui("生成知识骨架"), on.skeleton],
+    skeleton: [ui("去知识骨架页"), on.skeleton],
   };
   const [label, run] = table[step.action] || [ui("打开"), null];
   return { label, run: run || (() => {}), disabled: !run || !!step.blockedBy };
@@ -56,7 +56,7 @@ function stepCopy(step) {
   const done = step.status === "done", d = step.detail || {};
   switch (step.id) {
     case "materials":
-      return { title: ui("加入资料"), text: done ? uiFormat("已有 {0} 份资料", [d.documents]) : ui("导入讲义、课件、PDF 或笔记，原文件会保留；之后用它出题。") };
+      return { title: ui("添加资料"), text: done ? uiFormat("已有 {0} 份资料", [d.documents]) : ui("添加讲义、课件、PDF 或笔记，原文件会保留；之后用它出题。") };
     case "convert":
       return { title: ui("转换长教材并分章"), text: done ? ui("长教材已转换，可以按章节选择。") : uiFormat("「{0}」有 {1} 页，还没有分章。先转换成带页码的文字，再按章节选择。", [d.title, d.pages]) };
     case "index":
@@ -69,7 +69,7 @@ function stepCopy(step) {
     case "deck":
       return { title: ui("出第一批题"),
         text: done ? uiFormat("已有 {0} 个题组，可以开始练习", [d.decks])
-          : step.blockedBy ? ui("先加入资料，再出题。")
+          : step.blockedBy ? ui("先添加资料，再出题。")
             : d.drafts ? uiFormat("有 {0} 份草稿待检查，发布后就能练习。", [d.drafts])
               : d.needsModel ? ui("选好资料、题型和题数即可。出题需要 AI 模型，页面会告诉你怎么连接。") : ui("选好题型和题数，AI 出题后逐题检查，再由你确认。") };
     case "goal":

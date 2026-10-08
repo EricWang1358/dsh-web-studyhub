@@ -26,11 +26,12 @@ import { openAudioSettings } from '../audio-focus.js';
 import { useApp } from './app-context.js';
 import { SourceForm } from './modals/AddSourceDialog.jsx';
 import { createSetupHandlers } from './setup-handlers.js';
+import { importForQuestions } from './import-handoff.js';
 import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
 import { formatDateTime } from '../format.js';
-import { kindsOfLegacyKind } from '../../lib/generation-settings.js';
+import { retryForm, retryNotice } from './retry-generation.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -52,12 +53,13 @@ function LibraryView() {
           start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id) => set.setRemovingDeck({ id, root: data.root }),
           openDraft: (draft) => drafts.openDraft(draft, { navigation: true }), topUpDraft: drafts.topUpDraft,
           retryGeneration: (job) => {
-            const available = new Set(data.sources.map((source) => source.id));
-            intents.goGenerate({ sourceIds: (job.sourceIds || []).filter((id) => available.has(id)),
-              genPatch: (current) => ({ kind: job.kind || current.kind, kinds: job.kinds || (job.kind && kindsOfLegacyKind(job.kind)) || current.kinds, count: job.requestedTotal || job.count || current.count }) });
-            notify(ui('已带回可用资料、题型和题数；请核对学习目标后再生成。'));
+            // The whole request of the failed job goes back on the form, and the notice says only what was put back (ui/app/retry-generation.js).
+            const available = new Set(data.sources.map((source) => source.id)), wanted = job.sourceIds || [];
+            const { patch, lost } = retryForm(job);
+            intents.goGenerate({ sourceIds: wanted.filter((id) => available.has(id)), genPatch: patch });
+            notify(retryNotice({ lost, gone: wanted.filter((id) => !available.has(id)).length }));
           },
-          addSource: () => set.setModal({ type: 'add' }), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
+          addSource: () => set.setModal(data.decks.length ? { type: 'add' } : importForQuestions(intents.goGenerate)), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
           generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }), startCourseFlow: intents.startCourseFlow,
           onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
@@ -138,12 +140,13 @@ function ManageView() {
 }
 
 function SourcesView() {
-  const { data, host, nav, lib, set, learn, sources, settingsEntry } = useApp();
+  const { data, host, nav, lib, set, learn, sources, intents, settingsEntry } = useApp();
   return (
     <Sources key={data.root} data={data} setModal={set.setModal} sourceForm={<SourceForm />}
       highlight={lib.sourceHighlight} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
       onLegacyRetry={(job) => { set.setLegacyAudioJobId(job.id); nav.navigate('audio'); }}
-      onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onGenerate={sources.generateFromSources} />
+      onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onGenerate={sources.generateFromSources}
+      onPractice={(scope) => intents.practice(scope)} />
   );
 }
 
@@ -159,12 +162,12 @@ export function AudioHeader({ onSettings, onSources }) {
 }
 
 export function AudioView() {
-  const { data, host, nav, lib, set, learn } = useApp();
+  const { data, host, nav, lib, set, learn, sources } = useApp();
   return (
     <section className="page">
       <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
       <AudioImport data={data} canAsk={!!host.askInChat}
-        openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
+        openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')} onGenerate={sources.generateFromSources}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
       <AudioDashboard />
     </section>
@@ -275,11 +278,12 @@ function ReviewView({ feedback }) {
     onCourseFlow: intents.startCourseFlow,
     onOpenNote: (noteId) => learn.openLearningTarget({ kind: 'note', id: noteId }),
     onRecapSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); },
+    onPracticeSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-practice'); nav.show.page('settings'); },
     onModelSettings: settingsEntry.openModelSettings,
     onMakeNote: () => {
       const origin = learn.captureContext();
       return core.act('note.create', { title: uiFormat('学习笔记 · {0}', [formatDateTime(Date.now(), 'date')]),
-        cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }] }, (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
+        cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }], reuse: true }, (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
     },
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
@@ -324,14 +328,19 @@ function ExamPrepOffPage() {
   );
 }
 
-/** What the learner sees when the host has switched the page's components off (备考补习 has its own: its switch is not a component). */
+/** What the learner sees when the host has switched the page's components off (备考补习 has its own: its switch is not a component).
+    The words say to enable the components in DSH, so the first button is the plugin manager when the host can open it. */
 export function DisabledPage({ page }) {
-  const { data, nav } = useApp();
+  const { data, nav, host } = useApp();
   if (page === 'examprep' && data?.features?.[pageFlag('examprep')] !== true) return <ExamPrepOffPage />;
+  const pluginManager = !!host?.openPluginManager;
   return (
     <section className="page" role="status">
       <PageHeader title={ui('此功能已停用')} description={ui('在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。')}
-        actions={<Button onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('工作区设置')}</Button>} />
+        actions={<>
+          {pluginManager && <Button variant="primary" icon="external" onClick={() => host.openPluginManager()}>{ui('打开 DSH 插件管理器')}</Button>}
+          <Button variant={pluginManager ? 'secondary' : 'primary'} onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('前往设置')}</Button>
+        </>} />
     </section>
   );
 }

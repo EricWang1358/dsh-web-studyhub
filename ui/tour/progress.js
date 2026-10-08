@@ -10,12 +10,12 @@ const welcomeKey = (root) => `study-welcome:${root || ""}`;
 const read = (key) => readText(key, null);
 const write = (key, value) => (value === null ? removeKey(key) : writeText(key, value)); // remembered for this session only when refused
 
-/** { stepId, done } or null. */
+/** { stepId, done } or null; `full: true` when the paused tour is the full one (ui/tour/steps.js), absent for the short one. */
 export function readTourProgress(root) {
   const value = readJSON(tourKey(root));
-  return value && typeof value === "object" && typeof value.stepId === "string" ? { stepId: value.stepId, done: !!value.done } : null;
+  return value && typeof value === "object" && typeof value.stepId === "string" ? { stepId: value.stepId, done: !!value.done, ...(value.full === true ? { full: true } : {}) } : null;
 }
-export const writeTourProgress = (root, value) => write(tourKey(root), value ? JSON.stringify({ stepId: value.stepId, done: !!value.done }) : null);
+export const writeTourProgress = (root, value) => write(tourKey(root), value ? JSON.stringify({ stepId: value.stepId, done: !!value.done, ...(value.full ? { full: true } : {}) }) : null);
 
 export const welcomeDismissed = (root) => read(welcomeKey(root)) === "dismissed";
 export const dismissWelcome = (root) => write(welcomeKey(root), "dismissed");

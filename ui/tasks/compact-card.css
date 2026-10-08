@@ -39,6 +39,7 @@
     /* The button names the action in full (「为没覆盖的部分补题」, "Add questions for the uncovered parts"): in its fixed column it wraps onto a second line instead of running into its neighbours. */
     .cjc__go { width: 100%; justify-content: center; height: auto; min-height: 2rem; padding-block: var(--space-1-5); text-align: center; white-space: normal; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cjc__problem { grid-column: 1 / -1; grid-row: 3; margin: var(--space-2) 0 0; }
+    .cjc__links { grid-column: 2 / -1; grid-row: 3; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-1); }
     .cjc[inert] { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, var(--dur-fast)) ease-out forwards; }
     .cjc-list { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
   }
