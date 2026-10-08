@@ -2,7 +2,7 @@
 
 English · [简体中文](install.zh-CN.md)
 
-StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.1.1/StudyHub-3.1.1-Setup.html).
+StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.2.0/StudyHub-3.2.0-Setup.html).
 
 | Your situation | Start here |
 | --- | --- |
@@ -12,7 +12,7 @@ StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app
 
 **What you need**
 
-- **DSH 0.2.** StudyHub 3.1.1 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
+- **DSH 0.2.** StudyHub 3.2.0 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
 - **A supported computer.** The desktop installers in this guide are for Windows x64 and Macs with Apple silicon. On any other system, check the official DSH site or use the DSH web version with Node.js 22.19 or later.
 - **A model, only for AI features.** Generation and explanations need one; see [Configure a model provider](#configure-a-model-provider). Installing, the sample tour, browsing sources and practising existing decks do not.
 
@@ -44,20 +44,20 @@ These steps work in desktop and web DSH. Web users need no desktop client and no
 2. Paste the complete package address:
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.1.1/ericwang1358-dsh-daily-flashcard-3.1.1.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.2.0/ericwang1358-dsh-daily-flashcard-3.2.0.tgz
    ```
 
-3. After it installs, check that the package is `@ericwang1358/dsh-daily-flashcard`, version 3.1.1.
+3. After it installs, check that the package is `@ericwang1358/dsh-daily-flashcard`, version 3.2.0.
 4. Click **Enable** for StudyHub and the components you want. If DSH asks to reload, finish or cancel background tasks first.
 5. StudyHub opens by itself the first time. Later, open **StudyHub** from DSH's left sidebar; you do not need to send a chat message first. StudyHub is also a tab in each session and in DSH's right sidebar.
 
-On an empty library, the welcome page leads with **Import my first source**. To look around first, click **Load the sample and start the tour**. It loads a sample course (one lecture handout, nine cited questions and three weeks of practice history) and starts a tour of about 3 minutes. Neither needs a model, and **Remove sample data** clears the sample whenever you like.
+On an empty library, the welcome page leads with **Add source**. To look around first, click **Load the sample and start the tour**. It loads a sample course (one lecture handout, nine cited questions and three weeks of practice history) and starts a short tour (8 steps, a minute or two). Neither needs a model, and **Remove sample data** clears the sample whenever you like.
 
 StudyHub keeps your library in the workspace folder of the current DSH session. If it shows **Open a session first**, start or open a session in DSH.
 
 ### If DSH cannot download from GitHub
 
-1. Download `ericwang1358-dsh-daily-flashcard-3.1.1.tgz` from the [3.1.1 release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.1.1). The same page lists the checksums in `SHA256SUMS-3.1.1.txt`.
+1. Download `ericwang1358-dsh-daily-flashcard-3.2.0.tgz` from the [3.2.0 release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.2.0). The same page lists the checksums in `SHA256SUMS-3.2.0.txt`.
 2. In **Add plugin**, enter the absolute path of that file instead of the address.
 
 The file must be on the **computer or server that runs DSH**. With a remote DSH web server, a download path on your laptop does not exist on the server. Copy the file to the server, or use the HTTPS address above.
@@ -130,7 +130,7 @@ DSH plugins do not update themselves, and restarting DSH alone keeps the install
 
 Automatic update checks normally use a 6-hour cache and retry sooner after a failure. **Check for updates** queries immediately, even within that window or with automatic checks off. Checks send no study data and do not install anything. When a release is newer than the installed version, a **Version x.y.z available** chip appears in StudyHub's sidebar, where x.y.z is the new version.
 
-**Settings › About & updates** separates the current running version, the installed version and the latest known release. For example, 2.5.8 can still be running while 2.5.10 is installed and waiting for a restart. If 3.1.1 becomes available, you can install it directly and then restart once; the pending restart does not hide that upgrade. The same or an older release is not installed again. A failed check keeps the last known release and shows a separate connection notice.
+**Settings › About & updates** separates the current running version, the installed version and the latest known release. For example, 2.5.8 can still be running while 2.5.10 is installed and waiting for a restart. If 3.2.0 becomes available, you can install it directly and then restart once; the pending restart does not hide that upgrade. The same or an older release is not installed again. A failed check keeps the last known release and shows a separate connection notice.
 
 1. Click the chip, then **Upgrade to x.y.z** and **Upgrade now**.
 2. If background tasks are running, StudyHub says how many. **Stop tasks and upgrade** stops them and keeps the parts already finished. You can also wait until they are done.
