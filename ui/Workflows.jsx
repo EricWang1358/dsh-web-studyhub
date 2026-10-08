@@ -228,7 +228,10 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   const [error, setError] = useState(""), [pending, setPending] = useState("");
   const toast = useToast();
   const [confirm, setConfirm] = useState(""), [wish, setWish] = useState("");
-  const [goal, setGoal] = useState(""), quickRequest = useRef(null);
+  // What the learner typed; until they type (or clear the box) the recommended topic is in it, so starting is one click.
+  const [typedGoal, setTypedGoal] = useState(null), quickRequest = useRef(null);
+  const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && uiFormat("{0} 的核心概念", [data.focus.course])].filter(Boolean);
+  const goal = typedGoal ?? suggestions[0] ?? "", prefilled = typedGoal === null && !!suggestions[0];
   const [autoSkeleton, setAutoSkeleton] = usePersistentState("study-workflow-auto-skeleton", true, { parse: (raw) => raw !== "0", serialize: (value) => (value ? "1" : "0") });
   const lock = useRef(false), request = useRef(0), reading = useRef(null), live = useRef(true), confirmTrigger = useRef(null);
   const askConfirm = (value) => (event) => { confirmTrigger.current = event.currentTarget; setConfirm(value); };
@@ -273,7 +276,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     if (quickRequest.current?.goal !== text) quickRequest.current = { goal: text, id: crypto.randomUUID() };
     try {
       const result = await call("workflow.quickstart", { goal: text, requestId: quickRequest.current.id, skeleton: autoSkeleton });
-      quickRequest.current = null; setGoal("");
+      quickRequest.current = null; setTypedGoal(null);
       setScreen({ kind: "portal", id: result.session.id });
     } catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(""); }
@@ -281,7 +284,6 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   const modelReady = data?.modelReady !== false;
   // The most recent unfinished session, so coming back is one click.
   const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-  const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && uiFormat("{0} 的核心概念", [data.focus.course])].filter(Boolean);
   if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
   if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <LoadingState label={ui("正在读取学习流…")} />}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
@@ -290,18 +292,19 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     <PageHeader title={ui("今天想学什么？")} description={ui("说一句就行。AI 从你的学习库里挑材料、排顺序、讲给你听，再看你的复述；你只管往下走。")} />
     <form className="wf-quick" onSubmit={quickStart} data-tour="workflows-main">
       {data?.focus?.course != null && (data.focus.courses || []).length > 0 && <p className="wf-quick-course muted small">{uiFormat("会在当前课程「{0}」的资料里选；想换课程，开始后在下一页点「换课程」。", [data.focus.course || ui("未分类课程")])}</p>}
+      {prefilled && <p className="wf-quick-course muted small">{ui("已填好推荐的下一个主题，直接点「开始学」；也可以改成别的。")}</p>}
       {!modelReady && <p className="wf-quick-hint">{ui("还没有连接模型：会按主题和题组名匹配材料；讲解、复述反馈和后台骨架要连接模型后才会出现。")}</p>}
       {unfinished && <p className="wf-quick-resume"><span className="muted">{ui("上次学到一半")}</span><Button variant="link" size="sm" iconEnd="arrow-right" disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: unfinished.id })}>{[unfinished.topic, unfinished.stepIndex >= 0 && uiFormat("第 {0}/{1} 步 {2}", [unfinished.stepIndex + 1, unfinished.stepCount, unfinished.stepTitle]), ui("接着学")].filter(Boolean).join(" · ")}</Button></p>}
       <div className="wf-quick-row">
-        <input value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={500} disabled={!!pending}
+        <input value={goal} onChange={(e) => setTypedGoal(e.target.value)} maxLength={500} disabled={!!pending}
           aria-label={ui("想学什么")} placeholder={ui("例如：弄懂 Platform Engineering 里的平台团队职责")} />
         <Button type="submit" variant="primary" className="wf-quick-go" disabled={!!pending || !goal.trim()} busy={pending === "quick"} busyLabel={ui("AI 正在准备…")}>{ui("开始学 →")}</Button>
       </div>
       {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
-        <Button variant="link" size="sm" key={text} disabled={!!pending} onClick={() => setGoal(text)}>{text}</Button>)}</div>}
+        <Button variant="link" size="sm" key={text} disabled={!!pending} onClick={() => setTypedGoal(text)}>{text}</Button>)}</div>}
       {pending === "quick" && <LoadingState className="wf-quick-status" label={modelReady ? ui("AI 正在从你的学习库里挑选相关主题、排好顺序…") : ui("正在按名称匹配学习库里的主题…")} />}
       {modelReady && <Checkbox className="wf-quick-option" checked={autoSkeleton} disabled={!!pending} onChange={setAutoSkeleton}
-        label={ui("没有现成的知识骨架时，在后台按本次范围生成一份")} hint={ui("不用等它，学习照常开始")} />}
+        label={ui("没有现成的知识骨架时，在后台按本次范围生成一份")} hint={ui("不用等它，学习照常开始；会在后台多调用一次模型，不想花这一次就取消勾选。")} />}
     </form>
     {error && <ErrorState error={error} />}
     <div className="wf-section-head"><h2>{ui("学习记录")}</h2></div>

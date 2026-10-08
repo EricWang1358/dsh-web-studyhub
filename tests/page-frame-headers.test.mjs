@@ -81,7 +81,9 @@ test('the prompt page has one primary: 开始学, a shared primary Button that i
   assert.equal((html.match(/sh-btn--primary/g) || []).length, 1, 'one primary on the page');
   const go = button(html, '开始学');
   assert.match(go, /class="sh-btn sh-btn--primary/, '开始学 is the shared primary');
-  assert.match(go, /disabled/, 'disabled with no input (the neutral disabled style is the Button\'s own)');
+  assert.doesNotMatch(go, /disabled/, 'the course is in the box already, so the one click works');
+  const empty = render(h(Workflows, { call: noop, askInChat: noop, data: { root: 'frame', modelReady: true }, initialListing: listing }));
+  assert.match(button(empty, '开始学'), /disabled/, 'disabled with no input (the neutral disabled style is the Button\'s own)');
   assert.doesNotMatch(html, /class="primary"/, 'no hand-rolled .primary buttons are left on the page');
 });
 

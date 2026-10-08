@@ -28,6 +28,9 @@
     .daily-recap-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--recap-gap); margin-top: var(--space-4-5); }
     .daily-recap-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
     .daily-recap-tone { display: flex; gap: 0; border: 0; padding: 0; margin: 0; min-width: 0; }
+    /* The tone is a default from Settings: one quiet line that names it, and the two choices only when it is opened. */
+    .daily-recap-tone-fold { font-size: var(--fs-sm); color: var(--text-muted); }
+    .daily-recap-tone-fold[open] > summary { margin-bottom: var(--space-2); }
     .daily-recap-tone legend { padding: 0; margin-bottom: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-xs); }
     .daily-recap-tone label { display: flex; flex-direction: row; align-items: center; gap: var(--space-1-5); min-height: 44px; padding: var(--space-2) var(--space-3); margin: 0; white-space: nowrap; border: 1px solid var(--line); font-size: var(--fs-sm); cursor: pointer; background: var(--bg-sunken); }
     .daily-recap-tone label:first-of-type { border-radius: var(--radius-sm, var(--radius-sm)) 0 0 var(--radius-sm, var(--radius-sm)); }
