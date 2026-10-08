@@ -65,7 +65,6 @@
   "改回按覆盖强度": "Back to coverage strength",
   "覆盖强度：{0}": "Coverage strength: {0}",
   "已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。": "{0} PDF pages are selected and {1} questions are planned. With fewer questions than pages, not every page can be covered; narrow the page range, clear the custom number, or choose a coverage strength.",
-  "共分 {0} 轮、约 {1} 题；这次先出第 1 轮（约 {2} 题），其余在草稿页继续。": "The plan has {0} rounds and about {1} questions; this run makes the first round (about {2} questions) and the rest continues on the draft page.",
   "定义": "definition",
   "方法": "method",
   "小结": "summary",

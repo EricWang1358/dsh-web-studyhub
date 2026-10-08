@@ -44,8 +44,17 @@
     .generate-assist__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-assist__apply { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
     .generate-assist__why { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); min-width: 0; overflow-wrap: anywhere; }
+    /* ── The main path: the one line of what will be made, the reason the page opened ticked, the plan under the form ── */
+    .generate-plan { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-5); }
+    .generate-plan__line { margin: 0; min-width: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .generate-opening { margin: 0 0 var(--space-3); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-estimate { display: grid; gap: var(--space-1); }
     /* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
-    .generate-more { margin-top: var(--space-5); }
+    .generate-more { margin-top: var(--space-4); }
+    .generate-more > .sh-disclosure__body { display: grid; gap: var(--space-5); }
+    /* The list of what is inside wraps under the name on a narrow pane instead of squeezing it. */
+    .generate-more > .sh-disclosure__summary { flex-wrap: wrap; }
+    .generate-more .sh-disclosure__label { white-space: nowrap; }
     .generate-more .generate-rows { margin-top: 0; }
     .generate-case-hint { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* ── Summary above the one primary button ─────────────────────────────── */

@@ -19,8 +19,9 @@ import { autoLabel, autoLine, tokensText } from './copy.js';
 /**
  * `level` / `customCount` are the form's (`gen.coverageLevel`, `gen.customCount`); `state` is the estimate of the request (ui/TokenUsage.jsx useUsageEstimate); `stats` the selection's
  * size (ui/generate-form.js selectionStats), for the number the custom field starts from; `enabled` is whether anything is selected.
+ * `compact`: the consequences (the plan, the count, the estimate, whether the rounds go on by themselves) are said once by the form around it, under the button: draw only the choices.
  */
-export default function CoverageStrength({ level, customCount = '', onLevel, onCustom, auto = autoCompleteOf(level), onAuto, budget = '', onBudget, state = { status: 'idle' }, stats, enabled = true, disabled = false }) {
+export default function CoverageStrength({ level, customCount = '', onLevel, onCustom, auto = autoCompleteOf(level), onAuto, budget = '', onBudget, state = { status: 'idle' }, stats, enabled = true, disabled = false, compact = false }) {
   useInjectCss(css, 'study-coverage');
   const coverage = state.status === 'ready' ? state.estimate?.coverage : null, custom = customCountOf({ customCount });
   const hint = suggestCount(stats, level), rounds = coverage?.rounds ?? 0, spend = parseTokenBudget(budget);
@@ -28,13 +29,14 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
     <SegmentedControl label={ui('覆盖强度')} className="cov-strength__levels" value={level} disabled={disabled}
       options={COVERAGE_LEVELS.map(({ value, label }) => ({ value, label }))} onChange={onLevel} />
     <p className="generate-note" data-coverage-level-note>{levelNote(level)}</p>
-    {enabled && <div className="cov-strength__line" data-coverage-consequence>
+    {enabled && !compact && <div className="cov-strength__line" data-coverage-consequence>
       <TokenEstimateView state={state} lead={coverageLead(coverage)} tight />
       {coverage && !custom && <p className="cov-strength__levels-line" data-coverage-levels>{levelsLine(coverage)}</p>}
     </div>}
+    {enabled && compact && coverage && !custom && <p className="cov-strength__levels-line" data-coverage-levels>{levelsLine(coverage)}</p>}
     {onAuto && <div className="cov-strength__auto" data-coverage-auto data-auto={auto ? 'on' : 'off'}>
       <Checkbox label={autoLabel()} checked={auto} disabled={disabled} onChange={onAuto} />
-      {rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(auto, rounds, coverage?.leaves > 0 && Number.isFinite(coverage.firstRoundSections) ? { level: coverage.level, percent: Math.round(coverage.firstRoundSections / coverage.leaves * 100) } : undefined)}</p>}
+      {rounds > 1 && !compact && <p className="generate-note" data-coverage-auto-note>{autoLine(auto, rounds, coverage?.leaves > 0 && Number.isFinite(coverage.firstRoundSections) ? { level: coverage.level, percent: Math.round(coverage.firstRoundSections / coverage.leaves * 100) } : undefined)}</p>}
     </div>}
     <Disclosure className="cov-strength__custom" summary={ui('自定义题数')} meta={custom ? uiFormat('{0} 题', [custom]) : ui('可选')} defaultOpen={String(customCount).trim() !== ''}>
       <div className="generate-count cov-strength__count">
