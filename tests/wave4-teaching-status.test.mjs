@@ -81,7 +81,7 @@ test('in the browser: a slow model shows a quiet spinner, then 取消 after 20 s
   const note = page.locator('.teaching-status-note');
   await note.waitFor();
   assert.match(await note.innerText(), /模型服务拒绝了请求/);
-  assert.equal(await note.getByRole('button', { name: '打开模型设置' }).count(), 1);
+  assert.equal(await note.getByRole('button', { name: '前往设置' }).count(), 1);
   assert.equal(await note.getByRole('button', { name: '重试' }).count(), 0);
   assert.equal(await page.locator('.action-feedback [role="alert"]').count(), 0, 'not only in the global error');
 

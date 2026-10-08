@@ -93,7 +93,7 @@ const h = React.createElement;
 test('WrongBook without a usable model shows the one shared ModelSetupGate (#104)', () => {
   const html = renderToStaticMarkup(h(m.ModelSetupGate, { variant: 'block', feature: 'variants', model: { ready: false }, onOpenSettings() {} }));
   assert.match(html, /先配置一个 AI 模型/);
-  assert.match(html, /打开模型设置/);
+  assert.match(html, /前往设置/);
   assert.match(html, /生成变式要调用 AI 模型/);
   assert.doesNotMatch(read('ui/WrongBook.jsx'), /先配置一个 AI 模型/, 'the literal lives in ModelSetupGate only');
   assert.match(read('ui/WrongBook.jsx'), /<ModelSetupGate feature="variants"/);

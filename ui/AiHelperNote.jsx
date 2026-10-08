@@ -5,6 +5,7 @@ import { useInjectCss } from './shared.js';
 import css from './ai-helper-note.css';
 import { describeModelError } from './generation-status.js';
 import { gateTitle } from './ModelSetupGate.jsx';
+import { useModelSettingsLabel } from './ModelErrorNote.jsx';
 
 /* One way of saying why an AI helper did not work (2.5.8), the same wherever a helper can fail: the 帮我想想 assist and the 分步生成路径
    refinement. The operation answers { reason, message?, sample? }:
@@ -32,9 +33,10 @@ export function describeAiUnavailable(unavailable, fallback) {
 /** onRetry: asks the helper again (omit when the page already has its own button for it); onSettings: opens the model settings. */
 export default function AiHelperNote({ unavailable, fallback, onRetry, onSettings, className }) {
   useInjectCss(css, 'study-ai-helper-note');
+  const settingsLabel = useModelSettingsLabel();
   const note = describeAiUnavailable(unavailable, fallback);
   if (!note) return null;
-  const action = note.settings && onSettings ? { label: ui('打开模型设置'), onClick: onSettings }
+  const action = note.settings && onSettings ? { label: settingsLabel, onClick: onSettings }
     : !note.settings && onRetry ? { label: ui('再试一次'), onClick: onRetry } : undefined;
   const look = note.sample ? ui('看 AI 的回答（可以发给开发者）') : note.detail ? ui('看出错详情（可以发给开发者）') : '';
   return (

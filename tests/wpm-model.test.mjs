@@ -65,9 +65,9 @@ test('ModelErrorNote is an alert with the plain title, a fix and the raw text be
   assert.match(rate, /模型服务太忙了/);
   assert.match(rate, /sh-disclosure[^>]*>(?:(?!<\/details>).)*技术详情(?:(?!<\/details>).)*429 Too Many Requests: rate limit/s);
   assert.match(rate, />重试<\/button>/);
-  assert.doesNotMatch(rate, />打开模型设置<\/button>/);
+  assert.doesNotMatch(rate, />前往设置<\/button>/);
   const key = html(h(m.ModelErrorNote, { error: SAMPLES.credential, onRetry: noop, onSettings: noop }));
-  assert.match(key, />打开模型设置<\/button>/, 'a key problem is fixed in the settings');
+  assert.match(key, />前往设置<\/button>/, 'a key problem is fixed in the settings');
   assert.doesNotMatch(key, />重试<\/button>/);
   const bare = html(h(m.ModelErrorNote, { error: SAMPLES.credential }));
   assert.doesNotMatch(bare, /<button[^>]*sh-inline__action/, 'no action without a handler');
@@ -91,14 +91,14 @@ test('ModelSetupGate: one copy table, three shapes (#104)', () => {
   assert.match(block, /sh-setup/);
   assert.match(block, /先配置一个 AI 模型/);
   assert.match(block, /还没有选择用来出题的 AI 模型/);
-  assert.match(block, /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?打开模型设置/);
+  assert.match(block, /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?前往设置/);
   const key = html(h(m.ModelSetupGate, { variant: 'block', feature: 'generate', model: { ready: false, reason: 'no-credential', label: 'DeepSeek V3' }, onOpenSettings: noop }));
   assert.match(key, /DeepSeek V3/);
   const inline = html(h(m.ModelSetupGate, { variant: 'inline', feature: 'ingest', model: { ready: false }, onOpenSettings: noop }));
   assert.match(inline, /sh-inline--warning/);
   assert.match(inline, /还没有可用的 AI 模型/);
   assert.match(inline, /录题需要模型整理题目/);
-  assert.match(inline, />打开模型设置<\/button>/);
+  assert.match(inline, />前往设置<\/button>/);
   const banner = html(h(m.ModelSetupGate, { variant: 'banner', feature: 'translate', model: { ready: false }, onOpenSettings: noop }));
   assert.match(banner, /sh-banner--warning/);
   assert.match(banner, /还没有可用的 AI 模型/);
@@ -111,15 +111,16 @@ test('ModelSetupGate: one copy table, three shapes (#104)', () => {
   assert.equal(m.gateTitle('inline'), '还没有可用的 AI 模型');
 });
 
-test('the generate page without a model shows one gate, at the submit (#104)', () => {
+test('the generate page without a model shows one gate, on top as a banner (#104)', () => {
   const data = { root: 'lib', decks: [], drafts: [], jobs: [], sources: [{ id: 'a', title: '索引笔记', text: '数据库索引加快查找。', courses: ['数据库'] }], modelReady: false,
     focus: { course: '数据库', courses: [{ name: '数据库' }] } };
   const out = html(h(m.Generate, { data, busy: false, running: false, act: noop, call: noop, openDraft: noop, setPage: noop, setNotice: noop, genSource: 'files', setGenSource: noop,
     gen: { kind: 'mixed', count: 10, difficulty: 'mixed', language: '中文', focus: '', role: '' }, setGen: noop, selectedSources: ['a'], setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop }));
-  assert.equal(out.split('先配置一个 AI 模型').length - 1, 1, 'one gate title');
-  assert.doesNotMatch(out, /还没有可用的 AI 模型/);
-  assert.doesNotMatch(out, /sh-banner/);
-  assert.equal((out.match(/<section[^>]*class="sh-setup /g) || []).length, 1);
+  assert.equal(out.split('还没有可用的 AI 模型').length - 1, 1, 'one gate title');
+  assert.doesNotMatch(out, /先配置一个 AI 模型/);
+  assert.equal((out.match(/sh-banner--warning/g) || []).length, 1);
+  assert.ok(out.indexOf('sh-banner--warning') < out.indexOf('<form'), 'the banner comes before the form');
+  assert.equal((out.match(/<section[^>]*class="sh-setup /g) || []).length, 0);
   assert.match(out, /data-tour="generate-submit"/);
   for (const file of ['ui/Generate.jsx', 'ui/Ingest.jsx', 'ui/DraftShortfall.jsx', 'ui/AiHelperNote.jsx'])
     lacks(file, /["'`]先配置一个 AI 模型["'`]|["'`]还没有可用的 AI 模型["'`]|["'`]没有可用模型/);
@@ -131,7 +132,7 @@ test('the AI helper note says "no model" with the gate title (#104)', () => {
   m.setUiLanguage('zh');
   const out = html(h(m.AiHelperNote, { unavailable: { reason: 'no-model' }, fallback: '先用按章节做的路径', onSettings: noop }));
   assert.match(out, /还没有可用的 AI 模型。先用按章节做的路径。/);
-  assert.match(out, /打开模型设置/);
+  assert.match(out, /前往设置/);
 });
 
 test('recording questions suggests a neutral example, not the developer\'s own course (#134)', () => {

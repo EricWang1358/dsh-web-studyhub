@@ -140,7 +140,7 @@ test('an opened row lists similar questions with the reason that fits that row',
 test('no model: one SetupRequired gate replaces every generate button; recommendations still work', () => {
   const html = render({ coach: { ...coach, enabled: false, ready: 0, readyCards: [], preparingCards: [], failedCards: [] } });
   assert.match(text(html), /先配置一个 AI 模型/);
-  assert.match(text(html), /打开模型设置/);
+  assert.match(text(html), /前往设置/);
   assert.doesNotMatch(text(html), /为全部错题生成变式/);
   assert.doesNotMatch(text(html), /生成变式 /);
   assert.match(text(html), /为你推荐/);

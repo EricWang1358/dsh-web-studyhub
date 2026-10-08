@@ -9,7 +9,7 @@ import Icon from './Icon.jsx';
  * A calm gate shown INSTEAD of a feature that cannot work yet (no model, no
  * transcription key…), before the learner invests any effort. It says why,
  * lists the steps (external links open in a new tab) and offers the fix.
- * steps: [{ text, href?, hint? }]; primary / secondary: { label, onClick, icon? }.
+ * steps: [{ text, href?, hint? }]; primary / secondary: { label, onClick, icon? }; primary.variant (default primary) lets a page where another button leads keep this one calm.
  */
 export default function SetupRequired({ title, why, steps = [], primary, secondary, tone = 'neutral', badge, icon = 'key',
   children, className, ...rest }) {
@@ -40,7 +40,7 @@ export default function SetupRequired({ title, why, steps = [], primary, seconda
           </ol>}
           {children}
           {(primary || secondary) && <div className="sh-setup__actions">
-            {primary && <Button variant="primary" icon={primary.icon} disabled={primary.disabled} busy={primary.busy} onClick={primary.onClick}>{primary.label}</Button>}
+            {primary && <Button variant={primary.variant || 'primary'} icon={primary.icon} disabled={primary.disabled} busy={primary.busy} onClick={primary.onClick}>{primary.label}</Button>}
             {secondary && <Button variant="quiet" icon={secondary.icon} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
           </div>}
         </div>
