@@ -26,6 +26,7 @@ import { openAudioSettings } from '../audio-focus.js';
 import { useApp } from './app-context.js';
 import { SourceForm } from './modals/AddSourceDialog.jsx';
 import { createSetupHandlers } from './setup-handlers.js';
+import { importForQuestions } from './import-handoff.js';
 import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
@@ -57,7 +58,7 @@ function LibraryView() {
               genPatch: (current) => ({ kind: job.kind || current.kind, kinds: job.kinds || (job.kind && kindsOfLegacyKind(job.kind)) || current.kinds, count: job.requestedTotal || job.count || current.count }) });
             notify(ui('已带回可用资料、题型和题数；请核对学习目标后再生成。'));
           },
-          addSource: () => set.setModal({ type: 'add' }), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
+          addSource: () => set.setModal(data.decks.length ? { type: 'add' } : importForQuestions(intents.goGenerate)), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
           generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }), startCourseFlow: intents.startCourseFlow,
           onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
@@ -159,12 +160,12 @@ export function AudioHeader({ onSettings, onSources }) {
 }
 
 export function AudioView() {
-  const { data, host, nav, lib, set, learn } = useApp();
+  const { data, host, nav, lib, set, learn, sources } = useApp();
   return (
     <section className="page">
       <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
       <AudioImport data={data} canAsk={!!host.askInChat}
-        openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')}
+        openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')} onGenerate={sources.generateFromSources}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
       <AudioDashboard />
     </section>

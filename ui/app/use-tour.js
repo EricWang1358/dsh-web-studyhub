@@ -4,6 +4,7 @@ import { hasContext, pageAvailable } from '../capabilities.js';
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from '../tour/steps.js';
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from '../tour/progress.js';
 import { practiceArgs } from '../learning-navigation.js';
+import { importForQuestions } from './import-handoff.js';
 
 /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────────
    The welcome page of an empty library, the sample course (sample.* host actions, C6) and the feature tour that switches to
@@ -34,7 +35,8 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     dismissWelcome(data.root);
     setHiddenWelcome(data.root);
   }
-  const openFirstImport = () => setModal({ type: 'add' });
+  // The first import goes on to 创建题组 with the file ticked (ui/app/import-handoff.js), not to 资料 with a toast to press.
+  const openFirstImport = () => setModal(importForQuestions(intents.goGenerate));
   /** The tour switches pages at once: no leave animation, no stale context trail, each step starts at the top of its page. */
   const showPage = (id) => nav.navigate(id, { keepTrail: false, enter: 'tour', scroll: true });
 

@@ -128,10 +128,10 @@ try {
       await shot('2-settings-token-saved'); await audit(tab, `app/settings-token-saved/${lang}/${theme}/${width}`, { scopes: ['.mineru-settings .audio-provider-card'] });
       if (await tab.getByText('qa_token_0000000000000000000').count()) problems.push(`app/${lang}/${theme}/${width}: the token appears on the page`);
 
-      // Add material › Convert with MinerU, with a real 450-page PDF read by the backend.
+      // Add material › PDF conversion (folded), with a real 450-page PDF read by the backend.
       await tab.locator('[data-tour="nav-sources"]').first().click(); await settle();
       await tab.locator('[data-tour="sources-add"]').first().click(); await settle(500);
-      await tab.locator('dialog[open]').getByRole('button', { name: /用 MinerU 解析|Convert with MinerU/ }).first().click(); await settle(300);
+      await tab.locator('dialog[open] .import-hub__conversion > summary').click(); await settle(300);
       await shot('3-import-entry');
       await tab.locator('dialog[open] input[type="file"][accept=".pdf,application/pdf"]').setInputFiles(pdfPath);
       await tab.locator('dialog[open] .mineru-plan').waitFor({ timeout: 60000 }); await settle(600);

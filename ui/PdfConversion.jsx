@@ -1,9 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Disclosure, Hint, Icon, InlineMessage, ProgressBar, RadioCard, RadioCardGroup } from './components/index.js';
-import { PrivacyConfirm, privacyNote } from './MineruSettings.jsx';
-import { chooseRoute, localEstimate, minutesOf, pageRange, uploadPdf } from './mineru-flow.js';
+import { Badge, Button, Disclosure, Hint, Icon, InlineMessage, ProgressBar, RadioCard, RadioCardGroup, SegmentedControl } from './components/index.js';
+import { localEstimate, minutesOf, pageRange, uploadPdf } from './mineru-flow.js';
 import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
 import css from './mineru.css';
@@ -11,40 +10,41 @@ import { useMineruState } from './use-mineru.js';
 import { useLiveEffect } from './use-async.js';
 
 /* Both entry points share one staged PDF. Choosing a converter never reuploads it;
-   only an explicit start hands the file to a background conversion job. */
+   only an explicit start hands the file to a background conversion job. The converter is chosen once, here (MinerU or Marker), and both run on this
+   computer: the cloud route is not offered while the service is unavailable (the saved token and the route stay in Settings and in the history of old jobs). */
 
 const ACCEPT = '.pdf,application/pdf';
 
-function RouteCard({ group = 'mineru-route', id, value, current, title, chips, children, onSelect, disabled }) {
+function RouteCard({ group = 'mineru-converter', id, value, current, title, chips, children, onSelect, disabled }) {
   return <RadioCard id={id} name={group} value={value} checked={current === value} title={title} badges={chips} disabled={disabled} onSelect={onSelect} data-route={value}>{children}</RadioCard>;
 }
 
 const chip = (text, tone = 'neutral') => <Badge size="sm" tone={tone}>{text}</Badge>;
 
-function planHeading(adaptive, pieces, route) {
+function planHeading(adaptive, pieces) {
   if (adaptive) return ui('分段会按这台电脑的速度调整');
   if (pieces > 1) return uiFormat('这本书会分 {0} 段处理', [pieces]);
-  return route === 'local' ? ui('不用分段，一次处理整本书') : ui('不用分段，整份一次解析');
+  return ui('不用分段，一次处理整本书');
 }
 
 /**
  * Props: file (a File, or null to offer a picker), call(action, args), courses (the course names to file the book under),
- * onStarted({ jobId, filename, pages, route }), onOpenSettings, onFile(file) (the picker chose one; the parent keeps it),
- * compact, and initialSettings / initialLocal / initialPlan / initialRoute / initialAcknowledged (previews and tests).
+ * onStarted({ jobId, filename, pages, route }), onOpenSettings(section, { file }) (the file is the PDF in hand, so the caller can bring the learner back to it),
+ * onFile(file) (the picker chose one; the parent keeps it), compact, and initialSettings / initialLocal / initialPlan (previews and tests).
  * The 解析历史 (every conversion, cloud and local, with its result) is part of the panel unless it is compact: `jobs` (the snapshot's job list, so
  * the history refreshes when a conversion ends), `onOpenSources(sourceIds)` to jump to an imported document, `onOpenJob(row)` to show a running one,
  * `historyOpen` to start with the history expanded, and initialHistory / historyNow (previews and tests).
  */
 export default function PdfConversion({ available = true, initialConverter = 'mineru', initialMarker = null, file = null, call, courses = [], onStarted, onOpenSettings, onFile, compact = false,
-  initialSettings = null, initialLocal = null, initialPlan = null, initialRoute = null, initialAcknowledged = false, className,
+  initialSettings = null, initialLocal = null, initialPlan = null, className,
   jobs, act, onOpenSources, onOpenJob, onChanged, historyOpen = false, initialHistory = null, historyNow, ...rest }) {
   useInjectCss(css, 'study-mineru');
   const [converter, setConverter] = useState(initialConverter), [marker, setMarker] = useState(initialMarker);
   useEffect(() => { setConverter(initialConverter); }, [initialConverter]);
   const isMarker = converter === 'marker';
-  const { settings, local, setSettings } = useMineruState({ call, initialSettings, initialLocal, enabled: available });
+  const { settings, local } = useMineruState({ call, initialSettings, initialLocal, enabled: available });
   const [plan, setPlan] = useState(initialPlan), [reading, setReading] = useState(null), [problem, setProblem] = useState('');
-  const [choice, setChoice] = useState(initialRoute), [agreed, setAgreed] = useState(initialAcknowledged), [starting, setStarting] = useState(false);
+  const [starting, setStarting] = useState(false);
   const uploadId = useRef(''), picker = useRef(null), alive = useRef(true), taken = useRef(false);
   const radioId = useId();
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -83,15 +83,13 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     };
   }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const auto = chooseRoute({ local, settings });
-  const route = isMarker ? 'local' : choice || auto;
-  const localReady = (isMarker ? marker : local)?.state === 'ready', cloudSet = !!settings?.token?.set;
-  const usable = available && (route === 'local' ? localReady : cloudSet);
-  const acknowledged = !!settings?.acknowledged || agreed;
-  const pieces = plan ? (route === 'local' ? plan.windows : plan.pieces) : null;
+  const route = 'local';
+  const localReady = (isMarker ? marker : local)?.state === 'ready';
+  const usable = available && localReady;
+  const pieces = plan ? plan.windows : null;
   /* The local route cuts the book into windows one at a time, from the speed it measures (plan.adaptive): before it starts there is no list of windows and no count to show,
      only what it will do. A fixed plan (the seam of a test or a preview) still lists its windows. */
-  const adaptiveLocal = route === 'local' && !!plan?.adaptive && plan.pages > plan.adaptive.firstPages;
+  const adaptiveLocal = !!plan?.adaptive && plan.pages > plan.adaptive.firstPages;
   const pieceCount = adaptiveLocal ? 0 : pieces?.length || 0;
   const estimate = !isMarker && plan && local?.tier ? localEstimate(plan.pages, local.tier, local.estimates) : null;
 
@@ -101,7 +99,6 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     const selectedUpload = uploadId.current;
     setStarting(true); setProblem('');
     try {
-      if (route === 'cloud' && !settings?.acknowledged) { const next = await call('mineru.settings.set', { acknowledge: true }); if (alive.current) setSettings(next); }
       taken.current = true;
       const job = await call(isMarker ? 'marker.import' : 'mineru.import', { uploadId: selectedUpload, ...(isMarker ? {} : { route }), ...(courses.length ? { courses } : {}) });
       uploadId.current = '';
@@ -114,27 +111,30 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   };
 
   const gate = !usable && <InlineMessage tone="info" boxed>
-    {!available ? ui('此安装未启用 PDF 解析组件。请在设置查看启用方式或手动转换说明。') : isMarker ? ui('先在设置里安装或配置 Marker。') : route === 'cloud' ? ui('先在设置里配置 MinerU 云端令牌。') : ui('先在设置里准备本机 MinerU。')}
-    {onOpenSettings && <Button variant="link" onClick={() => onOpenSettings(isMarker ? 'settings-marker' : 'settings-mineru')}>{ui('打开设置')}</Button>}
+    {!available ? ui('PDF 解析随音频组件一起提供，这个安装没有启用它。请在 DSH 插件管理器中启用音频组件。') : isMarker ? ui('先在设置里安装或配置 Marker。') : ui('先在设置里准备本机 MinerU。')}
+    {onOpenSettings && available && <Button variant="link" onClick={() => onOpenSettings(isMarker ? 'settings-marker' : 'settings-mineru', { file })}>{ui('前往设置')}</Button>}
   </InlineMessage>;
 
+  // The tool is chosen here and nowhere else. Inside another card (compact) it is one line, MinerU unless the learner changes it; the gate below says what the chosen one needs.
+  const tools = <RadioCardGroup legend={ui('解析工具')} disabled={starting}>
+    <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={local?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{ui('在本机解析，不上传')}</Hint></RouteCard>
+    <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
+  </RadioCardGroup>;
   return (
     <section className={`mineru-route-panel${compact ? ' is-compact' : ''}${className ? ` ${className}` : ''}`} aria-label={ui('PDF 解析方案')} data-route={route} {...rest}>
-      <header className="mineru-route-panel__head">
+      {!compact && <header className="mineru-route-panel__head">
         <Icon name="file" size={20} />
         <div>
           <h3>{ui('解析 PDF')}</h3>
           <p>{ui('选择 PDF 和解析工具，完成后自动存为资料。')}</p>
         </div>
-      </header>
+      </header>}
 
       {!available && gate}
-      {!isMarker && settings?.unavailable && <InlineMessage tone="warning" boxed>{ui('这个安装里没有启用 MinerU 解析（需要启用音频组件）。可以用下面「高级」里的手动方式。')}</InlineMessage>}
+      {available && !isMarker && settings?.unavailable && <InlineMessage tone="warning" boxed>{ui('这个安装里没有启用 MinerU 解析（需要启用音频组件）。')}</InlineMessage>}
 
-      <RadioCardGroup legend={ui('解析工具')} disabled={starting}>
-        <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={local?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{ui('本机或云端解析')}</Hint></RouteCard>
-        <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
-      </RadioCardGroup>
+      {compact ? <SegmentedControl className="mineru-tools" label={ui('解析工具')} value={converter} disabled={starting} onChange={setConverter}
+        options={[{ value: 'mineru', label: 'MinerU' }, { value: 'marker', label: 'Marker' }]} /> : tools}
       {!file && <div className="mineru-pick">
         <input ref={picker} type="file" accept={ACCEPT} className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
           onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) onFile?.(chosen); }} />
@@ -150,48 +150,31 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
         </div>}
         {plan && !isMarker && <div className="mineru-plan" role="status">
           <p className="mineru-plan__line">
-            <strong>{planHeading(adaptiveLocal, pieceCount, route)}</strong>
+            <strong>{planHeading(adaptiveLocal, pieceCount)}</strong>
             <span>{uiFormat('共 {0} 页 · {1}', [plan.pages, formatBytes(plan.bytes)])}</span>
           </p>
+          {localReady && estimate && <p className="mineru-plan__estimate">{uiFormat('约 {0} 分钟（估算：{1} 档每页约 {2} 秒，实际取决于这台电脑）', [minutesOf(estimate), local.tier, local.estimates?.[local.tier]])}</p>}
           <Disclosure summary={ui('分段与页码详情')}>
           {adaptiveLocal && <p className="mineru-plan__why">{uiFormat('先做 {0} 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 {1} 秒，{2}–{3} 页）。', [plan.adaptive.firstPages, plan.adaptive.targetSeconds, plan.adaptive.minPages, plan.adaptive.maxPages])}</p>}
           {pieceCount > 1 && <p className="mineru-plan__why">
-            {route === 'local' ? uiFormat('本地按每 {0} 页一段推进，这样能看到进度、随时停下，出错也只重做那一段。', [local?.windowPages || 50])
-              : plan.byChapters ? ui('云端一次最多 200 页，所以按章节书签分段；超过上限的章节在 200 页处切开。')
-                : ui('云端一次最多 200 页，所以每 200 页切一段；某一段文件太大时会自动再切细。')}
+            {uiFormat('本地按每 {0} 页一段推进，这样能看到进度、随时停下，出错也只重做那一段。', [local?.windowPages || 50])}
           </p>}
           {pieceCount > 1 && <Disclosure summary={ui('各段的页码')} meta={uiFormat('{0} 段', [pieceCount])} className="mineru-plan__list">
             <ol>{pieces.map(piece => <li key={piece.index}>{uiFormat('第 {0} 段 · 第 {1} 页', [piece.index, pageRange(piece.startPage, piece.endPage)])}</li>)}</ol>
-            {route === 'cloud' && plan.maySplitFurther && <Hint size="xs">{ui('文件很大，实际开始后可能会分得更细。')}</Hint>}
           </Disclosure>}
           </Disclosure>
         </div>}
 
-        {!isMarker && <RadioCardGroup legend={ui('用哪种方式解析')} disabled={starting}>
-          <RouteCard id={`${radioId}-local`} value="local" current={route} onSelect={setChoice} title={ui('本地 mineru')}
-            chips={<>{chip(ui('推荐'))}{chip(ui('免费 · 不上传'), 'success')}{localReady ? chip(ui('可用'), 'success') : chip(local ? ui('需要设置') : ui('检测中…'))}</>}>
-            <Hint as="span">{localReady
-              ? (estimate ? uiFormat('约 {0} 分钟（估算：{1} 档每页约 {2} 秒，实际取决于这台电脑）', [minutesOf(estimate), local.tier, local.estimates?.[local.tier]]) : ui('文档不会离开这台电脑。'))
-              : ui('文档不会离开这台电脑；需要本机装好 mineru 并下载模型。')}</Hint>
-          </RouteCard>
-          <RouteCard id={`${radioId}-cloud`} value="cloud" current={route} onSelect={setChoice} title={ui('用 MinerU 云端解析')}
-            chips={<>{chip(ui('暂不可用'))}{cloudSet ? chip(ui('令牌已设置'), 'info') : chip(ui('需要令牌'))}</>}>
-            <Hint as="span">{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</Hint>
-            <Hint as="span">{privacyNote()}</Hint>
-          </RouteCard>
-        </RadioCardGroup>}
         {isMarker && plan && <p className="mineru-plan" role="status">{uiFormat('共 {0} 页 · {1}', [plan.pages, formatBytes(plan.bytes)])}</p>}
 
         {available && gate}
 
-        {usable && route === 'cloud' && !settings?.acknowledged && <PrivacyConfirm checked={agreed} onChange={setAgreed} disabled={starting} />}
-        {usable && route === 'cloud' && settings?.acknowledged && <p className="mineru-acked"><Icon name="success" size={16} />{ui('已确认：文档会上传到 MinerU 的云端。')}</p>}
-        {usable && route === 'local' && <p className="mineru-acked"><Icon name="success" size={16} />{isMarker ? ui('在 StudyHub 所在电脑运行，结果自动导入。') : ui('本地解析：不会上传任何内容，也不需要令牌。')}</p>}
+        {usable && <p className="mineru-acked"><Icon name="success" size={16} />{isMarker ? ui('在 StudyHub 所在电脑运行，结果自动导入。') : ui('本地解析：不会上传任何内容，也不需要令牌。')}</p>}
 
         {problem && <InlineMessage tone="error" boxed>{problem}</InlineMessage>}
         <div className="mineru-start">
-          <Button variant="primary" icon="sparkle" busy={starting} disabled={!plan || !usable || (route === 'cloud' && !acknowledged)} onClick={start}>
-            {isMarker ? ui('用 Marker 开始解析') : route === 'local' ? ui('开始本地解析') : ui('开始云端解析')}
+          <Button variant="primary" icon="sparkle" busy={starting} disabled={!plan || !usable} onClick={start}>
+            {isMarker ? ui('用 Marker 开始解析') : ui('开始本地解析')}
           </Button>
           {onFile && <Button variant="quiet" disabled={starting} onClick={() => onFile(null)}>{ui('换一份 PDF')}</Button>}
         </div>

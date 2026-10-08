@@ -40,13 +40,14 @@ test('generation displays the source course ahead of global focus and sends an e
     assert.match(html, /value="Databases"/);
     assert.match(html, /Your selection includes sources from other scopes/);
     assert.doesNotMatch(html.replace(/<[^>]+>/g, ''), /[㐀-鿿]/);
+    const line = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     const pdf = renderToStaticMarkup(React.createElement(ImportHub, { data, call: noop }));
-    assert.match(pdf, /value="Systems"/);
+    assert.match(line(pdf), /Filed under &quot;Systems&quot; Current course Change/, 'the import dialog starts from the current course and says so');
     assert.doesNotMatch(pdf, /[㐀-鿿]/);
     const local = renderToStaticMarkup(React.createElement(ImportHub, { data, call: noop, course: 'Databases', onCourseChange: noop }));
-    assert.match(local, /placeholder="Leave blank for unassigned" value="Databases"/);
+    assert.match(line(local), /Filed under &quot;Databases&quot; The course you chose/);
     const all = renderToStaticMarkup(React.createElement(ImportHub, { data, call: noop, course: '', onCourseChange: noop }));
-    assert.match(all, /placeholder="Leave blank for unassigned" value=""/);
+    assert.match(line(all), /Uncategorised .*Change/);
   } finally { setUiLanguage('zh'); }
 });
 

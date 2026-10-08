@@ -180,7 +180,7 @@ try {
       const { context, tab, settle } = await open(lang, theme, width, 900);
       try {
         await tab.locator('[data-tour="sources-add"]').first().click(); await settle(500);
-        await tab.locator('dialog[open]').getByRole('button', { name: /用 MinerU 解析|Convert with MinerU/ }).first().click(); await settle(300);
+        await tab.locator('dialog[open] .import-hub__conversion > summary').click(); await settle(300);
         const pdfPath = join(scratch, 'Plan Preview.pdf');
         await writeFile(pdfPath, await book(300, 'Plan Preview'));
         await tab.locator('dialog[open] input[type="file"][accept=".pdf,application/pdf"]').setInputFiles(pdfPath);

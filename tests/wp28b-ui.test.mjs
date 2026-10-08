@@ -160,8 +160,8 @@ const at = (html, pattern) => html.search(pattern);
 test('the card leads with the one-click MinerU route that StudyHub runs; the desktop client and the rest are under 高级', () => {
   const html = card({ reason: 'pdf-size', detail: { name: 'book.pdf' } });
   // The old primary card said "download and install the MinerU client, export, drag back"; that is now one of the manual routes.
-  assert.match(html, /用 MinerU 解析/);
-  assert.match(html, /选择 PDF…/);
+  assert.match(html, /开始本地解析/);
+  assert.doesNotMatch(html, /用 MinerU 解析/, 'the step names the button the card really has');
   assert.doesNotMatch(html, /下载并安装 MinerU 客户端/);
   assert.ok(at(html, /安装检索扩展/) > 0);
   const advanced = at(html, /高级：其他方式（桌面客户端、命令行、Docker）/);

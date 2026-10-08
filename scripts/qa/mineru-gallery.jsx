@@ -140,9 +140,8 @@ function Scene() {
   </div></main>;
   if (scene === 'route') return <main><div className="page gallery">
     <Section title="Neither route set up (setup gate)"><MineruRoute file={file} call={call} initialSettings={unset} initialLocal={local.missing} initialPlan={plan} onOpenSettings={noop} /></Section>
-    <Section title="Token saved, privacy not confirmed yet"><MineruRoute file={file} call={call} initialSettings={{ ...saved, acknowledged: false }} initialLocal={local.missing} initialPlan={plan} /></Section>
     <Section title="Local ready (default)"><MineruRoute file={file} call={call} initialSettings={unset} initialLocal={local.ready} initialPlan={plan} /></Section>
-    <Section title="Local needs setup, cloud chosen"><MineruRoute file={file} call={call} initialSettings={saved} initialLocal={local.needs} initialPlan={plan} initialAcknowledged /></Section>
+    <Section title="Local needs setup (a saved token is not used)"><MineruRoute file={file} call={call} initialSettings={saved} initialLocal={local.needs} initialPlan={plan} /></Section>
     <Section title="No file yet"><MineruRoute call={call} onFile={noop} initialSettings={saved} initialLocal={local.ready} /></Section>
     <Section title="Inside the large-textbook card"><LargeDocumentCard reason="pdf-pages" detail={{ name: 'Operating Systems.pdf', file }} retrieval={null} call={call} courseNames={[]} /></Section>
   </div></main>;

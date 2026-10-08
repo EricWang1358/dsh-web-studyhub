@@ -1934,8 +1934,6 @@
   "取消接续": "Cancel resume",
   "打开关联内容": "Open linked content",
   "不关联": "No link",
-  "导入资料原文件": "Import original source file",
-  "支持 PDF、Markdown、HTML 和 TXT。保留原文件与可引用文字，后续可选中提问或补题。": "Supports PDF, Markdown, HTML and TXT. Keeps the original file and citable text so you can ask about passages or add questions later.",
   "这份资料还没有关联题目。选中文字即可补充到现有题组。": "This source has no linked questions yet. Select text to add questions to an existing deck.",
   "打开题目与解析": "Open question and explanation",
   "预览页已切换，请在当前资料中重新选择文字。": "The preview changed. Select text again in the current source.",
