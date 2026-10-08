@@ -3,9 +3,15 @@ import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput, useToast } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
+import TopicChips from './TopicChips.jsx';
+import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
+import { splitTopics } from './course-topics.js';
+import { useStudy } from './study-context.jsx';
+import { useLiveEffect } from './use-async.js';
+import { joinMeta } from './format.js';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
-import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses } from './course-names.js';
+import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses, similarCourses } from './course-names.js';
 import css from './course-settings.css';
 
 /* Course settings (WP13): one panel per course record — name and aliases,
@@ -18,7 +24,7 @@ const FORMAT_LABELS = { 'open-book-case': '开卷案例', 'closed-book': '闭卷
 export const examFormatLabel = format => ui(FORMAT_LABELS[format] || FORMAT_LABELS.other);
 const text = value => value === undefined || value === null ? '' : String(value);
 const number = value => { const trimmed = String(value ?? '').trim(); return trimmed === '' ? undefined : Number(trimmed); };
-export const splitTopics = value => [...new Set(String(value || '').split(/[;；\n]/).map(item => item.trim()).filter(Boolean))];
+export { splitTopics };
 
 /** The form state for a course record (strings for inputs; empty means "use the default"). */
 export function draftFromCourse(course = {}) {
@@ -43,6 +49,21 @@ export function payloadFromDraft(course, draft) {
   return { id: course.id, name: course.name,
     ...(stated ? { exam: { format: draft.format, ...numbers, ...(draft.date ? { date: draft.date } : {}), sections } } : {}),
     guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics) };
+}
+
+/** Does the course already carry anything the fold holds (everything but the exam date)? Then the fold is open when the panel opens. */
+const hasMoreValues = draft => draft.format !== 'other' || ['totalMarks', 'writingMinutes', 'readingMinutes', 'minutesPerMark'].some(key => draft[key] !== '')
+  || draft.sections.length > 0 || splitTopics(draft.focusTopics).length > 0 || draft.guidanceSourceIds.length > 0;
+
+/** The learner's weakest topics of a course, from their own answers (local, no model): offered as suggestions for the focus topics, never added by themselves. */
+function useWeakTopics(course) {
+  const { call } = useStudy();
+  const [topics, setTopics] = useState([]);
+  useLiveEffect(live => {
+    if (!course) return;
+    Promise.resolve().then(() => call('generate.weakTopics', { course })).then(value => { if (live()) setTopics(Array.isArray(value?.topics) ? value.topics : []); }).catch(() => {});
+  }, [call, course]);
+  return topics;
 }
 
 /** Bring merged profile fields into the open form without replacing edits made before the merge. */
@@ -106,6 +127,37 @@ function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMer
   </div>;
 }
 
+/**
+ * 新建课程: the control above the list. A name is typed and created with one press; a name that is nearly an existing course is asked about first (similarCourses), with that
+ * course one click away. onCreate(name) makes the course; onOpen(id) opens a course's panel. `initial` ({ open, name }) is for previews and tests.
+ */
+export function NewCourse({ courses = [], disabled = false, onCreate, onOpen, initial = {} }) {
+  const [open, setOpen] = useState(!!initial.open), [name, setName] = useState(initial.name || '');
+  const typed = name.trim().replace(/\s+/g, ' '), similar = similarCourses(typed, courses);
+  const same = courses.find(course => course.name === typed);
+  const close = () => { setOpen(false); setName(''); };
+  const create = () => { if (typed) Promise.resolve(onCreate(typed)).then(close, () => {}); };
+  const openOf = course => { onOpen?.(course.id); close(); };
+  if (!open) return <Button size="sm" variant="secondary" icon="plus" disabled={disabled} className="course-list__new" onClick={() => setOpen(true)}>{ui('新建课程')}</Button>;
+  const waiting = !!same || similar.length > 0;
+  return <div className="course-list__new-form">
+    <div className="course-list__new-row">
+      <TextInput aria-label={ui('课程名称')} value={name} maxLength={200} disabled={disabled} placeholder={ui('课程名称，例如 数据结构')} onChange={event => setName(event.target.value)}
+        onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent?.isComposing && typed && !waiting) { event.preventDefault(); create(); } else if (event.key === 'Escape') close(); }} />
+      {!waiting && <Button variant="primary" disabled={disabled || !typed} onClick={create}>{ui('创建')}</Button>}
+      <Button variant="quiet" disabled={disabled} onClick={close}>{ui('取消')}</Button>
+    </div>
+    {same && <InlineMessage tone="info" action={same.id ? { label: uiFormat('打开「{0}」', [same.name]), onClick: () => openOf(same) } : undefined}>{ui('已经有这门课了。')}</InlineMessage>}
+    {!same && similar.length > 0 && <InlineMessage tone="warning">
+      <p>{uiFormat('和已有的课程「{0}」很像，是同一门吗？', [similar[0].name ?? similar[0]])}</p>
+      <span className="course-list__new-actions">
+        {similar[0].id && <Button variant="link" size="sm" onClick={() => openOf(similar[0])}>{uiFormat('打开「{0}」', [similar[0].name])}</Button>}
+        <Button variant="link" size="sm" onClick={create}>{uiFormat('仍然新建「{0}」', [typed])}</Button>
+      </span>
+    </InlineMessage>}
+  </div>;
+}
+
 const entryKey = entry => entry.type === 'group' ? `group:${entry.key}` : entry.course.id || entry.course.name;
 const entryText = entry => entry.type === 'group'
   ? [entry.name, ...entry.chapters.map(item => item.course.name), ...entry.chapters.flatMap(item => item.course.aliases || [])].join(' ')
@@ -119,7 +171,7 @@ const entryText = entry => entry.type === 'group'
  * onMerge(intoId, fromIds), busy, currentId, recent (name → last used, for the
  * shared ranking: current, recently used, busiest), defaultOpenGroups, defaultQuery.
  */
-export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, recent, defaultOpenGroups = [], defaultQuery = '' }) {
+export function CourseList({ courses = [], onOpen, onMerge, onCreate, busy, currentId, recent, defaultOpenGroups = [], defaultQuery = '' }) {
   useInjectCss(css, 'study-course-settings');
   const currentName = courses.find(course => course.id === currentId)?.name;
   const entries = useMemo(() => groupCourseNames(rankCourses({ courses, current: currentName, recent })), [courses, currentName, recent]);
@@ -165,6 +217,7 @@ export function CourseList({ courses = [], onOpen, onMerge, busy, currentId, rec
   };
   return <SettingsSection className="course-list" title={ui('课程')} lead={ui('每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。')}>
     <Hint>{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</Hint>
+    {onCreate && <NewCourse courses={courses} disabled={busy} onCreate={onCreate} onOpen={onOpen} />}
     {courses.length ? <ScrollWindow className="course-list__window" label={ui('课程列表')} items={entries} itemKey={entryKey} match={entryText}
       renderItem={renderEntry} filterable={entries.length > 6 || filtering} filterPlaceholder={ui('筛选课程…')} query={query} onQueryChange={setQuery}
       activeKey={activeKey} maxHeight={400} listClassName="course-list__items" itemClassName="course-list__entry" />
@@ -213,6 +266,9 @@ export default function CourseSettings({ data, courseId, act, busy = false, onCl
   const renameTrigger = useRef(null), mergeTrigger = useRef(null);
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
+  const weakTopics = useWeakTopics(course?.name);
+  // Only the exam date is out in the open; the rest is one fold, open from the start when the course already has something in it (or a merge was asked for).
+  const [startOpen] = useState(() => mergeFrom.length > 0 || (!!course && hasMoreValues(draftFromCourse(course))));
   if (!course) return null;
   const disabled = busy || working;
   const defaults = examProfile(payloadFromDraft(course, draft).exam);
@@ -242,6 +298,8 @@ export default function CourseSettings({ data, courseId, act, busy = false, onCl
   const renamed = name.trim() && name.trim() !== course.name;
   const mergeNames = others.filter(item => mergeIds.includes(item.id)).map(item => item.name);
   const formats = Object.keys(FORMAT_LABELS).map(value => ({ value, label: examFormatLabel(value) }));
+  // Materials whose name says syllabus, unticked, with their reason (never chosen for the learner: guidance feeds the case questions and the grading).
+  const guidance = guidanceSuggestions(data, course.name, draft.guidanceSourceIds);
   return (
     <Dialog size="lg" className="course-settings" title={course.name}
       description={[ui('课程设置'), countLine(course)].filter(Boolean).join(' · ')} busy={working} onClose={() => onClose?.('dismiss')}
@@ -250,84 +308,91 @@ export default function CourseSettings({ data, courseId, act, busy = false, onCl
         <Button variant="quiet" disabled={working} onClick={() => onClose?.('cancel')}>{ui('关闭')}</Button>
         <Button variant="primary" icon="check" busy={working && !confirm} disabled={disabled} onClick={save}>{ui('保存课程信息')}</Button>
       </>}>
-      <section className="course-settings__block" aria-labelledby="course-settings-name">
-        <h3 id="course-settings-name">{ui('名称')}</h3>
-        <div className="course-settings__rename">
-          <Field className="course-settings__wide" label={ui('课程名称')} width="full">
-            <TextInput value={name} maxLength={200} disabled={disabled} onChange={event => { setName(event.target.value); setConfirm(null); }} /></Field>
-          <Button ref={renameTrigger} variant="secondary" disabled={disabled || !renamed} onClick={() => setConfirm('rename')}>{ui('改名')}</Button>
-        </div>
-        {confirm === 'rename' && renamed && <InlineConfirm tone="warning" title={uiFormat('把「{0}」改名为「{1}」？', [course.name, name.trim()])}
-          confirmLabel={ui('确认改名')} busy={working || busy} returnFocusRef={renameTrigger} onConfirm={rename} onCancel={() => setConfirm(null)}>
-          <p>{ui('所有题组、资料、练习和学习流会一起改名；旧名称保留为别名，旧资料仍能找到这门课。')}</p>
-        </InlineConfirm>}
-        <p className="course-settings__aliases">
-          <span>{ui('别名（旧名称，只读）')}</span>
-          {course.aliases?.length ? course.aliases.map(alias => <span key={alias} className="course-settings__alias">{alias}</span>)
-            : <small>{ui('还没有别名')}</small>}
-        </p>
+      {/* The one thing most learners come here for, in the open; saving it is the button below. Everything else is in the fold. */}
+      <section className="course-settings__block course-settings__first" aria-label={ui('考试日期')}>
+        <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
+          <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
       </section>
 
-      <section className="course-settings__block" aria-label={ui('有效课程')}>
-        <ActiveSwitch course={course} courses={courses} disabled={disabled} />
-      </section>
+      <Disclosure className="course-settings__more" summary={ui('更多设置')} defaultOpen={startOpen}
+        meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
+          draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : ''])}>
+        <section className="course-settings__block" aria-labelledby="course-settings-name">
+          <h3 id="course-settings-name">{ui('名称')}</h3>
+          <div className="course-settings__rename">
+            <Field className="course-settings__wide" label={ui('课程名称')} width="full">
+              <TextInput value={name} maxLength={200} disabled={disabled} onChange={event => { setName(event.target.value); setConfirm(null); }} /></Field>
+            <Button ref={renameTrigger} variant="secondary" disabled={disabled || !renamed} onClick={() => setConfirm('rename')}>{ui('改名')}</Button>
+          </div>
+          {confirm === 'rename' && renamed && <InlineConfirm tone="warning" title={uiFormat('把「{0}」改名为「{1}」？', [course.name, name.trim()])}
+            confirmLabel={ui('确认改名')} busy={working || busy} returnFocusRef={renameTrigger} onConfirm={rename} onCancel={() => setConfirm(null)}>
+            <p>{ui('所有题组、资料、练习和学习流会一起改名；旧名称保留为别名，旧资料仍能找到这门课。')}</p>
+          </InlineConfirm>}
+          <p className="course-settings__aliases">
+            <span>{ui('别名（旧名称，只读）')}</span>
+            {course.aliases?.length ? course.aliases.map(alias => <span key={alias} className="course-settings__alias">{alias}</span>)
+              : <small>{ui('还没有别名')}</small>}
+          </p>
+        </section>
 
-      <section className="course-settings__block" aria-labelledby="course-settings-exam">
-        <h3 id="course-settings-exam">{ui('考试信息')}</h3>
-        <Field group label={ui('考试形式')} width="full">
-          <SegmentedControl size="sm" label={ui('考试形式')} value={draft.format} options={formats} disabled={disabled}
-            onChange={format => change({ format })} />
-        </Field>
-        <div className="course-settings__grid">
-          <NumberField label={ui('总分')} value={draft.totalMarks} placeholder={defaults.totalMarks} {...EXAM_SETTING_LIMITS.totalMarks} disabled={disabled} onChange={totalMarks => change({ totalMarks })} />
-          <NumberField label={ui('作答时间')} suffix={ui('分钟')} value={draft.writingMinutes} placeholder={defaults.writingMinutes} {...EXAM_SETTING_LIMITS.writingMinutes} disabled={disabled} onChange={writingMinutes => change({ writingMinutes })} />
-          <NumberField label={ui('阅读时间')} suffix={ui('分钟')} value={draft.readingMinutes} placeholder={defaults.readingMinutes} {...EXAM_SETTING_LIMITS.readingMinutes} disabled={disabled} onChange={readingMinutes => change({ readingMinutes })} />
-          <NumberField label={ui('每分用时')} suffix={ui('分钟')} value={draft.minutesPerMark} placeholder={defaults.minutesPerMark} {...EXAM_SETTING_LIMITS.minutesPerMark} step="any" disabled={disabled} onChange={minutesPerMark => change({ minutesPerMark })} />
-          <Field label={ui('考试日期')} width="full">
-            <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
-        </div>
-        <Hint>{ui('留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/5（5–30 分钟）。')}</Hint>
-        <div className="course-settings__subhead"><strong>{ui('考试部分')}</strong>
-          <Button size="sm" variant="quiet" icon="plus" disabled={disabled || draft.sections.length >= 20}
-            onClick={() => change({ sections: [...draft.sections, { title: '', lecturer: '', marks: '', topics: '' }] })}>{ui('添加考试部分')}</Button></div>
-        {draft.sections.length ? <ol className="course-settings__sections">
-          {draft.sections.map((section, index) => <SectionRow key={index} index={index} section={section} disabled={disabled}
-            onChange={next => change({ sections: draft.sections.map((item, at) => at === index ? next : item) })}
-            onRemove={() => change({ sections: draft.sections.filter((_, at) => at !== index) })} />)}
-        </ol> : <Hint>{ui('按讲师或题型分几部分时，在这里写下每部分的分值和考查知识点。')}</Hint>}
-      </section>
+        <section className="course-settings__block" aria-label={ui('有效课程')}>
+          <ActiveSwitch course={course} courses={courses} disabled={disabled} />
+        </section>
 
-      <section className="course-settings__block" aria-labelledby="course-settings-focus">
-        <h3 id="course-settings-focus">{ui('重点知识点')}</h3>
-        <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点。')}</Hint>
-        <Field width="full">
-          <TextInput aria-label={ui('重点知识点')} value={draft.focusTopics} disabled={disabled} placeholder={ui('用分号分隔，例如 迁移策略；数据一致性')}
-            onChange={event => change({ focusTopics: event.target.value })} /></Field>
-      </section>
+        <section className="course-settings__block" aria-labelledby="course-settings-exam">
+          <h3 id="course-settings-exam">{ui('考试信息')}</h3>
+          <Field group label={ui('考试形式')} width="full">
+            <SegmentedControl size="sm" label={ui('考试形式')} value={draft.format} options={formats} disabled={disabled}
+              onChange={format => change({ format })} />
+          </Field>
+          <div className="course-settings__grid">
+            <NumberField label={ui('总分')} value={draft.totalMarks} placeholder={defaults.totalMarks} {...EXAM_SETTING_LIMITS.totalMarks} disabled={disabled} onChange={totalMarks => change({ totalMarks })} />
+            <NumberField label={ui('作答时间')} suffix={ui('分钟')} value={draft.writingMinutes} placeholder={defaults.writingMinutes} {...EXAM_SETTING_LIMITS.writingMinutes} disabled={disabled} onChange={writingMinutes => change({ writingMinutes })} />
+            <NumberField label={ui('阅读时间')} suffix={ui('分钟')} value={draft.readingMinutes} placeholder={defaults.readingMinutes} {...EXAM_SETTING_LIMITS.readingMinutes} disabled={disabled} onChange={readingMinutes => change({ readingMinutes })} />
+            <NumberField label={ui('每分用时')} suffix={ui('分钟')} value={draft.minutesPerMark} placeholder={defaults.minutesPerMark} {...EXAM_SETTING_LIMITS.minutesPerMark} step="any" disabled={disabled} onChange={minutesPerMark => change({ minutesPerMark })} />
+          </div>
+          <Hint>{ui('留空的项按默认推算：每分 3 分钟，阅读时间约为作答时间的 1/5（5–30 分钟）。')}</Hint>
+          <div className="course-settings__subhead"><strong>{ui('考试部分')}</strong>
+            <Button size="sm" variant="quiet" icon="plus" disabled={disabled || draft.sections.length >= 20}
+              onClick={() => change({ sections: [...draft.sections, { title: '', lecturer: '', marks: '', topics: '' }] })}>{ui('添加考试部分')}</Button></div>
+          {draft.sections.length ? <ol className="course-settings__sections">
+            {draft.sections.map((section, index) => <SectionRow key={index} index={index} section={section} disabled={disabled}
+              onChange={next => change({ sections: draft.sections.map((item, at) => at === index ? next : item) })}
+              onRemove={() => change({ sections: draft.sections.filter((_, at) => at !== index) })} />)}
+          </ol> : <Hint>{ui('按讲师或题型分几部分时，在这里写下每部分的分值和考查知识点。')}</Hint>}
+        </section>
 
-      <Disclosure className="course-settings__disclosure" summary={ui('考官指引')}
-        meta={draft.guidanceSourceIds.length ? uiFormat('已选 {0} 份', [draft.guidanceSourceIds.length]) : ui('未选择')}
-        defaultOpen={draft.guidanceSourceIds.length > 0}>
-        <Hint>{ui('选入考官讲解或考试说明（例如导入的说明会逐字稿），出案例题和批改时会参考。')}</Hint>
-        <SourcePicker sources={data?.sources || []} selected={draft.guidanceSourceIds} disabled={disabled}
-          onChange={guidanceSourceIds => change({ guidanceSourceIds })} />
+        <section className="course-settings__block" aria-labelledby="course-settings-focus">
+          <h3 id="course-settings-focus">{ui('重点知识点')}</h3>
+          <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点。')}</Hint>
+          <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
+        </section>
+
+        <Disclosure className="course-settings__disclosure" summary={ui('考官指引')}
+          meta={draft.guidanceSourceIds.length ? uiFormat('已选 {0} 份', [draft.guidanceSourceIds.length]) : guidance.length ? uiFormat('有 {0} 份建议', [guidance.length]) : ui('未选择')}
+          defaultOpen={draft.guidanceSourceIds.length > 0}>
+          <Hint>{ui('选入考官讲解或考试说明（例如导入的说明会逐字稿），出案例题和批改时会参考。')}</Hint>
+          <GuidanceSuggestions items={guidance} disabled={disabled} onAdd={ids => change({ guidanceSourceIds: [...new Set([...draft.guidanceSourceIds, ...ids])] })} />
+          <SourcePicker sources={data?.sources || []} selected={draft.guidanceSourceIds} disabled={disabled}
+            onChange={guidanceSourceIds => change({ guidanceSourceIds })} />
+        </Disclosure>
+
+        {others.length > 0 && <Disclosure className="course-settings__disclosure" summary={ui('把其他课程合并到这里')}
+          meta={mergeIds.length ? uiFormat('已选 {0} 门', [mergeIds.length]) : ''} defaultOpen={mergeFrom.length > 0}>
+          {/* A long course list scrolls in a window; likely duplicates of this course come first (WP14). */}
+          <ScrollWindow className="course-settings__merge-window" label={ui('可以合并的课程')} items={mergeCandidates} itemKey={item => item.id}
+            match={item => [item.name, ...(item.aliases || [])].join(' ')} filterable={mergeCandidates.length > 6} filterPlaceholder={ui('筛选课程…')}
+            maxHeight={260} listClassName="course-settings__merge" renderItem={item => <Checkbox label={item.name} checked={mergeIds.includes(item.id)} disabled={disabled}
+              hint={(countLine(item) || likely.has(item.id)) ? [likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ') : undefined}
+              onChange={checked => { setConfirm(null); setMergeIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />} />
+          <Button ref={mergeTrigger} variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
+          {confirm === 'merge' && mergeIds.length > 0 && <InlineConfirm tone="warning" title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}
+            confirmLabel={ui('确认合并')} busy={working || busy} returnFocusRef={mergeTrigger} onConfirm={merge} onCancel={() => setConfirm(null)}>
+            <p><strong>{mergeNames.join(' · ')}</strong></p>
+            <p>{ui('它们的题组、资料和练习会归入这门课；题目、答题记录、复习进度和前置关系都保留，原名称保留为别名。')}</p>
+          </InlineConfirm>}
+        </Disclosure>}
       </Disclosure>
-
-      {others.length > 0 && <Disclosure className="course-settings__disclosure" summary={ui('把其他课程合并到这里')}
-        meta={mergeIds.length ? uiFormat('已选 {0} 门', [mergeIds.length]) : ''} defaultOpen={mergeFrom.length > 0}>
-        {/* A long course list scrolls in a window; likely duplicates of this course come first (WP14). */}
-        <ScrollWindow className="course-settings__merge-window" label={ui('可以合并的课程')} items={mergeCandidates} itemKey={item => item.id}
-          match={item => [item.name, ...(item.aliases || [])].join(' ')} filterable={mergeCandidates.length > 6} filterPlaceholder={ui('筛选课程…')}
-          maxHeight={260} listClassName="course-settings__merge" renderItem={item => <Checkbox label={item.name} checked={mergeIds.includes(item.id)} disabled={disabled}
-            hint={(countLine(item) || likely.has(item.id)) ? [likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ') : undefined}
-            onChange={checked => { setConfirm(null); setMergeIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />} />
-        <Button ref={mergeTrigger} variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
-        {confirm === 'merge' && mergeIds.length > 0 && <InlineConfirm tone="warning" title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}
-          confirmLabel={ui('确认合并')} busy={working || busy} returnFocusRef={mergeTrigger} onConfirm={merge} onCancel={() => setConfirm(null)}>
-          <p><strong>{mergeNames.join(' · ')}</strong></p>
-          <p>{ui('它们的题组、资料和练习会归入这门课；题目、答题记录、复习进度和前置关系都保留，原名称保留为别名。')}</p>
-        </InlineConfirm>}
-      </Disclosure>}
     </Dialog>
   );
 }

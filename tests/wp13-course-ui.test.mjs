@@ -41,7 +41,7 @@ test('the course panel shows name, aliases, the exam profile, focus topics, guid
   assert.match(html, /value="Part A"/);
   assert.match(html, /value="Dr Tan"/);
   assert.match(html, /value="Microservices; Event sourcing"/);
-  assert.match(html, /value="Strangler fig"/);
+  assert.match(html, /<span class="sh-chip__label">Strangler fig<\/span>/, 'focus topics are chips');
   assert.match(html, /source-picker/, 'guidance is picked with the shared SourcePicker');
   assert.match(html, /Exam briefing transcript/);
   assert.match(html, /Databases/, 'other courses are offered for merging');

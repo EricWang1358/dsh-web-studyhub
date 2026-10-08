@@ -79,7 +79,7 @@ test('saving a course after merging preserves the merged exam, focus topics and 
   const { runtime, target, render } = await mergePanel(t);
   await find(render(), node => node.props?.confirmLabel === '确认合并').props.onConfirm();
   const merged = render();
-  assert.equal(find(merged, node => node.props?.['aria-label'] === '重点知识点').props.value, 'Target topic; Merged topic');
+  assert.equal(find(merged, node => node.type?.name === 'TopicChips').props.value, 'Target topic; Merged topic');
   assert.equal(find(merged, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.value, '100');
   await find(merged.props.footer, node => node.props?.children === '保存课程信息').props.onClick();
   const saved = await runtime.call('course.get', { id: target.id });
@@ -91,12 +91,12 @@ test('saving a course after merging preserves the merged exam, focus topics and 
 test('merging course profiles keeps pending local edits while adding the newly merged topics and guidance', async t => {
   const { runtime, target, render } = await mergePanel(t);
   const initial = render();
-  find(initial, node => node.props?.['aria-label'] === '重点知识点').props.onChange({ target: { value: 'Local topic' } });
+  find(initial, node => node.type?.name === 'TopicChips').props.onChange('Local topic');
   find(initial, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.onChange('45');
   find(initial, node => node.type?.name === 'SourcePicker').props.onChange([]);
   await find(render(), node => node.props?.confirmLabel === '确认合并').props.onConfirm();
   const merged = render();
-  assert.equal(find(merged, node => node.props?.['aria-label'] === '重点知识点').props.value, 'Local topic; Merged topic');
+  assert.equal(find(merged, node => node.type?.name === 'TopicChips').props.value, 'Local topic; Merged topic');
   assert.equal(find(merged, node => node.type?.name === 'NumberField' && node.props.label === '总分').props.value, '45');
   await find(merged.props.footer, node => node.props?.children === '保存课程信息').props.onClick();
   const saved = await runtime.call('course.get', { id: target.id });
