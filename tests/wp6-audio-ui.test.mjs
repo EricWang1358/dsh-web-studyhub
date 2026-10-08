@@ -98,20 +98,22 @@ test("pre-flight notes: a long recording offers a lossless split, its siblings s
   assert.deepEqual([blocked.b.kind, blocked.b.text], ["held", "因「PE1.m4a」未通过预检尚未开始"]);
 });
 
-test("the chosen files show their pre-flight with one-click fixes, in both languages", () => {
+test("the chosen files show their pre-flight; the one start button does the split and says so, in both languages", () => {
   const props = { data, busy: false, act: noop, call: noop, setNotice: noop, initialReadiness: READY, initialFiles: files };
   const split = html(AudioImport, { ...props, initialChecks: { pe1: longSplit, a: fine("A.mp3"), b: fine("B.mp3") } });
   assert.match(split, /无损分成 2 段转写（占用 2 次请求）/);
-  assert.match(split, /分段并继续/);
-  assert.match(split, /等待「PE1.m4a」处理/);
+  assert.doesNotMatch(split, /分段并继续/, "no second button to press for the split");
+  assert.doesNotMatch(split, /等待「PE1.m4a」处理/, "nothing waits for a confirmation any more");
+  assert.match(split, /开始（约 136 分钟，分 4 段，4 次请求；3 个录音合成 1 份逐字稿）/);
   const held = html(AudioImport, { ...props, initialChecks: { pe1: broken, a: fine("A.mp3"), b: fine("B.mp3") } });
   assert.match(held, /跳过此文件继续/);
   assert.match(held, /换一个文件/);
   assert.match(held, /因「PE1.m4a」未通过预检尚未开始/);
   inLanguage("en", () => {
     const english = html(AudioImport, { ...props, initialChecks: { pe1: longSplit, a: fine("A.mp3"), b: fine("B.mp3") } }).replace(/PE1\.m4a|A\.mp3|B\.mp3/g, "");
-    assert.match(english, /about 76 min → split losslessly into 2 parts \(2 requests\)/);
-    assert.match(english, /Split and continue/);
+    assert.match(english, /Will be split losslessly into 2 parts \(2 requests\)/);
+    assert.match(english, /Start \(about 136 min, 4 parts, 4 requests; 3 recordings merged into 1 transcript\)/);
+    assert.doesNotMatch(english, /Split and continue/);
     assert.doesNotMatch(english, HAN);
     const blocked = html(AudioImport, { ...props, initialChecks: { pe1: broken, a: fine("A.mp3"), b: fine("B.mp3") } }).replace(/PE1\.m4a|A\.mp3|B\.mp3/g, "");
     assert.match(blocked, /This M4A is a fragmented MP4 and cannot be split losslessly here/);

@@ -47,12 +47,12 @@ Until a provider is set up, the **Audio transcription** page shows the recommend
    - open **Find in the workspace**, search by file name and pick one;
    - click **Pick a file with @ in the conversation**. It fills the chat input without sending it; pick the files with DSH's @ selector, then send. If the selector does not open, type @ again;
    - open **Paste a file path (advanced)** and enter an absolute path, quoted or not.
+   Recordings and subtitle files dropped on the **Files** tab of **Add source** are carried over to this form; nothing is imported or sent from there.
 3. Wait for the check under each file (see [Pre-flight check](#pre-flight-check)). It reads the file locally and sends nothing.
-4. Optionally fill in **Transcript name**, **What the audio is about**, **Glossary** (commas or new lines) and **Course**. The course's deck titles and question topics join your glossary to help transcription and proofreading.
-5. Tick **Use the paid key only** for a recording that must not go to a free plan (see [Privacy](#privacy)).
-6. Click **Start import**. You can keep working. The transcript appears under **Today** on the **Sources** page when it is done.
+4. Optional, under **More settings** (closed by default): **Transcript name**, **What the audio is about**, **Glossary** (commas or new lines), and **Use the paid key only** for a recording that must not go to a free plan (see [Privacy](#privacy)). The course is the one shown at the top of **Add source** (**Filed under …**, with **Change**); on the Audio transcription page, **More settings** also asks for it. The deck titles and question topics already in the course join your glossary automatically to help transcription and proofreading. **Use the paid key only** starts from the default in **Settings › Audio transcription**.
+5. Click **Start**. The button says what it will do: for a long recording the length, the parts and the requests (for example "Start (about 95 min, 2 parts, 2 requests)"), and for several recordings that they become **one** transcript ("Start (3 recordings merged into 1 transcript)"). A recording over the request length is split losslessly by this click; there is no second button. You can keep working. The transcript appears under **Today** on the **Sources** page when it is done, with **Generate questions** under its card.
 
-Above **Start import**, an estimate shows the tokens that proofreading and translation are likely to use. See [Token usage and estimates](token-usage.md).
+Above **Start**, an estimate shows the tokens that proofreading and translation are likely to use. The language of a recording is only known after it is transcribed, so the range covers both an English and a Chinese lecture; a subtitle file's language and length are known, so its estimate is exact. A subtitle file waits for this estimate and your click: dropping it does not start a model run. See [Token usage and estimates](token-usage.md).
 
 ### Supported files and limits
 
@@ -69,7 +69,7 @@ Each file is checked as soon as it is added, and again when you click **Start im
 | Note under the file | What it means | What to do |
 | --- | --- | --- |
 | "about N min · M transcription request(s)" | Ready | Nothing |
-| "about N min, over the one-hour limit per request → split losslessly into K parts (M requests)" | The recording needs more than one request | Click **Split and continue** to accept the extra requests |
+| "Will be split losslessly into K parts (M requests)" | The recording needs more than one request | Nothing: **Start** accepts the extra requests, and its label shows them |
 | An error message | The file cannot be imported | Click **Skip this file and continue** (several files) or **Choose another file** |
 | "Waiting for …" or "Not started: waiting for …" | Another file needs your answer first | Answer that file |
 

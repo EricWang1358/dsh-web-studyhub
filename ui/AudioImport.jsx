@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
-import React, { useRef, useState } from "react";
-import CourseField, { parseCourses } from './CourseField.jsx';
-import { Button, Checkbox, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, useToast } from './components/index.js';
+import React, { useEffect, useRef, useState } from "react";
+import { parseCourses } from './CourseField.jsx';
+import { Button, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, useToast } from './components/index.js';
 import { AudioSetupGate } from './AudioSettings.jsx';
 import { openAudioSettings } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
@@ -15,9 +15,12 @@ import { SUBTITLE_EXTENSIONS } from '../lib/audio-formats.js';
 import { AudioJobs, aboutSettings } from './audio/AudioJobs.jsx';
 import AudioWorkspace from './audio/AudioWorkspace.jsx';
 import { AUDIO_ACCEPT, audioFileProblem, audioFormatNames, audioLimitLabel, isSubtitleName, pathsFromDrop, subtitleFormatNames, subtitleProblem } from './audio/formats.js';
+import AudioMoreSettings from './audio/AudioMoreSettings.jsx';
 import { inputOf, preflightNotes } from './audio/preflight.js';
+import { estimateRequest, startLabel } from './audio/run-plan.js';
 import { useAudioPreflight } from './audio/useAudioPreflight.js';
 import { useAudioUpload } from './audio/useAudioUpload.js';
+import { useHostQuery } from './host-query.js';
 import { useStudy } from './study-context.jsx';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
@@ -26,7 +29,8 @@ import { useStudy } from './study-context.jsx';
 
    还没有配置转写服务时，这里显示配置卡片而不是拖放区（字幕文件不需要转写，仍可导入），
    文件也不会开始上传。选好文件后先做预检（ui/audio/useAudioPreflight.js）：格式、时长、要几次请求；
-   超过 1 小时的录音给出「无损分段并继续」，读不了的文件给出「跳过此文件继续 / 换一个文件」，其余文件写明在等谁。
+   超过 1 小时的录音由「开始」一并无损分段（按钮写明几段、几次请求），读不了的文件给出「跳过此文件继续 / 换一个文件」，其余文件写明在等谁。
+   名称、讲什么、术语、付费密钥在「更多设置」里；几个录音总是合成一份逐字稿，开始按钮上写明。
 
    选文件不用输路径：拖进来或点击选择（浏览器把文件分块传给插件，ui/audio/useAudioUpload.js），从工作区里搜，
    或在对话输入框里用 @ 选。手输路径留在「高级」里。 */
@@ -38,6 +42,10 @@ export default function AudioImport({
   canAsk = false,
   openAgent,
   onOpenSources,
+  onStarted,
+  onGenerate,
+  incoming,
+  onIncomingTaken,
   initialFile = null,
   initialFiles,
   defaultCourse,
@@ -54,10 +62,14 @@ export default function AudioImport({
   const language = useUiLanguage(), toast = useToast();
   const [files, setFiles] = useState(() => (initialFiles || (initialFile ? [initialFile] : [])).map((file, index) => ({ ...file, key: file.key || `initial-${index}` })));
   const [pathText, setPathText] = useState(""), [problem, setProblem] = useState("");
-  const [subject, setSubject] = useState(""), [terms, setTerms] = useState(""), [title, setTitle] = useState('');
-  const [chosenCourse, setCourse] = useState(undefined), [paidOnly, setPaidOnly] = useState(false);
-  const [confirmed, setConfirmed] = useState(() => new Set()), [submitError, setSubmitError] = useState(''), [starting, setStarting] = useState(false);
-  const course = chosenCourse ?? defaultCourses?.join('; ') ?? defaultCourse ?? data.focus?.course ?? '';
+  // 更多设置: this recording's name, what it covers, its terms, and the paid-key choice (which starts from the default in Settings).
+  const [more, setMore] = useState({}), [moreOpen, setMoreOpen] = useState(!!recoveryJobId);
+  const [submitError, setSubmitError] = useState(''), [starting, setStarting] = useState(false);
+  const { data: audioSettings } = useHostQuery('audio.settings.get', {}, { call, enabled: typeof call === 'function' });
+  const { title = '', subject = '', terms = '' } = more, paidOnly = more.paidOnly ?? audioSettings?.paidOnlyByDefault === true;
+  // Inside the add-material dialog the course is that dialog's own line; on its own page this form asks for it.
+  const inDialog = Array.isArray(defaultCourses);
+  const course = inDialog ? defaultCourses.join('; ') : more.course ?? defaultCourse ?? data.focus?.course ?? '';
   const picker = useRef(null), nextKey = useRef(0), moving = useRef(null);
   const append = file => setFiles(current => [...current, { ...file, key: `chosen-${++nextKey.current}` }]);
   const uploads = useAudioUpload({ call, onFile: append });
@@ -66,6 +78,14 @@ export default function AudioImport({
   const courses = data.focus?.courses?.map(item => item.name) || [...new Set((data.decks || []).map((deck) => deck.course).filter(Boolean))];
   const openSettings = openAudioSettings(onOpenSettings);
   const gated = !!readiness && !readiness.transcription && !files.length && !upload && !recoveryJobId;
+
+  // Recordings and subtitles dropped on the Files tab of the dialog arrive here (their own confirmation, with the estimate, is below).
+  useEffect(() => {
+    if (!incoming?.files?.length) return;
+    onIncomingTaken?.();
+    void send(incoming.files);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming?.nonce]);
 
   const reject = (message) => { setProblem(message); return false; };
   function check(name, size) {
@@ -136,12 +156,13 @@ export default function AudioImport({
     dropPaths(event.dataTransfer?.getData('text/plain'));
   }
   const failed = (error) => setSubmitError(String(error?.message || error || ''));
-  async function start(event, { list = files, accepted = confirmed } = {}) {
+  async function start(event, { list = files } = {}) {
     event?.preventDefault?.();
     if (!list.length || upload || starting) return;
     setSubmitError('');
     if (list.some(file => file.kind === 'subtitle') && list.length !== 1) return void reject(subtitleAlone());
     if (recoveryJobId && list.length !== 1) { setProblem(ui('旧任务请选择同一份原录音。')); return; }
+    const accepted = new Set(list.map(file => file.key));
     const settings = {
       ...(title.trim() ? { title: title.trim() } : {}),
       ...(subject.trim() ? { subject: subject.trim() } : {}),
@@ -153,8 +174,9 @@ export default function AudioImport({
       try {
         await act("audio.subtitles.import", { filename: list[0].name, text: list[0].text, ...settings }, () => {
           setFiles([]);
-          setTitle('');
+          setMore(current => ({ ...current, title: '' }));
           toast.success(ui("已开始后台校对字幕（不需要转写）。完成后会出现在「资料」页的「今天」分组里。"));
+          onStarted?.();
         }, { rethrow: true });
       } catch (error) { failed(error); }
       return;
@@ -185,31 +207,25 @@ export default function AudioImport({
       }, (started) => {
         uploads.claim(list.map(file => file.uploadId));
         setFiles([]);
-        setTitle('');
+        setMore(current => ({ ...current, title: '' }));
         setChecks({});
-        setConfirmed(new Set());
         onRecoveryChange?.('');
         toast.success(started?.status === "queued"
           ? uiFormat("已加入队列（前面还有 {0} 个）：轮到它时自动开始，完成后会出现在「资料」页的「今天」分组里。", [started.queuedBehind])
           : ui("已开始后台转写。长录音需要几分钟到十几分钟，可以先做别的；完成后会出现在「资料」页的「今天」分组里。"));
+        onStarted?.(started);
       }, { rethrow: true });
     } catch (error) { failed(error); }
-  }
-  /** "Split and continue": accept the lossless split of this file, then start when nothing else is waiting. */
-  function confirmSplit(key) {
-    const next = new Set(confirmed).add(key);
-    setConfirmed(next);
-    void start(null, { accepted: next });
   }
   function skipAndContinue(index) {
     const next = remove(index);
     if (next.length) void start(null, { list: next });
   }
   function replaceFile(index) { remove(index); picker.current?.click(); }
-  const notes = preflightNotes(files, checks, confirmed);
+  // Pressing start accepts a lossless split, and the button says so; every file counts as accepted here.
+  const notes = preflightNotes(files, checks, new Set(files.map(file => file.key)));
   // The text steps of the recordings (WP27); transcription is counted in minutes on its own page.
-  const audioMinutes = Math.round(audioFiles.reduce((sum, file) => sum + (checks[file.key]?.seconds || 0), 0) / 60);
-  const termCount = terms.split(/[\n,，、;；]+/).map((term) => term.trim()).filter(Boolean).length;
+  const estimate = estimateRequest(files, checks, { subject, terms });
   const percent = upload?.size ? Math.min(100, Math.round((upload.sent / upload.size) * 100)) : 0;
   return (
     <div className="pdf-import audio-import">
@@ -219,7 +235,7 @@ export default function AudioImport({
       <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${AUDIO_ACCEPT.join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
-      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings}
+      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings} onGenerate={onGenerate}
         onLegacyRetry={job => { onRecoveryChange?.(job.id); picker.current?.click(); }} />
       {gated && <>
         <AudioSetupGate language={language} call={call} onOpenSettings={openSettings} reason={readiness.reason}
@@ -275,7 +291,6 @@ export default function AudioImport({
             <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatBytes(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small>
               {note && <span className={`audio-check audio-check--${note.kind}`} role={note.kind === 'blocked' ? 'alert' : undefined}>
                 <span>{note.text}</span>
-                {note.kind === 'split' && <Button size="sm" disabled={busy || starting} onClick={() => confirmSplit(file.key)}>{ui('分段并继续')}</Button>}
                 {note.kind === 'blocked' && <>
                   {files.length > 1 && <Button size="sm" disabled={busy || starting} onClick={() => skipAndContinue(index)}>{ui('跳过此文件继续')}</Button>}
                   <Button size="sm" variant="quiet" disabled={busy || starting} onClick={() => replaceFile(index)}>{ui('换一个文件')}</Button>
@@ -290,22 +305,11 @@ export default function AudioImport({
             </>}<Button size="sm" variant="quiet" disabled={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</Button></div>
           </li>;
         })}</ol>
-        <label>{ui('逐字稿名称（可选）')}<input value={title} onChange={event => setTitle(event.target.value)} disabled={busy} maxLength={200} /></label>
-        <label>{ui("这段音频讲什么（可选，帮助纠正术语）")}
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={busy} maxLength={300}
-            placeholder={ui("例如：SQL 数据库课程，讲事务、分区和索引")} />
-        </label>
-        <label>{ui("术语表（可选，逗号或换行分隔）")}
-          <textarea value={terms} onChange={(e) => setTerms(e.target.value)} disabled={busy} rows={2}
-            placeholder={ui("例如：partition, ACID, VARCHAR, PostgreSQL")} />
-        </label>
-        <CourseField courses={courses} value={course} onChange={setCourse} multiple disabled={busy} label={ui('所属课程（用它的主题词辅助校对）')} />
-        <Checkbox checked={paidOnly} onChange={setPaidOnly} disabled={busy}
-          label={ui("只用付费密钥（免费额度下，Google 可能用内容改进产品）")} />
-        <TokenEstimate enabled={audioMinutes > 0}
-          request={{ feature: "audio", minutes: audioMinutes, language: "en", terms: termCount, subject: subject.trim() }} />
+        <AudioMoreSettings values={{ ...more, paidOnly }} defaultPaid={audioSettings?.paidOnlyByDefault === true} course={inDialog ? undefined : course} courses={courses} disabled={busy}
+          open={moreOpen} onToggle={setMoreOpen} onChange={patch => setMore(current => ({ ...current, ...patch }))} onSettings={openSettings} />
+        <TokenEstimate enabled={estimate.enabled} request={estimate.request} />
         <div className="audio-submit">
-          <Button type="submit" variant="primary" busy={starting} disabled={busy || !!upload || audioFiles.some(file => checks[file.key]?.checking)}>{starting ? ui("正在检查…") : ui("开始导入")}</Button>
+          <Button type="submit" variant="primary" busy={starting} disabled={busy || !!upload || audioFiles.some(file => checks[file.key]?.checking)}>{starting ? ui("正在检查…") : startLabel(files, checks)}</Button>
           {submitError && <InlineMessage action={openSettings && aboutSettings(submitError) ? { label: ui('打开音频设置'), onClick: openSettings } : undefined}
             onDismiss={() => setSubmitError('')}>{uiMessage(submitError)}</InlineMessage>}
         </div>

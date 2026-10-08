@@ -47,12 +47,13 @@
   "你选的 {1} 份资料共 {3} 字符，超过了一次最多 {0} 字符的上限，请缩小页码范围或分批出题。上面的数字是一次最多能选入的资料（约前 {2} 份）的用量。": "The {1} sources you picked total {3} characters, over the limit of {0} characters per run. Narrow the page range or write the questions in batches. The numbers above are for the most that fits (about the first {2} sources).",
   "推理程度越高，推理 token 越多（计入输出）。": "The higher the reasoning level, the more reasoning tokens (counted in the output).",
   "中文内容的实际 token 通常更接近上限。": "For Chinese material the real token count is usually closer to the upper end.",
-  "转写稿的长度按正常语速、英文讲课估算；中文讲课的转写稿更短，但每个字的 token 更多。": "The transcript length is estimated from a normal speaking rate for an English lecture; a Chinese lecture gives a shorter transcript but more tokens per character.",
   "本次讲解的用量": "Usage of this lesson",
   "转写本身按音频时长计，不在这里；见「音频转写」页的用量与额度。": "Transcription itself is counted by audio length, not here; see Usage and limits on the Audio transcription page.",
   "下限按 DSH 的固定估算；上限按 DeepSeek 公布的换算（中文每字约 0.6 token，英文每字符约 0.3）。": "The lower end is DSH's fixed estimate; the upper end uses DeepSeek's published conversion (about 0.6 token per Chinese character, 0.3 per English character).",
   "近 {0} 天，各功能的 token 用量": "Last {0} days, token usage by feature",
   "实际用量超出了预计上限（多 {0}%）。预计只按提示词本身估算；模型实际的分词、推理和出错重试会让它偏高。": "Actual usage went {0}% above the expected upper bound. The estimate only counts the prompts themselves; the model's real tokenization, reasoning and retries push it higher.",
   "这次没有命中缓存：每个出题、审阅步骤都是各自独立的会话，彼此不共享缓存；预计用量本来就不指望缓存。": "No cache hit this time: each writing and review step is its own separate session, and they do not share a cache. The estimate does not count on one.",
-  "自本次启动以来，快速请求（批改、追问、翻译等）有 {0} 次因共享额度排队，共等待 {1}；重启后清零。": "Since this start, quick requests (grading, follow-ups, translation and the like) have waited {0} times for the shared quota, {1} in all; this resets on restart."
+  "自本次启动以来，快速请求（批改、追问、翻译等）有 {0} 次因共享额度排队，共等待 {1}；重启后清零。": "Since this start, quick requests (grading, follow-ups, translation and the like) have waited {0} times for the shared quota, {1} in all; this resets on restart.",
+  "转写稿的长度按正常语速估算；中文讲课的转写稿更短，但每个字的 token 更多。": "The transcript length is estimated from a normal speaking rate; a Chinese lecture gives a shorter transcript but more tokens per character.",
+  "录音讲的是中文还是英文，要转写之后才知道，所以这里把两种情况都算进范围。": "Whether the recording is in Chinese or English is only known after transcription, so the range covers both."
 }
