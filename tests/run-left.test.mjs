@@ -164,7 +164,7 @@ test('the owner\'s screen, fixed: every number of the console says the same thin
   const html = lineOf(job), plain = text(html);
   assert.match(plain, /^出题计划 第 1\/4 轮 · 覆盖 99% · 本任务已用 212K tok · 预计还要约 200K tok（按已跑的进度估算）/, plain);
   assert.doesNotMatch(plain, /出题前估/, 'the job\'s own estimate (400K) agrees with what it used and has left: it is not said twice');
-  assert.match(html, /data-run-math[^>]*>本任务已用 210K \+ 还要约 200K ≈ 共约 410K tok</, 'the sum under it says 已用 in the same words');
+  assert.match(html, /data-run-math[^>]*>本任务已用 212K \+ 还要约 200K ≈ 共约 412K tok</, 'the sum under it says 已用 in the same words and the same figure as the line (212K, not 210K)');
   assert.match(html, /data-coverage-path[^>]*>覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题</);
   const facts = Object.fromEntries(m.taskFacts({ ...job, contract }, T0 + 4 * MIN).map((fact) => [fact.key, fact]));
   assert.deepEqual([facts.primary.label, facts.primary.value, facts.primary.note], ['题数 · 本任务', '1 / 约 3', '草稿共 37 题'], '1 made of the 3 asked: 2 left, as the line says');
@@ -176,7 +176,7 @@ test('the owner\'s screen, fixed: every number of the console says the same thin
     const english = text(lineOf(job, 'en'));
     assert.match(english, /212K tok used by this task/);
     assert.match(english, /Coverage now 99% → target 100%, 1 more round, about 2 questions/);
-    assert.match(lineOf(job, 'en'), /This task used 210K \+ about 200K to go ≈ about 410K tok in all/);
+    assert.match(lineOf(job, 'en'), /This task used 212K \+ about 200K to go ≈ about 412K tok in all/);
   });
 });
 
@@ -191,6 +191,7 @@ test('the words: a job that continues a run says 「本任务」 for its tokens,
   const forecast = { basis: 'history', tokens: { used: 210_000, left: 200_000, total: 410_000 }, preRun: null };
   assert.equal(m.copy.forecastMath(forecast), '已用 210K + 还要约 200K ≈ 共约 410K tok');
   assert.equal(m.copy.forecastMath(forecast, { own: true }), '本任务已用 210K + 还要约 200K ≈ 共约 410K tok');
+  assert.equal(m.copy.forecastMath(forecast, { own: true, used: 212_255 }), '本任务已用 212K + 还要约 200K ≈ 共约 412K tok', 'the job\'s count as the line says it; the whole is that plus what is left');
   inLanguage('en', () => {
     assert.equal(m.copy.runLine(facts), 'Round 1/4 · Covered 99% · 212K tok used by this task');
     assert.equal(m.copy.runLine({ ...facts, ended: true, done: 4, state: 'complete' }), '4 rounds in all · Covered 99% · 212K tok in all by this task');

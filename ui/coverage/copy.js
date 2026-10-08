@@ -259,13 +259,15 @@ export function forecastText(forecast) {
   return forecast.preRun > 0 ? joinMeta([head, uiFormat('出题前估 {0}', [tokensText(forecast.preRun)])]) : head;
 }
 
-/** The sum behind the number, to be checked by eye: 「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」 (the parts are rounded to two digits, the whole is their sum). '' while nothing was used or nothing is said. */
-export function forecastMath(forecast, { own = false } = {}) {
+/** The sum behind the number, to be checked by eye: 「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」 (the parts are rounded to two digits, the whole is their sum). '' while nothing was used or nothing is said.
+    `used`: the tokens as the line above says them (the job's count, runFacts tokensUsed): 已用 is then the same figure there and here (「本任务已用 212K」 twice, never 212K and 210K), and the whole is it
+    plus what is left. `own`: the job continues a run that spent tokens before it (runFacts ownTokens): its 已用 is said as its own, in the same words as the line above. */
+export function forecastMath(forecast, { own = false, used } = {}) {
   const tokens = forecast?.tokens;
   if (!(tokens?.left > 0) || !(tokens.used > 0)) return '';
-  const compact = (value) => formatCompactTokens(Math.round(value));
-  // `own`: the job continues a run that spent tokens before it (runFacts ownTokens): its 已用 is said as its own, in the same words as the line above.
-  return uiFormat(own ? '本任务已用 {0} + 还要约 {1} ≈ 共约 {2} tok' : '已用 {0} + 还要约 {1} ≈ 共约 {2} tok', [compact(tokens.used), compact(tokens.left), compact(tokens.total)]);
+  const compact = (value) => formatCompactTokens(Math.round(value)), spent = Number.isFinite(used) && used > 0 ? used : null;
+  return uiFormat(own ? '本任务已用 {0} + 还要约 {1} ≈ 共约 {2} tok' : '已用 {0} + 还要约 {1} ≈ 共约 {2} tok',
+    [compact(spent ?? tokens.used), compact(tokens.left), compact(spent === null ? tokens.total : spent + tokens.left)]);
 }
 
 /** The time left: a figure or a range, or plainly why there is none (too little progress, still queued, paused, nearly done). It is the pace of THIS run, not the limit of a round. */
