@@ -2,6 +2,23 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.1.0 — 2026-10-08
+
+There is no separate 3.0.2: the fixes that were queued for it ship here together with 备考补习.
+
+- **备考补习 (new, off by default).** A page for revising before an exam. Its 考点清单 is a special material built from your slides or notes (and, if you have one, a sample paper), with two tiers (必学 and 补充), a two-level tree, and the older version kept when you rebuild it. One sample paper gives the shape of the exam only, never frequencies. Turn it on with the `examBlueprint` switch. It has not been tried with real slides and a real model yet.
+- **要求并行.** A queued task can be started beside the queue by hand. The default is still one after another. A rate limit, an overload, a timeout or a model error sends a parallel task back to the queue, and nothing already finished is lost. Hover the queue state or the button for what it does. With several tasks running, 暂停 waits for the calls of all of them, not for a whole round.
+- **创建题组 no longer shows three ways out for a selection that is too big.** One block asks how to go on (分步出题, 按主题挑页面 or 一次出题) and shows only that mode, with one button. 按路径逐步出题 no longer fails every step with "tokenBudget 需要是不小于 1000 的整数": a step is a plain request with its own count, and the same reason for many steps is said once. Skipped steps (目录页 and the like) are folded.
+- **The 任务 console shows the goal and the points.** A third tab, 目标与知识点, lists what the planning step chose, by batch, with each point's state and where it came from (a new record on question-generation jobs, no extra model call; a task from an older version has no list). The 日志 stamps the real finish time and says when a run is closing and closed; page counts say which pages are readable and which are in the original file; the 即时控制 row and the 跟随当前会话 choice fit at every width.
+- **A part that fails no longer sinks its round.** A part whose set-up fails is recorded and the others go on; questions are credited to the section their quote belongs to even when the same sentence occurs more than once; a failed batch is no longer called 被停止.
+- **错题本 opens by deck, folded, with filters** (deck, search, 答错 / 未掌握) and loads up to 1000 mistakes instead of 100. 开始重练 still uses all of them.
+- **Home:** 待发布草稿 sit in a folded section under the desk. **The deck picker** groups decks by course.
+- **在右栏打开** says why when it cannot, instead of doing nothing; from the top-level StudyHub page it shows the conversation first and then opens the sidebar.
+- **Ask about a passage with follow-ups.** Ask about a selection, ask about a term in the answer (up to 3 levels and 8 questions per thread), and keep notes per document revision, with 阅读 and 批注 modes.
+- The reading header buttons are the same size.
+
+Not fixed or not verified: 在右栏打开 and the 课堂实录 fix were only tried in a simulated DSH; 备考补习 was not tried with real slides, a sample paper and a real model; audio and PDF tasks do not record a start time; the usage estimate does not include 采纳审阅建议; a review issue with no owner still discards its whole part; opening a dropdown far down the settings page can jump the scroll position; the CI test that a library with an exam-point list stays readable in 3.0.0 is skipped there because the checkout has no tags.
+
 ## 3.0.1 — 2026-10-08
 
 - **A continued run follows the time limit you set.** 接着做, 为没覆盖的部分补题 and a top-up of a published deck used the limit the draft was written with (20 minutes by default) whatever 设置 said. They now take the current 每轮运行时限; a value you pass for one run still wins.
