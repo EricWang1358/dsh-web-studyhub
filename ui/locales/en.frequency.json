@@ -48,6 +48,5 @@
   "已导出 {0}": "Exported {0}",
   "报告已复制，可以粘贴到任何地方。": "Report copied; paste it anywhere.",
   "这个窗口不允许复制；请改用「导出 Markdown」。": "This window does not allow copying; use “Export Markdown” instead.",
-  "已删除全部使用记录。": "All usage records were deleted.",
-  "多数人用不到：使用频率记录和实验性功能的开关，默认都关闭。": "Rarely needed: the usage frequency record and the experimental features switch, both off by default."
+  "已删除全部使用记录。": "All usage records were deleted."
 }

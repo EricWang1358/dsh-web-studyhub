@@ -85,6 +85,34 @@ test('every other page keeps the generic message, and so does 备考补习 when 
   }
 });
 
+test('the generic stopped page says to enable the components in DSH, so it offers the plugin manager first when the host has one, and Settings as the other way', () => {
+  const without = render('sources', { features: {} });
+  assert.doesNotMatch(text(without.html), /打开 DSH 插件管理器/, 'no button for a thing the host cannot open');
+  assert.equal(findAll(without.tree, node => typeof node.props.onClick === 'function').length, 1);
+  assert.match(text(without.html), /前往设置/);
+  assert.doesNotMatch(text(without.html), /工作区设置/);
+  const withHost = render('sources', { features: {}, host: { openPluginManager: true } });
+  assert.match(text(withHost.html), /打开 DSH 插件管理器/);
+  const buttons = findAll(withHost.tree, node => typeof node.props.onClick === 'function');
+  assert.equal(buttons.length, 2);
+  assert.equal(buttons[0].props.children, '打开 DSH 插件管理器', 'the plugin manager comes first, as the words say');
+  assert.equal(buttons[0].props.variant, 'primary');
+  assert.equal(buttons[1].props.variant, 'secondary');
+  buttons[0].props.onClick();
+  assert.equal(withHost.calls.plugins, 1);
+  assert.equal(withHost.calls.navigate.length, 0);
+  buttons[1].props.onClick();
+  assert.equal(withHost.calls.navigate.length, 1);
+  assert.equal(withHost.calls.navigate[0][0], 'settings');
+  try {
+    setUiLanguage('en');
+    const words = text(render('sources', { features: {}, host: { openPluginManager: true } }).html);
+    assert.match(words, /Open the DSH plugin manager/);
+    assert.match(words, /Go to settings/);
+    assert.doesNotMatch(words, /[㐀-鿿]/);
+  } finally { setUiLanguage('zh'); }
+});
+
 test('the app hands the page to DisabledPage', async () => {
   const source = await readFile(new URL('../ui/App.jsx', import.meta.url), 'utf8');
   assert.match(source, /<DisabledPage page=\{page\} \/>/);

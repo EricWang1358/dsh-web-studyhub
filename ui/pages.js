@@ -32,7 +32,7 @@ export const PAGES = Object.freeze({
   draft: { label: '草稿与发布', title: '草稿与发布', glyph: null, group: null, needs: ['bank', 'authoring'] },
   manage: { label: '维护题组', title: '维护题组', glyph: null, group: null, needs: ['bank'] },
   graph: { label: '知识图谱', title: '知识图谱', glyph: null, group: null, needs: ['bank', 'study'], onEnter: user((ctx) => ctx.clearGraphScope()) },
-  settings: { label: '设置', title: '工作区设置', glyph: 'settings', group: null, needs: [] },
+  settings: { label: '设置', title: '设置', glyph: 'settings', group: null, needs: [] },
 });
 
 export const PAGE_IDS = Object.freeze(Object.keys(PAGES));

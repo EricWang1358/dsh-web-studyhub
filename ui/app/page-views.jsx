@@ -324,14 +324,19 @@ function ExamPrepOffPage() {
   );
 }
 
-/** What the learner sees when the host has switched the page's components off (备考补习 has its own: its switch is not a component). */
+/** What the learner sees when the host has switched the page's components off (备考补习 has its own: its switch is not a component).
+    The words say to enable the components in DSH, so the first button is the plugin manager when the host can open it. */
 export function DisabledPage({ page }) {
-  const { data, nav } = useApp();
+  const { data, nav, host } = useApp();
   if (page === 'examprep' && data?.features?.[pageFlag('examprep')] !== true) return <ExamPrepOffPage />;
+  const pluginManager = !!host?.openPluginManager;
   return (
     <section className="page" role="status">
       <PageHeader title={ui('此功能已停用')} description={ui('在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。')}
-        actions={<Button onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('工作区设置')}</Button>} />
+        actions={<>
+          {pluginManager && <Button variant="primary" icon="external" onClick={() => host.openPluginManager()}>{ui('打开 DSH 插件管理器')}</Button>}
+          <Button variant={pluginManager ? 'secondary' : 'primary'} onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('前往设置')}</Button>
+        </>} />
     </section>
   );
 }
