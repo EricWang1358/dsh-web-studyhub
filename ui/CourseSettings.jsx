@@ -142,7 +142,7 @@ export function NewCourse({ courses = [], disabled = false, onCreate, onOpen, in
   const waiting = !!same || similar.length > 0;
   return <div className="course-list__new-form">
     <div className="course-list__new-row">
-      <TextInput aria-label={ui('课程名称')} value={name} maxLength={200} disabled={disabled} placeholder={ui('课程名称，例如 数据结构')} onChange={event => setName(event.target.value)}
+      <TextInput className="course-list__new-input" aria-label={ui('课程名称')} value={name} maxLength={200} disabled={disabled} placeholder={ui('课程名称，例如 数据结构')} onChange={event => setName(event.target.value)}
         onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent?.isComposing && typed && !waiting) { event.preventDefault(); create(); } else if (event.key === 'Escape') close(); }} />
       {!waiting && <Button variant="primary" disabled={disabled || !typed} onClick={create}>{ui('创建')}</Button>}
       <Button variant="quiet" disabled={disabled} onClick={close}>{ui('取消')}</Button>

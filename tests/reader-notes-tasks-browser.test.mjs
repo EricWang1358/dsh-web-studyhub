@@ -257,12 +257,12 @@ test('a new course is made from the course list, asked about when its name is ne
         const existing = page.locator('.course-settings');
         await existing.waitFor({ timeout: 30000 });
         assert.notEqual(await existing.locator('details.course-settings__more').getAttribute('open'), null, `${width}px: the sample course has a profile, so the fold is open`);
-        await existing.locator('.topic-chips').waitFor();
-        assert.equal(await existing.locator('.topic-chips__add input').inputValue(), '', `${width}px: the add box is empty`);
-        await until(async () => (await existing.locator('.topic-chips__suggest').count()) === 1, `${width}px: suggestions from the learner's weak topics`);
-        const before = await existing.locator('.topic-chips__list').first().locator('li').count();
-        await existing.locator('.topic-chips__suggest button.sh-chip__main').first().click();
-        assert.equal(await existing.locator('.topic-chips__list').first().locator('li').count(), before + 1, `${width}px: a click adds the one suggestion, nothing else`);
+        await existing.locator('.topic-field').waitFor();
+        assert.equal(await existing.locator('.topic-field__add input').inputValue(), '', `${width}px: the add box is empty`);
+        await until(async () => (await existing.locator('.topic-field__suggest').count()) === 1, `${width}px: suggestions from the learner's weak topics`);
+        const before = await existing.locator('.topic-field__list').first().locator('li').count();
+        await existing.locator('.topic-field__suggest button.sh-chip__main').first().click();
+        assert.equal(await existing.locator('.topic-field__list').first().locator('li').count(), before + 1, `${width}px: a click adds the one suggestion, nothing else`);
         await settleAnimations(page);
         await shot(page, `courses-${width}-existing`);
         await existing.getByRole('button', { name: '关闭', exact: true }).last().click();

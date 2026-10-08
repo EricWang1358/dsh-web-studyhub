@@ -14,19 +14,19 @@ export default function TopicChips({ value, onChange, suggestions = [], disabled
   const offered = suggestions.filter(item => item?.topic && !have.has(item.topic));
   const commit = () => { if (draft.trim()) onChange(addTopics(value, draft)); setDraft(''); };
   return (
-    <div className="topic-chips">
-      {topics.length > 0 && <ul className="topic-chips__list" aria-label={ui('重点知识点')}>
+    <div className="topic-field">
+      {topics.length > 0 && <ul className="topic-field__list" aria-label={ui('重点知识点')}>
         {topics.map(topic => <li key={topic}><Chip removeLabel={uiFormat('删除「{0}」', [topic])} onRemove={disabled ? undefined : () => onChange(removeTopic(value, topic))}>{topic}</Chip></li>)}
       </ul>}
-      <div className="topic-chips__add">
-        <TextInput aria-label={ui('添加重点知识点')} value={draft} disabled={disabled} maxLength={200} placeholder={ui('输入一个知识点，按回车添加；例如 迁移策略')}
+      <div className="topic-field__add">
+        <TextInput className="topic-field__input" aria-label={ui('添加重点知识点')} value={draft} disabled={disabled} maxLength={200} placeholder={ui('输入一个知识点，按回车添加；例如 迁移策略')}
           onChange={event => setDraft(event.target.value)} onBlur={commit}
           onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent?.isComposing) { event.preventDefault(); commit(); } }} />
         <Button size="sm" variant="secondary" disabled={disabled || !draft.trim()} onClick={commit}>{ui('添加')}</Button>
       </div>
-      {offered.length > 0 && <div className="topic-chips__suggest">
+      {offered.length > 0 && <div className="topic-field__suggest">
         <small className="muted">{ui('建议：这些是你答错最多的知识点，点一下才会加入')}</small>
-        <ul className="topic-chips__list" aria-label={ui('建议的知识点')}>
+        <ul className="topic-field__list" aria-label={ui('建议的知识点')}>
           {offered.map(item => <li key={item.topic}><Chip size="sm" disabled={disabled} onClick={() => onChange(addTopics(value, item.topic))}>{`＋ ${item.topic}`}</Chip></li>)}
         </ul>
       </div>}
