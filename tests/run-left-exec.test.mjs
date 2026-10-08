@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { reportUsage } from '../lib/usage-scope.js';
+import { usageLedger } from '../lib/model-usage.js';
 import { roundList } from '../lib/coverage-run.js';
 import { settleJob, until } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
@@ -23,11 +24,18 @@ const gate = () => { let open; const promise = new Promise(resolve => { open = r
 /** `pick(keys, quotas)`: the section of round 2 that is left; `planKeep`: in the top-up, the planner returns at most that many points for it, however often it is asked (a plan that comes back short). */
 async function almostCovered(t, { pick = keys => keys.at(-1), planKeep = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-run-left-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   // One fill round: the story is a run that ended with one section left; the run may now write a section again in further fill rounds (lib/coverage-run.js FILL_ROUNDS), which is not what this test is about.
   const service = new StudyService(root, { coverage: { roundLimit: 30, fillRounds: 1 } });
-  t.after(() => service.dispose());
   const model = clusteringModel(), world2 = { phase: 1, last: null, holdPlan: null, holdReview: null, returned: 0 };
+  /* One cleanup, in this order (t.after hooks run in the order they were registered, so two hooks would remove the folder first). A failed check must not leave the job held for ever, so the gates open first;
+     then the service stops; then the usage ledger, which writes the tally of every call after the call and is not waited for by the job, is let to finish its queue (on a slow disk it is still writing when the
+     job has ended, and the folder then still gets a file while it is removed: ENOTEMPTY, the CI failure of 2026-10-08); then the folder goes. */
+  t.after(async () => {
+    world2.holdPlan?.open(); world2.holdReview?.open();
+    await service.dispose();
+    await usageLedger(root).summary();
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
   const inLast = target => !!world2.last && world2.last.endsWith(`#${sectionOfQuote(target?.citations?.[0]?.quote || '')}`);
   /** The planner's answer with at most `keep` points (over every call) in the section that is left. */
   const planned = async (system, prompt, context, keep) => {
@@ -77,8 +85,6 @@ test('a top-up of the one section left of a failed round: what is left is that s
   assert.ok(runBefore > 0, 'the run spent tokens before this job');
 
   phase.phase = 2; phase.holdPlan = gate(); phase.holdReview = gate();
-  // A failed check must not leave the job held for ever.
-  t.after(() => { phase.holdPlan.open(); phase.holdReview.open(); });
   const started = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: left, autoComplete: true } });
   await until(() => phase.holdPlan.entered, 'the top-up to ask its planner');
   let contract = await contractOf(service, started.jobId);
@@ -121,7 +127,6 @@ test('a plan that comes back short: once the planner has answered, the round mak
   const view = await service.call('coverage.get', { draftId: draft.id });
   assert.deepEqual(view.round.picks.map(pick => pick.key), [phase.last]);
   phase.phase = 2; phase.holdPlan = gate(); phase.holdReview = gate(); phase.returned = 0;
-  t.after(() => { phase.holdPlan.open(); phase.holdReview.open(); });
   const started = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: [phase.last], autoComplete: true } });
   await until(() => phase.holdPlan.entered, 'the top-up to ask its planner');
   let contract = await contractOf(service, started.jobId);
