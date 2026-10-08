@@ -8,6 +8,7 @@ import { ReadingBlock } from "./reading-settings/ReadingSettings.jsx";
 import { Button, ErrorState, StackedBar } from "./components/index.js";
 import { useLiveEffect } from './use-async.js';
 import { setQueryData, useHostQuery } from './host-query.js';
+import { RESULT_COUNTDOWN_SECONDS } from './review/session-logic.js';
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
@@ -16,9 +17,9 @@ import { setQueryData, useHostQuery } from './host-query.js';
    去向是回到原题时，这张卡不再提供任何会把人带去别处的按钮，只让自动驾驶倒计时走回原题；页面自己的「回到原题」是唯一主动作。 */
 
 const LEVELS = [["recall", "记忆"], ["concept", "概念辨析"], ["apply", "应用分析"]];
-const COUNTDOWN = 5;
+const COUNTDOWN = RESULT_COUNTDOWN_SECONDS;
 
-export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy }) {
+export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy, nextShown = false, debriefModel = true, onSettings, onProfileSettings }) {
   useInjectCss(css, "study-coach");
   const [debrief, setDebrief] = useState(initial || null),
     [error, setError] = useState(""),
@@ -48,6 +49,9 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   const onward = destination?.go || onContinue;
   const action = next === "original" ? destination.go : next === "practice_prepared" ? onPractice
     : next === "review_weak" ? onReviewWeak : next === "continue_path" ? onward : null;
+  /* `nextShown`: the page already offers the way on above this card (ui/Review.jsx), so the card keeps a button only for a suggestion of its own
+     (定制题 or 补薄弱, secondary then); the autopilot countdown below still takes the way on. */
+  const suggestion = next === "practice_prepared" || next === "review_weak";
   const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题 →", [ready]) : next === "review_weak" ? ui("先补薄弱点 →") : destination?.label || ui("继续学习 →");
 
   // Autopilot: count down, then take the suggested step; any click cancels.
@@ -91,6 +95,12 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   }
   const askConsent = !!status?.enabled && status.consent === null && consent.answer === null;
 
+  /* One quiet line: the 点评 asks the lighter model for a sentence once a round has 3 or more answers (lib/contexts/coach/worker.js), and the
+     setting that turns that off is one link away. A shorter round never asks, so it has nothing to say. */
+  const modelNote = onSettings && run.answered >= 3 && (
+    <p className="coach-model-note">{debriefModel ? ui("这段点评请较轻量的模型写一句话。") : ui("点评没有调用模型：已在设置里关闭，只按作答统计。")}
+      {" "}<Button variant="link" size="sm" onClick={onSettings}>{ui("前往设置")}</Button></p>
+  );
   if (error && !debrief) return null;
   if (!debrief)
     return (
@@ -99,6 +109,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
         <div className="skeleton h" />
         <div className="skeleton l" />
         <div className="skeleton s" />
+        {modelNote}
       </div>
     );
   const m = debrief.metrics || {};
@@ -131,11 +142,11 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       )}
       <div className="coach-actions">
         {next === "wait" && (
-          <Button variant="primary" disabled>{ui("正在为你备应用题…")}</Button>
+          <Button variant={nextShown ? "secondary" : "primary"} disabled>{ui("正在为你备应用题…")}</Button>
         )}
-        {action && !back && (
+        {action && !back && (!nextShown || suggestion) && (
           <Button
-            variant="primary"
+            variant={nextShown ? "secondary" : "primary"}
             disabled={busy}
             onClick={() => {
               cancelled.current = true;
@@ -152,6 +163,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
         )}
         {next === "rest" && <span className="coach-countdown">{ui("今天到这儿就很好，明天按间隔回来复习。")}</span>}
       </div>
+      {modelNote}
       {askConsent && (
         <div className="coach-card coach-consent">
           <p>{ui("要给你备几道变式题和应用场景题吗？开启时会从最近的错题中选最多 4 道备题；之后点「生成变式」或标记「太简单 / 太难」时，也会在后台少量调用模型备题。本轮回顾发现还缺应用练习时，也会准备应用题。")}</p>
@@ -172,7 +184,8 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
         </p>
       )}
       {consent.answer === false && (
-        <p className="coach-consent-note" role="status">{ui("好的，不备题。想开启时去「设置 › 学习画像与导览」里的「陪学」。")}</p>
+        <p className="coach-consent-note" role="status">{ui("好的，不备题。想开启时可以在设置里打开「陪学」。")}
+          {onProfileSettings && <>{" "}<Button variant="link" size="sm" onClick={onProfileSettings}>{ui("前往设置")}</Button></>}</p>
       )}
     </ReadingBlock>
   );

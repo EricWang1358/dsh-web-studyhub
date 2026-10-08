@@ -37,6 +37,7 @@
     .result-legend-item { display: inline-flex; gap: var(--space-2); align-items: center; font-size: var(--fs-md); color: var(--text-muted); }
     .result-legend-item strong { color: var(--text); font-variant-numeric: tabular-nums; }
     .result-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+    .result-page .result-next { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-5) 0 var(--space-4); }
     .result-page .summary-topics { margin: var(--space-5) 0; }
     .result-page .summary-topics h3 { margin: 0 0 var(--space-3); font-size: var(--fs-lg); }
     .result-page .summary-topics .muted { margin: 0; }

@@ -6,7 +6,8 @@ import { readTeachingDraft, saveTeachingDraft } from '../teaching-draft.js';
 import { reviewNoticeScope } from '../ActionFeedback.jsx';
 import { usePersistentState } from '../storage.js';
 import { usePolling } from '../use-polling.js';
-import { AUTOPILOT_KEY, EN_KEY, flag } from '../app/use-app-shell.js';
+import { EN_KEY, flag } from '../app/use-app-shell.js';
+import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { askAboutCardPrompt, improveCardPrompt } from '../agent-prompts/card.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
@@ -27,7 +28,22 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
   const [showBack, setShowBack] = useState(false);
   const [showEn, setShowEn] = usePersistentState(EN_KEY, false, flag('1', '0'));
   const [enBusyKey, setEnBusyKey] = useState('');
-  const [autopilot, setAutopilot] = usePersistentState(AUTOPILOT_KEY, false, flag('on', 'off'));
+  /* 自动驾驶 is the library's setting (设置 › 练习), not a browser flag: the toolbar switch and the A key write it, and what was just chosen shows at
+     once, until the library says the same. */
+  const savedAutopilot = resolvePracticeSettings(refs.dataRef.current?.settings?.practice).autopilot;
+  const [autopilotChoice, setAutopilotChoice] = useState(null);
+  useEffect(() => { if (autopilotChoice !== null && autopilotChoice === savedAutopilot) setAutopilotChoice(null); }, [savedAutopilot, autopilotChoice]);
+  const autopilot = autopilotChoice ?? savedAutopilot;
+  const autopilotRef = useRef(autopilot);
+  autopilotRef.current = autopilot;
+  const toggleAutopilot = useCallback(() => {
+    const next = !autopilotRef.current;
+    setAutopilotChoice(next);
+    // `call`, not `act`: a step that is saving must not swallow this, and it only flips a setting.
+    call('settings.practice.set', { patch: { autopilot: next } })
+      .then(() => core.refresh().catch(() => {}))
+      .catch((failure) => { setAutopilotChoice(null); setError(errorMessage(failure)); });
+  }, [call, core, setError]);
   const [autoAdvance, setAutoAdvance] = useState('');
   const [shortcutHelp, setShortcutHelp] = useState(false);
   const [teachingPending, setTeachingPending] = useState({});
@@ -260,7 +276,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
     if (!action) return;
     if (action.type === 'help') setShortcutHelp((value) => !value);
     else if (action.type === 'help-close') setShortcutHelp(false);
-    else if (action.type === 'autopilot') setAutopilot((value) => !value);
+    else if (action.type === 'autopilot') toggleAutopilot();
     else if (action.type === 'resume') late.current.resume?.();
     else if (action.type === 'answer') reviewAct('review.answer', action.args);
     else if (action.type === 'move') reviewAct('review.move', { direction: action.direction });
@@ -300,6 +316,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
           (result) => enterRun(result, returnInput.current?.runId === destination.runId ? returnInput.current.input : undefined));
       }
       if (destination.kind === 'plan' && plan?.start) return plan.start(destination.taskId);
+      // The next round of the course the finished round was a round of: the same arguments the home card starts it with.
+      if (destination.course !== undefined) return act('review.start', practiceArgs(undefined, { course: destination.course, daily: true }), enterRun);
       return act('review.start', practiceArgs(destination.kind === 'scope' ? destination.scope : []), enterRun);
     };
     return { ...destination, label: continueLabel(destination), note: continueNote(destination), go };
@@ -317,8 +335,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
     setResponse: (response) => patch({ response }),
     setClozeValue: (id, value) => patch((current) => ({ clozeValues: { ...current.clozeValues, [id]: value } })),
     setTeachAnswer: (teachAnswer) => patch({ teachAnswer }),
-    closeShortcutHelp: () => setShortcutHelp(false),
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, askAboutCard, improveCard, patch]);
+    closeShortcutHelp: () => setShortcutHelp(false), toggleAutopilot,
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, askAboutCard, improveCard, patch, toggleAutopilot]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
     shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions };
 }
