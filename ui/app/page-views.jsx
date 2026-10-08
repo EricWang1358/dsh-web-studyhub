@@ -312,17 +312,14 @@ export const PAGE_VIEWS = {
   examprep: ExamPrepView,
 };
 
-/** 备考补习 while the host's switch is off: the switch is not a component, so it points at Settings and, when there is one, the plugin manager. */
+/** 备考补习 while the learner has it turned off in Settings (the switch is not a component, so the generic text about components would be wrong). */
 function ExamPrepOffPage() {
-  const { host, settingsEntry } = useApp();
+  const { settingsEntry } = useApp();
   return (
     <section className="page" role="status">
       <PageHeader title={ui('备考补习还没有开启')}
-        description={ui('备考补习要由 DSH 开启，并不是缺少组件；已保存的考点清单仍可阅读。')}
-        actions={<>
-          <Button variant="primary" onClick={() => settingsEntry.openSettings('settings-exam-prep')}>{ui('前往设置')}</Button>
-          {host?.openPluginManager && <Button variant="secondary" icon="external" onClick={() => host.openPluginManager()}>{ui('打开 DSH 插件管理器')}</Button>}
-        </>} />
+        description={ui('备考补习在设置里被关掉了，要用的话在设置里重新打开；已保存的考点清单仍可阅读。')}
+        actions={<Button variant="primary" onClick={() => settingsEntry.openSettings('settings-exam-prep')}>{ui('前往设置')}</Button>} />
     </section>
   );
 }
