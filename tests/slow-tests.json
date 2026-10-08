@@ -86,6 +86,7 @@
     "tests/store.test.mjs",
     "tests/test-runner-lock.test.mjs",
     "tests/test-runner-schedule.test.mjs",
+    "tests/test-runner-shards.test.mjs",
     "tests/unified-runtime-audio-batch.test.mjs",
     "tests/unified-runtime-audio-pilot.test.mjs",
     "tests/unified-runtime-audio-rollforward.test.mjs",
