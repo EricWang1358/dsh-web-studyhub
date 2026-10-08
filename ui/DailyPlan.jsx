@@ -11,6 +11,7 @@ import Menu from './components/Menu.jsx';
 import { ProgressBar } from './components/Progress.jsx';
 import { InlineMessage } from './components/Feedback.jsx';
 import ModelErrorNote from './ModelErrorNote.jsx';
+import ModelSetupGate from './ModelSetupGate.jsx';
 import { usePersistentState } from './storage.js';
 import { useStudy } from './study-context.jsx';
 import { normalizeRoot } from './board/meta.js';
@@ -249,8 +250,7 @@ export default function DailyPlan({ plan, onBoard, modelReady = true, openModelS
           {editor === 'adjust' && <Adjustment plan={plan} onClose={closeEditor} />}
           {editor === 'profile' && <Profile plan={plan} onClose={closeEditor} />}
         </div>
-        {!modelReady && <InlineMessage tone="info" action={openModelSettings ? { label: ui('打开模型设置'), onClick: openModelSettings } : undefined}>
-          {ui('配置模型后可以协商安排；已接受的行动可以继续。')}</InlineMessage>}
+        {!modelReady && <ModelSetupGate variant="compact" feature="plan" model={{ ready: false }} onOpenSettings={openModelSettings} />}
       </>}
     </div>
   </section>;

@@ -65,6 +65,7 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     .settings-page .binding-panel { margin: 0; }
+    .settings-page .model-status-note { margin: var(--space-3) 0 0; }
   }
 }
 

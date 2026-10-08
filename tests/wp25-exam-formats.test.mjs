@@ -140,7 +140,7 @@ test("案例分析卷 setup: pick a paper, reading and writing time from the cou
   const gated = render(CasePaper, { ...props, data: { ...props.data, model: { ready: false, reason: "no-route" } }, onSetupModel: noop });
   assert.match(gated, /sh-setup/);
   assert.match(gated, /批改要调用 AI 模型/, "the one shared 批改 gate (ModelSetupGate), not a page-own card");
-  assert.match(gated, /打开模型设置/);
+  assert.match(gated, /前往设置/);
   assert.equal((gated.match(/sh-btn--primary/g) || []).length, 2, "the start button plus the gate's own fix action");
   const empty = render(CasePaper, { ...props, data: { ...props.data, decks: [] } });
   assert.match(empty, /还没有案例分析题组/);
@@ -165,7 +165,7 @@ test("口头面试 setup explains itself plainly, with 3/5/8 presets and without
   const noModel = render(OralSetup, { data: { ...data, model: { ready: false, reason: "no-route" } }, count: 3, onCount: noop, onStart: noop, onSetupModel: noop, canStart: true });
   assert.match(noModel, /还没有可用的 AI 模型/, "the shared inline gate");
   assert.match(noModel, /追问会用固定问题/, "and what the oral exam does without a model");
-  assert.match(noModel, /打开模型设置/);
+  assert.match(noModel, /前往设置/);
   const none = render(OralSetup, { data, count: 3, onCount: noop, onStart: noop, canStart: false });
   assert.match(none, /disabled=""[^>]*>[^<]*开始口头模拟|disabled=""[^>]*>[\s\S]*?先出一些题/);
 });

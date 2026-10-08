@@ -3,7 +3,7 @@ import { clearStepDraft as clearDraft, keepStepDraft as keepDraft, readStepDraft
 import { formatDateTime, formatNumber } from "./format.js";
 import { usePolling } from "./use-polling.js";
 import { uiRich } from "./i18n-rich.jsx";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
 import { Banner, Button, Disclosure, ErrorState, InlineMessage, LoadingState, PageHeader, ProgressBar, useToast } from "./components/index.js";
@@ -11,6 +11,7 @@ import { WORKFLOW_HANDOFF as HANDOFF, workflowStepPrompt } from "./agent-prompts
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
 import { Readings, ScopeBar } from "./WorkflowScope.jsx";
 import ModelErrorNote, { ModelSettingsContext } from "./ModelErrorNote.jsx";
+import ModelSetupGate from "./ModelSetupGate.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./workflows.css";
 import skeletonCss from "./skeleton.css";
@@ -75,7 +76,7 @@ function SkeletonMaker({ session, resources, disabled, onGenerate }) {
       : resources.modelReady ? <>{failed && (job.message ? <ModelErrorNote error={job.message} /> : <InlineMessage tone="error">{ui("上次没有生成成功。")}</InlineMessage>)}
         <Button variant="primary" disabled={disabled || !resources.cardCount} onClick={onGenerate}>{failed ? ui("重新生成本次范围的骨架") : ui("一键生成本次范围的骨架")}</Button>
         {!resources.cardCount && <p className="muted small">{ui("本次范围没有题目，无法整理骨架。")}</p>}</>
-      : <p className="wf-model-hint">{ui("连接模型后可以一键生成；也可以请主对话帮你设计骨架。")}</p>}
+      : <ModelSetupGate variant="compact" feature="skeleton" model={{ ready: false }} className="wf-model-hint" />}
   </div>;
 }
 
@@ -132,7 +133,9 @@ export function SpinePeek({ session, resources, stepKind, late, disabled, onGene
 
 /** The guided flow. onOpenSettings (optional) is what a model-failure note inside it offers as 打开模型设置. */
 export default function WorkflowPortal({ onOpenSettings, ...props }) {
-  return <ModelSettingsContext.Provider value={onOpenSettings || null}><PortalBody {...props} /></ModelSettingsContext.Provider>;
+  // Without its own, the app's way to the settings stays: a null here would hide the button from every note inside.
+  const fromApp = useContext(ModelSettingsContext);
+  return <ModelSettingsContext.Provider value={onOpenSettings || fromApp || null}><PortalBody {...props} /></ModelSettingsContext.Provider>;
 }
 
 function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision }) {

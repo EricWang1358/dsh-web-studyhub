@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { renderNoteMarkdown } from "./note-markdown.js";
 import { Button, InlineMessage, LoadingState } from "./components/index.js";
 import ModelErrorNote from "./ModelErrorNote.jsx";
+import ModelSetupGate from "./ModelSetupGate.jsx";
 import { TokenEstimate, TokenUsage } from "./TokenUsage.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 
@@ -52,7 +53,7 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     <TeachingCitations citations={record.citations} sources={resources.sources} />
     {running && !remedyRunning && <div className="wf-teaching-progress" role="status"><span className="wf-progress-mark" aria-hidden="true" /><div><strong>{teaching.mode === "improve" ? ui("正在改进这篇讲解") : content ? ui("正在补充讲解") : ui("正在组织概念与例子")}</strong><p>{ui("完成后会显示在这里。你可以继续阅读，也可以稍后回来。")}</p></div></div>}
     {failed && <div className="wf-failure">{!interrupted && teaching.message ? <ModelErrorNote error={teaching.message} /> : <InlineMessage tone="warning">{interrupted ? ui("上次生成已中断，可以重新开始。") : ui("这次讲解没有生成成功，请重试。")}</InlineMessage>}<Button size="sm" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</Button></div>}
-    {unavailable && <p className="wf-model-hint">{ui("连接模型后即可生成讲解；也可以在下方请主对话补充材料。")}</p>}
+    {unavailable && <ModelSetupGate variant="compact" feature="lesson" model={{ ready: false }} className="wf-model-hint" />}
     {content && <div className="wf-teaching-tools">
       <div className="wf-help-row"><span>{ui("帮我弄懂")}</span><div className="wf-quick-choices" role="group" aria-label={ui("帮助方式")}>{HELP.map((item) => <Button key={item.mode} disabled={blocked} onClick={() => onTeach(item.mode)}>{ui(item.label)}</Button>)}<Button disabled={blocked} onClick={() => onTeach("improve")}>{ui("改进讲解")}</Button></div></div>
       <details className="wf-improve"><summary>{ui("提升讲解质量")}</summary><p className="muted small">{ui("选一个最需要改进的地方，会重写本步讲解。")}</p><div className="wf-quick-choices" role="group" aria-label={ui("改进方向")}>{IMPROVE.map((item) => <Button key={item} disabled={blocked} onClick={() => onTeach("improve", item)}>{item}</Button>)}<Button disabled={blocked} onClick={() => onTeach("improve")}>{ui("整体改进")}</Button></div></details>
