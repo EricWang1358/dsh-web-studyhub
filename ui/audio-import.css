@@ -32,8 +32,6 @@
     .audio-order-actions button { padding: var(--space-1-5) var(--space-2); }
     .audio-add { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2-5) 0; }
     .audio-add.over { outline: 2px dashed var(--line); outline-offset: 4px; }
-    /* The start button says what it will do (length, parts, requests, one transcript): that is a sentence, and it wraps inside the form instead of widening it. */
-    .audio-submit > .sh-btn { max-width: 100%; height: auto; padding-block: var(--space-2); white-space: normal; text-align: left; line-height: var(--lh-snug); overflow-wrap: anywhere; }
   }
   @media (max-width: 520px) {
     :where(.study-app, .study-seat) {

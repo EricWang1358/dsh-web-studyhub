@@ -66,7 +66,7 @@ const bundle = await build({ stdin: { contents: `
   window.mountLive = (live) => createRoot(document.getElementById('root')).render(
     <LiveClass call={() => new Promise(() => {})} data={data} visible onSettings={opened('live')} initialReadiness={{ live }} />);
   window.mountAudio = () => createRoot(document.getElementById('root')).render(
-    <AppContext.Provider value={{ data, host: {}, nav: { navigate: (page) => opened('audio:' + page)(), show: { page: () => {} } }, lib: {}, set: {}, learn: {} }}>
+    <AppContext.Provider value={{ data, host: {}, nav: { navigate: (page) => opened('audio:' + page)(), show: { page: () => {} } }, lib: {}, set: {}, learn: {}, sources: {} }}>
       <AudioView />
     </AppContext.Provider>);
 `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });

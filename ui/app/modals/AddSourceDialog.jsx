@@ -27,7 +27,9 @@ export function SourceForm() {
   const openSettings = (section, resume) => {
     const file = resume?.file, course = resume?.courses;
     set.setModal(null);
-    settingsEntry.openSettings(typeof section !== 'string' ? 'settings-extensions' : section === 'settings-marker' ? section : 'settings-mineru');
+    /* A link that names no section (the retrieval line under a big document passes the click) opens the search settings; a converter link names its own. */
+    if (typeof section !== 'string') settingsEntry.openSettings('settings-extensions');
+    else settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru');
     if (file?.name) notify({ text: uiFormat('设置好之后回来继续解析「{0}」：文件还在。', [file.name]), persistent: true,
       action: { label: ui('继续解析'), run: () => set.setModal({ type: 'add', ...(course !== undefined ? { course } : {}), resumeConversion: file }) } });
   };

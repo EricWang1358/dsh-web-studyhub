@@ -13,7 +13,7 @@ export default function JobFollowUp({ job, sourceIds, onGenerate, children }) {
   return (
     <div className="job-follow">
       {children}
-      {ready && <Button variant="link" size="sm" aria-label={uiFormat('用它出题：{0}', [job.filename || job.title || ''])} onClick={() => onGenerate(sourceIds)}>{ui('用它出题')}</Button>}
+      {ready && <Button variant="link" size="sm" className="job-follow__go" aria-label={uiFormat('用它出题：{0}', [job.filename || job.title || ''])} onClick={() => onGenerate(sourceIds)}>{ui('用它出题')}</Button>}
     </div>
   );
 }
