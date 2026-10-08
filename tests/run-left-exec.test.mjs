@@ -24,7 +24,8 @@ const gate = () => { let open; const promise = new Promise(resolve => { open = r
 async function almostCovered(t, { pick = keys => keys.at(-1), planKeep = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-run-left-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const service = new StudyService(root, { coverage: { roundLimit: 30 } });
+  // One fill round: the story is a run that ended with one section left; the run may now write a section again in further fill rounds (lib/coverage-run.js FILL_ROUNDS), which is not what this test is about.
+  const service = new StudyService(root, { coverage: { roundLimit: 30, fillRounds: 1 } });
   t.after(() => service.dispose());
   const model = clusteringModel(), world2 = { phase: 1, last: null, holdPlan: null, holdReview: null, returned: 0 };
   const inLast = target => !!world2.last && world2.last.endsWith(`#${sectionOfQuote(target?.citations?.[0]?.quote || '')}`);
