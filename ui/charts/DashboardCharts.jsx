@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLabels } from '../i18n.js';
 import { Button, Panel, ProgressBar, SegmentedControl } from '../components/index.js';
 import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks } from './chart-math.js';
+import { MEASURES, THIN_DATA } from '../mastery-terms.js';
 
 /* The dashboard's three charts, all plain inline SVG / CSS (no chart library):
    a wide score trend, a 14-day due forecast and mastery bars. Each draws at
@@ -267,7 +268,7 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
   const names = view === 'level' ? LEVEL_NAME : KIND_NAME;
   const answered = rows.reduce((n, r) => n + r.n, 0);
   return (
-    <Panel className="dash-chart dash-mastery-panel" title={ui('掌握度')}
+    <Panel className="dash-chart dash-mastery-panel" title={ui(MEASURES.passRate.label)}
       description={uiFormat('近 {0} 天作答，3 分及以上算达标', [windowDays])}
       actions={<SegmentedControl size="sm" label={ui('统计维度')} value={view} onChange={setView}
         options={[{ value: 'level', label: ui('按认知层次') }, { value: 'kind', label: ui('按题型') }]} />}>
@@ -280,7 +281,7 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
                 ? <ProgressBar className="dash-mbar" tone={tone(r.rate)} label={uiFormat('{0}：{1}%', [names[r.id], r.rate])} value={r.rate} />
                 : <span className="dash-mbar dash-mbar--empty" aria-hidden="true" />}
               <span className="dash-mvalue">
-                {r.enough ? <b>{r.rate}%</b> : <em>{ui('数据不足')}</em>}
+                {r.enough ? <b>{r.rate}%</b> : <em>{ui(THIN_DATA)}</em>}
                 <small>{uiFormat('{0} 次作答', [r.n])}</small>
               </span>
             </li>
@@ -288,7 +289,7 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
         </ul>
       ) : (
         <div className="dash-chart-box">
-          <Empty title={uiFormat('近 {0} 天还没有足够的作答', [windowDays])}>{ui('多做几道题，这里会显示各层次的掌握度。')}</Empty>
+          <Empty title={uiFormat('近 {0} 天还没有足够的作答', [windowDays])}>{ui('多做几道题，这里会显示各层次的达标率。')}</Empty>
         </div>
       )}
     </Panel>

@@ -140,6 +140,8 @@
     .dash-mvalue b { font-size: var(--fs-lg); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; color: var(--text); }
     .dash-mvalue em { font-size: var(--fs-sm); font-style: normal; color: var(--text-muted); }
     .dash-mvalue small { font-size: var(--fs-xs); color: var(--text-muted); }
+    /* A hero rate over too few answers: the words 数据不足 in the numeral's place, quiet, on the numeral's baseline. */
+    .dash-rates strong.is-thin { display: flex; align-items: center; height: var(--fs-5xl); font-family: var(--font-ui); font-size: var(--fs-xl); font-weight: var(--fw-regular); letter-spacing: 0; line-height: 1; color: var(--text-muted); }
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
