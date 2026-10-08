@@ -17,6 +17,7 @@ import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import { CoverageChip } from './coverage/Coverage.jsx';
 import DocumentTopUp, { offersDocumentTopUp } from './coverage/DocumentTopUp.jsx';
 import { modelReadiness } from './generation-status.js';
+import ModelSetupGate from './ModelSetupGate.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
 import IndexBadge from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
@@ -441,7 +442,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             <Button disabled={busy || !selectedItems.length} onClick={() => act('source.courses.set', {
               assignments: courseAssignments(items, selected, parseCourses(courseText), byId),
             }, finish)}>{ui('应用课程归属')}</Button>
-            <Button disabled={busy || !data.modelReady || !selectedItems.length || selectedItems.length > 100}
+            <Button disabled={busy || !modelReadiness(data).ready || !selectedItems.length || selectedItems.length > 100}
               onClick={() => act('source.organize.suggest', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
                 setJevRun(result.jev ?? null);
                 setProposals(result.proposals.map(proposal => {
@@ -459,6 +460,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                 }));
               }); }} />
           </div>
+          <ModelSetupGate variant="compact" feature="organize" model={modelReadiness(data)} />
           {experimental && <JevNote note={jevNote} />}
           {experimental && <JevRunNote jev={jevRun} />}
           {proposals && <div className="source-course-proposals">

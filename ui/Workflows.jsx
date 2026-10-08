@@ -1,6 +1,8 @@
 import { ui, uiFormat, useUiLanguage } from "./i18n.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
+import ModelSetupGate from "./ModelSetupGate.jsx";
+import { modelReadiness } from "./generation-status.js";
 import { Banner, Button, Checkbox, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, Select, useToast } from "./components/index.js";
 import { workflowDesignPrompt, workflowSkeletonPrompt } from "./agent-prompts/workflow.js";
 import { useInjectCss } from "./shared.js";
@@ -290,7 +292,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     <PageHeader title={ui("今天想学什么？")} description={ui("说一句就行。AI 从你的学习库里挑材料、排顺序、讲给你听，再看你的复述；你只管往下走。")} />
     <form className="wf-quick" onSubmit={quickStart} data-tour="workflows-main">
       {data?.focus?.course != null && (data.focus.courses || []).length > 0 && <p className="wf-quick-course muted small">{uiFormat("会在当前课程「{0}」的资料里选；想换课程，开始后在下一页点「换课程」。", [data.focus.course || ui("未分类课程")])}</p>}
-      {!modelReady && <p className="wf-quick-hint">{ui("还没有连接模型：会按主题和题组名匹配材料；讲解、复述反馈和后台骨架要连接模型后才会出现。")}</p>}
+      {!modelReady && <ModelSetupGate variant="compact" feature="workflow" model={modelReadiness(data)} className="wf-quick-hint" />}
       {unfinished && <p className="wf-quick-resume"><span className="muted">{ui("上次学到一半")}</span><Button variant="link" size="sm" iconEnd="arrow-right" disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: unfinished.id })}>{[unfinished.topic, unfinished.stepIndex >= 0 && uiFormat("第 {0}/{1} 步 {2}", [unfinished.stepIndex + 1, unfinished.stepCount, unfinished.stepTitle]), ui("接着学")].filter(Boolean).join(" · ")}</Button></p>}
       <div className="wf-quick-row">
         <input value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={500} disabled={!!pending}

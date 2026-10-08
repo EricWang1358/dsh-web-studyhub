@@ -299,8 +299,9 @@ test("the PDF page warning, tour anchors and the gate keep working", () => {
   assert.doesNotMatch(render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id) }), /题数少于页数/, "by coverage strength every page is a section the plan covers: no warning");
   assert.match(html, /data-tour="generate-submit"/);
   const gated = render({ modelReady: false });
-  assert.match(gated, /sh-setup/);
-  assert.doesNotMatch(gated, /type="submit"/);
+  assert.match(gated, /sh-banner--warning/, "the gate is a banner on top of the form");
+  assert.doesNotMatch(gated, /sh-setup/);
+  assert.match(gated.match(/<button[^>]*data-tour="generate-submit"[^>]*>/)[0], /disabled/, "the submit stays where it was, off");
 });
 
 test("the English form has no Chinese UI text", () => {
@@ -367,7 +368,7 @@ test("an answer in the wrong format says so and offers to show the answer", () =
 test("with no model the line offers the model settings, and the retry button asks again", () => {
   const html = assist({ ready: true, phase: "done", onSettings: noop, result: { source: "local", focus: ["Sharding"], unavailable: { reason: "no-model" } } });
   assert.match(text(html), /还没有可用的 AI 模型/);
-  assert.match(html, /打开模型设置/);
+  assert.match(html, /前往设置/);
   assert.doesNotMatch(html, />再试一次<\/button>/, "retrying cannot help before a model exists");
   const quiet = assist({ ready: false, phase: "done", result: { source: "local", focus: ["Sharding"], unavailable: { reason: "no-model" } } });
   assert.doesNotMatch(quiet, /还没有可用的 AI 模型/, "a learner who knowingly has no model is not nagged: the button already says it is local");

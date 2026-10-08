@@ -192,6 +192,7 @@ export default function Generate({
           secondary={{ label: ui("已有题目？导入 JSON 题组"), onClick: () => setGenSource("json") }} />
       ) : (
         <>
+          <ModelSetupGate variant="banner" feature="generate" model={model} onOpenSettings={openSettings} />
           <p className="muted">{ui("先选资料，再设定学习目标。生成结果会先进入草稿；发布时逐题检查，通过的题先进入学习库。")}</p>
           <form onSubmit={submit}>
             <fieldset data-tour="generate-sources">
@@ -304,8 +305,8 @@ export default function Generate({
                   </Button>
                 )}
               </> : (
-                /* P14: no usable model, so there is nothing to click into a 20-second failure. */
-                <ModelSetupGate variant="block" feature="generate" model={model} onOpenSettings={openSettings} data-tour="generate-submit" />
+                /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
+                <Button variant="primary" type="submit" icon="sparkle" disabled data-tour="generate-submit">{ui("生成并检查题组 →")}</Button>
               )}
             </div>
           </form>

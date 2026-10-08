@@ -1,6 +1,7 @@
 import React from "react";
 import { ui, uiFormat } from "./i18n.js";
-import { Banner, Button, Icon, Panel, SetupRequired } from "./components/index.js";
+import { Banner, Button, Icon, Panel } from "./components/index.js";
+import ModelSetupGate from "./ModelSetupGate.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./welcome.css";
 
@@ -62,13 +63,7 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
           </p>
         </div>
       )}
-      {!modelReady && <SetupRequired className="welcome__model" icon="model" title={ui("连接一个 AI 模型")}
-        why={ui("出题、讲解和提问需要 AI 模型；复习练习和示例导览不需要，可以先体验。")}
-        steps={[{ text: ui("打开模型设置，选择一个服务商和模型") }, { text: ui("填入服务商提供的 API Key 并保存，回到这里即可出题") }]}>
-        <div className="welcome__model-action">
-          <Button icon="model" disabled={busy} onClick={onSetupModel}>{ui("打开模型设置")}</Button>
-        </div>
-      </SetupRequired>}
+      {!modelReady && <ModelSetupGate variant="block" feature="welcome" model={model} onOpenSettings={onSetupModel} quiet className="welcome__model" />}
       <footer className="welcome__footer">
         {loaded && onRemoveSample && <Button variant="quiet" size="sm" disabled={busy} onClick={onRemoveSample}>{ui("移除示例数据")}</Button>}
         <Button variant="link" size="sm" onClick={onLater}>{ui("以后再说")}</Button>

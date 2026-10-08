@@ -76,7 +76,7 @@ The built-in DeepSeek card needs no endpoint. For a custom integration, use `htt
 
 By default StudyHub generates with the model selected in the chat input (**Follow current session**). To use a different configured model for questions and explanations only, open StudyHub **Settings › Library & model** and choose a **Generation model**. The chat model stays unchanged.
 
-Until a model is ready, StudyHub shows a setup card with **Open model settings** wherever a step needs one, instead of letting the step fail.
+StudyHub has no key field: the key is stored only in DSH. To see whether a model is ready, open StudyHub **Settings › Library & model**. The top of the page shows **Model connected: the model name**, or **Model not connected** with the reason and the steps above. **Model connected** means DSH has a key for that model; whether the key is valid only shows when it is used. After you save the key in DSH, the status updates by itself, and **Check again** reads it at once. Wherever a step needs a model, StudyHub says so first, with a **Go to settings** link, instead of letting the step fail.
 
 ### For heavier use, check a Coding Plan first
 
