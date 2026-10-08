@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { ui, uiFormat, setUiLanguage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
+import { pageFlag } from '../pages.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
@@ -177,11 +178,15 @@ function TasksView() {
   return <TaskConsole data={data} openers={openers} />;
 }
 
-/** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console. */
+/** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console.
+    openImport opens the add-materials dialog for a course and hands back the ids it made; openSettings(section) goes to a Settings section, and with no section
+    (the model setup gate passes a click) to the model settings. */
 function ExamPrepView() {
-  const { data, nav, learn, settingsEntry } = useApp();
+  const { data, nav, set, learn, settingsEntry } = useApp();
+  const openImport = ({ course, onImported } = {}) => set.setModal({ type: 'add', course: course ?? '', onImported });
+  const openSettings = (section) => (typeof section === 'string' && section ? settingsEntry.openSettings(section) : settingsEntry.openModelSettings());
   return (
-    <ExamPrep key={data.root} data={data} openSettings={settingsEntry.openModelSettings}
+    <ExamPrep key={data.root} data={data} openSettings={openSettings} openImport={openImport}
       onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenTask={nav.show.task} />
   );
 }
@@ -307,9 +312,25 @@ export const PAGE_VIEWS = {
   examprep: ExamPrepView,
 };
 
-/** What the learner sees when the host has switched the page's components off. */
-export function DisabledPage() {
-  const { nav } = useApp();
+/** 备考补习 while the host's switch is off: the switch is not a component, so it points at Settings and, when there is one, the plugin manager. */
+function ExamPrepOffPage() {
+  const { host, settingsEntry } = useApp();
+  return (
+    <section className="page" role="status">
+      <PageHeader title={ui('备考补习还没有开启')}
+        description={ui('备考补习要由 DSH 开启，并不是缺少组件；已保存的考点清单仍可阅读。')}
+        actions={<>
+          <Button variant="primary" onClick={() => settingsEntry.openSettings('settings-exam-prep')}>{ui('前往设置')}</Button>
+          {host?.openPluginManager && <Button variant="secondary" icon="external" onClick={() => host.openPluginManager()}>{ui('打开 DSH 插件管理器')}</Button>}
+        </>} />
+    </section>
+  );
+}
+
+/** What the learner sees when the host has switched the page's components off (备考补习 has its own: its switch is not a component). */
+export function DisabledPage({ page }) {
+  const { data, nav } = useApp();
+  if (page === 'examprep' && data?.features?.[pageFlag('examprep')] !== true) return <ExamPrepOffPage />;
   return (
     <section className="page" role="status">
       <PageHeader title={ui('此功能已停用')} description={ui('在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。')}
