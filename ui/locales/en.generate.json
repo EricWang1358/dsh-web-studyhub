@@ -50,7 +50,6 @@
   "还没有选择用来出题的 AI 模型。配置好之后回到这里，已填的内容会保留。": "No AI model is chosen for generating questions yet. Come back here once it is set up; what you filled in is kept.",
   "出题需要一个可用的 AI 模型。配置好之后回到这里，已填的内容会保留。": "Generating questions needs a working AI model. Come back here once it is set up; what you filled in is kept.",
   "出一组新题": "Create a new deck",
-  "用你的资料让 AI 出题，逐题检查后再发布；已经有现成的题目，也可以直接导入。": "Let AI write questions from your sources and check each one before you publish. Already have questions? Import them directly.",
   "创建方式": "How to create the deck",
   "先添加一份资料": "Add a source first",
   "讲义、笔记、PDF 或网页都可以。AI 只根据你添加的资料出题，并标出每道题的出处。": "Lecture notes, PDFs or web pages all work. AI writes questions only from what you add and cites the source of each one.",

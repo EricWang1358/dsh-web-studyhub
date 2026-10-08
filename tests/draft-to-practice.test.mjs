@@ -96,6 +96,9 @@ test('a draft is published from the card only when nothing is left to look at: c
   assert.equal(ok({ draft: { cards: [] } }), false);
   const edited = cleanDraft(); edited.cards[1] = { ...edited.cards[1], prompt: '改过的题' };
   assert.equal(m.publish.canPublishAtOnce({ draft: edited, shortfall: ready, known: true, jobs: [], targets: null }), false, 'a question changed since its review');
+  // the pipeline stamps WHERE a quote stands (citation.at) after the review has marked the card: that is not a change to what was reviewed
+  const stamped = cleanDraft(); stamped.cards = stamped.cards.map(item => ({ ...item, citations: item.citations.map(ref => ({ ...ref, at: { start: 10, end: 42 } })) }));
+  assert.equal(m.publish.canPublishAtOnce({ draft: stamped, shortfall: ready, jobs: [], targets: null }), true, 'a place stamped after the review is still the reviewed card');
   const unreviewed = cleanDraft(); delete unreviewed.editorial.reviewedCards;
   assert.equal(m.publish.canPublishAtOnce({ draft: unreviewed, shortfall: ready, known: true, jobs: [], targets: null }), false, 'a draft with no review marks');
   assert.equal(ok({}, { jobs: [{ id: 'j', draftId: 'd1', type: 'generate', status: 'running' }] }), false, 'a job works on it');
@@ -198,6 +201,24 @@ test('while a job works on the draft, the page says which job, why 保存并发�
     assert.match(english, /Saving and publishing wait until it is done; to publish now, stop it first/);
     assert.match(english, /Stop and keep the questions so far/);
   });
+});
+
+test('while the job writes the draft the library moves ahead of the page: the same line says so and that the page loads the new content by itself (no "修题" banner for a top-up)', () => {
+  const draft = cleanDraft(), newer = { ...draft, draftVersion: draft.draftVersion + 1 };
+  const html = page(draft, { jobs: [working()], drafts: [newer] });
+  assert.match(text(holdOf(html)), /这期间不能保存或发布.*完成后本页会自动载入最新内容。/);
+  assert.doesNotMatch(html, /后台修题正在更新草稿/, 'a top-up is not a repair');
+  assert.match(buttonTag(html, '保存并发布'), /disabled/);
+  // idle and behind: the old line about loading what was repaired stays
+  assert.match(text(page(draft, { jobs: [], drafts: [newer] })), /正在载入后台修好的题目…/);
+  inLanguage('en', () => assert.match(text(holdOf(page(draft, { jobs: [working()], drafts: [newer] }, { language: 'en' }))), /This page loads the new content by itself when it is done./));
+});
+
+test('right after a save the page is ahead of the snapshot: that is not "stale", so the saved edit is not replaced by the older copy', () => {
+  const draft = cleanDraft(), older = { ...draft, draftVersion: draft.draftVersion - 1 };
+  const html = page(draft, { drafts: [older] });
+  assert.doesNotMatch(html, /草稿已在后台更新|正在载入后台修好的题目/);
+  assert.doesNotMatch(buttonTag(html, '保存并发布') || '', /disabled/, 'and publishing is not held for it');
 });
 
 test('a sticky bar that waits does not move the buttons: the line sits under the bar, not inside it', () => {

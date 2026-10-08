@@ -17,7 +17,6 @@ const m = await loadUi(`
   export { importHandoff } from './ui/app/import-handoff.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const noop = () => {};
-const han = /[㐀-鿿]/;
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 const inLanguage = (language, run) => { m.setUiLanguage(language); try { return run(); } finally { m.setUiLanguage('zh'); } };
 

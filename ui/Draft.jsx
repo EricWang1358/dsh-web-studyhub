@@ -108,7 +108,8 @@ export default function Draft({
     job.type === JOB_TYPES.DRAFT_PUBLISH && isCancellable(job));
   const latestDraft = data.drafts.find((item) => item.id === draft.id);
   const missingDraft = draft.draftVersion > 0 && !latestDraft;
-  const staleDraft = latestDraft && latestDraft.draftVersion !== draft.draftVersion;
+  // Behind the library, not merely different: right after a save the page is AHEAD of the snapshot until it refreshes, and loading that older copy would put the learner's edit back.
+  const staleDraft = !!latestDraft && Number(latestDraft.draftVersion) > (Number(draft.draftVersion) || 0);
   const updatingDraft = generating || repairRunning || !!publishJob || !!work;
   const unsavedDraft = JSON.stringify(draft) !== draftLoaded ||
     (jsonMode && draftText !== JSON.stringify(draft, null, 2));
@@ -118,7 +119,8 @@ export default function Draft({
     if (staleDraft && !updatingDraft && !unsavedDraft) openDraft(latestDraft);
   }, [staleDraft, updatingDraft, unsavedDraft, latestDraft, openDraft]);
   // While a job works on this draft 保存并发布 waits: the reason is said under the buttons (which job, which round) with the way out (stop it; what passed the checks stays).
-  const hold = work && !staleDraft ? holdLine(work, draft, covered.view?.coverage?.percentLeaves) : "";
+  // While it works the library's copy moves ahead of the page's (stale): the line says so too, and the page loads the new content by itself when the work is done.
+  const hold = work ? [holdLine(work, draft, covered.view?.coverage?.percentLeaves), staleDraft && !unsavedDraft ? ui("完成后本页会自动载入最新内容。") : ""].filter(Boolean).join(" ") : "";
   function stopWork() {
     const { job } = work;
     if (work.kind === "repair") act("job.cancel", { jobId: job.id }, () => toast.success(ui("正在停止后台修题；已修好的题目会保留在草稿中。")));
@@ -235,7 +237,7 @@ export default function Draft({
         <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} saveThen={unsavedDraft ? saveThen : undefined} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
         <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} modelReady={modelReadiness(data).ready}
           onTopUp={topUp} />
-        {(unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{staleDraft ? ui("草稿已在后台更新，先载入最新草稿，再补题。") : ui("补题前会先保存草稿。")}</Hint>}
+        {!work && (unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{staleDraft ? ui("草稿已在后台更新，先载入最新草稿，再补题。") : ui("补题前会先保存草稿。")}</Hint>}
       </CoverageSummary>}
       <div className="draft-notices">
         {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
@@ -246,9 +248,7 @@ export default function Draft({
           action={{ label: ui("另存为新草稿"), disabled: busy, onClick: saveAsNewDraft }}>
           {ui("当前页面是旧版本，无法继续保存。可以把页面中的内容另存为独立的新草稿，发布前会重新检查。")}
         </Banner>}
-        {staleDraft && !unsavedDraft && <Banner tone="info" role="status">
-          {updatingDraft ? ui("后台修题正在更新草稿，完成后会自动载入。") : ui("正在载入后台修好的题目…")}
-        </Banner>}
+        {staleDraft && !unsavedDraft && !updatingDraft && <Banner tone="info" role="status">{ui("正在载入后台修好的题目…")}</Banner>}
         {activeReview && <Banner tone="warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</Banner>}
         {rejectedCount > 0 && unsavedDraft && !staleDraft && <Banner tone="warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</Banner>}
         {shortBlock && <Banner tone="warning" role="status" className="draft-shortfall" title={ui("有题没能进入草稿")}>

@@ -36,5 +36,8 @@
   "本轮：{0}；之后还有 {1} 轮会接着做，每轮另算。": "This round: {0}; {1} more rounds follow by themselves, each counted separately.",
   "勾选后，最后 1 轮会自动做完；可以随时暂停，或停在这里（已出的题都保留）。": "Ticked, the last round is made by itself; you can pause any time, or stop here (the questions already made stay).",
   "勾选后，剩下的 {0} 轮一轮接一轮自动做完；可以随时暂停，或停在这里（已出的题都保留）。": "Ticked, the other {0} rounds are made one after another by themselves; you can pause any time, or stop here (the questions already made stay).",
-  "已带入刚才选好的 {0} 份资料；不合适就在下面改。": "Brought over the {0} materials you ticked a moment ago; change them below if they do not fit."
+  "已带入刚才选好的 {0} 份资料；不合适就在下面改。": "Brought over the {0} materials you ticked a moment ago; change them below if they do not fit.",
+  "看过再发布": "Look first, then publish",
+  "用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。": "Let AI write questions from your own materials; if you already have questions, you can import them directly.",
+  "完成后本页会自动载入最新内容。": "This page loads the new content by itself when it is done."
 }

@@ -179,7 +179,7 @@ export default function Generate({
   return (
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
-        description={ui("用你的资料让 AI 出题，逐题检查后再发布；已经有现成的题目，也可以直接导入。")} />
+        description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")} />
       <Tabs id="generate" className="source-mode" itemClassName="source-tab" label={ui("创建方式")} value={current} onChange={setGenSource}
         items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
       <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>

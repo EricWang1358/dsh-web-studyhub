@@ -7,6 +7,7 @@
     "tests/deck-archive-browser.test.mjs",
     "tests/exam-prep-browser.test.mjs",
     "tests/follow-label-fit-browser.test.mjs",
+    "tests/generate-flow-browser.test.mjs",
     "tests/generate-short-browser.test.mjs",
     "tests/layout-late-picker.test.mjs",
     "tests/layout-late-shell.test.mjs",

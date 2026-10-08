@@ -1,6 +1,6 @@
 import { ui, uiFormat } from './i18n.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
-import { reviewedCardStatus } from '../lib/review-integrity.js';
+import { reviewedCardFingerprint } from '../lib/review-integrity.js';
 import { draftWork, draftWorkLabel } from './draft-shortfall.js';
 
 /* From a finished run to practising (the owner's short flow): which draft may be published from the card of its run in one press (発布并练习), and what the draft page
@@ -16,8 +16,16 @@ export function canPublishAtOnce({ draft, shortfall, jobs = [], targets = null }
   if (draft.editingDeckId || draft.editorial?.repairOfDeckId || draft.editorial?.partialEdit) return false;
   if (draftWork(draft, jobs)) return false;
   if (Object.keys(draft.editorial?.rejectedIssues || {}).length || draft.quality?.errors?.length) return false;
-  const status = reviewedCardStatus(draft);
-  return !!status && status.unchanged === draft.cards.length;
+  return reviewedAsIs(draft);
+}
+
+/* Every question is what the review saw. The pipeline stamps where a citation's quote stands (citation.at, lib/card-places.js stampPlaces) AFTER the review has marked the card, so the mark of a
+   generated card is the fingerprint of the card without that stamp: a card is also "as reviewed" when it matches without it. Any other difference is an edit, and the draft is looked at first. */
+const withoutPlaces = (card) => (Array.isArray(card.citations) ? { ...card, citations: card.citations.map(({ at: _place, ...rest }) => rest) } : card);
+function reviewedAsIs(draft) {
+  const marks = draft.editorial?.reviewedCards;
+  if (!marks || typeof marks !== 'object') return false;
+  return draft.cards.every((card) => marks[card.id] !== undefined && (marks[card.id] === reviewedCardFingerprint(card) || marks[card.id] === reviewedCardFingerprint(withoutPlaces(card))));
 }
 
 /** The sentence under the draft's buttons while something works on the draft: what works, why saving and publishing wait, and how to get past it. */
