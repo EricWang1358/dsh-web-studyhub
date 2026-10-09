@@ -1,13 +1,14 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Menu } from '../components/index.js';
+import OutlineEntry from './OutlineEntry.jsx';
 
 /**
- * The heading of the catalogue: its title and count, 查看图谱, and the
+ * The heading of the catalogue: its title and count, 总纲 (when the course has one), 查看图谱, and the
  * housekeeping menu (整理题组, add material, manual card, JSON import, 斩题组)
  * that keeps the heading quiet. `merge` is useMergeSuggestions.
  */
-export default function CatalogHeading({ count, showArchived, hasDecks, hasSources, course, merge, busy, slain, addSource, createManual, importLibrary, manage, onShowGraph }) {
+export default function CatalogHeading({ count, showArchived, hasDecks, hasSources, course, merge, busy, slain, addSource, createManual, importLibrary, manage, onShowGraph, onShowOutline }) {
   const items = [
     course != null && { id: 'merge', label: ui('整理题组'), disabled: busy || merge.busy },
     { id: 'add', label: ui('添加资料'), icon: 'plus' },
@@ -20,6 +21,7 @@ export default function CatalogHeading({ count, showArchived, hasDecks, hasSourc
     <div className="section-heading map-heading" data-tour="home-catalog">
       <h2>{showArchived ? ui('已归档题组') : ui('学习目录')} <span>{count}</span></h2>
       <div className="section-heading-actions">
+        {onShowOutline && <OutlineEntry size="sm" onShowOutline={onShowOutline} />}
         {hasDecks && <Button size="sm" disabled={busy} title={ui('用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）')}
           onClick={() => onShowGraph?.(null, { canvas: true })}>{ui('查看图谱')}</Button>}
         <Menu className="map-menu-wrap" label={ui('整理与添加')} items={items} onSelect={(id) => choose[id]()}

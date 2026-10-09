@@ -9,7 +9,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
 
-/* 总纲 in the real page at 1280 and 420 px: the home's course area opens it (the folded 课程路线 list is gone, one continue button stays); a
+/* 总纲 in the real page at 1280 and 420 px: the home opens it from two visible secondary buttons, one beside the course title and one in the 学习目录 heading (the folded 课程路线 list and the tiny link line are gone, one primary button stays); a
    converted book with two chapters, a note without chapters, a material without questions; two questions picked in two chapters start a
    round of exactly those two, and the round's way back returns to the outline as it was left; 未归位 is listed; the hover explanation shows;
    nothing scrolls sideways. Seeded through the real store. Screenshots go to COURSE_OUTLINE_SHOTS when it is set. */
@@ -57,11 +57,42 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openPage(browser, running, { width, height: 1000 });
       await page.goto(running.server.url);
-      const link = page.locator('.course-route-outline .sh-btn').first();
+      const link = page.locator('.course-header .outline-entry');
       await link.waitFor({ timeout: 30000 });
       assert.equal(await page.locator('.course-route details').count(), 0, `${width}px: the folded 课程路线 list is gone`);
+      assert.equal(await page.locator('.course-route-outline').count(), 0, `${width}px: the tiny link line under the bar is gone`);
       assert.equal(await page.locator('.today-go').count(), 1, `${width}px: the home keeps one continue button`);
+      const entries = page.locator('.outline-entry');
+      assert.equal(await entries.count(), 2, `${width}px: one 总纲 button beside the course title and one in the 学习目录 heading`);
+      assert.equal(await page.locator('.map-heading .section-heading-actions > .sh-popover-anchor:first-child .outline-entry').count(), 1, 'the first of the 学习目录 heading buttons');
+      for (const where of ['.course-header', '.map-heading']) {
+        const button = page.locator(`${where} .outline-entry`);
+        assert.equal(await button.evaluate(element => element.tagName), 'BUTTON', `${where}: a real button`);
+        assert.equal(await button.evaluate(element => element.classList.contains('sh-btn--secondary') && !element.classList.contains('sh-btn--primary') && !element.classList.contains('sh-btn--link')), true, `${where}: secondary, not primary`);
+        assert.equal(await button.innerText(), '总纲');
+        assert.equal(await button.getAttribute('title'), null, 'the words are a Tooltip, not a title attribute');
+      }
+      assert.equal(await page.locator('.sh-btn--primary:visible').count(), 1, `${width}px: exactly one primary button on the home`);
+      const place = await page.evaluate(() => {
+        const rect = selector => document.querySelector(selector).getBoundingClientRect();
+        const title = rect('.course-header .sh-page-header__title'), button = rect('.course-header .outline-entry'), bar = rect('.course-route-bar'), screen = window.innerWidth;
+        return { sameRow: button.top < title.bottom && button.bottom > title.top, above: button.bottom <= bar.top, inside: button.left >= 0 && button.right <= screen, height: button.height, gap: Math.round(bar.top - button.bottom) };
+      });
+      assert.equal(place.above && place.inside, true, `${width}px: above the progress bar and inside the window: ${JSON.stringify(place)}`);
+      assert.ok(place.height >= 28, `${width}px: a button-sized target: ${JSON.stringify(place)}`);
+      if (width === 1280) assert.equal(place.sameRow, true, `1280px: on the course title's row: ${JSON.stringify(place)}`);
+      const home = { doc: await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) };
+      assert.equal(home.doc <= 0, true, `${width}px: the home does not scroll sideways: ${JSON.stringify(home)}`);
+      await link.hover();
+      await page.locator('[role="tooltip"]', { hasText: '按资料的章节找题、挑题练' }).first().waitFor({ state: 'visible', timeout: 5000 });
       if (shots) await page.screenshot({ path: join(shots, `home-${width}.png`) });
+      await page.mouse.move(0, 0);
+      // The 学习目录 heading's button opens the same page.
+      await page.locator('.map-heading .outline-entry').click();
+      await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+      assert.match(await page.locator('.outline-page h1').innerText(), /总纲 · Databases/, `${width}px: the 学习目录 button opens the 总纲`);
+      await page.goto(running.server.url);
+      await link.waitFor({ timeout: 30000 });
       await link.click();
       const tree = page.locator('.outline-tree');
       await tree.waitFor({ timeout: 30000 });
