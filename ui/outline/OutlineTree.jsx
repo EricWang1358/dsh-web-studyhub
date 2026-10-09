@@ -15,8 +15,8 @@ import { moreText, practiceLabel, reasonText, rowTitle } from './words.js';
 const LEVEL_TONE = { weak: 'error', learning: 'warning', familiar: 'info', mastered: 'success', new: 'neutral' };
 
 function Questions({ data, holders, pick, onPickCard }) {
-  if (!data) return <LoadingState className="outline-questions__state" label={ui('正在读取题目…')} />;
-  if (!data.cards.length) return <p className="outline-questions__none">{ui('这里还没有题。')}</p>;
+  if (data === undefined) return <LoadingState className="outline-questions__state" label={ui('正在读取题目…')} />;
+  if (!data?.cards?.length) return <p className="outline-questions__none">{ui('这里还没有题。')}</p>;
   return (
     <ul className="outline-questions">
       {data.cards.map(ref => {

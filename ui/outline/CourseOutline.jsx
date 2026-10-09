@@ -22,7 +22,9 @@ function useOutline({ call, course, deckId, open, revision }) {
     try {
       const outline = await call('course.outline', { course, ...(deckId ? { deckId } : {}), expand });
       if (mine !== ticket.current) return;
-      setState(current => ({ outline, details: merge ? { ...current.details, ...outline.open } : outline.open || {}, error: null }));
+      // A key asked for and not answered (a row that is gone) is kept as null, so it is not asked for again.
+      const answered = { ...Object.fromEntries(expand.map(key => [key, null])), ...outline.open };
+      setState(current => ({ outline, details: merge ? { ...current.details, ...answered } : answered, error: null }));
     } catch (error) { if (mine === ticket.current) setState(current => ({ ...current, error })); }
   }, [call, course, deckId]);
   // A new course, deck filter or library revision reads everything open again; opening a row reads only what is missing.

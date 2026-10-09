@@ -179,6 +179,7 @@ test('no course, or a course with nothing in it, is a plain empty outline', () =
   const other = courseOutline(library(), { course: 'Nothing here' }, { now: NOW });
   assert.equal(other.total, 0);
   assert.deepEqual(other.documents, []);
+  assert.throws(() => courseOutline(library(), { course: 5 }, { now: NOW }), /course must be a course name/);
 });
 
 test('the index is built once per library revision and minute, course and deck filter', () => {
