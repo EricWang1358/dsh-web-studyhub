@@ -4,7 +4,7 @@ import { displayTitle } from '../../lib/document-title.js';
 
 /** A chapter's name under a leaf of the AI outline: with its material, so the learner knows which one it is. */
 function anchorTitle(node) {
-  if (node.kind === 'document') return displayTitle(node.title);
+  if (node.kind === 'document') return node.copies > 1 ? uiFormat('{0}（{1} 份同名）', [displayTitle(node.title), node.copies]) : displayTitle(node.title);
   const own = node.kind === 'rest' ? ui('没对上章节的题') : node.front ? ui('开头部分') : node.title || ui('未命名章节');
   return node.material ? `${displayTitle(node.material)} · ${own}` : own;
 }

@@ -124,6 +124,22 @@ test('a leaf\'s anchor that is no longer a row is passed over; a document claime
   assert.deepEqual([book.rows.get('bk:a').anchors, book.rows.get('bk:b').anchors, book.other.anchors], [[k.Notes], [], []]);
 });
 
+test('under a point, materials of one name (four notes called 补充笔记 · Reintroduction) are one row of copies, opened and practised as one', () => {
+  const notes = [1, 2, 3].map(n => ({ id: `again-${n}`, title: '补充笔记 · Indexes', text: text(`Again${n}`), courses: ['DB'], createdAt: at, document: { materialId: `document-again-${n}`, format: 'md' } }));
+  const base = library(notes), more = { ...base, decks: [...base.decks, { id: 'd3', title: 'Notes deck', course: 'DB', cards: notes.map((note, i) => card(`a${i}`, note.id, 1, `Again${i + 1}`)) }] };
+  const k = groupSourcesByDocument(more.sources).filter(item => item.title === '补充笔记 · Indexes').map(item => item.key);
+  assert.equal(k.length, 4);
+  const record = courseOutlineMaterial({ title: 'T', course: 'DB', orderBasis: { codes: ['logic'] }, fingerprint: '0badc0de', other: { anchors: [] },
+    nodes: [{ id: 'n1', title: 'Indexes', anchors: [`${keys(more)['book.pdf']}#0`, ...k] }] });
+  const seen = withOutline(more, record), [leaf] = courseOutline(seen, { course: 'DB' }, { now: NOW }).book.nodes;
+  assert.deepEqual([leaf.anchors, leaf.total], [2, 6], 'the chapter and one row of four copies; c1, c6, c4 and three more');
+  const rows = courseOutline(seen, { course: 'DB', expand: [leaf.key] }, { now: NOW }).open[leaf.key].anchors;
+  assert.deepEqual(rows.map(row => [row.kind, row.title, row.copies ?? 1, row.total]), [['chapter', 'Indexes', 1, 2], ['document', '补充笔记 · Indexes', 4, 4]]);
+  const copies = rows[1].key;
+  assert.deepEqual(courseOutline(seen, { course: 'DB', expand: [copies] }, { now: NOW }).open[copies].cards.map(ref => ref.cardId).sort(), ['a0', 'a1', 'a2', 'c4']);
+  assert.equal(courseOutline(seen, { course: 'DB', pick: { keys: [copies] } }, { now: NOW }).practice.total, 4);
+});
+
 test('a document\'s questions outside its chapters go with the leaf that holds its first claimed chapter; its unclaimed chapters go to 其他', () => {
   const chapter = (key, nodes) => ({ key, kind: 'chapter', nodes: [key] });
   const doc = { key: 'D', kind: 'document', item: {}, chapters: [chapter('D#0'), chapter('D#1'), { key: 'D#rest', kind: 'rest', nodes: ['D#rest'] }], nodes: ['D#0', 'D#1', 'D#rest'] };

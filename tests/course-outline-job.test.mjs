@@ -184,6 +184,10 @@ test('sample papers mark the leaves they test from quotes found in the paper; wi
   assert.deepEqual(flat.find(leaf => leaf.title === 'Views and viewpoints').tier, 'must');
   assert.deepEqual([flat.find(leaf => leaf.title === 'Layers').tier, answer.book.papers], ['extra', 1]);
   assert.match(record.text, /Views and viewpoints（样卷考过 1\/1 份）/);
+  // 重新整理 without naming papers keeps the ones the outline rested on; naming none drops them.
+  const again = await finish(w);
+  assert.deepEqual(again.courseOutline.papers.map(paper => paper.key), [PAPER]);
+  assert.equal((await finish(w, { papers: [] })).courseOutline.papers, undefined);
   const plain = await world(t);
   const none = await finish(plain);
   assert.ok(!('papers' in none.courseOutline) && !/样卷考过|补充/.test(none.text));

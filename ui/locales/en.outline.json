@@ -55,5 +55,6 @@
   "提供了试卷？": "Have sample papers?",
   "勾选的资料当作样卷：总纲会标出样卷考过的知识点。不勾选也能生成，只是没有这个标记。": "Ticked materials are used as sample papers: the outline marks the knowledge points they test. Without any, the outline is made all the same, just without these marks.",
   "像样卷": "Looks like a sample paper",
-  "资料有更新，建议重新整理": "Your materials have changed since; reorganising is suggested"
+  "资料有更新，建议重新整理": "Your materials have changed since; reorganising is suggested",
+  "{0}（{1} 份同名）": "{0} ({1} with this name)"
 }
