@@ -58,6 +58,9 @@
       overflow-wrap: anywhere;
     }
     .review-context__course { color: var(--text); font-weight: var(--fw-strong); }
+    /* The course and its +N stay side by side; a long course name wraps inside its own box, the +N stays at its end. */
+    .review-context__where { display: inline-flex; align-items: baseline; gap: var(--space-1); min-width: 0; }
+    .review-context__more { flex: none; color: var(--text-muted); font-size: var(--fs-sm); }
     .review-context__label { color: var(--text-muted); }
   }
   @container study (max-width:720px) {
