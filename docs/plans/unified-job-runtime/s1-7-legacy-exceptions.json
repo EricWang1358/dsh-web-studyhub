@@ -1613,7 +1613,7 @@
       "calls": [
         {
           "callee": "runLocalCommand",
-          "count": 2
+          "count": 3
         }
       ],
       "owner": "non-model family (lane D)",
@@ -1621,6 +1621,12 @@
       "sites": [
         {
           "what": "detectMarker: the instant \"is Marker ready\" question (awaited by the caller)",
+          "disposition": "exception",
+          "kind": "foreground-request",
+          "reached": true
+        },
+        {
+          "what": "dockerState: whether Docker answers (docker version, 8 s), only for an installed marker-pdf 2.x, inside detectMarker (awaited by the caller)",
           "disposition": "exception",
           "kind": "foreground-request",
           "reached": true

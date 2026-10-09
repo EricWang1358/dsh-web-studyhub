@@ -102,8 +102,9 @@ function FailureDetail({ failure }) {
         <pre className="pdf-failure__lines" translate="no">{lines.join('\n')}</pre>
       </>}
       <p className="pdf-failure__actions">
-        <Button size="sm" variant="quiet" icon="copy" onClick={copy}>{ui('复制诊断信息')}</Button>
-        <span role="status" className="pdf-failure__copied">{copied === 'done' ? ui('已复制') : copied === 'failed' ? ui('没能复制，请直接选中上面的文字') : ''}</span>
+        {/* The card keeps no live region of its own (#98): the button itself says it copied. */}
+        <Button size="sm" variant="quiet" icon="copy" onClick={copy}>{copied === 'done' ? ui('已复制') : ui('复制诊断信息')}</Button>
+        {copied === 'failed' && <span className="pdf-failure__copied">{ui('没能复制，请直接选中上面的文字')}</span>}
       </p>
     </div>
   );
