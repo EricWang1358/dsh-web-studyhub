@@ -46,10 +46,10 @@ export function ReadingBackButton({ run, onReturn, busy }) {
   return <Button variant="quiet" className="reading-back" disabled={busy} title={placeText(run.reading)} onClick={() => onReturn(run.reading)}>{ui('回到原文')}</Button>;
 }
 
-/** After a wrong answer: open the passage the question points at, with a way back to this very question. */
+/** After an answer, right or wrong (the answer is revealed with it): open the passage the question points at, with a way back to this very question. */
 export function WrongAnswerSource({ run, sources, onOpen }) {
   useInjectCss(css, 'study-reading-loop');
-  if (!run?.feedback || run.feedback.correct || !run.solution) return null;
+  if (!run?.feedback || !run.solution) return null;
   const found = firstCitation(run.solution, sources || []);
   if (!found) return null;
   return <Button size="sm" className="reading-source" onClick={() => onOpen(found.source, found.quote)}>{ui('看这题的原文')}</Button>;

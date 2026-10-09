@@ -123,5 +123,6 @@
   "排版微调": "Fine-tune layout",
   "字体名只能含文字、数字、空格和连字符。": "A font name can only have letters, digits, spaces and hyphens.",
   "填已安装的字体名，找不到会用系统字体。": "Type an installed font name; if it is missing, the system font is used.",
-  "AI 章节 · {0} 项": "AI chapters · {0}"
+  "AI 章节 · {0} 项": "AI chapters · {0}",
+  "没能精确定位这段引文，已显示所在资料。": "The citation could not be located exactly. The material it comes from is shown."
 }
