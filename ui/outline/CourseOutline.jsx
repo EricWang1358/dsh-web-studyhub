@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat, errorMessage, getUiLanguage } from '../i18n.js';
+import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
@@ -70,7 +70,8 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   useEffect(() => { keepView(root, course, { open, deckId, bookId: seen.current }); }, [root, course, open, deckId, bookId]);
   const organise = useCallback(async papers => {
     try {
-      await act('generation.courseOutline.build', { course, language: getUiLanguage() === 'en' ? 'en' : 'zh', ...(papers.length ? { papers } : {}) },
+      // The interface language goes with every request (uiLanguage), so the task speaks it without being told here.
+      await act('generation.courseOutline.build', { course, ...(papers.length ? { papers } : {}) },
         result => notify({ text: startedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, notify]);
@@ -121,7 +122,7 @@ function Organise({ book, documents, running, model, primary, actions }) {
             onChange={on => flip(choice.key, on)} /></li>)}
         </ul>
       </Disclosure>}
-      <ModelSetupGate variant="compact" feature="outline" model={model} />
+      <ModelSetupGate variant="compact" feature="courseOutline" model={model} />
     </div>
   );
 }
