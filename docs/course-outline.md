@@ -4,7 +4,7 @@
 
 The **Course outline** page lays out the current course by its materials instead of by its decks: each material, its chapters, and under each chapter the questions that cite it. Use it to find the questions about a part of the course and practise exactly those, without working out which deck holds them.
 
-This is step 1: the outline is built from the materials' own chapters, with no AI text. Checked against the code on 2026-10-09.
+Step 1 lays the course out by the materials' own chapters, with no AI text. Step 2 adds **Generate outline**: the model organises the materials into a book-like outline (chapters, sections, knowledge points) in learning order. Checked against the code on 2026-10-09.
 
 ## Open it
 
@@ -12,7 +12,31 @@ On the **Study library** home page, the course area (under the course name and i
 
 The home page keeps one main card and its one continue button. The folded **Course route** list that used to sit under the progress bar is gone; the outline replaces it. The progress bar and **Continue course** still follow the deck order.
 
-## What it shows
+## The organised outline (step 2)
+
+Without an outline, the page lists the materials as in step 1, with one main button, **Generate outline**, above them. One click starts the task **Organise the outline** in the background; there is no estimate and no confirmation, and the **Tasks** page shows its progress and what it used, as for every task. While it runs, the page says **Organising the outline (step i of n)…** with **View progress**; it can be paused, stopped (nothing is kept) or retried there (the finished model calls are kept).
+
+Once the outline exists, the page reads like a book's contents:
+
+| Row | What it is |
+| --- | --- |
+| **Chapter N** | A chapter of the course, with a short introduction. Chapters are open when the page first shows the outline. |
+| N.M | A section of a chapter, with its introduction (a chapter without sections holds its knowledge points directly). Closed at first. |
+| N.M.K | A knowledge point. It holds rows of the materials (a whole material, or some chapters of one); opening it lists those rows, each named with its material, and they open to their questions. A point that holds a single row opens straight to its questions. Materials of the same name under one point (four notes called **补充笔记 · Reintroduction**) are one row, **(4 with this name)**. |
+| Other | Everything no knowledge point holds: what the model left out, and materials added after the outline was made. Never hidden. |
+| Not placed | As in step 1. |
+
+Every row has the mastery line (**Mastery 62% · 12 questions**), **Practise this**, and a tick box that picks every question under it at any depth. The counts are computed from the library as it is now, not stored in the outline: a question added, answered or deleted later counts at once.
+
+Above the outline, one line says what the learning order rests on (**Learning order based on: the order of the syllabus “…” · the numbers in the material titles · the recording dates**). The model is told to follow, in this order, a syllabus material of the course (a short material whose name says 大纲 or syllabus), the numbers and version marks in titles (01., Lecture 3, Day1, v2.1), recording dates and parts, and what must be learned first; the line keeps only the grounds the library actually has. Next to it, a quiet **Reorganise** makes a new version; the old one is kept as an archived record. When the course's materials change after the outline was made (added, removed, renamed, re-imported), the line says **Your materials have changed since; reorganising is suggested**.
+
+**Have sample papers?** (folded under the button) lists the course's materials, the ones that look like a sample paper first, none ticked. With papers, the task reads each paper and marks the knowledge points its questions test, **In sample papers (N/M)**, from quotes found word for word in the paper; the others say **Extra**. Without papers, nothing about exams is said. **Reorganise** keeps the papers the outline rested on.
+
+**A reference, never evidence.** The outline is a record of the library, but it is not a material: the **Sources** page, the pickers, search, counts and every list of materials leave it out, and a request that names it as material (to make questions from, as a reference source) is refused. Questions keep citing the original materials word for word.
+
+**What the model is shown.** Not the texts: for each material, its name, format, chapters, question count, the most frequent topics and the first prompts of its questions, its number, version and date hints; the syllabus text is the only text sent (at most 12,000 characters). Copies with the same name and chapters are shown once. In the test library shaped like a real course (134 materials, about 900 questions) that is two model calls (one batch of materials, one arrangement), plus one call per 8,000 characters of sample paper; more materials make more batches of at most 36,000 characters each. Every answer is checked by the program: an invented or repeated id is dropped and counted, at most three levels, names cut to size.
+
+## What it shows (without an outline)
 
 | Row | What it is |
 | --- | --- |
@@ -47,10 +71,11 @@ A round takes at most 200 questions. When more are picked, the round takes the f
 
 The round comes back to the outline: **Back to the outline** in the round and on its result page opens it as you left it (the same rows open, the same deck filter).
 
-## Limits of step 1
+## Limits
 
-- The outline is the materials' chapters; it does not yet group them into exam points or explain them (steps 2 and 3).
-- The order of new questions in **Continue course** and on the home page is still the deck order.
+- The quality of the organised outline depends on the model; it has been checked with a fake model on a synthetic library shaped like a real one, not yet with a real model on a real course.
+- The order of new questions in **Continue course**, on the home page and in the **Study map** is still the deck order (step 3 will prefer the outline).
+- An outline is never edited by hand; **Reorganise** makes a new one.
 - A question cannot be moved to another row by hand.
 - Recordings keep their parts as chapters only when the material has chapters; there is no jump to a time in the recording.
 
@@ -59,3 +84,5 @@ The round comes back to the outline: **Back to the outline** in the round and on
 - `course.outline {course?, deckId?, expand?, pick?}` (lib/course-outline.js; the placement is lib/course-outline-index.js) is read on demand and never sent with the snapshot. Without `expand` it returns the material rows with counts; `expand: [key]` adds the chapters of a material or the questions of a row; `pick: { keys, cards }` returns only `practice: { scope, total, capped, limit }`, a scope `review.start {mode:'path'}` takes as it is.
 - The placement is cached per library revision, minute, course and deck filter. A synthetic library of 200 materials (6 million characters), 3,000 questions and 600 fuzzy quotes takes about 75 ms the first time and 5 ms after; the answer without open rows is about 55 KB.
 - The page is ui/outline/; the registry row is `outline` in ui/pages.js.
+- The organised outline is a source record (lib/course-outline-book.js): `provenance: 'course-outline'`, a readable `text` and the structured `courseOutline` (`nodes` of at most three levels, each leaf's `anchors` being the document and chapter keys of `course.outline`, `other`, `orderBasis`, `papers`, a materials `fingerprint`, `supersedes`). lib/exam-point-list.js `isLibraryListSource` hides it with the 考点清单. `course.outline` answers `book` (lib/course-outline-book-view.js lays it over the engine's rows; its keys start with `bk:` and work with `expand` and `pick`).
+- `generation.courseOutline.build {course, language?, papers?, supersedes?}` starts the Job `course-outline-build` (lib/contexts/generation/outline/): map calls over batches of descriptors, one reduce call, a call per chunk of sample paper, one write. Refusals: course-outline-no-course, course-outline-no-materials, course-outline-paper-invalid, course-outline-no-readable-text, course-outline-supersedes-invalid. Its result names `{ kind: 'course-outline', id, course }`; the console's open button goes to this page for that course.

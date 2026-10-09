@@ -64,6 +64,8 @@
 | `mineruSetup` | MinerU 本地配置的旧后台运行 | `lib/contexts/audio/setup/mineru-setup-runs.js:47` | `mineru-local-service.runtime`、`unified-runtime-mineru-setup` |
 | `retrievalIndex` | 检索索引构建的旧后台运行 | `lib/contexts/generation/retrieval/runtime-port.js:4`（`index-runs.js`） | `wp28b-index.runtime`、`unified-runtime-retrieval-index` |
 
+**没有开关的新 Job 种类。** 课程总纲的整理任务 `course-outline-build`（2026-10-09，总纲步骤 2，`lib/contexts/generation/outline/`）和考点清单一样是新增的种类，没有旧路径可旁路，所以也不加开关：它登记在清单的 `managedDefinitions`（守卫逐个审计），没有新的模型调用点或启动点（每次调用都是网关的 Step，复用 `blueprint/jobs/ask.js`），操作是 `generation.courseOutline.build`（写入为空，总纲经资料上下文的 `sources.ingest` 入库）。证据：`course-outline-job.test.mjs`。
+
 ## 3. 全部后台启动点（`starts`，33 个文件 48 处）
 
 读法：**全开后**列写"仍走"表示这一处在全开时仍可能被启动。三种处置的数量（启动点，S3-6 合并后）：迁移 0、保留例外 31、S6-2 删除 15（§7 给删除清单）。**答案**：全开后已经没有自己起后台任务的旧路径；全开后没有要迁移的模型调用（发布前审阅已是即时请求，S3-6d）。课堂保存 S2-6、选区补题 S3-4、后台修题 S3-5、发布草稿 S3-6、`note.generate` S4-10 已迁完；其余都是有类别、有理由的保留，或被开关旁路的旧实现。

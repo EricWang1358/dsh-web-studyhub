@@ -402,5 +402,6 @@
   "没通过 {0}": "Failed {0}",
   "被停止 {0}": "Stopped {0}",
   "进行中 {0}": "In progress {0}",
-  "另有 {0} 个未列出": "{0} more not listed"
+  "另有 {0} 个未列出": "{0} more not listed",
+  "打开总纲": "Open the outline"
 }

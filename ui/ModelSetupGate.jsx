@@ -171,6 +171,13 @@ const FEATURES = {
     line: ui('协商安排需要先配置模型；已接受的行动可以继续。'),
     note: ui('已接受的行动可以继续；协商安排前需要先配置模型。'),
   }),
+  // Organising the course outline (ui/outline/CourseOutline.jsx); `outline` above is the reader's table of contents.
+  courseOutline: () => ({
+    why: ui('生成总纲要调用 AI 模型；没有总纲时这里按资料列出。'),
+    then: ui('回到这里，点「生成总纲」'),
+    line: ui('生成总纲需要先配置模型；没有总纲时这里按资料列出。'),
+    note: ui('没有总纲时这里按资料列出；生成总纲前需要先配置模型。'),
+  }),
   // Drafting a note from questions (ui/BlogNotes.jsx).
   note: () => ({
     why: ui('AI 起草要调用 AI 模型。配置好之后回到这里，点「AI 起草解析」。'),

@@ -192,6 +192,117 @@
       color: var(--text-muted);
       font-size: var(--fs-xs);
     }
+    /* The AI outline (step 2): a book's contents. A chapter reads as a heading with its introduction under it, a section and a point are indented
+       under it, a point's rows (the materials it comes from) one step further. The offer to make one, and the line of what its order rests on. */
+    .outline-organise {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+    }
+    .outline-organise__text {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .outline-organise__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: var(--space-2) var(--space-3);
+    }
+    .outline-organise__running {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .outline-papers {
+      flex: 1 1 100%;
+      min-width: 0;
+      border-top: 0;
+    }
+    .outline-book-line .outline-papers {
+      flex: 0 1 auto;
+    }
+    .outline-book-line .outline-papers[open] {
+      flex-basis: 100%;
+    }
+    .outline-papers__note {
+      margin: 0 0 var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .outline-papers__list {
+      display: grid;
+      gap: var(--space-1);
+      max-height: 16rem;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      list-style: none;
+      overflow-wrap: anywhere;
+    }
+    .outline-book-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-4);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .outline-book-line__basis,
+    .outline-book-line__stale {
+      margin: 0;
+    }
+    .outline-book-line__stale {
+      color: var(--warn-text);
+    }
+    .outline-book-line .outline-organise__actions {
+      margin-left: auto;
+    }
+    .outline-tree--book .outline-row[data-level='2'] {
+      padding-left: var(--space-6);
+    }
+    .outline-tree--book .outline-row[data-level='3'] {
+      padding-left: var(--space-8);
+    }
+    .outline-tree--book .outline-row[data-level='4'] {
+      padding-left: var(--space-9);
+    }
+    .outline-tree--book .outline-row[data-level='5'] {
+      padding-left: calc(var(--space-9) + var(--space-4));
+    }
+    .outline-tree--book .outline-row[data-kind='part'] {
+      padding-top: var(--space-3);
+      background: var(--bg-sunken);
+    }
+    .outline-row[data-kind='part'] .outline-row__title {
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+    }
+    .outline-row[data-kind='section'] .outline-row__title,
+    .outline-row[data-kind='other'] .outline-row__title {
+      font-weight: var(--fw-medium);
+    }
+    .outline-row__number {
+      flex: none;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .outline-row__intro {
+      margin: 0 0 var(--space-1) var(--space-6);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
+    .outline-row__tier {
+      flex: none;
+    }
   }
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {
@@ -211,6 +322,22 @@
       }
       .outline-deck {
         width: 100%;
+      }
+      .outline-tree--book .outline-row[data-level='2'] {
+        padding-left: var(--space-4);
+      }
+      .outline-tree--book .outline-row[data-level='3'] {
+        padding-left: var(--space-5);
+      }
+      .outline-tree--book .outline-row[data-level='4'],
+      .outline-tree--book .outline-row[data-level='5'] {
+        padding-left: var(--space-6);
+      }
+      .outline-row__intro {
+        margin-left: var(--space-3);
+      }
+      .outline-book-line .outline-organise__actions {
+        margin-left: 0;
       }
     }
   }
