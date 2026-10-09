@@ -76,7 +76,7 @@ export default function ExamPrepPane({ data, busy, act }) {
       <ExamPrepStatus byHost={data?.features?.examBlueprintByHost === true} checked={values.enabled} disabled={disabled} onChange={enabled => set({ enabled })} />
       <h3 className="settings-subtitle">{ui('个人默认值')}</h3>
       <Switch name="autoRoles" label={ui('自动识别资料用途')} checked={values.autoRoles} disabled={disabled} onChange={autoRoles => set({ autoRoles })}
-        hint={ui('按文件名和篇幅猜每份资料是课件、样卷还是大纲，并写明依据；猜错点一下就能改。关掉后，所有资料都先当作课件。')} />
+        hint={ui('按文件名和篇幅猜每份资料是课件、样卷还是大纲，并写明依据；猜错点一下就能改。关掉后，所有资料都先设为「不用」，由你自己选。')} />
       <PaperWords words={values.paperWords} disabled={disabled} onChange={paperWords => set({ paperWords })} />
       <Field label={ui('清单语言')} hint={ui('「自动」跟随当前的界面语言：界面是中文就写中文清单，是 English 就写英文清单；想固定一种语言就在这里选。')}>
         <Select name="language" value={values.language} disabled={disabled} onChange={language => set({ language })}

@@ -12,7 +12,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
-import { library, pointList } from './helpers/exam-prep-fixtures.mjs';
+import { library, pointList, STAMP } from './helpers/exam-prep-fixtures.mjs';
 
 /* 备考补习 in the browser preview, on a seeded temporary library (the real module's point list, written to the library as the build job writes it) with the
    host's switch turned on: the sidebar entry, the list, one list opened (keyboard on the points, 看原页 opens the reader on the quote), the create form with its
@@ -20,12 +20,15 @@ import { library, pointList } from './helpers/exam-prep-fixtures.mjs';
 
 const SHOTS = process.env.EXAM_PREP_SHOTS || '';
 
-async function seed(root, { off = false } = {}) {
+/** `notes` plain text sources named 补充笔记 (a long library); `deck: false` leaves the slides and the syllabus out, so nothing is ready to use. */
+async function seed(root, { off = false, notes = 0, deck = true } = {}) {
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
   await service.call('snapshot');
   await service.store.update(state => {
-    state.sources.push(...structuredClone(library()), structuredClone(pointList({ orphan: true, many: 40 })));
+    const own = library().filter(source => deck || !source.id.startsWith('传输层') && !source.id.startsWith('syllabus'));
+    const plain = Array.from({ length: notes }, (_, index) => ({ id: `note-${index + 1}`, title: `补充笔记 · 第 ${index + 1} 周`, text: `第 ${index + 1} 周的笔记：TCP 与 UDP。`, createdAt: STAMP, courses: ['网络'], chars: 20, excerpt: '笔记' }));
+    state.sources.push(...structuredClone(own), ...plain, structuredClone(pointList({ orphan: true, many: 40 })));
     if (off) state.settings.examPrep = { enabled: false }; // the learner turned the page off in Settings
   });
   service.dispose?.();
@@ -207,5 +210,68 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
         await context.close();
       }
     } finally { await on.close(); }
+  } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+/* A long library (owner report 2026-10-09: 198 materials, 175 of them plain notes): the form opens with a material nothing marks left on 不用, says plainly what to do
+   while nothing is used, and one click on 课件 is enough to start. Seeded with many notes, one sample paper and an existing 考点清单. */
+test('a long library opens with every plain note on 不用, a plain hint while no slides are chosen, and one click on 课件 makes the build ready, at 1280 and 420 px', { timeout: 900000 }, async t => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-exam-prep-long-dist-'));
+  await buildPreview({ outdir: dist });
+  try {
+    const long = await start(dist, { examBlueprint: true }, { notes: 175, deck: false });
+    try {
+      for (const width of [1280, 420]) {
+        const { page, context } = await openApp(browser, long, { width });
+        await page.locator('[data-tour="nav-examprep"]').first().dispatchEvent('click');
+        await page.locator('.exam-prep-row').first().waitFor({ timeout: 30000 });
+        await page.locator('[data-usage="examprep.create"]').first().click();
+        await page.locator('[data-doc]').first().waitFor({ timeout: 30000 });
+        await settleAnimations(page);
+        await drainLayoutStability(page);
+        assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll on the long form`);
+        // nothing marks a note: none of them is used, and the sentence says so
+        assert.equal(await page.locator('[data-doc][data-role="lecture"]').count(), 0, 'no plain note is a lecture by default');
+        assert.ok((await page.locator('[data-doc][data-role="none"]').count()) > 0, 'the notes are on 不用');
+        assert.match(await page.locator('[data-doc][data-role="none"]').first().innerText(), /看不出用途，默认不用/, 'and the row says why');
+        assert.match(await page.locator('.exam-prep-docs__counts').innerText(), /0 份课件 · 1 份样卷/);
+        // nothing to read from yet: the plain hint, no number, no wrong refusal, and the start waits
+        assert.match(await page.locator('.exam-prep-estimate__wait').innerText(), /先选至少一份课件/);
+        assert.equal(await page.locator('[data-token-estimate]').count(), 0, 'no expected use is shown');
+        assert.doesNotMatch(await page.locator('.exam-prep-start').innerText(), /资料的选择有误|每份资料都要有用途/);
+        assert.equal(await page.locator('[data-usage="examprep.start"]').isDisabled(), true, 'the start waits');
+        await page.locator('.exam-prep-start').scrollIntoViewIfNeeded();
+        await shot(page, `form-long-empty-${width}`);
+        // one click: filter to a note, make it a lecture
+        await page.locator('.sh-scroll__filter').fill('第 7 周');
+        const note = page.locator('[data-doc]', { hasText: '补充笔记 · 第 7 周' }).first();
+        await note.waitFor({ timeout: 10000 });
+        await note.getByRole('button', { name: '课件' }).click();
+        await until(async () => /1 份课件/.test(await page.locator('.exam-prep-docs__counts').innerText()), 'the sentence follows the pick');
+        await until(async () => (await page.locator('[data-token-estimate][data-status="ready"]').count()) > 0, 'the expected use of the one note', { timeoutMs: 60000 });
+        await until(async () => !(await page.locator('[data-usage="examprep.start"]').isDisabled()), 'the start button after one pick', { timeoutMs: 30000 });
+        assert.equal(await page.locator('.exam-prep-check').innerText().then(text => text.trim()), '', 'no refusal');
+        await page.locator('.exam-prep-start').scrollIntoViewIfNeeded();
+        await shot(page, `form-long-picked-${width}`);
+        // every note a lecture is more than one list takes: the refusal says so in its own words (the old one blamed the roles), and nothing starts
+        await page.locator('.sh-scroll__filter').fill('补充笔记');
+        await until(async () => {
+          await page.evaluate(() => {
+            for (const button of document.querySelectorAll('[data-doc][data-role="none"] button[aria-pressed="false"]')) if (button.textContent.trim() === '课件') button.click();
+            const viewport = document.querySelector('.sh-scroll__viewport');
+            viewport.scrollTop = viewport.scrollHeight;
+          });
+          return (await page.locator('.exam-prep-docs__counts').innerText()).match(/(\d+) 份课件/)?.[1] > 60;
+        }, 'more than 60 lecture rows', { timeoutMs: 60000 });
+        await until(async () => /最多用 \d+ 份资料/.test(await page.locator('.exam-prep-check').innerText()), 'the refusal of too many materials', { timeoutMs: 30000 });
+        assert.doesNotMatch(await page.locator('.exam-prep-start').innerText(), /每份资料都要有用途/);
+        assert.equal(await page.locator('[data-usage="examprep.start"]').isDisabled(), true, 'the start waits while too many are chosen');
+        await page.locator('.exam-prep-start').scrollIntoViewIfNeeded();
+        await shot(page, `form-long-toomany-${width}`);
+        await context.close();
+      }
+    } finally { await long.close(); }
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });

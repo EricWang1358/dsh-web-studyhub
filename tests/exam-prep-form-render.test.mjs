@@ -33,6 +33,8 @@ const rowFor = (html, title) => rowsOf(html).find(item => item.textContent.inclu
 const inside = (element, tag) => { for (let at = element; at; at = at.parentElement) if (at.tagName === tag.toUpperCase()) return at; return null; };
 const ownWords = text => text.replace(/网络|数据库|传输层\.pptx|传输层|老师给的样卷|去年的卷子|考试大纲/g, '').replace(/"[^"]*[㐀-鿿][^"]*"/g, '""');
 const withoutOther = () => library().filter(source => source.id !== 'other-1');
+/** Another course's slides (a plain document no longer counts as slides, so it is a deck that makes the course of the page ambiguous). */
+const otherDeck = () => ({ ...library().find(source => source.id === 'other-1'), document: { id: '别的课', materialId: '别的课', page: 1, totalPages: 1, format: 'pptx' } });
 
 const open = (data, scope = data.focus.course, extra = {}) => ui.openingForm(data, { scope, known: KNOWN, ...extra });
 const create = (data, form = open(data), extra = {}) => h(ui.ExamPrepCreate, { data, initial: form, onBack: noop, onStarted: noop, openSettings: noop, openImport: noop, ...extra });
@@ -64,12 +66,13 @@ test('one table of the course documents, a role each with its reason, and a sent
   assert.match(deck.textContent, /PowerPoint/);
   assert.match(paper.textContent, /文件名含「样卷」/, 'the reason is visible');
   assert.match(syllabus.textContent, /文件名含「大纲」/);
-  assert.match(find('去年的卷子').textContent, /默认当作课件/);
+  assert.match(find('去年的卷子').textContent, /看不出用途，默认不用/, 'nothing marks it: not used until the learner picks it');
+  assert.equal(find('去年的卷子').getAttribute('data-role'), 'none');
   const buttons = row => page.all.filter(item => item.tagName === 'BUTTON' && inside(item, 'li') === row && item.hasAttribute('aria-pressed'));
   for (const row of [deck, paper, syllabus]) assert.deepEqual(buttons(row).map(item => item.textContent.trim()), ['课件', '样卷', '大纲', '不用'], 'one click each');
   const pressed = row => buttons(row).filter(item => item.getAttribute('aria-pressed') === 'true').map(item => item.textContent.trim());
   assert.deepEqual(pressed(paper), ['样卷']);
-  assert.match(text, /2 份课件 · 1 份样卷 · 1 份大纲/);
+  assert.match(text, /1 份课件 · 1 份样卷 · 1 份大纲/);
   assert.equal(dom(html).all.filter(item => (item.getAttribute('class') || '').split(/\s+/).includes('source-picker')).length, 0, 'no picker on the main path');
   assert.doesNotMatch(text, /蓝图|blueprint/i);
 });
@@ -85,11 +88,11 @@ test('without a sample paper the form says what that means and offers 导入样�
   assert.doesNotMatch(drawn(render(create(snapshot({ lists: [] })))), /没有样卷/, 'with a paper the note is gone');
 });
 
-test('a name that looks like a paper keeps its role but offers 设为样卷 in one click', () => {
+test('a name that looks like a paper has no role but offers 设为样卷 in one click', () => {
   const data = snapshot({ lists: [], sources: [...library(), { id: 'weak-1', title: 'Exam tips', text: 'tips', createdAt: '2026-10-01T08:00:00.000Z', courses: ['网络'], chars: 4 }] });
   const html = render(create(data));
   const row = rowFor(html, 'Exam tips');
-  assert.equal(row.getAttribute('data-role'), 'lecture');
+  assert.equal(row.getAttribute('data-role'), 'none', 'a weak word leaves a hint, not a role');
   assert.match(row.textContent, /名字像样卷？设为样卷/);
   assert.doesNotMatch(rowFor(html, '传输层').textContent, /设为样卷/);
 });
@@ -149,14 +152,14 @@ test('without a model the banner is at the top of the form, the table is still t
 
 test('what the list reads is said once, above the table; there is no second plan line above the button', () => {
   const html = render(create(snapshot({ lists: [] })));
-  assert.equal(html.split('2 份课件').length - 1, 1, 'the counts are said once');
-  assert.match(html, /2 份课件 · 1 份样卷 · 1 份大纲/);
-  assert.ok(html.indexOf('2 份课件') < html.indexOf('<table') || html.indexOf('2 份课件') < html.lastIndexOf('开始生成'), 'above the table and the button');
+  assert.equal(html.split('1 份课件').length - 1, 1, 'the counts are said once');
+  assert.match(html, /1 份课件 · 1 份样卷 · 1 份大纲/);
+  assert.ok(html.indexOf('1 份课件') < html.indexOf('<table') || html.indexOf('1 份课件') < html.lastIndexOf('开始生成'), 'above the table and the button');
   assert.ok(!html.includes('exam-prep-plan'), 'no plan line');
 });
 
 test('when the course cannot be told, one small course field is asked above the table, once', () => {
-  const data = snapshot({ lists: [], course: '' });
+  const data = snapshot({ lists: [], course: '', sources: [...withoutOther(), otherDeck()] });
   const html = render(create(data, open(data, '*')));
   const field = dom(html).all.find(item => (item.getAttribute('class') || '').split(/\s+/).includes('course-field'));
   assert.ok(field, 'the course field');
@@ -236,6 +239,6 @@ test('a page opened with a kept form shows the form again, with the picks the le
     const html = render(h(ui.ExamPrep, { data, onOpenSource: noop, onOpenTask: noop, openSettings: noop }));
     assert.match(drawn(html), /开始生成/, 'the create form, not the list');
     assert.equal(rowFor(html, '老师给的样卷').getAttribute('data-role'), 'none');
-    assert.match(drawn(html), /2 份课件 · 0 份样卷/);
+    assert.match(drawn(html), /1 份课件 · 0 份样卷/);
   } finally { ui.dropForm(); }
 });
