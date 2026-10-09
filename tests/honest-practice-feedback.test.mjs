@@ -71,7 +71,8 @@ test('the word comes from the mastery level function, so the practice line and t
 
 test('no practice screen calls a merely correct answer 已掌握: the result headline counts 答对, the feedback line is the level\'s', async () => {
   const { readFile } = await import('node:fs/promises');
-  const review = await readFile('ui/Review.jsx', 'utf8');
+  // The page and the question it shows (ui/review/QuestionRun.jsx) are one practice screen.
+  const review = await readFile('ui/Review.jsx', 'utf8') + await readFile('ui/review/QuestionRun.jsx', 'utf8');
   assert.doesNotMatch(review, /道题已掌握/, 'the end-of-run headline counts the correct answers, it does not call them mastered');
   assert.doesNotMatch(review, /✓ 已掌握/, 'the one place that may say 已掌握 is ui/NextDue.jsx, by the level');
   assert.match(review, /<NextDue feedback=\{run\.feedback\}/);

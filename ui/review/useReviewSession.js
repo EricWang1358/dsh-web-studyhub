@@ -20,8 +20,10 @@ import { continueLabel, continueNote } from './continue-labels.js';
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
    library poll; Review now receives `session` (state + actions) and no setters. The rules are in session-logic.js.
    deps: core (call, act, notify, setError, refs), nav (page, setPage, show), modalOpen, host, rootRef, late
-   (functions only App can build: resume). */
-export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) {
+   (functions only App can build: resume).
+   embeddedIn (optional): the name of another page that mounts <QuestionRun> (ui/review/QuestionRun.jsx) with this session. The question is
+   then "on screen" while nav.page is that page, and enterRun leaves nav.page alone instead of going to 'review'. Without it, nothing changes. */
+export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, embeddedIn }) {
   const { call, act, notify, setError, busy, refs } = core;
   const [run, setRun] = useState(null);
   const [entry, setEntry] = useState(emptyEntry);
@@ -47,7 +49,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
   const [autoAdvance, setAutoAdvance] = useState('');
   const [shortcutHelp, setShortcutHelp] = useState(false);
   const [teachingPending, setTeachingPending] = useState({});
-  const { page, setPage } = nav;
+  const { setPage } = nav;
+  // The rules below (and session-logic.js) call the page that shows the question 'review', whichever page that is.
+  const page = nav.page === (embeddedIn || 'review') ? 'review' : nav.page;
   const runRef = useRef(run), pageRef = useRef(page), entryRef = useRef(entry), busyRef = useRef(busy);
   runRef.current = run;
   pageRef.current = page;
@@ -64,9 +68,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late }) 
     runRef.current = next;
     if (next.mode === 'exam') { nav.show.exam('exam', next.id); return; }
     setRun(next);
-    setPage('review');
+    if (!embeddedIn) setPage('review');
     setEntry(entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) }));
-  }, [nav.show, setPage, refs]);
+  }, [nav.show, setPage, refs, embeddedIn]);
   const reset = useCallback(() => { setRun(null); setEntry(emptyEntry()); }, []);
   const clearRun = useCallback(() => setRun(null), []);
   const patchRun = useCallback((change) => setRun(change), []);

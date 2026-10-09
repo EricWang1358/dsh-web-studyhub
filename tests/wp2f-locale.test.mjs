@@ -11,7 +11,7 @@ const han = /[㐀-鿿]/;
 
 const walk = async (dir) => (await readdir(dir, { recursive: true })).map((name) => `${dir}/${name}`.replace(/\\/g, '/')).filter((name) => /\.(js|jsx)$/.test(name));
 const FILES = [
-  'ui/App.jsx', 'ui/Review.jsx', 'ui/ReviewToolbar.jsx', 'ui/ReviewNavigator.jsx', 'ui/ShortcutHelp.jsx', 'ui/ExplanationFollowup.jsx', 'ui/study-context.jsx',
+  'ui/App.jsx', 'ui/Review.jsx', 'ui/review/QuestionRun.jsx', 'ui/ReviewToolbar.jsx', 'ui/ReviewNavigator.jsx', 'ui/ShortcutHelp.jsx', 'ui/ExplanationFollowup.jsx', 'ui/study-context.jsx',
   'ui/components/Feedback.jsx', 'ui/ActionFeedback.jsx', 'ui/quick-actions.js',
   ...await walk('ui/app'), ...await walk('ui/review'),
 ];
