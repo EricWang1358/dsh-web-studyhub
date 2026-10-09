@@ -79,7 +79,9 @@ test('the page reads like a book: numbered chapters with their introduction, sec
   assert.match(text, /学习顺序依据：讲义大纲《SA 讲义大纲》的顺序 · 资料标题里的编号/);
   assert.match(text, /重新整理/);
   assert.doesNotMatch(text, /资料有更新|生成总纲|样卷考过（|补充 /, 'not stale, no paper: nothing said about either');
-  assert.equal(primaries(html), 0, 'the outline exists: 重新整理 is quiet');
+  // The outline exists: 重新整理 is quiet; the one main button is the next step, 生成复习全书 (tests/course-book-ui.test.mjs).
+  assert.equal(primaries(html), 1);
+  assert.match(textOf(html.slice(html.indexOf('sh-btn--primary'))), /^[^<]*?生成复习全书/);
   assert.match(textOf(page({ outline: { ...outline, book: { ...book, stale: true } } })), /资料有更新，建议重新整理/);
   const tip = dom(html).all.find(item => item.getAttribute('role') === 'tooltip' && /章 → 节 → 知识点/.test(item.textContent));
   assert.match(tip.textContent, /只是参考：题目的出处仍是原来的资料/);

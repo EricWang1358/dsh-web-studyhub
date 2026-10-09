@@ -303,6 +303,57 @@
     .outline-row__tier {
       flex: none;
     }
+    /* 复习全书 under an opened knowledge point (ui/outline/LeafNotes.jsx): read-only parts in reading order, a quiet rule on the left; 补充 is marked. */
+    .outline-notes {
+      display: grid;
+      gap: var(--space-3);
+      margin: var(--space-2) 0 var(--space-3) var(--space-6);
+      padding: var(--space-3) var(--space-4);
+      border-left: 2px solid var(--line);
+      background: var(--bg-sunken);
+      border-radius: var(--radius-sm);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
+    .outline-notes__part {
+      display: grid;
+      gap: var(--space-1);
+    }
+    .outline-notes__part--extra {
+      color: var(--text-muted);
+    }
+    .outline-notes__head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+    }
+    .outline-notes__exam,
+    .outline-notes__none {
+      margin: 0;
+    }
+    .outline-notes__none {
+      color: var(--text-muted);
+    }
+    .outline-notes__cites {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: var(--space-2) 0 0;
+      border-top: 1px solid var(--line);
+      list-style: none;
+    }
+    .outline-notes__cite {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0 var(--space-2);
+    }
+    .outline-notes__source {
+      color: var(--text-dim);
+    }
   }
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {
@@ -338,6 +389,10 @@
       }
       .outline-book-line .outline-organise__actions {
         margin-left: 0;
+      }
+      .outline-notes {
+        margin-left: var(--space-3);
+        padding: var(--space-2) var(--space-3);
       }
     }
   }

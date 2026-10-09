@@ -178,6 +178,13 @@ const FEATURES = {
     line: ui('生成总纲需要先配置模型；没有总纲时这里按资料列出。'),
     note: ui('没有总纲时这里按资料列出；生成总纲前需要先配置模型。'),
   }),
+  // Writing the 复习全书 on the course outline (ui/outline/CourseOutline.jsx); the outline and any notes already written stay readable without a model.
+  courseBook: () => ({
+    why: ui('生成复习全书要调用 AI 模型；总纲和已写好的讲解不需要模型也能看。'),
+    then: ui('回到这里，点「生成复习全书」'),
+    line: ui('生成复习全书需要先配置模型；总纲和已写好的讲解照常能看。'),
+    note: ui('总纲和已写好的讲解照常能看；生成复习全书前需要先配置模型。'),
+  }),
   // Drafting a note from questions (ui/BlogNotes.jsx).
   note: () => ({
     why: ui('AI 起草要调用 AI 模型。配置好之后回到这里，点「AI 起草解析」。'),

@@ -18,6 +18,7 @@ const COLOR_OPEN = "c",
 const INLINE = [
   ["code", /`([^`\n]+)`/],
   ["term", new RegExp(TERM_SOURCE)],
+  ["cite", /\[\^(\d{1,2})\]/],
   ["math", /\uE000(\d+)\uE001/],
   ["image", STUDY_IMAGE_PATTERN],
   ["color", /c(#[0-9a-fA-F]{3,8})([\s\S]*?)\/c/],
@@ -70,6 +71,8 @@ function inline(text, options, key = "i") {
     for (const [type, re] of INLINE) {
       // `[[term]]` is a button only where a handler is given; elsewhere it stays the text it was written as.
       if (type === "term" && !options.onTerm) continue;
+      // A `[^n]` cite mark (the review book's 角标) is a button only where a handler is given.
+      if (type === "cite" && !options.onCite) continue;
       const m = re.exec(rest);
       if (m && (!best || m.index < best.m.index)) best = { type, m };
     }
@@ -83,6 +86,14 @@ function inline(text, options, key = "i") {
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
     else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
     else if (type === "image") out.push(<StudyImage key={k} alt={m[1]} src={m[2] || m[3]} interactive={options.mediaInteractive} />);
+    else if (type === "cite")
+      out.push(
+        <sup key={k} className="md-cite">
+          <Button variant="link" size="sm" className="md-cite__mark" aria-label={uiFormat("看原文 {0}", [m[1]])} onClick={() => options.onCite(Number(m[1]))}>
+            {m[1]}
+          </Button>
+        </sup>,
+      );
     else if (type === "term") {
       const term = m[1],
         asked = options.askedTerms?.includes(term);
@@ -310,11 +321,11 @@ function list(items, options, key) {
   );
 }
 
-/** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. */
-export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms }) {
+/** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. `onCite(n)`: `[^n]` marks become buttons. */
+export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite }) {
   const content = React.useMemo(() => {
     const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
-    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms });
-  }, [text, links, mediaInteractive, onTerm, askedTerms]);
+    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite });
+  }, [text, links, mediaInteractive, onTerm, askedTerms, onCite]);
   return <div className={("md " + className).trim()}>{content}</div>;
 }

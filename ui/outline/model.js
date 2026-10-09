@@ -6,6 +6,8 @@ import { suggestRoles } from '../../lib/exam-prep-roles.js';
 export const UNPLACED = 'unplaced';
 /** The task kind of a 总纲 build (lib/contexts/generation/outline), as the console lists it. */
 export const OUTLINE_BUILD_KIND = 'course-outline-build';
+/** The task kind of a 复习全书 build (lib/contexts/generation/book): it may organise the outline first. */
+export const BOOK_BUILD_KIND = 'course-book-build';
 
 /**
  * The rows of the AI outline (course.outline's `book`), in reading order: a chapter (章, open by default), its sections (节) and points (知识点), a point's
@@ -51,14 +53,24 @@ export function paperChoices(documents) {
 /** The keys open when an outline is first shown: its chapters (章 open, 节 closed). */
 export const bookDefaultOpen = book => (book?.nodes || []).map(node => node.key);
 
-/** The running 总纲 build of a course, from the snapshot's jobs: { jobId, done, total } or null. */
-export function runningBuild(jobs, course) {
+/** The running 总纲 build of a course (or, with `kind`, its 复习全书 build), from the snapshot's jobs: { jobId, done, total } or null. */
+export function runningBuild(jobs, course, kind = OUTLINE_BUILD_KIND) {
   for (const job of Array.isArray(jobs) ? jobs : []) {
     const contract = contractOf(job);
-    if (contract.kind !== OUTLINE_BUILD_KIND || contract.detail?.course !== course || !isRunningTask(job)) continue;
+    if (contract.kind !== kind || contract.detail?.course !== course || !isRunningTask(job)) continue;
     return { jobId: contract.jobId, status: contract.status, done: contract.progress?.done ?? 0, total: contract.progress?.total ?? 0 };
   }
   return null;
+}
+
+/**
+ * The one main action of the 总纲 page's line: 'outline' (生成总纲, no outline yet), 'book' (生成复习全书: an outline without notes) or 'update' (更新全书: notes
+ * that are out of date); null when the notes are current (更新全书 stays, quiet).
+ */
+export function mainAction(book) {
+  if (!book) return 'outline';
+  if (!book.notes) return 'book';
+  return book.notes.stale ? 'update' : null;
 }
 
 /**
