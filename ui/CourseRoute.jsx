@@ -3,14 +3,12 @@ import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { TERMS } from "./mastery-terms.js";
 import { Button, Tooltip } from "./components/index.js";
-import { joinMeta, formatIndex } from './format.js';
 
-/* 课程路线：课程按题组顺序排成一章一章。进度条每一段是一章（按题量占宽），
-   学过的部分填色；展开后能看到每一章学到哪里，并从任意一章开始。 */
+/* 课程进度：课程按题组顺序排成一章一章。进度条每一段是一章（按题量占宽），学过的部分填色。
+   找题、挑题练在「总纲」页（ui/outline/）：按资料的章节排开这门课的题，它取代了首页原来折叠的课程路线列表。 */
 
-const STATUS = { done: "已学完", current: "正在学", started: "学了一部分", upcoming: "未开始" };
-
-export default function CourseRoute({ route, busy, onStartChapter }) {
+/** `onShowOutline` opens the 总纲 page (absent when the host has not the components it needs). */
+export default function CourseRoute({ route, onShowOutline }) {
   if (!route?.chapters?.length) return null;
   const chapter = route.current === null ? null : route.chapters[route.current];
   return (
@@ -29,26 +27,12 @@ export default function CourseRoute({ route, busy, onStartChapter }) {
           </span>
         ))}
       </div>
-      <details className="course-route-list">
-        <summary>{uiFormat("课程路线 · {0} 章", [route.chapters.length])}</summary>
-        <ol>
-          {route.chapters.map((c, i) => (
-            <li key={c.deckId} className={`is-${c.status}`}>
-              <span className="course-route-dot" aria-hidden="true" />
-              <span className="course-route-title">{/^\d/.test(c.title) ? c.title : `${formatIndex(i + 1)} · ${c.title}`}</span>
-              <span className="course-route-meta">
-                {joinMeta([ui(STATUS[c.status]), `${c.learned}/${c.total}`, c.weak ? uiFormat("{0} 道薄弱", [c.weak]) : ""])}
-              </span>
-              {c.learned < c.total && (
-                <Button variant="link" size="sm" disabled={busy} onClick={() => onStartChapter(c.deckId)}>
-                  {c.status === "current" ? ui("接着学") : ui("从这一章学")}
-                </Button>
-              )}
-            </li>
-          ))}
-        </ol>
-        <p className="muted small">{ui("章的顺序就是学习库里题组的顺序，可以在「管理题组」用「上移题组 / 下移题组」调整。")}</p>
-      </details>
+      {onShowOutline && (
+        <p className="course-route-outline">
+          <Button variant="link" size="sm" icon="list" onClick={onShowOutline}>{ui("总纲")}</Button>
+          <span>{ui("按资料的章节找题、挑题练")}</span>
+        </p>
+      )}
     </div>
   );
 }
