@@ -69,6 +69,10 @@ test('a conversion\'s log reads as a story, in Chinese and in English, and a fai
   const error = failed.find(line => line.kind === 'convert-failed');
   assert.equal(error.text, `转换失败：${MARKER_TEXT.needsDocker(2)}`);
   assert.deepEqual(error.block, failureLines);
+  // The original path also notes the status change with the same text: the cause is said once, and the failed window does not repeat it.
+  const once = m.logLines({ events: [...failedEvents, event(61, 'error', 'status', { status: 'failed' }, MARKER_TEXT.needsDocker(2))], calls: [] });
+  assert.equal(once.filter(line => line.text.includes('已安装的 Marker 是 2.x')).length, 1, once.map(line => line.text).join('\n'));
+  assert.ok(once.some(line => /^第 1 段没有完成：第 1–10 页，用时 .+ · 退出码 1$/.test(line.text)));
   m.setUiLanguage('en');
   try {
     const en = m.logLines({ events: [...story, ...failedEvents], calls: [] }).map(line => line.text);

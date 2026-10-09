@@ -54,7 +54,7 @@ export function PdfDetail({ job, expandChunks }) {
     <div className="pdf-detail">
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
-        {job.route === 'local' && (count > 1 || adaptive) && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
+        {job.route === 'local' && (count > 1 || adaptive) && !job.toolProgress && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
         {job.route === 'local' && job.local?.eta && <small className="pdf-eta">{etaText(job.local.eta)}</small>}
         {job.route === 'local' && job.local?.pace && <Hint as="small">{uiFormat('这台电脑每页约 {0} 秒', [job.local.pace.secondsPerPage])}</Hint>}
       </>}
