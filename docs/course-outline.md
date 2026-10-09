@@ -4,7 +4,7 @@
 
 The **Course outline** page lays out the current course by its materials instead of by its decks: each material, its chapters, and under each chapter the questions that cite it. Use it to find the questions about a part of the course and practise exactly those, without working out which deck holds them.
 
-Step 1 lays the course out by the materials' own chapters, with no AI text. Step 2 adds **Generate outline**: the model organises the materials into a book-like outline (chapters, sections, knowledge points) in learning order. Checked against the code on 2026-10-09.
+Step 1 lays the course out by the materials' own chapters, with no AI text. Step 2 adds **Generate outline**: the model organises the materials into a book-like outline (chapters, sections, knowledge points) in learning order. The review book's explanation layer writes notes under each knowledge point of the outline (see The review book below). Checked against the code on 2026-10-09.
 
 ## Open it
 
@@ -35,6 +35,37 @@ Above the outline, one line says what the learning order rests on (**Learning or
 **A reference, never evidence.** The outline is a record of the library, but it is not a material: the **Sources** page, the pickers, search, counts and every list of materials leave it out, and a request that names it as material (to make questions from, as a reference source) is refused. Questions keep citing the original materials word for word.
 
 **What the model is shown.** Not the texts: for each material, its name, format, chapters, question count, the most frequent topics and the first prompts of its questions, its number, version and date hints; the syllabus text is the only text sent (at most 12,000 characters). Copies with the same name and chapters are shown once. In the test library shaped like a real course (134 materials, about 900 questions) that is two model calls (one batch of materials, one arrangement), plus one call per 8,000 characters of sample paper; more materials make more batches of at most 36,000 characters each. Every answer is checked by the program: an invented or repeated id is dropped and counted, at most three levels, names cut to size.
+
+## The review book (explanation layer)
+
+The review book (复习全书) writes, for every knowledge point of the outline, a condensed, exam-minded explanation a beginner can follow, so someone with one week left and a whole textbook can study the book instead of the original. This step is the explanation layer only; the full book page (reading, practice and question columns, inline 弄懂 blocks) comes in later versions.
+
+**Making it.** The outline page has one main button, **Write the review book** (when there is an outline and no book yet). One click starts the task **Write the review book** in the background: no estimate, no confirmation; the **Tasks** page shows its progress and lets you pause, stop (nothing is saved) or retry (finished model calls are kept). While it runs the page says **Writing the review book (step i of n)…** with **View progress**. Without a model the button is disabled and says where to set one up (its own hint: the outline and the explanations already written stay readable without one). The only hard precondition is a course with at least one material: no questions, decks of questions, with or without sample papers, a single short material (one chapter is fine) and no outline yet all work; a missing input removes only its own part. Without an outline the task first organises it with exactly the steps of **Generate outline**, then writes the explanations, and saves both at once; so the button is offered (as a secondary one) before there is an outline too.
+
+**What a knowledge point holds.** Opening a knowledge point shows its notes, read-only, above its materials and questions:
+
+| Part | What it is |
+| --- | --- |
+| In the sample papers (考情) | Only when the outline rests on sample papers: **Tested in the sample papers.** and one line by the model on how the paper asks it, or **The sample papers do not test this point.** Without papers this heading is not shown. |
+| Key points | A few short bullets: definitions, facts, formulas, steps. |
+| Explanation | Plain language: what it is, why it matters, how the ideas connect, the usual mistakes. Formulas are shown with KaTeX. |
+| Example | When the materials have a worked example, an exercise or a case, one short example step by step; otherwise not shown. |
+| Extra (beyond the materials) | What the model adds that the materials do not say (background, a standard definition, an intuition), marked apart and without citation marks. |
+| Sources | The original passages the citation marks point to. Each mark in the text and each line here opens the reader at that sentence. |
+
+**Marks point to the original only.** Every quote the model gives must be found word for word in the point's own materials (the rule question citations use, lib/quote-locate.js); the original's own words and place are stored. A quote that is not found is dropped together with its mark in the text, and the task's result says how many were dropped.
+
+**A reference, never evidence.** Like the outline, the review book is a hidden record of the library (`provenance: 'course-outline-notes'`), not a material: material lists, pickers and search leave it out, and using it to make questions or as a reference source is refused. Questions keep citing the original materials. It holds only what the machine wrote; personal blocks to come (弄懂 blocks, notes, common mistakes) are stored elsewhere and are never overwritten by it.
+
+**An update changes only what changed.** Each point's explanation records an input fingerprint: the texts it was written from (which material, which passage, what words) and the language; 考情 records its own: the point's sample paper places. So:
+
+- When materials are added, removed or changed, the page says **Your materials have changed since; updating the book is suggested** and the main button becomes **Update the book**. An update first organises the outline again (the materials changed), then asks the model only for points whose texts changed and for new points; unchanged points are kept as they are, with no model call.
+- After the outline is reorganised its node ids change: earlier explanations are matched to the new points by anchor overlap and title, and kept when their texts did not change.
+- Ticking sample papers after the book exists and selecting **Update the book** keeps the outline's chapters and knowledge points and only reads the papers again (a call per chunk of paper); only the points whose paper places changed get new 考情. The explanations stay byte for byte.
+- New questions and answers are no input: adding questions neither changes the book nor marks it out of date.
+- Each update makes a new version and keeps the old one as an archived record; a rewritten part names the version it replaces (`replaces`). When nothing changed, nothing is written.
+
+**How many calls.** A call explains at most three points with at most 24,000 characters of their materials; a point is shown at most 12,000 characters, a beginning of each passage when it has more. In the test library shaped like a real course (134 materials, about 900 questions, 19 knowledge points, 20 with a sample paper): two calls for the outline (one batch of materials, one arrangement) and seven for the explanations; with one sample paper also one call to read it and one for 考情. A 考情 call covers at most eight points.
 
 ## What it shows (without an outline)
 
@@ -78,6 +109,8 @@ The round comes back to the outline: **Back to the outline** in the round and on
 - An outline is never edited by hand; **Reorganise** makes a new one.
 - A question cannot be moved to another row by hand.
 - Recordings keep their parts as chapters only when the material has chapters; there is no jump to a time in the recording.
+- The quality of the review book's explanations depends on the model; the flow, the call counts and the quote checks have been verified with a fake model, the content not yet with a real model on a real textbook.
+- The review book is updated as a whole; a single point cannot be rewritten or edited by hand.
 
 ## For developers
 
@@ -85,4 +118,6 @@ The round comes back to the outline: **Back to the outline** in the round and on
 - The placement is cached per library revision, minute, course and deck filter. A synthetic library of 200 materials (6 million characters), 3,000 questions and 600 fuzzy quotes takes about 75 ms the first time and 5 ms after; the answer without open rows is about 55 KB.
 - The page is ui/outline/; the registry row is `outline` in ui/pages.js.
 - The organised outline is a source record (lib/course-outline-book.js): `provenance: 'course-outline'`, a readable `text` and the structured `courseOutline` (`nodes` of at most three levels, each leaf's `anchors` being the document and chapter keys of `course.outline`, `other`, `orderBasis`, `papers`, a materials `fingerprint`, `supersedes`). lib/exam-point-list.js `isLibraryListSource` hides it with the 考点清单. `course.outline` answers `book` (lib/course-outline-book-view.js lays it over the engine's rows; its keys start with `bk:` and work with `expand` and `pick`).
-- `generation.courseOutline.build {course, language?, papers?, supersedes?}` starts the Job `course-outline-build` (lib/contexts/generation/outline/): map calls over batches of descriptors, one reduce call, a call per chunk of sample paper, one write. Refusals: course-outline-no-course, course-outline-no-materials, course-outline-paper-invalid, course-outline-no-readable-text, course-outline-supersedes-invalid. Its result names `{ kind: 'course-outline', id, course }`; the console's open button goes to this page for that course.
+- `generation.courseOutline.build {course, language?, papers?, supersedes?}` starts the Job `course-outline-build` (lib/contexts/generation/outline/): map calls over batches of descriptors, one reduce call, a call per chunk of sample paper, one write. Refusals: course-outline-no-course, course-outline-no-materials, course-outline-paper-invalid, course-outline-no-readable-text, course-outline-supersedes-invalid. Its result names `{ kind: 'course-outline', id, course }`; the console's open button goes to this page for that course. `papersOnly: true` keeps the current outline's knowledge points (the same ids) and only marks them again with `papers`; without an outline it is refused (course-outline-no-outline). While a review book build of the course runs, a build is refused (course-outline-book-running).
+- The review book is a source record (lib/course-book.js): `provenance: 'course-outline-notes'`, a readable `text` and the structured `courseNotes` (`outlineId`, `language`, `leaves: [{ id, title, anchors, body?, exam? }]`, `papers`, `counts`, `supersedes`). A `body` is `{ fingerprint, points, explain, example?, extra?, cites: [{ n, sourceId, quote, start, end }], replaces? }` (`[^n]` marks cite n in the texts) or `{ fingerprint, empty: true }`; an `exam` is `{ fingerprint, tested, note?, replaces? }`. The fingerprints and what "out of date" means are lib/course-book-inputs.js, shared by the page and the task. `isLibraryListSource` hides it; `assertMaterials` refuses it with course-notes-not-material. `course.outline` answers `book.notes` (`{ id, stale, missing, changed, leaves, papers }`), and an expanded knowledge point carries its own notes in `open[key].notes` (lib/course-book-view.js).
+- `generation.courseBook.build {course, language?, papers?}` starts the Job `course-book-build` (lib/contexts/generation/book/): the outline's stages first when needed (the same Job, `organiseOutline`), explanation calls in batches, 考情 calls, and one `sources.ingest` (the outline and the book together; what they replace is archived in the same write). The language follows the request's `language`. Refusals: course-book-no-course, course-book-no-materials, course-book-outline-running, and the outline's own. Its result names `{ kind: 'course-book', id, course }`; the console's **Open the review book** goes to the outline page of that course.

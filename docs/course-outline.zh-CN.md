@@ -4,7 +4,7 @@
 
 「总纲」页按资料而不是按题组排开当前课程：每份资料、它的章节，以及每一章下面引用了这一章的题。想找课程某一部分的题、只练这些题时用它，不用先想题在哪个题组里。
 
-第一步按资料自己的章节排开这门课，不含 AI 写的文字。第二步加上「生成总纲」：让模型把资料整理成像书一样的「章 → 节 → 知识点」，按学习顺序排好。按 2026-10-09 的代码核对。
+第一步按资料自己的章节排开这门课，不含 AI 写的文字。第二步加上「生成总纲」：让模型把资料整理成像书一样的「章 → 节 → 知识点」，按学习顺序排好。复习全书的讲解层在总纲的每个知识点下写讲解（见下面的「复习全书」）。按 2026-10-09 的代码核对。
 
 ## 怎么进入
 
@@ -35,6 +35,37 @@
 **只是参考，不是依据。** 总纲是学习库里的一条记录，但不是资料：「资料」页、各个选择器、搜索、计数和所有资料列表都不列它；把它当资料（拿来出题、当参考资料）的请求会被拒绝。题目仍然逐字引用原来的资料。
 
 **模型看到什么。** 不是全文：每份资料只给名字、格式、章节、题数、题目里最常见的主题和前几道题的题干、编号/版本/日期线索；唯一会发送的全文是讲义大纲（最多 12000 字）。同名同章节的副本只给一次。在仿照真实课程的测试库里（134 份资料、约 900 道题）是两次模型调用（一批资料、一次排章节），样卷每 8000 字再加一次；资料更多时分成更多批，每批最多 36000 字。每个回答都由程序检查：编造或重复的编号会被丢掉并计数，最多三层，名字截到合适长度。
+
+## 复习全书（讲解层）
+
+复习全书给总纲的每个知识点写一段精简、照顾考试、新手也看得懂的讲解，让只剩一周、手里只有一整本教材的人可以读它代替原书。这一步只做讲解层；完整的书页（阅读、练习、问答几栏和「弄懂块」）在后面的版本。
+
+**怎么生成。** 总纲页上一个主按钮「生成复习全书」（有总纲、还没有全书时）。点一下就在后台开始「生成复习全书」任务：不估算、不确认，进度在「任务」页，可以暂停、停止（什么都不保存）或重试（已完成的模型调用会沿用）。进行中这一页显示「正在生成复习全书（i/n 步）…」和「看进度」。没有配置模型时按钮不可用，并说明去哪里配置（它有自己的提示：总纲和已写好的讲解不需要模型也能看）。唯一的硬条件是这门课至少有一份资料：没有题、有题组、有没有样卷、只有一份很短的资料（一章也行）、还没有总纲都可以；缺什么只少它自己那一部分。还没有总纲时，任务先用和「生成总纲」完全相同的步骤整理总纲，再写讲解，最后把两者一次存入；所以没有总纲时「生成复习全书」也会显示（次要按钮）。
+
+**每个知识点有什么。** 展开一个知识点，在它的资料行和题上面显示讲解（只读）：
+
+| 部分 | 是什么 |
+| --- | --- |
+| 考情 | 只在总纲依据了样卷时出现：样卷考过的知识点写「样卷考过。」和一句模型按样卷题目写的考法；没考到的写「样卷没有考到这一点。」。没有样卷时不出现这个标题。 |
+| 知识梳理 | 几条短要点：定义、事实、公式、步骤。 |
+| 讲解 | 用浅白的话讲清楚它是什么、为什么重要、怎么联系、常见错误。公式用 KaTeX 显示。 |
+| 例子 | 资料里有例题、练习或案例时，按步骤复述一个短例子；没有就不显示。 |
+| 补充（资料以外） | 模型加的、资料里没有的内容（背景、通用定义、直觉），单独标出，不带角标。 |
+| 出处 | 角标对应的原文。正文里的角标数字和这里的每一行都能点，在阅读器里打开原文并定位到这句话。 |
+
+**角标只指向原文。** 模型给出的每条引文都要在这个知识点自己的资料里逐字找到（和题目引文用同一个定位规则，lib/quote-locate.js），存下原文自己的字和位置；找不到的引文直接去掉，连同正文里它的角标，任务结果里会说去掉了几处。
+
+**只是参考，不是依据。** 复习全书和总纲一样是学习库里一条隐藏的记录（`provenance: 'course-outline-notes'`），不是资料：资料列表、选择器、搜索都不列它，拿它出题或当参考资料会被拒绝。题目仍然只引用原来的资料。它只存机器写的内容；以后的个人内容（弄懂块、笔记、易错点）存在别处，永远不会被它覆盖。
+
+**更新只改变了的部分。** 每个知识点的讲解记着它的输入指纹：它收下的资料文字（哪份资料、哪一段、什么字）和语言；考情另记一个指纹：它的样卷位置。所以：
+
+- 资料有新增、删除或修改时，这一页显示「资料有更新，建议更新全书」，主按钮变成「更新全书」。更新时先重新整理总纲（资料变了），然后只给文字变了的知识点和新知识点调用模型；没变的知识点原样沿用，不调用模型。
+- 总纲重新整理后知识点的编号会变：按资料重叠和标题把旧讲解对到新知识点上，文字没变就照用。
+- 书生成以后再勾样卷、点「更新全书」：总纲保留原来的章节和知识点，只重新对照样卷（每段样卷一次调用），只给样卷位置变了的知识点重写考情；讲解一个字都不变。
+- 新出的题、做题记录都不是输入：加题不会改动复习全书，也不会让它显示需要更新。
+- 每次更新生成新的一版，旧版保留为已归档的记录；重写的部分记着它替换的版本（`replaces`）。什么都没变时不写任何东西。
+
+**调用多少。** 每次调用最多三个知识点、最多 24000 字的资料；一个知识点最多看 12000 字，更多时每段资料按比例取开头。在仿照真实课程的测试库里（134 份资料、约 900 道题、19 个知识点，有样卷时 20 个）：整理总纲 2 次（一批资料、一次排章节）+ 讲解 7 次；有一份样卷时再加对照样卷 1 次和考情 1 次。考情每次最多八个知识点。
 
 ## 显示什么（没有总纲时）
 
@@ -78,6 +109,8 @@
 - 总纲不能手动编辑；「重新整理」会生成新的一版。
 - 不能手动把题移到别的行。
 - 录音只有在资料有章节时才按章节分行；不能跳到录音的某个时间点。
+- 复习全书的讲解质量取决于模型；目前只用假模型核对过流程、调用次数和引文校验，还没有用真实模型在真实教材上检查内容好不好。
+- 复习全书只能整体更新，不能单独重写某个知识点，也不能手动编辑。
 
 ## 开发者
 
@@ -85,4 +118,6 @@
 - 放置结果按学习库版本、分钟、课程和题组筛选缓存。合成的 200 份资料（600 万字符）、3000 道题、600 条写法不同的引文：第一次约 75 毫秒，之后约 5 毫秒；不展开任何行时的返回约 55 KB。
 - 页面在 ui/outline/，页面注册表里是 ui/pages.js 的 `outline`。
 - 整理好的总纲是一条 source 记录（lib/course-outline-book.js）：`provenance: 'course-outline'`、可读的 `text` 和结构化的 `courseOutline`（最多三层的 `nodes`，每个叶子的 `anchors` 是 `course.outline` 的资料键和章节键；`other`、`orderBasis`、`papers`、资料指纹 `fingerprint`、`supersedes`）。lib/exam-point-list.js 的 `isLibraryListSource` 把它和考点清单一起隐藏。`course.outline` 返回 `book`（lib/course-outline-book-view.js 把它叠在引擎的行上；键以 `bk:` 开头，可用于 `expand` 和 `pick`）。
-- `generation.courseOutline.build {course, language?, papers?, supersedes?}` 启动 Job `course-outline-build`（lib/contexts/generation/outline/）：按批的 map 调用、一次 reduce、每段样卷一次调用、一次写入。拒绝码：course-outline-no-course、course-outline-no-materials、course-outline-paper-invalid、course-outline-no-readable-text、course-outline-supersedes-invalid。结果引用 `{ kind: 'course-outline', id, course }`，任务页的打开按钮会转到那门课的这一页。
+- `generation.courseOutline.build {course, language?, papers?, supersedes?}` 启动 Job `course-outline-build`（lib/contexts/generation/outline/）：按批的 map 调用、一次 reduce、每段样卷一次调用、一次写入。拒绝码：course-outline-no-course、course-outline-no-materials、course-outline-paper-invalid、course-outline-no-readable-text、course-outline-supersedes-invalid。结果引用 `{ kind: 'course-outline', id, course }`，任务页的打开按钮会转到那门课的这一页。`papersOnly: true` 保留现有总纲的知识点（编号不变），只按 `papers` 重新标样卷；没有总纲时拒绝（course-outline-no-outline）。复习全书的任务进行中时拒绝（course-outline-book-running）。
+- 复习全书是一条 source 记录（lib/course-book.js）：`provenance: 'course-outline-notes'`、可读的 `text` 和结构化的 `courseNotes`（`outlineId`、`language`、`leaves: [{ id, title, anchors, body?, exam? }]`、`papers`、`counts`、`supersedes`）。`body` 是 `{ fingerprint, points, explain, example?, extra?, cites: [{ n, sourceId, quote, start, end }], replaces? }`（正文里 `[^n]` 标角标）或 `{ fingerprint, empty: true }`；`exam` 是 `{ fingerprint, tested, note?, replaces? }`。指纹和「是否过期」在 lib/course-book-inputs.js，页面和任务共用。`isLibraryListSource` 隐藏它，`assertMaterials` 以 course-notes-not-material 拒绝。`course.outline` 的 `book.notes` 是 `{ id, stale, missing, changed, leaves, papers }`，展开的知识点在 `open[key].notes` 里带上自己的讲解（lib/course-book-view.js）。
+- `generation.courseBook.build {course, language?, papers?}` 启动 Job `course-book-build`（lib/contexts/generation/book/）：需要时先跑总纲的阶段（同一个 Job，`organiseOutline`），再按批写讲解、写考情，最后一次 `sources.ingest`（总纲和全书一起，旧版在同一次写入里归档）。语言跟随请求的 `language`。拒绝码：course-book-no-course、course-book-no-materials、course-book-outline-running，以及总纲自己的拒绝码。结果引用 `{ kind: 'course-book', id, course }`，任务页的「打开复习全书」转到那门课的总纲页。
