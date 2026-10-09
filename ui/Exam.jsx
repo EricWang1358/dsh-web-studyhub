@@ -16,7 +16,7 @@ import { ExamHeader, RecentExams } from './ExamShell.jsx';
 import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
 import { formatClock } from './format.js';
 import { useExamRun } from './exam/useExamRun.js';
-import { DEFAULT_COUNT, cardKindName, clampCount, picksFromRun, typeAvailableOf } from './exam/exam-written.js';
+import { DEFAULT_COUNT, cardKindName, clampCount, picksFromRun, typeAvailableOf, unansweredCount } from './exam/exam-written.js';
 import WrittenSetup from './exam/WrittenSetup.jsx';
 import WrittenReport from './exam/WrittenReport.jsx';
 import { useStudy } from './study-context.jsx';
@@ -202,11 +202,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     });
   }, [call, exam.submit, exam.setError, run, curKey, startMs, runLimitMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const answeredCount = useMemo(
-    () => Object.values(picks).filter((a) => Array.isArray(a) && a.length).length,
-    [picks],
-  );
-  const unanswered = Math.max(0, (run?.total || 0) - answeredCount);
+  const unanswered = useMemo(() => unansweredCount(run, picks), [run, picks]);
 
   const queueWeak = () => {
     if (pathNote || !report?.weakScope?.length) return;
@@ -293,7 +289,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
             <Button variant="primary" disabled={busy || expired || run.index >= run.total - 1} onClick={() => move(1)}>{ui("下一题 →")}</Button>
           </div>
           <div className="exam-foot">
-            <Button disabled={busy} onClick={expired ? submit : () => setConfirming(true)}>
+            <Button disabled={busy} onClick={expired || !unanswered ? submit : () => setConfirming(true)}>
               {expired ? ui("重试交卷") : ui("交卷")}
             </Button>
             <p className="muted small">
@@ -301,7 +297,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
                 : uiFormat("未交卷的考试会保留在回到题目里 · 计时满 {0} 分钟自动交卷", [Math.round(runLimitMs / 60000)])}
             </p>
           </div>
-          {confirming && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
+          {confirming && unanswered > 0 && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
             <p>{uiFormat("还有 {0} 题未作答，交卷后将立即判分并结束本次考试。", [unanswered])}</p>
           </SubmitBlanksDialog>}
           {err && <ErrorState error={err} />}
