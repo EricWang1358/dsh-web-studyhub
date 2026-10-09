@@ -30,9 +30,10 @@ async function seed(root) {
   await service.store.update((state) => {
     state.sources.push(bookPage(1, CHAPTERS[0]), bookPage(2, CHAPTERS[0]), bookPage(3, CHAPTERS[1]), bookPage(4, CHAPTERS[1]),
       { id: 'notes', title: 'Lecture notes', text: text('Notes'), createdAt: at, courses: ['Databases'], document: { materialId: 'document-notes', format: 'md', filename: 'lecture-notes.md' } },
-      { id: 'slides', title: 'Unused slides', text: text('Slides'), createdAt: at, courses: ['Databases'] });
+      { id: 'slides', title: 'Unused slides', text: text('Slides'), createdAt: at, courses: ['Databases'] },
+      { id: 'loose', title: 'Loose handout', text: text('Loose'), createdAt: at, courses: [] });
     state.decks.push({ id: 'deck-index', title: 'Indexes deck', course: 'Databases', cards: [card('i1', [cite('book-p1', 'Page1', 1)]), card('i2', [cite('book-p3', 'Page3', 1)]),
-      card('i3', [cite('book-p2', 'Page2', 2), cite('book-p4', 'Page4', 2)]), card('i4')] },
+      card('i3', [cite('book-p2', 'Page2', 2), cite('book-p4', 'Page4', 2)]), card('i4'), card('i5', [cite('loose', 'Loose', 1)])] },
     { id: 'deck-notes', title: 'Notes deck', course: 'Databases', cards: [card('n1', [cite('notes', 'Notes', 2)]), card('n2', [cite('notes', 'Notes', 3)])] });
     state.focus = { mode: 'class', course: 'Databases', role: '', jd: '', targetTopics: [] };
   });
@@ -69,7 +70,7 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       assert.deepEqual(rows.map(row => row[1]), ['database-book', 'Lecture notes', 'Unused slides', '未归位'], `${width}px: ${JSON.stringify(rows)}`);
       assert.match(rows[0][2], /3 题/, 'i1, i2 and i3 (cited in both chapters, once)');
       assert.match(rows[2][2], /还没出题/);
-      assert.match(rows[3][2], /1 题/, '未归位 counts the question that cites nothing');
+      assert.match(rows[3][2], /2 题/, '未归位 counts the question that cites nothing and the one on an uncategorised material');
 
       const toggle = key => page.locator(`[data-outline-toggle="${key}"]`).click();
       const book = rows[0][0];
@@ -82,7 +83,11 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       assert.match(await page.locator(`[data-key="${book}#0"] [data-card="i3"]`).innerText(), /也列在别处/);
       if (await page.locator('[data-outline-toggle="unplaced"]').getAttribute('aria-expanded') !== 'true') await toggle('unplaced');
       await page.locator('[data-key="unplaced"] .outline-q').first().waitFor();
-      assert.match(await page.locator('[data-key="unplaced"] .outline-q').innerText(), /没有引用资料/);
+      assert.match(await page.locator('[data-key="unplaced"] [data-card="i4"]').innerText(), /没有引用资料/);
+      assert.match(await page.locator('[data-key="unplaced"] [data-card="i5"]').innerText(), /引用的资料没有归入这门课/);
+      const hint = page.locator('[data-key="unplaced"] .outline-row__hint');
+      if (shots) await page.locator('[data-key="unplaced"]').screenshot({ path: join(shots, `unplaced-${width}.png`) });
+      assert.match(await hint.innerText(), /把这些资料归入这门课后，引用它们的题会出现在总纲里：Loose handout/);
 
       await page.locator('.outline-what').hover();
       const tip = page.locator('[role="tooltip"]', { hasText: '到期 → 薄弱 → 新题' });
@@ -113,6 +118,10 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       await back.click();
       await tree.waitFor();
       assert.equal(await page.locator(`[data-outline-toggle="${book}#0"]`).getAttribute('aria-expanded'), 'true', `${width}px: back on the outline as it was left`);
+      if (width === 420) {
+        await page.locator('[data-key="unplaced"] .outline-row__hint .sh-btn').click();
+        await page.locator('.sources-page').first().waitFor({ timeout: 30000 });
+      }
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
     }

@@ -12,6 +12,7 @@ export function rowTitle(row) {
 
 /** Why a question has no place in the outline. */
 export function reasonText(reason) {
+  if (reason === 'uncategorised') return ui('引用的资料没有归入这门课');
   if (reason === 'elsewhere') return ui('引用的是别的课程或已归档的资料');
   if (reason === 'missing') return ui('引用的资料已不在资料库');
   return ui('没有引用资料');
@@ -34,5 +35,9 @@ export const startPickedText = count => uiFormat('练选中的 {0} 题', [count]
 export function courseLine(outline) {
   return [uiFormat('{0} 份资料', [outline.documents.length]), outline.draftCards > 0 && uiFormat('草稿里另有 {0} 题（发布后计入）', [outline.draftCards])].filter(Boolean).join(' · ');
 }
+
+/** Under 未归位, when some of its questions cite materials filed under no course: which ones, and that filing them under the course places the questions. */
+export const unfiledText = (names, count = names.length) => uiFormat('把这些资料归入这门课后，引用它们的题会出现在总纲里：{0}', [names.join(' · ')])
+  + (count > names.length ? uiFormat('等 {0} 份', [count]) : '');
 
 export const moreText = count => uiFormat('还有 {0} 题没列出，「练这一节」会一起练。', [count]);

@@ -58,14 +58,14 @@ test('the tree: the course\'s documents with their chapters, a document without 
   const outline = courseOutline(library(), { course: 'DB' }, { now: NOW });
   assert.equal(outline.status, 'ok');
   assert.equal(outline.course, 'DB');
-  assert.deepEqual(outline.documents.map(document => document.title), ['book.pdf', 'Notes', 'Loose note', 'Unused slides']);
+  assert.deepEqual(outline.documents.map(document => document.title), ['book.pdf', 'Notes', 'Unused slides']);
   const book = docByTitle(outline, /book/);
   assert.equal(book.chapters, 2, 'the converted book has its two chapters');
   assert.equal(book.total, 4, 'c1, c2, c3 (cited in both chapters, once) and the fuzzy-quoted f1');
   assert.equal(docByTitle(outline, /Unused/).total, 0, 'a course material without questions is listed, 还没出题');
   assert.equal(docByTitle(outline, /Unused/).chapters, 0, 'a document without chapters has no chapter rows');
   assert.equal(docByTitle(outline, /Unused/).summary.state, 'none');
-  assert.ok(!outline.documents.some(document => /PE|Archived/.test(document.title)));
+  assert.ok(!outline.documents.some(document => /PE|Archived|Loose/.test(document.title)), 'a material of another course, an archived one and an uncategorised one are not rows');
 });
 
 test('a question citing two chapters is under both, flagged, and counted once in the document and the course', () => {
@@ -82,7 +82,7 @@ test('a question citing two chapters is under both, flagged, and counted once in
   assert.equal(indexes.find(ref => ref.cardId === 'c1').level, 'learning');
   assert.equal(indexes.find(ref => ref.cardId === 'c1').due, true);
   assert.equal(outline.total, 10, 'every practisable question of the course once (suspended and archived decks left out)');
-  assert.equal(outline.placed, 6);
+  assert.equal(outline.placed, 5);
   assert.equal(outline.summary.total, 10);
 });
 
@@ -102,13 +102,32 @@ test('a quote written a little differently is placed where it stands (the covera
   assert.deepEqual(outline.open['doc:document-notes'].chapters.map(chapter => [chapter.title, chapter.total]), [['Alpha part', 0], ['Beta part', 2]]);
 });
 
-test('an uncategorised material that the course\'s questions cite belongs to the outline; one of another course does not', () => {
-  const outline = courseOutline(library(), { course: 'DB', expand: ['source:loose', UNPLACED_KEY] }, { now: NOW });
-  assert.deepEqual(outline.open['source:loose'].cards.map(ref => ref.cardId), ['c8']);
+test('a question citing an uncategorised material is 未归位 with its own reason and the material named; filing the material under the course moves it to its row', () => {
+  const outline = courseOutline(library(), { course: 'DB', expand: [UNPLACED_KEY] }, { now: NOW });
   const unplaced = outline.open[UNPLACED_KEY].cards;
-  assert.deepEqual(unplaced.map(ref => [ref.cardId, ref.reason]).sort(), [['c10', 'missing'], ['c4', 'none'], ['c5', 'elsewhere'], ['c9', 'elsewhere']]);
-  assert.deepEqual(outline.unplaced.reasons, { none: 1, elsewhere: 2, missing: 1 });
-  assert.equal(outline.unplaced.total, 4);
+  assert.deepEqual(unplaced.map(ref => [ref.cardId, ref.reason]).sort(), [['c10', 'missing'], ['c4', 'none'], ['c5', 'elsewhere'], ['c8', 'uncategorised'], ['c9', 'elsewhere']]);
+  assert.deepEqual(outline.unplaced.reasons, { none: 1, uncategorised: 1, elsewhere: 2, missing: 1 });
+  assert.equal(outline.unplaced.total, 5);
+  assert.deepEqual(outline.unplaced.materials, [{ key: 'source:loose', title: 'Loose note' }], 'the page can say which material to file');
+  assert.equal(outline.unplaced.materialCount, 1);
+  const filed = library();
+  filed.revision = 5;
+  filed.sources.find(source => source.id === 'loose').courses = ['DB'];
+  const after = courseOutline(filed, { course: 'DB', expand: ['source:loose'] }, { now: NOW });
+  assert.deepEqual(after.open['source:loose'].cards.map(ref => ref.cardId), ['c8']);
+  assert.equal(after.unplaced.reasons.uncategorised, 0);
+  assert.equal(after.unplaced.total, 4);
+  assert.deepEqual(after.unplaced.materials, []);
+});
+
+test('a question citing a course material and an uncategorised one is placed by the course material, and names nothing to file', () => {
+  const state = { ...library(), revision: 6 };
+  const deck = state.decks.find(item => item.id === 'd1');
+  const head = id => state.sources.find(source => source.id === id).text.slice(0, 60);
+  deck.cards = [...deck.cards, card('c11', [cite('loose', head('loose')), cite('p1', head('p1'))])];
+  const outline = courseOutline(state, { course: 'DB' }, { now: NOW });
+  assert.equal(outline.unplaced.reasons.uncategorised, 1, 'only c8');
+  assert.equal(docByTitle(outline, /book/).total, 5);
 });
 
 test('drafts are counted apart: never in the totals or the mastery, per chapter and for the course; editing copies are left out', () => {

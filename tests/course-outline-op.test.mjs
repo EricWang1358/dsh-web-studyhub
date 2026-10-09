@@ -58,6 +58,24 @@ test('a pick starts a practice round of exactly those questions; the row then of
   assert.equal(resumed.id, again.documents[0].resume.runId, 'fresh:false goes on with that round');
 });
 
+test('a question citing an uncategorised material is 未归位 until source.courses.set files the material under the course', async t => {
+  const service = await setup(t);
+  await service.store.update(state => {
+    state.sources.push({ id: 's-loose', title: 'Loose handout', text: text('Loose'), courses: [], createdAt: at });
+    state.decks.find(deck => deck.id === 'm1').cards.push(card('l1', 's-loose', fact('Loose', 1)));
+  });
+  const before = await service.call('course.outline', { expand: ['unplaced'] });
+  assert.deepEqual(before.documents.map(document => document.title), ['Lecture A', 'Lecture B'], 'an uncategorised material is not a row of the course');
+  assert.deepEqual(before.unplaced.reasons, { none: 1, uncategorised: 1, elsewhere: 0, missing: 0 });
+  assert.deepEqual(before.unplaced.materials.map(material => material.title), ['Loose handout']);
+  assert.deepEqual(before.open.unplaced.cards.map(ref => [ref.cardId, ref.reason]), [['u1', 'none'], ['l1', 'uncategorised']]);
+  await service.call('source.courses.set', { assignments: [{ id: 's-loose', courses: ['Memory'] }] });
+  const after = await service.call('course.outline');
+  const loose = after.documents.find(document => document.title === 'Loose handout');
+  assert.equal(loose?.total, 1, 'filed under the course, the material is a row holding its question');
+  assert.deepEqual([after.unplaced.total, after.unplaced.reasons.uncategorised, after.unplaced.materials.length], [1, 0, 0]);
+});
+
 test('agents are told about it in the learning contract and the discovery list', () => {
   assert.match(libraryContracts.learning, /course\.outline \{course\?,deckId\?,expand\?/);
   assert.match(studyToolDescription, /course\.route, course\.outline/);

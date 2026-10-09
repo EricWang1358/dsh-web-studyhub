@@ -5,7 +5,8 @@ import { useStudy } from '../study-context.jsx';
 import { LEVEL_LABEL, plainPrompt } from '../shared.js';
 import { MasteryLine } from '../document-preview/practice/MasteryMark.jsx';
 import { cardTicked, outlineKey } from './model.js';
-import { moreText, practiceLabel, reasonText, rowTitle } from './words.js';
+import { displayTitle } from '../../lib/document-title.js';
+import { moreText, practiceLabel, reasonText, rowTitle, unfiledText } from './words.js';
 
 /* The outline as a disclosure list (the repository's pattern, as ui/exam-prep/PointTree.jsx): one flat list in reading order, a document opens
    its chapters, a chapter (or a document without chapters, or 未归位) opens its questions. The row buttons are one tab stop: the arrow keys,
@@ -38,7 +39,7 @@ function Questions({ data, holders, pick, onPickCard }) {
   );
 }
 
-const Row = memo(function Row({ row, data, tabStop, bodyId, pick, onPick, onPickCard, onPractice }) {
+const Row = memo(function Row({ row, data, tabStop, bodyId, pick, onPick, onPickCard, onPractice, onOpenSources }) {
   const { busy } = useStudy();
   const { node } = row, title = rowTitle(row), holders = row.parentKey ? [row.key, row.parentKey] : [row.key];
   const inPickedRow = row.parentKey !== null && pick.keys.has(row.parentKey);
@@ -55,6 +56,10 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, onPick, onPick
         <MasteryLine className="outline-row__mastery" summary={node.summary} title={title} />
         {node.total > 0 && <Button size="sm" variant="secondary" icon="play" className="outline-row__practice" disabled={busy} onClick={() => onPractice(row)}>{practiceLabel(node.resume)}</Button>}
       </div>
+      {row.kind === 'unplaced' && node.materials?.length > 0 && <p className="outline-row__hint">
+        <span>{unfiledText(node.materials.map(material => displayTitle(material.title)), node.materialCount)}</span>
+        {onOpenSources && <Button variant="link" size="sm" onClick={onOpenSources}>{ui('去资料页归入课程')}</Button>}
+      </p>}
       {!row.hasChildren && <div id={bodyId} className="outline-row__body" hidden={!row.expanded}>
         {row.expanded && <Questions data={data} holders={holders} pick={pick} onPickCard={onPickCard} />}
       </div>}
@@ -62,8 +67,8 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, onPick, onPick
   );
 });
 
-/** `rows`: ./model.js outlineRows; `details`: the opened rows' answers; onToggle(key, open), onPick(key, on), onPickCard(ref, on), onPractice(row). */
-export default function OutlineTree({ rows, details, pick, onToggle, onPick, onPickCard, onPractice, label }) {
+/** `rows`: ./model.js outlineRows; `details`: the opened rows' answers; onToggle(key, open), onPick(key, on), onPickCard(ref, on), onPractice(row), onOpenSources() (the 资料 page). */
+export default function OutlineTree({ rows, details, pick, onToggle, onPick, onPickCard, onPractice, onOpenSources, label }) {
   const [active, setActive] = useState(null);
   const listId = useId();
   const stop = useMemo(() => (rows.some(row => row.key === active) ? active : rows[0]?.key), [rows, active]);
@@ -89,7 +94,7 @@ export default function OutlineTree({ rows, details, pick, onToggle, onPick, onP
   return (
     <ul className="outline-tree" aria-label={label} onClick={onClick} onKeyDown={onKeyDown}>
       {rows.map((row, index) => <Row key={row.key} row={row} data={details[row.key]} tabStop={row.key === stop} bodyId={`${listId}-${index}`}
-        pick={pick} onPick={onPick} onPickCard={onPickCard} onPractice={onPractice} />)}
+        pick={pick} onPick={onPick} onPickCard={onPickCard} onPractice={onPractice} onOpenSources={onOpenSources} />)}
     </ul>
   );
 }

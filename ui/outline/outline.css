@@ -111,6 +111,16 @@
     .outline-row__practice {
       flex: none;
     }
+    .outline-row__hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-3);
+      margin: var(--space-1) 0 0 var(--space-6);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
     .outline-row__body[hidden] {
       display: none;
     }

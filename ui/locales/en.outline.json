@@ -29,5 +29,8 @@
   "没有引用资料": "Cites no material",
   "引用的是别的课程或已归档的资料": "Cites a material of another course, or an archived one",
   "引用的资料已不在资料库": "The cited material is no longer in the library",
-  "草稿里另有 {0} 题（发布后计入）": "{0} more in drafts (counted once published)"
+  "草稿里另有 {0} 题（发布后计入）": "{0} more in drafts (counted once published)",
+  "引用的资料没有归入这门课": "Cites a material that is not filed under this course",
+  "把这些资料归入这门课后，引用它们的题会出现在总纲里：{0}": "File these materials under this course and the questions citing them appear in the outline: {0}",
+  "去资料页归入课程": "File them on the Sources page"
 }

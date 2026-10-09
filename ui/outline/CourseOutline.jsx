@@ -45,8 +45,8 @@ function usePicked({ call, course, deckId, pick }) {
   return picked;
 }
 
-/** data: the library snapshot; onBack(); onCreate() (创建题组); onPractice(scope, { resume }) starts the round and keeps the way back here. */
-export default function CourseOutline({ data, onBack, onCreate, onPractice }) {
+/** data: the library snapshot; onBack(); onCreate() (创建题组); onOpenSources() (the 资料 page, where a material is filed under a course); onPractice(scope, { resume }) starts the round and keeps the way back here. */
+export default function CourseOutline({ data, onBack, onCreate, onOpenSources, onPractice }) {
   const { call, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
   const kept = keptView(root, course);
@@ -72,13 +72,13 @@ export default function CourseOutline({ data, onBack, onCreate, onPractice }) {
   const onPracticeRow = useCallback(row => practise({ keys: [row.key] }, { resume: !!row.node.resume }), [practise]);
 
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} pick={pick} picked={picked}
-    actions={{ onBack, onCreate, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
+    actions={{ onBack, onCreate, onOpenSources, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
       chooseDeck: value => { setDeckId(value); setPick(emptyPick()); } }} />;
 }
 
 /**
  * The page as drawn from what was read: `outline` / `details` (course.outline's answer and its opened rows), `open` (Set of keys), `deckId`,
- * `pick` (./model.js) and `picked` (its practice answer, null while counting). actions: onBack, onCreate, retry, toggle(key, open), onPick, onPickCard,
+ * `pick` (./model.js) and `picked` (its practice answer, null while counting). actions: onBack, onCreate, onOpenSources, retry, toggle(key, open), onPick, onPickCard,
  * onPracticeRow(row), clearPick, practisePicked, chooseDeck(id).
  */
 export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', pick, picked = null, actions }) {
@@ -107,7 +107,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       {header}
       {nothing && <EmptyState icon="book" title={outline.status === 'empty' ? ui('还没有课程') : ui('这门课还没有题')}
         description={ui('在「创建题组」里从资料出题，题目会按资料的章节排进总纲。')} primary={{ label: ui('创建题组'), icon: 'sparkle', onClick: actions.onCreate }} />}
-      {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard} onPractice={actions.onPracticeRow} label={ui('总纲')} />}
+      {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard} onPractice={actions.onPracticeRow} onOpenSources={actions.onOpenSources} label={ui('总纲')} />}
       {isPicked(pick) && <div className="outline-bar" role="region" aria-label={ui('已选的题')}>
         {picked ? <span className="outline-bar__count" aria-live="polite">{pickedText(picked.total)}</span> : <LoadingState inline className="outline-bar__count" label={ui('正在计算…')} />}
         {picked?.capped && <small className="outline-bar__note">{cappedText(picked.total, picked.limit)}</small>}

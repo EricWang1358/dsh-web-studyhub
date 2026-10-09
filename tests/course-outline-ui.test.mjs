@@ -31,7 +31,7 @@ const outline = {
     { key: 'pdf:book', title: 'book.pdf', format: 'pdf', chapters: 2, total: 4, summary: summary(4), deckCount: 2 },
     { key: 'source:empty', title: 'Unused slides', format: 'text', chapters: 0, total: 0, summary: summary(0), deckCount: 0 },
   ],
-  unplaced: { key: 'unplaced', total: 1, summary: summary(1, 'unlearned', 0), reasons: { none: 1, elsewhere: 0, missing: 0 } },
+  unplaced: { key: 'unplaced', total: 2, summary: summary(2, 'unlearned', 0), reasons: { none: 1, uncategorised: 1, elsewhere: 0, missing: 0 }, materials: [{ key: 'source:loose', title: 'loose-note.md' }] },
   open: {},
 };
 const details = {
@@ -43,11 +43,12 @@ const details = {
     { deckId: 'd1', cardId: 'c1', deckTitle: 'Indexes deck', prompt: 'What does a B-tree index speed up?', level: 'learning', due: true },
     { deckId: 'd1', cardId: 'c3', deckTitle: 'Indexes deck', prompt: 'Why is a covering index cheaper?', level: 'new', due: false, shared: true },
   ], more: 0 },
-  unplaced: { cards: [{ deckId: 'd1', cardId: 'c4', deckTitle: 'Indexes deck', prompt: 'A question with no source', level: 'new', due: false, reason: 'none' }], more: 0 },
+  unplaced: { cards: [{ deckId: 'd1', cardId: 'c4', deckTitle: 'Indexes deck', prompt: 'A question with no source', level: 'new', due: false, reason: 'none' },
+    { deckId: 'd1', cardId: 'c5', deckTitle: 'Indexes deck', prompt: 'A question on a loose note', level: 'new', due: false, reason: 'uncategorised' }], more: 0 },
 };
-const actions = { onBack: noop, onCreate: noop, retry: noop, toggle: noop, onPick: noop, onPickCard: noop, onPracticeRow: noop, clearPick: noop, practisePicked: noop, chooseDeck: noop };
+const actions = { onBack: noop, onCreate: noop, onOpenSources: noop, retry: noop, toggle: noop, onPick: noop, onPickCard: noop, onPracticeRow: noop, clearPick: noop, practisePicked: noop, chooseDeck: noop };
 const page = (extra = {}) => render(h(ui.CourseOutlineView, { course: 'Databases', outline, details, open: new Set(['pdf:book', 'pdf:book#0', 'unplaced']), pick: ui.emptyPick(), actions, ...extra }));
-const DATA = /Databases|book\.pdf|Unused slides|Indexes deck|Fuzzy deck|Indexes|Transactions|What does a B-tree index speed up\?|Why is a covering index cheaper\?|A question with no source/g;
+const DATA = /Databases|book\.pdf|Unused slides|Indexes deck|Fuzzy deck|Indexes|Transactions|What does a B-tree index speed up\?|Why is a covering index cheaper\?|A question with no source|A question on a loose note|loose-note/g;
 
 test('the rows: documents, the chapters of an open one, 未归位 last; the keys walk and open them', () => {
   const rows = ui.outlineRows(outline, details, new Set(['pdf:book']));
@@ -88,8 +89,11 @@ test('the page: title, mastery in the 资料 list\'s words, the rows with 练这
   assert.match(text, /What does a B-tree index speed up\? Indexes deck/);
   assert.match(text, /学习中 到期/);
   assert.match(text, /也列在别处/);
-  assert.match(text, /未归位 未学 · 1 题/);
+  assert.match(text, /未归位 未学 · 2 题/);
   assert.match(text, /A question with no source Indexes deck · 没有引用资料/);
+  assert.match(text, /A question on a loose note Indexes deck · 引用的资料没有归入这门课/);
+  assert.match(text, /把这些资料归入这门课后，引用它们的题会出现在总纲里：loose-note 去资料页归入课程/, 'the 未归位 group names the material to file and links to the 资料 page');
+  assert.doesNotMatch(textOf(page({ actions: { ...actions, onOpenSources: undefined } })), /去资料页归入课程/, 'no 资料 page, no link');
   const tree = dom(html).all;
   const toggles = tree.filter(node => node.getAttribute('data-outline-toggle') !== null);
   assert.deepEqual(toggles.map(node => node.getAttribute('tabindex')), ['0', '-1', '-1', '-1', '-1'], 'one tab stop for the row buttons');
@@ -137,6 +141,7 @@ test('in English the page has no Chinese of its own', () => {
     assert.match(text, /Course outline · /);
     assert.match(text, /Practise this/);
     assert.match(text, /Not placed/);
+    assert.match(text, /File them on the Sources page/);
     assert.match(text, /What is the outline\?/);
   });
 });

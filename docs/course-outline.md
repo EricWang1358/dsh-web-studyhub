@@ -16,10 +16,10 @@ The home page keeps one main card and its one continue button. The folded **Cour
 
 | Row | What it is |
 | --- | --- |
-| A material | Every material filed under the course, also one with no question yet (**No questions yet**). A material with no course that this course's questions cite is listed too. A material of another course, and an archived one, is not. |
+| A material | Every material filed under the course, also one with no question yet (**No questions yet**). A material that has no course of its own counts as filed under the course its questions' decks belong to. A material filed under no course, a material of another course and an archived one are not rows, even when this course's questions cite them. |
 | A chapter | The chapters the material has on the **Sources** page: the converter's chapters of a book, or the chapters you applied from a kept outline. A material without chapters is one row. |
 | Not matched to a chapter | Questions of a material with chapters whose place could not be put in a chapter (a question written from an older version whose quote is no longer in the text). |
-| Not placed | The course's questions that no material row holds: they cite nothing, cite a material of another course or an archived one, or cite a material that was deleted. They can be practised; they cannot be moved by hand. |
+| Not placed | The course's questions that no material row holds, each with why: it cites no material; **Cites a material that is not filed under this course** (a material filed under no course); it cites a material of another course or an archived one; or the material was deleted. The group names the materials filed under no course and links to the **Sources** page: file them under the course there and their questions move into their rows. These questions can be practised; they cannot be moved by hand. |
 
 Each row shows its mastery in the words of the **Sources** list (**Mastery 62% · 12 questions**, **New · 3 questions**, **No questions yet**) and **Practise this**. When a round of exactly a row's questions is unfinished, the button says **Continue i/n** and goes on with that round.
 
