@@ -67,7 +67,7 @@ export default function ControlRow({ job }) {
     <div className="tc-controls" role="group" aria-label={ui('即时控制')} data-empty={items.length ? undefined : 'true'}>
       <div className="tc-controls__bar">
         <span className="tc-controls__title">{ui('即时控制')}</span>
-        {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。')
+        {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。') : set.reason?.code === 'capability-unsupported' && isRunningTask(job) ? ui('这类任务没有可以调整的设置。')
           : contract.status === 'interrupted' && contract.actions.retry.available ? endedNote(job, true)
             : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? endedNote(job) : reasonText(set)}</span>}
         {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved || core.busy} onClick={save}

@@ -63,6 +63,14 @@ function callsFact(contract) {
   return uiFormat('{0} · {1} 失败', [calls.length, calls.filter((call) => call.status === 'failed').length]);
 }
 
+/** A PDF conversion makes no model calls: its third tile counts the windows (段) done, over all of them when the plan is fixed (an adaptive plan decides them as it goes). */
+function windowsFact(job, contract) {
+  const chunks = Array.isArray(job?.chunks) ? job.chunks : Array.isArray(contract.detail?.legacy?.chunks) ? contract.detail.legacy.chunks : [];
+  if (!chunks.length) return dash;
+  const done = chunks.filter((chunk) => chunk.state === 'done').length;
+  return contract.detail?.adaptive ? String(done) : `${done} / ${chunks.length}`;
+}
+
 const noticesOf = (contract) => (Array.isArray(contract.detail?.notices) ? contract.detail.notices.length : Array.isArray(contract.detail?.warnings) ? contract.detail.warnings.length : 0);
 
 /** 为你定制 by the day: what was written and kept, what was practised and how well, the tokens in / out / from cache, what was skipped. */
@@ -118,7 +126,8 @@ export function taskFacts(job, now = Date.now()) {
   return [
     { ...primary, label: unit, value: count, ...(hint ? { hint } : {}) },
     { key: 'elapsed', label: queued ? ui('排队中') : ui('已用'), value: queued ? uiFormat('已等 {0}', [waitedOf(contract, now)]) : elapsedOf(contract, isRunningTask(job), now), ...note },
-    { key: 'calls', label: ui('模型任务'), value: usage.tokens > 0 ? `${callsFact(contract)} · ${formatCompactTokens(usage.tokens)}` : callsFact(contract) },
+    contract.kind === 'pdf-convert' ? { key: 'calls', label: ui('已完成的段'), value: windowsFact(job, contract) }
+      : { key: 'calls', label: ui('模型任务'), value: usage.tokens > 0 ? `${callsFact(contract)} · ${formatCompactTokens(usage.tokens)}` : callsFact(contract) },
     { key: 'warnings', label: ui('提醒'), value: notices ? uiFormat('{0} 条', [formatNumber(notices)]) : dash },
   ];
 }

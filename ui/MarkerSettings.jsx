@@ -34,7 +34,8 @@ export default function MarkerSettings({ call, disabled = false, available = tru
       // 检测并保存: the path in the box is checked first and saved only when it passes, so a path that does not work never replaces one that does. A blank box has nothing to save: it only checks what is in use now.
       const wanted = command.trim();
       const result = await call('marker.local.status', wanted ? { command: wanted } : {});
-      const passed = result?.state === 'ready';
+      // A Marker 2.x that needs Docker is still the right program: its path is saved, and the card says what it needs.
+      const passed = result?.state === 'ready' || result?.state === 'needs-docker';
       if (wanted && passed) await call('marker.settings.set', { command: wanted });
       if (alive.current && revision.current === generation) setStatus(wanted && !passed ? { ...result, notSaved: true } : result);
     } catch (failure) { if (alive.current) setError(errorMessage(failure)); }
@@ -52,7 +53,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
   return <div className="marker-settings">
     <p>{ui('选好 PDF 后，StudyHub 会调用本机 Marker，显示进度并自动导入结果。')}</p>
     {!available && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。启用 StudyHub 的音频组件后可在应用内解析；也可用下面的脚本手动转换。')}</InlineMessage>}
-    {available && call && <MarkerInstall call={call} disabled={disabled} markerReady={status?.state === 'ready'} onChanged={reload} />}
+    {available && call && <MarkerInstall call={call} disabled={disabled} markerReady={status?.state === 'ready'} markerStatus={status} onChanged={reload} />}
     <div className="marker-settings__manual">
     <h4>{ui('已经有 Marker？手动指定程序路径')}</h4>
     <Field label={ui('Marker 程序路径')} hint={ui('留空会先用 StudyHub 装好的那份，没有再自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}>
@@ -61,7 +62,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
     {!command.trim() && status?.command && <Hint>{uiFormat('正在使用：{0}', [status.command])}</Hint>}
     <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('检测并保存')}</Button></div>
     <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。')}</Hint>
-    {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
+    {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : status.state === 'needs-docker' ? ui('Marker 需要 Docker') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
     {status?.notSaved && <Hint>{ui('没有通过检测，所以没有保存；原来的路径没有改动。')}</Hint>}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </div>

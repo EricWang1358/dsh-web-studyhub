@@ -116,6 +116,15 @@
     .pdf-live__why summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .pdf-live__why p { margin: var(--space-1) 0 0; color: var(--text-dim); max-width: 62ch; }
     .pdf-eta { color: var(--text); font-variant-numeric: tabular-nums; }
+    .pdf-tool-progress { display: block; color: var(--text-dim); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .pdf-failure { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--bad-line); }
+    .pdf-failure__title { color: var(--bad-ink); }
+    .pdf-failure__cause { margin: 0; color: var(--text); overflow-wrap: anywhere; user-select: text; }
+    .pdf-failure__label { color: var(--text-dim); }
+    .pdf-failure__lines { margin: 0; max-height: 14rem; overflow: auto; padding: var(--space-2); border-radius: var(--radius-sm); background: var(--bg-sunken, var(--bg-surface)); color: var(--text-dim);
+      font-family: var(--font-stack-mono); font-size: var(--fs-xs); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+    .pdf-failure__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; }
+    .pdf-failure__copied { color: var(--text-dim); font-size: var(--fs-xs); }
     .pdf-chunks__next { display: block; margin-top: var(--space-half); font-variant-numeric: tabular-nums; }
     .pdf-env__windows summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
     .pdf-env__windows summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

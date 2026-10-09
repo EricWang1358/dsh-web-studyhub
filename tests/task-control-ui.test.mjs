@@ -78,7 +78,9 @@ test('the row is always there: a job that cannot be adjusted, or has ended, says
   assert.match(none, /任务还没有开始/, 'the contract says why: there is nothing to adjust yet');
   assert.doesNotMatch(none, /data-control=/);
   const unsupported = render({ id: 'p1', type: 'pdf-convert', filename: 'Book.pdf', status: 'running', phase: 'parse', startedAt: '2026-10-05T10:00:00.000Z' });
-  assert.match(unsupported, /这类任务不支持这个操作/);
+  // A conversion has no settings at all: it says so, not that an operation is unsupported (the owner's screenshot, 2026-10-09).
+  assert.match(unsupported, /这类任务没有可以调整的设置。/);
+  assert.doesNotMatch(unsupported, /这类任务不支持这个操作/);
   assert.match(unsupported, /这类任务没有可以安全暂停的地方；可以停止，已完成的部分会保留/, 'and says what to do instead of pausing');
   assert.doesNotMatch(unsupported, />暂停</, 'no pause button where the contract offers no pause');
   const ended = render(audio({ status: 'complete', control: undefined }));

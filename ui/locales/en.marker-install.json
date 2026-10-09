@@ -94,5 +94,12 @@
   "装好的 Marker 没能通过检测（版本可能与 StudyHub 不兼容）。": "The installed Marker did not pass the check (the version may not be compatible with StudyHub).",
   "装好了，但没能把程序路径写进设置。": "It is installed, but the program path could not be saved in the settings.",
   "上次安装被中断（StudyHub 关闭或重启）。": "The last install was interrupted (StudyHub was closed or restarted).",
-  "已取消安装。": "Install cancelled."
+  "已取消安装。": "Install cancelled.",
+  "Marker 需要 Docker": "Marker needs Docker",
+  "用 Docker": "Use Docker",
+  "启动 Docker Desktop，等它显示正在运行，再点「重新检测」；失败的转换任务点「接着做」继续。": "Start Docker Desktop, wait until it says it is running, then press Check again; a conversion that failed goes on with Continue.",
+  "不用 Docker": "Without Docker",
+  "在同一个位置重新安装 1.x：模型直接在 Marker 里运行，不需要 Docker。已经转换好的页不受影响。": "Install 1.x again in the same place: the models run inside Marker, with no Docker. Pages already converted are not affected.",
+  "修复安装（改装 1.x）": "Repair: install 1.x",
+  "这份 Marker 不是 StudyHub 装的：用下面的「一键安装 Marker」装一份 1.x，或在它自己的 Python 环境里运行 pip install \"marker-pdf>=1.10,<2\"，再点「检测并保存」。": "StudyHub did not install this Marker: install a 1.x with One-click install below, or run pip install \"marker-pdf>=1.10,<2\" in its own Python environment, then press Check and save."
 }
