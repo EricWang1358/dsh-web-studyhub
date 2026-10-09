@@ -41,6 +41,24 @@
     }
     .review-return { white-space: nowrap; }
     .review-return-short { display: none; }
+    /* The line under the title: 查看 N 份资料, then the course and how its chapter and the whole course stand (RunContext). It wraps, never scrolls. */
+    .review-heading-links {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+    }
+    /* The line has no box of its own: the course and each figure wrap in the row of the button, one by one. */
+    .review-context { display: contents; }
+    .review-context__course,
+    .review-context__part {
+      min-width: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
+    .review-context__course { color: var(--text); font-weight: var(--fw-strong); }
+    .review-context__label { color: var(--text-muted); }
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {

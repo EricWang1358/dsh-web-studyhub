@@ -6,6 +6,7 @@ import ReviewNavigator from "./ReviewNavigator.jsx";
 import FlipCard from "./FlipCard.jsx";
 import SmoothHeight from "./SmoothHeight.jsx";
 import ReviewToolbar from "./ReviewToolbar.jsx";
+import RunContext from "./review/RunContext.jsx";
 import CitationDisclosure from "./CitationDisclosure.jsx";
 import ExplanationFollowup from "./ExplanationFollowup.jsx";
 import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../lib/question-voice.js";
@@ -267,6 +268,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         </>}>
         <div className="review-heading-links">
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</Button>
+          <RunContext data={data} deckId={run.deckId} />
           {skeletonHere && openSkeleton && (
             <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
           )}
