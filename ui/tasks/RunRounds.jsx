@@ -3,16 +3,18 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import { roundResult, roundStatusWord, roundTitle, sectionName, stateWord } from '../coverage/copy.js';
+import { roundKeys } from '../../lib/coverage-run.js';
 
 /* The rounds of a coverage run (lib/coverage-run.js), at the top of 轮次与批次: one row per round with its state, what it asked for and, once it has run, what it kept, how many sections it newly covered and what it cost.
    A row opens to the sections of that round, each with its coverage now. The rounds come from the job's own copy of the run (the contract's detail.run); the sections of a round are on the draft (its plan,
-   `editorial.coverageSpec.rounds[i].sectionIds`) and their coverage is `coverage.get`'s. */
+   `editorial.coverageSpec.rounds[i]`: what it was asked for once it has run, what it still owes while it waits, lib/coverage-run.js roundKeys) and their coverage is `coverage.get`'s. */
 
 const DOT = { pending: 'queued', running: 'run', done: 'done', failed: 'fail', skipped: 'stopped' };
 
 /** The sections a round holds, by name and state: [{ key, name, state }], from the draft's plan and the coverage view. */
 export function sectionsOfRound(draft, round, coverage) {
-  const keys = draft?.editorial?.coverageSpec?.rounds?.[round.index ?? round.round - 1]?.sectionIds || [], byKey = new Map((coverage?.sections || []).map((section) => [section.key, section]));
+  const planned = draft?.editorial?.coverageSpec?.rounds?.[round.index ?? round.round - 1];
+  const keys = planned ? roundKeys({ ...planned, status: round.status ?? planned.status }) : [], byKey = new Map((coverage?.sections || []).map((section) => [section.key, section]));
   // Five recordings have a 「第二部分」 each: the name says which recording it is in.
   const named = (section) => (section.recording != null ? uiFormat('录音 {0} · {1}', [section.recording, sectionName(section)]) : sectionName(section));
   return keys.map((key) => { const section = byKey.get(key); return { key, name: section ? named(section) : key.split('#').pop(), state: section?.state || 'never-planned', scheduled: !!section?.scheduled, recorded: coverage?.recorded !== false }; });
