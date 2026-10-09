@@ -4,7 +4,7 @@ import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { useStudy } from "./study-context.jsx";
-import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
+import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { Badge, Banner, Button, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
 import { partOf, partsOf } from "../lib/deck-parts.js";
@@ -177,7 +177,7 @@ export default function Manage({
                 <Badge size="sm">{card.topic || ui("未分类")}</Badge>
                 <span>{card.kind}</span>
                 {card.suspended && <Badge size="sm" tone="warning">{ui("已暂停")}</Badge>}
-                {marks && marks[card.id] !== reviewedCardFingerprint(card) && <Badge size="sm" tone="warning">{ui("未自动审阅")}</Badge>}
+                {marks && !cardMatchesReview(marks[card.id], card) && <Badge size="sm" tone="warning">{ui("未自动审阅")}</Badge>}
                 {selfCitedCardCount([card], sources) > 0 && <Badge size="sm" tone="warning">{ui("仅有导入题目引用")}</Badge>}
               </div>
               <Markdown className="md-title manage-card__prompt" text={card.prompt} />

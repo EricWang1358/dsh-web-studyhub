@@ -6,7 +6,7 @@ import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
 import { kinds } from "./shared.js";
-import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
+import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
 import { readableQualityIssue } from "./quality.js";
 import { JevCardBadge, JevCardSignals, JevDecidedBadge, JevDecidedNote } from "./JevBadge.jsx";
 import { experimentalShown } from "./experimental-flag.js";
@@ -376,7 +376,7 @@ export default function Draft({
                 <span>{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
                 {q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}
                 <small>{kinds[q.kind]}</small>
-                {draft.editorial?.reviewedCards?.[q.id] !== reviewedCardFingerprint(q) &&
+                {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
                   <small>{ui("未自动审阅")}</small>}
                 {selfCitedCardCount([q], data.sources) > 0 && <small>{ui("仅有导入题目引用")}</small>}
                 {experimentalShown(data) && <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />}
