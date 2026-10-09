@@ -20,6 +20,18 @@ export const picksFromRun = (run) => {
   return map;
 };
 
+/**
+ * How many questions of the paper have no choice yet: the picks the page holds ({ "deckId:cardId": [optionId…] }) against the
+ * questions the run lists. A pick of another paper does not count, and a multi-choice question whose ticks were all taken back is
+ * open again. A run that does not list its questions falls back to its total.
+ */
+export const unansweredCount = (run, picks = {}) => {
+  const has = (key) => Array.isArray(picks[key]) && picks[key].length > 0;
+  if (Array.isArray(run?.picks) && run.picks.length)
+    return run.picks.filter((pick) => !has(`${pick.deckId}:${pick.cardId}`)).length;
+  return Math.max(0, (run?.total || 0) - Object.keys(picks).filter(has).length);
+};
+
 export const kindName = (kind) => (kind === 'multi' ? ui('多选') : ui('单选'));
 export const cardKindName = (card) => kindName(card?.multiple ? 'multi' : 'quiz');
 
