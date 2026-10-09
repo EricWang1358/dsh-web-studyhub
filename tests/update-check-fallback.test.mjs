@@ -50,7 +50,7 @@ test('the real redirect target becomes the same release record the API path buil
     assetUrl: `${REPO}/releases/download/v3.2.0/ericwang1358-dsh-daily-flashcard-3.2.0.tgz`,
     sha256Url: `${REPO}/releases/download/v3.2.0/SHA256SUMS-3.2.0.txt` });
   assert.equal(releaseFromLatestLocation(`/${REPO_NAME}/releases/tag/v3.2.0`)?.latest, '3.2.0', 'a relative Location resolves against the request');
-  assert.equal(releaseFromLatestLocation(`${REPO}/releases/tag/v3.3.0-rc.1`)?.latest, '3.3.0-rc.1');
+  assert.equal(releaseFromLatestLocation(`${REPO}/releases/tag/v99.0.0-rc.1`)?.latest, '99.0.0-rc.1');
 });
 
 test('any other redirect target is refused', () => {
@@ -91,18 +91,18 @@ test('the QA feed override moves the fallback request and the release addresses 
 test('API rate limited, redirect answers: the release is found, no error is recorded, and the state says where it came from', async t => {
   await home(t);
   const reset = T0 + 30 * 60e3;
-  const net = route({ api: () => limited(reset), page: () => redirect(`${REPO}/releases/tag/v3.3.0`) });
+  const net = route({ api: () => limited(reset), page: () => redirect(`${REPO}/releases/tag/v99.0.0`) });
   const view = await checkForUpdate({ force: true, fetch: net.fetch, now: () => T0, current: '3.1.0' });
   assert.equal(view.error, undefined);
-  assert.equal(view.latest, '3.3.0');
+  assert.equal(view.latest, '99.0.0');
   assert.equal(view.newer, true);
   assert.equal(view.upgradeAvailable, true);
   assert.equal(view.notes, '');
   assert.equal(view.publishedAt, null);
   assert.equal(view.source, 'fallback');
-  assert.equal(view.url, `${REPO}/releases/tag/v3.3.0`);
-  assert.equal(view.assetUrl, `${REPO}/releases/download/v3.3.0/ericwang1358-dsh-daily-flashcard-3.3.0.tgz`);
-  assert.equal(view.sha256Url, `${REPO}/releases/download/v3.3.0/SHA256SUMS-3.3.0.txt`);
+  assert.equal(view.url, `${REPO}/releases/tag/v99.0.0`);
+  assert.equal(view.assetUrl, `${REPO}/releases/download/v99.0.0/ericwang1358-dsh-daily-flashcard-99.0.0.tgz`);
+  assert.equal(view.sha256Url, `${REPO}/releases/download/v99.0.0/SHA256SUMS-99.0.0.txt`);
   assert.deepEqual(net.calls.map(call => call.url), [RELEASES_API_URL, LATEST_PAGE]);
   const second = net.calls[1].init;
   assert.equal(second.redirect, 'manual');
