@@ -16,7 +16,8 @@ const rule = (selectorPart) => paper.declarations.filter((d) => d.ctx.some((c) =
 
 /* The surfaces that were each styling their own card. */
 const SURFACES = {
-  'ui/Review.jsx': ['question-card', 'summary-topics', 'result-hero'],
+  'ui/Review.jsx': ['summary-topics', 'result-hero'],
+  'ui/review/QuestionRun.jsx': ['question-card'],
   'ui/FlipCard.jsx': ['flip-face'],
   'ui/study-map/TodayCard.jsx': ['today-card'],
   'ui/Welcome.jsx': ['welcome-card'],

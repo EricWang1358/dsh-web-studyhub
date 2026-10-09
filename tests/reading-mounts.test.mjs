@@ -52,7 +52,7 @@ test('the skeleton spine keeps its stations and gains the Aa button in its toolb
 });
 
 test('review, results, notes, the skeleton canvas and the exam report mount the shared setting on their long-form text', async () => {
-  const review = await source('ui/Review.jsx');
+  const review = await source('ui/Review.jsx') + await source('ui/review/QuestionRun.jsx');
   assert.equal((review.match(/<ReadingBlock[^>]*className="explanation"/g) || []).length, 2, 'the explanation panel (理解这道题, Q&A, citations) and the guided-understanding panel');
   assert.match(review, /<ReadingSettingsButton/, 'the results page has the button');
   const coach = await source('ui/CoachDebrief.jsx');
@@ -72,7 +72,7 @@ test('review, results, notes, the skeleton canvas and the exam report mount the 
 });
 
 test('card faces keep their own designed typography: nothing in the card face or the controls is a reading block', async () => {
-  const review = await source('ui/Review.jsx');
+  const review = await source('ui/Review.jsx') + await source('ui/review/QuestionRun.jsx');
   for (const face of ['question-card', 'flash-prompt', 'flip-back', 'question-toolbar'])
     assert.doesNotMatch(review, new RegExp(`<ReadingBlock[^>]*${face}`), face);
 });

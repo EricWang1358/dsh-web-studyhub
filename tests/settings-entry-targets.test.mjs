@@ -41,7 +41,7 @@ test('the other links to a configuration name their section (what was checked an
   assert.match(generate, /onOpenSettings=\{openLargeDocumentSettings\}/, 'Generate: the long-document card opens the extension / converter section');
   assert.match(generate, /openSettingsSection\(settingsSectionOr\(section, 'settings-extensions'\)\)/);
   assert.doesNotMatch(generate, /onOpenSettings=\{\(\) => setPage/, 'Generate: no bare jump to the top of 设置');
-  const review = await read('ui/Review.jsx');
+  const review = await read('ui/Review.jsx') + await read('ui/review/QuestionRun.jsx');
   assert.match(review, /onSetupModel=\{onModelSettings \|\| \(\(\) => openSettings\("settings-model"\)\)\}/, 'Review: the rubric answer opens the model section');
   assert.doesNotMatch(review, /navigate\("settings"\)/, 'Review: no bare navigate to 设置');
   const live = await read('ui/LiveClass.jsx');
