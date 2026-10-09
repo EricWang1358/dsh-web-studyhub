@@ -2,6 +2,19 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.2.1 — 2026-10-09
+
+Fixes found by using 3.2.0.
+
+- **The update check says what really went wrong.** GitHub allows 60 anonymous API requests an hour per IP; behind a shared proxy or VPN that runs out and the check failed with 「请检查网络」. A rate limit is now said as such, with when it recovers (「约 HH:MM 恢复」), and when the API fails or is rate limited the check falls back to the `github.com` release redirect to learn the newest version (the download and its SHA-256 check are unchanged). HTTP errors name their status.
+- **新建考点清单: materials default to 不用.** A material with no real signal (a name word such as 样卷 or 大纲, PowerPoint) is no longer taken as 课件; with 自动识别资料用途 off every material is 不用. The wrong 「资料的选择有误…」 message was really a count: one list takes at most 60 materials and each plain note counts as one. It now says so (「一份考点清单最多用 60 份资料…」), and with nothing picked the page says 「先选至少一份课件」 instead of showing a number.
+- **A material's coverage counts the same questions as its 「N 题」.** Questions on an older version, on another import of the same recording, or on the single recordings of a merged recording were counted in 「N 题」 but not in the coverage, so the 覆盖 chip was missing. Now both read the same questions; a quote that cannot be found in the current text shows 「覆盖 0%」.
+- **A citation that passed verification is found in the reader.** The check was fuzzy and the reader strict, so a hyphenated line break, markup or full-width characters opened the source with nothing highlighted. The reader now locates it with the same fuzzy rule and highlights it; when it is nowhere, a paged document scrolls to the page and says 「没能精确定位这段引文」. 「看这题的原文」 now shows after any answer, not only a wrong one.
+- **The practice page shows the course and two progress figures** beside 「查看 N 份资料」: 本章 (the deck of the current question) and 整课程 (the course's decks), in the 资料 page's wording.
+- **Reviewed questions no longer read as 未自动审阅.** A location stamped on a citation after the review made every stamped question look edited; the review fingerprint now ignores that location (an edit to the prompt, answer, options, explanation, citation quote or source still shows). Questions already saved read as reviewed again without a migration.
+
+Not fixed or not verified: the update fallback and the reader changes were tested with fake responses and fixtures, not against the owner's own library; a citation that runs across two pages shows the page but no highlight; a very short citation that appears twice is reported as not exactly located; the final package passed the archive check (npm run release:check) but was not installed into a real DSH.
+
 ## 3.2.0 — 2026-10-08
 
 The long flows got shorter: the first minutes, model setup, making questions, importing, daily practice, exams and the task console. The settings stay, behind a fold or in Settings; the main path is the short one.
