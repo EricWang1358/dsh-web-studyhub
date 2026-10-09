@@ -1,4 +1,5 @@
 import { spanFormulas } from './reader/formula.js';
+import { createLocator } from '../../lib/quote-locate.js';
 
 /** A quote without a verified position never silently chooses its first occurrence. */
 export function locateQuote(text, quote, anchor = {}) {
@@ -18,6 +19,28 @@ export function locateQuote(text, quote, anchor = {}) {
   if (positions.length > 1) return { status: 'ambiguous' };
   return { status: 'resolved', start: positions[0], end: positions[0] + quote.length };
 }
+
+/**
+ * The second chance for a quote the strict search did not find. A citation is checked by its letters and digits only (lib/quote-match.js), so one
+ * that passed can differ from the text by hyphenation, markup, full / half width or an elision; the shared locator (lib/quote-locate.js) reads it
+ * the same way. Resolved as { status: 'fuzzy', start, end, quote } where `quote` is the text's own words between the offsets; a quote that
+ * matches in two places is 'ambiguous' (never silently the first one), one that matches nowhere 'missing'.
+ */
+export function locateFuzzy(text, quote) {
+  const first = createLocator(text)(quote);
+  if (!first) return { status: 'missing' };
+  if (createLocator(text.slice(first.end))(quote)) return { status: 'ambiguous' };
+  return { status: 'fuzzy', start: first.start, end: first.end, quote: text.slice(first.start, first.end) };
+}
+
+/** locateQuote, then locateFuzzy when the quote is not in the text as written. */
+export function resolveQuote(text, quote, anchor = {}) {
+  const strict = locateQuote(text, quote, anchor);
+  return strict.status === 'missing' && quote ? locateFuzzy(text, quote) : strict;
+}
+
+/** A quote that has a place in the text (as written or by its letters), so the reader scrolls to it and not to the page it is on. */
+export const isPlaced = status => status === 'resolved' || status === 'fuzzy';
 
 /** Renderer whitespace differs from source projection separators; map only a unique contextual match. */
 export function locateVisibleQuote(text, anchor) {
@@ -101,19 +124,21 @@ export function captureSelection(container, selection = window.getSelection()) {
     ...(pageElement ? { page: Number(pageElement.dataset.studyPage), sourceId: pageElement.dataset.studySource } : {}), range: range.cloneRange(), element: owner };
 }
 
-/** Add ephemeral passage marks to a renderer owned by this component. */
-export function renderedPassageRange(container, selection) {
-  if (!container) return null;
+/** The text the reader draws for one source (the page of a paged document, else all of it), without its own marks and without translation blocks, and the text nodes it came from. */
+function renderedText(container, sourceId) {
   const pages = [...container.querySelectorAll('[data-study-source]')];
-  const passageContainer = pages.find(page => page.dataset.studySource === selection.sourceId) || container;
+  const passageContainer = pages.find(page => page.dataset.studySource === sourceId) || container;
   const walker = container.ownerDocument.createTreeWalker(passageContainer, 4), nodes = [];
   let text = '', node;
   while ((node = walker.nextNode())) {
-    if (node.parentElement?.closest('[data-study-marker]')) continue;
+    if (node.parentElement?.closest('[data-study-marker], [data-tr-key]')) continue;
     nodes.push({ node, start: text.length }); text += node.textContent;
   }
-  const hit = locateVisibleQuote(text, selection);
-  if (hit.status !== 'resolved') return null;
+  return { text, nodes };
+}
+
+/** The DOM range of [hit.start, hit.end) of a rendered text. */
+function rangeOf(container, nodes, hit) {
   const first = nodes.find(({ node, start }) => start <= hit.start && start + node.textContent.length > hit.start);
   const last = nodes.find(({ node, start }) => start < hit.end && start + node.textContent.length >= hit.end);
   if (!first || !last) return null;
@@ -121,6 +146,25 @@ export function renderedPassageRange(container, selection) {
   range.setStart(first.node, hit.start - first.start); range.setEnd(last.node, hit.end - last.start);
   spanFormulas(range); // a [n] mark goes after a formula, never into its hidden source
   return range;
+}
+
+/** Add ephemeral passage marks to a renderer owned by this component. */
+export function renderedPassageRange(container, selection) {
+  if (!container) return null;
+  const { text, nodes } = renderedText(container, selection.sourceId), hit = locateVisibleQuote(text, selection);
+  return hit.status === 'resolved' ? rangeOf(container, nodes, hit) : null;
+}
+
+/**
+ * The fuzzy way to the same place (locateFuzzy on what is drawn, once): { status: 'fuzzy', range, quote } with the text's own words as `quote`,
+ * 'ambiguous' when the quote is in two places, 'missing' when it is in none or the drawn text is not there.
+ */
+export function fuzzyPassageRange(container, selection) {
+  if (!container) return { status: 'missing' };
+  const { text, nodes } = renderedText(container, selection.sourceId), hit = locateFuzzy(text, selection.quote);
+  if (hit.status !== 'fuzzy') return { status: hit.status };
+  const range = rangeOf(container, nodes, hit);
+  return range ? { status: 'fuzzy', range, quote: hit.quote } : { status: 'missing' };
 }
 
 export function annotatePassages(container, groups, onOpen, title = count => `${count} 道相关题目与解析`) {
