@@ -33,13 +33,16 @@ test('a pass asked for some sections of a round leaves the round pending, owing 
   assert.deepEqual(stepOf({ spec, uncovered: new Set(['e']), run: { autoComplete: true, fillUsed: 0 } }), { type: 'fill', keys: ['e'], skipped: [] });
 });
 
-test('a section tried and failed is not asked again by its round: it is a fill round\'s; a pass that failed is failed, and what it never asked stays untried', () => {
+test('a section tried and failed is not asked again by its round: it is a fill round\'s; a failed pass owes what it never asked, and a whole round that failed is failed', () => {
   let spec = finishRound(markRound(two(), 1, 'running', { asked: ['c', 'd'] }), 1, { asked: ['c', 'd'], left: new Set(['c', 'd', 'e']) });
   assert.equal(spec.rounds[1].status, 'pending');
   assert.deepEqual(nextPlannedKeys(spec, new Set(['c', 'd', 'e'])).keys, ['e'], 'c and d were tried: the round asks for e only');
-  const failed = finishRound(markRound(two(), 1, 'running', { asked: ['c'] }), 1, { status: 'failed', asked: ['c'], left: new Set(['c', 'd', 'e']) });
-  assert.equal(failed.rounds[1].status, 'failed', 'a failure is said as one');
-  assert.deepEqual(failed.rounds[1].triedKeys, ['c']);
+  const failed = finishRound(markRound(two(), 1, 'running', { asked: ['c'] }), 1, { status: 'failed', code: 'review-protocol', asked: ['c'], left: new Set(['c', 'd', 'e']) });
+  assert.equal(failed.rounds[1].status, 'pending', 'd and e were never asked for: the round owes them, a failure of c is not theirs');
+  assert.deepEqual([failed.rounds[1].triedKeys, failed.rounds[1].code, failed.rounds[1].questions], [['c'], 'review-protocol', 4]);
+  assert.deepEqual(nextPlannedKeys(failed, new Set(['c', 'd', 'e'])).keys, ['d', 'e']);
+  const whole = finishRound(markRound(two(), 1, 'running', { asked: ['c', 'd', 'e'] }), 1, { status: 'failed', asked: ['c', 'd', 'e'], left: new Set(['c', 'd', 'e']) });
+  assert.equal(whole.rounds[1].status, 'failed', 'a round that failed every section it owed is failed');
   // The executor records attempts for the keys it asked for only: d and e keep no counter.
   assert.deepEqual(Object.keys(recordAttempts(failed, ['c'], () => 'plan-short', 2).attempts), ['c']);
 });
@@ -70,8 +73,10 @@ test('the coverage view: a section of a round that was never asked for is waitin
   const partly = finishRound(markRound(two(), 1, 'running', { asked: ['c'] }), 1, { asked: ['c'], left: new Set(['c', 'd', 'e']) });
   const view = annotateCoverage(coverage, partly);
   assert.deepEqual(view.sections.slice(2).map(section => [section.key, section.state, section.scheduled === true]), [['c', 'planned-failed', false], ['d', 'never-planned', true], ['e', 'never-planned', true]]);
-  const failed = finishRound(markRound(two(), 1, 'running', { asked: ['c'] }), 1, { status: 'failed', asked: ['c'], left: new Set(['c', 'd', 'e']) });
-  assert.deepEqual(annotateCoverage(coverage, failed).sections.slice(2).map(section => section.state), ['planned-failed', 'never-planned', 'never-planned'], 'a failed pass tried c only');
+  // A later pass stopped (cancelled) leaves the round failed while it still owes d and e: they wait for a retry, never 「没有计划」.
+  const stopped = finishRound(markRound(partly, 1, 'running', { asked: ['d'] }), 1, { status: 'failed', reason: 'cancelled' });
+  assert.equal(stopped.rounds[1].status, 'failed');
+  assert.deepEqual(annotateCoverage(coverage, stopped).sections.slice(2).map(section => [section.key, section.state, section.scheduled === true]), [['c', 'planned-failed', false], ['d', 'never-planned', true], ['e', 'never-planned', true]]);
 });
 
 test('a row of the rounds list opens to the sections its pass asked for', async () => {
@@ -81,4 +86,30 @@ test('a row of the rounds list opens to the sections its pass asked for', async 
   const draft = { editorial: { coverageSpec: spec } };
   assert.deepEqual(sectionsOfRound(draft, { round: 2, index: 1, status: 'done' }, null).map(section => section.key), ['d', 'e']);
   assert.deepEqual(sectionsOfRound(draft, { round: 1, index: 0, status: 'done' }, null).map(section => section.key), ['a', 'b']);
+});
+
+test('while a pass runs, its round counts what it owes besides the pass; the draft page says done where the executor does; a document top-up does not count a section a round already tried as in flight', async () => {
+  const { owedDue, draftRunFacts } = await import('../lib/coverage-run.js');
+  const running = markRound(two(), 1, 'running', { questions: 2, asked: ['c'] });
+  assert.equal(owedDue(running, 1, new Set(['c', 'd', 'e'])), 4, 'd and e: 2 + 2');
+  assert.deepEqual(roundsDue(running, { uncovered: new Set(['c', 'd', 'e']), running: { left: 2 } }), [0, 6], 'the pass makes 2, the round owes 4 more');
+  assert.equal(owedDue(two(), 1, new Set(['c', 'd', 'e']), ['c']), 4, 'at the start of a job: what the round owes besides what the job asks');
+  assert.equal(owedDue({ ...two(), rounds: [two().rounds[0], { ...two().rounds[1], status: 'running' }] }, 1, new Set(['c'])), 0, 'a pass from before askedKeys was the whole round');
+  // A round that ran a pass and owes nothing any more (d, e covered by another round): done, as the executor marks it, not 「这一轮的小节都已经有题了」.
+  const partly = finishRound(markRound(two(), 1, 'running', { asked: ['c'] }), 1, { asked: ['c'], left: new Set(['c', 'd', 'e']) });
+  const sections = ['a', 'b', 'c', 'd', 'e'].map(key => ({ key, state: 'covered' }));
+  const facts = draftRunFacts({ cards: [{}], editorial: { coverageSpec: partly, coverageRun: { state: 'waiting' } } }, { coverage: { sections } });
+  assert.equal(facts.done, 2);
+});
+
+test('a document top-up: the sections a pending round already tried (and that did not come out) are not in flight, what it owes is', async () => {
+  const { documentTopUp } = await import('../lib/coverage-state.js');
+  const { sectionKey } = await import('../lib/coverage.js');
+  const { transcriptFixture } = await import('./helpers/coverage-fixture.mjs');
+  const fx = transcriptFixture({ recordings: 2, parts: 6, paragraphs: 4 }), keyOf = section => sectionKey(section.sourceId, section.id);
+  const first = fx.leaves.slice(0, 2).map(section => fx.card(section)), waiting = fx.leaves.slice(2, 6).map(keyOf);
+  const spec = { topup: true, goal: 4, quotas: waiting.map(sectionId => ({ sectionId, quota: 1 })), rounds: [{ round: 1, questions: 3, sectionIds: waiting, status: 'pending', askedKeys: [waiting[0]], triedKeys: [waiting[0]] }] };
+  const draft = { id: 'p', title: 'part', cards: [], editorial: { requested: 4, generation: { sourceIds: fx.sources.map(source => source.id) }, part: { deckId: 'D', n: 2 }, coverageSpec: spec, coverageRun: { state: 'waiting' } } };
+  const found = documentTopUp({ sources: fx.sources, decks: [{ id: 'D', title: 'Deck D', cards: first }], drafts: [draft] }, { sourceId: fx.sources[0].id });
+  assert.equal(found.inFlight, waiting.length - 1, 'the tried section is a retry anyone may take; the three the round owes are in flight');
 });
