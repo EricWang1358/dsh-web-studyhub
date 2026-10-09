@@ -73,5 +73,9 @@
   "新出一份案例卷": "New case paper",
   "来自课程「{0}」的考试设置：{1}（可在课程设置里修改）": "From the exam settings of course “{0}”: {1} (editable in the course settings)",
   "批改需要模型": "Model needed",
-  "批改需要 AI 模型": "Marking needs an AI model"
+  "批改需要 AI 模型": "Marking needs an AI model",
+  "本章": "This chapter",
+  "整课程": "Whole course",
+  "这道题所在的题组，课程里的一章。": "The deck this question is in, one chapter of the course.",
+  "「{0}」里所有题组合计（含子课程）。": "All the decks of “{0}” added up (sub-courses included)."
 }
