@@ -2,6 +2,15 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.3.0 — 2026-10-09
+
+- **A 总纲 page for each course (step 1).** The 学习目录 lists decks, and a knowledge point is hard to find among dozens of them. Open 「总纲」 from the course area of the home page: the course's materials and their chapters as a tree, each row with its question count and mastery and a 练这一节 button; open a row to see its questions (each with its deck name), tick the ones you want and practise exactly those (de-duplicated: a question under two chapters shows under both and counts once). One round holds at most 200 questions: the first 200 by due, weak, new. Questions that cannot be placed (no citation, or they cite a material not filed under this course, another course's, archived or gone) are in 未归位 with the reason, and a hint to file those materials under the course on the 资料 page. A deck filter keeps decks as provenance; deck management is unchanged. The folded 课程路线 list on the home page is gone (the home keeps one continue button). It is built from the materials' chapters, with no AI text yet.
+- **交卷 asks only when something is unanswered.** The written exam used to open 「仍然交卷」 with 「还有 0 题未作答」 even when every question was answered; now a full paper is handed in at once and the dialog says the real number otherwise.
+- **The practice page says which other courses a mixed run covers:** 「+N」 after the course name, the others on hover.
+- **A coverage run keeps honest books on retries.** A section that a pass did not ask for (cut to fit, or not chosen in a press for some sections) is no longer charged a failed try or counted in the rows; a round is done only when each of its sections has a question or was really tried, and a round that was asked in parts asks the rest in its next pass. A failure that repeats stops after two passes of the same round (no wasted spend); 接着做 later asks what was never tried; a stop in the middle of a pass leaves the round owing what nobody asked.
+
+Known limits: one material imported without choosing a course is stored as having no course, so questions that only cite it stay in 未归位 until it is filed under the course on the 资料 page; the 总纲 has no introductions, no sample-paper marks and no course picker of its own yet; a round done in two passes shows the figures of its last pass; the final package passed the archive check (npm run release:check) but was not installed into a real DSH, and none of this was tried on the owner's own library.
+
 ## 3.2.1 — 2026-10-09
 
 Fixes found by using 3.2.0.
