@@ -4,8 +4,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { roundList } from '../lib/coverage-run.js';
-import { settleJob } from './helpers/wait.mjs';
+import { roundList, owedKeys } from '../lib/coverage-run.js';
+import { settleJob, until } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 
@@ -20,7 +20,9 @@ const REVIEW = 'Act as a strict assessment editor';
 /** The text of a section of the fixture ('…#r1.p6' is "Recording 1, part 6, point …"). */
 const textOf = key => { const [, r, p] = /#r(\d+)\.p(\d+)$/.exec(key); return `Recording ${r}, part ${p}, point`; };
 
-/** `broken`: section keys whose review never comes back usable (a pass asked for only them keeps nothing and covers nothing, but it ran: done, no progress). */
+/** `broken`: section keys whose review never comes back usable: a pass asked for only them keeps nothing and FAILS (code 'review-protocol'). (A pass of this fixture that gains nothing always
+ *  fails: an empty plan, a quality issue, a citation moved elsewhere all end 'failed' or still credit the section; the rule for a pass that ends 'done' and gains nothing is
+ *  tests/round-asked-keys.test.mjs endsWithoutProgress.) */
 async function open(t, root, coverage, broken = new Set()) {
   const service = new StudyService(root, { coverage });
   t.after(() => service.dispose());
@@ -167,7 +169,6 @@ test('the live numbers of a pass that asks part of its round count what the roun
   const job = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: [chosen], autoComplete: true } });
   const start = await contractOf(service, job.jobId);
   assert.equal(start.detail.own.asked, quota.get(chosen) + owed + third, 'at the start: the chosen section, what round 2 still owes after it, round 3');
-  const { until } = await import('./helpers/wait.mjs');
   await until(() => hold.entered, 'the first pass to reach its review');
   seen = await contractOf(service, job.jobId);
   assert.equal(seen.detail.run.questionsLeft, seen.detail.run.list[1].due + third, 'what is left counts round 2 and round 3');
@@ -178,4 +179,83 @@ test('the live numbers of a pass that asks part of its round count what the roun
   const end = await contractOf(service, job.jobId);
   assert.equal(end.detail.own.asked, start.detail.own.asked, 'and the same at the end');
   assert.equal(end.detail.own.made, end.detail.own.asked);
+});
+
+const gate = () => { let open; const promise = new Promise(resolve => { open = resolve; }); return { promise, open, entered: false }; };
+const PLAN = 'Plan a source-grounded assessment';
+/** Holds the first planning call made while `when(round 2 as the draft says it)` holds, until the gate is opened. */
+function holdPlanWhen(service, when, hold) {
+  const inner = service.complete;
+  service.complete = async (system, prompt, context = {}) => {
+    if (!hold.entered && system.startsWith(PLAN) && when((await draftOf(service))?.editorial.coverageSpec.rounds[1])) { hold.entered = true; await hold.promise; }
+    return inner(system, prompt, context);
+  };
+}
+
+test('a failure that repeats does not spend a pass per section: a cut round whose every review fails stops after its SECOND failed pass with the same cause; it still owes the rest, and 接着做 asks them', async (t) => {
+  const { root, service, draft } = await waitingRun(t);
+  const spec = draft.editorial.coverageSpec, planned = spec.rounds[1].sectionIds, quota = new Map(spec.quotas.map(item => [item.sectionId, item.quota]));
+  await service.dispose();
+  const broken = new Set([...planned, ...spec.rounds[2].sectionIds]), smaller = await open(t, root, { roundLimit: Math.max(...planned.map(key => quota.get(key))) }, broken);
+  const job = await smaller.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { run: true, autoComplete: true } });
+  assert.equal((await settleJob(smaller, job.jobId)).status, 'complete');
+  const contract = await contractOf(smaller, job.jobId), ends = eventsOf(contract, 'round-end').filter(event => event.args.round === 2);
+  assert.deepEqual(ends.map(event => [event.args.status, event.args.code]), [['failed', 'review-protocol'], ['failed', 'review-protocol']], 'two failed passes of round 2, then the run stops: never one per section');
+  let after = await draftOf(smaller);
+  assert.deepEqual([after.editorial.coverageRun.stop.reason, after.editorial.coverageRun.stop.round], ['no-progress', 2]);
+  const owed = owedKeys(after.editorial.coverageSpec.rounds[1]);
+  assert.equal(after.editorial.coverageSpec.rounds[1].status, 'pending', 'round 2 is not given up: it still owes what no pass asked');
+  assert.ok(owed.length >= 1, `it owes ${owed.length} section(s) nobody asked for`);
+  assert.deepEqual(owed.filter(key => after.editorial.coverageSpec.attempts?.[key]), [], 'and they have no failed attempt');
+  broken.clear();
+  const again = await smaller.call('generate', { resumeDraftId: after.id, draftVersion: after.draftVersion, coverage: { run: true, autoComplete: true } });
+  assert.equal((await settleJob(smaller, again.jobId)).status, 'complete');
+  after = await draftOf(smaller);
+  const left = await uncoveredOf(smaller, after);
+  assert.deepEqual(owed.filter(key => left.has(key)), [], '接着做 asked them, and they came out');
+});
+
+test('the learner stops a SECOND pass of a round: the round is pending again, owing what nobody tried (the stopped pass tries nothing), and 接着做 asks it', async (t) => {
+  const { service, draft } = await waitingRun(t);
+  const [chosen, ...rest] = draft.editorial.coverageSpec.rounds[1].sectionIds;
+  const hold = gate();
+  t.after(() => hold.open());
+  holdPlanWhen(service, round => round?.status === 'running' && round.askedKeys?.length > 1, hold);
+  const job = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: [chosen], autoComplete: true } });
+  await until(() => hold.entered, 'the second pass of round 2 to ask its planner');
+  await service.call('job.control', { jobId: job.jobId, action: 'cancel' });
+  hold.open();
+  assert.equal((await settleJob(service, job.jobId)).status, 'cancelled');
+  let after = await draftOf(service), round = after.editorial.coverageSpec.rounds[1];
+  assert.equal(after.editorial.coverageRun.stop.reason, 'learner');
+  assert.equal(round.status, 'pending', 'not "failed": the sections of the stopped pass were never really asked');
+  assert.deepEqual(round.triedKeys, [chosen]);
+  assert.deepEqual([...owedKeys(round)].sort(), [...rest].sort());
+  const again = await service.call('generate', { resumeDraftId: after.id, draftVersion: after.draftVersion, coverage: { run: true, autoComplete: true } });
+  assert.equal((await settleJob(service, again.jobId)).status, 'complete');
+  after = await draftOf(service);
+  const left = await uncoveredOf(service, after);
+  assert.deepEqual(rest.filter(key => left.has(key)), [], '接着做 asked the rest of round 2');
+  assert.equal(after.editorial.coverageSpec.rounds[1].status, 'done');
+});
+
+test('the learner stops the FIRST pass of a press for one section: the round owes all its sections again (nothing was tried), and 接着做 asks them', async (t) => {
+  const { service, draft } = await waitingRun(t);
+  const planned = draft.editorial.coverageSpec.rounds[1].sectionIds;
+  const hold = gate();
+  t.after(() => hold.open());
+  holdPlanWhen(service, round => round?.status === 'running', hold);
+  const job = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: [planned[0]], autoComplete: true } });
+  await until(() => hold.entered, 'the press to ask its planner');
+  await service.call('job.control', { jobId: job.jobId, action: 'cancel' });
+  hold.open();
+  assert.equal((await settleJob(service, job.jobId)).status, 'cancelled');
+  let after = await draftOf(service), round = after.editorial.coverageSpec.rounds[1];
+  assert.equal(round.status, 'pending');
+  assert.deepEqual(owedKeys(round), planned, 'the stopped pass counts nothing as tried');
+  assert.equal(Object.keys(after.editorial.coverageSpec.attempts || {}).length, 0);
+  const again = await service.call('generate', { resumeDraftId: after.id, draftVersion: after.draftVersion, coverage: { run: true, autoComplete: true } });
+  assert.equal((await settleJob(service, again.jobId)).status, 'complete');
+  after = await draftOf(service);
+  assert.deepEqual(roundList(after.editorial.coverageSpec).map(item => `${item.fill ? 'fill:' : ''}${item.status}`), ['done', 'done', 'done'], 'round 2 asked its sections itself, no retry round');
 });
