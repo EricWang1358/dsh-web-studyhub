@@ -45,6 +45,7 @@ test('plan: a usable Python, free space and a writable default folder under the 
   assert.equal(plan.channels, undefined, 'download channels are only offered when Python is missing');
   assert.ok(plan.commands.some(item => item.stage === 'create-venv' && /-m venv/.test(item.command)));
   assert.ok(plan.commands.some(item => item.stage === 'install' && /pip install/.test(item.command) && /marker-pdf/.test(item.command)));
+  assert.ok(plan.commands.some(item => item.stage === 'install' && item.command.endsWith(' "marker-pdf>=1.10,<2"')), 'the command shown is the one run, quoted for a shell');
   assert.equal(await exists(plan.folder), false, 'a plan creates nothing');
 });
 
@@ -112,7 +113,8 @@ test('install: create-venv, pip install, verify, write the program path; the sta
   assert.ok(calls.some(line => line.startsWith('-m venv ')), 'the environment is created first');
   const pip = calls.find(line => line.includes('pip install'));
   assert.match(pip, /--index-url https:\/\/pypi\.tuna\.tsinghua\.edu\.cn\/simple/);
-  assert.match(pip, /marker-pdf$/);
+  // marker-pdf 2.x needs Docker for its OCR server: the install asks pip for the 1.x line (one argument, no shell).
+  assert.match(pip, / marker-pdf>=1\.10,<2$/);
   assert.ok(calls.indexOf(calls.find(line => line.startsWith('-m venv '))) < calls.indexOf(pip));
   assert.ok(done.log.some(line => /Successfully installed/.test(line)));
   assert.ok(done.log.some(line => line.startsWith('== verify')));
