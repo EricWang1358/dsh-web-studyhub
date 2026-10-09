@@ -139,7 +139,7 @@ test('time limit on the exam card, a weak topic and a chapter each start practic
         if (index < total - 1) { await page.getByRole('button', { name: '下一题 →' }).click(); await until(async () => (await page.locator('.exam-progress').innerText()).startsWith(`${index + 2} `), 'the next question'); }
       }
       await page.locator('.exam-foot').getByRole('button', { name: '交卷', exact: true }).click();
-      await page.getByRole('button', { name: '仍然交卷' }).click();
+      assert.equal(await page.getByRole('button', { name: '仍然交卷' }).count(), 0, 'every question is answered: 交卷 hands the paper in without asking');
       await page.locator('.exam-report').waitFor({ timeout: 30000 });
       await settleAnimations(page);
       const topics = page.locator('.exam-report .result-weak li');

@@ -17,11 +17,15 @@ const row = (total, mastery, newCards = 0) => ({ total, mastery, counts: { maste
 const deck = (id, course, extra = {}) => ({ id, title: id, course, ...extra });
 const data = (decks, progress, focusCourses = []) => ({ sources: [], decks, progress, focus: { courses: focusCourses } });
 const card = { id: "q", kind: "quiz", topic: "Context", prompt: "Who?", options: [] };
-const render = (info, deckId = "a") => renderToStaticMarkup(reviewElement(Review, StudyServicesContext, {
-  run: { id: "r", index: 0, total: 2, mode: "path", deckId, sourceIds: ["s1"], card }, data: info, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "API", busy: false }));
+// `decks` = the decks the run's questions come from (run.navigation lists one entry per question, as lib/study-state.js projects it).
+const render = (info, deckId = "a", decks = undefined) => renderToStaticMarkup(reviewElement(Review, StudyServicesContext, {
+  run: { id: "r", index: 0, total: 2, mode: "path", deckId, sourceIds: ["s1"], card, ...(decks ? { navigation: decks.map((id, index) => ({ index, deckId: id, cardId: "q" + index })) } : {}) }, data: info, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "API", busy: false }));
 // The line is the span after the button, up to the end of its row; the Tooltip keeps its words in the DOM, hidden, so they are cut out of the visible text.
 const context = (html) => { const from = html.indexOf('<span class="review-context"'); return from < 0 ? "" : html.slice(from, html.indexOf("</div>", from)); };
 const text = (html) => context(html).replace(/<[^>]*role="tooltip"[^>]*>.*?<\/(?:span|div)>/gs, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+// The words of the hovers inside the line: the Tooltip keeps them in the DOM, hidden.
+const tips = (html) => [...context(html).matchAll(/role="tooltip"[^>]*>(.*?)<\/(?:span|div)>/gs)].map((hit) => hit[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
 
 const library = data(
   [deck("a", "Design"), deck("b", "Design"), deck("c", "Other"), deck("tailor", "", { systemKind: "coach" })],
@@ -68,11 +72,44 @@ test("nothing is drawn without a course deck, without progress, or for a system 
   assert.match(render(library, "tailor"), /查看 1 份资料/, "the button stays");
 });
 
+/* A mixed run (the 一起学 all-courses round, a scope over decks of several courses): the question on screen keeps the line, +N says how many other
+   courses the run still carries and the hover names them. */
+const mixedLibrary = data(
+  [deck("a", "Design"), deck("b", "Design"), deck("c", "Other"), deck("d", "Third"), deck("u", ""), deck("tailor", "", { systemKind: "coach" })],
+  { a: row(10, 62), b: row(30, 30), c: row(5, 90), d: row(4, 50), u: row(2, 20), tailor: row(3, 10) });
+
+test("a run over one course says nothing more; a run over several adds +N and names the others on hover", () => {
+  setUiLanguage("zh");
+  assert.equal(text(render(mixedLibrary, "a", ["a", "b", "a"])), "Design 本章 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "two decks, one course: no +N");
+  assert.equal(text(render(mixedLibrary, "a")), "Design 本章 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "a run without the list of questions (an exam) behaves as before");
+  const two = render(mixedLibrary, "a", ["a", "b", "c", "c"]);
+  assert.equal(text(two), "Design +1 本章 掌握 62% · 10 题 整课程 掌握 38% · 40 题", "+N right after the course, the figures stay the current course's");
+  assert.deepEqual(tips(two)[0], "这一轮还有：Other");
+  const three = render(mixedLibrary, "c", ["a", "c", "d", "b"]);
+  assert.equal(text(three), "Other +2 本章 掌握 90% · 5 题", "the other course's own figures; the other courses are counted, not the decks");
+  assert.deepEqual(tips(three)[0], "这一轮还有：Design、Third", "in the order the run meets them");
+  assert.doesNotMatch(context(three), /title=/, "the hover is the Tooltip, never a title attribute");
+});
+
+test("an uncategorised deck counts once as 未分类课程, and a coach deck is no course", () => {
+  setUiLanguage("zh");
+  const html = render(mixedLibrary, "a", ["a", "u", "u", "tailor", "c"]);
+  assert.match(text(html), /^Design \+2 本章/);
+  assert.deepEqual(tips(html)[0], "这一轮还有：未分类课程、Other");
+  assert.match(text(render(mixedLibrary, "u", ["a", "u"])), /^未分类课程 \+1 本章 掌握 20% · 2 题$/);
+  assert.doesNotMatch(text(render(mixedLibrary, "a", ["a", "tailor", "tailor"])), /\+\d/, "the coach deck belongs to no course");
+  assert.equal(context(render(mixedLibrary, "tailor", ["a", "tailor"])), "", "a coach question on screen: still no line");
+  assert.deepEqual(runContextOf(mixedLibrary, "a", ["a", "missing", "u"]).also, [""], "an unknown deck is ignored");
+});
+
 test("English: the same facts in the English words", () => {
   setUiLanguage("en");
   try {
     assert.equal(text(render(library)), "Design This chapter Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
     assert.equal(text(render(data([deck("a", "")], { a: row(4, 0, 4) }))), "Uncategorised course This chapter New · 4 questions");
     assert.match(render(library), /View 1 sources/);
+    const mixed = render(mixedLibrary, "a", ["a", "c", "u"]);
+    assert.equal(text(mixed), "Design +2 This chapter Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
+    assert.deepEqual(tips(mixed)[0], "Also in this round: Other, Uncategorised course");
   } finally { setUiLanguage("zh"); }
 });

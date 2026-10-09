@@ -39,7 +39,7 @@ import { isAudioJob, JOB_TYPES } from '../lib/job-status.js';
    library snapshot and the verbs only the app can do:
      actions        { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual,
                       importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph,
-                      onCourseSettings } (see ui/app/page-views.jsx)
+                      onCourseSettings, onShowOutline } (see ui/app/page-views.jsx)
      setupHandlers  the 课程准备 checklist's handlers (createSetupHandlers)
      notebooks      the cross-workspace notebook directory (useNotebooks: notebooks, notebookError, publish, unpublish, open,
                     loadNotebooks, search)
@@ -51,7 +51,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
   const canChat = host.capabilities?.chat ?? !!host.askInChat;
   const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
-    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph, onCourseSettings } = actions;
+    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph, onCourseSettings, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
   const cancelJob = (jobId) => act("job.cancel", jobId ? { jobId } : { all: true });
@@ -107,7 +107,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <DeskIntro data={data} home={home} mastery={mastery} role={role} busy={busy} start={start} resume={resume} endRun={endRun}
-          onFocus={onFocus} onCourseSettings={onCourseSettings} suggestRole={suggestRole} />
+          onFocus={onFocus} onCourseSettings={onCourseSettings} onShowOutline={onShowOutline} suggestRole={suggestRole} />
         <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} />
       </div>
       {/* 待发布 is folded and sits under the day's work, not above it. */}

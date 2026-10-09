@@ -268,7 +268,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         </>}>
         <div className="review-heading-links">
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</Button>
-          <RunContext data={data} deckId={run.deckId} />
+          <RunContext data={data} deckId={run.deckId} run={run} />
           {skeletonHere && openSkeleton && (
             <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
           )}

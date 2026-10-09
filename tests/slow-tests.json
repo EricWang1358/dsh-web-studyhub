@@ -1,11 +1,13 @@
 {
   "browser": [
     "tests/calculation-guidance-browser.test.mjs",
+    "tests/course-outline-browser.test.mjs",
     "tests/daily-plan-interactions.test.mjs",
     "tests/daily-recap-navigation.test.mjs",
     "tests/daily-recap-reader.test.mjs",
     "tests/deck-archive-browser.test.mjs",
     "tests/exam-prep-browser.test.mjs",
+    "tests/exam-submit-count-browser.test.mjs",
     "tests/feedback-lite-browser.test.mjs",
     "tests/first-run-tour-browser.test.mjs",
     "tests/follow-label-fit-browser.test.mjs",
