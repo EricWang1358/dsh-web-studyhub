@@ -10,7 +10,7 @@ import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
 import { peekStatus } from './peek/peek-logic.js';
-import { captureSelection, groupPassageLinks, locateQuote, renderedPassageRange } from './selection.js';
+import { captureSelection, fuzzyPassageRange, groupPassageLinks, isPlaced, locateQuote, renderedPassageRange, resolveQuote } from './selection.js';
 import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx';
 import { buildLinkModel, groupTitle } from './links/link-model.js';
 import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
@@ -84,10 +84,11 @@ const PAGED = new Set(['pdf', 'pptx']);
 /** Below this width of the viewer, the outline and the learning panel slide over the text. Mirrors reader.css. */
 const NARROW = 900;
 
+/** The stored text with the quote marked: as written, else by its letters (resolveQuote), found once per text and quote, not per render. */
 function QuotedText({ text, quote, anchor, format }) {
-  const hit = locateQuote(text, quote, anchor), mark = useRef(null);
+  const hit = useMemo(() => resolveQuote(text, quote, anchor), [text, quote, anchor]), mark = useRef(null);
   useEffect(() => { mark.current?.scrollIntoView?.({ block: 'center' }); }, [quote, text]);
-  return <pre className={sourceTextClass({ format })} data-study-text="true">{hit.status === 'resolved'
+  return <pre className={sourceTextClass({ format })} data-study-text="true">{isPlaced(hit.status)
     ? <>{text.slice(0, hit.start)}<mark ref={mark} className="source-hit">{text.slice(hit.start, hit.end)}</mark>{text.slice(hit.end)}</> : text}</pre>;
 }
 
@@ -297,27 +298,44 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
   const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode });
-  const quoteState = quote ? locateQuote(sources.find(item => item.id === source.id)?.text || content, quote, source.selection) : null;
+  const quoteText = sources.find(item => item.id === source.id)?.text || content;
+  const quoteState = useMemo(() => !quote ? null : view === 'text' ? resolveQuote(quoteText, quote, source.selection) : locateQuote(quoteText, quote, source.selection),
+    [quote, quoteText, source.selection, view === 'text']); // eslint-disable-line react-hooks/exhaustive-deps
+  // A paged document is opened at the page a citation is on (page 1 is the top).
+  const showSourcePage = () => {
+    if (paged && (source.document?.page || 1) > 1) scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${source.id}"]`), { smooth: false });
+  };
+  // How the quote was placed in what the reading view draws: 'resolved' (as written), 'fuzzy' (by its letters: hyphenation, markup, width), 'ambiguous', 'missing'.
+  const [placed, setPlaced] = useState(null);
   useEffect(() => {
-    if (!reading || !quote || quoteState?.status !== 'resolved') return undefined;
-    const range = renderedPassageRange(body.current, { ...source.selection, sourceId: source.id, quote });
-    if (!range) return undefined;
+    if (!reading || !quote || loading) { setPlaced(null); return undefined; }
+    if (quoteState?.status === 'ambiguous' || quoteState?.status === 'stale') { setPlaced(null); showSourcePage(); return undefined; }
+    const selection = { ...source.selection, sourceId: source.id, quote };
+    let range = renderedPassageRange(body.current, selection), how = 'resolved';
+    if (!range) {
+      const found = fuzzyPassageRange(body.current, selection);
+      range = found.range || null; how = found.status;
+    }
+    setPlaced(how);
+    // Not found in the drawn text: the page it belongs to is shown, and the notice says the place is not exact.
+    if (!range) { showSourcePage(); return undefined; }
     scrollToNode(scroller.current, range.startContainer.parentElement, { center: true, smooth: false });
     if (window.CSS?.highlights && window.Highlight) {
       window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
       return () => window.CSS.highlights.delete('study-source-quote');
     }
     return undefined;
-  }, [reading, html, sections, quote, quoteState?.status, source.id, source.selection]);
+  }, [reading, loading, html, sections, quote, quoteState?.status, source.id, source.selection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A new view starts at the top; a page or slide opened from a link starts at that page.
   useEffect(() => { scroller.current?.scrollTo?.({ top: 0 }); }, [view]);
   useEffect(() => {
     const key = `${source.id}:${view}`;
-    if (!paged || quote || loading || !sections.length || view === 'original' || openedAt.current === key) return;
+    // A quote owns the scroll when the reading view places it (above, which also falls back to the page) or the 原文 view marks it.
+    if (!paged || (quote && (reading || isPlaced(quoteState?.status))) || loading || !sections.length || view === 'original' || openedAt.current === key) return;
     openedAt.current = key;
-    if ((source.document?.page || 1) > 1) scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${source.id}"]`), { smooth: false });
-  }, [paged, quote, loading, sections, view, source.id, source.document?.page]);
+    showSourcePage();
+  }, [paged, quote, reading, quoteState?.status, loading, sections, view, source.id, source.document?.page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 读 → 做这几页的题 → 回到阅读 → 掌握度: the questions linked to this document placed under the outline, the range chooser, and the way back to a stored position.
   const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
@@ -373,8 +391,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     !localMode && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     view === 'original' && <p key="pdf">{ui('原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。')}</p>,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,
-    quoteState?.status === 'ambiguous' && <InlineMessage key="ambiguous" tone="warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</InlineMessage>,
+    (quoteState?.status === 'ambiguous' || (reading && placed === 'ambiguous')) && <InlineMessage key="ambiguous" tone="warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</InlineMessage>,
     quoteState?.status === 'stale' && <InlineMessage key="stale" tone="warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</InlineMessage>,
+    quote && !loading && (view === 'text' ? quoteState?.status === 'missing' : reading && placed === 'missing')
+      && <InlineMessage key="unplaced" tone="warning">{ui('没能精确定位这段引文，已显示所在资料。')}</InlineMessage>,
     source.selection && document?.currentRevision && document.currentRevision !== source.selection.revision
       && <InlineMessage key="revision" tone="warning">{ui('此引用来自较早版本，当前资料已有更新。')}</InlineMessage>,
     bilingual.notice,
