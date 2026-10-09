@@ -15,6 +15,7 @@ import WrongBook from '../WrongBook.jsx';
 import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
 import ExamPrep from '../exam-prep/ExamPrep.jsx';
+import CourseOutline from '../outline/CourseOutline.jsx';
 import Manage from '../Manage.jsx';
 import Settings, { backupFileName } from '../Settings.jsx';
 import Generate from '../Generate.jsx';
@@ -65,6 +66,7 @@ function LibraryView() {
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
           onShowGraph: (scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); nav.navigate('graph'); },
           onCourseSettings: settingsEntry.setCourseSettings,
+          onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
         }}>
         {pageAvailable(data, 'review') && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
@@ -179,6 +181,16 @@ function TasksView() {
   const app = useApp(), { data } = app;
   const openers = { resultOf: (job) => resultOpener(job, app), materialOf: (job) => materialOpener(job, app) };
   return <TaskConsole data={data} openers={openers} />;
+}
+
+/** 总纲: the current course's materials as a tree with their questions. A round started here comes back here (返回总纲); 接着练 resumes the row's unfinished round. */
+function OutlineView() {
+  const { data, nav, session, learn, intents } = useApp();
+  const onPractice = (scope, { resume = false } = {}) => {
+    const origin = learn.captureContext();
+    intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
+  };
+  return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('library')} onCreate={() => intents.goGenerate()} onPractice={onPractice} />;
 }
 
 /** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console.
@@ -313,7 +325,7 @@ function NotesView() {
 export const PAGE_VIEWS = {
   library: LibraryView, workflows: WorkflowsView, skeleton: SkeletonView, dashboard: DashboardView, exam: ExamView, wrongbook: WrongBookView, graph: GraphView,
   manage: ManageView, sources: SourcesView, audio: AudioView, tasks: TasksView, generate: GenerateView, draft: DraftView, settings: SettingsView, review: ReviewView, notes: NotesView,
-  examprep: ExamPrepView,
+  examprep: ExamPrepView, outline: OutlineView,
 };
 
 /** 备考补习 while the learner has it turned off in Settings (the switch is not a component, so the generic text about components would be wrong). */

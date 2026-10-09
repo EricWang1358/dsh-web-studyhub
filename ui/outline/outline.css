@@ -1,0 +1,209 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 总纲 (ui/outline/): the course's materials as one list of rows (a document, its chapters, 未归位), a row's questions under it, and the bar of
+       what is picked. Tokens only. A row keeps its checkbox, its title and its practice button on one line where there is room; at narrow widths the
+       mastery and the button take the second line. */
+    .outline-page {
+      display: grid;
+      gap: var(--space-4);
+      align-content: start;
+    }
+    .outline-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      margin: var(--space-2) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .outline-what {
+      color: var(--text-dim);
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
+      cursor: help;
+    }
+    .outline-deck {
+      min-width: 14rem;
+      max-width: 100%;
+    }
+    .outline-tree {
+      display: grid;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+    }
+    .outline-row {
+      min-width: 0;
+      padding: var(--space-2) var(--space-3);
+      border-top: 1px solid var(--line-soft);
+    }
+    .outline-row:first-child {
+      border-top: 0;
+    }
+    .outline-row[data-level='2'] {
+      padding-left: var(--space-7);
+    }
+    .outline-row[data-depth='2'] {
+      padding-left: var(--space-8);
+    }
+    .outline-row[data-depth='3'] {
+      padding-left: var(--space-9);
+    }
+    .outline-row[data-kind='unplaced'] {
+      background: var(--bg-sunken);
+    }
+    .outline-row__line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      min-height: 2rem;
+    }
+    .outline-row__pick {
+      flex: none;
+    }
+    .outline-row__toggle,
+    .outline-row__toggle:hover {
+      display: inline-flex;
+      flex: 1 1 12rem;
+      align-items: center;
+      justify-content: flex-start;
+      gap: var(--space-2);
+      height: auto;
+      min-width: 0;
+      padding: var(--space-1) 0;
+      border: 0;
+      background: none;
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .outline-row__toggle:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+      border-radius: var(--radius-xs);
+    }
+    .outline-row__caret {
+      flex: none;
+      color: var(--text-muted);
+      transition: transform var(--dur-fast) var(--ease-out);
+    }
+    .outline-row__toggle[aria-expanded='true'] .outline-row__caret {
+      transform: rotate(90deg);
+    }
+    .outline-row__title {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .outline-row[data-kind='document'] .outline-row__title,
+    .outline-row[data-kind='unplaced'] .outline-row__title {
+      font-weight: var(--fw-medium);
+    }
+    .outline-row__mastery {
+      flex: none;
+    }
+    .outline-row__practice {
+      flex: none;
+    }
+    .outline-row__body[hidden] {
+      display: none;
+    }
+    .outline-questions {
+      display: grid;
+      gap: var(--space-1);
+      margin: var(--space-2) 0 var(--space-1) var(--space-6);
+      padding: 0;
+      list-style: none;
+    }
+    .outline-q {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-1) var(--space-3);
+      padding: var(--space-1-5) 0;
+      border-top: 1px solid var(--line-soft);
+      font-size: var(--fs-sm);
+    }
+    .outline-q:first-child {
+      border-top: 0;
+    }
+    .outline-q__pick {
+      flex: 1 1 16rem;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .outline-q__badges {
+      display: inline-flex;
+      flex: none;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+    }
+    .outline-questions__none,
+    .outline-questions__more,
+    .outline-questions__state {
+      margin: var(--space-2) 0 var(--space-1) var(--space-6);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .outline-questions__more {
+      margin: 0;
+      padding-top: var(--space-1-5);
+      border-top: 1px solid var(--line-soft);
+    }
+    .outline-bar {
+      position: sticky;
+      bottom: var(--space-3);
+      z-index: var(--z-sticky);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2) var(--space-3);
+      padding: var(--space-2-5) var(--space-3) var(--space-2-5) var(--space-4);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-item);
+    }
+    .outline-bar__count {
+      margin-right: auto;
+      font-size: var(--fs-md);
+      font-variant-numeric: tabular-nums;
+    }
+    .outline-bar__note {
+      flex: 1 1 100%;
+      order: 3;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+  }
+  @container study (max-width: 720px) {
+    :where(.study-app, .study-seat) {
+      .outline-row[data-level='2'] {
+        padding-left: var(--space-5);
+      }
+      .outline-row[data-depth='2'],
+      .outline-row[data-depth='3'] {
+        padding-left: var(--space-6);
+      }
+      .outline-row__mastery {
+        flex: 1 1 auto;
+        margin-left: var(--space-7);
+      }
+      .outline-questions {
+        margin-left: var(--space-3);
+      }
+      .outline-deck {
+        min-width: 0;
+        width: 100%;
+      }
+    }
+  }
+}
