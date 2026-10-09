@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { markRound, finishRound, owedKeys, roundKeys, nextPlannedKeys, resetRunning, roundsDue, stepOf, recordAttempts } from '../lib/coverage-run.js';
+import { markRound, finishRound, owedKeys, roundKeys, nextPlannedKeys, resetRunning, roundsDue, stepOf, recordAttempts, endsWithoutProgress } from '../lib/coverage-run.js';
 import { listOf } from '../lib/contexts/generation/coverage-runs.js';
 import { annotateCoverage } from '../lib/coverage-state.js';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -112,4 +112,28 @@ test('a document top-up: the sections a pending round already tried (and that di
   const draft = { id: 'p', title: 'part', cards: [], editorial: { requested: 4, generation: { sourceIds: fx.sources.map(source => source.id) }, part: { deckId: 'D', n: 2 }, coverageSpec: spec, coverageRun: { state: 'waiting' } } };
   const found = documentTopUp({ sources: fx.sources, decks: [{ id: 'D', title: 'Deck D', cards: first }], drafts: [draft] }, { sourceId: fx.sources[0].id });
   assert.equal(found.inFlight, waiting.length - 1, 'the tried section is a retry anyone may take; the three the round owes are in flight');
+});
+
+test('when a pass that gained nothing ends a run that goes on by itself (no-progress)', () => {
+  const round = (index) => ({ type: 'round', index, keys: ['d'], skipped: [] });
+  assert.equal(endsWithoutProgress({ progress: true, step: round(2), index: 1 }), false, 'a pass that gained a section never does');
+  assert.equal(endsWithoutProgress({ progress: false, step: round(2), index: 1 }), true, 'another planned round behind it: it stops (D-15)');
+  assert.equal(endsWithoutProgress({ progress: false, step: round(1), index: 1 }), false, 'a pass that ended done: the same round asks what nobody tried yet');
+  assert.equal(endsWithoutProgress({ progress: false, step: round(1), index: 1, failed: true, code: 'review-protocol' }), false, 'the first failed pass of the round may go on once');
+  assert.equal(endsWithoutProgress({ progress: false, step: round(1), index: 1, failed: true, code: 'review-protocol', previous: { failed: true, code: 'review-protocol' } }), true, 'the same failure twice: stop, the round still owes the rest');
+  assert.equal(endsWithoutProgress({ progress: false, step: round(1), index: 1, failed: true, code: 'timeout', previous: { failed: true, code: 'review-protocol' } }), false, 'another cause may go on once more');
+  assert.equal(endsWithoutProgress({ progress: false, step: round(1), index: 1, failed: true, previous: { failed: true } }), true, 'an unknown cause twice is the same cause');
+  assert.equal(endsWithoutProgress({ progress: false, step: round(1), index: 1, failed: true, code: 'quality', previous: { failed: false } }), false, 'after a pass that ended done');
+  assert.equal(endsWithoutProgress({ progress: false, step: { type: 'fill', keys: ['c'], skipped: [] }, index: 3, fill: true }), true, 'a fill round that gained nothing');
+  assert.equal(endsWithoutProgress({ progress: false, step: { type: 'fill', keys: ['c'], skipped: [] }, index: 1 }), false, 'a planned round before the first fill round');
+  assert.equal(endsWithoutProgress({ progress: false, step: { type: 'wait', next: 1 }, index: 1 }), false);
+});
+
+test('a pass that ends done clears the failure an earlier pass of the round left', () => {
+  let spec = finishRound(markRound(two(), 1, 'running', { asked: ['c'] }), 1, { status: 'failed', code: 'review-protocol', reason: 'Review JSON protocol failed', asked: ['c'], left: new Set(['c', 'd', 'e']) });
+  assert.deepEqual([spec.rounds[1].status, spec.rounds[1].code], ['pending', 'review-protocol']);
+  spec = finishRound(markRound(spec, 1, 'running', { asked: ['d', 'e'] }), 1, { kept: 4, covered: 2, asked: ['d', 'e'], left: new Set(['c']) });
+  assert.equal(spec.rounds[1].status, 'done');
+  assert.deepEqual([spec.rounds[1].code, spec.rounds[1].reason], [undefined, undefined], 'its row does not say the old failure');
+  assert.ok(!('code' in spec.rounds[1]) && !('reason' in spec.rounds[1]));
 });
