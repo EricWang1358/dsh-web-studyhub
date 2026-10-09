@@ -83,6 +83,7 @@ async function fakeGithub(port, packagePath, packageName) {
   const log = [];
   const server = createServer((request, response) => {
     log.push(`${request.method} ${request.url} UA=${request.headers["user-agent"]}`);
+    if (request.url === `/${REPO}/releases/latest`) { response.writeHead(302, { location: `${origin}/${REPO}/releases/tag/v${TEST_VERSION}` }); return response.end(); }
     if (request.url === `/repos/${REPO}/releases/latest`) { response.writeHead(200, { "content-type": "application/json" }); return response.end(JSON.stringify(release)); }
     if (request.url === `/${REPO}/releases/download/v${TEST_VERSION}/${packageName}`) { response.writeHead(200, { "content-type": "application/octet-stream" }); return response.end(bytes); }
     if (request.url === `/${REPO}/releases/download/v${TEST_VERSION}/SHA256SUMS-${TEST_VERSION}.txt`) { response.writeHead(200); return response.end(sums); }

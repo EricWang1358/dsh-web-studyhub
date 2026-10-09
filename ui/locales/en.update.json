@@ -1,4 +1,9 @@
 {
+  "GitHub 对你所在网络的匿名查询次数用完了（每小时 60 次，很多人共用同一个出口地址时会这样），约 {0} 恢复。": "GitHub has used up the 60 anonymous requests an hour allowed for your network (this happens when many people share one outgoing address). It should recover around {0}.",
+  "GitHub 对你所在网络的匿名查询次数用完了（每小时 60 次，很多人共用同一个出口地址时会这样），稍后会恢复。": "GitHub has used up the 60 anonymous requests an hour allowed for your network (this happens when many people share one outgoing address). It should recover later.",
+  "GitHub 回复了 HTTP {0}，没能取得新版本信息，稍后会自动重试。": "GitHub answered with HTTP {0}, so the latest version could not be read. StudyHub will try again later.",
+  "GitHub 的回复无法识别，没能取得新版本信息，稍后会自动重试。": "GitHub's answer was not understood, so the latest version could not be read. StudyHub will try again later.",
+  "这次没能取得更新内容，请点「查看发布页」阅读。": "The release notes could not be fetched this time; open the release page to read them.",
   "DSH 插件不会自动更新。按下面 4 步换成新版本，学习库和设置都会保留：": "DSH plugins do not update themselves. Four steps switch to the new version; your library and settings stay as they are:",
   "StudyHub {0} 可以升级了": "StudyHub {0} is available",
   "StudyHub 会从 GitHub 发布页下载安装包，核对 SHA256 校验值后交给 DSH 插件管理安装；安装后重启 DSH 即可使用新版本。": "StudyHub downloads the package from the GitHub release, checks its SHA256 checksum and hands it to DSH's plugin manager. Restart DSH afterwards to use the new version.",
