@@ -20,7 +20,7 @@ const open = (data, scope = data.focus.course) => ui.openingForm(data, { scope, 
 
 test('the form opens filled in: roles from the names and sizes, the course of the page, no name asked', () => {
   const form = open(snapshot({ lists: [] }));
-  assert.deepEqual(form.picks.lecture, ['传输层-1', '传输层-2', '传输层-3', '传输层-4', '传输层-6', 'paper-2'], 'the deck and the paper nothing marks');
+  assert.deepEqual(form.picks.lecture, ['传输层-1', '传输层-2', '传输层-3', '传输层-4', '传输层-6'], 'the deck says what it is; the paper nothing marks is left to the learner');
   assert.deepEqual(form.picks['past-paper'], ['paper-1'], '样卷 in the name');
   assert.deepEqual(form.picks.syllabus, ['syllabus-1'], '大纲 in the name');
   assert.equal(form.course, '网络');
@@ -35,7 +35,7 @@ test('the learner\'s defaults of the Settings page shape the opening state: auto
   const off = open(snapshot({ lists: [], examPrep: { autoRoles: false } }));
   assert.deepEqual(off.picks['past-paper'], []);
   assert.deepEqual(off.picks.syllabus, []);
-  assert.ok(off.picks.lecture.includes('paper-1') && off.picks.lecture.includes('syllabus-1'), 'everything starts as slides');
+  assert.deepEqual(off.picks, { lecture: [], 'past-paper': [], syllabus: [] }, 'with the guess off nothing is used until the learner picks it');
   const words = open(snapshot({ lists: [], examPrep: { paperWords: ['卷子'] } }));
   assert.deepEqual(words.picks['past-paper'].sort(), ['paper-1', 'paper-2']);
   const other = open(snapshot({ lists: [], examPrep: { language: 'en', showOtherCourses: true } }));
@@ -50,8 +50,11 @@ test('a material the course marks as its guidance is taken for the syllabus', ()
 });
 
 test('the course: the page\'s, else the common course of the slides, else the only course of the library, else asked once', () => {
-  assert.equal(open(snapshot({ lists: [], course: '' }), '*').course, '', 'two courses of slides: no common course');
-  assert.equal(open(snapshot({ lists: [], course: '' }), '*').askCourse, true);
+  const otherDeck = { ...library().find(source => source.id === 'other-1'), document: { id: '别的课', materialId: '别的课', page: 1, totalPages: 1, format: 'pptx' } };
+  const twoDecks = snapshot({ lists: [], course: '', sources: [...withoutOther(), otherDeck] });
+  assert.equal(open(twoDecks, '*').course, '', 'two courses of slides: no common course');
+  assert.equal(open(twoDecks, '*').askCourse, true);
+  assert.equal(open(snapshot({ lists: [], course: '' }), '*').course, '网络', 'a plain document is not slides: only the deck says the course');
   const alone = snapshot({ lists: [], course: '', sources: withoutOther() });
   assert.equal(open(alone, '*').course, '网络', 'the slides share one course');
   assert.equal(open(alone, '*').askCourse, false);
@@ -84,20 +87,22 @@ test('a role change is one call: the document leaves its old role, and the count
   const items = ui.documentsOf(data.sources);
   const deck = items.find(item => item.title === '传输层.pptx'), paper = items.find(item => item.title === '老师给的样卷');
   let picks = open(data).picks;
-  assert.deepEqual(ui.roleCounts(items, picks), { lecture: 2, 'past-paper': 1, syllabus: 1 });
+  assert.deepEqual(ui.roleCounts(items, picks), { lecture: 1, 'past-paper': 1, syllabus: 1 });
   picks = ui.assignRole(picks, paper, 'lecture');
   assert.equal(ui.roleOf(paper, picks), 'lecture');
   assert.deepEqual(picks['past-paper'], []);
-  assert.deepEqual(ui.roleCounts(items, picks), { lecture: 3, 'past-paper': 0, syllabus: 1 });
+  assert.deepEqual(ui.roleCounts(items, picks), { lecture: 2, 'past-paper': 0, syllabus: 1 });
   picks = ui.assignRole(picks, paper, 'none');
   assert.equal(ui.roleOf(paper, picks), 'none');
   assert.ok(!Object.values(picks).flat().includes('paper-1'));
   picks = ui.assignRole(picks, deck, 'past-paper', ['传输层-1', '传输层-2']);
   assert.deepEqual(picks['past-paper'], ['传输层-1', '传输层-2'], 'only the pages chosen');
-  assert.ok(!picks.lecture.includes('传输层-1') && picks.lecture.includes('paper-2'));
+  assert.deepEqual(picks.lecture, [], 'the pages not chosen leave every role');
   assert.equal(ui.roleOf(deck, picks), 'past-paper');
   assert.deepEqual(ui.assignIds(picks, ['paper-9', 'paper-2'], 'past-paper')['past-paper'].slice(-2), ['paper-9', 'paper-2'], 'imported papers');
-  assert.ok(!ui.assignIds(picks, ['paper-2'], 'past-paper').lecture.includes('paper-2'));
+  const used = ui.assignIds(picks, ['paper-2'], 'lecture');
+  assert.ok(used.lecture.includes('paper-2'));
+  assert.ok(!ui.assignIds(used, ['paper-2'], 'past-paper').lecture.includes('paper-2'));
 });
 
 test('the pool is the course and the unfiled materials, all courses on request, and whatever is picked stays', () => {

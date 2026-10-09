@@ -88,7 +88,7 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
     <section className="page exam-prep exam-prep-create" data-usage-area="examprep">
       <PageHeader title={again ? ui('重新生成考点清单') : ui('新建考点清单')} back={{ label: ui('返回考点清单'), onClick: onBack }}
         description={again ? ui('按下面的资料再列一份，生成后取代旧清单，旧清单保留为历史版本。')
-          : ui('资料已经按用途分好，确认后开始生成；过程在后台进行，进度在任务页，这里会自动更新。')} />
+          : ui('看得出用途的资料已经分好，其余默认不用；选好课件后开始生成，过程在后台进行，进度在任务页，这里会自动更新。')} />
       <form className="exam-prep-form" onSubmit={event => { event.preventDefault(); if (ready && !shown && model.ready) start(); }}>
         <ModelSetupGate variant="banner" feature="examprep" model={model} onOpenSettings={() => goSettings()} />
         {form.askCourse && (
@@ -126,7 +126,7 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
             <p className="exam-prep-estimate__label">
               {ui('预计用量')} <Explain k="estimate" focusable label={ui('预计用量的说明')}><Icon name="info" size={16} /></Explain>
             </p>
-            {ready ? <TokenEstimateView state={estimate} /> : <p className="exam-prep-estimate__wait">{ui('先选好课件，这里就会显示预计用量。')}</p>}
+            {ready ? <TokenEstimateView state={estimate} /> : <p className="exam-prep-estimate__wait">{ui('先选至少一份课件（或大纲），这里就会显示预计用量。')}</p>}
           </div>
           <div className="exam-prep-check" role="status" aria-live="polite">
             {shown && <InlineMessage tone="warning">{shown}</InlineMessage>}

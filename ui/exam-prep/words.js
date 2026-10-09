@@ -58,7 +58,7 @@ export const EXPLAIN = Object.freeze({
   'noSlides': ['样卷里有题考到它，但你选的课件里找不到讲它的内容。', '可能是课件没导入全，或老师没讲过；先别当作已经学过。'],
   'regenerate': ['按现在选的资料重新列一份考点清单。', '会消耗模型额度；新清单取代旧清单，旧清单作为历史版本保留。'],
   'estimate': ['这是按你选的资料估出的范围，不是账单。', '实际用量取决于模型的回答和重试，可能有出入。'],
-  'roles': ['每份资料有一个用途：课件和大纲用来列考点，样卷用来标出样卷考过的点，「不用」是这次不读它。', '用途是按文件名和篇幅猜好的，猜错了点一下就能改。'],
+  'roles': ['每份资料有一个用途：课件和大纲用来列考点，样卷用来标出样卷考过的点，「不用」是这次不读它。', '看得出用途的（PowerPoint、名字里有样卷或大纲）已经分好；看不出的默认不用，要用就点一下选用途。'],
   'role.textbook': ['推荐教材：只记下书名，提醒你有这本书。', '它不是依据，不会被读取，也不会用来列考点。'],
   'delete': ['删除这份考点清单。', '删除后无法恢复。'],
   'restore': ['把这个旧版本放回考点清单。', '它会和新版本一起显示。'],
@@ -84,6 +84,7 @@ export function refusalWords(error) {
     case 'blueprint-needs-primary-input': return ui('请选择课件（或考试大纲）：考点要从它们里列出来');
     case 'blueprint-no-readable-text': return ui('所选资料里没有可读的文字（只有图片？）');
     case 'blueprint-input-missing': return ui('所选的某份资料不在资料库里');
+    case 'blueprint-too-many-inputs': return ui('选的资料太多了：请把用不上的设为「不用」，或分几次来做');
     case 'blueprint-input-invalid': return ui('资料的选择有误：每份资料都要有用途，而且考点清单不能当作资料');
     case 'blueprint-title-required': return ui('请给考点清单起个名字');
     case 'blueprint-disabled': return ui('备考补习还没有开放');

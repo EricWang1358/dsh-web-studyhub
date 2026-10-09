@@ -24,11 +24,11 @@ test('constants: the limits and word lists the Settings pane shows', () => {
   assert.ok(Object.isFrozen(PAPER_WORDS));
 });
 
-test('an ordinary document is a lecture; a slide deck says so', () => {
-  assert.deepEqual(one(item('Week 3 notes', { id: 'a', format: 'docx' })), { id: 'a', role: 'lecture', reason: { code: 'default-lecture' } });
+test('a document nothing marks has no role (the learner picks it); a slide deck says what it is', () => {
+  assert.deepEqual(one(item('Week 3 notes', { id: 'a', format: 'docx' })), { id: 'a', role: 'none', reason: { code: 'no-signal' } });
   assert.deepEqual(one(item('Lecture 3', { id: 'b', format: 'pptx' })), { id: 'b', role: 'lecture', reason: { code: 'slides' } });
-  for (const format of ['pdf', 'docx', 'md', 'txt', 'audio', 'html', 'text']) assert.equal(one(item('Notes', { format })).role, 'lecture', format);
-  assert.equal(one(item('Notes', { format: 'audio' })).reason.code, 'default-lecture');
+  for (const format of ['pdf', 'docx', 'md', 'txt', 'audio', 'html', 'text']) assert.equal(one(item('Notes', { format })).role, 'none', format);
+  assert.equal(one(item('Notes', { format: 'audio' })).reason.code, 'no-signal');
 });
 
 test('the id is the item id, else its key (the id space the pickers use)', () => {
@@ -46,8 +46,8 @@ test('none: a very large document, by the existing big-document threshold', () =
   assert.deepEqual(one(item('Textbook', { pages: pages(limit + 1) })).reason, { code: 'too-big' });
   assert.equal(one(item('Textbook', { pages: pages(limit + 1) })).role, 'none');
   assert.equal(one(item('Textbook', { totalPages: limit + 50 })).role, 'none');
-  assert.equal(one(item('Textbook', { pages: pages(limit) })).role, 'lecture');
-  assert.equal(one(item('Textbook', { totalPages: limit })).role, 'lecture');
+  assert.deepEqual(one(item('Textbook', { pages: pages(limit) })).reason, { code: 'no-signal' }, 'not too big, and nothing else marks it');
+  assert.deepEqual(one(item('Textbook', { totalPages: limit })).reason, { code: 'no-signal' });
   const book = one(item('Converted book', { format: 'md', converted: 'MinerU', pages: pages(limit + 1) }));
   assert.deepEqual([book.role, book.reason.code], ['none', 'too-big']);
   assert.equal(one(item('真题 collection', { totalPages: limit + 1 })).role, 'none');
@@ -67,12 +67,12 @@ test('past-paper: a strong word in the title and a short document', () => {
 
 test('past-paper: the size gate, by pages and, when the page count is unknown, by characters', () => {
   assert.equal(one(item('真题', { totalPages: PAPER_MAX_PAGES })).role, 'past-paper');
-  assert.equal(one(item('真题', { totalPages: PAPER_MAX_PAGES + 1 })).role, 'lecture');
+  assert.equal(one(item('真题', { totalPages: PAPER_MAX_PAGES + 1 })).role, 'none');
   assert.equal(one(item('真题', { pages: pages(PAPER_MAX_PAGES) })).role, 'past-paper');
-  assert.equal(one(item('真题', { pages: pages(PAPER_MAX_PAGES + 1) })).role, 'lecture');
+  assert.equal(one(item('真题', { pages: pages(PAPER_MAX_PAGES + 1) })).role, 'none');
   assert.equal(one(item('真题', { format: 'docx', chars: PAPER_MAX_CHARS })).role, 'past-paper');
-  assert.equal(one(item('真题', { format: 'docx', chars: PAPER_MAX_CHARS + 1 })).role, 'lecture');
-  assert.deepEqual(one(item('真题', { totalPages: 90 })).reason, { code: 'default-lecture' });
+  assert.equal(one(item('真题', { format: 'docx', chars: PAPER_MAX_CHARS + 1 })).role, 'none');
+  assert.deepEqual(one(item('真题', { totalPages: 90 })).reason, { code: 'no-signal' });
 });
 
 test('past-paper: never a slide deck', () => {
@@ -81,9 +81,9 @@ test('past-paper: never a slide deck', () => {
   assert.equal(one(item('课程大纲', { format: 'pptx', totalPages: 5 })).role, 'lecture');
 });
 
-test('a weak word never assigns a role; it only leaves a hint on the lecture row', () => {
+test('a weak word never assigns a role; it only leaves a hint on the row', () => {
   for (const name of ['Quiz 3', 'Sample questions', 'exam tips', 'Final notes', 'test bank', 'Paper reading', '试题讲解', '习题课', '去年的卷子', 'Practice Test'])
-    assert.deepEqual([one(item(name, { totalPages: 5 })).role, one(item(name, { totalPages: 5 })).hint], ['lecture', 'maybe-paper'], name);
+    assert.deepEqual([one(item(name, { totalPages: 5 })).role, one(item(name, { totalPages: 5 })).hint], ['none', 'maybe-paper'], name);
   assert.equal(one(item('Lecture 4 slides', { totalPages: 5 })).hint, undefined);
   assert.equal('hint' in one(item('Lecture 4', { totalPages: 5 })), false);
   // Whole words only: "latest" is not "test", "papers" is not the weak word either way of a role.
@@ -95,10 +95,10 @@ test("the learner's own paper words are strong words", () => {
   const options = { paperWords: ['Quiz Bank', '练习卷', '  '] };
   assert.deepEqual(one(item('CS quiz bank 2023', { id: 'q', totalPages: 6 }), options), { id: 'q', role: 'past-paper', reason: { code: 'name-paper', word: 'Quiz Bank' } });
   assert.equal(one(item('数据结构练习卷', { totalPages: 6 }), options).reason.word, '练习卷');
-  assert.equal(one(item('数据结构练习卷', { totalPages: 6 })).role, 'lecture');
-  assert.equal(one(item('数据结构练习卷', { totalPages: 60 }), options).role, 'lecture');
+  assert.equal(one(item('数据结构练习卷', { totalPages: 6 })).role, 'none');
+  assert.equal(one(item('数据结构练习卷', { totalPages: 60 }), options).role, 'none');
   assert.equal(one(item('数据结构练习卷', { format: 'pptx', totalPages: 6 }), options).role, 'lecture');
-  assert.equal(one(item('Notes', { totalPages: 6 }), { paperWords: 'oops' }).role, 'lecture');
+  assert.equal(one(item('Notes', { totalPages: 6 }), { paperWords: 'oops' }).role, 'none');
 });
 
 test('syllabus: from course guidance, whatever the name', () => {
@@ -114,7 +114,7 @@ test('syllabus: a strong word and a short document', () => {
     assert.deepEqual([one(item(`CS2105 ${word}`, { totalPages: 4 })).role, one(item(`CS2105 ${word}`, { totalPages: 4 })).reason.code], ['syllabus', 'name-syllabus'], word);
   assert.equal(one(item('Course Syllabus', { totalPages: 4 })).reason.word, 'syllabus');
   assert.equal(one(item('Syllabus 2023', { totalPages: SYLLABUS_MAX_PAGES })).role, 'syllabus');
-  assert.equal(one(item('Syllabus 2023', { totalPages: SYLLABUS_MAX_PAGES + 1 })).role, 'lecture');
+  assert.equal(one(item('Syllabus 2023', { totalPages: SYLLABUS_MAX_PAGES + 1 })).role, 'none');
   assert.equal(one(item('syllabus', { pages: pages(4) })).role, 'syllabus');
   assert.equal(one(item('考试大纲', { format: 'docx', chars: 4000 })).role, 'syllabus');
 });
@@ -131,13 +131,14 @@ test('none comes before guidance and names', () => {
   assert.equal(one(item('Syllabus', { id: 'k', totalPages: 999 }), { guidanceSourceIds: ['k'] }).role, 'none');
 });
 
-test('autoRoles false guesses nothing', () => {
+test('autoRoles false guesses nothing: every material is left to the learner', () => {
   const off = { autoRoles: false, paperWords: ['quiz bank'], guidanceSourceIds: ['g'] };
   const result = suggestRoles([item('真题', { totalPages: 5 }), item('Syllabus', { id: 'g', totalPages: 5 }), item('Lecture', { format: 'pptx' }),
     item('Cards', { format: 'json' }),
     item('Book', { totalPages: 999 }), item('quiz bank', { totalPages: 3 })], off);
-  assert.deepEqual(result.map(entry => entry.role), ['lecture', 'lecture', 'lecture', 'none', 'none', 'lecture']);
-  assert.deepEqual(result.filter(entry => entry.role === 'lecture').map(entry => entry.reason), Array(4).fill({ code: 'auto-off' }));
+  assert.deepEqual(result.map(entry => entry.role), Array(6).fill('none'));
+  assert.deepEqual(result.filter(entry => entry.reason.code === 'auto-off').map(entry => entry.reason), Array(4).fill({ code: 'auto-off' }));
+  assert.deepEqual(result.map(entry => entry.reason.code), ['auto-off', 'auto-off', 'auto-off', 'not-text', 'too-big', 'auto-off']);
   assert.equal(result.some(entry => 'hint' in entry), false);
   assert.equal(result[3].reason.code, 'not-text');
   assert.equal(result[4].reason.code, 'too-big');
@@ -179,7 +180,7 @@ test('it works on real document items of groupSourcesByDocument', () => {
   const items = groupSourcesByDocument(sources);
   const roles = Object.fromEntries(suggestRoles(items).map((entry, index) => [items[index].title, entry.role]));
   assert.equal(roles['CS2105 期中样卷.pdf'], 'past-paper');
-  assert.equal(roles['Lecture 5.pdf'], 'lecture');
+  assert.equal(roles['Lecture 5.pdf'], 'none', 'a lecture PDF nothing marks is left to the learner');
   assert.equal(roles['期末复习.pptx'], 'lecture');
   assert.ok(suggestRoles(items).every(entry => typeof entry.id === 'string' && entry.id));
 });

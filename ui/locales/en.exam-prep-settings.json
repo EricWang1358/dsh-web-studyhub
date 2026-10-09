@@ -8,7 +8,7 @@
   "备考补习把课件、大纲和样卷整理成一份考点清单。这里是你的个人默认值：新建清单时会自动填好，每次仍可单独改。": "Exam prep turns lecture slides, a syllabus and sample papers into one point list. These are your personal defaults: the create form is filled in with them, and you can still change them each time.",
   "个人默认值": "Personal defaults",
   "自动识别资料用途": "Recognize what each material is for",
-  "按文件名和篇幅猜每份资料是课件、样卷还是大纲，并写明依据；猜错点一下就能改。关掉后，所有资料都先当作课件。": "Guess from the file name and length whether each material is lecture slides, a sample paper or a syllabus, and say why; a wrong guess is one click to fix. When this is off, every material starts as lecture slides.",
+  "按文件名和篇幅猜每份资料是课件、样卷还是大纲，并写明依据；猜错点一下就能改。关掉后，所有资料都先设为「不用」，由你自己选。": "Guess from the file name and length whether each material is lecture slides, a sample paper or a syllabus, and say why; a wrong guess is one click to fix. When this is off, every material starts as Not used and you choose.",
   "额外的样卷关键词": "Extra sample-paper keywords",
   "文件名里有这些词、篇幅又不长的资料，会被当作样卷；样卷用来标出样卷考过的考点。不写也可以，内置的词已经够用。": "A short material whose file name has one of these words is taken for a sample paper; sample papers are what marks the points tested before. You can leave this empty: the built-in words are usually enough.",
   "新的样卷关键词": "New sample-paper keyword",
