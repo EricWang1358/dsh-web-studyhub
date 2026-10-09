@@ -14,12 +14,32 @@
 
 - 位置：默认 `<DSH 主目录>/studyhub/marker`（例如 `~/.dsh/studyhub/marker`）。**更改位置** 使用宿主的文件夹选择器；宿主没有时输入完整路径。环境放在 `venv` 子文件夹，旁边有一个很小的 `.studyhub-marker.json` 标记文件。里面已有其他文件的文件夹不会被安装进去：改为在其中新建 `StudyHub-Marker` 文件夹。
 - 下载源：清华 PyPI 镜像（大陆可直连）或官方 PyPI（需要海外网络），面板上各有标注。
-- 运行的命令（用你自己的用户身份，不需要管理员权限）：`python -m venv <文件夹>/venv`，然后 `<文件夹>/venv/Scripts/python.exe`（Windows）或 `<文件夹>/venv/bin/python`（macOS / Linux）`-m pip install --disable-pip-version-check --no-input --progress-bar off --timeout 60 [--index-url <镜像>] marker-pdf`，最后 `<文件夹>/venv/Scripts/marker_single.exe --help`（Windows）或 `<文件夹>/venv/bin/marker_single --help`。Windows 上依次找 `py -3`、`python`、`python3`，macOS / Linux 上依次找 `python3`、`python3.12`、`python3.11`、`python3.10`、`python`。
+- 运行的命令（用你自己的用户身份，不需要管理员权限）：`python -m venv <文件夹>/venv`，然后 `<文件夹>/venv/Scripts/python.exe`（Windows）或 `<文件夹>/venv/bin/python`（macOS / Linux）`-m pip install --disable-pip-version-check --no-input --progress-bar off --timeout 60 [--index-url <镜像>] "marker-pdf>=1.10,<2"`，最后 `<文件夹>/venv/Scripts/marker_single.exe --help`（Windows）或 `<文件夹>/venv/bin/marker_single --help`。Windows 上依次找 `py -3`、`python`、`python3`，macOS / Linux 上依次找 `python3`、`python3.12`、`python3.11`、`python3.10`、`python`。
 - 没有 Python 或版本太旧：不算失败。面板会列出获取渠道（先给大陆可直连的镜像，再给 python.org），装好后点 **重新检测** 即可启用按钮。Debian 类 Linux 还需要 `python3-venv` 和 `python3-pip`。
 - 卸载与迁移：**卸载**（确认后）只删除安装器创建的 `venv` 文件夹和标记文件，并在程序路径指向它时清空路径。**安装到其他位置…** 会在新环境通过检测后才删除旧环境。你自己装的 Marker 不会被动。
 - 状态保存在 `<DSH 主目录>/study/marker-install.json`（保留最近 200 行日志）。助手不能启动或删除安装，只能由你点击。
 
 第一次解析仍会下载 Marker 的模型；做 OCR 还可能需要下面说明的推理后端，只装 Python 包并不会准备好它们。
+
+## Marker 2.x 与 Docker
+
+marker-pdf 2.x（2.0.0，2026 年 7 月）把 OCR 模型放在单独的推理服务里运行，默认用 **Docker** 启动这个服务（`surya.inference.backends`）。这台电脑没有 Docker 或 Docker 没有运行时，每个需要 OCR 的分段都会以 `SpawnError: docker run failed: ... dockerDesktopLinuxEngine ...` 退出；`marker_single --help` 看不出这一点。1.x 直接在 Marker 自己的进程里用 PyTorch 跑模型，所以：
+
+- 一键安装让 pip 装 `marker-pdf>=1.10,<2`（写这份说明时是 1.10.2，它会固定 `surya-ocr<0.18` 和 `transformers<5`）。
+- **检测并保存** 和 Marker 卡片从环境里的 `marker_pdf-<版本>.dist-info` 文件夹读出已安装的版本（不启动任何程序）。是 2.x 时再运行一次 `docker version --format {{.Server.Version}}`（最多等 8 秒）。Docker 有回应：Marker **已就绪**（2.x 配 Docker 是正当的用法）。Docker 没有运行或没有安装：状态是 **needs-docker**，卡片并列给出两条路：启动 Docker Desktop，等它显示正在运行后点 **重新检测**（失败的转换任务点 **接着做** 继续）；或者点 **修复安装（改装 1.x）**，它在同一个位置按 1.x 的要求重新跑一遍一键安装（同样的步骤和日志，不删除别的东西）。你自己装的 Marker 也有这两条路，只是没有修复按钮，改为在它自己的环境里运行 `pip install "marker-pdf>=1.10,<2"`。Docker 在时限内没有回应时不拦任何操作，由转换本身说明结果。
+- 状态是 needs-docker 时，新的导入会被拒绝（给出同一句说明）。因此失败的转换会在阶段、日志和转换详情里说明原因，把 **前往设置** 放在第一位，**接着做** 放在第二位：启动 Docker（或修复安装）后点接着做，已完成的分段不会重做。
+
+## 转换日志
+
+任务的 **日志** 标签实时讲述这次转换（原有路径和统一运行时写的是同样的行）：
+
+- 开始：用的工具（Marker / MinerU，本机或云端）、哪一个 Marker 程序（StudyHub 安装的、设置里填写的，或在搜索路径里找到的；从不写出路径本身）、Marker 版本和 StudyHub 安装时记录的 Python 版本、页数和分段方式；
+- 复用了之前转换好的页；每段开始一行（第 a–b 页），结束一行（用时、已完成多少页、按目前速度预计还需多久）；没有完成的分段，以及 MinerU 自适应分段把它拆成两半重试；
+- Marker 自己的输出，逐行写成纯文本：进度条（tqdm 会反复重画同一行）只记成 **一行**，即它最后的状态；每段最多保留开头 12 行和最后 8 行，中间的只计数（「中间省略 N 行输出」）；Marker 正在画的进度条实时显示在转换详情里，不写进日志；
+- 合并、保存（页数和字数）、没有文字的页、提醒，以及一行总结（资料页数、标题、分段数、重试次数、字数、总用时）；
+- 失败：一行错误，带原因和 Marker 最后输出的几行（最多 12 行、2000 字，保留输出的 **末尾**：Python 报错的最后一行才是异常本身）。转换详情的 **失败原因** 显示同样的内容，可以选中，并有 **复制诊断信息**。分段自己的错误和任务阶段都把原因放在最前面：`Marker 退出码 1：torch.OutOfMemoryError: CUDA out of memory ...`。
+
+日志和失败原因里不会出现这台电脑的文件夹：路径只保留最后一段（`File "vllm.py", line 195`），临时任务文件夹、资料库和程序路径都会去掉，像令牌的内容也会删除。日志有上限（原有路径每个任务 200 行，统一运行时 300 行）。
 
 ## 手动安装与运行条件
 
@@ -29,7 +49,7 @@
 
 ```powershell
 py -m venv .venv-marker
-.\.venv-marker\Scripts\python.exe -m pip install marker-pdf
+.\.venv-marker\Scripts\python.exe -m pip install "marker-pdf>=1.10,<2"
 .\.venv-marker\Scripts\marker_single.exe --help
 ```
 
@@ -37,7 +57,7 @@ macOS / Linux：
 
 ```sh
 python3 -m venv .venv-marker
-.venv-marker/bin/python -m pip install marker-pdf
+.venv-marker/bin/python -m pip install "marker-pdf>=1.10,<2"
 .venv-marker/bin/marker_single --help
 ```
 
