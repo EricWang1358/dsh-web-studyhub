@@ -210,7 +210,7 @@ test('no change is said plainly, and an unreadable change is not invented', () =
   assert.equal(masteryChangeText({}), '');
 });
 
-test('the way back from an open run, and the source of a wrongly answered question with a way back to it', () => {
+test('the way back from an open run, and the source of an answered question with a way back to it', () => {
   const { setUiLanguage, ReadingBackButton, WrongAnswerSource } = load();
   setUiLanguage('zh');
   assert.ok(render(e(ReadingBackButton, { run: { reading }, onReturn() {} })).includes('回到原文'));
@@ -222,7 +222,9 @@ test('the way back from an open run, and the source of a wrongly answered questi
   const sources = [{ id: 's1', title: 'Lecture' }];
   const wrong = { feedback: { correct: false }, solution };
   assert.ok(render(e(WrongAnswerSource, { run: wrong, sources, onOpen() {} })).includes('看这题的原文'));
-  assert.equal(render(e(WrongAnswerSource, { run: { feedback: { correct: true }, solution }, sources, onOpen() {} })), '', 'only after a wrong answer');
+  assert.ok(render(e(WrongAnswerSource, { run: { feedback: { correct: true }, solution }, sources, onOpen() {} })).includes('看这题的原文'), 'a right answer can check its source too');
+  assert.equal(render(e(WrongAnswerSource, { run: { solution }, sources, onOpen() {} })), '', 'not before the question is answered');
+  assert.equal(render(e(WrongAnswerSource, { run: { feedback: { correct: true } }, sources, onOpen() {} })), '', 'nothing to open without the solution');
   assert.equal(render(e(WrongAnswerSource, { run: wrong, sources: [], onOpen() {} })), '', 'nothing to open when the material is gone');
   assert.equal(render(e(WrongAnswerSource, { run: { feedback: { correct: false }, solution: { citations: [] } }, sources, onOpen() {} })), '');
   setUiLanguage('en');
