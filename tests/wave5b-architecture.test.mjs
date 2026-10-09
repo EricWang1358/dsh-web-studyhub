@@ -46,7 +46,7 @@ test('the pages stop handing those services to them (#113)', () => {
   };
   noHandoff('ui/Sources.jsx', ['CourseDialog', 'RemoveDialog', 'OutlineDialog', 'RowMenuItems', 'DocumentRow'], 'call|act|askInChat');
   noHandoff('ui/Generate.jsx', ['JsonImport', 'RetrievalPanel', 'GenerationPath', 'TokenEstimate']);
-  noHandoff('ui/Review.jsx', ['RubricAnswer', 'ExplanationFollowup']);
+  noHandoff('ui/review/QuestionRun.jsx', ['RubricAnswer', 'ExplanationFollowup']);
   noHandoff('ui/StudyMap.jsx', ['HomeActivity', 'SetupChecklist']);
 });
 

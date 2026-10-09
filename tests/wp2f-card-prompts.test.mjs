@@ -78,7 +78,7 @@ test('the quick requests of the improve and help forms live with the prompts', (
 });
 
 test('no component holds the agent contract: study_workspace is named only in the prompt modules', async () => {
-  for (const file of ['ui/App.jsx', 'ui/Review.jsx', 'ui/ReviewToolbar.jsx', 'ui/ExplanationFollowup.jsx']) {
+  for (const file of ['ui/App.jsx', 'ui/Review.jsx', 'ui/review/QuestionRun.jsx', 'ui/ReviewToolbar.jsx', 'ui/ExplanationFollowup.jsx']) {
     assert.doesNotMatch(await readFile(file, 'utf8'), /study_workspace/, file);
   }
 });

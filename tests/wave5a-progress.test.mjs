@@ -35,6 +35,6 @@ test('no bar animates its width, flex-grow or background-size', () => {
 });
 
 test('the card progress of a review is a ProgressBar, not a background gradient', () => {
-  assert.match(read('ui/Review.jsx'), /<ProgressBar[^>]*className="card-progress"/);
+  assert.match(read('ui/review/QuestionRun.jsx'), /<ProgressBar[^>]*className="card-progress"/);
   assert.doesNotMatch(read('ui/review/question.css'), /var\(--progress/);
 });

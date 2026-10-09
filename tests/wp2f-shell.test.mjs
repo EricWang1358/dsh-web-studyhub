@@ -52,7 +52,7 @@ test('Review takes at most twelve props and no raw setter', async () => {
 });
 
 test('the review leftovers are components: Spinner, ProgressBar, Popover and Menu, no details menus or private spinner', async () => {
-  const review = await readShellFile('ui/Review.jsx'), toolbar = await readShellFile('ui/ReviewToolbar.jsx');
+  const review = await readShellFile('ui/Review.jsx') + await readShellFile('ui/review/QuestionRun.jsx'), toolbar = await readShellFile('ui/ReviewToolbar.jsx');
   assert.doesNotMatch(review, /<progress\b|assist-spin|<details className="publication-mark"/);
   assert.match(review, /<Spinner\b/);
   assert.match(review, /<ProgressBar\b/);

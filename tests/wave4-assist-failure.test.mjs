@@ -101,10 +101,10 @@ test("a settings-kind failure hides 改一改再提交 even for a typed question
   assert.doesNotMatch(failed({ message: "429 rate limit" }), />改一改再提交</, "a rate limit is not about the content");
 });
 
-test("the dist of the English catalogue and the source: the doubled prefix is gone from Review.jsx (#180)", () => {
+test("the dist of the English catalogue and the source: the doubled prefix is gone from the practice page (#180)", () => {
   const files = readdirSync("ui/locales").filter((file) => file === "en.wave4.json");
   assert.equal(files.length, 1);
-  const source = readFileSync("ui/Review.jsx", "utf8");
+  const source = readFileSync("ui/review/QuestionRun.jsx", "utf8");
   assert.match(source, /ModelErrorNote/);
   assert.match(source, /plainAssistFailure/);
 });

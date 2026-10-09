@@ -13,7 +13,7 @@ const baseline = JSON.parse(readFileSync('tests/fixtures/ui-guardrail-baseline.j
 /* file (under ui/) -> why its raw buttons are not a Button / IconButton / Chip. */
 const EXCEPTIONS = {
   // A whole row or card is the click target (its own geometry, several lines of content inside).
-  'Review.jsx': 'option cards, grade scale cells, prerequisite rows and the detour link: card-sized targets',
+  'review/QuestionRun.jsx': 'option cards, grade scale cells, prerequisite rows and the detour link: card-sized targets',
   'Exam.jsx': 'exam option card', 'FlipCard.jsx': 'the whole card face is the flip control', 'ReviewNavigator.jsx': 'numbered dots of the question rail',
   'Sources.jsx': 'row title and group header: row-sized targets', 'WrongBook.jsx': 'group header, row and recommendation toggles (one FoldButton): row-sized',
   'BlogNotes.jsx': 'note list rows', 'CourseSettings.jsx': 'course row toggle', 'document-preview/DocumentViewer.jsx': 'reader scrim and pager links',
