@@ -26,8 +26,7 @@
       cursor: help;
     }
     .outline-deck {
-      min-width: 14rem;
-      max-width: 100%;
+      width: min(20rem, 100%);
     }
     .outline-tree {
       display: grid;
@@ -201,7 +200,6 @@
         margin-left: var(--space-3);
       }
       .outline-deck {
-        min-width: 0;
         width: 100%;
       }
     }
