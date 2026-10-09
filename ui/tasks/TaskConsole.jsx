@@ -16,7 +16,7 @@ import DeleteTasksDialog from './DeleteTasksDialog.jsx';
 import { taskSummary } from './task-summary.js';
 import { usageLine } from './task-facts.js';
 import Metrics from './Metrics.jsx';
-import { headerActions, autoToggle, retryTitle } from './task-control.js';
+import { headerActions, autoToggle, retryTitle, fixOf } from './task-control.js';
 import RunLine from './RunLine.jsx';
 import TimeLimit from './TimeLimit.jsx';
 import { limitFacts, marksOf, slowSteps } from './time-limit.js';
@@ -116,6 +116,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   const continued = !!contract.continuedBy, shortfall = draft && current && !continued ? draftShortfall(draft, { view: covered.view, jobs: data?.jobs || [] }) : null;
   // A record that cannot be continued itself (an archived one, an older one that never knew) still points at a draft that owes questions: 接着做 is the draft's, and says so.
   const draftContinue = !live && !actions.retry && shortfall?.action === 'continue' && shortfall.continueKind === 'count' ? draft : null;
+  // A conversion that failed for a reason only its installation can fix (Marker 2.x without Docker, a missing program): 前往设置 first; 接着做 stays, second, for after the fix.
+  const fix = !live && !archived && fixOf(task) === 'settings' && settingsEntry?.openSettings ? (contract.detail?.converter === 'marker' ? 'settings-marker' : 'settings-mineru') : null;
   return (
     <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
@@ -129,7 +131,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
           <ParallelButton task={task} />
           {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
           {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
-          {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' ? undefined : 'primary'} disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : retryTitle(task)} onClick={() => act('retry')}>{ui('接着做')}</Button>}
+          {fix && <Button size="sm" variant="primary" data-fix="settings" onClick={() => settingsEntry.openSettings(fix)}>{ui('前往设置')}</Button>}
+          {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' || fix ? undefined : 'primary'} disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : retryTitle(task)} onClick={() => act('retry')}>{ui('接着做')}</Button>}
           {draftContinue && <Button size="sm" variant="primary" disabled={core.busy} data-draft-continue title={ui('已出的题都保留，只补还差的题，设置不变')}
             onClick={() => core.act('generate', continueArgs(draftContinue), (started) => core.notify?.(continueNotice(draftContinue, started)))}>{ui('接着做')}</Button>}
           {toggle && live && <Checkbox className="tc-head__auto" label={autoLabel()} checked={toggle.value} disabled={core.busy} data-run-auto

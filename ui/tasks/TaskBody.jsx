@@ -34,28 +34,31 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || null;
   const choose = (callId) => { setSelected(callId); setRightTab('output'); };
   useEffect(() => { if (focusCall?.id) { setSelected(focusCall.id); setRightTab('output'); } }, [focusCall]);
-  const leftItems = [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }, ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
+  // A PDF conversion makes no model calls: no timeline, no 正在进行 and no 实时输出 (they would only say there are none); its windows are in 转换详情, its story in 日志.
+  const callFree = kind === 'pdf' && !!section;
+  const leftItems = [...(callFree ? [] : [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }]), ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
   // 目标与知识点: a question run or a top-up lists the points its plan holds (ui/tasks/PlanTable.jsx), as a third tab beside the two.
   const planned = kind === 'generation' || kind === 'supplement';
   if (planned) leftItems.push(planTabItem(contract));
-  const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : 'running';
+  const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : leftItems[0].value;
+  const rightItems = [...(callFree ? [] : [{ value: 'output', label: ui('实时输出') }]), { value: 'log', label: ui('日志') }];
+  const rightShown = rightItems.some((item) => item.value === rightTab) ? rightTab : 'log';
   const View = section?.View;
   return (
     <div className="tc-body">
       <div className="tc-col">
-        <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} contractKind={contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />
+        {!callFree && <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} contractKind={contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />}
         <Tabs id={left} className="tc-tabs" itemClassName="tc-tab" label={ui('左侧面板')} value={tab} onChange={setLeftTab} items={leftItems} />
-        <TabPanel id={left} value="running" selected={tab} className="tc-panel" tabIndex={undefined}>
+        {!callFree && <TabPanel id={left} value="running" selected={tab} className="tc-panel" tabIndex={undefined}>
           <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>
-        </TabPanel>
+        </TabPanel>}
         {section && <TabPanel id={left} value={section.value} selected={tab} className="tc-panel" tabIndex={undefined}><View contract={contract} task={task} /></TabPanel>}
         {planned && <TabPanel id={left} value="plan" selected={tab} className="tc-panel" tabIndex={undefined}><PlanTable contract={contract} task={task} /></TabPanel>}
       </div>
       <div className="tc-col">
-        <Tabs id={right} className="tc-tabs" itemClassName="tc-tab" label={ui('右侧面板')} value={rightTab} onChange={setRightTab}
-          items={[{ value: 'output', label: ui('实时输出') }, { value: 'log', label: ui('日志') }]} />
-        <TabPanel id={right} value="output" selected={rightTab} className="tc-panel" tabIndex={undefined}><OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} /></TabPanel>
-        <TabPanel id={right} value="log" selected={rightTab} className="tc-panel" tabIndex={undefined}><LogPanel contract={contract} /></TabPanel>
+        <Tabs id={right} className="tc-tabs" itemClassName="tc-tab" label={ui('右侧面板')} value={rightShown} onChange={setRightTab} items={rightItems} />
+        {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}><OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} /></TabPanel>}
+        <TabPanel id={right} value="log" selected={rightShown} className="tc-panel" tabIndex={undefined}><LogPanel contract={contract} /></TabPanel>
       </div>
     </div>
   );

@@ -70,7 +70,32 @@ function Stages({ install }) {
   </ol>;
 }
 
-export default function MarkerInstall({ call, disabled = false, markerReady = false, onChanged, initialInstall = null, initialPlan = null, initialMirror, pickDirectory }) {
+/**
+ * A marker-pdf 2.x runs its OCR server in Docker: two equal ways out, side by side. Use Docker (start Docker Desktop, wait until it says it is running, check again or
+ * press 接着做 on the task), or do without it (修复安装: the same install again, in the same folder, which asks pip for 1.x). `repair` is absent for a Marker
+ * StudyHub did not install: then the one-click install below is the way to a 1.x.
+ */
+function DockerChoice({ status, repair, recheck, busy, locked }) {
+  return <div className="marker-install__docker" role="group" aria-label={ui('Marker 需要 Docker')}>
+    <InlineMessage tone="warning" title={ui('Marker 需要 Docker')}>{uiMessage(status.message || '')}</InlineMessage>
+    <div className="marker-install__choices">
+      <div className="marker-install__choice">
+        <strong>{ui('用 Docker')}</strong>
+        <p>{ui('启动 Docker Desktop，等它显示正在运行，再点「重新检测」；失败的转换任务点「接着做」继续。')}</p>
+        <Button size="sm" variant="secondary" disabled={locked} busy={busy === 'recheck'} onClick={recheck}>{ui('重新检测')}</Button>
+      </div>
+      <div className="marker-install__choice">
+        <strong>{ui('不用 Docker')}</strong>
+        {repair ? <>
+          <p>{ui('在同一个位置重新安装 1.x：模型直接在 Marker 里运行，不需要 Docker。已经转换好的页不受影响。')}</p>
+          <Button size="sm" variant="secondary" icon="refresh" disabled={locked} busy={busy === 'repair'} onClick={repair}>{ui('修复安装（改装 1.x）')}</Button>
+        </> : <p>{ui('这份 Marker 不是 StudyHub 装的：用下面的「一键安装 Marker」装一份 1.x，或在它自己的 Python 环境里运行 pip install "marker-pdf>=1.10,<2"，再点「检测并保存」。')}</p>}
+      </div>
+    </div>
+  </div>;
+}
+
+export default function MarkerInstall({ call, disabled = false, markerReady = false, markerStatus = null, onChanged, initialInstall = null, initialPlan = null, initialMirror, pickDirectory }) {
   useInjectCss(css, 'study-marker-install');
   const study = useStudy(), pick = pickDirectory || study.host?.pickDirectory;
   const [install, setInstall] = useState(initialInstall), [plan, setPlan] = useState(initialPlan);
@@ -111,6 +136,10 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
   });
   const cancel = () => act('cancel', async () => { setInstall(await call('marker.install.cancel', {})); onChanged?.(); });
   const recheck = () => act('recheck', async () => { setNonce(value => value + 1); });
+  // 修复安装（改装 1.x）: the one-click install again, into the folder it already uses, with the same download source; the stages and the log are the install's own.
+  const repair = () => act('repair', async () => { setInstall(await call('marker.install.start', { confirm: true, mirror: install?.mirror || mirror, location: install.installedFolder })); });
+  const needsDocker = markerStatus?.state === 'needs-docker';
+  const checkAgain = () => act('recheck', async () => { await onChanged?.(); });
   const choose = () => act('choose', async () => {
     if (!pick) { setDraft(location || ''); return; }
     try { const picked = await pick(); if (picked) setLocation(picked); }
@@ -193,9 +222,10 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
   };
 
   const installed = () => <div className="marker-install__done">
-    <InlineMessage tone={markerReady ? 'success' : 'warning'} title={markerReady ? ui('Marker 已就绪') : ui('Marker 已安装，但检测没有通过')}>
-      {markerReady ? uiFormat('已安装到 {0}，程序路径已自动填好。', [install.installedFolder]) : uiFormat('已安装到 {0}，但检测没有通过。点下面的「检测并保存」再试，或重新安装。', [install.installedFolder])}
-    </InlineMessage>
+    {needsDocker ? <DockerChoice status={markerStatus} repair={repair} recheck={checkAgain} busy={working} locked={locked} />
+      : <InlineMessage tone={markerReady ? 'success' : 'warning'} title={markerReady ? ui('Marker 已就绪') : ui('Marker 已安装，但检测没有通过')}>
+        {markerReady ? uiFormat('已安装到 {0}，程序路径已自动填好。', [install.installedFolder]) : uiFormat('已安装到 {0}，但检测没有通过。点下面的「检测并保存」再试，或重新安装。', [install.installedFolder])}
+      </InlineMessage>}
     {markerReady && <Hint>{ui('第一次解析时会下载 Marker 的模型，需要联网和几分钟，之后就不用了。')}</Hint>}
     <div className="marker-install__row">
       <Button variant="secondary" disabled={locked} onClick={() => setMoving(true)}>{ui('安装到其他位置…')}</Button>
@@ -212,7 +242,7 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
   else if (mode === 'problem') body = problem();
   else if (mode === 'installed') body = installed();
   else if (mode === 'manual') body = <Disclosure summary={ui('让 StudyHub 另外安装一份 Marker')} onToggle={setOpened}>{offer(false)}</Disclosure>;
-  else body = offer(true);
+  else body = <>{needsDocker && <DockerChoice status={markerStatus} recheck={checkAgain} busy={working} locked={locked} />}{offer(true)}</>;
   return <section className="marker-install" data-mode={mode} aria-label={ui('一键安装 Marker')}>
     {body}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}

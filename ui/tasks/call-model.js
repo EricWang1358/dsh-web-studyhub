@@ -5,6 +5,7 @@ import { appliedText } from './task-control.js';
 import { causeWord } from './task-parallel.js';
 import { callErrorText, stageEventText } from '../generation-status.js';
 import { runEventText } from '../coverage/copy.js';
+import { convertEventBlock, convertEventText } from './convert-log.js';
 
 /* What the console's panels are drawn from: the timeline's lanes and bars, the list of calls in flight, the log's lines. Plain functions over a job's
    contract (docs/job-contract.md); no React, so a test can read them. */
@@ -192,7 +193,7 @@ export function eventText(event) {
     case 'batch': return batchText(a, event.text);
     // The rounds of a coverage run: one line per round boundary and one for the reason a run stops (ui/coverage/copy.js is the one wording).
     case 'round-start': case 'round-end': case 'round-rerun': case 'run-paused': case 'run-resumed': case 'run-waiting': case 'run-interrupted': case 'run-stop': case 'run-closing': case 'run-closed': return runEventText(event.code, a);
-    default: return event.text || String(event.code || '');
+    default: return convertEventText(event) ?? (event.text || String(event.code || ''));
   }
 }
 
@@ -251,12 +252,17 @@ const CALL_STATUS = (status) => ({ ok: ui('完成'), failed: ui('失败'), cance
 
 /**
  * The log, newest first: the producer's own events and one line per finished call, a warning that repeats as ONE line with its count.
- * filter: all | step | warn | done. Line: { id, at, level, kind, text, tag?, count?, detail? } (`detail`: the call's second line, see callDetail).
+ * filter: all | step | warn | done. Line: { id, at, level, kind, text, tag?, count?, detail?, block? } (`detail`: the call's second line, see callDetail; `block`: the last lines a converter
+ * printed before it failed, ui/tasks/convert-log.js).
  */
 export function logLines(contract, filter = 'all') {
   const lines = [];
   const warnings = new Map();
-  for (const event of contract?.events || []) {
+  // A conversion's own failure line (convert-failed) says the cause once, with the converter's last lines: the status line of the end and the failed window do not repeat it.
+  const told = new Set((contract?.events || []).filter((event) => event.code === 'convert-failed' && event.text).map((event) => event.text));
+  for (const raw of contract?.events || []) {
+    if (raw.code === 'status' && ['failed', 'interrupted'].includes(raw.args?.status) && told.has(raw.text)) continue;
+    const event = raw.code === 'window-failed' && told.has(raw.text) ? { ...raw, text: undefined } : raw;
     const text = eventText(event);
     if (event.code === 'warning') {
       const key = event.text, seen = warnings.get(key);
@@ -264,7 +270,8 @@ export function logLines(contract, filter = 'all') {
       const line = { id: event.id, at: event.at, level: 'warn', kind: 'warning', text, tag: event.tag ?? null, count: 1 };
       warnings.set(key, line); lines.push(line); continue;
     }
-    lines.push({ id: event.id, at: event.at, level: LEVEL[event.level] || 'info', kind: event.code, text, tag: event.tag ?? null });
+    const block = convertEventBlock(event);
+    lines.push({ id: event.id, at: event.at, level: LEVEL[event.level] || 'info', kind: event.code, text, tag: event.tag ?? null, ...(block ? { block } : {}) });
   }
   for (const call of contract?.calls || []) {
     if (call.kind === 'wait' || !call.endedAt) continue;

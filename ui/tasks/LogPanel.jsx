@@ -49,6 +49,7 @@ export default function LogPanel({ contract }) {
             <span className="tc-line__tag">{line.tag && TAG[line.tag] ? ui(TAG[line.tag]) : ''}</span>
             <span className="tc-line__text">{line.text}</span>
             {typeof line.detail === 'string' && <Tooltip layer content={line.detail} anchorClassName="tc-line__detail-anchor"><span className="tc-line__detail" tabIndex={0}>{line.detail}</span></Tooltip>}
+            {line.block && <pre className="tc-line__block" translate="no">{line.block.join('\n')}</pre>}
           </div>
         ))}
       </div>

@@ -217,5 +217,11 @@
   "这个安装里没有启用 MinerU 解析（需要启用音频组件）。": "MinerU conversion is not enabled in this installation (it needs the audio component).",
   "点下面的「开始本地解析」：用本机的 mineru（免费、不上传）。尚未就绪时，先到「设置 › PDF 转换」安装并下载模型。": "Press \"Start local conversion\" below: it uses mineru on this computer (free, nothing uploaded). If it is not ready yet, install it and download the models under Settings › PDF conversion first.",
   "还没有转换过？先在「添加资料」的「PDF 解析」里把 PDF 转成带页码的文字，再导入。": "Not converted yet? First convert the PDF into text with page numbers under \"PDF conversion\" in \"Add source\", then import it.",
-  "云端暂不可用：现在导入 PDF 都在本机解析，已保存的令牌暂时不会被用到。": "Cloud conversion is unavailable: PDFs are converted on this computer for now, and a saved token is not used in the meantime."
+  "云端暂不可用：现在导入 PDF 都在本机解析，已保存的令牌暂时不会被用到。": "Cloud conversion is unavailable: PDFs are converted on this computer for now, and a saved token is not used in the meantime.",
+  "{0} 正在：{1} {2}%（{3}/{4}）": "{0} is working: {1} {2}% ({3}/{4})",
+  "失败原因": "Why it failed",
+  "转换程序最后输出的几行（退出码 {0}）：": "The last lines the converter printed (exit code {0}):",
+  "转换程序最后输出的几行：": "The last lines the converter printed:",
+  "复制诊断信息": "Copy diagnostic information",
+  "没能复制，请直接选中上面的文字": "Could not copy; select the text above instead"
 }

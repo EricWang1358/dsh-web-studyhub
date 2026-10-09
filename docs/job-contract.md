@@ -30,9 +30,18 @@ contract = {
   usage,           { tokens | null, tokenUsage | null, calls }
   execution,       { mode: direct | subagent | mixed | null }
   detail,          plain data for the kind's own section (audio: files, notices; pdf: route, window; ...)
+                   pdf-convert also carries failure: null | { code, summary, lines, exitCode?, fix?: 'settings' } — the cause in full and the converter's last lines, plain, for the 转换详情;
+                   fix 'settings' when only a change of the installation helps, so the console offers 前往设置 first and 接着做 second — and toolProgress: null | { label, percent, done, total, at },
+                   the progress bar the converter is drawing now
   startedAt, finishedAt?,
   calls,           [call]
   events           [{ id, at, level: info | step | warn | error | done, tag, code, args, text? }]
+                   a PDF conversion (pdf-convert) writes its own lines as it runs (lib/mineru-job.js convertPdf onLog, lib/contexts/audio/pdf/convert-run.js; docs/marker-external.md «The log of a conversion»):
+                   convert-start { converter, route, pages, windows, origin?, version?, python? }, reused { pages, total, windows }, window-start { index, start, end, pages },
+                   window-end { …, seconds, done, total, etaSeconds? }, window-failed { …, seconds, exitCode? } + text, window-retry { start, end, pages, halves, attempt } + text,
+                   tool-output (text: one plain line the converter printed; a progress bar is one line with its last state), tool-omitted { count }, merge { windows, pages },
+                   save { pages, chars, bytes }, warning (text), empty-pages { count, pages }, convert-end { pages, skipped, windows, retries, chars, seconds, title? },
+                   convert-failed { lines, fix? } + text (level error). No line names a folder, a program path or a token.
 }
 ```
 

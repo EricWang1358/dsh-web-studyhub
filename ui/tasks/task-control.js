@@ -137,7 +137,16 @@ export const actionText = (action, job) => ({ pause: ui('已暂停：新的调�
 /** The words under 接着做: what pressing it does with the work already done (the title of the button), and what an ended job left (the note of 即时控制). */
 export const retryTitle = (job) => (keepsOf(job, 'retry') === 'nothing' ? ui('重新开始：会从头读取，已用的模型调用会再次计费') : ui('已完成的部分会直接复用，不会重复付费'));
 export const endedNote = (job, interrupted) => (keepsOf(job, 'retry') === 'nothing' ? ui('没有保存任何结果，点「接着做」会从头开始')
-  : interrupted ? ui('任务被中断了，已完成的部分都保留着；点「接着做」继续。') : ui('任务没有做完，已出的题都保留着；点「接着做」继续。'));
+  : interrupted ? ui('任务被中断了，已完成的部分都保留着；点「接着做」继续。')
+    // A PDF conversion keeps the pages it converted (a question run keeps its questions): each kind says what IT keeps.
+    : taskKindOf(job) === 'pdf' ? (fixOf(job) === 'settings' ? ui('已转换的页会保留。先按「前往设置」里的说明处理，再点「接着做」继续。') : ui('已转换的页会保留，点「接着做」继续。'))
+      : ui('任务没有做完，已出的题都保留着；点「接着做」继续。'));
+
+/** 'settings' when a failed job can only be helped by a change of its installation (lib/contexts/audio/pdf/convert-run.js failure.fix): 前往设置 is then its first action, 接着做 the second. */
+export const fixOf = (job) => {
+  const contract = contractOf(job);
+  return ['failed', 'interrupted'].includes(contract.status) ? (contract.detail?.failure?.fix ?? contract.detail?.legacy?.failure?.fix ?? job?.failure?.fix ?? null) : null;
+};
 
 /**
  * What 存为默认 writes: the action and its arguments, from the values in force, or null when this kind of job has no saved default

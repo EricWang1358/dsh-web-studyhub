@@ -29,7 +29,10 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
     await send('mineru.retry', { jobId: job.id });
   });
   const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
+  // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings, like a token problem; 接着做 helps after that, from the console.
+  const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
   const primary = tokenProblem && onOpenSettings ? { label: ui('去设置里换一个令牌'), run: () => onOpenSettings('settings-mineru') }
+    : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
     : job.status === 'failed' && job.retryable && !tokenProblem ? { label: job.errorCode === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做'), run: retry, disabled: !!working }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
@@ -51,11 +54,13 @@ export function PdfDetail({ job, expandChunks }) {
     <div className="pdf-detail">
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
-        {job.route === 'local' && (count > 1 || adaptive) && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
+        {job.route === 'local' && (count > 1 || adaptive) && !job.toolProgress && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
         {job.route === 'local' && job.local?.eta && <small className="pdf-eta">{etaText(job.local.eta)}</small>}
         {job.route === 'local' && job.local?.pace && <Hint as="small">{uiFormat('这台电脑每页约 {0} 秒', [job.local.pace.secondsPerPage])}</Hint>}
       </>}
       {running && job.route === 'local' && job.phase === 'local' && job.local?.window && <LocalWindow job={job} now={now} />}
+      {running && job.toolProgress && <small className="pdf-tool-progress" data-tool-progress>{uiFormat('{0} 正在：{1} {2}%（{3}/{4}）', [job.converter === 'marker' ? 'Marker' : 'MinerU', job.toolProgress.label, job.toolProgress.percent, job.toolProgress.done, job.toolProgress.total])}</small>}
+      {!running && job.failure && ['failed', 'interrupted'].includes(job.status) && <FailureDetail failure={job.failure} />}
       {job.note && running && <Hint as="small">{uiMessage(job.note)}</Hint>}
       {running && job.local?.halved > 0 && <Hint as="small">{uiFormat('有窗口没有成功，已自动拆成更小的段重试（{0} 次）', [job.local.halved])}</Hint>}
       {(adaptive ? job.chunks?.length > 0 : count > 1 && job.chunks?.length > 1) && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} adaptive={adaptive} next={adaptive && running ? job.local?.next : 0} />}
@@ -73,6 +78,36 @@ export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOp
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
   const send = (action, args) => (act ? act(action, args) : call(action, args));
   return list.length ? <div className="cjc-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} onGenerate={onGenerate} expandChunks={expandChunks} />)}</div> : null;
+}
+
+/* ---------- why it failed ---------- */
+
+/**
+ * The cause in full (the list row and the card can only show its start), the last lines the converter printed (plain: no folder, no token; selectable), and
+ * 复制诊断信息, which copies both for a report. The same text is the error line of the 日志.
+ */
+function FailureDetail({ failure }) {
+  const [copied, setCopied] = useState('');
+  const lines = Array.isArray(failure.lines) ? failure.lines : [];
+  const copy = async () => {
+    try { await navigator.clipboard.writeText([failure.summary, ...(Number.isInteger(failure.exitCode) ? [`exit code ${failure.exitCode}`] : []), ...lines].filter(Boolean).join('\n')); setCopied('done'); }
+    catch { setCopied('failed'); }
+  };
+  return (
+    <div className="pdf-failure" role="group" aria-label={ui('失败原因')} data-fix={failure.fix || undefined}>
+      <strong className="pdf-failure__title">{ui('失败原因')}</strong>
+      <p className="pdf-failure__cause">{uiMessage(failure.summary || '')}</p>
+      {lines.length > 0 && <>
+        <small className="pdf-failure__label">{Number.isInteger(failure.exitCode) ? uiFormat('转换程序最后输出的几行（退出码 {0}）：', [failure.exitCode]) : ui('转换程序最后输出的几行：')}</small>
+        <pre className="pdf-failure__lines" translate="no">{lines.join('\n')}</pre>
+      </>}
+      <p className="pdf-failure__actions">
+        {/* The card keeps no live region of its own (#98): the button itself says it copied. */}
+        <Button size="sm" variant="quiet" icon="copy" onClick={copy}>{copied === 'done' ? ui('已复制') : ui('复制诊断信息')}</Button>
+        {copied === 'failed' && <span className="pdf-failure__copied">{ui('没能复制，请直接选中上面的文字')}</span>}
+      </p>
+    </div>
+  );
 }
 
 /* ---------- the window in hand: what the service says about it ---------- */

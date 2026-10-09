@@ -302,6 +302,7 @@
     .tc-line__detail-anchor { grid-column: 2 / -1; display: block; min-width: 0; }
     .tc-line__detail { display: block; grid-column: 2 / -1; min-width: 0; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
     .tc-line[data-level='warn'] .tc-line__text { color: var(--warn-ink); }
+    .tc-line__block { grid-column: 2 / -1; min-width: 0; max-height: 12em; margin: var(--space-1) 0 0; overflow: auto; color: var(--text-muted); font-family: var(--font-stack-mono); font-size: var(--fs-xs); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
     .tc-line[data-level='done'] .tc-line__text { color: var(--ok-ink); }
     .tc-head__full { margin-inline-end: var(--space-2); }
     /* 即时控制: one row, a fixed minimum height, so a job without controls (or a finished one) leaves the same room. */

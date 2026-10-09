@@ -45,6 +45,7 @@ test('plan: a usable Python, free space and a writable default folder under the 
   assert.equal(plan.channels, undefined, 'download channels are only offered when Python is missing');
   assert.ok(plan.commands.some(item => item.stage === 'create-venv' && /-m venv/.test(item.command)));
   assert.ok(plan.commands.some(item => item.stage === 'install' && /pip install/.test(item.command) && /marker-pdf/.test(item.command)));
+  assert.ok(plan.commands.some(item => item.stage === 'install' && item.command.endsWith(' "marker-pdf>=1.10,<2"')), 'the command shown is the one run, quoted for a shell');
   assert.equal(await exists(plan.folder), false, 'a plan creates nothing');
 });
 
@@ -112,7 +113,8 @@ test('install: create-venv, pip install, verify, write the program path; the sta
   assert.ok(calls.some(line => line.startsWith('-m venv ')), 'the environment is created first');
   const pip = calls.find(line => line.includes('pip install'));
   assert.match(pip, /--index-url https:\/\/pypi\.tuna\.tsinghua\.edu\.cn\/simple/);
-  assert.match(pip, /marker-pdf$/);
+  // marker-pdf 2.x needs Docker for its OCR server: the install asks pip for the 1.x line (one argument, no shell).
+  assert.match(pip, / marker-pdf>=1\.10,<2$/);
   assert.ok(calls.indexOf(calls.find(line => line.startsWith('-m venv '))) < calls.indexOf(pip));
   assert.ok(done.log.some(line => /Successfully installed/.test(line)));
   assert.ok(done.log.some(line => line.startsWith('== verify')));
@@ -268,4 +270,22 @@ test('an uninstall right after the result is shown waits for the result to be sa
   const result = await h.installer.uninstall({ confirm: true });
   assert.equal(result.status, 'idle');
   assert.equal((await createMarkerInstaller(h.options).status()).status, 'idle', 'the late result did not overwrite the uninstall');
+});
+
+test('repair (修复安装（改装 1.x）): the install again into the folder it already uses asks pip for the 1.x line and keeps the environment where it is', async t => {
+  const h = await harness(t);
+  await h.installer.start({ confirm: true, mirror: 'tsinghua' }); await h.installer.idle();
+  const first = await h.installer.status();
+  assert.equal(first.status, 'complete');
+  // What the Marker card sends: confirm, the same download source, the folder in use.
+  await h.installer.start({ confirm: true, mirror: first.mirror, location: first.installedFolder }); await h.installer.idle();
+  const repaired = await h.installer.status();
+  assert.equal(repaired.status, 'complete', JSON.stringify(repaired.error));
+  assert.equal(repaired.installedFolder, first.installedFolder, 'the same folder');
+  assert.equal(repaired.command, first.command, 'the same program path');
+  assert.equal((await readMarkerSettings()).command, first.command);
+  const pips = (await h.pyLog()).map(args => args.join(' ')).filter(line => line.includes('pip install'));
+  assert.equal(pips.length, 2);
+  assert.ok(pips.every(line => line.endsWith(` ${MARKER_INSTALL.requirement}`)) && MARKER_INSTALL.requirement === 'marker-pdf>=1.10,<2');
+  assert.ok(!repaired.log.some(line => /removed the previous environment/.test(line)), 'nothing is removed');
 });
