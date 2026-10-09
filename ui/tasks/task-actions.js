@@ -20,8 +20,9 @@ export function resultOpener(job, app) {
   // A 考点清单 lives on the 备考补习 page, which lists the lists of the course and takes no id: the page is the way in.
   if (refs.some((ref) => ref.kind === 'exam-point-list') && !isLiveStatus(contract.status) && app?.nav?.show?.page) return { label: ui('打开考点清单'), run: () => app.nav.show.page('examprep') };
   // A 课程总纲 is shown by the 总纲 page of its course: the course becomes the current one first when it is not.
-  const outline = refs.find((ref) => ref.kind === 'course-outline');
-  if (outline && !isLiveStatus(contract.status) && app?.nav?.navigate) return { label: ui('打开总纲'), run: async () => {
+  // Its 复习全书 is read on the same page (a knowledge point opened shows its notes).
+  const outline = refs.find((ref) => ref.kind === 'course-outline' || ref.kind === 'course-book');
+  if (outline && !isLiveStatus(contract.status) && app?.nav?.navigate) return { label: outline.kind === 'course-book' ? ui('打开复习全书') : ui('打开总纲'), run: async () => {
     if (typeof outline.course === 'string' && outline.course !== (data?.focus?.course ?? null) && app.core?.act) await app.core.act('focus.set', { course: outline.course });
     app.nav.navigate('outline');
   } };
