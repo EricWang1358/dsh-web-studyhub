@@ -57,6 +57,25 @@ export function chipState(update) {
   return null;
 }
 
+const CHECK_ERROR_CODE = /^(network|rate-limited|invalid|http-\d+)$/;
+/**
+ * What a failed check says, by the host's error code (only reached when GitHub's API and the plain release-page
+ * route both failed). A rate limit is not a network problem and an HTTP status is not either; only 'network' blames
+ * the connection. `manual` (the learner pressed 检查更新) adds "check your network and retry" for that one.
+ */
+export function updateErrorText(update, { manual = false } = {}) {
+  const code = update?.error;
+  if (!code) return '';
+  if (code === 'rate-limited') {
+    const when = formatDateTime(update.retryAt, 'time');
+    return when ? uiFormat('GitHub 对你所在网络的匿名查询次数用完了（每小时 60 次，很多人共用同一个出口地址时会这样），约 {0} 恢复。', [when])
+      : ui('GitHub 对你所在网络的匿名查询次数用完了（每小时 60 次，很多人共用同一个出口地址时会这样），稍后会恢复。');
+  }
+  if (code.startsWith('http-')) return uiFormat('GitHub 回复了 HTTP {0}，没能取得新版本信息，稍后会自动重试。', [code.slice(5)]);
+  if (code === 'invalid') return ui('GitHub 的回复无法识别，没能取得新版本信息，稍后会自动重试。');
+  return manual ? ui('暂时无法连接 GitHub 检查更新。请检查网络后重试。') : ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。');
+}
+
 /** Plain-language reasons for the refusals update.install answers with. */
 export function failureMessage(code) {
   switch (code) {
@@ -190,10 +209,10 @@ export function UpdateDialog({ update, call, host, onClose, initialPhase = null 
       className="update-dialog" bodyLabel={ui('升级说明')}>
       {phase.phase === 'installed' ? <Installed phase={phase} host={host} /> : <>
         {update.pendingRestart && available && <p className="update-lead">{uiFormat('已安装 {0}，尚未重启。可以直接安装 {1}，然后重启一次 DSH。', [update.pendingRestart, update.latest])}</p>}
-        {update.notes && <section className="update-notes-wrap" aria-label={ui('更新内容')}>
+        {update.notes ? <section className="update-notes-wrap" aria-label={ui('更新内容')}>
           <h3>{ui('更新内容')}</h3>
           <div className="update-notes">{update.notes}</div>
-        </section>}
+        </section> : update.source === 'fallback' && <p className="update-note">{ui('这次没能取得更新内容，请点「查看发布页」阅读。')}</p>}
         {inApp && phase.phase === 'idle' && <p className="update-lead">{ui('StudyHub 会从 GitHub 发布页下载安装包，核对 SHA256 校验值后交给 DSH 插件管理安装；安装后重启 DSH 即可使用新版本。')}</p>}
         {inApp && phase.phase === 'confirm' && <InlineMessage tone="info" boxed title={ui('确认升级？')}>
           {ui('升级需要几十秒。安装完成后要重启 DSH，重启前可以继续学习。')}
@@ -230,6 +249,11 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
         : staleExtension ? { tone: 'warning', text: uiFormat('StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。', [staleExtension.version, staleExtension.expected]) }
           : update.checkedAt ? { tone: 'success', text: ui('已是最新版本。') } : { tone: 'hint', text: ui('还没有检查过更新。') };
   const retry = { label: ui('重试'), onClick: checkUpdates };
+  // The sentence for one failure, with a way to the release page whenever GitHub itself answered (not for "cannot connect").
+  const failure = (code, manual) => <>
+    {updateErrorText({ ...update, error: code }, { manual })}
+    {code !== 'network' && <> <a href={update?.url} target="_blank" rel="noreferrer">{ui('查看发布页')}</a></>}
+  </>;
   async function toggle(autoCheck) {
     setSaving(true); setSaveError('');
     try { await savePreferences(call, { autoCheck }); } catch (error) { setSaveError(errorMessage(error)); }
@@ -246,8 +270,8 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
       </dl>
       {update?.pendingRestart && <Hint>{ui('当前版本是正在运行的代码；已安装版本在重启 DSH 后生效。')}</Hint>}
       {available && <Banner tone="info" icon="sparkle" title={uiFormat('有新版本 {0}', [update.latest])} action={{ label: ui('查看升级'), variant: 'primary', onClick: onOpen }} />}
-      {checkError ? <InlineMessage tone="error" title={ui('没能检查更新')} action={retry}>{ui('暂时无法连接 GitHub 检查更新。请检查网络后重试。')}</InlineMessage>
-        : update?.error ? <InlineMessage tone="warning" action={retry}>{ui('暂时无法连接 GitHub 检查更新，稍后会自动重试。')}</InlineMessage> : null}
+      {checkError ? <InlineMessage tone="error" title={ui('没能检查更新')} action={retry}>{failure(CHECK_ERROR_CODE.test(checkError) ? checkError : 'network', true)}</InlineMessage>
+        : update?.error ? <InlineMessage tone="warning" action={retry}>{failure(update.error, false)}</InlineMessage> : null}
       {!checkError && status && (status.tone === 'hint' ? <Hint>{status.text}</Hint> : <InlineMessage tone={status.tone}>{status.text}</InlineMessage>)}
       {saveError && <InlineMessage tone="error" onDismiss={() => setSaveError('')}>{ui('没能保存这个设置，已恢复原来的选择。')}</InlineMessage>}
       {extension?.installed && <ExtensionUpdateNotice call={call} status={{ extension }} onStatus={onExtension} />}
