@@ -14,13 +14,13 @@ export const roleOptions = () => [...ROLES, 'none'].map(value => ({ value, label
 /** Why a document has the role it has, in a few words. `reason` is { code, word? }; a role the learner changed says so. */
 export function reasonWords(reason) {
   switch (reason?.code) {
-    case 'default-lecture': return ui('默认当作课件');
+    case 'no-signal': return ui('看不出用途，默认不用');
     case 'slides': return ui('PowerPoint，当作课件');
     case 'name-paper': case 'name-syllabus': return uiFormat('文件名含「{0}」', [reason.word]);
     case 'course-guidance': return ui('课程设置里把它标为了考试说明');
     case 'too-big': return ui('页数很多，默认不用');
     case 'not-text': return ui('不是文字资料，不能用来列考点');
-    case 'auto-off': return ui('已关闭自动识别，默认当作课件');
+    case 'auto-off': return ui('已关闭自动识别，默认不用');
     case 'other-course': return ui('其它课程的资料，默认不用');
     case 'chosen': return ui('按你的选择');
     default: return '';
