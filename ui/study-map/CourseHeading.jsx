@@ -9,12 +9,12 @@ import { courseEntries } from '../course-picker-entries.js';
  * current course as a course switcher (a searchable Combobox whose trigger is
  * the heading itself, with the course's settings as a footer action instead of
  * a fake option), else the day's headline. `role` is { draft, setDraft }
- * from useRoleDraft. Always the page's title (h1), drawn by PageHeader.
+ * from useRoleDraft. Always the page's title (h1), drawn by PageHeader; `aside` (the way to the 总纲) sits at its right.
  */
-export default function CourseHeading({ data, headline, onFocus, onCourseSettings, role }) {
+export default function CourseHeading({ data, headline, onFocus, onCourseSettings, role, aside }) {
   const focus = data.focus || {};
   const courses = focus.courses || [];
-  const frame = (title, titleProps) => <PageHeader className="course-header" title={title} titleProps={titleProps} />;
+  const frame = (title, titleProps) => <PageHeader className="course-header" title={title} titleProps={titleProps} actions={aside} />;
   if (focus.mode === 'interview') {
     return frame(
       <input className="course-heading-input" aria-label={ui('岗位方向')} placeholder={ui('输入岗位方向')} value={role.draft}
