@@ -29,7 +29,6 @@
     .course-route-bar > span > i { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
     .course-route-bar > span.is-current > i, .course-route-bar > span.is-started > i { background: var(--accent); }
     .course-route-bar > span.is-current { box-shadow: 0 0 0 1px var(--accent-soft); }
-    .course-route-outline { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2-5); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
   }
   :where(.study-app, .study-seat) {
     .group-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4-5); margin: 0 0 var(--space-4-5); padding: var(--space-2-5) 0 var(--space-2-5) var(--space-3-5); border-left: 3px solid var(--accent); font-size: var(--fs-md); line-height: 1.6; color: var(--text-dim); }

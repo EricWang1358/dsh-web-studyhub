@@ -100,15 +100,15 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 ## 4. 旧实现与旁路的剩余例外
 
-清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **19 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"）；其余全部在下面。
+清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **20 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"；第 20 个是课程总纲的整理任务 `course-outline-build`，2026-10-09 加入）；其余全部在下面。
 
-**数量**：模型形状的调用点 36 行、后台启动点 32 行（合计 88 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
+**数量**：模型形状的调用点 36 行、后台启动点 32 行（合计 89 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
 
 | 处置 | 数量 | 含义 |
 |---|---|---|
 | `migrate`（开关全开后仍在运行时之外，须由某一步迁移） | **0** | 没有。每一个迁移位置都已迁移，没有"以后再迁"的静默旁路 |
 | `delete-s6-2`（旧路径，开关全开后不可达） | 21 | 24 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
-| `exception`（有意保留，写明类别和理由） | 67 | 见下表的类别与理由；没有"待定"类 |
+| `exception`（有意保留，写明类别和理由） | 68 | 见下表的类别与理由；没有"待定"类 |
 
 **不是干净清零的几处，以及所有者对它们的决定（2026-10-07）：**
 

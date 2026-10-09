@@ -433,5 +433,6 @@
   "已转换的页会保留。先按「前往设置」里的说明处理，再点「接着做」继续。": "The converted pages are kept. Follow the steps in Go to settings first, then press Continue.",
   "已转换的页会保留，点「接着做」继续。": "The converted pages are kept; press Continue to go on.",
   "已完成的段": "Windows done",
-  "这类任务没有可以调整的设置。": "This kind of task has no settings to adjust."
+  "这类任务没有可以调整的设置。": "This kind of task has no settings to adjust.",
+  "打开总纲": "Open the outline"
 }

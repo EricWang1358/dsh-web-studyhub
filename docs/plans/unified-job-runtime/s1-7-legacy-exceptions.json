@@ -20,7 +20,8 @@
     "lib/contexts/workflows/jobs/skeleton.js",
     "lib/contexts/study/jobs/assist.js",
     "lib/contexts/notes/jobs/note-generate.js",
-    "lib/contexts/generation/blueprint/jobs/exam-blueprint-build.js"
+    "lib/contexts/generation/blueprint/jobs/exam-blueprint-build.js",
+    "lib/contexts/generation/outline/jobs/course-outline-build.js"
   ],
   "entries": [
     {

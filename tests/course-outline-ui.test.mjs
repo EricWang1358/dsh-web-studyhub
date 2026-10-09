@@ -1,5 +1,5 @@
 /* The 总纲 page drawn (zh and en) from a course.outline answer, its rows and keys (pure), the registry row that reaches it, and the home:
-   the folded 课程路线 list is gone, the course area links to the 总纲, and the home keeps its one continue button. Fakes only. */
+   the folded 课程路线 list is gone, the 总纲 is a visible secondary button beside the course title and in the 学习目录 heading. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -12,6 +12,8 @@ const ui = await loadUi(`
   export { default as CourseOutline, CourseOutlineView } from './ui/outline/CourseOutline.jsx';
   export * from './ui/outline/model.js';
   export { default as CourseRoute } from './ui/CourseRoute.jsx';
+  export { default as DeskIntro } from './ui/study-map/DeskIntro.jsx';
+  export { default as CatalogHeading } from './ui/study-map/CatalogHeading.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
   export { PAGES, backLabelOf, navLabelOf } from './ui/pages.js';
@@ -164,9 +166,46 @@ test('the home: the folded 课程路线 list is gone, the course area links to t
   assert.doesNotMatch(html, /<details/, 'no folded list');
   assert.doesNotMatch(text, /课程路线 ·|从这一章学|接着学/);
   assert.match(text, /课程进度/);
-  assert.match(text, /总纲 按资料的章节找题、挑题练/);
-  assert.doesNotMatch(textOf(render(h(ui.CourseRoute, { route }))), /总纲/, 'without the page, no link');
+  assert.doesNotMatch(text, /总纲|按资料的章节找题/, 'no tiny link line under the progress bar any more');
   const desk = readFileSync('ui/study-map/DeskIntro.jsx', 'utf8');
-  assert.match(desk, /<CourseRoute route=\{route\} onShowOutline=\{onShowOutline\} \/>/);
+  assert.match(desk, /<CourseRoute route=\{route\} \/>/);
   assert.doesNotMatch(desk, /onStartChapter/);
+});
+
+const buttons = html => [...html.matchAll(/<button\b[^>]*>/g)].map(match => match[0]);
+const outlineButtons = html => buttons(html).filter(tag => /outline-entry/.test(tag));
+
+test('the home: the 总纲 is a real secondary button beside the course title, and in the 学习目录 heading before 查看图谱', () => {
+  const route = { course: 'Databases', cards: 10, learned: 4, mastered: 1, weak: 0, current: 0, next: null,
+    chapters: [{ deckId: 'd1', title: 'Indexes deck', total: 6, learned: 4, weak: 0, mastered: 1, status: 'current' }] };
+  const data = { decks: [{ id: 'd1' }], focus: { mode: 'class', course: 'Databases', courses: [{ name: 'Databases' }], route } };
+  const home = { interview: false, route, starter: null, headline: 'Databases', plan: { kind: 'path', also: [] }, alternatives: [], otherRuns: [], otherCourse: noop };
+  const mastery = { primary: null };
+  const desk = (onShowOutline, over = {}) => render(h(ui.DeskIntro, { data, home: { ...home, ...over }, mastery, role: { draft: '', setDraft: noop }, busy: false, start: noop, resume: noop, endRun: noop, onShowOutline }));
+  const withIt = desk(noop), tags = outlineButtons(withIt);
+  assert.equal(tags.length, 1, 'one 总纲 button beside the course title');
+  assert.match(tags[0], /^<button type="button" class="sh-btn sh-btn--secondary sh-btn--md outline-entry"/, 'a secondary button, not the primary one');
+  assert.doesNotMatch(tags[0], /sh-btn--primary|sh-btn--link/);
+  assert.ok(withIt.indexOf('outline-entry') > withIt.indexOf('course-heading'), 'on the course title row');
+  assert.ok(withIt.indexOf('outline-entry') < withIt.indexOf('course-route'), 'above the progress bar, not under it');
+  assert.match(textOf(withIt), /总纲/);
+  assert.match(withIt, /role="tooltip"[^>]*>按资料的章节找题、挑题练</, 'the explanation is a Tooltip, not a title attribute');
+  assert.doesNotMatch(tags[0], /title=/);
+  assert.equal(outlineButtons(desk(undefined)).length, 0, 'without the page, no button');
+  assert.equal(outlineButtons(desk(noop, { route: null })).length, 0, 'no course route, no button');
+  assert.equal(outlineButtons(desk(noop, { route: { ...route, chapters: [] } })).length, 0, 'a route without chapters, no button');
+
+  const heading = onShowOutline => render(h(ui.CatalogHeading, { count: 2, showArchived: false, hasDecks: true, hasSources: true, course: 'Databases', merge: { busy: false, run: noop }, busy: false, slain: null,
+    addSource: noop, createManual: noop, importLibrary: noop, manage: noop, onShowGraph: noop, onShowOutline }));
+  const catalog = heading(noop);
+  assert.equal(outlineButtons(catalog).length, 1, 'one 总纲 button in the 学习目录 heading');
+  assert.match(outlineButtons(catalog)[0], /^<button type="button" class="sh-btn sh-btn--secondary sh-btn--sm outline-entry"/);
+  assert.equal(buttons(catalog).findIndex(tag => /outline-entry/.test(tag)), 0, 'the first of the heading buttons');
+  assert.ok(catalog.indexOf('outline-entry') < catalog.indexOf('查看图谱'), '总纲 before 查看图谱');
+  assert.equal(outlineButtons(heading(undefined)).length, 0, 'hidden when it cannot work');
+  assert.doesNotMatch(catalog + withIt, /sh-btn--primary/, 'neither entry is a primary button');
+
+  const wording = english(() => desk(noop) + heading(noop));
+  assert.doesNotMatch(textOf(wording), han, textOf(wording).match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
+  assert.match(textOf(wording), /Course outline Find questions by the chapters of your materials/);
 });

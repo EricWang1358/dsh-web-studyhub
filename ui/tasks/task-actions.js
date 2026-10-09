@@ -19,6 +19,12 @@ export function resultOpener(job, app) {
   if (note && app?.learn?.openLearningTarget) return { label: ui('打开笔记'), run: () => app.learn.openLearningTarget({ kind: 'note', id: note.id }) };
   // A 考点清单 lives on the 备考补习 page, which lists the lists of the course and takes no id: the page is the way in.
   if (refs.some((ref) => ref.kind === 'exam-point-list') && !isLiveStatus(contract.status) && app?.nav?.show?.page) return { label: ui('打开考点清单'), run: () => app.nav.show.page('examprep') };
+  // A 课程总纲 is shown by the 总纲 page of its course: the course becomes the current one first when it is not.
+  const outline = refs.find((ref) => ref.kind === 'course-outline');
+  if (outline && !isLiveStatus(contract.status) && app?.nav?.navigate) return { label: ui('打开总纲'), run: async () => {
+    if (typeof outline.course === 'string' && outline.course !== (data?.focus?.course ?? null) && app.core?.act) await app.core.act('focus.set', { course: outline.course });
+    app.nav.navigate('outline');
+  } };
   const draft = refs.find((ref) => ref.kind === 'draft'), found = draft && data?.drafts?.find((item) => item.id === draft.id);
   if (found && app?.drafts?.openDraft && !isLiveStatus(contract.status)) return { label: ui('打开草稿'), run: () => app.drafts.openDraft(found, { navigation: true }) };
   return null;
