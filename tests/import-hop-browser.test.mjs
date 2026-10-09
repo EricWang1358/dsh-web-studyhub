@@ -240,7 +240,7 @@ test('the add-material dialog, the first import, a PDF the importer cannot use, 
       const fresh = await start(dist, { empty: true });
       try {
         const { page, errors, context } = await openApp(browser, fresh, { width });
-        const first = page.getByRole('button', { name: /导入我的第一份资料|添加第一份资料/ }).first();
+        const first = page.getByRole('button', { name: /添加资料|导入我的第一份资料|添加第一份资料/ }).first();
         try { await first.waitFor({ timeout: 30000 }); } catch (error) { await shot(page, `first-run-missing-${width}`); throw new Error(`${error.message}\n${(await page.locator('main').innerText()).slice(0, 600)}`); }
         await shot(page, `first-run-${width}`);
         await first.click();
