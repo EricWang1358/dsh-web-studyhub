@@ -72,5 +72,9 @@
   "置顶到最前": "Move to top",
   "已置顶": "Pinned",
   "共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。": "{0} source(s), {1} pinned, the rest grouped by import date ({2} group(s)).",
-  "共 {0} 份资料，全部置顶。": "{0} source(s), all pinned."
+  "共 {0} 份资料，全部置顶。": "{0} source(s), all pinned.",
+  "生成总纲要调用 AI 模型；没有总纲时这里按资料列出。": "Generating the outline calls an AI model; until there is one, this page lists your materials.",
+  "回到这里，点「生成总纲」": "Come back here and select “Generate outline”",
+  "生成总纲需要先配置模型；没有总纲时这里按资料列出。": "Generating the outline needs a model first; until there is one, this page lists your materials.",
+  "没有总纲时这里按资料列出；生成总纲前需要先配置模型。": "Until there is an outline, this page lists your materials; a model is needed before generating one."
 }

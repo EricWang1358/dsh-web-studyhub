@@ -2,8 +2,18 @@
 import { ui, uiFormat } from '../i18n.js';
 import { displayTitle } from '../../lib/document-title.js';
 
+/** A chapter's name under a leaf of the AI outline: with its material, so the learner knows which one it is. */
+function anchorTitle(node) {
+  if (node.kind === 'document') return displayTitle(node.title);
+  const own = node.kind === 'rest' ? ui('没对上章节的题') : node.front ? ui('开头部分') : node.title || ui('未命名章节');
+  return node.material ? `${displayTitle(node.material)} · ${own}` : own;
+}
+
 /** The title of a row: a document's display name, a chapter's own title, the front matter, or the questions of a document no chapter holds. */
 export function rowTitle(row) {
+  if (row.kind === 'part' || row.kind === 'section' || row.kind === 'point') return row.node.title;
+  if (row.kind === 'other') return ui('其他');
+  if (row.kind === 'anchor') return anchorTitle(row.node);
   if (row.kind === 'unplaced') return ui('未归位');
   if (row.kind === 'rest') return ui('没对上章节的题');
   if (row.kind === 'chapter') return row.node.front ? ui('开头部分') : row.node.title || ui('未命名章节');
@@ -41,3 +51,34 @@ export const unfiledText = (names, count = names.length) => uiFormat('把这些�
   + (count > names.length ? uiFormat('等 {0} 份', [count]) : '');
 
 export const moreText = count => uiFormat('还有 {0} 题没列出，「练这一节」会一起练。', [count]);
+
+/* ---------- the AI outline (课程总纲 step 2) ---------- */
+
+/** The number of a row of the outline: 第 1 章 for a chapter, 1.2 and 1.2.3 under it. */
+export const numberText = row => (row.kind === 'part' ? uiFormat('第 {0} 章', [row.number]) : row.number);
+
+/** The hover explanation when the page shows the AI outline. */
+export const bookWhatText = limit => uiFormat('总纲由模型把这门课的资料整理成「章 → 节 → 知识点」，只是参考：题目的出处仍是原来的资料。每个知识点下的题按它对应的资料和章节实时计算；没归入章节的资料在「其他」。练习时按 到期 → 薄弱 → 新题 的顺序出题，不按总纲的顺序；一轮最多 {0} 题。', [limit]);
+
+const BASIS = { syllabus: basis => (basis.syllabus ? uiFormat('讲义大纲《{0}》的顺序', [basis.syllabus]) : ui('讲义大纲的顺序')), numbering: () => ui('资料标题里的编号'),
+  dates: () => ui('录音的日期'), logic: () => ui('先学什么、后学什么的道理') };
+/** What the learning order of the outline rests on, as the build recorded it. */
+export function basisText(basis) {
+  const parts = (basis?.codes || []).map(code => BASIS[code]?.(basis)).filter(Boolean);
+  return parts.length ? uiFormat('学习顺序依据：{0}', [parts.join(' · ')]) : ui('学习顺序依据：资料导入的先后');
+}
+
+/** The tier of a point when the outline rests on sample papers: 样卷考过（N/M 份） or 补充. */
+export const tierText = (node, papers) => (node.tier === 'must' ? uiFormat('样卷考过（{0}/{1} 份）', [node.papers, papers]) : ui('补充'));
+
+/** Under 其他: how many rows of the materials no chapter of the outline holds. */
+export const otherText = count => uiFormat('{0} 处资料没有归入上面的章节', [count]);
+
+/** The line of a running build. */
+export const runningText = run => (run.total ? uiFormat('正在整理总纲（{0}/{1} 步）…', [Math.min(run.done + 1, run.total), run.total]) : ui('正在整理总纲…'));
+
+/** The offer above the materials when the course has no outline yet. */
+export const offerText = count => uiFormat('现在按资料排开（{0} 份）。生成总纲会让模型把它们整理成像书一样的「章 → 节 → 知识点」，按学习顺序排好，合并重复的资料和零碎的笔记；过程在后台，进度在任务页。', [count]);
+
+/** The toast of a start. */
+export const startedText = already => (already ? ui('总纲已经在整理，进度在任务页。') : ui('已开始整理总纲，进度在任务页。'));
