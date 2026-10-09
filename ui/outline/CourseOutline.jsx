@@ -3,6 +3,7 @@ import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Combobox, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
+import { useLiveEffect } from '../use-async.js';
 import { MasteryLine } from '../document-preview/practice/MasteryMark.jsx';
 import OutlineTree from './OutlineTree.jsx';
 import { emptyPick, isPicked, keepView, keptView, outlineRows, pickArgs, pickCard, pickRow } from './model.js';
@@ -37,11 +38,9 @@ function useOutline({ call, course, deckId, open, revision }) {
 /** How many questions the pick is (once each), read from the backend, which knows every row's questions. */
 function usePicked({ call, course, deckId, pick }) {
   const [picked, setPicked] = useState(null);
-  useEffect(() => {
-    if (!isPicked(pick)) { setPicked(null); return undefined; }
-    let live = true;
-    call('course.outline', { course, ...(deckId ? { deckId } : {}), pick: pickArgs(pick) }).then(result => { if (live) setPicked(result.practice); }, () => {});
-    return () => { live = false; };
+  useLiveEffect(isLive => {
+    if (!isPicked(pick)) { setPicked(null); return; }
+    call('course.outline', { course, ...(deckId ? { deckId } : {}), pick: pickArgs(pick) }).then(result => { if (isLive()) setPicked(result.practice); }, () => {});
   }, [call, course, deckId, pick]);
   return picked;
 }
