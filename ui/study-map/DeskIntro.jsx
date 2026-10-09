@@ -44,8 +44,8 @@ function OtherRuns({ runs, otherCourse, busy, resume, endRun }) {
   );
 }
 
-/** The left of the home desk: study mode, the course (or role) heading, the course route, mastery, the next step and the other ways to start. */
-export default function DeskIntro({ data, home, mastery, role, busy, start, resume, endRun, onFocus, onCourseSettings, suggestRole }) {
+/** The left of the home desk: study mode, the course (or role) heading, the course route (with the way to the 总纲), mastery, the next step and the other ways to start. */
+export default function DeskIntro({ data, home, mastery, role, busy, start, resume, endRun, onFocus, onCourseSettings, onShowOutline, suggestRole }) {
   const { interview, route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
   return (
@@ -57,7 +57,7 @@ export default function DeskIntro({ data, home, mastery, role, busy, start, resu
       {!interview && isParked(currentEntry) && <p className="course-parked-line"><ParkedChip course={currentEntry} />
         <small>{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</small></p>}
       {interview && <RoleSuggestion data={data} role={role.draft} suggestRole={suggestRole} onFocus={onFocus} start={start} />}
-      {route && <CourseRoute route={route} busy={busy} onStartChapter={(deckId) => start({ mode: 'course', deckId, fresh: true })} />}
+      {route && <CourseRoute route={route} onShowOutline={onShowOutline} />}
       {mastery.primary && <DeskMastery mastery={mastery} />}
       <p className="desk-next">
         {data.next ? (

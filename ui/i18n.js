@@ -64,6 +64,7 @@ import examPrep from './locales/en.exam-prep.json';
 import examPrepSettings from './locales/en.exam-prep-settings.json';
 import modelSetup from './locales/en.model-setup.json';
 import generateShort from './locales/en.generate-short.json';
+import outlineCopy from './locales/en.outline.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -130,6 +131,7 @@ export const ENGLISH_SOURCES = {
   'en.exam-prep-settings.json': examPrepSettings,
   'en.model-setup.json': modelSetup,
   'en.generate-short.json': generateShort,
+  'en.outline.json': outlineCopy,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

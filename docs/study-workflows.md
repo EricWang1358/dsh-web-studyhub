@@ -43,7 +43,7 @@ Each deck in the course is one chapter, in the deck order of your library. Each 
 1. Up to 5 questions you already met in this course that are weak or due.
 2. Up to 10 new questions in chapter order. When a chapter runs out, the batch continues into the next one.
 
-The course progress bar on the home page shows where you are. Expand **Course route** to see every chapter; **Start from this chapter** starts a batch there. To change the chapter order, open a deck's **Manage deck** page (the deck's **⋯** menu) and use **Move deck up** or **Move deck down**.
+The course progress bar on the home page shows where you are. To find the questions about a part of the course by its materials and chapters, and practise exactly those, open **Course outline** under the progress bar (see [Course outline](course-outline.md)). To change the chapter order, open a deck's **Manage deck** page (the deck's **⋯** menu) and use **Move deck up** or **Move deck down**.
 
 The **Study directory** below the card lists the current course, newest published deck first. When the course has more than 3 decks, only the 3 most recent show until you click **View all decks**. Other courses appear after you click **View other courses** or search.
 
