@@ -77,5 +77,6 @@
   "本章": "This chapter",
   "整课程": "Whole course",
   "这道题所在的题组，课程里的一章。": "The deck this question is in, one chapter of the course.",
-  "「{0}」里所有题组合计（含子课程）。": "All the decks of “{0}” added up (sub-courses included)."
+  "「{0}」里所有题组合计（含子课程）。": "All the decks of “{0}” added up (sub-courses included).",
+  "这一轮还有：{0}": "Also in this round: {0}"
 }
