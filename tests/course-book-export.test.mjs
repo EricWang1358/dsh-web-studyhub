@@ -81,6 +81,11 @@ test('footnotes are named per file and never collide; every reference has its de
   assert.equal(new Set(anchors).size, anchors.length, 'every anchor once');
   for (const [, target] of text.matchAll(/\]\(#([^)\s]+)\)/g)) assert.ok(anchors.includes(target), `#${target} is an anchor`);
   assert.equal((text.match(/^\s*```/gm) || []).length % 2, 0, 'fences closed');
+  // A heading pasted with its id into another file keeps the code, not a second anchor.
+  const pasted = runExport(exportBook({ qa: `## 我的推导 <!-- sh:id h9 -->\n\n## Copied <!-- sh:id h2 -->\n\n${exportBook().nodes[0].children[0].qa}` }), { cardOf }).text;
+  const again = [...pasted.matchAll(/\{#([^}\s]+)\}$/gm)].map(match => match[1]);
+  assert.equal(new Set(again).size, again.length, 'still every anchor once');
+  assert.match(pasted, /^#### Copied 〔H2〕$/m);
 });
 
 test('noprint: left out of the export, its estimate and its lookup; the page\'s lookup still sees it; a marker never closed keeps its text', () => {
