@@ -50,6 +50,8 @@
 
 **没有开关的种类：复习全书生成（`course-book-build`，2026-10-09）。** 同上：全书是一份带附加字段（`courseNotes`，`provenance: 'course-outline-notes'`）的普通 source，旧版读写时字段原样保留；△ 旧版不认识它的隐藏规则，会把它当一份 Markdown 资料列出，接受的退化。任务不持久，全书（和它顺带整理的总纲）只在最后一步一次性入库，没有半成品，重启后再点一次「生成复习全书」。证据：`course-book-job.test.mjs`、`course-book.test.mjs`。
 
+**不是任务：复习全书书页（`course-book-doc`，2026-10-11，[复习全书](../../review-book.zh-CN.md)）。** `course.book.open` 是学习库的一个写操作，不是任务，没有开关。书页是一份带附加字段（`bookDoc`，`provenance: 'course-book-doc'`）的普通 source，`text` 为空，Markdown 文件在 `bookDoc.files` 里；旧版读写时字段原样保留。△ 旧版不认识它的隐藏规则，可能把它当一份空的 Markdown 资料列出，在旧版里删掉它就删掉了书页文件；接受的退化，只能升级。证据：`course-book-files.test.mjs`。
+
 ## 3. 格式：运行时留下了什么
 
 - **内核记录没有新增字段**：形状守卫对每个写出的 manifest 用 2.7.1 自己的校验器（`tests/fixtures/release-2.7.1/`，逐字复制）检查，所以关掉开关回退后整个快照不会因一份读不了的记录而失败。演练第一次运行时发现过一次真实缺陷（请求意图带 `sideEffect` 与 `abandoned`），已在内核修复（#331）。`local-wait` 调用现在是无副作用的（#320），`deliveries` 只有 eventId/channel/status。

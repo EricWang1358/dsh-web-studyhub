@@ -62,8 +62,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     const wanted = restore.current, element = wanted && document.getElementById(`book-${wanted.hid}`);
     if (!element) return;
     restore.current = null;
-    element.scrollIntoView({ block: 'start' });
-    if (wanted.offset !== null) scrollerOf(element)?.scrollBy(0, element.getBoundingClientRect().top - wanted.offset);
+    // One jump, not smooth: the heading where it was on screen (from the way back), else just under the top of the scroller (from the 目录).
+    const scroller = scrollerOf(element), top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: scroller.scrollTop + element.getBoundingClientRect().top - (wanted.offset ?? top + 16), behavior: 'instant' });
   });
   // 你在这里: the highest heading on screen of the open chapters.
   useEffect(() => {
