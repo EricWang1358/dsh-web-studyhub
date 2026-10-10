@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ui, uiFormat, setUiLanguage } from '../i18n.js';
+import { ui, uiFormat, setUiLanguage, errorMessage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
 import { pageFlag } from '../pages.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
@@ -18,6 +18,7 @@ import ExamPrep from '../exam-prep/ExamPrep.jsx';
 import CourseOutline from '../outline/CourseOutline.jsx';
 import BookPage from '../book/BookPage.jsx';
 import { keepBook } from '../book/model.js';
+import CrunchCard from '../book/CrunchCard.jsx';
 import Manage from '../Manage.jsx';
 import Settings, { backupFileName } from '../Settings.jsx';
 import Generate from '../Generate.jsx';
@@ -40,8 +41,24 @@ import { retryForm, retryNotice } from './retry-generation.js';
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
 
 function LibraryView() {
-  const { data, core, nav, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry } = useApp();
+  const { data, core, nav, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry, learn } = useApp();
   const { busy, notify } = core;
+  /* 期末一周 (M7): a course's book at a point, in 翻看 or with 今天读哪几节 open; another course than the current one is made current first (the book
+     page shows the current course's book). 练 5 道 practises the point's next five, in a practice round's order. */
+  const openCrunchBook = async (course, { target = null, view = null } = {}) => {
+    if (course !== (data.focus?.course ?? null)) await core.act('focus.set', { course });
+    keepBook(data.root, course, { target, view });
+    nav.navigate('book');
+  };
+  const practiseCrunch = async (course, point) => {
+    try {
+      const { practice } = await core.call('course.outline', { course, pick: { keys: [point.key] } });
+      const scope = practice?.scope.slice(0, 5) || [];
+      if (!scope.length) { notify(ui('这一节还没有题。')); return; }
+      intents.practice(scope, { fresh: false });
+    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+  };
+  const startMock = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
   if (tour.showWelcome) return (
     <Welcome model={tour.modelState} sample={data.sample} busy={busy || tour.sampleBusy} onStartSample={tour.loadSampleAndTour}
       onStartTour={() => tour.startTour({ restart: true })} onImport={tour.openFirstImport} onSetupModel={settingsEntry.openModelSettings}
@@ -72,6 +89,7 @@ function LibraryView() {
         }}>
         {pageAvailable(data, 'review') && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
+        {pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
         <RecoveryBanner />
       </StudyMap>
     </>
@@ -207,8 +225,10 @@ function BookView() {
     const origin = learn.captureContext();
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
+  // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.
+  const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
   return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} onOpenTask={nav.show.task}
-    onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} />;
+    onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun} />;
 }
 
 /** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console.

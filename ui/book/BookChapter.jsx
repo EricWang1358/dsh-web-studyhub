@@ -66,7 +66,8 @@ function PointQuestions({ node, handlers }) {
   );
 }
 
-function PointBody({ node, course, handlers }) {
+/** A knowledge point's body (also the folded 讲解 of 翻看, ui/book/BookFlip.jsx). */
+export function PointBody({ node, course, handlers }) {
   // The own file's AI blocks woven in after their paragraphs (lib/course-book-ai-text.js); the generated file's part comes before the questions, the own after.
   const woven = useMemo(() => weaveBlocks([{ name: 'gen', text: node.gen || '' }, { name: 'mine', text: withoutAiBlocks(node.mine) }], aiBlocks(node.mine)), [node.gen, node.mine]);
   const resolve = useMemo(() => resolverOf(handlers, node.hid), [handlers, node.hid]);
