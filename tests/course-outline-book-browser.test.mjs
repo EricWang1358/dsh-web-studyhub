@@ -60,7 +60,7 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       await running.api('focus.set', { course: COURSE });
       const { page, errors, context } = await openPage(browser, running, { width, height: 1000 });
       await page.goto(running.server.url);
-      await page.locator('.course-route-outline .sh-btn').first().click({ timeout: 30000 });
+      await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-tree--book').waitFor({ timeout: 30000 });
       assert.match(await page.locator('.outline-page h1').innerText(), /总纲 · SA/);
       assert.match(await page.locator('.outline-book-line__basis').innerText(), /学习顺序依据：讲义大纲《SA 讲义大纲》的顺序 · 资料标题里的编号 · 录音的日期/);
@@ -124,7 +124,7 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       const other = await openPage(browser, running, { width, height: 900 });
       const held = await holdActions(other.page, ['generation.courseOutline.build']);
       await other.page.goto(running.server.url);
-      await other.page.locator('.course-route-outline .sh-btn').first().click({ timeout: 30000 });
+      await other.page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       const offer = other.page.locator('.outline-organise');
       await offer.waitFor({ timeout: 30000 });
       assert.equal(await other.page.locator('.outline-page .sh-btn--primary').count(), 1, `${width}px: one primary`);

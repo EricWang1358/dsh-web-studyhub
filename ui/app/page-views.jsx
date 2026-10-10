@@ -16,6 +16,8 @@ import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
 import ExamPrep from '../exam-prep/ExamPrep.jsx';
 import CourseOutline from '../outline/CourseOutline.jsx';
+import BookPage from '../book/BookPage.jsx';
+import { keepBook } from '../book/model.js';
 import Manage from '../Manage.jsx';
 import Settings, { backupFileName } from '../Settings.jsx';
 import Generate from '../Generate.jsx';
@@ -190,9 +192,23 @@ function OutlineView() {
     const origin = learn.captureContext();
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
+  // 打开书页: the 复习全书 of the course, at the point the learner opened (its 总纲 key), or where they were in it.
+  const onOpenBook = (key) => { keepBook(data.root, data.focus?.course ?? null, { target: key || null }); nav.navigate('book'); };
   return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('library')} onCreate={() => intents.goGenerate()}
     onOpenSources={pageAvailable(data, 'sources') ? () => nav.navigate('sources') : undefined} onPractice={onPractice} onOpenTask={nav.show.task}
-    onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} />;
+    onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenBook={onOpenBook} />;
+}
+
+/** 复习全书: the book of the current course, read only (M1). A question link starts the ordinary practice round with the way back (回到复习全书), which shows
+    this page again; the page itself comes back at the heading and scroll the learner left. */
+function BookView() {
+  const { data, nav, session, learn, intents } = useApp();
+  const onPractice = (scope, { resume = false } = {}) => {
+    const origin = learn.captureContext();
+    intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
+  };
+  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('outline')} onPractice={onPractice} onOpenTask={nav.show.task}
+    onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} />;
 }
 
 /** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console.
@@ -327,7 +343,7 @@ function NotesView() {
 export const PAGE_VIEWS = {
   library: LibraryView, workflows: WorkflowsView, skeleton: SkeletonView, dashboard: DashboardView, exam: ExamView, wrongbook: WrongBookView, graph: GraphView,
   manage: ManageView, sources: SourcesView, audio: AudioView, tasks: TasksView, generate: GenerateView, draft: DraftView, settings: SettingsView, review: ReviewView, notes: NotesView,
-  examprep: ExamPrepView, outline: OutlineView,
+  examprep: ExamPrepView, outline: OutlineView, book: BookView,
 };
 
 /** 备考补习 while the learner has it turned off in Settings (the switch is not a component, so the generic text about components would be wrong). */

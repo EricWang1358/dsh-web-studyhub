@@ -45,7 +45,7 @@ test('only sidebar pages have a navigation label (a return from settings says �
   assert.equal(navLabelOf('library'), '学习库');
   assert.equal(navLabelOf('live'), '课堂实录');
   assert.equal(navLabelOf('audio'), '音频转写');
-  for (const id of ['settings', 'review', 'draft', 'manage', 'graph', 'outline', 'nope']) assert.equal(navLabelOf(id), undefined, id);
+  for (const id of ['settings', 'review', 'draft', 'manage', 'graph', 'outline', 'book', 'nope']) assert.equal(navLabelOf(id), undefined, id);
 });
 
 test('availability reads the registry and matches the table it replaced', () => {
@@ -57,6 +57,7 @@ test('availability reads the registry and matches the table it replaced', () => 
     workflows: ['workflows', 'bank', 'study'], skeleton: ['skeleton'], notes: ['notes'],
     examprep: ['materials', 'generation'], // added later, behind a host switch (pages.js `flag`)
     outline: ['bank', 'study', 'materials'], // added later: the 总纲 page, reached from the home's course area
+    book: ['bank', 'study', 'materials'], // added later: the 复习全书 page, reached from the 总纲 page
   };
   for (const id of PAGE_IDS) assert.deepEqual(pageNeeds(id), old[id] || [], id);
   assert.deepEqual(pageNeeds('nope'), []);
