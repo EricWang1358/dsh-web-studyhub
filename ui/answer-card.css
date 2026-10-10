@@ -1,0 +1,120 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 分析题答案卡 (ui/AnswerCard.jsx, 复习全书 M5): the parts of one full answer in the feedback of a case question, the state and the checks on top, the
+       marks map as a table that scrolls inside itself on a narrow screen. Tokens only; nothing is wider than the page. */
+    .answer-card-section {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+    .answer-card {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+    .answer-card__head {
+      display: grid;
+      gap: var(--space-2);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--line);
+    }
+    .answer-card__title {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .answer-card__notice,
+    .answer-card__checks,
+    .answer-card__hint {
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+    .answer-card__part {
+      display: grid;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .answer-card__label {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
+      letter-spacing: 0.02em;
+    }
+    .answer-card__part ul,
+    .answer-card__part ol {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding-left: var(--space-5);
+      overflow-wrap: anywhere;
+    }
+    .answer-card__quote {
+      color: var(--text-dim);
+    }
+    .answer-card__where {
+      margin-left: var(--space-1);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+    .answer-card__definition {
+      margin: var(--space-1) 0 0;
+      padding-left: var(--space-3);
+      border-left: 3px solid var(--line-strong);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
+    .answer-card__unverified {
+      vertical-align: middle;
+    }
+    .answer-card__table {
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    .answer-card__table table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+    }
+    .answer-card__table th,
+    .answer-card__table td {
+      padding: var(--space-1) var(--space-2);
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    .answer-card__table th {
+      color: var(--text-muted);
+      font-weight: var(--fw-strong);
+    }
+    .answer-card__table tr.is-missing td {
+      color: var(--text-muted);
+    }
+    .answer-card__actions,
+    .answer-card__offer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .answer-card__book {
+      display: inline-grid;
+      gap: var(--space-1);
+    }
+    .answer-card__running {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+    }
+  }
+}

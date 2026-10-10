@@ -7,17 +7,20 @@ import { useLiveEffect } from '../use-async.js';
 /* 「加入复习全书」 (M3, docs/plans/review-book.md) on a follow-up of a question: one button, the same on the practice page and in a point's 本节问答. It
    calls book.qa.add / book.qa.remove (lib/course-book-qa.js); the card keeps its follow-up either way. Added, it reads 已加入 · 撤回. */
 
-/** What the books hold (book.qa.list): { ids: Set of follow-up ids, courses: Set of courses with a book, ready }, and add / remove that keep it current. */
+/** What the books hold (book.qa.list): { ids: Set of follow-up ids, cards: Set of question ids whose answer card is in (M5), courses: Set of courses
+    with a book, ready }, and add / remove (addCard / removeCard for an answer card) that keep it current. */
 export function useBookQa() {
   const { call } = useStudy();
-  const [state, setState] = useState({ ids: new Set(), courses: new Set(), ready: false });
+  const [state, setState] = useState({ ids: new Set(), cards: new Set(), courses: new Set(), ready: false });
   useLiveEffect(isLive => {
-    call('book.qa.list', {}).then(answer => { if (isLive()) setState({ ids: new Set(answer.followupIds), courses: new Set(answer.courses || []), ready: true }); }, () => {});
+    call('book.qa.list', {}).then(answer => { if (isLive()) setState({ ids: new Set(answer.followupIds), cards: new Set(answer.answerCardIds || []), courses: new Set(answer.courses || []), ready: true }); }, () => {});
   }, [call]);
-  const mark = useCallback((id, on) => setState(current => { const ids = new Set(current.ids); if (on) ids.add(id); else ids.delete(id); return { ...current, ids }; }), []);
-  const add = useCallback(async ref => { await call('book.qa.add', ref); mark(ref.followupId, true); }, [call, mark]);
-  const remove = useCallback(async followupId => { await call('book.qa.remove', { followupId }); mark(followupId, false); }, [call, mark]);
-  return { ...state, add, remove };
+  const mark = useCallback((key, id, on) => setState(current => { const next = new Set(current[key]); if (on) next.add(id); else next.delete(id); return { ...current, [key]: next }; }), []);
+  const add = useCallback(async ref => { await call('book.qa.add', ref); mark('ids', ref.followupId, true); }, [call, mark]);
+  const remove = useCallback(async followupId => { await call('book.qa.remove', { followupId }); mark('ids', followupId, false); }, [call, mark]);
+  const addCard = useCallback(async ref => { await call('book.qa.add', { ...ref, answerCard: true }); mark('cards', ref.cardId, true); }, [call, mark]);
+  const removeCard = useCallback(async cardId => { await call('book.qa.remove', { cardId, answerCard: true }); mark('cards', cardId, false); }, [call, mark]);
+  return { ...state, add, remove, addCard, removeCard };
 }
 
 /** refOf: { deckId, cardId, followupId }; book: useBookQa(); onChanged() after an add or a remove (the book page reads the book again). */

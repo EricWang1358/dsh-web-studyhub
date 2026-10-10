@@ -199,6 +199,13 @@ const FEATURES = {
     line: ui('弄懂和加一段需要先配置模型；读书页、改书页照常能用。'),
     note: ui('读书页、改书页照常能用；弄懂和加一段前需要先配置模型。'),
   }),
+  // 分析题答案卡 of a case question (ui/AnswerCard.jsx); the reference answer and a card already written need no model.
+  answerCard: () => ({
+    why: ui('生成答题卡要调用 AI 模型；参考答案和已经生成的答题卡不需要模型也能看。'),
+    then: ui('回到这道题，点「生成答题卡」'),
+    line: ui('生成答题卡需要先配置模型；参考答案照常能看。'),
+    note: ui('参考答案照常能看；生成答题卡前需要先配置模型。'),
+  }),
   // Drafting a note from questions (ui/BlogNotes.jsx).
   note: () => ({
     why: ui('AI 起草要调用 AI 模型。配置好之后回到这里，点「AI 起草解析」。'),
