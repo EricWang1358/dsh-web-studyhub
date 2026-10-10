@@ -22,7 +22,7 @@ Existing pieces it builds on (do not duplicate): 总纲 `course-outline` (lib/co
 ## 3. Invariants (each needs a test)
 - I1 Every write is a server-side read-modify-write on the CURRENT saved book, compare-and-set by a per-file version, serialized per course (one writer queue). A crash never leaves a half-written book (write whole, atomic).
 - I2 Regeneration (new materials, new outline, new papers) never changes a `.mine.md` file and never overwrites a forked gen file.
-- I3 Outline rebuild: leaves are re-mapped by anchors then title; files that cannot be mapped move to `unplaced` and are flagged 「已无对应知识点」; nothing is deleted.
+- I3 Outline rebuild: leaves are re-mapped by anchors then title; files that cannot be mapped move to `unplaced` and are flagged 「已无对应知识点」; nothing the learner wrote, edited or forked is ever deleted (an unforked gen file of an unmapped leaf is regenerable and is dropped).
 - I4 Heading ids are stable: assigned once, never renumbered or reused when sections are inserted, moved or removed; footnote ids are namespaced per file so stitched files never collide.
 - I5 Question links: only `studyhub://card/<deckId>/<cardId>`, `studyhub://practice?heading=<id>&n=<k>`, `studyhub://qa?heading=<id>` are interpreted; a link to a deleted/replaced card renders as 「这道题已被删除」, never throws, and is skipped by export. Links only navigate; they never run an action. Any other link opens normally (noopener). The preview renders no raw HTML.
 - I6 The book is never material/evidence: not listed in 资料, not accepted by `assertMaterials`, not in the retrieval index, not in the library search, not in the main-session context as a source.
@@ -40,6 +40,10 @@ Acceptance: I4, I5, I6, I8, I9, I10 (export not yet), outline-rebuild remapping 
 
 ### M2 — editing (branch codex/book-m2)
 预览/原文 toggle (state per course), edit any file, fork rule (I2), suggestions (采用/忽略), CAS saves with the 「书已更新」 merge by file, versions + 回退 (I1, I7), parser/merger fuzz tests, interleaving tests (AI write vs editor save vs qa.add), crash-safety test.
+Decided after M1 (2026-10-11):
+- Version history lives OUTSIDE the `sources` collection: a separate per-course history store, size-capped, so the book's versions never weigh on reads of the library's sources (outline index, search, snapshot).
+- Headings the learner types get ids through `assignHeadingIds` with the manifest's heading ids passed as `taken`, so a typed heading never takes an id of the outline's.
+- Gen files hold no per-question list (M1): the individual question links of a point are rendered live from the current outline and cards (first 5 and 「还有 N 道」), and resolved at export; gen files change only when the notes change, and an unchanged `course.book.open` writes nothing.
 
 ### M3 — Q&A into the book
 Button on the practice page and in 本节问答, `book.qa.add/remove` (idempotent per followup id, adds the link under the right heading when missing, else under 未归位), `book.qaToBook` manual/auto with the small switch, tests as in the earlier brief.

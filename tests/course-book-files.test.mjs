@@ -53,10 +53,12 @@ test('open makes the files from the outline and its notes: headings by the manif
   assert.ok(/^h\d+$/.test(what.hid) && what.hid !== who.hid);
   assert.match(what.gen, /\*\*知识梳理\*\*\n\n- Architects decide \[\^1\]\./);
   assert.match(what.gen, /\[\^2\]: \[「[^」]+」\]\(studyhub:\/\/source\/document-l1-p1\)/);
-  assert.match(what.gen, /- \[练习：[^\]]+\]\(studyhub:\/\/card\/deck-l1\/q\d+\)/);
-  assert.match(what.gen, new RegExp(`\\[练 5 道：What architects do\\]\\(studyhub://practice\\?heading=${what.hid}&n=5\\) · \\[本节问答：What architects do\\]\\(studyhub://qa\\?heading=${what.hid}\\)`));
-  assert.match(what.gen, /还有 5 道题/, '25 questions: 20 links and the rest through 练 5 道');
-  assert.equal(what.questions, 25);
+  assert.doesNotMatch(what.gen, /studyhub:\/\/card\//, 'no list of questions is stored in a file');
+  assert.match(what.gen, new RegExp(`\\[练 5 道：What architects do\\]\\(studyhub://practice\\?heading=${what.hid}&n=5\\) · \\[本节问答：What architects do\\]\\(studyhub://qa\\?heading=${what.hid}\\)$`));
+  assert.equal(what.questionTotal, 25, 'the point\'s questions are read live');
+  assert.deepEqual(Object.keys(what.questions[0]), ['deckId', 'cardId', 'prompt']);
+  assert.equal(what.questions[0].deckId, 'deck-l1');
+  assert.equal(bookOf(state).text, '复习全书（由 StudyHub 3.4 以上管理，请勿删除）', 'an older release that lists it shows what it is');
   assert.equal(what.mine, '');
   assert.doesNotMatch(what.gen, /考情/, 'no sample paper: nothing about exams');
   const record = bookOf(state);
@@ -74,10 +76,19 @@ test('generated files follow the notes and questions; the learner\'s file and a 
   state.decks.find(deck => deck.id === 'deck-l1').cards = state.decks.find(deck => deck.id === 'deck-l1').cards.filter(card => card.prompt !== state.decks.find(deck => deck.id === 'deck-l1').cards[0].prompt);
   state.revision = 2;
   const again = openCourseBook(state, {}), [whatView, whoView] = leaves(again.nodes);
-  assert.ok(again.revision > first.revision);
+  assert.equal(again.changed, false, 'questions added or deleted change no file');
+  assert.equal(again.revision, first.revision);
   assert.equal(whatView.mine, 'My own note.');
-  assert.equal(whatView.questions, 24, 'a question removed: the generated file follows');
+  assert.equal(whatView.questionTotal, 24, 'a question removed: the live list follows');
   assert.equal(whoView.gen, 'I changed this.', 'a generated file the learner changed stays as it is');
+  // The notes change: the generated file that nobody changed follows, the forked one does not.
+  const notesRecord = state.sources.find(source => source.provenance === 'course-outline-notes');
+  notesRecord.courseNotes.leaves[0].body = { ...notesRecord.courseNotes.leaves[0].body, explain: 'Rewritten.' };
+  state.revision = 3;
+  const third = openCourseBook(state, {});
+  assert.equal(third.changed, true);
+  assert.match(leaves(third.nodes)[0].gen, /Rewritten\./);
+  assert.equal(leaves(third.nodes)[1].gen, 'I changed this.');
 });
 
 test('an outline rebuild maps the files by anchors, then by title; what cannot be mapped goes to 未归位 marked 已无对应知识点; nothing is deleted (I3)', () => {
@@ -148,8 +159,9 @@ test('the fixtures: no notes, a point without questions, a single point, sample 
   const bare = library({ notes: false }).state, open = openCourseBook(bare, {});
   assert.equal(open.notes, false, 'no notes: the page shows its empty state');
   assert.doesNotMatch(leaves(open.nodes)[0].gen, /知识梳理/);
-  assert.match(genText({ notes: null, questions: [], hid: 'h1', title: 'X', language: 'zh' }), /^这一节还没有题。$/);
-  assert.match(genText({ notes: null, questions: [], hid: 'h1', title: 'X', language: 'en' }), /^This point has no questions yet\.$/);
+  assert.equal(genText({ notes: null, hid: 'h1', title: 'X', language: 'zh' }), '[练 5 道：X](studyhub://practice?heading=h1&n=5) · [本节问答：X](studyhub://qa?heading=h1)');
+  assert.equal(genText({ notes: null, hid: 'h1', title: 'X', language: 'en' }), '[Practise 5: X](studyhub://practice?heading=h1&n=5) · [Questions and answers: X](studyhub://qa?heading=h1)');
+  assert.equal(leaves(open.nodes)[1].questionTotal, 25);
   const { state, lecture } = library({ notes: false });
   state.sources = state.sources.filter(source => !source.courseOutline).concat(outlineOf(state, [{ id: 'only', title: 'The only point', anchors: [`${lecture}#0`] }]));
   const single = openCourseBook(state, {});
@@ -170,6 +182,11 @@ test('the book is never material: no 资料 list, no search, no context count, n
   const before = await service.call('library.context', {});
   const opened = await service.call('course.book.open');
   assert.equal(opened.status, 'ok');
+  const revision = (await service.store.read()).revision;
+  const again = await service.call('course.book.open');
+  assert.equal(again.changed, false);
+  assert.equal((await service.store.read()).revision, revision, 'an unchanged open does not write the library');
+  assert.deepEqual(again.nodes, opened.nodes);
   const record = bookOf(await service.store.read());
   assert.ok(record && isLibraryListSource(record) && !notExamPointList(record));
   assert.throws(() => assertMaterials([record]), error => error.code === 'course-book-doc-not-material');

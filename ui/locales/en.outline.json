@@ -103,5 +103,8 @@
   "书页上的讲解要先调用 AI 模型写出来；已经写好的书页不需要模型也能读。": "The explanations of the book page are written by an AI model first; what is already written can be read without one.",
   "回到书页，点「生成复习全书」": "Come back to the book page and select “Write the review book”",
   "写书页的讲解需要先配置模型；写好的部分不需要模型也能读。": "Set up a model to write the book page's explanations; what is written can be read without one.",
-  "写好的部分不需要模型也能读；写书页的讲解前需要先配置模型。": "What is written can be read without a model; set one up before writing the book page's explanations."
+  "写好的部分不需要模型也能读；写书页的讲解前需要先配置模型。": "What is written can be read without a model; set one up before writing the book page's explanations.",
+  "本节的题": "Questions of this point",
+  "练习：{0}": "Practise: {0}",
+  "还有 {0} 道": "{0} more"
 }

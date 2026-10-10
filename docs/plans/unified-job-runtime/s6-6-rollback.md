@@ -50,7 +50,7 @@
 
 **没有开关的种类：复习全书生成（`course-book-build`，2026-10-09）。** 同上：全书是一份带附加字段（`courseNotes`，`provenance: 'course-outline-notes'`）的普通 source，旧版读写时字段原样保留；△ 旧版不认识它的隐藏规则，会把它当一份 Markdown 资料列出，接受的退化。任务不持久，全书（和它顺带整理的总纲）只在最后一步一次性入库，没有半成品，重启后再点一次「生成复习全书」。证据：`course-book-job.test.mjs`、`course-book.test.mjs`。
 
-**不是任务：复习全书书页（`course-book-doc`，2026-10-11，[复习全书](../../review-book.zh-CN.md)）。** `course.book.open` 是学习库的一个写操作，不是任务，没有开关。书页是一份带附加字段（`bookDoc`，`provenance: 'course-book-doc'`）的普通 source，`text` 为空，Markdown 文件在 `bookDoc.files` 里；旧版读写时字段原样保留。△ 旧版不认识它的隐藏规则，可能把它当一份空的 Markdown 资料列出，在旧版里删掉它就删掉了书页文件；接受的退化，只能升级。证据：`course-book-files.test.mjs`。
+**不是任务：复习全书书页（`course-book-doc`，2026-10-11，[复习全书](../../review-book.zh-CN.md)）。** `course.book.open` 是学习库的一个写操作，不是任务，没有开关。书页是一份带附加字段（`bookDoc`，`provenance: 'course-book-doc'`）的普通 source，`text` 只有一行说明「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」，Markdown 文件在 `bookDoc.files` 里；旧版读写时字段原样保留。△ 旧版不认识它的隐藏规则，可能把它当一份只有这行说明的 Markdown 资料列出，在旧版里删掉它就删掉了书页文件；接受的退化，只能升级。证据：`course-book-files.test.mjs`。
 
 ## 3. 格式：运行时留下了什么
 

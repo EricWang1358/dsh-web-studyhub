@@ -113,7 +113,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
 
       // A question link of 1.2 goes to the practice page with 回到复习全书, and comes back at the same heading and scroll.
       const hid = await first.locator('.book-node__heading').nth(1).getAttribute('data-book-heading');
-      const link = page.locator(`#book-${hid} ~ .book-file [data-book-link="card"]`).first();
+      const link = page.locator(`#book-${hid} ~ .book-questions [data-book-link="card"]`).first();
       await link.scrollIntoViewIfNeeded();
       await page.waitForTimeout(300);
       const before = await topOf(page, hid);

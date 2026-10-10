@@ -26,9 +26,10 @@ const gen = ['**知识梳理**', '', '- Entropy measures disorder [^1]', '', '**
   '[练 5 道：Entropy](studyhub://practice?heading=h2&n=5) · [本节问答：Entropy](studyhub://qa?heading=h2)'].join('\n');
 const book = { status: 'ok', title: '复习全书 · SA', notes: true, papers: 0, missing: ['d1|gone'], unplaced: { title: '未归位', text: '' },
   nodes: [{ hid: 'h1', key: 'bk:c1', title: 'Thermodynamics', number: '1', depth: 1, leaf: false, children: [
-    { hid: 'h2', key: 'bk:p1', title: 'Entropy', number: '1.1', depth: 2, leaf: true, gen, mine: '', questions: 2, children: [] },
-    { hid: 'h3', key: 'bk:p2', title: 'Enthalpy', number: '1.2', depth: 2, leaf: true, gen: '这一节还没有题。', mine: 'My note.', questions: 0, children: [] }] },
-  { hid: 'h4', key: 'bk:c2', title: 'Kinetics', number: '2', depth: 1, leaf: true, gen: 'Rates.', mine: '', questions: 1, children: [] }] };
+    { hid: 'h2', key: 'bk:p1', title: 'Entropy', number: '1.1', depth: 2, leaf: true, gen, mine: '', questionTotal: 7, children: [],
+      questions: Array.from({ length: 7 }, (_, i) => ({ deckId: 'd1', cardId: `live${i}`, prompt: `Live question ${i}?` })) },
+    { hid: 'h3', key: 'bk:p2', title: 'Enthalpy', number: '1.2', depth: 2, leaf: true, gen: 'Heat.', mine: 'My note.', questionTotal: 0, questions: [], children: [] }] },
+  { hid: 'h4', key: 'bk:c2', title: 'Kinetics', number: '2', depth: 1, leaf: true, gen: 'Rates.', mine: '', questionTotal: 1, questions: [{ deckId: 'd1', cardId: 'k1', prompt: 'Rate?' }], children: [] }] };
 const handlers = { gone: ui.goneSet(book.missing), qaOpen: () => false, toggleQa: noop, source: noop, card: noop, practice: noop, create: noop };
 const chapter = (node, open) => render(h(ui.BookChapter, { node, open, onToggle: noop, course: 'SA', handlers }));
 
@@ -50,8 +51,10 @@ test('a closed chapter is its heading only; an open one renders its points with 
   assert.match(html, /<span class="md-link">Strange<\/span>/, 'an unknown studyhub:// link is plain text');
   assert.match(html, /href="https:\/\/example\.com"[^>]*rel="noopener noreferrer"/, 'an ordinary link opens normally');
   assert.match(html, /class="md-cite"/, 'the 角标 is a button');
-  assert.match(text, /这一节还没有题。/);
-  assert.match(text, /出题/, 'a point without questions offers the 出题 entry');
+  assert.match(text, /本节的题 练习：Live question 0\? 练习：Live question 1\? 练习：Live question 2\? 练习：Live question 3\? 练习：Live question 4\? 还有 2 道/, 'the point\'s questions live: the first five, then 还有 N 道');
+  assert.doesNotMatch(text, /Live question 5/);
+  assert.match(text, /这一节还没有题。/, 'a point without questions says so');
+  assert.match(text, /出题/, 'and offers the 出题 entry');
   assert.match(html, /book-file--mine[\s\S]*My note\./, 'the learner\'s file follows the generated one');
 });
 
@@ -69,8 +72,9 @@ test('the live 目录 lists the stitched headings with their chapter and marks �
 test('English: the page\'s own words are English (the book\'s text is the book\'s)', () => english(() => {
   const html = chapter(book.nodes[0], true), toc = render(h(ui.BookToc, { entries: ui.tocEntries(book), here: 'h2', onGo: noop }));
   assert.match(textOf(html), /This question was deleted/);
+  assert.match(textOf(html), /Questions of this point Practise: Live question 0\?[\s\S]*2 more[\s\S]*This point has no questions yet\./);
   assert.match(textOf(toc), /You are here/);
-  const own = textOf(html).replace(/Thermodynamics|Entropy|Enthalpy|练习：What is entropy\?|练 5 道：Entropy|本节问答：Entropy|「Entropy measures disorder」|知识梳理|出处|本节的题|这一节还没有题。|My note\.|Strange|Web|Textbook|disorder/g, '');
+  const own = textOf(html).replace(/Thermodynamics|Entropy|Enthalpy|练习：What is entropy\?|练 5 道：Entropy|本节问答：Entropy|「Entropy measures disorder」|知识梳理|出处|本节的题|My note\.|Strange|Web|Textbook|disorder|Live question \d\?|Heat\./g, '');
   assert.equal(han.test(own), false, `no Chinese of the page left: ${own}`);
 }));
 
