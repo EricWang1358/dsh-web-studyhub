@@ -115,6 +115,7 @@
 ## 开发者
 
 - `course.outline {course?, deckId?, expand?, pick?}`（lib/course-outline.js；放置规则在 lib/course-outline-index.js）按需读取，不随快照发送。不带 `expand` 时返回资料行和计数；`expand: [key]` 加上某份资料的章节或某一行的题；`pick: { keys, cards }` 只返回 `practice: { scope, total, capped, limit }`，`review.start {mode:'path'}` 可以直接使用这个范围。
+- `course.outline.qa {course?, keys?, cards?}`（lib/course-outline-qa.js）按需读取一些行（书页「本节问答」的一个知识点）里留下的问答：题目在当前写法下的追问、阅读器里落在这些行位置之内的批注（按偏移所在章节判断，和题目归位同一规则；原文未改）、以及问答卡。最多读 200 道题（`cards: { total, read, capped, limit }`）；每一项是 `{ kind: 'card' | 'passage' | 'qa-card', question, answer, at, place, openRef }`，按阅读顺序。
 - 放置结果按学习库版本、分钟、课程和题组筛选缓存。合成的 200 份资料（600 万字符）、3000 道题、600 条写法不同的引文：第一次约 75 毫秒，之后约 5 毫秒；不展开任何行时的返回约 55 KB。
 - 页面在 ui/outline/，页面注册表里是 ui/pages.js 的 `outline`。
 - 整理好的总纲是一条 source 记录（lib/course-outline-book.js）：`provenance: 'course-outline'`、可读的 `text` 和结构化的 `courseOutline`（最多三层的 `nodes`，每个叶子的 `anchors` 是 `course.outline` 的资料键和章节键；`other`、`orderBasis`、`papers`、资料指纹 `fingerprint`、`supersedes`）。lib/exam-point-list.js 的 `isLibraryListSource` 把它和考点清单一起隐藏。`course.outline` 返回 `book`（lib/course-outline-book-view.js 把它叠在引擎的行上；键以 `bk:` 开头，可用于 `expand` 和 `pick`）。
