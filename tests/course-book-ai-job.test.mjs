@@ -127,6 +127,7 @@ test('an instruction, 加一段 under a heading, a follow-up under its block, �
   let blocks = aiBlocks(mineOf(await w.open()));
   assert.deepEqual(blocks.map(block => block.id), [first.started.blockId, follow.started.blockId, here.started.blockId], 'a follow-up goes right under the block it continues');
   assert.equal(blocks[2].at, `h:${w.point.hid}`);
+  assert.deepEqual([blocks[0].mode, blocks[0].ask, blocks[2].mode, blocks[2].ask], ['write', '加个例子', 'here', '对比两种做法做个表'], 'a block remembers what was asked (for 重新生成)');
   const redo = await w.finish({ mode: 'write', words: 'writes each decision down', instruction: '加个例子', replace: first.started.blockId });
   assert.equal(redo.started.blockId, first.started.blockId);
   blocks = aiBlocks(mineOf(await w.open()));

@@ -192,6 +192,13 @@ const FEATURES = {
     line: ui('写书页的讲解需要先配置模型；写好的部分不需要模型也能读。'),
     note: ui('写好的部分不需要模型也能读；写书页的讲解前需要先配置模型。'),
   }),
+  // 弄懂 / 加一段 while reading the 复习全书 (ui/book/BookAiAsk.jsx); reading and editing the book need no model.
+  bookAi: () => ({
+    why: ui('弄懂和加一段要调用 AI 模型；读书页、改书页不需要模型。'),
+    then: ui('回到书页，再选中文字点「弄懂」'),
+    line: ui('弄懂和加一段需要先配置模型；读书页、改书页照常能用。'),
+    note: ui('读书页、改书页照常能用；弄懂和加一段前需要先配置模型。'),
+  }),
   // Drafting a note from questions (ui/BlogNotes.jsx).
   note: () => ({
     why: ui('AI 起草要调用 AI 模型。配置好之后回到这里，点「AI 起草解析」。'),

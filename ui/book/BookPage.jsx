@@ -12,6 +12,9 @@ import { bookStartedText, writingText } from '../outline/words.js';
 import BookChapter from './BookChapter.jsx';
 import BookToc from './BookToc.jsx';
 import BookEditor from './BookEditor.jsx';
+import BookAiAsk from './BookAiAsk.jsx';
+import { usePolling } from '../use-polling.js';
+import { isActiveJob } from '../../lib/job-status.js';
 import { bookRows, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
 import css from './book.css';
 
@@ -49,6 +52,39 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [file, setFile] = useState(null);
   const [choosing, setChoosing] = useState(false);
   const setBook = useCallback(next => setState(current => ({ ...current, book: next })), []);
+  // 弄懂 / 加一段: the panel over the selected words (or a heading), and the tasks started from this page (the book is read again when one ends).
+  const [ask, setAsk] = useState(null);
+  const [pending, setPending] = useState(() => new Set());
+  const startAi = useCallback(async args => {
+    try {
+      const started = await call('generation.courseBook.explain', { course, ...args });
+      setPending(current => new Set([...current, started.jobId]));
+      notify({ text: ui('已开始：写好后会出现在这一段下面；任务页可以看进度。'), tone: 'success' });
+      setAsk(null);
+      window.getSelection?.()?.removeAllRanges?.();
+    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+  }, [call, course, notify]);
+  // A task started here is looked at now and then (job.status) until it ends; then the book is read again, its block in place.
+  usePolling(async () => {
+    for (const jobId of pending) {
+      let job;
+      try { job = await call('job.status', { jobId }); } catch { continue; }
+      const status = job?.status ?? job?.contract?.status;
+      if (!status || isActiveJob({ status })) continue;
+      setPending(current => { const next = new Set(current); next.delete(jobId); return next; });
+      if (status === 'failed') notify({ text: job?.error?.message || job?.contract?.error?.message || ui('没有写成，可以在任务页重试。'), tone: 'error' });
+      setState(current => ({ ...current, ticket: current.ticket + 1 }));
+    }
+  }, { intervalMs: 1500, enabled: pending.size > 0 });
+  // Words selected in a point's text open the panel under them.
+  const onSelect = useCallback(() => {
+    const selection = window.getSelection?.(), words = selection?.toString().replace(/\s+/g, ' ').trim();
+    if (!words || words.length < 2 || !selection.rangeCount) return;
+    const point = (selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement)?.closest?.('[data-book-point]');
+    if (!point) return;
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    setAsk({ heading: point.dataset.bookPoint, words: words.slice(0, 600), top: rect.bottom + 6, left: rect.left });
+  }, []);
   const [open, setOpen] = useState(() => new Set());
   const [here, setHere] = useState(null);
   const [qa, setQa] = useState(() => new Set());
@@ -133,7 +169,20 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       try { setBook(await call('course.book.suggestion', { course, file: name, action, id, version: book.files[name].version })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
       finally { setChoosing(false); }
     },
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook]);
+    // 弄懂 / 加一段 (M4): 「在这里加一段」 on a point; 保留 / 删除 / 重新生成 / 接着问 of an AI block.
+    addHere: (node, element) => { const rect = element.getBoundingClientRect(); setAsk({ heading: node.hid, top: rect.bottom + 6, left: rect.left }); },
+    aiAction: async (node, action, block) => {
+      if (action === 'again') {
+        startAi({ heading: node.hid, mode: block.mode === 'follow' ? 'follow' : block.mode, ...(block.mode !== 'here' ? { words: block.about } : {}),
+          ...(block.ask ? { instruction: block.ask } : {}), replace: block.id });
+        return;
+      }
+      setChoosing(true);
+      try { setBook(await call('course.book.block', { course, file: node.files.mine, id: block.id, action })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+      finally { setChoosing(false); }
+    },
+    aiFollow: (node, block, question) => startAi({ heading: node.hid, mode: 'follow', words: block.about || node.title, instruction: question, after: block.id }),
+  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, startAi]);
   const writeBook = useCallback(async () => {
     try {
       await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
@@ -177,11 +226,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {header}
       <div className={tocOpen ? 'book-layout book-layout--toc' : 'book-layout'}>
         {tocOpen && <nav className="book-toc" aria-label={ui('目录')}><BookToc entries={toc} here={here} onGo={goTo} /></nav>}
-        <div className="book-read">
+        <div className="book-read" onMouseUp={onSelect}>
           {chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
             onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
         </div>
       </div>
+      {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
     </section>
   );
 }

@@ -2,7 +2,7 @@
 
 [English](review-book.md)
 
-**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）和 M3（把问答加进书）；导出和打印在后面的步骤。按 2026-10-11 的代码核对。
+**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）、M3（把问答加进书）和 M4（读的时候弄懂）；导出和打印在后面的步骤。按 2026-10-11 的代码核对。
 
 ## 打开
 
@@ -43,6 +43,15 @@
 - 进了书就是你的文字：可以像别的文件一样改（「原文」里选「· 问答」）；以后改了题目，它也不变。问答文件正在编辑器里打开时，期间加进来的问答会和你的保存合在一起，两边都不丢。
 - 「自动加入复习全书」（练习页按钮旁的小开关，设置 › 练习里也有；默认关）：打开后，练习页开着时新得到的每条追问或「帮我弄懂」回答会自动加进书。已经在书里的不受影响；切换只影响之后的问答。自动加入失败时会有一行小提示，按钮照旧可以点。只有练习页上得到的问答会自动加入。
 
+## 读的时候弄懂、加一段
+
+在「预览」里选中一个知识点的几句话（讲解或你的笔记都行），下面会出现一个小面板：「弄懂」，以及一个输入框「让 AI 写一段…」（讲细点、加个例子、对比做个表）。每个知识点标题下的「在这里加一段」打开同样的输入框。两种都会开始一个任务，在「任务」页能看进度、停止、重试（不估算、不确认）；没有模型时面板显示统一的模型设置提示，读书页、改书页照常能用。
+
+- 回答只依据这个知识点自己的资料（和阅读器里问一段原文同样的规则）。引文会在资料里逐字核对，找不到的去掉；资料以外的内容单独列在「补充（资料以外）」下。没有资料的知识点会直接说明，不开始。
+- 它作为新的一段写进这个知识点自己的笔记，从不覆盖已有内容，显示在你选中的那句话所在段落的后面（那一段挪了位置或改了几个字，它会跟着；那句话没了，就移到这个知识点的末尾，标「原位置已变」）。「在这里加一段」放在标题下面。第一行写着它是关于什么的：「关于：「…」」。
+- 写进去以后就是你的文字：可以在「原文」里像别的内容一样改；书的更新不会改动它。「保留」表示留下，「重新生成」按原来的要求再写一遍，「删除」去掉它，下面的输入框可以接着问，回答放在它下面。
+- 和书里别的内容一样，它只是参考，不会被当作出题的资料。
+
 ## 存在哪里
 
 全书是学习库里的一条隐藏记录（`provenance: 'course-book-doc'`），里面是几份 Markdown 文件：每个知识点一份生成的文件（程序的）和一份你自己的文件（M1 里为空），一份清单（总纲的树，每个标题一个稳定 id），以及一份放「未归位」内容的文件。它只是参考，不是资料：不在资料列表、选择器和搜索里，不进检索索引，不计入助手看到的学习库情况，把它当资料用会被拒绝。题目仍然引用原资料。
@@ -58,5 +67,6 @@
 - `course.book.open {course?}`（lib/course-book-files.js）返回 `{ status, course, revision, title, language, notes, papers, nodes, unplaced, missing, changed }`；`nodes` 是 `{ hid, key, title, number, depth, leaf, gen, mine, questions: [{ deckId, cardId, prompt }], questionTotal, children }`（`questions` 现读，最多 200 道），`missing` 是文件里链接的、已不存在的题目。它先看学习库，只有文件有变化时才写入记录；不随快照发送。
 - `course.book.save {course?, file, text, version}`、`course.book.suggestion {course?, file, action: 'accept' | 'ignore', version}`、`course.book.revert {course?, file}`（lib/course-book-edit.js）：一个写入队列（每个学习库文件夹一个，先到先写），每次一个存储事务；返回和 `course.book.open` 一样的书，加上 `write`（'saved'、'merged'、'unchanged'、'accepted'、'ignored'、'reverted'）和 `history`（{ 文件: 保留的版本数 }）。版本历史在 lib/course-book-history.js：学习库文件夹下的 `book-history/<课程的哈希>.json`，在书本身写完之后经临时文件和改名写入。
 - `book.qa.add {course?, deckId?, cardId, followupId}`、`book.qa.remove {course?, followupId}`、`book.qa.list {course?}`（lib/course-book-qa.js；问答块的格式在 lib/course-book-qa-text.js：`<!-- sh:qa card=… fid=… -->` … `<!-- /sh:qa -->`），和保存一样走写入队列。队列每个学习库文件夹一个，在调用时、读任何东西之前就排进去，所以书的写入按调用的先后进行。每打开一道题，`book.qa.list` 都会把书里的文件读一遍（已知限制：现在的大小没问题，书很大时再加索引）。自动加入由练习页本身完成（ui/review/QuestionRun.jsx），所以「讲解」收起时得到的回答也会加进去。`settings.book.set {patch: {qaToBook: 'manual' | 'auto'}}`（lib/book-settings.js，`settings.book`）。
+- `generation.courseBook.explain {course?, heading, words?, instruction?, mode: 'explain' | 'write' | 'here' | 'follow', after?, replace?, language?}` 开始任务 `course-book-ai`（lib/contexts/generation/book-ai/：一次模型调用，用 lib/ask-prompt.js 里阅读器的依据原文规则）；新块由资料上下文的 `book.aiWrite` 在书的写入队列里写入（lib/course-book-writer.js），并记入版本历史。拒绝码：course-book-ai-no-book、course-book-ai-no-point、course-book-ai-no-materials、course-book-ai-no-request。块的格式和摆放位置见 lib/course-book-ai-text.js（`<!-- sh:ai id=… at=… state=new|kept mode=… ask=… -->`）。`course.book.block {course?, file, id, action: 'keep' | 'delete'}`。
 - lib/course-book-links.js（浏览器可用）：三种题目链接（`parseBookLink`）、写在标题行末的标题 id（`## 标题 <!-- sh:id h3 -->`，`assignHeadingIds`：只给一次，永不复用）、`bookIndex`（标题树和每个标题下的题目链接）、`stitchBook`（按顺序拼接文件，脚注按文件命名）、`plainBook`。
 - 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。
