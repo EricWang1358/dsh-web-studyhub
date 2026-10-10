@@ -30,7 +30,7 @@ export default function BookEditor({ book, file, onPick, onChanged, theme = 'dar
     setMerged(false);
   }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
   const options = useMemo(() => bookFiles(book).map(item => ({ value: item.file,
-    label: item.kind === 'unplaced' ? book.unplaced.title : uiFormat(item.kind === 'gen' ? '{0} {1} · 讲解（生成）' : '{0} {1} · 我的笔记', [item.row.number, item.row.title]) })), [book]);
+    label: item.kind === 'unplaced' ? book.unplaced.title : uiFormat(item.kind === 'gen' ? '{0} {1} · 讲解（生成）' : item.kind === 'qa' ? '{0} {1} · 问答' : '{0} {1} · 我的笔记', [item.row.number, item.row.title]) })), [book]);
   const dirty = draft !== base.current.text;
   const settle = (next, { kept = true } = {}) => {
     base.current = { file, version: next.files[file]?.version ?? 0, text: fileText(next, file) };

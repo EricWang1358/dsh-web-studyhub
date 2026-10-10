@@ -124,5 +124,6 @@
   "这段讲解你改过，所以新生成的内容没有直接替换，放在下面。": "You changed this explanation, so the newly generated text did not replace it; it is below.",
   "看建议的内容": "See the suggested text",
   "采用": "Take it",
-  "忽略": "Ignore"
+  "忽略": "Ignore",
+  "{0} {1} · 问答": "{0} {1} · Q&A"
 }

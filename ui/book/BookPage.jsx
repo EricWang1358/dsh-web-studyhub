@@ -59,10 +59,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   useEffect(() => {
     if (book?.status !== 'ok') return;
     const kept = first.current, wanted = kept?.target ?? kept?.heading, row = wanted ? rowOf(rows, wanted) : null;
-    const chapter = row ? chapters[row.chapter]?.hid : chapters[0]?.hid;
+    // A typed heading is not in the manifest: its chapter was kept with it.
+    const chapter = row ? chapters[row.chapter]?.hid : kept?.chapter && wanted ? kept.chapter : chapters[0]?.hid;
     setOpen(new Set(chapter ? [chapter] : []));
-    setHere(row?.hid ?? chapter ?? null);
-    restore.current = row ? { hid: row.hid, offset: kept?.target ? null : kept?.offset ?? null } : null;
+    setHere(row?.hid ?? (kept?.chapter && wanted) ?? chapter ?? null);
+    restore.current = row || (kept?.chapter && wanted) ? { hid: row?.hid ?? wanted, offset: kept?.target ? null : kept?.offset ?? null } : null;
     first.current = null;
     keepBook(root, course, { target: null });
   }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -88,10 +89,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     return () => observer.disconnect();
   }, [open, book]);
 
-  const remember = useCallback(hid => {
-    const element = document.getElementById(`book-${hid}`);
-    keepBook(root, course, { heading: hid, offset: element ? element.getBoundingClientRect().top : 0, target: null });
-  }, [root, course]);
+  // The way back after practice: the heading just above the link (a typed heading too), where it was on screen, and the chapter that holds it.
+  const remember = useCallback((hid, from) => {
+    const headings = from && pageRef.current ? [...pageRef.current.querySelectorAll('[data-book-heading]')].filter(item => item.compareDocumentPosition(from) & 4) : [];
+    const element = headings.at(-1) || document.getElementById(`book-${hid}`), row = rowOf(rows, hid);
+    keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
+      chapter: row ? chapters[row.chapter]?.hid ?? null : null });
+  }, [root, course, rows, chapters]);
   const goTo = useCallback(id => {
     const entry = toc.find(item => item.id === id);
     if (entry?.chapter) setOpen(current => new Set([...current, entry.chapter]));
@@ -104,16 +108,16 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     qaOpen: heading => qa.has(heading),
     toggleQa: heading => setQa(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
     source: (sourceId, quote) => onOpenSource?.(sourceId, quote),
-    card: (ref, from) => { remember(from); onPractice([ref], { resume: true }); },
+    card: (ref, from, element) => { remember(from, element); onPractice([ref], { resume: true }); },
     // 练 N 道: the next N of the point's questions in a practice round's order (due, weak, new); an open round of exactly those goes on.
-    practice: async (heading, n, from) => {
+    practice: async (heading, n, from, element) => {
       const row = rowOf(rows, heading);
       if (!row) { notify(ui('这一节已不在总纲里。')); return; }
       try {
         const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
         const scope = practice?.scope.slice(0, n) || [];
         if (!scope.length) { notify(ui('这一节还没有题。')); return; }
-        remember(from);
+        remember(from, element);
         onPractice(scope, { resume: true });
       } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     },
@@ -121,9 +125,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     files: book?.files,
     busy: choosing,
     // 采用 / 忽略 of a file's suggestion, compare-and-set on the version shown.
-    choose: async (name, action) => {
+    choose: async (name, action, id) => {
       setChoosing(true);
-      try { setBook(await call('course.book.suggestion', { course, file: name, action, version: book.files[name].version })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+      try { setBook(await call('course.book.suggestion', { course, file: name, action, id, version: book.files[name].version })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
       finally { setChoosing(false); }
     },
   }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook]);

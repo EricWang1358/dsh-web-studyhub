@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const ui = await loadUi(`
-  export { default as BookChapter } from './ui/book/BookChapter.jsx';
+  export { default as BookChapter, headingAnchor } from './ui/book/BookChapter.jsx';
   export { default as BookEditor } from './ui/book/BookEditor.jsx';
   export { default as BookSuggestion } from './ui/book/BookSuggestion.jsx';
   export * from './ui/book/model.js';
@@ -23,8 +23,8 @@ const textOf = html => html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^
 const mine = ['## My section <!-- sh:id h9 -->', '', 'See [练习：Q](studyhub://card/d1/q1) and [练 5 道：P](studyhub://practice?heading=h2&n=5).', '',
   '<script>alert(1)</script> <img src=x onerror=alert(2)> <iframe src="https://example.com"></iframe>'].join('\n');
 const book = { status: 'ok', course: 'SA', title: '复习全书 · SA', notes: true, papers: 0, missing: [], unplaced: { title: '未归位', text: '', file: 'unplaced.md' }, history: { 'p1.mine.md': 2 },
-  files: { 'p1.gen.md': { version: 3, forked: true, suggestion: { text: 'A **newer** explanation.', kind: 'generated' } }, 'p1.mine.md': { version: 2, forked: false, suggestion: { text: 'Their text.', kind: 'theirs' } },
-    'unplaced.md': { version: 1, forked: false, suggestion: null } },
+  files: { 'p1.gen.md': { version: 3, forked: true, suggestions: [{ id: 'g1', text: 'A **newer** explanation.', kind: 'generated' }] }, 'p1.mine.md': { version: 2, forked: false, suggestions: [{ id: 't1', text: 'Their text.', kind: 'theirs' }] },
+    'unplaced.md': { version: 1, forked: false, suggestions: [] } },
   nodes: [{ hid: 'h2', key: 'bk:p1', title: 'Entropy', number: '1', depth: 1, leaf: true, gen: 'My edited explanation.', mine, files: { gen: 'p1.gen.md', mine: 'p1.mine.md' },
     questionTotal: 1, questions: [{ deckId: 'd1', cardId: 'q1', prompt: 'Q?' }], children: [] }] };
 const handlers = { gone: ui.goneSet([]), qaOpen: () => false, toggleQa: noop, source: noop, card: noop, practice: noop, create: noop, files: book.files, choose: noop, busy: false };
@@ -38,12 +38,14 @@ test('预览 of edited files: 已改动 and the waiting suggestions with 采用/
   assert.match(html, /data-book-link="card"/);
   assert.match(html, /data-book-link="practice"/);
   assert.doesNotMatch(html, /sh:id/, 'the heading id is the book\'s, not shown');
+  assert.match(html, /<h\d[^>]*class="md-heading"[^>]*id="book-h9"[^>]*data-book-heading="h9"[^>]*>My section<\/h\d>/, 'a typed heading carries its id: the 目录 and the way back reach it');
+  assert.deepEqual(ui.headingAnchor('Plain'), null);
   assert.match(text, /My section/);
   assert.doesNotMatch(html, /<script|<img src="x"|<img src=x|<iframe/i, 'no raw HTML element');
   assert.match(text, /<script>alert\(1\)<\/script>/, 'it stays visible as text');
-  const forked = render(h(ui.BookSuggestion, { meta: { forked: true, suggestion: null }, onChoose: noop }));
+  const forked = render(h(ui.BookSuggestion, { meta: { forked: true, suggestions: [] }, onChoose: noop }));
   assert.match(textOf(forked), /已改动 这段讲解你改过：重新生成时不会覆盖它。/);
-  assert.equal(render(h(ui.BookSuggestion, { meta: { forked: false, suggestion: null }, onChoose: noop })), '');
+  assert.equal(render(h(ui.BookSuggestion, { meta: { forked: false, suggestions: [] }, onChoose: noop })), '');
 });
 
 test('原文: one file of the book in the editor, the file picker in reading order, 保存 / 放弃改动 / 回退到上一版', () => {

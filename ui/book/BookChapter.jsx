@@ -7,24 +7,29 @@ import BookQa from './BookQa.jsx';
 import { bookResolver } from './BookLinks.jsx';
 import BookSuggestion from './BookSuggestion.jsx';
 import { citesOf } from './model.js';
-import { plainBook } from '../../lib/course-book-links.js';
 
 /* One chapter of the review book (a top node of the 总纲, or 未归位). Only an open chapter renders its files (I8: a big book stays light); a closed one is its
-   heading. A knowledge point shows its generated file, then the learner's (both read only in M1), the 出题 entry when it has no question, and 本节问答 when
-   its link is open. Headings carry their stable id (`book-<hid>`), the targets of the 目录 and of the way back after practice. */
+   heading. A knowledge point shows its generated file, its questions (live), the learner's file, its Q&A file (M3) and 本节问答 when its link is open.
+   Headings carry their stable id (`book-<id>`): the outline's from the manifest, a typed one from its `<!-- sh:id … -->` (Markdown's headingAnchor);
+   they are the targets of the 目录 and of the way back after practice. */
 
 /** How many of a point's questions show before 还有 N 道. */
 const FIRST = 5;
 
+/** A typed heading's id from its `<!-- sh:id … -->`: on the element (book-<id>, the 目录's and the way back's target), the marker off the text. */
+const ID_SUFFIX = /\s*<!-- sh:id (\S+) -->\s*$/;
+export const headingAnchor = text => {
+  const match = ID_SUFFIX.exec(text);
+  return match ? { text: text.slice(0, match.index), props: { id: `book-${match[1]}`, 'data-book-heading': match[1], tabIndex: -1 } } : null;
+};
+
 /** One file as Markdown, its links drawn by the book and its 角标 opening the reader at the 出处 of the same file. */
 function BookFile({ text, hid, handlers, className }) {
   const cites = useMemo(() => citesOf(text), [text]);
-  const resolve = useMemo(() => bookResolver({ gone: handlers.gone, onCard: ref => handlers.card(ref, hid), onPractice: (heading, n) => handlers.practice(heading, n, hid),
+  const resolve = useMemo(() => bookResolver({ gone: handlers.gone, onCard: (ref, element) => handlers.card(ref, hid, element), onPractice: (heading, n, element) => handlers.practice(heading, n, hid, element),
     onQa: handlers.toggleQa, qaOpen: handlers.qaOpen, onSource: handlers.source }), [handlers, hid]);
   const onCite = useCallback(n => { const cite = cites.get(n); if (cite) handlers.source(cite.sourceId, cite.quote); }, [cites, handlers]);
-  // A heading's id marker is the book's, not the reader's: the preview shows the text without it.
-  const shown = useMemo(() => plainBook(text), [text]);
-  return <Markdown className={className} text={shown} resolveLink={resolve} onCite={onCite} />;
+  return <Markdown className={className} text={text} resolveLink={resolve} onCite={onCite} headingAnchor={headingAnchor} />;
 }
 
 /** The point's questions as they are now (never stored in a file): the first few as links, 还有 N 道 for the rest; none: 这一节还没有题。 and 出题. */
@@ -55,10 +60,12 @@ function PointBody({ node, course, handlers }) {
   return (
     <>
       {node.gen && <BookFile text={node.gen} hid={node.hid} handlers={handlers} className="book-file" />}
-      <BookSuggestion meta={handlers.files?.[node.files?.gen]} busy={handlers.busy} onChoose={action => handlers.choose(node.files.gen, action)} />
+      <BookSuggestion meta={handlers.files?.[node.files?.gen]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.gen, action, id)} />
       <PointQuestions node={node} handlers={handlers} />
       {node.mine && <BookFile text={node.mine} hid={node.hid} handlers={handlers} className="book-file book-file--mine" />}
-      {handlers.files?.[node.files?.mine]?.suggestion && <BookSuggestion meta={handlers.files[node.files.mine]} busy={handlers.busy} onChoose={action => handlers.choose(node.files.mine, action)} />}
+      {handlers.files?.[node.files?.mine]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.files.mine]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.mine, action, id)} />}
+      {node.qa && <BookFile text={node.qa} hid={node.hid} handlers={handlers} className="book-file book-file--mine" />}
+      {node.files?.qa && handlers.files?.[node.files.qa]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.files.qa]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.qa, action, id)} />}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} />}
     </>
   );
@@ -87,7 +94,7 @@ export default memo(function BookChapter({ node, open, onToggle, course, handler
         </Button>
       </h2>
       {open && (node.hid === 'unplaced' ? <><BookFile text={node.text} hid="unplaced" handlers={handlers} className="book-file book-file--mine" />
-        {handlers.files?.[node.file]?.suggestion && <BookSuggestion meta={handlers.files[node.file]} busy={handlers.busy} onChoose={action => handlers.choose(node.file, action)} />}</>
+        {handlers.files?.[node.file]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.file]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.file, action, id)} />}</>
         : node.leaf ? <PointBody node={node} course={course} handlers={handlers} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />))}
     </section>
   );

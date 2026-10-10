@@ -92,6 +92,28 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       await page.locator('.book-file', { hasText: `My addition at ${width}.` }).waitFor();
       assert.match(await page.locator('.book-suggestion__forked').first().innerText(), /已改动/);
 
+      // A heading typed in the own file gets its id on save; the 目录 lists it and goes to it (the anchor is on the rendered heading).
+      await mode('原文');
+      await pickFile('1.1 What architects do · 我的笔记');
+      await page.locator('.cm-content').click();
+      await page.keyboard.press('Control+End');
+      await page.keyboard.type(`\n\n## My heading ${width}\n\nUnder my heading.`);
+      await page.locator('.book-editor__save').click();
+      await page.waitForFunction(text => document.querySelector('.cm-content')?.innerText.includes(text), 'sh:id h', { timeout: 30000 });
+      await mode('预览');
+      if (width === 420) await page.locator('.book-header__toc').click();
+      await page.locator('.book-toc__go', { hasText: `My heading ${width}` }).click();
+      const typed = page.locator('.book-file--mine .md-heading', { hasText: `My heading ${width}` });
+      await typed.waitFor();
+      assert.match(await typed.getAttribute('id'), /^book-h\d+$/, `${width}px: a typed heading carries its id`);
+      await page.waitForTimeout(300);
+      // At the top of the window, or as far as the page scrolls (a short book cannot bring its last heading higher).
+      const place = await typed.evaluate(element => {
+        const scroller = document.querySelector('.study-app'), top = Math.round(element.getBoundingClientRect().top);
+        return { top, end: scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2, height: window.innerHeight };
+      });
+      assert.ok(place.top >= 0 && place.top < place.height && (place.top < 300 || place.end), `${width}px: the 目录 brought the typed heading into view: ${JSON.stringify(place)}`);
+
       // A save that met another change (two saves from the same version, through the API): 书已更新 with 采用 / 忽略 in the preview.
       const conflict = async text => {
         const book = await running.api('course.book.open', {}), mine = book.nodes[0].children[1].files.mine, version = book.files[mine].version;
@@ -111,7 +133,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       await openBook();
       await page.locator('.book-suggestion', { hasText: '书已更新' }).getByText('忽略', { exact: true }).click();
       await page.locator('.book-suggestion', { hasText: '书已更新' }).waitFor({ state: 'detached', timeout: 30000 });
-      assert.match(await page.locator('.book-file--mine').first().innerText(), new RegExp(`Again ${width} B`));
+      await page.locator('.book-file--mine', { hasText: `Again ${width} B` }).waitFor();
       overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px 预览: nothing scrolls sideways: ${JSON.stringify(overflow)}`);
       if (shots) await page.screenshot({ path: join(shots, `edit-preview-${width}.png`) });

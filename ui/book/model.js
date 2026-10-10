@@ -42,10 +42,11 @@ export const rowOf = (rows, id) => rows.find(row => row.hid === id || row.key ==
 /** The question links of a file that point to gone questions: `missing` is course.book.open's list of 'deckId|cardId'. */
 export const goneSet = missing => new Set(Array.isArray(missing) ? missing : []);
 
-/** The files of the book in reading order: [{ file, kind: 'gen' | 'mine' | 'unplaced', row }] (row: the point's, null for 未归位). */
+/** The files of the book in reading order: [{ file, kind: 'gen' | 'mine' | 'qa' | 'unplaced', row }] (row: the point's, null for 未归位). */
 export function bookFiles(book) {
   if (book?.status !== 'ok') return [];
-  const out = bookRows(book.nodes).filter(row => row.leaf).flatMap(row => [{ file: row.node.files.gen, kind: 'gen', row }, { file: row.node.files.mine, kind: 'mine', row }]);
+  const out = bookRows(book.nodes).filter(row => row.leaf).flatMap(row => [{ file: row.node.files.gen, kind: 'gen', row }, { file: row.node.files.mine, kind: 'mine', row },
+    ...(row.node.files.qa ? [{ file: row.node.files.qa, kind: 'qa', row }] : [])]);
   return [...out, { file: book.unplaced.file, kind: 'unplaced', row: null }];
 }
 /** The text of one file of the book as course.book.open gave it ('' when the book has no such file). */

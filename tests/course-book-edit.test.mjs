@@ -47,18 +47,18 @@ test('the fork rule: editing a generated file forks it; a new generated text wai
   rewrite(state, 'A better explanation.');
   view = openCourseBook(state, {});
   assert.match(leaves(view.nodes)[0].gen, /My addition\./, 'the learner\'s text stays');
-  assert.match(view.files[what.files.gen].suggestion.text, /A better explanation\./, 'the new generated text is a suggestion');
-  assert.equal(view.files[what.files.gen].suggestion.kind, 'generated');
+  assert.match(view.files[what.files.gen].suggestions[0].text, /A better explanation\./, 'the new generated text is a suggestion');
+  assert.equal(view.files[what.files.gen].suggestions[0].kind, 'generated');
   assert.equal(leaves(view.nodes)[1].mine, 'My own note on stakeholders.', 'regeneration never changes an own file');
   const version = view.files[what.files.gen].version;
   assert.equal(bookSuggestion(state, { file: what.files.gen, action: 'ignore', version }).status, 'ignored');
   view = openCourseBook(state, {});
-  assert.equal(view.files[what.files.gen].suggestion, null);
+  assert.deepEqual(view.files[what.files.gen].suggestions, []);
   state.revision += 1;
-  assert.equal(openCourseBook(state, {}).files[what.files.gen].suggestion, null, 'the text set aside is not offered again');
+  assert.deepEqual(openCourseBook(state, {}).files[what.files.gen].suggestions, [], 'the text set aside is not offered again');
   rewrite(state, 'The best explanation.');
   view = openCourseBook(state, {});
-  assert.match(view.files[what.files.gen].suggestion.text, /The best explanation\./, 'a newer one is');
+  assert.match(view.files[what.files.gen].suggestions[0].text, /The best explanation\./, 'a newer one is');
   assert.throws(() => bookSuggestion(state, { file: what.files.gen, action: 'accept', version: version - 1 }), error => error.code === 'course-book-conflict');
   assert.equal(bookSuggestion(state, { file: what.files.gen, action: 'accept', version: view.files[what.files.gen].version }).status, 'accepted');
   view = openCourseBook(state, {});
@@ -68,6 +68,50 @@ test('the fork rule: editing a generated file forks it; a new generated text wai
   assert.match(leaves(openCourseBook(state, {}).nodes)[0].gen, /Later\./);
   assert.throws(() => saveBookFile(state, { file: 'nope.md', text: 'x', version: 1 }), error => error.code === 'course-book-file-missing');
   assert.throws(() => saveBookFile(state, { file: what.files.gen, text: 'x' }), error => error.code === 'course-book-version-required');
+});
+
+test('a file keeps up to three suggestions, newest first: a 书已更新 never pushes out a waiting generated text; the same text once; each 采用/忽略 on its own', () => {
+  const state = library(), book = openCourseBook(state, {}), [what] = leaves(book.nodes), gen = what.files.gen;
+  saveBookFile(state, { file: gen, text: 'Mine.', version: book.files[gen].version });
+  rewrite(state, 'Generated one.');
+  let view = openCourseBook(state, {});
+  assert.deepEqual(view.files[gen].suggestions.map(item => item.kind), ['generated']);
+  const version = view.files[gen].version;
+  saveBookFile(state, { file: gen, text: 'Editor A.', version });
+  assert.equal(saveBookFile(state, { file: gen, text: 'Editor B.', version }).status, 'merged');
+  view = openCourseBook(state, {});
+  assert.deepEqual(view.files[gen].suggestions.map(item => [item.kind, item.text.slice(0, 12)]), [['theirs', 'Editor A.'], ['generated', view.files[gen].suggestions[1].text.slice(0, 12)]]);
+  assert.match(view.files[gen].suggestions[1].text, /Generated one\./, 'the generated text still waits');
+  rewrite(state, 'Generated one.');
+  assert.equal(openCourseBook(state, {}).files[gen].suggestions.length, 2, 'the same text is not offered twice');
+  for (const text of ['Generated two.', 'Generated three.']) { rewrite(state, text); openCourseBook(state, {}); }
+  view = openCourseBook(state, {});
+  assert.equal(view.files[gen].suggestions.length, 3, 'at most three');
+  assert.match(view.files[gen].suggestions[0].text, /Generated three\./, 'newest first');
+  const [newest, middle] = view.files[gen].suggestions;
+  bookSuggestion(state, { file: gen, id: middle.id, action: 'ignore', version: view.files[gen].version });
+  view = openCourseBook(state, {});
+  assert.deepEqual(view.files[gen].suggestions.map(item => item.id).includes(middle.id), false);
+  assert.equal(view.files[gen].suggestions[0].id, newest.id, 'ignoring one leaves the others');
+  assert.equal(bookSuggestion(state, { file: gen, id: newest.id, action: 'accept', version: view.files[gen].version }).status, 'accepted');
+  view = openCourseBook(state, {});
+  assert.match(leaves(view.nodes)[0].gen, /Generated three\./);
+  assert.deepEqual(view.files[gen].suggestions.filter(item => item.kind === 'generated'), [], 'taking the newest generated text unforks the file: the older generated ones go');
+});
+
+test('a third file per point (M3\'s Q&A file) is shown, edited, stitched after the own file and moved with its point; nothing makes one yet', () => {
+  const state = library(), book = openCourseBook(state, {}), [what] = leaves(book.nodes), doc = state.sources.find(source => source.provenance === 'course-book-doc').bookDoc;
+  const id = leaves(doc.manifest.nodes)[0].id;
+  assert.equal(Object.keys(doc.files).some(name => name.endsWith('.qa.md')), false, 'absent until M3');
+  assert.equal(what.files.qa, undefined);
+  doc.files[`${id}.qa.md`] = { text: '> **追问：** Why?', version: 1 };
+  const view = openCourseBook(state, {}), point = leaves(view.nodes)[0];
+  assert.equal(point.files.qa, `${id}.qa.md`);
+  assert.equal(point.qa, '> **追问：** Why?');
+  saveBookFile(state, { file: point.files.mine, text: 'Mine.', version: 1 });
+  assert.equal(saveBookFile(state, { file: point.files.qa, text: '> **追问：** Why not?', version: 1 }).status, 'saved');
+  const stitched = stitchBook({ title: view.title, nodes: openCourseBook(state, {}).nodes, unplaced: view.unplaced });
+  assert.ok(stitched.indexOf('Mine.') < stitched.indexOf('Why not?') && stitched.indexOf('Why not?') < stitched.indexOf('1.2 Stakeholders'), 'gen, mine, then qa');
 });
 
 test('a typed heading gets an id on save that no heading of the outline or another file has; a copied id is given anew; footnotes stay per file (I4)', () => {
@@ -152,15 +196,15 @@ test('interleaving: a program refresh, an editor save from before it and a secon
   const late = await study.call('course.book.save', { file: gen, text: 'The learner\'s own text.', version: start });
   assert.equal(late.write, 'merged', '书已更新');
   assert.equal(leaves(late.nodes)[0].gen, 'The learner\'s own text.', 'the unsaved edit is kept');
-  assert.match(late.files[gen].suggestion.text, /Refreshed by the program\./, 'the other text is offered');
-  assert.equal(late.files[gen].suggestion.kind, 'theirs');
+  assert.match(late.files[gen].suggestions[0].text, /Refreshed by the program\./, 'the other text is offered');
+  assert.equal(late.files[gen].suggestions[0].kind, 'theirs');
   // Two editors save the same file from the same version at once: the queue runs them one after the other; the second keeps its text and offers the first.
   const version = late.files[gen].version;
   const [one, two] = await Promise.all([study.call('course.book.save', { file: gen, text: 'Editor one.', version }), study.call('course.book.save', { file: gen, text: 'Editor two.', version }),
     study.call('course.book.open')]);
   assert.deepEqual([one.write, two.write], ['saved', 'merged']);
   assert.equal(leaves(two.nodes)[0].gen, 'Editor two.');
-  assert.equal(two.files[gen].suggestion.text, 'Editor one.');
+  assert.equal(two.files[gen].suggestions[0].text, 'Editor one.');
   assert.equal(two.files[gen].version, version + 2);
   // A save of another file from an old version is no conflict: only that file's version counts.
   const other = await study.call('course.book.save', { file: what.files.mine, text: 'Mine.', version: 1 });
@@ -201,12 +245,23 @@ test('versions: kept outside the sources, at most 20, 回退到上一版 per fil
   book = await study.call('course.book.revert', { file: gen });
   assert.doesNotMatch(leaves(book.nodes)[0].gen, /Program rewrite/);
   assert.equal(book.files[gen].forked, true);
-  assert.equal((await study.call('course.book.open')).files[gen].suggestion, null, 'the text taken back is not written or offered again');
+  assert.deepEqual((await study.call('course.book.open')).files[gen].suggestions, [], 'the text taken back is not written or offered again');
   await renote('A newer program text.');
   const newer = await study.call('course.book.open');
   assert.doesNotMatch(leaves(newer.nodes)[0].gen, /newer/, 'a newer one is not written over the learner\'s choice either');
-  assert.match(newer.files[gen].suggestion.text, /A newer program text\./, 'it is offered');
+  assert.match(newer.files[gen].suggestions[0].text, /A newer program text\./, 'it is offered');
   await assert.rejects(study.call('course.book.revert', { file: 'unplaced.md' }), error => error.code === 'course-book-no-version');
+  // A portable backup carries the history (it lives beside the library); a restore into another library brings it back, so 回退 still works there.
+  const backup = await study.call('export');
+  assert.equal(backup.portableBookHistory.files.length, 1);
+  const target = await mkdtemp(join(tmpdir(), 'study-book-restore-'));
+  t.after(() => rm(target, { recursive: true, force: true }));
+  const restored = new StudyService(target);
+  await restored.call('restore', { state: backup });
+  const there = await restored.call('course.book.open');
+  assert.equal(there.history[mine], book.history[mine]);
+  assert.equal(leaves((await restored.call('course.book.revert', { file: mine })).nodes)[0].mine, 'Version 22.');
+  await assert.rejects(new StudyService(target).call('restore', { state: { ...backup, portableBookHistory: { format: 'nope', files: [] } } }), /unreadable review book history/);
   const big = Array.from({ length: 30 }, (_, i) => ({ file: 'x', version: i, text: 'y'.repeat(300000) }));
   const capped = capHistory(big);
   assert.ok(capped.length < HISTORY_KEPT && capped.reduce((sum, entry) => sum + entry.text.length, 0) <= 4_000_000, 'fewer versions when they are large');
