@@ -55,7 +55,7 @@ test('加入复习全书: the rendered card once, in the point\'s Q&A file under
   const added = await study.call('book.qa.add', { deckId: deck.id, cardId: card.id, answerCard: true });
   assert.equal(added.write, 'added');
   const qa = leaves(added.nodes)[0].qa;
-  assert.match(qa, new RegExp(`^- \\[练习：[^\\]]+\\]\\(studyhub://card/${deck.id}/${card.id}\\)\\n\\n<!-- sh:card card=${card.id} -->\\n\\*\\*Answer card\\*\\*\\n\\n\\*\\*Question type: \\*\\*Availability`));
+  assert.match(qa, new RegExp(`^- \\[练习：[^\\]]+\\]\\(studyhub://card/${deck.id}/${card.id}\\)\\n\\n<!-- sh:card card=${card.id} -->\\n\\*\\*Answer card\\*\\*\\n\\n\\*\\*Question type\\*\\*: Availability`));
   const [block] = cardBlocks(qa);
   assert.equal(block.cardId, card.id);
   assert.ok(block.raw.includes(renderAnswerCard(card.answerCard)), 'the rendered Markdown, as it is');

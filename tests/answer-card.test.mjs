@@ -128,7 +128,9 @@ test('the Markdown is deterministic, bold labels and no headings, every part wit
   assert.match(zh, /已核对 ≠ 答案正确/);
   assert.doesNotMatch(zh, /\d{4}-\d{2}-\d{2}T|model|gpt|claude/i, 'no time, no model name');
   const en = renderAnswerCard(card);
-  assert.match(en, /\*\*Question type: \*\*Availability/);
+  assert.match(en, /^\*\*Question type\*\*: Availability$/m);
+  assert.match(en, /“A quote of nowhere at all in this case\.” \(not verified\)/);
+  assert.match(zh, /^\*\*题型\*\*：Availability$/m);
   assert.match(en, /not verified/);
   assert.equal(card.renderedDigest, textDigest(renderAnswerCard(card)));
 });

@@ -48,7 +48,7 @@ export function AnswerCardView({ card, actions = null }) {
         <p className="answer-card__notice">{ui('已核对 ≠ 答案正确：程序逐字核对了引文、算了评分点覆盖、找了来路不明的数字，并做了一次独立复核；对不对还要你自己判断。')}</p>
         {card.state === 'edited' && <p className="answer-card__notice">{ui('这道题（题干、分值、评分标准或参考答案）在答题卡生成后改过，答题卡可能已经对不上。')}</p>}
         {quotes && coverage && <p className="answer-card__checks">{uiFormat('引文 {0}/{1} 已在原文找到 · 评分点 {2}/{3}', [quotes.verified, quotes.total, coverage.covered, coverage.total])}
-          {review?.ran === false ? ` · ${ui('独立复核没有完成')}` : review?.repaired ? ` · ${ui('复核意见已据此修改一次')}` : ''}</p>}
+          {review?.ran === false ? ` · ${ui('独立复核没有完成')}` : review?.repaired ? ` · ${ui('发现的问题已修改一次（修改后没有再复核）')}` : ''}</p>}
         {invented.length > 0 && <InlineMessage tone="warning">{uiFormat('这些数字在题干、假设和概念里都找不到，可能是编出来的：{0}', [invented.join('、')])}</InlineMessage>}
       </header>
       {card.signals?.length > 0 && <Part id="signals" label={ui('识别信号')}>

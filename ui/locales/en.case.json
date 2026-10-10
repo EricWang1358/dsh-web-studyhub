@@ -189,7 +189,7 @@
   "这道题（题干、分值、评分标准或参考答案）在答题卡生成后改过，答题卡可能已经对不上。": "This question (its stem, marks, rubric or reference answer) changed after the card was made, so the card may no longer match it.",
   "引文 {0}/{1} 已在原文找到 · 评分点 {2}/{3}": "{0}/{1} quotes found in the original · {2}/{3} marking points",
   "独立复核没有完成": "the independent review did not finish",
-  "复核意见已据此修改一次": "revised once after the review",
+  "发现的问题已修改一次（修改后没有再复核）": "what the checks found was revised once (not reviewed again)",
   "这些数字在题干、假设和概念里都找不到，可能是编出来的：{0}": "These numbers are in neither the stem, the assumptions nor the concepts, so they may be made up: {0}",
   "识别信号": "Signals",
   "题干事实": "Stem facts",

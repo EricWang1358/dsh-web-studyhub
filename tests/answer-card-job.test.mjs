@@ -11,6 +11,7 @@ import { switchOptions } from './helpers/runtime-switch.mjs';
 import { caseCard, caseLibrary, cardModel, goodCard } from './helpers/answer-card-library.mjs';
 import { answerCardBasis, renderAnswerCard } from '../lib/answer-card.js';
 import { featureOf } from '../lib/model-usage.js';
+import { createFakeModel } from '../scripts/fake-model.mjs';
 
 const KIND = 'case-answer-card';
 
@@ -155,6 +156,18 @@ test('the card comes with the reveal like the reference answer: an open review r
   const exam = await w.service.call('review.start', { mode: 'exam', examKinds: 'case', scope: [{ deckId: 'case1' }], fresh: true });
   assert.equal(JSON.stringify(exam).includes('"answerCard"'), false, 'an exam never shows it');
   await assert.rejects(w.service.call('review.reveal', { runId: exam.id, cardId: 'q1' }));
+});
+
+test('the preview\'s fake model (scripts/fake-model.mjs) writes a card the program checks as 已核对 in two calls', async t => {
+  const log = [];
+  const fake = createFakeModel({ log });
+  const w = await world(t, { complete: fake, calls: log });
+  const { job } = await w.finish();
+  assert.equal(job.status, 'complete');
+  assert.deepEqual(log.map(entry => entry.handler), ['answer.card', 'answer.card.review']);
+  const card = (await w.live()).answerCard;
+  assert.equal(card.status, 'verified', JSON.stringify(card.checks));
+  assert.deepEqual(card.signals.map(item => [item.word, item.verified]), [['MTBF', true]], 'a word of the likely type, in its stem sentence');
 });
 
 test('a course adds its own question type through course.save { caseTypes }; the write call is shown it; a bad list is refused', async t => {

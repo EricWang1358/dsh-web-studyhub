@@ -483,9 +483,33 @@ function dailyRecapReply(input, system) {
   return [words.title(input), opening, ...stuck.map((item) => item.block), solidBlock, sectionOf(words.planHeading, steps)].filter(Boolean).join('\n\n');
 }
 
+/** A preview 分析题答案卡: stem facts and a definition copied from the request, the likely type's signal when the case names it, no number. */
+function answerCardReply(input) {
+  const question = input.question || {}, paragraphs = (question.case || []).map((part) => String(part.text || ''));
+  const first = (text) => (String(text || '').split(/(?<=[.!?。！？])\s+/)[0] || '').trim();
+  const facts = paragraphs.slice(0, 2).map(first).filter(Boolean);
+  const material = (input.materials || [])[0], definition = first(material?.text);
+  const type = (input.questionTypes || []).find((item) => item.id === input.likelyType) || {};
+  const signal = (type.signals || []).map((word) => ({ word, quote: paragraphs.map(first).find((text) => text.toLowerCase().includes(String(word).toLowerCase())) })).find((item) => item.quote);
+  const steps = ['预览：先从题干事实出发，按题型的第一步写。', '预览：再在明示的假设下推一步。', '预览：最后对照目标得出结论。'];
+  const conclusion = '预览：这样做能满足题目的要求。';
+  const points = (question.rubric || []).flatMap((criterion) => (criterion.keyPoints?.length ? criterion.keyPoints.map((point) => point.id) : [criterion.id]));
+  const sentences = [...steps, conclusion];
+  return { questionType: type.id || 'general', signals: signal ? [signal] : [], facts: facts.map((quote) => ({ text: clip(quote, 80), quote })),
+    concepts: definition ? [{ name: material.title || 'Concept', ref: material.ref, definition }] : [], assumptions: ['预览：题干没说的地方，假设规模保持不变。'],
+    steps, conclusion, justification: { goal: '预览：它直接回应了题目要的结果。', cost: '预览：代价是多一份运维工作。', failure: '预览：出故障时由备用的一份接管。',
+      verify: '预览：上线后按月统计并对照目标。' }, pitfalls: ['预览：只罗列技术名词，不联系题干。'],
+    marks: points.map((point, at) => ({ point, sentence: sentences[at % sentences.length] })) };
+}
+
 /* ---------- handlers, first match wins ---------- */
 
 const HANDLERS = [
+  // 分析题答案卡 (lib/contexts/generation/answer-card): a card whose quotes are real sentences of the case and of the first material, every key point earned
+  // by one of its sentences, no number at all; the independent review finds nothing. The repair call (same system) is answered the same way.
+  { name: 'answer.card', match: (s) => s.startsWith('You write the model answer of a case / analysis exam question'),
+    reply: ({ prompt }) => answerCardReply(after(prompt.split('\n\nREPAIR:')[0], 'REQUEST DATA:\n')) },
+  { name: 'answer.card.review', match: (s) => s.startsWith('You independently review an answer card'), reply: () => ({ issues: [], summary: 'Preview: nothing found.' }) },
   // 复习全书 弄懂 / 加一段 (lib/contexts/generation/book-ai): the reader's grounded ask with a JSON shape; one real quote from the point's materials, one extra.
   { name: 'book.ai', match: (s) => s.startsWith('Answer the learner question using only the selected source evidence') && s.includes('Reply with JSON only: {"text"'),
     reply: ({ input }) => ({ text: input.instruction ? `预览：按「${input.instruction}」写的一段，关于「${input.words || input.point}」。` : `预览：「${input.words}」的意思是这样的：资料里这一段讲的就是它。`,
