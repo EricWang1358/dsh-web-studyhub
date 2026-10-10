@@ -10,8 +10,58 @@
       align-content: start;
       min-width: 0;
     }
-    .book-header__toc {
-      justify-self: start;
+    .book-header__tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .book-editor {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-editor__bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-editor__file {
+      min-width: 0;
+      max-width: 100%;
+    }
+    .book-editor__note {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-editor__code {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .book-suggestion {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      min-width: 0;
+    }
+    .book-suggestion__line,
+    .book-suggestion__forked {
+      margin: 0;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .book-suggestion__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
     }
     .book-writing {
       display: flex;

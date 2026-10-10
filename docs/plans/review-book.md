@@ -43,6 +43,10 @@ Acceptance: I4, I5, I6, I8, I9, I10 (export not yet), outline-rebuild remapping 
 Decided after M1 (2026-10-11):
 - Version history lives OUTSIDE the `sources` collection: a separate per-course history store, size-capped, so the book's versions never weigh on reads of the library's sources (outline index, search, snapshot).
 - Headings the learner types get ids through `assignHeadingIds` with the manifest's heading ids passed as `taken`, so a typed heading never takes an id of the outline's.
+- Decided after M2 review (2026-10-11): each point may have a third file `<leaf>.qa.md` (M3's Q&A, written only by `book.qa.add/remove`, editable like the others), stitched after mine; the manifest/stitch/picker/history already know it, nothing creates it before M3.
+- A file keeps a small list of suggestions (at most 3, newest first, the same text once, each with its own 采用/忽略; ignored hashes remembered), so a 「书已更新」 conflict never evicts a waiting 「有新的生成内容」.
+- Headings typed in a file carry their id into the rendered HTML (ui/Markdown.jsx `headingAnchor`), so the 目录 and the return to position reach them.
+- The version history (`book-history/` under the library folder) travels with a portable backup (`portableBookHistory`, checked before a restore writes it). Two app processes writing the same course at once are not ordered for the history (a version can be lost; the book stays whole): accepted.
 - Gen files hold no per-question list (M1): the individual question links of a point are rendered live from the current outline and cards (first 5 and 「还有 N 道」), and resolved at export; gen files change only when the notes change, and an unchanged `course.book.open` writes nothing.
 
 ### M3 — Q&A into the book

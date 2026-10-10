@@ -224,11 +224,13 @@ function blocks(rows, options) {
     const heading = row.match(/^\s*(#{1,6})\s+(.*)$/);
     if (heading) {
       const level = Math.min(6, heading[1].length + 2);
+      // A page that keeps ids on its headings (the review book's `<!-- sh:id … -->`) reads them here: the id goes on the element, the marker off the text.
+      const anchor = options.headingAnchor?.(heading[2]) || null;
       out.push(
         React.createElement(
           "h" + level,
-          { key, className: "md-heading" },
-          inline(heading[2], options, key),
+          { key, className: "md-heading", ...(anchor?.props || {}) },
+          inline(anchor ? anchor.text : heading[2], options, key),
         ),
       );
       i++;
@@ -326,11 +328,12 @@ function list(items, options, key) {
 
 /** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. `onCite(n)`: `[^n]` marks become buttons.
     `resolveLink(href, label, key, text)`: a `studyhub://` link is drawn by the page that knows it (the review book's question links, ui/book/BookLinks.jsx);
-    null leaves it plain text. Any other link stays as before. */
-export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, resolveLink }) {
+    null leaves it plain text. Any other link stays as before. `headingAnchor(text)` -> { text, props } | null: a heading's own attributes (its id) and
+    the text to show. */
+export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, resolveLink, headingAnchor }) {
   const content = React.useMemo(() => {
     const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
-    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite, resolveLink });
-  }, [text, links, mediaInteractive, onTerm, askedTerms, onCite, resolveLink]);
+    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite, resolveLink, headingAnchor });
+  }, [text, links, mediaInteractive, onTerm, askedTerms, onCite, resolveLink, headingAnchor]);
   return <div className={("md " + className).trim()}>{content}</div>;
 }

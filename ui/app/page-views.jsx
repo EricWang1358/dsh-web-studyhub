@@ -202,12 +202,12 @@ function OutlineView() {
 /** 复习全书: the book of the current course, read only (M1). A question link starts the ordinary practice round with the way back (回到复习全书), which shows
     this page again; the page itself comes back at the heading and scroll the learner left. */
 function BookView() {
-  const { data, nav, session, learn, intents } = useApp();
+  const { data, nav, session, learn, intents, shell } = useApp();
   const onPractice = (scope, { resume = false } = {}) => {
     const origin = learn.captureContext();
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
-  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('outline')} onPractice={onPractice} onOpenTask={nav.show.task}
+  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} onOpenTask={nav.show.task}
     onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} />;
 }
 

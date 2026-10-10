@@ -42,6 +42,25 @@ export const rowOf = (rows, id) => rows.find(row => row.hid === id || row.key ==
 /** The question links of a file that point to gone questions: `missing` is course.book.open's list of 'deckId|cardId'. */
 export const goneSet = missing => new Set(Array.isArray(missing) ? missing : []);
 
+/** The files of the book in reading order: [{ file, kind: 'gen' | 'mine' | 'qa' | 'unplaced', row }] (row: the point's, null for 未归位). */
+export function bookFiles(book) {
+  if (book?.status !== 'ok') return [];
+  const out = bookRows(book.nodes).filter(row => row.leaf).flatMap(row => [{ file: row.node.files.gen, kind: 'gen', row }, { file: row.node.files.mine, kind: 'mine', row },
+    ...(row.node.files.qa ? [{ file: row.node.files.qa, kind: 'qa', row }] : [])]);
+  return [...out, { file: book.unplaced.file, kind: 'unplaced', row: null }];
+}
+/** The text of one file of the book as course.book.open gave it ('' when the book has no such file). */
+export function fileText(book, file) {
+  const found = bookFiles(book).find(item => item.file === file);
+  if (!found) return '';
+  return found.kind === 'unplaced' ? book.unplaced.text : found.row.node[found.kind];
+}
+/** The file the editor opens first: the learner's own file of the point being read, else the first point's. */
+export function defaultFile(book, here) {
+  const files = bookFiles(book), row = files.find(item => item.row?.hid === here);
+  return (row ? files.find(item => item.row === row.row && item.kind === 'mine') : files.find(item => item.kind === 'mine'))?.file ?? files[0]?.file ?? null;
+}
+
 /** The 出处 of a file by footnote number: `[^n]: [「quote」](studyhub://source/<id>)` -> Map<n, { sourceId, quote }>. */
 export function citesOf(text) {
   const out = new Map();
