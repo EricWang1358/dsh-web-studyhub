@@ -25,7 +25,7 @@
 - **可用性**：[H2](#h2)
 - **吞吐量**：[H3](#h3)
 
-### 易错点 {#lookup-mistakes}
+### 易错点（按知识点） {#lookup-mistakes}
 
 - [H2](#h2) 1.1 Availability
   - 问过：为什么串联要相乘？

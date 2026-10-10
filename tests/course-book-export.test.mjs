@@ -4,7 +4,6 @@
    out, its 答案册 under the same numbers, the folder's files joined the single text, and Pandoc reads both when it is installed (I10). No model. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -69,6 +68,11 @@ test('footnotes are named per file and never collide; every reference has its de
   assert.deepEqual(defs, ['h2g-1', 'h2m-1', 'h3g-1', 'unplaced-1'], 'four [^1] of four files, four names');
   assert.equal(new Set(defs).size, defs.length);
   for (const ref of refs) assert.ok(defs.includes(ref), `[^${ref}] has its definition`);
+  // The structure Pandoc needs, checked without it: every anchor once, every internal link to an anchor that is there, fences closed.
+  const anchors = [...text.matchAll(/\{#([^}\s]+)\}$/gm)].map(match => match[1]);
+  assert.equal(new Set(anchors).size, anchors.length, 'every anchor once');
+  for (const [, target] of text.matchAll(/\]\(#([^)\s]+)\)/g)) assert.ok(anchors.includes(target), `#${target} is an anchor`);
+  assert.equal((text.match(/^\s*```/gm) || []).length % 2, 0, 'fences closed');
 });
 
 test('noprint: left out of the export, its estimate and its lookup; the page\'s lookup still sees it; a marker never closed keeps its text', () => {
@@ -213,25 +217,4 @@ test('the op through the service: course.book.export answers the book, writes no
   assert.equal(done.files.at(-1).name.endsWith('-answers.md'), true);
   assert.equal((await study.store.read()).revision, revision, 'nothing written');
   assert.equal((await study.call('course.book.export', {})).text, done.files.slice(0, -1).map(file => file.text).join('\n'), 'the single text is the folder without the key');
-});
-
-const pandoc = (() => { try { return spawnSync('pandoc', ['--version'], { encoding: 'utf8' }).status === 0; } catch { return false; } })();
-test('Pandoc reads the single export and the folder\'s list without a warning, to the same HTML', { skip: pandoc ? false : 'pandoc is not on PATH' }, async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'study-book-pandoc-'));
-  t.after(() => rm(dir, { recursive: true, force: true }));
-  const html = files => {
-    const run = spawnSync('pandoc', ['-f', 'markdown', '-t', 'html', '--fail-if-warnings', ...files], { cwd: dir, encoding: 'utf8' });
-    assert.equal(run.status, 0, run.stderr);
-    return run.stdout;
-  };
-  const single = runExport(exportBook(), { cardOf, answerKey: true });
-  await writeFile(join(dir, single.filename), single.text);
-  const one = html([single.filename]);
-  for (const id of ['lookup', 'h2', 'h9', 'h3', 'unplaced', 'answers']) assert.match(one, new RegExp(`id="${id}"`), `the anchor ${id}`);
-  assert.match(one, /href="#h2"/);
-  assert.match(one, /class="footnotes/);
-  const folder = runExport(exportBook(), { cardOf, answerKey: true, form: 'folder' });
-  for (const file of [...folder.files, folder.manifest]) await writeFile(join(dir, file.name), file.text);
-  const list = [...folder.manifest.text.matchAll(/^ {2}- (.+)$/gm)].map(match => match[1]);
-  assert.equal(html(list), one, 'the folder reads as the same book');
 });

@@ -294,6 +294,145 @@
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
+    /* M6: the stable code of a heading (what the printed book carries in its margin), the 查找 view, the export dialog. */
+    .book-node__code {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      font-variant-numeric: tabular-nums;
+    }
+    .book-chapter__heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-2);
+    }
+    .book-header__budget {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-header__budget[data-over] {
+      color: var(--warn-ink);
+    }
+    .book-lookup {
+      display: grid;
+      gap: var(--space-5);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-lookup__part {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-lookup__title {
+      margin: 0;
+      font-size: var(--fs-md);
+    }
+    .book-lookup__toc,
+    .book-lookup__concepts,
+    .book-lookup__mistakes,
+    .book-lookup__cards {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-lookup__entry[data-level='3'] {
+      padding-left: var(--space-3);
+    }
+    .book-lookup__entry[data-level='4'] {
+      padding-left: var(--space-5);
+    }
+    .book-lookup__code {
+      font-variant-numeric: tabular-nums;
+      margin-right: var(--space-1);
+    }
+    .book-lookup__order,
+    .book-lookup__muted,
+    .book-lookup__where,
+    .book-lookup__place,
+    .book-lookup__none {
+      margin: 0;
+    }
+    .book-lookup__muted,
+    .book-lookup__none {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-lookup__type {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      min-width: 0;
+    }
+    .book-lookup__label,
+    .book-lookup__head {
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+    }
+    .book-lookup__cols {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-4);
+      min-width: 0;
+    }
+    .book-lookup__col {
+      display: grid;
+      gap: var(--space-1);
+      align-content: start;
+      min-width: 0;
+    }
+    .book-lookup__list,
+    .book-lookup__formulas {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding-left: var(--space-4);
+    }
+    .book-lookup__formulas {
+      list-style: none;
+      padding-left: 0;
+    }
+    .book-export__body,
+    .book-export__estimate,
+    .book-export__files {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+    .book-export__estimate {
+      gap: var(--space-1);
+    }
+    .book-export__lead,
+    .book-export__pages {
+      margin: 0;
+    }
+    .book-export__pages {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      font-weight: var(--fw-strong);
+    }
+    .book-export__list {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      max-height: 16rem;
+      overflow-y: auto;
+    }
+    .book-export__file {
+      overflow-wrap: anywhere;
+      text-align: left;
+    }
   }
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {
@@ -308,6 +447,9 @@
       .book-node[data-depth='3'],
       .book-node[data-depth='4'] {
         padding-left: var(--space-2);
+      }
+      .book-lookup__cols {
+        grid-template-columns: minmax(0, 1fr);
       }
     }
   }
