@@ -51,6 +51,8 @@ In **Preview**, select some words of a knowledge point (its explanation or your 
 - It is written as a NEW paragraph into the point's own notes, never over existing text, shown right after the paragraph that holds the words you selected (it follows that paragraph when the paragraph moves or changes a little; when the words are gone it moves to the end of the point, marked **Its place has changed**). **Add a paragraph here** puts it under the heading. Its first line says what it is about: **About: “…”**.
 - It is yours from then on: edit it in **Source** like any text; the book's updates never change it. **Keep** marks it as kept, **Write again** asks the same again, **Delete** takes it out, and the field under it asks a follow-up whose answer goes right under it.
 - Like the rest of the book it is a reference, never material for questions.
+- While your notes are open in **Source**, a paragraph that lands meanwhile is carried into your save: neither is lost.
+- Known limits: the page checks a task it started every 1.5 s, only while that task runs. The preview and development server has no background-task executor, so these tasks (and writing the review book) run only in the real host.
 
 ## Where it is kept
 

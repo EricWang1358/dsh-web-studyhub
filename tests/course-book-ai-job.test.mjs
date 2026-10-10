@@ -166,7 +166,7 @@ test('refusals cost nothing; a provider failure fails the Job with nothing writt
   assert.equal(aiBlocks(mineOf(await s.open())).length, 0, 'a stop writes nothing');
 });
 
-test('an editor save of the own file that met a new block keeps both (the M2 rules)', async t => {
+test('an editor save of the own file that met a new block carries the block into the learner\'s text: both kept, no suggestion', async t => {
   const held = { at: 1, gate: gate() };
   t.after(() => held.gate.release());
   const w = await world(t, aiModel({ held }));
@@ -177,6 +177,15 @@ test('an editor save of the own file that met a new block keeps both (the M2 rul
   await settleJob(w.service, run.jobId);
   const saved = await w.service.call('course.book.save', { file: w.point.files.mine, text: 'My own note, typed while it ran.', version });
   assert.equal(saved.write, 'merged');
-  assert.equal(mineOf(saved), 'My own note, typed while it ran.', 'the learner\'s text is saved');
-  assert.match(saved.files[w.point.files.mine].suggestions[0].text, /sh:ai id=/, 'the block is offered back (采用), never lost');
+  assert.match(mineOf(saved), /^My own note, typed while it ran\./, 'the learner\'s text is saved');
+  assert.deepEqual(aiBlocks(mineOf(saved)).map(block => block.id), [run.blockId], 'and the block that landed meanwhile comes along');
+  assert.deepEqual(saved.files[w.point.files.mine].suggestions, [], 'nothing else changed: no suggestion to choose');
+  // A second block while the learner edits again: it goes after the first; the learner's edit stays.
+  const again = (await w.open()).files[w.point.files.mine].version;
+  const next = await w.explain({ mode: 'follow', words: 'writes each decision down', instruction: 'More?', after: run.blockId });
+  await settleJob(w.service, next.jobId);
+  const twice = await w.service.call('course.book.save', { file: w.point.files.mine, text: `${mineOf(saved)}\n\nOne more line of mine.`, version: again });
+  assert.deepEqual(aiBlocks(mineOf(twice)).map(block => block.id), [run.blockId, next.blockId]);
+  assert.match(mineOf(twice), /One more line of mine\./);
+  assert.deepEqual(twice.files[w.point.files.mine].suggestions, []);
 });
