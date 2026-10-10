@@ -33,6 +33,7 @@ export const PAGES = Object.freeze({
   draft: { label: '草稿与发布', title: '草稿与发布', glyph: null, group: null, needs: ['bank', 'authoring'] },
   manage: { label: '维护题组', title: '维护题组', glyph: null, group: null, needs: ['bank'] },
   outline: { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '返回总纲' },
+  book: { label: '复习全书', title: '复习全书', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '回到复习全书' },
   graph: { label: '知识图谱', title: '知识图谱', glyph: null, group: null, needs: ['bank', 'study'], onEnter: user((ctx) => ctx.clearGraphScope()) },
   settings: { label: '设置', title: '设置', glyph: 'settings', group: null, needs: [] },
 });

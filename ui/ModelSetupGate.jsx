@@ -185,6 +185,13 @@ const FEATURES = {
     line: ui('生成复习全书需要先配置模型；总纲和已写好的讲解照常能看。'),
     note: ui('总纲和已写好的讲解照常能看；生成复习全书前需要先配置模型。'),
   }),
+  // The 复习全书 page (ui/book/BookPage.jsx) before the book is written; reading what is written never needs a model.
+  reviewBook: () => ({
+    why: ui('书页上的讲解要先调用 AI 模型写出来；已经写好的书页不需要模型也能读。'),
+    then: ui('回到书页，点「生成复习全书」'),
+    line: ui('写书页的讲解需要先配置模型；写好的部分不需要模型也能读。'),
+    note: ui('写好的部分不需要模型也能读；写书页的讲解前需要先配置模型。'),
+  }),
   // Drafting a note from questions (ui/BlogNotes.jsx).
   note: () => ({
     why: ui('AI 起草要调用 AI 模型。配置好之后回到这里，点「AI 起草解析」。'),

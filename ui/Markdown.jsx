@@ -118,7 +118,10 @@ function inline(text, options, key = "i") {
       );
     else if (type === "strong" || type === "em" || type === "del")
       out.push(React.createElement(type, { key: k }, inline(m[1], options, k)));
-    else {
+    else if (type === "link" && options.resolveLink && m[2].startsWith("studyhub://")) {
+      const label = inline(m[1], options, k);
+      out.push(options.resolveLink(m[2], label, k, m[1]) ?? <span key={k} className="md-link">{label}</span>);
+    } else {
       const label = type === "link" ? inline(m[1], options, k) : m[0],
         href = safeHref(type === "link" ? m[2] : m[0]);
       out.push(
@@ -321,11 +324,13 @@ function list(items, options, key) {
   );
 }
 
-/** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. `onCite(n)`: `[^n]` marks become buttons. */
-export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite }) {
+/** Renders study text as Markdown; `links={false}` inside clickable surfaces such as cards and options. `onCite(n)`: `[^n]` marks become buttons.
+    `resolveLink(href, label, key, text)`: a `studyhub://` link is drawn by the page that knows it (the review book's question links, ui/book/BookLinks.jsx);
+    null leaves it plain text. Any other link stays as before. */
+export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, resolveLink }) {
   const content = React.useMemo(() => {
     const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
-    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite });
-  }, [text, links, mediaInteractive, onTerm, askedTerms, onCite]);
+    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite, resolveLink });
+  }, [text, links, mediaInteractive, onTerm, askedTerms, onCite, resolveLink]);
   return <div className={("md " + className).trim()}>{content}</div>;
 }

@@ -1,0 +1,207 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 复习全书 (ui/book/): the 目录 beside the rendered Markdown at wide widths, one column with the 目录 folded above at narrow ones. Tokens only. A long
+       title or link wraps; nothing is wider than the page. */
+    .book-page {
+      display: grid;
+      gap: var(--space-4);
+      align-content: start;
+      min-width: 0;
+    }
+    .book-header__toc {
+      justify-self: start;
+    }
+    .book-writing {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0;
+    }
+    .book-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-6);
+      align-items: start;
+      min-width: 0;
+    }
+    .book-layout--toc {
+      grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+    }
+    .book-toc {
+      position: sticky;
+      top: var(--space-4);
+      max-height: calc(100vh - var(--space-9));
+      overflow-y: auto;
+      padding: var(--space-2);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      min-width: 0;
+    }
+    .book-toc__list {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-toc__item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-toc__item[data-level='3'] {
+      padding-left: var(--space-3);
+    }
+    .book-toc__item[data-level='4'] {
+      padding-left: var(--space-5);
+    }
+    .book-toc__go {
+      min-width: 0;
+      text-align: left;
+      justify-content: flex-start;
+    }
+    .book-toc__go[aria-current='location'] {
+      font-weight: var(--fw-strong);
+      color: var(--text);
+    }
+    .book-toc__here {
+      flex: none;
+    }
+    .book-read {
+      display: grid;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+    .book-chapter {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .book-chapter__heading {
+      margin: 0;
+      font-size: var(--fs-md);
+    }
+    .book-chapter__toggle {
+      text-align: left;
+      justify-content: flex-start;
+      font-size: inherit;
+      font-weight: var(--fw-strong);
+    }
+    .book-chapter__caret {
+      transition: transform var(--dur-fast) var(--ease);
+    }
+    .book-chapter__toggle[aria-expanded='true'] .book-chapter__caret {
+      transform: rotate(90deg);
+    }
+    .book-node {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-node[data-depth='2'],
+    .book-node[data-depth='3'],
+    .book-node[data-depth='4'] {
+      padding-left: var(--space-3);
+    }
+    .book-node__heading {
+      margin: var(--space-2) 0 0;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      scroll-margin-top: var(--space-6);
+    }
+    .book-node__number {
+      color: var(--text-muted);
+      margin-right: var(--space-1);
+    }
+    .book-node__create {
+      justify-self: start;
+    }
+    .book-questions {
+      display: grid;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-questions__head {
+      margin: 0;
+      font-weight: var(--fw-strong);
+    }
+    .book-questions__list {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding-left: var(--space-4);
+    }
+    .book-questions__more {
+      justify-self: start;
+    }
+    .book-questions__none {
+      margin: 0;
+      color: var(--text-muted);
+    }
+    .book-file {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-file--mine {
+      padding: var(--space-2) var(--space-3);
+      border-left: 2px solid var(--line);
+      background: var(--bg-sunken);
+      border-radius: var(--radius-sm);
+    }
+    .book-link {
+      text-align: left;
+    }
+    .book-link-gone {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-qa {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      list-style: none;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+    }
+    .book-qa__item {
+      min-width: 0;
+    }
+    .book-qa__question {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1);
+      overflow-wrap: anywhere;
+    }
+    .book-qa__none {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+  }
+  @container study (max-width: 720px) {
+    :where(.study-app, .study-seat) {
+      .book-layout--toc {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .book-toc {
+        position: static;
+        max-height: none;
+      }
+      .book-node[data-depth='2'],
+      .book-node[data-depth='3'],
+      .book-node[data-depth='4'] {
+        padding-left: var(--space-2);
+      }
+    }
+  }
+}
