@@ -2,7 +2,7 @@
 
 [中文](review-book.zh-CN.md)
 
-The **review book** (复习全书) is a book page per course, made from the [course outline](course-outline.md) and the explanations the review book task writes for each knowledge point. It is for reading and studying; questions appear in it as links that take you to practise them. This covers milestones M1 (reading), M2 (editing), M3 (Q&A in the book) and M4 (explain while reading) of the [design](plans/review-book.md); export and print come in later milestones. Checked against the code on 2026-10-11.
+The **review book** (复习全书) is a book page per course, made from the [course outline](course-outline.md) and the explanations the review book task writes for each knowledge point. It is for reading and studying; questions appear in it as links that take you to practise them. This covers milestones M1 (reading), M2 (editing), M3 (Q&A in the book), M4 (explain while reading) and M5 (answer cards of analysis questions) of the [design](plans/review-book.md); export and print come in later milestones. Checked against the code on 2026-10-11.
 
 ## Open it
 
@@ -54,6 +54,25 @@ In **Preview**, select some words of a knowledge point (its explanation or your 
 - While your notes are open in **Source**, a paragraph that lands meanwhile is carried into your save: neither is lost.
 - Known limits: the page checks a task it started every 1.5 s, only while that task runs. The preview and development server has no background-task executor, so these tasks (and writing the review book) run only in the real host.
 
+## Answer cards of analysis questions
+
+For a case or analysis question (an open question with marks and marking criteria, 大题) the answer is not one paragraph but one checked **answer card** (答题卡). After the question is graded on the practice page, its reference answer shows as before with **Generate answer card** under it (a task you can follow on the **Tasks** page; no estimate, no confirmation; without a model the shared model setup note says where to set one up). There is ONE full version of the card, never a short one:
+
+| Part | What it holds |
+| --- | --- |
+| Question type and signals | The type (risk scenario, availability, performance, capacity and RAID, domain decomposition, cloud migration and choice, or general analysis; a course may add its own) and the words of the stem that point to it, with the stem's own sentence. |
+| Stem facts | Each fact the answer uses, with its quote from the question or the case. |
+| Concepts | Name, the material it is defined in, and the definition in the material's own words. |
+| Assumptions | What the stem does not say, stated explicitly (a number the answer needs is stated here, never invented). |
+| Reasoning, conclusion | The type's solving steps with the formulas filled in, then the answer. |
+| Why it meets the goal, cost and failure handling, how to verify | The justification an examiner looks for. |
+| Pitfalls, marks map | Typical mistakes; for each marking point of the rubric, the sentence of the card that earns it. |
+
+What the program checks: every quote and definition is looked up word for word in the stem, the case or the materials (spacing and case do not matter); one that is not found is marked **Not verified**, and so is an elided quote ("…"), one too short to prove anything and one from a material that holds HTML. Which marking points are covered is counted by the program, not by the model, and numbers that stand in neither the stem, the assumptions nor the concepts (and are not a computed result) are listed. An independent review then looks for claims the stem does not support, contradictions of the stem, a missing cost and invented numbers; when the checks or the review find something the card is written once more (two or three model calls in all). The card shows its state: **Checked** (every check passed), **Partly unchecked**, or **Changed since** when the question, its marks, its rubric or its reference answer was edited after the card was made. **Checked ≠ correct.**
+
+- The card is kept beside the question (`answerCard`); the question's own answer, its review schedule and history are never changed. It comes with the reveal like the reference answer, never during a mock exam, and a question in an unsubmitted mock exam gets none until it is submitted.
+- **Add to the review book** under the card puts it into the course's book, in the point's Q&A file under the question's link (a case question of no point goes to 未归位), once; **Added · Take back** takes it out. In the book it is your text like any other.
+
 ## Where it is kept
 
 The book is one hidden record of the library (`provenance: 'course-book-doc'`) holding Markdown files: for each knowledge point a generated file (the program's) and your own file (empty in M1), a manifest (the outline's tree with a stable id per heading) and a file for text without a point. It is a reference, never material: it is not in the materials list, the pickers or the search, not in the retrieval index, not counted in the assistant's library context, and a request that names it as material is refused. Questions keep citing the original materials.
@@ -62,7 +81,7 @@ Opening the page makes the files the first time (no model call) and brings the g
 
 ## Rolling back
 
-Upgrade only. An older release (3.3.0 and before) does not know this record: it keeps it as it is, but may list it as a Markdown material named **复习全书 · course** whose text is one line, **复习全书（由 StudyHub 3.4 以上管理，请勿删除）** (the review book, managed by StudyHub 3.4 or later; do not delete). Deleting that entry in an older release deletes the book's files. The version history (the `book-history` folder of the library) is ignored by older releases.
+Upgrade only. An older release (3.3.0 and before) does not know this record: it keeps it as it is, but may list it as a Markdown material named **复习全书 · course** whose text is one line, **复习全书（由 StudyHub 3.4 以上管理，请勿删除）** (the review book, managed by StudyHub 3.4 or later; do not delete). Deleting that entry in an older release deletes the book's files. The version history (the `book-history` folder of the library) is ignored by older releases. A question's answer card (`answerCard`) is kept as it is by an older release, which shows only the reference answer.
 
 ## For developers
 
@@ -70,5 +89,6 @@ Upgrade only. An older release (3.3.0 and before) does not know this record: it 
 - `course.book.save {course?, file, text, version}`, `course.book.suggestion {course?, file, action: 'accept' | 'ignore', version}`, `course.book.revert {course?, file}` (lib/course-book-edit.js): one writer queue (per library folder, first come first served), one store transaction each; they answer the book like `course.book.open` plus `write` ('saved', 'merged', 'unchanged', 'accepted', 'ignored', 'reverted') and `history` ({ file: versions kept }). The history is lib/course-book-history.js: `book-history/<hash of the course>.json` under the library folder, written through a temporary file and a rename after the book's own write.
 - `book.qa.add {course?, deckId?, cardId, followupId}`, `book.qa.remove {course?, followupId}`, `book.qa.list {course?}` (lib/course-book-qa.js; the block is lib/course-book-qa-text.js: `<!-- sh:qa card=… fid=… -->` … `<!-- /sh:qa -->`), in the writer queue like the saves. The queue is one per library folder, joined at the call before anything is read, so the book's writes are served in the order they were made. `book.qa.list` reads every file of the books each time a question opens (a known limit: fine at today's sizes, an index if books grow very large). The automatic adds are made by the practice page itself (ui/review/QuestionRun.jsx), so an answer that arrives while the 讲解 section is folded away is still added. `settings.book.set {patch: {qaToBook: 'manual' | 'auto'}}` (lib/book-settings.js, `settings.book`).
 - `generation.courseBook.explain {course?, heading, words?, instruction?, mode: 'explain' | 'write' | 'here' | 'follow', after?, replace?, language?}` starts the Job `course-book-ai` (lib/contexts/generation/book-ai/: one model call, the reader's grounded prompt from lib/ask-prompt.js); its block is written by the materials context's `book.aiWrite` in the book's writer queue (lib/course-book-writer.js) with history. Refusals: course-book-ai-no-book, course-book-ai-no-point, course-book-ai-no-materials, course-book-ai-no-request. The block format and its placement are lib/course-book-ai-text.js (`<!-- sh:ai id=… at=… state=new|kept mode=… ask=… -->`). `course.book.block {course?, file, id, action: 'keep' | 'delete'}`.
+- `generation.answerCard.build {cardId, deckId?, again?, language?}` starts the Job `case-answer-card` (lib/contexts/generation/answer-card/: write, review, one repair; steps booked under `case`); the card is saved by the bank context's `card.answerCard.set`, refused (`answer-card-stale`) when the question changed since the task began. Refusals: answer-card-no-card, answer-card-not-case, answer-card-in-exam, answer-card-exists, answer-card-running. The card format, the checks, the three states and the Markdown are lib/answer-card.js (`renderAnswerCard` is deterministic); the question-type catalogue is lib/case-types.js (`course.save {caseTypes}` adds a course's own). `book.qa.add {cardId, deckId?, answerCard: true}` / `book.qa.remove {cardId, answerCard: true}` write the block `<!-- sh:card card=… -->` … `<!-- /sh:card -->`; `book.qa.list` also answers `answerCardIds`.
 - lib/course-book-links.js (browser-safe): the three question links (`parseBookLink`), heading ids on the heading line (`## Title <!-- sh:id h3 -->`, `assignHeadingIds`: given once, never reused), `bookIndex` (the heading tree with the question links under each heading), `stitchBook` (files in order, footnotes named per file), `plainBook`.
 - The page is ui/book/ (registry row `book` in ui/pages.js); the links are drawn through `resolveLink` of ui/Markdown.jsx.

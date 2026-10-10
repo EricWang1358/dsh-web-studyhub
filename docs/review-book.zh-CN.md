@@ -2,7 +2,7 @@
 
 [English](review-book.md)
 
-**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）、M3（把问答加进书）和 M4（读的时候弄懂）；导出和打印在后面的步骤。按 2026-10-11 的代码核对。
+**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）、M3（把问答加进书）、M4（读的时候弄懂）和 M5（分析题答案卡）；导出和打印在后面的步骤。按 2026-10-11 的代码核对。
 
 ## 打开
 
@@ -54,6 +54,25 @@
 - 笔记正在「原文」里编辑时，期间写进来的段落会合进你的保存，两边都不丢。
 - 已知限制：书页每 1.5 秒查看一次它开始的任务，只在任务进行中查看。预览和开发用的服务器没有后台任务执行器，所以这些任务（以及生成复习全书）只能在真正的宿主里运行。
 
+## 分析题答案卡
+
+案例题、分析题（有分值和评分标准的开放题，大题）的答案不是一段话，而是一张经过核对的**答题卡**。在练习页批改完这道题后，参考答案照旧显示，下面有「生成答题卡」（一个可以在**任务**页查看、停止、重试的任务；不预估、不确认；没有模型时显示统一的模型设置提示）。答题卡只有一个完整版本，没有简短版：
+
+| 部分 | 内容 |
+| --- | --- |
+| 题型和识别信号 | 题型（风险场景、可用性、性能、容量与 RAID、领域划分、云迁移与选型，或一般分析题；课程可以加自己的题型）和题干里点明题型的词，附题干原句。 |
+| 题干事实 | 答案用到的每条事实，附题目或案例里的原文。 |
+| 概念 | 概念名、它在哪份资料里定义，以及资料原文里的定义。 |
+| 假设 | 题干没说的地方明确写出假设（答案需要的数字写在这里，从不凭空出现）。 |
+| 推理链、结论 | 按题型的解题步骤，把数代进公式，再给出结论。 |
+| 为什么满足目标、代价与失败处理、如何验证 | 阅卷人要看的论证。 |
+| 易错检查、评分点对照 | 常见错误；评分标准里每个评分点由答题卡的哪一句拿分。 |
+
+程序会核对：每处引文和定义都在题干、案例或资料里逐字查找（空格和大小写不算），找不到的标「未核实」；省略号拼起来的引文、短到证明不了什么的引文、来自含 HTML 的资料的引文也标「未核实」。评分点覆盖由程序计算，不由模型自报；在题干、假设和概念里都找不到、也不是算出来的数字会被列出来。随后一次独立复核检查没有依据的说法、与题干矛盾、缺代价、编造的数字；核对或复核发现问题时再改写一次（总共两到三次模型调用）。答题卡显示它的状态：**已核对**（各项检查都通过）、**部分未核对**，或**被改过**（答题卡生成后，题干、分值、评分标准或参考答案被改过）。**已核对 ≠ 答案正确。**
+
+- 答题卡存在题目旁边（`answerCard`）；题目原来的答案、复习安排和历史都不改。它和参考答案一样在揭晓后才出现，模拟考试中不出现；还没交卷的模拟考试里的题，交卷后才能生成。
+- 答题卡下的「加入复习全书」把它放进这门课的复习全书，放在知识点的问答文件里、题目链接下面（不属于任何知识点的案例题放进「未归位」），只放一次；「已加入 · 撤回」把它拿出来。放进书里之后，它就是你的文字。
+
 ## 存在哪里
 
 全书是学习库里的一条隐藏记录（`provenance: 'course-book-doc'`），里面是几份 Markdown 文件：每个知识点一份生成的文件（程序的）和一份你自己的文件（M1 里为空），一份清单（总纲的树，每个标题一个稳定 id），以及一份放「未归位」内容的文件。它只是参考，不是资料：不在资料列表、选择器和搜索里，不进检索索引，不计入助手看到的学习库情况，把它当资料用会被拒绝。题目仍然引用原资料。
@@ -62,7 +81,7 @@
 
 ## 回退
 
-只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。
+只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。题目的答题卡（`answerCard`）旧版原样保留，只显示原来的参考答案。
 
 ## 开发者
 
@@ -70,5 +89,6 @@
 - `course.book.save {course?, file, text, version}`、`course.book.suggestion {course?, file, action: 'accept' | 'ignore', version}`、`course.book.revert {course?, file}`（lib/course-book-edit.js）：一个写入队列（每个学习库文件夹一个，先到先写），每次一个存储事务；返回和 `course.book.open` 一样的书，加上 `write`（'saved'、'merged'、'unchanged'、'accepted'、'ignored'、'reverted'）和 `history`（{ 文件: 保留的版本数 }）。版本历史在 lib/course-book-history.js：学习库文件夹下的 `book-history/<课程的哈希>.json`，在书本身写完之后经临时文件和改名写入。
 - `book.qa.add {course?, deckId?, cardId, followupId}`、`book.qa.remove {course?, followupId}`、`book.qa.list {course?}`（lib/course-book-qa.js；问答块的格式在 lib/course-book-qa-text.js：`<!-- sh:qa card=… fid=… -->` … `<!-- /sh:qa -->`），和保存一样走写入队列。队列每个学习库文件夹一个，在调用时、读任何东西之前就排进去，所以书的写入按调用的先后进行。每打开一道题，`book.qa.list` 都会把书里的文件读一遍（已知限制：现在的大小没问题，书很大时再加索引）。自动加入由练习页本身完成（ui/review/QuestionRun.jsx），所以「讲解」收起时得到的回答也会加进去。`settings.book.set {patch: {qaToBook: 'manual' | 'auto'}}`（lib/book-settings.js，`settings.book`）。
 - `generation.courseBook.explain {course?, heading, words?, instruction?, mode: 'explain' | 'write' | 'here' | 'follow', after?, replace?, language?}` 开始任务 `course-book-ai`（lib/contexts/generation/book-ai/：一次模型调用，用 lib/ask-prompt.js 里阅读器的依据原文规则）；新块由资料上下文的 `book.aiWrite` 在书的写入队列里写入（lib/course-book-writer.js），并记入版本历史。拒绝码：course-book-ai-no-book、course-book-ai-no-point、course-book-ai-no-materials、course-book-ai-no-request。块的格式和摆放位置见 lib/course-book-ai-text.js（`<!-- sh:ai id=… at=… state=new|kept mode=… ask=… -->`）。`course.book.block {course?, file, id, action: 'keep' | 'delete'}`。
+- `generation.answerCard.build {cardId, deckId?, again?, language?}` 开始任务 `case-answer-card`（lib/contexts/generation/answer-card/：写、复核、最多改一次；用量记在 `case`）；答题卡由题库上下文的 `card.answerCard.set` 保存，任务开始后题目被改过就拒绝保存（`answer-card-stale`）。拒绝码：answer-card-no-card、answer-card-not-case、answer-card-in-exam、answer-card-exists、answer-card-running。答题卡的格式、核对、三种状态和 Markdown 见 lib/answer-card.js（`renderAnswerCard` 输出确定）；题型目录是 lib/case-types.js（`course.save {caseTypes}` 加课程自己的题型）。`book.qa.add {cardId, deckId?, answerCard: true}` / `book.qa.remove {cardId, answerCard: true}` 写入块 `<!-- sh:card card=… -->` … `<!-- /sh:card -->`；`book.qa.list` 另外返回 `answerCardIds`。
 - lib/course-book-links.js（浏览器可用）：三种题目链接（`parseBookLink`）、写在标题行末的标题 id（`## 标题 <!-- sh:id h3 -->`，`assignHeadingIds`：只给一次，永不复用）、`bookIndex`（标题树和每个标题下的题目链接）、`stitchBook`（按顺序拼接文件，脚注按文件命名）、`plainBook`。
 - 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。
