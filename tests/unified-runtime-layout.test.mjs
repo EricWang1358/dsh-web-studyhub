@@ -24,6 +24,7 @@ const RULES = [
   { root: 'lib/contexts/generation/outline', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/generation/book', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
   { root: 'lib/contexts/generation/book-ai', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
+  { root: 'lib/contexts/generation/answer-card', maxLines: 200, maxLineLength: 181, forbidImports: ['/ui/'], textIn: ['messages.js'] },
 ];
 const CJK = /[㐀-鿿]/;
 const repo = fileURLToPath(new URL('../', import.meta.url));

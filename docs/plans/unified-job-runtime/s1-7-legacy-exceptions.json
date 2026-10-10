@@ -23,7 +23,8 @@
     "lib/contexts/generation/blueprint/jobs/exam-blueprint-build.js",
     "lib/contexts/generation/outline/jobs/course-outline-build.js",
     "lib/contexts/generation/book/jobs/course-book-build.js",
-    "lib/contexts/generation/book-ai/jobs/course-book-ai.js"
+    "lib/contexts/generation/book-ai/jobs/course-book-ai.js",
+    "lib/contexts/generation/answer-card/jobs/case-answer-card.js"
   ],
   "entries": [
     {

@@ -23,6 +23,7 @@ import {
   paperPhase, phaseRemaining, canType, livePace, tickQuestion, paperTimings, readSession, writeSession,
 } from "./case-session.js";
 import { RubricResult, CaseReport } from "./CaseResult.jsx";
+import AnswerCardSection from "./AnswerCard.jsx";
 import { useStudy } from "./study-context.jsx";
 import css from "./case-study.css";
 
@@ -164,8 +165,8 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
         <>
           {run.feedback.answer && <details className="rubric-my-answer"><summary>{ui("我的回答")}</summary><Markdown text={run.feedback.answer} /></details>}
           <RubricResult rubric={rubric} />
-          {run.solution?.answer && <details className="rubric-my-answer" open><summary>{ui("参考答案（批改后揭晓）")}</summary>
-            <Markdown text={run.solution.answer} /></details>}
+          {/* The reference answer, or its 分析题答案卡 when the question has one (ui/AnswerCard.jsx, 复习全书 M5). */}
+          {run.solution && <AnswerCardSection run={run} data={data} onSetupModel={onSetupModel} />}
         </>
       ) : (
         <>

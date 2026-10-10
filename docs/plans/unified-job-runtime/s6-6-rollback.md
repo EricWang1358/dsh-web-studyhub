@@ -52,6 +52,8 @@
 
 **没有开关的种类：复习全书的弄懂 / 加一段（`course-book-ai`，2026-10-11，M4）。** 新增的种类，没有旧路径可旁路：一次模型调用，结果作为新块写进知识点自己的文件（复习全书的隐藏记录，见下）；任务不持久（`recoveryMode: none`），停止或失败什么都不写，重启后再点一次「弄懂」。旧版不认识这个任务种类，也不会碰已经写好的块（块只是那份记录里的文字）。证据：`course-book-ai-job.test.mjs`。
 
+**没有开关的种类：分析题答案卡（`case-answer-card`，2026-10-11，M5）。** 新增的种类，没有旧路径可旁路：两到三次模型调用，结果作为题目的附加字段 `answerCard` 存到题目旁边（题目的 `answer`、复习安排和历史都不改）；任务不持久（`recoveryMode: none`），停止或失败什么都不存，重启后再点一次「生成答题卡」。旧版不认识这个字段，读写题目时原样保留，揭晓答案时只显示原来的参考答案（降级可接受）。证据：`answer-card-job.test.mjs`。
+
 **不是任务：复习全书书页（`course-book-doc`，2026-10-11，[复习全书](../../review-book.zh-CN.md)）。** `course.book.open`、`course.book.save`、`course.book.suggestion`、`course.book.revert`（2026-10-11 M2）、`book.qa.add`、`book.qa.remove`（M3）、`course.book.block`（M4）是学习库的写操作，不是任务，没有开关；版本历史是学习库文件夹下 `book-history/` 里每门课一个 JSON 文件，旧版不读也不删。书页是一份带附加字段（`bookDoc`，`provenance: 'course-book-doc'`）的普通 source，`text` 只有一行说明「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」，Markdown 文件在 `bookDoc.files` 里；旧版读写时字段原样保留。△ 旧版不认识它的隐藏规则，可能把它当一份只有这行说明的 Markdown 资料列出，在旧版里删掉它就删掉了书页文件；接受的退化，只能升级。证据：`course-book-files.test.mjs`。
 
 ## 3. 格式：运行时留下了什么
