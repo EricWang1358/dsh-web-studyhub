@@ -184,5 +184,12 @@
   "考试只许带几页时填上；留空就是不限。": "Fill it in when the exam allows only so many pages; leave it empty for no limit.",
   "不限": "No limit",
   "没有打包：逐个下载到同一个文件夹，book.yaml 记着顺序，用 pandoc 按这个顺序读就是整本书。": "Not packed: download them one by one into one folder; book.yaml keeps their order, and pandoc reading them in that order gives the whole book.",
-  "导出约 {0} 页 / 上限 {1} 页": "Export about {0} pages / limit {1}"
+  "导出约 {0} 页 / 上限 {1} 页": "Export about {0} pages / limit {1}",
+  "印哪些题": "Which questions to print",
+  "只印书里链接的题": "Only the questions the book links",
+  "问答文件里的和你自己写了链接的题；答案册只有这些。": "Those of the Q&A files and those you linked yourself; the answer key holds only these.",
+  "再加每个知识点自己的题": "Also every point's own questions",
+  "每个知识点的题都印出来，带选项，最占页数。": "Every point's questions are printed with their options; this takes the most pages.",
+  "不印题目": "No questions",
+  "题目链接都去掉，答案册是空的。": "Question links are left out and the answer key is empty."
 }

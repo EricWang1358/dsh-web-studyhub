@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Badge, Button, Dialog, Field, Hint, LoadingState, NumberInput, SegmentedControl } from '../components/index.js';
+import { Badge, Button, Dialog, Field, Hint, LoadingState, NumberInput, RadioCard, RadioCardGroup, SegmentedControl } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import { PAGE_LIMIT_MAX } from '../../lib/book-settings.js';
@@ -10,6 +10,13 @@ import { downloadText } from './download.js';
    查找页 first, question links as numbered questions, with or without the 答案册; one Markdown file to download, or the files of the folder one by one
    with book.yaml listing their order (the app has no zip writer). The A4 page estimate of each choice, and the page limit the learner may set
    (settings.book.pageLimit), compared with it. */
+
+/** The three choices of which questions are printed (lib/course-book-export.js QUESTION_MODES). */
+const questionChoices = () => [
+  { value: 'linked', title: ui('只印书里链接的题'), hint: ui('问答文件里的和你自己写了链接的题；答案册只有这些。') },
+  { value: 'all', title: ui('再加每个知识点自己的题'), hint: ui('每个知识点的题都印出来，带选项，最占页数。') },
+  { value: 'none', title: ui('不印题目'), hint: ui('题目链接都去掉，答案册是空的。') },
+];
 
 /** The quiet comparison of an estimate with the limit: null without a limit. */
 export function budgetText(pages, limit) {
@@ -21,13 +28,15 @@ export function budgetText(pages, limit) {
 export default function BookExport({ course, pageLimit, onClose }) {
   const { call, act, notify } = useStudy();
   const [answerKey, setAnswerKey] = useState(false);
+  // Which questions are printed (course.book.export `questions`): only the linked ones by default.
+  const [questions, setQuestions] = useState('linked');
   const [state, setState] = useState({ done: null, error: null });
   const [folder, setFolder] = useState(null);
   const [limit, setLimit] = useState(pageLimit ? String(pageLimit) : '');
   useLiveEffect(isLive => {
     setState(current => ({ ...current, error: null }));
-    call('course.book.export', { course, answerKey }).then(done => { if (isLive()) setState({ done, error: null }); }, error => { if (isLive()) setState({ done: null, error }); });
-  }, [call, course, answerKey]);
+    call('course.book.export', { course, answerKey, questions }).then(done => { if (isLive()) setState({ done, error: null }); }, error => { if (isLive()) setState({ done: null, error }); });
+  }, [call, course, answerKey, questions]);
   const done = state.done?.status === 'ok' ? state.done : null, estimate = done?.estimate;
   const saveLimit = async () => {
     const value = limit.trim() === '' ? null : Number(limit);
@@ -36,7 +45,7 @@ export default function BookExport({ course, pageLimit, onClose }) {
     try { await act('settings.book.set', { patch: { pageLimit: value } }, () => {}, { rethrow: true }); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const openFolder = async () => {
-    try { setFolder(await call('course.book.export', { course, answerKey, form: 'folder' })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+    try { setFolder(await call('course.book.export', { course, answerKey, questions, form: 'folder' })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const saved = Number.isInteger(pageLimit) ? pageLimit : null, budget = estimate ? budgetText(estimate.pages, saved) : null;
   const footer = <>
@@ -47,6 +56,10 @@ export default function BookExport({ course, pageLimit, onClose }) {
     <Dialog title={ui('导出复习全书')} size="md" className="book-export" onClose={onClose} footer={footer}>
       <div className="book-export__body">
         <p className="book-export__lead">{ui('导出成你自己的开卷速查：前面是查找页（目录、按题型、按概念、易错点），题目链接换成编号的题目，标记都去掉。')}</p>
+        <RadioCardGroup legend={ui('印哪些题')} className="book-export__questions">
+          {questionChoices().map(choice => <RadioCard key={choice.value} name="book-export-questions" value={choice.value} checked={questions === choice.value}
+            title={choice.title} hint={choice.hint} onSelect={value => { setQuestions(value); setFolder(null); }} />)}
+        </RadioCardGroup>
         <SegmentedControl label={ui('答案册')} className="book-export__key" value={answerKey ? 'with' : 'without'} wrap onChange={value => { setAnswerKey(value === 'with'); setFolder(null); }}
           options={[{ value: 'without', label: estimate ? uiFormat('不含答案册 · 约 {0} 页', [estimate.book]) : ui('不含答案册') },
             { value: 'with', label: estimate ? uiFormat('含答案册 · 约 {0} 页', [estimate.withAnswers]) : ui('含答案册') }]} />

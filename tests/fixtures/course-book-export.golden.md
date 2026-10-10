@@ -16,7 +16,7 @@
 
 | 题型 · 题干信号 | 检查顺序 · 公式 | 最常见错误 · 必须交代的代价 |
 | --- | --- | --- |
-| **可用性**（可用性、可用率、宕机、停机、故障、MTBF） · 在哪里：[H2](#h2)（H2-Q2） | ① List the components on the path and the availability of each (quoted from the stem, or an explicit assumption) ② Compute each component with A = MTBF / (MTBF + MTTR) when the stem gives MTBF and MTTR ③ Combine: series multiplies, independent parallel replicas give 1 - product of (1 - Ai) ④ Turn the result into yearly downtime with (1 - A) x 8760 h ⑤ Compare with the target and change the weakest part (redundancy, faster repair) if it is not met 公式：A = MTBF / (MTBF + MTTR)；independent components in series: A = A1 x A2 x ... x An；independent components in parallel: A = 1 - (1 - A1)(1 - A2)...(1 - An)；yearly downtime = (1 - A) x 8760 h | Adding availabilities instead of multiplying them in series；Treating replicas as independent when they share a failure (power, region, software)；No downtime in hours, so the target cannot be compared；Redundancy without its cost (more hardware, failover complexity)；把串联的可用性相加；代价：多一台服务器的费用。 |
+| **可用性**（可用性、可用率、宕机、停机、故障、MTBF） · 在哪里：[H2](#h2) | ① 列出路径上的部件和每个的可用性（引题干原话，或明示假设） ② 题干给了 MTBF 和 MTTR 时，用 A = MTBF / (MTBF + MTTR) 算每个部件 ③ 组合：串联相乘；独立的并联副本是 1 − ∏(1 − Ai) ④ 用 (1 − A) × 8760 小时换算成每年停机时间 ⑤ 和目标比较；达不到就改最弱的一环（冗余、更快修复） 公式：A = MTBF / (MTBF + MTTR)；独立部件串联：A = A1 × A2 × … × An；独立部件并联：A = 1 − (1 − A1)(1 − A2)…(1 − An)；每年停机 = (1 − A) × 8760 小时 | 串联时把可用性相加，而不是相乘；副本有共同故障（电源、机房、软件）却当成相互独立；没有换算成停机小时，无法和目标比较；只说冗余，不说代价（更多硬件、切换的复杂度）；把串联的可用性相加；代价：多一台服务器的费用。 |
 
 ### 按概念 {#lookup-concepts}
 
@@ -29,7 +29,7 @@
 
 - [H2](#h2) 1.1 Availability
   - 问过：为什么串联要相乘？
-  - 易错：把串联的可用性相加（H2-Q2）
+  - 易错：把串联的可用性相加
 
 ## 1 Introduction 〔H1〕 {#h1}
 
@@ -51,25 +51,20 @@ An AI paragraph under the heading.
 
 [^h2g-1]: 「Availability is the proportion of time」 · Lecture 4
 
-**本节的题**
-
-- **H2-Q1** Which is right?
-  - A. Add them
-  - B. Multiply them
-  - C. Average them
-- **H2-Q2** 一个系统由两台串联的服务器组成，求可用性。
-
 #### 我的推导 〔H9〕 {#h9}
 
 **MTTR** is the mean time to repair [^h2m-1].
 
 串联 的可用性相乘。
 
-- 另见 **H2-Q3** Fill the blank. A = MTBF / (MTBF + ＿＿)
+- 另见 **H2-Q1** Fill the blank. A = MTBF / (MTBF + ＿＿)
 
 [^h2m-1]: my own footnote
 
-- **H2-Q1** Which is right?
+- **H2-Q2** Which is right?
+  - A. Add them
+  - B. Multiply them
+  - C. Average them
 
 > **追问：** 为什么串联要相乘？
 >
@@ -97,48 +92,8 @@ An old note [^unplaced-1].
 
 ### 1.1 Availability 〔H2〕 {#answers-h2}
 
-**H2-Q1** 答案：B. Multiply them
+**H2-Q1** 答案：MTTR
+
+**H2-Q2** 答案：B. Multiply them
 
 解析：Independent parts in series multiply.
-
-**H2-Q2** 答案：约 99.8%。
-
-**题型**：可用性
-
-**概念**
-
-- **可用性**：「Availability is the proportion of time」
-
-**假设**
-
-- MTTR 为 2 小时
-
-**推理链**
-
-1. A = 1000 / (1000 + 2) = 0.998
-
-**结论**
-
-可用性约 99.8%。
-
-**为什么满足目标**
-
-达到目标。
-
-**代价**
-
-多一台服务器的费用。
-
-**失败处理**
-
-主备切换。
-
-**如何验证**
-
-做一次故障演练。
-
-**易错检查**
-
-- 把串联的可用性相加
-
-**H2-Q3** 答案：MTTR

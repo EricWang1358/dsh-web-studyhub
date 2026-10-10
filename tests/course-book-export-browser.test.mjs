@@ -98,6 +98,14 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await dialog.locator('.book-export__pages').waitFor({ timeout: 30000 });
       assert.match(await dialog.locator('.book-export__pages').innerText(), /约 \d+ 页 A4/);
       assert.match(await dialog.locator('.book-export__key').innerText(), /不含答案册 · 约 \d+ 页[\s\S]*含答案册 · 约 \d+ 页/);
+      // Only the linked questions by default; with every point's own questions the estimate grows.
+      assert.equal(await dialog.locator('input[name="book-export-questions"][value="linked"]').isChecked(), true);
+      const fewer = Number((await dialog.locator('.book-export__pages').innerText()).match(/约 (\d+) 页/)[1]);
+      await dialog.getByText('再加每个知识点自己的题').click();
+      await page.waitForFunction(n => { const found = document.querySelector('.book-export__pages')?.innerText.match(/约 (\d+) 页/); return found && Number(found[1]) > n; }, fewer, { timeout: 30000 });
+      if (shots) await page.screenshot({ path: join(shots, `export-all-${width}.png`) });
+      await dialog.getByText('只印书里链接的题').click();
+      await page.waitForFunction(n => { const found = document.querySelector('.book-export__pages')?.innerText.match(/约 (\d+) 页/); return found && Number(found[1]) === n; }, fewer, { timeout: 30000 });
       await dialog.locator('input[type="number"]').fill('1');
       await dialog.locator('input[type="number"]').press('Enter');
       await dialog.locator('.book-export__pages .sh-badge').waitFor({ timeout: 30000 });

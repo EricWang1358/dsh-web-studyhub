@@ -14,6 +14,7 @@ import { bookLookup, codeOf, definedTerms, renderLookup, withoutNoprint } from '
 import { courseBookExport } from '../lib/course-book-export-op.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { mergeBookSettings, resolveBookSettings } from '../lib/book-settings.js';
+import { CASE_TYPES, typeText } from '../lib/case-types.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
@@ -21,29 +22,69 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { cardOf, exportBook, answerCard } from './helpers/course-book-export-book.mjs';
 
-const GOLDEN = fileURLToPath(new URL('./fixtures/course-book-export.golden.md', import.meta.url));
+const golden = mode => fileURLToPath(new URL(`./fixtures/course-book-export${mode === 'linked' ? '' : `-${mode}`}.golden.md`, import.meta.url));
 const numbersIn = text => [...text.matchAll(/\*\*(H\d+-Q\d+|U-Q\d+)\*\*/g)].map(match => match[1]);
 
-test('the export is deterministic: the golden file, byte for byte; the folder\'s files joined are the single text; book.yaml lists them in order', async () => {
-  const single = runExport(exportBook(), { cardOf, answerKey: true });
-  assert.equal(runExport(exportBook(), { cardOf, answerKey: true }).text, single.text, 'same book, same bytes');
-  if (process.env.UPDATE_GOLDEN === '1') await writeFile(GOLDEN, single.text);
-  assert.equal(single.text, (await readFile(GOLDEN, 'utf8')).replace(/\r\n/g, '\n'), 'the golden export (UPDATE_GOLDEN=1 writes it again)');
+test('the export is deterministic: a golden file per question mode (linked, all, none), byte for byte; the folder\'s files joined are the single text', async () => {
+  for (const questions of ['linked', 'all', 'none']) {
+    const done = runExport(exportBook(), { cardOf, answerKey: true, questions });
+    assert.equal(runExport(exportBook(), { cardOf, answerKey: true, questions }).text, done.text, `${questions}: same book, same bytes`);
+    if (process.env.UPDATE_GOLDEN === '1') await writeFile(golden(questions), done.text);
+    assert.equal(done.text, (await readFile(golden(questions), 'utf8')).replace(/\r\n/g, '\n'), `${questions}: the golden export (UPDATE_GOLDEN=1 writes it again)`);
+    assert.equal(done.questionMode, questions);
+    assert.equal(runExport(exportBook(), { cardOf, answerKey: true, questions, form: 'folder' }).files.map(file => file.text).join('\n'), done.text);
+  }
+  assert.equal(runExport(exportBook(), { cardOf }).questionMode, 'linked', 'linked by default');
+  assert.throws(() => runExport(exportBook(), { cardOf, questions: 'some' }), /questions must be one of/);
+  const single = runExport(exportBook(), { cardOf, answerKey: true, questions: 'all' });
   assert.equal(single.filename, '复习全书-SA-含答案册.md');
-  const folder = runExport(exportBook(), { cardOf, answerKey: true, form: 'folder' });
+  const folder = runExport(exportBook(), { cardOf, answerKey: true, form: 'folder', questions: 'all' });
   assert.equal(folder.files.map(file => file.text).join('\n'), single.text);
   assert.deepEqual(folder.files.map(file => file.name), ['000-front.md', '001-h2.gen.md', '002-h2.mine.md', '003-h2.qa.md', '004-h3.gen.md', '005-unplaced.md', '006-answers.md']);
   assert.equal(folder.manifest.name, 'book.yaml');
   assert.deepEqual([...folder.manifest.text.matchAll(/^ {2}- (.+)$/gm)].map(match => match[1]), folder.files.map(file => file.name), 'the ordered file list');
   assert.match(folder.manifest.text, /^title: "复习全书 · SA"$/m);
-  const plain = runExport(exportBook(), { cardOf });
+  const plain = runExport(exportBook(), { cardOf, questions: 'all' });
   assert.doesNotMatch(plain.text, /答案册/, 'no answer key unless asked');
   assert.equal(plain.filename, '复习全书-SA.md');
   assert.ok(single.text.startsWith(plain.text.trimEnd()), 'the answer key comes last');
 });
 
+test('questions: linked prints only the linked ones (numbered as they appear, options the first time), none prints none; the key and the estimate follow', () => {
+  const linked = runExport(exportBook(), { cardOf, answerKey: true }), all = runExport(exportBook(), { cardOf, answerKey: true, questions: 'all' });
+  const none = runExport(exportBook(), { cardOf, answerKey: true, questions: 'none' });
+  assert.doesNotMatch(linked.text, /本节的题|一个系统由两台/, 'linked: no point\'s own list, the unlinked question not printed');
+  assert.match(linked.text, /^- 另见 \*\*H2-Q1\*\* Fill the blank\./m, 'linked: numbered in the order the links appear');
+  assert.match(linked.text, /^- \*\*H2-Q2\*\* Which is right\?\n {2}- A\. Add them\n {2}- B\. Multiply them\n {2}- C\. Average them$/m, 'linked: the options the first time');
+  const [body, key] = linked.text.split('## 答案册 {#answers}');
+  assert.deepEqual([...new Set(numbersIn(key))], ['H2-Q1', 'H2-Q2'], 'the key has exactly the printed questions');
+  assert.deepEqual([...new Set(numbersIn(body))], ['H2-Q1', 'H2-Q2']);
+  assert.equal(linked.questions, 2);
+  assert.deepEqual(numbersIn(none.text), [], 'none: no numbered question anywhere');
+  assert.doesNotMatch(none.text, /Which is right|Fill the blank/);
+  assert.match(none.text, /## 答案册 \{#answers\}\n\n这本书里没有题。/);
+  assert.equal(none.questions, 0);
+  assert.equal(all.questions, 3);
+  assert.ok(none.text.length < linked.text.length && linked.text.length < all.text.length, 'each mode prints less than the next');
+  assert.ok(none.estimate.withAnswers <= linked.estimate.withAnswers && linked.estimate.withAnswers <= all.estimate.withAnswers, 'the estimate follows');
+});
+
+test('a zh export has no English text of the built-in question types; an en one has no Chinese; a course\'s own type stays as written', () => {
+  // (a formula of symbols only, such as A = MTBF / (MTBF + MTTR), reads the same in both)
+  const english = CASE_TYPES.flatMap(type => [...type.steps, ...(type.formulas || []), ...(type.mistakes || [])]).filter(text => /\b[a-z]{3,}\b/.test(text));
+  const zh = runExport(exportBook(), { cardOf }).text, row = zh.split('\n').find(line => line.startsWith('| **可用性**'));
+  for (const text of english) assert.ok(!zh.includes(text), `zh: no "${text}"`);
+  assert.doesNotMatch(row, /\b[a-z]{3,}\b/, `zh: no English word in the 速查表 row: ${row}`);
+  assert.match(row, /串联时把可用性相加/);
+  const en = runExport({ ...exportBook(), language: 'en' }, { cardOf }).text, enRow = en.split('\n').find(line => line.startsWith('| **Availability**'));
+  assert.ok(enRow.includes('Adding availabilities instead of multiplying them in series'));
+  assert.doesNotMatch(enRow.replace(/把串联的可用性相加|多一台服务器的费用。/g, ''), /[一-鿿]/, 'en: the type in English (the card\'s own words aside)');
+  const own = { id: 'availability', label: '可用性', signals: ['uptime'], steps: ['My own step'], mistakes: ['My own mistake'], own: true };
+  assert.deepEqual(typeText(own, 'zh'), { steps: ['My own step'], formulas: [], mistakes: ['My own mistake'], signals: ['uptime'] }, 'a course\'s own type as written');
+});
+
 test('markers out, ids as anchors and margin codes, links resolved: numbered questions with their options once, a deleted question and practice / Q&A links dropped', () => {
-  const { text } = runExport(exportBook(), { cardOf, answerKey: true });
+  const { text } = runExport(exportBook(), { cardOf, answerKey: true, questions: 'all' });
   assert.doesNotMatch(text, /<!--/, 'no marker comment is left');
   assert.doesNotMatch(text, /studyhub:\/\//, 'no studyhub link is left');
   assert.doesNotMatch(text, /\[\[|\]\]/, '[[term]] is the term');
@@ -63,7 +104,7 @@ test('markers out, ids as anchors and margin codes, links resolved: numbered que
 });
 
 test('an English book exports in English: the lookup, the questions\' heading, the answer key', () => {
-  const { text, filename } = runExport({ ...exportBook(), language: 'en', title: 'Review book · SA' }, { cardOf, answerKey: true });
+  const { text, filename } = runExport({ ...exportBook(), language: 'en', title: 'Review book · SA' }, { cardOf, answerKey: true, questions: 'all' });
   for (const part of ['## Lookup {#lookup}', '### Contents {#lookup-toc}', '### By question type {#lookup-types}', '**Answer order**: Stem facts → Explicit assumptions',
     '| Type · signals in the stem | Steps · formulas | Common mistakes · the cost to state |', '**Availability** (', '### Mistakes by point {#lookup-mistakes}',
     '**Questions of this point**', '## Answer key {#answers}', '**H2-Q1** Answer: B. Multiply them']) assert.ok(text.includes(part), part);
@@ -107,7 +148,7 @@ test('the lookup: 目录 with codes, 按题型 (速查表) from the answer cards
     'only the types with an answer card in the book (no course types of its own)');
   const [availability] = lookup.types;
   assert.ok(availability.steps.length >= 4 && availability.formulas.length >= 1);
-  assert.ok(availability.mistakes.includes('把串联的可用性相加') && availability.mistakes.includes('Adding availabilities instead of multiplying them in series'), 'the type\'s and the cards\' mistakes');
+  assert.ok(availability.mistakes.includes('把串联的可用性相加') && availability.mistakes.includes('串联时把可用性相加，而不是相乘'), 'the type\'s and the cards\' mistakes');
   assert.deepEqual(availability.costs, ['多一台服务器的费用。']);
   assert.deepEqual(lookup.answerOrder, ['题干事实', '明示假设', '设计/计算', '为什么满足目标', '失败与代价', '如何验证']);
   assert.deepEqual(lookup.concepts.map(item => [item.term, item.places, item.from]),
@@ -117,7 +158,7 @@ test('the lookup: 目录 with codes, 按题型 (速查表) from the answer cards
   const own = bookLookup(book, { ...book, caseTypes: [...book.caseTypes, { id: 'mine', label: 'Mine', signals: [], steps: ['Do it'], own: true }] });
   assert.ok(own.types.some(type => type.id === 'mine'), 'a course\'s own type is listed even without a card');
   const markdown = renderLookup(lookup, { number: (deckId, cardId, hid) => (hid === 'h2' && cardId === 'q2' ? 'H2-Q2' : null) });
-  assert.match(markdown, /^\| \*\*可用性\*\*（可用性、可用率、宕机、停机、故障、MTBF） · 在哪里：\[H2\]\(#h2\)（H2-Q2） \| ① List the components/m);
+  assert.match(markdown, /^\| \*\*可用性\*\*（可用性、可用率、宕机、停机、故障、MTBF） · 在哪里：\[H2\]\(#h2\)（H2-Q2） \| ① 列出路径上的部件/m);
   assert.match(markdown, /^ {2}- 易错：把串联的可用性相加（H2-Q2）$/m);
   const empty = bookLookup({ ...book, answerCards: [] }, { caseTypes: book.caseTypes, answerCards: [] });
   assert.deepEqual(empty.types, [], 'no answer card, no course type: nothing about question types');
@@ -182,7 +223,7 @@ test('course.book.export on the state: all of a point\'s questions numbered, a d
   const other = state.decks.find(deck => deck.id === 'deck-l1').cards[1];
   bookOf(state).bookDoc.files['what.mine.md'].text = `See [练习：gone](studyhub://card/deck-l1/deleted) and [练习：it](studyhub://card/deck-l1/${other.id}).`;
   const before = JSON.stringify(state);
-  const done = courseBookExport(state, { answerKey: true });
+  const done = courseBookExport(state, { answerKey: true, questions: 'all' });
   assert.equal(JSON.stringify(state), before, 'read only');
   assert.equal(done.status, 'ok');
   const own = numbersIn(done.text.split('## 1 Introduction')[1].split('## 答案册')[0]).filter(number => number.startsWith(codeOf(what.hid)));
@@ -190,9 +231,14 @@ test('course.book.export on the state: all of a point\'s questions numbered, a d
   assert.match(done.text, new RegExp(`See and \\*\\*${codeOf(what.hid)}-Q\\d+\\*\\* What does`), 'the deleted link is left out, the live one numbered');
   assert.match(done.text, /^\| \*\*可用性\*\*/m, 'the answer card\'s type in the 速查表');
   assert.match(done.text, /^- \*\*架构决策\*\*：\[H\d+\]\(#h\d+\)$/m, 'a bold definition of the notes in 按概念');
-  assert.equal(courseBookExport(state, { answerKey: true }).text, done.text, 'deterministic on the state');
+  assert.equal(courseBookExport(state, { answerKey: true, questions: 'all' }).text, done.text, 'deterministic on the state');
+  const linked = courseBookExport(state, { answerKey: true });
+  assert.equal(linked.questionMode, 'linked');
+  assert.deepEqual([...new Set(numbersIn(linked.text))], [`${codeOf(what.hid)}-Q1`], 'by default only the linked question');
+  assert.ok(linked.estimate.withAnswers < done.estimate.withAnswers, 'and fewer pages');
   assert.deepEqual(Object.keys(courseBookExport(state, { estimateOnly: true })).sort(), ['course', 'estimate', 'status']);
   assert.throws(() => courseBookExport(state, { form: 'zip' }), error => error.code === 'course-book-export-args');
+  assert.throws(() => courseBookExport(state, { questions: 'some' }), error => error.code === 'course-book-export-args');
   assert.throws(() => courseBookExport(state, { answerKey: 'yes' }), error => error.code === 'course-book-export-args');
   assert.equal(courseBookExport({ ...state, sources: state.sources.filter(source => !source.courseOutline) }, {}).status, 'empty');
 });
