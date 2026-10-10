@@ -117,6 +117,7 @@ test('a stop saves nothing; a question changed while its card was written is ref
   const s = await world(t, cardModel({ held }));
   const run = await s.build();
   await until(() => s.fake.calls.length === 1, 'the write');
+  await assert.rejects(s.build(), error => error.code === 'answer-card-running', 'one task per question at a time');
   await s.service.call('job.control', { jobId: run.jobId, action: 'cancel' });
   held.gate.release();
   assert.equal((await settleJob(s.service, run.jobId)).status, 'cancelled');
