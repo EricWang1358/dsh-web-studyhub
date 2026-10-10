@@ -64,7 +64,7 @@
 | `mineruSetup` | MinerU 本地配置的旧后台运行 | `lib/contexts/audio/setup/mineru-setup-runs.js:47` | `mineru-local-service.runtime`、`unified-runtime-mineru-setup` |
 | `retrievalIndex` | 检索索引构建的旧后台运行 | `lib/contexts/generation/retrieval/runtime-port.js:4`（`index-runs.js`） | `wp28b-index.runtime`、`unified-runtime-retrieval-index` |
 
-**没有开关的新 Job 种类。** 课程总纲的整理任务 `course-outline-build`（2026-10-09，总纲步骤 2，`lib/contexts/generation/outline/`）和考点清单一样是新增的种类，没有旧路径可旁路，所以也不加开关：它登记在清单的 `managedDefinitions`（守卫逐个审计），没有新的模型调用点或启动点（每次调用都是网关的 Step，复用 `blueprint/jobs/ask.js`），操作是 `generation.courseOutline.build`（写入为空，总纲经资料上下文的 `sources.ingest` 入库）。证据：`course-outline-job.test.mjs`。
+**没有开关的新 Job 种类。** 课程总纲的整理任务 `course-outline-build`（2026-10-09，总纲步骤 2，`lib/contexts/generation/outline/`）和考点清单一样是新增的种类，没有旧路径可旁路，所以也不加开关：它登记在清单的 `managedDefinitions`（守卫逐个审计），没有新的模型调用点或启动点（每次调用都是网关的 Step，复用 `blueprint/jobs/ask.js`），操作是 `generation.courseOutline.build`（写入为空，总纲经资料上下文的 `sources.ingest` 入库）。证据：`course-outline-job.test.mjs`。复习全书的生成任务 `course-book-build`（2026-10-09，`lib/contexts/generation/book/`）同理：登记在 `managedDefinitions`，没有新的模型调用点或启动点（复用同一个 `ask.js`；没有总纲时，它在同一个 Job 里直接调用总纲的阶段 `organiseOutline`，不另起任务），操作是 `generation.courseBook.build`（写入为空，全书和它整理出的总纲在最后一步经 `sources.ingest` 一次入库）。证据：`course-book-job.test.mjs`。
 
 ## 3. 全部后台启动点（`starts`，33 个文件 48 处）
 

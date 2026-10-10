@@ -48,6 +48,8 @@
 
 **没有开关的种类：课程总纲整理（`course-outline-build`，2026-10-09）。** 旧版启动、读库：未演练，但总纲和考点清单同形，是一份带附加字段（`courseOutline`，`provenance: 'course-outline'`）的普通 source，旧版读写时字段原样保留。已完成的产物：△ 旧版（3.3.0 及更早）不认识「总纲不算资料」的隐藏规则，会把它当一份 Markdown 资料列在资料里，这是接受的退化，和考点清单相同。未完成的任务：无，任务不持久（`recoveryMode: none`），总纲只在最后一步一次性入库，没有半成品，重启后再点一次「生成总纲」。证据：`course-outline-book.test.mjs`、`course-outline-job.test.mjs`。
 
+**没有开关的种类：复习全书生成（`course-book-build`，2026-10-09）。** 同上：全书是一份带附加字段（`courseNotes`，`provenance: 'course-outline-notes'`）的普通 source，旧版读写时字段原样保留；△ 旧版不认识它的隐藏规则，会把它当一份 Markdown 资料列出，接受的退化。任务不持久，全书（和它顺带整理的总纲）只在最后一步一次性入库，没有半成品，重启后再点一次「生成复习全书」。证据：`course-book-job.test.mjs`、`course-book.test.mjs`。
+
 ## 3. 格式：运行时留下了什么
 
 - **内核记录没有新增字段**：形状守卫对每个写出的 manifest 用 2.7.1 自己的校验器（`tests/fixtures/release-2.7.1/`，逐字复制）检查，所以关掉开关回退后整个快照不会因一份读不了的记录而失败。演练第一次运行时发现过一次真实缺陷（请求意图带 `sideEffect` 与 `abandoned`），已在内核修复（#331）。`local-wait` 调用现在是无副作用的（#320），`deliveries` 只有 eventId/channel/status。

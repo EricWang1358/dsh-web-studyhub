@@ -82,3 +82,11 @@ export const offerText = count => uiFormat('现在按资料排开（{0} 份）�
 
 /** The toast of a start. */
 export const startedText = already => (already ? ui('总纲已经在整理，进度在任务页。') : ui('已开始整理总纲，进度在任务页。'));
+
+/* ---------- 复习全书 (the explanation layer on the outline) ---------- */
+
+/** The line of a running 复习全书 build. */
+export const writingText = run => (run.total ? uiFormat('正在生成复习全书（{0}/{1} 步）…', [Math.min(run.done + 1, run.total), run.total]) : ui('正在生成复习全书…'));
+
+/** The toast of a 复习全书 start. */
+export const bookStartedText = already => (already ? ui('复习全书已经在生成，进度在任务页。') : ui('已开始生成复习全书，进度在任务页。'));
