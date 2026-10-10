@@ -67,7 +67,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useLiveEffect(isLive => {
     if (book?.status !== 'ok' || !book.notes) return;
-    call('book.crunch', { course, date: localDate() }).then(next => { if (isLive()) setCrunch(next); }, () => {});
+    call('book.crunch', { course, date: localDate() }).then(next => { if (isLive()) setCrunch(next); }, () => { if (isLive()) setCrunch({ status: 'error' }); });
   }, [call, course, book?.revision, book?.status, book?.notes]);
   const crunchDay = crunch?.status === 'ok' ? crunch.plan.today : null;
   const crunchPoints = useMemo(() => { const byId = new Map((crunch?.points || []).map(point => [point.id, point])); return (crunchDay?.points || []).map(id => byId.get(id)).filter(Boolean); }, [crunch, crunchDay]);
@@ -141,7 +141,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     keepBook(root, course, { target: null });
   }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
-    const wanted = restore.current, element = wanted && document.getElementById(`book-${wanted.hid}`);
+    // In 翻看 a point is its row of the view (`flip-<id>`), in 预览 its heading.
+    const wanted = restore.current, element = wanted && (document.getElementById(`book-${wanted.hid}`) || document.getElementById(`flip-${wanted.hid}`));
     if (!element) return;
     restore.current = null;
     // One jump, not smooth: the heading where it was on screen (from the way back), else just under the top of the scroller (from the 目录).
@@ -164,6 +165,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
 
   // The way back after practice: the heading just above the link (a typed heading too), where it was on screen, and the chapter that holds it.
   const remember = useCallback((hid, from) => {
+    // From 翻看: its row of the point, where it was on screen (the view comes back in 翻看, kept per course).
+    const flipPoint = from?.closest?.('[data-flip-point]');
+    if (flipPoint) {
+      const id = flipPoint.dataset.flipPoint, row = rowOf(rows, id);
+      keepBook(root, course, { heading: id, offset: flipPoint.querySelector(`#flip-${id}`)?.getBoundingClientRect().top ?? 0, target: null, chapter: row ? chapters[row.chapter]?.hid ?? null : null });
+      return;
+    }
     const headings = from && pageRef.current ? [...pageRef.current.querySelectorAll('[data-book-heading]')].filter(item => item.compareDocumentPosition(from) & 4) : [];
     const element = headings.at(-1) || document.getElementById(`book-${hid}`), row = rowOf(rows, hid);
     keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
@@ -274,8 +282,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     <section className="page book-page">
       {header}
       {todayPanel}
-      <BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
-        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} />
+      {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
+      {crunch ? <BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
+        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /> : <LoadingState label={ui('正在排期末一周…')} />}
       {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
       {exportDialog}
     </section>

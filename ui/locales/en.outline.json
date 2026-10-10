@@ -237,5 +237,9 @@
   "这几节没有单选或多选题，出不了模拟卷。": "These points have no single or multiple choice questions, so there is no mock paper to make.",
   "选进模拟卷": "Into the mock paper",
   "限时 {0} 分钟": "Time limit {0} minutes",
-  "限时 {0} 分钟（课程的作答时间）": "Time limit {0} minutes (the course's writing time)"
+  "限时 {0} 分钟（课程的作答时间）": "Time limit {0} minutes (the course's writing time)",
+  "期末一周每天学多久": "Final week: minutes a day",
+  "期末一周每天排多少分钟：节数多于时间时，那几天会合并几节并写明超出多少，不会丢掉哪一节。": "How many minutes each day of the final week holds: when there are more points than time, those days take several points and say how far over they are; no point is left out.",
+  "每天 {0} 分钟": "{0} minutes a day",
+  "正在排期末一周…": "Planning the final week…"
 }

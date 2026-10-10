@@ -15,6 +15,8 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { localDate } from '../lib/board-model.js';
 import { addDays } from '../lib/crunch-plan.js';
 import { pointMistakes } from '../lib/book-flip.js';
+import { crunchComputations } from '../lib/course-book-crunch.js';
+import { crunchMinutes, mergeBookSettings } from '../lib/book-settings.js';
 import { libraryContracts, studyToolDescription } from '../lib/study-contracts.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
@@ -199,6 +201,54 @@ test('the 易错点 of a point: the follow-ups put into the book, the answer car
   const items = pointMistakes(book);
   assert.deepEqual(items.get('h2').map(item => [item.kind, item.text]), [['asked', '为什么串联要相乘？'], ['pitfall', '把串联的可用性相加'], ['explained', '可用性']]);
   assert.equal(items.has('h3'), false);
+});
+
+test('book.crunch is kept per course, library revision, book revision and day: an unchanged second call does not rebuild the book; a book write or a new answer does', async t => {
+  const { study, deck, what } = await service(t);
+  await examIn(study, 7);
+  await study.call('book.crunch', { date: TODAY });
+  const first = crunchComputations();
+  const again = await study.call('book.crunch', { date: TODAY });
+  await study.call('book.crunch', { all: true, date: TODAY });
+  assert.equal(crunchComputations(), first, 'unchanged: not computed again (the home card asks the same)');
+  assert.equal(again.status, 'ok');
+  await study.call('book.crunch', { date: addDays(TODAY, 1) });
+  assert.equal(crunchComputations(), first + 1, 'another day is another plan');
+  // A write of the book (a mark) invalidates it.
+  const marked = await study.call('book.crunch.mark', { hid: what.hid, kind: 'seen', date: TODAY });
+  assert.equal(marked.points.find(point => point.id === what.hid).seen, TODAY);
+  const afterMark = crunchComputations();
+  assert.ok(afterMark > first + 1);
+  await study.call('book.crunch', { date: TODAY });
+  assert.equal(crunchComputations(), afterMark, 'the answer of the mark is kept');
+  // A new answer invalidates it.
+  await study.store.update(state => { for (const card of deck.cards.slice(0, 5)) state.attempts.push({ id: `n-${card.id}`, quiz_id: card.id, deckId: deck.id, timestamp: new Date().toISOString(), grade: 4, assessment: 'graded' }); });
+  const fresh = await study.call('book.crunch', { date: TODAY });
+  assert.equal(crunchComputations(), afterMark + 1);
+  assert.equal(fresh.points.find(point => point.id === what.hid).done, TODAY, 'the new answers are seen');
+});
+
+test('a parked course is left out of the 期末一周 of the home; activated again it is back', async t => {
+  const { study } = await service(t);
+  await examIn(study, 7);
+  assert.equal((await study.call('book.crunch', { all: true, date: TODAY })).courses.length, 1);
+  await study.call('course.deactivate', { name: COURSE });
+  assert.deepEqual((await study.call('book.crunch', { all: true, date: TODAY })).courses, []);
+  assert.equal((await study.call('book.crunch', { date: TODAY })).status, 'ok', 'its book page still has the plan');
+  await study.call('course.activate', { name: COURSE });
+  assert.equal((await study.call('book.crunch', { all: true, date: TODAY })).courses.length, 1);
+});
+
+test('the minutes a day (settings.book.crunchMinutes, default 180) go to the planner', async t => {
+  assert.equal(crunchMinutes(undefined), 180);
+  assert.deepEqual(mergeBookSettings(undefined, { crunchMinutes: 90 }), { qaToBook: 'manual', crunchMinutes: 90 });
+  assert.throws(() => mergeBookSettings(undefined, { crunchMinutes: 5 }), /Invalid book setting/);
+  const { study } = await service(t);
+  await examIn(study, 7);
+  assert.equal((await study.call('book.crunch', { date: TODAY })).plan.capacity, 180);
+  await study.call('settings.book.set', { patch: { crunchMinutes: 60 } });
+  assert.equal((await study.call('book.crunch', { date: TODAY })).plan.capacity, 60);
+  assert.equal((await study.call('book.crunch', { date: TODAY, minutesPerDay: 240 })).plan.capacity, 240, 'the op argument wins');
 });
 
 test('the contracts name the ops', () => {

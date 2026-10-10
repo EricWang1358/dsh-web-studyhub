@@ -128,6 +128,25 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await page.locator('.book-flip').waitFor({ timeout: 30000 });
       assert.equal(await seenCount(page), before + 1, `${width}px: 已看 survives a reload`);
 
+      // A question link inside 翻看 goes to the practice page with 回到复习全书 and comes back to the same place in 翻看.
+      const last = page.locator('.book-flip__point').last(), lastHid = await last.getAttribute('data-flip-point');
+      await last.locator('summary').click();
+      const question = last.locator('.book-questions [data-book-link="card"]').first();
+      await question.waitFor({ timeout: 30000 });
+      await question.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      const topBefore = await page.evaluate(id => Math.round(document.getElementById(`flip-${id}`).getBoundingClientRect().top), lastHid);
+      await question.click();
+      const back = page.locator('.review-detour', { hasText: '回到复习全书' });
+      await back.waitFor({ timeout: 30000 });
+      await back.click();
+      await page.locator(`#flip-${lastHid}`).waitFor({ timeout: 30000 });
+      await page.waitForTimeout(400);
+      const topAfter = await page.evaluate(id => Math.round(document.getElementById(`flip-${id}`).getBoundingClientRect().top), lastHid);
+      // The point comes back where it was (or, when its folded 讲解 makes the page too short for that, as near as the page allows: on screen).
+      assert.ok(Math.abs(topAfter - topBefore) <= 24 || (topAfter >= 0 && topAfter < 900), `${width}px: back in 翻看 at the same point: ${topBefore} -> ${topAfter}`);
+      assert.equal(await seenCount(page), before + 1, `${width}px: still 翻看 with its progress`);
+
       // The mock paper: what can go in, then the ordinary exam page.
       await page.locator('.book-flip__mock').getByRole('button', { name: '用这几节出一套模拟卷' }).click();
       const mock = page.locator('.book-flip__mock .book-mock');
