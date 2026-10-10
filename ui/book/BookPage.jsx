@@ -276,6 +276,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {todayPanel}
       <BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
         onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} />
+      {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
       {exportDialog}
     </section>
   );

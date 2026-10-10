@@ -143,6 +143,9 @@ test('days off are skipped: the 翻看 days are the last study days, the mock on
   assert.equal(plan.days[2].reason.code, 'off');
   assert.deepEqual(plan.days[2].points, []);
   assert.equal(daysBetween(plan.flipStart, exam), 3);
+  const resting = week({ daysOff: [TODAY], done: { h3: TODAY } });
+  assert.deepEqual({ mode: resting.today.mode, points: resting.today.points, done: resting.today.done }, { mode: 'off', points: ['h3'], done: ['h3'] }, 'a day off that is today lists what was done on it');
+  assert.equal(learnIds(resting).includes('h3'), false);
 });
 
 test('deterministic: the same input gives the same plan, whatever the order of the list', () => {

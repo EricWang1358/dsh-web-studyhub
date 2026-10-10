@@ -2,7 +2,7 @@
 
 [English](review-book.md)
 
-**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）、M3（把问答加进书）、M4（读的时候弄懂）、M5（分析题答案卡）和 M6（查找页和导出）。按 2026-10-11 的代码核对。
+**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）、M3（把问答加进书）、M4（读的时候弄懂）、M5（分析题答案卡）、M6（查找页和导出）和 M7（期末一周）。按 2026-10-11 的代码核对。
 
 ## 打开
 
@@ -86,15 +86,26 @@
 - **页数。** 导出窗口按固定规则估计每种选择的 A4 页数（每行约 40 个汉字或 80 个其他字符，每页 45 行，空行算半行）：是估计，不是实测。**页数上限**（默认不填）存为 `settings.book.pageLimit`；填了之后，标题栏里有一行不显眼的「导出约 N 页 / 上限 M 页」（不含答案册的书），超出时说超出多少。
 - 已知限制（接受）：概念规则只认行首的加粗词、以「定义」开头那一行里的加粗词和 `[[术语]]`；`course.book.open` 每次都带上这门课的题型目录（`caseTypes`，几 kB）；设了页数上限后，书每改一次，标题栏那一行都要把整本书再导出一遍（只算页数），书很大时更费时。标题栏的估计按默认选择（只印链接的题、不含答案册）。
 
+## 期末一周
+
+课程设了考试日期（「课程设置」）、也有复习全书时，程序按书里的知识点排出考前每一天：不调用模型，同一本书、同样的作答和标记，排出来总是一样；每一天都用一句话说明为什么这样排。
+
+- **先学，再翻看。** 从今天到考试前一天：最后两个学习日（一到三天；剩下的天数更少时就全部）是**翻看日**：不再做新题，每一节看一次，易错点多的先看，再按薄弱程度；考前最后一整天另有一套**模拟卷**。前面的日子是**学习日**：读一节，再「练 5 道」（它接下来的 5 道题）。今天考试：只有一个翻看日，没有模拟卷。没有考试日期就没有计划，书照常能用。
+- **哪几节先学。** 一节的分量是 1 + 样卷里考过它的份数（总纲的「样卷考过」）；没有样卷时每节一样重。薄弱程度看它的题（薄弱的算得最重，其次是没学过的、学习中的、熟悉的；到期的再加一点）。分量 × 薄弱程度最大的先学；每天的时间大致一样（读它的文字，每分钟约 300 字，加 5 道题），同一天里按阅读顺序。一节只学一次：某一天答了它至少 5 道题（题少于 5 道就全部），或者没有题的一节点了「读完了」。节数多于时间时，那几天会超过每天 180 分钟，并且写明（「节数多于时间：……」）：什么都不丢。第二天再排时，做完的节留在做完的那一天，剩下的从今天起重新分；刚好做完今天的节，后面几天和原来一样。
+- **在首页。** 「今天先做什么」下面，每门考试在 21 天以内的课（「设置 › 练习 › 期末一周提前几天出现」，7–60 天）有一张「期末一周 · 课程」卡片：今天是什么日子、为什么这样排、今天的几节（「去读」打开书页到这一节，「练 5 道」，翻看日是「翻看」）、「翻看全书」和「用这几节出一套模拟卷」。不是当前课程的，会先切换到那门课再打开书页（书页显示当前课程的书）。
+- **在书页。** 标题栏里的「今天读哪几节」在下面打开同一天。第四种看法「翻看」按计划的翻看顺序列出每一节：先是你的**易错点**（你问过、加进书里的追问，答题卡的易错检查，用「弄懂」讲过的地方），**讲解**收起（展开时才画出来），「已看」（每门课记着，刷新后进度还在）和「选进模拟卷」。
+- **模拟卷。** 「用这几节出一套模拟卷」（翻看里选中的几节，没有选就是今天的几节，再没有就是全书）先说这几节一共多少道题、多少道单选或多选可以进卷、按题型哪些不进（模拟考试只考单选和多选），题数（1–50，默认最多 20）和限时（课程的作答时间，没有就 30 分钟）；「开始模拟卷」用这些题开始普通的模拟考试，到期和薄弱的题在前。考试页、计时、交卷和成绩都和平常一样；回去的路是复习全书。
+- 已知限制：每天的时间固定为 180 分钟，休息日只是操作的参数（还没有页面）；阅读速度是固定规则；一节学没学完看一天里的作答，所以在模拟考试里答了它 5 道题也算。
+
 ## 存在哪里
 
-全书是学习库里的一条隐藏记录（`provenance: 'course-book-doc'`），里面是几份 Markdown 文件：每个知识点一份生成的文件（程序的）和一份你自己的文件（M1 里为空），一份清单（总纲的树，每个标题一个稳定 id），以及一份放「未归位」内容的文件。它只是参考，不是资料：不在资料列表、选择器和搜索里，不进检索索引，不计入助手看到的学习库情况，把它当资料用会被拒绝。题目仍然引用原资料。
+全书是学习库里的一条隐藏记录（`provenance: 'course-book-doc'`），里面是几份 Markdown 文件：每个知识点一份生成的文件（程序的）和一份你自己的文件（M1 里为空），一份清单（总纲的树，每个标题一个稳定 id），以及一份放「未归位」内容的文件；期末一周的「读完了」「已看」是同一条记录里每节一个日期（`bookDoc.marks`），不是文件。它只是参考，不是资料：不在资料列表、选择器和搜索里，不进检索索引，不计入助手看到的学习库情况，把它当资料用会被拒绝。题目仍然引用原资料。
 
 打开书页时，第一次会生成这些文件（不调用模型），之后把生成的文件更新到当前的讲解。知识点的题目列表不存在文件里，每次现读，所以加题、删题不改任何文件；什么都没变时打开书页不会写学习库。你自己的文件不会被改动。总纲重新整理后，新的知识点如果包含同样的资料（否则看同名），就沿用原来的文件和标题 id；对不上的放进「未归位」；什么都不删。
 
 ## 回退
 
-只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。题目的答题卡（`answerCard`）旧版原样保留，只显示原来的参考答案。导出不写任何东西；旧版下次保存设置时会丢掉页数上限（`settings.book.pageLimit`），保存课程时会丢掉课程自己题型的 `mistakes`。
+只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。题目的答题卡（`answerCard`）旧版原样保留，只显示原来的参考答案。导出不写任何东西；旧版下次保存设置时会丢掉页数上限（`settings.book.pageLimit`），保存课程时会丢掉课程自己题型的 `mistakes`。期末一周只写它的标记（`bookDoc.marks`，旧版原样保留）和可选的 `settings.book.crunchWindowDays`（旧版保存设置时会丢掉）；模拟卷是普通的考试记录。
 
 ## 开发者
 
@@ -105,4 +116,5 @@
 - `generation.answerCard.build {cardId, deckId?, again?, language?}` 开始任务 `case-answer-card`（lib/contexts/generation/answer-card/：写、复核、最多改一次；用量记在 `case`）；答题卡由题库上下文的 `card.answerCard.set` 保存，任务开始后题目被改过就拒绝保存（`answer-card-stale`）。拒绝码：answer-card-no-card、answer-card-not-case、answer-card-in-exam、answer-card-exists、answer-card-running。答题卡的格式、核对、三种状态和 Markdown 见 lib/answer-card.js（`renderAnswerCard` 输出确定）；题型目录是 lib/case-types.js（`course.save {caseTypes}` 加课程自己的题型）。`book.qa.add {cardId, deckId?, answerCard: true}` / `book.qa.remove {cardId, answerCard: true}` 写入块 `<!-- sh:card card=… -->` … `<!-- /sh:card -->`；`book.qa.list` 另外返回 `answerCardIds`。
 - lib/course-book-links.js（浏览器可用）：三种题目链接（`parseBookLink`）、写在标题行末的标题 id（`## 标题 <!-- sh:id h3 -->`，`assignHeadingIds`：只给一次，永不复用）、`bookIndex`（标题树和每个标题下的题目链接）、`stitchBook`（按顺序拼接文件，脚注按文件命名）、`plainBook`。
 - `course.book.export {course?, form?: 'single' | 'folder', answerKey?: boolean, estimateOnly?: boolean}`（lib/course-book-export-op.js，只读：按 `course.book.open` 会给出的书导出，什么都不写）返回 `{ status, course, form, title, language, filename, text | files + manifest, questions, estimate: { pages, book, withAnswers, columns, rows } }`；Markdown 由 lib/course-book-export.js 的 `exportBook` 生成（纯函数，浏览器可用，输出确定），查找页是 lib/course-book-lookup.js 的 `bookLookup(book, { caseTypes, answerCards })` 和 `renderLookup`（编号：`codeOf`）。`course.book.open` 另外返回 `answerCards`（书里题目的答题卡摘要）和 `caseTypes`（这门课的题型目录，课程自己的题型带 `own: true`），来自 lib/course-book-cards.js。题型可以带 `mistakes`（lib/case-types.js）。`settings.book.set {patch: {pageLimit: 1–2000 | null}}`。
-- 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。查找是 ui/book/BookLookup.jsx，导出是 ui/book/BookExport.jsx。
+- `book.crunch {course?, date?, minutesPerDay?, daysOff?, reviewDays?}`（lib/course-book-crunch.js，只读）返回 `{ status: 'ok' | 'far' | 'past' | 'no-exam' | 'no-book' | 'no-course', course, examDate, daysLeft, window, revision, plan, points }`；计划由 lib/crunch-plan.js 的 `crunchPlan` 排出（纯函数，浏览器可用，输出确定：`days: [{ date, offset, mode: 'learn' | 'flip' | 'off', mock, points, done, minutes, reason: { code, … } }]`、`today`、`order: { learn, flip }`、`merged`、`unlearned`）；`points` 是 `{ id, key, code, title, tested, weakness, questions, weak, due, fresh, size, pitfalls, done, seen }`，易错点来自 lib/book-flip.js 的 `pointMistakes(book)`。`book.crunch {all: true, date?}` 返回考试在窗口以内的课程（`settings.book.set {patch: {crunchWindowDays: 1–60 | null}}`，默认 21 天），带今天这一天和它的几节。`book.crunch.mark {course?, hid, kind: 'read' | 'seen', on?, date?}` 在书的写入队列里记下标记。`book.mock.plan {course?, pointIds?, count?}`（只读）返回 `{ points, unknown, questions, eligible, leftOut: { 题型: 道数 }, count, capped, perPoint, limitMinutes? }`；`book.mock`（同样的参数和 `limitMinutes?`）在一个事务里调用 `review.start {mode: 'exam', scope, count, examKinds: 'all'}`，返回考试记录并附上 `mock`。拒绝码：book-crunch-date、book-crunch-no-book、book-crunch-kind、book-crunch-point、book-mock-no-book、book-mock-points、book-mock-count、book-mock-empty。
+- 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。查找是 ui/book/BookLookup.jsx，导出是 ui/book/BookExport.jsx，翻看是 ui/book/BookFlip.jsx，计划的一天是 ui/book/CrunchDay.jsx（首页卡片是 ui/book/CrunchCard.jsx），模拟卷是 ui/book/MockPaper.jsx。
