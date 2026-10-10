@@ -2,7 +2,7 @@
 
 [English](review-book.md)
 
-**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）、M3（把问答加进书）、M4（读的时候弄懂）和 M5（分析题答案卡）；导出和打印在后面的步骤。按 2026-10-11 的代码核对。
+**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）、M3（把问答加进书）、M4（读的时候弄懂）、M5（分析题答案卡）和 M6（查找页和导出）。按 2026-10-11 的代码核对。
 
 ## 打开
 
@@ -75,6 +75,17 @@
 - 已知限制：核对或复核后改写过的答题卡，程序会再核对一遍，但不会再复核；数字检查是经验规则（题干没提的「RAID 5」这类级别可能被列出，算式之后写的输入数字可能漏掉）；题型由模型参照关键词猜测选择，课程自己的题型通过 `course.save {caseTypes}` 设置（还没有页面）。
 - 答题卡下的「加入复习全书」把它放进这门课的复习全书，放在知识点的问答文件里、题目链接下面（不属于任何知识点的案例题放进「未归位」），只放一次；「已加入 · 撤回」把它拿出来。放进书里之后，它就是你的文字。
 
+## 查找和导出（打印成自己的 CP）
+
+一本从头读到尾的书，开卷考试时不好查。所以书有**查找页**，每次都从书现在的样子生成（从不单独保存，也不手改），导出时放在最前面：从一道题找到是哪一节、哪个定义、哪些步骤。
+
+- **编号。** 每个标题有一个稳定的编号，就是它的 id 的大写（`H12`），书页上写在标题旁边，导出里写在页边（`### 1.2 标题 〔H12〕`）。编号永不重排：插入、移动、删掉一节，变的是序号（1.2 → 1.3），不是编号。一个知识点的题按它的编号排：`H12-Q1`、`H12-Q2`……；「未归位」是 `U`。
+- **查找**（书上方的第三种看法，和「预览」「原文」并列）：**目录**，带编号；**按题型**，就是速查表：书里有答题卡的每种题型（以及课程自己的题型），列出题干信号、检查顺序和公式、最常见的错误和必须交代的代价（内置题型用书的语言，中文或英文；课程自己的题型照原样）、在哪里（编号和题号），上面是每道题都适用的答题顺序（题干事实 → 明示假设 → 设计/计算 → 为什么满足目标 → 失败与代价 → 如何验证）；**按概念**：答题卡里的概念、笔记和讲解里开头加粗的定义词（`**术语**：……`、`**术语**是……`、`**term** is ……`，或以「定义」开头那一行里的所有加粗词），以及你用 `[[术语]]` 标出的词，各自带编号；**易错点（按知识点）**：你加进书里的追问（当时不懂、去问的地方）和答题卡的易错检查。点编号就到那个标题。没有答题卡时不显示题型的内容。
+- **导出**（标题栏里）：一个 Markdown 文件，可选**不含**或**含答案册**。最前面是书名和查找页，然后按阅读顺序是整本书（每个知识点：讲解、选了时它的题、你的笔记、它的问答；「未归位」在最后；含答案册时答案册在最后）。程序的标记注释都去掉（标题的 id 变成 Pandoc 的锚点 `{#h12}` 和页边编号；问答块、答题卡块、AI 块的内容保留）；**印哪些题**：**只印书里链接的题**（默认：问答文件里的和你自己写了链接的题）、**再加每个知识点自己的题**（每个知识点的题都印出来，带选项，最占页数）或**不印题目**（题目链接都去掉）。印出来的题目链接变成编号的题目，选择题在这个知识点第一次出现时带选项（A.、B.……）；已删除的题目、「练 5 道」「本节问答」的链接不导出；出处留下文字；脚注按文件命名，不会撞名。答案册只列印出来的题，用同样的题号，页数估计也跟着选择变：答案（正确选项、填空的答案）、解析、完整的答题卡。同一本书每次导出的字节都一样。**分文件导出…** 列出文件夹形式：每部分一个文件（`000-front.md`、`001-h3.gen.md`……）和记着顺序的 `book.yaml`；应用里没有打 zip 的工具，所以逐个下载，用 `pandoc $(sed -n 's/^  - //p' book.yaml)` 读出来就是同一本书。
+- **不打印。** 在「原文」里写在 `<!-- sh:noprint -->` 和 `<!-- /sh:noprint -->` 之间的文字不导出，也不算进页数估计；书页上照常显示。没有闭合的标记不起作用（文字照常打印）。
+- **页数。** 导出窗口按固定规则估计每种选择的 A4 页数（每行约 40 个汉字或 80 个其他字符，每页 45 行，空行算半行）：是估计，不是实测。**页数上限**（默认不填）存为 `settings.book.pageLimit`；填了之后，标题栏里有一行不显眼的「导出约 N 页 / 上限 M 页」（不含答案册的书），超出时说超出多少。
+- 已知限制（接受）：概念规则只认行首的加粗词、以「定义」开头那一行里的加粗词和 `[[术语]]`；`course.book.open` 每次都带上这门课的题型目录（`caseTypes`，几 kB）；设了页数上限后，书每改一次，标题栏那一行都要把整本书再导出一遍（只算页数），书很大时更费时。标题栏的估计按默认选择（只印链接的题、不含答案册）。
+
 ## 存在哪里
 
 全书是学习库里的一条隐藏记录（`provenance: 'course-book-doc'`），里面是几份 Markdown 文件：每个知识点一份生成的文件（程序的）和一份你自己的文件（M1 里为空），一份清单（总纲的树，每个标题一个稳定 id），以及一份放「未归位」内容的文件。它只是参考，不是资料：不在资料列表、选择器和搜索里，不进检索索引，不计入助手看到的学习库情况，把它当资料用会被拒绝。题目仍然引用原资料。
@@ -83,7 +94,7 @@
 
 ## 回退
 
-只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。题目的答题卡（`answerCard`）旧版原样保留，只显示原来的参考答案。
+只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。题目的答题卡（`answerCard`）旧版原样保留，只显示原来的参考答案。导出不写任何东西；旧版下次保存设置时会丢掉页数上限（`settings.book.pageLimit`），保存课程时会丢掉课程自己题型的 `mistakes`。
 
 ## 开发者
 
@@ -93,4 +104,5 @@
 - `generation.courseBook.explain {course?, heading, words?, instruction?, mode: 'explain' | 'write' | 'here' | 'follow', after?, replace?, language?}` 开始任务 `course-book-ai`（lib/contexts/generation/book-ai/：一次模型调用，用 lib/ask-prompt.js 里阅读器的依据原文规则）；新块由资料上下文的 `book.aiWrite` 在书的写入队列里写入（lib/course-book-writer.js），并记入版本历史。拒绝码：course-book-ai-no-book、course-book-ai-no-point、course-book-ai-no-materials、course-book-ai-no-request。块的格式和摆放位置见 lib/course-book-ai-text.js（`<!-- sh:ai id=… at=… state=new|kept mode=… ask=… -->`）。`course.book.block {course?, file, id, action: 'keep' | 'delete'}`。
 - `generation.answerCard.build {cardId, deckId?, again?, language?}` 开始任务 `case-answer-card`（lib/contexts/generation/answer-card/：写、复核、最多改一次；用量记在 `case`）；答题卡由题库上下文的 `card.answerCard.set` 保存，任务开始后题目被改过就拒绝保存（`answer-card-stale`）。拒绝码：answer-card-no-card、answer-card-not-case、answer-card-in-exam、answer-card-exists、answer-card-running。答题卡的格式、核对、三种状态和 Markdown 见 lib/answer-card.js（`renderAnswerCard` 输出确定）；题型目录是 lib/case-types.js（`course.save {caseTypes}` 加课程自己的题型）。`book.qa.add {cardId, deckId?, answerCard: true}` / `book.qa.remove {cardId, answerCard: true}` 写入块 `<!-- sh:card card=… -->` … `<!-- /sh:card -->`；`book.qa.list` 另外返回 `answerCardIds`。
 - lib/course-book-links.js（浏览器可用）：三种题目链接（`parseBookLink`）、写在标题行末的标题 id（`## 标题 <!-- sh:id h3 -->`，`assignHeadingIds`：只给一次，永不复用）、`bookIndex`（标题树和每个标题下的题目链接）、`stitchBook`（按顺序拼接文件，脚注按文件命名）、`plainBook`。
-- 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。
+- `course.book.export {course?, form?: 'single' | 'folder', answerKey?: boolean, estimateOnly?: boolean}`（lib/course-book-export-op.js，只读：按 `course.book.open` 会给出的书导出，什么都不写）返回 `{ status, course, form, title, language, filename, text | files + manifest, questions, estimate: { pages, book, withAnswers, columns, rows } }`；Markdown 由 lib/course-book-export.js 的 `exportBook` 生成（纯函数，浏览器可用，输出确定），查找页是 lib/course-book-lookup.js 的 `bookLookup(book, { caseTypes, answerCards })` 和 `renderLookup`（编号：`codeOf`）。`course.book.open` 另外返回 `answerCards`（书里题目的答题卡摘要）和 `caseTypes`（这门课的题型目录，课程自己的题型带 `own: true`），来自 lib/course-book-cards.js。题型可以带 `mistakes`（lib/case-types.js）。`settings.book.set {patch: {pageLimit: 1–2000 | null}}`。
+- 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。查找是 ui/book/BookLookup.jsx，导出是 ui/book/BookExport.jsx。

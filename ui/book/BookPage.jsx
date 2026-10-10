@@ -13,6 +13,10 @@ import BookChapter from './BookChapter.jsx';
 import BookToc from './BookToc.jsx';
 import BookEditor from './BookEditor.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
+import BookLookup from './BookLookup.jsx';
+import BookExport, { budgetText } from './BookExport.jsx';
+import { bookLookup } from '../../lib/course-book-lookup.js';
+import { resolveBookSettings } from '../../lib/book-settings.js';
 import { usePolling } from '../use-polling.js';
 import { isActiveJob } from '../../lib/job-status.js';
 import { bookRows, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
@@ -47,8 +51,17 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const rows = useMemo(() => (book?.status === 'ok' ? bookRows(book.nodes) : []), [book]);
   const toc = useMemo(() => tocEntries(book), [book]);
   const chapters = useMemo(() => (book?.status === 'ok' ? [...book.nodes, ...(book.unplaced.text.trim() ? [{ hid: 'unplaced', title: book.unplaced.title, text: book.unplaced.text, file: book.unplaced.file, number: '' }] : [])] : []), [book]);
-  // 预览 or 原文, remembered per library and course; 原文 shows one file, the learner's own file of the point being read at first.
-  const [mode, setMode] = usePersistentState(`study-book-mode:${root}:${course}`, 'preview', { parse: value => (value === 'source' ? 'source' : 'preview'), serialize: value => value });
+  // 预览, 原文 or 查找 (M6), remembered per library and course; 原文 shows one file, the learner's own file of the point being read at first.
+  const [mode, setMode] = usePersistentState(`study-book-mode:${root}:${course}`, 'preview', { parse: value => (value === 'source' || value === 'lookup' ? value : 'preview'), serialize: value => value });
+  // 查找 is made from the book as it is now (lib/course-book-lookup.js); 导出 and the page limit (settings.book.pageLimit) compare the export's estimate.
+  const lookup = useMemo(() => (mode === 'lookup' ? bookLookup(book, book ?? {}) : null), [book, mode]);
+  const [exporting, setExporting] = useState(false);
+  const pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
+  const [pages, setPages] = useState(null);
+  useLiveEffect(isLive => {
+    if (!pageLimit || book?.status !== 'ok') { setPages(null); return; }
+    call('course.book.export', { course, estimateOnly: true }).then(done => { if (isLive()) setPages(done?.estimate?.book ?? null); }, () => {});
+  }, [call, course, pageLimit, book?.revision, book?.status]);
   const [file, setFile] = useState(null);
   const [choosing, setChoosing] = useState(false);
   const setBook = useCallback(next => setState(current => ({ ...current, book: next })), []);
@@ -194,8 +207,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
     {book?.status === 'ok' && book.notes && <div className="book-header__tools">
       <SegmentedControl size="sm" label={ui('看书页的方式')} className="book-header__mode" value={mode} onChange={setMode}
-        options={[{ value: 'preview', label: ui('预览') }, { value: 'source', label: ui('原文') }]} />
+        options={[{ value: 'preview', label: ui('预览') }, { value: 'source', label: ui('原文') }, { value: 'lookup', label: ui('查找') }]} />
       {mode === 'preview' && <Button size="sm" variant="quiet" icon="list" className="book-header__toc" aria-expanded={tocOpen} onClick={() => setTocOpen(value => !value)}>{ui('目录')}</Button>}
+      <Button size="sm" variant="secondary" icon="download" className="book-header__export" onClick={() => setExporting(true)}>{ui('导出')}</Button>
+      {pages !== null && pageLimit && <span className="book-header__budget" data-over={pages > pageLimit || undefined}>
+        {uiFormat('导出约 {0} 页 / 上限 {1} 页', [pages, pageLimit])}{pages > pageLimit ? ` · ${budgetText(pages, pageLimit).text}` : ''}</span>}
     </div>}
   </PageHeader>;
   if (state.error && !book) return <section className="page book-page">{header}<ErrorState error={state.error} title={ui('复习全书读取失败')} onRetry={() => setState(current => ({ ...current, ticket: current.ticket + 1 }))} /></section>;
@@ -215,10 +231,20 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       </section>
     );
   }
+  const exportDialog = exporting && <BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
   if (mode === 'source') return (
     <section className="page book-page">
       {header}
       <BookEditor key={book.course} book={book} file={file && book.files[file] ? file : defaultFile(book, here)} onPick={setFile} onChanged={setBook} theme={theme} />
+      {exportDialog}
+    </section>
+  );
+  // A code of 查找 opens the book (预览) at its heading.
+  if (mode === 'lookup' && lookup) return (
+    <section className="page book-page">
+      {header}
+      <BookLookup lookup={lookup} onGo={hid => { setMode('preview'); goTo(hid); }} />
+      {exportDialog}
     </section>
   );
   return (
@@ -232,6 +258,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         </div>
       </div>
       {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
+      {exportDialog}
     </section>
   );
 }

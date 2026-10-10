@@ -10,6 +10,7 @@ import { citesOf } from './model.js';
 import { withoutQaMarkers } from '../../lib/course-book-qa-text.js';
 import { aiBlocks, weaveBlocks, withoutAiBlocks } from '../../lib/course-book-ai-text.js';
 import BookAiBlock from './BookAiBlock.jsx';
+import { codeOf, plainTerms, withoutNoprintMarkers } from '../../lib/course-book-lookup.js';
 
 /* One chapter of the review book (a top node of the 总纲, or 未归位). Only an open chapter renders its files (I8: a big book stays light); a closed one is its
    heading. A knowledge point shows its generated file, its questions (live), the learner's file, its Q&A file (M3) and 本节问答 when its link is open; the
@@ -35,8 +36,9 @@ function BookFile({ text, citeText = text, hid, handlers, className }) {
   const cites = useMemo(() => citesOf(citeText), [citeText]);
   const resolve = useMemo(() => resolverOf(handlers, hid), [handlers, hid]);
   const onCite = useCallback(n => { const cite = cites.get(n); if (cite) handlers.source(cite.sourceId, cite.quote); }, [cites, handlers]);
-  // A Q&A block's marker lines are the book's, not the reader's (the heading ids stay: headingAnchor reads them).
-  const shown = useMemo(() => withoutQaMarkers(text), [text]);
+  // A Q&A block's marker lines are the book's, not the reader's (the heading ids stay: headingAnchor reads them); so are the noprint markers (M6: only
+  // the export leaves that text out) and the brackets of a [[term]].
+  const shown = useMemo(() => plainTerms(withoutNoprintMarkers(withoutQaMarkers(text))), [text]);
   return <Markdown className={className} text={shown} resolveLink={resolve} onCite={onCite} headingAnchor={headingAnchor} />;
 }
 
@@ -98,7 +100,7 @@ function BookNode({ node, course, handlers }) {
   return (
     <div className="book-node" data-depth={Math.min(4, node.depth)}>
       <Heading id={`book-${node.hid}`} className="book-node__heading" data-book-heading={node.hid} tabIndex={-1}>
-        <span className="book-node__number">{node.number}</span> {node.title}
+        <span className="book-node__number">{node.number}</span> {node.title} <span className="book-node__code">{codeOf(node.hid)}</span>
       </Heading>
       {node.leaf ? <PointBody node={node} course={course} handlers={handlers} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />)}
     </div>
@@ -114,6 +116,8 @@ export default memo(function BookChapter({ node, open, onToggle, course, handler
           <Icon name="caret" size={14} className="book-chapter__caret" />
           {node.number && <span className="book-node__number">{node.number}</span>} {node.title}
         </Button>
+        {/* The stable code the printed book carries in its margin (M6). */}
+        <span className="book-node__code">{codeOf(node.hid)}</span>
       </h2>
       {open && (node.hid === 'unplaced' ? <><BookFile text={node.text} hid="unplaced" handlers={handlers} className="book-file book-file--mine" />
         {handlers.files?.[node.file]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.file]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.file, action, id)} />}</>
