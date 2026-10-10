@@ -25,6 +25,9 @@ import { useInjectCss } from "../shared.js";
 import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
 import { NextDue } from "../NextDue.jsx";
+import { resolveBookSettings } from "../../lib/book-settings.js";
+import { useBookQa } from "../book/BookQaButton.jsx";
+import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -83,6 +86,30 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const assistTasks = data?.assist;
+  // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
+  const savedQaToBook = resolveBookSettings(data?.settings?.book).qaToBook;
+  const [qaToBookChoice, setQaToBookChoice] = React.useState(null);
+  React.useEffect(() => { if (qaToBookChoice !== null && qaToBookChoice === savedQaToBook) setQaToBookChoice(null); }, [savedQaToBook, qaToBookChoice]);
+  const qaToBook = qaToBookChoice ?? savedQaToBook;
+  const setQaToBook = React.useCallback((mode) => {
+    setQaToBookChoice(mode);
+    call("settings.book.set", { patch: { qaToBook: mode } }).catch(() => setQaToBookChoice(null));
+  }, [call]);
+  // 「加入复习全书」: one list of what the books hold for the page and its buttons. In 自动加入, each Q&A that arrives while this question is on screen (a
+  // 追问 answer or a 帮我弄懂 result, also while the 讲解 section is folded away) is added once, through the same op as the button.
+  const book = useBookQa();
+  const bookCourse = data?.decks?.find((deck) => deck.id === run.deckId)?.course ?? "";
+  const [bookNote, setBookNote] = React.useState("");
+  const qaSeen = React.useRef(null), qaTried = React.useRef(new Set());
+  const followupKey = (run.solution?.followups || []).map((item) => item.id).join("|");
+  React.useEffect(() => {
+    const seen = seeFollowups(qaSeen.current, reviewEntryKey(run), (run.solution?.followups || []).map((item) => item.id), !!run.solution);
+    qaSeen.current = seen.state;
+    for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && book.courses.has(bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
+      qaTried.current.add(id);
+      book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id }).catch((failure) => setBookNote(failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。")));
+    }
+  }, [followupKey, run.id, run.index, !!run.solution]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed on the question and its Q&A ids
   const multiple = run.card?.multiple || run.card?.kind === "multi";
   const publicationIssues = (run.card?.publicationIssues || []).map((issue) =>
     readableQualityIssue(`Card 1: ${issue}`).replace(/^第 1 题：/, ""));
@@ -559,7 +586,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
               onOpenSource={(source, quote) => openModal({ type: "source", source, quote })} />
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
-              onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask} />}
+              onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
+              bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}
           </ReadingBlock>
         )}
         {run.feedback && run.mode !== "exam" && (

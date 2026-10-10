@@ -202,10 +202,13 @@ test('interleaving: a program refresh, an editor save from before it and a secon
   const version = late.files[gen].version;
   const [one, two] = await Promise.all([study.call('course.book.save', { file: gen, text: 'Editor one.', version }), study.call('course.book.save', { file: gen, text: 'Editor two.', version }),
     study.call('course.book.open')]);
-  assert.deepEqual([one.write, two.write], ['saved', 'merged']);
-  assert.equal(leaves(two.nodes)[0].gen, 'Editor two.');
-  assert.equal(two.files[gen].suggestions[0].text, 'Editor one.');
-  assert.equal(two.files[gen].version, version + 2);
+  // Whichever reaches the queue first is saved; the other keeps its text and offers the first one's.
+  assert.deepEqual([one.write, two.write].sort(), ['merged', 'saved']);
+  const [first, second] = one.write === 'saved' ? [one, two] : [two, one], texts = { [one.write]: 'Editor one.', [two.write]: 'Editor two.' };
+  assert.equal(first.files[gen].version, version + 1);
+  assert.equal(leaves(second.nodes)[0].gen, texts.merged);
+  assert.equal(second.files[gen].suggestions[0].text, texts.saved);
+  assert.equal(second.files[gen].version, version + 2);
   // A save of another file from an old version is no conflict: only that file's version counts.
   const other = await study.call('course.book.save', { file: what.files.mine, text: 'Mine.', version: 1 });
   assert.equal(other.write, 'saved');

@@ -3,9 +3,15 @@ import React from "react";
 import Markdown from "./Markdown.jsx";
 import { Badge, Button, InlineMessage } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
+import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
 
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false }) {
+/* bookQa (optional): { course, mode: 'manual' | 'auto', onMode(mode), book (ui/book/BookQaButton.jsx useBookQa, shared with the page), note } — the card's
+   course and the 自动加入复习全书 setting (settings.book.qaToBook). With a book for that course each Q&A has 「加入复习全书」. The automatic adds are made by
+   the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed. */
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false, bookQa = null }) {
   const { call } = useStudy();
+  const book = bookQa?.book;
+  const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
@@ -69,6 +75,10 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
 
   return (
     <section className="explanation-followup" aria-label={ui("讲解追问")}>
+      {withBook && <div className="followup-book">
+        <BookQaAuto mode={bookQa.mode} onChange={bookQa.onMode} />
+        {bookQa.note && <InlineMessage tone="error">{bookQa.note}</InlineMessage>}
+      </div>}
       {items.length > 1 && (
         <div className="followup-head">
           <span>{uiFormat("{0} 条问答", [items.length])}</span>
@@ -83,6 +93,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
           <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{item.question}</h4>
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
+          {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
           {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>
