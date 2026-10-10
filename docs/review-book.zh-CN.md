@@ -2,7 +2,7 @@
 
 [English](review-book.md)
 
-**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）和 M2（编辑）；把问答加进书、导出和打印在后面的步骤。按 2026-10-11 的代码核对。
+**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）、M2（编辑）和 M3（把问答加进书）；导出和打印在后面的步骤。按 2026-10-11 的代码核对。
 
 ## 打开
 
@@ -35,6 +35,14 @@
 - 「回退到上一版」一次退回这份文件的上一版；程序的任何一次写入都可以这样撤回。每门课保留最近 20 个版本（内容大时更少），存在学习库的资料之外；导出的备份带着它们，恢复时一起放回。两份程序同时写同一本书时，版本历史可能少记一版，书本身不会出错。
 - 改过的文件在预览里照样显示题目链接、脚注和本节问答，不会渲染 HTML：标签原样显示成文字。你自己写的标题会出现在目录里，可以从目录跳过去；练完题回来也会回到它。
 
+## 把问答加进书
+
+练习时得到的问答（「追问」或「帮我弄懂」的回答）照旧留在题目上。想让它也进书，在它下面点「加入复习全书」（练习页上，或知识点的「本节问答」里）；之后显示「已加入 · 撤回」，点它就从书里拿出来（题目上的问答一直都在）。
+
+- 它放进这个知识点自己的「问答」文件，显示在你的笔记后面：先是这道题的链接（知识点下还没有这道题的链接时），问答引用在它下面。不属于任何知识点的题放进「未归位」。同一条问答不会加两次。
+- 进了书就是你的文字：可以像别的文件一样改（「原文」里选「· 问答」）；以后改了题目，它也不变。问答文件正在编辑器里打开时，期间加进来的问答会和你的保存合在一起，两边都不丢。
+- 「自动加入复习全书」（练习页按钮旁的小开关，设置 › 练习里也有；默认关）：打开后，练习页开着时新得到的每条追问或「帮我弄懂」回答会自动加进书。已经在书里的不受影响；切换只影响之后的问答。自动加入失败时会有一行小提示，按钮照旧可以点。只有练习页上得到的问答会自动加入。
+
 ## 存在哪里
 
 全书是学习库里的一条隐藏记录（`provenance: 'course-book-doc'`），里面是几份 Markdown 文件：每个知识点一份生成的文件（程序的）和一份你自己的文件（M1 里为空），一份清单（总纲的树，每个标题一个稳定 id），以及一份放「未归位」内容的文件。它只是参考，不是资料：不在资料列表、选择器和搜索里，不进检索索引，不计入助手看到的学习库情况，把它当资料用会被拒绝。题目仍然引用原资料。
@@ -49,5 +57,6 @@
 
 - `course.book.open {course?}`（lib/course-book-files.js）返回 `{ status, course, revision, title, language, notes, papers, nodes, unplaced, missing, changed }`；`nodes` 是 `{ hid, key, title, number, depth, leaf, gen, mine, questions: [{ deckId, cardId, prompt }], questionTotal, children }`（`questions` 现读，最多 200 道），`missing` 是文件里链接的、已不存在的题目。它先看学习库，只有文件有变化时才写入记录；不随快照发送。
 - `course.book.save {course?, file, text, version}`、`course.book.suggestion {course?, file, action: 'accept' | 'ignore', version}`、`course.book.revert {course?, file}`（lib/course-book-edit.js）：每门课一个写入队列，每次一个存储事务；返回和 `course.book.open` 一样的书，加上 `write`（'saved'、'merged'、'unchanged'、'accepted'、'ignored'、'reverted'）和 `history`（{ 文件: 保留的版本数 }）。版本历史在 lib/course-book-history.js：学习库文件夹下的 `book-history/<课程的哈希>.json`，在书本身写完之后经临时文件和改名写入。
+- `book.qa.add {course?, deckId?, cardId, followupId}`、`book.qa.remove {course?, followupId}`、`book.qa.list {course?}`（lib/course-book-qa.js；问答块的格式在 lib/course-book-qa-text.js：`<!-- sh:qa card=… fid=… -->` … `<!-- /sh:qa -->`），和保存一样走每门课的写入队列。`settings.book.set {patch: {qaToBook: 'manual' | 'auto'}}`（lib/book-settings.js，`settings.book`）。
 - lib/course-book-links.js（浏览器可用）：三种题目链接（`parseBookLink`）、写在标题行末的标题 id（`## 标题 <!-- sh:id h3 -->`，`assignHeadingIds`：只给一次，永不复用）、`bookIndex`（标题树和每个标题下的题目链接）、`stitchBook`（按顺序拼接文件，脚注按文件命名）、`plainBook`。
 - 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。

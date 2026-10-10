@@ -53,11 +53,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [here, setHere] = useState(null);
   const [qa, setQa] = useState(() => new Set());
   const [tocOpen, setTocOpen] = useState(wideNow);
-  const restore = useRef(null), pageRef = useRef(null), first = useRef(keptBook(root, course));
+  const restore = useRef(null), pageRef = useRef(null), first = useRef(keptBook(root, course)), placed = useRef(false);
 
   // Where to open: the point the 总纲 asked for, else where the learner was (heading and scroll), else the first chapter.
   useEffect(() => {
-    if (book?.status !== 'ok') return;
+    // Once: a book read again later (a save, a Q&A added) keeps the chapters the learner has open.
+    if (book?.status !== 'ok' || placed.current) return;
+    placed.current = true;
     const kept = first.current, wanted = kept?.target ?? kept?.heading, row = wanted ? rowOf(rows, wanted) : null;
     // A typed heading is not in the manifest: its chapter was kept with it.
     const chapter = row ? chapters[row.chapter]?.hid : kept?.chapter && wanted ? kept.chapter : chapters[0]?.hid;
@@ -122,6 +124,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     },
     create: onCreate,
+    reload: () => setState(current => ({ ...current, ticket: current.ticket + 1 })),
     files: book?.files,
     busy: choosing,
     // 采用 / 忽略 of a file's suggestion, compare-and-set on the version shown.

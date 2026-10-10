@@ -25,6 +25,7 @@ import { useInjectCss } from "../shared.js";
 import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
 import { NextDue } from "../NextDue.jsx";
+import { resolveBookSettings } from "../../lib/book-settings.js";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -83,6 +84,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const assistTasks = data?.assist;
+  // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
+  const savedQaToBook = resolveBookSettings(data?.settings?.book).qaToBook;
+  const [qaToBookChoice, setQaToBookChoice] = React.useState(null);
+  React.useEffect(() => { if (qaToBookChoice !== null && qaToBookChoice === savedQaToBook) setQaToBookChoice(null); }, [savedQaToBook, qaToBookChoice]);
+  const qaToBook = qaToBookChoice ?? savedQaToBook;
+  const setQaToBook = React.useCallback((mode) => {
+    setQaToBookChoice(mode);
+    call("settings.book.set", { patch: { qaToBook: mode } }).catch(() => setQaToBookChoice(null));
+  }, [call]);
   const multiple = run.card?.multiple || run.card?.kind === "multi";
   const publicationIssues = (run.card?.publicationIssues || []).map((issue) =>
     readableQualityIssue(`Card 1: ${issue}`).replace(/^第 1 题：/, ""));
@@ -559,7 +569,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
               onOpenSource={(source, quote) => openModal({ type: "source", source, quote })} />
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
-              onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask} />}
+              onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
+              bookQa={{ course: data.decks?.find((deck) => deck.id === run.deckId)?.course ?? "", mode: qaToBook, onMode: setQaToBook }} />}
           </ReadingBlock>
         )}
         {run.feedback && run.mode !== "exam" && (

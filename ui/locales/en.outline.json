@@ -125,5 +125,11 @@
   "看建议的内容": "See the suggested text",
   "采用": "Take it",
   "忽略": "Ignore",
-  "{0} {1} · 问答": "{0} {1} · Q&A"
+  "{0} {1} · 问答": "{0} {1} · Q&A",
+  "已加入 · 撤回": "Added · Take back",
+  "加入复习全书": "Add to the review book",
+  "自动加入复习全书": "Add to the review book automatically",
+  "打开后，之后在这里得到的追问和「帮我弄懂」的回答会自动放进这门课的复习全书；关着时点每条问答旁的「加入复习全书」。已经加进去的不受影响，随时可以撤回。": "When on, the follow-ups and “Help me understand” answers you get here from now on go into this course's review book by themselves; when off, use “Add to the review book” beside each one. What is already in the book stays, and can be taken back at any time.",
+  "练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。": "When on, the follow-ups and “Help me understand” answers you get while practising go into this course's review book by themselves (into the Q&A of the question's knowledge point); when off, they go in only when you select “Add to the review book” beside one. The question keeps its own Q&A either way, and what is in the book can be taken back at any time. Only later Q&A are affected.",
+  "没能加入复习全书，可以点「加入复习全书」再试。": "It could not be added to the review book; select “Add to the review book” to try again."
 }

@@ -47,6 +47,7 @@ Decided after M1 (2026-10-11):
 - A file keeps a small list of suggestions (at most 3, newest first, the same text once, each with its own 采用/忽略; ignored hashes remembered), so a 「书已更新」 conflict never evicts a waiting 「有新的生成内容」.
 - Headings typed in a file carry their id into the rendered HTML (ui/Markdown.jsx `headingAnchor`), so the 目录 and the return to position reach them.
 - The version history (`book-history/` under the library folder) travels with a portable backup (`portableBookHistory`, checked before a restore writes it). Two app processes writing the same course at once are not ordered for the history (a version can be lost; the book stays whole): accepted.
+- M3 as built (2026-10-11): the setting is `settings.book.qaToBook` (its own `settings.book` key, `settings.book.set`), shown in 设置 › 练习 and as the small switch on the practice page. A save of a file that met a `book.qa.add` carries the new Q&A blocks into the learner's text (the editor's base text comes from the version history), so the add is never only a suggestion. The 本节问答 list offers the button on 追问 items only (a 批注 or a 问答卡 has no follow-up id).
 - Gen files hold no per-question list (M1): the individual question links of a point are rendered live from the current outline and cards (first 5 and 「还有 N 道」), and resolved at export; gen files change only when the notes change, and an unchanged `course.book.open` writes nothing.
 
 ### M3 — Q&A into the book

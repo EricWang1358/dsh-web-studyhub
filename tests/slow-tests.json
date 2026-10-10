@@ -4,6 +4,7 @@
     "tests/course-book-browser.test.mjs",
     "tests/course-book-edit-browser.test.mjs",
     "tests/course-book-page-browser.test.mjs",
+    "tests/course-book-qa-browser.test.mjs",
     "tests/course-outline-book-browser.test.mjs",
     "tests/course-outline-browser.test.mjs",
     "tests/daily-plan-interactions.test.mjs",

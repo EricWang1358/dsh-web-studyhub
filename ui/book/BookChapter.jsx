@@ -7,6 +7,7 @@ import BookQa from './BookQa.jsx';
 import { bookResolver } from './BookLinks.jsx';
 import BookSuggestion from './BookSuggestion.jsx';
 import { citesOf } from './model.js';
+import { withoutQaMarkers } from '../../lib/course-book-qa-text.js';
 
 /* One chapter of the review book (a top node of the 总纲, or 未归位). Only an open chapter renders its files (I8: a big book stays light); a closed one is its
    heading. A knowledge point shows its generated file, its questions (live), the learner's file, its Q&A file (M3) and 本节问答 when its link is open.
@@ -29,7 +30,9 @@ function BookFile({ text, hid, handlers, className }) {
   const resolve = useMemo(() => bookResolver({ gone: handlers.gone, onCard: (ref, element) => handlers.card(ref, hid, element), onPractice: (heading, n, element) => handlers.practice(heading, n, hid, element),
     onQa: handlers.toggleQa, qaOpen: handlers.qaOpen, onSource: handlers.source }), [handlers, hid]);
   const onCite = useCallback(n => { const cite = cites.get(n); if (cite) handlers.source(cite.sourceId, cite.quote); }, [cites, handlers]);
-  return <Markdown className={className} text={text} resolveLink={resolve} onCite={onCite} headingAnchor={headingAnchor} />;
+  // A Q&A block's marker lines are the book's, not the reader's (the heading ids stay: headingAnchor reads them).
+  const shown = useMemo(() => withoutQaMarkers(text), [text]);
+  return <Markdown className={className} text={shown} resolveLink={resolve} onCite={onCite} headingAnchor={headingAnchor} />;
 }
 
 /** The point's questions as they are now (never stored in a file): the first few as links, 还有 N 道 for the rest; none: 这一节还没有题。 and 出题. */
@@ -66,7 +69,7 @@ function PointBody({ node, course, handlers }) {
       {handlers.files?.[node.files?.mine]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.files.mine]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.mine, action, id)} />}
       {node.qa && <BookFile text={node.qa} hid={node.hid} handlers={handlers} className="book-file book-file--mine" />}
       {node.files?.qa && handlers.files?.[node.files.qa]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.files.qa]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.qa, action, id)} />}
-      {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} />}
+      {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
     </>
   );
 }

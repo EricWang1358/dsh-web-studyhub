@@ -3,9 +3,18 @@ import React from "react";
 import Markdown from "./Markdown.jsx";
 import { Badge, Button, InlineMessage } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
+import BookQaButton, { BookQaAuto, useBookQa } from "./book/BookQaButton.jsx";
+import { autoAddPlan } from "./book/qa-auto.js";
 
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false }) {
+/* bookQa (optional): { course, mode: 'manual' | 'auto', onMode(mode) } — the card's course and the 自动加入复习全书 setting (settings.practice.qaToBook). With a
+   book for that course each Q&A has 「加入复习全书」; in 'auto' each NEW Q&A (an answer or a 帮我弄懂 result that arrives while this is open) is added by
+   the same op, once; a failure there is a small notice and the button stays. */
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false, bookQa = null }) {
   const { call } = useStudy();
+  const book = useBookQa();
+  const [bookNote, setBookNote] = React.useState("");
+  const tried = React.useRef(new Set());
+  const withBook = !!bookQa && book.ready && book.courses.has(bookQa.course ?? "");
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
@@ -27,6 +36,11 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
     if (!fresh.length) return;
     fresh.forEach((item) => seen.current.add(item.id));
     setOpenIds(new Set([fresh.at(-1).id]));
+    // 自动加入复习全书: each new Q&A once, through the same op as the button.
+    for (const id of autoAddPlan({ mode: bookQa?.mode, withBook: !!bookQa && book.courses.has(bookQa.course ?? ""), fresh: fresh.map((item) => item.id), tried: tried.current, added: book.ids })) {
+      tried.current.add(id);
+      book.add({ ...ref, followupId: id }).catch((failure) => setBookNote(failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。")));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids
   }, [itemKey]);
   const toggle = (id, open) => setOpenIds((previous) => {
@@ -69,6 +83,10 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
 
   return (
     <section className="explanation-followup" aria-label={ui("讲解追问")}>
+      {withBook && <div className="followup-book">
+        <BookQaAuto mode={bookQa.mode} onChange={bookQa.onMode} />
+        {bookNote && <InlineMessage tone="error">{bookNote}</InlineMessage>}
+      </div>}
       {items.length > 1 && (
         <div className="followup-head">
           <span>{uiFormat("{0} 条问答", [items.length])}</span>
@@ -83,6 +101,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
           <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{item.question}</h4>
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
+          {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
           {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>
