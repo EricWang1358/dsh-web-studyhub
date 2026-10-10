@@ -1,5 +1,5 @@
 /* 复习全书 M5 · 分析题答案卡, the pure part (lib/answer-card.js, lib/case-types.js): quotes located word for word or 未核实 (an elided quote, one under
-   MIN_KEY letters and digits, one in an HTML text, one found nowhere), a found quote stored as the text's own slice, invented numbers, rubric coverage
+   MIN_KEY letters and digits, one found nowhere; a converted text with HTML is read as its visible words), a found quote stored as the text's own slice, invented numbers, rubric coverage
    computed by the program, the three states (已核对 / 部分未核对 / 被改过), deterministic Markdown, the question-type catalogue as data, the fingerprint of
    the review and the reveal. Old cards without an answer card are unchanged. */
 import test from 'node:test';
@@ -21,7 +21,7 @@ const context = { stem: stem(), materials, criteria: criteria(), numbers: ['year
 const checked = (raw = goodCard()) => checkAnswerCard(normalizeAnswerCard(raw, { types: CASE_TYPES, language: 'en' }), context);
 const clean = { ran: true, issues: [], repaired: false };
 
-test('a quote is found word for word, or it is 未核实 with the reason: elided, too short, in an HTML text, nowhere', () => {
+test('a quote is found word for word, or it is 未核实 with the reason: elided, too short, nowhere', () => {
   const texts = [{ id: 'case', text: 'The booking service runs on two independent\nservers behind a load balancer.' }];
   const exact = locateIn(texts, 'runs on two independent');
   assert.deepEqual([exact.verified, exact.in, exact.quote], [true, 'case', 'runs on two independent']);
@@ -35,10 +35,25 @@ test('a quote is found word for word, or it is 未核实 with the reason: elided
   assert.equal(locateIn(texts, 'runs').reason, 'short', 'under MIN_KEY letters and digits, even when it is there');
   assert.equal(locateIn([{ id: 'm', text: 'a 可用性 b' }], '可用性').reason, 'short');
   assert.equal(locateIn(texts, 'runs on three dependent servers').reason, 'missing');
-  const html = [{ id: 'm', text: '<table><tr><td>Availability is the proportion of time</td></tr></table>' }];
-  assert.equal(holdsHtml(html[0].text), true);
-  assert.equal(locateIn(html, 'Availability is the proportion of time').reason, 'html', 'an HTML text is never read through');
-  assert.equal(locateIn([{ id: 'm', text: 'A &amp; B are the proportion of time' }], 'are the proportion of time').reason, 'html');
+});
+
+test('a converted material with HTML (tables, inline tags, entities) is read as its visible text: true quotes are found, the slice is the visible words', () => {
+  const table = '<p>Table 4.1 Measures</p>\n<table><tr><th>Term</th><th>Definition</th></tr>'
+    + '<tr><td>Availability</td><td>Availability is the <b>proportion</b> of time a system is able to perform its required function.</td></tr>'
+    + '<tr><td>MTTR</td><td>Mean time to repair &amp; restore service, in hours.</td></tr></table>';
+  const texts = [{ id: 'm', text: table }];
+  assert.equal(holdsHtml(table), true);
+  const cell = locateIn(texts, 'Availability is the proportion of time a system is able to perform its required function');
+  assert.equal(cell.verified, true, 'a quote inside a cell, across an inline tag');
+  assert.equal(cell.quote, 'Availability is the proportion of time a system is able to perform its required function', 'stored as the visible words, no tags');
+  assert.match(table.slice(cell.at.start, cell.at.end), /^Availability is the <b>proportion<\/b> of time .* required function$/, 'its place in the original');
+  assert.equal(locateIn(texts, 'Mean time to repair & restore service').verified, true, 'an entity is decoded');
+  assert.equal(locateIn(texts, 'Mean time to repair &amp; restore service').quote, 'Mean time to repair & restore service', 'and a quote that echoes the entity too');
+  const across = locateIn(texts, 'MTTR Mean time to repair');
+  assert.equal(across.verified, true, 'across two cells: a cell boundary reads as a space');
+  assert.equal(locateIn(texts, 'AvailabilityAvailability is').verified, true, 'letters and digits only still match across the boundary');
+  assert.equal(locateIn(texts, 'Availability is the share of uptime in a year').reason, 'missing', 'a quote that is not there is still 未核实');
+  assert.equal(locateIn([{ id: 'm', text: 'if a < b and c > d then the proportion holds' }], 'a < b and c > d then').verified, true, 'a comparison is no tag');
 });
 
 test('the checked card: signals and facts in the stem, the concept stored as the material\'s own slice with where it is, nothing invented, every point covered', () => {

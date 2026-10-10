@@ -19,8 +19,8 @@ import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
 
 /* 复习全书 M5 in the real page at 1280 and 420 px (docs/plans/review-book.md): a graded case question shows its reference answer and 「生成答题卡」;
-   the visible task writes the card; the card replaces the plain answer with its parts, a 未核实 badge on the definition that could not be checked (its
-   material holds HTML), the state badge and the marks map; 「加入复习全书」 puts it into the course's book, where it reads as part of 未归位; nothing
+   the visible task writes the card; the card replaces the plain answer with its parts, a 未核实 badge on the definition that could not be checked (the
+   preview model copies an elided sentence), the state badge and the marks map; 「加入复习全书」 puts it into the course's book, where it reads as part of 未归位; nothing
    scrolls sideways. The preview server's fake model answers. Screenshots go to ANSWER_CARD_SHOTS when set. */
 
 /** The library: the course SA with its outline and book, and a case deck of the same course whose one question is graded and revealed in an open run. */
@@ -31,8 +31,8 @@ async function seed(root) {
   const { sources, decks } = outlineLibrary();
   const cases = caseLibrary();
   cases.deck.course = COURSE;
-  // A converted material with an entity in its first sentence: its definitions cannot be checked word for word, so the card marks one 未核实.
-  cases.sources[1].text = `Availability &amp; uptime: availability is the share of time a service works. ${cases.sources[1].text}`;
+  // A material whose first sentence is elided (…): the preview model copies it as the definition, which can never be checked word for word: one 未核实.
+  cases.sources[1].text = `Availability … the share of time a service works. ${cases.sources[1].text}`;
   await service.store.update(state => {
     state.sources.push(...sources, ...cases.sources);
     state.decks.push(...decks, cases.deck);
