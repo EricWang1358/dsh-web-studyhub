@@ -56,6 +56,8 @@ Button on the practice page and in 本节问答, `book.qa.add/remove` (idempoten
 ### M4 — 弄懂 while reading and 「加一段」
 Select text in the book → 弄懂 / instruction → a visible task writes a new region into the leaf's mine file under that paragraph (never edits existing text); reuse the existing passage-grounded ask backend; beyond-material text marked 补充.
 
+M4 as built (2026-10-11): blocks live in `<leaf>.mine.md` with `<!-- sh:ai id at state mode ask -->`; `at` hashes the selected words with 32 characters around them in the source text, and placement finds the words again with the quote locator (so `same` / `moved` / `gone`). The job writes through the materials context's `book.aiWrite`, which shares the book's writer queue (lib/course-book-writer.js). The preview server has no job executor, so the browser test runs the real Job on a second runtime-enabled service of the same library.
+
 ### M5 — 分析题答案卡
 A structured answer card per case/analysis question (fields: 识别信号, 题干事实 with quotes, 概念+位置+逐字定义, 假设, 推理链, 结论, 为什么满足目标/代价/验证, 易错检查, 评分点对照); ONE full version only (no short version); quality checks (verbatim location of every quoted definition else 未核实, rubric coverage, independent review pass, status 已核对/部分未核对/被改过). Extends the existing case system (ui/CaseWorkspace.jsx, lib/case-study.js, rubric answers); no parallel system.
 

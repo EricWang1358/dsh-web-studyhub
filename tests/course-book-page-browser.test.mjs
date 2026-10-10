@@ -113,7 +113,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
 
       // A question link of 1.2 goes to the practice page with 回到复习全书, and comes back at the same heading and scroll.
       const hid = await first.locator('.book-node__heading').nth(1).getAttribute('data-book-heading');
-      const link = page.locator(`#book-${hid} ~ .book-questions [data-book-link="card"]`).first();
+      const link = page.locator(`#book-${hid} ~ .book-point .book-questions [data-book-link="card"]`).first();
       await link.scrollIntoViewIfNeeded();
       await page.waitForTimeout(300);
       const before = await topOf(page, hid);
@@ -132,7 +132,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
 
       // 练 5 道 starts a round of at most five of the point's questions.
       const five = page.waitForRequest(request => request.url().includes('/api/call') && /"action":"review\.start"/.test(request.postData() || ''));
-      await page.locator(`#book-${hid} ~ .book-file [data-book-link="practice"]`).first().click();
+      await page.locator(`#book-${hid} ~ .book-point .book-file [data-book-link="practice"]`).first().click();
       const chunk = JSON.parse((await five).postData()).args;
       assert.equal(chunk.scope.length, 5, `${width}px: 练 5 道 is five questions`);
       await page.locator('.review-detour', { hasText: '回到复习全书' }).click();
