@@ -1,0 +1,57 @@
+name: browser-smoke
+
+# A few real-browser tests on one Ubuntu machine. The sharded suite in verify.yml never had a Chromium, so these tests skipped there and UI regressions
+# could pass CI. This job installs Playwright's Chromium (what scripts/qa/browser.mjs launches) and runs a short, stable list of them.
+# It does not touch verify.yml: not a shard, not the `verify` gate.
+#
+# Non-blocking for now: `continue-on-error: true` keeps the check green when the tests fail (open the run to see the red step).
+# To make it blocking: delete `continue-on-error`, let a week of runs stay green, then add `browser-smoke` to the branch protection's required checks
+# (or add it to `needs:` and to the gate's pass condition in verify.yml, which also needs the guard in tests/test-runner-shards.test.mjs updated).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Playwright version (the cache key for the browser download)
+        id: playwright
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: .playwright-browsers
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # A cache hit has the browser but not the system libraries it needs, so those are installed either way.
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.browsers.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      # Each test builds its own UI bundle into a temp folder (buildPreview), so no build step is needed here. scripts/test.mjs is how the shards run tests too
+      # (isolated home, no real network). The files cover: the shell and navigation, the review reveal, the mistakes page, and the right-sidebar hand-off.
+      - run: >-
+          node scripts/test.mjs --test-concurrency=2
+          tests/wp2f-shell-browser.test.mjs
+          tests/wave4-review-reveal.test.mjs
+          tests/wrongbook-filters-browser.test.mjs
+          tests/open-in-sidebar.test.mjs
