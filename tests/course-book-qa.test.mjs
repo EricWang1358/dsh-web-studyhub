@@ -14,7 +14,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { qaBlocks, withoutQaMarkers } from '../lib/course-book-qa-text.js';
 import { plainBook, stitchBook } from '../lib/course-book-links.js';
 import { BOOK_DEFAULTS, mergeBookSettings, resolveBookSettings } from '../lib/book-settings.js';
-import { autoAddPlan } from '../ui/book/qa-auto.js';
+import { autoAddPlan, seeFollowups } from '../ui/book/qa-auto.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 function library() {
@@ -117,6 +117,28 @@ test('an add while the Q&A file is open in the editor with unsaved edits: the ed
   assert.deepEqual(saved.files[point.files.qa].suggestions, [], 'nothing else changed: no suggestion to choose');
 });
 
+test('first come, first served: simultaneous calls are written in the order they were made', async t => {
+  const { study, deck, card } = await service(t);
+  const asked = await study.call('card.followup.add', { deckId: deck.id, cardId: card.id, question: 'Order?', answer: 'Yes.' });
+  const ref = { deckId: deck.id, cardId: card.id, followupId: asked.item.id };
+  for (let round = 0; round < 5; round++) {
+    // Add then remove, at once: the remove comes second, so the book ends without it; the other way round it ends with it.
+    const [added, removed] = await Promise.all([study.call('book.qa.add', ref), study.call('book.qa.remove', { followupId: ref.followupId })]);
+    assert.deepEqual([added.write, removed.write], ['added', 'removed'], `round ${round}`);
+    assert.deepEqual((await study.call('book.qa.list')).followupIds, []);
+    const [gone, back] = await Promise.all([study.call('book.qa.remove', { followupId: ref.followupId }), study.call('book.qa.add', ref)]);
+    assert.deepEqual([gone.write, back.write], ['unchanged', 'added'], `round ${round}`);
+    assert.deepEqual((await study.call('book.qa.list')).followupIds, [ref.followupId]);
+    await study.call('book.qa.remove', { followupId: ref.followupId });
+  }
+  // Two saves of one file from the same version: the first call is saved, the second keeps its text and offers the first.
+  const book = await study.call('course.book.open'), mine = leaves(book.nodes)[0].files.mine, version = book.files[mine].version;
+  const [one, two] = await Promise.all([study.call('course.book.save', { file: mine, text: 'First call.', version }), study.call('course.book.save', { file: mine, text: 'Second call.', version })]);
+  assert.deepEqual([one.write, two.write], ['saved', 'merged']);
+  assert.equal(leaves(two.nodes)[0].mine, 'Second call.');
+  assert.equal(two.files[mine].suggestions[0].text, 'First call.');
+});
+
 test('自动加入: only in auto, only where there is a book, only new Q&A, each once; the setting is manual by default and checked', () => {
   assert.deepEqual(autoAddPlan({ mode: 'manual', withBook: true, fresh: ['f1'] }), [], 'manual adds nothing by itself');
   assert.deepEqual(autoAddPlan({ mode: 'auto', withBook: false, fresh: ['f1'] }), []);
@@ -125,6 +147,15 @@ test('自动加入: only in auto, only where there is a book, only new Q&A, each
   assert.deepEqual(first, ['f1']);
   first.forEach(id => tried.add(id));
   assert.deepEqual(autoAddPlan({ mode: 'auto', withBook: true, fresh: ['f1', 'f2'], tried, added: new Set(['f2']) }), [], 'once per follow-up; not one already in the book');
+  // What the page has seen of a question's Q&A: nothing before its answer shows, everything it has then is old, what comes after is new.
+  let seen = seeFollowups(null, 'run:0', [], false);
+  assert.deepEqual([seen.state, seen.fresh], [null, []]);
+  seen = seeFollowups(seen.state, 'run:0', ['old'], true);
+  assert.deepEqual(seen.fresh, [], 'the Q&A a question already has when its answer shows are old');
+  seen = seeFollowups(seen.state, 'run:0', ['old', 'new'], true);
+  assert.deepEqual(seen.fresh, ['new']);
+  assert.deepEqual(seeFollowups(seen.state, 'run:0', ['old', 'new'], true).fresh, [], 'once');
+  assert.deepEqual(seeFollowups(seen.state, 'run:1', ['other'], true).fresh, [], 'the next question starts again');
   assert.deepEqual(BOOK_DEFAULTS, { qaToBook: 'manual' });
   assert.deepEqual(resolveBookSettings(undefined), { qaToBook: 'manual' });
   assert.deepEqual(resolveBookSettings({ qaToBook: 'sometimes' }), { qaToBook: 'manual' });

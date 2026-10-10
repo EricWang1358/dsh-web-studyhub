@@ -3,18 +3,15 @@ import React from "react";
 import Markdown from "./Markdown.jsx";
 import { Badge, Button, InlineMessage } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
-import BookQaButton, { BookQaAuto, useBookQa } from "./book/BookQaButton.jsx";
-import { autoAddPlan } from "./book/qa-auto.js";
+import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
 
-/* bookQa (optional): { course, mode: 'manual' | 'auto', onMode(mode) } — the card's course and the 自动加入复习全书 setting (settings.practice.qaToBook). With a
-   book for that course each Q&A has 「加入复习全书」; in 'auto' each NEW Q&A (an answer or a 帮我弄懂 result that arrives while this is open) is added by
-   the same op, once; a failure there is a small notice and the button stays. */
+/* bookQa (optional): { course, mode: 'manual' | 'auto', onMode(mode), book (ui/book/BookQaButton.jsx useBookQa, shared with the page), note } — the card's
+   course and the 自动加入复习全书 setting (settings.book.qaToBook). With a book for that course each Q&A has 「加入复习全书」. The automatic adds are made by
+   the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed. */
 export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false, bookQa = null }) {
   const { call } = useStudy();
-  const book = useBookQa();
-  const [bookNote, setBookNote] = React.useState("");
-  const tried = React.useRef(new Set());
-  const withBook = !!bookQa && book.ready && book.courses.has(bookQa.course ?? "");
+  const book = bookQa?.book;
+  const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
@@ -36,11 +33,6 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
     if (!fresh.length) return;
     fresh.forEach((item) => seen.current.add(item.id));
     setOpenIds(new Set([fresh.at(-1).id]));
-    // 自动加入复习全书: each new Q&A once, through the same op as the button.
-    for (const id of autoAddPlan({ mode: bookQa?.mode, withBook: !!bookQa && book.courses.has(bookQa.course ?? ""), fresh: fresh.map((item) => item.id), tried: tried.current, added: book.ids })) {
-      tried.current.add(id);
-      book.add({ ...ref, followupId: id }).catch((failure) => setBookNote(failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。")));
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids
   }, [itemKey]);
   const toggle = (id, open) => setOpenIds((previous) => {
@@ -85,7 +77,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
     <section className="explanation-followup" aria-label={ui("讲解追问")}>
       {withBook && <div className="followup-book">
         <BookQaAuto mode={bookQa.mode} onChange={bookQa.onMode} />
-        {bookNote && <InlineMessage tone="error">{bookNote}</InlineMessage>}
+        {bookQa.note && <InlineMessage tone="error">{bookQa.note}</InlineMessage>}
       </div>}
       {items.length > 1 && (
         <div className="followup-head">

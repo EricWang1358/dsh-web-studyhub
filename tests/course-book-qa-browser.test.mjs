@@ -64,7 +64,7 @@ test('复习全书 Q&A: 加入复习全书 / 已加入 · 撤回 on a follow-up,
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
       await page.locator('.book-questions [data-book-link="card"]').first().waitFor({ timeout: 30000 });
       const book = await running.api('course.book.open', {}), ref = book.nodes[0].children[0].questions[0];
-      await running.api('card.followup.add', { ...ref, question: `Manual question ${width}?`, answer: `Manual answer ${width}.` });
+      const manual = await running.api('card.followup.add', { ...ref, question: `Manual question ${width}?`, answer: `Manual answer ${width}.` });
 
       // The question of the point, in the practice page; its answer shown (as after answering), its follow-up with 加入复习全书.
       await page.locator('.book-questions [data-book-link="card"]').first().click();
@@ -86,7 +86,7 @@ test('复习全书 Q&A: 加入复习全书 / 已加入 · 撤回 on a follow-up,
       if (shots) await page.screenshot({ path: join(shots, `qa-added-${width}.png`) });
       await item.locator('.book-qa-button__go').click();
       await item.locator('.book-qa-button__go', { hasText: '加入复习全书' }).waitFor({ timeout: 30000 });
-      assert.deepEqual((await running.api('book.qa.list', {})).followupIds.length, width === 1280 ? 0 : 2, `${width}px: 撤回 took it out`);
+      assert.equal((await running.api('book.qa.list', {})).followupIds.includes(manual.item.id), false, `${width}px: 撤回 took it out`);
       await item.locator('.book-qa-button__go').click();
       await item.locator('.book-qa-button__go', { hasText: '已加入 · 撤回' }).waitFor({ timeout: 30000 });
 
@@ -98,6 +98,21 @@ test('复习全书 Q&A: 加入复习全书 / 已加入 · 撤回 on a follow-up,
       await fresh.waitFor({ timeout: 30000 });
       await fresh.locator('.book-qa-button__go', { hasText: '已加入 · 撤回' }).waitFor({ timeout: 30000 });
       assert.equal((await running.api('snapshot')).settings.book.qaToBook, 'auto');
+      // With the 讲解 section folded away, a 帮我弄懂 answer that arrives is still added once (the practice page watches, not the folded list).
+      await page.getByRole('button', { name: '讲解', exact: true }).click();
+      await page.locator('.explanation-followup').waitFor({ state: 'detached', timeout: 30000 });
+      const folded = await running.api('card.followup.add', { ...ref, question: `Folded question ${width}?`, answer: `Folded answer ${width}.`, source: 'assistant' });
+      const deadline = Date.now() + 30000;
+      while (!(await running.api('book.qa.list', {})).followupIds.includes(folded.item.id)) {
+        assert.ok(Date.now() < deadline, `${width}px: the folded-away answer was not added`);
+        await page.waitForTimeout(500);
+      }
+      await page.getByRole('button', { name: '讲解', exact: true }).click();
+      const shown = page.locator('.followup-item', { hasText: `Folded question ${width}?` });
+      await shown.waitFor({ timeout: 30000 });
+      if (await shown.getAttribute('open') === null) await shown.locator('summary').click();
+      await shown.locator('.book-qa-button__go', { hasText: '已加入 · 撤回' }).waitFor({ timeout: 30000 });
+      assert.equal((await running.api('book.qa.list', {})).followupIds.filter(id => id === folded.item.id).length, 1, 'once');
       const overflow = await sideways(page, '.review');
       assert.equal(overflow.doc <= 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);
       if (shots) await page.screenshot({ path: join(shots, `qa-auto-${width}.png`) });
