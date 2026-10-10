@@ -2,7 +2,7 @@
 
 [中文](review-book.zh-CN.md)
 
-The **review book** (复习全书) is a book page per course, made from the [course outline](course-outline.md) and the explanations the review book task writes for each knowledge point. It is for reading and studying; questions appear in it as links that take you to practise them. This is milestone M1 of the [design](plans/review-book.md): the page is read only. Editing, adding Q&A to the book, export and print come in later milestones. Checked against the code on 2026-10-11.
+The **review book** (复习全书) is a book page per course, made from the [course outline](course-outline.md) and the explanations the review book task writes for each knowledge point. It is for reading and studying; questions appear in it as links that take you to practise them. This covers milestones M1 (reading) and M2 (editing) of the [design](plans/review-book.md); adding Q&A to the book, export and print come in later milestones. Checked against the code on 2026-10-11.
 
 ## Open it
 
@@ -25,6 +25,16 @@ On the **Course outline** page, once the review book is written, **Open the book
 - A footnote mark and the sources list open the reader at the quoted sentence.
 - A link to a question that was deleted reads **This question was deleted**. Links only navigate; they never run anything. Any other link opens normally.
 
+## Edit it
+
+Above the book, **Preview** and **Source** switch how it is shown; the choice is remembered per course. **Source** shows the raw Markdown of ONE file in the Markdown editor; the file picker lists every file in reading order: each knowledge point's **explanation (generated)** and **my notes**, and 未归位. Any file can be edited.
+
+- **Save** saves the file. A heading you type (`## …`) gets a stable id on save (written at the end of its line, hidden in the preview); an id is never given twice and never taken from the outline's headings. **Discard changes** goes back to the saved text. While there are unsaved changes the file picker is locked, so switching files never loses them.
+- **Editing a generated file makes it yours** (**Changed by you**). When the explanations are written again, a file you changed is never written over: the new text waits under it in the preview as **New generated text**, with **Take it** and **Ignore** (an ignored text is not offered again; a newer one is). A file you did not change follows the new explanations by itself. Your notes are never touched by the program.
+- **The book was updated.** A save is checked against the version of the file you started from. When the same file was changed meanwhile (by the program or in another tab), your text is saved anyway and the other text waits as a suggestion (**The book was updated**, with **Take it** and **Ignore**); other files are not affected.
+- **Back to the previous version** takes the file's previous text back, one version at a time; any write of the program can be undone this way. The last 20 versions of a course are kept (fewer when they are large), outside the library's materials.
+- The preview of an edited file still draws the question links, footnotes and 本节问答, and never renders HTML: tags stay visible as text.
+
 ## Where it is kept
 
 The book is one hidden record of the library (`provenance: 'course-book-doc'`) holding Markdown files: for each knowledge point a generated file (the program's) and your own file (empty in M1), a manifest (the outline's tree with a stable id per heading) and a file for text without a point. It is a reference, never material: it is not in the materials list, the pickers or the search, not in the retrieval index, not counted in the assistant's library context, and a request that names it as material is refused. Questions keep citing the original materials.
@@ -33,10 +43,11 @@ Opening the page makes the files the first time (no model call) and brings the g
 
 ## Rolling back
 
-Upgrade only. An older release (3.3.0 and before) does not know this record: it keeps it as it is, but may list it as a Markdown material named **复习全书 · course** whose text is one line, **复习全书（由 StudyHub 3.4 以上管理，请勿删除）** (the review book, managed by StudyHub 3.4 or later; do not delete). Deleting that entry in an older release deletes the book's files.
+Upgrade only. An older release (3.3.0 and before) does not know this record: it keeps it as it is, but may list it as a Markdown material named **复习全书 · course** whose text is one line, **复习全书（由 StudyHub 3.4 以上管理，请勿删除）** (the review book, managed by StudyHub 3.4 or later; do not delete). Deleting that entry in an older release deletes the book's files. The version history (the `book-history` folder of the library) is ignored by older releases.
 
 ## For developers
 
 - `course.book.open {course?}` (lib/course-book-files.js) answers `{ status, course, revision, title, language, notes, papers, nodes, unplaced, missing, changed }`; `nodes` are `{ hid, key, title, number, depth, leaf, gen, mine, questions: [{ deckId, cardId, prompt }], questionTotal, children }` (`questions` read live, at most 200), `missing` the questions the files link that are gone. It looks at the library first and writes the record only when a file changes; it is never in the snapshot.
+- `course.book.save {course?, file, text, version}`, `course.book.suggestion {course?, file, action: 'accept' | 'ignore', version}`, `course.book.revert {course?, file}` (lib/course-book-edit.js): one writer queue per course, one store transaction each; they answer the book like `course.book.open` plus `write` ('saved', 'merged', 'unchanged', 'accepted', 'ignored', 'reverted') and `history` ({ file: versions kept }). The history is lib/course-book-history.js: `book-history/<hash of the course>.json` under the library folder, written through a temporary file and a rename after the book's own write.
 - lib/course-book-links.js (browser-safe): the three question links (`parseBookLink`), heading ids on the heading line (`## Title <!-- sh:id h3 -->`, `assignHeadingIds`: given once, never reused), `bookIndex` (the heading tree with the question links under each heading), `stitchBook` (files in order, footnotes named per file), `plainBook`.
 - The page is ui/book/ (registry row `book` in ui/pages.js); the links are drawn through `resolveLink` of ui/Markdown.jsx.

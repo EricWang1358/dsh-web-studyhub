@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, EmptyState, ErrorState, LoadingState, PageHeader } from '../components/index.js';
+import { Button, EmptyState, ErrorState, LoadingState, PageHeader, SegmentedControl } from '../components/index.js';
+import { usePersistentState } from '../storage.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -10,7 +11,8 @@ import { BOOK_BUILD_KIND, runningBuild } from '../outline/model.js';
 import { bookStartedText, writingText } from '../outline/words.js';
 import BookChapter from './BookChapter.jsx';
 import BookToc from './BookToc.jsx';
-import { bookRows, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
+import BookEditor from './BookEditor.jsx';
+import { bookRows, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
 import css from './book.css';
 
 /* 复习全书 (docs/plans/review-book.md, M1: read only). The book of the current course (course.book.open, lib/course-book-files.js): the 目录 beside the
@@ -27,8 +29,9 @@ const scrollerOf = element => {
   return document.scrollingElement;
 };
 
-/** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume }) keeps the way back; onOpenSource(sourceId, quote) (the reader); onCreate() (出题); onOpenTask(jobId). */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask }) {
+/** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume }) keeps the way back; onOpenSource(sourceId, quote) (the reader); onCreate() (出题); onOpenTask(jobId);
+    theme: 'light' | 'dark' (the editor's). */
+export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, theme }) {
   useInjectCss(css, 'study-book');
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
@@ -40,7 +43,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const book = state.book;
   const rows = useMemo(() => (book?.status === 'ok' ? bookRows(book.nodes) : []), [book]);
   const toc = useMemo(() => tocEntries(book), [book]);
-  const chapters = useMemo(() => (book?.status === 'ok' ? [...book.nodes, ...(book.unplaced.text.trim() ? [{ hid: 'unplaced', title: book.unplaced.title, text: book.unplaced.text, number: '' }] : [])] : []), [book]);
+  const chapters = useMemo(() => (book?.status === 'ok' ? [...book.nodes, ...(book.unplaced.text.trim() ? [{ hid: 'unplaced', title: book.unplaced.title, text: book.unplaced.text, file: book.unplaced.file, number: '' }] : [])] : []), [book]);
+  // 预览 or 原文, remembered per library and course; 原文 shows one file, the learner's own file of the point being read at first.
+  const [mode, setMode] = usePersistentState(`study-book-mode:${root}:${course}`, 'preview', { parse: value => (value === 'source' ? 'source' : 'preview'), serialize: value => value });
+  const [file, setFile] = useState(null);
+  const [choosing, setChoosing] = useState(false);
+  const setBook = useCallback(next => setState(current => ({ ...current, book: next })), []);
   const [open, setOpen] = useState(() => new Set());
   const [here, setHere] = useState(null);
   const [qa, setQa] = useState(() => new Set());
@@ -110,7 +118,15 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     },
     create: onCreate,
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember]);
+    files: book?.files,
+    busy: choosing,
+    // 采用 / 忽略 of a file's suggestion, compare-and-set on the version shown.
+    choose: async (name, action) => {
+      setChoosing(true);
+      try { setBook(await call('course.book.suggestion', { course, file: name, action, version: book.files[name].version })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+      finally { setChoosing(false); }
+    },
+  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook]);
   const writeBook = useCallback(async () => {
     try {
       await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
@@ -120,7 +136,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const courseName = course === '' ? ui('未分类课程') : course || '';
   const header = <PageHeader className="book-header" back={{ label: ui('返回总纲'), onClick: onBack }} title={uiFormat('复习全书 · {0}', [courseName])}
     titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
-    {book?.status === 'ok' && book.notes && <Button size="sm" variant="quiet" icon="list" className="book-header__toc" aria-expanded={tocOpen} onClick={() => setTocOpen(value => !value)}>{ui('目录')}</Button>}
+    {book?.status === 'ok' && book.notes && <div className="book-header__tools">
+      <SegmentedControl size="sm" label={ui('看书页的方式')} className="book-header__mode" value={mode} onChange={setMode}
+        options={[{ value: 'preview', label: ui('预览') }, { value: 'source', label: ui('原文') }]} />
+      {mode === 'preview' && <Button size="sm" variant="quiet" icon="list" className="book-header__toc" aria-expanded={tocOpen} onClick={() => setTocOpen(value => !value)}>{ui('目录')}</Button>}
+    </div>}
   </PageHeader>;
   if (state.error && !book) return <section className="page book-page">{header}<ErrorState error={state.error} title={ui('复习全书读取失败')} onRetry={() => setState(current => ({ ...current, ticket: current.ticket + 1 }))} /></section>;
   if (!book) return <section className="page book-page">{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
@@ -139,6 +159,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       </section>
     );
   }
+  if (mode === 'source') return (
+    <section className="page book-page">
+      {header}
+      <BookEditor key={book.course} book={book} file={file && book.files[file] ? file : defaultFile(book, here)} onPick={setFile} onChanged={setBook} theme={theme} />
+    </section>
+  );
   return (
     <section className="page book-page" ref={pageRef}>
       {header}

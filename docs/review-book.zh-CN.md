@@ -2,7 +2,7 @@
 
 [English](review-book.md)
 
-**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这是[设计](plans/review-book.md)的第一步（M1）：书页只读。编辑、把问答加进书、导出和打印在后面的步骤。按 2026-10-11 的代码核对。
+**复习全书**是每门课一本的书页，由[课程总纲](course-outline.zh-CN.md)和「生成复习全书」给每个知识点写的讲解组成。它用来读和复习；书里的题目是链接，点开就去练。这里写的是[设计](plans/review-book.md)的 M1（阅读）和 M2（编辑）；把问答加进书、导出和打印在后面的步骤。按 2026-10-11 的代码核对。
 
 ## 打开
 
@@ -25,6 +25,16 @@
 - 角标和出处列表打开阅读器，定位到引用的那句话。
 - 指向已删除题目的链接显示「这道题已被删除」。链接只负责跳转，不会执行任何操作；别的链接照常打开。
 
+## 编辑
+
+书页上方的「预览」「原文」切换显示方式，每门课记住各自的选择。「原文」在 Markdown 编辑器里显示一份文件的原始 Markdown；文件选择列出按阅读顺序排的所有文件：每个知识点的「讲解（生成）」和「我的笔记」，以及「未归位」。任何一份都可以改。
+
+- 「保存」保存这份文件。你自己写的标题（`## …`）在保存时得到一个稳定 id（写在标题行末，预览里看不到）；id 不会重复，也不会占用总纲标题的 id。「放弃改动」回到已保存的内容。有没保存的改动时文件选择会锁住，换文件不会丢改动。
+- **改了生成的文件，它就归你**（「已改动」）。重新生成讲解时，你改过的文件不会被覆盖：新内容在预览里放在它下面，标「有新的生成内容」，可以「采用」或「忽略」（忽略过的不再提示，更新的会再提示）。你没改过的文件会自动跟着新讲解更新。你的笔记程序从不改动。
+- **书已更新。** 保存时会核对你开始编辑时的文件版本。如果这份文件在此期间被改过（程序或另一个标签页），你的内容照样保存，另一边的内容作为建议留着（「书已更新」，可以「采用」或「忽略」）；别的文件不受影响。
+- 「回退到上一版」一次退回这份文件的上一版；程序的任何一次写入都可以这样撤回。每门课保留最近 20 个版本（内容大时更少），存在学习库的资料之外。
+- 改过的文件在预览里照样显示题目链接、脚注和本节问答，不会渲染 HTML：标签原样显示成文字。
+
 ## 存在哪里
 
 全书是学习库里的一条隐藏记录（`provenance: 'course-book-doc'`），里面是几份 Markdown 文件：每个知识点一份生成的文件（程序的）和一份你自己的文件（M1 里为空），一份清单（总纲的树，每个标题一个稳定 id），以及一份放「未归位」内容的文件。它只是参考，不是资料：不在资料列表、选择器和搜索里，不进检索索引，不计入助手看到的学习库情况，把它当资料用会被拒绝。题目仍然引用原资料。
@@ -33,10 +43,11 @@
 
 ## 回退
 
-只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。
+只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。
 
 ## 开发者
 
 - `course.book.open {course?}`（lib/course-book-files.js）返回 `{ status, course, revision, title, language, notes, papers, nodes, unplaced, missing, changed }`；`nodes` 是 `{ hid, key, title, number, depth, leaf, gen, mine, questions: [{ deckId, cardId, prompt }], questionTotal, children }`（`questions` 现读，最多 200 道），`missing` 是文件里链接的、已不存在的题目。它先看学习库，只有文件有变化时才写入记录；不随快照发送。
+- `course.book.save {course?, file, text, version}`、`course.book.suggestion {course?, file, action: 'accept' | 'ignore', version}`、`course.book.revert {course?, file}`（lib/course-book-edit.js）：每门课一个写入队列，每次一个存储事务；返回和 `course.book.open` 一样的书，加上 `write`（'saved'、'merged'、'unchanged'、'accepted'、'ignored'、'reverted'）和 `history`（{ 文件: 保留的版本数 }）。版本历史在 lib/course-book-history.js：学习库文件夹下的 `book-history/<课程的哈希>.json`，在书本身写完之后经临时文件和改名写入。
 - lib/course-book-links.js（浏览器可用）：三种题目链接（`parseBookLink`）、写在标题行末的标题 id（`## 标题 <!-- sh:id h3 -->`，`assignHeadingIds`：只给一次，永不复用）、`bookIndex`（标题树和每个标题下的题目链接）、`stitchBook`（按顺序拼接文件，脚注按文件命名）、`plainBook`。
 - 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。
