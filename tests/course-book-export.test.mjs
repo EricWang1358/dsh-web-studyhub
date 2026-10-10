@@ -62,6 +62,14 @@ test('markers out, ids as anchors and margin codes, links resolved: numbered que
   assert.match(key, /\*\*推理链\*\*\n\n1\. A = 1000 \/ \(1000 \+ 2\) = 0\.998/, 'an answer card in full');
 });
 
+test('an English book exports in English: the lookup, the questions\' heading, the answer key', () => {
+  const { text, filename } = runExport({ ...exportBook(), language: 'en', title: 'Review book · SA' }, { cardOf, answerKey: true });
+  for (const part of ['## Lookup {#lookup}', '### Contents {#lookup-toc}', '### By question type {#lookup-types}', '**Answer order**: Stem facts → Explicit assumptions',
+    '| Type · signals in the stem | Steps · formulas | Common mistakes · the cost to state |', '**Availability** (', '### Mistakes by point {#lookup-mistakes}',
+    '**Questions of this point**', '## Answer key {#answers}', '**H2-Q1** Answer: B. Multiply them']) assert.ok(text.includes(part), part);
+  assert.equal(filename, 'Review-book-SA-with-answers.md');
+});
+
 test('footnotes are named per file and never collide; every reference has its definition', () => {
   const { text } = runExport(exportBook(), { cardOf });
   const refs = [...text.matchAll(/\[\^([^\]]+)\](?!:)/g)].map(match => match[1]), defs = [...text.matchAll(/^\[\^([^\]]+)\]:/gm)].map(match => match[1]);
@@ -160,8 +168,12 @@ test('course.book.export on the state: all of a point\'s questions numbered, a d
   const { state } = library();
   const card = state.decks.find(deck => deck.id === 'deck-l1').cards[0];
   card.answerCard = answerCard();
+  // 200 more questions of the first point: the page lists 200, the export prints them all.
+  const deck = state.decks.find(item => item.id === 'deck-l1');
+  deck.cards.push(...Array.from({ length: 200 }, (_, i) => ({ ...structuredClone(deck.cards[2]), id: `extra-${i}` })));
   openCourseBook(state, {});
   const [what] = leavesOf(openCourseBook(state, {}).nodes);
+  assert.deepEqual([what.questions.length, what.questionTotal], [200, 225]);
   const other = state.decks.find(deck => deck.id === 'deck-l1').cards[1];
   bookOf(state).bookDoc.files['what.mine.md'].text = `See [练习：gone](studyhub://card/deck-l1/deleted) and [练习：it](studyhub://card/deck-l1/${other.id}).`;
   const before = JSON.stringify(state);
@@ -169,7 +181,7 @@ test('course.book.export on the state: all of a point\'s questions numbered, a d
   assert.equal(JSON.stringify(state), before, 'read only');
   assert.equal(done.status, 'ok');
   const own = numbersIn(done.text.split('## 1 Introduction')[1].split('## 答案册')[0]).filter(number => number.startsWith(codeOf(what.hid)));
-  assert.equal(new Set(own).size, 25, 'every question of the point, past the page\'s 200-free list too');
+  assert.equal(new Set(own).size, 225, 'every question of the point, past the page\'s 200');
   assert.match(done.text, new RegExp(`See and \\*\\*${codeOf(what.hid)}-Q\\d+\\*\\* What does`), 'the deleted link is left out, the live one numbered');
   assert.match(done.text, /^\| \*\*可用性\*\*/m, 'the answer card\'s type in the 速查表');
   assert.match(done.text, /^- \*\*架构决策\*\*：\[H\d+\]\(#h\d+\)$/m, 'a bold definition of the notes in 按概念');
