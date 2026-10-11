@@ -68,12 +68,14 @@
     "tests/wrongbook-filters-browser.test.mjs"
   ],
   "ffmpeg": [
+    "tests/audio-ogg-ffmpeg.test.mjs",
     "tests/groq-split.test.mjs",
     "tests/wp6-m4a.test.mjs"
   ],
   "cli": [
     "tests/audio-batch.runtime.test.mjs",
     "tests/audio-batch.test.mjs",
+    "tests/audio-ogg-ffmpeg.test.mjs",
     "tests/audio-retry.runtime.test.mjs",
     "tests/audio-retry.test.mjs",
     "tests/audio-single-characterization.test.mjs",

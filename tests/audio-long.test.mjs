@@ -127,10 +127,10 @@ test("a timeout is tried once more, then reported with the wait it gave up after
 /* ---- what is in the file decides how it is read and cut ---- */
 
 test("a recording goes in as few requests as the limit allows", () => {
-  assert.deepEqual([3000, CHUNK_SECONDS, CHUNK_SECONDS + 1, 65 * 60, 121 * 60].map((s) => partsFor(s)), [1, 1, 2, 2, 3]);
+  assert.deepEqual([2400, CHUNK_SECONDS, CHUNK_SECONDS + 1, 65 * 60, 121 * 60, 175 * 60].map((s) => partsFor(s)), [1, 1, 2, 2, 3, 4]);
   assert.equal(partsFor(1300, 600), 3);
   assert.equal(partsFor(1300, 10), partsFor(1300, 300), "a limit below five minutes is raised to five");
-  assert.equal(partsFor(9999, 99999), partsFor(9999), "and one above the model's hour is lowered");
+  assert.equal(partsFor(9999, 99999), partsFor(9999), "and one above what the model takes (45 minutes, #408) is lowered");
 });
 
 test("cuts land in the quietest moment near where an even split would fall", () => {
@@ -191,7 +191,7 @@ test("the longest a request may be is a setting, within what the model allows", 
   const home = await mkdtemp(join(tmpdir(), "audio-part-")), previous = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
   t.after(async () => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(home, { recursive: true, force: true }); });
-  assert.equal((await readAudioSettings()).partMinutes, 59, "as long as possible by default: free quota is counted in requests");
+  assert.equal((await readAudioSettings()).partMinutes, 45, "as long as the model takes by default: free quota is counted in requests");
   assert.equal((await saveAudioSettings({ partMinutes: 30 })).partMinutes, 30);
-  for (const bad of [4, 60, 30.5, "abc"]) await assert.rejects(saveAudioSettings({ partMinutes: bad }), /5 到 59/);
+  for (const bad of [4, 46, 59, 30.5, "abc"]) await assert.rejects(saveAudioSettings({ partMinutes: bad }), /5 到 45/);
 });
