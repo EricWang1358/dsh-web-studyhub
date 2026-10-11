@@ -240,8 +240,8 @@ export default function Draft({
       </div>
       {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
         action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}
-      {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}>
-        <MaterialsReport report={materials} disabled={busy || !!work || staleDraft || !modelReadiness(data).ready} onTopUp={(keys) => topUp(draft, keys, { manual: true })} />
+      {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}
+        lead={<MaterialsReport report={materials} disabled={busy || !!work || staleDraft || !modelReadiness(data).ready} onTopUp={(keys) => topUp(draft, keys, { manual: true })} />}>
         <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} saveThen={unsavedDraft ? saveThen : undefined} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
         <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} modelReady={modelReadiness(data).ready}
           onTopUp={topUp} />

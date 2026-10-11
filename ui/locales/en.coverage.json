@@ -268,7 +268,7 @@
   "未命名资料": "Untitled material",
   "选了 {0} 份资料，每份都会出题。": "{0} materials selected; each of them will get questions.",
   "选了 {0} 份资料，{1} 份会出题，{2} 份不会：{3}{4}": "{0} materials selected: {1} will get questions, {2} will not: {3}{4}",
-  "选了 {0} 份，{1} 份已出题，{2} 份没出题": "{0} materials selected: {1} have questions, {2} have none",
+  "选了 {0} 份，{1} 份已出题，{2} 份没出题": "{0} materials selected: {1} with questions, {2} without",
   "选了 {0} 份，都已出题": "{0} materials selected: all of them have questions",
   "题数少于所选资料的份数，已从 {0} 题自动提高到 {1} 题：每份资料至少 1 题。": "Fewer questions than materials: raised from {0} to {1}, so every material gets at least one.",
   "另有 {0} 份所选资料在出题前已从资料库删除，没有出题。": "{0} more selected material(s) were removed from the library before the run and got no questions.",

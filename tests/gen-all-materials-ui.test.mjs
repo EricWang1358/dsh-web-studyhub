@@ -53,7 +53,7 @@ test('after the run: the draft page line, the reason of each material without a 
   assert.match(zh, /lecture-05\.mp3 模型没能从里面找到够用的考点 补题（约 3 题）/);
   assert.match(zh, /另有 1 份所选资料在出题前已从资料库删除，没有出题。/);
   const en = inLanguage('en', () => text(renderToStaticMarkup(element)));
-  assert.match(en, /^8 materials selected: 7 have questions, 1 have none/);
+  assert.match(en, /^8 materials selected: 7 with questions, 1 without/);
   assert.match(en, /the model found too few knowledge points in it Add questions \(about 3\)/);
   assert.doesNotMatch(en, han);
   assert.equal(pressed, null);

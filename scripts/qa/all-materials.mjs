@@ -86,13 +86,15 @@ export async function runAllMaterialsQa(options) {
         view = await call("coverage.get", { draftId: "qa-draft-eight" });
         assert.deepEqual([view.materials.selected, view.materials.covered, view.materials.missing], [8, 7, 1]);
         await page.locator('[data-tour="nav-library"]').first().dispatchEvent("click");
-        await page.locator(".draft-row").first().waitFor({ timeout: 20000 });
+        await page.locator(".draft-row").first().waitFor({ state: "attached", timeout: 20000 });
+        // The 待发布 list is folded on the library page: open it, then the draft.
+        if (!(await page.locator(".draft-open").first().isVisible())) await page.locator("details:has(.draft-row) > summary").first().click();
         await page.locator(".draft-open").first().click();
         await page.locator("[data-materials-report]").waitFor({ timeout: 20000 });
         await page.evaluate(() => { const box = document.querySelector("[data-materials-report]").getBoundingClientRect(); window.scrollBy(0, box.top - 120); });
         const head = await textOf(".cov-materials__head");
         facts.draftLine = head;
-        assert.equal(head, zh ? "选了 8 份，7 份已出题，1 份没出题" : "8 materials selected: 7 have questions, 1 have none");
+        assert.equal(head, zh ? "选了 8 份，7 份已出题，1 份没出题" : "8 materials selected: 7 with questions, 1 without");
         const row = await textOf("[data-materials-report] li[data-material]");
         facts.row = row;
         assert.ok(row.startsWith("lecture-05.mp3"), row);
