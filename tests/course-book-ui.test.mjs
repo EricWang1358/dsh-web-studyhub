@@ -110,7 +110,7 @@ test('讲解详尽程度 beside the book\'s button, a point read in passes under
   const text = textOf(html);
   assert.match(text, /更新全书 精简 标准 详尽 重新整理/, 'the level beside the book\'s button');
   assert.match(html, /aria-label="讲解详尽程度"/);
-  assert.match(ui.levelOptions().find(option => option.value === 'standard').tip, /^标准：大资料分几次读，最多 3 次/, 'the chosen level explains itself on hover');
+  assert.match(ui.levelOptions().find(option => option.value === 'standard').tip, /^标准：再加上步骤、规则和易错提醒必须讲到/, 'the chosen level explains itself on hover');
   assert.doesNotMatch(text, /费用|元|\$/, 'no cost estimate');
   assert.match(text, /第 1–8 页 Trust boundaries first 1 Where data crosses a boundary 1 \. 第 73–80 页 Record each threat 2 The log closes the loop\. 例子 ：Example: a login form 2/);
   assert.match(text, /覆盖：读了 16\/80 页 读更多/);
@@ -153,6 +153,6 @@ test('in English the book\'s controls and notes have no Chinese of their own', (
     assert.match(textOf(deepHtml), /Pages 1–8 .* Pages 73–80/);
     assert.match(textOf(deepHtml), /Coverage: read 0 of 80 pages; 80 more only at their start Read more/);
     assert.match(textOf(deepHtml), /Explanations cover 30% of the materials; 1 knowledge point\(s\) read only in part/);
-    assert.match(ui.levelOptions().at(-1).tip, /^Detailed: a big material is read in up to 8 passes/);
+    assert.match(ui.levelOptions().at(-1).tip, /^Detailed: every item of the inventory must be covered/);
   });
 });

@@ -271,10 +271,6 @@
   "*例子*：{0}": "*Example*: {0}",
   "读更多": "Read more",
   "详尽": "Detailed",
-  "精简：每个知识点和别的几个点一起读一次，大资料只读每页的开头。模型调用最少，最快。": "Lean: each knowledge point is read once together with a few others; a big material only by the start of each page. The fewest model calls, the fastest.",
-  "标准：大资料分几次读，最多 3 次、每次约 2 万字，每次单独调用模型。比精简多读页、多几次调用、多花些时间。": "Standard: a big material is read in a few passes, at most 3 of about 20,000 characters, each its own model call. More pages than Lean, a few more calls and a little more time.",
-  "详尽：大资料最多分 8 次读，读得最全。模型调用和时间最多。": "Detailed: a big material is read in up to 8 passes, the most complete. The most model calls and the most time.",
-  "讲解详尽程度：一个知识点读多少资料。读得越多，模型调用和时间越多；用了多少在任务页看。只影响之后写的讲解，已经读得更多的不会被删掉。": "Explanation depth: how much of its materials a knowledge point is explained from. Reading more takes more model calls and more time; the task page shows what was used. It affects explanations written from now on; one that already read more is never deleted.",
   "覆盖：读了 {0}/{1} 页，另有 {2} 页只读了开头": "Coverage: read {0} of {1} pages; {2} more only at their start",
   "覆盖：读了 {0}/{1} 页": "Coverage: read {0} of {1} pages",
   "覆盖：读了 {0}/{1} 字": "Coverage: read {0} of {1} characters",
@@ -294,5 +290,9 @@
   "只为这一个知识点补上缺的概念：按缺的清单审阅、修复，不重写已经讲好的部分；单独一个任务，进度在任务页。": "Adds only the missing concepts of this one knowledge point: it is reviewed and repaired against the list of what is missing, and what is already explained is not rewritten. A task of its own; its progress is on the Tasks page.",
   "覆盖：资料用了 {0}/{1} 份、页 {2}/{3}；知识点达标 {4}/{5}；概念 {6}/{7}": "Coverage: materials {0}/{1}, pages {2}/{3}; knowledge points complete {4}/{5}; concepts {6}/{7}",
   "生词与概念": "Glossary",
-  "清点资料时找到、书里讲到的术语与概念，按字母排序；代码打开讲它的那一节。": "The terms and concepts found in the materials that the book explains, in alphabetical order; a code opens the section that explains it."
+  "清点资料时找到、书里讲到的术语与概念，按字母排序；代码打开讲它的那一节。": "The terms and concepts found in the materials that the book explains, in alphabetical order; a code opens the section that explains it.",
+  "精简：必须讲到的只算术语、定义、概念和公式，其余作为可选；每个知识点照样读它的全部页。": "Lean: only terms, definitions, concepts and formulas must be covered, the rest is optional; every knowledge point is still read in full.",
+  "标准：再加上步骤、规则和易错提醒必须讲到；资料强调的、样卷考到的一律必讲。": "Standard: steps, rules and warnings must be covered too; what the materials stress or the sample papers test always must.",
+  "详尽：资料里清点出的每一条都必须讲到，例子和论断也算；修复的调用可能更多。": "Detailed: every item of the inventory must be covered, examples and claims too; there may be more repair calls.",
+  "讲解详尽程度：哪些概念必须讲到，审阅按这张清单检查。改了以后，下次「更新全书」按新的清单重写讲解；用了多少在任务页看。": "Explanation depth: which concepts must be covered; the review checks against that list. After a change, the next Update the book rewrites the explanations against the new list; the Tasks page shows what was used."
 }

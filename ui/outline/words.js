@@ -101,16 +101,16 @@ const LEVEL_WORDS = { brief: () => ui('精简'), standard: () => ui('标准'), f
 /** The name of a level. */
 export const levelText = level => (LEVEL_WORDS[level] || LEVEL_WORDS.standard)();
 const LEVEL_TIPS = {
-  brief: () => ui('精简：每个知识点和别的几个点一起读一次，大资料只读每页的开头。模型调用最少，最快。'),
-  standard: () => ui('标准：大资料分几次读，最多 3 次、每次约 2 万字，每次单独调用模型。比精简多读页、多几次调用、多花些时间。'),
-  full: () => ui('详尽：大资料最多分 8 次读，读得最全。模型调用和时间最多。'),
+  brief: () => ui('精简：必须讲到的只算术语、定义、概念和公式，其余作为可选；每个知识点照样读它的全部页。'),
+  standard: () => ui('标准：再加上步骤、规则和易错提醒必须讲到；资料强调的、样卷考到的一律必讲。'),
+  full: () => ui('详尽：资料里清点出的每一条都必须讲到，例子和论断也算；修复的调用可能更多。'),
 };
-/** What a level means (the Select's hover explanation): more pages a point means more model calls and more time; the cost is not estimated. */
+/** What a level means (the Select's hover explanation): which checklist items are a must; the cost is not estimated. */
 export const levelTip = level => (LEVEL_TIPS[level] || LEVEL_TIPS.standard)();
 /** The levels as Select options, each with its explanation. */
 export const levelOptions = () => ['brief', 'standard', 'full'].map(level => ({ value: level, label: levelText(level), tip: levelTip(level) }));
 /** What the level choice is, said once beside it. */
-export const levelHint = () => ui('讲解详尽程度：一个知识点读多少资料。读得越多，模型调用和时间越多；用了多少在任务页看。只影响之后写的讲解，已经读得更多的不会被删掉。');
+export const levelHint = () => ui('讲解详尽程度：哪些概念必须讲到，审阅按这张清单检查。改了以后，下次「更新全书」按新的清单重写讲解；用了多少在任务页看。');
 
 /** 「覆盖：读了 N/M 页」 of one point: pages where its sources have them, else characters. */
 export function coverageText(coverage) {
