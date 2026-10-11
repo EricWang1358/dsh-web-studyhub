@@ -37,7 +37,7 @@ const archives = [await pack(root)];
 await mkdir(join(target, 'packages'), { recursive: true });
 for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'audio']) {
   const staging = await mkdtemp(join(target, 'packages', `${domain}-`));
-  for (const path of ['lib', 'references', 'locale', 'presets', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md'])
+  for (const path of ['lib', 'skills', 'references', 'locale', 'presets', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md'])
     await cp(join(root, path), join(staging, path), { recursive: true });
   await mkdir(join(staging, 'docs'), { recursive: true });
   for (const path of manifest.files.filter(path => path.startsWith('docs/'))) {
