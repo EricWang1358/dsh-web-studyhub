@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, SegmentedControl } from '../components/index.js';
 import { usePersistentState } from '../storage.js';
@@ -16,6 +17,8 @@ import BookAiAsk from './BookAiAsk.jsx';
 import BookLookup from './BookLookup.jsx';
 import BookExport, { budgetText } from './BookExport.jsx';
 import BookFlip from './BookFlip.jsx';
+import { AiFoldContext, useAiFold } from './ai-fold.js';
+import { showBlock, showWords } from './ai-anchors.js';
 import CrunchDay from './CrunchDay.jsx';
 import { localDate } from '../../lib/board-model.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
@@ -127,6 +130,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [open, setOpen] = useState(() => new Set());
   const [here, setHere] = useState(null);
   const [qa, setQa] = useState(() => new Set());
+  // The fold of the AI blocks (kept per library and course in this browser): read by the points through AiFoldContext, so a fold draws only the blocks.
+  const aiFold = useAiFold(root, course), foldAi = aiFold.fold;
   const [tocOpen, setTocOpen] = useState(wideNow);
   const restore = useRef(null), pageRef = useRef(null), first = useRef(keptBook(root, course)), placed = useRef(false);
 
@@ -229,7 +234,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       finally { setChoosing(false); }
     },
     aiFollow: (node, block, question) => startAi({ heading: node.hid, mode: 'follow', words: block.about || node.title, instruction: question, after: block.id }),
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, startAi]);
+    // The fold of the blocks (kept in this browser), and the two ways between a block and its dashed words (ui/book/ai-anchors.js): open the block, then show it.
+    aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
+    aiWords: id => showWords(id),
+  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, startAi, foldAi]);
   const writeBook = useCallback(async () => {
     try {
       await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
@@ -296,8 +304,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {header}
       {todayPanel}
       {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
-      {crunch ? <BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
-        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /> : <LoadingState label={ui('正在排期末一周…')} />}
+      {crunch ? <AiFoldContext.Provider value={aiFold}><BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
+        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /></AiFoldContext.Provider> : <LoadingState label={ui('正在排期末一周…')} />}
       {askPanel}
       {exportDialog}
     </section>
@@ -317,8 +325,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       <div className={tocOpen ? 'book-layout book-layout--toc' : 'book-layout'}>
         {tocOpen && <nav className="book-toc" aria-label={ui('目录')}><BookToc entries={toc} here={here} onGo={goTo} /></nav>}
         <div className="book-read" onMouseUp={onSelect}>
-          {chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
-            onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
+          <AiFoldContext.Provider value={aiFold}>
+            {chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
+              onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
+          </AiFoldContext.Provider>
         </div>
       </div>
       {askPanel}

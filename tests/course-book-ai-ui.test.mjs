@@ -12,6 +12,8 @@ const ui = await loadUi(`
   export { default as BookAiAsk } from './ui/book/BookAiAsk.jsx';
   export * from './ui/book/model.js';
   export { aiBlock } from './lib/course-book-ai-text.js';
+  export { AiFoldContext } from './ui/book/ai-fold.js';
+  export { summaryOf } from './ui/book/BookAiBlock.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement, noop = () => {}, han = /[㐀-鿿]/;
@@ -74,4 +76,36 @@ test('English: the page\'s own words', () => english(() => {
   assert.equal(han.test(own), false, own);
   assert.match(textOf(html), /Keep Regenerate Delete/);
   assert.match(textOf(panel), /Explain/);
+}));
+
+const folding = (folded, element) => h(ui.AiFoldContext.Provider, { value: { folded: id => folded.includes(id), fold: noop, foldAll: noop } }, element);
+const folded = (list, point = node) => render(folding(list, h(ui.BookChapter, { node: point, open: true, onToggle: noop, course: 'SA', handlers })));
+
+test('a folded block: the header (AI, what it is about, 新) and the first line of the answer as a quiet summary; no body, actions or follow-up; open: all of them', () => {
+  const open = folded([]), shut = folded(['ai1']);
+  assert.match(open, /aria-expanded="true"[^>]*aria-label="AI 写的段落"/);
+  assert.doesNotMatch(open, /book-ai__summary/);
+  const from = shut.indexOf('data-ai-block="ai1"'), block1 = shut.slice(from, shut.indexOf('</aside>', from));
+  assert.match(block1, /data-ai-folded="true"/);
+  assert.match(block1, /aria-expanded="false"/);
+  assert.match(textOf(block1), /AI 关于：「records each decision」 新 An explanation of it\.$/);
+  assert.doesNotMatch(block1, /book-ai__actions|book-ai__follow|book-ai__body/);
+  assert.match(shut.slice(shut.indexOf('data-ai-block="ai2"')), /book-ai__actions/, 'the other block is still open');
+});
+
+test('全部收起 / 全部展开 on a point with more than one AI block; none with one or without the page\'s fold', () => {
+  assert.match(textOf(folded([])), /在这里加一段 全部收起/);
+  assert.match(textOf(folded(['ai1', 'ai2'])), /在这里加一段 全部展开/);
+  assert.doesNotMatch(textOf(folded([], { ...node, mine: `My note.\n\n${block}` })), /全部收起|全部展开/);
+  assert.doesNotMatch(textOf(chapter()), /全部收起|全部展开/);
+});
+
+test('the summary is plain words: marks, cites and links off', () => {
+  assert.equal(ui.summaryOf('\n  **Bold** and `code` [^1] see [a link](studyhub://x) and [[term]]\nsecond line'), 'Bold and code see a link and term');
+  assert.equal(ui.summaryOf(''), '');
+});
+
+test('English: the fold words', () => english(() => {
+  assert.match(textOf(folded(['ai1'])), /Add a paragraph here Expand all|Add a paragraph here Collapse all/);
+  assert.match(folded([]), /aria-label="Paragraph written by AI"/);
 }));
