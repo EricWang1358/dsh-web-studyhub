@@ -433,6 +433,136 @@
       overflow-wrap: anywhere;
       text-align: left;
     }
+    /* M7 期末一周: one day of the plan (the home's card and the book's 今天读哪几节), the mock paper, the 翻看 view. A hairline block, never a box
+       inside a box; long titles wrap. */
+    .crunch-card {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      padding: var(--space-3) 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    .crunch-card__eyebrow {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+    }
+    .crunch-card__open,
+    .crunch-day__more {
+      justify-self: start;
+    }
+    .crunch-day,
+    .book-mock,
+    .book-flip,
+    .book-flip__bar,
+    .book-flip__point {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .crunch-day__head,
+    .crunch-day__reason,
+    .book-mock__line,
+    .book-mock__muted,
+    .book-flip__progress,
+    .book-flip__reason,
+    .book-flip__muted {
+      margin: 0;
+    }
+    .crunch-day__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-2);
+    }
+    .crunch-day__muted,
+    .book-mock__muted,
+    .book-flip__muted {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .crunch-day__points,
+    .book-flip__mistakes {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .crunch-day__point {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-1) 0;
+      border-bottom: 1px solid var(--line-soft);
+      min-width: 0;
+    }
+    .crunch-day__copy {
+      display: grid;
+      gap: var(--space-1);
+      flex: 1 1 14rem;
+      min-width: 0;
+    }
+    .crunch-day__title {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1);
+    }
+    .crunch-day__actions,
+    .crunch-day__bar,
+    .book-mock__start,
+    .book-flip__mock,
+    .book-flip__head,
+    .book-flip__checks {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-today {
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      min-width: 0;
+    }
+    .book-flip {
+      gap: var(--space-4);
+    }
+    .book-flip__point {
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .book-flip__point[data-seen='true'] .book-flip__title {
+      color: var(--text-muted);
+    }
+    .book-flip__head {
+      justify-content: space-between;
+    }
+    .book-flip__title {
+      margin: 0;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      min-width: 0;
+    }
+    .book-flip__mistakes li {
+      padding: var(--space-1) var(--space-2);
+      border-left: 2px solid var(--accent);
+      background: var(--bg-sunken);
+      border-radius: var(--radius-sm);
+    }
+    .book-flip__go {
+      justify-self: start;
+    }
+    .book-flip__explain {
+      min-width: 0;
+    }
   }
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {

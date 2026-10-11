@@ -15,6 +15,9 @@ import BookEditor from './BookEditor.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
 import BookLookup from './BookLookup.jsx';
 import BookExport, { budgetText } from './BookExport.jsx';
+import BookFlip from './BookFlip.jsx';
+import CrunchDay from './CrunchDay.jsx';
+import { localDate } from '../../lib/board-model.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
 import { resolveBookSettings } from '../../lib/book-settings.js';
 import { usePolling } from '../use-polling.js';
@@ -37,8 +40,8 @@ const scrollerOf = element => {
 };
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume }) keeps the way back; onOpenSource(sourceId, quote) (the reader); onCreate() (出题); onOpenTask(jobId);
-    theme: 'light' | 'dark' (the editor's). */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, theme }) {
+    onExamRun(run): enters a mock exam started here (M7); theme: 'light' | 'dark' (the editor's). */
+export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, theme }) {
   useInjectCss(css, 'study-book');
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
@@ -52,7 +55,26 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const toc = useMemo(() => tocEntries(book), [book]);
   const chapters = useMemo(() => (book?.status === 'ok' ? [...book.nodes, ...(book.unplaced.text.trim() ? [{ hid: 'unplaced', title: book.unplaced.title, text: book.unplaced.text, file: book.unplaced.file, number: '' }] : [])] : []), [book]);
   // 预览, 原文 or 查找 (M6), remembered per library and course; 原文 shows one file, the learner's own file of the point being read at first.
-  const [mode, setMode] = usePersistentState(`study-book-mode:${root}:${course}`, 'preview', { parse: value => (value === 'source' || value === 'lookup' ? value : 'preview'), serialize: value => value });
+  const [mode, setMode] = usePersistentState(`study-book-mode:${root}:${course}`, 'preview', { parse: value => (['source', 'lookup', 'flip'].includes(value) ? value : 'preview'), serialize: value => value });
+  // 期末一周 (M7, book.crunch): the plan of the course's last days before its exam; 「今天读哪几节」 in the header and the 翻看 view read it. Asked again
+  // when the book changes or a mark is set. The home's card can open the page in 翻看 or with 今天读哪几节 open (`view`, kept by keepBook).
+  const [crunch, setCrunch] = useState(null);
+  const view = useRef(keptBook(root, course)?.view ?? null);
+  const [todayOpen, setTodayOpen] = useState(view.current === 'today');
+  useEffect(() => {
+    if (view.current === 'flip') setMode('flip');
+    if (view.current) keepBook(root, course, { view: null });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLiveEffect(isLive => {
+    if (book?.status !== 'ok' || !book.notes) return;
+    call('book.crunch', { course, date: localDate() }).then(next => { if (isLive()) setCrunch(next); }, () => { if (isLive()) setCrunch({ status: 'error' }); });
+  }, [call, course, book?.revision, book?.status, book?.notes]);
+  const crunchDay = crunch?.status === 'ok' ? crunch.plan.today : null;
+  const crunchPoints = useMemo(() => { const byId = new Map((crunch?.points || []).map(point => [point.id, point])); return (crunchDay?.points || []).map(id => byId.get(id)).filter(Boolean); }, [crunch, crunchDay]);
+  // 读完了 / 已看 (book.crunch.mark): kept per course in the book's record; the answer is the plan again.
+  const mark = useCallback(async (hid, kind, on) => {
+    try { setCrunch(await call('book.crunch.mark', { course, hid, kind, on, date: localDate() })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+  }, [call, course, notify]);
   // 查找 is made from the book as it is now (lib/course-book-lookup.js); 导出 and the page limit (settings.book.pageLimit) compare the export's estimate.
   const lookup = useMemo(() => (mode === 'lookup' ? bookLookup(book, book ?? {}) : null), [book, mode]);
   const [exporting, setExporting] = useState(false);
@@ -119,7 +141,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     keepBook(root, course, { target: null });
   }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
-    const wanted = restore.current, element = wanted && document.getElementById(`book-${wanted.hid}`);
+    // In 翻看 a point is its row of the view (`flip-<id>`), in 预览 its heading.
+    const wanted = restore.current, element = wanted && (document.getElementById(`book-${wanted.hid}`) || document.getElementById(`flip-${wanted.hid}`));
     if (!element) return;
     restore.current = null;
     // One jump, not smooth: the heading where it was on screen (from the way back), else just under the top of the scroller (from the 目录).
@@ -142,6 +165,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
 
   // The way back after practice: the heading just above the link (a typed heading too), where it was on screen, and the chapter that holds it.
   const remember = useCallback((hid, from) => {
+    // From 翻看: its row of the point, where it was on screen (the view comes back in 翻看, kept per course).
+    const flipPoint = from?.closest?.('[data-flip-point]');
+    if (flipPoint) {
+      const id = flipPoint.dataset.flipPoint, row = rowOf(rows, id);
+      keepBook(root, course, { heading: id, offset: flipPoint.querySelector(`#flip-${id}`)?.getBoundingClientRect().top ?? 0, target: null, chapter: row ? chapters[row.chapter]?.hid ?? null : null });
+      return;
+    }
     const headings = from && pageRef.current ? [...pageRef.current.querySelectorAll('[data-book-heading]')].filter(item => item.compareDocumentPosition(from) & 4) : [];
     const element = headings.at(-1) || document.getElementById(`book-${hid}`), row = rowOf(rows, hid);
     keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
@@ -207,8 +237,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
     {book?.status === 'ok' && book.notes && <div className="book-header__tools">
       <SegmentedControl size="sm" label={ui('看书页的方式')} className="book-header__mode" value={mode} onChange={setMode}
-        options={[{ value: 'preview', label: ui('预览') }, { value: 'source', label: ui('原文') }, { value: 'lookup', label: ui('查找') }]} />
+        options={[{ value: 'preview', label: ui('预览') }, { value: 'source', label: ui('原文') }, { value: 'lookup', label: ui('查找') }, { value: 'flip', label: ui('翻看') }]} />
       {mode === 'preview' && <Button size="sm" variant="quiet" icon="list" className="book-header__toc" aria-expanded={tocOpen} onClick={() => setTocOpen(value => !value)}>{ui('目录')}</Button>}
+      {crunchDay && mode !== 'source' && <Button size="sm" variant="quiet" icon="calendar" className="book-header__today" aria-expanded={todayOpen} onClick={() => setTodayOpen(value => !value)}>{ui('今天读哪几节')}</Button>}
       <Button size="sm" variant="secondary" icon="download" className="book-header__export" onClick={() => setExporting(true)}>{ui('导出')}</Button>
       {pages !== null && pageLimit && <span className="book-header__budget" data-over={pages > pageLimit || undefined}>
         {uiFormat('导出约 {0} 页 / 上限 {1} 页', [pages, pageLimit])}{pages > pageLimit ? ` · ${budgetText(pages, pageLimit).text}` : ''}</span>}
@@ -232,10 +263,29 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     );
   }
   const exportDialog = exporting && <BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
+  // 今天读哪几节: today's day of the plan, under the header (the same day the home's 期末一周 card shows).
+  const todayPanel = crunchDay && todayOpen && mode !== 'source' && <section className="book-today" aria-label={ui('今天读哪几节')}>
+    <CrunchDay course={course} daysLeft={crunch.daysLeft} day={crunchDay} points={crunchPoints}
+      onRead={point => { if (crunchDay.mode === 'flip') { setMode('flip'); return; } setMode('preview'); goTo(point.id); }}
+      onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => mark(point.id, 'read', on)}
+      onFlip={() => setMode('flip')} onMockStarted={onExamRun} />
+  </section>;
   if (mode === 'source') return (
     <section className="page book-page">
       {header}
       <BookEditor key={book.course} book={book} file={file && book.files[file] ? file : defaultFile(book, here)} onPick={setFile} onChanged={setBook} theme={theme} />
+      {exportDialog}
+    </section>
+  );
+  // 翻看 (M7): the points in the plan's order, their 易错点 first; a point opens in 预览 at its heading.
+  if (mode === 'flip') return (
+    <section className="page book-page">
+      {header}
+      {todayPanel}
+      {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
+      {crunch ? <BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
+        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /> : <LoadingState label={ui('正在排期末一周…')} />}
+      {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
       {exportDialog}
     </section>
   );
@@ -250,6 +300,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   return (
     <section className="page book-page" ref={pageRef}>
       {header}
+      {todayPanel}
       <div className={tocOpen ? 'book-layout book-layout--toc' : 'book-layout'}>
         {tocOpen && <nav className="book-toc" aria-label={ui('目录')}><BookToc entries={toc} here={here} onGo={goTo} /></nav>}
         <div className="book-read" onMouseUp={onSelect}>
