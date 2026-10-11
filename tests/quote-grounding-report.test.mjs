@@ -70,7 +70,9 @@ test("a job that lost questions to quotes says how many parts failed and why, an
   assert.ok(done.partReport, "the job carries the report");
   assert.ok(done.partReport.reasons.quote >= 1, JSON.stringify(done.partReport));
   assert.match(done.partReport.summary, /引用在资料里找不到/, "the job speaks the learner's language");
-  assert.equal(done.draft.cards, 2, "the passing questions are kept");
+  // Four pages that are four separate materials: the count of 3 is raised to one question per material (the owner's decision of 2026-10-11).
+  assert.deepEqual(done.countRaised, { from: 3, to: 4 });
+  assert.equal(done.draft.cards, 3, "the passing questions are kept");
   assert.equal(done.draft.missing, 1);
   assert.match(done.next, /generate \{resumeDraftId: "/);
   assert.match(done.next, /keeps the questions that passed/);
@@ -79,7 +81,7 @@ test("a job that lost questions to quotes says how many parts failed and why, an
 test("a job in which every quote is real has no failed parts and no top-up advice", async (t) => {
   const { done } = await runJob(t, { invent: false });
   assert.equal(done.partReport.failed + done.partReport.partial, 0);
-  assert.equal(done.draft.cards, 3);
+  assert.equal(done.draft.cards, 4, "one per material: the count of 3 was raised to the four materials");
   assert.equal(done.next, undefined);
 });
 
