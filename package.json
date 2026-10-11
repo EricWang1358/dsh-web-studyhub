@@ -32,6 +32,7 @@
   },
   "files": [
     "lib",
+    "skills",
     "scripts/prepare.mjs",
     "references",
     "docs/assets/studyhub-qq-group.jpg",
