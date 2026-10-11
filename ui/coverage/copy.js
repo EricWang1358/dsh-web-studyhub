@@ -499,7 +499,7 @@ export function runEventText(code, a = {}) {
 
 /* ---------- the materials of a run (lib/coverage-materials.js): 「选了 N 份资料，M 份会出题」 before it, 「选了 N 份，M 份已出题」 after it, and why a material has none ---------- */
 
-const STOP_WORD = { learner: '你停下了出题', budget: '用到了花费上限', 'sections-left': '自动重试的轮次用完了', 'no-progress': '重试没有新的进展', refused: '模型服务拒绝了请求', 'round-failed': '那一轮出错了' };
+const MATERIAL_STOP = { learner: '你停下了出题', budget: '用到了花费上限', 'sections-left': '自动重试的轮次用完了', 'no-progress': '重试没有新的进展', refused: '模型服务拒绝了请求', 'round-failed': '那一轮出错了' };
 
 /** Why a material has (or will have) no question: one short phrase (a row of the forecast or of the report). */
 export function materialReasonText(row) {
@@ -510,7 +510,7 @@ export function materialReasonText(row) {
     round: () => uiFormat('排在第 {0} 轮，这次先只做第 1 轮', [row.round]),
     waiting: () => uiFormat('排在第 {0} 轮，还没轮到', [row.round]),
     running: () => uiFormat('排在第 {0} 轮，正在出题', [row.round]),
-    stopped: () => uiFormat('排在第 {0} 轮，出题在那之前停下了（{1}）', [row.round, ui(STOP_WORD[row.stop] || STOP_WORD['round-failed'])]),
+    stopped: () => uiFormat('排在第 {0} 轮，出题在那之前停下了（{1}）', [row.round, ui(MATERIAL_STOP[row.stop] || MATERIAL_STOP['round-failed'])]),
     'plan-short': () => ui('模型没能从里面找到够用的考点'),
     unavailable: () => ui('模型服务暂时不可用'),
     refused: () => ui('模型服务拒绝了这部分内容'),
@@ -530,7 +530,7 @@ export function materialsForecastLine(forecast) {
   if (!forecast?.selected) return '';
   const missing = forecast.selected - forecast.planned;
   if (!missing) return forecast.selected > 1 ? uiFormat('选了 {0} 份资料，每份都会出题。', [forecast.selected]) : '';
-  const named = (forecast.missing || []).map(materialRowText).join('、'), more = forecast.more > 0 ? uiFormat('等 {0} 份', [forecast.missing.length + forecast.more]) : '';
+  const named = (forecast.missing || []).map(materialRowText).join(ui('、')), more = forecast.more > 0 ? uiFormat('等 {0} 份', [forecast.missing.length + forecast.more]) : '';
   return uiFormat('选了 {0} 份资料，{1} 份会出题，{2} 份不会：{3}{4}', [forecast.selected, forecast.planned, missing, named, more]);
 }
 
