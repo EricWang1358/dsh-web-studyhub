@@ -12,6 +12,7 @@ const ui = await loadUi(`
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
   export { default as LeafNotes } from './ui/outline/LeafNotes.jsx';
   export * from './ui/outline/model.js';
+  export { levelOptions } from './ui/outline/words.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement, noop = () => {}, han = /[㐀-鿿]/;
@@ -96,6 +97,40 @@ test('an opened knowledge point shows its notes: 知识梳理, 讲解, 例子, �
   assert.match(textOf(render(h(ui.LeafNotes, { notes: { id: 'p1', empty: true } }))), /这一点的资料里没有可读的文字，没有讲解。/);
 });
 
+const passes = { fingerprint: '0123456789abcdef', points: [], explain: '', extra: ['A general intuition'],
+  parts: [{ ranges: [{ material: 'Secure.pdf', unit: 'page', from: 1, to: 8 }], points: ['Trust boundaries first [^1]'], explain: 'Where data crosses a boundary [^1].' },
+    { ranges: [{ material: 'Secure.pdf', unit: 'page', from: 73, to: 80 }], points: ['Record each threat [^2]'], explain: 'The log closes the loop.', example: 'Example: a login form [^2]' }],
+  cites: [{ n: 1, sourceId: 's-p1', quote: 'Secure design page 1 line 0', title: 'Secure.pdf · p. 1' }, { n: 2, sourceId: 's-p73', quote: 'Secure design page 73 line 0', title: 'Secure.pdf · p. 73' }] };
+const deep = (coverage, extra) => ({ 'bk:p1': { cards: [], more: 0, notes: { id: 'p1', body: passes, coverage } }, ...extra });
+
+test('讲解详尽程度 beside the book\'s button, a point read in passes under 「第 a–b 页」, 覆盖 and 读更多, and the book line\'s 讲解覆盖', () => {
+  const asked = [];
+  const html = page({ outline: outline(notesLine({ coverage: { read: 300, total: 1000, partial: 1 } })), details: deep({ unit: 'page', read: 16, total: 80, more: 'full' }),
+    coverage: 'standard', actions: { ...actions, setCoverage: noop, readMore: (...args) => asked.push(args) } });
+  const text = textOf(html);
+  assert.match(text, /更新全书 精简 标准 详尽 重新整理/, 'the level beside the book\'s button');
+  assert.match(html, /aria-label="讲解详尽程度"/);
+  assert.match(ui.levelOptions().find(option => option.value === 'standard').tip, /^标准：大资料分几次读，最多 3 次/, 'the chosen level explains itself on hover');
+  assert.doesNotMatch(text, /费用|元|\$/, 'no cost estimate');
+  assert.match(text, /第 1–8 页 Trust boundaries first 1 Where data crosses a boundary 1 \. 第 73–80 页 Record each threat 2 The log closes the loop\. 例子 ：Example: a login form 2/);
+  assert.match(text, /覆盖：读了 16\/80 页 读更多/);
+  assert.match(text, /只重新读这一个知识点，按「详尽」多读几页再写讲解/, '读更多 says what it does on hover');
+  assert.match(text, /讲解覆盖：读了资料的 30%，1 个知识点只读了一部分/);
+  const brief = textOf(page({ outline: outline(notesLine()), details: deep({ unit: 'page', read: 0, total: 80, partial: 80, more: 'standard' }), actions: { ...actions, readMore: noop } }));
+  assert.match(brief, /覆盖：读了 0\/80 页，另有 80 页只读了开头 读更多/);
+  const done = textOf(page({ outline: outline(notesLine()), details: deep({ unit: 'char', read: 1200, total: 1200, more: null }), actions: { ...actions, readMore: noop } }));
+  assert.match(done, /覆盖：读了 1,200\/1,200 字/);
+  assert.doesNotMatch(done, /读更多/, 'nothing more to read');
+  const named = { ...passes, parts: [passes.parts[0], { ...passes.parts[1], ranges: [{ material: 'Handout 3.md', unit: 'whole' }] }] };
+  assert.match(textOf(render(h(ui.LeafNotes, { notes: { id: 'p1', body: named } }))), /Secure · 第 1–8 页 .* Handout 3/, 'several materials: each heading names its own');
+  assert.equal(asked.length, 0);
+  // The transitions: an italic line above the point and one below it; notes without them show none.
+  const bridged = render(h(ui.LeafNotes, { notes: { id: 'p1', body, bridge: { in: 'From enthalpy we turn to disorder.', out: 'That leads on to free energy.' } } }));
+  assert.match(textOf(bridged), /^ From enthalpy we turn to disorder\. 知识梳理 .* That leads on to free energy\. 1\. 「/);
+  assert.equal((bridged.match(/outline-notes__bridge/g) || []).length, 2);
+  assert.doesNotMatch(render(h(ui.LeafNotes, { notes: { id: 'p1', body } })), /outline-notes__bridge/);
+});
+
 test('in English the book\'s controls and notes have no Chinese of their own', () => {
   english(() => {
     const data = /Thermodynamics|Entropy measures disorder|Entropy|Enthalpy|It never decreases in an isolated system|Think of|as counting arrangements|S = k \\ln W|Example: ice melting gains entropy|A general intuition|ice cube gains entropy|Textbook · p\. \d|Textbook|Asked as a short calculation\.|SA/g;
@@ -111,5 +146,13 @@ test('in English the book\'s controls and notes have no Chinese of their own', (
     assert.match(text, /Key points .* Explanation .* Example .* Extra Beyond the materials/);
     assert.match(text, /1\. “Entropy measures disorder”/);
     assert.match(textOf(page()), /Write the review book/);
+    const deepHtml = page({ outline: outline(notesLine({ coverage: { read: 300, total: 1000, partial: 1 } })), details: deep({ unit: 'page', read: 0, total: 80, partial: 80, more: 'full' }),
+      coverage: 'full', actions: { ...actions, setCoverage: noop, readMore: noop } });
+    const deepText = textOf(deepHtml).replace(/Secure\.pdf|Secure|Trust boundaries first|Where data crosses a boundary|Record each threat|The log closes the loop\.|Example: a login form|A general intuition|Secure design page \d+ line 0|SA|Thermodynamics|Entropy|Enthalpy/g, '');
+    assert.doesNotMatch(deepText, han, deepText.match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
+    assert.match(textOf(deepHtml), /Pages 1–8 .* Pages 73–80/);
+    assert.match(textOf(deepHtml), /Coverage: read 0 of 80 pages; 80 more only at their start Read more/);
+    assert.match(textOf(deepHtml), /Explanations cover 30% of the materials; 1 knowledge point\(s\) read only in part/);
+    assert.match(ui.levelOptions().at(-1).tip, /^Detailed: a big material is read in up to 8 passes/);
   });
 });

@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, Select, SettingsSection, Switch, useToast } from '../components/index.js';
 import { PRACTICE_DEFAULTS, resolvePracticeSettings } from '../../lib/practice-settings.js';
-import { CRUNCH_MINUTES, CRUNCH_WINDOW, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
+import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookCoverage, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
+import { levelHint, levelOptions } from '../outline/words.js';
 import { AUTO_ADVANCE_MS, RESULT_COUNTDOWN_SECONDS } from '../review/session-logic.js';
 
 /* 设置 › 练习: the learner's personal defaults for the daily practice, saved at once (settings.practice.set); 恢复默认 forgets them (settings.practice.reset).
@@ -55,6 +56,16 @@ export default function PracticePane({ data, busy, act }) {
     try { await act('settings.book.set', { patch: { [key]: value === fallback ? null : value } }, () => toast.success(ui('练习设置已保存')), { rethrow: true }); }
     catch (cause) { if (live.current) { setCrunch(JSON.parse(crunchKey)); setError(errorMessage(cause)); } }
   };
+  // 讲解详尽程度 (settings.book.coverage): how much of a point's material a 复习全书 build reads; the 总纲 page's choice beside 生成复习全书 is the same setting.
+  const savedCoverage = bookCoverage(data?.settings?.book);
+  const [coverage, setCoverage] = useState(savedCoverage);
+  useEffect(() => { setCoverage(savedCoverage); }, [savedCoverage]);
+  const setCoverageValue = async (level) => {
+    if (busy || working || typeof act !== 'function') return;
+    setError(''); setCoverage(level);
+    try { await act('settings.book.set', { patch: { coverage: level === COVERAGE_DEFAULT ? null : level } }, () => toast.success(ui('练习设置已保存')), { rethrow: true }); }
+    catch (cause) { if (live.current) { setCoverage(savedCoverage); setError(errorMessage(cause)); } }
+  };
   const disabled = busy || working;
   const sizes = ROUND_SIZES.includes(values.roundSize) ? ROUND_SIZES : [...ROUND_SIZES, values.roundSize].sort((a, b) => a - b);
   return <div className="settings-form">
@@ -77,6 +88,9 @@ export default function PracticePane({ data, busy, act }) {
       <Field label={ui('期末一周每天学多久')} hint={ui('期末一周每天排多少分钟：节数多于时间时，那几天会合并几节并写明超出多少，不会丢掉哪一节。')}>
         <Select name="crunchMinutes" value={String(crunch.crunchMinutes)} disabled={disabled} onChange={(minutes) => setCrunchValue('crunchMinutes', Number(minutes), CRUNCH_MINUTES.minutes)}
           options={withSaved(CRUNCH_DAY_MINUTES, crunch.crunchMinutes).map((minutes) => ({ value: String(minutes), label: uiFormat('每天 {0} 分钟', [minutes]) }))} />
+      </Field>
+      <Field label={ui('讲解详尽程度')} hint={levelHint()}>
+        <Select name="bookCoverage" value={coverage} disabled={disabled} onChange={setCoverageValue} options={levelOptions()} />
       </Field>
       {error && <Hint tone="error" role="alert">{error}</Hint>}
       <div className="settings-actions">

@@ -40,7 +40,7 @@ function Questions({ data, holders, pick, onPickCard }) {
   );
 }
 
-const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, onPick, onPickCard, onPractice, onOpenSources, onOpenSource, onOpenBook }) {
+const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, onPick, onPickCard, onPractice, onOpenSources, onOpenSource, onOpenBook, onReadMore }) {
   const { busy } = useStudy();
   const { node } = row, title = rowTitle(row);
   // Every row above this one on screen holds its questions too (an AI outline nests up to five rows deep).
@@ -62,7 +62,7 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, onPick
         {node.total > 0 && <Button size="sm" variant="secondary" icon="play" className="outline-row__practice" disabled={busy} onClick={() => onPractice(row)}>{practiceLabel(node.resume)}</Button>}
       </div>
       {node.intro && (row.kind === 'part' || row.kind === 'section' || row.kind === 'point') && <p className="outline-row__intro">{node.intro}</p>}
-      {row.kind === 'point' && row.expanded && data?.notes && <LeafNotes notes={data.notes} onOpenSource={onOpenSource} />}
+      {row.kind === 'point' && row.expanded && data?.notes && <LeafNotes notes={data.notes} onOpenSource={onOpenSource} onReadMore={onReadMore} busy={busy} />}
       {row.kind === 'point' && row.expanded && onOpenBook && <Button size="sm" variant="link" icon="book" className="outline-row__book" onClick={() => onOpenBook(row.key)}>{ui('打开书页')}</Button>}
       {row.kind === 'other' && node.anchors > 0 && <p className="outline-row__hint"><span>{otherText(node.anchors)}</span></p>}
       {row.kind === 'unplaced' && node.materials?.length > 0 && <p className="outline-row__hint">
@@ -78,8 +78,8 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, onPick
 
 /** `rows`: ./model.js outlineRows; `details`: the opened rows' answers; `papers`: the sample papers an AI outline rests on (0: no tier is shown);
     onToggle(key, open), onPick(key, on), onPickCard(ref, on), onPractice(row), onOpenSources() (the 资料 page), onOpenSource(sourceId, quote) (a 角标 of a point's notes),
-    onOpenBook(key) (the 复习全书 page at an opened point; absent without a book). */
-export default function OutlineTree({ rows, details, pick, papers = 0, onToggle, onPick, onPickCard, onPractice, onOpenSources, onOpenSource, onOpenBook, label }) {
+    onOpenBook(key) (the 复习全书 page at an opened point; absent without a book), onReadMore(nodeId, level) (读更多 of a point's notes). */
+export default function OutlineTree({ rows, details, pick, papers = 0, onToggle, onPick, onPickCard, onPractice, onOpenSources, onOpenSource, onOpenBook, onReadMore, label }) {
   const [active, setActive] = useState(null);
   const listId = useId();
   const stop = useMemo(() => (rows.some(row => row.key === active) ? active : rows[0]?.key), [rows, active]);
@@ -105,7 +105,7 @@ export default function OutlineTree({ rows, details, pick, papers = 0, onToggle,
   return (
     <ul className={rows.some(row => row.ancestors) ? 'outline-tree outline-tree--book' : 'outline-tree'} aria-label={label} onClick={onClick} onKeyDown={onKeyDown}>
       {rows.map((row, index) => <Row key={row.key} row={row} data={details[row.key]} tabStop={row.key === stop} bodyId={`${listId}-${index}`}
-        pick={pick} papers={papers} onPick={onPick} onPickCard={onPickCard} onPractice={onPractice} onOpenSources={onOpenSources} onOpenSource={onOpenSource} onOpenBook={onOpenBook} />)}
+        pick={pick} papers={papers} onPick={onPick} onPickCard={onPickCard} onPractice={onPractice} onOpenSources={onOpenSources} onOpenSource={onOpenSource} onOpenBook={onOpenBook} onReadMore={onReadMore} />)}
     </ul>
   );
 }

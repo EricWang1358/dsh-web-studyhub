@@ -93,3 +93,48 @@ export const writingText = run => (run.total ? uiFormat('正在生成复习全�
 
 /** The toast of a 复习全书 start. */
 export const bookStartedText = already => (already ? ui('复习全书已经在生成，进度在任务页。') : ui('已开始生成复习全书，进度在任务页。'));
+
+/* ---------- 讲解详尽程度 (settings.book.coverage) and 覆盖 ---------- */
+
+const LEVEL_WORDS = { brief: () => ui('精简'), standard: () => ui('标准'), full: () => ui('详尽') };
+/** The name of a level. */
+export const levelText = level => (LEVEL_WORDS[level] || LEVEL_WORDS.standard)();
+const LEVEL_TIPS = {
+  brief: () => ui('精简：每个知识点和别的几个点一起读一次，大资料只读每页的开头。模型调用最少，最快。'),
+  standard: () => ui('标准：大资料分几次读，最多 3 次、每次约 2 万字，每次单独调用模型。比精简多读页、多几次调用、多花些时间。'),
+  full: () => ui('详尽：大资料最多分 8 次读，读得最全。模型调用和时间最多。'),
+};
+/** What a level means (the Select's hover explanation): more pages a point means more model calls and more time; the cost is not estimated. */
+export const levelTip = level => (LEVEL_TIPS[level] || LEVEL_TIPS.standard)();
+/** The levels as Select options, each with its explanation. */
+export const levelOptions = () => ['brief', 'standard', 'full'].map(level => ({ value: level, label: levelText(level), tip: levelTip(level) }));
+/** What the level choice is, said once beside it. */
+export const levelHint = () => ui('讲解详尽程度：一个知识点读多少资料。读得越多，模型调用和时间越多；用了多少在任务页看。只影响之后写的讲解，已经读得更多的不会被删掉。');
+
+/** 「覆盖：读了 N/M 页」 of one point: pages where its sources have them, else characters. */
+export function coverageText(coverage) {
+  if (coverage.unit === 'page') return coverage.partial ? uiFormat('覆盖：读了 {0}/{1} 页，另有 {2} 页只读了开头', [coverage.read, coverage.total, coverage.partial])
+    : uiFormat('覆盖：读了 {0}/{1} 页', [coverage.read, coverage.total]);
+  return uiFormat('覆盖：读了 {0}/{1} 字', [coverage.read.toLocaleString('en-US'), coverage.total.toLocaleString('en-US')]);
+}
+/** The hover explanation of 读更多. */
+export const readMoreTip = level => uiFormat('只重新读这一个知识点，按「{0}」多读几页再写讲解；单独一个任务，进度在任务页。', [levelText(level)]);
+/** The toast of a 读更多 start. */
+export const readMoreStartedText = already => (already ? ui('复习全书已经在生成，进度在任务页。') : ui('已开始多读这个知识点，进度在任务页。'));
+
+/** The book line's 讲解覆盖: the share of the points' materials their explanations read, and how many read only some of theirs. */
+export function bookCoverageText(coverage) {
+  if (!coverage?.total) return '';
+  const percent = Math.floor((coverage.read / coverage.total) * 100);
+  return coverage.partial ? uiFormat('讲解覆盖：读了资料的 {0}%，{1} 个知识点只读了一部分（展开知识点可「读更多」）', [percent, coverage.partial])
+    : uiFormat('讲解覆盖：读了资料的 {0}%', [percent]);
+}
+
+/** The heading of one part of a point read in passes: 「第 a–b 页」, with the material's name when the parts read more than one material. */
+export function partHeadingText(part, named) {
+  const place = range => (range.unit === 'page' ? (range.from === range.to ? uiFormat('第 {0} 页', [range.from]) : uiFormat('第 {0}–{1} 页', [range.from, range.to]))
+    : range.unit === 'char' ? uiFormat('第 {0}–{1} 字', [range.from, range.to]) : '');
+  const shown = part.ranges.slice(0, 3).map(range => (named || range.unit === 'whole' ? [displayTitle(range.material), place(range)].filter(Boolean).join(' · ') : place(range)));
+  const text = shown.join(' / ');
+  return part.ranges.length > 3 ? uiFormat('{0} 等 {1} 份', [text, part.ranges.length]) : text;
+}

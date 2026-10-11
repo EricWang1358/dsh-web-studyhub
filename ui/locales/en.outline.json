@@ -244,5 +244,22 @@
   "正在排期末一周…": "Planning the final week…",
   "设置考试日期，开启期末一周": "Set the exam date to start the final week",
   "期末一周在考前 {0} 天开始": "The final week starts {0} days before the exam",
-  "复习全书：按总纲给每个知识点写一段讲解，带出处和题目链接；写好后在书页里读，点题目就去练。": "Review book: a short explanation for every knowledge point of the outline, with its sources and question links. Once it is written you read it on its own page and practise from the links."
+  "复习全书：按总纲给每个知识点写一段讲解，带出处和题目链接；写好后在书页里读，点题目就去练。": "Review book: a short explanation for every knowledge point of the outline, with its sources and question links. Once it is written you read it on its own page and practise from the links.",
+  "讲解详尽程度": "Explanation depth",
+  "*例子*：{0}": "*Example*: {0}",
+  "读更多": "Read more",
+  "详尽": "Detailed",
+  "精简：每个知识点和别的几个点一起读一次，大资料只读每页的开头。模型调用最少，最快。": "Lean: each knowledge point is read once together with a few others; a big material only by the start of each page. The fewest model calls, the fastest.",
+  "标准：大资料分几次读，最多 3 次、每次约 2 万字，每次单独调用模型。比精简多读页、多几次调用、多花些时间。": "Standard: a big material is read in a few passes, at most 3 of about 20,000 characters, each its own model call. More pages than Lean, a few more calls and a little more time.",
+  "详尽：大资料最多分 8 次读，读得最全。模型调用和时间最多。": "Detailed: a big material is read in up to 8 passes, the most complete. The most model calls and the most time.",
+  "讲解详尽程度：一个知识点读多少资料。读得越多，模型调用和时间越多；用了多少在任务页看。只影响之后写的讲解，已经读得更多的不会被删掉。": "Explanation depth: how much of its materials a knowledge point is explained from. Reading more takes more model calls and more time; the task page shows what was used. It affects explanations written from now on; one that already read more is never deleted.",
+  "覆盖：读了 {0}/{1} 页，另有 {2} 页只读了开头": "Coverage: read {0} of {1} pages; {2} more only at their start",
+  "覆盖：读了 {0}/{1} 页": "Coverage: read {0} of {1} pages",
+  "覆盖：读了 {0}/{1} 字": "Coverage: read {0} of {1} characters",
+  "只重新读这一个知识点，按「{0}」多读几页再写讲解；单独一个任务，进度在任务页。": "Reads only this knowledge point again, more of its pages at “{0}”, and rewrites its explanation; one task of its own, its progress on the task page.",
+  "已开始多读这个知识点，进度在任务页。": "Started reading more of this knowledge point; its progress is on the task page.",
+  "讲解覆盖：读了资料的 {0}%，{1} 个知识点只读了一部分（展开知识点可「读更多」）": "Explanations cover {0}% of the materials; {1} knowledge point(s) read only in part (open one to Read more)",
+  "讲解覆盖：读了资料的 {0}%": "Explanations cover {0}% of the materials",
+  "第 {0}–{1} 字": "Characters {0}–{1}",
+  "{0} 等 {1} 份": "{0} and others ({1} in all)"
 }

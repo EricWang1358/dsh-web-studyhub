@@ -49,7 +49,9 @@ test('(a)(d) no outline, no questions, no papers: the build organises the outlin
   const record = await finish(w);
   const [outline] = await w.outlines(), leaves = leavesOf(outline.courseOutline.nodes);
   const notesCalls = w.fake.of('notes').length;
-  assert.deepEqual(w.fake.stages(), ['map', 'reduce', ...Array(notesCalls).fill('notes')], 'the outline first (one map, one reduce), then the notes; no 考情 without papers');
+  const chapters = outline.courseOutline.nodes.filter(node => leavesOf([node]).length).length;
+  assert.deepEqual(w.fake.stages(), ['map', 'reduce', ...Array(notesCalls).fill('notes'), ...Array(chapters).fill('bridge')],
+    'the outline first (one map, one reduce), then the notes, then one bridges call per chapter; no 考情 without papers');
   assert.equal(notesCalls, Math.ceil(leaves.length / 3), `${leaves.length} knowledge points, three a call`);
   assert.ok(w.fake.of('notes').every(call => call.data.leaves.length <= 3 && call.prompt.length < 40000), 'every call modest');
   const notes = record.courseNotes;
@@ -62,7 +64,7 @@ test('(a)(d) no outline, no questions, no papers: the build organises the outlin
   const first = notes.leaves[0].body;
   assert.match(first.points[0], /\[\^1\]$/);
   assert.deepEqual(first.extra, ['A general intuition the materials do not give'], '补充 carries no cite');
-  assert.ok(!/考情/.test(record.text) && /## .+\n\n### 知识梳理/.test(record.text) && /\[\^n[0-9a-f-]+-1\]: 「/.test(record.text));
+  assert.ok(!/考情/.test(record.text) && /## .+\n\n\*.+ opens with .+\.\*\n\n### 知识梳理/.test(record.text) && /\[\^n[0-9a-f-]+-1\]: 「/.test(record.text));
   assert.equal(w.contract().detail.book.leaves, leaves.length);
   assert.match(w.contract().stage.text, /^复习全书已保存：\d+ 个知识点$/);
   // The page: the book's line and, once a leaf is opened, its notes with the cites' materials.
@@ -77,7 +79,7 @@ test('(b) with questions and one sample paper: 考情 for every leaf, written by
   const record = await finish(w, { papers: [PAPER] });
   const [outline] = await w.outlines(), leaves = leavesOf(outline.courseOutline.nodes);
   const tested = leaves.filter(leaf => leaf.exam?.evidence?.length);
-  assert.deepEqual(w.fake.stages().filter(stage => stage !== 'notes'), ['map', 'reduce', 'paper', 'exam'], 'one 考情 call for the tested leaves');
+  assert.deepEqual(w.fake.stages().filter(stage => stage !== 'notes' && stage !== 'bridge'), ['map', 'reduce', 'paper', 'exam'], 'one 考情 call for the tested leaves');
   assert.deepEqual(w.fake.of('exam')[0].data.leaves.map(leaf => leaf.title).sort(), tested.map(leaf => leaf.title).sort());
   const byId = new Map(record.courseNotes.leaves.map(leaf => [leaf.id, leaf]));
   assert.ok(tested.every(leaf => byId.get(leaf.id).exam.tested && /^Asked as: /.test(byId.get(leaf.id).exam.note)));
@@ -92,7 +94,7 @@ test('(c) a course of one short material and no question: an outline of one poin
     createdAt: '2026-09-01T00:00:00.000Z', courses: ['Tiny'], document: { materialId: 'document-tiny', format: 'md', filename: 'week1.md' } };
   const w = await world(t, { sources: [tiny], course: 'Tiny' });
   const record = await finish(w);
-  assert.deepEqual(w.fake.stages(), ['map', 'reduce', 'notes']);
+  assert.deepEqual(w.fake.stages(), ['map', 'reduce', 'notes', 'bridge']);
   const [leaf] = record.courseNotes.leaves;
   assert.deepEqual([record.courseNotes.leaves.length, leaf.body.cites[0].sourceId], [1, 'tiny']);
   assert.match(leaf.body.example, /^Example: /, 'the material has a worked example: the notes restate one');
@@ -132,7 +134,8 @@ test('(f) the outline organised again under other names (new node ids): the note
   assert.equal((await w.view()).book.notes.stale, true, 'notes of another outline');
   const before = fake.calls.length;
   const fresh = await finish(w);
-  assert.equal(fake.calls.length, before, 'no model call: every explanation is of the same texts');
+  assert.deepEqual([...new Set(fake.calls.slice(before).map(call => call.stage))], ['bridge'],
+    'no notes call: every explanation is of the same texts (only the transitions, which name the new titles, are written again)');
   assert.deepEqual(fresh.courseNotes.leaves.map(leaf => leaf.id), leaves.map(leaf => leaf.id));
   const was = new Map(old.courseNotes.leaves.map(leaf => [leaf.anchors.join('|'), leaf.body]));
   assert.ok(fresh.courseNotes.leaves.every(leaf => JSON.stringify(leaf.body) === JSON.stringify(was.get(leaf.anchors.join('|')))));

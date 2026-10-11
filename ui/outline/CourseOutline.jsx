@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from '../components/index.js';
+import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, Select, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -8,9 +8,11 @@ import { MasteryLine } from '../document-preview/practice/MasteryMark.jsx';
 import ModelSetupGate from '../ModelSetupGate.jsx';
 import { modelReadiness } from '../generation-status.js';
 import { displayTitle } from '../../lib/document-title.js';
+import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
 import OutlineTree from './OutlineTree.jsx';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
-import { basisText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, offerText, pickedText, runningText, startPickedText, startedText, whatText, writingText } from './words.js';
+import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, runningText,
+  startPickedText, startedText, whatText, writingText } from './words.js';
 import css from './outline.css';
 
 /* 总纲 (course outline): the current course's materials as a tree (资料 → 章节) with the questions placed where they point (course.outline,
@@ -76,11 +78,27 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
         result => notify({ text: startedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, notify]);
+  // 讲解详尽程度 (settings.book.coverage, lib/book-settings.js): the same setting as 设置 › 练习's, saved at once; what the library says wins once it arrives.
+  const savedCoverage = bookCoverage(data?.settings?.book);
+  const [coverage, setCoverageShown] = useState(savedCoverage);
+  useEffect(() => { setCoverageShown(savedCoverage); }, [savedCoverage]);
+  const setCoverage = useCallback(async level => {
+    setCoverageShown(level);
+    try { await act('settings.book.set', { patch: { coverage: level === COVERAGE_DEFAULT ? null : level } }, undefined, { rethrow: true }); }
+    catch (failure) { setCoverageShown(savedCoverage); notify({ text: errorMessage(failure), tone: 'error' }); }
+  }, [act, notify, savedCoverage]);
   // 生成复习全书 / 更新全书: one task; it organises the outline first when there is none or it is out of date, and with papers other than the outline's only marks it again.
   const writeBook = useCallback(async papers => {
     try {
-      await act('generation.courseBook.build', { course, ...(papers.length ? { papers } : {}) },
+      await act('generation.courseBook.build', { course, coverage, ...(papers.length ? { papers } : {}) },
         result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
+    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+  }, [act, course, coverage, notify]);
+  // 读更多 of one point: only that point, at the next level that reads more; a task like the others (no estimate, no confirmation).
+  const readMore = useCallback(async (point, level) => {
+    try {
+      await act('generation.courseBook.build', { course, coverage: level, point },
+        result => notify({ text: readMoreStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, notify]);
   const toggle = useCallback((key, value) => setOpen(current => { const next = new Set(current); if (value) next.add(key); else next.delete(key); return next; }), []);
@@ -99,8 +117,8 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   const onPracticeRow = useCallback(row => practise({ keys: [row.key] }, { resume: !!row.node.resume }), [practise]);
 
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} pick={pick} picked={picked}
-    running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)}
-    actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
+    running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage}
+    actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
       chooseDeck: value => { setDeckId(value); setPick(emptyPick()); } }} />;
 }
 
@@ -109,9 +127,10 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
  * 生成总纲 is the main button (the book may start at once too: it organises the outline first); with one, the book is (更新全书 when its notes are out of date,
  * quiet when they are current) and 重新整理 is quiet. Under them, folded, the course's materials can be picked as sample papers (the likely ones first, none
  * picked): the outline is marked by them, and the book's 考情 follows. While a build of the course runs, the line says so and leads to the task.
- * `quiet`: something else on the page is the main action (the bar of picked questions).
+ * `quiet`: something else on the page is the main action (the bar of picked questions). Beside the book's button, 讲解详尽程度 (`coverage`, settings.book.coverage):
+ * a compact choice whose hover says what a level reads; the cost is not estimated.
  */
-function Organise({ book, documents, running, writing, model, quiet, actions }) {
+function Organise({ book, documents, running, writing, model, quiet, coverage, actions }) {
   const { busy } = useStudy();
   const [papers, setPapers] = useState(() => new Set());
   const choices = useMemo(() => paperChoices(documents), [documents]);
@@ -131,6 +150,8 @@ function Organise({ book, documents, running, writing, model, quiet, actions }) 
         onClick={() => actions.organise([...papers])}>{ui('生成总纲')}</Button>}
       <Button variant={bookMain ? 'primary' : book ? 'quiet' : 'secondary'} size={bookMain || !book ? undefined : 'sm'} icon="book" disabled={off}
         onClick={() => actions.writeBook([...papers])}>{book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>
+      {actions.setCoverage && <Select className="outline-organise__level" aria-label={ui('讲解详尽程度')} value={coverage} options={levelOptions()} disabled={off}
+        onChange={value => actions.setCoverage(value)} />}
       {book && <Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise([...papers])}>{ui('重新整理')}</Button>}
       {choices.length > 0 && <Disclosure className="outline-papers" summary={ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
         <p className="outline-papers__note">{ui('勾选的资料当作样卷：总纲会标出样卷考过的知识点。不勾选也能生成，只是没有这个标记。')}</p>
@@ -153,7 +174,7 @@ function Organise({ book, documents, running, writing, model, quiet, actions }) 
  * chooseDeck(id).
  */
 export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', pick, picked = null, running = null, writing = null, model = { ready: true },
-  actions }) {
+  coverage = COVERAGE_DEFAULT, actions }) {
   useInjectCss(css, 'study-outline');
   const { busy } = useStudy();
   const rows = useMemo(() => outlineRows(outline, details, open), [outline, details, open]);
@@ -176,7 +197,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   const nothing = outline.status === 'empty' || outline.total === 0, book = outline.book;
   // The one main button: none while questions are picked (the bar's is), and without an outline none while the course has no question (创建题组 is).
   const organise = <Organise book={book} documents={outline.documents} running={running} writing={writing} model={model} quiet={isPicked(pick) || (nothing && !book)}
-    actions={actions} />;
+    coverage={coverage} actions={actions} />;
   // With a current 复习全书 (nothing else is the main action) 打开书页 is the one primary button, and it comes first.
   const openMain = !isPicked(pick) && !mainAction(book);
   // 资料有更新: with a 复习全书, its own line (更新全书 organises the outline again too); else the outline's.
@@ -191,6 +212,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         <p className="outline-book-line__basis">{basisText(book.orderBasis)}</p>
         {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} icon="book" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
+        {book.notes?.coverage?.total > 0 && <p className="outline-book-line__coverage">{bookCoverageText(book.notes.coverage)}</p>}
         {organise}
       </div>}
       {!book && outline.status === 'ok' && outline.documents.length > 0 && <section className="outline-organise" aria-label={ui('生成总纲')}>
@@ -200,7 +222,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       {nothing && <EmptyState icon="book" title={outline.status === 'empty' ? ui('还没有课程') : ui('这门课还没有题')}
         description={ui('在「创建题组」里从资料出题，题目会按资料的章节排进总纲。')} primary={book ? undefined : create} secondary={book ? create : undefined} />}
       {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
-        onPractice={actions.onPracticeRow} onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined} label={ui('总纲')} />}
+        onPractice={actions.onPracticeRow} onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined}
+        onReadMore={actions.readMore} label={ui('总纲')} />}
       {isPicked(pick) && <div className="outline-bar" role="region" aria-label={ui('已选的题')}>
         {picked ? <span className="outline-bar__count" aria-live="polite">{pickedText(picked.total)}</span> : <LoadingState inline className="outline-bar__count" label={ui('正在计算…')} />}
         {picked?.capped && <small className="outline-bar__note">{cappedText(picked.total, picked.limit)}</small>}

@@ -359,6 +359,33 @@
     .outline-notes__source {
       color: var(--text-dim);
     }
+    /* The transitions between points: plain italic lines above and below a point's notes. */
+    .outline-notes__bridge {
+      margin: 0;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    /* A point read in passes: each pass under its pages, a small quiet heading. */
+    .outline-notes__range {
+      color: var(--text-muted);
+      font-weight: var(--fw-medium);
+    }
+    /* 覆盖：读了 N/M 页 and 读更多, under the 出处. */
+    .outline-notes__coverage {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0 var(--space-2);
+      margin: 0;
+      color: var(--text-muted);
+    }
+    .outline-book-line__coverage {
+      margin: 0;
+    }
+    .outline-organise__level {
+      width: auto;
+      min-width: 6.5em;
+    }
   }
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {
