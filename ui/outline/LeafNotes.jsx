@@ -4,7 +4,7 @@ import { Badge, Button, Tooltip } from '../components/index.js';
 import Markdown from '../Markdown.jsx';
 import { useStudy } from '../study-context.jsx';
 import { displayTitle } from '../../lib/document-title.js';
-import { coverageText, partHeadingText, readMoreTip } from './words.js';
+import { conceptsText, coverageText, fillGapsTip, partHeadingText, readMoreTip, shortText } from './words.js';
 
 /* 复习全书 under an opened knowledge point of the 总纲 (course.outline's `open[key].notes`, lib/course-book-view.js), read-only: 考情 (only when the outline rests on
    sample papers), 知识梳理, 讲解, 例子 (a point read in passes: each pass under 「第 a–b 页」, in page order), 补充 (what the materials do not say, marked), the 角标,
@@ -34,7 +34,13 @@ export default function LeafNotes({ notes, onOpenSource, onReadMore }) {
         <p className="outline-notes__exam">{notes.exam.tested ? ui('样卷考过。') : ui('样卷没有考到这一点。')}{notes.exam.note ? ` ${notes.exam.note}` : ''}</p>
       </div>}
       {notes.empty && <p className="outline-notes__none">{ui('这一点的资料里没有可读的文字，没有讲解。')}</p>}
-      {body?.points.length > 0 && <div className="outline-notes__part">
+      {body?.text && <div className="outline-notes__part outline-notes__part--text">
+        <Markdown text={body.text} onCite={cite} />
+      </div>}
+      {body?.text && body.status === 'short' && <p className="outline-notes__short" role="status" data-notes-short="">
+        <Badge size="sm" tone="warning">{shortText(body.coverage?.missing.length ?? 0)}</Badge> {(body.coverage?.missing || []).map(item => item.name).join(ui('、'))}
+      </p>}
+      {body?.points?.length > 0 && <div className="outline-notes__part">
         <h4 className="outline-notes__head">{ui('知识梳理')}</h4>
         <Markdown text={body.points.map(point => `- ${point}`).join('\n')} onCite={cite} />
       </div>}
@@ -64,6 +70,12 @@ export default function LeafNotes({ notes, onOpenSource, onReadMore }) {
           {item.title && <small className="outline-notes__source">{displayTitle(item.title)}</small>}
         </li>)}
       </ol>}
+      {notes.concepts && <p className="outline-notes__coverage" data-concepts="">
+        <span>{conceptsText(notes.concepts)}</span>
+        {body?.status === 'short' && onReadMore && <Tooltip content={fillGapsTip()}>
+          <Button variant="link" size="sm" icon="sparkle" className="outline-notes__more" disabled={busy} onClick={() => onReadMore(notes.id, null)}>{ui('补漏')}</Button>
+        </Tooltip>}
+      </p>}
       {coverage && <p className="outline-notes__coverage">
         <span>{coverageText(coverage)}</span>
         {coverage.more && onReadMore && <Tooltip content={readMoreTip(coverage.more)}>

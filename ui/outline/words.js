@@ -141,3 +141,12 @@ export function partHeadingText(part, named) {
 }
 /** The sample papers a build uses, said without opening anything: their names, and whether they were recognised by name (the learner can change them). */
 export const usedPapersText = (titles, auto) => uiFormat(auto ? '依据样卷：{0}（按名称自动识别，可更改）' : '依据样卷：{0}', [titles.join(ui('、'))]);
+/** A point's concept coverage: the must items of its checklist its explanation covers. */
+export const conceptsText = concepts => uiFormat('概念覆盖 {0}/{1}', [concepts.covered, concepts.total]);
+/** A point still short after its repairs (never claimed complete). */
+export const shortText = missing => uiFormat('未达标：缺 {0} 个概念', [missing]);
+/** The hover explanation of 补漏. */
+export const fillGapsTip = () => ui('只为这一个知识点补上缺的概念：按缺的清单审阅、修复，不重写已经讲好的部分；单独一个任务，进度在任务页。');
+/** The book's coverage at three levels: the materials and pages the inventory read, the knowledge points complete, the concepts covered. */
+export const levelsText = levels => uiFormat('覆盖：资料用了 {0}/{1} 份、页 {2}/{3}；知识点达标 {4}/{5}；概念 {6}/{7}', [levels.documents.used, levels.documents.total,
+  levels.pages.read, levels.pages.total, levels.leaves.ok, levels.leaves.total, levels.items.covered, levels.items.total]);

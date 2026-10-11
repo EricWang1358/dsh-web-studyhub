@@ -266,5 +266,12 @@
   "勾选的资料当作样卷：总纲会标出样卷考过的知识点。像样卷的资料默认就用上；全部不勾选就不标。": "Ticked materials are used as sample papers: the outline marks the knowledge points they test. Materials that look like sample papers are used by default; untick them all for no marks.",
   "更改样卷": "Change the sample papers",
   "依据样卷：{0}（按名称自动识别，可更改）": "Sample papers used: {0} (recognised by their names; you can change them)",
-  "依据样卷：{0}": "Sample papers used: {0}"
+  "依据样卷：{0}": "Sample papers used: {0}",
+  "补漏": "Fill the gaps",
+  "概念覆盖 {0}/{1}": "Concepts covered {0}/{1}",
+  "未达标：缺 {0} 个概念": "Short: {0} concept(s) missing",
+  "只为这一个知识点补上缺的概念：按缺的清单审阅、修复，不重写已经讲好的部分；单独一个任务，进度在任务页。": "Adds only the missing concepts of this one knowledge point: it is reviewed and repaired against the list of what is missing, and what is already explained is not rewritten. A task of its own; its progress is on the Tasks page.",
+  "覆盖：资料用了 {0}/{1} 份、页 {2}/{3}；知识点达标 {4}/{5}；概念 {6}/{7}": "Coverage: materials {0}/{1}, pages {2}/{3}; knowledge points complete {4}/{5}; concepts {6}/{7}",
+  "生词与概念": "Glossary",
+  "清点资料时找到、书里讲到的术语与概念，按字母排序；代码打开讲它的那一节。": "The terms and concepts found in the materials that the book explains, in alphabetical order; a code opens the section that explains it."
 }

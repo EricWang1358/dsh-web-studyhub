@@ -3,7 +3,8 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
 
 /* 「查找」 of the review book (M6, docs/plans/review-book.md): the lookup pages the printed book starts with (lib/course-book-lookup.js bookLookup), live
-   from the book: 目录 with the stable codes, 按题型 (the 速查表: steps and formulas, the common mistakes and the cost to state), 按概念, 易错点. A code
+   from the book: 目录 with the stable codes, 按题型 (the 速查表: steps and formulas, the common mistakes and the cost to state), 生词与概念 (the glossary the build made from
+   the inventory), 按概念, 易错点. A code
    opens the book at its heading. Generated, never edited here. */
 
 function Code({ hid, code, onGo }) {
@@ -57,6 +58,13 @@ export default memo(function BookLookup({ lookup, onGo }) {
           </article>)}
         </> : <p className="book-lookup__none">{ui('还没有分析题答案卡。答题卡加入复习全书后，这里按题型列出检查顺序、公式和最常见的错误。')}</p>}
       </Part>
+      {lookup.glossary?.length > 0 && <Part id="glossary" title={ui('生词与概念')}>
+        <p className="book-lookup__muted">{ui('清点资料时找到、书里讲到的术语与概念，按字母排序；代码打开讲它的那一节。')}</p>
+        <ul className="book-lookup__glossary">{lookup.glossary.map(entry => <li key={`${entry.term}|${entry.hid}`} data-glossary-term={entry.term}>
+          <strong>{entry.term}</strong>{entry.gist ? uiFormat('：{0}', [entry.gist]) : ''} <Code hid={entry.hid} code={places.get(entry.hid)?.code ?? entry.hid} onGo={onGo} />
+          {Number.isInteger(entry.page) && <span className="book-lookup__muted"> {uiFormat('第 {0} 页', [entry.page])}</span>}
+        </li>)}</ul>
+      </Part>}
       <Part id="concepts" title={ui('按概念')}>
         {lookup.concepts.length ? <ul className="book-lookup__concepts">{lookup.concepts.map(item => <li key={item.term}>
           <strong>{item.term}</strong> <Codes hids={item.places} places={places} onGo={onGo} />

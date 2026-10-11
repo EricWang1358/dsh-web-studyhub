@@ -12,7 +12,7 @@ import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
 import OutlineTree from './OutlineTree.jsx';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
 import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, runningText,
-  startPickedText, startedText, usedPapersText, whatText, writingText } from './words.js';
+  startPickedText, startedText, usedPapersText, whatText, writingText, levelsText } from './words.js';
 import css from './outline.css';
 
 /* 总纲 (course outline): the current course's materials as a tree (资料 → 章节) with the questions placed where they point (course.outline,
@@ -98,10 +98,11 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   // 读更多 of one point: only that point, at the next level that reads more; a task like the others (no estimate, no confirmation).
   const readMore = useCallback(async (point, level) => {
     try {
-      await act('generation.courseBook.build', { course, coverage: level, point },
+      // `level` null: 补漏 of a point that is short (only its missing concepts, at the book's own level).
+      await act('generation.courseBook.build', { course, coverage: level ?? coverage, point },
         result => notify({ text: readMoreStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
-  }, [act, course, notify]);
+  }, [act, course, coverage, notify]);
   const toggle = useCallback((key, value) => setOpen(current => { const next = new Set(current); if (value) next.add(key); else next.delete(key); return next; }), []);
   const onPick = useCallback((key, on) => setPick(current => pickRow(current, key, on)), []);
   const onPickCard = useCallback((ref, on) => setPick(current => pickCard(current, ref, on)), []);
@@ -219,7 +220,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         <p className="outline-book-line__basis">{basisText(book.orderBasis)}</p>
         {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} icon="book" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
-        {book.notes?.coverage?.total > 0 && <p className="outline-book-line__coverage">{bookCoverageText(book.notes.coverage)}</p>}
+        {book.notes?.levels ? <p className="outline-book-line__coverage" data-book-levels="">{levelsText(book.notes.levels)}</p>
+          : book.notes?.coverage?.total > 0 && <p className="outline-book-line__coverage">{bookCoverageText(book.notes.coverage)}</p>}
         {organise}
       </div>}
       {!book && outline.status === 'ok' && outline.documents.length > 0 && <section className="outline-organise" aria-label={ui('生成总纲')}>
