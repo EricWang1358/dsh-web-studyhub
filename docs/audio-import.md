@@ -12,11 +12,11 @@ Turn a lecture recording into an English–Chinese transcript that you can read,
   | --- | --- | --- | --- |
   | SiliconFlow SenseVoice | See current provider terms | Transcription only | 50 MB and 1 hour; larger audio is cut into pieces |
   | Groq | See current provider terms | Transcription (Whisper); also proofreading and translation when those run on Gemini | 25 MB; larger audio is cut into pieces |
-  | Google Gemini (AI Studio), free key | See current provider terms | Transcription, proofreading and translation; the only provider for **Live class** | 1 hour; longer recordings are split |
-  | Google Gemini, paid key (optional) | Billed by your provider | Last in line, or the only one used with **Use the paid key only** | 1 hour |
+  | Google Gemini (AI Studio), free key | See current provider terms | Transcription, proofreading and translation; the only provider for **Live class** | 45 minutes per request ([why](#length-of-one-request)); longer recordings are split |
+  | Google Gemini, paid key (optional) | Billed by your provider | Last in line, or the only one used with **Use the paid key only** | 45 minutes per request |
 
 - **A model for proofreading and translation.** By default this is your DSH session's model. SiliconFlow cannot do these steps, so with only a SiliconFlow key you need a conversation model, or a Gemini or Groq key as well.
-- **ffmpeg (optional).** SiliconFlow and Groq need it only for OGG, Opus, FLAC, WebM, AAC and AIFF files that must be cut or converted. MP3, WAV and plain M4A files never need it. See [Cutting audio for SiliconFlow and Groq](#cutting-audio-for-siliconflow-and-groq).
+- **ffmpeg (optional).** Needed only for FLAC, WebM, AAC and AIFF recordings longer than one request (45 minutes), and for SiliconFlow and Groq when they must cut or convert OGG, Opus, FLAC, WebM, AAC or AIFF files. MP3, WAV, plain M4A and Ogg (Opus or Vorbis) recordings are split without it. See [Length of one request](#length-of-one-request) and [Cutting audio for SiliconFlow and Groq](#cutting-audio-for-siliconflow-and-groq).
 
 ## Set up transcription
 
@@ -58,9 +58,23 @@ Above **Start**, an estimate shows the tokens that proofreading and translation 
 
 - **Formats:** MP3, WAV, M4A, AAC, OGG, FLAC, OPUS, WEBM and AIFF (`.aif` too).
 - **Size:** up to 512 MB per file.
-- **Length:** up to 8 hours, for formats whose length can be read (MP3, WAV, M4A). The provider checks the length of other formats.
+- **Length:** up to 8 hours. The length is read from the file for MP3, WAV, M4A, OGG / Opus, FLAC, AIFF, AAC and most WebM files (a WebM saved by a browser's recorder may not state it).
 - **Detected by content:** the format is read from the bytes, not the extension. A WAV named `.mp3` is processed as WAV, with a warning.
-- **Refused:** an MP3 in which less than half of the bytes are recognisable audio. A compressed (non-PCM) WAV over 1 hour, or an M4A over 1 hour that cannot be split locally (for example a fragmented MP4), is refused with a request to save it as MP3 first.
+- **Refused:** an MP3 in which less than half of the bytes are recognisable audio. A compressed (non-PCM) WAV over 45 minutes, or an M4A over 45 minutes that cannot be split locally (for example a fragmented MP4), is refused with a request to save it as MP3 first. A FLAC, WebM, AAC or AIFF recording over 45 minutes is refused the same way when ffmpeg is not installed, and so is an OGG that cannot be read or cut (for example several recordings joined end to end) when its size puts it clearly over 45 minutes. These checks run in the pre-flight check, before anything is sent.
+
+### Length of one request
+
+One transcription request carries at most **45 minutes** of audio. The transcribe model (`gemini-3.5-transcribe`) refuses a request over 98,304 input tokens, and Gemini counts audio at 32 tokens a second whatever the format or bitrate, so about 51 minutes is the most that can fit; 45 minutes leaves room for the vocabulary and the instructions. A longer recording is cut into the fewest equal parts:
+
+| Format | How it is cut |
+| --- | --- |
+| MP3 | At frame boundaries |
+| WAV (PCM) | In the quietest moment near each cut |
+| M4A | Remuxed into smaller M4A files |
+| OGG, Opus (Opus or Vorbis in an Ogg file) | At page boundaries, into smaller Ogg files; each later part drops about 6.5 ms at its start |
+| FLAC, WebM, AAC, AIFF | With ffmpeg, copying the audio into pieces of the same format; without ffmpeg, refused before anything is sent |
+
+Nothing is re-encoded. Every segment knows its real length, so the task console counts the right number of segments and an error names the segment with its true minutes and size (for example segment 1/4, about 44 minutes, 20.3 MB).
 
 ### Pre-flight check
 
@@ -86,7 +100,7 @@ If a file fails its check when the run starts, the others wait instead of being 
 Timestamped subtitles downloaded from Bilibili or similar sites (SRT, VTT, JSON or TXT, up to 8 MB) skip transcription. They go straight to proofreading and translation, and each paragraph keeps its start time. Import one subtitle file at a time, without audio files. No transcription provider is needed, only a model for the text steps.
 
 
-Preflight checks whether the recording can be split using the current **Longest per request** setting under **Settings › Audio transcription › Advanced › Expert options** (5–59 minutes). The notice reports the actual selected limit.
+Preflight checks whether the recording can be split using the current **Longest per request** setting under **Settings › Audio transcription › Advanced › Expert options** (5–45 minutes; a value saved earlier above 45, such as 59, counts as 45). The notice reports the limit that applies.
 ## Follow progress
 
 Task cards appear on the **Audio transcription** page and at the top of **Sources**. A card shows:
@@ -214,7 +228,7 @@ How a request moves on:
 
 ### Cutting audio for SiliconFlow and Groq
 
-Gemini takes up to an hour per request. SiliconFlow takes 50 MB per file and Groq 25 MB, so larger audio is cut into pieces and their text is joined:
+Gemini takes up to 45 minutes per request (see [Length of one request](#length-of-one-request)). SiliconFlow takes 50 MB per file and Groq 25 MB, so larger audio is cut into pieces and their text is joined:
 
 - **WAV:** converted to 16 kHz mono first (about 115 MB per hour), then cut at speech pauses.
 - **MP3:** cut at frame boundaries, without re-encoding.
@@ -228,12 +242,13 @@ After a rate-limit wait, sending resumes at the first unfinished piece.
 
 ## How a recording is processed
 
-1. **Read and split.** Free quotas count requests, so a recording goes in as few requests as possible. A recording no longer than **Longest per request** (default 59 minutes) is sent whole. Longer MP3, WAV and M4A recordings are split into the fewest equal parts, without re-encoding or ffmpeg:
+1. **Read and split.** Free quotas count requests, so a recording goes in as few requests as possible. A recording no longer than **Longest per request** (default and most 45 minutes) is sent whole. Longer MP3, WAV, M4A and Ogg recordings are split into the fewest equal parts, without re-encoding or ffmpeg:
    - MP3 at frame boundaries;
    - M4A remuxed losslessly;
+   - OGG and Opus at page boundaries, each part a complete Ogg file;
    - 16-bit PCM WAV with each cut moved to the quietest 200 ms within 30 seconds, so sentences are not cut in half.
 
-   Other formats are sent whole.
+   FLAC, WebM, AAC and AIFF are sent whole when they fit one request (45 minutes); a longer one is cut with ffmpeg, or refused when ffmpeg is missing. See [Length of one request](#length-of-one-request).
 2. **Transcribe.** On Gemini (`gemini-3.5-transcribe`):
    - The default **Transcript style** is **Cleaned up**, without filler or repeats and split into paragraphs. **Verbatim** keeps every word.
    - Up to 100 terms, your glossary first and then the course's deck titles and question topics, go in as a custom vocabulary.
@@ -341,7 +356,7 @@ Everything below is in **Settings › Audio transcription**.
 | **Groq transcription model** / **Groq text model** | **Expert options** | `whisper-large-v3` / `openai/gpt-oss-120b` | The text model is hidden when **The model the conversation uses** is chosen |
 | **Proofreading and translation in parallel** | **Expert options** | 3 | 1 to 6 |
 | **Transcriptions in parallel** | **Expert options** | 1 | 1 to 3 |
-| **Longest per request** | **Expert options** | 59 minutes | 59, 45, 30, 20 or 10 minutes |
+| **Longest per request** | **Expert options** | 45 minutes | 45, 30, 20 or 10 minutes |
 | **Transcript style** | **Expert options** | **Cleaned up** | Or **Verbatim** |
 
 **Expert options** also holds the **Live class** models and **Reasoning strength of live class context correction**; see [Live class](live-class.md).
@@ -362,7 +377,7 @@ Replace the address with your own proxy. "Gemini API is unavailable in the curre
 ## What has and has not been verified
 
 - **Mock services.** Automated tests use local mock Gemini, SiliconFlow and Groq services. They cover splitting, provider order, rate-limit waits, uploads and deletion, parameter fallback, the proofreading safety rules, the transcript format, resuming and keeping keys out of records. They show that the code handles these responses as intended. They do not show real transcription quality, current quotas or provider behaviour.
-- **Real ffmpeg.** Cutting with ffmpeg was tested on one-minute recordings with pauses in M4A, Ogg Vorbis, Opus, WebM, FLAC, AAC and AIFF: every piece decodes, the pieces add up to the original length, the cuts fall in pauses and temporary files are removed. These tests skip themselves when ffmpeg is missing. Lossless M4A splitting was tested on a real AAC recording.
+- **Real ffmpeg.** Cutting with ffmpeg was tested on one-minute recordings with pauses in M4A, Ogg Vorbis, Opus, WebM, FLAC, AAC and AIFF: every piece decodes, the pieces add up to the original length, the cuts fall in pauses and temporary files are removed. These tests skip themselves when ffmpeg is missing. Lossless M4A splitting was tested on a real AAC recording. Lossless Ogg splitting was tested on 3-minute Opus and Vorbis recordings made by ffmpeg (every part decodes without a complaint and the parts add up to the original within 0.2 s), and cutting with ffmpeg on a real 46-minute FLAC. Whether Gemini accepts the Ogg parts has not been checked with a real key.
 - **Real APIs.** Request fields follow the Gemini and Groq documentation as read on 2026-09-29: Gemini `generateContent` (not the newer Interactions API), Groq `/openai/v1/audio/transcriptions` and `/openai/v1/chat/completions`. They were not called with real keys. Whether Groq's text model supports JSON mode and `reasoning_effort` is unverified. If Google's API changes, only `lib/gemini.js` needs updating.
 - **DSH subagents.** Checked in a local DSH 0.2.0-rc.2 (isolated DSH_HOME, fake model): proofreading runs as a DSH subagent, **View subagent** opens that subagent's session, titled "Study <id> · Audio proofreading · <file> · n/N". For a task started from the panel the subagent hangs under the coordinator session DSH creates for the panel, so it is **not in DSH's left-hand session list**; reach it from the task card (or from the subagent switcher once one is open).
 - **The @ selector.** Whether DSH opens its file selector after **Pick a file with @ in the conversation** has not been checked; if it does not, type @ again.
