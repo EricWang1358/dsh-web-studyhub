@@ -75,7 +75,7 @@ test('复习全书 in the sidebar: the book page with the 期末一周 date hint
         const { page, errors, context } = await openPage(browser, written, { width, height: 900 });
         await page.goto(written.server.url);
         await pressBook(page);
-        await page.locator('.book-chapter').first().waitFor({ timeout: 30000 });
+        await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
         assert.match(await page.locator('.book-page h1').innerText(), /复习全书 · SA/, `${width}px: the sidebar opened the book page`);
         // No exam date: the quiet link, and it opens the course settings.
         const link = page.locator('.book-header__crunch button');
@@ -97,7 +97,7 @@ test('复习全书 in the sidebar: the book page with the 期末一周 date hint
         const { page, context } = await openPage(browser, written, { width, height: 900 });
         await page.goto(written.server.url);
         await pressBook(page);
-        await page.locator('.book-chapter').first().waitFor({ timeout: 30000 });
+        await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
         await page.locator('.book-header__crunch').waitFor({ timeout: 30000 });
         assert.equal((await page.locator('.book-header__crunch').innerText()).trim(), '期末一周在考前 21 天开始', `${width}px: a date beyond the window`);
         assert.equal(await page.locator('.book-header__crunch button').count(), 0, `${width}px: no link when the date is set`);
@@ -109,7 +109,7 @@ test('复习全书 in the sidebar: the book page with the 期末一周 date hint
       const near = await openPage(browser, written, { width: 1280, height: 900 });
       await near.page.goto(written.server.url);
       await pressBook(near.page);
-      await near.page.locator('.book-chapter').first().waitFor({ timeout: 30000 });
+      await near.page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
       assert.equal(await near.page.locator('.book-header__crunch').count(), 0, 'inside the window the header says nothing more');
       await near.context.close();
     } finally { await written.close(); }

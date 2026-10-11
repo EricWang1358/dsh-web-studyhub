@@ -16,7 +16,7 @@ import { openCourseBook } from '../lib/course-book-files.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 复习全书 M1 in the real page at 1280 and 420 px (docs/plans/review-book.md): from the home to the 总纲 and 打开书页; the 目录 beside the book at 1280,
-   folded at 420; 你在这里; a closed chapter renders nothing; a question link goes to the practice page with 回到复习全书 and comes back at the same heading
+   folded at 420; 你在这里; 逐节读 draws one point (ui/book/BookStep.jsx); a question link goes to the practice page with 回到复习全书 and comes back at the same heading
    and scroll; 本节问答 opens in place; a link to a deleted question says so; nothing scrolls sideways. Screenshots go to COURSE_BOOK_PAGE_SHOTS when set. */
 
 async function seed(root) {
@@ -71,12 +71,12 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-tree--book').waitFor({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click();
-      await page.locator('.book-chapter').first().waitFor({ timeout: 30000 });
+      await page.locator('.book-step').waitFor({ timeout: 30000 });
       assert.match(await page.locator('.book-page h1').innerText(), /复习全书 · SA/);
-      assert.deepEqual(await page.locator('.book-chapter__toggle').evaluateAll(list => list.map(item => [item.innerText.replace(/\s+/g, ' ').trim(), item.getAttribute('aria-expanded')])),
-        [['1 Introduction', 'true'], ['2 Requirements', 'false']], `${width}px: the first chapter open, the others only their heading`);
-      assert.equal(await page.locator('[data-chapter] .book-file').count() > 0, true);
-      assert.equal(await page.locator('.book-chapter').nth(1).locator('.book-file').count(), 0, `${width}px: a closed chapter renders no file`);
+      // 逐节读 (the default): the first point alone; nothing of the others is drawn.
+      assert.match((await page.locator('.book-step__heading').innerText()).replace(/\s+/g, ' '), /1\.1 What architects do/);
+      assert.equal(await page.locator('[data-book-point]').count(), 1, `${width}px: one point drawn`);
+      assert.equal(await page.locator('.book-step .book-file').count() > 0, true);
       if (width === 420) {
         assert.equal(await page.locator('.book-toc').count(), 0, '420px: the 目录 is folded');
         await page.locator('.book-header__toc').click();
@@ -89,11 +89,11 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-${width}.png`), fullPage: true });
 
-      // The 目录 goes to a point of the closed chapter: it opens, and 你在这里 follows.
+      // The 目录 goes to a point of another chapter: it is shown, and 你在这里 follows.
       await page.locator('.book-toc__go', { hasText: '2.2 Quality attribute scenarios' }).click();
-      await page.locator('.book-chapter').nth(1).locator('.book-file').first().waitFor();
+      await page.locator('.book-step__heading', { hasText: 'Quality attribute scenarios' }).waitFor();
       await page.waitForTimeout(300);
-      const point = await page.locator('.book-node__heading', { hasText: 'Quality attribute scenarios' }).evaluate(element => Math.round(element.getBoundingClientRect().top));
+      const point = await page.locator('.book-step__heading').evaluate(element => Math.round(element.getBoundingClientRect().top));
       assert.ok(point >= 0 && point < 300, `${width}px: the 目录 brought the point to the top of the window: ${point}`);
       overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways with the long title: ${JSON.stringify(overflow)}`);
@@ -106,14 +106,17 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       await (width === 1280 ? page.locator('.book-toc__item', { hasText: '2.2 Quality attribute scenarios' }).locator('.book-toc__here') : page.locator('.book-toc__here')).waitFor();
       if (width === 420) await page.locator('.book-header__toc').click();
 
-      // 本节问答 of 1.1 opens in place (this library keeps none: it says so).
-      const first = page.locator('.book-chapter').first();
-      await first.locator('[data-book-link="qa"]').first().click();
-      await first.locator('.book-qa__none, .book-qa').first().waitFor({ timeout: 30000 });
+      // 本节问答 of the point opens in place (this library keeps none: it says so).
+      await page.locator('.book-point [data-book-link="qa"]').first().click();
+      await page.locator('.book-qa__none, .book-qa').first().waitFor({ timeout: 30000 });
 
-      // A question link of 1.2 goes to the practice page with 回到复习全书, and comes back at the same heading and scroll.
-      const hid = await first.locator('.book-node__heading').nth(1).getAttribute('data-book-heading');
-      const link = page.locator(`#book-${hid} ~ .book-point .book-questions [data-book-link="card"]`).first();
+      // A question link of 1.2 (under 本节的题, folded) goes to the practice page with 回到复习全书, and comes back at the same heading and scroll.
+      if (width === 420) await page.locator('.book-header__toc').click();
+      await page.locator('.book-toc__go', { hasText: '1.2 Stakeholders' }).click();
+      await page.locator('.book-step__heading', { hasText: 'Stakeholders' }).waitFor();
+      const hid = await page.locator('.book-step').getAttribute('data-book-step');
+      await page.locator('.book-questions > summary').click();
+      const link = page.locator('.book-questions [data-book-link="card"]').first();
       await link.scrollIntoViewIfNeeded();
       await page.waitForTimeout(300);
       const before = await topOf(page, hid);
@@ -132,11 +135,11 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
 
       // 练 5 道 starts a round of at most five of the point's questions.
       const five = page.waitForRequest(request => request.url().includes('/api/call') && /"action":"review\.start"/.test(request.postData() || ''));
-      await page.locator(`#book-${hid} ~ .book-point .book-file [data-book-link="practice"]`).first().click();
+      await page.locator('.book-point__practice').click();
       const chunk = JSON.parse((await five).postData()).args;
       assert.equal(chunk.scope.length, 5, `${width}px: 练 5 道 is five questions`);
       await page.locator('.review-detour', { hasText: '回到复习全书' }).click();
-      await page.locator('.book-chapter').first().waitFor({ timeout: 30000 });
+      await page.locator(`.book-step[data-book-step="${hid}"]`).waitFor({ timeout: 30000 });
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
     }
