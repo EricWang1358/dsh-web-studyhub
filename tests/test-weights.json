@@ -85,6 +85,7 @@
  "tests/core.test.mjs": 160,
  "tests/course-active-ui.test.mjs": 160,
  "tests/course-active.test.mjs": 1450,
+ "tests/course-book-reading-browser.test.mjs": 500,
  "tests/course-containment.test.mjs": 1030,
  "tests/course-mastery.test.mjs": 230,
  "tests/course-route.test.mjs": 570,
