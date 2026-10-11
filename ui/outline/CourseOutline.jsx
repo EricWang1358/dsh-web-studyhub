@@ -136,7 +136,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
   const { busy } = useStudy();
   const choices = useMemo(() => paperChoices(documents), [documents]);
   // The papers used by default: the outline's, else the ones recognised by name (the build finds the same); the learner changes them here, and only then are they sent.
-  const used = useMemo(() => (book ? book.paperList || [] : choices.filter(choice => choice.likely)), [book, choices]);
+  const used = useMemo(() => (book ? book.paperList || [] : choices.filter(choice => choice.silent)), [book, choices]);
   const [papers, setPapers] = useState(() => new Set(used.map(paper => paper.key)));
   const [changed, setChanged] = useState(false);
   useEffect(() => { if (!changed) setPapers(new Set(used.map(paper => paper.key))); }, [used, changed]);
