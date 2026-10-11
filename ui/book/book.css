@@ -48,11 +48,18 @@
       gap: var(--space-2);
       min-width: 0;
     }
+    .book-point__tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+    }
     .book-point__add {
       justify-self: start;
     }
     .book-ai {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-2);
       padding: var(--space-2) var(--space-3);
       border-left: 2px solid var(--accent);
@@ -60,15 +67,59 @@
       background: var(--bg-sunken);
       min-width: 0;
       overflow-wrap: anywhere;
+      transition: background-color var(--dur-slow) var(--ease);
     }
     .book-ai__about {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: var(--space-1);
+      min-width: 0;
       margin: 0;
       color: var(--text-muted);
       font-size: var(--fs-sm);
+      cursor: pointer;
+    }
+    .book-ai__caret {
+      transition: transform var(--dur-fast) var(--ease);
+    }
+    .book-ai__toggle[aria-expanded='true'] .book-ai__caret {
+      transform: rotate(90deg);
+    }
+    .book-ai__words {
+      min-width: 0;
+      text-align: left;
+      font-size: inherit;
+      text-decoration: underline dashed;
+      text-underline-offset: 3px;
+    }
+    .book-ai__summary {
+      flex: 1 1 8rem;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-dim);
+    }
+    .book-ai[data-ai-flash],
+    .book-ai-anchor[data-ai-flash] {
+      background: var(--accent-glow);
+    }
+    /* The words an AI block is about: a quiet dashed underline in the theme's accent, in both themes (the text stays the book's own colour). */
+    .book-ai-anchor {
+      text-decoration: underline dashed var(--accent-text);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background-color var(--dur-slow) var(--ease);
+    }
+    .book-ai-anchor:hover {
+      background: var(--accent-glow);
+    }
+    .book-ai-anchor:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
     }
     .book-ai__actions,
     .book-ai__follow,
