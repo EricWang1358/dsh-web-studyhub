@@ -90,15 +90,19 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   // 弄懂 / 加一段: the panel over the selected words (or a heading), and the tasks started from this page (the book is read again when one ends).
   const [ask, setAsk] = useState(null);
   const [pending, setPending] = useState(() => new Set());
-  const startAi = useCallback(async args => {
+  // `fromPanel`: started from the panel over selected words, which stays showing its state until the block appears (the one under a heading closes now).
+  const startAi = useCallback(async (args, fromPanel = false) => {
     try {
       const started = await call('generation.courseBook.explain', { course, ...args });
       setPending(current => new Set([...current, started.jobId]));
       notify({ text: ui('已开始：写好后会出现在这一段下面；任务页可以看进度。'), tone: 'success' });
-      setAsk(null);
+      setAsk(current => (fromPanel && current?.words ? { ...current, jobId: started.jobId } : null));
       window.getSelection?.()?.removeAllRanges?.();
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [call, course, notify]);
+  // The panel of a task closes when the task is over (its block is in the book, or the failure said).
+  useEffect(() => { if (ask?.jobId && !pending.has(ask.jobId)) setAsk(null); }, [ask, pending]);
+  const closeAsk = useCallback(() => setAsk(null), []);
   // A task started here is looked at now and then (job.status) until it ends; then the book is read again, its block in place.
   usePolling(async () => {
     for (const jobId of pending) {
@@ -269,7 +273,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       </section>
     );
   }
-  const exportDialog = exporting && <BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
+  // A new selection or heading is a new panel (its own, empty instruction).
+  const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args }, true)} onClose={closeAsk} />;
+  const exportDialog = exporting &&<BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
   // 今天读哪几节: today's day of the plan, under the header (the same day the home's 期末一周 card shows).
   const todayPanel = crunchDay && todayOpen && mode !== 'source' && <section className="book-today" aria-label={ui('今天读哪几节')}>
     <CrunchDay course={course} daysLeft={crunch.daysLeft} day={crunchDay} points={crunchPoints}
@@ -292,7 +298,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
       {crunch ? <BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
         onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /> : <LoadingState label={ui('正在排期末一周…')} />}
-      {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
+      {askPanel}
       {exportDialog}
     </section>
   );
@@ -315,7 +321,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
             onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
         </div>
       </div>
-      {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
+      {askPanel}
       {exportDialog}
     </section>
   );
