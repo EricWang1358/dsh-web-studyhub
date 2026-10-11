@@ -9,9 +9,9 @@ import { askStaysOpen, selectionState } from './ask-visibility.js';
    answer is written as a new block of the point's own file. Without a model the shared gate says where to set one up; reading and editing go on. */
 
 /** target: { heading, words?, top, left, jobId? } (where to show it, in the window; the task started from it, kept open until the page closes it); model: modelReadiness;
-    onStart({ mode, words?, instruction? }); onClose(). It closes itself when its selection is gone (ui/book/ask-visibility.js); × and Escape close it too. */
-export default function BookAiAsk({ target, model, onStart, onClose }) {
-  const [instruction, setInstruction] = useState('');
+    onStart({ mode, words?, instruction? }); onSend({ words, instruction }) (optional: 「发给主会话」 over selected words, the same box, its answer a promise); onClose(). It closes itself when its selection is gone (ui/book/ask-visibility.js); × and Escape close it too. */
+export default function BookAiAsk({ target, model, onStart, onSend, onClose }) {
+  const [instruction, setInstruction] = useState(''), [sending, setSending] = useState(false);
   const box = useRef(null);
   const off = !model?.ready, selected = !!target.words, pending = !!target.jobId;
   const latest = useRef(null);
@@ -47,8 +47,10 @@ export default function BookAiAsk({ target, model, onStart, onClose }) {
       </div>
       <form className="book-ai-ask__form" onSubmit={event => { event.preventDefault(); if (instruction.trim()) onStart({ mode: selected ? 'write' : 'here', words: target.words, instruction: instruction.trim() }); }}>
         <TextInput className="book-ai__input" aria-label={ui('让 AI 写一段…')} placeholder={selected ? ui('让 AI 写一段…（讲细点、加个例子、对比做个表）') : ui('在这里加一段：写什么？')}
-          value={instruction} maxLength={600} disabled={off || pending} onChange={event => setInstruction(event.target.value)} autoFocus={!selected} />
+          value={instruction} maxLength={600} disabled={(off && !(selected && onSend)) || pending} onChange={event => setInstruction(event.target.value)} autoFocus={!selected} />
         <Button size="sm" type="submit" disabled={off || pending || !instruction.trim()} data-book-ai="write">{ui('写')}</Button>
+        {selected && onSend && <Button size="sm" variant="quiet" disabled={pending || sending} data-book-ai="chat"
+          onClick={async () => { setSending(true); try { await onSend({ words: target.words, instruction: instruction.trim() }); } finally { setSending(false); } }}>{ui('发给主会话')}</Button>}
       </form>
       {off && <ModelSetupGate variant="compact" feature="bookAi" model={model} />}
     </div>

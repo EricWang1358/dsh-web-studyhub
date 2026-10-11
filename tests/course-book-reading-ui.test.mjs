@@ -108,7 +108,7 @@ test('整章滚动: a point is its title and one line, folded, unless it is open
 
 test('English: the reading words are English (the book\'s own text stays as written)', () => english(() => {
   const steps = ui.bookSteps(book), text = `${textOf(body())} ${textOf(render(h(ui.BookStep, { steps, at: 0, onGo: noop, course: 'SA', handlers })))}`;
-  assert.match(text, /Practise 5 Questions and answers Tidy up In one sentence/);
+  assert.match(text, /Practise 5 Questions and answers Tidy up Send to the main chat In one sentence/);
   assert.match(text, /Checklist .*My notes and AI explanations \(3\)/);
   assert.match(text, /Mostly repeats the explanation above/);
   assert.match(text, /Sources 1/);
