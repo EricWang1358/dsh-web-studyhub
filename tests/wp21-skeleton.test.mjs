@@ -192,3 +192,31 @@ test('the regroup prompts are scoped to the course they run in', () => {
     assert.doesNotMatch(prompt, /"course"/, 'all courses: the library-wide wording is unchanged');
   }
 });
+
+test('the topic-read example in both prompt languages has exactly the keys skeleton.topics returns', async t => {
+  const service = await library(t);
+  // 70 more topics in one deck so a merge page of 60 leaves some behind (nextOffset), next to the three stored groups.
+  await service.call('draft.save', { deck: { id: 'many', title: 'many', course: 'Architecture', cards: Array.from({ length: 70 }, (_, i) => card(`m${i}`, `Topic ${i}`)) } });
+  await service.call('draft.publish', { id: 'many' });
+  const keys = value => Object.keys(value).sort();
+  const shape = result => ({ top: keys(result), topic: keys(result.topics[0]), groups: keys(result.groups), group: keys(result.groups.groups[0]) });
+  const merge = await service.call('skeleton.topics', { compact: true, samples: 1, ungrouped: true, limit: 60 });
+  const replace = await service.call('skeleton.topics', { compact: true, samples: 1, limit: 200, offset: 0 });
+  assert.equal(merge.topics.length, 60);
+  assert.ok(merge.nextOffset, 'the fixture has more than one merge page');
+  assert.equal(replace.nextOffset, undefined, 'one replace page: nextOffset is absent');
+  for (const language of ['zh', 'en'])
+    for (const [mode, result] of [['merge', merge], ['replace', replace]]) {
+      const text = groupPrompt({ mode, ungrouped: 70, topicCount: 73 }, language);
+      const example = JSON.parse(text.match(/\{"topics":.*"ungroupedCount":\d+\}\}/)[0]);
+      const expected = shape(example);
+      if (!result.nextOffset) expected.top = expected.top.filter(name => name !== 'nextOffset');
+      assert.deepEqual(shape(result), expected, `${language} ${mode}: the example names the fields the operation returns`);
+      assert.match(text, language === 'zh' ? /字段名完全一致/ : /field names are exact/);
+    }
+  for (const language of ['zh', 'en']) {
+    assert.match(groupPrompt({ mode: 'merge', ungrouped: 70 }, language), /"limit": ?60\b/);
+    assert.doesNotMatch(groupPrompt({ mode: 'merge', ungrouped: 70 }, language), /\b150\b/);
+    assert.match(groupPrompt({ mode: 'replace', topicCount: 70 }, language), /"limit": ?200\b/);
+  }
+});
