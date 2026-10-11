@@ -80,6 +80,25 @@ export function indexTarget(document, course, names = []) {
   return document.info.state === 'indexed' ? 'others' : 'own';
 }
 
+/** The states that still have something to build; a building or finished document has nothing to ask for. */
+export const NEEDS_INDEX = new Set(['partial', 'stale', 'missing']);
+
+/** The hover line of the badge's action: where the click goes. */
+export const indexGoTip = (canIndex) => (canIndex === false ? ui('点这里去安装检索扩展') : ui('点这里去建立索引'));
+/** The badge's action and the shortcut line's link: the build, or (the extension is not installed) its install step. */
+export const indexGoLabel = (canIndex) => (canIndex === false ? ui('安装扩展') : ui('建立索引'));
+
+/**
+ * The materials of a list ([{ item, info }], info from documentIndexState) that are not fully indexed: { count, course } or null when there are none.
+ * `course` is the one course they all belong to ('' when they span several or none): the build panel opens with it chosen.
+ */
+export function indexGap(entries) {
+  const open = (entries || []).filter(({ info }) => info && NEEDS_INDEX.has(info.state));
+  if (!open.length) return null;
+  const courses = new Set(open.map(({ item }) => item.courses?.[0] || ''));
+  return { count: open.length, course: courses.size === 1 ? [...courses][0] : '' };
+}
+
 /** The build button for a course: { label, variant, note }. It is the loud one only when the document it sits under is the one with missing pages. */
 export function indexAction({ plan, document, course, names }) {
   const generic = { label: ui('为这门课建立检索索引'), variant: 'primary', note: '' };

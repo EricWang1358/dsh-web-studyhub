@@ -9,6 +9,7 @@ import KindPicker from "./KindPicker.jsx";
 import CourseField from './CourseField.jsx';
 import { courseNamesOf, usePageScope } from './PageScope.jsx';
 import SourcePicker from './SourcePicker.jsx';
+import { openIndexBuilder } from './index-focus.js';
 import useIndexCoverage from './use-index-coverage.js';
 import GenerationPath from './GenerationPath.jsx';
 import TooBigChoice, { FocusHelp } from './TooBigChoice.jsx';
@@ -215,7 +216,8 @@ export default function Generate({
               {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexSlot={indexStatus !== "unavailable"}
-                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} />
+                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy}
+                onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               <div className="generate-sources-actions">
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
                 <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
