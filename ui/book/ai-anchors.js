@@ -92,6 +92,8 @@ export function showBlock(id) {
 export function showWords(id) {
   const spans = wordsOf(id);
   if (!spans.length) return false;
+  // Words in a folded part (要点清单, 补充) open it first.
+  for (let fold = spans[0].closest('details'); fold; fold = fold.parentElement?.closest('details')) fold.open = true;
   spans[0].scrollIntoView({ block: 'center' });
   flash(spans);
   spans[0].focus({ preventScroll: true });
