@@ -1,131 +1,36 @@
-import React, { memo, useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import React, { memo, useContext } from 'react';
+import { ui } from '../i18n.js';
 import { Button, Icon } from '../components/index.js';
-import { plainPrompt } from '../shared.js';
-import Markdown from '../Markdown.jsx';
-import BookQa from './BookQa.jsx';
-import { bookResolver } from './BookLinks.jsx';
+import BookFile, { headingAnchor } from './BookFile.jsx';
 import BookSuggestion from './BookSuggestion.jsx';
-import { citesOf } from './model.js';
-import { withoutQaMarkers } from '../../lib/course-book-qa-text.js';
-import { aiBlocks, shortHash, weaveBlocks, withoutAiBlocks } from '../../lib/course-book-ai-text.js';
-import BookAiBlock from './BookAiBlock.jsx';
-import { useAiAnchors } from './ai-anchors.js';
-import { AiFoldContext } from './ai-fold.js';
-import { codeOf, plainTerms, withoutNoprintMarkers } from '../../lib/course-book-lookup.js';
+import PointBody from './PointBody.jsx';
+import { pointSummary } from './point-parts.js';
+import { BookReadContext } from './reading.js';
+import { codeOf } from '../../lib/course-book-lookup.js';
 
-/* One chapter of the review book (a top node of the 总纲, or 未归位). Only an open chapter renders its files (I8: a big book stays light); a closed one is its
-   heading. A knowledge point shows its generated file, its questions (live), the learner's file, its Q&A file (M3) and 本节问答 when its link is open; the
-   AI blocks of its own file (弄懂 / 加一段, M4) sit right after the paragraph they are about, under the heading, or at the end marked 原位置已变.
-   Headings carry their stable id (`book-<id>`): the outline's from the manifest, a typed one from its `<!-- sh:id … -->` (Markdown's headingAnchor);
-   they are the targets of the 目录 and of the way back after practice. */
+/* One chapter of the review book (a top node of the 总纲, or 未归位) in 整章滚动. Only an open chapter renders its files (I8: a big book stays light); a closed
+   one is its heading. Inside an open chapter each knowledge point is folded to its title and one line (its takeaway) except the one being read; an open
+   point shows its body (ui/book/PointBody.jsx). Headings carry their stable id (`book-<id>`): the targets of the 目录 and of the way back after practice. */
 
-/** How many of a point's questions show before 还有 N 道. */
-const FIRST = 5;
+export { headingAnchor, PointBody };
 
-/** A typed heading's id from its `<!-- sh:id … -->`: on the element (book-<id>, the 目录's and the way back's target), the marker off the text. */
-const ID_SUFFIX = /\s*<!-- sh:id (\S+) -->\s*$/;
-export const headingAnchor = text => {
-  const match = ID_SUFFIX.exec(text);
-  return match ? { text: text.slice(0, match.index), props: { id: `book-${match[1]}`, 'data-book-heading': match[1], tabIndex: -1 } } : null;
-};
-
-const resolverOf = (handlers, hid) => bookResolver({ gone: handlers.gone, onCard: (ref, element) => handlers.card(ref, hid, element),
-  onPractice: (heading, n, element) => handlers.practice(heading, n, hid, element), onQa: handlers.toggleQa, qaOpen: handlers.qaOpen, onSource: handlers.source });
-
-/** One file (or a part of one) as Markdown, its links drawn by the book and its 角标 opening the reader at the 出处 of the same file (`citeText`: the whole file). */
-function BookFile({ text, citeText = text, hid, handlers, className, anchors = [], onAnchored }) {
-  const cites = useMemo(() => citesOf(citeText), [citeText]);
-  const resolve = useMemo(() => resolverOf(handlers, hid), [handlers, hid]);
-  const onCite = useCallback(n => { const cite = cites.get(n); if (cite) handlers.source(cite.sourceId, cite.quote); }, [cites, handlers]);
-  // A Q&A block's marker lines are the book's, not the reader's (the heading ids stay: headingAnchor reads them); so are the noprint markers (M6: only
-  // the export leaves that text out) and the brackets of a [[term]].
-  const shown = useMemo(() => plainTerms(withoutNoprintMarkers(withoutQaMarkers(text))), [text]);
-  // The words of the AI blocks that sit after this text get their dashed underline once drawn (ui/book/ai-anchors.js); the paragraph is drawn fresh (key)
-  // whenever its words or those anchors change, so the underline is only ever put on new text.
-  const rootRef = useRef(null), signature = anchors.length ? `${shortHash(shown)}\u0002${anchors.map(item => `${item.id}\u0000${item.quote}`).join('\u0001')}` : 'plain';
-  useAiAnchors(rootRef, anchors, signature, { onOpen: handlers.aiOpen, onFound: onAnchored });
-  return <Markdown key={signature} rootRef={rootRef} className={className} text={shown} resolveLink={resolve} onCite={onCite} headingAnchor={headingAnchor} />;
-}
-
-/** The point's questions as they are now (never stored in a file): the first few as links, 还有 N 道 for the rest; none: 这一节还没有题。 and 出题. */
-function PointQuestions({ node, handlers }) {
-  const [all, setAll] = useState(false);
-  if (!node.questionTotal) return (
-    <>
-      <p className="book-questions__none">{ui('这一节还没有题。')}</p>
-      {handlers.create && <Button size="sm" variant="secondary" icon="sparkle" className="book-node__create" onClick={handlers.create}>{ui('出题')}</Button>}
-    </>
-  );
-  const shown = all ? node.questions : node.questions.slice(0, FIRST);
-  return (
-    <div className="book-questions">
-      <p className="book-questions__head">{ui('本节的题')}</p>
-      <ul className="book-questions__list">
-        {shown.map(item => <li key={`${item.deckId}|${item.cardId}`}>
-          <Button variant="link" size="sm" wrap className="book-link" data-book-link="card" onClick={event => handlers.card({ deckId: item.deckId, cardId: item.cardId }, node.hid, event.currentTarget)}>
-            {uiFormat('练习：{0}', [plainPrompt(item.prompt)])}</Button>
-        </li>)}
-      </ul>
-      {!all && node.questionTotal > FIRST && <Button variant="link" size="sm" className="book-questions__more" onClick={() => setAll(true)}>{uiFormat('还有 {0} 道', [node.questionTotal - FIRST])}</Button>}
-    </div>
-  );
-}
-
-/** A knowledge point's body (also the folded 讲解 of 翻看, ui/book/BookFlip.jsx). */
-export function PointBody({ node, course, handlers }) {
-  // The own file's AI blocks woven in after their paragraphs (lib/course-book-ai-text.js); the generated file's part comes before the questions, the own after.
-  const woven = useMemo(() => weaveBlocks([{ name: 'gen', text: node.gen || '' }, { name: 'mine', text: withoutAiBlocks(node.mine) }], aiBlocks(node.mine)), [node.gen, node.mine]);
-  const resolve = useMemo(() => resolverOf(handlers, node.hid), [handlers, node.hid]);
-  const genParts = [], mineParts = [], anchorsOf = new Map();
-  let inMine = false, last = null;
-  for (const part of woven.parts) {
-    if (part.name === 'mine') inMine = true;
-    (inMine ? mineParts : genParts).push(part);
-    // The words of a block that sits right after a text are marked in that text (ui/book/ai-anchors.js).
-    if (part.block && last && part.status !== 'gone' && part.block.about) anchorsOf.set(last, [...(anchorsOf.get(last) || []), { id: part.block.id, quote: part.block.about }]);
-    if (!part.block) last = part;
-  }
-  // Which blocks have their words marked (each text says so once drawn), and the fold of the blocks (the learner's, kept in this browser).
-  const [marked, setMarked] = useState({});
-  const aiFold = useContext(AiFoldContext), blockIds = [...woven.top, ...woven.parts, ...woven.lost].filter(part => part.block).map(part => part.block.id);
-  const anchoredIds = new Set(Object.values(marked).flat());
-  const allFolded = blockIds.length > 0 && blockIds.every(id => aiFold?.folded(id));
-  const show = (part, at) => (part.block
-    ? <BookAiBlock key={part.block.id} item={part} resolveLink={resolve} busy={handlers.busy} onAction={(action, block) => handlers.aiAction?.(node, action, block)}
-      onFollow={(block, question) => handlers.aiFollow?.(node, block, question)} folded={!!aiFold?.folded(part.block.id)} onFold={aiFold?.fold}
-      anchored={anchoredIds.has(part.block.id)} onWords={handlers.aiWords} />
-    : <BookFile key={`${part.name}-${at}`} text={part.text} citeText={part.name === 'gen' ? node.gen : node.mine} hid={node.hid} handlers={handlers}
-      className={part.name === 'gen' ? 'book-file' : 'book-file book-file--mine'} anchors={anchorsOf.get(part)}
-      onAnchored={ids => setMarked(current => (String(current[`${part.name}-${at}`]) === String(ids) ? current : { ...current, [`${part.name}-${at}`]: ids }))} />);
-  return (
-    <div className="book-point" data-book-point={node.hid}>
-      {(handlers.addHere || (aiFold && blockIds.length > 1)) && <div className="book-point__tools">
-        {handlers.addHere && <Button variant="link" size="sm" icon="sparkle" className="book-point__add" onClick={event => handlers.addHere(node, event.currentTarget)}>{ui('在这里加一段')}</Button>}
-        {aiFold && blockIds.length > 1 && <Button variant="link" size="sm" className="book-point__fold" onClick={() => aiFold.foldAll(blockIds, !allFolded)}>{allFolded ? ui('全部展开') : ui('全部收起')}</Button>}
-      </div>}
-      {woven.top.map(show)}
-      {genParts.map(show)}
-      <BookSuggestion meta={handlers.files?.[node.files?.gen]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.gen, action, id)} />
-      <PointQuestions node={node} handlers={handlers} />
-      {mineParts.map(show)}
-      {woven.lost.map(show)}
-      {handlers.files?.[node.files?.mine]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.files.mine]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.mine, action, id)} />}
-      {node.qa && <BookFile text={node.qa} hid={node.hid} handlers={handlers} className="book-file book-file--mine" />}
-      {node.files?.qa && handlers.files?.[node.files.qa]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.files.qa]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.qa, action, id)} />}
-      {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
-    </div>
-  );
-}
-
+/** A section or a knowledge point under a chapter. */
 function BookNode({ node, course, handlers }) {
+  const read = useContext(BookReadContext);
   const Heading = `h${Math.min(6, node.depth + 1)}`;
+  // In 整章滚动 a point opens and folds from its heading (without the page's reading context every point is open).
+  const foldable = node.leaf && read?.mode === 'scroll', open = !foldable || read.expanded.has(node.hid);
+  const title = <><span className="book-node__number">{node.number}</span> {node.title}</>;
   return (
-    <div className="book-node" data-depth={Math.min(4, node.depth)}>
+    <div className="book-node" data-depth={Math.min(4, node.depth)} data-book-folded={open ? undefined : 'true'}>
       <Heading id={`book-${node.hid}`} className="book-node__heading" data-book-heading={node.hid} tabIndex={-1}>
-        <span className="book-node__number">{node.number}</span> {node.title} <span className="book-node__code">{codeOf(node.hid)}</span>
+        {foldable ? <Button variant="quiet" wrap className="book-node__toggle" aria-expanded={open} onClick={() => read.expand(node.hid, !open)}>
+          <Icon name="caret" size={14} className="book-node__caret" />{title}</Button> : title}
+        {' '}<span className="book-node__code">{codeOf(node.hid)}</span>
       </Heading>
-      {node.leaf ? <PointBody node={node} course={course} handlers={handlers} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />)}
+      {!open ? <p className="book-node__summary">{pointSummary(node.gen) || ui('展开读这一节')}</p>
+        : node.leaf ? <PointBody node={node} course={course} handlers={handlers} level={Math.min(6, node.depth + 2)} />
+          : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />)}
     </div>
   );
 }
@@ -142,9 +47,16 @@ export default memo(function BookChapter({ node, open, onToggle, course, handler
         {/* The stable code the printed book carries in its margin (M6). */}
         <span className="book-node__code">{codeOf(node.hid)}</span>
       </h2>
-      {open && (node.hid === 'unplaced' ? <><BookFile text={node.text} hid="unplaced" handlers={handlers} className="book-file book-file--mine" />
-        {handlers.files?.[node.file]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.file]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.file, action, id)} />}</>
-        : node.leaf ? <PointBody node={node} course={course} handlers={handlers} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />))}
+      {open && (node.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} />
+        : node.leaf ? <PointBody node={node} course={course} handlers={handlers} level={3} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />))}
     </section>
   );
 });
+
+/** 未归位: the text whose point is gone, and its file's suggestions. */
+export function UnplacedBody({ node, handlers }) {
+  return <>
+    <BookFile text={node.text} hid="unplaced" handlers={handlers} className="book-file book-file--mine" />
+    {handlers.files?.[node.file]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.file]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.file, action, id)} />}
+  </>;
+}

@@ -11,13 +11,15 @@ import { modelReadiness } from '../generation-status.js';
 import { BOOK_BUILD_KIND, runningBuild } from '../outline/model.js';
 import { bookStartedText, writingText } from '../outline/words.js';
 import BookChapter from './BookChapter.jsx';
+import BookStep from './BookStep.jsx';
 import BookToc from './BookToc.jsx';
+import { BookReadContext, bookSteps, stepIndexOf, useBookReading, useStepKeys } from './reading.js';
 import BookEditor from './BookEditor.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
 import BookLookup from './BookLookup.jsx';
 import BookExport, { budgetText } from './BookExport.jsx';
 import BookFlip from './BookFlip.jsx';
-import { AiFoldContext, useAiFold } from './ai-fold.js';
+import { AiFoldContext, useAiFold, useLandedBlocks } from './ai-fold.js';
 import { showBlock, showWords } from './ai-anchors.js';
 import CrunchDay from './CrunchDay.jsx';
 import { localDate } from '../../lib/board-model.js';
@@ -29,7 +31,8 @@ import { bookRows, crunchDateHint, defaultFile, goneSet, keepBook, keptBook, row
 import css from './book.css';
 
 /* 复习全书 (docs/plans/review-book.md, M1: read only). The book of the current course (course.book.open, lib/course-book-files.js): the 目录 beside the
-   rendered Markdown at wide widths, one column with a folded 目录 at narrow ones. Only the open chapters render (I8). A question link goes to the practice
+   rendered Markdown at wide widths, one column with a folded 目录 at narrow ones. 预览 reads 逐节读 (one point at a time, ← / →) or 整章滚动 (the chapters,
+   each point folded but the one being read), ui/book/reading.js. Only the open chapters render (I8). A question link goes to the practice
    page with the way back (回到复习全书), and the page comes back at the same heading and scroll; 本节问答 opens the point's questions and answers in place.
    Reached from the sidebar's 复习全书 (when the book is written) and from the 总纲 page (打开书页). */
 
@@ -90,6 +93,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [file, setFile] = useState(null);
   const [choosing, setChoosing] = useState(false);
   const setBook = useCallback(next => setState(current => ({ ...current, book: next })), []);
+  // The fold of the AI blocks (kept per library and course in this browser): read by the points through AiFoldContext, so a fold draws only the blocks;
+  // a block that lands from a task started here opens and is shown.
+  const aiFold = useAiFold(root, course), foldAi = aiFold.fold, expectBlock = useLandedBlocks(book, aiFold);
+  // 逐节读 / 整章滚动 (kept per course; ui/book/reading.js) and the point 逐节读 shows.
+  const reading = useBookReading(root, course), steps = useMemo(() => bookSteps(book), [book]);
+  const [stepHid, setStepHid] = useState(null);
+  const stepAt = Math.max(0, steps.findIndex(step => step.hid === stepHid));
   // 弄懂 / 加一段: the panel over the selected words (or a heading), and the tasks started from this page (the book is read again when one ends).
   const [ask, setAsk] = useState(null);
   const [pending, setPending] = useState(() => new Set());
@@ -98,7 +108,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     try {
       const started = await call('generation.courseBook.explain', { course, ...args });
       setPending(current => new Set([...current, started.jobId]));
-      notify({ text: ui('已开始：写好后会出现在这一段下面；任务页可以看进度。'), tone: 'success' });
+      notify({ text: ui('已开始：写好后会出现在这一节的「我的笔记与 AI 解释」里；任务页可以看进度。'), tone: 'success' });
       setAsk(current => (fromPanel && current?.words ? { ...current, jobId: started.jobId } : null));
       window.getSelection?.()?.removeAllRanges?.();
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
@@ -115,6 +125,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       if (!status || isActiveJob({ status })) continue;
       setPending(current => { const next = new Set(current); next.delete(jobId); return next; });
       if (status === 'failed') notify({ text: job?.error?.message || job?.contract?.error?.message || ui('没有写成，可以在任务页重试。'), tone: 'error' });
+      else expectBlock();
       setState(current => ({ ...current, ticket: current.ticket + 1 }));
     }
   }, { intervalMs: 1500, enabled: pending.size > 0 });
@@ -130,8 +141,6 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [open, setOpen] = useState(() => new Set());
   const [here, setHere] = useState(null);
   const [qa, setQa] = useState(() => new Set());
-  // The fold of the AI blocks (kept per library and course in this browser): read by the points through AiFoldContext, so a fold draws only the blocks.
-  const aiFold = useAiFold(root, course), foldAi = aiFold.fold;
   const [tocOpen, setTocOpen] = useState(wideNow);
   const restore = useRef(null), pageRef = useRef(null), first = useRef(keptBook(root, course)), placed = useRef(false);
 
@@ -144,24 +153,29 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     // A typed heading is not in the manifest: its chapter was kept with it.
     const chapter = row ? chapters[row.chapter]?.hid : kept?.chapter && wanted ? kept.chapter : chapters[0]?.hid;
     setOpen(new Set(chapter ? [chapter] : []));
-    setHere(row?.hid ?? (kept?.chapter && wanted) ?? chapter ?? null);
+    // 逐节读 shows the point of that heading (the first one without), 整章滚动 opens it.
+    const step = steps[Math.max(0, stepIndexOf(steps, toc, rows, row?.hid ?? wanted ?? ''))];
+    setStepHid(step?.hid ?? null);
+    reading.only(step?.hid ?? null);
+    setHere(row?.hid ?? (kept?.chapter && wanted) ?? step?.hid ?? chapter ?? null);
     restore.current = row || (kept?.chapter && wanted) ? { hid: row?.hid ?? wanted, offset: kept?.target ? null : kept?.offset ?? null } : null;
     first.current = null;
     keepBook(root, course, { target: null });
   }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
-    // In 翻看 a point is its row of the view (`flip-<id>`), in 预览 its heading.
-    const wanted = restore.current, element = wanted && (document.getElementById(`book-${wanted.hid}`) || document.getElementById(`flip-${wanted.hid}`));
+    // In 翻看 a point is its row of the view (`flip-<id>`), in 预览 its heading; a new point of 逐节读 shows from its top (its chapter and section path).
+    const wanted = restore.current, element = wanted && ((wanted.step && pageRef.current?.querySelector(`[data-book-step="${wanted.hid}"]`))
+      || document.getElementById(`book-${wanted.hid}`) || document.getElementById(`flip-${wanted.hid}`));
     if (!element) return;
     restore.current = null;
     // One jump, not smooth: the heading where it was on screen (from the way back), else just under the top of the scroller (from the 目录).
     const scroller = scrollerOf(element), top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
     scroller.scrollTo({ top: scroller.scrollTop + element.getBoundingClientRect().top - (wanted.offset ?? top + 16), behavior: 'instant' });
   });
-  // 你在这里: the highest heading on screen of the open chapters.
+  // 你在这里: the highest heading on screen of the open chapters (逐节读: the point shown, set where it changes).
   useEffect(() => {
     const scope = pageRef.current;
-    if (!scope || typeof IntersectionObserver === 'undefined') return undefined;
+    if (!scope || reading.mode !== 'scroll' || typeof IntersectionObserver === 'undefined') return undefined;
     const seen = new Map();
     const observer = new IntersectionObserver(entries => {
       for (const entry of entries) seen.set(entry.target.dataset.bookHeading, entry.isIntersecting ? entry.boundingClientRect.top : null);
@@ -170,7 +184,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     });
     scope.querySelectorAll('[data-book-heading]').forEach(element => observer.observe(element));
     return () => observer.disconnect();
-  }, [open, book]);
+  }, [open, book, reading.mode, reading.expanded]);
 
   // The way back after practice: the heading just above the link (a typed heading too), where it was on screen, and the chapter that holds it.
   const remember = useCallback((hid, from) => {
@@ -186,13 +200,38 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
       chapter: row ? chapters[row.chapter]?.hid ?? null : null });
   }, [root, course, rows, chapters]);
+  // A heading of the 目录 (or of 查找, 翻看, 今天读哪几节): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
   const goTo = useCallback(id => {
-    const entry = toc.find(item => item.id === id);
+    const entry = toc.find(item => item.id === id), step = steps[stepIndexOf(steps, toc, rows, id)], row = rowOf(rows, id);
     if (entry?.chapter) setOpen(current => new Set([...current, entry.chapter]));
-    restore.current = { hid: id, offset: null };
-    setHere(id);
+    if (step) { setStepHid(step.hid); reading.expand(step.hid, true); }
+    // 逐节读 draws no chapter or section heading: their first point is shown instead.
+    const shown = reading.mode === 'step' && step && row && !row.leaf ? step.hid : id;
+    restore.current = { hid: shown, offset: null };
+    setHere(shown);
     if (!wideNow()) setTocOpen(false);
-  }, [toc]);
+  }, [toc, steps, rows, reading]);
+  // 上一节 / 下一节 (and ← / →): the point before or after, shown from its top.
+  const go = useCallback(delta => {
+    const next = steps[stepAt + delta];
+    if (!next) return;
+    setStepHid(next.hid);
+    setHere(next.hid);
+    restore.current = { hid: next.hid, offset: null, step: true };
+  }, [steps, stepAt]);
+  // Switching how to read keeps the point being read: shown alone, or open in its chapter.
+  const switchReading = useCallback(value => {
+    const step = steps[stepIndexOf(steps, toc, rows, here ?? '')] ?? steps[stepAt];
+    if (step) {
+      const row = rowOf(rows, step.hid), chapter = row ? chapters[row.chapter]?.hid : step.hid;
+      setStepHid(step.hid);
+      reading.only(step.hid);
+      if (chapter) setOpen(current => new Set([...current, chapter]));
+      restore.current = { hid: step.hid, offset: null, step: value === 'step' };
+    }
+    reading.setMode(value);
+  }, [steps, toc, rows, here, stepAt, chapters, reading]);
+  useStepKeys(mode === 'preview' && reading.mode === 'step' && book?.status === 'ok' && !!book.notes, go);
   const handlers = useMemo(() => ({
     gone: goneSet(book?.missing),
     qaOpen: heading => qa.has(heading),
@@ -256,6 +295,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     {book?.status === 'ok' && book.notes && <div className="book-header__tools">
       <SegmentedControl size="sm" label={ui('看书页的方式')} className="book-header__mode" value={mode} onChange={setMode}
         options={[{ value: 'preview', label: ui('预览') }, { value: 'source', label: ui('原文') }, { value: 'lookup', label: ui('查找') }, { value: 'flip', label: ui('翻看') }]} />
+      {mode === 'preview' && <SegmentedControl size="sm" label={ui('怎么读')} className="book-header__reading" value={reading.mode} onChange={switchReading}
+        options={[{ value: 'step', label: ui('逐节读') }, { value: 'scroll', label: ui('整章滚动') }]} />}
       {mode === 'preview' && <Button size="sm" variant="quiet" icon="list" className="book-header__toc" aria-expanded={tocOpen} onClick={() => setTocOpen(value => !value)}>{ui('目录')}</Button>}
       {crunchDay && mode !== 'source' && <Button size="sm" variant="quiet" icon="calendar" className="book-header__today" aria-expanded={todayOpen} onClick={() => setTodayOpen(value => !value)}>{ui('今天读哪几节')}</Button>}
       <Button size="sm" variant="secondary" icon="download" className="book-header__export" onClick={() => setExporting(true)}>{ui('导出')}</Button>
@@ -325,10 +366,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       <div className={tocOpen ? 'book-layout book-layout--toc' : 'book-layout'}>
         {tocOpen && <nav className="book-toc" aria-label={ui('目录')}><BookToc entries={toc} here={here} onGo={goTo} /></nav>}
         <div className="book-read" onMouseUp={onSelect}>
-          <AiFoldContext.Provider value={aiFold}>
-            {chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
-              onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
-          </AiFoldContext.Provider>
+          <AiFoldContext.Provider value={aiFold}><BookReadContext.Provider value={reading}>
+            {reading.mode === 'step' ? <BookStep steps={steps} at={stepAt} onGo={index => go(index - stepAt)} course={course} handlers={handlers} />
+              : chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
+                onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
+          </BookReadContext.Provider></AiFoldContext.Provider>
         </div>
       </div>
       {askPanel}
