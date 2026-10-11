@@ -27,6 +27,7 @@ import Review from '../Review.jsx';
 import AudioImport from '../AudioImport.jsx';
 import { Button, PageHeader } from '../components/index.js';
 import { openAudioSettings } from '../audio-focus.js';
+import { openIndexBuilder } from '../index-focus.js';
 import { useApp } from './app-context.js';
 import { SourceForm } from './modals/AddSourceDialog.jsx';
 import { createSetupHandlers } from './setup-handlers.js';
@@ -167,7 +168,7 @@ function SourcesView() {
     <Sources key={data.root} data={data} setModal={set.setModal} sourceForm={<SourceForm />}
       highlight={lib.sourceHighlight} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
       onLegacyRetry={(job) => { set.setLegacyAudioJobId(job.id); nav.navigate('audio'); }}
-      onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onGenerate={sources.generateFromSources}
+      onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onBuildIndex={(course) => openIndexBuilder(settingsEntry.openSettings, course)} onGenerate={sources.generateFromSources}
       onPractice={(scope) => intents.practice(scope)} />
   );
 }

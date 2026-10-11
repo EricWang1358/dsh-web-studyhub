@@ -18,8 +18,9 @@ import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
 
 /* 复习全书 M4 in the real page at 1280 and 420 px (docs/plans/review-book.md): select words of a point's explanation → 弄懂 → a visible task → the block
-   appears right after the paragraph, 新 until 保留; 删除 takes it out; 「在这里加一段」 with an instruction puts a block under the heading; nothing scrolls
-   sideways. The preview server's fake model answers. Screenshots go to COURSE_BOOK_AI_SHOTS when set. */
+   appears in the point's 我的笔记与 AI 解释 (after the text, shown when it lands; its words dashed in the paragraph), 新 until 保留; 删除 takes it out;
+   「在这里加一段」 with an instruction puts a block there too; the layer's header folds them all; nothing scrolls sideways. The preview server's fake
+   model answers. Screenshots go to COURSE_BOOK_AI_SHOTS when set. */
 
 async function seed(root) {
   await mkdir(root, { recursive: true });
@@ -81,7 +82,7 @@ async function runTasksFor(page, root) {
   return { dispose: () => service.dispose(), ended };
 }
 
-test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right after its paragraph, 保留, 删除; 在这里加一段 under the heading (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+test('复习全书 弄懂 / 加一段: select → 弄懂 → the block in the learner\'s layer, 保留, 删除; 在这里加一段 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-ai-dist-'));
@@ -162,9 +163,11 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       const order = await block.evaluate((element, text) => {
         const paragraph = [...document.querySelectorAll('[data-book-point] .book-file p')].find(item => item.textContent.includes(text) && !item.closest('.book-ai'));
         const second = [...document.querySelectorAll('[data-book-point] .book-file p')].find(item => item.textContent.startsWith('A second paragraph'));
-        return { after: !!(paragraph.compareDocumentPosition(element) & 4), before: !!(element.compareDocumentPosition(second) & 4) };
+        return { after: !!(paragraph.compareDocumentPosition(element) & 4), afterText: !!(second.compareDocumentPosition(element) & 4), layer: !!element.closest('[data-book-layer]') };
       }, words);
-      assert.deepEqual(order, { after: true, before: true }, `${width}px: right after its paragraph, before the next one`);
+      assert.deepEqual(order, { after: true, afterText: true, layer: true }, `${width}px: in the learner's layer, after the point's text`);
+      assert.equal(await block.evaluate(element => { const rect = element.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; }), true,
+        `${width}px: a block that lands is shown`);
       assert.equal(await block.getAttribute('data-ai-state'), 'new');
       assert.match(await block.innerText(), /资料原文/);
       assert.match(await block.innerText(), /补充（资料以外）/);
@@ -266,22 +269,25 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       await panel.waitFor({ state: 'detached', timeout: 10000 });
       const here = page.locator('.book-ai', { hasText: `对比两种做法 ${width}` }).first();
       await here.waitFor({ timeout: 60000 });
-      const top = await here.evaluate(element => {
-        const point = element.closest('[data-book-point]'), add = point.querySelector('.book-point__add'), text = point.querySelector(':scope > .book-file');
-        return !!(add.compareDocumentPosition(element) & 4) && !!(element.compareDocumentPosition(text) & 4);
+      const below = await here.evaluate(element => {
+        const point = element.closest('[data-book-point]'), text = point.querySelector('.book-file');
+        return !!(text.compareDocumentPosition(element) & 4) && !!element.closest('[data-book-layer]');
       });
-      assert.equal(top, true, `${width}px: under the heading, before the point's text`);
-      const fold = page.locator('[data-book-point] .book-point__fold').first();
+      assert.equal(below, true, `${width}px: in the learner's layer, after the point's text (never above it)`);
+      // The layer's header folds and opens every block of the point.
+      const fold = page.locator('[data-book-point] .book-layer__toggle').first();
       await fold.waitFor({ timeout: 5000 });
-      assert.equal((await fold.innerText()).trim(), '全部收起');
+      // Two blocks of this width (at 420 also the 在这里加一段 block written at 1280: the library is the same).
+      assert.match(await fold.innerText(), new RegExp(`我的笔记与 AI 解释 \\(${width === 1280 ? 2 : 3}\\)`));
+      assert.equal(await fold.getAttribute('aria-expanded'), 'true');
       await fold.click();
       await page.locator('.book-ai[data-ai-folded]').nth(1).waitFor({ timeout: 5000 });
       assert.equal(await page.locator('.book-ai:not([data-ai-folded])').count(), 0, `${width}px: all folded`);
-      assert.equal((await fold.innerText()).trim(), '全部展开');
+      assert.equal(await fold.getAttribute('aria-expanded'), 'false');
       if (shots) await page.screenshot({ path: join(shots, `ai-folded-all-${width}.png`) });
       await fold.click();
       await page.locator('.book-ai[data-ai-folded]').first().waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal((await fold.innerText()).trim(), '全部收起');
+      assert.equal(await fold.getAttribute('aria-expanded'), 'true');
       // Taking the first block out is still 删除 (the editor and the export read the file, which a fold never touched).
       await page.locator('.book-ai[data-ai-state="kept"]', { hasText: `关于：「${words}」` }).first().getByText('删除', { exact: true }).click();
       await page.locator('.book-ai', { hasText: `关于：「${words}」` }).first().waitFor({ state: 'detached', timeout: 30000 });

@@ -130,7 +130,9 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
 
       // A question link inside 翻看 goes to the practice page with 回到复习全书 and comes back to the same place in 翻看.
       const last = page.locator('.book-flip__point').last(), lastHid = await last.getAttribute('data-flip-point');
-      await last.locator('summary').click();
+      await last.locator('summary').first().click();
+      // The point's questions are folded under 本节的题 (N).
+      await last.locator('.book-questions > summary').click();
       const question = last.locator('.book-questions [data-book-link="card"]').first();
       await question.waitFor({ timeout: 30000 });
       await question.scrollIntoViewIfNeeded();

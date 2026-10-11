@@ -1,6 +1,6 @@
-/* 复习全书 M4 on the page (static zh and en): an AI block sits right after the paragraph it is about, says what it is about, 新 until kept, 保留 / 重新生成 /
-   删除 and a follow-up field; one whose words are gone is at the end marked 原位置已变; the panel over selected words offers 弄懂 and an instruction, under a
-   heading only the instruction; without a model the shared gate. Fakes only. */
+/* 复习全书 M4 on the page (static zh and en): an AI block sits in the learner's layer of its point, after the point's text and the learner's notes (its
+   words dashed in the text above), says what it is about, 新 until kept, 保留 / 重新生成 / 删除 and a follow-up field; one whose words are gone is marked
+   原位置已变; the panel over selected words offers 弄懂 and an instruction, under a heading only the instruction; without a model the shared gate. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -32,14 +32,15 @@ const handlers = { gone: ui.goneSet([]), qaOpen: () => false, toggleQa: noop, so
   addHere: noop, aiAction: noop, aiFollow: noop };
 const chapter = () => render(h(ui.BookChapter, { node, open: true, onToggle: noop, course: 'SA', handlers }));
 
-test('an AI block right after its paragraph, with 保留 / 重新生成 / 删除 and a follow-up; one whose words are gone at the end, 原位置已变', () => {
+test('an AI block in the learner\'s layer, with 保留 / 重新生成 / 删除 and a follow-up; one whose words are gone marked 原位置已变', () => {
   const html = chapter(), text = textOf(html);
-  assert.ok(text.indexOf('its reasons.') < text.indexOf('关于：「records each decision」') && text.indexOf('关于：「records each decision」') < text.indexOf('Third paragraph.'), 'after its paragraph');
+  assert.ok(text.indexOf('Third paragraph.') < text.indexOf('My note.') && text.indexOf('My note.') < text.indexOf('关于：「records each decision」'), 'after the point\'s text and the notes');
+  assert.match(text, /我的笔记与 AI 解释 \(3\) My note\./, 'under the layer\'s header, with its count');
   assert.match(html, /data-ai-block="ai1" data-ai-state="new"/);
   assert.match(text, /关于：「records each decision」 新/);
   assert.match(text, /保留 重新生成 删除/);
   assert.match(html, /placeholder="接着问…"/);
-  assert.ok(text.indexOf('Orphan.') > text.indexOf('My note.'), 'the lost one at the end');
+  assert.ok(text.indexOf('Orphan.') > text.indexOf('An explanation of it.'), 'in the order of the own file');
   assert.match(text, /关于：「words that are nowhere」 原位置已变/);
   assert.doesNotMatch(html, /sh:ai/, 'no marker shown');
   assert.match(text, /在这里加一段/, 'a point offers 在这里加一段');
@@ -72,7 +73,7 @@ test('the panel of a task not yet written shows its state and takes no second st
 
 test('English: the page\'s own words', () => english(() => {
   const html = chapter(), panel = render(h(ui.BookAiAsk, { target: { heading: 'h2', words: 'records', top: 10, left: 10 }, model: { ready: true }, onStart: noop, onClose: noop }));
-  const own = `${textOf(html)} ${textOf(panel)}`.replace(/Entropy|First paragraph\.|The architect records each decision and its reasons\.|Third paragraph\.|My note\.|An explanation of it\.|Orphan\.|关于：「records each decision」|关于：「words that are nowhere」|这一节还没有题。|出题/g, '');
+  const own = `${textOf(html)} ${textOf(panel)}`.replace(/Entropy|First paragraph\.|The architect records each decision and its reasons\.|Third paragraph\.|My note\.|An explanation of it\.|Orphan\.|关于：「records each decision」|关于：「words that are nowhere」/g, '');
   assert.equal(han.test(own), false, own);
   assert.match(textOf(html), /Keep Regenerate Delete/);
   assert.match(textOf(panel), /Explain/);
@@ -81,23 +82,26 @@ test('English: the page\'s own words', () => english(() => {
 const folding = (folded, element) => h(ui.AiFoldContext.Provider, { value: { folded: id => folded.includes(id), fold: noop, foldAll: noop } }, element);
 const folded = (list, point = node) => render(folding(list, h(ui.BookChapter, { node: point, open: true, onToggle: noop, course: 'SA', handlers })));
 
-test('a folded block: the header (AI, what it is about, 新) and the first line of the answer as a quiet summary; no body, actions or follow-up; open: all of them', () => {
+test('a folded block: the header (AI, what it is about) and the first line of the answer as a quiet summary; no 新, body, actions or follow-up; open: all of them', () => {
   const open = folded([]), shut = folded(['ai1']);
   assert.match(open, /aria-expanded="true"[^>]*aria-label="AI 写的段落"/);
   assert.doesNotMatch(open, /book-ai__summary/);
   const from = shut.indexOf('data-ai-block="ai1"'), block1 = shut.slice(from, shut.indexOf('</aside>', from));
   assert.match(block1, /data-ai-folded="true"/);
   assert.match(block1, /aria-expanded="false"/);
-  assert.match(textOf(block1), /AI 关于：「records each decision」 新 An explanation of it\.$/);
+  assert.match(textOf(block1), /AI 关于：「records each decision」 An explanation of it\.$/);
   assert.doesNotMatch(block1, /book-ai__actions|book-ai__follow|book-ai__body/);
   assert.match(shut.slice(shut.indexOf('data-ai-block="ai2"')), /book-ai__actions/, 'the other block is still open');
 });
 
-test('全部收起 / 全部展开 on a point with more than one AI block; none with one or without the page\'s fold', () => {
-  assert.match(textOf(folded([])), /在这里加一段 全部收起/);
-  assert.match(textOf(folded(['ai1', 'ai2'])), /在这里加一段 全部展开/);
-  assert.doesNotMatch(textOf(folded([], { ...node, mine: `My note.\n\n${block}` })), /全部收起|全部展开/);
-  assert.doesNotMatch(textOf(chapter()), /全部收起|全部展开/);
+test('整理 on a point with AI blocks under the page\'s fold; the layer\'s header folds or opens them all', () => {
+  const layer = html => /class="[^"]*book-layer__toggle[^"]*"[^>]*aria-expanded="(true|false)"|aria-expanded="(true|false)"[^>]*class="[^"]*book-layer__toggle/.exec(html)?.slice(1).find(Boolean);
+  assert.match(textOf(folded([])), /在这里加一段 暂无题 出题 本节问答 整理/);
+  assert.equal(layer(folded([])), 'true');
+  assert.equal(layer(folded(['ai1', 'ai2'])), 'false');
+  assert.match(textOf(folded([], { ...node, mine: `My note.\n\n${block}` })), /整理/, 'one block is enough');
+  assert.doesNotMatch(textOf(folded([], { ...node, mine: 'My note.' })), /整理/, 'no block: nothing to tidy');
+  assert.doesNotMatch(textOf(chapter()), /整理/, 'without the page\'s fold');
 });
 
 test('the summary is plain words: marks, cites and links off', () => {
@@ -106,6 +110,6 @@ test('the summary is plain words: marks, cites and links off', () => {
 });
 
 test('English: the fold words', () => english(() => {
-  assert.match(textOf(folded(['ai1'])), /Add a paragraph here Expand all|Add a paragraph here Collapse all/);
+  assert.match(textOf(folded(['ai1'])), /Add a paragraph here .*Tidy up .*My notes and AI explanations \(3\)/);
   assert.match(folded([]), /aria-label="Paragraph written by AI"/);
 }));
