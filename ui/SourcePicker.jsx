@@ -8,8 +8,9 @@ import { courseScope } from '../lib/course-tree.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { materialRelations } from '../lib/source-relations.js';
 import { displayTitle } from '../lib/document-title.js';
-import IndexBadge from './IndexBadge.jsx';
+import IndexBadge, { IndexGapLine } from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
+import { indexGap } from './index-scope.js';
 import css from './source-picker.css';
 import { formatNumber } from './format.js';
 
@@ -114,7 +115,7 @@ const setOfIds = ids => { let set = idSets.get(ids); if (!set) idSets.set(ids, s
  * a coverage answer or a click on another row leaves the other rows alone. `apply(update)` is stable and reads the latest selection itself.
  */
 export function documentRowPropsEqual(a, b) {
-  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.slot !== b.slot || a.relation !== b.relation
+  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.slot !== b.slot || a.relation !== b.relation || a.onIndex !== b.onIndex
     || a.apply !== b.apply || !sameIndexInfo(a.indexInfo, b.indexInfo)) return false;
   if (a.selected === b.selected) return true;
   const was = setOfIds(a.selected), now = setOfIds(b.selected);
@@ -127,7 +128,7 @@ export const relationNote = relation => !relation ? ''
     : relation.role === 'original' ? (relation.derived ? uiFormat('另有 {0} 份派生资料', [relation.derived]) : '') : uiFormat('同一文件的 {0} 份资料', [relation.count]);
 
 /* `slot`: the index badge's line is kept even before the coverage is known, so a badge arriving later fills it instead of making the row taller (#205). */
-const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, slot = false, relation = null }) {
+const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, slot = false, relation = null, onIndex }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), chaptersId = useId();
   const chaptered = chosenByChapters(item);
@@ -149,7 +150,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
           <span className="source-picker__text">
             <strong title={item.title}>{name}</strong>
             <small>{[...meta, item.coursesInferred ? ui('推断归属') : ''].filter(Boolean).join(' · ')}</small>
-            {(slot || indexInfo) && <small className="source-picker__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} />}</small>}
+            {(slot || indexInfo) && <small className="source-picker__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={onIndex ? () => onIndex(item.courses[0] || '') : undefined} />}</small>}
             {state === 'some' && <small className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
         </label>
@@ -204,12 +205,13 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * Props: sources (snapshot sources), selected (source ids), onChange(ids),
  * courses + scope + onScopeChange (course scope; omit onScopeChange to show
  * everything), disabled, onAdd (shows “添加资料”), defaultQuery (initial filter
- * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage + indexSlot (the index badge of each row; `indexSlot` keeps its line from the first paint, so a coverage answer that arrives later changes no row height). Extra props land on the root.
+ * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage + indexSlot (the index badge of each row; `indexSlot` keeps its line from the first paint, so a coverage answer that arrives later changes no row height),
+ * onIndex(course) (the way to 设置 › 检索扩展 with that course chosen: the badge of a row that is not fully indexed gets 建立索引, and one line says how many rows are not fully indexed; none without it). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
  * hundreds of materials never pushes the page down.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
-  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexSlot = false, ...rest }) {
+  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexSlot = false, onIndex, ...rest }) {
   useInjectCss(css, 'study-source-picker');
   const [query, setQuery] = useState(defaultQuery);
   const items = useMemo(() => groupSourcesByDocument(sources).filter(item => !item.archived), [sources]);
@@ -224,8 +226,8 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const outside = selected.some(id => !visible.some(item => item.sourceIds.includes(id)));
   const change = ids => onChange?.(ids);
   // Rows read the latest selection through one stable function, so a click re-renders the clicked row, not all of them (#205).
-  const latest = useRef({ selected, onChange });
-  latest.current = { selected, onChange };
+  const latest = useRef({ selected, onChange, onIndex });
+  latest.current = { selected, onChange, onIndex };
   const apply = useCallback(update => latest.current.onChange?.(update(latest.current.selected)), []);
   // One index state per document, reusing the previous object while it is unchanged: a coverage answer then touches the rows whose badge changed.
   const infoCache = useRef(new Map());
@@ -239,6 +241,9 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
     return next;
   }, [items, indexCoverage, bigKeys]);
   const canIndex = indexCoverage?.canIndex;
+  // The badges ask for the index through one stable function that reads the latest handler, so a new handler each render redraws no row.
+  const goIndex = useCallback(course => latest.current.onIndex?.(course), []);
+  const gap = useMemo(() => (onIndex ? indexGap(visible.map(item => ({ item, info: infos.get(item.key) }))) : null), [onIndex, visible, infos]);
   const relations = useMemo(() => materialRelations(items), [items]);
   if (!items.length) return (
     <div className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
@@ -258,12 +263,13 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
         </div>
       </div>
       {outside && <p className="source-picker__note">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}
+      {gap && <IndexGapLine count={gap.count} canIndex={canIndex} onGo={() => goIndex(gap.course)} />}
       {visible.length ? <ScrollWindow className="source-picker__window" label={ui('资料列表')} items={visible} itemKey={item => item.key}
         match={documentSearchText} query={query} onQueryChange={setQuery} filterable={visible.length > FILTER_AFTER || filtering}
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
-          indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} slot={indexSlot} relation={relations.get(item.key) ?? null} />} />
+          indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} slot={indexSlot} relation={relations.get(item.key) ?? null} onIndex={onIndex ? goIndex : undefined} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {onAdd && <Button variant="quiet" size="sm" icon="plus" className="source-picker__add" disabled={disabled} onClick={onAdd}>{ui('添加资料')}</Button>}
     </div>

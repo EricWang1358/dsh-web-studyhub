@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Checkbox, Disclosure, ProgressBar } from '../components/index.js';
-import { PointBody } from './BookChapter.jsx';
+import PointBody from './PointBody.jsx';
 import MockPaper from './MockPaper.jsx';
 import { bookRows } from './model.js';
 import { mistakeText, pointMeta, reasonText } from './crunch-words.js';
@@ -56,7 +56,7 @@ export default function BookFlip({ book, crunch, course, handlers, onMark, onGo,
               {items.map((item, at) => <li key={`${item.kind}-${at}`} data-kind={item.kind}>{mistakeText(item)}</li>)}
             </ul> : <p className="book-flip__muted">{ui('这一节还没有记下的易错点。')}</p>}
             <Disclosure className="book-flip__explain" summary={ui('讲解')} open={open} onToggle={value => flip(setOpened, hid, value)}>
-              {open && <PointBody node={row.node} course={course} handlers={handlers} />}
+              {open && <PointBody node={row.node} course={course} handlers={handlers} level={4} />}
             </Disclosure>
             <Button variant="link" size="sm" className="book-flip__go" onClick={() => onGo(hid)}>{ui('在书里看这一节')}</Button>
           </article>

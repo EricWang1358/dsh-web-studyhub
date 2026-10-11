@@ -134,10 +134,12 @@ test('分析题答案卡: 生成答题卡 → the card with its badges → 加�
       await page.goto(running.server.url);
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
-      const unplaced = page.locator('[data-chapter="unplaced"]');
+      // 逐节读: 未归位 is the last step, reached from the 目录.
+      await page.locator('.book-step').waitFor({ timeout: 30000 });
+      if (!await page.locator('.book-toc').count()) await page.locator('.book-header__toc').click();
+      await page.locator('.book-toc__go', { hasText: '未归位' }).click();
+      const unplaced = page.locator('[data-book-step="unplaced"]');
       await unplaced.waitFor({ timeout: 30000 });
-      const toggle = unplaced.locator('.book-chapter__toggle');
-      if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
       await unplaced.getByText('Answer card', { exact: true }).waitFor({ timeout: 30000 });
       const shown = await unplaced.innerText();
       assert.match(shown, /Question type: Availability/);

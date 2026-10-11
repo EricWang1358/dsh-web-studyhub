@@ -14,10 +14,35 @@
 
 | 部分 | 是什么 |
 | --- | --- |
-| 目录 | 书里所有标题：总纲的章、节、知识点。「你在这里」标出屏幕上正在读的标题，点一个标题就跳过去。宽屏时在正文旁边；窄屏时折叠在标题下（「目录」按钮），跳转后自动收起。 |
-| 章 | 总纲的每一章一块。只画打开的章，书再大也不卡；上次读到的那一章会自动打开。 |
-| 知识点 | 讲解（考情、知识梳理、讲解、例子、补充（资料以外）、出处作为脚注）和「练 5 道」「本节问答」，然后是「本节的题」：它现在的题目，前 5 道是链接，其余用「还有 N 道」展开。没有题的知识点写「这一节还没有题。」并给出「出题」。没有样卷时不显示任何考试相关内容。 |
+| 目录 | 书里所有标题：总纲的章、节、知识点。「你在这里」标出正在读的知识点，点一个标题就跳过去。宽屏时在正文旁边；窄屏时折叠在标题下（「目录」按钮），跳转后自动收起。 |
+| 章 | 总纲的每一章一块（「整章滚动」时）。只画打开的章，书再大也不卡；上次读到的那一章会自动打开。 |
+| 知识点 | 按阅读顺序排的讲解（见下面「一节怎么读」），顶部一行是「练 5 道」「本节问答」。没有题的知识点在那一行显示淡色的「暂无题」和「出题」。没有样卷时不显示任何考试相关内容。 |
 | 未归位 | 只在总纲重新整理后、你自己写的内容找不到对应知识点时出现；每段用原来的标题，标「已无对应知识点」。 |
+
+## 两种读法
+
+在「预览」里，「怎么读」在两种读法之间切换（按课程记在这个浏览器里）：
+
+- **逐节读**（默认）：一次只显示一个知识点，上面是它所在的章、节，和「第 N / M 节」「上一节 / 下一节」（紧凑），底部也有「上一节 / 下一节」（带相邻那一节的标题）。键盘 ← / → 一样能翻（在输入框里打字、用菜单或选中了文字时不翻）。翻到新的一节从顶部开始读；目录标出它。点目录里的标题、「查找」里的编号、「今天读哪几节」的「去读」或「翻看」里的入口，都会显示那一节（点章或节：显示它的第一个知识点）。
+- **整章滚动**：和以前一样把各章连着滚动，但除了正在读的那一节，每个知识点只显示标题和一句话（它的要点），点标题展开或收起。跳转会展开跳到的那一节。
+
+切换读法时停在同一个知识点。练完题「回到复习全书」时，两种读法都回到原来的那一节和位置。
+
+## 一节怎么读
+
+一个知识点先显示程序写的内容，再显示你自己的一层；文件里的内容一样不少，只是换了显示顺序：
+
+1. **顶部一行操作**：左边「在这里加一段」；右边「练 5 道」「本节问答 (N)」（N 是问答条数，显示这一节时读取）和「整理」（有 AI 块时才有）。「本节问答」在这一行下面展开。
+2. **一句话**：这一节的要点，字更大。讲解里自带一句话时用它；否则用「讲解」的第一句，这一句不再在「讲解」里重复。第一句是列表、表格、公式、代码或太长时，不显示一句话。
+3. 正文：「讲解」和「例子」（以及你写在生成文件末尾的内容）。
+4. **要点清单**（知识梳理）和**补充（资料以外）**，各自收在标题下。
+5. **我的笔记与 AI 解释 (N)**：你的笔记，然后是你自己文件里的 AI 块（按写入顺序），然后是加入复习全书的问答。有三项或以上、或有一块超过 1,500 字时，默认收起（每块只显示标题行和一行摘要）；你展开或收起过的块保持你的选择。点这一层的标题一次收起或展开全部块。为整个知识点写的块（「在这里加一段」写的）如果比讲解还长、而且大部分内容和讲解一样（按词对粗略比较，60% 以上的句子和引文在讲解里能找到），会显示「与上面的讲解重复度高」和「收起」。「新」只在展开的块上显示。
+6. **本节的题 (N)**，默认收起：它现在的题目，前 5 道是链接，其余用「还有 N 道」展开。
+7. **出处 N**：一个淡色的小按钮，点开才显示清单。正文里的角标照样打开阅读器里的原文。
+
+**整理**不会删除任何东西：「收起所有 AI 块 / 展开所有 AI 块」，以及「只留我写的（隐藏 N 段）」：在这一节隐藏不是你写的块（新的、没保留过的、为整个知识点写的块），这一层随后显示「已隐藏 N 段 AI 写的」和「全部显示」。隐藏和收起都按课程记在这个浏览器里，不写进书的文字，所以导出和「原文」不受影响。
+
+正文 17 px，宽屏时一行约 70 个字符；表格在手机上在自己的框里横向滚动，整页不横向滚动。公式只画一次（MathML）；把页面复制成纯文本时它可能出现两遍（TeX 源码作为隐藏的注释跟着一起复制），这是复制的副作用，不是页面上显示的样子。
 
 ## 链接
 
@@ -51,9 +76,9 @@
 
 - 回答只依据这个知识点自己的资料（和阅读器里问一段原文同样的规则）。引文会在资料里逐字核对，找不到的去掉；资料以外的内容单独列在「补充（资料以外）」下。没有资料的知识点会直接说明，不开始。
 - **你写的要求会被照着做。** 只点「弄懂」（没写要求）时，还是固定的讲解格式。写了要求（「让 AI 写一段…」或「在这里加一段」，比如「用厨师例子通俗解释 Day1-5」「讲细点」「对比 X 和 Y 做个表」）时，回答的形式、语气、长度和例子都按你的要求来；事实仍然只依据选中的那段和这一节的资料。要求里的类比、例子或背景如果来自资料以外，会直接写在正文里，并在那一处用「（资料以外）」标出来，不再藏在末尾的清单里；AI 被要求不能把资料以外的事实说成是资料写的，资料没讲清的地方只说一次。在某一段下面的追问是你的又一个要求，回答方式相同（比如「再用厨师例子讲一遍」）。如果模型仍单独列出资料以外的内容，它们会作为普通的圆点放在正文末尾，每条以「（资料以外）」开头，不再放在脚注标题下。检查过的原文引用仍可能放在末尾的「资料原文」里。
-- 它作为新的一段写进这个知识点自己的笔记，从不覆盖已有内容，显示在你选中的那句话所在段落的后面（那一段挪了位置或改了几个字，它会跟着；那句话没了，就移到这个知识点的末尾，标「原位置已变」）。「在这里加一段」放在标题下面。第一行写着它是关于什么的：「关于：「…」」。
+- 它作为新的一段写进这个知识点自己的笔记，从不覆盖已有内容，显示在这一节的「我的笔记与 AI 解释」里，在这一节的正文之后（不会放到正文上面）；写好时会自动展开并带你看到它。你选中的那几个字在原段落里保留虚线（找得到才有；那句话没了，块上标「原位置已变」）。「在这里加一段」为整个知识点写一块。第一行写着它是关于什么的：「关于：「…」」。
 - 写进去以后就是你的文字：可以在「原文」里像别的内容一样改；书的更新不会改动它。「保留」表示留下，「重新生成」按原来的要求再写一遍，「删除」去掉它，下面的输入框可以接着问，回答放在它下面。
-- 每一块可以收起：点标题行（AI、「关于：「…」」，收起时再加一行答案开头作为淡色摘要），或在上面按 Enter / 空格，就能收起或展开；知识点上的「全部收起 / 全部展开」一次处理这个知识点的全部块。新生成的块是展开的；收起与否是你自己的选择，按学习库和课程记在这个浏览器里，不写进书的文字，所以导出和「原文」不受影响。你选中的那几个字在它所在的段落里带一条虚线（找得到才有，找不到就没有）：点它会打开并带你看到这一块，点块里的「关于：「…」」会回到那几个字。
+- 每一块可以收起：点标题行（AI、「关于：「…」」，收起时再加一行答案开头作为淡色摘要），或在上面按 Enter / 空格，就能收起或展开；「我的笔记与 AI 解释」的标题（或「整理」）一次处理这个知识点的全部块。新生成的块是展开的；收起与否是你自己的选择，按学习库和课程记在这个浏览器里，不写进书的文字，所以导出和「原文」不受影响。你选中的那几个字在它所在的段落里带一条虚线（找得到才有，找不到就没有）：点它会打开并带你看到这一块，点块里的「关于：「…」」会回到那几个字。
 - 和书里别的内容一样，它只是参考，不会被当作出题的资料。
 - 笔记正在「原文」里编辑时，期间写进来的段落会合进你的保存，两边都不丢。
 - 已知限制：书页每 1.5 秒查看一次它开始的任务，只在任务进行中查看。预览和开发用的服务器没有后台任务执行器，所以这些任务（以及生成复习全书）只能在真正的宿主里运行。
@@ -121,4 +146,4 @@
 - lib/course-book-links.js（浏览器可用）：三种题目链接（`parseBookLink`）、写在标题行末的标题 id（`## 标题 <!-- sh:id h3 -->`，`assignHeadingIds`：只给一次，永不复用）、`bookIndex`（标题树和每个标题下的题目链接）、`stitchBook`（按顺序拼接文件，脚注按文件命名）、`plainBook`。
 - `course.book.export {course?, form?: 'single' | 'folder', answerKey?: boolean, estimateOnly?: boolean}`（lib/course-book-export-op.js，只读：按 `course.book.open` 会给出的书导出，什么都不写）返回 `{ status, course, form, title, language, filename, text | files + manifest, questions, estimate: { pages, book, withAnswers, columns, rows } }`；Markdown 由 lib/course-book-export.js 的 `exportBook` 生成（纯函数，浏览器可用，输出确定），查找页是 lib/course-book-lookup.js 的 `bookLookup(book, { caseTypes, answerCards })` 和 `renderLookup`（编号：`codeOf`）。`course.book.open` 另外返回 `answerCards`（书里题目的答题卡摘要）和 `caseTypes`（这门课的题型目录，课程自己的题型带 `own: true`），来自 lib/course-book-cards.js。题型可以带 `mistakes`（lib/case-types.js）。`settings.book.set {patch: {pageLimit: 1–2000 | null}}`。
 - `book.crunch {course?, date?, minutesPerDay?, daysOff?, reviewDays?}`（lib/course-book-crunch.js，只读）返回 `{ status: 'ok' | 'far' | 'past' | 'no-exam' | 'no-book' | 'no-course', course, examDate, daysLeft, window, revision, plan, points }`；计划由 lib/crunch-plan.js 的 `crunchPlan` 排出（纯函数，浏览器可用，输出确定：`days: [{ date, offset, mode: 'learn' | 'flip' | 'off', mock, points, done, minutes, reason: { code, … } }]`、`today`、`order: { learn, flip }`、`merged`、`unlearned`）；`points` 是 `{ id, key, code, title, tested, weakness, questions, weak, due, fresh, size, pitfalls, done, seen }`，易错点来自 lib/book-flip.js 的 `pointMistakes(book)`。`book.crunch {all: true, date?}` 返回考试在窗口以内、没有停用的课程（`settings.book.set {patch: {crunchWindowDays: 1–60 | null}}`，默认 21 天），带今天这一天和它的几节。每天的分钟数是 `settings.book.crunchMinutes`（15–960，默认 180；操作的 `minutesPerDay` 优先）。结果按学习库文件夹、课程、学习库版本、书的版本、日期和参数保留（lib/course-book-crunch.js，`crunchComputations()` 记真正算了几次），所以首页卡片不会每次快照都把书重建一遍。`book.crunch.mark {course?, hid, kind: 'read' | 'seen', on?, date?}` 在书的写入队列里记下标记。`book.mock.plan {course?, pointIds?, count?}`（只读）返回 `{ points, unknown, questions, eligible, leftOut: { 题型: 道数 }, count, capped, perPoint, limitMinutes? }`；`book.mock`（同样的参数和 `limitMinutes?`）在一个事务里调用 `review.start {mode: 'exam', scope, count, examKinds: 'all'}`，返回考试记录并附上 `mock`。拒绝码：book-crunch-date、book-crunch-no-book、book-crunch-kind、book-crunch-point、book-mock-no-book、book-mock-points、book-mock-count、book-mock-empty。
-- 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。查找是 ui/book/BookLookup.jsx，导出是 ui/book/BookExport.jsx，翻看是 ui/book/BookFlip.jsx，计划的一天是 ui/book/CrunchDay.jsx（首页卡片是 ui/book/CrunchCard.jsx），模拟卷是 ui/book/MockPaper.jsx。
+- 页面在 ui/book/（ui/pages.js 的 `book` 一行）；链接通过 ui/Markdown.jsx 的 `resolveLink` 绘制。查找是 ui/book/BookLookup.jsx，导出是 ui/book/BookExport.jsx，翻看是 ui/book/BookFlip.jsx，计划的一天是 ui/book/CrunchDay.jsx（首页卡片是 ui/book/CrunchCard.jsx），模拟卷是 ui/book/MockPaper.jsx。阅读：两种读法和每一步是 ui/book/reading.js（`study-book-reading:<学习库>:<课程>`），逐节读的一节是 ui/book/BookStep.jsx，一节的正文是 ui/book/PointBody.jsx，顶部一行是 ui/book/PointToolbar.jsx，你的一层是 ui/book/PointLayer.jsx；生成文件的各部分、一句话、重复检查和这一层的默认收起是 ui/book/point-parts.js（纯函数：按 lib/course-book-files.js `genText` 写的标签读文件，所以你去掉标签改写过的文件整体显示为一部分）。收起、展开过的块和「只留我写的」在 ui/book/ai-fold.js（`study-book-ai-folded:` / `study-book-ai-opened:` / `study-book-ai-mine-only:`）。

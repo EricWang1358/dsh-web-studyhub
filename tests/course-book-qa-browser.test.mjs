@@ -62,6 +62,8 @@ test('复习全书 Q&A: 加入复习全书 / 已加入 · 撤回 on a follow-up,
       await page.goto(running.server.url);
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
+      // The point's questions are folded under 本节的题 (N).
+      await page.locator('.book-questions > summary').first().click({ timeout: 30000 });
       await page.locator('.book-questions [data-book-link="card"]').first().waitFor({ timeout: 30000 });
       const book = await running.api('course.book.open', {}), ref = book.nodes[0].children[0].questions[0];
       const manual = await running.api('card.followup.add', { ...ref, question: `Manual question ${width}?`, answer: `Manual answer ${width}.` });

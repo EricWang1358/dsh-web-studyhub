@@ -72,7 +72,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       };
       await openBook();
       if (await page.locator('.book-editor').count()) await mode('预览');
-      await page.locator('.book-chapter').first().waitFor();
+      await page.locator('[data-book-point]').first().waitFor();
 
       // 原文: the generated file of 1.1, edited and saved; it is 已改动 from then on.
       await mode('原文');
@@ -123,6 +123,9 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       };
       await conflict(`Server ${width}`);
       await openBook();
+      // The learner's file of 1.2: 逐节读 shows 1.1 first, 下一节 is 1.2.
+      const toSecond = async () => { await page.locator('.book-step__next').click(); await page.locator('.book-step__heading', { hasText: 'Stakeholders' }).waitFor(); };
+      await toSecond();
       const suggestion = page.locator('.book-suggestion', { hasText: '书已更新' });
       await suggestion.waitFor({ timeout: 30000 });
       if (shots) await page.screenshot({ path: join(shots, `edit-suggestion-${width}.png`) });
@@ -131,6 +134,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       assert.equal(await page.locator('.book-suggestion', { hasText: '书已更新' }).count(), 0);
       await conflict(`Again ${width}`);
       await openBook();
+      await toSecond();
       await page.locator('.book-suggestion', { hasText: '书已更新' }).getByText('忽略', { exact: true }).click();
       await page.locator('.book-suggestion', { hasText: '书已更新' }).waitFor({ state: 'detached', timeout: 30000 });
       await page.locator('.book-file--mine', { hasText: `Again ${width} B` }).waitFor();
@@ -144,7 +148,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       await page.locator('.book-editor__revert').click();
       await page.waitForFunction(text => !document.querySelector('.cm-content')?.innerText.includes(text), `My addition at ${width}.`, { timeout: 30000 });
       await mode('预览');
-      await page.locator('.book-chapter').first().waitFor();
+      await page.locator('[data-book-point]').first().waitFor();
       assert.equal(await page.locator('.book-file', { hasText: `My addition at ${width}.` }).count(), 0, `${width}px: the edit is taken back`);
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
