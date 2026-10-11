@@ -121,6 +121,18 @@ function reduceAnswer(data, { drop = [] } = {}) {
   return { basis: ['syllabus', 'numbering', 'dates', 'magic'], chapters };
 }
 
+/** Cluster: a knowledge point per topic (the words before "fact n"); the reintroduction notes and the diagram copy join "What architects do", any other item the overview. */
+export function clusterAnswer(data) {
+  const points = new Map();
+  for (const item of data.items) {
+    const fact = /^(.+) fact \d+$/.exec(item.name)?.[1];
+    const topic = !fact ? 'Course overview' : ['Reintroduction', 'Diagram view'].includes(fact) ? 'What architects do' : fact;
+    if (!points.has(topic)) points.set(topic, { title: topic, intro: `About ${topic}. What it is and why it matters.`, items: [] });
+    points.get(topic).items.push(item.id);
+  }
+  return { points: [...points.values()] };
+}
+
 function paperAnswer(data) {
   const id = title => data.points.find(point => point.title === title)?.id;
   const questions = data.paper[0].text.split('\n').map(line => /^(Q\d) (.+?) \(/.exec(line)).filter(Boolean)
@@ -144,7 +156,7 @@ export function inventoryAnswer(data, { invent = false } = {}) {
   return { items };
 }
 
-/** The fake model. `junk(call, calls)`: answer with text that is not JSON; `fail(call, calls)`: throw; `held`: { at, gate } holds that call; `drop`: point titles the reduce leaves out;
+/** The fake model. `junk(call, calls)`: answer with text that is not JSON; `fail(call, calls)`: throw; `held`: { at | stage, gate } holds that call (the first of that stage); `drop`: point titles the reduce leaves out;
     `inventory`: 'facts' (inventoryAnswer, the default), 'none' (no item) or 'invent' (facts with quotes that are in no range). */
 export function outlineModel({ junk, fail, held, drop, inventory = 'facts' } = {}) {
   const calls = [];
@@ -152,10 +164,12 @@ export function outlineModel({ junk, fail, held, drop, inventory = 'facts' } = {
     const data = requestData(prompt), call = { stage: data.stage, data, request, system, prompt };
     calls.push(call);
     reportUsage({ uncachedInputTokens: 100, outputTokens: 30, cacheReadTokens: 0, cacheWriteTokens: 0 });
-    if (held && calls.length === held.at) await held.gate.promise;
+    if (held && (held.stage ? call.stage === held.stage && !held.taken && (held.taken = true) : calls.length === held.at)) await held.gate.promise;
     if (fail?.(call, calls)) throw new Error('provider down');
     if (junk?.(call, calls)) return 'Sure! Here is the outline you asked for (not JSON).';
     if (data.stage === 'inventory') return JSON.stringify(inventory === 'none' ? { items: [] } : inventoryAnswer(data, { invent: inventory === 'invent' }));
+    if (data.stage === 'cluster') return JSON.stringify(clusterAnswer(data));
+    if (data.stage === 'order') return JSON.stringify(reduceAnswer(data, { drop }));
     if (data.stage === 'map') return JSON.stringify(mapAnswer(data));
     if (data.stage === 'reduce') return `\`\`\`json\n${JSON.stringify(reduceAnswer(data, { drop }))}\n\`\`\``;
     if (data.stage === 'paper') return JSON.stringify(paperAnswer(data));

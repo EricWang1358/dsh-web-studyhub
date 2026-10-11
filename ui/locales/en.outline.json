@@ -53,7 +53,6 @@
   "重新整理": "Reorganise",
   "生成总纲": "Generate outline",
   "提供了试卷？": "Have sample papers?",
-  "勾选的资料当作样卷：总纲会标出样卷考过的知识点。不勾选也能生成，只是没有这个标记。": "Ticked materials are used as sample papers: the outline marks the knowledge points they test. Without any, the outline is made all the same, just without these marks.",
   "像样卷": "Looks like a sample paper",
   "资料有更新，建议重新整理": "Your materials have changed since; reorganising is suggested",
   "{0}（{1} 份同名）": "{0} ({1} with this name)",
@@ -150,7 +149,7 @@
   "弄懂和加一段需要先配置模型；读书页、改书页照常能用。": "Set up a model to explain or add a paragraph; reading and editing the book work as usual.",
   "读书页、改书页照常能用；弄懂和加一段前需要先配置模型。": "Reading and editing the book work as usual; set up a model before explaining or adding a paragraph.",
   "正在写…": "Writing…",
-  "已开始：写好后会出现在这一段下面；任务页可以看进度。":"Started: it appears under this passage when it is written; the Tasks page shows its progress.",
+  "已开始：写好后会出现在这一段下面；任务页可以看进度。": "Started: it appears under this passage when it is written; the Tasks page shows its progress.",
   "没有写成，可以在任务页重试。": "It was not written; you can retry it on the Tasks page.",
   "查找": "Lookup",
   "答题顺序": "Answer order",
@@ -263,5 +262,9 @@
   "讲解覆盖：读了资料的 {0}%，{1} 个知识点只读了一部分（展开知识点可「读更多」）": "Explanations cover {0}% of the materials; {1} knowledge point(s) read only in part (open one to Read more)",
   "讲解覆盖：读了资料的 {0}%": "Explanations cover {0}% of the materials",
   "第 {0}–{1} 字": "Characters {0}–{1}",
-  "{0} 等 {1} 份": "{0} and others ({1} in all)"
+  "{0} 等 {1} 份": "{0} and others ({1} in all)",
+  "勾选的资料当作样卷：总纲会标出样卷考过的知识点。像样卷的资料默认就用上；全部不勾选就不标。": "Ticked materials are used as sample papers: the outline marks the knowledge points they test. Materials that look like sample papers are used by default; untick them all for no marks.",
+  "更改样卷": "Change the sample papers",
+  "依据样卷：{0}（按名称自动识别，可更改）": "Sample papers used: {0} (recognised by their names; you can change them)",
+  "依据样卷：{0}": "Sample papers used: {0}"
 }

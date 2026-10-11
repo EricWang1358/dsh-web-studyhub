@@ -97,7 +97,7 @@ test('the 134-material course: every range read once in a handful of calls, item
   const before = w.fake.calls.length;
   await w.build();
   assert.equal(w.of('inventory').length, calls.length, 'no inventory call the second time');
-  assert.deepEqual(w.fake.calls.slice(before).map(call => call.stage), ['map', 'reduce', 'paper'], 'only the outline itself (the paper is found by its name)');
+  assert.deepEqual(w.fake.calls.slice(before).map(call => call.stage), ['paper'], 'only the paper (found by its name); the grouping is kept in the inventory');
   assert.deepEqual((await w.inventories()).map(item => item.id), [record.id]);
 });
 

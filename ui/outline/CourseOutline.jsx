@@ -12,7 +12,7 @@ import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
 import OutlineTree from './OutlineTree.jsx';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
 import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, runningText,
-  startPickedText, startedText, whatText, writingText } from './words.js';
+  startPickedText, startedText, usedPapersText, whatText, writingText } from './words.js';
 import css from './outline.css';
 
 /* 总纲 (course outline): the current course's materials as a tree (资料 → 章节) with the questions placed where they point (course.outline,
@@ -74,7 +74,8 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   const organise = useCallback(async papers => {
     try {
       // The interface language goes with every request (uiLanguage), so the task speaks it without being told here.
-      await act('generation.courseOutline.build', { course, ...(papers.length ? { papers } : {}) },
+      // `papers`: null leaves the choice to the build (the outline's, else the papers recognised by name); a list is the learner's (empty: none).
+      await act('generation.courseOutline.build', { course, ...(Array.isArray(papers) ? { papers } : {}) },
         result => notify({ text: startedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, notify]);
@@ -90,7 +91,7 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   // 生成复习全书 / 更新全书: one task; it organises the outline first when there is none or it is out of date, and with papers other than the outline's only marks it again.
   const writeBook = useCallback(async papers => {
     try {
-      await act('generation.courseBook.build', { course, coverage, ...(papers.length ? { papers } : {}) },
+      await act('generation.courseBook.build', { course, coverage, ...(Array.isArray(papers) ? { papers } : {}) },
         result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, coverage, notify]);
@@ -132,8 +133,13 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
  */
 function Organise({ book, documents, running, writing, model, quiet, coverage, actions }) {
   const { busy } = useStudy();
-  const [papers, setPapers] = useState(() => new Set());
   const choices = useMemo(() => paperChoices(documents), [documents]);
+  // The papers used by default: the outline's, else the ones recognised by name (the build finds the same); the learner changes them here, and only then are they sent.
+  const used = useMemo(() => (book ? book.paperList || [] : choices.filter(choice => choice.likely)), [book, choices]);
+  const [papers, setPapers] = useState(() => new Set(used.map(paper => paper.key)));
+  const [changed, setChanged] = useState(false);
+  useEffect(() => { if (!changed) setPapers(new Set(used.map(paper => paper.key))); }, [used, changed]);
+  const chosen = () => (changed ? [...papers] : null);
   const run = writing || running;
   if (run) return (
     <p className="outline-organise__running" role="status">
@@ -141,20 +147,21 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
       {actions.onOpenTask && <Button variant="link" size="sm" onClick={() => actions.onOpenTask(run.jobId)}>{ui('看进度')}</Button>}
     </p>
   );
-  const flip = (key, on) => setPapers(current => { const next = new Set(current); if (on) next.add(key); else next.delete(key); return next; });
+  const flip = (key, on) => { setChanged(true); setPapers(current => { const next = new Set(current); if (on) next.add(key); else next.delete(key); return next; }); };
   const main = quiet ? null : mainAction(book), off = busy || !model.ready;
   const bookMain = main === 'book' || main === 'update';
   return (
     <div className="outline-organise__actions">
       {!book && <Button variant={main === 'outline' ? 'primary' : 'quiet'} size={main === 'outline' ? undefined : 'sm'} icon="sparkle" disabled={off}
-        onClick={() => actions.organise([...papers])}>{ui('生成总纲')}</Button>}
+        onClick={() => actions.organise(chosen())}>{ui('生成总纲')}</Button>}
       <Button variant={bookMain ? 'primary' : book ? 'quiet' : 'secondary'} size={bookMain || !book ? undefined : 'sm'} icon="book" disabled={off}
-        onClick={() => actions.writeBook([...papers])}>{book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>
+        onClick={() => actions.writeBook(chosen())}>{book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>
       {actions.setCoverage && <Select className="outline-organise__level" aria-label={ui('讲解详尽程度')} value={coverage} options={levelOptions()} disabled={off}
         onChange={value => actions.setCoverage(value)} />}
-      {book && <Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise([...papers])}>{ui('重新整理')}</Button>}
-      {choices.length > 0 && <Disclosure className="outline-papers" summary={ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
-        <p className="outline-papers__note">{ui('勾选的资料当作样卷：总纲会标出样卷考过的知识点。不勾选也能生成，只是没有这个标记。')}</p>
+      {book && <Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise(chosen())}>{ui('重新整理')}</Button>}
+      {used.length > 0 && !changed && <p className="outline-papers__used" data-papers-used="">{usedPapersText(used.map(paper => displayTitle(paper.title)), !book || book.papersBy !== 'learner')}</p>}
+      {choices.length > 0 && <Disclosure className="outline-papers" summary={used.length ? ui('更改样卷') : ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
+        <p className="outline-papers__note">{ui('勾选的资料当作样卷：总纲会标出样卷考过的知识点。像样卷的资料默认就用上；全部不勾选就不标。')}</p>
         {book && <p className="outline-papers__note">{ui('已有复习全书时点「更新全书」：只重新对照样卷、改写考情，讲解不变。')}</p>}
         <ul className="outline-papers__list">
           {choices.map(choice => <li key={choice.key}><Checkbox label={displayTitle(choice.title)} hint={choice.likely ? ui('像样卷') : undefined} checked={papers.has(choice.key)}

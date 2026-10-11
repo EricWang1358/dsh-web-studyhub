@@ -139,3 +139,5 @@ export function partHeadingText(part, named) {
   const text = shown.join(' / ');
   return part.ranges.length > 3 ? uiFormat('{0} 等 {1} 份', [text, part.ranges.length]) : text;
 }
+/** The sample papers a build uses, said without opening anything: their names, and whether they were recognised by name (the learner can change them). */
+export const usedPapersText = (titles, auto) => uiFormat(auto ? '依据样卷：{0}（按名称自动识别，可更改）' : '依据样卷：{0}', [titles.join(ui('、'))]);
