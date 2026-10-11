@@ -89,9 +89,9 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
     catch (failure) { setCoverageShown(savedCoverage); notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, notify, savedCoverage]);
   // 生成复习全书 / 更新全书: one task; it organises the outline first when there is none or it is out of date, and with papers other than the outline's only marks it again.
-  const writeBook = useCallback(async papers => {
+  const writeBook = useCallback(async (papers, extra = {}) => {
     try {
-      await act('generation.courseBook.build', { course, coverage, ...(Array.isArray(papers) ? { papers } : {}) },
+      await act('generation.courseBook.build', { course, coverage, ...(Array.isArray(papers) ? { papers } : {}), ...extra },
         result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, coverage, notify]);
@@ -220,6 +220,11 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         <p className="outline-book-line__basis">{basisText(book.orderBasis)}</p>
         {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} icon="book" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
+        {book.from === null && actions.writeBook && <p className="outline-book-line__stale" data-old-outline="">
+          <span>{ui('这份总纲是旧版本按资料名整理的，复习全书照旧按它写。')}</span>{' '}
+          <Button size="sm" variant="secondary" icon="refresh" disabled={busy || !model.ready} onClick={() => actions.writeBook(null, { rebuildOutline: true })}>{ui('用清点结果重新整理总纲')}</Button>{' '}
+          <span>{ui('你的笔记会按位置对应过去。')}</span>
+        </p>}
         {book.notes?.levels ? <p className="outline-book-line__coverage" data-book-levels="">{levelsText(book.notes.levels)}</p>
           : book.notes?.coverage?.total > 0 && <p className="outline-book-line__coverage">{bookCoverageText(book.notes.coverage)}</p>}
         {organise}

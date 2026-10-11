@@ -159,6 +159,8 @@
 
 只能升级。旧版（3.3.0 及更早）不认识这条记录：会原样保留，但可能把它当一份名为「复习全书 · 课程」的 Markdown 资料列出，正文只有一行「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」。在旧版里删掉这一条，书页的文件也就没了。版本历史（学习库文件夹里的 `book-history`）旧版不会理会。题目的答题卡（`answerCard`）旧版原样保留，只显示原来的参考答案。导出不写任何东西；旧版下次保存设置时会丢掉页数上限（`settings.book.pageLimit`），保存课程时会丢掉课程自己题型的 `mistakes`。期末一周只写它的标记（`bookDoc.marks`，旧版原样保留）和可选的 `settings.book.crunchWindowDays`（旧版保存设置时会丢掉）；模拟卷是普通的考试记录。
 
+**有质量把关的流程（这个版本）同样只能升级：先备份学习库**。3.4 还能读它的记录，但有这些限制：3.4 不认识资料清点的记录（`course-outline-inventory`），可能把它当资料列出（不要拿它出题）；它解析不了按清点整理的总纲里的页段（`doc@s3-7`），这些知识点在 3.4 里不显示题；讲解里带一份 3.4 能读的正文和出处（`explain`、`cites`），显示时没有概念覆盖、生词与概念和未达标标记。
+
 ## 开发者
 
 - `course.book.open {course?}`（lib/course-book-files.js）返回 `{ status, course, revision, title, language, notes, papers, nodes, unplaced, missing, changed }`；`nodes` 是 `{ hid, key, title, number, depth, leaf, gen, mine, questions: [{ deckId, cardId, prompt }], questionTotal, children }`（`questions` 现读，最多 200 道），`missing` 是文件里链接的、已不存在的题目。它先看学习库，只有文件有变化时才写入记录；不随快照发送。
