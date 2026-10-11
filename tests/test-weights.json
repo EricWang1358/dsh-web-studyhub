@@ -64,6 +64,8 @@
  "tests/blog-notes.runtime.test.mjs": 660,
  "tests/blog-notes.test.mjs": 660,
  "tests/board.test.mjs": 360,
+ "tests/book-send-to-chat-browser.test.mjs": 9810,
+ "tests/book-send-to-chat.test.mjs": 30,
  "tests/bulk-import.test.mjs": 350,
  "tests/calculation-assessment.test.mjs": 360,
  "tests/calculation-check.test.mjs": 10,

@@ -16,6 +16,8 @@ import BookToc from './BookToc.jsx';
 import { BookReadContext, bookSteps, stepIndexOf, useBookReading, useStepKeys } from './reading.js';
 import BookEditor from './BookEditor.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
+import BookToChat from './BookToChat.jsx';
+import { useSendToChat } from './send-to-chat.js';
 import BookLookup from './BookLookup.jsx';
 import BookExport, { budgetText } from './BookExport.jsx';
 import BookFlip from './BookFlip.jsx';
@@ -117,6 +119,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   // The panel of a task closes when the task is over (its block is in the book, or the failure said).
   useEffect(() => { if (ask?.jobId && !pending.has(ask.jobId)) setAsk(null); }, [ask, pending]);
   const closeAsk = useCallback(() => setAsk(null), []);
+  // 发给主会话 over selected words: the message names the point and the words (ui/book/send-to-chat.js); the panel closes when it is handed over.
+  const sendToChat = useSendToChat(course);
   // A task started here is looked at now and then (job.status) until it ends; then the book is read again, its block in place.
   usePolling(async () => {
     for (const jobId of pending) {
@@ -301,6 +305,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {mode === 'preview' && <Button size="sm" variant="quiet" icon="list" className="book-header__toc" aria-expanded={tocOpen} onClick={() => setTocOpen(value => !value)}>{ui('目录')}</Button>}
       {crunchDay && mode !== 'source' && <Button size="sm" variant="quiet" icon="calendar" className="book-header__today" aria-expanded={todayOpen} onClick={() => setTodayOpen(value => !value)}>{ui('今天读哪几节')}</Button>}
       <Button size="sm" variant="secondary" icon="download" className="book-header__export" onClick={() => setExporting(true)}>{ui('导出')}</Button>
+      <BookToChat scope="book" course={course} />
       {pages !== null && pageLimit && <span className="book-header__budget" data-over={pages > pageLimit || undefined}>
         {uiFormat('导出约 {0} 页 / 上限 {1} 页', [pages, pageLimit])}{pages > pageLimit ? ` · ${budgetText(pages, pageLimit).text}` : ''}</span>}
     </div>}
@@ -325,7 +330,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     );
   }
   // A new selection or heading is a new panel (its own, empty instruction).
-  const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args }, true)} onClose={closeAsk} />;
+  const askNode = ask?.words ? rowOf(rows, ask.heading)?.node ?? null : null;
+  const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args }, true)} onClose={closeAsk}
+    onSend={askNode ? async ({ words, instruction }) => {
+      await sendToChat({ scope: 'selection', node: askNode, files: book.files, selection: words, instruction });
+      closeAsk();
+      window.getSelection?.()?.removeAllRanges?.();
+    } : undefined} />;
   const exportDialog = exporting &&<BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
   // 今天读哪几节: today's day of the plan, under the header (the same day the home's 期末一周 card shows).
   const todayPanel = crunchDay && todayOpen && mode !== 'source' && <section className="book-today" aria-label={ui('今天读哪几节')}>

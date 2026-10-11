@@ -49,13 +49,15 @@ Switching keeps the point you are reading. The way back after practice returns t
 
 A point shows the program's text in reading order, then your own layer; nothing is left out of a file, the parts are only shown in another order:
 
-1. **The action row** at the top: **Add a paragraph here** on the left; **Practise 5**, **Questions and answers (N)** (N: how many items it has, read when the point is shown) and **Tidy up** (when the point has AI blocks) on the right. **Questions and answers** opens under the row.
+1. **The action row** at the top: **Add a paragraph here** on the left; **Practise 5**, **Questions and answers (N)** (N: how many items it has, read when the point is shown), **Tidy up** (when the point has AI blocks) and **Send to the main chat** on the right. **Questions and answers** opens under the row.
 2. **In one sentence** (一句话): the takeaway, larger. It is the notes' own one-sentence part when they have one, otherwise the first sentence of the explanation, which is then not repeated under **Explanation**. A first sentence that is a list, a table, a formula or code, or is very long, gives no takeaway.
 3. The story: **Explanation** and **Example** (and anything you wrote at the end of a generated file).
 4. **Checklist** (要点清单, the key points) and **Extra (beyond the materials)**, each folded under its label.
 5. **My notes and AI explanations (N)**: your notes, then the AI blocks of your own file in the order they were written, then the Q&A put into the book. It starts folded (each block shows its header and summary line) when there are three or more items or a block is longer than 1,500 characters; a block you opened or folded keeps that. Selecting the header folds or opens every block. A whole-point block (one written by **Add a paragraph here**) that is longer than the point's explanation and mostly says the same (60 % or more of its sentences and quotes found in the notes by a cheap word-pair comparison) shows **Mostly repeats the explanation above** with **Collapse**. **New** shows only on an open block.
 6. **Questions of this point (N)**, folded: its questions as they are now, the first five as links and **N more** for the rest.
 7. **Sources N**: one quiet chip; select it for the list. The footnote marks in the text still open the reader at the quote.
+
+**Send to the main chat** (after **Tidy up** on the row, in the panel over selected words, and **Whole book · send to the main chat** in the header) fills the chat's input box with a message that asks the main chat to change that point, your selection or the whole book with the `study-book` skill (see [The review book and the main chat](review-book-agent.md)); it carries no book text.
 
 **Tidy up** (整理) never deletes anything: **Collapse all AI blocks / Expand all AI blocks**, and **Only what I wrote (hide N)**, which hides the blocks you did not write (new, never kept, written for the whole point) on this point; the layer then says **N AI paragraphs hidden** with **Show all**. Hiding and folding are kept per course in this browser, never in the book's text, so the export and **Source** ignore them.
 
@@ -145,7 +147,7 @@ When a course has an exam date (**Course settings**) and a review book, the prog
 
 ## Edit it from the main chat
 
-Ask the main DSH chat to write or rewrite any part of the book: it works one knowledge point at a time with the `study-book` skill, reads the material pages first, checks every quote word for word and keeps the previous version of every file it writes. See [The review book and the main chat](review-book-agent.md).
+Ask the main DSH chat to write or rewrite any part of the book: it works one knowledge point at a time with the `study-book` skill, reads the material pages first, checks every quote word for word and keeps the previous version of every file it writes. See [The review book and the main chat](review-book-agent.md). The book page can also hand a point, selected words or the whole book to the chat with **Send to the main chat**.
 
 ## Where it is kept
 

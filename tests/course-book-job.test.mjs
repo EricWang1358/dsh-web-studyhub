@@ -77,7 +77,7 @@ test('the 134-material course: inventory, outline, checklist, parallel writing, 
   assert.deepEqual((await w.notes()).map(item => item.id), [record.id]);
 });
 
-test('a point that misses concepts goes through repair; one still short after two rounds is kept as 未达标, the Job is partial, and the next build mends only it', async t => {
+test('a point that misses concepts goes through repair; one still short after two rounds is kept as 未达标, the Job is partial, a rerun asks nothing and 补漏 mends only it', async t => {
   const w = await world(t, { fake: bookModel({ omit: 1, stubborn: ['Layers'] }) });
   const record = await finish(w);
   const leaves = record.courseNotes.leaves, layers = leaves.find(leaf => leaf.title === 'Layers');
@@ -102,8 +102,12 @@ test('a point that misses concepts goes through repair; one still short after tw
   assert.deepEqual([own.concepts.covered, own.concepts.total, own.concepts.status, own.concepts.missing.length], [3, 4, 'short', 1]);
   // The next build: only the short point is mended (reviewed and repaired from its text, not written again).
   w.fake.opts.stubborn = [];
+  const idle = w.fake.calls.length;
+  await finish(w);
+  assert.equal(w.fake.calls.length, idle, 'a rerun makes no call: a point left short is not mended again by itself');
+  // 补漏 of that point: only it is mended (reviewed and repaired from its text, not written again).
   const mark = w.fake.calls.length;
-  const fresh = await finish(w);
+  const fresh = await finish(w, { point: layers.id });
   assert.deepEqual([...new Set(w.fake.calls.slice(mark).map(call => call.data.point?.title))], ['Layers']);
   assert.deepEqual(w.fake.calls.slice(mark).map(call => call.stage), ['review', 'repair', 'review']);
   assert.equal(fresh.courseNotes.leaves.find(leaf => leaf.title === 'Layers').body.status, 'ok');

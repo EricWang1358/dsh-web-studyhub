@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Menu } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
+import BookToChat from './BookToChat.jsx';
 
 /* The one row of a knowledge point's actions (复习全书, docs/review-book.md "Reading a point"), in place of the 练 5 道 · 本节问答 line and 这一节还没有题。
    at its end: 在这里加一段 on the left; 练 5 道, 本节问答 (N) and 整理 on the right. A point without questions shows a quiet 暂无题 and 出题 instead of 练 5 道.
@@ -43,6 +44,7 @@ export default function PointToolbar({ node, course, handlers, tidy }) {
         {tidy && <Menu label={ui('整理')} className="book-point__tidy" items={items}
           trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="filter" className="book-point__tidy-button" {...props}>{ui('整理')}</Button>}
           onSelect={id => { if (id === 'fold') tidy.foldAll(!tidy.allFolded); else tidy.mineOnly(id === 'mine'); }} />}
+        <BookToChat scope="point" node={node} course={course} files={handlers.files} />
       </div>
     </div>
   );

@@ -348,6 +348,39 @@
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
+    /* 发给主会话 (ui/book/BookToChat.jsx): the popover of a point's toolbar row and of the header; it is never wider than the window. */
+    .book-chat__panel {
+      width: min(340px, calc(100vw - var(--space-7)));
+    }
+    .book-chat__form {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-chat__title {
+      margin: 0;
+      font-weight: var(--fw-strong);
+    }
+    .book-chat__presets,
+    .book-chat__send {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
+    }
+    .book-chat__send {
+      justify-content: flex-end;
+    }
+    .book-chat__input {
+      width: 100%;
+      min-width: 0;
+      resize: vertical;
+    }
+    .book-chat__hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
     .book-suggestion {
       display: grid;
       gap: var(--space-2);
