@@ -8,11 +8,25 @@ import { planOutline } from '../lib/contexts/generation/outline/plan.js';
 import { itemId, nameForms, nameKey } from '../lib/course-book-inventory.js';
 import { judge, mentions } from '../lib/contexts/generation/book/coverage.js';
 import { openCourseBook } from '../lib/course-book-files.js';
+import { normalizeCourseNotes } from '../lib/course-book.js';
+import { leafNotes } from '../lib/course-book-view.js';
+import { courseOutline } from '../lib/course-outline.js';
+import { courseOutlineQa } from '../lib/course-outline-qa.js';
 import { planBook } from '../lib/contexts/generation/book/plan.js';
+import { expandOrder, orderPoints } from '../lib/contexts/generation/outline/order.js';
+import { ORDER_CHARS } from '../lib/contexts/generation/outline/constants.js';
+import { inventoryOutline } from '../lib/contexts/generation/outline/inventory-tree.js';
+import { materialOrder } from '../lib/contexts/generation/outline/jobs/inventory-stages.js';
+import { OUTLINE_LIMITS } from '../lib/course-outline-book.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { COURSE, outlineLibrary, outlineModel } from './helpers/course-outline-library.mjs';
+import { StudyService } from '../lib/service.js';
+import { settleJob, until } from './helpers/wait.mjs';
+import { gate, privateRoot } from './helpers/model-family-baseline.mjs';
+import { switchOptions } from './helpers/runtime-switch.mjs';
+import { isCourseInventorySource } from '../lib/exam-point-list.js';
 
 const doc = (key, title, format = 'pdf') => ({ key, title, format, filename: title, sourceIds: [`${key}-s`], chapters: [], chars: 3000 });
 
@@ -103,4 +117,88 @@ test('6. the first 更新全书 after the upgrade keeps a 3.4 outline; it is reb
     nodes: [{ id: 'c1', title: 'Materials', children: [{ id: 'lec', title: 'Lecture 1', anchors: [lecture] }] }], other: { anchors: [] }, counts: {} }), createdAt: '2026-10-01T00:00:00.000Z' });
   assert.equal(planBook(state, { course: COURSE, language: 'zh' }).mode, 'keep', 'no silent rebuild');
   assert.equal(planBook(state, { course: COURSE, language: 'zh', rebuildOutline: true }).mode, 'full');
+});
+
+test('7. a course of 2,000 knowledge points fits the record: the order call is shown groups, a leaf over 400 items is split, nodes are merged; no item dropped', () => {
+  const items = [], clusters = [];
+  for (let k = 0; k < 2000; k++) {
+    const own = Array.from({ length: k === 7 ? 900 : 5 }, (_, i) => `i${String(k * 1000 + i).padStart(11, '0')}`);
+    items.push(...own.map(id => ({ id, kind: 'concept', name: id, gist: '', places: [] })));
+    clusters.push({ id: `p${k + 1}`, title: `Topic ${k + 1} of a very long course`, intro: 'About it.', items: own, names: own.slice(0, 4), materials: [`Material ${Math.floor(k / 3) + 1}`], pages: '1-2' });
+  }
+  const { points, members } = orderPoints(clusters);
+  assert.ok(JSON.stringify(points).length <= ORDER_CHARS, 'the order call stays modest');
+  assert.deepEqual([...members.values()].flat(), clusters.map(cluster => cluster.id), 'every point in exactly one group, in order');
+  const plan = { described: { documents: [], units: [], unitDoc: new Map(), descriptors: [] }, syllabus: null };
+  const words = { unplacedChapter: 'Other', unplacedLeaf: 'Not placed', unplacedIntro: '' };
+  const one = { basis: ['logic'], chapters: [{ title: 'All', intro: '', sections: [], leaves: points.map(point => ({ ids: [point.id] })) }] };
+  for (const reduce of [expandOrder(one, members), materialOrder(clusters)]) {
+    const outline = inventoryOutline(plan, { items }, { clusters, loose: [] }, reduce, [], words);
+    const leaves = [], walk = list => list.forEach(node => (node.children ? walk(node.children) : leaves.push(node)));
+    walk(outline.nodes);
+    const count = list => list.reduce((sum, node) => sum + 1 + (node.children ? count(node.children) : 0), 0);
+    assert.ok(count(outline.nodes) <= OUTLINE_LIMITS.nodes, `${count(outline.nodes)} nodes`);
+    assert.ok(leaves.every(leaf => leaf.items.length <= OUTLINE_LIMITS.items));
+    assert.deepEqual(leaves.flatMap(leaf => leaf.items).sort(), items.map(item => item.id).sort(), 'every item once');
+    assert.doesNotThrow(() => courseOutlineMaterial({ title: 'T', course: 'C', orderBasis: { codes: [] }, nodes: outline.nodes, other: { anchors: [] }, fingerprint: '01234567', counts: {} }));
+  }
+});
+
+test('8 and 10. a stop in the middle of the inventory keeps what was read; the next build reads only the rest; one inventory record per course', async t => {
+  const held = { at: 4, gate: gate() };
+  t.after(() => held.gate.release());
+  const fake = outlineModel({ held });
+  const root = await privateRoot(t, 'gate-inventory-stop-');
+  const service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+  t.after(() => service.dispose());
+  const { sources, decks } = outlineLibrary();
+  await service.store.update(state => { state.sources.push(...structuredClone(sources)); state.decks.push(...structuredClone(decks)); });
+  const run = await service.call('generation.courseOutline.build', { course: COURSE, language: 'zh' });
+  await until(() => fake.calls.length >= 4, 'the fourth inventory call');
+  await service.call('job.control', { jobId: run.jobId, action: 'cancel' });
+  held.gate.release();
+  assert.equal((await settleJob(service, run.jobId)).status, 'cancelled');
+  const kept = (await service.store.read()).sources.filter(isCourseInventorySource);
+  assert.equal(kept.length, 1);
+  const read = kept[0].courseInventory.ranges.filter(range => range.status === 'read');
+  assert.ok(read.length > 0, 'what was read before the stop is kept');
+  const asked = fake.calls.length;
+  const job = await settleJob(service, (await service.call('generation.courseOutline.build', { course: COURSE, language: 'zh' })).jobId);
+  assert.equal(job.status, 'complete');
+  const again = fake.calls.slice(asked).filter(call => call.stage === 'inventory').flatMap(call => call.data.ranges);
+  const prints = new Set(read.map(range => range.print));
+  assert.ok(again.length > 0 && again.length + new Set(kept[0].courseInventory.ranges.filter(range => prints.has(range.print)).map(range => range.print)).size
+    <= new Set(kept[0].courseInventory.ranges.map(range => range.print)).size, 'only the ranges not read before are asked');
+  assert.equal((await service.store.read()).sources.filter(isCourseInventorySource).length, 1, 'one inventory record for the course');
+});
+
+test('9. spans: pages no span covers go to Other with their questions, a span names the real page numbers, and a QA read orders span-only leaves', async () => {
+  const pages = Array.from({ length: 6 }, (_, at) => ({ id: `old-p${at}`, title: `Old lecture · p. ${at + 31}`, text: `Page ${at + 31} fact ${at}: something taught there.`,
+    createdAt: '2026-09-01T00:00:00.000Z', courses: ['G'], document: { materialId: 'document-old', page: at + 31, totalPages: 6, format: 'pdf' } }));
+  const cards = pages.map((source, at) => ({ id: `q${at}`, kind: 'flashcard', topic: 't', prompt: `On page ${at + 31}?`, answer: 'A.', citations: [{ sourceId: source.id, quote: source.text.slice(0, 20) }] }));
+  const state = { revision: 1, sources: [...pages], decks: [{ id: 'd', title: 'D', course: 'G', cards }], documents: [], drafts: [], attempts: [], runs: [], courses: [] };
+  const key = groupSourcesByDocument(state.sources).find(item => item.sourceIds.includes('old-p0')).key;
+  state.sources.push({ ...courseOutlineMaterial({ title: '总纲 · G', course: 'G', orderBasis: { codes: [] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: 'G' }).allDocuments),
+    nodes: [{ id: 'ch', title: 'Chapter', children: [{ id: 'a', title: 'A', anchors: [`${key}@s0-0`, `${key}@s1-1`] }, { id: 'b', title: 'B', anchors: [`${key}@s4-5`] }] }], other: { anchors: [] },
+    counts: {}, from: 'inventory' }), createdAt: '2026-10-12T00:00:00.000Z' });
+  const view = courseOutline(state, { course: 'G' });
+  const [a, b] = view.book.nodes[0].children;
+  assert.deepEqual([a.total, b.total, view.book.other.total], [2, 2, 2], 'the two questions of pages 33-34 are in Other, not lost');
+  const opened = courseOutline(state, { course: 'G', expand: [a.key] });
+  assert.deepEqual(opened.open[a.key].anchors.map(row => row.pages), [{ from: 31, to: 31 }, { from: 32, to: 32 }], 'the pages the converter numbered');
+  const qa = courseOutlineQa(state, { course: 'G', keys: [b.key] });
+  assert.equal(qa.status === 'ok' || qa.status === 'empty', true);
+});
+
+test('5. a body of units carries a 3.4 mirror (explain, cites, points) a rollback can read; this version shows the units and not the mirror', () => {
+  const body = { fingerprint: '0123456789abcdef', units: [{ text: 'One [^1].', cites: [{ n: 1, sourceId: 's1', quote: 'the first quote' }], covered: [], read: [] },
+    { text: 'Two [^1].', cites: [{ n: 1, sourceId: 's2', quote: 'the second quote' }], covered: [], read: [] }], coverage: { must: 0, covered: [], missing: [] }, status: 'ok' };
+  const [leaf] = normalizeCourseNotes({ course: 'C', outlineId: 'o', leaves: [{ id: 'n1', title: 'P', anchors: [], body }] }).leaves;
+  // What 3.4's lib/course-book-view.js leafNotes does with a body: leaf.body.cites.map, then its points and explain.
+  assert.doesNotThrow(() => leaf.body.cites.map(cite => cite.quote));
+  assert.deepEqual([leaf.body.points, leaf.body.explain, leaf.body.cites.map(cite => cite.n)], [[], 'One [^1].\n\nTwo [^2].', [1, 2]]);
+  const shown = leafNotes({ record: { courseNotes: { leaves: [leaf] } }, status: null }, 'n1', new Map());
+  assert.deepEqual([shown.body.text, shown.body.explain, shown.body.points], ['One [^1].\n\nTwo [^2].', undefined, undefined]);
+  const long = normalizeCourseNotes({ course: 'C', outlineId: 'o', leaves: [{ id: 'n1', title: 'P', anchors: [], body: { ...body, units: Array.from({ length: 90 }, () => body.units[0]) } }] }).leaves[0];
+  assert.deepEqual([long.body.units.length, long.body.status, long.body.issues.map(issue => issue.kind)], [80, 'short', ['toolong']], 'too long: kept in part, said, never complete');
 });

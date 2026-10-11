@@ -110,7 +110,11 @@ The round comes back to the outline: **Back to the outline** in the round and on
 - A question cannot be moved to another row by hand.
 - Recordings keep their parts as chapters only when the material has chapters; there is no jump to a time in the recording.
 - The quality of the review book's explanations depends on the model; the flow, the call counts and the quote checks have been verified with a fake model, the content not yet with a real model on a real textbook.
-- The review book is updated as a whole; a single point cannot be rewritten or edited by hand.
+- The review book is updated as a whole; **Fill the gaps** asks for one short point only, and the book page's own editing changes the text.
+- Each build has its own pool of parallel calls at the text concurrency: two builds of different courses running at once use up to twice that many calls together.
+- The inventory and grouping answers are reused by their content (the texts, the prompts' versions, the language), not by the model: changing the model does not read the materials again; a new prompt version does.
+- A knowledge point is stored in at most 80 units (passes); a longer one keeps the first 80 and says **Too long: not all of it was kept**. A very large course is fitted to at most 800 outline nodes and 400 items a point by splitting and merging points, never by dropping items.
+- **Generate outline** ends **partial** when a range of the inventory or a grouping call failed; the next build asks only those.
 
 ## For developers
 

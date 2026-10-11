@@ -328,5 +328,6 @@
   "这一节清单里必须讲到的概念讲到了 {0}/{1} 个（book.coverage 的 concepts.missing 列出还缺的；补上时用资料里的原名）。": "The concepts this point's checklist must cover: {0} of {1} covered (book.coverage lists the missing ones in concepts.missing; use the material's own name when you add one).",
   "这份总纲是旧版本按资料名整理的，复习全书照旧按它写。": "This outline was organised by an older version from the materials' names; the review book is still written on it.",
   "用清点结果重新整理总纲": "Reorganise the outline from the inventory",
-  "你的笔记会按位置对应过去。": "Your notes follow their points by page."
+  "你的笔记会按位置对应过去。": "Your notes follow their points by page.",
+  "内容过长未全部保留": "Too long: not all of it was kept"
 }
