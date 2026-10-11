@@ -29,6 +29,7 @@ import { DraftPartLine, NEW_DECK, PartTargetChoice, defaultPartTarget, partTarge
 import { publishAndPractice } from './app/use-drafts.js';
 import { canStopWork, holdLine, stopLabel } from './draft-publish.js';
 import { topUpArgs, topUpNotice } from './coverage/top-up.js';
+import MaterialsReport from './coverage/MaterialsReport.jsx';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -115,6 +116,10 @@ export default function Draft({
     (jsonMode && draftText !== JSON.stringify(draft, null, 2));
   // 覆盖: which sections of the material have a question (the saved draft's own, asked again whenever the library or the draft changes).
   const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id } : null, { version: `${data.revision}:${draft.draftVersion}` });
+  // Live (the coverage of the draft now, every run of it), never the snapshot of the last run (`editorial.coverage.selected` counts that run's sources only): pages of a PDF, else materials.
+  const liveView = covered.view?.status === "ok" ? covered.view : null;
+  const liveCited = !liveView ? null : coverageCount ? (liveView.coverage?.units === "page" ? [liveView.coverage.covered, liveView.coverage.leaves] : null)
+      : liveView.materials ? [liveView.materials.covered, liveView.materials.selected] : null;
   React.useEffect(() => {
     if (staleDraft && !updatingDraft && !unsavedDraft) openDraft(latestDraft);
   }, [staleDraft, updatingDraft, unsavedDraft, latestDraft, openDraft]);
@@ -132,9 +137,11 @@ export default function Draft({
     try { d = jsonMode ? parseDraft(draftText) : draft; } catch (error) { toast.error(uiFormat("JSON 格式不正确：{0}", [error.message])); return undefined; }
     return act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => { if (isCurrent()) openDraft(saved); await next(saved); }, { afterNavigation: true });
   }
-  const topUp = (target, sectionIds) => (unsavedDraft
-    ? saveThen(async (saved) => toast.success(topUpNotice(saved, await call("generate", topUpArgs(saved, sectionIds)))))
-    : topUpDraft(target, sectionIds));
+  const topUp = (target, sectionIds, options) => (unsavedDraft
+    ? saveThen(async (saved) => toast.success(topUpNotice(saved, await call("generate", topUpArgs(saved, sectionIds, options)))))
+    : topUpDraft(target, sectionIds, options));
+  // 选了 N 份，M 份已出题: the materials of the draft, read live (coverage.get), each without a question with its reason and its own 补题.
+  const materials = covered.view?.status === "ok" ? covered.view.materials : null;
   const activeReview = draft.editingDeckId && data.runs?.some((run) =>
     run.deckIds?.includes(draft.editingDeckId) || run.deckId === draft.editingDeckId);
   function saveAsNewDraft() {
@@ -234,6 +241,7 @@ export default function Draft({
       {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
         action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}
       {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}>
+        <MaterialsReport report={materials} disabled={busy || !!work || staleDraft || !modelReadiness(data).ready} onTopUp={(keys) => topUp(draft, keys, { manual: true })} />
         <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} saveThen={unsavedDraft ? saveThen : undefined} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
         <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} modelReady={modelReadiness(data).ready}
           onTopUp={topUp} />
@@ -330,8 +338,8 @@ export default function Draft({
         <Disclosure summary={ui("查看记录")}><ul>{previousLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
       </Banner>}
       {draft.editorial?.coverage && <Disclosure summary={coverageCount
-        ? uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 页", [draft.editorial.coverage.cited, draft.editorial.coverage.selected])
-        : uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 份", [draft.editorial.coverage.cited, draft.editorial.coverage.selected])}>
+        ? uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 页", liveCited ?? [draft.editorial.coverage.cited, draft.editorial.coverage.selected])
+        : uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 份", liveCited ?? [draft.editorial.coverage.cited, draft.editorial.coverage.selected])}>
         <p className="muted">{ui("“规划”是模型选出的考点次数，“通过”是最终引用该资料的合格题数；即使有题，也不代表整页或全部知识点都已覆盖。")}</p>
         {coveredSources.length > 0 && <ul className="coverage-documents">{coverageDocuments.filter((group) => group.covered > 0).map((group) => <li key={group.key}>
           {group.rows[0].page === null

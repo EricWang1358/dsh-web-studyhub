@@ -58,6 +58,16 @@
     .cov-why__list li { display: grid; gap: var(--space-half); }
     .cov-why__list small { color: var(--text-muted); font-size: var(--fs-xs); }
     .cov-why__acts { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
+    /* ── The materials of a draft: 选了 N 份，M 份已出题 (ui/coverage/MaterialsReport.jsx) and the line of the creation form ── */
+    .cov-materials { display: grid; gap: var(--space-1-5); min-width: 0; }
+    .cov-materials > * { min-width: 0; margin: 0; }
+    .cov-materials__head { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .cov-materials__note { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-materials__list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+    .cov-materials__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); min-width: 0; }
+    .cov-materials__name { min-width: 0; color: var(--text); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    .cov-materials__why { flex: 1 1 12em; min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+    .cov-materials__act { flex: none; }
     .cov-run__auto { display: grid; gap: var(--space-half); }
     .cov-run__auto small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-run + .cov-topup { padding-top: 0; border-top: 0; }

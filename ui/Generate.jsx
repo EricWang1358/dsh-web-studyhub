@@ -20,7 +20,7 @@ import ModelSetupGate from './ModelSetupGate.jsx';
 import { documentCount, freshGeneration, generationFormDefaults, generationStartedNotice, modelReadiness } from './generation-status.js';
 import GenerateAssist from './GenerateAssist.jsx';
 import { TokenEstimate, TokenEstimateView, useUsageEstimate } from './TokenUsage.jsx';
-import CoverageStrength from './coverage/CoverageStrength.jsx';
+import CoverageStrength, { MaterialsForecast } from './coverage/CoverageStrength.jsx';
 import { autoLine } from './coverage/copy.js';
 import { openingLine, openingSelection, openingStands } from './generate-opening.js';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
@@ -302,6 +302,7 @@ export default function Generate({
               {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the line above's). */}
               {!pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason && <div className="generate-estimate" data-generate-estimate>
                 <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} tight />
+                <MaterialsForecast coverage={plannedCoverage} />
                 {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
                   plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
               </div>}
