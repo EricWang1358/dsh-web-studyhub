@@ -37,7 +37,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     if (origin?.modal) return ui('返回资料');
     if (origin?.page === 'review') return origin.runComplete ? ui('返回本轮学习结果') : uiFormat('回到之前的第 {0} 题', [(origin.index || 0) + 1]);
     if (origin?.page === 'exam') return origin.exam?.kind === 'oral' ? ui('返回口头模拟') : ui('返回笔试');
-    if (!navLabelOf(origin?.page) && backLabelOf(origin?.page)) return ui(backLabelOf(origin.page));
+    if (backLabelOf(origin?.page)) return ui(backLabelOf(origin.page));
     return uiFormat('返回{0}', [ui(navLabelOf(origin?.page) || '原位置')]);
   }, []);
 

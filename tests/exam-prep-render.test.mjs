@@ -64,7 +64,7 @@ test('the sidebar entry and the page exist only while the switch is on', () => {
   const entries = data => ui.NAV_DEFAULTS.periodic.filter(id => ui.pageAvailable(data, id));
   assert.ok(entries(dataWith([mine], { on: true })).includes('examprep'));
   assert.ok(!entries(dataWith([mine], { on: false })).includes('examprep'));
-  assert.deepEqual(entries(dataWith([mine], { on: false })), ['exam', 'dashboard'], 'nothing else changes');
+  assert.deepEqual(entries(dataWith([mine], { on: false })), ['exam', 'book', 'dashboard'], 'nothing else changes');
   assert.equal(ui.PAGES.examprep.glyph, 'examprep');
 });
 

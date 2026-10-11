@@ -19,16 +19,16 @@ import BookFlip from './BookFlip.jsx';
 import CrunchDay from './CrunchDay.jsx';
 import { localDate } from '../../lib/board-model.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
-import { resolveBookSettings } from '../../lib/book-settings.js';
+import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { usePolling } from '../use-polling.js';
 import { isActiveJob } from '../../lib/job-status.js';
-import { bookRows, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
+import { bookRows, crunchDateHint, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
 import css from './book.css';
 
 /* 复习全书 (docs/plans/review-book.md, M1: read only). The book of the current course (course.book.open, lib/course-book-files.js): the 目录 beside the
    rendered Markdown at wide widths, one column with a folded 目录 at narrow ones. Only the open chapters render (I8). A question link goes to the practice
    page with the way back (回到复习全书), and the page comes back at the same heading and scroll; 本节问答 opens the point's questions and answers in place.
-   Reached from the 总纲 page (打开书页). */
+   Reached from the sidebar's 复习全书 (when the book is written) and from the 总纲 page (打开书页). */
 
 const wideNow = () => typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
 const scrollerOf = element => {
@@ -40,8 +40,8 @@ const scrollerOf = element => {
 };
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume }) keeps the way back; onOpenSource(sourceId, quote) (the reader); onCreate() (出题); onOpenTask(jobId);
-    onExamRun(run): enters a mock exam started here (M7); theme: 'light' | 'dark' (the editor's). */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, theme }) {
+    onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId): opens the course's settings (the exam date is its first field); theme: 'light' | 'dark' (the editor's). */
+export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme }) {
   useInjectCss(css, 'study-book');
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
@@ -233,6 +233,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   }, [act, course, notify]);
 
   const courseName = course === '' ? ui('未分类课程') : course || '';
+  // 期末一周 needs an exam date: without one a quiet link to the course settings, and with one beyond the window a quiet line saying when the week starts.
+  const courseRecord = (data?.courses || []).find(item => item.name === course);
+  const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
+  const dateLine = dateHint?.kind === 'later' ? <p className="book-header__crunch">{uiFormat('期末一周在考前 {0} 天开始', [dateHint.window])}</p>
+    : dateHint?.kind === 'none' && courseRecord?.id && onCourseSettings ? <p className="book-header__crunch">
+      <Button variant="link" size="sm" onClick={() => onCourseSettings(courseRecord.id)}>{ui('设置考试日期，开启期末一周')}</Button></p> : null;
   const header = <PageHeader className="book-header" back={{ label: ui('返回总纲'), onClick: onBack }} title={uiFormat('复习全书 · {0}', [courseName])}
     titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
     {book?.status === 'ok' && book.notes && <div className="book-header__tools">
@@ -244,6 +250,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {pages !== null && pageLimit && <span className="book-header__budget" data-over={pages > pageLimit || undefined}>
         {uiFormat('导出约 {0} 页 / 上限 {1} 页', [pages, pageLimit])}{pages > pageLimit ? ` · ${budgetText(pages, pageLimit).text}` : ''}</span>}
     </div>}
+    {dateLine}
   </PageHeader>;
   if (state.error && !book) return <section className="page book-page">{header}<ErrorState error={state.error} title={ui('复习全书读取失败')} onRetry={() => setState(current => ({ ...current, ticket: current.ticket + 1 }))} /></section>;
   if (!book) return <section className="page book-page">{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;

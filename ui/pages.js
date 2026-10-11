@@ -7,7 +7,7 @@
    group    the sidebar group (ui/nav-order.js NAV_DEFAULTS); null for pages that are reached from elsewhere
    needs    the host contexts the page is useless without (ui/capabilities.js pageAvailable)
    flag     a switch the host publishes in the snapshot's `features` (default off): without it the page is not available, has no sidebar entry and no link
-   back     the words of the way back to a page without a sidebar entry ("返回总纲"); the others say their sidebar label
+   back     the words of the way back to a page that names its own ("返回总纲", "回到复习全书"); the others say their sidebar label
    onEnter  what entering the page resets: onEnter(ctx, how). how is 'user' when the learner clicked its sidebar entry and
             'tour' when the feature tour switched to it; a plain navigate() calls nothing. ctx carries the resets.
    Free of ui() and React on purpose: the registry is plain data that a DOM-free test can read. */
@@ -25,6 +25,7 @@ export const PAGES = Object.freeze({
   board: { label: '待办', title: '待办看板', glyph: 'board', group: 'daily', needs: [], onEnter: user((ctx) => ctx.openBoardFresh()) },
   exam: { label: '模拟考试', title: '模拟考试', glyph: 'exam', group: 'periodic', needs: ['bank', 'study'], onEnter: (ctx) => ctx.resetExam() },
   examprep: { label: '备考补习', title: '备考补习', glyph: 'examprep', group: 'periodic', needs: ['materials', 'generation'], flag: 'examBlueprint' },
+  book: { label: '复习全书', title: '复习全书', glyph: 'book', group: 'periodic', needs: ['bank', 'study', 'materials'], back: '回到复习全书' },
   dashboard: { label: '统计', title: '学习统计', glyph: 'dashboard', group: 'periodic', needs: ['bank', 'study'] },
   skeleton: { label: '知识骨架', title: '知识骨架', glyph: 'skeleton', group: 'setup', needs: ['skeleton'] },
   audio: { label: '音频转写', title: '音频转写', glyph: 'audio', group: 'setup', needs: ['audio'] },
@@ -33,7 +34,6 @@ export const PAGES = Object.freeze({
   draft: { label: '草稿与发布', title: '草稿与发布', glyph: null, group: null, needs: ['bank', 'authoring'] },
   manage: { label: '维护题组', title: '维护题组', glyph: null, group: null, needs: ['bank'] },
   outline: { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '返回总纲' },
-  book: { label: '复习全书', title: '复习全书', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '回到复习全书' },
   graph: { label: '知识图谱', title: '知识图谱', glyph: null, group: null, needs: ['bank', 'study'], onEnter: user((ctx) => ctx.clearGraphScope()) },
   settings: { label: '设置', title: '设置', glyph: 'settings', group: null, needs: [] },
 });

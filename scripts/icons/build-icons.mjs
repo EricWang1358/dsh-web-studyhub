@@ -79,6 +79,7 @@ export const ICON_MAP = {
   'nav-dashboard': 'chart-bar',
   'nav-exam': 'exam',
   'nav-examprep': 'target',
+  'nav-book': 'book-open',
   'nav-wrongbook': 'arrow-counter-clockwise',
   'nav-notes': 'notebook',
   'nav-board': 'kanban',
