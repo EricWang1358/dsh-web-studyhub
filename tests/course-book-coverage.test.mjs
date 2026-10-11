@@ -68,12 +68,13 @@ test('a pass that fails is kept pending; the point is short and the next build w
   assert.equal(fresh.courseNotes.leaves[0].body.status, 'ok');
 });
 
-test('the detail level decides what is a must, not a template: 精简 terms and concepts, 详尽 every item', async t => {
-  const kinds = ['Step', 'Example', 'Claim'];
-  const sources = kinds.map((kind, at) => ({ id: `n${at}`, title: `${kind} note`, text: `${kind} fact ${at + 1}: something the course says.`, createdAt: '2026-09-01T00:00:00.000Z', courses: ['K'],
+test('the detail level decides what is a must, not a template: 精简 terms and concepts, 标准 steps too, 详尽 every item', async t => {
+  // One point holding a term, a step and an example (a point is always checked against at least its main item, so the levels differ inside one point).
+  const kinds = ['term', 'step', 'example'];
+  const sources = kinds.map((kind, at) => ({ id: `n${at}`, title: `${kind} note`, text: `Unit fact ${at + 1}: something the course says.`, createdAt: '2026-09-01T00:00:00.000Z', courses: ['K'],
     document: { materialId: `document-n${at}`, format: 'md', filename: `${kind}.md` } }));
   const fake = bookModel();
-  const kindOf = name => name.split(' ')[0].toLowerCase();
+  const kindOf = name => kinds[Number(/fact (\d+)/.exec(name)?.[1]) - 1] ?? 'concept';
   const complete = fake.complete;
   fake.complete = async (system, prompt, request) => {
     const text = await complete(system, prompt, request);
@@ -84,7 +85,7 @@ test('the detail level decides what is a must, not a template: 精简 terms and 
   };
   const w = await world(t, { fake, sources, course: 'K' });
   const must = async coverage => { const record = await w.finish({ coverage }); return record.courseNotes.leaves.reduce((sum, leaf) => sum + (leaf.body?.coverage.must ?? 0), 0); };
-  assert.deepEqual([await must('brief'), await must('standard'), await must('full')], [0, 1, 3]);
+  assert.deepEqual([await must('brief'), await must('standard'), await must('full')], [1, 2, 3]);
   assert.ok(fake.of('write').some(call => call.data.checklist.some(item => item.priority === 'optional')), 'an optional item is shown to the writer as such');
   assert.equal(bookCoverage(mergeBookSettings({}, { coverage: 'full' })), 'full');
 });

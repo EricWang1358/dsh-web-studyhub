@@ -207,3 +207,12 @@ test('stage 0 refuses with a code and no call; one build per course; the console
   await opener.run();
   assert.deepEqual(went, ['outline']);
 });
+
+test('gate 2.3: 补漏 after the detail level was raised writes the point against its new checklist, it never stamps the old text complete', async t => {
+  const w = await world(t);
+  const record = await finish(w);
+  const point = record.courseNotes.leaves.find(leaf => leaf.title === 'Layers'), mark = w.fake.calls.length;
+  await finish(w, { coverage: 'full', point: point.id });
+  const asked = w.fake.calls.slice(mark).filter(call => call.data.point?.title === 'Layers').map(call => call.stage);
+  assert.ok(asked.includes('write'), `written again (${asked})`);
+});

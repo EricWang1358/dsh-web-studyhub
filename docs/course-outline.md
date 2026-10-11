@@ -115,6 +115,8 @@ The round comes back to the outline: **Back to the outline** in the round and on
 - The inventory and grouping answers are reused by their content (the texts, the prompts' versions, the language), not by the model: changing the model does not read the materials again; a new prompt version does.
 - A knowledge point is stored in at most 80 units (passes); a longer one keeps the first 80 and says **Too long: not all of it was kept**. A very large course is fitted to at most 800 outline nodes and 400 items a point by splitting and merging points, never by dropping items.
 - **Generate outline** ends **partial** when a range of the inventory or a grouping call failed; the next build asks only those.
+- A point held by page spans counts no drafts (drafts are counted per material, not per page); its published questions count as usual.
+- A point with no concept of the inventory to check it against is shown **Unchecked**, never complete; one must item is always kept per point that has any.
 
 ## For developers
 

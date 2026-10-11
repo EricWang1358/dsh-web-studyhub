@@ -40,6 +40,9 @@ export default function LeafNotes({ notes, onOpenSource, onReadMore }) {
       {body?.text && body.issues?.some(issue => issue.kind === 'toolong') && <p className="outline-notes__short" role="status">
         <Badge size="sm" tone="warning">{ui('内容过长未全部保留')}</Badge>
       </p>}
+      {body?.text && body.status === 'unchecked' && <p className="outline-notes__short" role="status">
+        <Badge size="sm">{ui('未检查')}</Badge> {ui('这一节没有清点出的概念可以核对。')}
+      </p>}
       {body?.text && body.status === 'short' && <p className="outline-notes__short" role="status" data-notes-short="">
         <Badge size="sm" tone="warning">{shortText(body.coverage?.missing.length ?? 0)}</Badge> {(body.coverage?.missing || []).map(item => item.name).join(ui('、'))}
       </p>}

@@ -329,5 +329,13 @@
   "这份总纲是旧版本按资料名整理的，复习全书照旧按它写。": "This outline was organised by an older version from the materials' names; the review book is still written on it.",
   "用清点结果重新整理总纲": "Reorganise the outline from the inventory",
   "你的笔记会按位置对应过去。": "Your notes follow their points by page.",
-  "内容过长未全部保留": "Too long: not all of it was kept"
+  "内容过长未全部保留": "Too long: not all of it was kept",
+  "来自原知识点「{0}」": "From the earlier point “{0}”",
+  "笔记换了位置": "Notes moved",
+  "{0} 个知识点的笔记被移到了新位置（总纲重新整理过）：": "The notes of {0} knowledge point(s) moved to new places (the outline was organised again):",
+  "「{0}」并入「{1}」": "“{0}” joined “{1}”",
+  "「{0}」→「{1}」": "“{0}” → “{1}”",
+  "还有 {0} 个": "{0} more",
+  "未检查": "Unchecked",
+  "这一节没有清点出的概念可以核对。": "The inventory found no concept of this point to check it against."
 }

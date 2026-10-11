@@ -59,6 +59,7 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
   return (
     <div className="book-point" data-book-point={node.hid}>
       <PointToolbar node={node} course={course} handlers={handlers} tidy={tidy} />
+      {node.movedFrom && <p className="book-point__bridge" data-moved-from="">{uiFormat('来自原知识点「{0}」', [node.movedFrom])}</p>}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
       {node.bridge?.in && <p className="book-point__bridge">{node.bridge.in}</p>}
       {view.story.map(part => (part.name === 'takeaway'

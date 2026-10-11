@@ -28,6 +28,7 @@ import { localDate } from '../../lib/board-model.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelsText } from '../outline/words.js';
+import BookMoves from './BookMoves.jsx';
 import { usePolling } from '../use-polling.js';
 import { isActiveJob } from '../../lib/job-status.js';
 import { bookRows, crunchDateHint, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
@@ -311,6 +312,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     </div>}
     {dateLine}
     {book?.status === 'ok' && book.coverage && <p className="book-header__crunch" data-book-levels="">{levelsText(book.coverage)}</p>}
+    {book?.status === 'ok' && book.moves && <BookMoves course={course} moves={book.moves} />}
   </PageHeader>;
   if (state.error && !book) return <section className="page book-page">{header}<ErrorState error={state.error} title={ui('复习全书读取失败')} onRetry={() => setState(current => ({ ...current, ticket: current.ticket + 1 }))} /></section>;
   if (!book) return <section className="page book-page">{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;

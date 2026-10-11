@@ -27,7 +27,7 @@ function section(data, items, { invent }) {
 function review(data, { unsupported = [] }) {
   const issues = data.checklist.filter(item => item.priority === 'must' && !data.text.includes(item.name)).map(item => ({ kind: 'missing', item: item.id, note: `${item.name} is not explained.` }));
   if (unsupported.includes(data.point.title)) issues.push({ kind: 'unsupported', quote: 'A claim', note: 'Not in the pages.' });
-  return { issues };
+  return { issues, checked: data.checklist.filter(item => data.text.includes(item.name)).map(item => item.id) };
 }
 
 const examAnswer = data => ({ leaves: data.leaves.map(leaf => ({ id: leaf.id, note: `Asked as: ${String(leaf.questions[0] ?? '').slice(0, 40)}` })) });
