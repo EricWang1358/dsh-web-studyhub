@@ -58,6 +58,18 @@ test('the panel: 弄懂 and an instruction over selected words; only the instruc
   assert.match(textOf(off), /弄懂和加一段需要先配置模型|读书页、改书页照常能用/);
 });
 
+test('the panel of a task not yet written shows its state and takes no second start; the × stays', () => {
+  const props = { model: { ready: true }, onStart: noop, onClose: noop };
+  const idle = render(h(ui.BookAiAsk, { ...props, target: { heading: 'h2', words: 'records', top: 10, left: 10 } }));
+  assert.doesNotMatch(idle, /data-book-ai="state"/);
+  const busy = render(h(ui.BookAiAsk, { ...props, target: { heading: 'h2', words: 'records', top: 10, left: 10, jobId: 'job-1' } }));
+  assert.match(busy, /data-book-ai="state"[^>]*>正在写…/);
+  assert.match(busy, /disabled="" data-book-ai="explain"/);
+  assert.match(busy, /disabled="" data-book-ai="write"/);
+  assert.match(busy, /aria-label="关闭"/, 'the × is still there');
+  assert.match(english(() => textOf(render(h(ui.BookAiAsk, { ...props, target: { heading: 'h2', words: 'records', top: 10, left: 10, jobId: 'job-1' } })))), /Writing…/);
+});
+
 test('English: the page\'s own words', () => english(() => {
   const html = chapter(), panel = render(h(ui.BookAiAsk, { target: { heading: 'h2', words: 'records', top: 10, left: 10 }, model: { ready: true }, onStart: noop, onClose: noop }));
   const own = `${textOf(html)} ${textOf(panel)}`.replace(/Entropy|First paragraph\.|The architect records each decision and its reasons\.|Third paragraph\.|My note\.|An explanation of it\.|Orphan\.|关于：「records each decision」|关于：「words that are nowhere」|这一节还没有题。|出题/g, '');
