@@ -95,6 +95,11 @@ test('a point that misses concepts goes through repair; one still short after tw
   const opened = (await w.view({ expand: [point.key] })).open[point.key].notes;
   assert.deepEqual([opened.concepts.covered, opened.concepts.total, opened.body.status], [3, 4, 'short']);
   assert.deepEqual([view.book.notes.short, view.book.notes.levels.leaves.ok], [1, leaves.length - 1]);
+  // The main chat's book tools say the same: book.toc per point, book.coverage with the missing names.
+  const toc = await w.service.call('book.toc', { course: COURSE, limit: 40 }), row = toc.toc.find(item => item.title === 'Layers');
+  assert.deepEqual([row.concepts, row.short, toc.coverage.leaves.ok], ['3/4', true, leaves.length - 1]);
+  const own = await w.service.call('book.coverage', { course: COURSE, hid: row.hid });
+  assert.deepEqual([own.concepts.covered, own.concepts.total, own.concepts.status, own.concepts.missing.length], [3, 4, 'short', 1]);
   // The next build: only the short point is mended (reviewed and repaired from its text, not written again).
   w.fake.opts.stubborn = [];
   const mark = w.fake.calls.length;

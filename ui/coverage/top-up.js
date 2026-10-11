@@ -2,10 +2,11 @@ import { uiFormat } from '../i18n.js';
 
 /* The request of 为没覆盖的部分补题 and what is said when it starts, for the three places that offer it (the draft page, the home 待发布 card, the 任务 console). */
 
-/** The `generate` arguments: the draft, and exactly the sections the screen showed (their keys, lib/coverage.js sectionKey). */
-export const topUpArgs = (draft, sectionIds) => ({ resumeDraftId: draft.id, draftVersion: draft.draftVersion,
+/** The `generate` arguments: the draft, and exactly the sections the screen showed (their keys, lib/coverage.js sectionKey). `manual`: the 补题 of ONE material (the draft page's list of the
+ *  materials without a question, ui/coverage/MaterialsReport.jsx): its sections only, a fill round of its own that does not go on by itself. */
+export const topUpArgs = (draft, sectionIds, { manual = false } = {}) => ({ resumeDraftId: draft.id, draftVersion: draft.draftVersion,
   // The rounds go on by themselves until every section has a question (自动补到完整 is ON), unless the learner made this draft's run a manual one: that choice is kept.
-  coverage: { sectionIds, autoComplete: draft.editorial?.coverageRun?.autoComplete !== false } });
+  coverage: manual ? { sectionIds, manual: true, autoComplete: false } : { sectionIds, autoComplete: draft.editorial?.coverageRun?.autoComplete !== false } });
 
 /** 接着做 of a plain run (a count, no plan): the same draft goes on, every approved question stays, the questions it still owes are made (lib/draft-continuation.js). */
 export const continueArgs = (draft) => ({ resumeDraftId: draft.id, draftVersion: draft.draftVersion });

@@ -68,7 +68,7 @@ export function useDrafts({ core, lib, nav, data, session }) {
     if (navigation) nav.navigate('draft'); else nav.setPage('draft');
   }, [nav, setDraft, setDraftLoaded, setDraftText, setJsonMode]);
   /* The one 补题 action (为没覆盖的部分补题), for the home card, the draft page and the 任务 console alike: it covers the sections that have no question, into the same draft. */
-  const topUpDraft = useCallback((target, sectionIds) => act('generate', topUpArgs(target, sectionIds), (job) => notify(topUpNotice(target, job))), [act, notify]);
+  const topUpDraft = useCallback((target, sectionIds, options) => act('generate', topUpArgs(target, sectionIds, options), (job) => notify(topUpNotice(target, job))), [act, notify]);
   const blankCard = useCallback(() => ({
     id: crypto.randomUUID(), kind: 'flashcard', topic: '', objective: '', prompt: '', answer: '', hint: '', explanation: '', misconception: '',
     citations: [{ sourceId: core.refs.dataRef.current?.sources[0]?.id || '', quote: '' }],

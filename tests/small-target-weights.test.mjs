@@ -69,8 +69,10 @@ test('a run of a small custom total makes no importance call: the sections are w
   const draft = (await service.call('export')).drafts[0], spec = draft.editorial.coverageSpec;
   assert.equal(spec.weightSource, 'length');
   assert.equal(spec.weightReason, 'small-target', 'the draft keeps the reason: the total is small, so the sections were not weighed one by one');
-  assert.equal(spec.goal, 4);
-  assert.equal(draft.cards.length, 4);
+  // Five recordings: the count of 4 is raised to one question per recording (the owner's decision of 2026-10-11), still a small total that is not weighed.
+  assert.deepEqual(spec.raised, { from: 4, to: 5 });
+  assert.equal(spec.goal, 5);
+  assert.equal(draft.cards.length, 5);
   assert.ok(spec.weights.every(item => item.source === 'length' && item.importance === 3));
 });
 

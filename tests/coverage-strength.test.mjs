@@ -148,7 +148,7 @@ test('the merged transcript (81 sections, 5 recordings): standard asks every sec
   assert.equal(strengthPlan(leaves, [], 'standard').goal, standard.goal, 'stable under re-computation');
 });
 
-test('rounds: each at most 30 questions, a quota is never split, heaviest first and reading order inside a round', () => {
+test('rounds: each at most 30 questions, a quota is never split, every recording first, then heaviest first, reading order inside a round', () => {
   const leaves = fx.leaves.map(item => ({ ...item, key: keyOf(item) }));
   const weights = leaves.slice(10, 20).map(item => ({ sectionId: item.key, importance: 5, kind: 'definition' }));
   const plan = strengthPlan(leaves, weights, 'standard'), assignments = assignmentsOf(plan, leaves, weights), rounds = roundsOf(assignments);
@@ -158,13 +158,17 @@ test('rounds: each at most 30 questions, a quota is never split, heaviest first 
   assert.deepEqual(rounds.flatMap(round => round.assignments.map(item => item.key)).sort(), assignments.map(item => item.key).sort(), 'each section exactly once');
   const rank = new Map(assignments.map((item, index) => [item.key, index]));
   rounds.forEach(round => assert.deepEqual(round.assignments.map(item => rank.get(item.key)), [...round.assignments.map(item => rank.get(item.key))].sort((a, b) => a - b), 'reading order inside a round'));
+  // Round 1 (the owner's decision of 2026-10-11) first gives every recording its heaviest section, then the heaviest: the rounds after it are in the order of the weights.
+  const recordingOf = key => leaves.find(item => item.key === key).recording;
+  assert.deepEqual([...new Set(rounds[0].assignments.map(item => recordingOf(item.sectionId)))].sort(), [1, 2, 3, 4, 5], 'round 1 holds a section of every recording');
+  const seeds = new Set([1, 2, 3, 4, 5].map(recording => assignments.filter(item => recordingOf(item.sectionId) === recording).sort((a, b) => b.weight - a.weight || rank.get(a.key) - rank.get(b.key))[0].key));
   for (let at = 1; at < rounds.length; at++) {
-    const before = Math.min(...rounds[at - 1].assignments.map(item => item.weight)), after = Math.max(...rounds[at].assignments.map(item => item.weight));
+    const before = Math.min(...rounds[at - 1].assignments.filter(item => at > 1 || !seeds.has(item.key)).map(item => item.weight)), after = Math.max(...rounds[at].assignments.map(item => item.weight));
     assert.ok(before >= after, `round ${at} is not lighter than round ${at + 1}`);
   }
   const early = new Set(rounds.slice(0, 2).flatMap(round => round.assignments.map(item => item.key)));
   assert.ok(weights.every(item => early.has(item.sectionId)), 'the ten important sections are in the first two rounds: the heaviest come first');
-  assert.ok(rounds[0].assignments.every(item => weights.some(w => w.sectionId === item.key)), 'and the first round holds nothing else');
+  assert.ok(rounds[0].assignments.every(item => seeds.has(item.key) || weights.some(w => w.sectionId === item.key)), 'and the first round holds nothing else');
   assert.ok(assignments.every(item => item.end > item.start && item.quota >= 1));
   assert.deepEqual(roundsOf(assignments).map(round => round.questions), rounds.map(round => round.questions), 'deterministic');
 });

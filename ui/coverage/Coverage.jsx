@@ -97,11 +97,13 @@ function UncoveredList({ coverage, onOpen }) {
  * The summary at the top of a draft: 「覆盖 7/80 个部分（9%）· 3 个计划了没出成 · 70 个没计划到」, the bar, one row per recording (or chapter) and the list of what has no
  * question with the way to open the reader at it (`onOpen(section)`, the app's openSourceAt at the section's start). `children` is the one top-up. `coverage` is `coverage.get`'s coverage.
  */
-export function CoverageSummary({ coverage, onOpen, children, className = '' }) {
+/** `lead`: what is said first, above the line of the sections (the draft page: 「选了 N 份，M 份已出题」, ui/coverage/MaterialsReport.jsx). */
+export function CoverageSummary({ coverage, onOpen, children, lead = null, className = '' }) {
   useInjectCss(css, 'study-coverage');
   if (!coverage?.leaves) return null;
   return <section className={`cov-summary ${className}`.trim()} aria-label={ui('这份草稿对资料的覆盖')} data-coverage-summary>
     <p className="cov-summary__kicker">{ui('覆盖')}</p>
+    {lead}
     <p className="cov-summary__line" data-coverage-line>{coverageLine(coverage)}</p>
     {coverage.spec && <p className="cov-summary__plan" data-coverage-plan>{planLine(coverage.spec)}</p>}
     <CoverageBar coverage={coverage} legend />

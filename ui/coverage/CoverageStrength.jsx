@@ -7,7 +7,7 @@ import css from './coverage.css';
 import { COUNT_MAX, COUNT_MIN, COUNT_PRESETS, COVERAGE_LEVELS, budgetNote, clampCount, coverageLead, customCountOf, levelNote, levelsLine, suggestCount } from '../generate-form.js';
 import { parseTokenBudget } from '../../lib/coverage-run.js';
 import { autoCompleteOf } from '../../lib/coverage-strength.js';
-import { autoLabel, autoLine, tokensText } from './copy.js';
+import { autoLabel, autoLine, materialsForecastLine, raisedLine, tokensText } from './copy.js';
 
 /* 覆盖强度 on the 创建题组 form (phase 3 of docs/plans/coverage-generation): the choice of how completely the chosen materials are covered (精简 / 标准 / 完整), what it means in words, and, BEFORE the run,
    what it means for exactly these materials in one plain line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，预计 2.10M–2.96M tok · 285–896 次模型调用」. The line is the answer of `usage.estimate`
@@ -21,6 +21,13 @@ import { autoLabel, autoLine, tokensText } from './copy.js';
  * size (ui/generate-form.js selectionStats), for the number the custom field starts from; `enabled` is whether anything is selected.
  * `compact`: the consequences (the plan, the count, the estimate, whether the rounds go on by themselves) are said once by the form around it, under the button: draw only the choices.
  */
+/** 「选了 40 份资料，30 份会出题，10 份不会：…」: what the plan does for each chosen material, before the run (lib/coverage-materials.js materialForecast, in the estimate). Nothing for one material. */
+export function MaterialsForecast({ coverage }) {
+  useInjectCss(css, 'study-coverage');
+  const line = materialsForecastLine(coverage?.materials);
+  return line ? <p className="cov-materials__note" data-coverage-materials data-missing={(coverage.materials.selected || 0) - (coverage.materials.planned || 0)}>{line}</p> : null;
+}
+
 export default function CoverageStrength({ level, customCount = '', onLevel, onCustom, auto = autoCompleteOf(level), onAuto, budget = '', onBudget, state = { status: 'idle' }, stats, enabled = true, disabled = false, compact = false }) {
   useInjectCss(css, 'study-coverage');
   const coverage = state.status === 'ready' ? state.estimate?.coverage : null, custom = customCountOf({ customCount });
@@ -32,6 +39,7 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
     {enabled && !compact && <div className="cov-strength__line" data-coverage-consequence>
       <TokenEstimateView state={state} lead={coverageLead(coverage)} tight />
       {coverage && !custom && <p className="cov-strength__levels-line" data-coverage-levels>{levelsLine(coverage)}</p>}
+      <MaterialsForecast coverage={coverage} />
     </div>}
     {enabled && compact && coverage && !custom && <p className="cov-strength__levels-line" data-coverage-levels>{levelsLine(coverage)}</p>}
     {onAuto && <div className="cov-strength__auto" data-coverage-auto data-auto={auto ? 'on' : 'off'}>
@@ -48,6 +56,7 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
         </div>
         {String(customCount).trim() !== '' && <Button variant="link" size="sm" onClick={() => onCustom('')}>{ui('改回按覆盖强度')}</Button>}
       </div>
+      {coverage?.raised && <p className="generate-note" data-coverage-raised role="status">{raisedLine(coverage.raised)}</p>}
       <p className="generate-note" id="generate-count-note">{uiFormat('填了题数就按这个数出，题仍按所选覆盖强度的规则分到各个小节；超过 30 道的会分成几轮（每轮最多 30 题），最多 {0} 题。', [COUNT_MAX])}</p>
     </Disclosure>
     {onBudget && <Disclosure className="cov-strength__budget" summary={ui('花费上限')} meta={spend ? tokensText(spend) : ui('可选')} defaultOpen={String(budget).trim() !== ''}>
