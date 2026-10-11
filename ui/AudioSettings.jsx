@@ -5,6 +5,7 @@ import { EffortSelect } from './EffortSelect.jsx';
 import { useModelEfforts } from './use-model-efforts.js';
 import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, Select, SetupRequired, SettingsSection, Switch, TextInput, useToast } from './components/index.js';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
+import { REQUEST_LIMIT_MINUTES } from '../lib/audio-formats.js';
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
@@ -169,8 +170,8 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
           </Field>
           <Field label={ui('每次请求最长')}
             hint={ui('录音不超过这个长度就整段发送；更长时按最少的段数平均切开，尽量在停顿处。若长录音经常等不到回应，可以调小。')}>
-            <Select value={view.partMinutes ?? 59} disabled={busy} onChange={(value) => save({ partMinutes: value })}
-              options={[[59, '59 分钟（推荐：请求最少，最省免费额度）'], [45, '45 分钟'], [30, '30 分钟'], [20, '20 分钟'], [10, '10 分钟']].map(([minutes, label]) => ({ value: minutes, label: ui(label) }))} />
+            <Select value={Math.min(view.partMinutes ?? REQUEST_LIMIT_MINUTES, REQUEST_LIMIT_MINUTES)} disabled={busy} onChange={(value) => save({ partMinutes: value })}
+              options={[[45, '45 分钟（推荐：请求最少，最省免费额度）'], [30, '30 分钟'], [20, '20 分钟'], [10, '10 分钟']].map(([minutes, label]) => ({ value: minutes, label: ui(label) }))} />
           </Field>
           <Field label={ui('转写风格')}>
             <Select value={view.mode} disabled={busy} onChange={(value) => save({ mode: value })} options={[

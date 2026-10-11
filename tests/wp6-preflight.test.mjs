@@ -93,7 +93,7 @@ test("each file is checked: format, length, how many requests, and a lossless sp
   const [pe1, a, bad] = result.files;
   assert.deepEqual([pe1.name, pe1.format, pe1.blocked, pe1.parts], ["PE1.m4a", "m4a", false, 2]);
   assert.ok(Math.abs(pe1.seconds - 76 * 60) < 2);
-  assert.deepEqual(pe1.issue, { code: "long-split", minutes: 76, parts: 2, requests: 2, partMinutes: 59 });
+  assert.deepEqual(pe1.issue, { code: "long-split", minutes: 76, parts: 2, requests: 2, partMinutes: 45 });
   assert.deepEqual([a.name, a.blocked, a.issue, a.parts], ["A.wav", false, null, 1]);
   assert.equal(bad.blocked, true);
   assert.equal(bad.issue.code, "AUDIO_CORRUPT");

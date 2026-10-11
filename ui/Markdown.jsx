@@ -330,10 +330,10 @@ function list(items, options, key) {
     `resolveLink(href, label, key, text)`: a `studyhub://` link is drawn by the page that knows it (the review book's question links, ui/book/BookLinks.jsx);
     null leaves it plain text. Any other link stays as before. `headingAnchor(text)` -> { text, props } | null: a heading's own attributes (its id) and
     the text to show. */
-export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, resolveLink, headingAnchor }) {
+export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, resolveLink, headingAnchor, rootRef }) {
   const content = React.useMemo(() => {
     const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
     return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite, resolveLink, headingAnchor });
   }, [text, links, mediaInteractive, onTerm, askedTerms, onCite, resolveLink, headingAnchor]);
-  return <div className={("md " + className).trim()}>{content}</div>;
+  return <div ref={rootRef} className={("md " + className).trim()}>{content}</div>;
 }

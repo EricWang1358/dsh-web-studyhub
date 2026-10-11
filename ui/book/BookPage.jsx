@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, SegmentedControl } from '../components/index.js';
 import { usePersistentState } from '../storage.js';
@@ -16,6 +17,8 @@ import BookAiAsk from './BookAiAsk.jsx';
 import BookLookup from './BookLookup.jsx';
 import BookExport, { budgetText } from './BookExport.jsx';
 import BookFlip from './BookFlip.jsx';
+import { AiFoldContext, useAiFold } from './ai-fold.js';
+import { showBlock, showWords } from './ai-anchors.js';
 import CrunchDay from './CrunchDay.jsx';
 import { localDate } from '../../lib/board-model.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
@@ -90,15 +93,19 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   // 弄懂 / 加一段: the panel over the selected words (or a heading), and the tasks started from this page (the book is read again when one ends).
   const [ask, setAsk] = useState(null);
   const [pending, setPending] = useState(() => new Set());
-  const startAi = useCallback(async args => {
+  // `fromPanel`: started from the panel over selected words, which stays showing its state until the block appears (the one under a heading closes now).
+  const startAi = useCallback(async (args, fromPanel = false) => {
     try {
       const started = await call('generation.courseBook.explain', { course, ...args });
       setPending(current => new Set([...current, started.jobId]));
       notify({ text: ui('已开始：写好后会出现在这一段下面；任务页可以看进度。'), tone: 'success' });
-      setAsk(null);
+      setAsk(current => (fromPanel && current?.words ? { ...current, jobId: started.jobId } : null));
       window.getSelection?.()?.removeAllRanges?.();
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [call, course, notify]);
+  // The panel of a task closes when the task is over (its block is in the book, or the failure said).
+  useEffect(() => { if (ask?.jobId && !pending.has(ask.jobId)) setAsk(null); }, [ask, pending]);
+  const closeAsk = useCallback(() => setAsk(null), []);
   // A task started here is looked at now and then (job.status) until it ends; then the book is read again, its block in place.
   usePolling(async () => {
     for (const jobId of pending) {
@@ -123,6 +130,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [open, setOpen] = useState(() => new Set());
   const [here, setHere] = useState(null);
   const [qa, setQa] = useState(() => new Set());
+  // The fold of the AI blocks (kept per library and course in this browser): read by the points through AiFoldContext, so a fold draws only the blocks.
+  const aiFold = useAiFold(root, course), foldAi = aiFold.fold;
   const [tocOpen, setTocOpen] = useState(wideNow);
   const restore = useRef(null), pageRef = useRef(null), first = useRef(keptBook(root, course)), placed = useRef(false);
 
@@ -225,7 +234,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       finally { setChoosing(false); }
     },
     aiFollow: (node, block, question) => startAi({ heading: node.hid, mode: 'follow', words: block.about || node.title, instruction: question, after: block.id }),
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, startAi]);
+    // The fold of the blocks (kept in this browser), and the two ways between a block and its dashed words (ui/book/ai-anchors.js): open the block, then show it.
+    aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
+    aiWords: id => showWords(id),
+  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, startAi, foldAi]);
   const writeBook = useCallback(async () => {
     try {
       await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
@@ -269,7 +281,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       </section>
     );
   }
-  const exportDialog = exporting && <BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
+  // A new selection or heading is a new panel (its own, empty instruction).
+  const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args }, true)} onClose={closeAsk} />;
+  const exportDialog = exporting &&<BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
   // 今天读哪几节: today's day of the plan, under the header (the same day the home's 期末一周 card shows).
   const todayPanel = crunchDay && todayOpen && mode !== 'source' && <section className="book-today" aria-label={ui('今天读哪几节')}>
     <CrunchDay course={course} daysLeft={crunch.daysLeft} day={crunchDay} points={crunchPoints}
@@ -290,9 +304,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {header}
       {todayPanel}
       {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
-      {crunch ? <BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
-        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /> : <LoadingState label={ui('正在排期末一周…')} />}
-      {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
+      {crunch ? <AiFoldContext.Provider value={aiFold}><BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
+        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /></AiFoldContext.Provider> : <LoadingState label={ui('正在排期末一周…')} />}
+      {askPanel}
       {exportDialog}
     </section>
   );
@@ -311,11 +325,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       <div className={tocOpen ? 'book-layout book-layout--toc' : 'book-layout'}>
         {tocOpen && <nav className="book-toc" aria-label={ui('目录')}><BookToc entries={toc} here={here} onGo={goTo} /></nav>}
         <div className="book-read" onMouseUp={onSelect}>
-          {chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
-            onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
+          <AiFoldContext.Provider value={aiFold}>
+            {chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
+              onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
+          </AiFoldContext.Provider>
         </div>
       </div>
-      {ask && <BookAiAsk target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args })} onClose={() => setAsk(null)} />}
+      {askPanel}
       {exportDialog}
     </section>
   );

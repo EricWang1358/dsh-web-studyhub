@@ -140,6 +140,30 @@ test('an instruction, 加一段 under a heading, a follow-up under its block, �
   assert.deepEqual(aiBlocks(mineOf(deleted)).map(block => block.id), [first.started.blockId, follow.started.blockId]);
 });
 
+test('the system message follows the mode: an instruction is not given the explain shape and is only in the user message; 弄懂 keeps it; a follow-up is a new request like an instruction', async t => {
+  const w = await world(t), words = 'writes each decision down', instruction = '用厨师例子通俗解释 Day1-5';
+  const written = await w.finish({ mode: 'write', words, instruction });
+  await w.finish({ mode: 'explain', words });
+  const again = await w.finish({ mode: 'follow', words, instruction: '用厨师例子再讲一遍', after: written.started.blockId });
+  const [asked, explained, followed] = w.fake.calls;
+  assert.doesNotMatch(asked.system, /这段在讲什么|原文说：|意思就是：|ORDER of the source/);
+  assert.match(asked.system, /for the form, tone, length and examples/);
+  assert.match(asked.system, /short tag "（资料以外）"/);
+  assert.ok(!asked.system.includes('厨师'), 'the instruction is not in the system message');
+  assert.equal(asked.data.instruction, instruction);
+  assert.match(explained.system, /这段在讲什么/);
+  assert.match(explained.system, /原文说：/);
+  assert.doesNotMatch(followed.system, /这段在讲什么|原文说：|ORDER of the source/);
+  assert.match(followed.system, /for the form, tone, length and examples/);
+  assert.match(followed.system, /short tag "（资料以外）"/);
+  assert.ok(!followed.system.includes('厨师'));
+  const [reply] = aiBlocks(mineOf(await w.open())).filter(item => item.id === again.started.blockId);
+  assert.match(reply.body, /\n- （资料以外） A general intuition\.\n/, 'the model\'s extra ends the body as a tagged bullet');
+  assert.doesNotMatch(reply.body, /\*\*补充（资料以外）\*\*/, 'no footnote heading for a request');
+  const [block] = aiBlocks(mineOf(await w.open())).filter(item => item.id === written.started.blockId);
+  assert.match(block.body, /^Answer 1 on writes each decision down/, 'the body is the model\'s text as written');
+});
+
 test('refusals cost nothing; a provider failure fails the Job with nothing written, a retry writes it once; a stop writes nothing', async t => {
   const w = await world(t, aiModel({ fail: n => n <= 2 }));
   const refused = (promise, code) => assert.rejects(promise, error => { assert.equal(error.code, code, error.message); return true; });

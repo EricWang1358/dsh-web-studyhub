@@ -109,7 +109,7 @@ const scenes = {
   'oral-running': () => exam({ initialKind: 'oral' }),
   'oral-report': () => exam({ initialKind: 'oral', initialRunId: 'ora2' }),
   audio: () => <div className="page"><Study><AudioImport data={audioData} initialFiles={files} initialReadiness={{ transcription: true, text: true }}
-    initialChecks={{ 'initial-0': { seconds: 1800, requests: 1 }, 'initial-1': { seconds: 4 * 3600, requests: 4, issue: { code: 'long-split', minutes: 240, parts: 4, requests: 4, partMinutes: 59.5 } } }} onOpenSources={() => {}} onOpenSettings={() => {}} /></Study></div>,
+    initialChecks={{ 'initial-0': { seconds: 1800, requests: 1 }, 'initial-1': { seconds: 4 * 3600, requests: 6, issue: { code: 'long-split', minutes: 240, parts: 6, requests: 6, partMinutes: 45 } } }} onOpenSources={() => {}} onOpenSettings={() => {}} /></Study></div>,
   'audio-empty': () => <div className="page"><Study><AudioImport data={audioData} initialReadiness={{ transcription: true, text: true }} onOpenSources={() => {}} /></Study></div>,
 };
 createRoot(document.getElementById('root')).render(
