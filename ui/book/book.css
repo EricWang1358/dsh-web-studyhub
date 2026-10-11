@@ -43,19 +43,210 @@
       border-radius: var(--radius-sm);
       overflow: hidden;
     }
+    /* A knowledge point in reading order (ui/book/PointBody.jsx): one row of actions, the takeaway, the story, 要点清单 and 补充 folded, the learner's
+       layer, the questions, 出处 behind a chip. The reading text is 17 px with a line of about 70 characters and room between paragraphs; the parts
+       that are not the story are a size smaller. */
     .book-point {
+      display: grid;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+    .book-point .md p {
+      margin-bottom: 0.9em;
+    }
+    .book-point__bar,
+    .book-point__actions,
+    .book-layer__head,
+    .book-layer__hidden,
+    .book-ai__repeat {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
+    }
+    .book-point__bar {
+      justify-content: space-between;
+      font-size: var(--fs-md);
+    }
+    .book-point__actions {
+      margin-left: auto;
+    }
+    .book-point__takeaway {
+      display: grid;
+      gap: var(--space-1);
+      padding: var(--space-3) var(--space-4);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+      min-width: 0;
+    }
+    .book-point__eyebrow,
+    .book-point__label {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+      letter-spacing: 0.04em;
+    }
+    .book-point__gist {
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-snug);
+      color: var(--text);
+    }
+    .book-point__part {
       display: grid;
       gap: var(--space-2);
       min-width: 0;
     }
-    .book-point__tools {
+    .book-point__exam,
+    .book-point__fold,
+    .book-point__cites,
+    .book-layer {
+      font-size: var(--fs-md);
+    }
+    .book-point__exam {
+      color: var(--text-muted);
+    }
+    .book-point__bridge {
+      margin: 0;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+    .book-point__cites {
+      display: grid;
+      gap: var(--space-2);
+      justify-items: start;
+      min-width: 0;
+    }
+    .book-point__cite-list {
+      color: var(--text-muted);
+    }
+    .book-layer {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--line-soft);
+    }
+    .book-layer__toggle,
+    .book-layer__title {
+      margin: 0;
+      padding-inline: 0;
+      text-align: left;
+      justify-content: flex-start;
+      font-size: inherit;
+      font-weight: var(--fw-strong);
+    }
+    .book-layer__caret,
+    .book-node__caret {
+      transition: transform var(--dur-fast) var(--ease);
+    }
+    .book-layer__toggle[aria-expanded='true'] .book-layer__caret,
+    .book-node__toggle[aria-expanded='true'] .book-node__caret {
+      transform: rotate(90deg);
+    }
+    .book-layer__hidden,
+    .book-ai__repeat {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    /* 逐节读 (ui/book/BookStep.jsx): one point under its path, 上一节 / 下一节 above (compact) and below (with the neighbour's title). */
+    .book-step {
+      display: grid;
+      gap: var(--space-4);
+      min-width: 0;
+      scroll-margin-top: var(--space-4);
+    }
+    .book-step__top,
+    .book-step__path,
+    .book-step__jump {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: var(--space-1) var(--space-3);
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
     }
-    .book-point__add {
-      justify-self: start;
+    .book-step__top {
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-step__path {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-step__crumb + .book-step__crumb::before {
+      content: '›';
+      margin-right: var(--space-2);
+      color: var(--text-dim);
+    }
+    .book-step__jump {
+      margin-left: auto;
+    }
+    .book-step__back svg {
+      transform: scaleX(-1);
+    }
+    .book-step__heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-2);
+      margin: 0;
+      font-size: var(--fs-2xl);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-tight);
+      scroll-margin-top: var(--space-6);
+    }
+    .book-step__nav {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--line-soft);
+    }
+    .book-step__prev,
+    .book-step__next {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-1);
+      height: auto;
+      min-width: 0;
+      padding-block: var(--space-2);
+      text-align: left;
+    }
+    .book-step__next {
+      align-items: flex-end;
+      text-align: right;
+    }
+    .book-step__dir {
+      font-weight: var(--fw-strong);
+    }
+    .book-step__title {
+      max-width: 100%;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      overflow-wrap: anywhere;
+    }
+    /* 整章滚动: a folded point is its title and one line. */
+    .book-node__toggle {
+      text-align: left;
+      justify-content: flex-start;
+      font-size: inherit;
+      font-weight: inherit;
+    }
+    .book-node__summary {
+      display: -webkit-box;
+      margin: 0;
+      overflow: hidden;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
     .book-ai {
       display: grid;
@@ -241,6 +432,9 @@
       display: grid;
       gap: var(--space-4);
       min-width: 0;
+      max-width: 72ch;
+      font-size: var(--fs-lg);
+      line-height: var(--lh-body);
     }
     .book-chapter {
       display: grid;
@@ -251,7 +445,7 @@
     }
     .book-chapter__heading {
       margin: 0;
-      font-size: var(--fs-md);
+      font-size: var(--fs-xl);
     }
     .book-chapter__toggle {
       text-align: left;
@@ -277,25 +471,19 @@
     }
     .book-node__heading {
       margin: var(--space-2) 0 0;
-      font-size: var(--fs-md);
-      font-weight: var(--fw-medium);
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-snug);
       scroll-margin-top: var(--space-6);
     }
     .book-node__number {
       color: var(--text-muted);
       margin-right: var(--space-1);
-    }
-    .book-node__create {
-      justify-self: start;
+      white-space: nowrap;
     }
     .book-questions {
-      display: grid;
-      gap: var(--space-1);
       min-width: 0;
-    }
-    .book-questions__head {
-      margin: 0;
-      font-weight: var(--fw-strong);
+      font-size: var(--fs-md);
     }
     .book-questions__list {
       display: grid;
@@ -305,10 +493,6 @@
     }
     .book-questions__more {
       justify-self: start;
-    }
-    .book-questions__none {
-      margin: 0;
-      color: var(--text-muted);
     }
     .book-file {
       min-width: 0;

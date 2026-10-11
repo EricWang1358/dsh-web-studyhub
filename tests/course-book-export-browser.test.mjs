@@ -71,8 +71,8 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-tree--book').waitFor({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click();
-      await page.locator('.book-chapter').first().waitFor({ timeout: 30000 });
-      assert.match(await page.locator('.book-chapter__heading').first().innerText(), /H\d+/, `${width}px: a chapter shows its code`);
+      await page.locator('.book-step').waitFor({ timeout: 30000 });
+      assert.match(await page.locator('.book-step__heading').innerText(), /H\d+/, `${width}px: a point shows its code`);
 
       // 查找: the lookup of the book.
       await page.locator('.book-header__mode').getByText('查找', { exact: true }).click();

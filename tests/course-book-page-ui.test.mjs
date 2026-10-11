@@ -1,6 +1,6 @@
 /* 复习全书 page M1 (static zh and en; docs/plans/review-book.md): a closed chapter is only its heading (I8), an open one renders a point's generated file
    with its question links drawn by the book, 这道题已被删除 for a gone question and plain text for an unknown studyhub:// link (I5); a point without
-   questions offers 出题; the live 目录 marks 你在这里; the 总纲 page offers 打开书页 only when the book is written. Fakes only. */
+   questions says 暂无题 and offers 出题 in its toolbar; the live 目录 marks 你在这里; the 总纲 page offers 打开书页 only when the book is written. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -46,15 +46,17 @@ test('a closed chapter is its heading only; an open one renders its points with 
   assert.doesNotMatch(text, /A deleted one/);
   assert.match(html, /data-book-link="practice"/);
   assert.match(html, /data-book-link="qa"[^>]*aria-expanded="false"/);
-  assert.match(html, /data-book-link="source"/);
+  assert.doesNotMatch(html, /data-book-link="source"/, 'the 出处 list waits behind its chip');
+  assert.match(text, /出处 1/);
+  assert.doesNotMatch(text, /练 5 道：Entropy|本节问答：Entropy/, 'the line of links at the end is the toolbar now');
   assert.doesNotMatch(html, /href="studyhub:/, 'a studyhub:// link never becomes a raw link');
   assert.match(html, /<span class="md-link">Strange<\/span>/, 'an unknown studyhub:// link is plain text');
   assert.match(html, /href="https:\/\/example\.com"[^>]*rel="noopener noreferrer"/, 'an ordinary link opens normally');
   assert.match(html, /class="md-cite"/, 'the 角标 is a button');
-  assert.match(text, /本节的题 练习：Live question 0\? 练习：Live question 1\? 练习：Live question 2\? 练习：Live question 3\? 练习：Live question 4\? 还有 2 道/, 'the point\'s questions live: the first five, then 还有 N 道');
+  assert.match(text, /本节的题 \(7\) 练习：Live question 0\? 练习：Live question 1\? 练习：Live question 2\? 练习：Live question 3\? 练习：Live question 4\? 还有 2 道/, 'the point\'s questions live: the first five, then 还有 N 道');
   assert.doesNotMatch(text, /Live question 5/);
-  assert.match(text, /这一节还没有题。/, 'a point without questions says so');
-  assert.match(text, /出题/, 'and offers the 出题 entry');
+  assert.match(text, /1\.2 Enthalpy .*暂无题 出题/, 'a point without questions says so in its toolbar and offers 出题');
+  assert.doesNotMatch(text, /这一节还没有题。/, 'no standing line');
   assert.match(html, /book-file--mine[\s\S]*My note\./, 'the learner\'s file follows the generated one');
 });
 
@@ -72,7 +74,7 @@ test('the live 目录 lists the stitched headings with their chapter and marks �
 test('English: the page\'s own words are English (the book\'s text is the book\'s)', () => english(() => {
   const html = chapter(book.nodes[0], true), toc = render(h(ui.BookToc, { entries: ui.tocEntries(book), here: 'h2', onGo: noop }));
   assert.match(textOf(html), /This question was deleted/);
-  assert.match(textOf(html), /Questions of this point Practise: Live question 0\?[\s\S]*2 more[\s\S]*This point has no questions yet\./);
+  assert.match(textOf(html), /Practise 5 Questions and answers[\s\S]*Questions of this point \(7\) Practise: Live question 0\?[\s\S]*2 more[\s\S]*No questions yet/);
   assert.match(textOf(toc), /You are here/);
   const own = textOf(html).replace(/Thermodynamics|Entropy|Enthalpy|练习：What is entropy\?|练 5 道：Entropy|本节问答：Entropy|「Entropy measures disorder」|知识梳理|出处|本节的题|My note\.|Strange|Web|Textbook|disorder|Live question \d\?|Heat\./g, '');
   assert.equal(han.test(own), false, `no Chinese of the page left: ${own}`);
