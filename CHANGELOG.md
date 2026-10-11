@@ -2,6 +2,17 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.4.1 — 2026-10-11
+
+A small follow-up to 3.4.0.
+
+- **The 复习全书 has a sidebar entry.** It sits under 阶段性, after 备考补习, so the book no longer has to be found through the course page. The book header now says what the 期末一周 needs: 「设置考试日期，开启期末一周」 when no exam date is set, and 「期末一周在考前 N 天开始」 once one is. The 总纲 page keeps one primary button that follows the state: 「打开书页」 leads when the book is current, and otherwise it is 「生成总纲」, 「生成复习全书」 or 「更新全书」. The sidebar entry opens the book when it is written, and the 总纲 page (with one line on what the book is) when it is not.
+- **The 归并主题组 prompt for the main chat shows the exact result shape.** The prompt now carries a one-line example of `skeleton.topics` (field names exact, so the model reads it directly and does not write a script), in both languages and both modes. In merge mode it reads 60 topics per page instead of 150. A test compares the example's keys with the real operation's.
+
+Known issues, filed and not fixed: #407 (an audio run that is shown as a 「并行时间线」 is really sequential) and #408 (a long .ogg or .opus file is sent to Gemini as a single segment and rejected).
+
+未验证 (not verified): the AI parts of 3.4.0 and of this release (总纲, 复习全书, 答题卡) were tested with fake models only; none of it was tried with a real model or on a real library, and the 归并主题组 prompt change was not run against a real model either. The final package passed the archive check (npm run release:check) but was not installed into a real DSH.
+
 ## 3.4.0 — 2026-10-11
 
 - **复习全书 (the review book).** A book-like page for each course, built on the 总纲: an explanation for each chapter with cited quotes from your materials (generated, and updated when the materials change), the course's questions linked from the text. A question link opens real practice and brings you back to the same place in the book. You can edit the book (a 预览 / 原文 switch), and the fork rule keeps your edits apart from the generated text; suggestions can be accepted or declined, and every version is kept in a history. 弄懂 and 加一段 work while you read: ask about a passage, and add a paragraph of your own. A Q&A can be added to the book with one button, and the book switches to it. The analysis questions have an answer card (structured, checked, one full version). 查找页 lists terms and points. The book exports to CP as Markdown, with an answer key and an estimate of the pages. For the last week there is a 期末一周 plan, a 翻看 view for browsing, and a mock paper made from chosen points.
