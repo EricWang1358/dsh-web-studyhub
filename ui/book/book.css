@@ -100,6 +100,12 @@
     .book-ai-ask__bar {
       justify-content: space-between;
     }
+    .book-ai-ask__state {
+      flex: 1 1 auto;
+      min-width: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
     .book-suggestion {
       display: grid;
       gap: var(--space-2);

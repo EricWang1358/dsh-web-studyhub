@@ -66,7 +66,9 @@ test('复习全书 on the 总纲 page: a knowledge point opens to its notes, a �
       await page.locator('.outline-tree--book').waitFor({ timeout: 30000 });
       const line = page.locator('.outline-book-line');
       assert.match(await line.innerText(), /更新全书/);
-      assert.equal(await line.locator('.sh-btn--primary').count(), 0, `${width}px: the notes are current, nothing is the main action`);
+      // One main action that follows the state; with the book current it is 打开书页 (更新全书 is the quiet one).
+      assert.equal(await line.locator('.sh-btn--primary').count(), 1, `${width}px: the notes are current, one main action`);
+      assert.match(await line.locator('.sh-btn--primary').innerText(), /打开书页/);
       assert.doesNotMatch(await line.innerText(), /资料有更新/);
       // 2.2 In practice › Views and viewpoints: tested by the sample paper.
       await page.locator('.outline-row[data-kind="section"]', { hasText: /2\.2\s*In practice/ }).locator('[data-outline-toggle]').click();
