@@ -49,6 +49,18 @@ const sideways = page => page.evaluate(() => {
   return { doc: document.documentElement.scrollWidth - width, wide };
 });
 
+/** Select `text` in a paragraph of a point (as the learner's drag does) and let the page see the mouseup. */
+const selectWords = (page, text) => page.evaluate(words => {
+  const paragraph = [...document.querySelectorAll('[data-book-point] .book-file p')].find(element => element.textContent.includes(words) && !element.closest('.book-ai'));
+  const node = [...paragraph.childNodes].find(child => child.nodeType === 3 && child.textContent.includes(words)), at = node.textContent.indexOf(words);
+  paragraph.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const range = document.createRange();
+  range.setStart(node, at); range.setEnd(node, at + words.length);
+  const selection = window.getSelection();
+  selection.removeAllRanges(); selection.addRange(range);
+  paragraph.closest('.book-read').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+}, text);
+
 /** The preview server has no job executor: the page's start of a 弄懂 task is answered by a second service over the same library with the unified runtime on
     (the real Job, the preview's fake model), and its job.status by how that Job ended. */
 async function runTasksFor(page, root) {
@@ -91,22 +103,61 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
 
       // Select words of the first point's explanation; the panel opens under them.
       const words = 'writes each decision down';
-      await page.evaluate(text => {
-        const paragraph = [...document.querySelectorAll('[data-book-point] .book-file p')].find(element => element.textContent.includes(text));
-        const node = [...paragraph.childNodes].find(child => child.nodeType === 3 && child.textContent.includes(text)), at = node.textContent.indexOf(text);
-        const range = document.createRange();
-        range.setStart(node, at); range.setEnd(node, at + text.length);
-        const selection = window.getSelection();
-        selection.removeAllRanges(); selection.addRange(range);
-        paragraph.closest('.book-read').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      }, words);
+      await selectWords(page, words);
       await page.locator('.book-ai-ask [data-book-ai="explain"]').waitFor({ timeout: 10000 });
       let overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: the panel fits: ${JSON.stringify(overflow)}`);
       if (shots) await page.screenshot({ path: join(shots, `ai-panel-${width}.png`) });
+
+      // The panel belongs to its selection: a click elsewhere, Escape, a new selection; scrolling keeps it; typed words and the focus inside keep it.
+      const panel = page.locator('.book-ai-ask'), elsewhere = () => page.locator('.book-header [data-context-heading]').click();
+      await elsewhere();
+      await panel.waitFor({ state: 'detached', timeout: 5000 });
+      await selectWords(page, words);
+      await panel.waitFor({ timeout: 5000 });
+      await page.evaluate(() => { for (const node of [document.scrollingElement, ...document.querySelectorAll('*')]) if (node.scrollHeight > node.clientHeight) node.scrollBy?.(0, 40); });
+      await page.waitForTimeout(400);
+      assert.equal(await panel.count(), 1, `${width}px: scrolling does not close it`);
+      await page.keyboard.press('Escape');
+      await panel.waitFor({ state: 'detached', timeout: 5000 });
+      await selectWords(page, words);
+      await panel.waitFor({ timeout: 5000 });
+      // A selection in another paragraph replaces the panel with a new one (its instruction box is empty again).
+      await page.locator('.book-ai-ask .book-ai__input').fill('旧的');
+      await selectWords(page, 'A second paragraph');
+      await page.waitForFunction(() => document.querySelector('.book-ai-ask .book-ai__input')?.value === '', null, { timeout: 5000 });
+      assert.equal(await panel.count(), 1, `${width}px: a selection in another paragraph replaces the panel`);
+      await selectWords(page, words);
+      await page.waitForTimeout(400);
+      assert.equal(await panel.count(), 1);
+      // The learner clicks the instruction box (the selection leaves the text) and types: it stays, even after a click elsewhere.
+      await page.locator('.book-ai-ask .book-ai__input').click();
+      await page.waitForTimeout(400);
+      assert.equal(await panel.count(), 1, `${width}px: the focus inside keeps it`);
+      await page.locator('.book-ai-ask .book-ai__input').fill('讲细点');
+      await page.waitForTimeout(400);
+      await elsewhere();
+      await page.waitForTimeout(400);
+      assert.equal(await panel.count(), 1, `${width}px: typed words keep it`);
+      assert.equal(await page.locator('.book-ai-ask .book-ai__input').inputValue(), '讲细点');
+      await page.locator('.book-ai-ask .book-ai__input').fill('');
+      await elsewhere();
+      await panel.waitFor({ state: 'detached', timeout: 5000 });
+      await selectWords(page, words);
+      await panel.waitFor({ timeout: 5000 });
+      // The ×, a secondary way to close it.
+      await page.locator('.book-ai-ask').getByRole('button', { name: '关闭' }).click();
+      await panel.waitFor({ state: 'detached', timeout: 5000 });
+      await selectWords(page, words);
       await page.locator('.book-ai-ask [data-book-ai="explain"]').click();
+      // A task started from it is pending: the panel shows its state until the block appears, then closes.
+      await page.locator('.book-ai-ask [data-book-ai="state"]').waitFor({ timeout: 10000 });
+      await elsewhere();
+      await page.waitForTimeout(400);
+      assert.equal(await panel.count(), 1, `${width}px: a pending task keeps it`);
       const block = page.locator('.book-ai', { hasText: `关于：「${words}」` }).last();
       await block.waitFor({ timeout: 60000 });
+      await panel.waitFor({ state: 'detached', timeout: 10000 });
       assert.deepEqual([...tasks.ended.values()], ['complete'], `${width}px: one task, run to the end`);
       const order = await block.evaluate((element, text) => {
         const paragraph = [...document.querySelectorAll('[data-book-point] .book-file p')].find(item => item.textContent.includes(text) && !item.closest('.book-ai'));
@@ -124,10 +175,22 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       await page.locator('.book-ai[data-ai-state="kept"]', { hasText: `关于：「${words}」` }).first().getByText('删除', { exact: true }).click();
       await page.locator('.book-ai', { hasText: `关于：「${words}」` }).first().waitFor({ state: 'detached', timeout: 30000 });
 
-      // 在这里加一段: an instruction under the heading.
+      // 在这里加一段: an instruction under the heading. It closes on a click elsewhere with an empty box, and on Escape; typed words keep it.
+      await page.locator('[data-book-point] .book-point__add').first().click();
+      await panel.waitFor({ timeout: 5000 });
+      await elsewhere();
+      await panel.waitFor({ state: 'detached', timeout: 5000 });
+      await page.locator('[data-book-point] .book-point__add').first().click();
+      await panel.waitFor({ timeout: 5000 });
+      await page.keyboard.press('Escape');
+      await panel.waitFor({ state: 'detached', timeout: 5000 });
       await page.locator('[data-book-point] .book-point__add').first().click();
       await page.locator('.book-ai-ask .book-ai__input').fill(`对比两种做法 ${width}`);
+      await elsewhere();
+      await page.waitForTimeout(400);
+      assert.equal(await panel.count(), 1, `${width}px: typed words keep the box under a heading`);
       await page.locator('.book-ai-ask [data-book-ai="write"]').click();
+      await panel.waitFor({ state: 'detached', timeout: 10000 });
       const here = page.locator('.book-ai', { hasText: `对比两种做法 ${width}` }).first();
       await here.waitFor({ timeout: 60000 });
       const top = await here.evaluate(element => {
