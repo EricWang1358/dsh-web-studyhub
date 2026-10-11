@@ -511,7 +511,9 @@ const HANDLERS = [
     reply: ({ prompt }) => answerCardReply(after(prompt.split('\n\nREPAIR:')[0], 'REQUEST DATA:\n')) },
   { name: 'answer.card.review', match: (s) => s.startsWith('You independently review an answer card'), reply: () => ({ issues: [], summary: 'Preview: nothing found.' }) },
   // 复习全书 弄懂 / 加一段 (lib/contexts/generation/book-ai): the reader's grounded ask with a JSON shape; one real quote from the point's materials, one extra.
-  { name: 'book.ai', match: (s) => s.startsWith('Answer the learner question using only the selected source evidence') && s.includes('Reply with JSON only: {"text"'),
+  // An instruction (write / here / follow) has its own system prompt, which starts with the task (lib/contexts/generation/book-ai/system-prompt.js).
+  { name: 'book.ai', match: (s) => (s.startsWith('Answer the learner question using only the selected source evidence') || s.startsWith('The learner '))
+    && s.includes('Reply with JSON only: {"text"'),
     reply: ({ input }) => ({ text: input.instruction ? `预览：按「${input.instruction}」写的一段，关于「${input.words || input.point}」。` : `预览：「${input.words}」的意思是这样的：资料里这一段讲的就是它。`,
       quotes: (input.materials || []).slice(0, 1).map((part) => part.text.slice(0, 40)), extra: ['预览：一个资料以外的补充。'] }) },
   // The importance of each section of a material (lib/section-weights.js): a spread of ratings so a preview shows the plan telling long and important sections from filler.
