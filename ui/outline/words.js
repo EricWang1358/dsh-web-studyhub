@@ -1,6 +1,7 @@
 /* 总纲 page: its words. Every string is a literal ui() / uiFormat() call, so the English catalogue (ui/locales/en.outline.json) is checked against it. */
 import { ui, uiFormat } from '../i18n.js';
 import { displayTitle } from '../../lib/document-title.js';
+import { formatNumber } from '../format.js';
 
 /** A chapter's name under a leaf of the AI outline: with its material, so the learner knows which one it is. */
 function anchorTitle(node) {
@@ -115,7 +116,7 @@ export const levelHint = () => ui('讲解详尽程度：一个知识点读多少
 export function coverageText(coverage) {
   if (coverage.unit === 'page') return coverage.partial ? uiFormat('覆盖：读了 {0}/{1} 页，另有 {2} 页只读了开头', [coverage.read, coverage.total, coverage.partial])
     : uiFormat('覆盖：读了 {0}/{1} 页', [coverage.read, coverage.total]);
-  return uiFormat('覆盖：读了 {0}/{1} 字', [coverage.read.toLocaleString('en-US'), coverage.total.toLocaleString('en-US')]);
+  return uiFormat('覆盖：读了 {0}/{1} 字', [formatNumber(coverage.read), formatNumber(coverage.total)]);
 }
 /** The hover explanation of 读更多. */
 export const readMoreTip = level => uiFormat('只重新读这一个知识点，按「{0}」多读几页再写讲解；单独一个任务，进度在任务页。', [levelText(level)]);

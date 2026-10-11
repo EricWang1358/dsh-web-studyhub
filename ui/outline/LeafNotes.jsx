@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Tooltip } from '../components/index.js';
 import Markdown from '../Markdown.jsx';
+import { useStudy } from '../study-context.jsx';
 import { displayTitle } from '../../lib/document-title.js';
 import { coverageText, partHeadingText, readMoreTip } from './words.js';
 
@@ -16,7 +17,8 @@ const named = parts => new Set(parts.flatMap(part => part.ranges.map(range => ra
 
 /** notes: { id, body?: { points, explain, example?, parts?, extra?, cites: [{ n, sourceId, quote, title }] }, empty?, exam?: { tested, note? }, coverage?: { unit, read,
     total, partial?, more } }; onOpenSource(sourceId, quote); onReadMore(nodeId, level) re-reads this point at `coverage.more` (absent: no 读更多). */
-export default function LeafNotes({ notes, onOpenSource, onReadMore, busy = false }) {
+export default function LeafNotes({ notes, onOpenSource, onReadMore }) {
+  const { busy } = useStudy();
   const body = notes?.body;
   const onCite = useCallback(n => {
     const cite = body?.cites.find(item => item.n === n);
