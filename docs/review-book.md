@@ -19,6 +19,23 @@ On the **Course outline** page, once the review book is written, **Open the book
 | A knowledge point | Its explanation in reading order (see **Reading a point** below), with **Practise 5** and **Questions and answers** in the row at its top. A point without questions shows a quiet **No questions yet** and **出题** (make questions) there instead. Without sample papers nothing about exams is shown. |
 | Not placed (未归位) | Only when the outline was rebuilt and some of your own text has no knowledge point any more; each piece is headed with its old title and **no longer a point of the outline**. |
 
+## How the explanations are made
+
+**Write the review book** is a quality workflow, not one prompt (details and call counts: [course outline](course-outline.md#the-review-book-explanation-layer)):
+
+1. **Inventory**: every page range of every material is read in parallel; the model lists each term, definition, concept, formula, step, rule, example, claim and warning with its page and a quote, checked word for word.
+2. **Outline**: the items are grouped into knowledge points in learning order; every item is in exactly one point (else in **Other / not placed**).
+3. **Checklist**: each point gets the items it must cover (by the **Explanation depth**; a stressed or exam-tested item always).
+4. **Write**: each point in its own call (a big one in passes of whole pages), all in parallel, freely, explaining every checklist term at first use, with transitions and **（资料以外）** for what the materials do not say.
+5. **Cite**: every cite is found word for word in the point's own pages, or dropped.
+6. **Review**: an independent call checks the text against the checklist and the pages.
+7. **Judge**: an item is covered only when the writer claimed it, its name is in the text and the reviewer did not flag it.
+8. **Repair**: only the flagged parts, at most twice, each time reviewed again.
+9. **Short points** stay marked **Short: N concept(s) missing**, never shown complete; the task ends partial and **Fill the gaps** or the next update mends only those.
+10. **Glossary** (生词与概念): made by the program from the covered items, alphabetical, in **Lookup**, each entry linking to its point.
+
+**Coverage** is measured against that inventory at three levels, shown in the book's header and on the outline page: **materials and pages** read, **knowledge points** complete (every must item covered, nothing unsupported), and **concepts** covered. Never against a length or a template.
+
 ## Reading modes
 
 In **Preview**, **How to read** switches between two ways (remembered per course in this browser):

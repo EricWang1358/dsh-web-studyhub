@@ -14,8 +14,8 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { bookModel } from './helpers/course-book-model.mjs';
 
 /* 复习全书 in the real page at 1280 and 420 px. The library shaped like the owner's (134 materials, a sample paper) gets its outline and its book from the real
-   task with a fake model; then the 总纲 page: the book's button is quiet (the notes are current), an opened knowledge point shows its notes (考情, 知识梳理, 讲解,
-   补充, 出处), a 角标 opens the original in the reader, nothing scrolls sideways. A course with an outline and no book offers 生成复习全书 as the one main button and
+   task with a fake model; then the 总纲 page: the book's button is quiet (the notes are current), an opened knowledge point shows its notes (考情, the explanation with
+   what is beyond the materials marked, 出处, 概念覆盖), a 角标 opens the original in the reader, nothing scrolls sideways. A course with an outline and no book offers 生成复习全书 as the one main button and
    one click asks for the task. Screenshots go to COURSE_BOOK_SHOTS when it is set. */
 
 const PAPER = 'doc:document-paper-2025', at = '2026-10-01T08:00:00.000Z';
@@ -79,7 +79,7 @@ test('复习全书 on the 总纲 page: a knowledge point opens to its notes, a �
       await notes.waitFor({ timeout: 30000 });
       const text = (await notes.innerText()).replace(/\s+/g, ' ');
       assert.match(text, /考情 样卷考过。 Asked as: /, `${width}px: ${text.slice(0, 200)}`);
-      assert.match(text, /知识梳理 .*讲解 .*补充 资料以外 .*1\. 「Views and viewpoints fact 0/);
+      assert.match(text, /Views and viewpoints fact 0: .*（资料以外）.*1\. 「Views and viewpoints fact 0.*概念覆盖 4\/4/);
       assert.ok(await notes.locator('.md-cite__mark').count() >= 1, 'the 角标 are buttons in the text');
       const overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);

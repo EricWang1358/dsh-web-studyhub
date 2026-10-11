@@ -11,21 +11,25 @@ import { convertEventBlock, convertEventText } from './convert-log.js';
    contract (docs/job-contract.md); no React, so a test can read them. */
 
 const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', title: '生成标题', plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查',
-  review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用', 'live.correct': '课堂校正' };
+  review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用', 'live.correct': '课堂校正',
+  inventory: '清点资料', outline: '归纳知识点', write: '写讲解', exam: '写考情' };
+/** The review book's review and repair are of explanations, not questions: their calls say so (their stage label is exactly the word). */
+const STAGE_LABEL = { review: '审阅讲解', repair: '修复讲解', place: '概念归位' };
 
 /** The calls each kind of audio job can make, in the order the work goes: what its timeline legend may name. A task of the original path is one kind for all of them. */
 const AUDIO_CALLS = { 'audio-subtitles': ['proofread', 'translate'], 'audio-review': ['proofread'], 'audio-live-save': ['proofread', 'translate'], 'audio-live-correction': ['live.correct'] };
 export const audioCallKinds = (contractKind) => AUDIO_CALLS[contractKind] || ['transcribe', 'proofread', 'translate'];
-const LEGEND = { generation: ['plan', 'author', 'review', 'repair'], coach: ['prep'] };
-const LEGEND_LABEL = { plan: '规划', author: '出题', review: '审阅', repair: '修复', prep: '备题' };
+const LEGEND = { generation: ['plan', 'author', 'review', 'repair'], coach: ['prep'], 'course-book-build': ['inventory', 'outline', 'write', 'review', 'repair'],
+  'course-outline-build': ['inventory', 'outline'] };
+const LEGEND_LABEL = { plan: '规划', author: '出题', review: '审阅', repair: '修复', prep: '备题', inventory: '清点', outline: '归纳', write: '写' };
 /** The legend of the parallel timeline for a family of tasks (and, for audio, for the kind): [[call kind, label]]. */
 export const timelineLegend = (family, contractKind) => family === 'audio' ? audioCallKinds(contractKind).map((kind) => [kind, KIND_LABEL[kind]])
-  : (LEGEND[family] || LEGEND.generation).map((kind) => [kind, LEGEND_LABEL[kind]]);
+  : (LEGEND[contractKind] || LEGEND[family] || LEGEND.generation).map((kind) => [kind, LEGEND_LABEL[kind]]);
 
 /** A call as a short phrase: "校对 6/9", "限流等待"; `file` adds the recording it belongs to. */
 export function callLabel(call, { file = false } = {}) {
   if (!call) return '';
-  const base = ui(KIND_LABEL[call.kind] || KIND_LABEL.other);
+  const base = ui(STAGE_LABEL[call.stage] || KIND_LABEL[call.kind] || KIND_LABEL.other);
   const counted = call.kind !== 'wait' && call.part != null && call.parts ? uiFormat('{0} {1}/{2}', [base, call.part, call.parts]) : base;
   // A review asked again because its reply could not be used (lib/generation.js) is a retry of the same review, and is called that.
   const numbered = call.kind === 'review' && call.retry > 0 ? uiFormat('{0} · 第 {1} 次重新审阅', [counted, call.retry]) : counted;
