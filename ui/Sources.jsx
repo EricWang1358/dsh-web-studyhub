@@ -19,9 +19,9 @@ import DocumentTopUp, { offersDocumentTopUp } from './coverage/DocumentTopUp.jsx
 import { modelReadiness } from './generation-status.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
-import IndexBadge from './IndexBadge.jsx';
+import IndexBadge, { IndexGapLine } from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
-import { adviceTip, pageFacts, pageGapHint, pageGapNote } from './index-scope.js';
+import { adviceTip, indexGap, pageFacts, pageGapHint, pageGapNote } from './index-scope.js';
 import useIndexCoverage from './use-index-coverage.js';
 import { JevNote, JevProbabilities, JevRunNote, JevSuggestButton, useJevCourseSuggest } from './JevOrganize.jsx';
 import { JevDecidedBadge } from './JevBadge.jsx';
@@ -150,7 +150,7 @@ export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, 
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
-const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark'];
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark'];
 
 /**
  * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
@@ -162,7 +162,7 @@ export function sourceRowPropsEqual(a, b) {
 }
 
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '' }) {
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '' }) {
   const { busy, call } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
@@ -208,7 +208,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
               item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
             <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
-            {(slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} />}</small>}
+            {(slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={indexLink ? () => actions.buildIndex(item.courses?.[0] || '') : undefined} />}</small>}
             {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
             {/* 覆盖 beside it: how much of the text has a question at all, drafts included (the mastery is only about published questions). */}
             <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
@@ -308,7 +308,7 @@ function GroupHead({ expanded, onToggle, children }) {
   </button>;
 }
 
-export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onPractice, onOpenSources, onLegacyRetry, onOpenSettings, highlight }) {
+export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onPractice, onOpenSources, onLegacyRetry, onOpenSettings, onBuildIndex, highlight }) {
   const { busy, act, call } = useStudy();
   useInjectCss(css, "study-sources");
   const toast = useToast();
@@ -341,6 +341,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     infoCache.current = next;
     return next;
   }, [items, indexCoverage, bigKeys]);
+  // The materials of this page that are not fully indexed: one line under the header says how many, and goes to where the index is built.
+  const gap = useMemo(() => (onBuildIndex && !showArchived ? indexGap(filtered.map(item => ({ item, info: infos.get(item.key) }))) : null), [onBuildIndex, showArchived, filtered, infos]);
   const fresh = useMemo(() => new Set(items.filter(item => item.sourceIds.some(id => highlight?.ids?.includes(id))).map(item => item.key)), [items, highlight]);
   // Explicit choices win; otherwise the newest day and any day holding a fresh import are open.
   const [opened, setOpened] = useState(() => new Set()), [closed, setClosed] = useState(() => new Set());
@@ -388,7 +390,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [drag, setDrag] = useState(null);
   // The handlers the rows call: one object that never changes and reads the latest state itself, so a row is drawn again only for its own data (#229).
   const latest = useRef(null);
-  latest.current = { setModal, byId, act, onGenerate, onPractice, toast, onOpenSettings, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
+  latest.current = { setModal, byId, act, onGenerate, onPractice, toast, onOpenSettings, onBuildIndex, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
   const actions = useMemo(() => ({
     open: id => latest.current.setModal({ type: "source", source: latest.current.byId.get(id) }),
     select: (key, on) => { setSelected(current => on ? [...current, key] : current.filter(entry => entry !== key)); setProposals(null); },
@@ -424,13 +426,14 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     },
     dragEnd: () => setDrag(null),
     openSettings: (...args) => latest.current.onOpenSettings?.(...args),
+    buildIndex: course => latest.current.onBuildIndex?.(course),
   }), []);
   // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
   const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
     isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
     canGenerate={!showArchived && !!onGenerate} canPractice={!showArchived && !!onPractice} canSegment={typeof call === 'function'} canRename={!!renameFor}
     mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
-    topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} slot={indexStatus !== 'unavailable'}
+    topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} indexLink={!!onBuildIndex} slot={indexStatus !== 'unavailable'}
     relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null}
     courses={data.focus?.courses} defaultCourse={data.focus?.course}
     pinned={!!pin.pinned} pinFirst={!!pin.first} pinLast={!!pin.last} dragging={!!pin.pinned && drag?.key === item.key} dropMark={pin.pinned && drag?.over === item.key ? drag.side : ''} />;
@@ -450,6 +453,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           }}>{allOpen ? ui("全部收起") : ui("全部展开")}</Button>}
           {addButton}
         </>} />
+      {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {items.length > 0 && <>
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
         <details className="source-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>

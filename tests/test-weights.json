@@ -225,6 +225,8 @@
  "tests/icon-paths.test.mjs": 80,
  "tests/inbox.test.mjs": 910,
  "tests/index-coverage.test.mjs": 40,
+ "tests/index-shortcut-browser.test.mjs": 78000,
+ "tests/index-shortcut.test.mjs": 730,
  "tests/ingest-ui-language.test.mjs": 60,
  "tests/insights.test.mjs": 360,
  "tests/instant-ledger-characterization.test.mjs": 2230,
