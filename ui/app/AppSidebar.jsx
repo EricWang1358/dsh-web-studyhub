@@ -5,6 +5,7 @@ import { pageAvailable } from '../capabilities.js';
 import { countDocuments } from '../../lib/source-groups.js';
 import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from '../SideNav.jsx';
 import { useTaskBadge } from '../tasks/use-task-badge.js';
+import { bookEntryPage } from '../book/model.js';
 import { NAV_DEFAULTS, NAV_GROUPS, groupIsOpen, useNavGroups, useNavOrder } from '../nav-order.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
@@ -64,6 +65,12 @@ export default function AppSidebar() {
     observer?.observe(element);
     return () => observer?.disconnect();
   }, [page, pageTarget, sidebarNarrow, busy, !!data, data?.lastRun?.id, data?.lastRun?.index, navOrder.order, navGroups.folded]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* 复习全书: the book of the current course when it has been written, else the 总纲 page, which offers to organise the course and write it. */
+  const openBookEntry = async () => {
+    let target = 'book';
+    try { target = bookEntryPage(await core.call('course.book.open', { course: data?.focus?.course ?? null })); } catch { /* the book page shows the failure, with a retry */ }
+    gotoPage(nav, target);
+  };
   const toggleLabel = sidebarNarrow ? ui('展开侧边栏') : ui('收起侧边栏');
   const announced = navOrder.announce && PAGES[navOrder.announce.id];
   return (
@@ -100,7 +107,7 @@ export default function AppSidebar() {
                   <NavItem key={id} {...navOrder.bind(id)} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
                     className={navOrder.lifted === id ? 'is-dragging' : ''} upkeep={group.id === 'setup'} active={navPage === id}
                     glyph={PAGES[id].glyph} label={label} title={`${label}\n${ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）')}`}
-                    onClick={() => gotoPage(nav, id)} disabled={!data && id !== 'board'}
+                    onClick={() => (id === 'book' ? openBookEntry() : gotoPage(nav, id))} disabled={!data && id !== 'board'}
                     hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : news?.total > 0 ? news.total : undefined}
                     hintClass={due || news?.failed > 0 ? 'nav-count is-due' : news?.total > 0 ? 'nav-count is-live' : 'nav-count'}
                     hintTitle={due ? uiFormat('{0} 项已逾期 · {1} 项今天截止', [board.due.overdue, board.due.today]) : news?.total > 0 ? taskBadgeTitle(news) : undefined} />

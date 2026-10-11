@@ -241,5 +241,8 @@
   "期末一周每天学多久": "Final week: minutes a day",
   "期末一周每天排多少分钟：节数多于时间时，那几天会合并几节并写明超出多少，不会丢掉哪一节。": "How many minutes each day of the final week holds: when there are more points than time, those days take several points and say how far over they are; no point is left out.",
   "每天 {0} 分钟": "{0} minutes a day",
-  "正在排期末一周…": "Planning the final week…"
+  "正在排期末一周…": "Planning the final week…",
+  "设置考试日期，开启期末一周": "Set the exam date to start the final week",
+  "期末一周在考前 {0} 天开始": "The final week starts {0} days before the exam",
+  "复习全书：按总纲给每个知识点写一段讲解，带出处和题目链接；写好后在书页里读，点题目就去练。": "Review book: a short explanation for every knowledge point of the outline, with its sources and question links. Once it is written you read it on its own page and practise from the links."
 }

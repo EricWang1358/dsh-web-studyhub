@@ -220,7 +220,7 @@ function OutlineView() {
 /** 复习全书: the book of the current course, read only (M1). A question link starts the ordinary practice round with the way back (回到复习全书), which shows
     this page again; the page itself comes back at the heading and scroll the learner left. */
 function BookView() {
-  const { data, nav, session, learn, intents, shell } = useApp();
+  const { data, nav, session, learn, intents, shell, settingsEntry } = useApp();
   const onPractice = (scope, { resume = false } = {}) => {
     const origin = learn.captureContext();
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
@@ -228,7 +228,8 @@ function BookView() {
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.
   const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
   return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} onOpenTask={nav.show.task}
-    onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun} />;
+    onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun}
+    onCourseSettings={settingsEntry.setCourseSettings} />;
 }
 
 /** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console.

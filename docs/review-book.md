@@ -6,6 +6,8 @@ The **review book** (复习全书) is a book page per course, made from the [cou
 
 ## Open it
 
+In the sidebar, under **Now and then**, select **Review book**: it opens the book of the current course when it is written, and otherwise the **Course outline** page, which says in one line what the review book is and offers **Generate outline** and **Write the review book**. In the book's header, a course without an exam date shows **Set the exam date to start the final week** (it opens the course settings), and a course whose exam is further away than the window says **The final week starts N days before the exam**.
+
 On the **Course outline** page, once the review book is written, **Open the book page** sits next to the line about the learning order; an opened knowledge point has its own **Open the book page**, which opens the book at that point. **Back to the outline** returns.
 
 ## What the page shows

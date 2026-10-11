@@ -85,6 +85,9 @@ export const startedText = already => (already ? ui('总纲已经在整理，进
 
 /* ---------- 复习全书 (the explanation layer on the outline) ---------- */
 
+/** One line on what the 复习全书 is, above the outline of a course that has no written book yet (the sidebar's 复习全书 leads here until it is). */
+export const bookIntroText = () => ui('复习全书：按总纲给每个知识点写一段讲解，带出处和题目链接；写好后在书页里读，点题目就去练。');
+
 /** The line of a running 复习全书 build. */
 export const writingText = run => (run.total ? uiFormat('正在生成复习全书（{0}/{1} 步）…', [Math.min(run.done + 1, run.total), run.total]) : ui('正在生成复习全书…'));
 

@@ -255,6 +255,11 @@
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
+    .outline-book-intro {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
     .outline-book-line__basis,
     .outline-book-line__stale {
       margin: 0;

@@ -11,9 +11,9 @@ import { startNavServer } from '../scripts/qa/nav-layout.mjs';
 /* The grouped sidebar in a real browser: every page is still reachable through its anchor, a folded group hides only its
    own rows and is still folded after a reload, the rows above and below keep their height, and a keyboard move stays inside
    the group. Needs a Chromium; without one the test says so instead of passing silently. */
-const PAGES = ['library', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'tasks', 'skeleton', 'audio', 'live'];
+const PAGES = ['library', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'tasks', 'skeleton', 'audio', 'live', 'examprep', 'book'];
 
-test('the grouped sidebar: all thirteen pages reachable, folding remembered, keyboard reorder inside a group', { timeout: 300000 }, async (t) => {
+test('the grouped sidebar: all fifteen pages reachable, folding remembered, keyboard reorder inside a group', { timeout: 300000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-groups-dist-'));
@@ -50,7 +50,7 @@ test('the grouped sidebar: all thirteen pages reachable, folding remembered, key
     const folded = await state();
     assert.equal(folded.setup.open, 'false');
     assert.equal(folded.setup.shown, 0, 'a folded group shows none of its rows');
-    assert.equal(folded.periodic.shown, 2, 'the other groups are untouched');
+    assert.equal(folded.periodic.shown, 4, 'the other groups are untouched');
     assert.deepEqual(await Promise.all(['library', 'board', 'exam'].map(top)), rowsAbove, 'rows above the folded group do not move');
     assert.equal(await page.locator('[data-tour="nav-sources"]').count(), 1, 'the folded rows stay in the page');
     assert.equal(await page.evaluate(() => localStorage.getItem('study-nav-groups')), '{"setup":true}');

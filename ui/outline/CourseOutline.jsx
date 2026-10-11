@@ -10,7 +10,7 @@ import { modelReadiness } from '../generation-status.js';
 import { displayTitle } from '../../lib/document-title.js';
 import OutlineTree from './OutlineTree.jsx';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
-import { basisText, bookStartedText, bookWhatText, cappedText, courseLine, offerText, pickedText, runningText, startPickedText, startedText, whatText, writingText } from './words.js';
+import { basisText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, offerText, pickedText, runningText, startPickedText, startedText, whatText, writingText } from './words.js';
 import css from './outline.css';
 
 /* 总纲 (course outline): the current course's materials as a tree (资料 → 章节) with the questions placed where they point (course.outline,
@@ -177,6 +177,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   // The one main button: none while questions are picked (the bar's is), and without an outline none while the course has no question (创建题组 is).
   const organise = <Organise book={book} documents={outline.documents} running={running} writing={writing} model={model} quiet={isPicked(pick) || (nothing && !book)}
     actions={actions} />;
+  // With a current 复习全书 (nothing else is the main action) 打开书页 is the one primary button, and it comes first.
+  const openMain = !isPicked(pick) && !mainAction(book);
   // 资料有更新: with a 复习全书, its own line (更新全书 organises the outline again too); else the outline's.
   const stale = book?.notes ? (book.notes.stale ? ui('资料有更新，建议更新全书') : null) : book?.stale ? ui('资料有更新，建议重新整理') : null;
   // With an outline the book is the main action, so 创建题组 of a course without questions is the quiet one.
@@ -184,9 +186,10 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   return (
     <section className="page outline-page">
       {header}
+      {!book?.notes && outline.status === 'ok' && outline.documents.length > 0 && <p className="outline-book-intro">{bookIntroText()}</p>}
       {book && <div className="outline-book-line">
         <p className="outline-book-line__basis">{basisText(book.orderBasis)}</p>
-        {book.notes && actions.onOpenBook && <Button size="sm" variant="secondary" icon="book" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
+        {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} icon="book" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
         {organise}
       </div>}

@@ -1,5 +1,6 @@
 /* 复习全书 page (ui/book/): what the page keeps between visits and how it reads course.book.open's tree. Pure, no React, no DOM. */
 import { bookIndex, stitchBook } from '../../lib/course-book-links.js';
+import { daysUntilExam } from '../../lib/courses.js';
 
 /**
  * The live 目录: every heading of the stitched book (bookIndex), the book's own title left out, each with the chapter (a top heading, level 2) it is in:
@@ -13,6 +14,17 @@ export function tocEntries(book) {
     if (entry.level <= 2) chapter = entry.id;
     return { id: entry.id, level: entry.level, title: entry.title, chapter };
   });
+}
+
+/** Where the sidebar's 复习全书 leads: the book page once its notes are written, else the 总纲 page (which offers 生成总纲 / 生成复习全书). */
+export const bookEntryPage = book => (book?.status === 'ok' && book.notes ? 'book' : 'outline');
+
+/** What the 期末一周 needs of the course's exam date, as the book page's quiet line says it: { kind: 'none' } (no date: a link to the course settings), { kind: 'later', window }
+    (a date beyond the window: the plan starts `window` days before the exam), or null (inside the window, or past: nothing to say). */
+export function crunchDateHint(exam, windowDays, now = new Date()) {
+  const left = daysUntilExam(exam, now);
+  if (left === null) return { kind: 'none' };
+  return left > windowDays ? { kind: 'later', window: windowDays } : null;
 }
 
 const kept = new Map();
