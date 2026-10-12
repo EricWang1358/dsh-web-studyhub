@@ -1,5 +1,6 @@
-/* A fake model for the 复习全书 build: the outline stages are answered by the course outline's fake (tests/helpers/course-outline-library.mjs), the notes and
-   考情 stages here, the way a plausible model would: a key point and an explanation per knowledge point, each resting on a quote copied from its first material.
+/* A fake model for the 复习全书 build: the inventory and the outline stages are answered by the course outline's fake (tests/helpers/course-outline-library.mjs),
+   the writing, the independent review, the repair, the placing of loose items and 考情 here, the way a plausible model would: the writer explains each
+   checklist item by name with a quote copied from its first page; the reviewer flags every must item the text does not name; the repair adds what was flagged.
    No real model, no network. */
 import { reportUsage } from '../../lib/usage-scope.js';
 import { outlineModel } from './course-outline-library.mjs';
@@ -10,39 +11,61 @@ export const INVENTED = 'This sentence is not written in any of the materials at
 /** The first words of a text, cut at a word: what a model copies as a quote. */
 const opening = text => { const words = text.replace(/\s+/g, ' ').trim().split(' '); let quote = ''; for (const word of words) { if ((`${quote} ${word}`).length > 60) break; quote = `${quote} ${word}`.trim(); } return quote; };
 
-function notesAnswer(data, { invent, skip = [] }) {
-  return { leaves: data.leaves.filter(leaf => !skip.includes(leaf.title)).map(leaf => {
-    const [first] = leaf.materials, example = leaf.materials.find(material => /Example:/.test(material.text));
-    return { id: leaf.id, points: [`${leaf.title}: what it is and why it matters [1]`, 'The steps to remember'],
-      explain: `${leaf.title}, explained for a beginner with $x^2$.${invent ? ' A claim that rests on nothing [2].' : ''}`,
-      example: example ? 'Example: one worked step after another [1]' : '', extra: ['A general intuition the materials do not give [1]'],
-      quotes: [{ n: 1, ref: 'S1', quote: opening(first.text) }, ...(invent ? [{ n: 2, ref: 'S1', quote: INVENTED }] : [])] };
-  }) };
+/** A section that explains the given checklist items, with a lead-in and a lead-on, a mark on the first statement and its quote. */
+function section(data, items, { invent }) {
+  const point = data.point, lines = [];
+  if (point.before) lines.push(`After ${point.before} comes ${point.title}.`);
+  lines.push(`${point.title}, explained for a beginner with $x^2$ [1].${invent ? ' A claim that rests on nothing [2].' : ''}`);
+  for (const item of items) lines.push(`**${item.name}**: ${item.gist || 'what it means'}; this is how it is used.`);
+  lines.push('A general intuition the materials do not give （资料以外）.');
+  if (point.after) lines.push(`That leads on to ${point.after}.`);
+  return { text: lines.join('\n\n'), covered: items.map(item => ({ id: item.id, where: item.name })),
+    quotes: [{ n: 1, ref: 'S1', quote: opening(data.pages[0]?.text ?? '') }, ...(invent ? [{ n: 2, ref: 'S1', quote: INVENTED }] : [])] };
+}
+
+/** The reviewer: every must item whose name the text lacks is missing; `unsupported` (a point title) makes it find an unsupported claim in that point. */
+function review(data, { unsupported = [] }) {
+  const issues = data.checklist.filter(item => item.priority === 'must' && !data.text.includes(item.name)).map(item => ({ kind: 'missing', item: item.id, note: `${item.name} is not explained.` }));
+  if (unsupported.includes(data.point.title)) issues.push({ kind: 'unsupported', quote: 'A claim', note: 'Not in the pages.' });
+  return { issues, checked: data.checklist.filter(item => data.text.includes(item.name)).map(item => item.id) };
 }
 
 const examAnswer = data => ({ leaves: data.leaves.map(leaf => ({ id: leaf.id, note: `Asked as: ${String(leaf.questions[0] ?? '').slice(0, 40)}` })) });
 
 /**
- * The fake model. Outline options as outlineModel; `invent`: each explanation also cites a quote that is in no material; `skip`: leaf titles the notes answer
- * leaves out; `renameMap`: the reduce stage gives every leaf a new title (an outline rebuilt with other names, so other node ids); `junk(call, calls)`;
- * `held`: { at, gate } holds that call; `fail(call, calls)`: throw.
+ * The fake model. Outline options as outlineModel; `invent`: each section also cites a quote that is in no material; `skip`: point titles the writer answers
+ * with no text (the point fails); `omit`: how many must items the writer leaves out of each section; `stubborn`: point titles whose repair leaves them out
+ * again (the point ends short); `unsupported`: point titles the reviewer always finds an unsupported claim in; `renameMap`: the outline's order gives every
+ * leaf a new title; `junk(call, calls)`; `held`: { at | stage, gate }; `fail(call, calls)`: throw.
  */
-export function bookModel({ invent = false, skip, renameMap = false, junk, held, fail, ...outline } = {}) {
-  const base = outlineModel(outline), calls = [], opts = { invent, skip, renameMap };
+export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], unsupported = [], renameMap = false, junk, held, fail, ...outline } = {}) {
+  const base = outlineModel(outline), calls = [], opts = { invent, skip, omit, stubborn, unsupported, renameMap };
   const complete = async (system, prompt, request) => {
     const data = requestData(prompt), call = { stage: data.stage, data, request, system, prompt };
     calls.push(call);
-    if (held && calls.length === held.at) await held.gate.promise;
+    if (held && (held.stage ? call.stage === held.stage && !held.taken && (held.taken = true) : calls.length === held.at)) await held.gate.promise;
     if (fail?.(call, calls)) throw new Error('provider down');
     if (junk?.(call, calls)) { reportUsage({ uncachedInputTokens: 10, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0 }); return 'Not JSON at all.'; }
-    if (data.stage === 'notes' || data.stage === 'exam') {
+    if (['write', 'review', 'repair', 'place', 'exam'].includes(data.stage)) {
       reportUsage({ uncachedInputTokens: 100, outputTokens: 60, cacheReadTokens: 0, cacheWriteTokens: 0 });
-      return JSON.stringify(data.stage === 'notes' ? notesAnswer(data, opts) : examAnswer(data));
+      const must = (data.checklist || []).filter(item => item.priority === 'must'), all = data.checklist || [];
+      if (data.stage === 'write') {
+        if (opts.skip.includes(data.point.title)) return JSON.stringify({ text: '', covered: [], quotes: [] });
+        const left = must.slice(Math.max(0, must.length - opts.omit)).map(item => item.id);
+        return JSON.stringify(section(data, all.filter(item => !left.includes(item.id)), opts));
+      }
+      if (data.stage === 'review') return JSON.stringify(review(data, opts));
+      if (data.stage === 'repair') {
+        const keep = opts.stubborn.includes(data.point.title) ? all.filter(item => !data.missing.includes(item.id)) : all;
+        return JSON.stringify(section(data, keep, { invent: false }));
+      }
+      if (data.stage === 'place') return JSON.stringify({ places: data.items.map(item => ({ item: item.id, point: 'k1' })) });
+      return JSON.stringify(examAnswer(data));
     }
     let text = await base.complete(system, prompt, request);
-    if (data.stage !== 'reduce') return text;
+    if (!['reduce', 'order'].includes(data.stage)) return text;
     const value = JSON.parse(text.replace(/^```json\n|\n```$/g, '')), known = new Map(data.points.map(point => [point.id, point.title]));
-    // A course whose points no chapter of the outline fake names (one short material): one chapter holds them all.
+    // A course whose points no chapter of the outline fake names (a short course of its own): one chapter holds them all.
     const ids = entry => (Array.isArray(entry) ? entry : [entry]);
     const placed = value.chapters.some(chapter => [...(chapter.points || []), ...(chapter.sections || []).flatMap(section => section.points)].some(entry => ids(entry).some(id => known.has(id))));
     if (!placed) return JSON.stringify({ basis: ['logic'], chapters: [{ title: 'Everything', intro: 'The whole course.', points: data.points.map(point => point.id) }] });

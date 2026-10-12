@@ -9,7 +9,8 @@ import { bookEditPrompt } from '../agent-prompts/book.js';
 async function coverageOf(call, course, hid) {
   try {
     const answer = await call('book.coverage', { course, hid });
-    return answer?.status === 'ok' && answer.totals ? { opened: answer.totals.opened, pages: answer.totals.pages } : null;
+    return answer?.status === 'ok' && answer.totals ? { opened: answer.totals.opened, pages: answer.totals.pages,
+      ...(answer.concepts ? { concepts: { covered: answer.concepts.covered, total: answer.concepts.total } } : {}) } : null;
   } catch { return null; }
 }
 

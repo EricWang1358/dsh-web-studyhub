@@ -1,6 +1,7 @@
 /* 总纲 page: its words. Every string is a literal ui() / uiFormat() call, so the English catalogue (ui/locales/en.outline.json) is checked against it. */
 import { ui, uiFormat } from '../i18n.js';
 import { displayTitle } from '../../lib/document-title.js';
+import { formatNumber } from '../format.js';
 
 /** A chapter's name under a leaf of the AI outline: with its material, so the learner knows which one it is. */
 function anchorTitle(node) {
@@ -93,3 +94,59 @@ export const writingText = run => (run.total ? uiFormat('正在生成复习全�
 
 /** The toast of a 复习全书 start. */
 export const bookStartedText = already => (already ? ui('复习全书已经在生成，进度在任务页。') : ui('已开始生成复习全书，进度在任务页。'));
+
+/* ---------- 讲解详尽程度 (settings.book.coverage) and 覆盖 ---------- */
+
+const LEVEL_WORDS = { brief: () => ui('精简'), standard: () => ui('标准'), full: () => ui('详尽') };
+/** The name of a level. */
+export const levelText = level => (LEVEL_WORDS[level] || LEVEL_WORDS.standard)();
+const LEVEL_TIPS = {
+  brief: () => ui('精简：必须讲到的只算术语、定义、概念和公式，其余作为可选；每个知识点照样读它的全部页。'),
+  standard: () => ui('标准：再加上步骤、规则和易错提醒必须讲到；资料强调的、样卷考到的一律必讲。'),
+  full: () => ui('详尽：资料里清点出的每一条都必须讲到，例子和论断也算；修复的调用可能更多。'),
+};
+/** What a level means (the Select's hover explanation): which checklist items are a must; the cost is not estimated. */
+export const levelTip = level => (LEVEL_TIPS[level] || LEVEL_TIPS.standard)();
+/** The levels as Select options, each with its explanation. */
+export const levelOptions = () => ['brief', 'standard', 'full'].map(level => ({ value: level, label: levelText(level), tip: levelTip(level) }));
+/** What the level choice is, said once beside it. */
+export const levelHint = () => ui('讲解详尽程度：哪些概念必须讲到，审阅按这张清单检查。改了以后，下次「更新全书」按新的清单重写讲解；用了多少在任务页看。');
+
+/** 「覆盖：读了 N/M 页」 of one point: pages where its sources have them, else characters. */
+export function coverageText(coverage) {
+  if (coverage.unit === 'page') return coverage.partial ? uiFormat('覆盖：读了 {0}/{1} 页，另有 {2} 页只读了开头', [coverage.read, coverage.total, coverage.partial])
+    : uiFormat('覆盖：读了 {0}/{1} 页', [coverage.read, coverage.total]);
+  return uiFormat('覆盖：读了 {0}/{1} 字', [formatNumber(coverage.read), formatNumber(coverage.total)]);
+}
+/** The hover explanation of 读更多. */
+export const readMoreTip = level => uiFormat('只重新读这一个知识点，按「{0}」多读几页再写讲解；单独一个任务，进度在任务页。', [levelText(level)]);
+/** The toast of a 读更多 start. */
+export const readMoreStartedText = already => (already ? ui('复习全书已经在生成，进度在任务页。') : ui('已开始多读这个知识点，进度在任务页。'));
+
+/** The book line's 讲解覆盖: the share of the points' materials their explanations read, and how many read only some of theirs. */
+export function bookCoverageText(coverage) {
+  if (!coverage?.total) return '';
+  const percent = Math.floor((coverage.read / coverage.total) * 100);
+  return coverage.partial ? uiFormat('讲解覆盖：读了资料的 {0}%，{1} 个知识点只读了一部分（展开知识点可「读更多」）', [percent, coverage.partial])
+    : uiFormat('讲解覆盖：读了资料的 {0}%', [percent]);
+}
+
+/** The heading of one part of a point read in passes: 「第 a–b 页」, with the material's name when the parts read more than one material. */
+export function partHeadingText(part, named) {
+  const place = range => (range.unit === 'page' ? (range.from === range.to ? uiFormat('第 {0} 页', [range.from]) : uiFormat('第 {0}–{1} 页', [range.from, range.to]))
+    : range.unit === 'char' ? uiFormat('第 {0}–{1} 字', [range.from, range.to]) : '');
+  const shown = part.ranges.slice(0, 3).map(range => (named || range.unit === 'whole' ? [displayTitle(range.material), place(range)].filter(Boolean).join(' · ') : place(range)));
+  const text = shown.join(' / ');
+  return part.ranges.length > 3 ? uiFormat('{0} 等 {1} 份', [text, part.ranges.length]) : text;
+}
+/** The sample papers a build uses, said without opening anything: their names, and whether they were recognised by name (the learner can change them). */
+export const usedPapersText = (titles, auto) => uiFormat(auto ? '依据样卷：{0}（按名称自动识别，可更改）' : '依据样卷：{0}', [titles.join(ui('、'))]);
+/** A point's concept coverage: the must items of its checklist its explanation covers. */
+export const conceptsText = concepts => uiFormat('概念覆盖 {0}/{1}', [concepts.covered, concepts.total]);
+/** A point still short after its repairs (never claimed complete). */
+export const shortText = missing => uiFormat('未达标：缺 {0} 个概念', [missing]);
+/** The hover explanation of 补漏. */
+export const fillGapsTip = () => ui('只为这一个知识点补上缺的概念：按缺的清单审阅、修复，不重写已经讲好的部分；单独一个任务，进度在任务页。');
+/** The book's coverage at three levels: the materials and pages the inventory read, the knowledge points complete, the concepts covered. */
+export const levelsText = levels => uiFormat('覆盖：资料用了 {0}/{1} 份、页 {2}/{3}；知识点达标 {4}/{5}；概念 {6}/{7}', [levels.documents.used, levels.documents.total,
+  levels.pages.read, levels.pages.total, levels.leaves.ok, levels.leaves.total, levels.items.covered, levels.items.total]);

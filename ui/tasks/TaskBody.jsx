@@ -12,6 +12,7 @@ import GenerationParts from './GenerationParts.jsx';
 import PlanTable, { planTabItem } from './PlanTable.jsx';
 import CoachBatches from './CoachBatches.jsx';
 import { PdfDetail } from '../PdfConvertJob.jsx';
+import BookBoard from './BookBoard.jsx';
 
 /* The two columns under the controls, one template for every kind of job: on the left the parallel timeline above the tabs 「正在进行」 and the kind's own
    section (文件 for audio, 轮次与批次 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall as the window leaves them and
@@ -24,11 +25,13 @@ const SECTIONS = {
   coach: { value: 'batches', label: '批次', count: (contract) => contract.detail.batches?.length || 0, View: CoachBatches },
   pdf: { value: 'convert', label: '转换详情', count: () => '', View: ({ task }) => <div className="tc-scroll"><PdfDetail job={task} /></div> },
 };
+/** A review book build: each knowledge point and where it is (written, reviewed, complete or short). */
+const BOOK_SECTION = { value: 'points', label: '知识点', count: (contract) => contract.detail.book?.board?.length || 0, View: BookBoard };
 
 /* `marks` (callId -> 'long' | 'slowest', time-limit.js) draws the steps the time-limit strip points at on the timeline; `focusCall` ({ id, at }) is that strip asking for one of them: it is selected and its output shown, like a click on its bar. */
 export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const contract = contractOf(task), calls = contract.calls, live = isRunningTask(task), kind = taskKindOf(task);
-  const section = contract.kind === 'audio-live-correction' ? null : SECTIONS[kind], left = useId(), right = useId();
+  const section = contract.kind === 'audio-live-correction' ? null : contract.kind === 'course-book-build' ? BOOK_SECTION : SECTIONS[kind], left = useId(), right = useId();
   const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState('running'), [rightTab, setRightTab] = useState('output');
   const running = useMemo(() => runningCalls(calls), [calls]);
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || null;

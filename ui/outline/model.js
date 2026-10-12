@@ -1,7 +1,7 @@
 /* 总纲 page: the pure part. The rows on screen (documents, the chapters of the open ones, 未归位; or the AI outline's chapters, sections and points), what a
    key does on them, what is picked, and the view the learner left (open rows, the deck filter), kept for the way back from a practice round. No React, no ui(). */
 import { contractOf, isRunningTask } from '../tasks/task-model.js';
-import { suggestRoles } from '../../lib/exam-prep-roles.js';
+import { silentPaper, suggestRoles } from '../../lib/exam-prep-roles.js';
 
 export const UNPLACED = 'unplaced';
 /** The task kind of a 总纲 build (lib/contexts/generation/outline), as the console lists it. */
@@ -47,7 +47,9 @@ function bookRows(outline, details, open) {
 export function paperChoices(documents) {
   const list = Array.isArray(documents) ? documents : [];
   const roles = suggestRoles(list.map(item => ({ id: item.key, title: item.title, format: item.format })));
-  return list.map((item, at) => ({ key: item.key, title: item.title, likely: roles[at]?.role === 'past-paper' })).sort((a, b) => Number(b.likely) - Number(a.likely));
+  // `silent`: the build uses it without asking (a paper-like marker in the name, the build's own rule); `likely` only puts it first.
+  return list.map((item, at) => ({ key: item.key, title: item.title, likely: roles[at]?.role === 'past-paper', silent: roles[at]?.role === 'past-paper' && silentPaper(item) }))
+    .sort((a, b) => Number(b.likely) - Number(a.likely));
 }
 
 /** The keys open when an outline is first shown: its chapters (章 open, 节 closed). */

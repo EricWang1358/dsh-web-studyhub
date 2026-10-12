@@ -67,7 +67,7 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       let rows = await rowsOf(page);
       const parts = rows.filter(row => row.kind === 'part');
       assert.deepEqual(parts.map(row => row.title), ['第 1 章 Course overview', '第 2 章 Introduction to Solution Architecture', '第 3 章 Requirements and Quality Attributes',
-        '第 4 章 Architecture Patterns', '第 5 章 Integration and APIs', '第 6 章 Cloud Deployment', '第 7 章 Security Architecture', '第 8 章 Exam review'], `${width}px: the syllabus order`);
+        '第 4 章 Architecture Patterns', '第 5 章 Integration and APIs', '第 6 章 Cloud Deployment', '第 7 章 Security Architecture'], `${width}px: the syllabus order (the sample paper teaches nothing: it is in 其他)`);
       assert.ok(parts.every(row => row.open === 'true'), 'chapters open by default');
       assert.ok(rows.filter(row => row.kind === 'section').every(row => row.open === 'false'), 'sections closed');
       assert.ok(await page.locator('.outline-row[data-kind="part"] .outline-row__intro').count() >= 7, 'every chapter says what it teaches');
@@ -132,12 +132,14 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       await offer.locator('.outline-papers summary').click();
       const choices = await offer.locator('.outline-papers__list .sh-check').allInnerTexts();
       assert.match(choices[0], /DB 2024 样卷[\s\S]*像样卷/, 'the likely paper first');
-      assert.equal(await offer.locator('.outline-papers__list input:checked').count(), 0, 'none picked');
+      assert.equal(await offer.locator('.outline-papers__list input:checked').count(), 1, 'the paper recognised by its name is ticked: it is used by default');
+      assert.match(await offer.locator('[data-papers-used]').innerText(), /依据样卷：DB 2024 样卷（按名称自动识别，可更改）/);
       await settleAnimations(other.page);
       if (shots) await other.page.screenshot({ path: join(shots, `offer-${width}.png`), fullPage: true });
       const asked = other.page.waitForRequest(request => /"action":"generation\.courseOutline\.build"/.test(request.postData() || ''));
       await offer.locator('.sh-btn--primary').click();
-      assert.deepEqual(JSON.parse((await asked).postData()).args.course, 'DB');
+      const sent = JSON.parse((await asked).postData()).args;
+      assert.deepEqual([sent.course, sent.papers], ['DB', undefined], 'nothing changed: the build finds the papers itself');
       held.release('generation.courseOutline.build', { jobId: 'course-outline-x', status: 'running', steps: 2 });
       await other.page.locator('text=已开始整理总纲，进度在任务页。').first().waitFor({ timeout: 10000 });
       const wide = await sideways(other.page);

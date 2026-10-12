@@ -121,6 +121,18 @@ function reduceAnswer(data, { drop = [] } = {}) {
   return { basis: ['syllabus', 'numbering', 'dates', 'magic'], chapters };
 }
 
+/** Cluster: a knowledge point per topic (the words before "fact n"); the reintroduction notes and the diagram copy join "What architects do", any other item the overview. */
+export function clusterAnswer(data) {
+  const points = new Map();
+  for (const item of data.items) {
+    const fact = /^(.+) fact \d+$/.exec(item.name)?.[1];
+    const topic = !fact ? 'Course overview' : ['Reintroduction', 'Diagram view'].includes(fact) ? 'What architects do' : fact;
+    if (!points.has(topic)) points.set(topic, { title: topic, intro: `About ${topic}. What it is and why it matters.`, items: [] });
+    points.get(topic).items.push(item.id);
+  }
+  return { points: [...points.values()] };
+}
+
 function paperAnswer(data) {
   const id = title => data.points.find(point => point.title === title)?.id;
   const questions = data.paper[0].text.split('\n').map(line => /^(Q\d) (.+?) \(/.exec(line)).filter(Boolean)
@@ -129,16 +141,35 @@ function paperAnswer(data) {
   return { questions };
 }
 
-/** The fake model. `junk(call, calls)`: answer with text that is not JSON; `fail(call, calls)`: throw; `held`: { at, gate } holds that call; `drop`: point titles the reduce leaves out. */
-export function outlineModel({ junk, fail, held, drop } = {}) {
+/** The inventory a plausible model makes of some page ranges: every "<Topic> fact <n>: <what>." sentence is a concept anchored by its own words; a range with
+    no such sentence and some text gives one item from its first words. `invent`: every quote is one the range does not hold (the item is kept, unverified). */
+export function inventoryAnswer(data, { invent = false } = {}) {
+  const items = [];
+  for (const range of data.ranges) {
+    const facts = [...range.text.matchAll(/([A-Z][A-Za-z -]*?) fact (\d+): ([^.]+)\./g)];
+    for (const [sentence, topic, n, gist] of facts) items.push({ range: range.ref, kind: 'concept', name: `${topic} fact ${n}`, gist, quote: invent ? 'Words that are nowhere in the range.' : sentence.slice(0, 60), key: n === '0' });
+    if (!facts.length && range.text.trim().length >= 20) {
+      const words = range.text.trim().split(/\s+/);
+      items.push({ range: range.ref, kind: 'term', name: words.slice(0, 2).join(' '), gist: words.slice(0, 8).join(' '), quote: invent ? 'Words that are nowhere in the range.' : words.slice(0, 6).join(' ') });
+    }
+  }
+  return { items };
+}
+
+/** The fake model. `junk(call, calls)`: answer with text that is not JSON; `fail(call, calls)`: throw; `held`: { at | stage, gate } holds that call (the first of that stage); `drop`: point titles the reduce leaves out;
+    `inventory`: 'facts' (inventoryAnswer, the default), 'none' (no item) or 'invent' (facts with quotes that are in no range). */
+export function outlineModel({ junk, fail, held, drop, inventory = 'facts' } = {}) {
   const calls = [];
   const complete = async (system, prompt, request) => {
     const data = requestData(prompt), call = { stage: data.stage, data, request, system, prompt };
     calls.push(call);
     reportUsage({ uncachedInputTokens: 100, outputTokens: 30, cacheReadTokens: 0, cacheWriteTokens: 0 });
-    if (held && calls.length === held.at) await held.gate.promise;
+    if (held && (held.stage ? call.stage === held.stage && !held.taken && (held.taken = true) : calls.length === held.at)) await held.gate.promise;
     if (fail?.(call, calls)) throw new Error('provider down');
     if (junk?.(call, calls)) return 'Sure! Here is the outline you asked for (not JSON).';
+    if (data.stage === 'inventory') return JSON.stringify(inventory === 'none' ? { items: [] } : inventoryAnswer(data, { invent: inventory === 'invent' }));
+    if (data.stage === 'cluster') return JSON.stringify(clusterAnswer(data));
+    if (data.stage === 'order') return JSON.stringify(reduceAnswer(data, { drop }));
     if (data.stage === 'map') return JSON.stringify(mapAnswer(data));
     if (data.stage === 'reduce') return `\`\`\`json\n${JSON.stringify(reduceAnswer(data, { drop }))}\n\`\`\``;
     if (data.stage === 'paper') return JSON.stringify(paperAnswer(data));

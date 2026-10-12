@@ -1,6 +1,7 @@
-/* 课程总纲 step 2: the build as ONE kind of Job of the unified runtime (`course-outline-build`). The course's materials are described compactly (never their
-   texts, the syllabus excepted), grouped into knowledge points in batches (map), arranged into chapters and sections in learning order (reduce), marked by
-   sample papers when some are chosen (papers), and saved as ONE special material. A synthetic library shaped like the owner's (134 materials, about 900
+/* 课程总纲 step 2: the build as ONE kind of Job of the unified runtime (`course-outline-build`). The 清点 runs first (tests/book-inventory.test.mjs); the outline
+   built from it is tests/book-outline-inventory.test.mjs. Here the inventory finds nothing (`inventory: 'none'`), so the quick fallback runs: the course's materials
+   are described compactly (never their texts, the syllabus excepted), grouped into knowledge points in batches (map), arranged into chapters and sections in
+   learning order (reduce), marked by sample papers (papers), and saved as ONE special material. A synthetic library shaped like the owner's (134 materials, about 900
    questions) and a fake model: no real model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ const consoleCode = await loadUi(`export { taskSummary } from './ui/tasks/task-s
   export { resultOpener } from './ui/tasks/task-actions.js';`);
 const PAPER = 'doc:document-paper-2025';
 
-async function world(t, { fake = outlineModel(), library = {}, runtime = true } = {}) {
+async function world(t, { fake = outlineModel({ inventory: 'none' }), library = {}, runtime = true } = {}) {
   const root = await privateRoot(t, 'course-outline-job-');
   const service = new StudyService(root, { complete: fake.complete, ...switchOptions(runtime ? 'runtime' : 'legacy', { complete: fake.complete, paths: [] }) });
   t.after(() => service.dispose());
@@ -30,7 +31,9 @@ async function world(t, { fake = outlineModel(), library = {}, runtime = true } 
   const jobs = () => [...service.runtime.work.jobs.values()].filter(job => job.type === KIND);
   const outlines = async () => (await service.store.read()).sources.filter(isCourseOutlineSource);
   const view = async (args = {}) => service.call('course.outline', { course: COURSE, ...args });
-  return { service, fake, build, jobs, outlines, view, contract: () => jobs().at(-1).contract, sources };
+  // The calls after the 清点 (which reads every range first and, here, finds nothing).
+  const stages = () => fake.calls.map(call => call.stage).filter(stage => stage !== 'inventory');
+  return { service, fake, build, jobs, outlines, view, stages, contract: () => jobs().at(-1).contract, sources };
 }
 const finish = async (w, extra) => {
   const job = await settleJob(w.service, (await w.build(extra)).jobId);
@@ -42,11 +45,11 @@ const leavesOf = nodes => nodes.flatMap(node => (node.children ? leavesOf(node.c
 const depthOf = nodes => Math.max(0, ...nodes.map(node => 1 + (node.children ? depthOf(node.children) : 0)));
 
 test('134 materials and about 900 questions become a book in a handful of calls: chapters › sections › points, every row of the course held once, the rest in 其他', async t => {
-  const w = await world(t, { fake: outlineModel({ drop: ['Zero trust'] }) });
+  const w = await world(t, { fake: outlineModel({ inventory: 'none', drop: ['Zero trust'] }) });
   const before = await w.view();
   assert.deepEqual([before.documents.length, before.total > 850, before.book], [134, true, null]);
   const record = await finish(w);
-  assert.deepEqual(w.fake.calls.map(call => call.stage), ['map', 'reduce'], 'one batch of descriptors and one reduce for 134 materials');
+  assert.deepEqual(w.stages(), ['map', 'reduce'], 'one batch of descriptors and one reduce for 134 materials');
   const outline = record.courseOutline;
   assert.equal(depthOf(outline.nodes), 3);
   const anchors = [...leavesOf(outline.nodes).flatMap(leaf => leaf.anchors), ...outline.other.anchors];
@@ -96,12 +99,13 @@ test('more materials are read in several batches: a point split across batches i
 });
 
 test('an answer that is not JSON is asked again once and the build goes on; a reduce unreadable twice fails, and a retry in the same run asks only what is missing', async t => {
-  const junk = await world(t, { fake: outlineModel({ junk: (call, calls) => calls.length === 1 }) });
+  let once = 1;
+  const junk = await world(t, { fake: outlineModel({ inventory: 'none', junk: call => call.stage === 'map' && once-- > 0 }) });
   await finish(junk);
-  assert.deepEqual(junk.fake.calls.map(call => call.stage), ['map', 'map', 'reduce']);
-  assert.match(junk.fake.calls[1].prompt, /Your previous reply could not be read/);
+  assert.deepEqual(junk.stages(), ['map', 'map', 'reduce']);
+  assert.match(junk.fake.of('map')[1].prompt, /Your previous reply could not be read/);
   let broken = 2;
-  const w = await world(t, { fake: outlineModel({ junk: call => call.stage === 'reduce' && broken-- > 0 }) });
+  const w = await world(t, { fake: outlineModel({ inventory: 'none', junk: call => call.stage === 'reduce' && broken-- > 0 }) });
   const started = await w.build();
   assert.equal((await settleJob(w.service, started.jobId)).status, 'failed');
   assert.match(w.contract().error.message, /排章节时模型两次都没有给出可用的答案，没有保存总纲；可以重试/);
@@ -109,35 +113,35 @@ test('an answer that is not JSON is asked again once and the build goes on; a re
   assert.equal(w.contract().actions.retry.available, true);
   await w.service.call('job.control', { jobId: started.jobId, action: 'retry' });
   assert.equal((await settleJob(w.service, started.jobId)).status, 'complete');
-  assert.deepEqual(w.fake.calls.map(call => call.stage), ['map', 'reduce', 'reduce', 'reduce'], 'the map answer was kept: only the reduce was asked again');
+  assert.deepEqual(w.stages(), ['map', 'reduce', 'reduce', 'reduce'], 'the map answer (and the inventory) were kept: only the reduce was asked again');
   assert.equal(w.contract().runtime.attempts.length, 2);
   assert.equal((await w.outlines()).length, 1);
 });
 
 test('a stop aborts the call in flight and keeps nothing; a pause waits at the next checkpoint and the resume asks only what is left', async t => {
-  const held = { at: 1, gate: gate() };
+  const held = { stage: 'map', gate: gate() };
   t.after(() => held.gate.release());
-  const w = await world(t, { fake: outlineModel({ held }) });
+  const w = await world(t, { fake: outlineModel({ inventory: 'none', held }) });
   const started = await w.build();
-  await until(() => w.fake.calls.length === 1, 'the map call');
+  await until(() => w.stages().length === 1, 'the map call');
   await w.service.call('job.control', { jobId: started.jobId, action: 'cancel' });
-  assert.equal(w.fake.calls[0].request.signal.aborted, true);
+  assert.equal(w.fake.of('map')[0].request.signal.aborted, true);
   held.gate.release();
   assert.equal((await settleJob(w.service, started.jobId)).status, 'cancelled');
   assert.deepEqual(await w.outlines(), []);
   assert.match(w.contract().stage.text, /已取消，没有保存总纲/);
-  const pausing = { at: 1, gate: gate() };
+  const pausing = { stage: 'map', gate: gate() };
   t.after(() => pausing.gate.release());
-  const p = await world(t, { fake: outlineModel({ held: pausing }) });
+  const p = await world(t, { fake: outlineModel({ inventory: 'none', held: pausing }) });
   const run = await p.build();
-  await until(() => p.fake.calls.length === 1, 'the map call');
+  await until(() => p.stages().length === 1, 'the map call');
   await p.service.call('job.control', { jobId: run.jobId, action: 'pause' });
   pausing.gate.release();
   await until(() => p.contract().status === 'paused', 'the checkpoint before the reduce');
-  assert.deepEqual(p.fake.calls.map(call => call.stage), ['map']);
+  assert.deepEqual(p.stages(), ['map']);
   await p.service.call('job.control', { jobId: run.jobId, action: 'resume' });
   assert.equal((await settleJob(p.service, run.jobId)).status, 'complete');
-  assert.deepEqual(p.fake.calls.map(call => call.stage), ['map', 'reduce'], 'the map was asked once in all');
+  assert.deepEqual(p.stages(), ['map', 'reduce'], 'the map was asked once in all');
 });
 
 test('staleness follows the materials; a rebuild replaces the current outline (archived, never deleted)', async t => {
@@ -159,9 +163,9 @@ test('staleness follows the materials; a rebuild replaces the current outline (a
 });
 
 test('a second start while a build of the course runs answers with the running task', async t => {
-  const held = { at: 1, gate: gate() };
+  const held = { stage: 'map', gate: gate() };
   t.after(() => held.gate.release());
-  const w = await world(t, { fake: outlineModel({ held }) });
+  const w = await world(t, { fake: outlineModel({ inventory: 'none', held }) });
   const first = await w.build();
   const second = await w.build();
   assert.deepEqual([second.jobId, second.alreadyRunning], [first.jobId, true]);
@@ -173,7 +177,7 @@ test('a second start while a build of the course runs answers with the running t
 test('sample papers mark the leaves they test from quotes found in the paper; without a paper nothing is said about exams', async t => {
   const w = await world(t, { library: { paper: true } });
   const record = await finish(w, { papers: [PAPER] });
-  assert.deepEqual(w.fake.calls.map(call => call.stage), ['map', 'reduce', 'paper']);
+  assert.deepEqual(w.stages(), ['map', 'reduce', 'paper']);
   const outline = record.courseOutline, leaves = leavesOf(outline.nodes), by = title => leaves.find(leaf => leaf.title === title);
   assert.deepEqual(outline.papers.map(paper => [paper.key, paper.title]), [[PAPER, 'SA 2025 样卷']]);
   const [place] = by('Views and viewpoints').exam.evidence;
@@ -228,7 +232,7 @@ test('the console draws it as a task with what it made: done, its title, the res
   assert.ok(summary.line && !/undefined|NaN/.test(JSON.stringify(summary)));
   const { result, capabilities, detail } = w.contract();
   assert.deepEqual(result.refs, [{ kind: 'course-outline', id: record.id, course: COURSE }]);
-  assert.deepEqual([capabilities.retryKeeps, capabilities.stopKeeps, capabilities.pauseMode], ['completed', 'nothing', 'checkpoint']);
+  assert.deepEqual([capabilities.retryKeeps, capabilities.stopKeeps, capabilities.pauseMode], ['completed', 'completed', 'checkpoint']);
   assert.equal(detail.course, COURSE);
   const went = [];
   const app = { data: { focus: { course: COURSE }, sources: [] }, nav: { navigate: page => went.push(page) }, core: { act: async () => went.push('focus') } };

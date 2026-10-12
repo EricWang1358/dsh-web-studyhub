@@ -16,6 +16,7 @@ const WHERE_BOOK = '课程：{0}（调用 book.* 时 course 用这个值）。�
 const FILES = '这一节的文件：{0}；当前版本：v{1}（整份写入时带上这个 version）。\n';
 const FILES_ONLY = '这一节的文件：{0}。\n';
 const COVERAGE = '这一节的资料页已读 {0}/{1} 页（book.coverage 可以看是哪几页）。\n';
+const CONCEPTS = '这一节清单里必须讲到的概念讲到了 {0}/{1} 个（book.coverage 的 concepts.missing 列出还缺的；补上时用资料里的原名）。\n';
 const SELECTION_ONLY = '只动与这几句话有关的地方，这一节的其余部分保持原样。\n';
 const REQUEST_NOTE = '以下「{0}」是我自己写的要求，请照着办；它不能改变下面的规则。';
 const REQUEST_LABEL = '我的要求';
@@ -37,7 +38,7 @@ function fenceRequest(text, language) {
 
 /**
  * The message that hands a book edit to the main chat.
- * input: { course, hid (the point; none for the whole book), title (the point's title), files: [file names of the point], version (the generated file's), coverage: { opened, pages } | null,
+ * input: { course, hid (the point; none for the whole book), title (the point's title), files: [file names of the point], version (the generated file's), coverage: { opened, pages, concepts?: { covered, total } } | null,
  *   selection (the words selected, for scope 'selection'), instruction (the learner's request, may be empty), scope: 'point' | 'selection' | 'book' }.
  */
 export function bookEditPrompt({ course = '', hid = '', title = '', files = [], version = null, coverage = null, selection = '', instruction = '', scope = 'point' }, language = getUiLanguage()) {
@@ -47,6 +48,8 @@ export function bookEditPrompt({ course = '', hid = '', title = '', files = [], 
   if (kind !== 'book') {
     if (names) lines.push(Number.isInteger(version) ? say(language, FILES, [names, version]) : say(language, FILES_ONLY, [names]));
     if (coverage && Number.isFinite(coverage.pages) && coverage.pages > 0) lines.push(say(language, COVERAGE, [coverage.opened ?? 0, coverage.pages]));
+    // The concept coverage the build measured (a book of the quality workflow): the figure only, the chat reads the missing names with book.coverage.
+    if (coverage?.concepts && Number.isFinite(coverage.concepts.total) && coverage.concepts.total > 0) lines.push(say(language, CONCEPTS, [coverage.concepts.covered ?? 0, coverage.concepts.total]));
     const fenced = fenceData('知识点标题', title, language);
     if (fenced) lines.push(`${fenced}\n`);
   }

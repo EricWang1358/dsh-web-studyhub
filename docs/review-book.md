@@ -19,6 +19,23 @@ On the **Course outline** page, once the review book is written, **Open the book
 | A knowledge point | Its explanation in reading order (see **Reading a point** below), with **Practise 5** and **Questions and answers** in the row at its top. A point without questions shows a quiet **No questions yet** and **出题** (make questions) there instead. Without sample papers nothing about exams is shown. |
 | Not placed (未归位) | Only when the outline was rebuilt and some of your own text has no knowledge point any more; each piece is headed with its old title and **no longer a point of the outline**. |
 
+## How the explanations are made
+
+**Write the review book** is a quality workflow, not one prompt (details and call counts: [course outline](course-outline.md#the-review-book-explanation-layer)):
+
+1. **Inventory**: every page range of every material is read in parallel; the model lists each term, definition, concept, formula, step, rule, example, claim and warning with its page and a quote, checked word for word.
+2. **Outline**: the items are grouped into knowledge points in learning order; every item is in exactly one point (else in **Other / not placed**).
+3. **Checklist**: each point gets the items it must cover (by the **Explanation depth**; a stressed or exam-tested item always).
+4. **Write**: each point in its own call (a big one in passes of whole pages), all in parallel, freely, explaining every checklist term at first use, with transitions and **（资料以外）** for what the materials do not say.
+5. **Cite**: every cite is found word for word in the point's own pages, or dropped.
+6. **Review**: an independent call checks the text against the checklist and the pages.
+7. **Judge**: an item is covered only when the writer claimed it, its name is in the text and the reviewer did not flag it.
+8. **Repair**: only the flagged parts, at most twice, each time reviewed again.
+9. **Short points** stay marked **Short: N concept(s) missing**, never shown complete; the task ends partial and **Fill the gaps** or the next update mends only those.
+10. **Glossary** (生词与概念): made by the program from the covered items, alphabetical, in **Lookup**, each entry linking to its point.
+
+**Coverage** is measured against that inventory at three levels, shown in the book's header and on the outline page: **materials and pages** read, **knowledge points** complete (every must item covered, nothing unsupported), and **concepts** covered. Never against a length or a template.
+
 ## Reading modes
 
 In **Preview**, **How to read** switches between two ways (remembered per course in this browser):
@@ -141,6 +158,8 @@ Opening the page makes the files the first time (no model call) and brings the g
 ## Rolling back
 
 Upgrade only. An older release (3.3.0 and before) does not know this record: it keeps it as it is, but may list it as a Markdown material named **复习全书 · course** whose text is one line, **复习全书（由 StudyHub 3.4 以上管理，请勿删除）** (the review book, managed by StudyHub 3.4 or later; do not delete). Deleting that entry in an older release deletes the book's files. The version history (the `book-history` folder of the library) is ignored by older releases. A question's answer card (`answerCard`) is kept as it is by an older release, which shows only the reference answer. The export writes nothing; an older release forgets the page limit (`settings.book.pageLimit`) the next time it saves the settings, and drops the `mistakes` of a course's own question types when it saves the course. The final week writes only its marks (`bookDoc.marks`, kept as they are by an older release) and an optional `settings.book.crunchWindowDays` (forgotten by an older release when it saves the settings); its mock paper is an ordinary exam run.
+
+**The quality workflow (this version) is upgrade-only too: back up the library first**. Its records stay readable by 3.4, with these limits: 3.4 does not know the inventory record (`course-outline-inventory`) and may list it as a material (do not use it for questions); it cannot resolve the page spans (`doc@s3-7`) of an outline built from the inventory, so such points show no questions there; the explanations carry a 3.4 copy of their text and sources (`explain`, `cites`), shown without concept coverage, glossary or 未达标 marks. Do not run **Update the book** in 3.4 after upgrading: it cannot read the spans and would write empty explanations.
 
 ## For developers
 

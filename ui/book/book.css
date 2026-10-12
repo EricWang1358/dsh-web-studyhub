@@ -609,6 +609,7 @@
       font-size: var(--fs-md);
     }
     .book-lookup__toc,
+    .book-lookup__glossary,
     .book-lookup__concepts,
     .book-lookup__mistakes,
     .book-lookup__cards {

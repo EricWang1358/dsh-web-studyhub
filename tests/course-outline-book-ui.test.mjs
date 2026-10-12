@@ -99,17 +99,18 @@ test('with sample papers a point says 样卷考过（N/M 份） or 补充; picki
   assert.equal(ui.cardTicked(pick, { deckId: 'd1', cardId: 'q9' }, ['bk:p2', 'bk:c1', 'bk:s1']), true);
 });
 
-test('no outline yet: the materials as in v3.3.0, one primary 生成总纲, and folded the choice of sample papers (the likely one first, none picked)', () => {
+test('no outline yet: the materials as in v3.3.0, one primary 生成总纲, the paper recognised by name used by default, and folded the change of it', () => {
   const flat = { ...outline, book: null };
   const html = page({ outline: flat, open: new Set() }), text = textOf(html);
   assert.match(text, /现在按资料排开（3 份）。生成总纲会让模型把它们整理成像书一样的「章 → 节 → 知识点」/);
   assert.match(text, /生成总纲/);
   assert.equal(primaries(html), 1);
-  assert.match(text, /提供了试卷？/);
+  assert.match(text, /依据样卷：SA 2025 样卷（按名称自动识别，可更改）/, 'the paper is used without opening anything');
+  assert.match(text, /更改样卷/);
   const picks = dom(html).all.filter(item => item.getAttribute('class')?.includes('outline-papers__list'));
   assert.equal(picks.length, 1);
   assert.match(textOf(html.slice(html.indexOf('outline-papers__list'))), /^[^]*?SA 2025 样卷 像样卷/, 'the paper-like material first, with why');
-  assert.equal(dom(html).all.filter(item => item.getAttribute('type') === 'checkbox' && item.getAttribute('checked') !== null).length, 0, 'none picked');
+  assert.equal(dom(html).all.filter(item => item.getAttribute('type') === 'checkbox' && item.getAttribute('checked') !== null).length, 1, 'the recognised one is ticked');
   assert.deepEqual(ui.paperChoices(documents).map(choice => [choice.key, choice.likely]), [['doc:paper', true], ['doc:l1', false], ['doc:notes', false]]);
   assert.doesNotMatch(text, /学习顺序依据/);
   // While a build of the course runs: the line says so and leads to the task, no second start.

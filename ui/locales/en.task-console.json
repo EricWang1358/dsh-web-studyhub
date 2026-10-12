@@ -435,5 +435,20 @@
   "已完成的段": "Windows done",
   "这类任务没有可以调整的设置。": "This kind of task has no settings to adjust.",
   "打开总纲": "Open the outline",
-  "打开复习全书": "Open the review book"
+  "打开复习全书": "Open the review book",
+  "清点资料": "Inventory",
+  "归纳知识点": "Group into points",
+  "写考情": "Exam notes",
+  "审阅讲解": "Review",
+  "修复讲解": "Repair",
+  "概念归位": "Place concepts",
+  "清点": "Inventory",
+  "归纳": "Group",
+  "概念 {0}/{1}": "Concepts {0}/{1}",
+  "等待": "Waiting",
+  "在写": "Writing",
+  "在审阅": "Reviewing",
+  "未达标": "Short",
+  "没写成": "Not written",
+  "知识点都没变，不用重写。": "No knowledge point changed; nothing to write."
 }

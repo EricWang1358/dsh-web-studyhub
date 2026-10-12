@@ -72,6 +72,10 @@ test('the figures are optional: no coverage, no version, no files', () => {
   assert.match(ui.bookEditPrompt({ course: 'SA', hid: 'h1', files: ['a.gen.md'], scope: 'point' }, 'zh'), /这一节的文件：a\.gen\.md。/);
   assert.doesNotMatch(ui.bookEditPrompt({ course: 'SA', hid: 'h1', coverage: { opened: 0, pages: 0 }, scope: 'point' }, 'zh'), /已读/, 'a point that stands on no page names no figure');
   assert.match(ui.bookEditPrompt({ course: 'SA', hid: 'h1', coverage: { opened: 0, pages: 4 }, scope: 'point' }, 'zh'), /已读 0\/4 页/);
+  // A book of the quality workflow: book.coverage's concept figure too, never the names (the chat reads them itself).
+  const both = ui.bookEditPrompt({ course: 'SA', hid: 'h1', coverage: { opened: 2, pages: 4, concepts: { covered: 3, total: 4 } }, scope: 'point' }, 'zh');
+  assert.match(both, /已读 2\/4 页[\s\S]*必须讲到的概念讲到了 3\/4 个/);
+  assert.match(ui.bookEditPrompt({ course: 'SA', hid: 'h1', coverage: { opened: 2, pages: 4, concepts: { covered: 3, total: 4 } }, scope: 'point' }, 'en'), /3 of 4 covered/);
 });
 
 test('English: every sentence is English (the learner\'s words and the tool names stay as they are)', () => {
