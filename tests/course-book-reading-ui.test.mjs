@@ -1,7 +1,8 @@
-/* 复习全书 reading on the page (static zh and en; docs/review-book.md "Reading modes" and "Reading a point"): a point reads takeaway first (一句话), then
-   讲解 without that sentence, 例子, 要点清单 and 补充 folded, the learner's layer (我的笔记与 AI 解释 (N)), the questions and 出处 behind one chip; one toolbar
-   row (练 5 道, 本节问答, 整理; 暂无题 and 出题 without questions); a whole-point block that restates the notes says so with 收起; 只留我写的 hides the new
-   whole-point blocks and counts them; 逐节读 shows one point under its path with 上一节 / 下一节; 整章滚动 folds a point to its title and one line. Fakes only. */
+/* 复习全书 reading on the page (static zh and en; docs/review-book.md "Reading modes" and "Reading a point"): a point reads takeaway first (type only,
+   no 「一句话」), then 讲解 without that sentence with the AI blocks about its words right after their paragraphs, 例子, 要点清单 and 补充 folded, 我的 (a hairline and a
+   label: notes, whole-point blocks, Q&A), the questions and 出处 behind one chip; one toolbar row (练 5 道, 本节问答, 发给主会话; a quiet 出题 without questions, no
+   整理, no 暂无题); an AI block is one row (open below 1,500 characters or when kept, else folded: AI, its first real sentence, its size, 多为重复, no 新);
+   逐节读 shows one point under its path with 上一节 / 下一节; 整章滚动 folds a point to its title and one line. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -35,51 +36,91 @@ const point = (extra = {}) => ({ hid: 'h2', key: 'bk:p1', title: '熵', number: 
   files: { gen: 'p1.gen.md', mine: 'p1.mine.md' }, questionTotal: 7, questions: [{ deckId: 'd1', cardId: 'q1', prompt: 'What is entropy?' }], children: [], ...extra });
 const handlers = { gone: ui.goneSet([]), qaOpen: () => false, toggleQa: noop, source: noop, card: noop, practice: noop, create: noop, files: {}, choose: noop, busy: false,
   addHere: noop, aiAction: noop, aiFollow: noop };
-const fold = ({ shut = [], open = [], only = [] } = {}) => ({ folded: (id, byDefault) => shut.includes(id) || (byDefault && !open.includes(id)), fold: noop, foldAll: noop,
-  mineOnly: hid => only.includes(hid), setMineOnly: noop });
+const fold = ({ shut = [], open = [] } = {}) => ({ folded: (id, byDefault) => shut.includes(id) || (byDefault && !open.includes(id)), fold: noop, foldAll: noop });
 const body = (node = point(), folding = fold()) => render(h(ui.AiFoldContext.Provider, { value: folding }, h(ui.PointBody, { node, course: 'SA', handlers, level: 3 })));
+const row = (html, id) => { const from = html.indexOf(`data-ai-block="${id}"`); return html.slice(from, html.indexOf('</aside>', from)); };
 
-test('a point reads takeaway first, then 讲解 without that sentence, 例子, 要点清单 and 补充 folded, the layer, the questions, 出处 behind a chip', () => {
+test('a point reads takeaway first (type only), then 讲解 without it, the AI block about its words right after the paragraph, 例子, 要点清单 and 补充 folded, 我的, the questions, 出处 behind a chip', () => {
   const html = body(), text = textOf(html);
-  const order = ['练 5 道', '一句话 熵是系统无序程度的度量', '讲解 它在孤立系统里只增不减。', '例子 冰块融化。', '要点清单', '补充（资料以外）', '我的笔记与 AI 解释 (3)', '本节的题', '出处 1'];
+  const order = ['练 5 道', '熵是系统无序程度的度量', '讲解 它在孤立系统里只增不减。', '关于：「只增不减」 A kept explanation.', '例子 冰块融化。', '要点清单', '补充（资料以外）', '我的', 'My note.', '多为重复', '本节的题', '出处 1'];
   const at = order.map(part => text.indexOf(part));
   assert.ok(at.every((value, index) => value >= 0 && (index === 0 || value > at[index - 1])), `in reading order: ${JSON.stringify(at)} in ${text}`);
-  const story = text.slice(0, text.indexOf('我的笔记与 AI 解释'));
+  const story = text.slice(0, text.indexOf('我的 你的笔记'));
   assert.equal(story.split('熵是系统无序程度的度量').length - 1, 1, 'the takeaway sentence is said once in the point\'s text');
   assert.match(html, /<h3 class="book-point__label">讲解<\/h3>/, 'the part labels sit one level under the point');
   assert.match(html, /<details class="sh-disclosure book-point__fold" data-book-part="points">/, '要点清单 folded');
   assert.match(html, /<details class="sh-disclosure book-point__fold" data-book-part="extra">/, '补充 folded');
   assert.doesNotMatch(text, /练 5 道：熵|本节问答：熵|课本/, 'no line of links at the end, and the 出处 list waits behind its chip');
   assert.match(html, /data-book-link="practice"/);
-  assert.match(text, /本节问答 整理/);
+  assert.match(text, /本节问答 发给主会话/);
+  assert.doesNotMatch(text, /整理|只留我写的|暂无题|一句话/, 'no 整理 menu, no 只留我写的, no badge for no questions, no label on the takeaway');
+  assert.doesNotMatch(html, /book-point__takeaway|book-point__eyebrow/, 'the takeaway has no box and no eyebrow');
+  assert.match(html, /class="md book-file book-point__gist"/, 'the takeaway is type: its own class and nothing around it');
+  // The block about words is inside 讲解 (its section), not in 我的.
+  const explain = html.slice(html.indexOf('book-point__part'), html.indexOf('data-book-part="points"'));
+  assert.match(explain, /data-ai-block="b2"/);
+  assert.doesNotMatch(html.slice(html.indexOf('data-book-layer')), /data-ai-block="b2"/);
 });
 
-test('the layer: folded by default from three items (each block its header and summary); a restating whole-point block says so, with 收起', () => {
-  const html = body();
-  assert.match(html, /data-ai-block="b1"[^>]*data-ai-folded="true"/);
-  assert.match(html, /data-ai-block="b2"[^>]*data-ai-folded="true"/);
-  assert.match(textOf(html), /与上面的讲解重复度高/);
-  const opened = body(point(), fold({ open: ['b1'] }));
-  assert.doesNotMatch(opened, /data-ai-block="b1"[^>]*data-ai-folded/, 'a block the learner opened stays open');
-  assert.match(textOf(opened), /与上面的讲解重复度高 收起/);
-  assert.equal((textOf(opened).match(/(?:^| )新(?= |$)/g) || []).length, 1, '新 once, on the open block');
-  assert.equal((textOf(html).match(/(?:^| )新(?= |$)/g) || []).length, 0, 'none on a folded one');
-  const short = body(point({ mine: mine }));
-  assert.doesNotMatch(short, /data-ai-folded/, 'one short block: open');
-  assert.doesNotMatch(textOf(short), /重复度高/, 'a block about some words is never called a repeat');
+test('the takeaway is shown without 「一句话：」, and the file is as it was', () => {
+  const labelled = point({ gen: gen.replace('熵是系统无序程度的度量[^1]。', '一句话：熵是系统无序程度的度量[^1]。'), mine: '' });
+  const text = textOf(body(labelled));
+  assert.match(text, /练 5 道 本节问答 发给主会话 熵是系统无序程度的度量/);
+  assert.doesNotMatch(text, /一句话/);
+  assert.match(labelled.gen, /一句话：熵/, 'the text of the file keeps it');
 });
 
-test('只留我写的 hides the new whole-point blocks, counts them, and offers 全部显示; nothing else changes', () => {
-  const html = body(point(), fold({ only: ['h2'] })), text = textOf(html);
-  assert.doesNotMatch(html, /data-ai-block="b1"/);
-  assert.match(html, /data-ai-block="b2"/, 'a kept block stays');
-  assert.match(text, /我的笔记与 AI 解释 \(2\) 已隐藏 1 段 AI 写的 全部显示/);
+test('我的: a hairline and a small label (not a toggle) with its explanation; the notes, the whole-point blocks; 全部收起 / 全部展开 from two blocks', () => {
+  const html = body(), layer = html.slice(html.indexOf('data-book-layer'));
+  assert.match(layer, /^data-book-layer="h2"/);
+  assert.match(html, /aria-label="我的" data-book-layer="h2"/);
+  assert.match(html, /<span class="book-layer__label" tabindex="0"[^>]*>我的<\/span>/, 'the label can take focus (its words show on hover and on focus)');
+  assert.doesNotMatch(html, /book-layer__toggle|我的笔记与 AI 解释/, 'no toggle, no old title');
+  assert.ok(layer.indexOf('My note.') < layer.indexOf('data-ai-block="b1"'), 'notes, then the whole-point block');
+  assert.doesNotMatch(layer, /data-ai-block="b2"/, 'a block about words is not in 我的');
+  assert.match(textOf(layer), /我的 你的笔记、AI 段落和加进书里的问答都在这里 全部收起 My note\./, 'two blocks in the point: one link folds them all, the label has its words');
+  assert.match(textOf(body(point(), fold({ shut: ['b1', 'b2'] }))), /我的 你的笔记、AI 段落和加进书里的问答都在这里 全部展开/, 'all folded: it opens them');
+  assert.doesNotMatch(textOf(body(point({ mine: `My note.\n\n${mine}` }))), /全部收起|全部展开/, 'one block: no link');
+  assert.doesNotMatch(body(point({ mine: '', qa: '' })), /data-book-layer/, 'nothing of the learner\'s: no divider');
+  assert.match(body(point({ mine: '', qa: 'Q and A put into the book.' })), /data-book-layer[\s\S]*Q and A put into the book\./, 'a Q&A put into the book is in 我的');
+  const lostBlock = ui.aiBlock({ id: 'b9', at: 'z', about: 'words that are nowhere', body: 'Orphan.', state: 'kept' }, 'zh'), after = body(point({ mine: `${here}\n\n${lostBlock}`, qa: 'The Q and A.' }));
+  assert.ok(after.indexOf('The Q and A.') < after.indexOf('data-ai-block="b9"'), 'a block whose words are gone is at the end of 我的');
+  assert.match(textOf(row(after, 'b9')), /原位置已变/);
 });
 
-test('a point without questions: 暂无题 and a quiet 出题 in the toolbar, no standing line, no 本节的题', () => {
-  const text = textOf(body(point({ questionTotal: 0, questions: [] })));
-  assert.match(text, /暂无题 出题 本节问答/);
-  assert.doesNotMatch(text, /这一节还没有题|本节的题|练 5 道/);
+test('an AI block row: open below 1,500 characters, folded above unless kept; folded it is the caret, AI, the first real sentence and the size (多为重复); no 新', () => {
+  const long = ui.aiBlock({ id: 'b3', at: 'h:h2', about: '熵', mode: 'here', body: ['这段在讲什么', '', '### 1. 小标题', '', '原文说：熵是无序度。', '', `意思就是：${'它只增不减。'.repeat(280)}`].join('\n') }, 'zh');
+  const kept = ui.aiBlock({ id: 'b4', at: 'h:h2', about: '熵', mode: 'here', state: 'kept', body: `一段很长的话。${'它只增不减。'.repeat(300)}` }, 'zh');
+  const html = body(point({ mine: `${long}\n\n${kept}\n\n${mine}` }));
+  const shut = row(html, 'b3'), open = row(html, 'b4');
+  assert.match(shut, /data-ai-folded="true"/);
+  assert.match(shut, /aria-expanded="false"/);
+  assert.match(textOf(shut), /AI 熵是无序度。 约 1,[0-9]00 字/, 'the first real sentence of the template, and the size');
+  assert.doesNotMatch(shut, /book-ai__actions|book-ai__follow|book-ai__body/);
+  assert.doesNotMatch(open, /data-ai-folded/, 'a block that was kept starts open, however long');
+  assert.match(open, /book-ai__actions/);
+  assert.doesNotMatch(textOf(html), /(?:^| )新(?= |$)/, 'no 新 badge');
+  assert.doesNotMatch(row(html, 'b2'), /data-ai-folded/, 'a short block is open');
+  assert.match(textOf(row(html, 'b2')), /AI 约 19 字 关于：「只增不减」 A kept explanation\. 重新生成 删除 问$/, 'open: the tag, the size, what it is about, the text, quiet 重新生成 / 删除, the follow-up');
+  // The learner's own fold or open wins over the default.
+  assert.doesNotMatch(body(point({ mine: long }), fold({ open: ['b3'] })), /data-ai-folded/, 'a long block the learner opened stays open');
+  assert.match(body(point({ mine: mine }), fold({ shut: ['b2'] })), /data-ai-block="b2"[^>]*data-ai-folded="true"/, 'a short block the learner folded stays folded');
+  assert.match(textOf(row(body(point({ mine: mine }), fold({ shut: ['b2'] })), 'b2')), /AI A kept explanation\. 约 19 字$/, 'folded, a block about words says its text as the summary');
+  // 保留 is one quiet click on a block that is new.
+  const fresh = row(body(point({ mine: here })), 'b1');
+  assert.match(textOf(fresh), /保留 重新生成 删除/);
+  assert.match(fresh, /sh-btn--quiet[^>]*>保留/, '保留 is quiet');
+  assert.match(fresh, /data-ai-state="new"/, 'the state stays in the file (and on the block for the agent)');
+  assert.match(textOf(fresh), /多为重复/, 'a block that mostly restates the notes says so');
+  assert.doesNotMatch(textOf(row(body(point({ mine: mine })), 'b2')), /多为重复/, 'a block about words never does');
+  assert.doesNotMatch(textOf(row(body(point({ mine: mine })), 'b2')), /保留/, 'a kept block has no 保留');
+});
+
+test('a point without questions: a quiet 出题 in the toolbar and nothing else about it, no standing line, no 本节的题', () => {
+  const html = body(point({ questionTotal: 0, questions: [] })), text = textOf(html);
+  assert.match(text, /出题 本节问答/);
+  assert.match(html, /sh-btn--quiet[^>]*book-node__create/, '出题 is quiet');
+  assert.doesNotMatch(text, /暂无题|还没出题|这一节还没有题|本节的题|练 5 道/);
 });
 
 const book = { status: 'ok', title: 'B', unplaced: { title: '未归位', text: '' }, nodes: [{ hid: 'h1', key: 'bk:c1', title: '热力学', number: '1', depth: 1, leaf: false,
@@ -108,11 +149,13 @@ test('整章滚动: a point is its title and one line, folded, unless it is open
 
 test('English: the reading words are English (the book\'s own text stays as written)', () => english(() => {
   const steps = ui.bookSteps(book), text = `${textOf(body())} ${textOf(render(h(ui.BookStep, { steps, at: 0, onGo: noop, course: 'SA', handlers })))}`;
-  assert.match(text, /Practise 5 Questions and answers Tidy up Send to the main chat In one sentence/);
-  assert.match(text, /Checklist .*My notes and AI explanations \(3\)/);
-  assert.match(text, /Mostly repeats the explanation above/);
+  assert.match(text, /Practise 5 Questions and answers Send to the main chat/);
+  assert.doesNotMatch(text, /Tidy up|In one sentence|My notes and AI explanations/);
+  assert.match(text, /Checklist .*Mine Your notes, AI paragraphs and the Q&A you put into the book are here Collapse all/);
+  assert.match(text, /AI about \d+ characters Mostly repeats/);
   assert.match(text, /Sources 1/);
   assert.match(text, /Point 1 of 2 .*Previous section Next section/);
+  assert.match(textOf(body(point({ questionTotal: 0, questions: [] }))), /Question writing Questions and answers/, 'the quiet 出题 is in the toolbar');
   // What is left once the book's own words are taken out (its text, its labels, the blocks' first lines and summaries).
   const written = [restate, '熵是系统无序程度的度量。', '熵是系统无序程度的度量', '它在孤立系统里只增不减', '冰块融化', '它在孤立系统里只增不减。', '冰块融化。', '熵度量无序', '玻尔兹曼公式', '补充（资料以外）', '讲解', '例子', '关于：「熵」',
     '关于：「只增不减」', '热力学', '焓', '熵', '。'];

@@ -1,7 +1,8 @@
 /* 复习全书 reading (docs/review-book.md, "Reading a point"): the pure rules of ui/book/point-parts.js and ui/book/reading.js. A point's generated file cut
    into its labelled parts (zh and en), the 练 5 道 · 本节问答 footer taken off, the one-sentence takeaway (its own part, else the first sentence of 讲解,
-   which then leaves 讲解), the AI blocks placed in the parts that hold their words, the cheap repeat check of a whole-point block, the default fold of
-   the learner's layer, and the steps of 逐节读 with the step of any 目录 heading. Fakes only. */
+   which then leaves 讲解; shown without its 「一句话：」), the AI blocks placed right after the paragraph that holds their words (or in 我的, or lost), the cheap
+   repeat check of a whole-point block, the default fold of a block (over 1,500 characters and not kept), and the steps of 逐节读 with the step of any 目录
+   heading. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -74,7 +75,7 @@ test('a whole-point block that restates the notes is a repeat; one that adds new
 
 const block = (id, about, body, extra = {}) => ui.aiBlock({ id, at: extra.at || 'x', about, body, mode: extra.mode, state: extra.state }, 'zh');
 const node = (mine, gen = zh) => ({ hid: 'h2', gen, mine, qa: '' });
-test('the view of a point: the story parts, the blocks in the order of the own file with the part their words are in, repeats, the layer\'s fold', () => {
+test('the view of a point: the story parts, the blocks in the order of the own file with the part their words are in, repeats, the whole-point and the lost blocks', () => {
   const here = block('a1', '熵', `${'原文说：熵是系统无序程度的度量[^1]。意思就是：它在孤立系统里只增不减。'.repeat(3)}`, { at: 'h:h2', mode: 'here' });
   const words = block('a2', '只增不减', 'An explanation.', { mode: 'explain' });
   const lost = block('a3', 'nowhere at all', 'Orphan.', { state: 'kept' });
@@ -84,11 +85,57 @@ test('the view of a point: the story parts, the blocks in the order of the own f
   assert.deepEqual(view.blocks.map(item => [item.block.id, item.status, item.part]), [['a1', 'same', null], ['a2', 'same', 'explain'], ['a3', 'gone', null]]);
   assert.deepEqual(view.anchors.get('explain'), [{ id: 'a2', quote: '只增不减' }], 'the dashed words go on the part that holds them');
   assert.deepEqual([...view.repeats], ['a1'], 'the whole-point block that restates the notes');
-  assert.equal(view.layerFolded, true, 'three blocks and a note: the layer starts folded');
-  assert.equal(ui.pointView(node(`${words}`)).layerFolded, false, 'one short block: open');
-  assert.equal(ui.pointView(node(block('a4', '熵', 'x'.repeat(1600)))).layerFolded, true, 'one block over 1,500 characters: folded');
+  assert.deepEqual(view.here.map(item => item.block.id), ['a1'], 'a block for the whole point stays in 我的');
+  assert.deepEqual(view.lost.map(item => item.block.id), ['a3'], 'a block whose words are gone goes to the end of 我的');
   assert.equal(ui.pointView(node(block('a5', '熵', 'x'.repeat(2000), { at: 'h:h2', mode: 'here' }))).repeats.size, 0, 'longer, but nothing of the notes in it');
   assert.deepEqual(ui.pointView(node('', 'Heat.')).story.map(part => part.name), ['lead']);
+});
+
+test('a block about words goes right after the paragraph that holds them (讲解, 例子 or the notes), its words dashed in the paragraph before it', () => {
+  const inExplain = block('a2', '只增不减', 'An explanation.', { mode: 'explain' }), inNotes = block('a6', 'the decision log', 'About the log.', { mode: 'write', state: 'kept' });
+  const view = ui.pointView(node(`My note about the decision log.\n\nSecond note.\n\n${inExplain}\n\n${inNotes}`));
+  // 讲解 without its takeaway: the first paragraph holds the words, a second one follows the block.
+  assert.deepEqual(view.weave.get('explain').map(piece => piece.item?.block.id ?? piece.text), ['它在孤立系统里只增不减。', 'a2', '第二段讲解。']);
+  assert.deepEqual(view.weave.get('explain')[0].anchors, [{ id: 'a2', quote: '只增不减' }]);
+  assert.deepEqual(view.weave.get('explain')[2].anchors, []);
+  assert.deepEqual(view.weave.get('mine').map(piece => piece.item?.block.id ?? piece.text), ['My note about the decision log.', 'a6', 'Second note.'], 'words in the notes: after that paragraph, in 我的');
+  assert.deepEqual(view.blocks.map(item => [item.block.id, item.part]), [['a2', 'explain'], ['a6', 'mine']]);
+  assert.equal(view.weave.has('example'), false, 'a part no block is about is not cut');
+  assert.deepEqual(ui.pointView(node(block('a7', '玻尔兹曼', 'Extra.', { mode: 'explain' }))).blocks.map(item => item.part), ['extra'], 'a folded part holds words too');
+  // A follow-up of a whole-point block stays under it (its words are the heading's, which no text holds); one of a block about words follows those words.
+  const here = block('b1', '熵', 'The whole point.', { at: 'h:h2', mode: 'here' }), follow = block('b2', '熵', 'A follow-up.', { mode: 'follow' });
+  const kept = ui.pointView(node(`${here}\n\n${follow}`));
+  assert.deepEqual(kept.here.map(item => item.block.id), ['b1', 'b2']);
+  assert.equal(kept.lost.length, 0);
+  assert.deepEqual(ui.pointView(node(`${block('c1', 'nowhere', 'A.', { mode: 'follow' })}`)).lost.map(item => item.block.id), ['c1'], 'a follow-up with no block before it and no words found is lost');
+});
+
+test('an AI block starts folded when it is longer than 1,500 characters and not kept; every other block starts open', () => {
+  const of = (body, state) => ui.foldsByDefault({ body, state });
+  assert.equal(ui.AI_FOLD_CHARS, 1500);
+  assert.equal(of('x'.repeat(1500), 'new'), false, 'exactly 1,500 is not longer');
+  assert.equal(of('x'.repeat(1501), 'new'), true);
+  assert.equal(of('x'.repeat(1501), 'kept'), false, 'a block the learner kept starts open');
+  assert.equal(of('x'.repeat(5000), 'kept'), false);
+  assert.equal(of('A short one.', 'new'), false);
+  assert.equal(of('', 'new'), false);
+  assert.equal(ui.pointView(node(block('a4', '熵', 'x'.repeat(1600)))).blocks.length, 1);
+});
+
+test('the takeaway is shown without its own label (一句话： / In one sentence:), the file keeps it', () => {
+  assert.equal(ui.withoutGistLabel('一句话：熵只增不减。'), '熵只增不减。');
+  assert.equal(ui.withoutGistLabel('一句话: Entropy rises.'), 'Entropy rises.');
+  assert.equal(ui.withoutGistLabel('In one sentence: entropy rises.'), 'entropy rises.');
+  assert.equal(ui.withoutGistLabel('**一句话：** 熵只增不减。'), '熵只增不减。');
+  assert.equal(ui.withoutGistLabel('熵是一句话：不是标签。'), '熵是一句话：不是标签。', 'only a label at the start');
+  assert.equal(ui.withoutGistLabel(undefined), '');
+  const labelled = '**讲解**\n\n一句话：熵是无序度。它只增不减。\n\n第二段。';
+  const view = ui.pointView({ gen: labelled, mine: '' });
+  assert.equal(view.story.find(part => part.name === 'takeaway').text, '熵是无序度。', 'shown without the label');
+  assert.equal(view.takeaway.text, '一句话：熵是无序度。', 'the view keeps what the file says');
+  assert.equal(ui.pointSummary(labelled), '熵是无序度。', 'the folded line of the point too');
+  assert.equal(ui.pointSummary('**一句话**\n\n熵只增不减。\n\n**讲解**\n\n长。'), '熵只增不减。');
+  assert.equal(ui.pointView({ gen: '**讲解**\n\n熵是无序度。它只增不减。', mine: '' }).story[0].text, '熵是无序度。', 'a takeaway without a label is as it is');
 });
 
 const book = { status: 'ok', title: 'B', unplaced: { title: '未归位', text: 'Left over.', file: 'unplaced.md' }, nodes: [
