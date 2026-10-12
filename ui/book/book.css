@@ -311,7 +311,8 @@
     .book-ai__toggle[aria-expanded='true'] > .book-ai__caret {
       transform: rotate(90deg);
     }
-    /* The summary may take two lines, so that on a phone it still says what the block says. */
+    /* The folded row is one line, cut with an ellipsis (the whole first sentence is in the open block); only the narrow layout lets the summary take two lines
+       (below), so that on a phone it still says what the block says, and a line never ends on a lone character. */
     .book-ai__summary {
       display: -webkit-box;
       flex: 1 1 8rem;
@@ -320,7 +321,8 @@
       color: var(--text-dim);
       font-weight: var(--fw-regular);
       white-space: normal;
-      -webkit-line-clamp: 2;
+      text-wrap: pretty;
+      -webkit-line-clamp: 1;
       -webkit-box-orient: vertical;
     }
     .book-ai__meta {
@@ -940,6 +942,16 @@
   }
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {
+      .book-ai__summary {
+        -webkit-line-clamp: 2;
+      }
+      /* One left-aligned wrapping row for the whole toolbar (the actions' box is dropped), so its rows share their left edge. */
+      .book-point__bar {
+        justify-content: flex-start;
+      }
+      .book-point__actions {
+        display: contents;
+      }
       .book-layout--toc {
         grid-template-columns: minmax(0, 1fr);
       }

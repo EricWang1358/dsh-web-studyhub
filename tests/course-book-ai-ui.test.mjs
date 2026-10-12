@@ -109,10 +109,10 @@ test('no 整理 menu and no 只留我写的: the toolbar has 在这里加一段,
   assert.doesNotMatch(textOf(folded([], { ...node, mine: `My note.\n\n${block}` })), /全部收起|全部展开/, 'one block: none');
 });
 
-test('two blocks in the text and nothing of its own: 我的 is its divider and the one link; the blocks whose words are gone come after the suggestions', () => {
+test('nothing of its own in 我的: no divider and no fold-all, even with blocks in the text; the blocks whose words are gone come after the suggestions', () => {
   const second = ui.aiBlock({ id: 'ai3', at: 'z', about: 'Third paragraph', body: 'More.' }, 'zh');
   const text = textOf(folded([], { ...node, mine: `${block}\n\n${second}` }));
-  assert.match(text, /我的 你的笔记、AI 段落和加进书里的问答都在这里 全部收起$/, 'the divider alone, with the link');
+  assert.doesNotMatch(text, /我的|你的笔记、AI 段落和加进书里的问答都在这里|全部收起|全部展开/, 'two blocks in the text and nothing else: the tooltip would point at an empty layer, so there is no divider');
   assert.doesNotMatch(textOf(folded([], { ...node, mine: block })), /我的/, 'one block in the text and nothing else: no 我的');
   const withSuggestion = { ...handlers, files: { 'p1.mine.md': { suggestions: [{ id: 's1', kind: 'generated', text: 'New text.' }] } } };
   const lastText = textOf(render(h(ui.BookChapter, { node, open: true, onToggle: noop, course: 'SA', handlers: withSuggestion })));

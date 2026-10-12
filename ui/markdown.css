@@ -176,7 +176,7 @@
     .md .md-cite {
       line-height: 0;
     }
-    /* The mark and the full stop or closing mark right after it are one unit (ui/Markdown.jsx), so the line never ends on the mark and starts on the stop.
+    /* The character before the mark, the mark and the full stop or closing mark right after it are one unit (ui/Markdown.jsx), so a line never starts on the mark or on the stop.
        A reading area sets --md-cite-ink (the mark's colour), --md-cite-line (its underline at rest; it is always underlined on hover and focus) and
        --md-cite-gap / --md-cite-pad (the room around it) once. */
     .md .md-cite-keep {

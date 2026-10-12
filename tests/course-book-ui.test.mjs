@@ -129,6 +129,10 @@ test('讲解详尽程度 beside the book\'s button, a point read in passes under
   assert.match(textOf(bridged), /^ From enthalpy we turn to disorder\. 知识梳理 .* That leads on to free energy\. 1\. 「/);
   assert.equal((bridged.match(/outline-notes__bridge/g) || []).length, 2);
   assert.doesNotMatch(render(h(ui.LeafNotes, { notes: { id: 'p1', body } })), /outline-notes__bridge/);
+  // The 总纲 draws its 角标 through the same Markdown: a handler gives buttons, each with the character before it in its no-wrap unit; no handler leaves the text.
+  const cited = render(h(ui.LeafNotes, { notes: { id: 'p1', body: { ...body, text: '熵是无序度[^1]。再看。', explain: '' } }, onOpenSource: noop }));
+  assert.match(cited, /无序<span class="md-cite-keep">度<sup class="md-cite">[\s\S]*?<\/sup>。<\/span>再看。/);
+  assert.doesNotMatch(render(h(ui.LeafNotes, { notes: { id: 'p1', body: { ...body, text: '熵是无序度[^1]。', explain: '' } } })), /md-cite/);
 });
 
 test('in English the book\'s controls and notes have no Chinese of their own', () => {

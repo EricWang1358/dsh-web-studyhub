@@ -8,15 +8,15 @@ import BookSuggestion from './BookSuggestion.jsx';
 /* The learner's layer of a knowledge point (复习全书, docs/review-book.md "Reading a point"), after the program's text, under a quiet divider 「我的」 (a hairline
    and a small label with its explanation on hover and focus; not a toggle): the notes (open), the AI blocks for the whole point (each one row, ui/book/BookAiBlock.jsx),
    the Q&A put into the book, the suggestions, and the blocks whose words are gone (原位置已变) at the end. The AI blocks about words are not here: they sit right after
-   their paragraphs. A point with two blocks or more has one quiet 全部收起 / 全部展开 on the divider's row (the divider alone when 我的 has nothing else). */
+   their paragraphs. A point with two blocks or more has one quiet 全部收起 / 全部展开 on the divider's row. With nothing of its own there is no 我的 at all. */
 
 /** node, view (ui/book/point-parts.js pointView), handlers, aiFold (ui/book/ai-fold.js, or null), isFolded(item): the block's fold, renderBlock(item), onAnchored(key, ids). */
 export default function PointLayer({ node, view, handlers, aiFold, isFolded, renderBlock, onAnchored }) {
   const qa = String(node.qa ?? '').trim(), mineMeta = handlers.files?.[node.files?.mine], qaMeta = node.files?.qa ? handlers.files?.[node.files.qa] : null;
   const ids = view.blocks.map(item => item.block.id), allFolded = ids.length > 0 && view.blocks.every(isFolded);
-  // With nothing of its own (no notes, no whole-point block, no Q&A), 我的 is its divider alone, only when two blocks or more sit in the text above: the one link
-  // that folds or opens them all.
-  if (!view.mine && !view.here.length && !view.lost.length && !qa && !mineMeta?.suggestions?.length && !qaMeta?.suggestions?.length && !(aiFold && ids.length > 1)) return null;
+  // With nothing of its own (no notes, no whole-point block, no Q&A, no suggestion, no lost block) there is no divider at all, even when blocks sit in the text above:
+  // its words would point at an empty layer, and a fold-all would go nowhere (those blocks are short and fold one by one).
+  if (!view.mine && !view.here.length && !view.lost.length && !qa && !mineMeta?.suggestions?.length && !qaMeta?.suggestions?.length) return null;
   return (
     <section className="book-layer" aria-label={ui('我的')} data-book-layer={node.hid}>
       <div className="book-layer__divider">

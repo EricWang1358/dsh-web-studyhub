@@ -63,6 +63,16 @@ function tidyHtml(line) {
 }
 
 const CITE_CLOSING = /^[。，、；：！？．,.;:!?)）」』】”’]+/;
+const GRAPHEMES = typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+/** The last character (grapheme) of `text`. */
+function lastGrapheme(text) {
+  if (GRAPHEMES) {
+    let last = "";
+    for (const part of GRAPHEMES.segment(text)) last = part.segment;
+    return last;
+  }
+  return Array.from(text).pop() ?? "";
+}
 function inline(text, options, key = "i") {
   const out = [];
   let rest = text.replace(//g, " "),
@@ -83,7 +93,15 @@ function inline(text, options, key = "i") {
     }
     const { type, m } = best,
       k = `${key}.${n++}`;
-    if (m.index) out.push(rest.slice(0, m.index));
+    let before = rest.slice(0, m.index),
+      lead = "",
+      skip = 0;
+    // The character before a 角标 goes into its no-wrap unit (below), so a line never starts on the mark.
+    if (type === "cite" && before) {
+      lead = lastGrapheme(before);
+      before = before.slice(0, before.length - lead.length);
+    }
+    if (before) out.push(before);
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
     else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
     else if (type === "image") out.push(<StudyImage key={k} alt={m[1]} src={m[2] || m[3]} interactive={options.mediaInteractive} />);
@@ -95,11 +113,11 @@ function inline(text, options, key = "i") {
           </Button>
         </sup>
       );
-      // A full stop or a closing mark right after the 角标 stays on its line (a button is a box the line may break after).
-      const closing = CITE_CLOSING.exec(rest.slice(m.index + m[0].length))?.[0];
-      if (closing) {
-        out.push(<span key={k} className="md-cite-keep">{mark}{closing}</span>);
-        rest = rest.slice(closing.length);
+      // The character before the mark and a full stop or closing mark right after it stay with it on one line (a button is a box the line may break around).
+      const closing = CITE_CLOSING.exec(rest.slice(m.index + m[0].length))?.[0] ?? "";
+      if (lead || closing) {
+        out.push(<span key={k} className="md-cite-keep">{lead}{mark}{closing}</span>);
+        skip = closing.length;
       } else out.push(mark);
     }
     else if (type === "term") {
@@ -144,7 +162,7 @@ function inline(text, options, key = "i") {
         ),
       );
     }
-    rest = rest.slice(m.index + m[0].length);
+    rest = rest.slice(m.index + m[0].length + skip);
   }
   return out;
 }

@@ -106,13 +106,19 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.match(await page.locator('.book-step__top').innerText(), /Introduction[\s\S]*第 1 \/ 6 节/);
       assert.match(await words(page.locator('.book-step__heading')), /1\.1 What architects do/);
       // The toolbar row: at the top right of the point, before its text.
+      // At wide widths 在这里加一段 is on the left and the others on the right; at narrow ones all of them are one left-aligned wrapping row, so the rows share their left edge.
       const bar = await page.evaluate(() => {
-        const point = document.querySelector('.book-point').getBoundingClientRect(), actions = document.querySelector('.book-point__actions').getBoundingClientRect();
-        const gist = document.querySelector('.book-point__gist').getBoundingClientRect();
-        return { right: Math.round(point.right - actions.right), above: actions.bottom <= gist.top + 1 };
+        const point = document.querySelector('.book-point').getBoundingClientRect(), gist = document.querySelector('.book-point__gist').getBoundingClientRect();
+        const boxes = [...document.querySelectorAll('.book-point__bar button')].map(button => button.getBoundingClientRect());
+        const rows = new Map();
+        for (const box of boxes) rows.set(Math.round(box.top), Math.min(rows.get(Math.round(box.top)) ?? Infinity, box.left));
+        return { right: Math.round(point.right - Math.max(...boxes.map(box => box.right))), lefts: [...rows.values()].map(left => Math.round(left - point.left)),
+          above: Math.max(...boxes.map(box => box.bottom)) <= gist.top + 1, count: boxes.length };
       });
-      assert.ok(bar.right <= 2 && bar.above, `${width}px: the toolbar is at the top right: ${JSON.stringify(bar)}`);
-      assert.match(await page.locator('.book-point__actions').innerText(), /^练 5 道[\s\S]*本节问答[\s\S]*发给主会话$/);
+      assert.ok(bar.above && bar.count === 4, `${width}px: the toolbar is above the text: ${JSON.stringify(bar)}`);
+      if (width === 1280) assert.ok(bar.right <= 2, `${width}px: the toolbar is at the top right: ${JSON.stringify(bar)}`);
+      else assert.ok(bar.lefts.every(left => left <= 2), `${width}px: every row of the toolbar starts at the left edge: ${JSON.stringify(bar)}`);
+      assert.match(await page.locator('.book-point__actions').evaluate(element => element.textContent), /^练 5 道[\s\S]*本节问答[\s\S]*发给主会话$/);
       assert.equal(await page.locator('.book-point__tidy-button').count(), 0, `${width}px: no 整理 menu`);
       // The takeaway first, then 讲解 without it; 要点清单 and 补充 folded; 出处 one chip.
       assert.equal((await page.locator('.book-point__gist').innerText()).trim(), 'What architects do is the part of the work an architect owns from the first day.');
@@ -127,12 +133,24 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
         const colour = value => { const probe = document.createElement('i'); probe.style.color = value; document.querySelector('.book-point').append(probe); const out = window.getComputedStyle(probe).color; probe.remove(); return out; };
         const style = element => window.getComputedStyle(element);
         const mark = document.querySelector('.book-point .md-cite__mark'), source = document.querySelector('.book-point [data-book-link="source"]');
-        return { text: colour('var(--text)'), dim: colour('var(--text-dim)'), accent: colour('var(--accent-text)'), source: style(source).color, mark: style(mark).color, markLine: style(mark).textDecorationLine };
+        // Outside the point (in the page, beside it) a Markdown link and a link button keep their default colours: this is what guards the fallbacks of --md-link-ink and --sh-link-ink.
+        const wrap = document.createElement('div');
+        wrap.className = 'md';
+        wrap.innerHTML = '<a href="#probe">probe</a><button type="button" class="sh-btn sh-btn--link">probe</button>';
+        document.querySelector('.book-page').append(wrap);
+        const outside = { md: style(wrap.querySelector('a')).color, button: style(wrap.querySelector('button')).color };
+        wrap.remove();
+        return { text: colour('var(--text)'), dim: colour('var(--text-dim)'), accent: colour('var(--accent-text)'), accentSoft: colour('var(--accent-soft)'), outside, source: style(source).color,
+          mark: style(mark).color, markLine: style(mark).textDecorationLine };
       });
       assert.equal(ink.source, ink.text, `${width}px: a 出处 entry is ink: ${JSON.stringify(ink)}`);
       assert.equal(ink.mark, ink.dim, `${width}px: a 角标 is dim ink: ${JSON.stringify(ink)}`);
       assert.equal(ink.markLine, 'none', `${width}px: and not underlined at rest`);
       assert.notEqual(ink.source, ink.accent, `${width}px: not cinnabar`);
+      assert.equal(ink.outside.md, ink.accentSoft, `${width}px: a Markdown link outside the book keeps the soft accent: ${JSON.stringify(ink)}`);
+      assert.equal(ink.outside.button, ink.accent, `${width}px: a link button outside the book keeps cinnabar: ${JSON.stringify(ink)}`);
+      assert.notEqual(ink.outside.md, ink.text);
+      assert.notEqual(ink.outside.button, ink.text);
       // A formula is drawn once: MathML only, its TeX annotation not rendered.
       const math = await page.evaluate(() => [...document.querySelectorAll('.book-point .md-math')].map(element => ({ text: element.innerText.replace(/\s+/g, ''),
         hidden: [...element.querySelectorAll('annotation')].every(item => window.getComputedStyle(item).display === 'none') })));
@@ -150,6 +168,10 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.equal(await here.evaluate(element => !!element.closest('[data-book-layer]')), true, `${width}px: the whole-point block is`);
       assert.equal((await here.locator('.book-ai__summary').innerText()).trim(), 'What architects do is the part of the work an architect owns from the first day.', `${width}px: the first real sentence, not the template`);
       assert.match(await here.locator('.book-ai__toggle').innerText(), /^[\s\S]*AI[\s\S]*约 [\d,]+ 字[\s\S]*多为重复/);
+      // A folded row is one line (cut with an ellipsis) at wide widths; the summary may take two lines only on narrow ones.
+      const lines = await here.locator('.book-ai__summary').evaluate(element => { const style = window.getComputedStyle(element); return Math.round(element.getBoundingClientRect().height / parseFloat(style.lineHeight)); });
+      assert.ok(lines <= (width === 1280 ? 1 : 2), `${width}px: the folded summary takes ${lines} line(s)`);
+      assert.equal(await here.locator('.book-ai__summary').evaluate(element => window.getComputedStyle(element).webkitLineClamp), width === 1280 ? '1' : '2');
       assert.equal(await page.locator('.book-ai-anchor').count(), 1, `${width}px: its words are dashed in the paragraph`);
       await flat(page, width, '逐节读');
       await settleAnimations(page);

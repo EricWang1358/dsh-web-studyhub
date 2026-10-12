@@ -23,7 +23,8 @@ const h = React.createElement, noop = () => {}, han = /[㐀-鿿]/;
 const services = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
 const render = element => renderToStaticMarkup(h(ui.StudyServicesContext.Provider, { value: services }, element));
 const english = fn => { ui.setUiLanguage('en'); try { return fn(); } finally { ui.setUiLanguage('zh'); } };
-const textOf = html => html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+// The no-wrap unit around a 角标 (ui/Markdown.jsx md-cite-keep) holds the character before it: it is not a word break in the text.
+const textOf = html => html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<span class="md-cite-keep">/g, '').replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 globalThis.window ??= { innerWidth: 1280, addEventListener: noop, removeEventListener: noop };
 
 const gen = ['**知识梳理**', '', '- 熵度量无序 [^1]', '', '**讲解**', '', '熵是系统无序程度的度量[^1]。它在孤立系统里只增不减。', '', '**例子**', '', '冰块融化。', '',
