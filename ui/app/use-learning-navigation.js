@@ -145,12 +145,15 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   useEffect(() => {
     if (!focusRequest) return undefined;
     const frame = requestAnimationFrame(() => {
+      // A page that put the learner back at a place of its own (the review book: the point they left) names its heading; that one takes the focus, where it is.
+      const placed = rootRef.current?.querySelector('[data-return-focus]');
       const target = focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
-        : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
-          .find((element) => element.getClientRects().length);
+        : placed?.getClientRects().length ? placed
+          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
+            .find((element) => element.getClientRects().length);
       if (target) {
         if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
-        target.focus();
+        target.focus(target === placed ? { preventScroll: true } : undefined);
       }
     });
     return () => cancelAnimationFrame(frame);
@@ -158,5 +161,5 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   const trail = lib.state.contextTrail;
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
-    returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', hasTrail: trail.length > 0 };
+    returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', trailPage: trail.at(-1)?.page || '', trailPlace: trail.at(-1)?.place || '', hasTrail: trail.length > 0 };
 }

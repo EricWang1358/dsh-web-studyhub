@@ -7,7 +7,7 @@
    group    the sidebar group (ui/nav-order.js NAV_DEFAULTS); null for pages that are reached from elsewhere
    needs    the host contexts the page is useless without (ui/capabilities.js pageAvailable)
    flag     a switch the host publishes in the snapshot's `features` (default off): without it the page is not available, has no sidebar entry and no link
-   back     the words of the way back to a page that names its own ("返回总纲", "回到复习全书"); the others say their sidebar label
+   back     the words of the way back to a page that names its own ("回到总纲", "回到复习全书"); the others say their sidebar label
    onEnter  what entering the page resets: onEnter(ctx, how). how is 'user' when the learner clicked its sidebar entry and
             'tour' when the feature tour switched to it; a plain navigate() calls nothing. ctx carries the resets.
    Free of ui() and React on purpose: the registry is plain data that a DOM-free test can read. */
@@ -33,7 +33,7 @@ export const PAGES = Object.freeze({
   review: { label: '复习', title: null, glyph: null, group: null, needs: ['bank', 'study'] },
   draft: { label: '草稿与发布', title: '草稿与发布', glyph: null, group: null, needs: ['bank', 'authoring'] },
   manage: { label: '维护题组', title: '维护题组', glyph: null, group: null, needs: ['bank'] },
-  outline: { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '返回总纲' },
+  outline: { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '回到总纲' },
   graph: { label: '知识图谱', title: '知识图谱', glyph: null, group: null, needs: ['bank', 'study'], onEnter: user((ctx) => ctx.clearGraphScope()) },
   settings: { label: '设置', title: '设置', glyph: 'settings', group: null, needs: [] },
 });

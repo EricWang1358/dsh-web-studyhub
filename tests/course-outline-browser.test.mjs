@@ -141,7 +141,7 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       const args = JSON.parse((await started).postData()).args;
       assert.deepEqual(args.scope.map(ref => ref.cardId).sort(), ['i1', 'i2'], `${width}px: the round is exactly the two picked questions`);
       assert.equal(args.fresh, true);
-      const back = page.locator('.review-detour', { hasText: '返回总纲' });
+      const back = page.locator('.review-detour', { hasText: '回到总纲' });
       await back.waitFor({ timeout: 30000 });
       const { runs } = await running.api('snapshot');
       assert.deepEqual(runs.at(-1).scope.map(ref => ref.cardId).sort(), ['i1', 'i2'], 'the run holds exactly those two');

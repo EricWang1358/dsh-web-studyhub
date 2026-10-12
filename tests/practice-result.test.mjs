@@ -189,3 +189,66 @@ test('a course round has no 再练此范围: it is not a scope the learner chose
   assert.doesNotMatch(round, /再练此范围/);
   assert.match(result({ run: { scope: [{ deckId: 'd1' }] } }), /再练此范围/);
 });
+
+/* ---------- the way back to the review book / the 总纲: the main button of the result page and the label of the header's return button ---------- */
+
+const bookTrail = (extra = {}) => ({ contextKind: 'book', contextPlace: '1.2.2 Architect the Solution (Asset)', contextReturnLabel: '回到复习全书', onReturnContext: noop, ...extra });
+const nextBlock = (html) => html.slice(at(html, 'class="result-next'), at(html, 'coach-debrief'));
+const buttonsOf = (html) => [...html.matchAll(/<button[^>]*class="([^"]*)"[^>]*>(.*?)<\/button>/gs)].map((match) => ({ cls: match[1], text: match[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() }));
+
+test('a round started in the book: the way back is the one filled button, with the point it leads to in a quiet second line; the page\'s own next step is a plain button after it', () => {
+  setUiLanguage('zh');
+  const html = result(bookTrail());
+  assert.equal(primaries(html), 1, 'exactly one filled button on the page');
+  const [first, second] = buttonsOf(nextBlock(html));
+  assert.match(first.cls, /sh-btn--primary/);
+  assert.match(first.cls, /reading-result__return/);
+  assert.equal(first.text, '回到复习全书 回到 1.2.2 Architect the Solution (Asset)');
+  assert.match(nextBlock(html), /<small[^>]*>回到 1\.2\.2 Architect the Solution \(Asset\)<\/small>/);
+  assert.match(nextBlock(html), /<svg/, 'the arrow is a Phosphor icon, not a character');
+  assert.match(second.cls, /sh-btn--secondary/);
+  assert.equal(second.text, '继续学习 →', 'the next step is still there, as the second button');
+  assert.ok(at(html, '回到复习全书') < at(html, '继续学习 →'));
+  assert.doesNotMatch(nextBlock(html), /← 回到复习全书/, 'the old second button with an arrow character is gone');
+  assert.match(html, /<button[^>]*review-return[^>]*aria-label="回到复习全书"/, 'the return button of the header says where it goes');
+  assert.doesNotMatch(html, /返回学习库/);
+});
+
+test('a round started in the book without a next step to offer still has its way back; the 点评 card keeps its button, plain', () => {
+  setUiLanguage('zh');
+  const html = result(bookTrail({ coach: { destination: undefined } }));
+  assert.equal(primaries(html), 1);
+  assert.match(nextBlock(html), /回到复习全书/);
+  assert.match(html, /继续学习 →/, 'the 点评 card still offers the way on');
+  assert.equal(primaries(html), 1, 'and it is not a second filled button');
+});
+
+test('a round started on the 总纲 says 回到总纲 (no second line); every other trail keeps its next step as the main button and the header\'s 返回学习库', () => {
+  setUiLanguage('zh');
+  const outline = result(bookTrail({ contextKind: 'outline', contextPlace: '', contextReturnLabel: '回到总纲' }));
+  const [back] = buttonsOf(nextBlock(outline));
+  assert.equal(back.text, '回到总纲');
+  assert.doesNotMatch(outline, /返回学习库/);
+  assert.match(outline, /<button[^>]*review-return[^>]*aria-label="回到总纲"/);
+  for (const kind of ['library', 'notes', 'review', 'sources', '']) {
+    const html = result({ contextKind: kind, contextReturnLabel: '返回学习库首页', onReturnContext: noop });
+    const [first, second] = buttonsOf(nextBlock(html));
+    assert.match(first.cls, /sh-btn--primary/, kind);
+    assert.equal(first.text, '继续学习 →', kind);
+    assert.equal(second.text, '← 返回学习库首页', kind);
+    assert.doesNotMatch(html, /reading-result__return/, kind);
+    assert.match(html, /aria-label="返回学习库"/, `${kind}: the header keeps its words`);
+  }
+  assert.doesNotMatch(result({ contextKind: 'book', contextPlace: 'x' }), /reading-result__return/, 'without a way to go back there is no button for it');
+});
+
+test('English: the way back to the book and the 总纲 and its second line are translated', () => {
+  setUiLanguage('en');
+  try {
+    const html = result(bookTrail());
+    const text = html.replace(/<[^>]*>/g, ' ');
+    assert.match(text, /Back to the review book/);
+    assert.match(text, /Back to 1\.2\.2 Architect the Solution \(Asset\)/);
+    assert.match(result(bookTrail({ contextKind: 'outline', contextPlace: '' })), /Back to the outline/);
+  } finally { setUiLanguage('zh'); }
+});

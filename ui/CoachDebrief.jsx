@@ -19,7 +19,7 @@ import { RESULT_COUNTDOWN_SECONDS } from './review/session-logic.js';
 const LEVELS = [["recall", "记忆"], ["concept", "概念辨析"], ["apply", "应用分析"]];
 const COUNTDOWN = RESULT_COUNTDOWN_SECONDS;
 
-export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy, nextShown = false, debriefModel = true, onSettings, onProfileSettings }) {
+export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy, nextShown = false, plain = false, debriefModel = true, onSettings, onProfileSettings }) {
   useInjectCss(css, "study-coach");
   const [debrief, setDebrief] = useState(initial || null),
     [error, setError] = useState(""),
@@ -52,6 +52,8 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   /* `nextShown`: the page already offers the way on above this card (ui/Review.jsx), so the card keeps a button only for a suggestion of its own
      (定制题 or 补薄弱, secondary then); the autopilot countdown below still takes the way on. */
   const suggestion = next === "practice_prepared" || next === "review_weak";
+  // `plain`: the page's one filled button is elsewhere (the way back to the book), so this card's buttons are plain whether or not it repeats the way on.
+  const quiet = nextShown || plain;
   const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题 →", [ready]) : next === "review_weak" ? ui("先补薄弱点 →") : destination?.label || ui("继续学习 →");
 
   // Autopilot: count down, then take the suggested step; any click cancels.
@@ -142,11 +144,11 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       )}
       <div className="coach-actions">
         {next === "wait" && (
-          <Button variant={nextShown ? "secondary" : "primary"} disabled>{ui("正在为你备应用题…")}</Button>
+          <Button variant={quiet ? "secondary" : "primary"} disabled>{ui("正在为你备应用题…")}</Button>
         )}
         {action && !back && (!nextShown || suggestion) && (
           <Button
-            variant={nextShown ? "secondary" : "primary"}
+            variant={quiet ? "secondary" : "primary"}
             disabled={busy}
             onClick={() => {
               cancelled.current = true;

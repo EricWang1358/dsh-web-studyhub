@@ -80,6 +80,12 @@
     .reading-result__meaning { font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reading-result .reading-result__return { justify-self: start; display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--space-half); text-align: left; }
     .reading-result .reading-result__return small { color: inherit; font-size: var(--fs-xs); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
+    /* The way back to the review book (or the 总纲) is the same button, first on the result page's row of next steps; its second line stays one line. */
+    .result-next .reading-result__return { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--space-half); text-align: left; max-width: 100%; min-width: 0; }
+    .result-next .reading-result__return small { color: inherit; font-size: var(--fs-xs); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
+    .result-next > .reading-result__anchor { min-width: 0; max-width: 100%; }
+    .reading-result__label { display: inline-flex; align-items: center; gap: var(--space-2); }
+    .reading-result__place { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .reading-source { margin-top: var(--space-2); }
     .reader-back-to-question { color: var(--text); }
   }

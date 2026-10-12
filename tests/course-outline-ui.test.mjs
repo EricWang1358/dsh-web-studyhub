@@ -149,9 +149,9 @@ test('in English the page has no Chinese of its own', () => {
 });
 
 test('the page is in the registry, reached from the home, not in the sidebar, and the way back from a round names it', () => {
-  assert.deepEqual({ ...ui.PAGES.outline }, { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '返回总纲' });
+  assert.deepEqual({ ...ui.PAGES.outline }, { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '回到总纲' });
   assert.equal(ui.navLabelOf('outline'), undefined);
-  assert.equal(ui.backLabelOf('outline'), '返回总纲');
+  assert.equal(ui.backLabelOf('outline'), '回到总纲');
   assert.equal(ui.backLabelOf('graph'), undefined, 'the other pages keep their way back');
   const views = readFileSync('ui/app/page-views.jsx', 'utf8');
   assert.match(views, /outline: OutlineView/);

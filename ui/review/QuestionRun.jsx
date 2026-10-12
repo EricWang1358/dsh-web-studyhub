@@ -449,9 +449,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           )}
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
-        {contextReturnLabel && <button type="button" className="review-detour" disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</button>}
-        {detour && !contextReturnLabel && <button type="button" className="review-detour" disabled={busy} onClick={onReturnFromDetour}
-          title={ui("回到从信箱跳过来之前正在做的题")}>{uiFormat("← 回到之前的第 {0} 题", [detour.index + 1])}</button>}
+        {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" disabled={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
+        {detour && !contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" disabled={busy} onClick={onReturnFromDetour}
+          title={ui("回到从信箱跳过来之前正在做的题")}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button>}
         <ReviewToolbar
           key={reviewEntryKey(run)}
           assistMode={assistMode}
