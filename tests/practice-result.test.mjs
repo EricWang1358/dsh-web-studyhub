@@ -210,7 +210,7 @@ test('a round started in the book: the way back is the one filled button, with t
   assert.equal(second.text, '继续学习 →', 'the next step is still there, as the second button');
   assert.ok(at(html, '回到复习全书') < at(html, '继续学习 →'));
   assert.doesNotMatch(nextBlock(html), /← 回到复习全书/, 'the old second button with an arrow character is gone');
-  assert.match(html, /<button[^>]*review-return[^>]*aria-label="回到复习全书"/, 'the return button of the header says where it goes');
+  assert.doesNotMatch(html, /review-return/, 'the header does not say the same thing twice: the main button below is the way back');
   assert.doesNotMatch(html, /返回学习库/);
 });
 
@@ -229,7 +229,7 @@ test('a round started on the 总纲 says 回到总纲 (no second line); every ot
   const [back] = buttonsOf(nextBlock(outline));
   assert.equal(back.text, '回到总纲');
   assert.doesNotMatch(outline, /返回学习库/);
-  assert.match(outline, /<button[^>]*review-return[^>]*aria-label="回到总纲"/);
+  assert.doesNotMatch(outline, /review-return/);
   for (const kind of ['library', 'notes', 'review', 'sources', '']) {
     const html = result({ contextKind: kind, contextReturnLabel: '返回学习库首页', onReturnContext: noop });
     const [first, second] = buttonsOf(nextBlock(html));
@@ -251,4 +251,29 @@ test('English: the way back to the book and the 总纲 and its second line are t
     assert.match(text, /Back to 1\.2\.2 Architect the Solution \(Asset\)/);
     assert.match(result(bookTrail({ contextKind: 'outline', contextPlace: '' })), /Back to the outline/);
   } finally { setUiLanguage('zh'); }
+});
+
+test('a round nested inside a book round (a prerequisite round, a detour from the inbox) keeps its own way on as the one filled button; the book is not offered first', () => {
+  setUiLanguage('zh');
+  const prerequisite = result({ ...bookTrail(), run: { returnTo: { runId: 'outer', index: 2 } }, coach: { destination: destination('回到原题 →', { kind: 'original' }) } });
+  const [first, second] = buttonsOf(nextBlock(prerequisite));
+  assert.equal(primaries(prerequisite), 1);
+  assert.match(first.cls, /sh-btn--primary/);
+  assert.equal(first.text, '回到原题 →', 'the way on to the unfinished question is the main button');
+  assert.doesNotMatch(prerequisite, /reading-result__return/);
+  assert.ok(!second || /sh-btn--secondary/.test(second.cls), 'what else is there stays plain (the trail\'s own return, as before)');
+  assert.match(prerequisite, /aria-label="返回学习库"/, 'and the header keeps its words');
+  const detour = result({ ...bookTrail(), detour: { runId: 'outer', index: 2, title: '课程' }, onReturnFromDetour: noop });
+  const [back] = buttonsOf(nextBlock(detour));
+  assert.match(back.cls, /sh-btn--primary/);
+  assert.equal(back.text, '回到之前的第 3 题 →');
+  assert.doesNotMatch(detour, /reading-result__return/);
+  assert.equal(primaries(detour), 1);
+});
+
+test('the autopilot countdown does not take the learner past a way back that the page offers as its main button (static: its condition)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../ui/Review.jsx', import.meta.url), 'utf8');
+  assert.match(source, /autopilot=\{coachProps\.autopilot && !flow && !detour && !run\.returnTo && !wayBack\}/);
+  assert.match(source, /const wayBack = flow \|\| detour \|\| run\.returnTo \|\| destination\?\.kind === "original" \? null : wayBackOf\(context\);/);
 });

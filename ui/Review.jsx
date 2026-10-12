@@ -62,7 +62,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const pageRef = React.useRef(null);
   // A learning-flow practice round: the page is the same, only the way back differs.
   const flow = run.workflow && onBackToWorkflow ? run.workflow : null;
-  const wayBack = flow ? null : wayBackOf(context);
+  /* Only a round of its own goes back to the book (or the 总纲) first: a round nested inside another (a prerequisite round, a detour from the inbox) has its own way on. */
+  const wayBack = flow || detour || run.returnTo || destination?.kind === "original" ? null : wayBackOf(context);
   const returnLabel = flow ? ui("回到学习流") : wayBack ? wayBack.label : ui("返回学习库");
   usePinQuestion(pageRef, run);
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
@@ -104,10 +105,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </Tooltip>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
-          <Button variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
+          {/* On the result page the way back to the book is the main button below; the header does not say the same twice. */}
+          {!(run.complete && wayBack) && <Button variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
             <span className="review-return-full">{returnLabel}</span>
             <span className="review-return-short" aria-hidden="true">{wayBack ? wayBack.label : ui("返回")}</span>
-          </Button>
+          </Button>}
         </>}>
         <div className="review-heading-links">
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</Button>
@@ -138,7 +140,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {/* The next step comes first (the page decided it with today's plan in view): one filled button, then the 点评 and the rest. */}
           {/* A round started in the book (or on the 总纲) goes back there first; the page's own next step is then the second button. */}
           {(nextStep || wayBack) && (
-            <div className={"result-next" + (wayBack ? " result-next--back" : "")}>
+            <div className="result-next">
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
               {nextStep && <Button variant={wayBack ? "secondary" : "primary"} disabled={busy} onClick={nextStep.run}>{nextStep.label}</Button>}
               {nextStep && run.course?.next?.fresh > 0 && onCourseFlow && <Button disabled={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</Button>}
@@ -154,7 +156,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               call={coachProps.call}
               initial={coachProps.debrief}
               // Autopilot must not pull a learner out of a workflow or a detour.
-              autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo}
+              autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo && !wayBack}
               busy={busy}
               onPractice={coachProps.onPractice}
               onContinue={coachProps.onContinue}

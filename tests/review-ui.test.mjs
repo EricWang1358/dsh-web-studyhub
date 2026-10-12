@@ -146,7 +146,10 @@ test("a question reached from the inbox offers the way back to where the learner
     detour: { runId: "course", index: 4, title: "课程 · Cloud Native" }, onReturnFromDetour: () => {},
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "信箱", busy: false,
   }));
-  assert.match(html, /class="[^"]*\breview-detour\b[^"]*"[^>]*><svg[^>]*>.*?<\/svg>回到之前的第 5 题</s);
+  // The pill is the page's quiet Button with the arrow icon, in a Tooltip (not a title=) that says what the way back is.
+  assert.match(html, /<span class="[^"]*\breview-detour\b[^"]*"[^>]*><button[^>]*><svg[^>]*>.*?<\/svg>回到之前的第 5 题<\/button>/s);
+  assert.match(html, /role="tooltip"[^>]*>回到从信箱跳过来之前正在做的题</);
+  assert.doesNotMatch(html, /title="回到从信箱跳过来之前正在做的题"/);
 });
 
 test("during a round started in the book or on the 总纲 the header's return button names that page; the pill under the card is a Button with the arrow icon; other trails keep 返回学习库", () => {

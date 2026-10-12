@@ -16,7 +16,7 @@ import TeachingStatus from "./TeachingStatus.jsx";
 import { describeModelError, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
-import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner } from "../components/index.js";
+import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "../agent-prompts/card.js";
 import { fixSuggestionFor } from "../card-fix.js";
@@ -450,8 +450,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
         {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" disabled={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
-        {detour && !contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" disabled={busy} onClick={onReturnFromDetour}
-          title={ui("回到从信箱跳过来之前正在做的题")}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button>}
+        {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
+          <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
         <ReviewToolbar
           key={reviewEntryKey(run)}
           assistMode={assistMode}
