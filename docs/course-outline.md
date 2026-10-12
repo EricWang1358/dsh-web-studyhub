@@ -4,7 +4,7 @@
 
 The **Course outline** page lays out the current course by its materials instead of by its decks: each material, its chapters, and under each chapter the questions that cite it. Use it to find the questions about a part of the course and practise exactly those, without working out which deck holds them.
 
-Step 1 lays the course out by the materials' own chapters, with no AI text. Step 2 adds **Generate outline**: the model organises the materials into a book-like outline (chapters, sections, knowledge points) in learning order. The review book's explanation layer writes notes under each knowledge point of the outline (see The review book below). Checked against the code on 2026-10-09.
+Step 1 lays the course out by the materials' own chapters, with no AI text. Step 2 adds **Generate outline**: the model organises the materials into a book-like outline (chapters, sections, knowledge points) in learning order. The review book's explanation layer writes notes under each knowledge point of the outline (see The review book below). Checked against the code on 2026-10-12.
 
 ## Open it
 
@@ -100,7 +100,7 @@ Tick a row to pick all its questions, or tick single questions. The bar at the b
 
 A round takes at most 200 questions. When more are picked, the round takes the first 200 in the order a practice round asks them, and the bar says so. A practice round asks due questions first, then weak ones, then new ones; it does not follow the outline order.
 
-The round comes back to the outline: **Back to the outline** in the round and on its result page opens it as you left it (the same rows open, the same deck filter).
+The round comes back to the outline: **Back to the outline** in the round and on its result page opens it as you left it (the same rows open, the same deck filter). On the result page it is the main button; the page's own next step (continue this scope and so on) becomes the secondary button beside it.
 
 ## Limits
 
