@@ -152,6 +152,7 @@
     "qa:coverage-run": "node scripts/qa/coverage-run.mjs",
     "qa:deck-part2": "node scripts/qa/deck-part2.mjs",
     "qa:honest-states": "node scripts/qa/honest-states.mjs",
+    "qa:book-shots": "node scripts/qa/book-shots.mjs",
     "qa:failed-continue": "node scripts/qa/failed-continue.mjs",
     "qa:time-limit": "node scripts/qa/time-limit.mjs",
     "qa:coverage-formats": "node scripts/qa/coverage-formats.mjs",
