@@ -62,6 +62,7 @@ function tidyHtml(line) {
     .join("");
 }
 
+const CITE_CLOSING = /^[。，、；：！？．,.;:!?)）」』】”’]+/;
 function inline(text, options, key = "i") {
   const out = [];
   let rest = text.replace(//g, " "),
@@ -86,14 +87,21 @@ function inline(text, options, key = "i") {
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
     else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
     else if (type === "image") out.push(<StudyImage key={k} alt={m[1]} src={m[2] || m[3]} interactive={options.mediaInteractive} />);
-    else if (type === "cite")
-      out.push(
+    else if (type === "cite") {
+      const mark = (
         <sup key={k} className="md-cite">
           <Button variant="link" size="sm" className="md-cite__mark" aria-label={uiFormat("看原文 {0}", [m[1]])} onClick={() => options.onCite(Number(m[1]))}>
             {m[1]}
           </Button>
-        </sup>,
+        </sup>
       );
+      // A full stop or a closing mark right after the 角标 stays on its line (a button is a box the line may break after).
+      const closing = CITE_CLOSING.exec(rest.slice(m.index + m[0].length))?.[0];
+      if (closing) {
+        out.push(<span key={k} className="md-cite-keep">{mark}{closing}</span>);
+        rest = rest.slice(closing.length);
+      } else out.push(mark);
+    }
     else if (type === "term") {
       const term = m[1],
         asked = options.askedTerms?.includes(term);

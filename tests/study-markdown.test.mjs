@@ -59,3 +59,13 @@ test('flashcard keeps a separate flip button and image control; hidden answers a
   const revealed = renderToStaticMarkup(React.createElement(FlipCard, { run: { card, revealed: true, solution: { answer: '$z^2$', translation: { answer: '$w^2$' } } }, showBack: true, flipCard: () => {}, enOn: true }));
   assert.equal((revealed.match(/class="md-math(?:"| )/g) || []).length, 5);
 });
+
+test('a 角标 keeps the full stop or closing mark after it on its line; one with a word after it stands alone', () => {
+  const cited = text => render(text, { onCite: () => {} });
+  assert.match(cited('熵只增不减[^1]。下一句。'), /<span class="md-cite-keep"><sup class="md-cite">[\s\S]*?<\/sup>。<\/span>下一句。/);
+  assert.match(cited('见「熵[^2]」，再看。'), /<span class="md-cite-keep"><sup class="md-cite">[\s\S]*?<\/sup>」，<\/span>再看。/);
+  const plain = cited('熵[^1]是无序度。');
+  assert.doesNotMatch(plain, /md-cite-keep/);
+  assert.match(plain, /<\/sup>是无序度。/);
+  assert.doesNotMatch(render('熵[^1]。'), /md-cite/, 'without a handler a 角标 stays the text it was written as');
+});
