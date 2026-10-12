@@ -32,7 +32,8 @@ test('every action the skill names is an action of the study workspace', async t
   t.after(() => rm(root, { recursive: true, force: true }));
   const study = new StudyService(root);
   const named = [...new Set([...text.matchAll(/`((?:book|source|course\.book|library)\.[a-z]+(?:\.[a-z]+)*)\b/g)].map(match => match[1]))];
-  for (const action of ['book.toc', 'book.read', 'source.pages', 'book.write', 'book.coverage', 'course.book.revert', 'library.context']) assert.ok(named.includes(action), `the skill names ${action}`);
+  for (const action of ['book.toc', 'book.read', 'book.search', 'source.pages', 'book.write', 'book.coverage', 'course.book.revert', 'library.context']) assert.ok(named.includes(action), `the skill names ${action}`);
+  assert.match(text, /「设置 › 检索扩展」 builds it on their computer without spending tokens/, 'the learner is told once where the index is built');
   for (const action of named) assert.ok(study.runtime.hasAction(action), `${action} is registered`);
 });
 

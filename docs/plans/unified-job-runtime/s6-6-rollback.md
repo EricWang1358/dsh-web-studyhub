@@ -46,6 +46,8 @@
 | `mineruSetup` MinerU 配置 | ✓ | ✓ | ✓ 同上 | S5-7 §4 |
 | `retrievalIndex` 检索索引 | ✓ | ✓ | ✓ 同上，按同一来源键替换 | S5-7 §4 |
 
+**不是新种类：新资料自动补建索引（2026-10-12，[大教材](../../large-documents.zh-CN.md#检索扩展一键安装)）。** 新资料到来后由同一个 `retrievalIndex` 建立补建；开关在 `<DSH 主目录>/study/retrieval.json`，关闭时存 `autoIndex: false`，默认开。旧版读设置时不认这个字段，保存检索设置时会把它丢掉，开关回到默认的开；旧版本身也不会自动补建。接受的退化。
+
 **没有开关的种类：课程总纲整理（`course-outline-build`，2026-10-09）。** 旧版启动、读库：未演练，但总纲和考点清单同形，是一份带附加字段（`courseOutline`，`provenance: 'course-outline'`）的普通 source，旧版读写时字段原样保留。已完成的产物：△ 旧版（3.3.0 及更早）不认识「总纲不算资料」的隐藏规则，会把它当一份 Markdown 资料列在资料里，这是接受的退化，和考点清单相同。未完成的任务：无，任务不持久（`recoveryMode: none`），总纲只在最后一步一次性入库，没有半成品，重启后再点一次「生成总纲」。证据：`course-outline-book.test.mjs`、`course-outline-job.test.mjs`。
 
 **没有开关的种类：复习全书生成（`course-book-build`，2026-10-09）。** 同上：全书是一份带附加字段（`courseNotes`，`provenance: 'course-outline-notes'`）的普通 source，旧版读写时字段原样保留；△ 旧版不认识它的隐藏规则，会把它当一份 Markdown 资料列出，接受的退化。任务不持久，全书（和它顺带整理的总纲）只在最后一步一次性入库，没有半成品，重启后再点一次「生成复习全书」。证据：`course-book-job.test.mjs`、`course-book.test.mjs`。
@@ -54,7 +56,7 @@
 
 **没有开关的种类：分析题答案卡（`case-answer-card`，2026-10-11，M5）。** 新增的种类，没有旧路径可旁路：两到三次模型调用，结果作为题目的附加字段 `answerCard` 存到题目旁边（题目的 `answer`、复习安排和历史都不改）；任务不持久（`recoveryMode: none`），停止或失败什么都不存，重启后再点一次「生成答题卡」。旧版不认识这个字段，读写题目时原样保留，揭晓答案时只显示原来的参考答案（降级可接受）。证据：`answer-card-job.test.mjs`。
 
-**不是任务：复习全书书页（`course-book-doc`，2026-10-11，[复习全书](../../review-book.zh-CN.md)）。** `course.book.open`、`course.book.save`、`course.book.suggestion`、`course.book.revert`（2026-10-11 M2）、`book.qa.add`、`book.qa.remove`（M3）、`course.book.block`（M4）是学习库的写操作，不是任务，没有开关；`course.book.export`（M6）只读，不写任何东西；`book.crunch`、`book.mock.plan`（M7）只读，`book.crunch.mark` 只在书页记录里写每节一个日期（`bookDoc.marks`，旧版原样保留），`book.mock` 只开一份普通的考试记录（`review.start mode exam`）；主会话的书页工具（[复习全书与主会话](../../review-book-agent.zh-CN.md)）里 `book.read`、`book.coverage` 只读，`book.toc` 只做 `course.book.open` 会做的写，`book.write` 和 `course.book.save` 写的是同一份书页文件（同一个写入队列、同一套版本历史），`source.pages` 只在 `book-history/reading.json` 里记下读过哪些页（旧版不读也不删，备份不带它：丢了只丢阅读覆盖的统计）；版本历史是学习库文件夹下 `book-history/` 里每门课一个 JSON 文件，旧版不读也不删。书页是一份带附加字段（`bookDoc`，`provenance: 'course-book-doc'`）的普通 source，`text` 只有一行说明「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」，Markdown 文件在 `bookDoc.files` 里；旧版读写时字段原样保留。△ 旧版不认识它的隐藏规则，可能把它当一份只有这行说明的 Markdown 资料列出，在旧版里删掉它就删掉了书页文件；接受的退化，只能升级。证据：`course-book-files.test.mjs`。
+**不是任务：复习全书书页（`course-book-doc`，2026-10-11，[复习全书](../../review-book.zh-CN.md)）。** `course.book.open`、`course.book.save`、`course.book.suggestion`、`course.book.revert`（2026-10-11 M2）、`book.qa.add`、`book.qa.remove`（M3）、`course.book.block`（M4）是学习库的写操作，不是任务，没有开关；`course.book.export`（M6）只读，不写任何东西；`book.crunch`、`book.mock.plan`（M7）只读，`book.crunch.mark` 只在书页记录里写每节一个日期（`bookDoc.marks`，旧版原样保留），`book.mock` 只开一份普通的考试记录（`review.start mode exam`）；主会话的书页工具（[复习全书与主会话](../../review-book-agent.zh-CN.md)）里 `book.read`、`book.coverage`、`book.search`（问检索索引，2026-10-12）只读，`book.toc` 只做 `course.book.open` 会做的写，`book.write` 和 `course.book.save` 写的是同一份书页文件（同一个写入队列、同一套版本历史），`source.pages` 只在 `book-history/reading.json` 里记下读过哪些页（旧版不读也不删，备份不带它：丢了只丢阅读覆盖的统计）；版本历史是学习库文件夹下 `book-history/` 里每门课一个 JSON 文件，旧版不读也不删。书页是一份带附加字段（`bookDoc`，`provenance: 'course-book-doc'`）的普通 source，`text` 只有一行说明「复习全书（由 StudyHub 3.4 以上管理，请勿删除）」，Markdown 文件在 `bookDoc.files` 里；旧版读写时字段原样保留。△ 旧版不认识它的隐藏规则，可能把它当一份只有这行说明的 Markdown 资料列出，在旧版里删掉它就删掉了书页文件；接受的退化，只能升级。证据：`course-book-files.test.mjs`。
 
 ## 3. 格式：运行时留下了什么
 

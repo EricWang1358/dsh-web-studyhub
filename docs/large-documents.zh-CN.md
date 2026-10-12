@@ -84,6 +84,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
   - 页数只有一种数法：行里、徽标和「大教材建议」写的都是**有文字的页数**。原文件页数更多时（比如原 PDF 422 页、有文字的 404 页），行里在旁边写一次「原 PDF 422 页」，悬停说明其余页是图片或空白页。
   - 「为这门课建立检索索引」旁的一行数的是**整门课**：写明这门课共多少页、含几份资料，还没建索引的页来自哪几份资料。这份资料自己已经建好、缺的是别的资料时，按钮改称「为这门课补建 N 页索引」，并且不再是最醒目的按钮。
   - 建索引在本机完成，不调用 AI，不花 token。
+  - **新资料自动补建索引**（「设置 › 检索扩展」建索引的按钮下面，默认开）：一门课建过索引之后，后来到的资料会自己补进索引：导入资料、转换完成、录音转写保存，或者给资料分到这门课。最后一份到了之后等几秒再开始，所以连着导入几份只补一次；正在建的时候，等它建完再补一次。它和按钮是同一个建立（在任务控制台里运行时能看到，也能停止），在本机完成，不调用 AI，不花 token。从没建过索引的课程不会被自动建：第一次总由你来点。开关的悬停说明会讲这些。
   - 第一次建立会下载检索模型：约 90 MB，只下载一次（服务器文档如此说明），开始前页面会先告诉你；之后可以离线使用。
 - **检索效果。** 服务器默认的模型针对英文。中文教材照样能检索（它还会结合关键词匹配），但语义匹配较弱。项目没有说明哪个多语言模型可用，所以 StudyHub 没有内置，也不推荐。
 - **模型下载不了时。** 服务器文档说明可以用 `HF_ENDPOINT` 换下载地址。在「设置 › 检索扩展」的「高级」里填「模型下载地址」（只能是 https），DSH 启动扩展时会把它传过去，所以改动要重启 DSH 才生效。这里不给出镜像地址：项目只说明了这个变量，没有说明镜像。
@@ -219,6 +220,8 @@ StudyHub 从 DSH 读取工具的 JSON 参数说明（`ctx.tools.schemas()`），
 | `retrieval.index.plan { course? }` | `{ course, pages, toIndex, unchanged, toRemove, chars, firstRun, modelMb, canIndex }` |
 | `retrieval.index.coverage` | `{ indexed, stale, missing, hasIndex, canIndex, building }`：分别列出页面已在索引里、建索引后改过、还没建索引的资料 id；`building` 是正在进行的建立（如果有） |
 | `retrieval.index.start { course? }` / `.status` / `.cancel` | 后台建立：`{ runId, course, status: running\|complete\|failed\|cancelled, stage: preparing\|model\|indexing, done, total, added, removed, unchanged, failed, failedCount, firstRun, error?, errorCode? }`；每个学习库同一时间只建一个 |
+| `retrieval.auto.set { on }` | 打开或关闭「新资料自动补建索引」（关闭时在 `retrieval.json` 里存 `autoIndex: false`）；返回 `retrieval.status`，其中 `autoIndex` 说明当前状态 |
+| `retrieval.index.follow` | 运行时在 `source.add`、`source.import`、`source.courses.set`、`document.import`、`sources.ingest` 之后调用（lib/runtime/builtins.js，所有资料到来的路径共用一处）；开关打开、扩展在运行时，记下有新资料，最后一次到来 5 秒后，对每门「有些页已建索引、有些页是新的或改过」的课程启动 `retrieval.index.start { course }`（lib/contexts/generation/retrieval/index-follow.js）；返回 `{ following }` |
 | `retrieval.endpoint.set { endpoint }` | 扩展的模型下载地址（https，留空为默认） |
 | `retrieval.set { provider, queryArg?, limitArg? }` | `provider`：`builtin`、`service` 或 `mcp:<工具>`；保存在 `$DSH_HOME/study/retrieval.json`（不含密钥） |
 | `retrieval.test { query? }` | 无害地调用一次；`{ ok, hits, matched, unresolved }` |

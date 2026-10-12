@@ -31,15 +31,17 @@ Write for a beginner revising alone: long-form, plain language, the why before t
 
 1. `book.toc {}` (pages with `offset`): the points, their `hid`, what is written, `read` = pages opened / pages the point stands on.
 2. `book.read {"hid": …}`: the point's files, headings with ids, the previous and next point, and `materials` (documentId and pages). Long files: `more {file, offset}` → `book.read {"hid", "file", "offset"}`.
-3. `source.pages {"documentId": …, "from": p, "to": p+3, "hid": …}`: 2–4 pages a call; follow `next` until the point's pages are read. Always pass the `hid`.
-4. `book.write {"hid": …, "section": {"heading": "…", "markdown": "…"}}`: write heading by heading (a new heading title is added at the end of the file). A first draft of a short point may be one `markdown`; small fixes are `edits [{find, replace}]` with words copied from `book.read`.
-5. `book.read` the point again and check the result; read `dropped` and `warnings` of every write and fix what they name.
-6. `book.coverage {"hid": …}`: pages not opened yet are named in `readNext`; read them if the point needs them.
-7. Next point.
+3. Find the right pages first: `book.search {"hid": …, "query": …}` with the point's must-cover concepts still missing (`book.coverage` `concepts.missing`) and the learner's request, one concept or request per query. Its hits name `documentId` and `page`: open those pages first. A hit is only a pointer, never evidence.
+   - When its `status` is not `ok` (`no-index`, `no-extension`, `partial`, `building`), tell the learner once, in Chinese, that this course's search index is not built or not complete, and that 「设置 › 检索扩展」 builds it on their computer without spending tokens; then go on with `readNext` of `book.coverage`. With `partial` or `building` the hits that do come back are still worth opening first.
+4. `source.pages {"documentId": …, "from": p, "to": p+3, "hid": …}`: 2–4 pages a call (the hit pages first); follow `next` until the point's pages are read. Always pass the `hid`.
+5. `book.write {"hid": …, "section": {"heading": "…", "markdown": "…"}}`: write heading by heading (a new heading title is added at the end of the file). A first draft of a short point may be one `markdown`; small fixes are `edits [{find, replace}]` with words copied from `book.read`.
+6. `book.read` the point again and check the result; read `dropped` and `warnings` of every write and fix what they name.
+7. `book.coverage {"hid": …}`: pages not opened yet are named in `readNext` (with an index: the unopened page it ranks highest for the point, `by: "index"`, and `alsoByIndex`); read them if the point needs them.
+8. Next point.
 
 ## Limits
 
-- Small calls only: at most 4 pages read, and one point or one section written per call. Never `course.book.open` or `course.book.save` for this work (they carry the whole book or a whole file).
+- Small calls only: at most 4 pages read (also when the index names more), and one point or one section written per call. Never `course.book.open` or `course.book.save` for this work (they carry the whole book or a whole file).
 - Call `study_workspace` directly, never inside `run_code`.
 - When the conversation gets long, finish the point you are on, say where you stopped (number and title) and suggest a new conversation to go on. In Auto permission mode prefer a fresh conversation per chapter.
 
