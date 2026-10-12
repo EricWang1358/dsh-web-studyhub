@@ -112,7 +112,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     try {
       const started = await call('generation.courseBook.explain', { course, ...args });
       setPending(current => new Set([...current, started.jobId]));
-      notify({ text: ui('已开始：写好后会出现在这一节的「我的笔记与 AI 解释」里；任务页可以看进度。'), tone: 'success' });
+      notify({ text: ui('已开始：写好后会出现在这一节里；任务页可以看进度。'), tone: 'success' });
       setAsk(current => (fromPanel && current?.words ? { ...current, jobId: started.jobId } : null));
       window.getSelection?.()?.removeAllRanges?.();
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
@@ -251,7 +251,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       try {
         const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
         const scope = practice?.scope.slice(0, n) || [];
-        if (!scope.length) { notify(ui('这一节还没有题。')); return; }
+        if (!scope.length) { notify(ui('还没出题')); return; }
         remember(from, element);
         onPractice(scope, { resume: true });
       } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }

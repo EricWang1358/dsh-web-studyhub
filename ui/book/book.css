@@ -43,9 +43,10 @@
       border-radius: var(--radius-sm);
       overflow: hidden;
     }
-    /* A knowledge point in reading order (ui/book/PointBody.jsx): one row of actions, the takeaway, the story, 要点清单 and 补充 folded, the learner's
-       layer, the questions, 出处 behind a chip. The reading text is 17 px with a line of about 70 characters and room between paragraphs; the parts
-       that are not the story are a size smaller. */
+    /* A knowledge point in reading order (ui/book/PointBody.jsx): one row of actions, the takeaway (type only), the story with the AI blocks right after
+       their paragraphs, 要点清单 and 补充 folded, the learner's layer under a hairline, the questions, 出处 behind a chip. The reading text is 17 px with a
+       line of about 70 characters and room between paragraphs; the parts that are not the story are a size smaller. Inside the reading area the links, the
+       角标, the dashed words and the 出处 are ink (the text colour, underlined), never cinnabar: that stays for the one primary button. */
     .book-point {
       display: grid;
       gap: var(--space-4);
@@ -56,9 +57,7 @@
     }
     .book-point__bar,
     .book-point__actions,
-    .book-layer__head,
-    .book-layer__hidden,
-    .book-ai__repeat {
+    .book-layer__divider {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -72,16 +71,6 @@
     .book-point__actions {
       margin-left: auto;
     }
-    .book-point__takeaway {
-      display: grid;
-      gap: var(--space-1);
-      padding: var(--space-3) var(--space-4);
-      border-left: 3px solid var(--accent);
-      border-radius: var(--radius-sm);
-      background: var(--bg-raised);
-      min-width: 0;
-    }
-    .book-point__eyebrow,
     .book-point__label {
       margin: 0;
       color: var(--text-muted);
@@ -89,6 +78,7 @@
       font-weight: var(--fw-strong);
       letter-spacing: 0.04em;
     }
+    /* The takeaway: a step larger than the body and a little stronger, no box, no label, no colour. */
     .book-point__gist {
       font-size: var(--fs-xl);
       font-weight: var(--fw-medium);
@@ -123,35 +113,52 @@
     .book-point__cite-list {
       color: var(--text-muted);
     }
+    /* 我的: a hairline with a small label (not a toggle) and, from two blocks, one quiet link that folds or opens them all. */
     .book-layer {
       display: grid;
       gap: var(--space-2);
       min-width: 0;
       padding-top: var(--space-3);
-      border-top: 1px solid var(--line-soft);
     }
-    .book-layer__toggle,
-    .book-layer__title {
-      margin: 0;
-      padding-inline: 0;
-      text-align: left;
-      justify-content: flex-start;
-      font-size: inherit;
+    .book-layer__divider {
+      flex-wrap: nowrap;
+      gap: var(--space-3);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-layer__tip {
+      flex: none;
+    }
+    .book-layer__hint {
+      max-width: min(24rem, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
+    }
+    .book-layer__label {
+      border-radius: var(--radius-xs);
       font-weight: var(--fw-strong);
+      letter-spacing: 0.04em;
+      cursor: help;
     }
-    .book-layer__caret,
+    .book-layer__label:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
+    }
+    .book-layer__divider::after {
+      content: '';
+      flex: 1 1 auto;
+      order: 2;
+      height: 1px;
+      background: var(--line-soft);
+    }
+    .book-layer__fold {
+      order: 3;
+      flex: none;
+      color: var(--text-muted);
+    }
     .book-node__caret {
       transition: transform var(--dur-fast) var(--ease);
     }
-    .book-layer__toggle[aria-expanded='true'] .book-layer__caret,
     .book-node__toggle[aria-expanded='true'] .book-node__caret {
       transform: rotate(90deg);
-    }
-    .book-layer__hidden,
-    .book-ai__repeat {
-      margin: 0;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
     }
     /* 逐节读 (ui/book/BookStep.jsx): one point under its path, 上一节 / 下一节 above (compact) and below (with the neighbour's title). */
     .book-step {
@@ -248,41 +255,49 @@
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
+    /* An AI block: one row (the same fold look as 要点清单, 补充 and 本节的题: a hairline above, the caret, the label, the room under it), the text and the
+       quiet actions indented under the caret when it is open. A folded row is the caret, the AI tag, the first real sentence and the size. */
     .book-ai {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       gap: var(--space-2);
-      padding: var(--space-2) var(--space-3);
-      border-left: 2px solid var(--accent);
-      border-radius: var(--radius-sm);
-      background: var(--bg-sunken);
       min-width: 0;
+      border-top: 1px solid var(--line-soft);
+      font-size: var(--fs-md);
       overflow-wrap: anywhere;
       transition: background-color var(--dur-slow) var(--ease);
     }
-    .book-ai__about {
+    .book-ai > :not(.book-ai__tip) {
+      margin-left: calc(var(--space-4) + var(--space-2));
+    }
+    .book-ai > :last-child:not(.book-ai__tip) {
+      margin-bottom: var(--space-4);
+    }
+    .book-ai__tip {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-1);
       min-width: 0;
-      margin: 0;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-      cursor: pointer;
+    }
+    .book-ai__toggle {
+      flex: 1 1 auto;
+      justify-content: flex-start;
+      gap: var(--space-2);
+      min-width: 0;
+      padding: var(--space-3) 0;
+      color: var(--text-dim);
+      font-weight: var(--fw-medium);
+      text-align: left;
+    }
+    .book-ai__toggle:hover:not(:disabled) {
+      background: none;
+      color: var(--text);
     }
     .book-ai__caret {
+      flex: none;
+      color: var(--text-muted);
       transition: transform var(--dur-fast) var(--ease);
     }
-    .book-ai__toggle[aria-expanded='true'] .book-ai__caret {
+    .book-ai__toggle[aria-expanded='true'] > .book-ai__caret {
       transform: rotate(90deg);
-    }
-    .book-ai__words {
-      min-width: 0;
-      text-align: left;
-      font-size: inherit;
-      text-decoration: underline dashed;
-      text-underline-offset: 3px;
     }
     .book-ai__summary {
       flex: 1 1 8rem;
@@ -291,14 +306,40 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       color: var(--text-dim);
+      font-weight: var(--fw-regular);
+    }
+    .book-ai__meta {
+      flex: none;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      white-space: nowrap;
+    }
+    .book-point .book-ai .book-ai__quote,
+    .book-point .book-ai .book-ai__words {
+      min-width: 0;
+      margin-block: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      text-align: left;
+    }
+    .book-point .book-ai .book-ai__words {
+      text-decoration: underline dashed;
+      text-underline-offset: 3px;
+    }
+    /* The labels a whole-point block is written with (原文说：, 意思就是：) are quieter than what follows them (ui/book/ai-labels.js). */
+    .book-ai__label {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
     }
     .book-ai[data-ai-flash],
     .book-ai-anchor[data-ai-flash] {
       background: var(--accent-glow);
     }
-    /* The words an AI block is about: a quiet dashed underline in the theme's accent, in both themes (the text stays the book's own colour). */
+    /* The words an AI block is about: a quiet dashed underline in ink (the text stays the book's own colour); a press goes to the block. */
     .book-ai-anchor {
-      text-decoration: underline dashed var(--accent-text);
+      text-decoration: underline dashed var(--text-dim);
       text-decoration-thickness: 1px;
       text-underline-offset: 3px;
       border-radius: var(--radius-sm);
@@ -306,11 +347,14 @@
       transition: background-color var(--dur-slow) var(--ease);
     }
     .book-ai-anchor:hover {
-      background: var(--accent-glow);
+      background: var(--bg-hover);
     }
     .book-ai-anchor:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 1px;
+    }
+    .book-ai > .book-ai__actions {
+      margin-left: var(--space-3);
     }
     .book-ai__actions,
     .book-ai__follow,
@@ -532,13 +576,40 @@
       overflow-wrap: anywhere;
     }
     .book-file--mine {
-      padding: var(--space-2) var(--space-3);
+      padding-left: var(--space-3);
       border-left: 2px solid var(--line);
-      background: var(--bg-sunken);
-      border-radius: var(--radius-sm);
     }
     .book-link {
       text-align: left;
+    }
+    /* A link that wraps reads as running text (display: inline, so no flex gap): its icon (出处, 练 N 道) gets the room itself and does not touch the words. */
+    .book-link > svg {
+      margin-right: var(--space-1);
+      vertical-align: -0.2em;
+    }
+    /* Ink, not cinnabar, in a point: question links, 角标, 出处 and the other links are the text colour, underlined (a 角标 on hover and focus), with a quiet
+       wash on hover. The global link colour (ui/components/components.css) is untouched elsewhere. */
+    .book-point [class~='sh-btn--link'],
+    .book-point .md a {
+      color: var(--text);
+    }
+    .book-point [class~='sh-btn--link']:hover:not(:disabled) {
+      background: var(--bg-hover);
+    }
+    .book-point .md li::marker {
+      color: var(--text-muted);
+    }
+    .book-point .md blockquote {
+      border-left-color: var(--line-strong);
+    }
+    .book-point .md [class~='md-cite__mark'] {
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+    .book-point .md [class~='md-cite__mark']:hover:not(:disabled),
+    .book-point .md [class~='md-cite__mark']:focus-visible {
+      color: var(--text);
+      text-decoration: underline;
     }
     .book-link-gone {
       color: var(--text-muted);
