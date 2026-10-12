@@ -2,6 +2,23 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.5.0 — 2026-10-12
+
+- **The 总纲 and the 复习全书 are built as an inventory-driven quality workflow (#432).** Every page range of every material is first read, in parallel, into an inventory of terms, definitions, concepts, formulas and steps, each with its page anchors. The 总纲 is then built from the inventory into real knowledge points whose anchors are page spans. Sample papers are detected and used by default (a name needs a paper marker, and a choice you made in 3.4 is kept). Each point gets a must-cover checklist; the points are written in parallel with no fixed template, reviewed independently, and repaired (at most two rounds). A point that stays short is marked 「未达标」, and the job finishes as partial rather than hiding it. There is a glossary, 「生词与概念」, and coverage is shown at three levels. The console shows the lanes 清点 / 归纳 / 写 / 审阅 / 修复 and a 知识点 board. A 3.4 outline is not rebuilt silently: a button, 「用清点结果重新整理总纲」, does it when you ask, and notes follow their points by page or character overlap, with a summary of which notes moved.
+- **Reading the 复习全书 (#429, #425, #424, #427).** The book reads one section at a time (逐节读) with layers, a single toolbar row, a 整理 menu and calmer typography. AI blocks fold, and their anchors are dashed. The 弄懂 panel appears only while there is a selection. An instruction written in an AI block is followed for its form.
+- **Editing the book from the main chat (#431, #433).** New operations `book.toc`, `book.read`, `book.write` and `book.coverage`, and `source.pages`, which records the pages that were opened (so reading coverage is real). The package ships a `study-book` skill. 「发给主会话」 buttons send a point, the selected words or the whole book to the main chat.
+- **Question generation uses every selected material (#430).** Each selected material gets a section first, there are before and after lines per material, and a per-material 补题 button.
+- **Smaller changes.** Long .ogg and .opus recordings are split losslessly, and one request carries at most 45 minutes (#426). The 索引 badge opens the place where the index is built (#428). The 归并主题组 prompt shows the exact result shape and reads pages of 60 (#421). The 复习全书 has a sidebar entry (#422).
+
+Read this before you upgrade:
+
+- **The upgrade is one-way.** Back up your library folder first. 3.4 can still read the new notes, but it would list the inventory record as a material, it cannot resolve page-span anchors, and 「更新全书」 in 3.4 on a span-based outline writes empty bodies.
+- **The `study-book` skill is not installed for you.** Copy it to `~/.dsh/skills/study-book` yourself. Whether a running DSH finds it there is not verified.
+
+Known issues, not fixed: #407 (an audio run shown as a 「并行时间线」 is really sequential). The browser tests follow-label-fit-browser, nav-layout, science-settings-browser and wave5c-estimate already fail on main; they are not part of CI.
+
+未验证 (not verified): nothing in the new AI workflow was run against a real model. It was tested with fake models and synthetic libraries only. Real writing quality, the size of the checklists, how strict the reviewer is, and the number of calls per point (up to about six when repairs are needed) are unknown. The final package passed the archive check (npm run release:check) but was not installed into a real DSH.
+
 ## 3.4.1 — 2026-10-11
 
 A small follow-up to 3.4.0.
