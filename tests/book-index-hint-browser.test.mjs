@@ -1,4 +1,4 @@
-/* global document window */
+/* global document window MouseEvent */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
