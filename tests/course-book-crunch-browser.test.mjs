@@ -128,6 +128,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       assert.match(await page.locator('.book-today').innerText(), /学习日[\s\S]*去读/);
       overflow = await sideways(page);
       assert.ok(flat(overflow), `${width}px: nothing scrolls sideways in the book with 今天读哪几节: ${JSON.stringify(overflow)}`);
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-today-${tag}.png`) });
 
       // 翻看: the 易错点 first, the 讲解 folded; 已看 kept.
@@ -166,7 +167,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await page.waitForTimeout(300);
       const topBefore = await page.evaluate(id => Math.round(document.getElementById(`flip-${id}`).getBoundingClientRect().top), lastHid);
       await question.click();
-      const back = page.locator('.review-detour', { hasText: '回到复习全书' });
+      const back = page.locator('.review-return', { hasText: '回到复习全书' });
       await back.waitFor({ timeout: 30000 });
       await back.click();
       await page.locator(`#flip-${lastHid}`).waitFor({ timeout: 30000 });
@@ -183,6 +184,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       const said = await mock.innerText();
       assert.match(said, /这 2 节共 \d+ 道题，其中 9 道单选或多选可以进模拟卷/, `${width}px: the coverage: ${said}`);
       assert.match(said, /不进卷：.*开放 1 道.*闪卡 \d+ 道/, `${width}px: what is left out: ${said}`);
+      await settleAnimations(mock);
       if (shots) await mock.screenshot({ path: join(shots, `mock-${tag}.png`) });
       await mock.getByRole('button', { name: '开始模拟卷' }).click();
       await page.locator('.exam-card').waitFor({ timeout: 30000 });

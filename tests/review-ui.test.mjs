@@ -152,20 +152,21 @@ test("a question reached from the inbox offers the way back to where the learner
   assert.doesNotMatch(html, /title="回到从信箱跳过来之前正在做的题"/);
 });
 
-test("during a round started in the book or on the 总纲 the header's return button names that page; the pill under the card is a Button with the arrow icon; other trails keep 返回学习库", () => {
+test("during a round started in the book or on the 总纲 the header's return button names that page and it is not said again under the card; other trails keep 返回学习库 and their pill with the arrow icon", () => {
   const run = { id: "from-book", index: 0, total: 1, card: { id: "q", kind: "flashcard", topic: "T", prompt: "Q?" }, revealed: false, feedback: null };
   const page = (extra) => renderToStaticMarkup(reviewEl({ run, data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "今日学习", busy: false,
     onReturnContext: () => {}, ...extra }));
   const book = page({ contextKind: "book", contextPlace: "1.2.2 Title", contextReturnLabel: "回到复习全书" });
   assert.match(book, /<button[^>]*review-return[^>]*aria-label="回到复习全书"[^>]*>\s*<span class="review-return-full">回到复习全书<\/span>/);
   assert.doesNotMatch(book, /返回学习库/);
-  assert.match(book, /<button[^>]*class="sh-btn [^"]*review-detour"[^>]*><svg[^>]*>.*?<\/svg>回到复习全书<\/button>/s, "the pill is the page's Button, with the Phosphor arrow");
+  assert.doesNotMatch(book, /review-detour/, "one way back during the run: the header's, no pill under the card");
   assert.doesNotMatch(book, /←/);
   const outline = page({ contextKind: "outline", contextReturnLabel: "回到总纲" });
   assert.match(outline, /review-return[^>]*aria-label="回到总纲"/);
+  assert.doesNotMatch(outline, /review-detour/);
   const other = page({ contextKind: "library", contextReturnLabel: "返回学习库首页" });
   assert.match(other, /review-return[^>]*aria-label="返回学习库"/);
-  assert.match(other, /review-detour/);
+  assert.match(other, /<button[^>]*class="sh-btn [^"]*review-detour"[^>]*><svg[^>]*>.*?<\/svg>返回学习库首页<\/button>/s, "the pill is the page's Button, with the Phosphor arrow");
   assert.match(page({}), /review-return[^>]*aria-label="返回学习库"/);
 });
 

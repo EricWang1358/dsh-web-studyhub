@@ -83,9 +83,17 @@
     /* The way back to the review book (or the 总纲) is the same button, first on the result page's row of next steps; its second line stays one line. */
     .result-next .reading-result__return { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--space-half); text-align: left; max-width: 100%; min-width: 0; }
     .result-next .reading-result__return small { color: inherit; font-size: var(--fs-xs); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
-    .result-next > .reading-result__anchor { min-width: 0; max-width: 100%; }
+    /* The cap (about the left half of the result card) is on the anchor too: it is as wide as the long second line otherwise, and a second button would stand far from the main one. */
+    .result-next > .reading-result__anchor { min-width: 0; max-width: min(100%, 22.5rem); }
     .reading-result__label { display: inline-flex; align-items: center; gap: var(--space-2); }
     .reading-result__place { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Narrow: the way back to the book and a second button of the round stand in one stack, the same width. */
+    @container study (max-width: 640px) {
+      .result-page .result-next--back { flex-direction: column; align-items: stretch; }
+      .result-next--back > .sh-btn,
+      .result-next--back > .reading-result__anchor { display: flex; width: 100%; max-width: 100%; }
+      .result-next--back .reading-result__return { width: 100%; max-width: 100%; }
+    }
     .reading-source { margin-top: var(--space-2); }
     .reader-back-to-question { color: var(--text); }
   }

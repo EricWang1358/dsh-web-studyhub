@@ -87,6 +87,7 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       assert.equal(home.doc <= 0, true, `${width}px: the home does not scroll sideways: ${JSON.stringify(home)}`);
       await link.hover();
       await page.locator('[role="tooltip"]', { hasText: '按资料的章节找题、挑题练' }).first().waitFor({ state: 'visible', timeout: 5000 });
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `home-${tag}.png`) });
       await page.mouse.move(0, 0);
       // The 学习目录 heading's button opens the same page.
@@ -143,10 +144,11 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       const args = JSON.parse((await started).postData()).args;
       assert.deepEqual(args.scope.map(ref => ref.cardId).sort(), ['i1', 'i2'], `${width}px: the round is exactly the two picked questions`);
       assert.equal(args.fresh, true);
-      const back = page.locator('.review-detour', { hasText: '回到总纲' });
+      const back = page.locator('.review-return', { hasText: '回到总纲' });
       await back.waitFor({ timeout: 30000 });
       const { runs } = await running.api('snapshot');
       assert.deepEqual(runs.at(-1).scope.map(ref => ref.cardId).sort(), ['i1', 'i2'], 'the run holds exactly those two');
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `review-${tag}.png`) });
       // Finished, the result page goes back to the 总纲 first (no second line: the 总纲 has no point to name); the page's own next step is the plain button after it.
       for (let guard = 0; guard < 8 && !(await page.locator('.result-page').count()); guard += 1) {

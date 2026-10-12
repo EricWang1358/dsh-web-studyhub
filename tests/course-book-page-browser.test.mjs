@@ -111,6 +111,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       assert.ok(point >= 0 && point < 300, `${width}px: the 目录 brought the point to the top of the window: ${point}`);
       overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways with the long title: ${JSON.stringify(overflow)}`);
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-point-${tag}.png`) });
       if (width === 420) {
         assert.equal(await page.locator('.book-toc').count(), 0, '420px: the 目录 folds again after a jump');
@@ -138,9 +139,9 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       await link.click();
       const args = JSON.parse((await started).postData()).args;
       assert.equal(args.scope.length, 1, `${width}px: the round is the linked question`);
-      const back = page.locator('.review-detour', { hasText: '回到复习全书' });
+      const back = page.locator('.review-return', { hasText: '回到复习全书' });
       await back.waitFor({ timeout: 30000 });
-      // During the round the header's return button names the book, and the pill under the card is the page's Button with the arrow icon.
+      // During the round the header's return button names the book, and that is the only way back on the page: the card has no copy of it.
       assert.equal(await page.locator('.review-return').getAttribute('aria-label'), '回到复习全书', `${width}px: the header's return button names the book`);
       assert.equal(await page.locator('.review-return', { hasText: '返回学习库' }).count(), 0, `${width}px: not 返回学习库`);
       if (width === 420) {
@@ -149,7 +150,8 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
           return { own: label.top > title.bottom - 2, title: title.left, label: label.left }; });
         if (lines.own) assert.ok(Math.abs(lines.label - lines.title) <= 2, `420px: the header's return label lines up with the title: ${JSON.stringify(lines)}`);
       }
-      assert.equal(await back.evaluate(element => element.tagName === 'BUTTON' && element.classList.contains('sh-btn') && !!element.querySelector('svg')), true, `${width}px: the pill is a Button with an icon`);
+      assert.equal(await page.locator('.review-detour').count(), 0, `${width}px: no second 回到复习全书 under the card`);
+      assert.equal(await page.getByRole('button', { name: '回到复习全书' }).count(), 1, `${width}px: exactly one way back to the book on the page`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-practice-${tag}.png`) });
       await back.click();
@@ -176,9 +178,14 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       const primary = page.locator('.result-next .sh-btn--primary');
       assert.equal(await page.locator('.result-page .sh-btn--primary').count(), 1, `${width}px: one filled button on the result page`);
       assert.equal((await primary.locator('.reading-result__label').innerText()).trim(), '回到复习全书', `${width}px: the main button goes back to the book`);
+      // The second button, when there is one, goes on (it is never another way back), and at 420 it is as wide as the main button.
+      const second = page.locator('.result-next .sh-btn--secondary');
+      for (let index = 0; index < await second.count(); index += 1) assert.doesNotMatch(await second.nth(index).innerText(), /回到|返回/, `${width}px: a second button is a step on, not another way back`);
+      assert.equal(await page.getByRole('button', { name: /回到学习路径/ }).count(), 0, `${width}px: no 回到学习路径 beside the way back to the book`);
+      const box = await primary.boundingBox();
+      if (width === 1280) assert.ok(box.width <= 364, `${width}px: the main button is capped (${box.width}px)`);
       const place = (await primary.locator('small').innerText()).replace(/\s+/g, ' ');
       assert.match(place, /^回到 2\.2 Quality attribute scenarios/, `${width}px: the second line says the point left`);
-      assert.ok(await page.locator('.result-next .sh-btn--secondary').count() >= 1, `${width}px: the page's own next step is a secondary button`);
       assert.equal(await page.locator('.review-return').count(), 0, `${width}px: the header does not say the same thing twice on the result page`);
       const tip = await page.locator('.result-next [role="tooltip"]').first().textContent();
       const cut = await primary.locator('small').evaluate(element => element.scrollWidth > element.clientWidth + 1);
@@ -188,6 +195,15 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       assert.equal(overflow.doc <= 0, true, `${width}px: the result page does not scroll sideways: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-result-${tag}.png`), fullPage: true });
+      // The seed has no step on to offer (the scope is done): a second button as the page draws one (a plain Button in the row) shows the layout. Side by side when wide;
+      // in one stack, the same width as the main button, when narrow.
+      await page.evaluate(() => { const row = document.querySelector('.result-next'), button = document.createElement('button');
+        button.type = 'button'; button.className = 'sh-btn sh-btn--secondary sh-btn--md'; button.dataset.probe = 'next'; button.textContent = '继续这个范围 →'; row.append(button); });
+      const probe = await page.locator('[data-probe="next"]').boundingBox(), main = await primary.boundingBox();
+      if (width === 420) assert.ok(Math.abs(probe.width - main.width) <= 1 && Math.abs(probe.x - main.x) <= 1 && probe.y > main.y, `${width}px: one stack, the same width: ${JSON.stringify({ main, probe })}`);
+      else assert.ok(probe.y < main.y + main.height && probe.x > main.x + main.width && probe.x - (main.x + main.width) <= 16, `${width}px: side by side, close: ${JSON.stringify({ main, probe })}`);
+      if (shots) await page.screenshot({ path: join(shots, `book-result-next-${tag}.png`), clip: { x: 0, y: Math.max(0, main.y - 80), width: width, height: 260 } });
+      await page.evaluate(() => document.querySelector('[data-probe="next"]').remove());
       await primary.click();
       await page.locator(`.book-step[data-book-step="${hid2}"]`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(300);
@@ -195,6 +211,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       assert.ok(Math.abs(after2 - before2) <= 2, `${width}px: back at the same place from the result page: ${before2} -> ${after2}`);
       await page.waitForFunction(id => document.activeElement?.id === id, `book-${hid2}`, { timeout: 5000 });
       assert.equal(await focusedId(page), `book-${hid2}`, `${width}px: the focus is on the point's heading`);
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-back-${tag}.png`) });
 
       // The focus belongs to the return itself: leaving the book for the 总纲 and opening it again later puts nothing on the heading.

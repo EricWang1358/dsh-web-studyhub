@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
-import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics, learnerAnswer, writeNudge } from "../lib/coach.js";
+import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics, learnerAnswer, writeNudge, writeDebrief } from "../lib/coach.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
 import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
 
@@ -401,6 +401,24 @@ test("coach debrief separates objective correctness from self-rated recall", () 
   assert.equal(mixedRules.insights[0].code, "concept-only");
   assert.match(mixedRules.insights[0].text, /概念还没稳/);
   assert.equal(mixedRules.wantsPrep, false, "a low self-rating should not be hidden by three correct choice answers");
+});
+
+test("the debrief never prints a rate that does not exist: no 正确率 null% from the fake model, and a model line with a placeholder is dropped", async () => {
+  const metrics = (extra) => ({ answered: 4, lowShare: 100, accuracy: null, gradedAnswered: 0, selfAnswered: 4, ...extra });
+  const input = (m) => ({ task: "根据本轮指标和规则洞察，给学习者一句具体、真诚的建议", metrics: m, defaultNext: "continue_path", learner: {} });
+  const fake = createFakeModel();
+  const nothingGraded = JSON.parse(await fake("sys", JSON.stringify(input(metrics()))));
+  assert.doesNotMatch(nothingGraded.why, /null|NaN|undefined|正确率/, "no rate: the clause is left out");
+  assert.match(nothingGraded.why, /本轮 4 题里 100% 是概念题。/);
+  const graded = JSON.parse(await fake("sys", JSON.stringify(input(metrics({ accuracy: 50, gradedAnswered: 2 })))));
+  assert.match(graded.why, /，正确率 50%。/, "a real rate is still said");
+  const written = await writeDebrief(async () => JSON.stringify({ headline: "正确率 NaN%", why: "本轮 4 题，正确率 null%。", next: "continue_path", summary: "x" }),
+    { metrics: metrics(), rules: { insights: [], next: "continue_path" }, learner: {} });
+  assert.equal(written.why, "", "the line with null% is dropped (the rules' own line is used then)");
+  assert.equal(written.headline, "");
+  const fine = await writeDebrief(async () => JSON.stringify({ headline: "接着练", why: "nullable 的写法也算数，正确率 80%。", next: "continue_path", summary: "x" }),
+    { metrics: metrics(), rules: { insights: [], next: "continue_path" }, learner: {} });
+  assert.equal(fine.why, "nullable 的写法也算数，正确率 80%。", "only a bare placeholder word is dropped");
 });
 
 test("a conflicting model suggestion cannot send a weak session to rest", async (t) => {

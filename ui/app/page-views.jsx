@@ -230,7 +230,8 @@ function BookView() {
   // trail (and only then): the book is told to put the focus on that point's heading.
   const onPractice = (scope, { resume = false, place = '' } = {}) => {
     const course = data.focus?.course ?? null;
-    const origin = learn.captureContext(place ? { place, arrive: () => keepBook(data.root, course, { back: true }) } : {});
+    // A round started on this page always puts the focus back on the book's heading when the learner returns (even when the point's row is not found: `place` is empty then).
+    const origin = learn.captureContext({ ...(place ? { place } : {}), arrive: () => keepBook(data.root, course, { back: true }) });
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.

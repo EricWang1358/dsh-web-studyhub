@@ -12,11 +12,11 @@ import { StudyService } from '../lib/service.js';
 import { reviewElement } from './helpers/review-render.mjs';
 import { continueDestination } from '../ui/review/session-logic.js';
 
-const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js'; export { captureContext } from './ui/learning-navigation.js'; export { isBackDestination, trailKindOf, wayBackOf } from './ui/review/way-back.js';", resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { default: Review, StudyServicesContext, setUiLanguage } = module.exports;
+const { default: Review, StudyServicesContext, setUiLanguage, captureContext, isBackDestination, trailKindOf, wayBackOf } = module.exports;
 const han = /[㐀-鿿]/;
 const noop = () => {};
 const card = { id: 'q', kind: 'quiz', topic: 'Context', prompt: 'Who processes payments?', options: [] };
@@ -214,6 +214,89 @@ test('a round started in the book: the way back is the one filled button, with t
   assert.doesNotMatch(html, /返回学习库/);
 });
 
+test('the book\'s way back and a second button that also goes back never stand side by side: only a forward step of the round is the second button', () => {
+  setUiLanguage('zh');
+  // Another place to go back to (the path, with nothing left in the scope): left out, and the 点评 card does not repeat it either.
+  const back = result(bookTrail({ coach: { destination: destination('回到学习路径 →', { reason: 'scope-done' }) } }));
+  const buttons = buttonsOf(nextBlock(back));
+  assert.equal(buttons.length, 1, 'the way back to the book is the only button');
+  assert.equal(buttons[0].text, '回到复习全书 回到 1.2.2 Architect the Solution (Asset)');
+  assert.doesNotMatch(back, /回到学习路径/, 'neither the second button nor the 点评 card says it');
+  assert.equal(primaries(back), 1);
+  assert.match(back, /result-next result-next--back/);
+  // The same for the 总纲.
+  assert.doesNotMatch(result(bookTrail({ contextKind: 'outline', contextPlace: '', coach: { destination: destination('回到学习路径 →', { reason: 'original-gone' }) } })), /回到学习路径/);
+  // A step on stays, as the second button.
+  for (const [label, extra] of [['继续这个范围 →', { kind: 'scope' }], ['下一步：复习 →', { kind: 'plan' }], ['继续学习 →', {}]]) {
+    const html = result(bookTrail({ coach: { destination: destination(label, extra) } }));
+    const [, second] = buttonsOf(nextBlock(html));
+    assert.equal(second.text, label);
+    assert.match(second.cls, /sh-btn--secondary/);
+  }
+  const batch = buttonsOf(nextBlock(result(bookTrail({ run: { course: { name: '网络', next: { label: 'x', fresh: 3 }, learned: 1, cards: 5 } } }))));
+  assert.equal(batch[1].text, '继续课程下一批 →');
+  // Off the book's trail the same step is the main button, as before.
+  const home = result({ contextKind: 'library', contextReturnLabel: '返回学习库首页', onReturnContext: noop, coach: { destination: destination('回到学习路径 →', { reason: 'scope-done' }) } });
+  assert.equal(buttonsOf(nextBlock(home))[0].text, '回到学习路径 →');
+  assert.equal(isBackDestination({ kind: 'path', reason: 'scope-done' }), true);
+  assert.equal(isBackDestination({ kind: 'path', reason: 'continuing' }), false);
+  assert.equal(isBackDestination({ kind: 'scope' }), false);
+});
+
+test('the main way back has one arrow style, the Phosphor icon, here and in the reader\'s 回到阅读; the second line is one line with an ellipsis', () => {
+  setUiLanguage('zh');
+  const html = result(bookTrail({ contextPlace: '2.2 Quality attribute scenarios with a rather long title that cannot fit one line' }));
+  assert.match(nextBlock(html), /reading-result__label"[^>]*><svg[^>]*>.*?<\/svg>\s*回到复习全书/s);
+  assert.match(nextBlock(html), /reading-result__place/, 'the second line is one line with an ellipsis');
+  const reader = result({ run: { reading: { sourceId: 's1', sectionTitle: 'Hash indexes', scope: { kind: 'chapter', count: 4 }, before: { percent: 41, total: 5 }, after: { percent: 58, total: 5 } } }, onReturnToReading: noop });
+  assert.match(reader, /reading-result__label"[^>]*><svg[^>]*>.*?<\/svg>\s*回到阅读/s);
+  assert.doesNotMatch(reader, /回到阅读 →/, 'no text arrow beside the icon');
+});
+
+test('book -> reader -> practise -> result: a round of the reader goes back to the reader; the book adds no filled button of its own to the reader\'s', () => {
+  setUiLanguage('zh');
+  const reading = { sourceId: 's1', sectionTitle: 'Hash indexes', scope: { kind: 'chapter', count: 4 }, before: { percent: 41, total: 5 }, after: { percent: 58, total: 5 } };
+  // The reader is open over the book (a footnote, a 出处): a trail entry captured then leads back to the reader, so it is not the book's way back.
+  const overBook = captureContext({ root: 'r', page: 'book', modal: { type: 'source', source: { id: 's1' }, quote: 'q' } });
+  const onBook = captureContext({ root: 'r', page: 'book', modal: null });
+  assert.equal(trailKindOf(overBook), '');
+  assert.equal(trailKindOf(onBook), 'book');
+  assert.equal(wayBackOf({ kind: trailKindOf(overBook), onReturn: noop }), null, 'no 回到复习全书 for a trail that began in the reader');
+  assert.equal(wayBackOf({ kind: trailKindOf(onBook), onReturn: noop })?.label, '回到复习全书');
+  // What a reader round shows with no book anywhere (the reader's card and the page's own next step) is the baseline: the book adds nothing to it.
+  const baseline = primaries(result({ run: { reading }, onReturnToReading: noop }));
+  const fromReader = result({ contextKind: trailKindOf(overBook), contextReturnLabel: '返回资料', onReturnContext: noop, run: { reading }, onReturnToReading: noop });
+  assert.equal(primaries(fromReader), baseline);
+  assert.match(fromReader, /回到阅读/);
+  assert.doesNotMatch(fromReader, /回到复习全书/);
+  // A book round whose learner opened the reader and practised from it: the new round carries the reading, the book's trail is still there; the reader's way back wins.
+  const nested = result(bookTrail({ run: { reading }, onReturnToReading: noop }));
+  assert.equal(primaries(nested), baseline, 'no filled button more than a reader round has');
+  assert.match(nested, /回到阅读/);
+  assert.equal(buttonsOf(nested).filter((button) => /sh-btn--primary/.test(button.cls) && /回到复习全书/.test(button.text)).length, 0, 'the book\'s way back is not a filled button here');
+  assert.doesNotMatch(nested, /reading-result__place">回到/, 'and it has no second line');
+  assert.match(nested, /aria-label="返回学习库"/, 'the header keeps its own words');
+  // A round started from the book page itself still goes back to the book.
+  assert.match(result(bookTrail()), /回到复习全书/);
+});
+
+test('during a round started in the book the way back is in the header only, not a second time under the card; the other trails keep theirs', () => {
+  setUiLanguage('zh');
+  const running = (extra = {}) => result({ run: { complete: false, answered: 1 }, ...bookTrail(extra) });
+  const html = running();
+  assert.doesNotMatch(html, /review-detour/, 'no pill under the card');
+  assert.match(html, /aria-label="回到复习全书"/, 'the header button says it');
+  const outline = running({ contextKind: 'outline', contextPlace: '', contextReturnLabel: '回到总纲' });
+  assert.doesNotMatch(outline, /review-detour/);
+  assert.match(outline, /aria-label="回到总纲"/);
+  // Any other trail keeps its quiet pill under the card.
+  const other = result({ run: { complete: false, answered: 1 }, contextKind: 'notes', contextReturnLabel: '返回笔记', onReturnContext: noop });
+  assert.match(other, /review-detour/);
+  // A nested round (a detour from the inbox) keeps its own pill.
+  const detour = running({ detour: { runId: 'outer', index: 2, title: '课程' }, onReturnFromDetour: noop, contextReturnLabel: undefined });
+  assert.match(detour, /review-detour/);
+});
+
 test('a round started in the book without a next step to offer still has its way back; the 点评 card keeps its button, plain', () => {
   setUiLanguage('zh');
   const html = result(bookTrail({ coach: { destination: undefined } }));
@@ -275,5 +358,5 @@ test('the autopilot countdown does not take the learner past a way back that the
   const { readFile } = await import('node:fs/promises');
   const source = await readFile(new URL('../ui/Review.jsx', import.meta.url), 'utf8');
   assert.match(source, /autopilot=\{coachProps\.autopilot && !flow && !detour && !run\.returnTo && !wayBack\}/);
-  assert.match(source, /const wayBack = flow \|\| detour \|\| run\.returnTo \|\| destination\?\.kind === "original" \? null : wayBackOf\(context\);/);
+  assert.match(source, /const wayBack = flow \|\| detour \|\| run\.returnTo \|\| run\.reading \|\| destination\?\.kind === "original" \? null : wayBackOf\(context\);/);
 });

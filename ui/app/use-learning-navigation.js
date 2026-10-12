@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { backLabelOf, navLabelOf } from '../pages.js';
+import { trailKindOf } from '../review/way-back.js';
 import {
   ABORT, captureContext as captureOrigin, currentStudyReference as referenceOf, leavesTrail, loadLearningTarget, loadReturnTarget,
   openLearningTarget as openTarget, openReturnTarget, returnTargetFor,
@@ -163,5 +164,5 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   const trail = lib.state.contextTrail;
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
-    returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', trailPage: trail.at(-1)?.page || '', trailPlace: trail.at(-1)?.place || '', hasTrail: trail.length > 0 };
+    returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', trailPage: trailKindOf(trail.at(-1)), trailPlace: trail.at(-1)?.place || '', hasTrail: trail.length > 0 };
 }

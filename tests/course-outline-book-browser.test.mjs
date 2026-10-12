@@ -113,7 +113,7 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       await bar.locator('.sh-btn--primary').click();
       const args = JSON.parse((await started).postData()).args;
       assert.equal(args.scope.length, Math.min(200, picked), `${width}px: the round is exactly the picked point`);
-      await page.locator('.review-detour', { hasText: '回到总纲' }).click({ timeout: 30000 });
+      await page.locator('.review-return', { hasText: '回到总纲' }).click({ timeout: 30000 });
       await page.locator('.outline-tree--book').waitFor();
       assert.equal(await page.locator(`[data-outline-toggle="${pointRow.key}"]`).getAttribute('aria-expanded'), 'true', `${width}px: back on the outline as it was left`);
       assert.deepEqual(errors, [], `${width}px: no page errors`);

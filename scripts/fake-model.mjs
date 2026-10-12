@@ -745,8 +745,10 @@ const HANDLERS = [
   { name: "coach.debrief", match: (_s, input) => String(input.task || "").includes("本轮指标"),
     reply: ({ input }) => {
       const m = input.metrics || {};
+      // Nothing graded (flashcards, self-rated answers): there is no rate, so the clause is left out rather than printed as "null%".
+      const rate = Number.isFinite(m.accuracy) ? `，正确率 ${m.accuracy}%` : "";
       return { headline: m.lowShare >= 70 ? "概念会了，别停在纸上谈兵" : "薄弱点就差临门一脚",
-        why: `本轮 ${m.answered} 题里 ${m.lowShare}% 是概念题，正确率 ${m.accuracy}%。`, next: input.defaultNext,
+        why: `本轮 ${m.answered} 题里 ${m.lowShare}% 是概念题${rate}。`, next: input.defaultNext,
         summary: `目标：${input.learner?.goal || "未设定"}；偏好快速刷题；概念辨析占比高，应用分析练得少。` };
     } },
 ];

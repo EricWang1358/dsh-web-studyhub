@@ -100,7 +100,7 @@ Tick a row to pick all its questions, or tick single questions. The bar at the b
 
 A round takes at most 200 questions. When more are picked, the round takes the first 200 in the order a practice round asks them, and the bar says so. A practice round asks due questions first, then weak ones, then new ones; it does not follow the outline order.
 
-The round comes back to the outline: **Back to the outline** in the round and on its result page opens it as you left it (the same rows open, the same deck filter). On the result page it is the main button; the page's own next step (continue this scope and so on) becomes the secondary button beside it.
+The round comes back to the outline: **Back to the outline** in the round and on its result page opens it as you left it (the same rows open, the same deck filter). On the result page it is the main button; the page's own next step becomes the secondary button beside it only when it goes on (continue this scope and so on); a step that is just another place to go back to (back to the learning path) is left out, and at 420 px a second button has the width of the main one.
 
 ## Limits
 

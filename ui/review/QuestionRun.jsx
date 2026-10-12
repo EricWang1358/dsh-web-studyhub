@@ -84,7 +84,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
   const { call, busy, openModal, openSettings } = useStudy();
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
-  const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
+  // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
+  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader } = context;
+  const contextReturnLabel = inHeader ? '' : contextLabel;
   const assistTasks = data?.assist;
   // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
   const savedQaToBook = resolveBookSettings(data?.settings?.book).qaToBook;

@@ -70,7 +70,7 @@ test('复习全书 Q&A: 加入复习全书 / 已加入 · 撤回 on a follow-up,
 
       // The question of the point, in the practice page; its answer shown (as after answering), its follow-up with 加入复习全书.
       await page.locator('.book-questions [data-book-link="card"]').first().click();
-      await page.locator('.review-detour', { hasText: '回到复习全书' }).waitFor({ timeout: 30000 });
+      await page.locator('.review-return', { hasText: '回到复习全书' }).waitFor({ timeout: 30000 });
       // A flashcard: turning it over shows the answer and its Q&A (once turned, the run comes back turned).
       const flip = page.locator('[data-usage="review.flip"][aria-label="翻面查看答案"]');
       if (await flip.count()) await flip.first().click();
@@ -117,14 +117,16 @@ test('复习全书 Q&A: 加入复习全书 / 已加入 · 撤回 on a follow-up,
       assert.equal((await running.api('book.qa.list', {})).followupIds.filter(id => id === folded.item.id).length, 1, 'once');
       const overflow = await sideways(page, '.review');
       assert.equal(overflow.doc <= 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `qa-auto-${width}.png`) });
 
       // Back in the book: both Q&A under the point, after its own file; the markers are not shown.
-      await page.locator('.review-detour', { hasText: '回到复习全书' }).click();
+      await page.locator('.review-return', { hasText: '回到复习全书' }).click();
       await page.locator('.book-file', { hasText: `Auto question ${width}?` }).waitFor({ timeout: 30000 });
       const qa = await page.locator('.book-file', { hasText: `Manual question ${width}?` }).innerText();
       assert.match(qa, new RegExp(`Manual answer ${width}\\.`));
       assert.doesNotMatch(await page.locator('.book-page').innerText(), /sh:qa/);
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `qa-book-${width}.png`) });
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
