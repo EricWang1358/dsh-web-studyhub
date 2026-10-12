@@ -141,7 +141,7 @@ test('book.coverage: the point\'s pages opened, partly opened, not opened and ci
 test('the tool contract names the reads in area book, and the description points there', () => {
   for (const action of ['book.toc {course?', 'book.read {course?,hid', 'source.pages {documentId|sourceId', 'book.coverage {course?,hid}']) assert.ok(libraryContracts.book.includes(action), action);
   assert.match(libraryContracts.book, /never use course\.book\.open or course\.book\.save/);
-  assert.match(studyToolDescription, /book\.toc\/read\/coverage, source\.pages \(details: book\)/);
+  assert.match(studyToolDescription, /book\.toc\/read\/coverage\/search, source\.pages \(details: book\)/);
   assert.deepEqual([writesFor('library', 'book.toc'), writesFor('library', 'book.read'), writesFor('library', 'source.pages'), writesFor('library', 'book.coverage')], [['sources'], [], [], []]);
 });
 
