@@ -14,6 +14,7 @@ import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { openCourseBook } from '../../lib/course-book-files.js';
 import { aiBlock, anchorIn } from '../../lib/course-book-ai-text.js';
 import { localDate } from '../../lib/board-model.js';
+import { followupDigest } from '../../lib/followup.js';
 import { addDays } from '../../lib/crunch-plan.js';
 import { CHAPTERS, POINTS, bodyOf, examOf } from './book-topics.mjs';
 
@@ -48,6 +49,7 @@ function lecturePages() {
 
 /** Questions of a point: none in 'archss'; in 'questions' 10-25 on most points (three have none), citing the first page of the point's chapter. */
 export const questionCount = (point, at) => ([4, 9, 14].includes(at) ? 0 : 10 + ((at * 7) % 16));
+const qaQuestion = point => `${point.term}和相邻的知识点怎么区分？`;
 function decksOf(pages) {
   const decks = new Map();
   POINTS.forEach((point, at) => {
@@ -55,8 +57,11 @@ function decksOf(pages) {
     for (let n = 0; n < questionCount(point, at); n += 1) {
       const id = `q-${point.id}-${n + 1}`;
       if (!decks.has(point.chapter)) decks.set(point.chapter, { id: `deck-l${point.chapter + 1}`, title: `${CHAPTERS[point.chapter][0]} 练习`, course: BOOK_COURSE, cards: [] });
-      decks.get(point.chapter).cards.push({ id, kind: 'flashcard', topic: point.title, prompt: `关于${point.term}（第 ${n + 1} 问）：${n % 2 ? point.check : `${point.term}是什么？`}`,
-        answer: `${point.defines}。`, citations: [{ sourceId: first.id, quote: first.text.slice(0, 40) }] });
+      const card = { id, kind: 'flashcard', topic: point.title, prompt: `关于${point.term}（第 ${n + 1} 问）：${n % 2 ? point.check : `${point.term}是什么？`}`,
+        answer: `${point.defines}。`, citations: [{ sourceId: first.id, quote: first.text.slice(0, 40) }] };
+      // The first two points keep a 追问 on their first question: it is the one that 本节问答 counts, and the Q&A put into the book (qaOf) is about it.
+      if (n === 0 && at < 2) card.followups = [{ id: `f-${point.id}`, question: qaQuestion(point), answer: point.link, digest: followupDigest(card), at: stamp(at) }];
+      decks.get(point.chapter).cards.push(card);
     }
   });
   return [...decks.values()];
@@ -64,7 +69,7 @@ function decksOf(pages) {
 
 /** The 3,000-6,000 characters of a whole-point block, the way a bulk 「这段在讲什么」 request writes it. */
 export function wholeBody(point, at) {
-  const target = 3200 + (at % 5) * 400, facts = [point.defines, point.why, point.how, point.mistake, point.check, point.example, point.link, point.extra];
+  const target = 3200 + (at % 5) * 400, facts = [point.defines, point.why, point.how, point.mistake, point.check, point.example, point.link, point.extra].map(text => String(text).replace(/。+$/, ''));
   const lines = ['这段在讲什么', '', `本节讲${point.term}：${point.defines}。下面按资料的顺序，把每一条「原文说」翻成「意思就是」，再补上资料以外的做法。`, ''];
   // Sections are added until the block is as long as this point's target (3,200-4,800 characters), never past 6,000.
   for (let n = 1; lines.join('\n').length < target; n += 1) {
@@ -85,7 +90,7 @@ export function mineOf(point, at, body) {
   if (at === 2 || at === 6) parts.push(`我的笔记：${point.term}考试里常和「${point.check.replace(/？.*$/, '')}」连着问。`);
   if ([1, 4, 8, 12].includes(at)) {
     const words = point.how.slice(0, 12), anchor = anchorIn(body.explain, words);
-    parts.push(aiBlock({ id: `w${at}`, at: anchor?.hash ?? 'none', about: words, body: SHORT[at % SHORT.length], mode: 'explain', state: at === 1 ? 'kept' : 'new' }, 'zh'));
+    parts.push(aiBlock({ id: `w${at}`, at: anchor?.hash ?? 'none', about: words, body: SHORT[at % SHORT.length], mode: 'explain', state: at === 4 ? 'kept' : 'new' }, 'zh'));
   }
   parts.push(aiBlock({ id: `h${at}`, at: 'h:any', about: point.title, body: wholeBody(point, at), mode: 'here', state: 'new' }, 'zh'));
   return parts.join('\n\n');
@@ -120,7 +125,7 @@ export async function seedBookFixture(root, kind = 'archss') {
       // Two points have a Q&A put into the book.
       POINTS.slice(0, 2).forEach(point => {
         const card = decks.flatMap(deck => deck.cards).find(item => item.id === `q-${point.id}-1`), deck = decks.find(item => item.cards.includes(card));
-        record.bookDoc.files[`${point.id}.qa.md`] = { version: 1, text: `- [练习：${card.prompt}](studyhub://card/${deck.id}/${card.id})\n\n<!-- sh:qa card=${card.id} fid=f-${point.id} -->\n> **追问：** ${point.term}和相邻的知识点怎么区分？\n>\n> **答：** ${point.link}\n<!-- /sh:qa -->` };
+        record.bookDoc.files[`${point.id}.qa.md`] = { version: 1, text: `- [练习：${card.prompt}](studyhub://card/${deck.id}/${card.id})\n\n<!-- sh:qa card=${card.id} fid=f-${point.id} -->\n> **追问：** ${qaQuestion(point)}\n>\n> **答：** ${point.link}\n<!-- /sh:qa -->` };
       });
     }
   });

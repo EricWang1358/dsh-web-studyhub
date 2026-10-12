@@ -2,7 +2,8 @@
    复习全书 (docs/review-book.md): looks at the book in the real page and counts what stands on the screen. For each fixture of tests/helpers/book-fixtures.mjs
    (archss: sixteen points, a 3,000-6,000 character AI block each, no questions; questions: most points with 10-25 questions) at 1280 and 420 px, light and dark,
    Chinese, it opens the book and saves, into BOOK_SHOTS, <fixture>-<width>-<theme>-<shot>.png: top (the top of the first point), end (the end of it), ai-row (the
-   folded AI row), placed (the point with a short explain block, in its place), full (the whole page). It prints one JSON line per fixture and width:
+   folded AI row), placed (the point with a short explain block, in its place), placed-block (that block in the middle of the window), open-here (a whole-point
+   block open), mine-tip (the 我的 row with the explanation of its label), full (the whole page). It prints one JSON line per fixture and width:
      controlsBeforeFirstLine  the visible interactive elements (button, a, summary, [role=button], input, select, textarea) of the book page above the first line
                               of the 讲解 text (the 目录 beside the text at 1280 is not above it and not counted)
      firstLineY               where that line starts, from the top of the window with the page scrolled to its top
@@ -44,6 +45,8 @@ const measure = () => {
 };
 
 const toTop = page => page.evaluate(() => { const app = document.querySelector('.study-app'); if (app) app.scrollTop = 0; window.scrollTo(0, 0); });
+/** The element in the middle of the window (the sticky bars off it). */
+const centre = locator => locator.evaluate(element => element.scrollIntoView({ block: 'center' }));
 const toEnd = page => page.evaluate(() => { const app = document.querySelector('.study-app'); if (app) app.scrollTop = app.scrollHeight; window.scrollTo(0, document.documentElement.scrollHeight); });
 
 /** The whole page: the window as tall as what the app scrolls, then back. */
@@ -84,6 +87,25 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
     await page.locator('.book-step__heading', { hasText: 'Architect the Solution' }).waitFor({ timeout: 30000 });
     await toTop(page);
     await save('placed');
+    // The short block in its place (opened by default, with 保留 because it is new), the whole-point block open, and the 我的 row of this point (two blocks: the
+    // link that folds or opens them all; the label's explanation on hover).
+    const short = page.locator('.book-ai[data-ai-block^="w"]').first();
+    if (await short.count()) { await centre(short); await save('placed-block'); }
+    const here = page.locator('.book-ai[data-ai-block^="h"]').first();
+    if (await here.count()) {
+      await here.locator('.book-ai__toggle').click();
+      await centre(here);
+      await save('open-here');
+      await here.locator('.book-ai__toggle').click();
+    }
+    const label = page.locator('.book-layer__label').first();
+    if (await label.count()) {
+      await centre(label);
+      await label.hover();
+      await page.waitForTimeout(500);
+      await save('mine-tip');
+      await page.mouse.move(900, 100);
+    }
     await page.locator('.book-step__back').first().click();
     await page.locator('.book-step__heading', { hasText: 'What architects do' }).waitFor({ timeout: 30000 });
     if (shots) await whole(page, width, name('full'));
