@@ -35,7 +35,7 @@ async function seed(root) {
   Object.assign(deck.cards[9], { kind: 'open', answer: 'A decision and its reasons.' });
   await service.store.update(state => {
     state.sources.push(...sources);
-    state.decks.push(...decks);
+    state.decks.push(...decks, { id: 'deck-other-course', title: 'Another course', course: '另一门课', cards: [{ id: 'oc1', kind: 'flashcard', topic: 'x', prompt: 'x?', answer: 'a' }] });
     state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] };
     const lecture = key => groupSourcesByDocument(state.sources).find(item => item.sourceIds.includes(`document-l${key}-p1`)).key;
     const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: COURSE }).allDocuments),
@@ -89,9 +89,27 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await settleAnimations(page);
       if (shots) { await card.screenshot({ path: join(shots, `home-card-${width}.png`) }); await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: join(shots, `home-${width}.png`) }); }
 
-      // 去读: the book at that point, 今天读哪几节 in the header.
+      // 练 5 道 on the card keeps a way back to the home, as every round started from a page does.
       const first = card.locator('.crunch-day__point').first(), hid = await first.getAttribute('data-point');
+      const started = page.waitForRequest(request => request.url().includes('/api/call') && /"action":"review\.start"/.test(request.postData() || ''));
+      await first.getByRole('button', { name: '练 5 道' }).click();
+      assert.equal(JSON.parse((await started).postData()).args.scope.length, 5, `${width}px: the card practises the point's next five`);
+      const home = page.locator('.review-detour', { hasText: '返回学习库' });
+      await home.waitFor({ timeout: 30000 });
+      await home.click();
+      await card.waitFor({ timeout: 30000 });
+
+      // The card acts on a course that is not the current one: the app switches to it and says so once, in a quiet notice.
+      await running.api('focus.set', { course: '另一门课' });
+      await page.reload();
+      await card.waitFor({ timeout: 30000 });
+      assert.equal(await page.getByText('已切换到课程').count(), 0, `${width}px: nothing is said before the card acts`);
+
+      // 去读: the book at that point, 今天读哪几节 in the header.
       await first.getByRole('button', { name: '去读' }).click();
+      await page.getByText('已切换到课程 SA').first().waitFor({ timeout: 30000 });
+      assert.equal(await page.getByText('已切换到课程 SA').count(), 1, `${width}px: said once`);
+      assert.match(await page.locator('.book-page h1').innerText(), /复习全书 · SA/, `${width}px: the book is the card's course`);
       await page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(300);
       const top = await page.evaluate(id => Math.round(document.getElementById(`book-${id}`).getBoundingClientRect().top), hid);

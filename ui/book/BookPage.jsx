@@ -49,7 +49,7 @@ const scrollerOf = element => {
   return document.scrollingElement;
 };
 
-/** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume }) keeps the way back; onOpenSource(sourceId, quote) (the reader); onCreate() (出题); onOpenTask(jobId);
+/** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }) keeps the way back (place: the point left, said on the practice page); onOpenSource(sourceId, quote) (the reader); onCreate() (出题); onOpenTask(jobId);
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId): opens the course's settings (the exam date is its first field); theme: 'light' | 'dark' (the editor's). */
 export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme }) {
   useInjectCss(css, 'study-book');
@@ -164,9 +164,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     setStepHid(step?.hid ?? null);
     reading.only(step?.hid ?? null);
     setHere(row?.hid ?? (kept?.chapter && wanted) ?? step?.hid ?? chapter ?? null);
-    restore.current = row || (kept?.chapter && wanted) ? { hid: row?.hid ?? wanted, offset: kept?.target ? null : kept?.offset ?? null } : null;
+    // Back from a practice round (`back`): the point's heading takes the focus where it stands.
+    restore.current = row || (kept?.chapter && wanted) ? { hid: row?.hid ?? wanted, offset: kept?.target ? null : kept?.offset ?? null,
+      point: kept?.back && !kept.target ? kept.point : null, focus: !!kept?.back && !kept.target } : null;
     first.current = null;
-    keepBook(root, course, { target: null });
+    keepBook(root, course, { target: null, back: false });
   }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     // In 翻看 a point is its row of the view (`flip-<id>`), in 预览 its heading; a new point of 逐节读 shows from its top (its chapter and section path).
@@ -177,6 +179,14 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     // One jump, not smooth: the heading where it was on screen (from the way back), else just under the top of the scroller (from the 目录).
     const scroller = scrollerOf(element), top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
     scroller.scrollTo({ top: scroller.scrollTop + element.getBoundingClientRect().top - (wanted.offset ?? top + 16), behavior: 'instant' });
+    if (wanted.focus) {
+      // The app puts the focus on a page's heading after an arrival (ui/app/use-learning-navigation.js); this one is named so it is the one, and nothing scrolls.
+      const heading = (wanted.point && document.getElementById(`book-${wanted.point}`)) || element;
+      heading.setAttribute('data-return-focus', '');
+      if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+      setTimeout(() => heading.removeAttribute('data-return-focus'), 1500);
+    }
   });
   // 你在这里: the highest heading on screen of the open chapters (逐节读: the point shown, set where it changes).
   useEffect(() => {
@@ -193,18 +203,24 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   }, [open, book, reading.mode, reading.expanded]);
 
   // The way back after practice: the heading just above the link (a typed heading too), where it was on screen, and the chapter that holds it.
+  // Returns where the way back leads, as the practice page says it: the number and title of the point left ("1.2.2 Title"; '' when it is not in the 总纲).
   const remember = useCallback((hid, from) => {
+    const placeOf = id => { const found = rowOf(rows, id); return found ? [found.number, found.title].filter(Boolean).join(' ') : ''; };
     // From 翻看: its row of the point, where it was on screen (the view comes back in 翻看, kept per course).
     const flipPoint = from?.closest?.('[data-flip-point]');
     if (flipPoint) {
       const id = flipPoint.dataset.flipPoint, row = rowOf(rows, id);
-      keepBook(root, course, { heading: id, offset: flipPoint.querySelector(`#flip-${id}`)?.getBoundingClientRect().top ?? 0, target: null, chapter: row ? chapters[row.chapter]?.hid ?? null : null });
-      return;
+      keepBook(root, course, { heading: id, offset: flipPoint.querySelector(`#flip-${id}`)?.getBoundingClientRect().top ?? 0, target: null, chapter: row ? chapters[row.chapter]?.hid ?? null : null,
+        point: id, back: true });
+      return placeOf(id);
     }
     const headings = from && pageRef.current ? [...pageRef.current.querySelectorAll('[data-book-heading]')].filter(item => item.compareDocumentPosition(from) & 4) : [];
     const element = headings.at(-1) || document.getElementById(`book-${hid}`), row = rowOf(rows, hid);
+    // The point is the one the link is in, which a heading the learner typed inside its text does not change.
+    const point = from?.closest?.('[data-book-point]')?.dataset.bookPoint || hid;
     keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
-      chapter: row ? chapters[row.chapter]?.hid ?? null : null });
+      chapter: row ? chapters[row.chapter]?.hid ?? null : null, point, back: true });
+    return placeOf(point) || placeOf(hid);
   }, [root, course, rows, chapters]);
   // A heading of the 目录 (or of 查找, 翻看, 今天读哪几节): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
   const goTo = useCallback(id => {
@@ -243,7 +259,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     qaOpen: heading => qa.has(heading),
     toggleQa: heading => setQa(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
     source: (sourceId, quote) => onOpenSource?.(sourceId, quote),
-    card: (ref, from, element) => { remember(from, element); onPractice([ref], { resume: true }); },
+    card: (ref, from, element) => { const place = remember(from, element); onPractice([ref], { resume: true, place }); },
     // 练 N 道: the next N of the point's questions in a practice round's order (due, weak, new); an open round of exactly those goes on.
     practice: async (heading, n, from, element) => {
       const row = rowOf(rows, heading);
@@ -252,8 +268,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
         const scope = practice?.scope.slice(0, n) || [];
         if (!scope.length) { notify(ui('这一节还没有题。')); return; }
-        remember(from, element);
-        onPractice(scope, { resume: true });
+        const place = remember(from, element);
+        onPractice(scope, { resume: true, place });
       } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     },
     create: onCreate,
