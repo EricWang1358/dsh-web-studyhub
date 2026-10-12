@@ -1,0 +1,41 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* The 复习全书's line about the course's search index (ui/book/BookIndexHint.jsx): one quiet line at every width, the words cut with an ellipsis and the
+   link kept whole; its empty slot has the same height, so the page does not move when the answer arrives. Tokens only; nothing moves. */
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .book-index-hint {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-1);
+      min-width: 0;
+      min-height: calc(var(--fs-sm) * 1.6);
+      margin: var(--space-1) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: 1.6;
+      white-space: nowrap;
+    }
+    /* In the 弄懂 panel (about 300 px wide) the short words, whatever the window. */
+    .book-index-hint--muted { min-height: 0; margin: 0; }
+    .book-index-hint--muted .book-index-hint__full { display: none; }
+    .book-index-hint--muted .book-index-hint__short { display: inline; }
+    .book-index-hint__tip { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+    .book-index-hint__text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-radius: var(--radius-xs);
+    }
+    .book-index-hint__text:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .book-index-hint__short { display: none; }
+    .book-index-hint__dot,
+    .book-index-hint__go { flex: none; }
+  }
+  @container study (max-width:720px) {
+    :is(.study-app, .study-seat) {
+      .book-index-hint__full { display: none; }
+      .book-index-hint__short { display: inline; }
+    }
+  }
+}

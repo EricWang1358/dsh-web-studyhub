@@ -169,10 +169,11 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
 
 /**
  * Props: call, status (retrieval.status incl. `extension`, `companion`), onStatus(next) after an install,
- * removal or finished build, courses + defaultCourse (for the index), and for previews and tests
+ * removal or finished build, courses + defaultCourse (for the index), afterIndex (drawn under the index builder while the extension runs: the settings'
+ * 新资料自动补建索引), and for previews and tests
  * initialApproval (package names), initialPlan, initialRun.
  */
-export default function ExtensionPanel({ call, status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
+export default function ExtensionPanel({ call, status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun, afterIndex = null }) {
   useInjectCss(css, 'study-large-documents');
   const { busy, error, approval, restart, boot, install, setApproval } = useExtensionInstall({ call, onStatus, initialApproval });
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -201,6 +202,7 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
       </>}
       {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
       {running && <IndexBuilder call={call} courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
+      {running && afterIndex}
       {extension.canInstall && extension.installed && <div>
         <Button size="sm" variant="quiet" disabled={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}

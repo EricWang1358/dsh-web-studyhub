@@ -337,5 +337,15 @@
   "「{0}」→「{1}」": "“{0}” → “{1}”",
   "还有 {0} 个": "{0} more",
   "未检查": "Unchecked",
-  "这一节没有清点出的概念可以核对。": "The inventory found no concept of this point to check it against."
+  "这一节没有清点出的概念可以核对。": "The inventory found no concept of this point to check it against.",
+  "这门课的资料还没建索引。建好后，弄懂、加一段和主会话改书都会先找到相关的页，覆盖率也更高": "This course's materials have no search index yet. With one, Explain, Add a paragraph and the main chat's edits find the relevant pages first and cover more of them",
+  "这门课的资料还没建索引": "No search index for this course yet",
+  "索引还差 {0} 页（新加的资料）": "{0} pages are not in the index yet (new materials)",
+  "索引还差 {0} 页": "{0} pages not indexed",
+  "正在建立索引 {0}/{1} 页": "Building the index: {0}/{1} pages",
+  "去补建": "Add them",
+  "检索索引：已建好，先用 book.search 找相关的页再读。": "Search index: ready; find the relevant pages with book.search before reading.",
+  "检索索引：还差 {0} 页没建，book.search 可能漏掉这些页。": "Search index: {0} pages are not indexed yet, so book.search can miss them.",
+  "检索索引：正在建（{0}/{1} 页），book.search 只找得到已建好的页。": "Search index: being built ({0}/{1} pages); book.search finds only the pages indexed so far.",
+  "检索索引：还没建，按 book.coverage 的 readNext 读；「设置 › 检索扩展」可以建（本机，不花 token）。": "Search index: not built; read by book.coverage's readNext. Settings › Search extension builds it (on this computer, no tokens)."
 }

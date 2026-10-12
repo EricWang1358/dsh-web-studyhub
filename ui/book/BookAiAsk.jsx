@@ -9,8 +9,9 @@ import { askStaysOpen, selectionState } from './ask-visibility.js';
    answer is written as a new block of the point's own file. Without a model the shared gate says where to set one up; reading and editing go on. */
 
 /** target: { heading, words?, top, left, jobId? } (where to show it, in the window; the task started from it, kept open until the page closes it); model: modelReadiness;
-    onStart({ mode, words?, instruction? }); onSend({ words, instruction }) (optional: 「发给主会话」 over selected words, the same box, its answer a promise); onClose(). It closes itself when its selection is gone (ui/book/ask-visibility.js); × and Escape close it too. */
-export default function BookAiAsk({ target, model, onStart, onSend, onClose }) {
+    onStart({ mode, words?, instruction? }); onSend({ words, instruction }) (optional: 「发给主会话」 over selected words, the same box, its answer a promise); onClose(). It closes itself when its selection is gone (ui/book/ask-visibility.js); × and Escape close it too.
+    indexHint: one muted line at the end when the course's search index is not ready (BookIndexHint.jsx), else nothing. */
+export default function BookAiAsk({ target, model, onStart, onSend, onClose, indexHint = null }) {
   const [instruction, setInstruction] = useState(''), [sending, setSending] = useState(false);
   const box = useRef(null);
   const off = !model?.ready, selected = !!target.words, pending = !!target.jobId;
@@ -53,6 +54,7 @@ export default function BookAiAsk({ target, model, onStart, onSend, onClose }) {
           onClick={async () => { setSending(true); try { await onSend({ words: target.words, instruction: instruction.trim() }); } finally { setSending(false); } }}>{ui('发给主会话')}</Button>}
       </form>
       {off && <ModelSetupGate variant="compact" feature="bookAi" model={model} />}
+      {indexHint}
     </div>
   );
 }

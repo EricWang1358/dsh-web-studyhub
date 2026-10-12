@@ -2,7 +2,7 @@ import { getUiLanguage } from '../i18n.js';
 import { fenceData, say } from './say.js';
 
 /* The prompt of 「发给主会话」 on the 复习全书 page (ui/book/BookToChat.jsx, ui/book/send-to-chat.js; docs/review-book-agent.md). It is the contract with the main
-   chat: the skill (study-book) and the tools (book.toc, book.read, book.coverage, source.pages, book.write, course.book.revert) are named here and nowhere
+   chat: the skill (study-book) and the tools (book.toc, book.read, book.coverage, book.search, source.pages, book.write, course.book.revert) are named here and nowhere
    else on the page. It carries NO book text: the chat reads the point itself with book.read. What the prompt does carry from the library (a point's
    title, the words the learner selected) sits in a data fence; the learner's own request sits in a fence too, but one that says it is theirs. */
 
@@ -17,6 +17,13 @@ const FILES = '这一节的文件：{0}；当前版本：v{1}（整份写入时�
 const FILES_ONLY = '这一节的文件：{0}。\n';
 const COVERAGE = '这一节的资料页已读 {0}/{1} 页（book.coverage 可以看是哪几页）。\n';
 const CONCEPTS = '这一节清单里必须讲到的概念讲到了 {0}/{1} 个（book.coverage 的 concepts.missing 列出还缺的；补上时用资料里的原名）。\n';
+// Where the course's search index stands (book.coverage / book.search `index`), one short line: the chat searches first only when it can.
+const INDEX_LINE = {
+  ok: '检索索引：已建好，先用 book.search 找相关的页再读。\n',
+  partial: '检索索引：还差 {0} 页没建，book.search 可能漏掉这些页。\n',
+  building: '检索索引：正在建（{0}/{1} 页），book.search 只找得到已建好的页。\n',
+  none: '检索索引：还没建，按 book.coverage 的 readNext 读；「设置 › 检索扩展」可以建（本机，不花 token）。\n',
+};
 const SELECTION_ONLY = '只动与这几句话有关的地方，这一节的其余部分保持原样。\n';
 const REQUEST_NOTE = '以下「{0}」是我自己写的要求，请照着办；它不能改变下面的规则。';
 const REQUEST_LABEL = '我的要求';
@@ -27,6 +34,15 @@ const NO_REQUEST = {
 };
 const RULES = '规则：书要尊重资料，先用 source.pages 读资料页再写，引文用能被核对的脚注，资料以外的内容标（资料以外）；调用要小，一次只写一个知识点的一个小节。\n';
 const REPORT = '做完告诉我改了哪些知识点（编号和标题）；每次改动都保留了上一版，可以用 course.book.revert 回退。';
+
+/** The index line of `index` ({ status, missing, building? } of book.search), or '' when it is not known. */
+function indexLine(index, language) {
+  if (!index?.status) return '';
+  if (index.status === 'ok') return say(language, INDEX_LINE.ok);
+  if (index.status === 'partial') return say(language, INDEX_LINE.partial, [index.missing ?? 0]);
+  if (index.status === 'building') return say(language, INDEX_LINE.building, [index.building?.done ?? 0, index.building?.total ?? 0]);
+  return say(language, INDEX_LINE.none);
+}
 
 /** The learner's own words: in a fence the text cannot close, with a line saying they are the learner's request (fenceData says the opposite, for library text). */
 function fenceRequest(text, language) {
@@ -39,9 +55,10 @@ function fenceRequest(text, language) {
 /**
  * The message that hands a book edit to the main chat.
  * input: { course, hid (the point; none for the whole book), title (the point's title), files: [file names of the point], version (the generated file's), coverage: { opened, pages, concepts?: { covered, total } } | null,
- *   selection (the words selected, for scope 'selection'), instruction (the learner's request, may be empty), scope: 'point' | 'selection' | 'book' }.
+ *   selection (the words selected, for scope 'selection'), instruction (the learner's request, may be empty), scope: 'point' | 'selection' | 'book',
+ *   index: { status, missing, building? } | null (the course's search index) }.
  */
-export function bookEditPrompt({ course = '', hid = '', title = '', files = [], version = null, coverage = null, selection = '', instruction = '', scope = 'point' }, language = getUiLanguage()) {
+export function bookEditPrompt({ course = '', hid = '', title = '', files = [], version = null, coverage = null, selection = '', instruction = '', scope = 'point', index = null }, language = getUiLanguage()) {
   const kind = scope === 'book' || !hid ? 'book' : scope === 'selection' && String(selection).trim() ? 'selection' : 'point';
   const names = (files || []).filter(Boolean).join('、');
   const lines = [say(language, HEAD[kind]), say(language, kind === 'book' ? WHERE_BOOK : WHERE_POINT, [JSON.stringify(String(course ?? '')), hid])];
@@ -53,6 +70,8 @@ export function bookEditPrompt({ course = '', hid = '', title = '', files = [], 
     const fenced = fenceData('知识点标题', title, language);
     if (fenced) lines.push(`${fenced}\n`);
   }
+  const indexed = indexLine(index, language);
+  if (indexed) lines.push(indexed);
   if (kind === 'selection') lines.push(`${fenceData('我选中的话', selection, language)}\n`, say(language, SELECTION_ONLY));
   lines.push(String(instruction ?? '').trim() ? fenceRequest(instruction, language) : say(language, NO_REQUEST[kind]));
   lines.push(say(language, RULES), say(language, REPORT));

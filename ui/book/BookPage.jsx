@@ -29,6 +29,8 @@ import { bookLookup } from '../../lib/course-book-lookup.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelsText } from '../outline/words.js';
 import BookMoves from './BookMoves.jsx';
+import BookIndexHint from './BookIndexHint.jsx';
+import { indexReady, useBookIndex } from './book-index.js';
 import { usePolling } from '../use-polling.js';
 import { isActiveJob } from '../../lib/job-status.js';
 import { bookRows, crunchDateHint, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
@@ -61,6 +63,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       error => { if (isLive()) setState(current => ({ ...current, error })); });
   }, [call, course, state.ticket]);
   const book = state.book;
+  // The course's search index (BookIndexHint.jsx): asked beside the book. Its line keeps its slot when the book was drawn before the answer, or once it showed.
+  const index = useBookIndex(call, course), indexSlot = useRef(null), notesShown = book?.status === 'ok' && !!book.notes;
+  if (notesShown && indexSlot.current === null) indexSlot.current = !indexReady(index.state);
+  if (index.state && !indexReady(index.state)) indexSlot.current = true;
   const rows = useMemo(() => (book?.status === 'ok' ? bookRows(book.nodes) : []), [book]);
   const toc = useMemo(() => tocEntries(book), [book]);
   const chapters = useMemo(() => (book?.status === 'ok' ? [...book.nodes, ...(book.unplaced.text.trim() ? [{ hid: 'unplaced', title: book.unplaced.title, text: book.unplaced.text, file: book.unplaced.file, number: '' }] : [])] : []), [book]);
@@ -312,6 +318,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     </div>}
     {dateLine}
     {book?.status === 'ok' && book.coverage && <p className="book-header__crunch" data-book-levels="">{levelsText(book.coverage)}</p>}
+    {notesShown && <BookIndexHint state={index.state} plan={index.plan} course={course} reserve={indexSlot.current === true} />}
     {book?.status === 'ok' && book.moves && <BookMoves course={course} moves={book.moves} />}
   </PageHeader>;
   if (state.error && !book) return <section className="page book-page">{header}<ErrorState error={state.error} title={ui('复习全书读取失败')} onRetry={() => setState(current => ({ ...current, ticket: current.ticket + 1 }))} /></section>;
@@ -334,6 +341,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   // A new selection or heading is a new panel (its own, empty instruction).
   const askNode = ask?.words ? rowOf(rows, ask.heading)?.node ?? null : null;
   const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args }, true)} onClose={closeAsk}
+    indexHint={index.state && !indexReady(index.state) ? <BookIndexHint state={index.state} plan={index.plan} course={course} variant="muted" /> : null}
     onSend={askNode ? async ({ words, instruction }) => {
       await sendToChat({ scope: 'selection', node: askNode, files: book.files, selection: words, instruction });
       closeAsk();

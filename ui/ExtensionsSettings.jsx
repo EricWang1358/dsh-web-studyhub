@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, Field, InlineMessage, Select, SettingsSection, TextInput, useToast } from './components/index.js';
+import { Button, Disclosure, Field, InlineMessage, Select, SettingsSection, Switch, TextInput, Tooltip, useToast } from './components/index.js';
 import { AdvancedTools, ConverterMain, DetectionLine, providerLabel } from './LargeDocumentCard.jsx';
 import ExtensionPanel from './ExtensionPanel.jsx';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
@@ -41,6 +41,8 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
     accept(await call('retrieval.endpoint.set', { endpoint }));
     toast.success(endpoint ? ui('已保存模型下载地址。重启 DSH 后生效。') : ui('已恢复默认的模型下载地址。重启 DSH 后生效。'));
   });
+  // 新资料自动补建索引 (on by default): kept in this installation's retrieval settings like the provider; the status says it (retrieval.status autoIndex).
+  const setAuto = on => run('auto', async () => { accept(await call('retrieval.auto.set', { on })); });
   const mcpOthers = current.otherTools || [];
   const canChoose = current.providers.length > 0 || mcpOthers.length > 0;
   return (
@@ -49,7 +51,11 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
       <ConverterMain />
       <div className="large-doc__group" data-role="retrieval">
         <h3 className="large-doc__group-title">{ui('检索：只让 AI 看相关页面')}</h3>
-        <ExtensionPanel call={call} status={status} onStatus={accept} courses={courses} defaultCourse={defaultCourse} initialPlan={initialPlan} initialRun={initialRun} />
+        <ExtensionPanel call={call} status={status} onStatus={accept} courses={courses} defaultCourse={defaultCourse} initialPlan={initialPlan} initialRun={initialRun}
+          afterIndex={<Tooltip layer anchorClassName="extensions-settings__auto"
+            content={`${ui('导入资料、转换完成、录音转写保存或给资料分了课之后，已经建过索引的课程会在本机把新页补进索引；连着导入几份只补一次，任务页能看到也能停止。')}\n${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}`}>
+            <span><Switch name="autoIndex" label={ui('新资料自动补建索引')} checked={status?.autoIndex !== false} disabled={!!working} onChange={setAuto} /></span>
+          </Tooltip>} />
       </div>
       <DetectionLine retrieval={current} />
       {current.missing && <InlineMessage tone="warning" boxed title={uiFormat('之前选择的检索工具「{0}」现在找不到', [stripTool(current.missing)])}>

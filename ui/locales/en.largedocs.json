@@ -160,5 +160,7 @@
   "已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。": "The installed search extension is {0}, older than this StudyHub ({1}), so it may never start. Restart DSH after updating.",
   "更新检索扩展": "Update the search extension",
   "练这一章": "Practise this chapter",
-  "这一章现在没有可练习的题。": "This chapter has no questions to practise right now."
+  "这一章现在没有可练习的题。": "This chapter has no questions to practise right now.",
+  "新资料自动补建索引": "Add new materials to the index automatically",
+  "导入资料、转换完成、录音转写保存或给资料分了课之后，已经建过索引的课程会在本机把新页补进索引；连着导入几份只补一次，任务页能看到也能停止。": "After you import a material, a conversion finishes, a transcript is saved or a material is given a course, a course that already has an index gets the new pages added on this computer; several imports in a row are added once, and the task page shows the build and can stop it."
 }
