@@ -127,6 +127,7 @@ test('the takeaway is shown without its own label (一句话： / In one sentenc
   assert.equal(ui.withoutGistLabel('一句话: Entropy rises.'), 'Entropy rises.');
   assert.equal(ui.withoutGistLabel('In one sentence: entropy rises.'), 'entropy rises.');
   assert.equal(ui.withoutGistLabel('**一句话：** 熵只增不减。'), '熵只增不减。');
+  assert.equal(ui.withoutGistLabel('**一句话**：熵只增不减。'), '熵只增不减。', 'the colon after the closing bold marks');
   assert.equal(ui.withoutGistLabel('熵是一句话：不是标签。'), '熵是一句话：不是标签。', 'only a label at the start');
   assert.equal(ui.withoutGistLabel(undefined), '');
   const labelled = '**讲解**\n\n一句话：熵是无序度。它只增不减。\n\n第二段。';

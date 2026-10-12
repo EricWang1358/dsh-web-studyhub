@@ -122,6 +122,17 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.equal(await page.locator('[data-book-link="source"]').count(), 0);
       await page.locator('.book-point__cites-toggle').click();
       await page.locator('[data-book-link="source"]').first().waitFor();
+      // Ink, not cinnabar, inside the point: the 出处 entries are the text colour, a 角标 the dim ink (underlined only on hover), the global link colour untouched elsewhere.
+      const ink = await page.evaluate(() => {
+        const colour = value => { const probe = document.createElement('i'); probe.style.color = value; document.querySelector('.book-point').append(probe); const out = window.getComputedStyle(probe).color; probe.remove(); return out; };
+        const style = element => window.getComputedStyle(element);
+        const mark = document.querySelector('.book-point .md-cite__mark'), source = document.querySelector('.book-point [data-book-link="source"]');
+        return { text: colour('var(--text)'), dim: colour('var(--text-dim)'), accent: colour('var(--accent-text)'), source: style(source).color, mark: style(mark).color, markLine: style(mark).textDecorationLine };
+      });
+      assert.equal(ink.source, ink.text, `${width}px: a 出处 entry is ink: ${JSON.stringify(ink)}`);
+      assert.equal(ink.mark, ink.dim, `${width}px: a 角标 is dim ink: ${JSON.stringify(ink)}`);
+      assert.equal(ink.markLine, 'none', `${width}px: and not underlined at rest`);
+      assert.notEqual(ink.source, ink.accent, `${width}px: not cinnabar`);
       // A formula is drawn once: MathML only, its TeX annotation not rendered.
       const math = await page.evaluate(() => [...document.querySelectorAll('.book-point .md-math')].map(element => ({ text: element.innerText.replace(/\s+/g, ''),
         hidden: [...element.querySelectorAll('annotation')].every(item => window.getComputedStyle(item).display === 'none') })));

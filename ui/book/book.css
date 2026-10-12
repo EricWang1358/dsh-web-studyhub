@@ -48,6 +48,14 @@
        line of about 70 characters and room between paragraphs; the parts that are not the story are a size smaller. Inside the reading area the links, the
        角标, the dashed words and the 出处 are ink (the text colour, underlined), never cinnabar: that stays for the one primary button. */
     .book-point {
+      --sh-link-ink: var(--text);
+      --sh-link-wash: var(--bg-hover);
+      --md-link-ink: var(--text);
+      --md-cite-ink: var(--text-dim);
+      --md-cite-ink-hover: var(--text);
+      --md-cite-line: none;
+      --md-cite-gap: 0;
+      --md-cite-pad: 0.05em;
       display: grid;
       gap: var(--space-4);
       min-width: 0;
@@ -78,10 +86,11 @@
       font-weight: var(--fw-strong);
       letter-spacing: 0.04em;
     }
-    /* The takeaway: a step larger than the body and a little stronger, no box, no label, no colour. */
+    /* The takeaway: a step larger than the body, no box, no label, no colour. The size carries it: CJK fonts have no weight between regular and bold, so a
+       "slightly stronger" weight would draw as full bold and compete with the heading. */
     .book-point__gist {
       font-size: var(--fs-xl);
-      font-weight: var(--fw-medium);
+      font-weight: var(--fw-regular);
       line-height: var(--lh-snug);
       color: var(--text);
     }
@@ -279,11 +288,13 @@
     }
     .book-ai__toggle {
       flex: 1 1 auto;
+      align-items: flex-start;
       justify-content: flex-start;
       gap: var(--space-2);
       min-width: 0;
       padding: var(--space-3) 0;
       color: var(--text-dim);
+      font-size: inherit;
       font-weight: var(--fw-medium);
       text-align: left;
     }
@@ -293,23 +304,28 @@
     }
     .book-ai__caret {
       flex: none;
+      margin-top: var(--space-half);
       color: var(--text-muted);
       transition: transform var(--dur-fast) var(--ease);
     }
     .book-ai__toggle[aria-expanded='true'] > .book-ai__caret {
       transform: rotate(90deg);
     }
+    /* The summary may take two lines, so that on a phone it still says what the block says. */
     .book-ai__summary {
+      display: -webkit-box;
       flex: 1 1 8rem;
       min-width: 0;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
       color: var(--text-dim);
       font-weight: var(--fw-regular);
+      white-space: normal;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
     .book-ai__meta {
       flex: none;
+      margin-top: var(--space-half);
       color: var(--text-muted);
       font-size: var(--fs-sm);
       font-weight: var(--fw-regular);
@@ -332,6 +348,19 @@
     .book-ai__label {
       color: var(--text-muted);
       font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+    }
+    /* The block right under the 我的 divider has no hairline of its own (the divider's is the one); a block in the story is closed by one, so it is set off
+       from the book's own text. */
+    .book-layer__divider + .book-ai {
+      border-top: 0;
+    }
+    .book-point > .book-ai,
+    .book-point__part > .book-ai {
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .book-point__part > .book-ai {
+      margin-bottom: var(--space-2);
     }
     .book-ai[data-ai-flash],
     .book-ai-anchor[data-ai-flash] {
@@ -579,37 +608,31 @@
       padding-left: var(--space-3);
       border-left: 2px solid var(--line);
     }
+    /* In 我的 the divider already says whose the text is: no second rule beside it (a quoted Q&A keeps the quote's own). */
+    .book-layer .book-file--mine {
+      padding-left: 0;
+      border-left: 0;
+    }
     .book-link {
       text-align: left;
+    }
+    /* A link that is the text of a list item runs on like text, so the bullet sits at the first line. */
+    .book-file li .book-link {
+      display: inline;
+      vertical-align: top;
     }
     /* A link that wraps reads as running text (display: inline, so no flex gap): its icon (出处, 练 N 道) gets the room itself and does not touch the words. */
     .book-link > svg {
       margin-right: var(--space-1);
       vertical-align: -0.2em;
     }
-    /* Ink, not cinnabar, in a point: question links, 角标, 出处 and the other links are the text colour, underlined (a 角标 on hover and focus), with a quiet
-       wash on hover. The global link colour (ui/components/components.css) is untouched elsewhere. */
-    .book-point [class~='sh-btn--link'],
-    .book-point .md a {
-      color: var(--text);
-    }
-    .book-point [class~='sh-btn--link']:hover:not(:disabled) {
-      background: var(--bg-hover);
-    }
+    /* Ink, not cinnabar, in a point: the properties set on .book-point (above) are read by the link (ui/components/components.css) and by the Markdown
+       (ui/markdown.css), which keep their own classes. The list markers and the quote bars are quiet ink too. */
     .book-point .md li::marker {
       color: var(--text-muted);
     }
     .book-point .md blockquote {
       border-left-color: var(--line-strong);
-    }
-    .book-point .md [class~='md-cite__mark'] {
-      color: var(--text-dim);
-      text-decoration: none;
-    }
-    .book-point .md [class~='md-cite__mark']:hover:not(:disabled),
-    .book-point .md [class~='md-cite__mark']:focus-visible {
-      color: var(--text);
-      text-decoration: underline;
     }
     .book-link-gone {
       color: var(--text-muted);

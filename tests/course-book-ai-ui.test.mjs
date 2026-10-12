@@ -29,7 +29,8 @@ const node = { hid: 'h2', key: 'bk:p1', title: 'Entropy', number: '1', depth: 1,
   files: { gen: 'p1.gen.md', mine: 'p1.mine.md' }, questionTotal: 0, questions: [], children: [] };
 const handlers = { gone: ui.goneSet([]), qaOpen: () => false, toggleQa: noop, source: noop, card: noop, practice: noop, create: noop, files: {}, choose: noop, busy: false,
   addHere: noop, aiAction: noop, aiFollow: noop };
-const chapter = () => render(h(ui.BookChapter, { node, open: true, onToggle: noop, course: 'SA', handlers }));
+const chapterOf = point => render(h(ui.BookChapter, { node: point, open: true, onToggle: noop, course: 'SA', handlers }));
+const chapter = () => chapterOf(node);
 
 test('an AI block about words sits right after its paragraph, with 保留 / 重新生成 / 删除 and a follow-up; one whose words are gone is marked 原位置已变 at the end of 我的', () => {
   const html = chapter(), text = textOf(html);
@@ -44,7 +45,8 @@ test('an AI block about words sits right after its paragraph, with 保留 / 重�
   assert.match(text, /保留 重新生成 删除/);
   assert.match(html, /placeholder="接着问…"/);
   assert.ok(text.indexOf('Orphan.') > text.indexOf('My note.'), 'a block whose words are gone is at the end of 我的');
-  assert.match(text, /AI 原位置已变 约 7 字/);
+  assert.match(text, /AI 原位置已变 /);
+  assert.doesNotMatch(text, /约 7 字/, 'an open short block has no size on its row');
   assert.match(text, /关于：「words that are nowhere」 Orphan\./);
   assert.doesNotMatch(html, /sh:ai/, 'no marker shown');
   assert.match(text, /在这里加一段/, 'a point offers 在这里加一段');
@@ -105,6 +107,17 @@ test('no 整理 menu and no 只留我写的: the toolbar has 在这里加一段,
   assert.match(textOf(folded([])), /我的 你的笔记、AI 段落和加进书里的问答都在这里 全部收起/, 'two blocks: one quiet link');
   assert.match(textOf(folded(['ai1', 'ai2'])), /全部展开/);
   assert.doesNotMatch(textOf(folded([], { ...node, mine: `My note.\n\n${block}` })), /全部收起|全部展开/, 'one block: none');
+});
+
+test('two blocks in the text and nothing of its own: 我的 is its divider and the one link; the blocks whose words are gone come after the suggestions', () => {
+  const second = ui.aiBlock({ id: 'ai3', at: 'z', about: 'Third paragraph', body: 'More.' }, 'zh');
+  const text = textOf(folded([], { ...node, mine: `${block}\n\n${second}` }));
+  assert.match(text, /我的 你的笔记、AI 段落和加进书里的问答都在这里 全部收起$/, 'the divider alone, with the link');
+  assert.doesNotMatch(textOf(folded([], { ...node, mine: block })), /我的/, 'one block in the text and nothing else: no 我的');
+  const withSuggestion = { ...handlers, files: { 'p1.mine.md': { suggestions: [{ id: 's1', kind: 'generated', text: 'New text.' }] } } };
+  const lastText = textOf(render(h(ui.BookChapter, { node, open: true, onToggle: noop, course: 'SA', handlers: withSuggestion })));
+  assert.ok(lastText.indexOf('有新的生成内容') > lastText.indexOf('My note.'), 'the suggestion follows the notes');
+  assert.ok(lastText.indexOf('Orphan.') > lastText.indexOf('有新的生成内容'), 'and the lost block is the last thing in 我的');
 });
 
 test('English: the fold words', () => english(() => {

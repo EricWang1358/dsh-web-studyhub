@@ -25,6 +25,16 @@ test('the summary skips the template lines and gives the first real sentence', (
   assert.equal(ui.aiSummary(undefined), '');
 });
 
+test('a bold label and the English template are labels too', () => {
+  assert.equal(ui.aiSummary('**这段在讲什么**：本节讲熵。'), '本节讲熵。', 'a bold label with its colon outside');
+  assert.equal(ui.aiSummary('**原文说：** 熵度量无序。'), '熵度量无序。', 'a bold label with its colon inside');
+  assert.equal(ui.aiSummary('**这段在讲什么**\n\n**原文说**：熵度量无序。'), '熵度量无序。', 'a bold label alone is structure');
+  assert.equal(ui.aiSummary('What this passage is about\n\nEntropy measures disorder. More follows.'), 'Entropy measures disorder.');
+  assert.equal(ui.aiSummary('What this passage is about: Entropy rises.\n\n### 1. Entropy\n\nThe source says: it never falls.\n\nIn plain words: it only rises.'), 'Entropy rises.');
+  assert.equal(ui.aiSummary('What this passage is about\n\n### 1. Entropy\n\n**The source says:** it never falls.\n\nIn plain words: it only rises.'), 'it never falls.');
+  assert.equal(ui.aiSummary('The source says:\n\nIn plain words:\n\nExtra (beyond the materials)'), '', 'only labels: no summary');
+});
+
 test('the summary is plain words: marks, cites and links off; English too; a long line is cut', () => {
   assert.equal(ui.aiSummary('\n  **Bold** and `code` [^1] see [a link](studyhub://x) and [[term]]\nsecond line'), 'Bold and code see a link and term');
   assert.equal(ui.aiSummary('It means entropy rises, e.g. in a gas. More follows.'), 'It means entropy rises, e.g. in a gas.');

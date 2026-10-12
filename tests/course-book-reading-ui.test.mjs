@@ -101,7 +101,8 @@ test('an AI block row: open below 1,500 characters, folded above unless kept; fo
   assert.match(open, /book-ai__actions/);
   assert.doesNotMatch(textOf(html), /(?:^| )新(?= |$)/, 'no 新 badge');
   assert.doesNotMatch(row(html, 'b2'), /data-ai-folded/, 'a short block is open');
-  assert.match(textOf(row(html, 'b2')), /AI 约 19 字 关于：「只增不减」 A kept explanation\. 重新生成 删除 问$/, 'open: the tag, the size, what it is about, the text, quiet 重新生成 / 删除, the follow-up');
+  assert.match(textOf(row(html, 'b2')), /AI 关于：「只增不减」 A kept explanation\. 重新生成 删除 问$/, 'open and short: the tag, what it is about, the text, quiet 重新生成 / 删除, the follow-up (no size: it is short)');
+  assert.match(textOf(open), /AI 约 1,[0-9]00 字/, 'an open block that is long keeps its size on the row');
   // The learner's own fold or open wins over the default.
   assert.doesNotMatch(body(point({ mine: long }), fold({ open: ['b3'] })), /data-ai-folded/, 'a long block the learner opened stays open');
   assert.match(body(point({ mine: mine }), fold({ shut: ['b2'] })), /data-ai-block="b2"[^>]*data-ai-folded="true"/, 'a short block the learner folded stays folded');
@@ -152,7 +153,7 @@ test('English: the reading words are English (the book\'s own text stays as writ
   assert.match(text, /Practise 5 Questions and answers Send to the main chat/);
   assert.doesNotMatch(text, /Tidy up|In one sentence|My notes and AI explanations/);
   assert.match(text, /Checklist .*Mine Your notes, AI paragraphs and the Q&A you put into the book are here Collapse all/);
-  assert.match(text, /AI about \d+ characters Mostly repeats/);
+  assert.match(text, /AI Mostly repeats/);
   assert.match(text, /Sources 1/);
   assert.match(text, /Point 1 of 2 .*Previous section Next section/);
   assert.match(textOf(body(point({ questionTotal: 0, questions: [] }))), /Question writing Questions and answers/, 'the quiet 出题 is in the toolbar');

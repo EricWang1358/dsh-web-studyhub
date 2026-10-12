@@ -95,7 +95,7 @@ export const plainLine = text => String(text ?? '').replace(/<!--.*?-->/g, '').r
   .replace(/\[\[([^\]]+)\]\]/g, '$1').replace(/[*_`~#>]+/g, '').replace(/\s+/g, ' ').trim();
 
 /** A takeaway as it is shown: its own label (「一句话：」 / 「In one sentence:」, also in bold) is the page's, not the learner's reading, so it is left off. The file keeps it. */
-const GIST_LABEL = /^\s*(?:\*\*\s*)?(?:一句话|In one sentence)\s*[:：]\s*(?:\*\*\s*)?/i;
+const GIST_LABEL = /^\s*(?:\*\*\s*)?(?:一句话|In one sentence)\s*(?:\*\*\s*)?[:：]\s*(?:\*\*\s*)?/i;
 export const withoutGistLabel = text => String(text ?? '').replace(GIST_LABEL, '');
 
 /** One line for a folded point: its takeaway, else the first sentence of what it says first. */

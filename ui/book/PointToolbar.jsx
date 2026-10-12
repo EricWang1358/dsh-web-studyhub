@@ -25,14 +25,14 @@ export default function PointToolbar({ node, course, handlers }) {
   const qaCount = useQaCount(course, node.key), qaOpen = handlers.qaOpen(node.hid);
   return (
     <div className="book-point__bar">
-      {handlers.addHere && <Button variant="link" size="sm" icon="sparkle" className="book-point__add" onClick={event => handlers.addHere(node, event.currentTarget)}>{ui('在这里加一段')}</Button>}
+      {handlers.addHere && <Button variant="quiet" size="sm" icon="sparkle" className="book-point__add" onClick={event => handlers.addHere(node, event.currentTarget)}>{ui('在这里加一段')}</Button>}
       <div className="book-point__actions">
         {node.questionTotal > 0
           ? <Button size="sm" variant="secondary" icon="play" className="book-point__practice" data-book-link="practice"
             onClick={event => handlers.practice(node.hid, 5, node.hid, event.currentTarget)}>{ui('练 5 道')}</Button>
-          : handlers.create && <Button size="sm" variant="quiet" icon="sparkle" className="book-node__create" onClick={handlers.create}>{ui('出题')}</Button>}
+          : handlers.create && <Button size="sm" variant="quiet" className="book-node__create" onClick={handlers.create}>{ui('出题')}</Button>}
         <Button size="sm" variant="quiet" className="book-point__qa" data-book-link="qa" aria-expanded={qaOpen} onClick={() => handlers.toggleQa(node.hid)}>
-          {qaCount === null ? ui('本节问答') : uiFormat('本节问答 ({0})', [qaCount])}</Button>
+          {qaCount ? uiFormat('本节问答 ({0})', [qaCount]) : ui('本节问答')}</Button>
         <BookToChat scope="point" node={node} course={course} files={handlers.files} />
       </div>
     </div>

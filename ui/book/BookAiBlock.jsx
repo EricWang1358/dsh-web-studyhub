@@ -5,12 +5,13 @@ import Markdown from '../Markdown.jsx';
 import { formatNumber } from '../format.js';
 import { aiSize, aiSummary } from './ai-summary.js';
 import { markLabels } from './ai-labels.js';
+import { AI_FOLD_CHARS } from './point-parts.js';
 
 /* An AI block of the review book (弄懂 / 加一段, M4): in its point (ui/book/PointBody.jsx) right after the paragraph its words are in, or in 我的 when it is for
    the whole point (ui/book/PointLayer.jsx); its words dashed in the paragraph. It is the learner's text: 保留 marks it as theirs, 重新生成 asks the same again (it is
    written over), 删除 takes it out, and a follow-up question starts a new request whose answer goes right under it. Its links are the book's.
    One row folds it (a fold is the learner's, kept in the browser, never in the text): the caret, the AI tag, the first real sentence of the text (what it
-   says, not its template) and its size; open, the row keeps the tag and the size, the words it is about go back to the dashed words, and the quiet 保留 /
+   says, not its template) and its size; open, the row keeps the tag (and the size of a long block), the words it is about go back to the dashed words, and the quiet 保留 /
    重新生成 / 删除 and the follow-up box sit under the text. The text's leading 原文说：/ 意思就是： labels are muted (ui/book/book.css). */
 
 /** The words a block row says about its state, only when it has one: 多为重复 (it mostly restates the notes), 原位置已变 (its words are gone). */
@@ -36,7 +37,7 @@ export default function BookAiBlock({ item, resolveLink, onAction, onFollow, bus
           <Badge size="sm" className="book-ai__tag">AI</Badge>
           {gone && <Badge size="sm" tone="warning">{ui('原位置已变')}</Badge>}
           {folded && <span className="book-ai__summary">{summary}</span>}
-          <span className="book-ai__meta">{sizeText(block.body)}</span>
+          {(folded || aiSize(block.body) >= AI_FOLD_CHARS) && <span className="book-ai__meta">{sizeText(block.body)}</span>}
           {repeat && <span className="book-ai__meta">{ui('多为重复')}</span>}
         </Button>
       </Tooltip>
@@ -48,7 +49,7 @@ export default function BookAiBlock({ item, resolveLink, onAction, onFollow, bus
         <Markdown key={block.body} rootRef={bodyRef} className="book-ai__body" text={block.body} resolveLink={resolveLink} />
         <div className="book-ai__actions">
           {block.state === 'new' && <Button size="sm" variant="quiet" disabled={busy} onClick={() => onAction('keep', block)}>{ui('保留')}</Button>}
-          <Button size="sm" variant="quiet" icon="refresh" disabled={busy} onClick={() => onAction('again', block)}>{ui('重新生成')}</Button>
+          <Button size="sm" variant="quiet" disabled={busy} onClick={() => onAction('again', block)}>{ui('重新生成')}</Button>
           <Button size="sm" variant="quiet" disabled={busy} onClick={() => onAction('delete', block)}>{ui('删除')}</Button>
         </div>
         <form className="book-ai__follow" onSubmit={event => { event.preventDefault(); if (question.trim()) { onFollow(block, question.trim()); setQuestion(''); } }}>

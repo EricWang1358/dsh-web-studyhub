@@ -48,7 +48,10 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
   const [marked, setMarked] = useState({});
   const [cites, setCites] = useState(false);
   const onAnchored = (key, ids) => setMarked(current => (String(current[key]) === String(ids) ? current : { ...current, [key]: ids }));
-  const anchored = new Set(Object.values(marked).flat());
+  // A text that is no longer drawn (its block is deleted, or its words changed and the block became lost) never reports again: only a block that still has its
+  // words in the point counts as anchored.
+  const homed = new Set(view.blocks.filter(item => item.part !== null).map(item => item.block.id));
+  const anchored = new Set(Object.values(marked).flat().filter(id => homed.has(id)));
   const Label = `h${Math.min(6, level)}`;
   // A block is open unless it is long and not kept, or the learner folded it; the learner's own fold or open wins (ui/book/ai-fold.js).
   const isFolded = item => !!aiFold?.folded(item.block.id, foldsByDefault(item.block));
