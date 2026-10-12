@@ -71,9 +71,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [crunch, setCrunch] = useState(null);
   const view = useRef(keptBook(root, course)?.view ?? null);
   const [todayOpen, setTodayOpen] = useState(view.current === 'today');
+  // The home's card switched the app to this course on its way here (`switched`, kept by keepBook): said once, in a quiet line of the header.
+  const [switched] = useState(() => !!keptBook(root, course)?.switched);
   useEffect(() => {
     if (view.current === 'flip') setMode('flip');
     if (view.current) keepBook(root, course, { view: null });
+    if (switched) keepBook(root, course, { switched: false });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useLiveEffect(isLive => {
     if (book?.status !== 'ok' || !book.notes) return;
@@ -164,7 +167,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     setStepHid(step?.hid ?? null);
     reading.only(step?.hid ?? null);
     setHere(row?.hid ?? (kept?.chapter && wanted) ?? step?.hid ?? chapter ?? null);
-    // Back from a practice round (`back`): the point's heading takes the focus where it stands.
+    // Back from a practice round (`back`, set by the return itself: ui/app/page-views.jsx BookView): the point's heading takes the focus where it stands, once.
     restore.current = row || (kept?.chapter && wanted) ? { hid: row?.hid ?? wanted, offset: kept?.target ? null : kept?.offset ?? null,
       point: kept?.back && !kept.target ? kept.point : null, focus: !!kept?.back && !kept.target } : null;
     first.current = null;
@@ -176,6 +179,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       || document.getElementById(`book-${wanted.hid}`) || document.getElementById(`flip-${wanted.hid}`));
     if (!element) return;
     restore.current = null;
+    // The page is still rising into place (shell.css page-in: a few pixels of translateY), which moves every rectangle measured below by what is left of it; it lands first.
+    element.closest('.page')?.getAnimations?.().forEach(animation => animation.finish());
     // One jump, not smooth: the heading where it was on screen (from the way back), else just under the top of the scroller (from the 目录).
     const scroller = scrollerOf(element), top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
     scroller.scrollTo({ top: scroller.scrollTop + element.getBoundingClientRect().top - (wanted.offset ?? top + 16), behavior: 'instant' });
@@ -211,7 +216,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     if (flipPoint) {
       const id = flipPoint.dataset.flipPoint, row = rowOf(rows, id);
       keepBook(root, course, { heading: id, offset: flipPoint.querySelector(`#flip-${id}`)?.getBoundingClientRect().top ?? 0, target: null, chapter: row ? chapters[row.chapter]?.hid ?? null : null,
-        point: id, back: true });
+        point: id });
       return placeOf(id);
     }
     const headings = from && pageRef.current ? [...pageRef.current.querySelectorAll('[data-book-heading]')].filter(item => item.compareDocumentPosition(from) & 4) : [];
@@ -219,7 +224,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     // The point is the one the link is in, which a heading the learner typed inside its text does not change.
     const point = from?.closest?.('[data-book-point]')?.dataset.bookPoint || hid;
     keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
-      chapter: row ? chapters[row.chapter]?.hid ?? null : null, point, back: true });
+      chapter: row ? chapters[row.chapter]?.hid ?? null : null, point });
     return placeOf(point) || placeOf(hid);
   }, [root, course, rows, chapters]);
   // A heading of the 目录 (or of 查找, 翻看, 今天读哪几节): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
@@ -312,7 +317,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const dateLine = dateHint?.kind === 'later' ? <p className="book-header__crunch">{uiFormat('期末一周在考前 {0} 天开始', [dateHint.window])}</p>
     : dateHint?.kind === 'none' && courseRecord?.id && onCourseSettings ? <p className="book-header__crunch">
       <Button variant="link" size="sm" onClick={() => onCourseSettings(courseRecord.id)}>{ui('设置考试日期，开启期末一周')}</Button></p> : null;
-  const header = <PageHeader className="book-header" back={{ label: ui('返回总纲'), onClick: onBack }} title={uiFormat('复习全书 · {0}', [courseName])}
+  const header = <PageHeader className="book-header" back={{ label: ui('回到总纲'), onClick: onBack }} title={uiFormat('复习全书 · {0}', [courseName])}
     titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
     {book?.status === 'ok' && book.notes && <div className="book-header__tools">
       <SegmentedControl size="sm" label={ui('看书页的方式')} className="book-header__mode" value={mode} onChange={setMode}
@@ -326,6 +331,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       {pages !== null && pageLimit && <span className="book-header__budget" data-over={pages > pageLimit || undefined}>
         {uiFormat('导出约 {0} 页 / 上限 {1} 页', [pages, pageLimit])}{pages > pageLimit ? ` · ${budgetText(pages, pageLimit).text}` : ''}</span>}
     </div>}
+    {switched && <p className="book-header__crunch" role="status">{uiFormat('已切换到课程 {0}', [courseName])}</p>}
     {dateLine}
     {book?.status === 'ok' && book.coverage && <p className="book-header__crunch" data-book-levels="">{levelsText(book.coverage)}</p>}
     {book?.status === 'ok' && book.moves && <BookMoves course={course} moves={book.moves} />}
@@ -333,7 +339,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   if (state.error && !book) return <section className="page book-page">{header}<ErrorState error={state.error} title={ui('复习全书读取失败')} onRetry={() => setState(current => ({ ...current, ticket: current.ticket + 1 }))} /></section>;
   if (!book) return <section className="page book-page">{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   if (book.status !== 'ok') return <section className="page book-page">{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
-    description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('返回总纲'), onClick: onBack }} /></section>;
+    description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), onClick: onBack }} /></section>;
   if (!book.notes) {
     const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND), model = modelReadiness(data);
     return (

@@ -48,11 +48,10 @@ function LibraryView() {
      page shows the current course's book). 练 5 道 practises the point's next five, in a practice round's order. */
   const openCrunchBook = async (course, { target = null, view = null } = {}) => {
     const switched = course !== (data.focus?.course ?? null);
-    if (switched) await core.act('focus.set', { course });
-    keepBook(data.root, course, { target, view });
+    // The card acts on another course than the current one: the app's course changes with it (nothing else happens when that fails), and the book says so once, in a quiet line.
+    if (switched && !await core.act('focus.set', { course })) return;
+    keepBook(data.root, course, { target, view, switched });
     nav.navigate('book');
-    // The card acts on another course than the current one: the app's course changed with it, and the book says so once.
-    if (switched) notify({ text: uiFormat('已切换到课程 {0}', [course === '' ? ui('未分类课程') : course]), tone: 'info' });
   };
   // 练 5 道 keeps a way back to the home, like every round started from a page (the round itself does not depend on the current course).
   const practiseCrunch = async (course, point) => {
@@ -209,7 +208,7 @@ function TasksView() {
   return <TaskConsole data={data} openers={openers} />;
 }
 
-/** 总纲: the current course's materials as a tree with their questions. A round started here comes back here (返回总纲); 接着练 resumes the row's unfinished round. */
+/** 总纲: the current course's materials as a tree with their questions. A round started here comes back here (回到总纲); 接着练 resumes the row's unfinished round. */
 function OutlineView() {
   const { data, nav, session, learn, intents } = useApp();
   const onPractice = (scope, { resume = false } = {}) => {
@@ -227,9 +226,11 @@ function OutlineView() {
     this page again; the page itself comes back at the heading and scroll the learner left. */
 function BookView() {
   const { data, nav, session, learn, intents, shell, settingsEntry } = useApp();
-  // `place`: the point the learner left from ("1.2.2 Title"), said on the result page as where the way back leads.
+  // `place`: the point the learner left from ("1.2.2 Title"), said on the result page as where the way back leads. `arrive`: called when the learner is brought back by the
+  // trail (and only then): the book is told to put the focus on that point's heading.
   const onPractice = (scope, { resume = false, place = '' } = {}) => {
-    const origin = learn.captureContext(place ? { place } : {});
+    const course = data.focus?.course ?? null;
+    const origin = learn.captureContext(place ? { place, arrive: () => keepBook(data.root, course, { back: true }) } : {});
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.

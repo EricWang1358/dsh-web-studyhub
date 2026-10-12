@@ -143,13 +143,20 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       // During the round the header's return button names the book, and the pill under the card is the page's Button with the arrow icon.
       assert.equal(await page.locator('.review-return').getAttribute('aria-label'), '回到复习全书', `${width}px: the header's return button names the book`);
       assert.equal(await page.locator('.review-return', { hasText: '返回学习库' }).count(), 0, `${width}px: not 返回学习库`);
+      if (width === 420) {
+        // On its own row the label lines up with the title above it.
+        const lines = await page.evaluate(() => { const title = document.querySelector('.review-heading h1').getBoundingClientRect(), label = document.querySelector('.review-return-short').getBoundingClientRect();
+          return { own: label.top > title.bottom - 2, title: title.left, label: label.left }; });
+        if (lines.own) assert.ok(Math.abs(lines.label - lines.title) <= 2, `420px: the header's return label lines up with the title: ${JSON.stringify(lines)}`);
+      }
       assert.equal(await back.evaluate(element => element.tagName === 'BUTTON' && element.classList.contains('sh-btn') && !!element.querySelector('svg')), true, `${width}px: the pill is a Button with an icon`);
+      await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-practice-${tag}.png`) });
       await back.click();
       await page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(300);
       const after = await topOf(page, hid);
-      assert.ok(Math.abs(after - before) <= 24, `${width}px: back at the same place: ${before} -> ${after}`);
+      assert.ok(Math.abs(after - before) <= 2, `${width}px: back at the same place: ${before} -> ${after}`);
       await page.waitForFunction(id => document.activeElement?.id === id, `book-${hid}`, { timeout: 5000 });
       assert.equal(await topOf(page, hid), after, `${width}px: the focus did not scroll the page`);
 
@@ -172,7 +179,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       const place = (await primary.locator('small').innerText()).replace(/\s+/g, ' ');
       assert.match(place, /^回到 2\.2 Quality attribute scenarios/, `${width}px: the second line says the point left`);
       assert.ok(await page.locator('.result-next .sh-btn--secondary').count() >= 1, `${width}px: the page's own next step is a secondary button`);
-      assert.equal(await page.locator('.review-return').getAttribute('aria-label'), '回到复习全书');
+      assert.equal(await page.locator('.review-return').count(), 0, `${width}px: the header does not say the same thing twice on the result page`);
       const tip = await page.locator('.result-next [role="tooltip"]').first().textContent();
       const cut = await primary.locator('small').evaluate(element => element.scrollWidth > element.clientWidth + 1);
       assert.equal(cut, tip.includes('Quality attribute scenarios with a rather long title'), `${width}px: the whole title is in the tooltip exactly when the second line is cut (cut: ${cut})`);
@@ -185,10 +192,17 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       await page.locator(`.book-step[data-book-step="${hid2}"]`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(300);
       const after2 = await topOf(page, hid2);
-      assert.ok(Math.abs(after2 - before2) <= 24, `${width}px: back at the same place from the result page: ${before2} -> ${after2}`);
+      assert.ok(Math.abs(after2 - before2) <= 2, `${width}px: back at the same place from the result page: ${before2} -> ${after2}`);
       await page.waitForFunction(id => document.activeElement?.id === id, `book-${hid2}`, { timeout: 5000 });
       assert.equal(await focusedId(page), `book-${hid2}`, `${width}px: the focus is on the point's heading`);
       if (shots) await page.screenshot({ path: join(shots, `book-back-${tag}.png`) });
+
+      // The focus belongs to the return itself: leaving the book for the 总纲 and opening it again later puts nothing on the heading.
+      await page.locator('.book-header').getByText('回到总纲').first().click();
+      await page.locator('.outline-book-line__open').click();
+      await page.locator('.book-step').waitFor({ timeout: 30000 });
+      await page.waitForTimeout(500);
+      assert.notEqual(await focusedId(page), `book-${hid2}`, `${width}px: a later visit does not focus the heading`);
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
     }

@@ -91,6 +91,8 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       const target = returnTargetFor(origin);
       const loaded = await loadReturnTarget(target, origin, call);
       if (!live()) return;
+      // A page may ask to know it is being returned to (the review book puts the focus on the point the learner left); only a return does this, never a later visit.
+      origin.arrive?.();
       openReturnTarget(target, loaded, origin, verbs);
       if (origin.modal) {
         const source = await call('source.get', { id: origin.modal.sourceId });

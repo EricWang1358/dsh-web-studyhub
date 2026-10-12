@@ -54,8 +54,10 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
   const shots = process.env.COURSE_OUTLINE_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
   try {
-    for (const width of [1280, 420]) {
-      const { page, errors, context } = await openPage(browser, running, { width, height: 1000 });
+    // The pictures are made in both themes; the checks run once.
+    for (const [theme, width] of (shots ? [['dark', 1280], ['dark', 420], ['light', 1280], ['light', 420]] : [['dark', 1280], ['dark', 420]])) {
+      const tag = `${width}${theme === 'light' ? '-light' : ''}`;
+      const { page, errors, context } = await openPage(browser, running, { width, height: 1000, theme });
       await page.goto(running.server.url);
       const link = page.locator('.course-header .outline-entry');
       await link.waitFor({ timeout: 30000 });
@@ -85,7 +87,7 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       assert.equal(home.doc <= 0, true, `${width}px: the home does not scroll sideways: ${JSON.stringify(home)}`);
       await link.hover();
       await page.locator('[role="tooltip"]', { hasText: '按资料的章节找题、挑题练' }).first().waitFor({ state: 'visible', timeout: 5000 });
-      if (shots) await page.screenshot({ path: join(shots, `home-${width}.png`) });
+      if (shots) await page.screenshot({ path: join(shots, `home-${tag}.png`) });
       await page.mouse.move(0, 0);
       // The 学习目录 heading's button opens the same page.
       await page.locator('.map-heading .outline-entry').click();
@@ -117,14 +119,14 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       assert.match(await page.locator('[data-key="unplaced"] [data-card="i4"]').innerText(), /没有引用资料/);
       assert.match(await page.locator('[data-key="unplaced"] [data-card="i5"]').innerText(), /引用的资料没有归入这门课/);
       const hint = page.locator('[data-key="unplaced"] .outline-row__hint');
-      if (shots) await page.locator('[data-key="unplaced"]').screenshot({ path: join(shots, `unplaced-${width}.png`) });
+      if (shots) await page.locator('[data-key="unplaced"]').screenshot({ path: join(shots, `unplaced-${tag}.png`) });
       assert.match(await hint.innerText(), /把这些资料归入这门课后，引用它们的题会出现在总纲里：Loose handout/);
 
       await page.locator('.outline-what').hover();
       const tip = page.locator('[role="tooltip"]', { hasText: '到期 → 薄弱 → 新题' });
       await tip.waitFor({ state: 'visible', timeout: 5000 });
       await settleAnimations(page);
-      if (shots) await page.screenshot({ path: join(shots, `outline-hover-${width}.png`) });
+      if (shots) await page.screenshot({ path: join(shots, `outline-hover-${tag}.png`) });
       await page.mouse.move(0, 0);
 
       await page.locator(`[data-key="${book}#0"] [data-card="i1"] input[type="checkbox"]`).check();
@@ -134,7 +136,7 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       const overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
-      if (shots) { await page.screenshot({ path: join(shots, `outline-${width}.png`), fullPage: true }); await bar.screenshot({ path: join(shots, `bar-${width}.png`) }); }
+      if (shots) { await page.screenshot({ path: join(shots, `outline-${tag}.png`), fullPage: true }); await bar.screenshot({ path: join(shots, `bar-${tag}.png`) }); }
 
       const started = page.waitForRequest(request => request.url().includes('/api/call') && /"action":"review\.start"/.test(request.postData() || ''));
       await bar.locator('.sh-btn--primary').click();
@@ -145,8 +147,23 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       await back.waitFor({ timeout: 30000 });
       const { runs } = await running.api('snapshot');
       assert.deepEqual(runs.at(-1).scope.map(ref => ref.cardId).sort(), ['i1', 'i2'], 'the run holds exactly those two');
-      if (shots) await page.screenshot({ path: join(shots, `review-${width}.png`) });
-      await back.click();
+      if (shots) await page.screenshot({ path: join(shots, `review-${tag}.png`) });
+      // Finished, the result page goes back to the 总纲 first (no second line: the 总纲 has no point to name); the page's own next step is the plain button after it.
+      for (let guard = 0; guard < 8 && !(await page.locator('.result-page').count()); guard += 1) {
+        if (!(await page.locator('.next-due').count())) { await page.locator('[data-usage="review.flip"]').click(); await page.locator('.grade.high').first().click(); }
+        await page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 10000 });
+        await page.locator('[data-usage="review.next"]').click();
+        await page.waitForTimeout(400);
+      }
+      await page.locator('.result-page').waitFor({ timeout: 5000 });
+      const primary = page.locator('.result-next .sh-btn--primary');
+      assert.equal(await page.locator('.result-page .sh-btn--primary').count(), 1, `${width}px: one filled button on the result page`);
+      assert.equal((await primary.innerText()).replace(/\s+/g, ' ').trim(), '回到总纲', `${width}px: the main button goes back to the 总纲, with no second line`);
+      assert.equal(await primary.locator('small').count(), 0);
+      assert.equal(await page.locator('.review-return').count(), 0, `${width}px: the header does not say the same thing twice`);
+      await settleAnimations(page);
+      if (shots) await page.screenshot({ path: join(shots, `outline-result-${tag}.png`), fullPage: true });
+      await primary.click();
       await tree.waitFor();
       assert.equal(await page.locator(`[data-outline-toggle="${book}#0"]`).getAttribute('aria-expanded'), 'true', `${width}px: back on the outline as it was left`);
       if (width === 420) {
