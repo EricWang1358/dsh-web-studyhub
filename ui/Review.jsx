@@ -113,8 +113,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </Tooltip>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
-          {/* On the result page the way back to the book is the main button below; the header does not say the same twice. */}
-          {!(run.complete && wayBack) && <Button variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
+          {/* On the result page the way back (the book, the 总纲 or the reading) is the main button below; the header does not say the same twice. */}
+          {!(run.complete && backHere) && <Button variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
             <span className="review-return-full">{returnLabel}</span>
             <span className="review-return-short" aria-hidden="true">{wayBack ? wayBack.label : ui("返回")}</span>
           </Button>}

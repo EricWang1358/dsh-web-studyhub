@@ -302,7 +302,7 @@ test('book -> reader -> practise -> result: a round of the reader goes back to t
   assert.equal(buttonsOf(nested).filter((button) => /回到复习全书/.test(button.text)).length, 0, 'the book\'s way back is not drawn at all here');
   assert.doesNotMatch(nested, /reading-result__place">回到/, 'and it has no second line');
   assert.doesNotMatch(buttonsOf(nextBlock(nested)).map((button) => button.text).join('|'), /←|回到阅读/, 'nothing else goes back beside the reader\'s way back');
-  assert.match(nested, /aria-label="返回学习库"/, 'the header keeps its own words');
+  assert.doesNotMatch(nested, /review-return/, 'the header does not add a second way back: 回到阅读 below is the main button');
   // A round started from the book page itself still goes back to the book.
   assert.match(result(bookTrail()), /回到复习全书/);
 });
