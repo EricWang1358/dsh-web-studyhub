@@ -96,11 +96,12 @@ function inline(text, options, key = "i") {
     let before = rest.slice(0, m.index),
       lead = "",
       skip = 0;
-    // The character before a 角标 goes into its no-wrap unit (below), so a line never starts on the mark.
+    // The character before a 角标 goes into its no-wrap unit (below), so a line never starts on the mark. Right after an inline element (bold, a link, code,
+    // a formula, another mark) there is no character to take: a WORD JOINER (U+2060) starts the unit instead and forbids the break before it.
     if (type === "cite" && before) {
       lead = lastGrapheme(before);
       before = before.slice(0, before.length - lead.length);
-    }
+    } else if (type === "cite" && out.length) lead = "⁠";
     if (before) out.push(before);
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
     else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
