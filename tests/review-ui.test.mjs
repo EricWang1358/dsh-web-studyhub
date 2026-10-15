@@ -146,7 +146,28 @@ test("a question reached from the inbox offers the way back to where the learner
     detour: { runId: "course", index: 4, title: "课程 · Cloud Native" }, onReturnFromDetour: () => {},
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "信箱", busy: false,
   }));
-  assert.match(html, /class="review-detour"[^>]*>← 回到之前的第 5 题</);
+  // The pill is the page's quiet Button with the arrow icon, in a Tooltip (not a title=) that says what the way back is.
+  assert.match(html, /<span class="[^"]*\breview-detour\b[^"]*"[^>]*><button[^>]*><svg[^>]*>.*?<\/svg>回到之前的第 5 题<\/button>/s);
+  assert.match(html, /role="tooltip"[^>]*>回到从信箱跳过来之前正在做的题</);
+  assert.doesNotMatch(html, /title="回到从信箱跳过来之前正在做的题"/);
+});
+
+test("during a round started in the book or on the 总纲 the header's return button names that page and it is not said again under the card; other trails keep 返回学习库 and their pill with the arrow icon", () => {
+  const run = { id: "from-book", index: 0, total: 1, card: { id: "q", kind: "flashcard", topic: "T", prompt: "Q?" }, revealed: false, feedback: null };
+  const page = (extra) => renderToStaticMarkup(reviewEl({ run, data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "今日学习", busy: false,
+    onReturnContext: () => {}, ...extra }));
+  const book = page({ contextKind: "book", contextPlace: "1.2.2 Title", contextReturnLabel: "回到复习全书" });
+  assert.match(book, /<button[^>]*review-return[^>]*aria-label="回到复习全书"[^>]*>\s*<span class="review-return-full">回到复习全书<\/span>/);
+  assert.doesNotMatch(book, /返回学习库/);
+  assert.doesNotMatch(book, /review-detour/, "one way back during the run: the header's, no pill under the card");
+  assert.doesNotMatch(book, /←/);
+  const outline = page({ contextKind: "outline", contextReturnLabel: "回到总纲" });
+  assert.match(outline, /review-return[^>]*aria-label="回到总纲"/);
+  assert.doesNotMatch(outline, /review-detour/);
+  const other = page({ contextKind: "library", contextReturnLabel: "返回学习库首页" });
+  assert.match(other, /review-return[^>]*aria-label="返回学习库"/);
+  assert.match(other, /<button[^>]*class="sh-btn [^"]*review-detour"[^>]*><svg[^>]*>.*?<\/svg>返回学习库首页<\/button>/s, "the pill is the page's Button, with the Phosphor arrow");
+  assert.match(page({}), /review-return[^>]*aria-label="返回学习库"/);
 });
 
 test("a failed background assist offers 重新提交 and 改一改再提交 buttons (it used to only say 'you can submit again')", () => {

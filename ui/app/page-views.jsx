@@ -47,16 +47,20 @@ function LibraryView() {
   /* 期末一周 (M7): a course's book at a point, in 翻看 or with 今天读哪几节 open; another course than the current one is made current first (the book
      page shows the current course's book). 练 5 道 practises the point's next five, in a practice round's order. */
   const openCrunchBook = async (course, { target = null, view = null } = {}) => {
-    if (course !== (data.focus?.course ?? null)) await core.act('focus.set', { course });
-    keepBook(data.root, course, { target, view });
+    const switched = course !== (data.focus?.course ?? null);
+    // The card acts on another course than the current one: the app's course changes with it (nothing else happens when that fails), and the book says so once, in a quiet line.
+    if (switched && !await core.act('focus.set', { course })) return;
+    keepBook(data.root, course, { target, view, switched });
     nav.navigate('book');
   };
+  // 练 5 道 keeps a way back to the home, like every round started from a page (the round itself does not depend on the current course).
   const practiseCrunch = async (course, point) => {
     try {
       const { practice } = await core.call('course.outline', { course, pick: { keys: [point.key] } });
       const scope = practice?.scope.slice(0, 5) || [];
-      if (!scope.length) { notify(ui('这一节还没有题。')); return; }
-      intents.practice(scope, { fresh: false });
+      if (!scope.length) { notify(ui('还没出题')); return; }
+      const origin = learn.captureContext();
+      intents.practice(scope, { fresh: false, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const startMock = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
@@ -204,7 +208,7 @@ function TasksView() {
   return <TaskConsole data={data} openers={openers} />;
 }
 
-/** 总纲: the current course's materials as a tree with their questions. A round started here comes back here (返回总纲); 接着练 resumes the row's unfinished round. */
+/** 总纲: the current course's materials as a tree with their questions. A round started here comes back here (回到总纲); 接着练 resumes the row's unfinished round. */
 function OutlineView() {
   const { data, nav, session, learn, intents } = useApp();
   const onPractice = (scope, { resume = false } = {}) => {
@@ -222,8 +226,12 @@ function OutlineView() {
     this page again; the page itself comes back at the heading and scroll the learner left. */
 function BookView() {
   const { data, nav, session, learn, intents, shell, settingsEntry } = useApp();
-  const onPractice = (scope, { resume = false } = {}) => {
-    const origin = learn.captureContext();
+  // `place`: the point the learner left from ("1.2.2 Title"), said on the result page as where the way back leads. `arrive`: called when the learner is brought back by the
+  // trail (and only then): the book is told to put the focus on that point's heading.
+  const onPractice = (scope, { resume = false, place = '' } = {}) => {
+    const course = data.focus?.course ?? null;
+    // A round started on this page always puts the focus back on the book's heading when the learner returns (even when the point's row is not found: `place` is empty then).
+    const origin = learn.captureContext({ ...(place ? { place } : {}), arrive: () => keepBook(data.root, course, { back: true }) });
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.
@@ -346,7 +354,7 @@ function ReviewView({ feedback }) {
       <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => nav.navigate('board')} />
       <Review session={session} data={data} shellTitle={shellTitleOf('review', { run, decks: data?.decks })} feedback={feedback}
         coachProps={data ? { ...session.coach, destination: run.complete ? session.continueTo(dailyPlan) : undefined } : undefined} links={links}
-        context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour }} />
+        context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour, kind: learn.trailPage, place: learn.trailPlace }} />
     </>
   );
 }

@@ -25,7 +25,7 @@ test('system review titles translate without rewriting course or question names'
       setUiLanguage('zh'); assert.equal(localizedRun(dto).title, zh);
     }
     setUiLanguage('en');
-    assert.equal(uiFormat('← 回到之前的第 {0} 题', [1]), '← Return to previous question (1)');
+    assert.equal(uiFormat('回到之前的第 {0} 题', [1]), 'Return to previous question (1)');
     const card = { title: '今日学习', prompt: '题目原文' };
     const dto = { title: '信箱 · 1 道', titleInfo: runTitleInfo(s, titles[0][0]) };
     const result = localizeRunResponse({ runs: [dto], lastRun: dto, card });

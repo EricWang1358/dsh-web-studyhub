@@ -1711,7 +1711,6 @@
   "该学习库已导入": "This library is already imported.",
   "已导入 {0} 道题。{1}": "Imported {0} questions. {1}",
   "复习调度已保存": "Review schedule saved.",
-  "← 回到之前的第 {0} 题": "← Return to previous question ({0})",
   "回到之前的第 {0} 题 →": "Return to previous question ({0}) →",
   "课程 · {0}": "Course · {0}",
   "学习流 · {0}": "Learning flow · {0}",

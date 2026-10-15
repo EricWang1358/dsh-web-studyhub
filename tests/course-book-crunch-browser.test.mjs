@@ -35,7 +35,7 @@ async function seed(root) {
   Object.assign(deck.cards[9], { kind: 'open', answer: 'A decision and its reasons.' });
   await service.store.update(state => {
     state.sources.push(...sources);
-    state.decks.push(...decks);
+    state.decks.push(...decks, { id: 'deck-other-course', title: 'Another course', course: '另一门课', cards: [{ id: 'oc1', kind: 'flashcard', topic: 'x', prompt: 'x?', answer: 'a' }] });
     state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] };
     const lecture = key => groupSourcesByDocument(state.sources).find(item => item.sourceIds.includes(`document-l${key}-p1`)).key;
     const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: COURSE }).allDocuments),
@@ -73,9 +73,11 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
   const shots = process.env.COURSE_BOOK_CRUNCH_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
   try {
-    for (const width of [1280, 420]) {
+    // The pictures are made in both themes; the checks run once.
+    for (const [theme, width] of (shots ? [['dark', 1280], ['dark', 420], ['light', 1280], ['light', 420]] : [['dark', 1280], ['dark', 420]])) {
+      const tag = `${width}${theme === 'light' ? '-light' : ''}`;
       await running.api('focus.set', { course: COURSE });
-      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
       await page.goto(running.server.url);
       // The home card: the day's kind and reason, its points.
       const card = page.locator('.crunch-card');
@@ -87,21 +89,47 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       let overflow = await sideways(page, '.crunch-card *');
       assert.ok(flat(overflow), `${width}px: nothing scrolls sideways on the home: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
-      if (shots) { await card.screenshot({ path: join(shots, `home-card-${width}.png`) }); await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: join(shots, `home-${width}.png`) }); }
+      if (shots) { await card.screenshot({ path: join(shots, `home-card-${tag}.png`) }); await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: join(shots, `home-${tag}.png`) }); }
+
+      // 练 5 道 on the card keeps a way back to the home, as every round started from a page does.
+      const first = card.locator('.crunch-day__point').first(), hid = await first.getAttribute('data-point');
+      const started = page.waitForRequest(request => request.url().includes('/api/call') && /"action":"review\.start"/.test(request.postData() || ''));
+      await first.getByRole('button', { name: '练 5 道' }).click();
+      assert.equal(JSON.parse((await started).postData()).args.scope.length, 5, `${width}px: the card practises the point's next five`);
+      const home = page.locator('.review-detour', { hasText: '返回学习库' });
+      await home.waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      if (shots) await page.screenshot({ path: join(shots, `home-practice-${tag}.png`) });
+      await home.click();
+      await card.waitFor({ timeout: 30000 });
+
+      // The card acts on a course that is not the current one: the app switches to it and the book says so once, in a quiet line of its header.
+      await running.api('focus.set', { course: '另一门课' });
+      await page.reload();
+      await card.waitFor({ timeout: 30000 });
+      assert.equal(await page.getByText('已切换到课程').count(), 0, `${width}px: nothing is said before the card acts`);
 
       // 去读: the book at that point, 今天读哪几节 in the header.
-      const first = card.locator('.crunch-day__point').first(), hid = await first.getAttribute('data-point');
       await first.getByRole('button', { name: '去读' }).click();
+      await page.getByText('已切换到课程 SA').first().waitFor({ timeout: 30000 });
+      assert.equal(await page.getByText('已切换到课程 SA').count(), 1, `${width}px: said once`);
+      assert.match(await page.locator('.book-page h1').innerText(), /复习全书 · SA/, `${width}px: the book is the card's course`);
+      assert.equal(await page.locator('.sh-toast', { hasText: '已切换到课程' }).count(), 0, `${width}px: a quiet line in the header, not a toast`);
       await page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(300);
       const top = await page.evaluate(id => Math.round(document.getElementById(`book-${id}`).getBoundingClientRect().top), hid);
       assert.ok(top >= 0 && top < 500, `${width}px: the point's heading is on screen: ${top}`);
+      // The line is in the header, above the point the page opened at: the picture scrolls up to it.
+      await page.locator('.book-header').scrollIntoViewIfNeeded();
+      await settleAnimations(page);
+      if (shots) await page.screenshot({ path: join(shots, `book-switched-${tag}.png`) });
       await page.locator('.book-header__today').click();
       await page.locator('.book-today .crunch-day').waitFor({ timeout: 30000 });
       assert.match(await page.locator('.book-today').innerText(), /学习日[\s\S]*去读/);
       overflow = await sideways(page);
       assert.ok(flat(overflow), `${width}px: nothing scrolls sideways in the book with 今天读哪几节: ${JSON.stringify(overflow)}`);
-      if (shots) await page.screenshot({ path: join(shots, `book-today-${width}.png`) });
+      await settleAnimations(page);
+      if (shots) await page.screenshot({ path: join(shots, `book-today-${tag}.png`) });
 
       // 翻看: the 易错点 first, the 讲解 folded; 已看 kept.
       await page.locator('.book-header__mode').getByText('翻看', { exact: true }).click();
@@ -120,7 +148,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       overflow = await sideways(page);
       assert.ok(flat(overflow), `${width}px: nothing scrolls sideways in 翻看: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
-      if (shots) await page.screenshot({ path: join(shots, `flip-${width}.png`), fullPage: true });
+      if (shots) await page.screenshot({ path: join(shots, `flip-${tag}.png`), fullPage: true });
       // A reload keeps 已看 (kept in the book's record) and the 翻看 view (kept per course).
       await page.reload();
       await page.locator('.crunch-card').waitFor({ timeout: 30000 });
@@ -139,7 +167,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await page.waitForTimeout(300);
       const topBefore = await page.evaluate(id => Math.round(document.getElementById(`flip-${id}`).getBoundingClientRect().top), lastHid);
       await question.click();
-      const back = page.locator('.review-detour', { hasText: '回到复习全书' });
+      const back = page.locator('.review-return', { hasText: '回到复习全书' });
       await back.waitFor({ timeout: 30000 });
       await back.click();
       await page.locator(`#flip-${lastHid}`).waitFor({ timeout: 30000 });
@@ -156,12 +184,13 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       const said = await mock.innerText();
       assert.match(said, /这 2 节共 \d+ 道题，其中 9 道单选或多选可以进模拟卷/, `${width}px: the coverage: ${said}`);
       assert.match(said, /不进卷：.*开放 1 道.*闪卡 \d+ 道/, `${width}px: what is left out: ${said}`);
-      if (shots) await mock.screenshot({ path: join(shots, `mock-${width}.png`) });
+      await settleAnimations(mock);
+      if (shots) await mock.screenshot({ path: join(shots, `mock-${tag}.png`) });
       await mock.getByRole('button', { name: '开始模拟卷' }).click();
       await page.locator('.exam-card').waitFor({ timeout: 30000 });
       assert.match(await page.locator('.exam-progress').innerText(), /^1 \/ 9$/, `${width}px: the exam has the nine choice questions`);
       await settleAnimations(page);
-      if (shots) await page.screenshot({ path: join(shots, `exam-${width}.png`) });
+      if (shots) await page.screenshot({ path: join(shots, `exam-${tag}.png`) });
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
       // The next width starts from the same marks.

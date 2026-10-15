@@ -16,7 +16,7 @@ import TeachingStatus from "./TeachingStatus.jsx";
 import { describeModelError, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
-import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner } from "../components/index.js";
+import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "../agent-prompts/card.js";
 import { fixSuggestionFor } from "../card-fix.js";
@@ -84,7 +84,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
   const { call, busy, openModal, openSettings } = useStudy();
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
-  const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
+  // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
+  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader } = context;
+  const contextReturnLabel = inHeader ? '' : contextLabel;
   const assistTasks = data?.assist;
   // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
   const savedQaToBook = resolveBookSettings(data?.settings?.book).qaToBook;
@@ -449,9 +451,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           )}
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
-        {contextReturnLabel && <button type="button" className="review-detour" disabled={busy} onClick={onReturnContext}>← {contextReturnLabel}</button>}
-        {detour && !contextReturnLabel && <button type="button" className="review-detour" disabled={busy} onClick={onReturnFromDetour}
-          title={ui("回到从信箱跳过来之前正在做的题")}>{uiFormat("← 回到之前的第 {0} 题", [detour.index + 1])}</button>}
+        {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" disabled={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
+        {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
+          <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
         <ReviewToolbar
           key={reviewEntryKey(run)}
           assistMode={assistMode}

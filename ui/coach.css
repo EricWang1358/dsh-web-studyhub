@@ -79,7 +79,8 @@
       border-radius: var(--radius);
       text-align: left;
       border: 1px solid var(--line-soft);
-      background: linear-gradient(160deg, var(--accent-glow), transparent 70%), var(--bg-surface);
+      /* A plain surface, no cinnabar wash: the page's one filled button is the only cinnabar block on the result page. */
+      background: var(--bg-surface);
       box-shadow: var(--shadow-popover);
       animation: coach-rise 320ms var(--ease) both;
     }

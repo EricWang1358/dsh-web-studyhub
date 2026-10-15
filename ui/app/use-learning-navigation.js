@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { backLabelOf, navLabelOf } from '../pages.js';
+import { trailKindOf } from '../review/way-back.js';
 import {
   ABORT, captureContext as captureOrigin, currentStudyReference as referenceOf, leavesTrail, loadLearningTarget, loadReturnTarget,
   openLearningTarget as openTarget, openReturnTarget, returnTargetFor,
@@ -91,6 +92,8 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       const target = returnTargetFor(origin);
       const loaded = await loadReturnTarget(target, origin, call);
       if (!live()) return;
+      // A page may ask to know it is being returned to (the review book puts the focus on the point the learner left); only a return does this, never a later visit.
+      origin.arrive?.();
       openReturnTarget(target, loaded, origin, verbs);
       if (origin.modal) {
         const source = await call('source.get', { id: origin.modal.sourceId });
@@ -145,12 +148,15 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   useEffect(() => {
     if (!focusRequest) return undefined;
     const frame = requestAnimationFrame(() => {
+      // A page that put the learner back at a place of its own (the review book: the point they left) names its heading; that one takes the focus, where it is.
+      const placed = rootRef.current?.querySelector('[data-return-focus]');
       const target = focusRequest.element?.isConnected && focusRequest.element.getClientRects().length ? focusRequest.element
-        : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
-          .find((element) => element.getClientRects().length);
+        : placed?.getClientRects().length ? placed
+          : [...(rootRef.current?.querySelectorAll('dialog[open] h2, .question[role="heading"], [data-context-heading], main .page h1, main .page h2') || [])]
+            .find((element) => element.getClientRects().length);
       if (target) {
         if (!target.matches('button,a,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '-1');
-        target.focus();
+        target.focus(target === placed ? { preventScroll: true } : undefined);
       }
     });
     return () => cancelAnimationFrame(frame);
@@ -158,5 +164,5 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
 
   const trail = lib.state.contextTrail;
   return { captureContext, rememberContext, contextLabel, openLearningTarget, currentStudyReference, openBoardReference, openBoardWithContext,
-    returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', hasTrail: trail.length > 0 };
+    returnFromContext, returnFromDetour, returnToReading, openAudioSources, openSourceAt, verbs, trailLabel: trail.length ? contextLabel(trail.at(-1)) : '', trailPage: trailKindOf(trail.at(-1)), trailPlace: trail.at(-1)?.place || '', hasTrail: trail.length > 0 };
 }
