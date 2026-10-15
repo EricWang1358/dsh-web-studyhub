@@ -62,6 +62,17 @@ function tidyHtml(line) {
     .join("");
 }
 
+const CITE_CLOSING = /^[。，、；：！？．,.;:!?)）」』】”’]+/;
+const GRAPHEMES = typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+/** The last character (grapheme) of `text`. */
+function lastGrapheme(text) {
+  if (GRAPHEMES) {
+    let last = "";
+    for (const part of GRAPHEMES.segment(text)) last = part.segment;
+    return last;
+  }
+  return Array.from(text).pop() ?? "";
+}
 function inline(text, options, key = "i") {
   const out = [];
   let rest = text.replace(//g, " "),
@@ -82,18 +93,33 @@ function inline(text, options, key = "i") {
     }
     const { type, m } = best,
       k = `${key}.${n++}`;
-    if (m.index) out.push(rest.slice(0, m.index));
+    let before = rest.slice(0, m.index),
+      lead = "",
+      skip = 0;
+    // The character before a 角标 goes into its no-wrap unit (below), so a line never starts on the mark.
+    if (type === "cite" && before) {
+      lead = lastGrapheme(before);
+      before = before.slice(0, before.length - lead.length);
+    }
+    if (before) out.push(before);
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
     else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
     else if (type === "image") out.push(<StudyImage key={k} alt={m[1]} src={m[2] || m[3]} interactive={options.mediaInteractive} />);
-    else if (type === "cite")
-      out.push(
+    else if (type === "cite") {
+      const mark = (
         <sup key={k} className="md-cite">
           <Button variant="link" size="sm" className="md-cite__mark" aria-label={uiFormat("看原文 {0}", [m[1]])} onClick={() => options.onCite(Number(m[1]))}>
             {m[1]}
           </Button>
-        </sup>,
+        </sup>
       );
+      // The character before the mark and a full stop or closing mark right after it stay with it on one line (a button is a box the line may break around).
+      const closing = CITE_CLOSING.exec(rest.slice(m.index + m[0].length))?.[0] ?? "";
+      if (lead || closing) {
+        out.push(<span key={k} className="md-cite-keep">{lead}{mark}{closing}</span>);
+        skip = closing.length;
+      } else out.push(mark);
+    }
     else if (type === "term") {
       const term = m[1],
         asked = options.askedTerms?.includes(term);
@@ -136,7 +162,7 @@ function inline(text, options, key = "i") {
         ),
       );
     }
-    rest = rest.slice(m.index + m[0].length);
+    rest = rest.slice(m.index + m[0].length + skip);
   }
   return out;
 }

@@ -141,9 +141,10 @@
       border-top: 1px solid var(--line);
       margin: 1em 0;
     }
+    /* --md-link-ink: a reading area (the review book) sets the colour of the links inside it once; elsewhere they are the soft accent. */
     .md a,
     .md .md-link {
-      color: var(--accent-soft);
+      color: var(--md-link-ink, var(--accent-soft));
       text-decoration: underline;
       text-underline-offset: 3px;
     }
@@ -175,15 +176,28 @@
     .md .md-cite {
       line-height: 0;
     }
+    /* The character before the mark, the mark and the full stop or closing mark right after it are one unit (ui/Markdown.jsx), so a line never starts on the mark or on the stop.
+       A reading area sets --md-cite-ink (the mark's colour), --md-cite-line (its underline at rest; it is always underlined on hover and focus) and
+       --md-cite-gap / --md-cite-pad (the room around it) once. */
+    .md .md-cite-keep {
+      white-space: nowrap;
+    }
     .md .md-cite__mark {
       display: inline;
       min-height: 0;
-      margin: 0 0 0 0.1em;
-      padding: 0 0.15em;
+      margin: 0 0 0 var(--md-cite-gap, 0.1em);
+      padding: 0 var(--md-cite-pad, 0.15em);
+      color: var(--md-cite-ink, var(--sh-link-ink, var(--accent-text)));
       font-size: 0.75em;
       font-variant-numeric: tabular-nums;
       line-height: 1;
+      text-decoration-line: var(--md-cite-line, underline);
       vertical-align: baseline;
+    }
+    .md .md-cite__mark:hover:not(:disabled),
+    .md .md-cite__mark:focus-visible {
+      color: var(--md-cite-ink-hover, var(--md-cite-ink, var(--sh-link-ink, var(--accent-text))));
+      text-decoration-line: underline;
     }
     .md-table {
       margin: 0.4em 0 0.9em;

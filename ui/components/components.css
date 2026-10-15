@@ -119,13 +119,14 @@
       border: 0;
       border-radius: var(--radius-xs);
       background: none;
-      color: var(--accent-text);
+      color: var(--sh-link-ink, var(--accent-text));
       text-decoration: underline;
       text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
       text-underline-offset: 3px;
     }
+    /* --sh-link-ink / --sh-link-wash: a reading area (the review book) sets them once for the links inside it; elsewhere the link stays cinnabar and has no wash. */
     .sh-btn--link:hover:not(:disabled) {
-      background: none;
+      background: var(--sh-link-wash, none);
       text-decoration-color: currentColor;
     }
     .sh-btn--link:disabled { background: none; }

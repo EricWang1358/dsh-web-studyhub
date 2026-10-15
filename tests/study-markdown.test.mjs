@@ -59,3 +59,18 @@ test('flashcard keeps a separate flip button and image control; hidden answers a
   const revealed = renderToStaticMarkup(React.createElement(FlipCard, { run: { card, revealed: true, solution: { answer: '$z^2$', translation: { answer: '$w^2$' } } }, showBack: true, flipCard: () => {}, enOn: true }));
   assert.equal((revealed.match(/class="md-math(?:"| )/g) || []).length, 5);
 });
+
+test('a 角标 is one no-wrap unit with the character before it and the full stop or closing mark after it, so a line never starts on the mark', () => {
+  const cited = text => render(text, { onCite: () => {} });
+  assert.match(cited('熵只增不减[^1]。下一句。'), /只增不<span class="md-cite-keep">减<sup class="md-cite">[\s\S]*?<\/sup>。<\/span>下一句。/);
+  assert.match(cited('见「熵[^2]」，再看。'), /见「<span class="md-cite-keep">熵<sup class="md-cite">[\s\S]*?<\/sup>」，<\/span>再看。/);
+  const word = cited('熵[^1]是无序度。');
+  assert.match(word, /<span class="md-cite-keep">熵<sup class="md-cite">[\s\S]*?<\/sup><\/span>是无序度。/);
+  assert.match(cited('The entropy[^3] grows.'), /entrop<span class="md-cite-keep">y<sup class="md-cite">[\s\S]*?<\/sup><\/span> grows\./);
+  // Two marks in a row, a mark at the very start and a mark right after a bold word: every mark has a unit or stands where nothing can break before it.
+  assert.equal((cited('甲[^1]乙[^2]。').match(/md-cite-keep/g) || []).length, 2);
+  assert.match(cited('[^1]开头'), /<p><sup class="md-cite">[\s\S]*?<\/sup>开头/);
+  assert.match(cited('**重点**[^1]。'), /<\/strong><span class="md-cite-keep"><sup class="md-cite">[\s\S]*?<\/sup>。<\/span>/);
+  assert.doesNotMatch(render('熵[^1]。'), /md-cite/, 'without a handler a 角标 stays the text it was written as');
+  assert.match(render('熵[^1]。'), /熵\[\^1\]。/);
+});
