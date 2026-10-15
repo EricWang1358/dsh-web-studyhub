@@ -66,13 +66,13 @@ Click **Add source**, choose the course, then drop several files at once or past
 | Format | Limit | Notes |
 | --- | --- | --- |
 | PDF | 8 MB, 200 pages | Kept as one document that you expand to pages. For bigger books, see below |
-| Word (.docx), PowerPoint (.pptx) | 40 MB | Only text is read. Pictures, charts and SmartArt are skipped, and so are Word text boxes, headers and footers. A .pptx keeps one page per slide, with its speaker notes |
+| Word (.docx), PowerPoint (.pptx, and the old .ppt) | 40 MB | Only text is read. Pictures, charts and SmartArt are skipped, and so are Word text boxes, headers and footers. A presentation keeps one page per slide, with its speaker notes. In an old .ppt, bullet indent levels are not kept |
 | Markdown, HTML, TXT | 8 MB | |
 | JSON deck | 2 MB | Questions you already have, or ones written elsewhere ([format](docs/json-import.md)) |
 | Subtitles (.srt, .vtt) | 8 MB | Needs the audio component |
 | Audio (MP3, WAV, M4A, AAC, OGG, FLAC, OPUS, WEBM, AIFF) | 512 MB, 8 hours | See [Transcribe recordings](#transcribe-recordings) |
 
-Old .doc and .ppt files (and .wps, .key, .pages) are not read. Save them as .docx, .pptx or PDF first.
+Old .doc files (and .wps, .key, .pages) are not read. Save them as .docx or PDF first. Password-protected files are not read either.
 
 **Large textbooks** (over 8 MB or 200 pages):
 

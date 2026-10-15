@@ -17,7 +17,7 @@ import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
 import useBilingual from './translation/useBilingual.jsx';
 import { annotationLinks, loadAnnotationMode, saveAnnotationMode } from './annotation/model.js';
 import StaleAnnotations from './annotation/StaleAnnotations.jsx';
-import { isOfficeFormat } from '../../lib/office/limits.js';
+import { isOfficeFormat, isPagedFormat, isSlideFormat } from '../../lib/office/limits.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
 import { MasteryLine } from './practice/MasteryMark.jsx';
@@ -78,8 +78,6 @@ export function originalHandling(value) {
 export const viewerFormat = (document, source) => document?.format
   || (source?.document ? source.document.format || 'pdf' : source?.audio ? 'txt' : 'md');
 
-/** Formats whose sources are pages (PDF pages, PowerPoint slides), shown as page sections. */
-const PAGED = new Set(['pdf', 'pptx']);
 
 /** Below this width of the viewer, the outline and the learning panel slide over the text. Mirrors reader.css. */
 const NARROW = 900;
@@ -167,7 +165,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     })();
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [call, source.id, source.text, source.selection?.revision, reload, localMode]);
-  const format = localMode ? 'md' : viewerFormat(document, source), paged = PAGED.has(format);
+  const format = localMode ? 'md' : viewerFormat(document, source), paged = isPagedFormat(format);
   const view = mode === 'original' && !(format === 'pdf' && fileUrl) ? 'read' : mode, reading = view === 'read';
   const downloadOriginal = async () => {
     try {
@@ -204,7 +202,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
   const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],
     [reading, html, paged, sources, content]);
-  const pageLabel = page => format === 'pptx' ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]);
+  const pageLabel = page => isSlideFormat(format) ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]);
   // A recording's entry says which one it is; a part that carries on from the previous volume says so.
   const recordingLabel = item => item.kind === 'recording' ? uiFormat('录音 {0}', [item.recording]) : item.continued ? ui('接上一卷') : '';
   const labelOf = section => section.kind === 'page' ? pageLabel(section.page) : recordingLabel(section);
@@ -344,7 +342,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     [resume, paged, html, sources, content, source.id]);
   // Only the sections this reader draws (a transcript's recordings and parts) can be started at; Markdown draws its own headings, text without structure has none.
   const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
-  const unit = aiOn || !paged ? 'section' : format === 'pptx' ? 'slide' : 'page';
+  const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };

@@ -9,7 +9,7 @@ Since 2.0, StudyHub has been a set of separately installable capability plugins 
 - **Plugins.** The package ships a workbench plugin and six capability plugins: runtime, materials, bank, study, generation and audio. They share one `studyRuntime` service, so installing several of them never registers a context or tool twice.
 - **Runtime and contexts.** `StudyRuntime` (`lib/runtime.js`) hosts 19 contexts, each with a versioned API such as `bank.v1`. A context owns its records, declares its dependencies and reaches other contexts only through granted operations.
 - **Library.** Each DSH session resolves one study library. An atomic, content-addressed shard store (`lib/store.js`) saves it. Retained original files sit beside it under `attachments/materials/`.
-- **Data formats.** Decks stay JSON. Sources keep their original PDF, Word (.docx), PowerPoint (.pptx), Markdown, HTML or TXT file and expose versioned text projections.
+- **Data formats.** Decks stay JSON. Sources keep their original PDF, Word (.docx), PowerPoint (.pptx, .ppt), Markdown, HTML or TXT file and expose versioned text projections.
 - **Interface.** React sources in `ui/` build into DSH client modules (`lib/client*.js`). Optional views load lazily.
 - **Models.** Read operations never need a model. An operation that does declares `requiresModel`; called without a model, it returns `{ available: false, reason: 'model_unavailable' }`.
 
@@ -226,10 +226,10 @@ Other language rules:
 ## Document-to-deck flow
 
 1. `materials.document.import` takes one absolute file `path` or uploaded `dataBase64`, plus a filename or `format`.
-   - Formats are `pdf`, `docx`, `pptx`, `md`, `html`, `txt` and converter `json`.
+   - Formats are `pdf`, `docx`, `pptx`, `ppt`, `md`, `html`, `txt` and converter `json`.
    - Size limits are one constant per format in `lib/office/limits.js`: 8 MB for PDF and text formats, 40 MB for Word, PowerPoint and converter JSON.
    - Text files must be UTF-8.
-   - Word and PowerPoint are read server side by a built-in ZIP/XML reader (`lib/office/`, no dependency). A .docx becomes one Markdown-like source. A .pptx becomes one source per slide, with `document.page` locators like PDF pages.
+   - Word and PowerPoint are read server side by a built-in ZIP/XML reader (`lib/office/`, no dependency). A .docx becomes one Markdown-like source. A .pptx becomes one source per slide, with `document.page` locators like PDF pages. A legacy .ppt (PowerPoint 97–2003) is read the same way by a compound-file reader (`lib/office/cfb.js`) and the PPT record reader (`lib/office/ppt.js`); the contents, not the extension, decide between .ppt and .pptx, so a renamed file is kept and read as what it is.
 2. `materials.document.get` returns the document and revision identity, the projected source IDs and an original preview descriptor. `materials.document.bytes` supplies verified original bytes for the standalone preview.
 3. `materials.selection.resolve` verifies the visible `quote`, optional `prefix`/`suffix`, source and document identity, the revision and optional offsets or PDF page. It reports `resolved`, `ambiguous`, `stale` or `missing`.
 4. `materials.selection.ask` answers from the checked passage and nearby source evidence when a request model is available. `generation.selection.saveAnswer` saves such an answer as one linked flashcard without calling a model.

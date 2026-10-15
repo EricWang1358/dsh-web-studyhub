@@ -66,13 +66,13 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 | 格式 | 上限 | 说明 |
 | --- | --- | --- |
 | PDF | 8 MB、200 页 | 每个 PDF 保存为一份文档，可展开到页；更大的书见下文 |
-| Word（.docx）、PowerPoint（.pptx） | 40 MB | 只读取文字：图片、图表和 SmartArt 不读，Word 的文本框、页眉页脚也不读。PPT 按幻灯片分页，并带上演讲者备注 |
+| Word（.docx）、PowerPoint（.pptx，以及旧版 .ppt） | 40 MB | 只读取文字：图片、图表和 SmartArt 不读，Word 的文本框、页眉页脚也不读。PPT 按幻灯片分页，并带上演讲者备注；旧版 .ppt 不保留项目符号的缩进层级 |
 | Markdown、HTML、TXT | 8 MB | |
 | JSON 题组 | 2 MB | 你已有的题目，或在别处（例如其他 AI）生成的题（[格式说明](docs/json-import.zh-CN.md)） |
 | 字幕（.srt、.vtt） | 8 MB | 需要启用音频组件 |
 | 音频（MP3、WAV、M4A、AAC、OGG、FLAC、OPUS、WEBM、AIFF） | 512 MB、8 小时 | 见[录音转文字](#录音转文字) |
 
-旧版 .doc、.ppt（以及 .wps、.key、.pages）不能直接读取，请先另存为 .docx、.pptx 或 PDF。
+旧版 .doc（以及 .wps、.key、.pages）不能直接读取，请先另存为 .docx 或 PDF。有密码保护的文件也读不了。
 
 **大教材**（超过 8 MB 或 200 页）：
 
