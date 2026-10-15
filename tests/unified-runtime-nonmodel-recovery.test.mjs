@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { convertPdf, readManifest } from '../lib/mineru-job.js';
-import { createMineruClient } from '../lib/mineru-api.js';
 import { StudyService } from '../lib/service.js';
-import { startFakeMineru } from './helpers/fake-mineru.mjs';
 import { pdfJob } from './helpers/nonmodel-baseline.mjs';
 import { until } from './helpers/wait.mjs';
 import { harness as pdfService, localHarness } from './helpers/pdf-convert-harness.mjs';
 import { harness as installService } from './helpers/marker-install-harness.mjs';
-import { FRESH, harness as setupService } from './helpers/mineru-setup-harness.mjs';
+import { installHarness } from './helpers/mineru-install-harness.mjs';
+import { createMineruInstaller, mineruLayout } from '../lib/mineru-install.js';
 import { library } from './helpers/index-library.mjs';
 import { fakeIndexPort } from './helpers/index-port.mjs';
 import { markerInstallStatePath, venvLayout } from '../lib/marker-install.js';
@@ -20,69 +19,38 @@ import { dirname, join } from 'node:path';
 
 /* S5-6: the unknown-side-effect and stop/recovery matrix of the non-model paths (docs/plans/unified-job-runtime/s5-6-recovery-matrix.md).
    Rows are paths, columns are three failure points: BEFORE the side effect, COMMITTED but not yet recorded, STOP not confirmed.
-   Every cell is a test against a real fake (fake MinerU server, fake CLIs, fake extension); the title starts with its cell. */
+   Every cell is a test against a real fake (fake CLIs, a fake uv index, fake extension); the title starts with its cell. (The cloud route was removed in 3.6.) */
 
-/* ---------- PDF (cloud): the import is the commit ---------- */
+/* ---------- PDF (local): the import is the commit ---------- */
 
-test('PDF cloud · committed, terminal not saved: a resume after the import happened (crash before the receipt) imports the same pages once, not twice', async t => {
-  const fake = await startFakeMineru();
-  t.after(() => fake.close());
+test('PDF local · committed, terminal not saved: a resume after the import happened (crash before the receipt) imports the same pages once, not twice', async t => {
   const job = await pdfJob(t, { pages: 3 });
   const service = new StudyService(job.library, {});
   t.after(() => service.dispose());
-  const client = createMineruClient({ token: fake.token, baseUrl: fake.baseUrl });
   const realImport = input => service.call('materials.document.import', { dataBase64: input.bytes.toString('base64'), filename: input.filename, format: input.format,
     ...(input.title ? { title: input.title } : {}), ...(input.courses ? { courses: input.courses } : {}) });
   const prepared = await job.prepare();
   let crashed = false;
-  const run = (manifest, importMerged) => convertPdf({ dir: prepared.dir, manifest, root: job.library, client, sleep: job.sleep, now: job.now, importMerged });
-  await assert.rejects(run(prepared.manifest, async input => { const done = await realImport(input); crashed = true; void done; throw new Error('the process died after the import'); }), /died/);
+  await assert.rejects(job.run(prepared, { importMerged: async input => { const done = await realImport(input); crashed = true; void done; throw new Error('the process died after the import'); } }), /died/);
   assert.equal(crashed, true);
   const afterCrash = (await service.call('snapshot')).sources.filter(source => source.document);
   assert.equal(afterCrash.length, 3);
-  const uploads = fake.uploads.length;
-  await run(await readManifest(prepared.dir), realImport);
+  const windows = job.runner.windows.length;
+  await job.run({ dir: prepared.dir, manifest: await readManifest(prepared.dir) }, { importMerged: realImport });
   const after = await service.call('snapshot');
   assert.equal(after.sources.filter(source => source.document).length, 3, 'the same three pages, not six');
   assert.equal(new Set(after.sources.filter(source => source.document).map(source => source.document.id)).size, 1, 'one document');
-  assert.equal(fake.uploads.length, uploads, 'finished pieces are not uploaded again');
+  assert.equal(job.runner.windows.length, windows, 'finished windows are not converted again');
 });
 
-/* ---------- PDF (cloud): before the side effect, stop in flight, a resume that finds another input ---------- */
-
-test('PDF cloud · before the side effect: a stop before the first create sends nothing to MinerU and leaves the pieces uncut-to-requested', async t => {
-  const fake = await startFakeMineru();
-  t.after(() => fake.close());
+test('PDF local · a resume is refused when the saved input is not the file the manifest was made from', async t => {
   const job = await pdfJob(t, { pages: 3 }), controller = new AbortController();
   const prepared = await job.prepare();
-  controller.abort(new Error('stopped first'));
-  await assert.rejects(job.run(prepared, { client: createMineruClient({ token: fake.token, baseUrl: fake.baseUrl }), signal: controller.signal, verifyCreates: true }), /stopped first/);
-  assert.equal(fake.requests.length, 0);
-  assert.ok((await readManifest(prepared.dir)).chunks.every(chunk => !chunk.batchId && !['requested', 'creating', 'uploaded'].includes(chunk.state)));
-});
-
-test('PDF cloud · stop not confirmed: a stop while the bytes are going up never asks MinerU to delete or cancel anything, and the batch reference stays on disk', async t => {
-  const fake = await startFakeMineru();
-  t.after(() => fake.close());
-  const job = await pdfJob(t, { pages: 3 }), controller = new AbortController(), base = createMineruClient({ token: fake.token, baseUrl: fake.baseUrl });
-  const client = { ...base, upload: async () => { controller.abort(new Error('stopped mid-upload')); throw new Error('the request was cut'); } };
-  const prepared = await job.prepare();
-  await assert.rejects(job.run(prepared, { client, signal: controller.signal, verifyCreates: true }), /stopped mid-upload/);
-  assert.deepEqual([...new Set(fake.requests.map(request => request.method))].sort(), ['POST'], 'a create, and no cancel, delete or patch');
-  const saved = await readManifest(prepared.dir);
-  assert.deepEqual([saved.chunks[0].state, typeof saved.chunks[0].batchId], ['requested', 'string'], 'what is known about the remote batch is kept, not turned into "stopped"');
-});
-
-test('PDF cloud · a resume is refused when the saved input is not the file the manifest was made from', async t => {
-  const fake = await startFakeMineru();
-  t.after(() => fake.close());
-  const job = await pdfJob(t, { pages: 3 }), controller = new AbortController(), base = createMineruClient({ token: fake.token, baseUrl: fake.baseUrl });
-  const prepared = await job.prepare();
-  await assert.rejects(job.run(prepared, { client: { ...base, requestUploads: async () => { controller.abort(new Error('stop')); throw new Error('cut'); } }, signal: controller.signal }), /stop/);
+  controller.abort(new Error('stop'));
+  await assert.rejects(job.run(prepared, { signal: controller.signal }), /stop/);
   await writeFile(join(prepared.dir, 'source.pdf'), await (await import('./helpers/pdf.mjs')).makePdf({ pages: 5 }));
-  const posts = fake.requests.length;
-  await assert.rejects(job.run({ dir: prepared.dir, manifest: await readManifest(prepared.dir) }, { client: base }), error => error.code === 'input-changed');
-  assert.equal(fake.requests.length, posts, 'nothing was sent for a file that is not the one that was planned');
+  await assert.rejects(job.run({ dir: prepared.dir, manifest: await readManifest(prepared.dir) }), error => error.code === 'input-changed');
+  assert.deepEqual(job.runner.windows, [], 'nothing was converted for a file that is not the one that was planned');
 });
 
 /* ---------- PDF (local): the process is still running ---------- */
@@ -137,28 +105,33 @@ test('Marker install · stop not confirmed: a stop is "cancelled" only after the
   assert.deepEqual(await readMarkerSettings(), before, 'configure never ran');
 });
 
-/* ---------- MinerU setup: models without the mode; a stop leaves nothing configured ---------- */
+/* ---------- MinerU install: models without the service; a stop leaves the folder owned ---------- */
 
-test('MinerU setup · committed, not recorded: models already downloaded but the mode not switched on: the setup does not download again and finishes the configuration', async t => {
-  const h = await setupService(t, { state: { ...FRESH, running: true, modelsReady: true, tier: 'basic' } });
-  await mkdir(join(h.work, 'models', 'basic'), { recursive: true });
-  await h.call('mineru.local.setup', { tier: 'basic', confirm: true });
-  await h.ended('complete');
-  const calls = await h.calls();
-  assert.equal(calls.some(call => call.startsWith('--tier')), false, 'no second download');
+test('MinerU install · committed, not recorded: the models are already there but the service was never set up: the install does not download them again and finishes the configuration', async t => {
+  const h = await installHarness(t);
+  const installer = createMineruInstaller(h.seams);
+  // What a crash right after the download leaves: the install's own folder (its sentinel) with the models in it, and no record of either.
+  await mkdir(join(mineruLayout(h.location).models, 'MinerU-4_models_onnx'), { recursive: true });
+  await writeFile(mineruLayout(h.location).sentinel, JSON.stringify({ createdBy: 'studyhub-mineru-installer', version: 1 }));
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.equal((await installer.status()).status, 'complete');
+  const calls = (await h.mineruLog()).map(entry => entry.argv.join(' '));
+  assert.equal(calls.some(call => call.startsWith('models download')), false, 'no second download');
   assert.ok(calls.some(call => call.includes('managed_tier basic')) && calls.some(call => call.includes('local.mode managed')));
-  assert.equal((await h.call('mineru.local.status')).state, 'ready');
 });
 
-test('MinerU setup · stop not confirmed: after a stop in the download nothing is configured and the local mineru is not reported ready; a new setup waits until the process is gone', async t => {
-  const h = await setupService(t, { state: { ...FRESH, downloadDelayMs: 60_000 } });
-  await h.call('mineru.local.setup', { tier: 'basic', confirm: true });
-  await until(async () => (await h.log()).some(entry => entry.argv[0] === '--tier'), 'the download to start');
-  await h.call('mineru.local.setup.cancel');
-  await assert.rejects(h.call('mineru.local.setup', { tier: 'basic', confirm: true }), { code: 'setup-busy' });
-  await h.ended('cancelled');
-  assert.equal((await h.call('mineru.local.status')).state === 'ready', false);
-  assert.equal((await h.calls()).some(call => call.includes('config set')), false);
+test('MinerU install · stop not confirmed: after a stop in the download nothing is configured, the folder stays owned, and a new start waits until the process is gone', async t => {
+  const h = await installHarness(t, { mineru: { downloadDelayMs: 60_000 } });
+  const installer = createMineruInstaller(h.seams);
+  await installer.start({ confirm: true, location: h.location });
+  await until(async () => (await h.mineruLog()).some(entry => entry.argv[0] === 'models' && entry.argv[1] === 'download'), 'the download to start', { timeoutMs: 240_000 });
+  await installer.cancel();
+  await assert.rejects(installer.start({ confirm: true, location: h.location }), { code: 'busy' });
+  await installer.idle();
+  const ended = await installer.status();
+  assert.equal(ended.status, 'cancelled');
+  assert.equal((await h.mineruLog()).some(entry => entry.argv.join(' ').includes('config set')), false);
+  assert.equal(await stat(mineruLayout(h.location).sentinel).then(() => true, () => false), true, 'still owned, so the learner can uninstall it');
 });
 
 /* ---------- Index: a write is still in flight ---------- */

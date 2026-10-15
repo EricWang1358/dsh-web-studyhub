@@ -1,10 +1,9 @@
 import { access, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { family } from './nonmodel-library.mjs';
+import { FRESH, family } from './nonmodel-library.mjs';
 import { gate, soon } from './console-families.mjs';
-import { FRESH } from './mineru-setup-harness.mjs';
-import { readJsonFile, writeJsonFile } from './wait.mjs';
+import { writeJsonFile } from './wait.mjs';
 
 // PDF has its own console matrix. These legacy paths have a family status panel
 // but no job card until their migration switch is enabled.
@@ -38,12 +37,12 @@ const marker = {
   hold: cliHold, entered: cliEntered, release: cliRelease,
   fail: world => writeJsonFile(world.files.py, { failPip: true }),
 };
-const setup = {
-  id: 'mineru-setup', kind: 'mineru-setup', switches: ['mineruSetup'], status: 'mineru.local.setup.status', cancel: 'mineru.local.setup.cancel', args: {}, open,
-  start: world => world.call('mineru.local.setup', { tier: 'basic', confirm: true }),
-  reset: async world => writeJsonFile(world.files.mineru, { ...await readJsonFile(world.files.mineru), ...FRESH }),
+const install = {
+  id: 'mineru-install', kind: 'mineru-install', switches: ['mineruInstall'], status: 'mineru.install.status', cancel: 'mineru.install.cancel', args: {}, open,
+  start: world => world.call('mineru.install.start', { confirm: true }),
+  reset: async world => { await world.call('mineru.install.uninstall', { confirm: true }).catch(() => {}); await writeJsonFile(world.files.mineru, { version: '4.0.12', total: 3, ...FRESH }); await writeJsonFile(world.files.uv, {}); },
   hold: cliHold, entered: cliEntered, release: cliRelease,
-  fail: async world => writeJsonFile(world.files.mineru, { ...await readJsonFile(world.files.mineru), downloadFails: true }),
+  fail: world => writeJsonFile(world.files.uv, { failPip: true }),
 };
 const index = {
   id: 'index', kind: 'retrieval-index', switches: ['retrievalIndex'], status: 'retrieval.index.status', cancel: 'retrieval.index.cancel', args: { course: 'OS' }, open,
@@ -54,4 +53,4 @@ const index = {
   release: async world => { world.indexControl.hold?.open(); },
   fail: async world => { world.indexControl.fail = true; },
 };
-export const PROCESS_DRIVERS = [marker, setup, index].map(driver => ({ ...driver, finish: world => finish(world, driver) }));
+export const PROCESS_DRIVERS = [marker, install, index].map(driver => ({ ...driver, finish: world => finish(world, driver) }));

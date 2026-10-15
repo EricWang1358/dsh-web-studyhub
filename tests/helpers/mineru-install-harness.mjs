@@ -32,6 +32,8 @@ export async function installHarness(t, { uv = {}, mineru = {}, free = 100_000, 
   const seams = {
     sources: index.sources, probe: async () => ALL_REACHABLE, drives: async () => seams.driveList, driveList: drives, freeMegabytes: async () => seams.free, free,
     pythons: [], external: null, ramMb: 16 * 1024, checkPauseMs: 30,
+    // (the temporary folders of a test run are deeper than a learner's D:StudyHubMinerU: the 80-character rule is tested on its own)
+    maxPathLength: 260,
     uvCli: () => cli(FAKE_UV, { FAKE_UV_STATE: uvState, FAKE_UV_LOG: uvLog }),
     venvPython: () => cli(FAKE_PYTHON, { FAKE_PY_STATE: pyState }),
     mineruCli: () => cli(FAKE_MINERU, mineruEnvOf), kitCli: () => cli(FAKE_MINERU, mineruEnvOf),

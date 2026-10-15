@@ -67,7 +67,9 @@ else if (command === 'config' && sub === 'show') {
 } else if (command === 'config' && sub === 'set') {
   needService();
   const [key, value] = [argv[2], argv[3]];
-  if (key === 'parse_server.local.mode' && value === 'managed' && !state.modelsReady) fail(`Local managed tier '${state.tier}' requires model files that are not ready ... Run: mineru-kit models download --tier ${state.tier}`);
+  // The models are ready when the state says so, or (an install with MINERU_HOME) when their folder is on disk.
+  const onDisk = !!process.env.MINERU_HOME && existsSync(join(process.env.MINERU_HOME, 'models', state.tier === 'standard' ? 'MinerU2.5-Pro-2509-1.2B-GGUF' : 'MinerU-4_models_onnx'));
+  if (key === 'parse_server.local.mode' && value === 'managed' && !state.modelsReady && !onDisk) fail(`Local managed tier '${state.tier}' requires model files that are not ready ... Run: mineru-kit models download --tier ${state.tier}`);
   if (key === 'parse_server.local.mode') state.mode = value;
   if (key === 'parse_server.local.managed_tier') state.tier = value;
   save(); out('ok');
@@ -97,6 +99,8 @@ else if (command === 'list' && sub === 'parses') {
 } else if (command === 'parse') {
   if (!state.running) fail("本地 mineru 服务未运行。请先运行 'mineru server start'");
   const pdf = argv[1], output = flag('-o');
+  // `totalFromPdf`: the page count of the PDF itself, for a test that converts books of different lengths with one fake.
+  if (state.totalFromPdf) state.total = (await (await import('pdf-lib')).PDFDocument.load(readFileSync(pdf), { updateMetadata: false })).getPageCount();
   const pages = state.ignorePages ? '1-10' : flag('--pages') ?? '1-10'; // the real default: only the first 10 pages (ignorePages: a CLI that does not honour --pages)
   const range = /^(\d+)-(\d+)$/.exec(pages) ?? [null, pages, pages];
   const [first, last] = [Number(range[1]), Math.min(Number(range[2]), state.total)];

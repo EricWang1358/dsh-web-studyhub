@@ -37,8 +37,10 @@ test('plan: no space (with the numbers), a path too long, a non-ASCII path, a fo
   assert.deepEqual(noSpace.problems.map(item => item.code), ['no-space']);
   assert.match(noSpace.problems[0].message, /剩余 900 MB，至少需要 3\.9 GB/);
   h.seams.free = 100_000;
+  h.seams.maxPathLength = undefined;
   const long = await installer.plan({ location: join(h.dir, 'a'.repeat(90)) });
   assert.deepEqual(long.problems.map(item => item.code), ['path-too-long']);
+  h.seams.maxPathLength = 260;
   const chinese = await installer.plan({ location: join(h.dir, '我的工具', 'MinerU') });
   assert.deepEqual(chinese.problems, []);
   assert.deepEqual(chinese.warnings.map(item => item.code), ['non-ascii']);

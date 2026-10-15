@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, useNow } from './components/index.js';
+import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, Tooltip, useNow } from './components/index.js';
 import { formatBytes, formatDuration, formatAgo, formatDay } from './format.js';
 import { usePolling } from './use-polling.js';
 import { isActiveJob } from './job-visibility.js';
@@ -11,9 +11,9 @@ import CompactJobCard from './tasks/CompactJobCard.jsx';
 import JobFollowUp from './JobFollowUp.jsx';
 import css from './mineru.css';
 
-/* The compact card of a PDF conversion (cloud or local), the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
-   guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces; restart the stopped local service first;
-   change the token; open the pages). What used to fill the card (the 运行环境, the window in hand and the service's own state, the pace, the windows) is
+/* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
+   guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
+   the run itself; open the pages; the settings when only the installation can help). What used to fill the card (the 运行环境, the window in hand and the service's own state, the pace, the windows) is
    `PdfDetail`, the kind's section of the 任务 console. */
 
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
@@ -23,20 +23,15 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
     setWorking(name);
     try { await work(); onChanged?.(); } catch { /* the console shows what went wrong; the card stays as it was */ } finally { setWorking(''); }
   };
-  const retry = () => run('retry', async () => {
-    // A stopped local service is started again first, which is the usual reason a local window failed.
-    if (job.converter !== 'marker' && job.errorCode === 'server-stopped') await send('mineru.local.start', { restart: true });
-    await send('mineru.retry', { jobId: job.id });
-  });
-  const tokenProblem = job.status === 'failed' && ['invalid-token', 'expired'].includes(job.errorCode);
-  // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings, like a token problem; 接着做 helps after that, from the console.
+  // A stopped local service is started by the run itself (lib/contexts/audio/pdf/convert-run.js): 接着做 is all it takes.
+  const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
+  // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
   const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
-  const primary = tokenProblem && onOpenSettings ? { label: ui('去设置里换一个令牌'), run: () => onOpenSettings('settings-mineru') }
-    : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
-    : job.status === 'failed' && job.retryable && !tokenProblem ? { label: job.errorCode === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做'), run: retry, disabled: !!working }
+  const primary = needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
+    : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
-    <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'cloud'}
+    <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
       onDismiss={() => void run('dismiss', () => send('job.archive', { jobId: job.id }))} />
   </JobFollowUp>;
@@ -126,7 +121,7 @@ const LIVE_LABEL = { queued: () => ui('排队中'), parsing: () => ui('转换中
 const LIVE_ADVICE = {
   queued: () => ui('服务收到了这一段，正在排队，前面还有别的任务。'),
   silent: () => ui('服务没有报告它在处理这一段。再等一会儿看看；如果一直没有变化，点「停止」，然后再选同一个 PDF：已经完成的段落会直接复用，只重做这一段。'),
-  stopped: () => ui('本地服务已经停止，这一段多半会失败。失败之后点「重新启动本地服务并接着做」，已经完成的段落会保留。'),
+  stopped: () => ui('本机服务已经停止，这一段多半会失败。失败之后点「接着做」：会先启动服务，已经完成的段落会保留。'),
   unknown: () => ui('暂时读不到服务的状态。这不表示出了问题：解析还在进行，读到状态后这里会更新。'),
 };
 
@@ -212,7 +207,7 @@ export function ConversionEnvironment({ env, converter, service, stoppedAtFailur
         </details></li>}
         {managesService && service && <li className={`pdf-env__service${state === 'stopped' ? ' pdf-env__warning' : ''}`} data-state={['running', 'stopped'].includes(state) ? state : 'unknown'}>
           <span className="pdf-env__dot" aria-hidden="true" />{serviceText}{state === 'running' && confirmed ? ` ${uiFormat('（{0}确认）', [confirmed])}` : ''}</li>}
-        {managesService && state === 'stopped' && <li className="pdf-env__hint">{ui('点「重新启动本地服务并接着做」，已完成的段落会保留。')}</li>}
+        {managesService && state === 'stopped' && <li className="pdf-env__hint">{ui('点「接着做」会先启动本机服务，已完成的段落会保留。')}</li>}
         {managesService && !service && stoppedAtFailure && <li className="pdf-env__note">{ui('失败时本地服务已停止')}</li>}
       </ul>
     </div>
@@ -256,7 +251,7 @@ const dayHeading = group => {
 };
 const STATUS_TEXT = { running: () => ui('进行中'), complete: () => ui('已完成'), failed: () => ui('没有完成'), cancelled: () => ui('已取消'), interrupted: () => ui('被中断') };
 const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', cancelled: 'neutral', interrupted: 'warning' };
-const STAGE_TEXT = { start: () => ui('启动'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
+const STAGE_TEXT = { start: () => ui('启动'), 'start-service': () => ui('启动本机服务'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
   download: () => ui('下载结果'), merge: () => ui('合并各段'), save: () => ui('保存为资料') };
 
 function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, onOpenSettings }) {
@@ -273,7 +268,6 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
   const stage = row.failure ? (row.failure.piece
     ? uiFormat('在「{0}」阶段（第 {1} 段）没能完成', [(STAGE_TEXT[row.failure.stage] || STAGE_TEXT.start)(), row.failure.piece])
     : uiFormat('在「{0}」阶段没能完成', [(STAGE_TEXT[row.failure.stage] || STAGE_TEXT.start)()])) : '';
-  const tokenProblem = status === 'failed' && ['invalid-token', 'expired'].includes(row.failure?.code);
   const stuck = (status === 'failed' || status === 'interrupted') && !row.canRetry;
   const busy = working === row.id;
   const known = Object.hasOwn(STATUS_TEXT, status) ? status : 'failed';
@@ -300,10 +294,9 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         <div className="pdf-history__actions">
           {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
           {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
-          {row.canRetry && !tokenProblem && <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])}
-            title={ui('已完成的段落会直接复用，不会重复上传或重复解析')} onClick={() => onRetry(row)}>
-            {status === 'failed' ? (row.failure?.code === 'server-stopped' ? ui('重新启动本地服务并接着做') : ui('接着做（不重复已完成的段落）')) : ui('接着做')}</Button>}
-          {tokenProblem && onOpenSettings && <Button variant="primary" size="sm" onClick={() => onOpenSettings('settings-mineru')}>{ui('去设置里换一个令牌')}</Button>}
+          {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
+            <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
+          </Tooltip>}
           {status !== 'running' && <Button variant="link" size="sm" disabled={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
       </JobRow>
@@ -352,8 +345,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   const remove = row => work(row.id, async () => { await call('mineru.history.remove', { id: row.id }); await load(); toHeading(); });
   const clear = () => work('clear', async () => { await call('mineru.history.clear', { confirm: true }); setConfirming(false); await load(); toHeading(); });
   const retry = row => work(row.id, async () => {
-    // A stopped local service is started again first, which is the usual reason a local window failed.
-    if (row.converter !== 'marker' && row.failure?.code === 'server-stopped') await send('mineru.local.start', { restart: true });
+    // A stopped local service is started by the run itself.
     await send('mineru.retry', { jobId: row.id });
     await load(); onChanged?.();
   });

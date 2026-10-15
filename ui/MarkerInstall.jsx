@@ -8,6 +8,7 @@ import { sizeLabel } from './mineru-flow.js';
 import { STAGES, canInstall, defaultMirror, failureHint, installMode, stageName, stageStates } from './marker-install-flow.js';
 import css from './marker-install.css';
 import { useLiveEffect } from './use-async.js';
+import InstallStages from './install/InstallStages.jsx';
 
 /* One-click Marker (settings › PDF 转换 › Marker). Nothing is installed until the learner presses the one primary button: a private
    Python environment with marker-pdf, in the StudyHub data folder or a folder they choose, then the program path is filled in for them.
@@ -61,14 +62,9 @@ function PythonChannels({ plan }) {
   </div>;
 }
 
-function Stages({ install }) {
-  return <ol className="marker-install__stages" aria-label={ui('安装步骤')}>
-    {stageStates(install).map(item => <li key={item.id} data-state={item.state} aria-current={item.state === 'active' ? 'step' : undefined}>
-      <span className="marker-install__mark" aria-hidden="true">{item.state === 'done' ? <Icon name="success" size={14} /> : item.state === 'failed' ? <Icon name="error" size={14} /> : null}</span>
-      {stageName(item.id)}
-    </li>)}
-  </ol>;
-}
+/** The four steps (the shared ui/install/InstallStages.jsx, with Marker's classes). */
+const Stages = ({ install }) => <InstallStages stages={stageStates(install).map(item => ({ ...item, name: stageName(item.id) }))} label={ui('安装步骤')}
+  className="marker-install__stages" markClassName="marker-install__mark" />;
 
 /**
  * A marker-pdf 2.x runs its OCR server in Docker: two equal ways out, side by side. Use Docker (start Docker Desktop, wait until it says it is running, check again or
@@ -149,7 +145,7 @@ export default function MarkerInstall({ call, disabled = false, markerReady = fa
   const locked = disabled || !call || !!working;
 
   const folderLine = (folder, custom) => <p className="marker-install__where">
-    <span>{ui('安装位置')}</span><code title={folder}>{folder}</code>
+    <span>{ui('安装位置')}</span><code translate="no">{folder}</code>
     <Button size="sm" variant="quiet" disabled={locked} onClick={choose}>{ui('更改位置')}</Button>
     {custom && <Button size="sm" variant="quiet" disabled={locked} onClick={() => setLocation('')}>{ui('用默认位置')}</Button>}
   </p>;

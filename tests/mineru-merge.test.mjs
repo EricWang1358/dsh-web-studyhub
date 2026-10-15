@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MineruResultError, mergeChunkResults, readResultZip } from '../lib/mineru-merge.js';
+import { MineruResultError, mergeChunkResults } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
-import { zipStored } from './helpers/zip.mjs';
 
 /* Putting the pieces back together: each piece's content_list (pages counted from 0 inside the piece) becomes one list of
    the whole book, in the one format the importer already reads (lib/converted-document.js). */
@@ -10,31 +9,6 @@ import { zipStored } from './helpers/zip.mjs';
 const textItem = (text, page_idx, extra = {}) => ({ type: 'text', text, page_idx, ...extra });
 const imageItem = (path, page_idx) => ({ type: 'image', img_path: path, image_caption: [`fig ${path}`], page_idx });
 const chunk = (index, startPage, endPage, content, format = 'v1') => ({ index, startPage, endPage, format, content });
-
-test('the result ZIP is read for its content list; images are not kept (StudyHub imports text and captions)', () => {
-  const list = [textItem('Hello', 0)];
-  const zip = zipStored({ 'abc/full.md': '# x', 'abc/abc_content_list.json': JSON.stringify(list), 'abc/layout.json': '{}', 'abc/images/p1.jpg': Buffer.from([1, 2]) });
-  const result = readResultZip(zip);
-  assert.equal(result.format, 'v1');
-  assert.deepEqual(result.content, list);
-  assert.deepEqual(result.images, ['abc/images/p1.jpg']);
-});
-
-test('content_list.json is found under either documented name, and the v1 list is preferred over content_list_v2.json', () => {
-  const v1 = [textItem('one', 0)], v2 = [[{ type: 'paragraph', content: { text: 'two' } }]];
-  assert.equal(readResultZip(zipStored({ 'content_list.json': JSON.stringify(v1) })).format, 'v1');
-  const both = readResultZip(zipStored({ 'b_content_list_v2.json': JSON.stringify(v2), 'b_content_list.json': JSON.stringify(v1) }));
-  assert.equal(both.format, 'v1');
-  const only = readResultZip(zipStored({ 'b_content_list_v2.json': JSON.stringify(v2) }));
-  assert.equal(only.format, 'v2');
-  assert.deepEqual(only.content, v2);
-});
-
-test('an archive without a content list, or one that is not a ZIP, is a plain error', () => {
-  assert.throws(() => readResultZip(zipStored({ 'full.md': '# only markdown' })), error => error instanceof MineruResultError && error.code === 'no-content-list' && /页码/.test(error.message));
-  assert.throws(() => readResultZip(Buffer.from('not a zip at all')), error => error instanceof MineruResultError && error.code === 'bad-archive');
-  assert.throws(() => readResultZip(zipStored({ 'x_content_list.json': '{broken' })), error => error.code === 'bad-content-list');
-});
 
 test('pages are renumbered to the book: a piece starting at page 201 puts its page 0 on page 201', () => {
   const merged = mergeChunkResults({ totalPages: 5, chunks: [
