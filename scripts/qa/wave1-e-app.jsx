@@ -1,4 +1,4 @@
-/* Wave 1 · WP-E QA page (built by scripts/qa/wave1-e.mjs): the MinerU settings (token form on SecretKeyForm), the audio job rows,
+/* Wave 1 · WP-E QA page (built by scripts/qa/wave1-e.mjs): the MinerU settings (the one-click card; the token form went with the cloud route in 3.6), the audio job rows,
    the mailbox opened from the keyboard, and the exam error state, with fake data.
    Query: ?lang=zh|en&theme=dark|light&scene=mineru|audio|inbox|exam */
 import React from 'react';
@@ -46,16 +46,16 @@ const audioJobs = [
   job({ id: 'c', status: 'complete', filename: 'lecture-week3.mp3', phase: 'done', sourceIds: ['s1'], corrected: 4, finishedAt: ago(30000) }),
 ];
 
-const settings = { token: { set: true, hint: '••••a9f2', source: 'file' }, acknowledged: true, docsUrl: 'https://mineru.net/apiManage/docs', settingsFile: 'C:\\Users\\qa\\.mineru\\settings.json' };
-const local = { state: 'ready', next: null, tier: 'basic', version: '4.0.10', estimates: { basic: 1.6, standard: 2.5 } };
-const call = async () => ({ ok: true, state: 'valid' });
+const local = { state: 'ready', next: null, origin: 'search', exe: 'C:\\Users\\qa\\.local\\bin\\mineru.exe', tier: 'basic', version: '4.0.10', estimates: { basic: 1.6, standard: 2.5 } };
+const call = async () => ({});
 
 const exam = { root: 'qa-e', decks: [{ id: 'd1', title: t('设计模式', 'Design patterns'), course: 'SWE5001', examCount: 12, examQuizCount: 8, examMultiCount: 4, available: 12 }],
   focus: { course: 'SWE5001', courses: [{ name: 'SWE5001' }], mode: 'study' }, runs: [] };
 const examCall = async action => { if (action === 'review.get') throw new Error(t('找不到这场笔试', 'That exam could not be found')); return {}; };
 
 const scenes = {
-  mineru: () => <div className="qa-body"><MineruSettings call={call} initialSettings={settings} initialLocal={local} /></div>,
+  mineru: () => <div className="qa-body"><MineruSettings call={call} initialLocal={local} /></div>,
+
   audio: () => <div className="qa-body"><AudioJobs data={{ jobs: audioJobs }} busy={false} act={() => {}} openAgent={() => {}} onOpenSources={() => {}} /></div>,
   inbox: () => <div className="qa-bar"><Inbox inbox={{ unread: 2, items: letters }} onOpen={() => {}} onReadAll={() => {}} onUndo={() => {}} /></div>,
   exam: () => <Exam call={examCall} data={exam} initialRunId="missing" onExit={() => {}} onCreate={() => {}} onCreateCase={() => {}} onStartRun={() => {}} />,

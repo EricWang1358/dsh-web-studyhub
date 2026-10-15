@@ -1,4 +1,4 @@
-/* WP-E QA: build scripts/qa/wave1-e-app.jsx and screenshot the MinerU token form, the audio job rows, the mailbox opened from the
+/* WP-E QA: build scripts/qa/wave1-e-app.jsx and screenshot the MinerU settings, the audio job rows, the mailbox opened from the
    keyboard (focus inside the panel) and the exam error state in zh x dark wide/narrow, plus the English mailbox and the light
    audio rows, then check what static markup cannot: focus after opening the mailbox, one-row job actions at 420 px.
    Usage: node scripts/qa/wave1-e.mjs [--out output/wave1-e] */
@@ -69,7 +69,8 @@ for (const [scene, lang, theme, width] of shots) {
   if (scene === 'mineru' && width === 420) {
     const overflow = await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check('MinerU settings do not scroll sideways at 420 px', overflow <= 0, String(overflow));
-    check('MinerU token field is the shared SecretKeyForm', await tab.locator('form.sh-secret input[name="mineru-token"][type="password"]').count() === 1);
+    check('MinerU settings have no token field (the cloud route was removed)', await tab.locator('input[type="password"]').count() === 0);
+
   }
   if (scene === 'audio' && width === 420) {
     const rows = await tab.evaluate(() => [...document.querySelectorAll('.sh-job')].map(row => {
