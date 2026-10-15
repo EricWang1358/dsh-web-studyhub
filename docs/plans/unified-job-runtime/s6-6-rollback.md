@@ -43,7 +43,7 @@
 | `examBlueprint` 备考补习：考点清单构建 | △ 按 v3.0.0 标签树演练，不是 2.7.1：旧版读写含 `blueprint` 字段的库，字段原样保留；2.7.1 未单独演练 | △ 蓝图是一份带附加字段的普通 source，旧版把它当普通 Markdown 资料读出并列在资料里（它不认识「考点清单不算资料」的隐藏规则，这是接受的退化）；同样只对 v3.0.0 演练 | 无 构建任务不持久（`recoveryMode: none`），重启后没有留下东西，再点一次构建；蓝图只在最后一步一次性入库，不会有半成品 | 3.1 步骤 1–2，`exam-blueprint-material.test.mjs`、`exam-blueprint-job.test.mjs` |
 | `pdfConvert` PDF 转换 | ✓ | ✓ | ✓ 在途：2.7.1 列为已中断并续做，两边多出同样的 120 页，只加一次 | S5-7 §4 |
 | `markerInstall` Marker 安装 | ✓ | ✓ | ✓ 两个版本都是"未完成"，再开始即完成 | S5-7 §4 |
-| `mineruSetup` MinerU 配置 | ✓ | ✓ | ✓ 同上 | S5-7 §4 |
+| `mineruInstall` MinerU 一键安装（3.6 起取代 mineruSetup） | 未演练：3.6 的新开关，还没有对 v2.7.1 做回滚演练 | 未演练：3.6 的新开关，还没有对 v2.7.1 做回滚演练 | 未演练：3.6 的新开关，还没有对 v2.7.1 做回滚演练 | S5-7 §4（旧 mineruSetup 的结果）；mineru-conversion.md |
 | `retrievalIndex` 检索索引 | ✓ | ✓ | ✓ 同上，按同一来源键替换 | S5-7 §4 |
 
 **没有开关的种类：课程总纲整理（`course-outline-build`，2026-10-09）。** 旧版启动、读库：未演练，但总纲和考点清单同形，是一份带附加字段（`courseOutline`，`provenance: 'course-outline'`）的普通 source，旧版读写时字段原样保留。已完成的产物：△ 旧版（3.3.0 及更早）不认识「总纲不算资料」的隐藏规则，会把它当一份 Markdown 资料列在资料里，这是接受的退化，和考点清单相同。未完成的任务：无，任务不持久（`recoveryMode: none`），总纲只在最后一步一次性入库，没有半成品，重启后再点一次「生成总纲」。证据：`course-outline-book.test.mjs`、`course-outline-job.test.mjs`。

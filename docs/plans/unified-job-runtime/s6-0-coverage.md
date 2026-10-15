@@ -61,7 +61,7 @@
 | `assist` | 助教请求的进程内执行 | `lib/contexts/study/jobs/submit-assist.js:15` | `assist-host.runtime`、`unified-runtime-assist` |
 | `pdfConvert` | PDF 云端/本地转换的旧后台运行 | `lib/contexts/audio/convert.js:49` | `mineru-service.runtime` 等 4 个孪生、`unified-runtime-pdf-convert` |
 | `markerInstall` | Marker 安装的旧后台运行 | `lib/contexts/audio/install/marker-install-runs.js:13` | `marker-install-service.runtime`、`unified-runtime-marker-install` |
-| `mineruSetup` | MinerU 本地配置的旧后台运行 | `lib/contexts/audio/setup/mineru-setup-runs.js:47` | `mineru-local-service.runtime`、`unified-runtime-mineru-setup` |
+| `mineruInstall` | 一键安装本机 MinerU 的旧后台运行（3.6 起取代 `mineruSetup`） | `lib/contexts/audio/install/mineru-install-runs.js`、`lib/tool-install.js`（旧 `start/cancel`） | `mineru-install-service.runtime`、`unified-runtime-mineru-install` |
 | `retrievalIndex` | 检索索引构建的旧后台运行 | `lib/contexts/generation/retrieval/runtime-port.js:4`（`index-runs.js`） | `wp28b-index.runtime`、`unified-runtime-retrieval-index` |
 
 **没有开关的新 Job 种类。** 课程总纲的整理任务 `course-outline-build`（2026-10-09，总纲步骤 2，`lib/contexts/generation/outline/`）和考点清单一样是新增的种类，没有旧路径可旁路，所以也不加开关：它登记在清单的 `managedDefinitions`（守卫逐个审计），没有新的模型调用点或启动点（每次调用都是网关的 Step，复用 `blueprint/jobs/ask.js`），操作是 `generation.courseOutline.build`（写入为空，总纲经资料上下文的 `sources.ingest` 入库）。证据：`course-outline-job.test.mjs`。复习全书的生成任务 `course-book-build`（2026-10-09，`lib/contexts/generation/book/`）同理：登记在 `managedDefinitions`，没有新的模型调用点或启动点（复用同一个 `ask.js`；没有总纲时，它在同一个 Job 里直接调用总纲的阶段 `organiseOutline`，不另起任务），操作是 `generation.courseBook.build`（写入为空，全书和它整理出的总纲在最后一步经 `sources.ingest` 一次入库）。证据：`course-book-job.test.mjs`。复习全书的弄懂 / 加一段任务 `course-book-ai`（2026-10-11，M4，`lib/contexts/generation/book-ai/`）同理：登记在 `managedDefinitions`，一次模型调用（复用同一个 `ask.js`），操作是 `generation.courseBook.explain`（写入为空，新块经资料上下文的 `book.aiWrite` 在书的写入队列里写进知识点自己的文件）。证据：`course-book-ai-job.test.mjs`。分析题答案卡 `case-answer-card`（2026-10-11，复习全书 M5，`lib/contexts/generation/answer-card/`）同理：登记在 `managedDefinitions`，两到三次模型调用（写、独立复核、需要时修改一次，都复用同一个 `ask.js`，用量记在 `case`），操作是 `generation.answerCard.build`（写入为空，答题卡经题库上下文的 `card.answerCard.set` 存到题目旁边，题目在任务期间被改过就拒绝保存）。证据：`answer-card-job.test.mjs`。
@@ -88,7 +88,7 @@
 |---|---|---|---|
 | `lib/contexts/audio/convert.js:52-56`（`ownWork`、`jobs.set`、`retryable.set`、`generationControllers.set`） | 旧转换后台运行 | 不走（`:49` 分派到 `startPdfConvert`） | S6-2 删除 |
 | `lib/contexts/audio/convert.js:93-95`（`recoverConvertJobs`）、`:320`（重试失败时放回） | 重启遗留的转换变成"已中断，可接着做"的记录；「接着做」开一个 Job | 仍走（只读适配；执行进运行时） | 保留例外：只读历史适配 |
-| `lib/contexts/audio/setup/legacy-setup-run.js:7`（`setups` 登记） | 旧 MinerU 配置后台运行 | 不走 | S6-2 删除 |
+| `lib/contexts/audio/install-row.js`（旧安装在任务台里的 `local-install` 行及其取消控制器）；`lib/tool-install.js`（`live` 安装槽、旧 `start/cancel`、`begin()` 里的命令）；`lib/mineru-install.js`、`lib/install-drives.js`（只读探测与卸载前停服务） | 旧 MinerU 安装后台运行；安装槽与安装阶段（Marker 与 MinerU 共用） | 旧行与旧 `start/cancel` 不走；安装槽与阶段仍走（Job 经 `claim/begin` 用同一套）；只读探测不是任务 | 旧行与旧 `start/cancel` S6-2 删除；其余保留 |
 | `lib/contexts/generation/retrieval/legacy-index-run.js:9`（`runs` 登记） | 旧索引构建后台运行 | 不走 | S6-2 删除 |
 | `lib/marker-install.js:391`（旧 `start/cancel`）、`:250`（`live` 安装槽）、`:114,197,345`（阶段里的 `runLocalCommand`） | 旧安装器；DSH_HOME 唯一安装槽；安装阶段的进程 | 旧安装器不走；安装槽与阶段仍走（Job 经 `claim/begin` 用同一套） | 旧安装器 S6-2 删除；槽与阶段保留（领域结构、provider 实现） |
 | `lib/marker-local.js:36`（`detectMarker`）、`:75`（一个 Marker 转换窗口） | 即时的"Marker 是否可用"（最长 2 分钟，调用方在等）；转换窗口在转换 Job 内 | 仍走 | 保留例外：即时请求 / provider 实现 |

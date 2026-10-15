@@ -88,7 +88,6 @@ test('both exams ask the same blank-answer question (#70)', () => {
 test('inline confirmations all use InlineConfirm and their CSS families are gone (#69)', () => {
   has('ui/CourseSettings.jsx', /InlineConfirm/);
   has('ui/Workflows.jsx', /InlineConfirm/);
-  has('ui/MineruSettings.jsx', /InlineConfirm/);
   lacks('ui/CourseSettings.jsx', /course-settings__confirm/);
   lacks('ui/Workflows.jsx', /wf-confirm/);
   lacks('ui/MineruSettings.jsx', /mineru-confirm/);
