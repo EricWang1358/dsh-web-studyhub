@@ -194,11 +194,17 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       overflow = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth }));
       assert.equal(overflow.doc <= 0, true, `${width}px: the result page does not scroll sideways: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
-      if (shots) await page.screenshot({ path: join(shots, `book-result-${tag}.png`), fullPage: true });
+      if (shots) {
+        await page.screenshot({ path: join(shots, `book-result-${tag}.png`), fullPage: true });
+        await page.locator('.coach-debrief h2').waitFor({ timeout: 10000 });
+        await page.locator('.coach-debrief').screenshot({ path: join(shots, `book-result-debrief-${tag}.png`) });
+      }
       // The seed has no step on to offer (the scope is done): a second button as the page draws one (a plain Button in the row) shows the layout. Side by side when wide;
       // in one stack, the same width as the main button, when narrow.
-      await page.evaluate(() => { const row = document.querySelector('.result-next'), button = document.createElement('button');
-        button.type = 'button'; button.className = 'sh-btn sh-btn--secondary sh-btn--md'; button.dataset.probe = 'next'; button.textContent = '继续这个范围 →'; row.append(button); });
+      // It is drawn the way the page draws it: start-aligned, the label without a text arrow and the arrow icon at its end.
+      await page.evaluate(() => { const row = document.querySelector('.result-next'), button = document.createElement('button'), arrow = row.querySelector('svg').cloneNode(true);
+        arrow.style.transform = 'scaleX(-1)';
+        button.type = 'button'; button.className = 'sh-btn sh-btn--secondary sh-btn--md sh-btn--start'; button.dataset.probe = 'next'; button.append('继续这个范围', arrow); row.append(button); });
       const probe = await page.locator('[data-probe="next"]').boundingBox(), main = await primary.boundingBox();
       if (width === 420) assert.ok(Math.abs(probe.width - main.width) <= 1 && Math.abs(probe.x - main.x) <= 1 && probe.y > main.y, `${width}px: one stack, the same width: ${JSON.stringify({ main, probe })}`);
       else assert.ok(probe.y < main.y + main.height && probe.x > main.x + main.width && probe.x - (main.x + main.width) <= 16, `${width}px: side by side, close: ${JSON.stringify({ main, probe })}`);
@@ -213,6 +219,37 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       assert.equal(await focusedId(page), `book-${hid2}`, `${width}px: the focus is on the point's heading`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-back-${tag}.png`) });
+
+      // book -> 看这题的原文 -> reader -> 练这几页: the round carries the reader's context (the request is given one here, the reader itself is not under test) and the book's trail is still
+      // there. The reader's way back is the one filled button on the page; the book adds none, and nothing else on the row goes back.
+      await page.route('**/api/call', async (route) => {
+        const body = route.request().postData() || '';
+        if (!/"action":"review\.start"/.test(body)) return route.continue();
+        const call = JSON.parse(body);
+        call.args.reading = { documentId: 'doc-l2', sourceId: 'document-l2-p2', page: 2, sectionTitle: 'Quality attribute scenarios', scope: { kind: 'chapter', count: 4, label: '这一章' } };
+        await route.continue({ postData: JSON.stringify(call) });
+      });
+      await page.locator('.book-point__practice').scrollIntoViewIfNeeded();
+      await page.locator('.book-point__practice').click();
+      await finishRound(page);
+      await page.unroute('**/api/call');
+      await page.locator('.reading-result').waitFor({ timeout: 10000 });
+      assert.equal(await page.locator('.result-page .sh-btn--primary').count(), 1, `${width}px: a reader round has exactly one filled button`);
+      assert.equal((await page.locator('.reading-result .sh-btn--primary .reading-result__label').innerText()).trim(), '回到阅读', `${width}px: and it is the reader's way back`);
+      assert.equal(await page.getByRole('button', { name: /回到复习全书|回到学习路径|返回学习库首页/ }).count(), 0, `${width}px: no second way back beside it`);
+      assert.equal(await page.locator('.result-next .sh-btn--primary').count(), 0, `${width}px: the page's own next step is a plain button`);
+      overflow = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth }));
+      assert.equal(overflow.doc <= 0, true, `${width}px: the reader round's result page does not scroll sideways`);
+      await settleAnimations(page);
+      if (shots) {
+        await page.screenshot({ path: join(shots, `reader-result-${tag}.png`), fullPage: true });
+        await page.locator('.coach-debrief h2').waitFor({ timeout: 10000 });
+        await page.locator('.coach-debrief').screenshot({ path: join(shots, `reader-result-debrief-${tag}.png`) });
+      }
+      await page.getByRole('button', { name: '返回学习库' }).first().click();
+      await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
+      await page.locator('.outline-book-line__open').click();
+      await page.locator('.book-step').waitFor({ timeout: 30000 });
 
       // The focus belongs to the return itself: leaving the book for the 总纲 and opening it again later puts nothing on the heading.
       await page.locator('.book-header').getByText('回到总纲').first().click();

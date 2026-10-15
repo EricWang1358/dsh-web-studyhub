@@ -14,12 +14,14 @@ import { RESULT_COUNTDOWN_SECONDS } from './review/session-logic.js';
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
    自动驾驶开启时按 next 倒计时执行（白名单动作，可取消）。
    「继续学习」的去向由页面决定（destination：{ kind, label, go }，见 ui/review/session-logic.js continueDestination）：
-   去向是回到原题时，这张卡不再提供任何会把人带去别处的按钮，只让自动驾驶倒计时走回原题；页面自己的「回到原题」是唯一主动作。 */
+   去向是回到原题时，这张卡不再提供任何会把人带去别处的按钮，只让自动驾驶倒计时走回原题；页面自己的「回到原题」是唯一主动作。
+   三个认知层次用三种不同的色（灰、赭、绿），不用蓝：蓝在这一页没有别的意思，也不和主按钮的朱砂抢。 */
 
 const LEVELS = [["recall", "记忆"], ["concept", "概念辨析"], ["apply", "应用分析"]];
+const LEVEL_DOT = { recall: "decor-faint", concept: "warn", apply: "ok" };
 const COUNTDOWN = RESULT_COUNTDOWN_SECONDS;
 
-export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy, nextShown = false, plain = false, debriefModel = true, onSettings, onProfileSettings }) {
+export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy, nextShown = false, onwardShown = false, plain = false, debriefModel = true, onSettings, onProfileSettings }) {
   useInjectCss(css, "study-coach");
   const [debrief, setDebrief] = useState(initial || null),
     [error, setError] = useState(""),
@@ -54,6 +56,9 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   const suggestion = next === "practice_prepared" || next === "review_weak";
   // `plain`: the page's one filled button is elsewhere (the way back to the book), so this card's buttons are plain whether or not it repeats the way on.
   const quiet = nextShown || plain;
+  /* The rules' fallback headline promises 「接着学下一批」: with a way back as the page's one button and no way on anywhere (the card has none of its own either), it says something neutral. */
+  const ownButton = !!action && !back && !nextShown;
+  const promisesNext = plain && !onwardShown && !ownButton && /接着学下一批/.test(debrief?.headline || "");
   const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题 →", [ready]) : next === "review_weak" ? ui("先补薄弱点 →") : destination?.label || ui("继续学习 →");
 
   // Autopilot: count down, then take the suggested step; any click cancels.
@@ -118,7 +123,7 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
   return (
     <ReadingBlock className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}>
       <div className="eyebrow">{ui("陪学 · 本轮建议")}</div>
-      <h2>{debrief.headline}</h2>
+      <h2>{promisesNext ? ui("这一轮的状态不错。") : debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
       {(m.gradedAnswered > 0 || m.selfAnswered > 0) && <div className="coach-score-split">
         {m.gradedAnswered > 0 && <span>{uiRich("客观题答对 {0}", <strong>{m.gradedCorrect}/{m.gradedAnswered}</strong>)}</span>}
@@ -126,11 +131,11 @@ export default function CoachDebrief({ run, call, initial, autopilot, onPractice
       </div>}
       {m.answered > 0 && (
         <>
-          <StackedBar className="coach-stack" aria-hidden="true" segments={LEVELS.map(([id]) => ({ value: m.levels?.[id]?.n || 0, tone: id === "recall" ? "neutral" : id === "concept" ? "info" : "success" }))} />
+          <StackedBar className="coach-stack" aria-hidden="true" segments={LEVELS.map(([id]) => ({ value: m.levels?.[id]?.n || 0, tone: id === "recall" ? "neutral" : id === "concept" ? "warning" : "success" }))} />
           <div className="coach-legend">
             {LEVELS.map(([id, name]) => (
               <span key={id}>
-                <i className={"coach-levels-dot " + id} style={{ background: `var(--${id === "recall" ? "decor-faint" : id === "concept" ? "info" : "ok"})` }} />
+                <i className={"coach-levels-dot " + id} style={{ background: `var(--${LEVEL_DOT[id]})` }} />
                 {uiFormat("{0} 达标 {1}/{2}", [ui(name), m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0, m.levels?.[id]?.n || 0])}
               </span>
             ))}

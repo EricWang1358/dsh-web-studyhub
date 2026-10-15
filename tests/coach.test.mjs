@@ -418,7 +418,27 @@ test("the debrief never prints a rate that does not exist: no 正确率 null% fr
   assert.equal(written.headline, "");
   const fine = await writeDebrief(async () => JSON.stringify({ headline: "接着练", why: "nullable 的写法也算数，正确率 80%。", next: "continue_path", summary: "x" }),
     { metrics: metrics(), rules: { insights: [], next: "continue_path" }, learner: {} });
-  assert.equal(fine.why, "nullable 的写法也算数，正确率 80%。", "only a bare placeholder word is dropped");
+  assert.equal(fine.why, "nullable 的写法也算数，正确率 80%。", "only a placeholder used as a number is dropped");
+  const words = await writeDebrief(async () => JSON.stringify({ headline: "NULL 的三值逻辑", why: "NaN 处理要留意 undefined 的情形。", next: "continue_path", summary: "x" }),
+    { metrics: metrics(), rules: { insights: [], next: "continue_path" }, learner: {} });
+  assert.equal(words.headline, "NULL 的三值逻辑", "a topic that is called NULL is not a placeholder");
+  assert.equal(words.why, "NaN 处理要留意 undefined 的情形。", "neither are NaN or undefined as words");
+  const spaced = await writeDebrief(async () => JSON.stringify({ headline: "接着练", why: "正确率 undefined %。", next: "continue_path", summary: "x" }),
+    { metrics: metrics(), rules: { insights: [], next: "continue_path" }, learner: {} });
+  assert.equal(spaced.why, "", "a placeholder before a percent sign is dropped even with a space between");
+});
+
+test("the model is not handed a rate that does not exist: nothing graded leaves accuracy (and selfRate, metRate) out of the prompt; real rates stay", async () => {
+  let seen = null;
+  const spy = async (system, input) => { seen = JSON.parse(input).metrics; return JSON.stringify({ headline: "a", why: "b", next: "continue_path", summary: "x" }); };
+  const rules = { insights: [], next: "continue_path" };
+  await writeDebrief(spy, { metrics: { answered: 4, accuracy: null, gradedAnswered: 0, selfAnswered: 4, selfRate: 50, metRate: 50, lowShare: 100 }, rules, learner: {} });
+  assert.equal("accuracy" in seen, false, "no graded answers: no accuracy at all");
+  assert.equal(seen.selfRate, 50);
+  assert.equal(seen.gradedAnswered, 0, "the counts stay");
+  await writeDebrief(spy, { metrics: { answered: 4, accuracy: 75, gradedAnswered: 4, selfAnswered: 0, selfRate: null, metRate: 75, lowShare: 0 }, rules, learner: {} });
+  assert.equal(seen.accuracy, 75);
+  assert.equal("selfRate" in seen, false, "no self-graded answers: no selfRate");
 });
 
 test("a conflicting model suggestion cannot send a weak session to rest", async (t) => {

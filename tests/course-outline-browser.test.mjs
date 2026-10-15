@@ -164,7 +164,14 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       assert.equal(await primary.locator('small').count(), 0);
       assert.equal(await page.locator('.review-return').count(), 0, `${width}px: the header does not say the same thing twice`);
       await settleAnimations(page);
-      if (shots) await page.screenshot({ path: join(shots, `outline-result-${tag}.png`), fullPage: true });
+      if (shots) {
+        await page.screenshot({ path: join(shots, `outline-result-${tag}.png`), fullPage: true });
+        // The 点评 card below the button: a plain surface, and the three levels in three tones, none of them blue.
+        await page.locator('.coach-debrief h2').waitFor({ timeout: 10000 });
+        await page.locator('.coach-debrief').scrollIntoViewIfNeeded();
+        await settleAnimations(page);
+        await page.locator('.coach-debrief').screenshot({ path: join(shots, `outline-result-debrief-${tag}.png`) });
+      }
       await primary.click();
       await tree.waitFor();
       assert.equal(await page.locator(`[data-outline-toggle="${book}#0"]`).getAttribute('aria-expanded'), 'true', `${width}px: back on the outline as it was left`);

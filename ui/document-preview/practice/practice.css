@@ -92,6 +92,8 @@
       .result-page .result-next--back { flex-direction: column; align-items: stretch; }
       .result-next--back > .sh-btn,
       .result-next--back > .reading-result__anchor { display: flex; width: 100%; max-width: 100%; }
+      /* Both labels start at the same inset, not centred in one and left in the other. */
+      .result-next--back > .sh-btn { justify-content: flex-start; text-align: start; }
       .result-next--back .reading-result__return { width: 100%; max-width: 100%; }
     }
     .reading-source { margin-top: var(--space-2); }
