@@ -15,22 +15,22 @@ async function copy(text) {
 }
 
 /** -> { select(id), pointFold: { folded } | null, bookFold: { folded } | null }. step: the point being read (ui/book/reading.js bookSteps). */
-export function useMoreActions({ step, course, book, notify, aiFold, reading, where, setView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord }) {
+export function useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord }) {
   const pointBlocks = useMemo(() => blocksOf(step?.node), [step]);
   const bookBlocks = useMemo(() => allBlocks(book), [book]);
   const folded = blocks => blocks.every(block => aiFold.folded(block.id, foldsByDefault(block)));
   const pointFold = pointBlocks.length ? { folded: folded(pointBlocks) } : null, bookFold = bookBlocks.length ? { folded: folded(bookBlocks) } : null;
   const select = useCallback(async id => {
-    if (id === 'edit') setView('edit');
+    if (id === 'edit') openView('edit');
     else if (id === 'create') onCreate?.();
     else if (id === 'code' && step) notify(await copy(pointCode(step.node, course)) ? ui('已复制') : { text: ui('没能复制：浏览器不让写剪贴板'), tone: 'error' });
     else if (id === 'fold-point') aiFold.foldAll(pointBlocks.map(block => block.id), !pointFold?.folded);
     else if (id === 'fold-book') aiFold.foldAll(bookBlocks.map(block => block.id), !bookFold?.folded);
     else if (id === 'scroll') where.switchReading(reading.mode === 'scroll' ? 'step' : 'scroll');
-    else if (id === 'flip') setView('flip');
+    else if (id === 'flip') openView('flip');
     else if (id === 'today') setTodayOpen(value => !value);
     else if (id === 'exam-date' || id === 'settings') onCourseSettings?.(courseRecord?.id);
     else setDialog(id);
-  }, [step, course, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, setView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord]);
+  }, [step, course, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord]);
   return { select, pointFold, bookFold };
 }

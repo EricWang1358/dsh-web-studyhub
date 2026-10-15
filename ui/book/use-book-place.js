@@ -53,7 +53,7 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
   useLayoutEffect(() => {
     // 逐节读's new point shows from its top (its path); in 翻看 a point is its row (`flip-<id>`); else its heading.
     const wanted = restore.current, page = pageRef.current, element = wanted && ((wanted.step && page?.querySelector(`[data-book-step="${CSS.escape(wanted.hid)}"]`))
-      || document.getElementById(`book-${wanted.hid}`) || document.getElementById(`flip-${wanted.hid}`));
+      || document.getElementById(`book-${wanted.hid}`) || (!wanted.read && document.getElementById(`flip-${wanted.hid}`)));
     if (!element) return;
     restore.current = null;
     // The page is still rising into place (shell.css page-in: a few pixels of translateY), which moves every rectangle measured below by what is left of it.
@@ -165,10 +165,12 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     reading.setMode(value);
   }, [steps, current, rows, chapters, reading]);
   const toggleChapter = useCallback((hid, value) => setOpen(c => { const next = new Set(c); if (value) next.add(hid); else next.delete(hid); return next; }), []);
-  // A book read again in place (what the main chat wrote): the heading being read stays where it is on screen.
+  // A book read again in place (what the main chat wrote), or the reading surface drawn again after the editor or 翻看: the heading being read stays (or
+  // comes back) where it was on screen.
   const hold = useCallback(() => {
     const id = live.current.id, element = id && document.getElementById(`book-${id}`);
-    if (element) restore.current = { hid: id, offset: element.getBoundingClientRect().top };
+    // `read`: for the reading surface only (not a row of 翻看, which may be what is drawn until then).
+    if (element) restore.current = { hid: id, offset: element.getBoundingClientRect().top, read: true };
   }, []);
   return { kept, open, toggleChapter, here, stepAt, current, goTo, go, switchReading, remember, hold };
 }

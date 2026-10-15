@@ -71,13 +71,15 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const sendToChat = useSendToChat(course);
   const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai, foldAi: aiFold.fold });
   const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
-  const [tocOver, setTocOver] = useState(false);
+  const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);
   const tocOpen = narrow ? tocOver : tocWide;
   useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
   // Leaving the editor with unsaved text asks first (the 完成 button, 回到总纲, another course).
   const guard = useCallback(then => (view === 'edit' && dirty ? setLeaving(() => then) : then()), [view, dirty]);
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
+  // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
+  const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
   const courseName = course === '' ? ui('未分类课程') : course || '';
   const courseRecord = (data?.courses || []).find(item => item.name === course);
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
@@ -85,7 +87,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask}
     onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
-  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, setView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord });
+  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord });
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('复习全书读取失败')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
@@ -128,7 +130,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       onLeave={() => { const then = leaving; back(); then?.(); }} onDone={() => guard(back)} /></section>;
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
     <FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
-      onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => { setView('read'); where.goTo(step?.hid ?? ''); }} />{askPanel}{dialogs}</section>;
+      onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} />{askPanel}{dialogs}</section>;
   return (
     <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
       {header}
@@ -137,11 +139,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         onToc={() => (narrow ? setTocOver(value => !value) : setTocWide(!tocWide))} onPrev={where.current > 0 ? () => where.go(-1) : null}
         onNext={where.current < steps.length - 1 ? () => where.go(1) : null} more={menu} notice={notice} />
       {plan.day && todayOpen && <TodayPanel course={course} crunch={plan.crunch} day={plan.day} points={plan.points}
-        onRead={point => { if (plan.day.mode === 'flip') { setView('flip'); return; } where.goTo(point.id); }}
+        onRead={point => { if (plan.day.mode === 'flip') { openView('flip'); return; } where.goTo(point.id); }}
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
-        onFlip={() => setView('flip')} onMockStarted={onExamRun} />}
+        onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={() => setTocOver(false)} returnRef={tocRef} coverage={book.coverage ?? null} />}
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} />}
         <ReadingBlock className="book-read" measure onMouseUp={ai.onSelect}>
           <AiFoldContext.Provider value={aiFold}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />

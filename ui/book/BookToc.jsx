@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useRef } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
@@ -33,6 +33,8 @@ export const BookTocList = memo(function BookTocList({ entries, here, onGo }) {
 export default function BookToc({ entries, here, onGo, narrow, onClose, returnRef, coverage }) {
   useInjectCss(css, 'study-book-toc');
   const panel = useRef(null);
+  // A row goes there, and closes the slide-over (one handler, so the memoised list is not drawn again for nothing).
+  const go = useCallback(id => { onGo(id); if (narrow) onClose(); }, [onGo, narrow, onClose]);
   // The slide-over takes the focus (the panel itself, so no row's code pops up; Tab goes to the rows) and gives it back to the 目录 button when it closes; Esc
   // closes it. The row being read is scrolled into the panel's view.
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
       {coverage && <Tooltip layer content={ui('按清点出来的资料条目算：用了几份资料、读了几页，几个知识点讲全了，几个概念讲到了')} anchorClassName="book-toc__levels-tip">
         <p className="book-toc__levels" data-book-levels="" tabIndex={0}>{levelsText(coverage)}</p>
       </Tooltip>}
-      <BookTocList entries={entries} here={here} onGo={id => { onGo(id); if (narrow) onClose(); }} />
+      <BookTocList entries={entries} here={here} onGo={go} />
     </nav>
   </>;
 }

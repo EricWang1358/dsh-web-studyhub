@@ -76,12 +76,18 @@ test('复习全书 frame: the sticky bar, no mode switch, 更多 › 翻看 and 
       // ›: the next point, under the bar; 更多 › 翻看 takes the page's place, 「完成 · 回到阅读」 comes back to that point.
       await page.locator('.book-bar__next').click();
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep === id, points[1].hid);
+      await scrollBy(page, 300);
+      await page.waitForTimeout(200);
+      const reading = await headingTop(page, points[1].hid);
       await more(page, /^翻看/);
       await page.locator('.book-flip').waitFor({ timeout: 30000 });
       assert.equal(await page.locator('.book-bar').count(), 0, `${width}px: 翻看 takes the page's place`);
       await page.locator('.book-mode__done').click();
       await page.locator('.book-step').waitFor();
       assert.equal(await stepOf(page), points[1].hid, `${width}px: back at the same point`);
+      await page.waitForTimeout(200);
+      const again = await headingTop(page, points[1].hid);
+      assert.ok(Math.abs(again - reading) <= 3, `${width}px: and where it was on screen: ${reading} -> ${again}`);
 
       // The place: the third point, scrolled into it; a reload (and the sidebar) lands there at the same offset.
       await page.locator('.book-bar__next').click();
