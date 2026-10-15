@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, ConfirmDialog, Disclosure, Hint, InlineMessage, JobRow, RadioCard, RadioCardGroup, Tooltip, useToast } from './components/index.js';
-import { useStudy } from './study-context.jsx';
+import { Badge, Button, ConfirmDialog, Disclosure, Hint, InlineMessage, JobRow, LoadingState, RadioCard, RadioCardGroup, Tooltip, useToast } from './components/index.js';
+import { useLiveEffect } from './use-async.js';
+import { StudyServicesContext, useStudy } from './study-context.jsx';
 import { sizeLabel } from './mineru-flow.js';
 import { STATUS_TEXT, VC_REDIST_URL, cardState, errorHint, errorTitle, fixFor, installProgress, locationHint, sourceName, stageName, stageStates } from './mineru-install-flow.js';
 import { refreshMineruLocal, useMineruInstall, useMineruState } from './use-mineru.js';
@@ -41,8 +42,10 @@ const downloaded = install => {
   return match ? uiFormat('已下载 {0} / 约 {1}', [match[1], match[2]]) : '';
 };
 
-export default function MineruInstallCard({ call, compact = false, onOpenSettings, initialLocal = null, initialPlan = null, initialMore = false, pickDirectory, className }) {
+export default function MineruInstallCard({ call: given, compact = false, onOpenSettings, initialLocal = null, initialPlan = null, initialMore = false, pickDirectory, className }) {
   useInjectCss(css, 'study-mineru-install');
+  // `call` is the page's when it hands one (Settings, previews); inside the app the card asks the host itself (ui/study-context.jsx).
+  const services = useContext(StudyServicesContext), call = given || services?.call;
   const toast = useToast(), study = useStudy(), pick = pickDirectory || study.host?.pickDirectory;
   const usable = typeof call === 'function';
   const { local, setLocal } = useMineruState({ call, initialLocal, enabled: usable });
@@ -65,16 +68,14 @@ export default function MineruInstallCard({ call, compact = false, onOpenSetting
   const installed = !!install?.installed;
   const currentTier = install?.tier || view?.tier || '';
   const wantsPlan = usable && (shown.state === 'not-installed' || shown.state === 'error' || choosing || moreOpen || moving);
-  useEffect(() => {
-    if (!wantsPlan) return undefined;
-    if (skipPlan.current) { skipPlan.current = false; return undefined; }
-    let live = true;
+  useLiveEffect(live => {
+    if (!wantsPlan) return;
+    if (skipPlan.current) { skipPlan.current = false; return; }
     setPlanning(true);
     Promise.resolve(call('mineru.install.plan', { ...(location ? { location } : {}), ...(tier ? { tier } : {}), ...(source ? { source } : {}), ...(python ? { python } : {}) }))
-      .then(value => { if (live && alive.current) setPlan(value); }, failure => { if (live && alive.current) setError(errorMessage(failure)); })
-      .finally(() => { if (live && alive.current) setPlanning(false); });
-    return () => { live = false; };
-  }, [wantsPlan, location, tier, source, python, nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+      .then(value => { if (live()) setPlan(value); }, failure => { if (live()) setError(errorMessage(failure)); })
+      .finally(() => { if (live()) setPlanning(false); });
+  }, [wantsPlan, location, tier, source, python, nonce]);
 
   const act = async (name, work) => {
     if (flight.current || !usable) return;
@@ -124,7 +125,10 @@ export default function MineruInstallCard({ call, compact = false, onOpenSetting
       <TipBadge tip={tip} tone={text.tone}>{text.badge()}</TipBadge>
       <p className="mineru-install__sentence">{text.sentence(view, shown.code)}</p>
     </div>
-    {!['checking', 'installing'].includes(shown.state) && <Button size="sm" variant="quiet" className="mineru-install__recheck" busy={working === 'recheck'} disabled={!usable || (!!working && working !== 'recheck')} onClick={recheck}>{ui('重新检测')}</Button>}
+    {/* While it checks the button keeps its place (hidden), so the line does not wrap differently when the answer arrives. */}
+    {['checking', 'installing'].includes(shown.state)
+      ? shown.state === 'checking' && <span className="mineru-install__recheck" data-reserved="" aria-hidden="true"><Button size="sm" variant="quiet" tabIndex={-1} disabled>{ui('重新检测')}</Button></span>
+      : <Button size="sm" variant="quiet" className="mineru-install__recheck" busy={working === 'recheck'} disabled={!usable || (!!working && working !== 'recheck')} onClick={recheck}>{ui('重新检测')}</Button>}
   </div>;
 
   /* ---------- the install offer: location, facts, the one button ---------- */
@@ -137,7 +141,7 @@ export default function MineruInstallCard({ call, compact = false, onOpenSetting
   const facts = plan && !planning
     ? <>{uiFormat('下载约 {0} · 占用约 {1} · 约 {2}–{3} 分钟 · 下载源：{4}', [sizeLabel(plan.estimate?.downloadMb), sizeLabel(plan.disk?.neededMb), plan.estimate?.minutes?.[0], plan.estimate?.minutes?.[1], sourceName(plan.source?.id)])}
       {reach && <> <TipBadge tip={sourceTip(plan.source)} tone={reach.tone}>{reach.text}</TipBadge></>}</>
-    : ui('正在计算剩余空间…');
+    : <LoadingState inline label={ui('正在计算剩余空间…')} />;
   const offer = ({ primary = true, label } = {}) => <div className="mineru-install__offer">
     <div className="mineru-install__where">
       <span className="mineru-install__label">{ui('安装位置')}</span>
@@ -200,7 +204,7 @@ export default function MineruInstallCard({ call, compact = false, onOpenSetting
   const running = view?.running === true || shown.state === 'ready';
   const chosenTier = tier || currentTier || plan?.tier || 'basic';
   const more = !compact && <Disclosure summary={ui('更多')} className="mineru-install__more" open={moreOpen} onToggle={setMoreOpen}>
-    {moreOpen && <>
+    {moreOpen && <div className="mineru-install__more-body">
       <RadioCardGroup legend={ui('模型档位')} className="mineru-install__choices">
         <RadioCard name="mineru-install-tier" value="basic" checked={chosenTier === 'basic'} onSelect={setTier} disabled={!!working} title="basic"
           hint={ui('模型约 0.8 GB · 每页约 1.6 秒（估算）')} />
@@ -241,10 +245,10 @@ export default function MineruInstallCard({ call, compact = false, onOpenSetting
         <pre className="mineru-install__pre"><code translate="no">{(plan?.commands || []).map(item => item.command).join('\n')}</code></pre>
         <Hint>{ui('只在上面的安装位置里创建程序、Python 和模型，不修改系统设置，也不需要管理员权限。')}</Hint>
       </Disclosure>
-    </>}
+    </div>}
   </Disclosure>;
 
-  return <section className={`mineru-install${compact ? ' is-compact' : ''}${className ? ` ${className}` : ''}`} data-state={shown.state} aria-label={ui('本机 MinerU')}>
+  return <section className={`mineru-install${compact ? ' mineru-install--compact' : ''}${className ? ` ${className}` : ''}`} data-state={shown.state} aria-label={ui('本机 MinerU')}>
     {status}
     <div className="mineru-install__body">{body}</div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}

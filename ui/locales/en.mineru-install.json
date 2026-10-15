@@ -126,9 +126,10 @@
   "在「设置 › PDF 转换（MinerU）」点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹（默认不在 C 盘），之后在本机解析，不上传文档，不需要令牌。": "Choose “One-click install” under Settings › PDF conversion (MinerU): StudyHub puts the program, Python and the models into one folder (not on C by default), then converts on this computer, uploads nothing and needs no token.",
   "点下面的「开始本地解析」：用本机的 MinerU（免费、不上传）。还没装好时，下面就有「一键安装」。": "Select “Start local conversion” below: it uses MinerU on this computer (free, nothing uploaded). If it is not installed yet, “One-click install” is right below.",
   "转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。": "The result keeps page numbers so StudyHub can cite by page; a big book is processed in pieces sized to this computer's speed.",
-  "本机服务已经停止，这一段多半会失败。失败之后点「接着做」：会先启动服务，已经完成的段落会保留。": "The local service has stopped, so this piece will most likely fail. After it fails, select Resume: the service starts first and finished pieces are kept.",
-  "点「接着做」会先启动本机服务，已完成的段落会保留。": "Resume starts the local service first; finished pieces are kept.",
+  "本机服务已经停止，这一段多半会失败。失败之后点「接着做」：会先启动服务，已经完成的段落会保留。": "The local service has stopped, so this piece will most likely fail. After it fails, select Continue: the service starts first and finished pieces are kept.",
+  "点「接着做」会先启动本机服务，已完成的段落会保留。": "Continue starts the local service first; finished pieces are kept.",
   "启动本机服务": "Starting the local service",
   "会先启动本机 MinerU 服务，再从停下的那一段接着解析。": "Starts the local MinerU service first, then continues from the piece that stopped.",
-  "已完成的段落会直接复用，不会重复解析。": "Finished pieces are reused, not converted again."
+  "已完成的段落会直接复用，不会重复解析。": "Finished pieces are reused, not converted again.",
+  "云端解析已停用；请重新选择这份 PDF 用本机解析。": "Cloud conversion has been removed; choose this PDF again to convert it on this computer."
 }

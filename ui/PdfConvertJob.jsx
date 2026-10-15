@@ -49,7 +49,7 @@ export function PdfDetail({ job, expandChunks }) {
     <div className="pdf-detail">
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
-        {job.route === 'local' && (count > 1 || adaptive) && !job.toolProgress && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
+        {job.route === 'local' && job.phase !== 'start-service' && (count > 1 || adaptive) && !job.toolProgress && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
         {job.route === 'local' && job.local?.eta && <small className="pdf-eta">{etaText(job.local.eta)}</small>}
         {job.route === 'local' && job.local?.pace && <Hint as="small">{uiFormat('这台电脑每页约 {0} 秒', [job.local.pace.secondsPerPage])}</Hint>}
       </>}
@@ -168,7 +168,7 @@ function environmentHeading(env, converter) {
 /**
  * The 运行环境 of a conversion: WHAT is doing the work, so a slow or failed run is never a mystery. Local: the mineru version, the tier and what it means,
  * the model folder in use (and where the models live, in a disclosure: the folder may be a link to another drive), a device only when the CLI said one,
- * whether the service is up, and how pages are worked on. Cloud: MinerU, the model version and language, that the saved token is used (never shown), the
+ * whether the service is up, and how pages are worked on. Cloud (old rows, the route was removed in 3.6): MinerU, the model version and language, the
  * piece limits and the size of the book. One component for the live card (`service`: the state kept honest while it runs) and the history rows
  * (`bare`, no service, `stoppedAtFailure` from the record).
  */
@@ -181,7 +181,7 @@ export function ConversionEnvironment({ env, converter, service, stoppedAtFailur
   const pace = timings?.secondsPerPage > 0 ? timings.secondsPerPage : pages > 0 ? Math.round(timed.reduce((sum, window) => sum + window.seconds, 0) / pages * 100) / 100 : 0;
   const head = environmentHeading(env, converter);
   const state = service?.state, confirmed = service?.at ? formatAgo(service.at, now) : '';
-  const serviceText = state === 'running' ? ui('本地服务运行中') : state === 'stopped' ? ui('本地服务已停止') : ui('无法确认本地服务是否在运行');
+  const serviceText = state === 'running' ? ui('本地服务运行中') : state === 'starting' ? ui('服务正在启动') : state === 'stopped' ? ui('本地服务已停止') : ui('无法确认本地服务是否在运行');
   return (
     <div className="pdf-env" role="group" aria-label={ui('运行环境')} data-route={local ? 'local' : 'cloud'}>
       {!bare && <strong className="pdf-env__title">{ui('运行环境')}</strong>}
@@ -194,7 +194,6 @@ export function ConversionEnvironment({ env, converter, service, stoppedAtFailur
         </details></li>}
         {local && env.device && <li>{uiFormat('设备：{0}', [env.device])}</li>}
         {!local && env.language && <li>{uiFormat('识别语言：{0}', [env.language])}</li>}
-        {!local && <li>{ui('使用你保存的令牌（令牌不会显示）')}</li>}
         {!local && env.maxPages > 0 && env.maxBytes > 0 && <li>{Number.isFinite(env.bookBytes)
           ? uiFormat('每段不超过 {0} 页 / {1} MB · 本书 {2}', [env.maxPages, megabytes(env.maxBytes), formatBytes(env.bookBytes)])
           : uiFormat('每段不超过 {0} 页 / {1} MB', [env.maxPages, megabytes(env.maxBytes)])}</li>}
@@ -205,7 +204,7 @@ export function ConversionEnvironment({ env, converter, service, stoppedAtFailur
           <ol>{(timings.windows).map((window, position) => <li key={`${window.start}-${window.end}`}>{uiFormat('第 {0} 段 · 第 {1} 页', [position + 1, pageRange(window.start, window.end)])}
             {window.seconds > 0 ? ` · ${formatDuration(window.seconds * 1000)}` : window.state === 'failed' ? ` · ${ui('没有完成')}` : ''}</li>)}</ol>
         </details></li>}
-        {managesService && service && <li className={`pdf-env__service${state === 'stopped' ? ' pdf-env__warning' : ''}`} data-state={['running', 'stopped'].includes(state) ? state : 'unknown'}>
+        {managesService && service && <li className={`pdf-env__service${state === 'stopped' ? ' pdf-env__warning' : ''}`} data-state={['running', 'stopped', 'starting'].includes(state) ? state : 'unknown'}>
           <span className="pdf-env__dot" aria-hidden="true" />{serviceText}{state === 'running' && confirmed ? ` ${uiFormat('（{0}确认）', [confirmed])}` : ''}</li>}
         {managesService && state === 'stopped' && <li className="pdf-env__hint">{ui('点「接着做」会先启动本机服务，已完成的段落会保留。')}</li>}
         {managesService && !service && stoppedAtFailure && <li className="pdf-env__note">{ui('失败时本地服务已停止')}</li>}
@@ -288,7 +287,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         {status === 'interrupted' && <small>{ui('上次没有做完（应用被关闭，或意外中断）。')}</small>}
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
         {progress && <small>{progress}</small>}
-        {stuck && <Hint as="small">{ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。')}</Hint>}
+        {stuck && <Hint as="small">{row.route === 'local' ? ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。') : ui('云端解析已停用；请重新选择这份 PDF 用本机解析。')}</Hint>}
         {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment converter={row.converter} env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
           timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">

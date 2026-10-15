@@ -21,7 +21,7 @@ import css from './large-documents.css';
 
 const SUMMARY = {
   'mineru-local': () => ui('在「设置 › PDF 转换（MinerU）」点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹（默认不在 C 盘），之后在本机解析，不上传文档，不需要令牌。'),
-  mineru: () => ui('手动路线：有图形界面的桌面客户端（Windows / macOS），或本地命令行 mineru parse --pages。导出带页码的 JSON 再拖进来。'),
+  mineru: () => <>{ui('桌面客户端目前也反馈不可用，优先使用上面的本地模型；客户端恢复后可再尝试。')}{' '}{ui('手动路线：有图形界面的桌面客户端（Windows / macOS），或本地命令行 mineru parse --pages。导出带页码的 JSON 再拖进来。')}</>,
   docling: () => ui('开源（MIT），输出带页码的 JSON，适合愿意用命令行或 Python 的人。导入时选它输出的 .json。'),
   'mcp-local-rag': () => ui('在本机检索，文档不出电脑；读 PDF、Word、Markdown 和纯文本。默认的向量模型偏英文，中文教材要换多语言模型。'),
   ragflow: () => ui('完整的知识库应用（用 Docker 运行，建议 16 GB 内存），中文友好；通过 MCP 接口被 DSH 调用。'),

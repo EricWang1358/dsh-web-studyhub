@@ -118,7 +118,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
   // What the chosen tool still needs: MinerU installs right here (one click); Marker is set up in Settings.
   const gate = !usable && (available && !isMarker
-    ? <MineruInstallCard compact call={call} onOpenSettings={onOpenSettings ? section => onOpenSettings(section, { file }) : undefined} />
+    ? <MineruInstallCard compact initialLocal={local} onOpenSettings={onOpenSettings ? section => onOpenSettings(section, { file }) : undefined} />
     : <InlineMessage tone="info" boxed>
       {!available ? ui('PDF 解析随音频组件一起提供，这个安装没有启用它。请在 DSH 插件管理器中启用音频组件。') : ui('先在设置里安装或配置 Marker。')}
       {onOpenSettings && available && <Button variant="link" onClick={() => onOpenSettings('settings-marker', { file })}>{ui('前往设置')}</Button>}

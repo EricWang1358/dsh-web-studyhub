@@ -121,7 +121,6 @@
   "解析工具": "Converter",
   "调用本机 Marker，自动导入": "Run local Marker and import automatically",
   "先在设置里安装或配置 Marker。": "Install or configure Marker in Settings first.",
-  "先在设置里准备本机 MinerU。": "Set up local MinerU in Settings first.",
   "用 Marker 开始解析": "Start conversion with Marker",
   "本地 Marker": "Local Marker",
   "每次解析 PDF 都会记录文件名、解析工具、耗时和结果，不保存文档内容。": "PDF conversion history records filenames, converters, timings and results, without document content.",
