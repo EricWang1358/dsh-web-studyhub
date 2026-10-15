@@ -22,7 +22,7 @@ The book page can fill the chat's input box for you (it never sends; you read th
 
 - **Send to the main chat** on a point's action row: a small popover with a box for what you want changed and **Send**. The box may be empty (the message then asks the chat to make the point clearer and easier to read). Three presets fill the box in one tap: **Polish into plain language**, **Fill in the concepts it skips**, **Add examples and transitions**. Ctrl+Enter sends from the box; Escape closes the popover and the focus goes back to the button.
 - **Send to the main chat** in the panel over selected words (beside **Understand it**, using the same box): the message carries the selected words and the same point, and asks the chat to change only what concerns them. It does not need a model of the app.
-- **Whole book · send to the main chat** in the header: the same popover; the message has no point and tells the chat to start with `book.toc` and go one point at a time. With an empty box the chat is asked to propose which points are worth changing first, and to write only after you choose.
+- **More › Whole book · send to the main chat…** in the book bar: the same form, in a dialog; the message has no point and tells the chat to start with `book.toc` and go one point at a time. With an empty box the chat is asked to propose which points are worth changing first, and to write only after you choose.
 
 When the host has no chat box (the app is opened on its own), the message is copied to the clipboard instead and a note says so. You can also just tell the main chat how you want the book changed, without any button.
 
