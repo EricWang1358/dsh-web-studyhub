@@ -8,6 +8,7 @@ import { courseScope } from '../lib/course-tree.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { materialRelations } from '../lib/source-relations.js';
 import { displayTitle } from '../lib/document-title.js';
+import { isPagedFormat, isSlideFormat } from '../lib/office/limits.js';
 import IndexBadge, { IndexGapLine } from './IndexBadge.jsx';
 import { documentIndexState } from './index-coverage.js';
 import { indexGap } from './index-scope.js';
@@ -19,7 +20,7 @@ import { formatNumber } from './format.js';
    documents. The selection itself stays a list of source ids, so the generate
    action is unchanged. */
 
-const FORMAT_LABELS = { pdf: 'PDF', docx: 'Word', pptx: 'PowerPoint', md: 'Markdown', html: 'HTML', txt: 'TXT', audio: '录音逐字稿', json: 'JSON 题组', text: '文本' };
+const FORMAT_LABELS = { pdf: 'PDF', docx: 'Word', pptx: 'PowerPoint', ppt: 'PowerPoint', md: 'Markdown', html: 'HTML', txt: 'TXT', audio: '录音逐字稿', json: 'JSON 题组', text: '文本' };
 
 /**
  * The one label for where a material came from. Accepts a source or a
@@ -34,13 +35,13 @@ export function sourceFormatLabel(value) {
     // A book imported from a converter's output (WP28): paged like a PDF, but there is no PDF.
     if (value.converted) return parts === 1 ? uiFormat('{0} · 1 页', [ui('转换文档')]) : uiFormat('{0} · {1} 页', [ui('转换文档'), parts]);
     if (value.format === 'pdf') return parts === 1 ? uiFormat('{0} · 1 页', [base]) : uiFormat('{0} · {1} 页', [base, parts]);
-    if (value.format === 'pptx') return parts === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [parts]);
+    if (isSlideFormat(value.format)) return parts === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [parts]);
     if (value.format === 'audio' && parts > 1) return uiFormat('{0} · {1} 部分', [base, parts]);
     return base;
   }
   const format = sourceFormat(value), base = value.document?.origin === 'converted' ? ui('转换文档') : ui(FORMAT_LABELS[format]);
   if (isLegacyExtraction(value)) return uiFormat('{0} · 旧版提取，建议重新导入', [base]);
-  if ((format === 'pdf' || format === 'pptx') && Number.isInteger(value.document?.page)) return uiFormat('{0} · 第 {1} 页', [base, value.document.page]);
+  if (isPagedFormat(format) && Number.isInteger(value.document?.page)) return uiFormat('{0} · 第 {1} 页', [base, value.document.page]);
   return base;
 }
 
@@ -102,7 +103,7 @@ export const documentSearchText = item => [item.title, item.filename, item.renam
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;
 
-const pageLabel = (item, page) => item.format === 'pdf' || item.format === 'pptx'
+const pageLabel = (item, page) => isPagedFormat(item.format)
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
 
@@ -156,7 +157,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
         </label>
         {multi && <Button variant="quiet" size="sm" className="source-picker__expand" aria-expanded={open} aria-controls={chaptered ? chaptersId : listId}
           iconEnd="chevron" onClick={() => setOpen(value => !value)}>
-          {open ? ui('收起') : chaptered ? ui('选择章节') : item.format === 'pdf' || item.format === 'pptx' ? ui('选择页面') : ui('选择部分')}
+          {open ? ui('收起') : chaptered ? ui('选择章节') : isPagedFormat(item.format) ? ui('选择页面') : ui('选择部分')}
         </Button>}
       </div>
       {multi && open && chaptered && <div id={chaptersId} className="source-picker__chapters">

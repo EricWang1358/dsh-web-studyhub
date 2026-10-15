@@ -38,7 +38,9 @@ test('formats and MIME types for Word and PowerPoint', () => {
   assert.match(mimeFor('docx'), /wordprocessingml\.document$/);
   assert.match(mimeFor('pptx'), /presentationml\.presentation$/);
   assert.throws(() => formatFor({ filename: 'old.doc' }), /Supported document formats/);
-  assert.throws(() => formatFor({ filename: 'old.ppt' }), /Supported document formats/);
+  assert.equal(formatFor({ filename: 'old.PPT' }), 'ppt');
+  assert.equal(mimeFor('ppt'), 'application/vnd.ms-powerpoint');
+  assert.throws(() => formatFor({ filename: 'old.doc' }), /Supported document formats/);
 });
 
 test('size limits are one constant per format', () => {
