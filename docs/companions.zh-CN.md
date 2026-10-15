@@ -55,4 +55,4 @@ dsh plugin --profile web add @tt-a1i/archify-dsh@1.0.0
 
 ## 更多搭配
 
-占位：以后 StudyHub 可能推荐的其他工具（重型的 PDF 转换和检索已经各有自己的说明：[大教材](large-documents.zh-CN.md)和[用 MinerU 转换 PDF](mineru-conversion.zh-CN.md)）。每一个都会按同样的格式写：它是什么、为什么推荐、怎么安装、怎么交接、什么留在你的学习库里。
+占位：以后 StudyHub 可能推荐的其他工具（重型的 PDF 转换和检索已经各有自己的说明：[大教材](large-documents.zh-CN.md)和[用 MinerU 转换 PDF](mineru-conversion.zh-CN.md)，MinerU 由 StudyHub 用「一键安装」装到这台电脑上）。每一个都会按同样的格式写：它是什么、为什么推荐、怎么安装、怎么交接、什么留在你的学习库里。

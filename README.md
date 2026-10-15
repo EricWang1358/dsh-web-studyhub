@@ -77,7 +77,7 @@ Old .doc files (and .wps, .key, .pages) are not read. Save them as .docx or PDF 
 **Large textbooks** (over 8 MB or 200 pages):
 
 - Click **Convert with MinerU** in the import window. StudyHub converts PDFs up to 800 MB and imports the result as one paged book that you can choose by chapter.
-- Start with local `mineru`: install it, then download and enable the parsing models in Settings. The PDF stays on your computer. **Cloud conversion is temporarily unavailable; use local models first.** The cloud option remains available for manual selection after service recovers; it requires your own MinerU token and upload consent.
+- MinerU runs on this computer. Click **One-click install** in **Settings › PDF conversion** (or right in the import window): StudyHub puts the program, Python and the models into one folder, not on the system drive by default, with no admin rights and nothing to install beforehand. The PDF stays on your computer and no token is needed. The cloud route was removed in 3.6 ([details](docs/mineru-conversion.md)).
 - To practise across a whole book, use the search extension or the **Step-by-step path** on **Create deck**.
 
 See [large textbooks](docs/large-documents.md) and [MinerU conversion](docs/mineru-conversion.md).
@@ -187,13 +187,13 @@ Then restart DSH. Quit the desktop app fully (including the tray icon) and reope
 **Stays on your computer**
 
 - The library: sources and their original files, decks, answers and review schedules, saved in shards. By default it is in the DSH session's workspace folder; choose another folder in **Settings › Library & model**.
-- Transcription keys and the MinerU token, in `study/` in your DSH home (by default `~/.dsh/study/`). They never enter the library, exports or backups. DSH keeps the model keys.
+- Transcription keys, in `study/` in your DSH home (by default `~/.dsh/study/`). They never enter the library, exports or backups. DSH keeps the model keys. (A MinerU token saved by a version before 3.6 stays in `study/mineru.json`; nothing reads it any more, and you can delete it.)
 - The usage frequency record, if you turn it on in **Settings › Usage frequency record**. It is off by default, and StudyHub never sends it anywhere ([details](docs/usage-frequency.md)).
 
 **Leaves your computer only when you use the feature**
 
 - Generating questions or asking for help sends the selected source text to your model provider through DSH. **Suggest a focus** sends only titles and headings.
-- Recordings go to your transcription provider. MinerU cloud conversion uploads the PDF to MinerU after you agree.
+- Recordings go to your transcription provider. PDF conversion with MinerU runs on this computer; installing it downloads the program and its models (from mainland mirrors or the official sources) and uploads nothing.
 - The update check asks GitHub for the latest version and sends no study data.
 
 **Backups and older libraries**

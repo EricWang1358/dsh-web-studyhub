@@ -55,4 +55,4 @@ What this does not do: it cannot stop a page from using your CPU, or from drawin
 
 ## More companions
 
-Placeholder: other tools StudyHub may recommend later (heavy PDF conversion and retrieval already link to their own guides: [large textbooks](large-documents.md) and [MinerU conversion](mineru-conversion.md)). Each will get the same shape: what it is, why, how to install, how the hand-off works, and what stays in your library.
+Placeholder: other tools StudyHub may recommend later (heavy PDF conversion and retrieval already link to their own guides: [large textbooks](large-documents.md) and [MinerU conversion](mineru-conversion.md), which StudyHub installs on this computer with **One-click install**). Each will get the same shape: what it is, why, how to install, how the hand-off works, and what stays in your library.

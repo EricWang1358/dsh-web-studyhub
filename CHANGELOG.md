@@ -2,6 +2,18 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.6.0 — unreleased
+
+- **MinerU installs in one click, on this computer only.** **Settings › PDF conversion (MinerU)** has one card: a status line (checking, not installed, installing step n of 6, installed with the service stopped, ready, or a problem with exactly one fix button), one install location and one button, **One-click install**. StudyHub puts a pinned `uv`, its own Python 3.12, `mineru>=4.0,<5`, the models and MinerU's settings into one folder: by default `X:\StudyHub\MinerU` on the non-system drive with the most free space, not on C. No admin rights and nothing installed beforehand; cancel keeps what was downloaded, and **Continue installing** picks up at the step that stopped. Two download sources, the mainland mirror (Tsinghua PyPI, npmmirror, ModelScope) and the overseas official one, chosen automatically. The same card appears in the import dialog when MinerU is not ready, so there is no trip to Settings. A conversion that finds the service stopped (after a reboot) starts it first. The install shows in **Tasks**; **More** has the tier, the source, a system Python, stop, move and uninstall (only what StudyHub created is removed).
+- **The MinerU cloud route is removed.** Its entry had stopped working, and a request without a route went to it, so the main chat's conversions failed. Every conversion is now local; a request for the cloud is refused with what to do instead. Old cloud rows still show in the conversion history but cannot be resumed.
+
+Read this before you upgrade:
+
+- A MinerU token saved by an older version stays in `<DSH home>/study/mineru.json`. Nothing reads it any more; delete the file by hand if you like. `MINERU_API_KEY` is ignored.
+- The runtime pilot switch `mineruSetup` is replaced by `mineruInstall` (off by default); a config that still has `mineruSetup` loads and ignores it.
+
+未验证 (not verified): the install was tested with a local package index, a fake `uv` and a fake `mineru` only; nothing was downloaded or installed for real. The download and disk sizes are estimates. Whether `MINERU_HOME` keeps the models and the service state inside the folder, the `mineru-kit models download|verify` flags, the `config set` keys of MinerU 4.0.12, the npmmirror Python mirror with the pinned `uv`, and whether a fresh Windows needs the VC++ runtime can only be checked on a real Windows machine.
+
 ## 3.5.0 — 2026-10-12
 
 - **The 总纲 and the 复习全书 are built as an inventory-driven quality workflow (#432).** Every page range of every material is first read, in parallel, into an inventory of terms, definitions, concepts, formulas and steps, each with its page anchors. The 总纲 is then built from the inventory into real knowledge points whose anchors are page spans. Sample papers are detected and used by default (a name needs a paper marker, and a choice you made in 3.4 is kept). Each point gets a must-cover checklist; the points are written in parallel with no fixed template, reviewed independently, and repaired (at most two rounds). A point that stays short is marked 「未达标」, and the job finishes as partial rather than hiding it. There is a glossary, 「生词与概念」, and coverage is shown at three levels. The console shows the lanes 清点 / 归纳 / 写 / 审阅 / 修复 and a 知识点 board. A 3.4 outline is not rebuilt silently: a button, 「用清点结果重新整理总纲」, does it when you ask, and notes follow their points by page or character overlap, with a summary of which notes moved.

@@ -39,7 +39,7 @@ S3-7 的 `publish-before` 场景验证发布前中断后的旧版读取、完成
 | 音频迁移（6） | `audioSingle`, `audioLiveSave`, `audioLiveCorrection`, `audioReview`, `audioSubtitles`, `audioBatch` |
 | 出题迁移（3） | `generation`, `generationRepair`, `generationPublish` |
 | 其他模型迁移（6） | `coach`, `dailyRecap`, `workflow`, `assist`, `noteGenerate`, `translation` |
-| 本地工具迁移（4） | `markerInstall`, `mineruSetup`, `pdfConvert`, `retrievalIndex` |
+| 本地工具迁移（4） | `markerInstall`, `mineruSetup`（3.6 起改名为 `mineruInstall`：一键安装本机 MinerU，旧的 `mineruSetup` 开关不再生效）, `pdfConvert`, `retrievalIndex` |
 | 独立增强（4） | `generationRestart`, `dailyRecapAgent`, `workflowAgent`, `translationParallel` |
 
 列表以 `lib/runtime-config.js` 的 `MIGRATION_SWITCHES` 为准；所有 schema 项均 `.default(false)`。显式关闭恢复既有提交路径，不声称恢复旧进程中未持久化的任务。`generationRepair`、`generationPublish`、`generationRestart` 仍依赖 `generation`。
