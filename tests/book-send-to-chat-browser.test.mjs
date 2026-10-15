@@ -72,7 +72,6 @@ async function openBook(page, running) {
   await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
   await page.locator('.outline-book-line__open').click({ timeout: 30000 });
   await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
-  if (await page.locator('.book-editor').count()) await page.locator('.book-header__mode').getByText('预览', { exact: true }).click();
 }
 
 const inside = async (page, selector, width, what) => {
@@ -165,25 +164,26 @@ test('发给主会话: a point\'s popover with presets, the selection panel and 
       assert.match(selected, /知识点 id（hid）：/);
       await ask.waitFor({ state: 'detached', timeout: 5000 });
 
-      // The header: the whole book, with the same popover; the message starts at book.toc and has no point.
-      const book = page.locator('.book-header [data-book-chat="book"]');
-      assert.equal((await book.innerText()).trim(), '整本书 · 发给主会话');
-      await book.scrollIntoViewIfNeeded();
+      // 更多 › 整本书 · 发给主会话…: the whole book, with the same form in a dialog; the message starts at book.toc and has no point.
+      await page.locator('.book-bar__more').click();
+      const book = page.getByRole('menuitem', { name: /^整本书 · 发给主会话…/ });
+      assert.match(await book.innerText(), /只填进输入框，不自动发送/, `${width}px: the item says it only fills the box`);
       await book.click();
-      await panel.waitFor();
-      assert.match(await panel.innerText(), /让主会话改整本书/);
-      await inside(page, '.book-chat__panel', width, 'the header popover');
-      await flat(page, width, 'the header popover');
-      await panel.locator('textarea').fill('全书统一成大白话');
+      const whole_ = page.locator('dialog.book-chat-dialog');
+      await whole_.waitFor();
+      assert.match(await whole_.innerText(), /让主会话改整本书/);
+      await inside(page, 'dialog.book-chat-dialog', width, 'the dialog');
+      await flat(page, width, 'the dialog');
+      await whole_.locator('textarea').fill('全书统一成大白话');
       if (shots) { await settleAnimations(page); await page.screenshot({ path: join(shots, `send-book-popover-${width}.png`) }); }
       before = await sentCount(page);
-      await panel.locator('textarea').press('Control+Enter');
+      await whole_.locator('textarea').press('Control+Enter');
       const whole = await nextSent(page, before);
       assert.match(whole, /改整本复习全书/);
       assert.match(whole, /先用 book\.toc 看目录/);
       assert.match(whole, /request 我的要求\n全书统一成大白话\n/);
       assert.doesNotMatch(whole, /知识点 id（hid）|这一节的文件/);
-      await panel.waitFor({ state: 'detached', timeout: 5000 });
+      await whole_.waitFor({ state: 'detached', timeout: 5000 });
 
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();

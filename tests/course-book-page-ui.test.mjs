@@ -1,6 +1,7 @@
 /* 复习全书 page M1 (static zh and en; docs/plans/review-book.md): a closed chapter is only its heading (I8), an open one renders a point's generated file
    with its question links drawn by the book, 这道题已被删除 for a gone question and plain text for an unknown studyhub:// link (I5); a point without
-   questions offers 出题 in its toolbar and says nothing else; the live 目录 marks 你在这里; the 总纲 page offers 打开书页 only when the book is written. Fakes only. */
+   questions says nothing about it in its toolbar (给这一节出题 is in 更多); the live 目录 marks the heading being read (bold, an ink line, no badge) and keeps the
+   printed code for hover; the 总纲 page offers 打开书页 only when the book is written. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -9,7 +10,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const ui = await loadUi(`
   export { default as BookChapter } from './ui/book/BookChapter.jsx';
-  export { default as BookToc } from './ui/book/BookToc.jsx';
+  export { default as BookToc, BookTocList } from './ui/book/BookToc.jsx';
   export * from './ui/book/model.js';
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
   export { emptyPick } from './ui/outline/model.js';
@@ -55,28 +56,36 @@ test('a closed chapter is its heading only; an open one renders its points with 
   assert.match(html, /class="md-cite"/, 'the 角标 is a button');
   assert.match(text, /本节的题 \(7\) 练习：Live question 0\? 练习：Live question 1\? 练习：Live question 2\? 练习：Live question 3\? 练习：Live question 4\? 还有 2 道/, 'the point\'s questions live: the first five, then 还有 N 道');
   assert.doesNotMatch(text, /Live question 5/);
-  assert.match(text, /1\.2 Enthalpy .*出题 本节问答/, 'a point without questions offers a quiet 出题 in its toolbar');
+  assert.match(text, /出处 1 练 5 道 本节问答 发给主会话 1\.2 Enthalpy/, 'the row of actions closes a point');
+  assert.match(text, /My note\. 在这里加一段 本节问答 发给主会话 2 Kinetics|My note\. 本节问答 发给主会话/, 'a point without questions says nothing about it in its toolbar (给这一节出题 is in 更多)');
+  assert.doesNotMatch(html, /book-node__create/);
+  assert.doesNotMatch(html, /book-node__code|>H[0-9]</, 'no printed code beside the headings');
   assert.doesNotMatch(text, /暂无题|这一节还没有题。|还没出题/, 'and says nothing else about it: no badge, no standing line');
   assert.match(html, /book-file--mine[\s\S]*My note\./, 'the learner\'s file follows the generated one');
 });
 
-test('the live 目录 lists the stitched headings with their chapter and marks 你在这里', () => {
+test('the live 目录 lists the stitched headings with their chapter, marks the one being read without a badge and keeps the printed code for hover', () => {
   const entries = ui.tocEntries(book);
   assert.deepEqual(entries.map(entry => [entry.id, entry.title, entry.chapter]), [['h1', '1 Thermodynamics', 'h1'], ['h2', '1.1 Entropy', 'h1'], ['h3', '1.2 Enthalpy', 'h1'], ['h4', '2 Kinetics', 'h4']]);
-  const html = render(h(ui.BookToc, { entries, here: 'h3', onGo: noop }));
+  const html = render(h(ui.BookToc, { entries, here: 'h3', onGo: noop, coverage: null }));
   assert.match(html, /aria-current="location"[^>]*>1\.2 Enthalpy/);
-  assert.match(textOf(html), /1\.2 Enthalpy 你在这里/);
+  assert.doesNotMatch(textOf(html), /你在这里/, 'no badge: the row is bold with an ink line');
+  assert.match(html, /role="tooltip"[^>]*>编号 H3</, 'the printed code shows on hover and focus of the row');
+  assert.doesNotMatch(html, /book-toc-scrim|data-overlay/, 'wide: a column, no scrim');
+  const narrow = render(h(ui.BookToc, { entries, here: 'h3', onGo: noop, narrow: true, onClose: noop, coverage: null }));
+  assert.match(narrow, /class="book-toc-scrim" aria-hidden="true"/, 'narrow: a scrim (a press closes it; Esc does from the keyboard)');
+  assert.match(narrow, /<nav[^>]*class="book-toc"[^>]*data-overlay=""/, 'narrow: it slides over the text');
   assert.deepEqual(ui.rowOf(ui.bookRows(book.nodes), 'bk:p2'), { ...ui.bookRows(book.nodes)[2] });
   assert.equal(ui.bookRows(book.nodes)[2].chapter, 0);
   assert.deepEqual([...ui.citesOf(gen)], [[1, { sourceId: 'tb-p3', quote: 'Entropy measures disorder' }]]);
 });
 
 test('English: the page\'s own words are English (the book\'s text is the book\'s)', () => english(() => {
-  const html = chapter(book.nodes[0], true), toc = render(h(ui.BookToc, { entries: ui.tocEntries(book), here: 'h2', onGo: noop }));
+  const html = chapter(book.nodes[0], true), toc = render(h(ui.BookToc, { entries: ui.tocEntries(book), here: 'h2', onGo: noop, coverage: null }));
   assert.match(textOf(html), /This question was deleted/);
-  assert.match(textOf(html), /Practise 5 Questions and answers[\s\S]*Questions of this point \(7\) Practise: Live question 0\?[\s\S]*2 more/);
+  assert.match(textOf(html), /Questions of this point \(7\) Practise: Live question 0\?[\s\S]*2 more Sources 1 Practise 5 Questions and answers/);
   assert.doesNotMatch(textOf(html), /No questions yet/, 'no badge for a point without questions');
-  assert.match(textOf(toc), /You are here/);
+  assert.match(textOf(toc), /Code H2/);
   const own = textOf(html).replace(/Thermodynamics|Entropy|Enthalpy|练习：What is entropy\?|练 5 道：Entropy|本节问答：Entropy|「Entropy measures disorder」|知识梳理|出处|本节的题|My note\.|Strange|Web|Textbook|disorder|Live question \d\?|Heat\./g, '');
   assert.equal(han.test(own), false, `no Chinese of the page left: ${own}`);
 }));

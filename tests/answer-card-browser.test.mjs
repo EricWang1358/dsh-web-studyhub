@@ -134,9 +134,9 @@ test('分析题答案卡: 生成答题卡 → the card with its badges → 加�
       await page.goto(running.server.url);
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
-      // 逐节读: 未归位 is the last step, reached from the 目录.
+      // One point at a time: 未归位 is the last step, reached from the 目录 (the bar's 目录 opens it when it is closed).
       await page.locator('.book-step').waitFor({ timeout: 30000 });
-      if (!await page.locator('.book-toc').count()) await page.locator('.book-header__toc').click();
+      if (!await page.locator('.book-toc').count()) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: '未归位' }).click();
       const unplaced = page.locator('[data-book-step="unplaced"]');
       await unplaced.waitFor({ timeout: 30000 });

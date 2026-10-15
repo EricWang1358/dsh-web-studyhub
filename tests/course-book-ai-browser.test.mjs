@@ -100,7 +100,6 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
       await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
-      if (await page.locator('.book-editor').count()) await page.locator('.book-header__mode').getByText('预览', { exact: true }).click();
 
       // Select words of the first point's explanation; the panel opens under them.
       const words = 'writes each decision down';
@@ -216,7 +215,6 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
       await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
-      if (await page.locator('.book-editor').count()) await page.locator('.book-header__mode').getByText('预览', { exact: true }).click();
       await page.locator('.book-ai[data-ai-folded="true"]').first().waitFor({ timeout: 30000 });
       const seen = el => { const rect = el.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; };
       // The dashed words go to the block: opened, shown, flashed, its header focused.

@@ -43,7 +43,7 @@ const row = (html, id) => { const from = html.indexOf(`data-ai-block="${id}"`); 
 
 test('a point reads takeaway first (type only), then 讲解 without it, the AI block about its words right after the paragraph, 例子, 要点清单 and 补充 folded, 我的, the questions, 出处 behind a chip', () => {
   const html = body(), text = textOf(html);
-  const order = ['练 5 道', '熵是系统无序程度的度量', '讲解 它在孤立系统里只增不减。', '关于：「只增不减」 A kept explanation.', '例子 冰块融化。', '要点清单', '补充（资料以外）', '我的', 'My note.', '多为重复', '本节的题', '出处 1'];
+  const order = ['熵是系统无序程度的度量', '讲解 它在孤立系统里只增不减。', '关于：「只增不减」 A kept explanation.', '例子 冰块融化。', '要点清单', '补充（资料以外）', '我的', 'My note.', '多为重复', '本节的题', '出处 1', '练 5 道'];
   const at = order.map(part => text.indexOf(part));
   assert.ok(at.every((value, index) => value >= 0 && (index === 0 || value > at[index - 1])), `in reading order: ${JSON.stringify(at)} in ${text}`);
   const story = text.slice(0, text.indexOf('我的 你的笔记'));
@@ -66,7 +66,7 @@ test('a point reads takeaway first (type only), then 讲解 without it, the AI b
 test('the takeaway is shown without 「一句话：」, and the file is as it was', () => {
   const labelled = point({ gen: gen.replace('熵是系统无序程度的度量[^1]。', '一句话：熵是系统无序程度的度量[^1]。'), mine: '' });
   const text = textOf(body(labelled));
-  assert.match(text, /练 5 道 本节问答 发给主会话 熵是系统无序程度的度量/);
+  assert.match(text, /^熵是系统无序程度的度量/, 'the point starts with its takeaway (its actions close it)');
   assert.doesNotMatch(text, /一句话/);
   assert.match(labelled.gen, /一句话：熵/, 'the text of the file keeps it');
 });
@@ -118,20 +118,21 @@ test('an AI block row: open below 1,500 characters, folded above unless kept; fo
   assert.doesNotMatch(textOf(row(body(point({ mine: mine })), 'b2')), /保留/, 'a kept block has no 保留');
 });
 
-test('a point without questions: a quiet 出题 in the toolbar and nothing else about it, no standing line, no 本节的题', () => {
+test('a point without questions says nothing about it: no 出题 in the toolbar (it is 给这一节出题 in 更多), no standing line, no 本节的题', () => {
   const html = body(point({ questionTotal: 0, questions: [] })), text = textOf(html);
-  assert.match(text, /出题 本节问答/);
-  assert.match(html, /sh-btn--quiet[^>]*book-node__create/, '出题 is quiet');
+  assert.match(text, /出处 1 在这里加一段 本节问答 发给主会话$/, 'the row of actions closes the point');
+  assert.doesNotMatch(html, /book-node__create/);
   assert.doesNotMatch(text, /暂无题|还没出题|这一节还没有题|本节的题|练 5 道/);
 });
 
 const book = { status: 'ok', title: 'B', unplaced: { title: '未归位', text: '' }, nodes: [{ hid: 'h1', key: 'bk:c1', title: '热力学', number: '1', depth: 1, leaf: false,
   children: [point(), { ...point(), hid: 'h3', key: 'bk:p2', title: '焓', number: '1.2', gen: '**讲解**\n\n焓是热含量。更多。', mine: '' }] }] };
-test('逐节读: one point under its path, its place in the book, 上一节 / 下一节 with the neighbour\'s title (the first has no 上一节)', () => {
+test('逐节读: one point under its path, 上一节 / 下一节 with the neighbour\'s title below it (the first has no 上一节); where it is and ‹ › are the book bar\'s', () => {
   const steps = ui.bookSteps(book), html = render(h(ui.BookStep, { steps, at: 0, onGo: noop, course: 'SA', handlers })), text = textOf(html);
   assert.match(html, /data-book-step="h2"/);
   assert.match(html, /<h2 id="book-h2"[^>]*data-book-heading="h2"/);
-  assert.match(text, /^1 热力学 第 1 \/ 2 节/);
+  assert.match(text, /^1 热力学 1\.1 熵 熵是系统无序程度的度量/, 'the path, then the heading, then the takeaway (no 第 i / N 节, no ‹ ›, no printed code)');
+  assert.doesNotMatch(html, /book-step__back|book-step__jump/);
   assert.match(text, /上一节 下一节 1\.2 焓$/);
   assert.match(html, /disabled=""[^>]*><span class="book-step__dir">上一节/);
   assert.doesNotMatch(html, /data-book-point="h3"/, 'only the point shown is drawn');
@@ -144,7 +145,7 @@ test('整章滚动: a point is its title and one line, folded, unless it is open
   const chapter = expanded => render(h(ui.BookReadContext.Provider, { value: read(expanded) }, h(ui.BookChapter, { node: book.nodes[0], open: true, onToggle: noop, course: 'SA', handlers })));
   const html = chapter(['h3']), text = textOf(html);
   assert.match(html, /data-book-folded="true"><h3 id="book-h2"[^>]*><button[^>]*aria-expanded="false"/);
-  assert.match(text, /1\.1 熵 H2 熵是系统无序程度的度量。 1\.2 焓/, 'the folded point says its takeaway in one line');
+  assert.match(text, /1\.1 熵 熵是系统无序程度的度量。 1\.2 焓/, 'the folded point says its takeaway in one line');
   assert.doesNotMatch(html, /data-book-point="h2"/);
   assert.match(html, /data-book-point="h3"/, 'the open one shows its body');
 });
@@ -156,8 +157,7 @@ test('English: the reading words are English (the book\'s own text stays as writ
   assert.match(text, /Checklist .*Mine Your notes, AI paragraphs and the Q&A you put into the book are here Collapse all/);
   assert.match(text, /AI Mostly repeats/);
   assert.match(text, /Sources 1/);
-  assert.match(text, /Point 1 of 2 .*Previous section Next section/);
-  assert.match(textOf(body(point({ questionTotal: 0, questions: [] }))), /Question writing Questions and answers/, 'the quiet 出题 is in the toolbar');
+  assert.match(text, /Sources 1 Add a paragraph here Practise 5 Questions and answers Send to the main chat Previous section Next section/);
   // What is left once the book's own words are taken out (its text, its labels, the blocks' first lines and summaries).
   const written = [restate, '熵是系统无序程度的度量。', '熵是系统无序程度的度量', '它在孤立系统里只增不减', '冰块融化', '它在孤立系统里只增不减。', '冰块融化。', '熵度量无序', '玻尔兹曼公式', '补充（资料以外）', '讲解', '例子', '关于：「熵」',
     '关于：「只增不减」', '热力学', '焓', '熵', '。'];

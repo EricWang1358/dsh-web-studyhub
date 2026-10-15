@@ -2,13 +2,16 @@
    复习全书 (docs/review-book.md): looks at the book in the real page and counts what stands on the screen. For each fixture of tests/helpers/book-fixtures.mjs
    (archss: sixteen points, a 3,000-6,000 character AI block each, no questions; questions: most points with 10-25 questions) at 1280 and 420 px, light and dark,
    Chinese, it opens the book and saves, into BOOK_SHOTS, <fixture>-<width>-<theme>-<shot>.png: top (the top of the first point), end (the end of it), ai-row (the
-   folded AI row), placed (the point with a short explain block, in its place), placed-block (that block in the middle of the window), open-here (a whole-point
-   block open), mine-tip (the 我的 row with the explanation of its label), full (the whole page). It prints one JSON line per fixture and width:
+   folded AI row), more (the bar's 更多 menu open), bar-mid (scrolled into the middle of the first point: the bar stuck, its reading line part way), toc (the
+   目录 open: the column at 1280, the slide-over at 420), lookup (the 速查页 dialog), placed (the point with a short explain block, in its place), placed-block
+   (that block in the middle of the window), open-here (a whole-point block open), mine-tip (the 我的 row with the explanation of its label), full (the whole
+   page). It prints one JSON line per fixture and width:
      controlsBeforeFirstLine  the visible interactive elements (button, a, summary, [role=button], input, select, textarea) of the book page above the first line
                               of the 讲解 text (the 目录 beside the text at 1280 is not above it and not counted)
      firstLineY               where that line starts, from the top of the window with the page scrolled to its top
      perPointStandingControls the visible interactive elements inside the shown point with nothing expanded
      perPointWithoutInlineMarks  the same without the 角标 and dashed words inside the reading text
+     standingModeSwitches     the segmented controls standing on the page (a mode switch: 预览/原文/查找/翻看, 逐节读/整章滚动), outside any dialog or menu
    BOOK_SHOTS_DETAIL=1 adds the names of the elements counted. Seeded temporary library, fake model, no network, no key. */
 /* global document, window, getComputedStyle */
 import { mkdir } from 'node:fs/promises';
@@ -41,7 +44,9 @@ const measure = () => {
   const inPoint = point ? [...point.querySelectorAll(WANTED)].filter(visible) : [];
   // The 角标 and the dashed words are marks inside the reading text, not controls standing beside it: counted in the first number, left out of the second.
   const apart = inPoint.filter(element => !element.closest('.md-cite, .book-ai-anchor'));
-  return { firstLineY, controlsBeforeFirstLine: before.length, perPointStandingControls: inPoint.length, perPointWithoutInlineMarks: apart.length, before: before.map(name), inPoint: inPoint.map(name) };
+  const switches = page ? [...page.querySelectorAll('.sh-seg')].filter(element => visible(element) && !element.closest('dialog, [role="menu"], [role="dialog"]')) : [];
+  return { firstLineY, controlsBeforeFirstLine: before.length, perPointStandingControls: inPoint.length, perPointWithoutInlineMarks: apart.length,
+    standingModeSwitches: switches.length, before: before.map(name), inPoint: inPoint.map(name) };
 };
 
 const toTop = page => page.evaluate(() => { const app = document.querySelector('.study-app'); if (app) app.scrollTop = 0; window.scrollTo(0, 0); });
@@ -77,6 +82,34 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
     await toTop(page);
     const numbers = await page.evaluate(measure);
     await save('top');
+    // The bar's 更多 open, then closed with Esc.
+    await page.locator('.book-bar__more').click();
+    await page.locator('[role="menu"]').waitFor({ timeout: 30000 });
+    await page.waitForTimeout(250);
+    await save('more');
+    await page.keyboard.press('Escape');
+    // The 速查页 from 更多: a dialog over the book.
+    await page.locator('.book-bar__more').click();
+    await page.getByRole('menuitem', { name: '速查页…' }).click();
+    await page.locator('dialog.book-lookup-dialog').waitFor({ timeout: 30000 });
+    await page.waitForTimeout(250);
+    await save('lookup');
+    await page.keyboard.press('Escape');
+    await page.locator('dialog.book-lookup-dialog').waitFor({ state: 'detached', timeout: 30000 });
+    // The 目录: the column at 1280 (open by default), the slide-over at 420 (closed with Esc).
+    if (width < 900) {
+      await page.locator('.book-bar__toc').click();
+      await page.locator('.book-toc[data-overlay]').waitFor({ timeout: 30000 });
+      await page.waitForTimeout(300);
+      await save('toc');
+      await page.keyboard.press('Escape');
+      await page.locator('.book-toc').waitFor({ state: 'detached', timeout: 30000 });
+    } else await save('toc');
+    // In the middle of the first point: the bar stays on top, its line part way.
+    await page.evaluate(() => { const point = document.querySelector('[data-book-point]'), app = document.querySelector('.study-app'); if (point && app) app.scrollTop += point.getBoundingClientRect().top + point.getBoundingClientRect().height * 0.4; });
+    await page.waitForTimeout(250);
+    await save('bar-mid');
+    await toTop(page);
     const row = page.locator('.book-ai').first();
     if (await row.count()) { await row.scrollIntoViewIfNeeded(); if (shots) { await settleAnimations(page); await row.screenshot({ path: name('ai-row') }); } }
     await toEnd(page);
@@ -106,7 +139,7 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
       await save('mine-tip');
       await page.mouse.move(900, 100);
     }
-    await page.locator('.book-step__back').first().click();
+    await page.locator('.book-bar__prev').first().click();
     await page.locator('.book-step__heading', { hasText: 'What architects do' }).waitFor({ timeout: 30000 });
     if (shots) await whole(page, width, name('full'));
     return { numbers, errors };
