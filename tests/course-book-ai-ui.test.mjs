@@ -100,8 +100,8 @@ test('a folded block: one row, the caret, AI, the first real sentence of the ans
   assert.match(shut.slice(shut.indexOf('data-ai-block="ai2"')), /book-ai__actions/, 'the other block is still open');
 });
 
-test('no 整理 menu and no 只留我写的: the toolbar has 在这里加一段, 出题, 本节问答 and 发给主会话; 我的 folds all blocks from two of them', () => {
-  assert.match(textOf(folded([])), /在这里加一段 出题 本节问答 发给主会话/);
+test('no 整理 menu and no 只留我写的: the toolbar has 在这里加一段, 本节问答 and 发给主会话 (给这一节出题 is in 更多); 我的 folds all blocks from two of them', () => {
+  assert.match(textOf(folded([])), /在这里加一段 本节问答 发给主会话/);
   assert.doesNotMatch(textOf(folded([])), /整理|只留我写的|暂无题|已隐藏/);
   assert.doesNotMatch(textOf(chapter()), /整理/, 'without the page\'s fold');
   assert.match(textOf(folded([])), /我的 你的笔记、AI 段落和加进书里的问答都在这里 全部收起/, 'two blocks: one quiet link');
@@ -121,7 +121,7 @@ test('nothing of its own in 我的: no divider and no fold-all, even with blocks
 });
 
 test('English: the fold words', () => english(() => {
-  assert.match(textOf(folded(['ai1'])), /Add a paragraph here Question writing Questions and answers .*Mine .*Collapse all/);
+  assert.match(textOf(folded(['ai1'])), /Mine .*Collapse all[\s\S]*Add a paragraph here Questions and answers/);
   assert.match(folded([]), /aria-label="AI paragraph"/);
   assert.match(textOf(folded(['ai1'])), /AI An explanation of it\. about 25 characters/);
 }));

@@ -101,12 +101,13 @@ test('the 期末一周 date hint: a link without a date, the window beside a far
   assert.equal(ui.crunchDateHint({ date: '2026-10-01' }, 21, now), null, 'past: the plan says so itself');
 });
 
-test('the book header wires the hint: a quiet link to the course settings, or the line, and only for a written book', () => {
-  const source = readFileSync('ui/book/BookPage.jsx', 'utf8');
+test('更多 › 期末一周 wires the hint: 设置考试日期 to the course settings, or the line on 前往设置, and only for a written book', () => {
+  const source = readFileSync('ui/book/BookPage.jsx', 'utf8'), menu = readFileSync('ui/book/BookMore.jsx', 'utf8'), actions = readFileSync('ui/book/more-actions.js', 'utf8');
   assert.match(source, /crunchDateHint\(courseRecord\?\.exam, crunchWindow\(data\?\.settings\?\.book\)\)/);
   assert.match(source, /book\?\.status === 'ok' && book\.notes \? crunchDateHint/, 'only with a written book');
-  assert.match(source, /期末一周在考前 \{0\} 天开始/);
-  assert.match(source, /onCourseSettings\(courseRecord\.id\)/);
+  assert.match(menu, /期末一周在考前 \{0\} 天开始/);
+  assert.match(menu, /dateHint\?\.kind === 'none' && settings && \{ id: 'exam-date'/, '设置考试日期 only without a date');
+  assert.match(actions, /onCourseSettings\?\.\(courseRecord\?\.id\)/);
   const views = readFileSync('ui/app/page-views.jsx', 'utf8');
   assert.match(views, /onCourseSettings=\{settingsEntry\.setCourseSettings\}/, 'the book page opens the same course settings as the home');
 });
