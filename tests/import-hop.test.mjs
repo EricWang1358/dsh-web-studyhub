@@ -126,7 +126,7 @@ test('the converter block is a closed fold, not two cards; the tool is chosen in
 
 test('the panel offers local conversion only: no cloud route, no second choice of how', () => {
   setUiLanguage('zh');
-  const html = renderToStaticMarkup(h(PdfConversion, { file: { name: 'Book.pdf', size: 12e6 }, call: async () => ({}), initialSettings: { token: { set: true }, acknowledged: false },
+  const html = renderToStaticMarkup(h(PdfConversion, { file: { name: 'Book.pdf', size: 12e6 }, call: async () => ({}), 
     initialLocal: { state: 'ready', tier: 'basic', estimates: { basic: 1.6 } }, initialPlan: { name: 'Book.pdf', pages: 450, bytes: 12e6, windows: [{ index: 1, startPage: 1, endPage: 50, pages: 50 }] } }));
   assert.doesNotMatch(html, /暂不可用|云端|用哪种方式解析|name="mineru-route"|type="checkbox"/);
   assert.match(html, /开始本地解析/);

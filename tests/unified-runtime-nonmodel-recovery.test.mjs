@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { convertPdf, readManifest } from '../lib/mineru-job.js';
+import { readManifest } from '../lib/mineru-job.js';
 import { StudyService } from '../lib/service.js';
 import { pdfJob } from './helpers/nonmodel-baseline.mjs';
 import { until } from './helpers/wait.mjs';

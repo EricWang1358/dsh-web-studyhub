@@ -83,19 +83,20 @@ test('the service state is a live dot and one honest sentence: up, stopped, or n
   assert.match(unknown, /无法确认本地服务是否在运行/);
 });
 
-test('a failed run with a stopped service names it, and offers the restart that already exists', () => {
+test('a failed run with a stopped service names it, and 接着做 starts the service before it resumes', () => {
   const html = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'server-stopped', service: { state: 'stopped', basis: 'window', at: new Date(now).toISOString() },
-    stage: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。', finishedAt: new Date(now).toISOString() })]));
+    stage: '本机 MinerU 服务没有在运行，或解析到一半停了。点「接着做」会先启动服务，再从停下的那一段接着解析（已完成的段落会保留）。', finishedAt: new Date(now).toISOString() })]));
   assert.match(html, /本地服务已停止/);
-  assert.match(html, />重新启动本地服务并接着做</);
-  assert.match(html, /点「重新启动本地服务并接着做」/);
+  assert.match(html, />接着做</);
+  assert.doesNotMatch(html, /重新启动本地服务并接着做/);
+  assert.match(html, /点「接着做」会先启动本机服务/);
 });
 
-test('a cloud run says what does the work: MinerU, the model version, the language, the saved token (never shown), the piece limits', () => {
+test('an old cloud run says what did the work: MinerU, the model version, the language, the piece limits; nothing about a token', () => {
   const html = render(jobs([job({ route: 'cloud', tier: undefined, env: cloudEnv, service: undefined, phase: 'parse', stage: '第 2/3 段 · 正在解析', chunks: windows(3) })]));
   assert.match(html, /云端 MinerU · vlm 模型/);
   assert.match(html, /识别语言：ch/);
-  assert.match(html, /使用你保存的令牌（令牌不会显示）/);
+  assert.doesNotMatch(html, /令牌/);
   assert.match(html, /每段不超过 200 页 \/ 180 MB · 本书 96 MB/);
   assert.doesNotMatch(html, /本地服务|模型位置|pdf-env__service/);
 });
@@ -151,7 +152,7 @@ test('a history row says what ran it: the same block, collapsed, with no folder 
 });
 
 test('a row that failed because the service was stopped says so, from the record', () => {
-  const html = render(history([record({ status: 'failed', finishedAt: undefined, failure: { stage: 'local', code: 'server-stopped', reason: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。' }, canRetry: true })]));
+  const html = render(history([record({ status: 'failed', finishedAt: undefined, failure: { stage: 'local', code: 'server-stopped', reason: '本机 MinerU 服务没有在运行，或解析到一半停了。点「接着做」会先启动服务，再从停下的那一段接着解析（已完成的段落会保留）。' }, canRetry: true })]));
   assert.match(html, /失败时本地服务已停止/);
 });
 
@@ -172,12 +173,12 @@ test('English: no Chinese in any state of the environment block or the window li
   const list = [
     jobs([job()]), jobs([job({ env: { ...localEnv, device: 'cuda' } })]), jobs([job({ env: { ...localEnv, tier: 'basic' } })]), jobs([job({ env: { ...localEnv, tier: 'advanced', modelsRealPath: undefined } })]),
     jobs([job({ service: stopped })]), jobs([job({ service: { state: 'unknown', basis: 'none', at: new Date(now).toISOString() } })]),
-    jobs([job({ status: 'failed', retryable: true, errorCode: 'server-stopped', service: stopped, stage: '本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。' })]),
+    jobs([job({ status: 'failed', retryable: true, errorCode: 'server-stopped', service: stopped, stage: '本机 MinerU 服务没有在运行，或解析到一半停了。点「接着做」会先启动服务，再从停下的那一段接着解析（已完成的段落会保留）。' })]),
     jobs([job({ route: 'cloud', tier: undefined, env: cloudEnv, service: undefined, chunks: windows(3) })]), jobs([job({ chunks: windows(6) })]), jobs([job()], true),
     history([record(), record({ route: 'cloud', tier: undefined, env: { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * MB, bookBytes: 96 * MB } }),
       record({ status: 'failed', failure: { stage: 'local', code: 'server-stopped', reason: 'x' }, canRetry: true })]),
   ];
-  for (const element of list) assert.doesNotMatch(render(element, 'en').replace(/本地服务没有在运行，或解析到一半停了。请点「重新启动本地服务」后接着做（已完成的段落会保留）。/g, 'x'), han);
+  for (const element of list) assert.doesNotMatch(render(element, 'en').replace(/本机 MinerU 服务没有在运行，或解析到一半停了。点「接着做」会先启动服务，再从停下的那一段接着解析（已完成的段落会保留）。/g, 'x'), han);
   const english = render(jobs([job()]), 'en');
   assert.match(english, /Environment/);
   assert.match(english, /Local mineru 4\.0\.10 · standard tier \(better layout understanding, a little slower\)/);
@@ -187,7 +188,6 @@ test('English: no Chinese in any state of the environment block or the window li
   assert.match(english, /Show all windows/);
   const cloud = render(jobs([job({ route: 'cloud', tier: undefined, env: cloudEnv, service: undefined, chunks: windows(3) })]), 'en');
   assert.match(cloud, /MinerU cloud · vlm model/);
-  assert.match(cloud, /Uses your saved token \(the token is never shown\)/);
   assert.match(cloud, /Up to 200 pages \/ 180 MB per piece · this book 96 MB/);
 });
 

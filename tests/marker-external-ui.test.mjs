@@ -50,26 +50,26 @@ test('import portal folds the converters into one entry, offers the peer tools o
   assert.match(html, /选择 PDF 解析…/);
   assert.doesNotMatch(html, /aria-label="MinerU"|aria-label="Marker"|用 Marker 解析|用 MinerU 解析|安装与使用设置/, 'no card per tool on the Files tab');
   assert.doesNotMatch(html, /marker#installation|studyhub-marker-convert.py|Apache-2.0|llama-server|选择转换结果/);
-  const panel = renderToStaticMarkup(React.createElement(components.PdfConversion, { call: async () => ({}), onFile() {}, initialSettings: {}, initialLocal: { state: 'ready' } }));
+  const panel = renderToStaticMarkup(React.createElement(components.PdfConversion, { call: async () => ({}), onFile() {}, initialLocal: { state: 'ready' } }));
   assert.match(panel, /value="mineru"/); assert.match(panel, /value="marker"/);
 });
 
 test('Marker starts from original PDF with course routing, without cloud acknowledgement or manual results', async () => {
   const calls = [], starts = [], file = { name: 'Lecture.pdf', size: 1000 }, plan = { pages: 5, bytes: 1000 };
-  const tree = events.PdfConversion({ file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialSettings: {}, initialLocal: { state: 'ready' },
+  const tree = events.PdfConversion({ file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialLocal: { state: 'ready' },
     courses: ['Mechanics'], call: async (action, args) => { calls.push({ action, args }); return { jobId: 'marker-job' }; }, onStarted: job => starts.push(job) });
   await find(tree, item => item.props.children === '用 Marker 开始解析').props.onClick();
   assert.deepEqual(calls.map(item => item.action), ['marker.import']);
   assert.deepEqual(calls[0].args.courses, ['Mechanics']);
   assert.equal(starts[0].converter, 'marker'); assert.equal(starts[0].filename, file.name);
-  const html = renderToStaticMarkup(React.createElement(components.PdfConversion, { file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialSettings: {}, initialLocal: { state: 'ready' } }));
+  const html = renderToStaticMarkup(React.createElement(components.PdfConversion, { file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialLocal: { state: 'ready' } }));
   assert.doesNotMatch(html, /type="checkbox"|type="password"|选择转换结果|高级：|llama-server/);
 });
 
 test('Marker setup is a settings jump rather than installation instructions inside import', () => {
   let anchor;
   const tree = events.PdfConversion({ file: { name: 'Lecture.pdf', size: 1000 }, initialPlan: { pages: 5, bytes: 1000 }, initialConverter: 'marker', initialMarker: { state: 'not-installed' },
-    initialSettings: {}, initialLocal: { state: 'ready' }, onOpenSettings: value => { anchor = value; } });
+    initialLocal: { state: 'ready' }, onOpenSettings: value => { anchor = value; } });
   find(tree, item => item.props.children === '前往设置').props.onClick();
   assert.equal(anchor, 'settings-marker');
   assert.equal(find(tree, item => item.props.children === '用 Marker 开始解析').props.disabled, true);
@@ -117,7 +117,7 @@ function mountPdf(props, component = 'PdfConversion') {
 test('switching converters preserves one PDF upload and starts the selected converter', async () => {
   const file = Object.assign(new Blob(['original PDF']), { name: 'Original.pdf' });
   const calls = [], starts = [];
-  const props = { file, initialSettings: {}, initialLocal: { state: 'ready' }, initialMarker: { state: 'ready' }, courses: ['Mechanics'],
+  const props = { file, initialLocal: { state: 'ready' }, initialMarker: { state: 'ready' }, courses: ['Mechanics'],
     call: async (action, args) => { calls.push({ action, args });
       if (action === 'mineru.upload.start') return { uploadId: 'shared-pdf' };
       if (action === 'mineru.plan') return { pages: 5, bytes: file.size, windows: [], pieces: [] };
@@ -138,7 +138,7 @@ test('switching converters preserves one PDF upload and starts the selected conv
 test('replacing a PDF while its plan is pending cancels that upload and ignores its stale plan', async () => {
   const first = Object.assign(new Blob(['first']), { name: 'First.pdf' }), second = Object.assign(new Blob(['second']), { name: 'Second.pdf' });
   const calls = []; let release;
-  const props = { file: first, initialSettings: {}, initialLocal: { state: 'ready' }, initialMarker: { state: 'ready' },
+  const props = { file: first, initialLocal: { state: 'ready' }, initialMarker: { state: 'ready' },
     call: async (action, args) => { calls.push({ action, args });
       if (action === 'mineru.upload.start') return { uploadId: args.name };
       if (action === 'mineru.plan' && args.uploadId === first.name) return new Promise(resolve => { release = resolve; });

@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { markerSettingsPath } from '../lib/marker-settings.js';
-import { mineruSettingsPath } from '../lib/mineru-settings.js';
+import { mineruInstallStatePath } from '../lib/mineru-install.js';
 import { assistantDoors } from './helpers/assistant-door.mjs';
 import { until } from './helpers/wait.mjs';
 
 /* The Settings-only boundary of the assistant's study_workspace tool (S5-0 defect D-10, docs/plans/unified-job-runtime/s5-0-nonmodel-baseline.md).
-   Choosing which program StudyHub runs, installing or removing software, downloading models into the local MinerU and switching it on, and storing
-   the MinerU token or the consent to upload PDFs are the learner's own clicks in Settings. Before this boundary the assistant could do all of them:
-   save any absolute program path that the next marker.import ran, store a token with the upload consent, and set up local MinerU with its own
-   confirm: true. Status, plan and history reads, and the imports that use what the learner configured, stay with the assistant. */
+   Choosing which program StudyHub runs, installing or removing software (Marker, the one-click local MinerU) and stopping the local MinerU service
+   are the learner's own clicks in Settings. Status, plan and history reads, and the imports that use what the learner set up, stay with the
+   assistant. The MinerU cloud route (its token and upload consent) was removed in 3.6: its operations no longer exist for either door. */
 
 const exists = file => stat(file).then(() => true, () => false);
 const finished = async (h, jobId) => until(async () => {
@@ -22,12 +22,13 @@ const SETTINGS_ONLY = {
   'marker.settings.set': [{ command: process.execPath }],
   'marker.install.start': [{ confirm: true }],
   'marker.install.uninstall': [{ confirm: true }],
-  'mineru.settings.set': [{ token: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcm9iZSJ9.not-a-real-token', acknowledge: true }, { acknowledge: true }],
-  'mineru.local.setup': [{ tier: 'basic', confirm: true }, { tier: 'standard', confirm: true }],
+  'mineru.install.start': [{ confirm: true }, { confirm: true, location: 'D:\\StudyHub\\MinerU', tier: 'standard' }],
+  'mineru.install.uninstall': [{ confirm: true }],
+  'mineru.local.stop': [{}],
 };
 
-test('the assistant cannot choose the program StudyHub runs, install software, set up local MinerU or store the MinerU token and consent; nothing is written and nothing runs', async t => {
-  const h = await assistantDoors(t);
+test('the assistant cannot choose the program StudyHub runs, install or uninstall software, or stop the local MinerU; nothing is written and nothing runs', async t => {
+  const h = await assistantDoors(t, { mineru: { version: '4.0.10', total: 3, running: true, mode: 'managed', tier: 'basic', modelsReady: true } });
   for (const [action, payloads] of Object.entries(SETTINGS_ONLY))
     for (const args of [...payloads, undefined])
       await assert.rejects(h.assistant(action, args), /is not available to the assistant: .*the learner does (it|that) in Settings/, `${action} ${JSON.stringify(args)}`);
@@ -35,9 +36,13 @@ test('the assistant cannot choose the program StudyHub runs, install software, s
   for (const action of Object.keys(SETTINGS_ONLY))
     await assert.rejects(h.assistantRaw(action, '{not json'), /not available to the assistant/, action);
   assert.equal(await exists(markerSettingsPath()), false, 'no Marker program path was saved');
-  assert.equal(await exists(mineruSettingsPath()), false, 'no MinerU token or consent was saved');
-  assert.equal((await h.mineruState()).mode, 'disabled', 'local MinerU was not switched on');
+  assert.equal(await exists(mineruInstallStatePath()), false, 'no MinerU install was started');
+  assert.equal(await exists(join(h.dirs.dshHome, 'studyhub', 'mineru')), false, 'no install folder was made');
+  assert.equal((await h.mineruState()).running, true, 'the local MinerU service was not stopped');
   assert.deepEqual(await h.spawns(), [], 'no program was started');
+  // The removed cloud route and the old setup flow are gone for the assistant too.
+  for (const action of ['mineru.settings.set', 'mineru.settings.get', 'mineru.test', 'mineru.local.setup', 'mineru.local.setup.status'])
+    await assert.rejects(h.assistant(action, {}), /Unknown|not available/i, action);
   // 检测并保存 asks marker.local.status about a path before it is saved: that start-a-program-of-my-choice form is the panel's, not the assistant's.
   for (const args of [{ command: process.execPath }, { command: '' }, { command: 42 }])
     await assert.rejects(h.assistant('marker.local.status', args), /marker\.local\.status with a command is not available to the assistant/, JSON.stringify(args));
@@ -53,11 +58,10 @@ test('status, plan and history reads stay with the assistant, and they only read
   assert.deepEqual(await h.assistant('marker.settings.get'), { command: '' });
   assert.equal((await h.assistant('marker.local.status')).state, 'not-installed');
   assert.equal((await h.assistant('marker.install.status')).status, 'idle');
-  assert.equal((await h.assistant('mineru.settings.get')).acknowledged, false);
+  assert.equal((await h.assistant('mineru.install.status')).status, 'idle');
   const local = await h.assistant('mineru.local.status');
   assert.equal(local.state, 'needs-models', 'the local MinerU answered its read-only status');
-  assert.equal(local.next, 'enable');
-  assert.equal((await h.assistant('mineru.local.setup.status')).status, 'idle');
+  assert.equal(local.origin, 'env', 'the MinerU of MINERU_BIN, not an install of StudyHub');
   assert.equal((await h.assistant('mineru.plan', { path: h.files.pdf })).pages, 3);
   assert.ok(Array.isArray((await h.assistant('mineru.history.list')).records));
   const commands = (await h.spawns()).map(spawn => spawn.args.join(' '));
@@ -65,11 +69,14 @@ test('status, plan and history reads stay with the assistant, and they only read
   assert.deepEqual(commands.filter(command => !/^(--version|server status|config get )/.test(command)), [], 'only read-only MinerU commands ran');
   assert.equal((await h.mineruState()).mode, 'disabled');
   assert.equal(await exists(markerSettingsPath()), false);
-  assert.equal(await exists(mineruSettingsPath()), false);
+  assert.equal(await exists(mineruInstallStatePath()), false);
+  // A MinerU that is not set up is refused before anything is read, with the one place to fix it.
+  await assert.rejects(h.assistant('mineru.import', { path: h.files.pdf }), /一键安装/);
+  await assert.rejects(h.assistant('mineru.import', { path: h.files.pdf, route: 'cloud' }), /云端解析已停用/);
 });
 
-test('what the learner sets in Settings is what the assistant\'s imports use: the chosen Marker program converts, and the confirmed local MinerU parses', async t => {
-  const h = await assistantDoors(t);
+test('what the learner sets in Settings is what the assistant\'s imports use: the chosen Marker program converts, and the ready local MinerU parses', async t => {
+  const h = await assistantDoors(t, { mineru: { version: '4.0.10', total: 3, running: true, mode: 'managed', tier: 'basic', modelsReady: true } });
   await h.panel('marker.settings.set', { command: h.program });
   assert.equal((await h.assistant('marker.local.status')).state, 'ready');
   const marker = await h.assistant('marker.import', { path: h.files.pdf, course: 'Probe' });
@@ -78,10 +85,8 @@ test('what the learner sets in Settings is what the assistant\'s imports use: th
   assert.equal(conversions.length, 1);
   assert.equal(conversions[0].program, h.program, 'the program the learner chose in Settings did the conversion');
 
-  await assert.rejects(h.panel('mineru.local.setup', { tier: 'basic' }), /确认/, 'Settings still asks the learner to confirm the download');
-  assert.equal((await h.panel('mineru.local.setup', { tier: 'basic', confirm: true })).status, 'running');
-  await until(async () => (await h.panel('mineru.local.setup.status')).status !== 'running', 'the local setup', { timeoutMs: 120_000 });
-  assert.equal((await h.mineruState()).mode, 'managed');
-  const mineru = await h.assistant('mineru.import', { path: h.files.pdf, route: 'local', course: 'Probe' });
+  assert.equal((await h.assistant('mineru.local.status')).state, 'ready');
+  // Without a route the import is local: the default that used to send a PDF to the cloud.
+  const mineru = await h.assistant('mineru.import', { path: h.files.pdf, course: 'Probe' });
   assert.equal((await finished(h, mineru.jobId)).status, 'complete');
 });
