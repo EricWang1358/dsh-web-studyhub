@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, InlineMessage, NumberInput } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
@@ -9,8 +9,9 @@ import { leftOutText } from './crunch-words.js';
 /* 「用这几节出一套模拟卷」 (M7): the same control on the book page and on the home's 期末一周 card. A click asks what the paper would take (book.mock.plan:
    how many questions the points have, how many single or multiple choice can go in, what the exam mode leaves out) and says it before anything starts;
    开始模拟卷 starts the ordinary exam (book.mock → the exam page, unchanged). pointIds: the heading ids (none: today's points of the plan, else the
-   whole book); onStarted(run) enters the exam run. */
-export default function MockPaper({ course, pointIds, onStarted, className }) {
+   whole book); onStarted(run) enters the exam run. autoAsk: ask at once (in the book's dialog, where the button would be one click more); onCancel: what
+   取消 / 知道了 do instead of showing the button again (the dialog closes). */
+export default function MockPaper({ course, pointIds, onStarted, className, autoAsk = false, onCancel }) {
   const { call, notify } = useStudy();
   const [plan, setPlan] = useState(null), [count, setCount] = useState(''), [busy, setBusy] = useState(false);
   const scope = { course, ...(pointIds ? { pointIds } : {}) };
@@ -19,6 +20,8 @@ export default function MockPaper({ course, pointIds, onStarted, className }) {
     try { const next = await call('book.mock.plan', scope); setPlan(next); setCount(String(next.count || '')); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     finally { setBusy(false); }
   };
+  useEffect(() => { if (autoAsk) ask(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const cancel = () => (onCancel ? onCancel() : setPlan(null));
   const most = plan ? Math.min(QUESTION_COUNT.max, plan.eligible) : 0, wanted = Number(count), valid = Number.isInteger(wanted) && wanted >= 1 && wanted <= most;
   const start = async event => {
     event.preventDefault();
@@ -42,10 +45,10 @@ export default function MockPaper({ course, pointIds, onStarted, className }) {
           </Field>
           <span className="book-mock__muted">{plan.limitMinutes ? uiFormat('限时 {0} 分钟（课程的作答时间）', [minutes]) : uiFormat('限时 {0} 分钟', [minutes])}</span>
           <Button type="submit" size="sm" variant="secondary" busy={busy} disabled={busy || !valid}>{ui('开始模拟卷')}</Button>
-          <Button size="sm" variant="quiet" disabled={busy} onClick={() => setPlan(null)}>{ui('取消')}</Button>
+          <Button size="sm" variant="quiet" disabled={busy} onClick={cancel}>{ui('取消')}</Button>
         </form>
       ) : (
-        <InlineMessage tone="warning" action={{ label: ui('知道了'), onClick: () => setPlan(null) }}>{ui('这几节没有单选或多选题，出不了模拟卷。')}</InlineMessage>
+        <InlineMessage tone="warning" action={{ label: ui('知道了'), onClick: cancel }}>{ui('这几节没有单选或多选题，出不了模拟卷。')}</InlineMessage>
       )}
     </div>
   );

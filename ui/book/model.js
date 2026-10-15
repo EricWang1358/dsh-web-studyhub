@@ -1,4 +1,6 @@
 /* 复习全书 page (ui/book/): what the page keeps between visits and how it reads course.book.open's tree. Pure, no React, no DOM. */
+import { ui } from '../i18n.js';
+import { browserStorage, readJSON, writeJSON } from '../storage.js';
 import { bookIndex, stitchBook } from '../../lib/course-book-links.js';
 import { daysUntilExam } from '../../lib/courses.js';
 
@@ -27,14 +29,39 @@ export function crunchDateHint(exam, windowDays, now = new Date()) {
   return left > windowDays ? { kind: 'later', window: windowDays } : null;
 }
 
+// Where the learner was ({ heading, offset }) survives a reload and the next day: kept in this browser per library and course (ui/storage.js, a small JSON).
+// Everything else the page is handed is a one-shot of this page load, in memory and never written: `target` (a node key an entry link opens at), `view`
+// (the home's card: 'flip' or 'today'), `back` and `point` (the way back from practice: focus that point's heading), `switched` (the home switched the course),
+// `chapter` (the chapter of a typed heading the way back left from).
 const kept = new Map();
 const keyOf = (root, course) => JSON.stringify([root, course]);
-/** Where the learner was in the book of a course: { heading, offset } (offset: the heading's distance from the top of the window), and `target` (a node key to open at). */
-export const keptBook = (root, course) => kept.get(keyOf(root, course)) || null;
-export function keepBook(root, course, view) {
-  kept.set(keyOf(root, course), { ...(kept.get(keyOf(root, course)) || {}), ...view });
+const PLACE = new Set(['heading', 'offset']);
+/** The storage key of a course's place in the book. */
+export const placeKey = (root, course) => `study-book-place:${root}:${course}`;
+const readPlace = (root, course, storage) => {
+  const place = readJSON(placeKey(root, course), null, storage);
+  return place && typeof place.heading === 'string' && place.heading ? { heading: place.heading, offset: Number.isFinite(place.offset) ? place.offset : null } : null;
+};
+/** Where the learner was in the book of a course: { heading, offset } (offset: the heading's distance from the top of the window), and the one-shots above. */
+export function keptBook(root, course, storage = browserStorage()) {
+  const place = readPlace(root, course, storage), once = kept.get(keyOf(root, course));
+  return place || once ? { ...place, ...once } : null;
+}
+export function keepBook(root, course, view, storage = browserStorage()) {
+  const place = {}, once = {};
+  for (const [key, value] of Object.entries(view || {})) (PLACE.has(key) ? place : once)[key] = value;
+  if ('heading' in place || 'offset' in place) {
+    const before = readPlace(root, course, storage) || {}, heading = place.heading ?? before.heading ?? null, offset = place.offset ?? before.offset ?? null;
+    if (heading) writeJSON(placeKey(root, course), { heading, offset: Number.isFinite(offset) ? Math.round(offset) : 0 }, storage);
+  }
+  if (!Object.keys(once).length) return;
+  kept.set(keyOf(root, course), { ...(kept.get(keyOf(root, course)) || {}), ...once });
   if (kept.size > 20) kept.delete(kept.keys().next().value);
 }
+
+/** 复制编号: how the main chat is told which point is meant: the lowercase hid its book tools match, the number and title, the course. */
+export const pointCode = (row, course) => [String(row.hid).toLowerCase(), [row.number, row.title].filter(Boolean).join(' '), course === '' ? ui('未分类课程') : course || '']
+  .filter(Boolean).join(' · ');
 
 /** Every node of the tree in reading order with the index of its top chapter: [{ hid, key, number, title, depth, leaf, chapter, node }]. */
 export function bookRows(nodes) {

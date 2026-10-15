@@ -13,9 +13,9 @@ import { foldsByDefault, pointView } from './point-parts.js';
 import { AiFoldContext } from './ai-fold.js';
 
 /* A knowledge point's body (复习全书; also the folded 讲解 of 翻看, ui/book/BookFlip.jsx), in reading order (docs/review-book.md "Reading a point"): the
-   toolbar (练 5 道, 本节问答), the one-sentence takeaway (type, no box), the story (讲解, 例子) with the AI blocks about words right after their paragraphs,
-   要点清单 and 补充 folded, the learner's layer (我的: notes, AI blocks for the whole point, Q&A), the point's questions, and 出处 behind one quiet chip.
-   Nothing is left out of the file: the parts are only shown in another order. */
+   one-sentence takeaway (type, no box), the story (讲解, 例子) with the AI blocks about words right after their paragraphs, 要点清单 and 补充 folded, the
+   learner's layer (我的: notes, AI blocks for the whole point, Q&A), the point's questions, 出处 behind one quiet chip, and last the row of its actions
+   (在这里加一段, 练 5 道, 本节问答 with its panel under it, 发给主会话). Nothing is left out of the file: the parts are only shown in another order. */
 
 /** How many of a point's questions show before 还有 N 道. */
 const FIRST = 5;
@@ -69,9 +69,7 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
   </React.Fragment>;
   return (
     <div className="book-point" data-book-point={node.hid}>
-      <PointToolbar node={node} course={course} handlers={handlers} />
       {node.movedFrom && <p className="book-point__bridge" data-moved-from="">{uiFormat('来自原知识点「{0}」', [node.movedFrom])}</p>}
-      {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
       {node.bridge?.in && <p className="book-point__bridge">{node.bridge.in}</p>}
       {view.story.map(part => (part.name === 'takeaway'
         ? text(part, { className: 'book-file book-point__gist' })
@@ -89,6 +87,9 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
           {uiFormat('出处 {0}', [view.citeCount])}</Button>
         {cites && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
       </div>}
+      {/* The point's actions close it, so the reading starts right under its heading (S2 turns this row into the point's end). */}
+      <PointToolbar node={node} course={course} handlers={handlers} />
+      {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
     </div>
   );
 }

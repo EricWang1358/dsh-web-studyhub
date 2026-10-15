@@ -15,6 +15,10 @@ const REVIEW = [
   ["G / B", "👍 这题不错 / 👎 这题有问题"],
   ["A", "自动驾驶 开/关"],
 ];
+// 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx).
+const BOOK = [
+  ["← → / Esc", "复习全书：← → 换一个知识点，Esc 关掉目录或菜单"],
+];
 const EVERYWHERE = [
   ["S", "从任意页继续上一轮或开始今日学习"],
   ["P", "阅读资料时：做这几页的题（范围可选，做完回到阅读）"],
@@ -24,7 +28,7 @@ const EVERYWHERE = [
 
 /** A non-modal sheet: focus moves into it when it opens, Escape or a press outside closes it and focus goes back to where it was. */
 export default function ShortcutHelp({ page, onClose }) {
-  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...EVERYWHERE, ["A", ui("自动驾驶 开/关")]];
+  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", ui("自动驾驶 开/关")]];
   const sheet = useRef(null), opener = useRef(null);
   useEffect(() => {
     opener.current = document.activeElement;

@@ -21,18 +21,18 @@ function Part({ id, title, children }) {
   );
 }
 
-/** lookup: bookLookup's answer; onGo(hid) opens the book there. */
-export default memo(function BookLookup({ lookup, onGo }) {
+/** lookup: bookLookup's answer; onGo(hid) opens the book there; toc: false leaves the 目录 part out (the book page has its own 目录). */
+export default memo(function BookLookup({ lookup, onGo, toc = true }) {
   const places = new Map(lookup.places.map(place => [place.hid, place]));
   return (
     <div className="book-lookup">
-      <Part id="toc" title={ui('目录')}>
+      {toc && <Part id="toc" title={ui('目录')}>
         <ol className="book-lookup__toc">
           {lookup.toc.map(entry => <li key={entry.id} className="book-lookup__entry" data-level={Math.min(4, entry.level)}>
             <Code hid={entry.id} code={entry.code} onGo={onGo} /> <span>{entry.title}</span>
           </li>)}
         </ol>
-      </Part>
+      </Part>}
       <Part id="types" title={ui('按题型')}>
         {lookup.types.length ? <>
           <p className="book-lookup__order"><strong>{ui('答题顺序')}</strong> {lookup.answerOrder.join(' → ')}</p>
