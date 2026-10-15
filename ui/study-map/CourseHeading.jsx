@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Combobox, PageHeader } from '../components/index.js';
 import { ExamCountdown } from '../CourseSettings.jsx';
 import { courseEntries } from '../course-picker-entries.js';
+
+/** The current course as a heading-size course switcher (the home's heading and the review book's title share it): a searchable Combobox ranked like every course
+    picker, its trigger the text passed as children. onFocus({ course }) makes another course current (the whole app follows). */
+export const CourseSwitch = forwardRef(function CourseSwitch({ data, onFocus, actions = [], children, ...rest }, ref) {
+  const focus = data.focus || {};
+  return <Combobox ref={ref} variant="heading" label={ui('切换当前课程')} value={focus.course || ''} onChange={(course) => onFocus?.({ course })}
+    options={courseEntries({ courses: focus.courses || [], current: focus.course })} searchPlaceholder={ui('搜索课程或章节')}
+    emptyText={(query) => uiFormat('没有叫「{0}」的课程或章节', [query])} actions={actions} {...rest}>{children}</Combobox>;
+});
 
 /**
  * The home's heading: the study-mode's role input in interview mode, else the
@@ -28,11 +37,7 @@ export default function CourseHeading({ data, headline, onFocus, onCourseSetting
   const actions = onCourseSettings && focus.courseId
     ? [{ id: 'course-settings', label: ui('课程设置…'), icon: 'settings', onSelect: () => onCourseSettings(focus.courseId) }] : [];
   return frame(<>
-      <Combobox variant="heading" label={ui('切换当前课程')} value={focus.course || ''} onChange={(course) => onFocus?.({ course })}
-        options={courseEntries({ courses, current: focus.course })} searchPlaceholder={ui('搜索课程或章节')}
-        emptyText={(query) => uiFormat('没有叫「{0}」的课程或章节', [query])} actions={actions}>
-        {focus.course === '' ? ui('未分类课程') : focus.course || headline}
-      </Combobox>
+      <CourseSwitch data={data} onFocus={onFocus} actions={actions}>{focus.course === '' ? ui('未分类课程') : focus.course || headline}</CourseSwitch>
       <ExamCountdown course={(data.courses || []).find((course) => course.id === focus.courseId)} />
     </>, { className: 'course-heading', 'data-tour': 'home-course' });
 }
