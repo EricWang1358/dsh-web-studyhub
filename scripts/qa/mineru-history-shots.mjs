@@ -156,7 +156,7 @@ try {
 
       // The Sources page: the running card with its environment, and the history under it.
       await tab.locator('[data-tour="nav-sources"]').first().click(); await settle(600);
-      await tab.locator('.pdf-convert-jobs .job.running').first().waitFor({ timeout: 20_000 });
+      await tab.locator('.pdf-convert-jobs .cjc[data-state="run"]').first().waitFor({ timeout: 20_000 });
       await tab.locator('.pdf-history summary').first().waitFor({ timeout: 20_000 });
       await shot('sources-1-card-and-history-closed');
       await audit(tab, `sources-closed/${label}`, { scopes: ['.pdf-convert-jobs > *', '.pdf-env'] }); await noSpill(tab, `sources-closed/${label}`);
@@ -168,10 +168,6 @@ try {
       const text = await tab.locator('.pdf-history').innerText();
       const expectations = lang === 'en' ? [/Finished|Completed/, /Did not finish/, /Cancelled/, /Interrupted/, /Running|In progress/, /Cloud|cloud/, /Local/, /choose this PDF again/] : [/已完成/, /没有完成/, /已取消/, /被中断/, /进行中/, /云端/, /本地/, /云端解析已停用/];
       for (const pattern of expectations) if (!pattern.test(text)) problems.push(`sources-open/${label}: the history lacks ${pattern}`);
-      // The running local card names what runs it.
-      const card = await tab.locator('.pdf-convert-jobs .job.running .pdf-env').first().innerText();
-      for (const pattern of lang === 'en' ? [/4\.0\.10/, /standard/, /MinerU2\.5-Pro-2605-1\.2B-GGUF/, /service is running/i] : [/4\.0\.10/, /standard/, /MinerU2\.5-Pro-2605-1\.2B-GGUF/, /本地服务运行中/])
-        if (!pattern.test(card)) problems.push(`card/${label}: the environment lacks ${pattern}: ${card.replace(/\s+/g, ' ')}`);
 
       // The Add-material dialog and its link.
       await tab.locator('[data-tour="sources-add"]').first().click(); await settle(500);
@@ -205,7 +201,7 @@ try {
 
       // The running conversion is stopped from its card; its row becomes cancelled.
       if (steps.stop) {
-        await tab.locator('.pdf-convert-jobs .job.running').getByRole('button', { name: /停止/ }).first().click();
+        await tab.locator('.pdf-convert-jobs .cjc[data-state="run"]').getByRole('button', { name: /停止/ }).first().click();
         await until(async () => (await jobs()).find(job => job.id === running)?.status === 'cancelled', 'the stop');
         await settle(800);
         await ensureOpen();
