@@ -246,7 +246,8 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
         await page.locator('.coach-debrief h2').waitFor({ timeout: 10000 });
         await page.locator('.coach-debrief').screenshot({ path: join(shots, `reader-result-debrief-${tag}.png`) });
       }
-      await page.getByRole('button', { name: '返回学习库' }).first().click();
+      // The result page of a reader round has no header way back (回到阅读 is its one way back): leave through the sidebar.
+      await page.locator('[data-usage="nav.library"]').first().click();
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click();
       await page.locator('.book-step').waitFor({ timeout: 30000 });

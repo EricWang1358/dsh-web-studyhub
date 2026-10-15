@@ -1,5 +1,6 @@
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
+import { isPagedFormat } from '../lib/office/limits.js';
 
 /* The per-source coverage list of a draft, by document (#201): the rows the generation recorded are one per source (one per PDF page), so a book
    shows up once per page with its whole file name. Grouped, the book is named once (as the 资料 page names it, without the file's extension or
@@ -15,7 +16,7 @@ const PAGE_IN_TITLE = /\s·\s(?:p\.\s?(\d+)|第\s?(\d+)\s?页)$/;
 export function coverageGroups(rows, sources) {
   const known = new Map();
   for (const item of groupSourcesByDocument(Array.isArray(sources) ? sources : []))
-    for (const entry of item.pages) known.set(entry.sourceId, { key: item.key, title: item.title, page: item.format === 'pdf' || item.format === 'pptx' ? entry.page : null });
+    for (const entry of item.pages) known.set(entry.sourceId, { key: item.key, title: item.title, page: isPagedFormat(item.format) ? entry.page : null });
   const groups = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
     let meta = known.get(row.id);

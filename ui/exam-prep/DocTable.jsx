@@ -5,6 +5,7 @@ import { META_DOT, joinMeta } from '../format.js';
 import SourcePicker, { chosenByChapters, documentSearchText, sourceFormatLabel } from '../SourcePicker.jsx';
 import { displayTitle } from '../../lib/document-title.js';
 import { sourceMatchesCourse } from '../../lib/source-courses.js';
+import { isPagedFormat } from '../../lib/office/limits.js';
 import { roleOf } from './form.js';
 import { maybePaperWords, reasonWords, roleOptions } from './form-words.js';
 
@@ -13,7 +14,7 @@ import { maybePaperWords, reasonWords, roleOptions } from './form-words.js';
 
 const FILTER_AFTER = 8;
 
-const pagesLabel = item => chosenByChapters(item) ? ui('选择章节') : item.format === 'pdf' || item.format === 'pptx' ? ui('选择页面') : ui('选择部分');
+const pagesLabel = item => chosenByChapters(item) ? ui('选择章节') : isPagedFormat(item.format) ? ui('选择页面') : ui('选择部分');
 
 function DocRow({ item, role, suggestion, picked, sources, disabled, onRole, onPages, courses, foreign }) {
   const [pagesOpen, setPagesOpen] = useState(false);

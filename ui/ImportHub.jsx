@@ -9,7 +9,7 @@ import LargeDocumentCard, { ConverterMain } from './LargeDocumentCard.jsx';
 import PdfConversion from './PdfConversion.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { LARGE_DOCUMENT_LIMITS, classifyImportFailure } from '../lib/large-documents.js';
-import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, maxBytesFor, megabytes } from '../lib/office/limits.js';
+import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, isPagedFormat, isSlideFormat, maxBytesFor, megabytes } from '../lib/office/limits.js';
 import { AUDIO_EXTENSIONS, SUBTITLE_TIMED_EXTENSIONS } from '../lib/audio-formats.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import { IMPORT_ERROR } from '../lib/import-errors.js';
@@ -31,28 +31,27 @@ import { useStudy } from './study-context.jsx';
    it), and a fully successful batch hands its summary to onComplete (the App
    closes the dialog, shows the toast and highlights the new material). */
 
-/** PDF, Markdown, HTML and TXT. Word and PowerPoint have MAX_OFFICE_BYTES (one constant per format: lib/office/limits.js). */
+/** PDF, Markdown, HTML and TXT. Word and PowerPoint (.pptx and the old .ppt) have MAX_OFFICE_BYTES (one constant per format: lib/office/limits.js). */
 export const MAX_DOCUMENT_BYTES = MAX_TEXT_DOCUMENT_BYTES;
 export { MAX_OFFICE_BYTES };
 export const MAX_DECK_BYTES = 2_000_000;
 /** PDF and text documents; Word and PowerPoint follow them in the picker (HUB_DOCUMENTS). */
 const DOCUMENT_EXTENSIONS = ['.pdf', '.md', '.markdown', '.html', '.htm', '.txt'];
-const OFFICE_EXTENSIONS = ['.docx', '.pptx'];
-// Documents in the order the native picker shows them: .docx and .pptx right after .pdf.
+const OFFICE_EXTENSIONS = ['.docx', '.pptx', '.ppt'];
+// Documents in the order the native picker shows them: .docx, .pptx and .ppt right after .pdf.
 const HUB_DOCUMENTS = ['.pdf', ...OFFICE_EXTENSIONS, ...DOCUMENT_EXTENSIONS.slice(1)];
 /* Old Office and other word-processor formats are accepted only to explain, per file, what to do instead. */
-const LEGACY_EXTENSIONS = ['.doc', '.ppt', '.wps', '.key', '.pages'];
+const LEGACY_EXTENSIONS = ['.doc', '.wps', '.key', '.pages'];
 const DECK_EXTENSIONS = ['.json'];
 const SUBTITLE_EXTENSIONS = SUBTITLE_TIMED_EXTENSIONS;
 // '.json' is only a document when it is a converter's output (MinerU, Docling); a question deck takes the deck route.
-const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt', '.json': 'json' };
+const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.ppt': 'ppt', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt', '.json': 'json' };
 
 /** The size limit of a file, by its format. */
 export const documentLimit = name => maxBytesFor(FORMAT_OF[extensionOf(name)]);
 
 const LEGACY_MESSAGES = {
   '.doc': '暂不支持旧版 .doc，请在 Word 里另存为 .docx 或 PDF 后再导入。',
-  '.ppt': '暂不支持旧版 .ppt，请在 PowerPoint 里另存为 .pptx 或 PDF 后再导入。',
   '.wps': '暂不支持 .wps 文件，请在 WPS 里另存为 .docx 或 PDF 后再导入。',
   '.key': '暂不支持 Keynote（.key），请在 Keynote 里导出为 PowerPoint 或 PDF 后再导入。',
   '.pages': '暂不支持 Pages（.pages），请在 Pages 里导出为 Word 或 PDF 后再导入。',
@@ -92,7 +91,7 @@ export function looksLikeSubtitleJson(text) {
    failures carry OfficeFileError's own) and, for a limit, the number it enforced: the sentence is picked by the code and
    prints that number, so a limit changed in lib/ changes what is read here. `format` is the file's own format, known to
    the panel, for the two Office messages. */
-const damaged = ({ format }) => format === 'pptx'
+const damaged = ({ format }) => isSlideFormat(format)
   ? ui('这个 PowerPoint 文件读不出来（可能已损坏）。请在 PowerPoint 里重新另存为 .pptx 后再试。')
   : ui('这个 Word 文件读不出来（可能已损坏）。请在 Word 里重新另存为 .docx 后再试。');
 const protectedFile = () => ui('这个文件有密码保护，或是旧版格式。请去掉密码并另存为 .docx、.pptx 或 PDF 后再导入。');
@@ -169,7 +168,7 @@ async function importDocumentFile(file, { call, courses = [], known = [], conver
     if (format === 'pdf') throw permanentError(convertible
       ? ui('没有读到可用的文字，可能是扫描件或图片。下面可以在本机解析它（带文字识别，不会上传）。')
       : ui('没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。'), convertible ? { scanned: true } : {});
-    throw permanentError(format === 'pptx' ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
+    throw permanentError(isSlideFormat(format) ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
   }
   return { kind: 'document', title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
     pages: sourceIds.length, skippedPages: value?.skippedPages || [], courses: filed.courses, courseHow: filed.how, ...(converted ? { converted } : {}) };
@@ -241,7 +240,7 @@ export function importDoneMessage({ documents = [], decks = [], conversions = []
   const parts = [];
   if (documents.length === 1) {
     const [document] = documents;
-    parts.push(document.format !== 'pdf' && document.format !== 'pptx' ? uiFormat('已导入「{0}」', [document.title])
+    parts.push(!isPagedFormat(document.format) ? uiFormat('已导入「{0}」', [document.title])
       : document.pages === 1 ? uiFormat('已导入「{0}」（1 页）', [document.title]) : uiFormat('已导入「{0}」（{1} 页）', [document.title, document.pages]));
     // A course the name of the file suggested is said (it was a guess); the learner's own choice is already on the screen.
     if (document.courseHow === 'file-name' && document.courses?.[0]) parts.push(uiFormat('归入「{0}」（文件名里有课程名）', [document.courses[0]]));
@@ -312,7 +311,7 @@ export function itemDetail(item) {
   if (item.status !== 'done') return PENDING[item.kind] ? ui(PENDING[item.kind]) : '';
   const result = item.result;
   if (result.kind === 'deck') return uiFormat('已存为草稿「{0}」 · {1} 题', [result.title, result.count]);
-  const label = result.format === 'docx' ? ui('Word') : result.format === 'pptx'
+  const label = result.format === 'docx' ? ui('Word') : isSlideFormat(result.format)
     ? (result.sourceIds.length === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [result.sourceIds.length]))
     : sourceFormatLabel({ format: result.format, sourceIds: result.sourceIds });
   return result.skippedPages?.length

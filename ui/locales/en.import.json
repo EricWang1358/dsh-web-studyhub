@@ -23,7 +23,6 @@
   "文本文件需要是 UTF-8 编码。请在编辑器里“另存为 UTF-8”后再导入。": "Text files must be UTF-8. Use “Save as UTF-8” in your editor, then import again.",
   "不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。": "This file type isn’t supported. You can import PDF, Word, PowerPoint, Markdown, HTML, TXT, JSON decks and subtitles.",
   "暂不支持旧版 .doc，请在 Word 里另存为 .docx 或 PDF 后再导入。": "Old-format .doc files aren’t supported. In Word, save as .docx or PDF, then import it.",
-  "暂不支持旧版 .ppt，请在 PowerPoint 里另存为 .pptx 或 PDF 后再导入。": "Old-format .ppt files aren’t supported. In PowerPoint, save as .pptx or PDF, then import it.",
   "暂不支持 .wps 文件，请在 WPS 里另存为 .docx 或 PDF 后再导入。": "WPS (.wps) files aren’t supported. In WPS, save as .docx or PDF, then import it.",
   "暂不支持 Keynote（.key），请在 Keynote 里导出为 PowerPoint 或 PDF 后再导入。": "Keynote (.key) files aren’t supported. In Keynote, export to PowerPoint or PDF, then import it.",
   "暂不支持 Pages（.pages），请在 Pages 里导出为 Word 或 PDF 后再导入。": "Pages (.pages) files aren’t supported. In Pages, export to Word or PDF, then import it.",

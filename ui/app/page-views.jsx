@@ -58,7 +58,7 @@ function LibraryView() {
     try {
       const { practice } = await core.call('course.outline', { course, pick: { keys: [point.key] } });
       const scope = practice?.scope.slice(0, 5) || [];
-      if (!scope.length) { notify(ui('这一节还没有题。')); return; }
+      if (!scope.length) { notify(ui('还没出题')); return; }
       const origin = learn.captureContext();
       intents.practice(scope, { fresh: false, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }

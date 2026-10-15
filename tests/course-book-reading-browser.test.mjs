@@ -18,9 +18,10 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 复习全书 reading in the real page at 1280 and 420 px (docs/review-book.md "Reading modes", "Reading a point"): 逐节读 by default, one point under its
    path; 下一节 / 上一节 and ← / → go point by point and the window starts at its top; the 目录 marks it; the toolbar row is at the top right (练 5 道,
-   本节问答, 整理), a point without questions says 暂无题 with 出题; the takeaway comes first; the learner's layer starts folded (three items), its long
-   whole-point block says it repeats the 讲解 with 收起 (the fold remembered); 整理 › 只留我写的 hides it and 全部显示 brings it back; 整章滚动 folds the other
-   points and is remembered; a formula is drawn once; nothing scrolls sideways. Screenshots (dark and light) go to COURSE_BOOK_READING_SHOTS when set. */
+   本节问答, 发给主会话), a point without questions has a quiet 出题; the takeaway comes first; 我的 is a label, its long whole-point block starts folded as one
+   row (AI, its first real sentence, its size, 多为重复; the fold remembered), a short one about words is open right after its paragraph, 全部收起 / 全部展开 fold
+   them all; 整章滚动 folds the other points and is remembered; a formula is drawn once; nothing scrolls sideways. Screenshots (dark and light) go to
+   COURSE_BOOK_READING_SHOTS when set. */
 
 const explainOf = title => [`${title} is the part of the work an architect owns from the first day.`, ...Array.from({ length: 4 }, (_, i) =>
   `Paragraph ${i + 1}: an architect writes down each decision about ${title} and the reasons for it, so the team can see later why the system is shaped as it is.`),
@@ -85,7 +86,7 @@ async function openBook(page, running) {
   await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
 }
 
-test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, the toolbar, the folded layer, the repeat hint, 整理, 整章滚动 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, the toolbar, 我的, the folded AI row, 全部收起, 整章滚动 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-reading-dist-'));
@@ -105,13 +106,20 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.match(await page.locator('.book-step__top').innerText(), /Introduction[\s\S]*第 1 \/ 6 节/);
       assert.match(await words(page.locator('.book-step__heading')), /1\.1 What architects do/);
       // The toolbar row: at the top right of the point, before its text.
+      // At wide widths 在这里加一段 is on the left and the others on the right; at narrow ones all of them are one left-aligned wrapping row, so the rows share their left edge.
       const bar = await page.evaluate(() => {
-        const point = document.querySelector('.book-point').getBoundingClientRect(), actions = document.querySelector('.book-point__actions').getBoundingClientRect();
-        const gist = document.querySelector('.book-point__takeaway').getBoundingClientRect();
-        return { right: Math.round(point.right - actions.right), above: actions.bottom <= gist.top + 1 };
+        const point = document.querySelector('.book-point').getBoundingClientRect(), gist = document.querySelector('.book-point__gist').getBoundingClientRect();
+        const boxes = [...document.querySelectorAll('.book-point__bar button')].map(button => button.getBoundingClientRect());
+        const rows = new Map();
+        for (const box of boxes) rows.set(Math.round(box.top), Math.min(rows.get(Math.round(box.top)) ?? Infinity, box.left));
+        return { right: Math.round(point.right - Math.max(...boxes.map(box => box.right))), lefts: [...rows.values()].map(left => Math.round(left - point.left)),
+          above: Math.max(...boxes.map(box => box.bottom)) <= gist.top + 1, count: boxes.length };
       });
-      assert.ok(bar.right <= 2 && bar.above, `${width}px: the toolbar is at the top right: ${JSON.stringify(bar)}`);
-      assert.match(await page.locator('.book-point__actions').innerText(), /练 5 道[\s\S]*本节问答[\s\S]*整理/);
+      assert.ok(bar.above && bar.count === 4, `${width}px: the toolbar is above the text: ${JSON.stringify(bar)}`);
+      if (width === 1280) assert.ok(bar.right <= 2, `${width}px: the toolbar is at the top right: ${JSON.stringify(bar)}`);
+      else assert.ok(bar.lefts.every(left => left <= 2), `${width}px: every row of the toolbar starts at the left edge: ${JSON.stringify(bar)}`);
+      assert.match(await page.locator('.book-point__actions').evaluate(element => element.textContent), /^练 5 道[\s\S]*本节问答[\s\S]*发给主会话$/);
+      assert.equal(await page.locator('.book-point__tidy-button').count(), 0, `${width}px: no 整理 menu`);
       // The takeaway first, then 讲解 without it; 要点清单 and 补充 folded; 出处 one chip.
       assert.equal((await page.locator('.book-point__gist').innerText()).trim(), 'What architects do is the part of the work an architect owns from the first day.');
       assert.equal(await page.locator('.book-point__fold[open]').count(), 0, `${width}px: 要点清单 and 补充 start folded`);
@@ -120,52 +128,75 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.equal(await page.locator('[data-book-link="source"]').count(), 0);
       await page.locator('.book-point__cites-toggle').click();
       await page.locator('[data-book-link="source"]').first().waitFor();
+      // Ink, not cinnabar, inside the point: the 出处 entries are the text colour, a 角标 the dim ink (underlined only on hover), the global link colour untouched elsewhere.
+      const ink = await page.evaluate(() => {
+        const colour = value => { const probe = document.createElement('i'); probe.style.color = value; document.querySelector('.book-point').append(probe); const out = window.getComputedStyle(probe).color; probe.remove(); return out; };
+        const style = element => window.getComputedStyle(element);
+        const mark = document.querySelector('.book-point .md-cite__mark'), source = document.querySelector('.book-point [data-book-link="source"]');
+        // Outside the point (in the page, beside it) a Markdown link and a link button keep their default colours: this is what guards the fallbacks of --md-link-ink and --sh-link-ink.
+        const wrap = document.createElement('div');
+        wrap.className = 'md';
+        wrap.innerHTML = '<a href="#probe">probe</a><button type="button" class="sh-btn sh-btn--link">probe</button>';
+        document.querySelector('.book-page').append(wrap);
+        const outside = { md: style(wrap.querySelector('a')).color, button: style(wrap.querySelector('button')).color };
+        wrap.remove();
+        return { text: colour('var(--text)'), dim: colour('var(--text-dim)'), accent: colour('var(--accent-text)'), accentSoft: colour('var(--accent-soft)'), outside, source: style(source).color,
+          mark: style(mark).color, markLine: style(mark).textDecorationLine };
+      });
+      assert.equal(ink.source, ink.text, `${width}px: a 出处 entry is ink: ${JSON.stringify(ink)}`);
+      assert.equal(ink.mark, ink.dim, `${width}px: a 角标 is dim ink: ${JSON.stringify(ink)}`);
+      assert.equal(ink.markLine, 'none', `${width}px: and not underlined at rest`);
+      assert.notEqual(ink.source, ink.accent, `${width}px: not cinnabar`);
+      assert.equal(ink.outside.md, ink.accentSoft, `${width}px: a Markdown link outside the book keeps the soft accent: ${JSON.stringify(ink)}`);
+      assert.equal(ink.outside.button, ink.accent, `${width}px: a link button outside the book keeps cinnabar: ${JSON.stringify(ink)}`);
+      assert.notEqual(ink.outside.md, ink.text);
+      assert.notEqual(ink.outside.button, ink.text);
       // A formula is drawn once: MathML only, its TeX annotation not rendered.
       const math = await page.evaluate(() => [...document.querySelectorAll('.book-point .md-math')].map(element => ({ text: element.innerText.replace(/\s+/g, ''),
         hidden: [...element.querySelectorAll('annotation')].every(item => window.getComputedStyle(item).display === 'none') })));
       assert.deepEqual(math.map(item => item.hidden), [true, true], `${width}px: two formulas, each drawn once: ${JSON.stringify(math)}`);
       assert.ok(math.every(item => !/\\|\^/.test(item.text)), `${width}px: no TeX source in the visible text: ${JSON.stringify(math)}`);
-      // The layer: three items, so its blocks start folded; the long whole-point block says it repeats the 讲解.
-      assert.match(await page.locator('.book-layer__toggle').innerText(), /我的笔记与 AI 解释 \(3\)/);
-      assert.equal(await page.locator('.book-layer__toggle').getAttribute('aria-expanded'), 'false');
-      assert.equal(await page.locator('.book-ai[data-ai-folded="true"]').count(), 2, `${width}px: both blocks folded`);
+      // 我的: a hairline and a label (not a toggle); the long whole-point block starts folded (one row: AI, its first real sentence, its size, 多为重复), the short kept
+      // one about words is open, right after the paragraph that holds its words (in 讲解, not in 我的).
+      assert.equal((await page.locator('.book-layer__label').innerText()).trim(), '我的');
+      assert.equal(await page.locator('.book-layer__toggle').count(), 0, `${width}px: 我的 is not a toggle`);
+      assert.equal(await page.locator('.book-ai[data-ai-folded="true"]').count(), 1, `${width}px: only the long block starts folded`);
       const here = page.locator('.book-ai[data-ai-block="here1"]');
-      assert.match(await here.locator('.book-ai__repeat').innerText(), /与上面的讲解重复度高/);
+      assert.equal(await here.getAttribute('data-ai-folded'), 'true');
+      assert.equal(await page.locator('.book-ai[data-ai-block="words1"]').getAttribute('data-ai-folded'), null, `${width}px: a kept short block starts open`);
+      assert.equal(await page.locator('.book-ai[data-ai-block="words1"]').evaluate(element => !!element.closest('[data-book-layer]')), false, `${width}px: the block about words is not in 我的`);
+      assert.equal(await here.evaluate(element => !!element.closest('[data-book-layer]')), true, `${width}px: the whole-point block is`);
+      assert.equal((await here.locator('.book-ai__summary').innerText()).trim(), 'What architects do is the part of the work an architect owns from the first day.', `${width}px: the first real sentence, not the template`);
+      assert.match(await here.locator('.book-ai__toggle').innerText(), /^[\s\S]*AI[\s\S]*约 [\d,]+ 字[\s\S]*多为重复/);
+      // A folded row is one line (cut with an ellipsis) at wide widths; the summary may take two lines only on narrow ones.
+      const lines = await here.locator('.book-ai__summary').evaluate(element => { const style = window.getComputedStyle(element); return Math.round(element.getBoundingClientRect().height / parseFloat(style.lineHeight)); });
+      assert.ok(lines <= (width === 1280 ? 1 : 2), `${width}px: the folded summary takes ${lines} line(s)`);
+      assert.equal(await here.locator('.book-ai__summary').evaluate(element => window.getComputedStyle(element).webkitLineClamp), width === 1280 ? '1' : '2');
+      assert.equal(await page.locator('.book-ai-anchor').count(), 1, `${width}px: its words are dashed in the paragraph`);
       await flat(page, width, '逐节读');
       await settleAnimations(page);
-      // Opened, it offers 收起; an open block stays open after a reload, and 收起 is remembered too.
+      if (shots) await page.screenshot({ path: join(shots, `reading-ai-row-dark-${width}.png`) });
+      // Opened, it keeps its labels quiet; an open block stays open after a reload, and folding it is remembered too.
       await here.locator('.book-ai__toggle').click();
       await here.locator('.book-ai__body').waitFor();
+      assert.ok(await here.locator('.book-ai__label').count() >= 2, `${width}px: the 原文说： / 意思就是： labels are muted`);
+      assert.equal(await here.locator('.book-ai__label').first().evaluate(element => window.getComputedStyle(element).color !== window.getComputedStyle(element.parentElement).color), true);
       await page.reload();
       await openBook(page, running);
       await page.locator('.book-ai[data-ai-block="here1"] .book-ai__body').waitFor({ timeout: 10000 });
-      if (shots) { await settleAnimations(page); await page.screenshot({ path: join(shots, `reading-repeat-dark-${width}.png`) }); }
-      await page.locator('.book-ai[data-ai-block="here1"] .book-ai__repeat-fold').click();
+      if (shots) { await settleAnimations(page); await page.screenshot({ path: join(shots, `reading-ai-open-dark-${width}.png`) }); }
+      await here.locator('.book-ai__toggle').click();
       await page.locator('.book-ai[data-ai-block="here1"][data-ai-folded="true"]').waitFor({ timeout: 5000 });
       assert.match(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('study-book-ai-folded:')).map(([, value]) => value).join('')), /here1/);
-      // 整理 › 只留我写的 hides the new whole-point block (counted), 全部显示 brings it back; 展开所有 / 收起所有 AI 块.
-      // A menu closes when the page scrolls (ui/components/Menu.jsx), so its button is brought into view and left to settle before the press.
-      const openTidy = async () => {
-        await page.locator('.book-point__tidy-button').scrollIntoViewIfNeeded();
-        await page.waitForTimeout(300);
-        await page.locator('.book-point__tidy-button').click();
-        await page.locator('.sh-menu').waitFor({ timeout: 5000 });
-      };
-      const tidy = async label => { await openTidy(); await page.locator('.sh-menu [role="menuitem"]', { hasText: label }).click(); };
-      await openTidy();
-      await flat(page, width, 'the 整理 menu');
-      if (shots) await page.screenshot({ path: join(shots, `reading-tidy-dark-${width}.png`) });
-      await page.keyboard.press('Escape');
-      await tidy('只留我写的（隐藏 1 段）');
-      await here.waitFor({ state: 'detached', timeout: 5000 });
-      assert.match(await page.locator('.book-layer__hidden').innerText(), /已隐藏 1 段 AI 写的/);
-      assert.match(await page.locator('.book-layer__toggle').innerText(), /\(2\)/);
-      await page.locator('.book-layer__show').click();
-      await here.waitFor({ timeout: 5000 });
-      await tidy('展开所有 AI 块');
-      assert.equal(await page.locator('.book-ai[data-ai-folded]').count(), 0, `${width}px: all open`);
-      await tidy('收起所有 AI 块');
+      // From two blocks, one quiet link on the divider's row folds or opens them all.
+      const all = page.locator('.book-layer__fold');
+      assert.equal((await all.innerText()).trim(), '全部收起', `${width}px: one block is open: the link folds them`);
+      await all.click();
       assert.equal(await page.locator('.book-ai:not([data-ai-folded])').count(), 0, `${width}px: all folded`);
+      assert.equal((await all.innerText()).trim(), '全部展开');
+      await all.click();
+      assert.equal(await page.locator('.book-ai[data-ai-folded]').count(), 0, `${width}px: all open`);
+      await flat(page, width, 'the open blocks');
 
       // 下一节: the next point, the window at its top, the 目录 marks it.
       await page.locator('.book-step__next').scrollIntoViewIfNeeded();
@@ -187,11 +218,12 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep === id, second);
       await page.locator('.book-step__back').click();
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep === id, first);
-      // The 目录 goes to any point: one without questions says 暂无题 and offers 出题 in its toolbar.
+      // The 目录 goes to any point: one without questions has a quiet 出题 in its toolbar and says nothing else about it.
       if (width === 420) await page.locator('.book-header__toc').click();
       await page.locator('.book-toc__go', { hasText: 'A point without questions' }).click();
       await page.locator('.book-step__heading', { hasText: 'A point without questions' }).waitFor();
-      assert.match(await page.locator('.book-point__actions').innerText(), /暂无题[\s\S]*出题[\s\S]*本节问答/);
+      assert.match(await page.locator('.book-point__actions').innerText(), /^出题[\s\S]*本节问答[\s\S]*发给主会话$/);
+      assert.doesNotMatch(await page.locator('.book-point').innerText(), /暂无题|还没有题|还没出题/);
       assert.equal(await page.locator('.book-point__practice').count(), 0);
       assert.doesNotMatch(await page.locator('.book-point').innerText(), /这一节还没有题/);
       assert.equal(await page.locator('.book-step__next').isDisabled(), true, `${width}px: the last point has no 下一节`);

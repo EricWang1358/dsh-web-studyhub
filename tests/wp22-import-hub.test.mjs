@@ -22,25 +22,25 @@ const data = { root: 'lib', sources: [], decks: [], drafts: [], focus: { course:
 const render = props => renderToStaticMarkup(React.createElement(ImportHub, { data, call: async () => ({}), course: '操作系统', onCourseChange() {}, ...props }));
 const fake = (name, size, bytes = [1, 2, 3]) => ({ name, size, arrayBuffer: async () => new Uint8Array(bytes).buffer, text: async () => '' });
 
-test('Word and PowerPoint files are documents; old Office formats are recognised as legacy', () => {
+test('Word and PowerPoint files (old .ppt too) are documents; other old formats are recognised as legacy', () => {
   for (const audio of [true, false]) {
-    for (const name of ['a.docx', 'B.DOCX', 'slides.pptx', 'Week 3.PPTX']) assert.equal(routeImportFile({ name }, { audio }), 'document', name);
-    for (const name of ['old.doc', 'old.ppt', 'wps.wps', 'talk.key', 'notes.pages', 'OLD.DOC']) assert.equal(routeImportFile({ name }, { audio }), 'legacy', name);
+    for (const name of ['a.docx', 'B.DOCX', 'slides.pptx', 'Week 3.PPTX', 'old.ppt', 'Review.PPT']) assert.equal(routeImportFile({ name }, { audio }), 'document', name);
+    for (const name of ['old.doc', 'wps.wps', 'talk.key', 'notes.pages', 'OLD.DOC']) assert.equal(routeImportFile({ name }, { audio }), 'legacy', name);
   }
   assert.equal(routeImportFile({ name: 'a.pdf' }), 'document');
   assert.equal(routeImportFile({ name: 'x.exe' }), null);
 });
 
-test('the picker lists documents first: .docx and .pptx right after .pdf, audio last', () => {
+test('the picker lists documents first: .docx, .pptx and .ppt right after .pdf, audio last', () => {
   const accept = importAccept({ audio: true });
-  assert.deepEqual(accept.slice(0, 3), ['.pdf', '.docx', '.pptx']);
-  for (const extension of ['.doc', '.ppt', '.wps', '.key', '.pages']) assert.ok(accept.includes(extension), extension);
+  assert.deepEqual(accept.slice(0, 4), ['.pdf', '.docx', '.pptx', '.ppt']);
+  for (const extension of ['.doc', '.wps', '.key', '.pages']) assert.ok(accept.includes(extension), extension);
   assert.equal(new Set(accept).size, accept.length, 'no extension is listed twice');
   const lastDocument = Math.max(...['.pdf', '.docx', '.pptx', '.md', '.markdown', '.html', '.htm', '.txt', '.json', '.doc', '.ppt'].map(extension => accept.indexOf(extension)));
   const firstOther = Math.min(...['.srt', '.vtt', '.mp3', '.wav', '.m4a'].map(extension => accept.indexOf(extension)));
   assert.ok(lastDocument < firstOther, 'subtitle and audio extensions come after every document extension');
   const plain = importAccept({ audio: false });
-  assert.deepEqual(plain.slice(0, 3), ['.pdf', '.docx', '.pptx']);
+  assert.deepEqual(plain.slice(0, 4), ['.pdf', '.docx', '.pptx', '.ppt']);
   assert.ok(!plain.includes('.mp3') && !plain.includes('.srt'));
 });
 
@@ -49,7 +49,7 @@ test('the drop zone hint names the new formats and one limit per format, in both
   const zh = render({ audio: React.createElement('div') });
   assert.match(zh, /PDF · Word · PowerPoint · Markdown/);
   assert.match(zh, /PDF 与文本最大 8 MB，Word \/ PPT 最大 40 MB/);
-  assert.match(zh, /accept="\.pdf,\.docx,\.pptx,/);
+  assert.match(zh, /accept="\.pdf,\.docx,\.pptx,\.ppt,/);
   setUiLanguage('en');
   try {
     const en = render({ audio: React.createElement('div') }).replace(/<[^>]+>/g, ' ');
@@ -62,20 +62,18 @@ test('the drop zone hint names the new formats and one limit per format, in both
 test('legacy Office files get a specific message and are never sent to the server', async () => {
   setUiLanguage('zh');
   let calls = 0;
-  const results = await runImport([fake('old.doc', 10), fake('old.ppt', 10), fake('x.wps', 10), fake('t.key', 10), fake('n.pages', 10)], { call: async () => { calls++; return {}; }, audio: true });
+  const results = await runImport([fake('old.doc', 10), fake('x.wps', 10), fake('t.key', 10), fake('n.pages', 10)], { call: async () => { calls++; return {}; }, audio: true });
   assert.equal(calls, 0);
-  assert.deepEqual(results.map(result => result.status), ['error', 'error', 'error', 'error', 'error']);
+  assert.deepEqual(results.map(result => result.status), ['error', 'error', 'error', 'error']);
   assert.equal(results[0].error, '暂不支持旧版 .doc，请在 Word 里另存为 .docx 或 PDF 后再导入。');
-  assert.equal(results[1].error, '暂不支持旧版 .ppt，请在 PowerPoint 里另存为 .pptx 或 PDF 后再导入。');
-  assert.match(results[2].error, /\.wps.*\.docx/);
-  assert.match(results[3].error, /Keynote.*PowerPoint|PDF/);
-  assert.match(results[4].error, /Pages.*Word|PDF/);
+  assert.match(results[1].error, /\.wps.*\.docx/);
+  assert.match(results[2].error, /Keynote.*PowerPoint|PDF/);
+  assert.match(results[3].error, /Pages.*Word|PDF/);
   assert.ok(results.every(result => result.permanent === true), 'removal, not retry');
   setUiLanguage('en');
   try {
-    const english = await runImport([fake('old.doc', 10), fake('old.ppt', 10)], { call: async () => ({}) });
+    const english = await runImport([fake('old.doc', 10)], { call: async () => ({}) });
     assert.equal(english[0].error, 'Old-format .doc files aren’t supported. In Word, save as .docx or PDF, then import it.');
-    assert.equal(english[1].error, 'Old-format .ppt files aren’t supported. In PowerPoint, save as .pptx or PDF, then import it.');
     for (const result of english) assert.doesNotMatch(result.error, han);
   } finally { setUiLanguage('zh'); }
 });
@@ -88,6 +86,7 @@ test('size limits depend on the format and share one constant per format', async
   assert.equal(documentLimit('a.md'), 8 * MB);
   assert.equal(documentLimit('a.DOCX'), 40 * MB);
   assert.equal(documentLimit('a.pptx'), 40 * MB);
+  assert.equal(documentLimit('a.ppt'), 40 * MB);
   const sent = [];
   const call = async (action, args) => { sent.push(args.filename); return { sourceIds: ['s1'], document: { title: args.filename, format: args.filename.endsWith('x') ? args.filename.slice(-4) : 'pdf' } }; };
   const results = await runImport([fake('ok.docx', 30 * MB), fake('ok.pptx', 40 * MB), fake('big.docx', 41 * MB), fake('big.pptx', 80 * MB),

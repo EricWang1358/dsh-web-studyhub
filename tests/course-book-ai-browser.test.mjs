@@ -18,8 +18,8 @@ import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
 
 /* 复习全书 M4 in the real page at 1280 and 420 px (docs/plans/review-book.md): select words of a point's explanation → 弄懂 → a visible task → the block
-   appears in the point's 我的笔记与 AI 解释 (after the text, shown when it lands; its words dashed in the paragraph), 新 until 保留; 删除 takes it out;
-   「在这里加一段」 with an instruction puts a block there too; the layer's header folds them all; nothing scrolls sideways. The preview server's fake
+   appears right after the paragraph that holds the words (shown when it lands; its words dashed in the paragraph), 保留 until kept; 删除 takes it out;
+   「在这里加一段」 with an instruction puts a block in 我的; 我的's 全部收起 / 全部展开 folds them all; nothing scrolls sideways. The preview server's fake
    model answers. Screenshots go to COURSE_BOOK_AI_SHOTS when set. */
 
 async function seed(root) {
@@ -82,7 +82,7 @@ async function runTasksFor(page, root) {
   return { dispose: () => service.dispose(), ended };
 }
 
-test('复习全书 弄懂 / 加一段: select → 弄懂 → the block in the learner\'s layer, 保留, 删除; 在这里加一段 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right after its paragraph, 保留, 删除; 在这里加一段 in 我的 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-ai-dist-'));
@@ -163,9 +163,9 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block in the le
       const order = await block.evaluate((element, text) => {
         const paragraph = [...document.querySelectorAll('[data-book-point] .book-file p')].find(item => item.textContent.includes(text) && !item.closest('.book-ai'));
         const second = [...document.querySelectorAll('[data-book-point] .book-file p')].find(item => item.textContent.startsWith('A second paragraph'));
-        return { after: !!(paragraph.compareDocumentPosition(element) & 4), afterText: !!(second.compareDocumentPosition(element) & 4), layer: !!element.closest('[data-book-layer]') };
+        return { after: !!(paragraph.compareDocumentPosition(element) & 4), beforeNext: !!(second.compareDocumentPosition(element) & 2), layer: !!element.closest('[data-book-layer]') };
       }, words);
-      assert.deepEqual(order, { after: true, afterText: true, layer: true }, `${width}px: in the learner's layer, after the point's text`);
+      assert.deepEqual(order, { after: true, beforeNext: true, layer: false }, `${width}px: right after the paragraph that holds its words, before the next one, not in 我的`);
       assert.equal(await block.evaluate(element => { const rect = element.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; }), true,
         `${width}px: a block that lands is shown`);
       assert.equal(await block.getAttribute('data-ai-state'), 'new');
@@ -194,17 +194,19 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block in the le
       assert.notEqual(lines.light, lines.dark, `${width}px: the underline colour is the theme's: ${JSON.stringify(lines)}`);
       assert.notEqual(lines.light, 'rgba(0, 0, 0, 0)');
 
-      // The block folds: its header keeps AI, 关于：「…」 and the first line of the answer; the fold is remembered in this browser, not in the book.
-      const toggle = block.locator('.book-ai__toggle');
-      assert.equal(await toggle.getAttribute('aria-expanded'), 'true', `${width}px: a new block opens open`);
+      // The block folds to one row: AI, the first real sentence of the answer and its size; the fold is remembered in this browser, not in the book.
+      // A folded row no longer says 关于：「…」, so it is found by its id from here.
+      const blockId = await block.getAttribute('data-ai-block'), row = page.locator(`.book-ai[data-ai-block="${blockId}"]`), toggle = row.locator('.book-ai__toggle');
+      assert.equal(await toggle.getAttribute('aria-expanded'), 'true', `${width}px: a short block starts open`);
       await toggle.click();
-      await block.locator('.book-ai__body').waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal(await block.getAttribute('data-ai-folded'), 'true');
+      await row.locator('.book-ai__body').waitFor({ state: 'detached', timeout: 5000 });
+      assert.equal(await row.getAttribute('data-ai-folded'), 'true');
       assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
-      assert.match(await block.locator('.book-ai__summary').innerText(), /\S/, `${width}px: the first line of the answer stays as a summary`);
-      assert.equal(await block.locator('.book-ai__actions, .book-ai__follow').count(), 0);
+      assert.match(await row.locator('.book-ai__summary').innerText(), /\S/, `${width}px: the first sentence of the answer is the summary`);
+      assert.match(await row.locator('.book-ai__meta').first().innerText(), /^约 [\d,]+ 字$/, `${width}px: and its size`);
+      assert.equal(await row.locator('.book-ai__actions, .book-ai__follow').count(), 0);
       const kept = () => page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('study-book-ai-folded:')).map(([, value]) => value).join(''));
-      assert.match(await kept(), new RegExp(await block.getAttribute('data-ai-block')), `${width}px: the fold is kept in the browser`);
+      assert.match(await kept(), new RegExp(blockId), `${width}px: the fold is kept in the browser`);
       overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: the folded header fits: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
@@ -215,13 +217,13 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block in the le
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
       await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
       if (await page.locator('.book-editor').count()) await page.locator('.book-header__mode').getByText('预览', { exact: true }).click();
-      await page.locator('.book-ai[data-ai-folded="true"]', { hasText: `关于：「${words}」` }).first().waitFor({ timeout: 30000 });
+      await page.locator('.book-ai[data-ai-folded="true"]').first().waitFor({ timeout: 30000 });
       const seen = el => { const rect = el.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; };
       // The dashed words go to the block: opened, shown, flashed, its header focused.
       await page.locator('.book-ai-anchor').first().evaluate(element => element.scrollIntoView({ block: 'start' }));
       await page.locator('.book-ai-anchor').first().click();
       await page.locator('.book-ai[data-ai-folded]').first().waitFor({ state: 'detached', timeout: 5000 });
-      const shown = page.locator('.book-ai', { hasText: `关于：「${words}」` }).first();
+      const shown = row;
       assert.equal(await shown.evaluate(seen), true, `${width}px: the block is in view`);
       assert.equal(await page.evaluate(() => document.querySelector('.book-ai[data-ai-flash]') !== null), true, `${width}px: the block flashes`);
       assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('book-ai__toggle')), true, `${width}px: focus is on the block's header`);
@@ -273,21 +275,20 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block in the le
         const point = element.closest('[data-book-point]'), text = point.querySelector('.book-file');
         return !!(text.compareDocumentPosition(element) & 4) && !!element.closest('[data-book-layer]');
       });
-      assert.equal(below, true, `${width}px: in the learner's layer, after the point's text (never above it)`);
-      // The layer's header folds and opens every block of the point.
-      const fold = page.locator('[data-book-point] .book-layer__toggle').first();
+      assert.equal(below, true, `${width}px: in 我的, after the point's text (never above it)`);
+      // 我的 has one quiet link that folds and opens every block of the point (two blocks from here; at 420 also the 在这里加一段 block of 1280: same library).
+      const fold = page.locator('[data-book-point] .book-layer__fold').first();
       await fold.waitFor({ timeout: 5000 });
-      // Two blocks of this width (at 420 also the 在这里加一段 block written at 1280: the library is the same).
-      assert.match(await fold.innerText(), new RegExp(`我的笔记与 AI 解释 \\(${width === 1280 ? 2 : 3}\\)`));
-      assert.equal(await fold.getAttribute('aria-expanded'), 'true');
+      assert.equal(await page.locator('[data-book-point] .book-ai').count(), width === 1280 ? 2 : 3, `${width}px: the blocks of the point`);
+      assert.equal((await fold.innerText()).trim(), '全部收起');
       await fold.click();
       await page.locator('.book-ai[data-ai-folded]').nth(1).waitFor({ timeout: 5000 });
       assert.equal(await page.locator('.book-ai:not([data-ai-folded])').count(), 0, `${width}px: all folded`);
-      assert.equal(await fold.getAttribute('aria-expanded'), 'false');
+      assert.equal((await fold.innerText()).trim(), '全部展开');
       if (shots) await page.screenshot({ path: join(shots, `ai-folded-all-${width}.png`) });
       await fold.click();
       await page.locator('.book-ai[data-ai-folded]').first().waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal(await fold.getAttribute('aria-expanded'), 'true');
+      assert.equal((await fold.innerText()).trim(), '全部收起');
       // Taking the first block out is still 删除 (the editor and the export read the file, which a fold never touched).
       await page.locator('.book-ai[data-ai-state="kept"]', { hasText: `关于：「${words}」` }).first().getByText('删除', { exact: true }).click();
       await page.locator('.book-ai', { hasText: `关于：「${words}」` }).first().waitFor({ state: 'detached', timeout: 30000 });
