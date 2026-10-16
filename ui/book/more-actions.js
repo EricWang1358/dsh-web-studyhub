@@ -18,12 +18,14 @@ async function copy(text) {
 export function useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord }) {
   const pointBlocks = useMemo(() => blocksOf(step?.node), [step]);
   const bookBlocks = useMemo(() => allBlocks(book), [book]);
-  const folded = blocks => blocks.every(block => aiFold.folded(block.id, foldsByDefault(block)));
-  const pointFold = pointBlocks.length ? { folded: folded(pointBlocks) } : null, bookFold = bookBlocks.length ? { folded: folded(bookBlocks) } : null;
+  const isFolded = aiFold.folded;
+  const pointFold = useMemo(() => (pointBlocks.length ? { folded: pointBlocks.every(block => isFolded(block.id, foldsByDefault(block))) } : null), [pointBlocks, isFolded]);
+  const bookFold = useMemo(() => (bookBlocks.length ? { folded: bookBlocks.every(block => isFolded(block.id, foldsByDefault(block))) } : null), [bookBlocks, isFolded]);
   const select = useCallback(async id => {
     if (id === 'edit') openView('edit');
     else if (id === 'create') onCreate?.();
-    else if (id === 'code' && step) notify(await copy(pointCode(step.node, course)) ? ui('已复制') : { text: ui('没能复制：浏览器不让写剪贴板'), tone: 'error' });
+    // 未归位 has no code the book tools match (BookMore leaves the item out there).
+    else if (id === 'code' && step && step.hid !== 'unplaced') notify(await copy(pointCode(step.node, course)) ? ui('已复制') : { text: ui('没能复制：浏览器不让写剪贴板'), tone: 'error' });
     else if (id === 'fold-point') aiFold.foldAll(pointBlocks.map(block => block.id), !pointFold?.folded);
     else if (id === 'fold-book') aiFold.foldAll(bookBlocks.map(block => block.id), !bookFold?.folded);
     else if (id === 'scroll') where.switchReading(reading.mode === 'scroll' ? 'step' : 'scroll');

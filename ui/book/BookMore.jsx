@@ -7,15 +7,17 @@ import { Button, Menu } from '../components/index.js';
    这一节: 编辑这一节… / 给这一节出题 / 复制编号 / 收起或展开这一节的 AI 段落. 阅读: 整章连着读 (a check) / 翻看 / 收起或展开全书的 AI 段落.
    整本书: 速查页… / 导出… / 整本书 · 发给主会话…. 期末一周: 今天读哪几节 / 出一套模拟卷… / 设置考试日期 / 前往设置. */
 
-/** The menu's items (pure, for the tests): `state` says what the page has now. */
-export function moreItems({ pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, today = false, mockScope = 0, dateHint = null, settings = false }) {
+/** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
+    questions of its own, no AI blocks: only 编辑这一节… in its group). */
+export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, today = false, mockScope = 0, dateHint = null,
+  settings = false }) {
   const pagesHint = pages === null ? undefined : pageLimit ? uiFormat('约 {0} 页 / 上限 {1} 页', [pages, pageLimit]) : uiFormat('约 {0} 页', [pages]);
   return [
     { heading: true, label: ui('这一节') },
     { id: 'edit', label: ui('编辑这一节…') },
-    { id: 'create', label: ui('给这一节出题') },
-    { id: 'code', label: ui('复制编号'), hint: ui('在主对话里指认这一节时用') },
-    pointFold && { id: 'fold-point', label: pointFold.folded ? ui('展开这一节的 AI 段落') : ui('收起这一节的 AI 段落') },
+    !unplaced && { id: 'create', label: ui('给这一节出题') },
+    !unplaced && { id: 'code', label: ui('复制编号'), hint: ui('在主对话里指认这一节时用') },
+    !unplaced && pointFold && { id: 'fold-point', label: pointFold.folded ? ui('展开这一节的 AI 段落') : ui('收起这一节的 AI 段落') },
     { heading: true, label: ui('阅读') },
     { id: 'scroll', label: ui('整章连着读'), checked: scroll, hint: ui('← → 仍按知识点走') },
     { id: 'flip', label: ui('翻看'), hint: ui('易错点多的在前') },

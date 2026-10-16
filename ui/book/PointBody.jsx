@@ -82,13 +82,11 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
       <BookSuggestion meta={handlers.files?.[node.files?.gen]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.gen, action, id)} />
       <PointLayer node={node} view={view} handlers={handlers} aiFold={aiFold} isFolded={isFolded} renderBlock={renderBlock} onAnchored={onAnchored} />
       <PointQuestions node={node} handlers={handlers} />
-      {view.citeCount > 0 && <div className="book-point__cites">
-        <Button variant="quiet" size="sm" icon="external" className="book-point__cites-toggle" aria-expanded={cites} onClick={() => setCites(value => !value)}>
-          {uiFormat('出处 {0}', [view.citeCount])}</Button>
-        {cites && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
-      </div>}
-      {/* The point's actions close it, so the reading starts right under its heading (S2 turns this row into the point's end). */}
-      <PointToolbar node={node} course={course} handlers={handlers} />
+      {/* The point's actions close it, so the reading starts right under its heading (S2 turns this row into the point's end); 出处 is the first of them, its
+          list opens under the row. */}
+      <PointToolbar node={node} course={course} handlers={handlers} cites={view.citeCount > 0 ? <Button variant="quiet" size="sm" icon="external"
+        className="book-point__cites-toggle" aria-expanded={cites} onClick={() => setCites(value => !value)}>{uiFormat('出处 {0}', [view.citeCount])}</Button> : null} />
+      {cites && view.citeCount > 0 && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
     </div>
   );

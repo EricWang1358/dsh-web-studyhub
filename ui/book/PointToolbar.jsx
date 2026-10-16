@@ -21,13 +21,14 @@ function useQaCount(course, nodeKey) {
   return count;
 }
 
-/** node, course, handlers (ui/book/BookPage.jsx). */
-export default function PointToolbar({ node, course, handlers }) {
+/** node, course, handlers (ui/book/BookPage.jsx); cites: the point's 出处 chip or null (first of the actions). */
+export default function PointToolbar({ node, course, handlers, cites = null }) {
   const qaCount = useQaCount(course, node.key), qaOpen = handlers.qaOpen(node.hid);
   return (
     <div className="book-point__bar">
       {handlers.addHere && <Button variant="quiet" size="sm" icon="sparkle" className="book-point__add" onClick={event => handlers.addHere(node, event.currentTarget)}>{ui('在这里加一段')}</Button>}
       <div className="book-point__actions">
+        {cites}
         {node.questionTotal > 0 && <Button size="sm" variant="secondary" icon="play" className="book-point__practice" data-book-link="practice"
           onClick={event => handlers.practice(node.hid, 5, node.hid, event.currentTarget)}>{ui('练 5 道')}</Button>}
         <Button size="sm" variant="quiet" className="book-point__qa" data-book-link="qa" aria-expanded={qaOpen} onClick={() => handlers.toggleQa(node.hid)}>
