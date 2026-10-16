@@ -1,28 +1,40 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui } from '../i18n.js';
 import { Button, Tooltip } from '../components/index.js';
 import useRangeAnchor from '../document-preview/translation/useRangeAnchor.js';
-import { selectedWords, selectionPoint, toolbarStays } from './ask-visibility.js';
+import { columnBounds, selectedWords, selectionBox, selectionPoint, toolbarStays } from './ask-visibility.js';
 
 /* The selection toolbar of the review book (docs/review-book.md "Ask AI"): words selected in a point, by mouse, keyboard or touch (it listens to
-   `selectionchange`, so a Shift+arrow selection and a long press count, in 翻看 too), show 「弄懂」「写一段…」「发给主会话」 above the selection's last line
-   (below it when there is no room; placed by ui/document-preview/translation/useRangeAnchor.js, zoom-correct, following the scroll). 弄懂 is a secondary
-   button: the page keeps its one primary. The words sent never carry the 角标 digits. Tab moves into it from a selection; Escape hides it. */
+   `selectionchange`, so a Shift+arrow selection and a long press count, in 翻看 too), show 「弄懂」「写一段…」「发给主会话」 above the selection's first line,
+   so every selected word stays in sight (below its last line when there is no room; placed by ui/document-preview/translation/useRangeAnchor.js, zoom-correct,
+   following the scroll), within the reading column (its edges line up with the text). 弄懂 is a secondary button: the page keeps its one primary. The words
+   sent never carry the 角标 digits. The first Tab after a selection moves into it (once: the next Tab goes on through the page); Escape hides it. */
 
 /** host: the page element it is placed in; scrollerRef; hidden: the 问 AI panel is open; model: modelReadiness; onExplain({ heading, words }),
     onWrite({ heading, words, range }), onSend({ heading, words }). */
 export default function BookSelectBar({ host, scrollerRef, hidden = false, model, onExplain, onWrite, onSend }) {
   const [picked, setPicked] = useState(null);
-  const bar = useRef(null), rangeRef = useRef(null);
+  const bar = useRef(null), rangeRef = useRef(null), columnRef = useRef(null);
+  // Placed against one box over the selection's lines (ask-visibility.js selectionBox), within the reading column of the point it is in.
+  const boxRef = useRef({ getClientRects: () => { const box = selectionBox(rangeRef.current?.getClientRects()); return box ? [box] : []; } });
+  const boundsRef = useMemo(() => ({ get current() {
+    const area = scrollerRef?.current;
+    if (!area) return null;
+    return { ...area, getBoundingClientRect: () => columnBounds(area.getBoundingClientRect(), columnRef.current?.isConnected ? columnRef.current.getBoundingClientRect() : null) };
+  } }), [scrollerRef]);
   useEffect(() => {
-    let timer = 0, down = false;
+    // armed: a new selection's first Tab goes into the toolbar (from the page or its reading column), only once.
+    let timer = 0, down = false, armed = false, last = '';
     const read = () => {
       const selection = window.getSelection?.(), range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       const point = range && !selection.isCollapsed ? selectionPoint(range) : null, words = point ? selectedWords(range) : '';
       if (!point || words.length < 2) {
-        if (!toolbarStays({ focusInside: !!bar.current?.contains(document.activeElement) })) setPicked(null);
+        if (!toolbarStays({ focusInside: !!bar.current?.contains(document.activeElement) })) { setPicked(null); armed = false; last = ''; }
         return;
       }
+      const key = `${point.dataset.bookPoint}|${words}`;
+      if (key !== last) { armed = true; last = key; }
+      columnRef.current = point.closest('.book-read, .book-flip') || point;
       rangeRef.current = range.cloneRange();
       setPicked({ heading: point.dataset.bookPoint, words: words.slice(0, 600) });
     };
@@ -34,9 +46,11 @@ export default function BookSelectBar({ host, scrollerRef, hidden = false, model
     const onKey = event => {
       if (!bar.current || event.defaultPrevented) return;
       if (event.key === 'Escape') { setPicked(null); return; }
-      // From a selection in the text, Tab goes into the toolbar first (its buttons are reached by keyboard too).
+      // From a new selection, the first Tab goes into the toolbar (its buttons are reached by keyboard too); once only, and only from the page itself or the
+      // reading column the words are in, so the keyboard is never held in a loop.
+      const active = document.activeElement, from = !active || active === document.body || !!columnRef.current?.contains(active);
       const typing = event.target?.closest?.('input, textarea, [contenteditable="true"]');
-      if (event.key === 'Tab' && !event.shiftKey && !typing && !bar.current.contains(document.activeElement)) { event.preventDefault(); bar.current.querySelector('button')?.focus(); }
+      if (event.key === 'Tab' && !event.shiftKey && armed && from && !typing && !bar.current.contains(active)) { armed = false; event.preventDefault(); bar.current.querySelector('button')?.focus(); }
     };
     document.addEventListener('selectionchange', onChange);
     document.addEventListener('pointerdown', onDown, true);
@@ -53,7 +67,7 @@ export default function BookSelectBar({ host, scrollerRef, hidden = false, model
     };
   }, []);
   const shown = !!picked && !hidden;
-  useRangeAnchor({ elementRef: bar, host, rangeRef, scrollerRef, active: shown, trigger: picked ? `${picked.heading}|${picked.words}` : '', placement: 'top-start', gap: 6, hideAway: true });
+  useRangeAnchor({ elementRef: bar, host, rangeRef: boxRef, scrollerRef: boundsRef, active: shown, trigger: picked ? `${picked.heading}|${picked.words}` : '', placement: 'top-start', gap: 6, margin: 0, hideAway: true });
   if (!shown) return null;
   const done = then => () => { const now = picked; setPicked(null); then(now); };
   return (

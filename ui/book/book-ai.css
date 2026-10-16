@@ -62,19 +62,16 @@
     .book-ai__toggle[aria-expanded='true'] > .book-ai__caret {
       transform: rotate(90deg);
     }
-    /* The folded row is one line, cut with an ellipsis (the whole first sentence is in the open block); only the narrow layout lets the summary take two lines
-       (below), so that on a phone it still says what the block says, and a line never ends on a lone character. */
+    /* The folded row is one line at every width, cut with an ellipsis (the whole first sentence is in the open block): the summary is what shrinks, the size
+       and ⋯ keep their room at the right, and the row stands as high as the line a task leaves (nothing below moves when a block lands or is opened again). */
     .book-ai__summary {
-      display: -webkit-box;
-      flex: 1 1 8rem;
+      flex: 1 1 0;
       min-width: 0;
       overflow: hidden;
       color: var(--text-dim);
       font-weight: var(--fw-regular);
-      white-space: normal;
-      text-wrap: pretty;
-      -webkit-line-clamp: 1;
-      -webkit-box-orient: vertical;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .book-ai__meta {
       flex: none;
@@ -204,6 +201,14 @@
     .book-ai__line {
       box-sizing: border-box;
       min-height: calc(var(--space-3) * 2 + var(--space-5));
+    }
+    /* 「已删除这段 · 撤销」 past its seconds: faded out with its hairlines (opacity only), its room kept until it is off screen or the book is read again. */
+    .book-ai--line {
+      transition: opacity var(--dur-slow) var(--ease);
+    }
+    .book-ai--line[data-ai-faded] {
+      opacity: 0;
+      pointer-events: none;
     }
     .book-ai__line .book-ai__link {
       padding-block: 0;
@@ -339,15 +344,26 @@
       gap: var(--space-2);
       min-width: 0;
     }
-    .book-ask__presets,
+    /* The presets: the four short ones two by two, the long one on its own row (an even block at every panel width). */
+    .book-ask__presets {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-ask__preset {
+      justify-content: flex-start;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .book-ask__preset:last-child {
+      grid-column: 1 / -1;
+    }
     .book-ask__send {
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-1) var(--space-2);
       min-width: 0;
-    }
-    .book-ask__preset {
-      max-width: 100%;
     }
     .book-ask__send {
       justify-content: flex-end;
@@ -381,20 +397,10 @@
       color: inherit;
     }
   }
-  @container study (max-width: 720px) {
-    :where(.study-app, .study-seat) {
-      .book-ai__summary {
-        -webkit-line-clamp: 2;
-      }
-      /* A block that landed in a line's place keeps one line (as high as the line was) until the page is opened again. */
-      .book-ai[data-ai-fresh] .book-ai__summary {
-        -webkit-line-clamp: 1;
-      }
-    }
-  }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
       .book-ai::before,
+      .book-ai--line,
       .book-ai__caret {
         transition: none;
       }

@@ -20,7 +20,7 @@ import BookAskLayer from './BookAskLayer.jsx';
 import BookExport from './BookExport.jsx';
 import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
-import { AiFoldContext, useAiFold } from './ai-fold.js';
+import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
 import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
 import { useBookAi } from './use-book-ai.js';
@@ -70,9 +70,14 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
   const aiFold = useAiFold(root, course);
   const ai = useBookAi({ call, course, notify, reload, book, setBook, rows, aiFold, goTo: where.goTo });
-  // The 问 AI panel belongs to the point it was opened on: another point (or view) closes it.
-  useEffect(() => { ai.closeAsk(); }, [where.current, view]); // eslint-disable-line react-hooks/exhaustive-deps
-  const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai, foldAi: aiFold.fold });
+  // The 问 AI panel belongs to the point it was opened on: in 逐节读 another point closes it, and so does another view or reading mode. In 整章连着读 the place
+  // read (the top heading on screen) changes with every scroll, so scrolling keeps the panel (and what is typed in it); it closes there only when its point is folded or no longer drawn.
+  useEffect(() => { ai.closeAsk(); }, [reading.mode === 'step' ? where.current : -1, reading.mode, view]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (reading.mode !== 'scroll' || view !== 'read' || !ai.ask || !pageRef.current) return;
+    if (!pageRef.current.querySelector(`[data-book-point="${CSS.escape(ai.ask.heading)}"]`)) ai.closeAsk();
+  });
+  const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai: ai.actions, foldAi: aiFold.fold });
   const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);
@@ -129,8 +134,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     <EditView book={book} step={step} theme={theme} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
       onLeave={() => { const then = leaving; back(); then?.(); }} onDone={() => guard(back)} /></section>;
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
-    <FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
-      onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} />{askPanel}{dialogs}</section>;
+    <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
+      onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} /></BookAiContext.Provider>{askPanel}{dialogs}</section>;
   return (
     <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
       {header}
@@ -145,11 +150,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
         {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} />}
         <ReadingBlock className="book-read" measure>
-          <AiFoldContext.Provider value={aiFold}><BookReadContext.Provider value={reading}>
+          <AiFoldContext.Provider value={aiFold}><BookAiContext.Provider value={ai.lines}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />
               : chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={where.open.has(chapter.hid)} course={course} handlers={handlers}
                 onToggle={value => where.toggleChapter(chapter.hid, value)} />)}
-          </BookReadContext.Provider></AiFoldContext.Provider>
+          </BookReadContext.Provider></BookAiContext.Provider></AiFoldContext.Provider>
         </ReadingBlock>
       </div>
       {askPanel}
