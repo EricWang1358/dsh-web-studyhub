@@ -7,7 +7,7 @@ import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
 import css from './mineru.css';
 import { useMineruState } from './use-mineru.js';
-import { mineruUsable } from './mineru-install-flow.js';
+import { STATUS_TEXT, cardState, mineruUsable } from './mineru-install-flow.js';
 import MineruInstallCard from './MineruInstallCard.jsx';
 import { useLiveEffect } from './use-async.js';
 
@@ -125,8 +125,11 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     </InlineMessage>);
 
   // The tool is chosen here and nowhere else. Inside another card (compact) it is one line, MinerU unless the learner changes it; the gate below says what the chosen one needs.
+  // MinerU's chip says what the install card says (one wording); while that card is shown right below, the chip is left out rather than said twice.
+  const mineruCard = cardState(local), mineruText = STATUS_TEXT[mineruCard.state];
+  const mineruChip = mineruUsable(local) ? chip(ui('可用'), 'success') : local == null || (gate && converter === 'mineru') ? null : chip(mineruText.badge(), mineruText.tone);
   const tools = <RadioCardGroup legend={ui('解析工具')} disabled={starting}>
-    <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={mineruUsable(local) ? chip(ui('可用'), 'success') : chip(ui('需要安装'))}><Hint as="span">{ui('在本机解析，不上传')}</Hint></RouteCard>
+    <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={mineruChip}><Hint as="span">{ui('在本机解析，不上传')}</Hint></RouteCard>
     <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
   </RadioCardGroup>;
   return (

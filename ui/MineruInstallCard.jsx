@@ -5,7 +5,7 @@ import { Badge, Button, ConfirmDialog, Disclosure, Hint, InlineMessage, JobRow, 
 import { useLiveEffect } from './use-async.js';
 import { StudyServicesContext, useStudy } from './study-context.jsx';
 import { sizeLabel } from './mineru-flow.js';
-import { STATUS_TEXT, VC_REDIST_URL, cardState, errorHint, errorTitle, fixFor, installProgress, locationHint, sourceName, stageName, stageStates } from './mineru-install-flow.js';
+import { STATUS_TEXT, VC_REDIST_URL, cardState, errorHint, errorTitle, fixFor, installLine, installProgress, locationHint, sourceName, stageName, stageStates } from './mineru-install-flow.js';
 import { refreshMineruLocal, useMineruInstall, useMineruState } from './use-mineru.js';
 import { usePolling } from './use-polling.js';
 import InstallStages from './install/InstallStages.jsx';
@@ -35,12 +35,8 @@ function sourceTip(source) {
   return `${uiFormat('自动选择：{0}。', [why])}\n${ui('国内镜像：清华 PyPI 镜像（程序）、npmmirror（Python）、魔搭 ModelScope（模型）。')}\n${ui('海外官方源：pypi.org、GitHub、Hugging Face。')}`;
 }
 
-/** 已下载 x / 约 y, when the models step prints a size pair. */
-const downloaded = install => {
-  if (install?.stage !== 'models') return '';
-  const match = /(\d+(?:\.\d+)?\s?[KMG]i?B?)\s*\/\s*(\d+(?:\.\d+)?\s?[KMG]i?B?)/.exec(install.lastLine || '');
-  return match ? uiFormat('已下载 {0} / 约 {1}', [match[1], match[2]]) : '';
-};
+/** The plan problems a different folder fixes: their message carries its own 换位置. */
+const LOCATION_PROBLEMS = ['no-space', 'not-writable', 'folder-in-use', 'bad-location', 'path-too-long'];
 
 export default function MineruInstallCard({ call: given, compact = false, onOpenSettings, initialLocal = null, initialPlan = null, initialMore = false, pickDirectory, className }) {
   useInjectCss(css, 'study-mineru-install');
@@ -91,7 +87,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     setChoosing(false); setMoving(false);
     toast.info(ui('已开始安装：进度在这里和「任务」里。'));
   });
-  const cancel = () => act('cancel', async () => { setInstall(await call('mineru.install.cancel', {})); await refresh(); toast.info(ui('已取消；已下载的部分保留，下次点「继续安装」接着装。')); });
+  const cancel = () => act('cancel', async () => { setInstall(await call('mineru.install.cancel', {})); await refresh(); toast.info(ui('已暂停安装。')); });
   const startService = (args = {}) => act('service', async () => {
     await call('mineru.local.start', args);
     await refresh();
@@ -109,10 +105,12 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     switch (fixAction.id) {
       case 'relocate': setChoosing(true); return undefined;
       case 'restart-service': return startService({ restart: true });
-      case 'stop-external': return startService({ stopExternal: true });
+      // Inside an install that has not finished there is no installed program to restart: the install starts again, stopping the other MinerU first.
+      case 'stop-external': return shown.origin === 'install' ? start({ location: install?.folder || target(), ...(install?.tier ? { tier: install.tier } : {}), stopExternal: true })
+        : startService({ stopExternal: true });
       case 'recheck': return recheck();
       case 'vc-runtime': globalThis.open?.(VC_REDIST_URL, '_blank', 'noopener'); return undefined;
-      case 'switch-source': setSource(fixAction.source); return start({ source: fixAction.source });
+      case 'switch-source': setSource(fixAction.source); return start({ source: fixAction.source, location: install?.folder || installedFolder || target() });
       default: return start({ location: install?.folder || installedFolder || target(), ...(install?.tier ? { tier: install.tier } : {}) });
     }
   };
@@ -127,7 +125,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     </div>
     {/* While it checks the button keeps its place (hidden), so the line does not wrap differently when the answer arrives. */}
     {['checking', 'installing'].includes(shown.state)
-      ? shown.state === 'checking' && <span className="mineru-install__recheck" data-reserved="" aria-hidden="true"><Button size="sm" variant="quiet" tabIndex={-1} disabled>{ui('重新检测')}</Button></span>
+      ? shown.state === 'checking' && <Button size="sm" variant="quiet" className="mineru-install__recheck" data-reserved="" aria-hidden="true" tabIndex={-1} disabled>{ui('重新检测')}</Button>
       : <Button size="sm" variant="quiet" className="mineru-install__recheck" busy={working === 'recheck'} disabled={!usable || (!!working && working !== 'recheck')} onClick={recheck}>{ui('重新检测')}</Button>}
   </div>;
 
@@ -142,53 +140,69 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     ? <>{uiFormat('下载约 {0} · 占用约 {1} · 约 {2}–{3} 分钟 · 下载源：{4}', [sizeLabel(plan.estimate?.downloadMb), sizeLabel(plan.disk?.neededMb), plan.estimate?.minutes?.[0], plan.estimate?.minutes?.[1], sourceName(plan.source?.id)])}
       {reach && <> <TipBadge tip={sourceTip(plan.source)} tone={reach.tone}>{reach.text}</TipBadge></>}</>
     : <LoadingState inline label={ui('正在计算剩余空间…')} />;
-  const offer = ({ primary = true, label } = {}) => <div className="mineru-install__offer">
+  // A blocking problem a different folder fixes carries its own one-click fix (换位置); the hint slot gives way to it when it has nothing to say.
+  const relocate = blocking && LOCATION_PROBLEMS.includes(blocking.code) && !choosing ? { label: ui('换位置'), onClick: () => setChoosing(true) } : undefined;
+  const hint = locationHint(plan);
+  // `skeleton` (while the status is read): the same rows with placeholders, so the most common answer (not installed) arrives without moving anything.
+  const offer = ({ primary = true, label, skeleton = false } = {}) => <div className="mineru-install__offer" aria-busy={skeleton || undefined}>
     <div className="mineru-install__where">
       <span className="mineru-install__label">{ui('安装位置')}</span>
-      <code translate="no">{folder || '…'}</code>
-      {!choosing && <Button size="sm" variant="quiet" disabled={!!working} onClick={() => setChoosing(true)}>{ui('选择位置')}</Button>}
+      <code translate="no">{skeleton ? '…' : folder || '…'}</code>
+      {!choosing && <Button size="sm" variant="quiet" className="mineru-install__choose" disabled={skeleton || !!working} onClick={() => setChoosing(true)}>{ui('选择位置')}</Button>}
     </div>
-    <Hint className="mineru-install__hint">{locationHint(plan) || ' '}</Hint>
-    {nonAscii && <TipBadge tip={uiMessage(nonAscii.message)} tone="warning">{ui('路径里有中文或特殊字符')}</TipBadge>}
-    {choosing && <LocationChooser plan={plan} location={location} pickDirectory={pick} disabled={!!working} onChoose={value => setLocation(value)} onClose={() => setChoosing(false)} />}
-    <p className="mineru-install__facts" aria-busy={planning || !plan || undefined}>{facts}</p>
-    {blocking && <InlineMessage tone="error">{uiMessage(blocking.message)}</InlineMessage>}
+    {(skeleton || hint || !blocking) && <Hint className="mineru-install__hint">{(!skeleton && hint) || ' '}</Hint>}
+    {!skeleton && nonAscii && <TipBadge tip={uiMessage(nonAscii.message)} tone="warning">{ui('路径里有中文或特殊字符')}</TipBadge>}
+    {!skeleton && choosing && <LocationChooser plan={plan} location={location} pickDirectory={pick} disabled={!!working} onChoose={value => setLocation(value)} onClose={() => setChoosing(false)} />}
+    <p className="mineru-install__facts" aria-busy={skeleton || planning || !plan || undefined}>{skeleton ? ui('正在检测…') : facts}</p>
+    {!skeleton && blocking && <InlineMessage tone="error" action={relocate}>{uiMessage(blocking.message)}</InlineMessage>}
     <div className="mineru-install__row">
-      <Tooltip layer content={blocking ? uiMessage(blocking.message) : stepsTip}>
-        <Button variant={primary ? 'primary' : 'secondary'} icon="download" busy={working === 'start'} aria-disabled={!canStart || undefined}
-          onClick={() => { if (canStart) void start(); }}>{label || ui('一键安装')}</Button>
-      </Tooltip>
+      {skeleton
+        ? <Button variant="secondary" icon="download" disabled>{ui('一键安装')}</Button>
+        : <Tooltip layer content={blocking ? uiMessage(blocking.message) : stepsTip}>
+          <Button variant={primary ? 'primary' : 'secondary'} icon="download" busy={working === 'start'} aria-disabled={!canStart || undefined}
+            onClick={() => { if (canStart) void start(); }}>{label || ui('一键安装')}</Button>
+        </Tooltip>}
       {moving && <Button variant="quiet" size="sm" onClick={() => { setMoving(false); setLocation(''); setChoosing(false); }}>{ui('先不换')}</Button>}
     </div>
   </div>;
+  const stages = <InstallStages stages={stageStates(install)} label={ui('安装步骤')} className="mineru-install__stages" markClassName="mineru-install__mark" />;
+  const again = () => start({ location: install?.folder || installedFolder || target(), ...(install?.tier ? { tier: install.tier } : {}) });
 
   /* ---------- the body of each state ---------- */
   let body = null;
-  if (shown.state === 'checking') body = null;
+  if (shown.state === 'checking') body = offer({ skeleton: true });
   else if (moving) body = offer({ label: ui('安装到这个位置') });
   else if (shown.state === 'not-installed') body = offer();
   else if (shown.state === 'installing') {
-    const progress = installProgress(install), step = Math.max(1, install?.step || 1), extra = downloaded(install);
-    body = <JobRow status="running" stage={stageName(install?.stage)} title={ui('正在安装本机 MinerU')}
-      meta={[uiFormat('第 {0}/6 步 · {1}', [step, stageName(install?.stage) || stageName('tools')]), install?.folder, extra].filter(Boolean).join(' · ')}
+    // The status line and the step list say which step it is; the row adds only where it goes and how much is downloaded (never the raw output).
+    const progress = installProgress(install);
+    body = <JobRow status="running" stage={stageName(install?.stage)} title={ui('正在安装本机 MinerU')} meta={install?.folder || undefined}
       progress={{ value: progress.value, max: progress.max, label: ui('安装进度'),
-        summary: <code className="mineru-install__last" translate="no">{install?.lastLine || ' '}</code> }}
+        summary: <span className="mineru-install__last">{installLine(install) || ' '}</span> }}
       actions={[{ label: ui('取消'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
-      <InstallStages stages={stageStates(install)} label={ui('安装步骤')} className="mineru-install__stages" markClassName="mineru-install__mark" />
+      {stages}
       <Hint>{ui('可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。')}</Hint>
     </JobRow>;
-  } else if (shown.state === 'stopped') body = <div className="mineru-install__row">
+  } else if (shown.state === 'paused') body = <div className="mineru-install__problem">
+    {stages}
+    {shown.code === 'interrupted' && <Hint>{errorHint('interrupted')}</Hint>}
+    <div className="mineru-install__row">
+      <Button variant="primary" icon="play" busy={working === 'start'} disabled={!!working} onClick={() => void again()}>{ui('继续安装')}</Button>
+    </div>
+  </div>;
+  else if (shown.state === 'stopped') body = <div className="mineru-install__row">
     <Button variant="primary" icon="play" busy={working === 'service'} disabled={!!working} onClick={() => startService()}>{ui('启动服务')}</Button>
     <Hint as="span">{ui('开始解析时也会自动启动。')}</Hint>
   </div>;
   else if (shown.state === 'ready') body = compact ? <Hint>{ui('可以开始解析了。')}</Hint> : null;
   else if (shown.state === 'error') {
-    const action = fixFor(shown.code, { attempts: install?.attempts || 1, external: !!view?.external, source: install?.source?.id || plan?.source?.id });
+    const context = { attempts: install?.attempts || 1, source: install?.source?.id || plan?.source?.id, external: !!view?.external, origin: shown.origin };
+    const action = fixFor(shown.code, context);
     const button = <Button variant="primary" icon={action.id === 'vc-runtime' ? 'download' : 'refresh'} busy={['start', 'service', 'recheck'].includes(working)} disabled={!!working}
       onClick={() => void fix(action)}>{action.label}</Button>;
     body = <div className="mineru-install__problem">
-      <InlineMessage tone="error" title={errorTitle(shown, view)}>{errorHint(shown.code) || null}</InlineMessage>
-      {shown.origin === 'install' && <InstallStages stages={stageStates(install)} label={ui('安装步骤')} className="mineru-install__stages" markClassName="mineru-install__mark" />}
+      <InlineMessage tone="error" title={errorTitle(shown, view)}>{errorHint(shown.code, context) || null}</InlineMessage>
+      {shown.origin === 'install' && stages}
       <div className="mineru-install__row">
         {action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
         {action.id === 'vc-runtime' && <Button variant="quiet" size="sm" disabled={!!working} onClick={() => void start({ location: install?.folder || installedFolder || target() })}>{ui('重试')}</Button>}
@@ -253,7 +267,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     <div className="mineru-install__body">{body}</div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     {more}
-    {compact && shown.state !== 'ready' && onOpenSettings && <Button variant="link" size="sm" className="mineru-install__settings" onClick={() => onOpenSettings('settings-mineru')}>{ui('更多选项')}</Button>}
+    {compact && shown.state !== 'ready' && onOpenSettings && <Button variant="quiet" size="sm" className="mineru-install__settings" onClick={() => onOpenSettings('settings-mineru')}>{ui('更多选项')}</Button>}
     {asking && <ConfirmDialog title={ui('卸载本机 MinerU？')} confirmLabel={ui('卸载')} onConfirm={uninstall} onClose={() => setAsking(false)}>
       <p>{uiFormat('会先停止本机服务，再删除 StudyHub 在 {0} 里创建的程序、Python 和模型。这个文件夹里不是 StudyHub 创建的文件不会被动。已经转换好的资料不受影响。', [installedFolder || install?.folder || ''])}</p>
     </ConfirmDialog>}

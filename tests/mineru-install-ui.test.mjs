@@ -9,9 +9,9 @@ import { loadUi } from './helpers/ui-module.mjs';
    default folder, a drive change is two more, and a cancelled install continues with 继续安装. */
 
 const mod = await loadUi(`export { default as MineruInstallCard } from './ui/MineruInstallCard.jsx';
-  export { cardState, STATUS_TEXT, FIX_FOR, fixFor, stageStates, installProgress, locationHint, mineruUsable } from './ui/mineru-install-flow.js';
+  export { cardState, STATUS_TEXT, FIX_FOR, fixFor, stageStates, installProgress, installLine, locationHint, mineruUsable, errorHint } from './ui/mineru-install-flow.js';
   export { setUiLanguage } from './ui/i18n.js';`);
-const { MineruInstallCard, cardState, FIX_FOR, fixFor, stageStates, installProgress, locationHint, mineruUsable } = mod;
+const { MineruInstallCard, cardState, FIX_FOR, fixFor, stageStates, installProgress, installLine, locationHint, mineruUsable, errorHint } = mod;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const textOf = html => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
@@ -45,6 +45,10 @@ const local = {
   vc: { state: 'not-installed', origin: null, install: ended('failed', 'vc-runtime', 'enable'), lastError: null },
   port: { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: complete, lastError: { code: 'port-in-use', message: '本机服务没能启动：端口被占用', at: '2026-10-16T00:00:00Z' }, external: { exe: 'C:\\x\\mineru.exe', state: 'found' } },
   unreadable: { state: 'unknown', origin: 'search', install: idle, lastError: null },
+  // A first install that stopped at 启用本机服务: nothing is installed yet, so the fix is the install again (with another mineru to stop, or not).
+  enablePort: { state: 'not-installed', origin: null, install: ended('failed', 'port-in-use', 'enable'), lastError: null, external: null },
+  enablePortExternal: { state: 'not-installed', origin: null, install: ended('failed', 'port-in-use', 'enable'), lastError: null, external: { exe: 'C:\\Tools\\mineru.exe', state: 'found' } },
+  enableService: { state: 'not-installed', origin: null, install: ended('failed', 'service-failed', 'enable'), lastError: null, external: null },
 };
 const render = (props, language = 'zh') => { mod.setUiLanguage(language); try { return renderToStaticMarkup(h(MineruInstallCard, { call, ...props })); } finally { mod.setUiLanguage('zh'); } };
 const primaries = html => (html.match(/class="sh-btn sh-btn--primary/g) || []).length;
@@ -59,6 +63,8 @@ test('the display state, in the documented order: a failed read is never "loadin
   assert.equal(cardState(local.stopped).state, 'stopped');
   assert.equal(cardState(local.ready).state, 'ready');
   assert.deepEqual(cardState(local.network), { state: 'error', code: 'network', origin: 'install' });
+  assert.deepEqual(cardState(local.cancelled), { state: 'paused', code: 'cancelled', origin: 'install' }, 'a cancel is a pause, not a failure');
+  assert.equal(cardState({ ...local.cancelled, install: ended('interrupted', 'interrupted', 'models') }).state, 'paused');
   assert.deepEqual(cardState(local.port), { state: 'error', code: 'port-in-use', origin: 'service' });
   assert.deepEqual(cardState(local.unreadable), { state: 'error', code: 'unreadable', origin: 'check' });
   assert.deepEqual(cardState({ state: 'needs-models', origin: 'installed', install: complete }), { state: 'error', code: 'needs-models', origin: 'check' });
@@ -76,6 +82,28 @@ test('the one fix of each failure (FIX_FOR), with the second network failure on 
   assert.deepEqual([fixFor('network', { attempts: 2, source: 'mainland' }).id, fixFor('network', { attempts: 2, source: 'mainland' }).source], ['switch-source', 'global']);
   assert.equal(fixFor('port-in-use', { external: true }).id, 'stop-external');
   assert.equal(fixFor('something-new').id, 'repair');
+  // Inside an install that has not finished, a service fix starts the install again (nothing is installed yet to restart), stopping the other MinerU first when there is one.
+  assert.equal(fixFor('service-failed', { origin: 'install' }).id, 'repair');
+  assert.equal(fixFor('port-in-use', { origin: 'install' }).id, 'repair');
+  assert.equal(fixFor('port-in-use', { origin: 'install', external: true }).id, 'stop-external');
+  assert.equal(fixFor('service-failed', { origin: 'service' }).id, 'restart-service');
+  // The network hint names the button the card offers.
+  assert.match(errorHint('network', { attempts: 1 }), /点「重试」/);
+  assert.match(errorHint('network', { attempts: 2, source: 'mainland' }), /换成海外官方源再试/);
+  // The service hints name the button too: 修复 inside an unfinished install, 重新启动服务 after it; another MinerU only when one was found.
+  assert.match(errorHint('service-failed', { origin: 'install' }), /点「修复」/);
+  assert.match(errorHint('service-failed', { origin: 'service' }), /重新启动一次服务/);
+  assert.match(errorHint('port-in-use', { origin: 'install' }), /关掉那个程序后点「修复」/);
+  assert.match(errorHint('port-in-use', { origin: 'service' }), /关掉那个程序后点「重新启动服务」/);
+  assert.match(errorHint('port-in-use', { origin: 'install', external: true }), /先停掉另一份 MinerU/);
+});
+
+test('the line under the bar is a downloaded size or nothing: never a command, a package name or progress glyphs', () => {
+  assert.equal(installLine({ lastLine: 'Downloading 360M / 800M' }), '已下载 360 MB / 约 800 MB');
+  assert.equal(installLine({ lastLine: ' 42%|####      | 9.0M/22.0M' }), '已下载 9 MB / 约 22 MB');
+  assert.equal(installLine({ lastLine: 'Downloading cpython-3.12.15-windows-x86_64 (21.9MiB) 50%|#####     |' }), '已下载 11 MB / 约 21.9 MB');
+  for (const line of ['$ D:\\StudyHub\\MinerU\\tools\\uv.exe venv D:\\StudyHub\\MinerU\\venv --python 3.12', '== package ==', 'Resolved 112 packages in 2.1s', '(tools: already done)', ''])
+    assert.equal(installLine({ lastLine: line }), '', line);
 });
 
 test('the steps and the progress bar: finished steps plus how far the current one is, out of six', () => {
@@ -90,18 +118,26 @@ test('where the default folder came from, in words', () => {
   const onlyC = plan({ folder: 'C:\\StudyHub\\MinerU', defaultFolder: 'C:\\StudyHub\\MinerU', defaultReason: 'only-system-drive', drives: [drives[0]], disk: { freeMb: 40_000, neededMb: 4000, drive: 'C:' } });
   assert.match(locationHint(onlyC), /这台电脑只有系统盘（C:），只能装在这里。/);
   assert.match(locationHint(plan({ folder: 'C:\\StudyHub\\MinerU', disk: { freeMb: 40_000, neededMb: 4000, drive: 'C:' } })), /装在系统盘会占用 C 盘约 3\.9 GB。/);
+  // An external USB disk: C: by default (said why), and when the learner picks the disk anyway, that it must be plugged in.
+  const usb = { root: 'E:\\', freeMb: 900_000, system: false, removable: true, folder: 'E:\\StudyHub\\MinerU' };
+  const cOverUsb = plan({ folder: 'C:\\StudyHub\\MinerU', defaultFolder: 'C:\\StudyHub\\MinerU', defaultReason: 'other-drives-removable', drives: [drives[0], usb], disk: { freeMb: 40_000, neededMb: 4000, drive: 'C:' } });
+  assert.match(locationHint(cOverUsb), /其他磁盘是外接硬盘，拔掉后就用不了，所以装在系统盘（C:）。/);
+  assert.match(locationHint({ ...cOverUsb, folder: usb.folder, disk: { freeMb: 900_000, neededMb: 4000, drive: 'E:' } }), /E: 是外接硬盘：拔掉后 MinerU 就用不了/);
   assert.match(locationHint(plan({ adjusted: true })), /StudyHub-MinerU/);
   assert.match(locationHint(plan({ platform: 'darwin' })), /数据文件夹/);
 });
 
 /* ---------- each state ---------- */
 
-test('checking: the status line keeps its two-line slot and says it is checking; nothing else moves in later', () => {
+test('checking: the status line keeps its two-line slot and the body holds the offer\'s rows, so the most common answer (not installed) moves nothing', () => {
   const html = render({ call: undefined });
   assert.match(html, /data-state="checking"/);
   assert.match(textOf(html), /检测中 正在检测本机 MinerU…/);
   assert.match(html, /role="status" aria-live="polite"/);
   assert.equal(primaries(html), 0);
+  assert.match(html, /mineru-install__offer/);
+  for (const part of ['安装位置', '选择位置', '正在检测…', '一键安装']) assert.ok(textOf(html).includes(part), part);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>(?:(?!<\/button>).)*一键安装/s, 'the button is there, disabled, until the answer arrives');
 });
 
 test('not installed: the default folder (not C:), the facts, the source with its reach, and one primary 一键安装 that explains its steps', () => {
@@ -124,17 +160,22 @@ test('a blocked start says why, as a message and as the button\'s Tooltip; the b
   const html = render({ initialLocal: local.missing, initialPlan: blocked });
   assert.match(html, /aria-disabled="true"/);
   assert.equal((html.match(/D: 剩余 1\.2 GB，至少需要 3\.9 GB/g) || []).length, 2, 'once in the message, once in the Tooltip');
+  assert.match(html, /sh-inline__action[^>]*>换位置</, 'the message carries its own fix');
+  const away = render({ initialLocal: local.missing, initialPlan: { ...blocked, folder: 'E:\\StudyHub\\MinerU', disk: { freeMb: 1200, neededMb: 4000, drive: 'E:' } } });
+  assert.doesNotMatch(away, /mineru-install__hint/, 'a hint with nothing to say gives way to the message');
   const nonAscii = render({ initialLocal: local.missing, initialPlan: plan({ warnings: [{ code: 'non-ascii', message: '路径里有中文或特殊字符，个别组件可能加载失败；建议只用英文和数字，例如 D:\\StudyHub\\MinerU。' }] }) });
   assert.match(textOf(nonAscii), /路径里有中文或特殊字符/);
 });
 
-test('installing: step n of 6, the stage, what was downloaded, the last line, one 取消, the six steps and where to follow it', () => {
+test('installing: step n of 6 (said once, in the status line), where it goes, what was downloaded, one 取消, the six steps and where to follow it', () => {
   const html = render({ initialLocal: local.installing });
   const text = textOf(html);
   assert.match(text, /安装中 .*第 4\/6 步：下载模型/);
   assert.match(html, /role="tooltip"[^>]*>每一步完成后才进入下一步。/);
-  assert.match(text, /第 4\/6 步 · 下载模型 · D:\\StudyHub\\MinerU · 已下载 360M \/ 约 800M/);
-  assert.match(text, /Downloading 360M \/ 800M/);
+  assert.match(html, /sh-job__meta[^>]*>D:\\StudyHub\\MinerU</, 'the row says only where it installs');
+  assert.match(text, /已下载 360 MB \/ 约 800 MB/);
+  assert.doesNotMatch(text, /Downloading 360M/, 'the raw output stays in the log');
+  assert.equal((text.match(/第 4\/6 步/g) || []).length, 1);
   assert.match(text, /取消/);
   assert.match(text, /可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。/);
   assert.equal((html.match(/<li data-state="done"/g) || []).length, 3);
@@ -149,20 +190,22 @@ test('installed, service not running: one primary 启动服务, and that a conve
   assert.equal(primaries(html), 1);
 });
 
-test('ready: the version, the tier and the folder (or that it is the learner\'s own), with the tier explained; no button in Settings', () => {
+test('ready: where it is and that it works (the version and the tier in the badge\'s Tooltip), or that it is the learner\'s own; no button in Settings', () => {
   const html = render({ initialLocal: local.ready });
-  assert.match(textOf(html), /可以用了 .*MinerU 4\.0\.12 · basic 档 · 装在 D:\\StudyHub\\MinerU/);
-  assert.match(html, /role="tooltip"[^>]*>basic 档：只用 CPU/);
+  assert.match(textOf(html), /可以用了 .*装在 D:\\StudyHub\\MinerU，可以开始解析 PDF 了。/);
+  assert.match(html, /mineru-install__sentence">装在 D:\\StudyHub\\MinerU，可以开始解析 PDF 了。</, 'the sentence itself has no version or tier');
+  assert.match(html, /role="tooltip"[^>]*>MinerU 4\.0\.12 · basic 档。\s*basic 档：只用 CPU/);
   assert.equal(primaries(html), 0);
   const external = render({ initialLocal: local.external });
-  assert.match(textOf(external), /MinerU 4\.0\.10 · standard 档 · 你自己安装的/);
-  assert.match(external, /role="tooltip"[^>]*>这是你自己装的 MinerU（C:\\Users\\lee\\.local\\bin\\mineru\.exe）/);
+  assert.match(textOf(external), /用的是你自己安装的 MinerU，可以开始解析 PDF 了。/);
+  assert.match(external, /role="tooltip"[^>]*>MinerU 4\.0\.10 · standard 档。\s*这是你自己装的 MinerU（C:\\Users\\lee\\.local\\bin\\mineru\.exe）/);
   assert.match(textOf(render({ initialLocal: local.ready, compact: true })), /可以开始解析了。/);
 });
 
 test('every failure: where it stopped, the reason, and exactly one fix button', () => {
-  const cases = [[local.network, /安装停在「安装 MinerU」/, '重试'], [local.network2, /安装停在「安装 MinerU」/, '换下载源重试'], [local.cancelled, /安装停在「下载模型」/, '继续安装'],
-    [local.vc, /安装停在「启用本机服务」/, '下载 VC++ 运行库'], [local.port, /本机服务没能启动/, '停止另一份 MinerU 并重试'], [local.unreadable, /检测没有通过/, '重新检测']];
+  const cases = [[local.network, /安装停在「安装 MinerU」/, '重试'], [local.network2, /安装停在「安装 MinerU」/, '换下载源重试'],
+    [local.vc, /安装停在「启用本机服务」/, '下载 VC++ 运行库'], [local.port, /本机服务没能启动/, '停止另一份 MinerU 并重试'], [local.unreadable, /检测没有通过/, '重新检测'],
+    [local.enablePort, /安装停在「启用本机服务」/, '修复'], [local.enablePortExternal, /安装停在「启用本机服务」/, '停止另一份 MinerU 并重试'], [local.enableService, /安装停在「启用本机服务」/, '修复']];
   for (const [state, title, fix] of cases) {
     const html = render({ initialLocal: state });
     assert.match(html, /data-state="error"/);
@@ -172,6 +215,21 @@ test('every failure: where it stopped, the reason, and exactly one fix button', 
   }
   assert.match(render({ initialLocal: local.vc }), />重试</, 'beside the VC++ download sits a quiet 重试');
   assert.match(render({ initialLocal: local.network2 }), /role="tooltip"[^>]*>换成海外官方源再试；已装好的步骤不会重做。/);
+  assert.match(textOf(render({ initialLocal: local.network })), /网络恢复后点「重试」/);
+  assert.match(textOf(render({ initialLocal: local.network2 })), /换成海外官方源再试常常就好了。/);
+});
+
+test('a cancelled (or interrupted) install is paused, not failed: a neutral badge, where it stopped said once, the steps and one 继续安装', () => {
+  const html = render({ initialLocal: local.cancelled });
+  assert.match(html, /data-state="paused"/);
+  assert.match(textOf(html), /已暂停 已暂停在第 4\/6 步「下载模型」；已下载的部分会保留。/);
+  assert.doesNotMatch(html, /role="alert"/, 'no error message');
+  assert.equal((textOf(html).match(/已下载的部分/g) || []).length, 1, 'the fact is said once');
+  assert.equal(primaries(html), 1);
+  assert.match(html, /sh-btn--primary[^>]*>(?:(?!<\/button>).)*继续安装/s);
+  assert.equal((html.match(/<li data-state="done"/g) || []).length, 3);
+  const interrupted = render({ initialLocal: { ...local.cancelled, install: ended('interrupted', 'interrupted', 'models') } });
+  assert.match(textOf(interrupted), /StudyHub 关闭或重启时安装停下了。/);
 });
 
 test('更多 (Settings only): tier with the memory note, source, Python, stop, move, uninstall, the log and the commands; the compact card links there instead', () => {
@@ -185,6 +243,7 @@ test('更多 (Settings only): tier with the memory note, source, Python, stop, m
   const compact = render({ initialLocal: local.missing, initialPlan: plan(), compact: true, onOpenSettings() {} });
   assert.doesNotMatch(compact, /mineru-install__more/);
   assert.match(textOf(compact), /更多选项/);
+  assert.match(compact, /class="sh-btn sh-btn--quiet[^"]*mineru-install__settings/, 'a quiet link: the one accent stays on 一键安装');
   assert.match(compact, /mineru-install--compact/);
 });
 
@@ -286,4 +345,37 @@ test('cancel, then 继续安装 starts again in the same folder (the finished st
   await fix.props.onClick(); await flush();
   assert.deepEqual(calls.find(item => item.action === 'mineru.install.start').args, { confirm: true, location: FOLDER, tier: 'basic' });
   card.close();
+});
+
+/** Mount the card on one failed install and press its one fix button; resolves the start's arguments. */
+async function pressFix(t, status, label) {
+  const saved = globalThis.document;
+  globalThis.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
+  t.after(() => { if (saved === undefined) delete globalThis.document; else globalThis.document = saved; });
+  const calls = [];
+  const fake = async (action, args) => { calls.push({ action, args });
+    if (action === 'mineru.local.status') return status; if (action === 'mineru.install.status') return status.install;
+    // The plan is read without a location after a remount: it names the default folder, not the one the install used.
+    if (action === 'mineru.install.plan') return plan(); if (action === 'mineru.install.start') return running('enable'); return {}; };
+  const card = await mount({ call: fake, initialLocal: status });
+  card.render(); await flush(); await flush();
+  const button = find(card.render(), named(label));
+  assert.ok(button, label);
+  await button.props.onClick(); await flush();
+  card.close();
+  return calls.filter(item => item.action !== 'mineru.install.plan' && item.action !== 'mineru.install.status' && item.action !== 'mineru.local.status');
+}
+
+test('换下载源重试 continues in the folder the install used, not the default folder of a plan read after a remount', async t => {
+  const elsewhere = 'E:\\Tools\\MinerU';
+  const status = { ...local.network2, install: { ...local.network2.install, folder: elsewhere } };
+  const [started] = await pressFix(t, status, '换下载源重试');
+  assert.deepEqual(started, { action: 'mineru.install.start', args: { confirm: true, location: elsewhere, source: 'global' } });
+});
+
+test('a first install that stopped at 启用本机服务 is fixed by starting the install again, after stopping another MinerU when there is one', async t => {
+  const [repair] = await pressFix(t, local.enablePort, '修复');
+  assert.deepEqual(repair, { action: 'mineru.install.start', args: { confirm: true, location: FOLDER, tier: 'basic' } }, 'not a service start: nothing is installed yet');
+  const [stop] = await pressFix(t, local.enablePortExternal, '停止另一份 MinerU 并重试');
+  assert.deepEqual(stop, { action: 'mineru.install.start', args: { confirm: true, location: FOLDER, tier: 'basic', stopExternal: true } });
 });

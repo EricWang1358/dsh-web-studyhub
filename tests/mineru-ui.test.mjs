@@ -44,7 +44,7 @@ const file = { name: 'Book.pdf', size: 12 * 1024 * 1024 };
 test('settings: one section for MinerU on this computer, with the one-click card and nothing of the removed cloud route', () => {
   const html = render(h(MineruSettings, { call, initialLocal: states.missing }));
   assert.match(html, /PDF 转换（MinerU）/);
-  assert.match(html, /不上传任何内容，不需要令牌/);
+  assert.match(html, /不上传任何内容。/);
   assert.match(html, /class="mineru-install"/);
   assert.match(html, /未安装/);
   assert.doesNotMatch(html, /type="password"|type="checkbox"|令牌无效|mineru\.net\/apiManage|云端|uv tool install/, 'no token, no consent, no terminal command');
