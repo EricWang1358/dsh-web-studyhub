@@ -22,7 +22,8 @@ export default function BookFind({ find, onPick, onJump, onStep = find.step, onC
   return (
     <div className="book-find" data-searching={find.query.trim() ? '' : undefined}>
       <FindBar className="book-find__bar" label={ui('在书里找')} placeholder={ui('在书里找（Ctrl+F 或 /）')} query={find.query} onQuery={find.setQuery} total={total}
-        index={Math.max(0, index)} onStep={onStep} onClose={onClose} inputRef={find.inputRef} countTip={ui('在整本书里数：也算没打开的知识点和收起的 AI 段落')} />
+        index={Math.max(0, index)} onStep={onStep} onClose={onClose} inputRef={find.inputRef} countTip={ui('在整本书里数：也算没打开的知识点和收起的 AI 段落')}
+        nothing={jump ? '' : undefined} />
       {searching && <div className="book-find__results" data-book-find="">
         {jump && <Button variant="quiet" size="sm" wrap className="book-find__jump" onClick={onJump}>{uiFormat('跳到 {0} · {1}', [jump.code, jump.title])}</Button>}
         {hits.length > 0 && <ol className="book-find__list" aria-label={ui('找到的地方')}>

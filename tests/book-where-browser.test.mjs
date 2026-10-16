@@ -86,6 +86,15 @@ test('复习全书: 今天 in the 目录, the end button marks 读完 and goes o
         await page.locator('.book-step__heading', { hasText: POINTS.at(-1).title }).waitFor({ timeout: 30000 });
         await page.waitForFunction(() => CSS.highlights?.get('study-find-current')?.size === 1, null, { timeout: 10000 });
         if (shots) { await settleAnimations(page); await page.screenshot({ path: join(shots, `where-find-hit-${width}.png`) }); }
+        // Shift+Enter from the first match goes round to the last one, in the point's folded AI block: the block opens and the word is painted inside it.
+        await page.keyboard.press('Control+f');
+        await field.waitFor({ timeout: 30000 });
+        await page.waitForFunction(() => document.activeElement?.classList.contains('reader-find__input'), null, { timeout: 5000 });
+        await field.press('Shift+Enter');
+        await page.waitForFunction(() => {
+          const range = [...(CSS.highlights?.get('study-find-current') || [])][0];
+          return !!range?.startContainer?.parentElement?.closest('[data-ai-block]:not([data-ai-folded])');
+        }, null, { timeout: 10000 });
         // H12 (any case): the jump comes first; Enter takes it.
         await page.keyboard.press('Control+f');
         await field.fill('h12');

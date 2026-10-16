@@ -3,15 +3,16 @@ import { ui, uiFormat } from '../../i18n.js';
 import { IconButton, Icon, Tooltip } from '../../components/index.js';
 
 /** Search inside the document: the count, next / previous (Enter, Shift+Enter) and Esc to close. The review book's 在书里找 uses the same bar (ui/book/BookFind.jsx):
-    `label` names the field (default 在文中查找), `placeholder` its empty text, `countTip` explains the count on hover and focus, `className` places it. */
-export default function FindBar({ query, onQuery, total, index, onStep, onClose, inputRef, label, placeholder, countTip, className }) {
+    `label` names the field (default 在文中查找), `placeholder` its empty text, `countTip` explains the count on hover and focus, `className` places it, `nothing`
+    is what the count says when nothing is found (default 没有找到). */
+export default function FindBar({ query, onQuery, total, index, onStep, onClose, inputRef, label, placeholder, countTip, className, nothing }) {
   const onKeyDown = event => {
     if (event.key === 'Enter') { event.preventDefault(); onStep(event.shiftKey ? -1 : 1); }
     else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); }
   };
   const searching = !!query.trim(), name = label ?? ui('在文中查找');
   const count = <small className="reader-find__count" aria-live="polite" tabIndex={countTip && total ? 0 : undefined}>
-    {total ? uiFormat('{0} / {1}', [index + 1, total]) : searching ? ui('没有找到') : ''}</small>;
+    {total ? uiFormat('{0} / {1}', [index + 1, total]) : searching ? nothing ?? ui('没有找到') : ''}</small>;
   return <div className={className ? `reader-find ${className}` : 'reader-find'} role="search">
     <Icon name="search" size={16} className="reader-find__icon" />
     <input ref={inputRef} className="reader-find__input" type="search" value={query} autoComplete="off" spellCheck={false}
