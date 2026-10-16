@@ -40,6 +40,7 @@ import { sectionAtOffset } from '../../lib/sections.js';
 import { outlineFromSections, collectHeadings, withoutLabels, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
 import { applyOutline, clearOutlineTags } from './reader/ai-outline.js';
 import { findRanges, paintMatches } from './reader/find.js';
+import { useNarrow } from '../use-narrow.js';
 import css from './document-preview.css';
 import readerCss from './reader/reader.css';
 import linksCss from './links/links.css';
@@ -78,9 +79,6 @@ export function originalHandling(value) {
 export const viewerFormat = (document, source) => document?.format
   || (source?.document ? source.document.format || 'pdf' : source?.audio ? 'txt' : 'md');
 
-
-/** Below this width of the viewer, the outline and the learning panel slide over the text. Mirrors reader.css. */
-const NARROW = 900;
 
 /** The stored text with the quote marked: as written, else by its letters (resolveQuote), found once per text and quote, not per render. */
 function QuotedText({ text, quote, anchor, format }) {
@@ -121,7 +119,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [settings, updateSettings, resetSettings] = useReaderSettings();
   // 阅读 / 批注: in 批注 the answers of the learning panel are kept with their passage, and the annotated passages are marked like the linked ones.
   const [annotationMode, setAnnotationMode] = useState(loadAnnotationMode), [kept, setKept] = useState({ items: [], stale: [] }), [keptReload, setKeptReload] = useState(0);
-  const [narrow, setNarrow] = useState(false), [overlay, setOverlay] = useState(null);
+  const [overlay, setOverlay] = useState(null);
   const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
   const [headings, setHeadings] = useState([]);
   const [aiOutline, setAiOutline] = useState(null), [aiItems, setAiItems] = useState([]), [emptyOpen, setEmptyOpen] = useState(false);
@@ -129,6 +127,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
   const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
+  // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
+  const narrow = useNarrow(root);
   const outlineId = useId(), toolsId = useId();
   useEffect(() => {
     let current = true, objectUrl = '';
@@ -236,18 +236,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   };
   const assistTarget = useMemo(() => document ? { documentId: document.documentId || document.id, sourceId: source.id, revision: document.revision, legacy: !!document.legacy } : null, [document, source.id]);
 
-  // Narrow panes: the outline and the learning panel slide over the text instead of sitting beside it.
-  useIsoLayoutEffect(() => {
-    const element = root.current;
-    if (!element) return undefined;
-    let last = null;
-    const measure = () => { const next = element.clientWidth < NARROW; if (next !== last) { last = next; setNarrow(next); } };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
   useEffect(() => { setOverlay(null); }, [narrow]);
   // The panel is also there when no headings were found, so "让 AI 帮你" can be asked for (it then opens only on request).
   const canOutline = outline.length > 0 || (!!assistTarget && view !== 'original' && !loading && !!call);

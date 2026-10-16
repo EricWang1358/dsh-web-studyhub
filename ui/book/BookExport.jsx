@@ -21,7 +21,7 @@ const questionChoices = () => [
 /** The quiet comparison of an estimate with the limit: null without a limit. */
 export function budgetText(pages, limit) {
   if (!limit || !Number.isInteger(pages)) return null;
-  return pages > limit ? { tone: 'warning', text: uiFormat('超出上限 {0} 页', [pages - limit]) } : { tone: 'success', text: uiFormat('在上限 {0} 页以内', [limit]) };
+  return pages > limit ? { tone: 'warning', text: uiFormat('比上限多 {0} 页', [pages - limit]) } : { tone: 'success', text: uiFormat('在上限 {0} 页以内', [limit]) };
 }
 
 /** course; pageLimit: the saved limit (or undefined); onClose(). */

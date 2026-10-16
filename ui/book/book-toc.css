@@ -1,0 +1,117 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* The review book's 目录 (ui/book/BookToc.jsx). Wide: a frameless column beside the text that sticks under the book bar and scrolls on its own. Narrow (the
+       page under 900 px, ui/use-narrow.js, one rule): it slides over the text from the left with the scrim, as the reader's outline does. Tokens only. */
+    /* The page under the bar: the 目录 column (when open, at wide widths) and the reading column. The reading column is a reading block (ui/reading-settings,
+       the Aa setting): its width is the chosen line length and its text the chosen size; --book-size passes that size on to the takeaway, a step larger. */
+    .book-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-6);
+      align-items: start;
+      min-width: 0;
+    }
+    .book-layout--toc {
+      grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+    }
+    .book-read {
+      --book-size: var(--reader-size, var(--fs-lg));
+      display: grid;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+    .book-toc {
+      position: sticky;
+      top: calc(var(--book-bar-top) + var(--book-bar-h) + var(--space-3));
+      display: grid;
+      align-content: start;
+      gap: var(--space-2);
+      /* It fits between where it sticks and the page's bottom padding (.page, ui/shell.css), so the end of a short point never pushes it up under the bar. */
+      max-height: calc(100dvh - var(--book-bar-top) - var(--book-bar-h) - var(--space-3) - var(--space-9));
+      min-width: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 0 var(--space-1) var(--space-4) 0;
+    }
+    .book-toc[data-overlay] {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: var(--z-overlay);
+      width: min(340px, 88vw);
+      max-height: none;
+      padding: var(--space-5) var(--space-3) var(--space-6);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-dialog);
+      animation: book-toc-in 0.18s var(--ease-out);
+    }
+    .book-toc-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: calc(var(--z-overlay) - 1);
+      background: var(--scrim);
+    }
+    /* The coverage line: quiet, its rule on hover and focus. */
+    .book-toc__levels-tip {
+      display: block;
+    }
+    .book-toc__levels {
+      margin: 0;
+      padding: 0 var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      line-height: var(--lh-snug);
+    }
+    .book-toc__list {
+      display: grid;
+      gap: var(--space-half);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-toc__item {
+      display: flex;
+      min-width: 0;
+    }
+    /* One indent step per level (chapter → section → point the same step). */
+    .book-toc__item[data-level='3'] {
+      padding-left: var(--space-3);
+    }
+    .book-toc__item[data-level='4'] {
+      padding-left: calc(var(--space-3) * 2);
+    }
+    .book-toc__anchor {
+      display: flex;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .book-toc__go {
+      flex: 1 1 auto;
+      min-width: 0;
+      justify-content: flex-start;
+      color: var(--text-muted);
+      text-align: left;
+    }
+    /* The heading being read: bold, the text colour and a 2 px ink line on its left (no badge). */
+    .book-toc__go[aria-current='location'] {
+      color: var(--text);
+      font-weight: var(--fw-strong);
+      box-shadow: inset 2px 0 0 var(--text);
+      border-start-start-radius: 0;
+      border-end-start-radius: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .book-toc[data-overlay] {
+        animation: none;
+      }
+    }
+  }
+}
+
+/* Keyframes live at the top level (browsers ignore @keyframes nested inside a style rule): the narrow 目录 slides in from the left. */
+@keyframes book-toc-in { from { transform: translateX(-100%); } }

@@ -14,8 +14,9 @@ import { bookFiles, fileText } from './model.js';
 // Long lines wrap: the page never scrolls sideways, at 420 px either.
 const extensions = [markdown(), EditorView.lineWrapping];
 
-/** book: course.book.open's answer; file; onPick(file); onChanged(book) with the new answer; theme: 'light' | 'dark'. */
-export default function BookEditor({ book, file, onPick, onChanged, theme = 'dark' }) {
+/** book: course.book.open's answer; file; onPick(file); onChanged(book) with the new answer; onDirty(dirty): whether there are unsaved edits (the page asks before
+    leaving them); theme: 'light' | 'dark'. */
+export default function BookEditor({ book, file, onPick, onChanged, onDirty, theme = 'dark' }) {
   const { call, notify } = useStudy();
   const meta = book.files[file] || { version: 0 };
   const [draft, setDraft] = useState(() => fileText(book, file));
@@ -32,6 +33,8 @@ export default function BookEditor({ book, file, onPick, onChanged, theme = 'dar
   const options = useMemo(() => bookFiles(book).map(item => ({ value: item.file,
     label: item.kind === 'unplaced' ? book.unplaced.title : uiFormat(item.kind === 'gen' ? '{0} {1} · 讲解（生成）' : item.kind === 'qa' ? '{0} {1} · 问答' : '{0} {1} · 我的笔记', [item.row.number, item.row.title]) })), [book]);
   const dirty = draft !== base.current.text;
+  useEffect(() => { onDirty?.(dirty); }, [dirty]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onDirty?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
   const settle = (next, { kept = true } = {}) => {
     base.current = { file, version: next.files[file]?.version ?? 0, text: fileText(next, file) };
     if (kept) setDraft(base.current.text);

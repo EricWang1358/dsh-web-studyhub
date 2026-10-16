@@ -18,8 +18,8 @@ import { addDays } from '../lib/crunch-plan.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 期末一周 in the real page at 1280 and 420 px (docs/plans/review-book.md M7): with the course's exam a week away the home shows the 期末一周 card (the
-   day's kind, its reason, its points); 去读 opens the book at that point, with 「今天读哪几节」 in the header; 翻看 lists the points with their 易错点 first,
-   已看 is kept after a reload; 「用这几节出一套模拟卷」 says what can go in and starts the ordinary exam page. Nothing scrolls sideways.
+   day's kind, its reason, its points); 去读 opens the book at that point, with 「今天读哪几节」 in 更多; 更多 › 翻看 lists the points with their 易错点 first,
+   已看 is kept after a reload, a round from 翻看 comes back to the reading surface at its point; 「用这些知识点出一套模拟卷」 says what can go in and starts the ordinary exam page. Nothing scrolls sideways.
    Screenshots go to COURSE_BOOK_CRUNCH_SHOTS. */
 
 const options = [{ id: 'a', text: 'Yes', correct: true }, { id: 'b', text: 'No', correct: false }];
@@ -83,7 +83,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       const card = page.locator('.crunch-card');
       await card.waitFor({ timeout: 30000 });
       const text = await card.innerText();
-      for (const part of ['期末一周 · SA', '学习日', '距考试 7 天', '练 5 道', '用这几节出一套模拟卷']) assert.ok(text.includes(part), `${width}px: the card shows ${part}`);
+      for (const part of ['期末一周 · SA', '学习日', '距考试 7 天', '练 5 道', '用这些知识点出一套模拟卷']) assert.ok(text.includes(part), `${width}px: the card shows ${part}`);
       assert.match(text, /每节读完练 5 道，约 \d+ 分钟/, `${width}px: the reason`);
       // The card's own parts (the rest of the home is not this test's).
       let overflow = await sideways(page, '.crunch-card *');
@@ -113,7 +113,9 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await first.getByRole('button', { name: '去读' }).click();
       await page.getByText('已切换到课程 SA').first().waitFor({ timeout: 30000 });
       assert.equal(await page.getByText('已切换到课程 SA').count(), 1, `${width}px: said once`);
-      assert.match(await page.locator('.book-page h1').innerText(), /复习全书 · SA/, `${width}px: the book is the card's course`);
+      // Two courses: the title's course is the course switcher (the home's), and it names the card's course.
+      assert.match(await page.locator('.book-page h1').innerText(), /复习全书 ·\s*SA/, `${width}px: the book is the card's course`);
+      assert.equal(await page.locator('.book-page h1 [aria-label="切换当前课程"]').count(), 1, `${width}px: the course switcher in the title`);
       assert.equal(await page.locator('.sh-toast', { hasText: '已切换到课程' }).count(), 0, `${width}px: a quiet line in the header, not a toast`);
       await page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(300);
@@ -123,7 +125,9 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await page.locator('.book-header').scrollIntoViewIfNeeded();
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-switched-${tag}.png`) });
-      await page.locator('.book-header__today').click();
+      // 更多 › 期末一周 › 今天读哪几节: today's day of the plan under the bar.
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitem', { name: '今天读哪几节' }).click();
       await page.locator('.book-today .crunch-day').waitFor({ timeout: 30000 });
       assert.match(await page.locator('.book-today').innerText(), /学习日[\s\S]*去读/);
       overflow = await sideways(page);
@@ -131,11 +135,13 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-today-${tag}.png`) });
 
-      // 翻看: the 易错点 first, the 讲解 folded; 已看 kept.
-      await page.locator('.book-header__mode').getByText('翻看', { exact: true }).click();
+      // 更多 › 翻看: the 易错点 first, the 讲解 folded; 已看 kept; 「完成 · 回到阅读」 on top.
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitem', { name: /^翻看/ }).click();
       await page.locator('.book-flip').waitFor({ timeout: 30000 });
+      assert.equal(await page.locator('.book-mode__done').count(), 1, `${width}px: 翻看 has its way back to reading`);
       const flip = await page.locator('.book-flip').innerText();
-      for (const part of ['问过：决策日志和架构图有什么区别？', '弄懂：decision log', '这一节还没有记下的易错点。', '讲解', '选进模拟卷']) assert.ok(flip.includes(part), `${width}px: 翻看 shows ${part}`);
+      for (const part of ['问过：决策日志和架构图有什么区别？', '弄懂：decision log', '这个知识点还没有记下的易错点。', '讲解', '选进模拟卷']) assert.ok(flip.includes(part), `${width}px: 翻看 shows ${part}`);
       assert.doesNotMatch(flip, /the explanation that 翻看 keeps folded/, `${width}px: the 讲解 is folded`);
       const firstFlip = page.locator('.book-flip__point').first(), flipHid = await firstFlip.getAttribute('data-flip-point');
       assert.match(await firstFlip.innerText(), /What architects do/, `${width}px: the point with the most 易错点 first`);
@@ -149,14 +155,20 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       assert.ok(flat(overflow), `${width}px: nothing scrolls sideways in 翻看: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `flip-${tag}.png`), fullPage: true });
-      // A reload keeps 已看 (kept in the book's record) and the 翻看 view (kept per course).
+      // A reload keeps 已看 (kept in the book's record). The home card's 打开复习全书 opens the reading surface with 今天读哪几节 (a view is never remembered:
+      // the book does not reopen in 翻看 by itself); 翻看 is one press away in 更多.
       await page.reload();
       await page.locator('.crunch-card').waitFor({ timeout: 30000 });
       await page.locator('.crunch-card__open').click();
+      await page.locator('.book-today .crunch-day').waitFor({ timeout: 30000 });
+      assert.equal(await page.locator('.book-flip').count(), 0, `${width}px: not in 翻看 by itself`);
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitem', { name: /^翻看/ }).click();
       await page.locator('.book-flip').waitFor({ timeout: 30000 });
       assert.equal(await seenCount(page), before + 1, `${width}px: 已看 survives a reload`);
 
-      // A question link inside 翻看 goes to the practice page with 回到复习全书 and comes back to the same place in 翻看.
+      // A question link inside 翻看 goes to the practice page with 回到复习全书; the way back lands on the reading surface at that point (an entry always does),
+      // its heading focused, and 翻看 is one press away in 更多 with its progress.
       const last = page.locator('.book-flip__point').last(), lastHid = await last.getAttribute('data-flip-point');
       await last.locator('summary').first().click();
       // The point's questions are folded under 本节的题 (N).
@@ -170,19 +182,23 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       const back = page.locator('.review-return', { hasText: '回到复习全书' });
       await back.waitFor({ timeout: 30000 });
       await back.click();
-      await page.locator(`#flip-${lastHid}`).waitFor({ timeout: 30000 });
+      await page.locator(`#book-${lastHid}`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(400);
-      const topAfter = await page.evaluate(id => Math.round(document.getElementById(`flip-${id}`).getBoundingClientRect().top), lastHid);
-      // The point comes back where it was (or, when its folded 讲解 makes the page too short for that, as near as the page allows: on screen).
-      assert.ok(Math.abs(topAfter - topBefore) <= 24 || (topAfter >= 0 && topAfter < 900), `${width}px: back in 翻看 at the same point: ${topBefore} -> ${topAfter}`);
-      assert.equal(await seenCount(page), before + 1, `${width}px: still 翻看 with its progress`);
+      assert.equal(await page.locator('.book-flip').count(), 0, `${width}px: back on the reading surface`);
+      const topAfter = await page.evaluate(id => Math.round(document.getElementById(`book-${id}`).getBoundingClientRect().top), lastHid);
+      assert.ok(topAfter >= 0 && topAfter < 900, `${width}px: at the point left: ${topBefore} -> ${topAfter}`);
+      await page.waitForFunction(id => document.activeElement?.id === id, `book-${lastHid}`, { timeout: 5000 });
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitem', { name: /^翻看/ }).click();
+      await page.locator('.book-flip').waitFor({ timeout: 30000 });
+      assert.equal(await seenCount(page), before + 1, `${width}px: 翻看 keeps its progress`);
 
       // The mock paper: what can go in, then the ordinary exam page.
-      await page.locator('.book-flip__mock').getByRole('button', { name: '用这几节出一套模拟卷' }).click();
+      await page.locator('.book-flip__mock').getByRole('button', { name: '用这些知识点出一套模拟卷' }).click();
       const mock = page.locator('.book-flip__mock .book-mock');
       await mock.waitFor({ timeout: 30000 });
       const said = await mock.innerText();
-      assert.match(said, /这 2 节共 \d+ 道题，其中 9 道单选或多选可以进模拟卷/, `${width}px: the coverage: ${said}`);
+      assert.match(said, /这 2 个知识点共 \d+ 道题，其中 9 道单选或多选可以进模拟卷/, `${width}px: the coverage: ${said}`);
       assert.match(said, /不进卷：.*开放 1 道.*闪卡 \d+ 道/, `${width}px: what is left out: ${said}`);
       await settleAnimations(mock);
       if (shots) await mock.screenshot({ path: join(shots, `mock-${tag}.png`) });

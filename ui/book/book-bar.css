@@ -1,0 +1,199 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* The review book's bar (ui/book/BookBar.jsx): sticky under the app's top bar (--book-bar-top on .book-page), one row of --book-bar-h, opaque so the text
+       scrolls under it, a hairline and the cinnabar reading line at its foot. At narrow widths the 目录 and 更多 buttons keep only their icons. Tokens only. */
+    .book-bar {
+      position: sticky;
+      top: var(--book-bar-top);
+      z-index: var(--z-sticky);
+      min-width: 0;
+      margin-inline: calc(var(--space-2) * -1);
+      background: var(--bg-canvas);
+    }
+    .book-bar__row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      min-width: 0;
+      min-height: var(--book-bar-h);
+      padding-inline: var(--space-1);
+    }
+    .book-bar__where-tip {
+      display: flex;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    /* Where: the count never shrinks; the title is cut with an ellipsis (its box too, so nothing reaches past the window). */
+    .book-bar__where {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: baseline;
+      min-width: 0;
+      margin: 0;
+      padding-inline: var(--space-2);
+      color: var(--text);
+      font-size: var(--fs-sm);
+      white-space: pre;
+    }
+    .book-bar__count {
+      flex: none;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .book-bar__dot {
+      flex: none;
+      color: var(--text-faint);
+    }
+    .book-bar__title {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      font-weight: var(--fw-medium);
+      text-overflow: ellipsis;
+    }
+    .book-bar__prev svg {
+      transform: scaleX(-1);
+    }
+    /* Inset by the bar's own overhang, so the hairline and the reading line keep to the content's edges like the page's other rules. */
+    .book-bar__line {
+      height: 2px;
+      margin-inline: var(--space-2);
+      overflow: hidden;
+      background: var(--line-soft);
+    }
+    .book-bar__line > span {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform 0.12s linear;
+    }
+    /* One ink for the bar's five buttons (all quiet and small): the muted text colour; the full ink on hover, keyboard focus, a press and while its menu or
+       panel is open; a disabled one (‹ on the first point, › on the last) the faint colour. The 目录 column open beside the text is a state, not a press. */
+    .book-bar__btn {
+      color: var(--text-muted);
+    }
+    .book-bar__btn:is(:hover, :focus-visible, :active, [aria-haspopup][aria-expanded='true']):not(:disabled),
+    .book-page[data-narrow] .book-bar__toc[aria-expanded='true'] {
+      color: var(--text);
+    }
+    /* A disabled bar button: the faint text ink, dimmed (--text-faint is held to the text contrast and is all but --text-muted in the light theme, so a
+       disabled ‹ would look like › without the dimming; --decor-faint is for decoration, never for a control's ink). */
+    .book-bar__btn:disabled {
+      color: var(--text-faint);
+      opacity: 0.5;
+    }
+    /* At 16 px the light glyphs' straight hairlines fall between pixels: in the same ink ≡'s lines and ⋯'s dots read fainter than ‹ › and Aa, as if
+       disabled. A thin stroke of the same colour (in the glyphs' 256 grid; a little more on ≡ and ⋯) gives the five one weight. */
+    .book-bar__btn svg {
+      stroke: currentColor;
+      stroke-width: 4;
+      stroke-linejoin: round;
+    }
+    .book-bar__toc svg,
+    .book-bar__more svg {
+      stroke-width: 13;
+    }
+    /* The page limit, when the export is over it: one quiet cinnabar line under the bar (not in the sticky bar: no button moves, the place is not squeezed),
+       there only while the estimate is over the limit; its Tooltip says where to change it. */
+    .book-bar-limit {
+      margin: var(--space-1) 0 0;
+      padding-inline: 0;
+      color: var(--accent-text);
+      font-size: var(--fs-xs);
+      line-height: var(--lh-snug);
+    }
+    /* The header above the bar (ui/book/BookHeader.jsx): the way back is a quiet ink link (not cinnabar); one quiet status line while a book task runs. */
+    .book-header {
+      --sh-link-ink: var(--text-muted);
+      margin-bottom: 0;
+    }
+    .book-header__dot {
+      color: var(--text-faint);
+    }
+    .book-header__course {
+      display: inline-flex;
+      min-width: 0;
+    }
+    /* The one-off 「笔记换了位置」 notice: read top to bottom (the sentence, the list, 知道了). */
+    .book-header__moves {
+      display: grid;
+      justify-items: start;
+      gap: var(--space-1);
+      margin: var(--space-1) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-header__moves > p,
+    .book-header__moves > ul {
+      margin: 0;
+    }
+    .book-header__status {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      margin: var(--space-1) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    /* A view that took the reading surface's place (编辑, 翻看: ui/book/book-views.jsx): what it is, and 「完成 · 回到阅读」. */
+    .book-mode {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+    .book-mode__bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      min-width: 0;
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .book-mode__title {
+      margin: 0;
+      min-width: 0;
+      color: var(--text);
+      font-weight: var(--fw-strong);
+      overflow-wrap: anywhere;
+    }
+    .book-page[data-narrow] .book-bar__word {
+      display: none;
+    }
+    .book-page[data-narrow] .book-bar__where {
+      padding-inline: var(--space-1);
+    }
+    /* Narrow: 「5/16 · the title」 (no word, no number). */
+    .book-bar__count--narrow,
+    .book-page[data-narrow] .book-bar__count--wide,
+    .book-page[data-narrow] .book-bar__number {
+      display: none;
+    }
+    .book-page[data-narrow] .book-bar__count--narrow {
+      display: inline;
+    }
+    .book-page[data-narrow] .book-bar__row {
+      gap: 0;
+    }
+    /* Narrow: 目录 and 更多 keep only their icons, as square as the other icon buttons, so the four on the right are evenly spaced. */
+    .book-page[data-narrow] .book-bar__toc,
+    .book-page[data-narrow] .book-bar__more {
+      justify-content: center;
+      width: var(--control-h-sm);
+      padding-inline: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .book-bar__line > span {
+        transition: none;
+      }
+    }
+  }
+}

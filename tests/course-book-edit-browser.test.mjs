@@ -14,8 +14,9 @@ import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
-/* 复习全书 M2 in the real page at 1280 and 420 px (docs/plans/review-book.md): 预览 / 原文, edit a generated file in the Markdown editor and save (it is then
-   已改动), the preview shows the edit, a save that met another change leaves a 书已更新 suggestion to 采用 or 忽略, 回退到上一版 takes the edit back, nothing
+/* 复习全书 M2 in the real page at 1280 and 420 px (docs/plans/review-book.md, docs/review-book.md "Edit it"): 更多 › 编辑这个知识点… opens the Markdown editor on
+   the point's explanation, 「完成 · 回到阅读」 comes back to the same point and asks first when there are unsaved edits; edit a generated file and save (it is
+   then 已改动), the book shows the edit, a save that met another change leaves a 书已更新 suggestion to 采用 or 忽略, 回退到上一版 takes the edit back, nothing
    scrolls sideways. Screenshots go to COURSE_BOOK_EDIT_SHOTS when set. */
 
 async function seed(root) {
@@ -62,22 +63,49 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
         await page.goto(running.server.url);
         await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
         await page.locator('.outline-book-line__open').click({ timeout: 30000 });
-        await page.locator('.book-header__mode').waitFor({ timeout: 30000 });
+        await page.locator('.book-bar').waitFor({ timeout: 30000 });
       };
-      const mode = async name => { await page.locator('.book-header__mode').getByText(name, { exact: true }).click(); };
+      // 编辑 opens from 更多 and 完成 · 回到阅读 comes back (at the same point).
+      const mode = async name => {
+        if (name === '原文') {
+          await page.locator('.book-bar__more').click();
+          await page.getByRole('menuitem', { name: '编辑这个知识点…' }).click();
+          await page.locator('.book-editor').waitFor();
+        } else {
+          await page.locator('.book-mode__done').click();
+          await page.locator('[data-book-point]').first().waitFor();
+        }
+      };
       const pickFile = async label => {
         await page.locator('.book-editor__file').click();
         await page.locator('[role="option"]', { hasText: label }).first().click();
         await page.locator('.book-editor__file', { hasText: label }).waitFor();
       };
       await openBook();
-      if (await page.locator('.book-editor').count()) await mode('预览');
       await page.locator('[data-book-point]').first().waitFor();
+      assert.equal(await page.locator('.book-editor').count(), 0, `${width}px: the book never opens in the editor`);
 
-      // 原文: the generated file of 1.1, edited and saved; it is 已改动 from then on.
+      // 编辑这个知识点: the editor opens on the explanation of the point being read (1.1), edited and saved; it is 已改动 from then on.
       await mode('原文');
-      await page.locator('.book-editor').waitFor();
-      await pickFile('1.1 What architects do · 讲解（生成）');
+      await page.locator('.book-editor__file', { hasText: '1.1 What architects do · 讲解（生成）' }).waitFor();
+      assert.match(await page.locator('.book-mode__title').innerText(), /1\.1 What architects do/);
+      if (width === 1280) {
+        // Unsaved text: 完成 asks first; 继续编辑 keeps it, 丢掉改动，离开 goes back to the same point without saving.
+        await page.locator('.cm-content').click();
+        await page.keyboard.press('Control+End');
+        await page.keyboard.type('\n\nNot to be kept.');
+        await page.locator('.book-mode__done').click();
+        const ask = page.locator('.sh-confirm', { hasText: '还有没保存的改动' });
+        await ask.waitFor();
+        await ask.getByRole('button', { name: '继续编辑' }).click();
+        await ask.waitFor({ state: 'detached' });
+        assert.match(await page.locator('.cm-content').innerText(), /Not to be kept\./, 'the edit is still there');
+        await page.locator('.book-mode__done').click();
+        await page.locator('.sh-confirm', { hasText: '还有没保存的改动' }).getByRole('button', { name: '丢掉改动，离开' }).click();
+        await page.locator('.book-step__heading', { hasText: 'What architects do' }).waitFor();
+        assert.equal(await page.locator('.book-file', { hasText: 'Not to be kept.' }).count(), 0, 'nothing was saved');
+        await mode('原文');
+      }
       assert.match(await page.locator('.book-editor__note').innerText(), /改了之后它就归你/);
       await page.locator('.cm-content').click();
       await page.keyboard.press('Control+End');
@@ -101,7 +129,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       await page.locator('.book-editor__save').click();
       await page.waitForFunction(text => document.querySelector('.cm-content')?.innerText.includes(text), 'sh:id h', { timeout: 30000 });
       await mode('预览');
-      if (width === 420) await page.locator('.book-header__toc').click();
+      if (width === 420) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: `My heading ${width}` }).click();
       const typed = page.locator('.book-file--mine .md-heading', { hasText: `My heading ${width}` });
       await typed.waitFor();
@@ -123,8 +151,9 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       };
       await conflict(`Server ${width}`);
       await openBook();
-      // The learner's file of 1.2: 逐节读 shows 1.1 first, 下一节 is 1.2.
+      // The learner's file of 1.2: the book opens where the learner was (1.1 here), 下一节 is 1.2.
       const toSecond = async () => { await page.locator('.book-step__next').click(); await page.locator('.book-step__heading', { hasText: 'Stakeholders' }).waitFor(); };
+      assert.match(await page.locator('.book-step__heading').innerText(), /What architects do/);
       await toSecond();
       const suggestion = page.locator('.book-suggestion', { hasText: '书已更新' });
       await suggestion.waitFor({ timeout: 30000 });
@@ -134,7 +163,8 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       assert.equal(await page.locator('.book-suggestion', { hasText: '书已更新' }).count(), 0);
       await conflict(`Again ${width}`);
       await openBook();
-      await toSecond();
+      // Opened again, the book is back at 1.2, where the learner was (kept in this browser).
+      await page.locator('.book-step__heading', { hasText: 'Stakeholders' }).waitFor();
       await page.locator('.book-suggestion', { hasText: '书已更新' }).getByText('忽略', { exact: true }).click();
       await page.locator('.book-suggestion', { hasText: '书已更新' }).waitFor({ state: 'detached', timeout: 30000 });
       await page.locator('.book-file--mine', { hasText: `Again ${width} B` }).waitFor();

@@ -6,7 +6,6 @@ import BookSuggestion from './BookSuggestion.jsx';
 import PointBody from './PointBody.jsx';
 import { pointSummary } from './point-parts.js';
 import { BookReadContext } from './reading.js';
-import { codeOf } from '../../lib/course-book-lookup.js';
 
 /* One chapter of the review book (a top node of the 总纲, or 未归位) in 整章滚动. Only an open chapter renders its files (I8: a big book stays light); a closed
    one is its heading. Inside an open chapter each knowledge point is folded to its title and one line (its takeaway) except the one being read; an open
@@ -26,7 +25,6 @@ function BookNode({ node, course, handlers }) {
       <Heading id={`book-${node.hid}`} className="book-node__heading" data-book-heading={node.hid} tabIndex={-1}>
         {foldable ? <Button variant="quiet" wrap className="book-node__toggle" aria-expanded={open} onClick={() => read.expand(node.hid, !open)}>
           <Icon name="caret" size={14} className="book-node__caret" />{title}</Button> : title}
-        {' '}<span className="book-node__code">{codeOf(node.hid)}</span>
       </Heading>
       {!open ? <p className="book-node__summary">{pointSummary(node.gen) || ui('展开读这一节')}</p>
         : node.leaf ? <PointBody node={node} course={course} handlers={handlers} level={Math.min(6, node.depth + 2)} />
@@ -44,8 +42,6 @@ export default memo(function BookChapter({ node, open, onToggle, course, handler
           <Icon name="caret" size={14} className="book-chapter__caret" />
           {node.number && <span className="book-node__number">{node.number}</span>} {node.title}
         </Button>
-        {/* The stable code the printed book carries in its margin (M6). */}
-        <span className="book-node__code">{codeOf(node.hid)}</span>
       </h2>
       {open && (node.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} />
         : node.leaf ? <PointBody node={node} course={course} handlers={handlers} level={3} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />))}

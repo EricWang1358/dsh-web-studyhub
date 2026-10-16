@@ -103,7 +103,8 @@
     .sh-menu__item.is-danger, .sh-menu__item.is-danger:hover:not(:disabled) { color: var(--bad-ink); }
     .sh-menu__gap { width: 16px; flex: none; }
     .sh-menu__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .sh-menu__hint { color: var(--text-muted); font-size: var(--fs-xs); }
+    /* A hint keeps a clear space from its label (the item's gap and one step more), so a long label and its hint never read as one string. */
+    .sh-menu__hint { padding-inline-start: var(--space-1); color: var(--text-muted); font-size: var(--fs-xs); }
     /* ── InlineConfirm: one boxed question with a fixed button order ───── */
     .sh-confirm { margin: var(--space-2) 0; }
     .sh-confirm.sh-inline--boxed { flex-direction: column; align-items: stretch; gap: var(--space-2); padding: var(--space-3); }

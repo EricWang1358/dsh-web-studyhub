@@ -16,7 +16,7 @@ import { openCourseBook } from '../lib/course-book-files.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 复习全书 M1 in the real page at 1280 and 420 px (docs/plans/review-book.md): from the home to the 总纲 and 打开书页; the 目录 beside the book at 1280,
-   folded at 420; 你在这里; 逐节读 draws one point (ui/book/BookStep.jsx); a question link goes to the practice page with 回到复习全书 and comes back at the same heading
+   sliding over it at 420 from the bar's 目录; the heading being read marked in it; one point drawn at a time (ui/book/BookStep.jsx); a question link goes to the practice page with 回到复习全书 and comes back at the same heading
    and scroll, the heading focused; the result page of a round started here has 回到复习全书 as its main button (the point left in a second line); 本节问答 opens in place; a link to a deleted question says so; nothing scrolls sideways. Screenshots go to COURSE_BOOK_PAGE_SHOTS when set. */
 
 async function seed(root) {
@@ -67,7 +67,7 @@ async function finishRound(page) {
   await page.locator('.result-page').waitFor({ timeout: 5000 });
 }
 
-test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a question link goes to practice and back to the same place, 本节问答, a deleted question (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+test('复习全书: 打开书页 from the 总纲, the 目录 and the heading being read, a question link goes to practice and back to the same place, 本节问答, a deleted question (1280 and 420 px)', { timeout: 420000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-page-dist-'));
@@ -92,8 +92,8 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       assert.equal(await page.locator('[data-book-point]').count(), 1, `${width}px: one point drawn`);
       assert.equal(await page.locator('.book-step .book-file').count() > 0, true);
       if (width === 420) {
-        assert.equal(await page.locator('.book-toc').count(), 0, '420px: the 目录 is folded');
-        await page.locator('.book-header__toc').click();
+        assert.equal(await page.locator('.book-toc').count(), 0, '420px: the 目录 is closed');
+        await page.locator('.book-bar__toc').click();
       }
       await page.locator('.book-toc').waitFor();
       assert.ok(await page.locator('.book-toc__go').count() >= 7, `${width}px: every heading in the 目录`);
@@ -103,7 +103,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-${tag}.png`), fullPage: true });
 
-      // The 目录 goes to a point of another chapter: it is shown, and 你在这里 follows.
+      // The 目录 goes to a point of another chapter: it is shown, and the 目录 marks it.
       await page.locator('.book-toc__go', { hasText: '2.2 Quality attribute scenarios' }).click();
       await page.locator('.book-step__heading', { hasText: 'Quality attribute scenarios' }).waitFor();
       await page.waitForTimeout(300);
@@ -114,19 +114,20 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-point-${tag}.png`) });
       if (width === 420) {
-        assert.equal(await page.locator('.book-toc').count(), 0, '420px: the 目录 folds again after a jump');
-        await page.locator('.book-header__toc').click();
+        assert.equal(await page.locator('.book-toc').count(), 0, '420px: the 目录 closes after a jump');
+        await page.locator('.book-bar__toc').click();
       }
-      // 你在这里 is the heading on screen; at 420 px the reopened 目录 sits above the text and pushes it down, so only that it is shown is checked there.
-      await (width === 1280 ? page.locator('.book-toc__item', { hasText: '2.2 Quality attribute scenarios' }).locator('.book-toc__here') : page.locator('.book-toc__here')).waitFor();
-      if (width === 420) await page.locator('.book-header__toc').click();
+      // The heading being read: bold with an ink line, no badge; at 420 the slide-over closes with Esc.
+      await page.locator('.book-toc__item', { hasText: '2.2 Quality attribute scenarios' }).locator('.book-toc__go[aria-current="location"]').waitFor();
+      assert.equal(await page.locator('.book-toc__here').count(), 0, `${width}px: no 你在这里 badge`);
+      if (width === 420) { await page.keyboard.press('Escape'); await page.locator('.book-toc').waitFor({ state: 'detached' }); }
 
       // 本节问答 of the point opens in place (this library keeps none: it says so).
       await page.locator('.book-point [data-book-link="qa"]').first().click();
       await page.locator('.book-qa__none, .book-qa').first().waitFor({ timeout: 30000 });
 
       // A question link of 1.2 (under 本节的题, folded) goes to the practice page with 回到复习全书, and comes back at the same heading and scroll.
-      if (width === 420) await page.locator('.book-header__toc').click();
+      if (width === 420) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: '1.2 Stakeholders' }).click();
       await page.locator('.book-step__heading', { hasText: 'Stakeholders' }).waitFor();
       const hid = await page.locator('.book-step').getAttribute('data-book-step');
@@ -163,7 +164,7 @@ test('复习全书: 打开书页 from the 总纲, 目录 and 你在这里, a que
       assert.equal(await topOf(page, hid), after, `${width}px: the focus did not scroll the page`);
 
       // 练 5 道 on the next chapter's point (a long title) starts a round of five of its questions; finished, its result page goes back first.
-      if (width === 420) await page.locator('.book-header__toc').click();
+      if (width === 420) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: '2.2 Quality attribute scenarios' }).click();
       await page.locator('.book-step__heading', { hasText: 'Quality attribute scenarios' }).waitFor();
       const hid2 = await page.locator('.book-step').getAttribute('data-book-step');

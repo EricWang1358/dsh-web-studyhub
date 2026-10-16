@@ -2,19 +2,20 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    /* 复习全书 (ui/book/): the 目录 beside the rendered Markdown at wide widths, one column with the 目录 folded above at narrow ones. Tokens only. A long
-       title or link wraps; nothing is wider than the page. */
+    /* 复习全书 (ui/book/): the header and the sticky book bar (book-bar.css), the 目录 and the reading column (book-toc.css), the points (here). Tokens only.
+       A long title or link wraps; nothing is wider than the page. --book-bar-top: where the bar sticks, set by the bar once drawn (under the app's top bar, ui/shell.css
+       .topbar, or 0 once that has scrolled away; it matters only once the bar sticks); --book-bar-h: its row; the 目录 column sticks under both. */
     .book-page {
+      --book-bar-top: 0px;
+      --book-bar-h: 44px;
       display: grid;
-      gap: var(--space-4);
+      gap: var(--space-3);
       align-content: start;
       min-width: 0;
     }
-    .book-header__tools {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-2);
+    /* A reading surface: the page starts closer to the top bar (the doubled class outranks .page's padding; .page itself is ui/shell.css's). */
+    .book-page.book-page {
+      padding-top: var(--space-5);
     }
     .book-editor {
       display: grid;
@@ -44,8 +45,8 @@
       overflow: hidden;
     }
     /* A knowledge point in reading order (ui/book/PointBody.jsx): one row of actions, the takeaway (type only), the story with the AI blocks right after
-       their paragraphs, 要点清单 and 补充 folded, the learner's layer under a hairline, the questions, 出处 behind a chip. The reading text is 17 px with a
-       line of about 70 characters and room between paragraphs; the parts that are not the story are a size smaller. Inside the reading area the links, the
+       their paragraphs, 要点清单 and 补充 folded, the learner's layer under a hairline, the questions, 出处 behind a chip. The reading text follows the Aa setting
+       (the reading block of ui/reading-settings: size, line width, typeface, paper); the parts that are not the story are a size smaller. Inside the reading area the links, the
        角标, the dashed words and the 出处 are ink (the text colour, underlined), never cinnabar: that stays for the one primary button. */
     .book-point {
       --sh-link-ink: var(--text);
@@ -89,10 +90,12 @@
     /* The takeaway: a step larger than the body, no box, no label, no colour. The size carries it: CJK fonts have no weight between regular and bold, so a
        "slightly stronger" weight would draw as full bold and compete with the heading. */
     .book-point__gist {
-      font-size: var(--fs-xl);
+      --reader-size: calc(var(--book-size, var(--fs-lg)) * 1.18);
+      font-size: var(--reader-size);
       font-weight: var(--fw-regular);
       line-height: var(--lh-snug);
       color: var(--text);
+      text-wrap: pretty;
     }
     .book-point__part {
       display: grid;
@@ -101,7 +104,7 @@
     }
     .book-point__exam,
     .book-point__fold,
-    .book-point__cites,
+    .book-point__cite-list,
     .book-layer {
       font-size: var(--fs-md);
     }
@@ -112,12 +115,6 @@
       margin: 0;
       color: var(--text-dim);
       font-style: italic;
-    }
-    .book-point__cites {
-      display: grid;
-      gap: var(--space-2);
-      justify-items: start;
-      min-width: 0;
     }
     .book-point__cite-list {
       color: var(--text-muted);
@@ -172,39 +169,26 @@
     /* 逐节读 (ui/book/BookStep.jsx): one point under its path, 上一节 / 下一节 above (compact) and below (with the neighbour's title). */
     .book-step {
       display: grid;
-      gap: var(--space-4);
+      gap: var(--space-3);
       min-width: 0;
       scroll-margin-top: var(--space-4);
     }
-    .book-step__top,
-    .book-step__path,
-    .book-step__jump {
+    .book-step__path {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: var(--space-1) var(--space-2);
       min-width: 0;
-    }
-    .book-step__top {
-      justify-content: space-between;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-    }
-    .book-step__path {
       margin: 0;
       padding: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
       list-style: none;
     }
     .book-step__crumb + .book-step__crumb::before {
       content: '›';
       margin-right: var(--space-2);
       color: var(--text-dim);
-    }
-    .book-step__jump {
-      margin-left: auto;
-    }
-    .book-step__back svg {
-      transform: scaleX(-1);
     }
     .book-step__heading {
       display: flex;
@@ -237,6 +221,14 @@
     .book-step__next {
       align-items: flex-end;
       text-align: right;
+    }
+    /* There is no point before the first one (nor after the last): the card is off, and looks it. */
+    .book-step__prev:disabled,
+    .book-step__next:disabled {
+      border-style: dashed;
+      background: none;
+      box-shadow: none;
+      color: var(--text-faint);
     }
     .book-step__dir {
       font-weight: var(--fw-strong);
@@ -483,67 +475,6 @@
       gap: var(--space-2);
       margin: 0;
     }
-    .book-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-6);
-      align-items: start;
-      min-width: 0;
-    }
-    .book-layout--toc {
-      grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
-    }
-    .book-toc {
-      position: sticky;
-      top: var(--space-4);
-      max-height: calc(100vh - var(--space-9));
-      overflow-y: auto;
-      padding: var(--space-2);
-      border: 1px solid var(--line-soft);
-      border-radius: var(--radius);
-      background: var(--bg-raised);
-      min-width: 0;
-    }
-    .book-toc__list {
-      display: grid;
-      gap: var(--space-1);
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    .book-toc__item {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-1);
-      min-width: 0;
-    }
-    .book-toc__item[data-level='3'] {
-      padding-left: var(--space-3);
-    }
-    .book-toc__item[data-level='4'] {
-      padding-left: var(--space-5);
-    }
-    .book-toc__go {
-      min-width: 0;
-      text-align: left;
-      justify-content: flex-start;
-    }
-    .book-toc__go[aria-current='location'] {
-      font-weight: var(--fw-strong);
-      color: var(--text);
-    }
-    .book-toc__here {
-      flex: none;
-    }
-    .book-read {
-      display: grid;
-      gap: var(--space-4);
-      min-width: 0;
-      max-width: 72ch;
-      font-size: var(--fs-lg);
-      line-height: var(--lh-body);
-    }
     .book-chapter {
       display: grid;
       gap: var(--space-3);
@@ -677,19 +608,11 @@
       align-items: baseline;
       gap: var(--space-2);
     }
-    .book-header__crunch {
-      margin: var(--space-1) 0 0;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-    }
-    .book-header__budget {
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-    }
-    .book-header__budget[data-over] {
-      color: var(--warn-ink);
-    }
+    /* 速查页 opens in a dialog, outside the reading area: its point codes are ink links like every other link of the book (cinnabar stays for the one primary
+       button). */
     .book-lookup {
+      --sh-link-ink: var(--text);
+      --sh-link-wash: var(--bg-hover);
       display: grid;
       gap: var(--space-5);
       min-width: 0;
@@ -939,6 +862,19 @@
     .book-flip__explain {
       min-width: 0;
     }
+    /* The reading column is a reading block (ui/reading-settings: the Aa size, width, face and paper): its text elements follow the reading size. The labels and
+       quiet lines around the text are not reading text, so they keep their own size (reading.css's rule weighs three classes; these four). They stay here, with
+       their classes (one owning stylesheet per class, tests/css-ownership.test.mjs). */
+    .study-reading.book-read .book-step__path .book-step__crumb,
+    .study-reading.book-read .book-point .book-point__label,
+    .study-reading.book-read .book-point .book-suggestion__line,
+    .study-reading.book-read .book-point .book-suggestion__forked,
+    .study-reading.book-read .book-point .book-qa__none {
+      font-size: var(--fs-sm);
+    }
+    .study-reading.book-read .book-chapter .book-node__heading {
+      font-size: var(--fs-lg);
+    }
   }
   @container study (max-width: 720px) {
     :where(.study-app, .study-seat) {
@@ -951,13 +887,6 @@
       }
       .book-point__actions {
         display: contents;
-      }
-      .book-layout--toc {
-        grid-template-columns: minmax(0, 1fr);
-      }
-      .book-toc {
-        position: static;
-        max-height: none;
       }
       .book-node[data-depth='2'],
       .book-node[data-depth='3'],

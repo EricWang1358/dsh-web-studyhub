@@ -43,7 +43,7 @@ test('导出: 含 / 不含答案册, the page limit; the limit is compared quiet
   const text = textOf(render(h(ui.BookExport, { course: 'SA', pageLimit: 30, onClose: noop })));
   for (const part of ['导出复习全书', '不含答案册', '含答案册', '正在准备导出…', '页数上限', '下载 Markdown', '分文件导出…', '印哪些题', '只印书里链接的题', '再加每个知识点自己的题', '不印题目']) assert.ok(text.includes(part), part);
   assert.match(render(h(ui.BookExport, { course: 'SA', onClose: noop })), /checked="" value="linked"/, 'only the linked questions by default');
-  assert.deepEqual(ui.budgetText(32, 30), { tone: 'warning', text: '超出上限 2 页' });
+  assert.deepEqual(ui.budgetText(32, 30), { tone: 'warning', text: '比上限多 2 页' });
   assert.deepEqual(ui.budgetText(12, 30), { tone: 'success', text: '在上限 30 页以内' });
   assert.equal(ui.budgetText(12, undefined), null);
   english(() => {

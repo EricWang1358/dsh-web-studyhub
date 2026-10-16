@@ -16,12 +16,12 @@ import { openCourseBook } from '../lib/course-book-files.js';
 import { aiBlock } from '../lib/course-book-ai-text.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
-/* 复习全书 reading in the real page at 1280 and 420 px (docs/review-book.md "Reading modes", "Reading a point"): 逐节读 by default, one point under its
-   path; 下一节 / 上一节 and ← / → go point by point and the window starts at its top; the 目录 marks it; the toolbar row is at the top right (练 5 道,
-   本节问答, 发给主会话), a point without questions has a quiet 出题; the takeaway comes first; 我的 is a label, its long whole-point block starts folded as one
-   row (AI, its first real sentence, its size, 多为重复; the fold remembered), a short one about words is open right after its paragraph, 全部收起 / 全部展开 fold
-   them all; 整章滚动 folds the other points and is remembered; a formula is drawn once; nothing scrolls sideways. Screenshots (dark and light) go to
-   COURSE_BOOK_READING_SHOTS when set. */
+/* 复习全书 reading in the real page at 1280 and 420 px (docs/review-book.md "The book bar", "Reading a point"): one point at a time by default, under its
+   path, the bar saying where it is (知识点 1/6 · its title); 下一节 / ‹ and ← / → go point by point and the window starts at its top, under the bar; the 目录
+   marks it; the row of the point's actions closes the point (练 5 道, 本节问答, 发给主会话), a point without questions says nothing about it; the takeaway comes
+   first; 我的 is a label, its long whole-point block starts folded as one row (AI, its first real sentence, its size, 多为重复; the fold remembered), a short one
+   about words is open right after its paragraph, 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落 fold them all; 更多 › 整章连着读 folds the other points and is remembered; a formula is
+   drawn once; nothing scrolls sideways. Screenshots (dark and light) go to COURSE_BOOK_READING_SHOTS when set. */
 
 const explainOf = title => [`${title} is the part of the work an architect owns from the first day.`, ...Array.from({ length: 4 }, (_, i) =>
   `Paragraph ${i + 1}: an architect writes down each decision about ${title} and the reasons for it, so the team can see later why the system is shaped as it is.`),
@@ -86,7 +86,7 @@ async function openBook(page, running) {
   await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
 }
 
-test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, the toolbar, 我的, the folded AI row, 全部收起, 整章滚动 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+test('复习全书 reading: one point at a time with 下一节, ‹ and the keys, the toolbar, 我的, the folded AI row, 收起这个知识点的 AI 段落, 整章连着读 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-reading-dist-'));
@@ -103,22 +103,25 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.equal(await page.locator('.book-step').count(), 1, `${width}px: 逐节读 is the default`);
       assert.equal(await page.locator('[data-book-point]').count(), 1, `${width}px: one point drawn`);
       const first = await stepOf(page);
-      assert.match(await page.locator('.book-step__top').innerText(), /Introduction[\s\S]*第 1 \/ 6 节/);
+      assert.match(await page.locator('.book-step__path').innerText(), /Introduction/);
+      assert.match(await words(page.locator('.book-bar__where')), width === 1280 ? /^知识点 1\/6 · 1\.1 What architects do$/ : /^1\/6 · What architects do$/, `${width}px: the bar says where it is (narrow: the count and the title)`);
+      assert.equal(await page.locator('.book-step__count, .book-step__jump').count(), 0, `${width}px: the point has no ‹ › of its own`);
       assert.match(await words(page.locator('.book-step__heading')), /1\.1 What architects do/);
-      // The toolbar row: at the top right of the point, before its text.
+      // The toolbar row: it closes the point, after its text (the reading starts under the heading).
       // At wide widths 在这里加一段 is on the left and the others on the right; at narrow ones all of them are one left-aligned wrapping row, so the rows share their left edge.
       const bar = await page.evaluate(() => {
-        const point = document.querySelector('.book-point').getBoundingClientRect(), gist = document.querySelector('.book-point__gist').getBoundingClientRect();
+        const point = document.querySelector('.book-point').getBoundingClientRect();
+        const text = Math.max(...[...document.querySelectorAll('.book-point .book-point__part, .book-point .book-point__fold')].map(part => part.getBoundingClientRect().bottom));
         const boxes = [...document.querySelectorAll('.book-point__bar button')].map(button => button.getBoundingClientRect());
         const rows = new Map();
         for (const box of boxes) rows.set(Math.round(box.top), Math.min(rows.get(Math.round(box.top)) ?? Infinity, box.left));
         return { right: Math.round(point.right - Math.max(...boxes.map(box => box.right))), lefts: [...rows.values()].map(left => Math.round(left - point.left)),
-          above: Math.max(...boxes.map(box => box.bottom)) <= gist.top + 1, count: boxes.length };
+          after: Math.min(...boxes.map(box => box.top)) >= text - 1, count: boxes.length };
       });
-      assert.ok(bar.above && bar.count === 4, `${width}px: the toolbar is above the text: ${JSON.stringify(bar)}`);
+      assert.ok(bar.after && bar.count === 5, `${width}px: the toolbar closes the point (出处 is its first action): ${JSON.stringify(bar)}`);
       if (width === 1280) assert.ok(bar.right <= 2, `${width}px: the toolbar is at the top right: ${JSON.stringify(bar)}`);
       else assert.ok(bar.lefts.every(left => left <= 2), `${width}px: every row of the toolbar starts at the left edge: ${JSON.stringify(bar)}`);
-      assert.match(await page.locator('.book-point__actions').evaluate(element => element.textContent), /^练 5 道[\s\S]*本节问答[\s\S]*发给主会话$/);
+      assert.match(await page.locator('.book-point__actions').evaluate(element => element.textContent), /^出处 1[\s\S]*练 5 道[\s\S]*本节问答[\s\S]*发给主会话$/);
       assert.equal(await page.locator('.book-point__tidy-button').count(), 0, `${width}px: no 整理 menu`);
       // The takeaway first, then 讲解 without it; 要点清单 and 补充 folded; 出处 one chip.
       assert.equal((await page.locator('.book-point__gist').innerText()).trim(), 'What architects do is the part of the work an architect owns from the first day.');
@@ -190,10 +193,10 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.match(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('study-book-ai-folded:')).map(([, value]) => value).join('')), /here1/);
       // From two blocks, one quiet link on the divider's row folds or opens them all.
       const all = page.locator('.book-layer__fold');
-      assert.equal((await all.innerText()).trim(), '全部收起', `${width}px: one block is open: the link folds them`);
+      assert.equal((await all.innerText()).trim(), '收起这个知识点的 AI 段落', `${width}px: one block is open: the link folds them`);
       await all.click();
       assert.equal(await page.locator('.book-ai:not([data-ai-folded])').count(), 0, `${width}px: all folded`);
-      assert.equal((await all.innerText()).trim(), '全部展开');
+      assert.equal((await all.innerText()).trim(), '展开这个知识点的 AI 段落');
       await all.click();
       assert.equal(await page.locator('.book-ai[data-ai-folded]').count(), 0, `${width}px: all open`);
       await flat(page, width, 'the open blocks');
@@ -205,10 +208,12 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       const second = await stepOf(page);
       assert.match(await words(page.locator('.book-step__heading')), /1\.2 Stakeholders and concerns/);
       const top = await stepTop(page);
-      assert.ok(top >= 0 && top < 220, `${width}px: the new point starts at the top: ${top}`);
-      if (width === 420) await page.locator('.book-header__toc').click();
+      const under = await page.locator('.book-bar').evaluate(element => Math.round(element.getBoundingClientRect().bottom));
+      assert.ok(top >= under && top < under + 60, `${width}px: the new point starts at the top, under the book bar: ${top} (bar ${under})`);
+      assert.match(await words(page.locator('.book-bar__where')), width === 1280 ? /^知识点 2\/6 · 1\.2 Stakeholders and concerns$/ : /^2\/6 · Stakeholders and concerns$/);
+      if (width === 420) await page.locator('.book-bar__toc').click();
       assert.match(await page.locator('.book-toc__go[aria-current="location"]').innerText(), /Stakeholders and concerns/, `${width}px: the 目录 marks it`);
-      if (width === 420) await page.locator('.book-header__toc').click();
+      if (width === 420) { await page.keyboard.press('Escape'); await page.locator('.book-toc').waitFor({ state: 'detached' }); }
       // ← / →.
       await page.locator('.book-step__heading').click();
       await page.keyboard.press('ArrowRight');
@@ -216,35 +221,41 @@ test('复习全书 reading: 逐节读 with 上一节 / 下一节 and the keys, t
       assert.match(await words(page.locator('.book-step__heading')), /1\.3 Views and viewpoints/);
       await page.keyboard.press('ArrowLeft');
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep === id, second);
-      await page.locator('.book-step__back').click();
+      await page.locator('.book-bar__prev').click();
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep === id, first);
-      // The 目录 goes to any point: one without questions has a quiet 出题 in its toolbar and says nothing else about it.
-      if (width === 420) await page.locator('.book-header__toc').click();
+      assert.equal(await page.locator('.book-bar__prev').isDisabled(), true, `${width}px: the first point has no ‹`);
+      // The 目录 goes to any point (at 420 the row closes the slide-over): one without questions says nothing about it (给这个知识点出题 is in 更多).
+      if (width === 420) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: 'A point without questions' }).click();
       await page.locator('.book-step__heading', { hasText: 'A point without questions' }).waitFor();
-      assert.match(await page.locator('.book-point__actions').innerText(), /^出题[\s\S]*本节问答[\s\S]*发给主会话$/);
+      if (width === 420) await page.locator('.book-toc').waitFor({ state: 'detached' });
+      assert.match(await page.locator('.book-point__actions').innerText(), /^(?:出处 \d+\s+)?本节问答[\s\S]*发给主会话$/, 'no 练 5 道: 出处 (when it has some), 本节问答, 发给主会话');
       assert.doesNotMatch(await page.locator('.book-point').innerText(), /暂无题|还没有题|还没出题/);
       assert.equal(await page.locator('.book-point__practice').count(), 0);
       assert.doesNotMatch(await page.locator('.book-point').innerText(), /这一节还没有题/);
       assert.equal(await page.locator('.book-step__next').isDisabled(), true, `${width}px: the last point has no 下一节`);
       await flat(page, width, 'the last point');
 
-      // 整章滚动: the chapters, the point being read open and the others folded to a line; remembered.
-      await page.locator('.book-header__reading').getByText('整章滚动', { exact: true }).click();
+      // 更多 › 整章连着读: the chapters, the point being read open and the others folded to a line; remembered.
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitemcheckbox', { name: '整章连着读' }).click();
       await page.locator('.book-chapter').first().waitFor();
       assert.equal(await page.locator('[data-book-point]').count(), 1, `${width}px: only the point being read is open`);
       assert.match(await page.locator('[data-book-point]').evaluate(element => element.closest('.book-node').querySelector('.book-node__heading').innerText), /A point without questions/);
       assert.ok(await page.locator('.book-node[data-book-folded] .book-node__summary').count() >= 2, `${width}px: the others are a title and a line`);
       await page.locator('.book-node__toggle', { hasText: 'Functional requirements' }).click();
       assert.equal(await page.locator('[data-book-point]').count(), 2);
-      await flat(page, width, '整章滚动');
+      await flat(page, width, '整章连着读');
       await settleAnimations(page);
       if (shots) await shoot(page, width, join(shots, `reading-scroll-dark-${width}.png`));
       await page.reload();
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
       await page.locator('.book-chapter').first().waitFor({ timeout: 30000 });
-      assert.equal(await page.locator('.book-step').count(), 0, `${width}px: 整章滚动 is remembered`);
+      assert.equal(await page.locator('.book-step').count(), 0, `${width}px: 整章连着读 is remembered`);
+      await page.locator('.book-bar__more').click();
+      assert.equal(await page.getByRole('menuitemcheckbox', { name: '整章连着读' }).getAttribute('aria-checked'), 'true', `${width}px: and checked in 更多`);
+      await page.keyboard.press('Escape');
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
 

@@ -19,7 +19,7 @@ import { settleJob } from './helpers/wait.mjs';
 
 /* 复习全书 M4 in the real page at 1280 and 420 px (docs/plans/review-book.md): select words of a point's explanation → 弄懂 → a visible task → the block
    appears right after the paragraph that holds the words (shown when it lands; its words dashed in the paragraph), 保留 until kept; 删除 takes it out;
-   「在这里加一段」 with an instruction puts a block in 我的; 我的's 全部收起 / 全部展开 folds them all; nothing scrolls sideways. The preview server's fake
+   「在这里加一段」 with an instruction puts a block in 我的; 我的's 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落 folds them all; nothing scrolls sideways. The preview server's fake
    model answers. Screenshots go to COURSE_BOOK_AI_SHOTS when set. */
 
 async function seed(root) {
@@ -100,7 +100,6 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
       await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
-      if (await page.locator('.book-editor').count()) await page.locator('.book-header__mode').getByText('预览', { exact: true }).click();
 
       // Select words of the first point's explanation; the panel opens under them.
       const words = 'writes each decision down';
@@ -216,7 +215,6 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click({ timeout: 30000 });
       await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
-      if (await page.locator('.book-editor').count()) await page.locator('.book-header__mode').getByText('预览', { exact: true }).click();
       await page.locator('.book-ai[data-ai-folded="true"]').first().waitFor({ timeout: 30000 });
       const seen = el => { const rect = el.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; };
       // The dashed words go to the block: opened, shown, flashed, its header focused.
@@ -252,7 +250,7 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       await shown.getByText('保留', { exact: true }).click();
       await page.locator(`.book-ai[data-ai-state="kept"]`, { hasText: `关于：「${words}」` }).first().waitFor({ timeout: 30000 });
 
-      // 在这里加一段: an instruction under the heading (the point then has two blocks: 全部收起 / 全部展开).
+      // 在这里加一段: an instruction under the heading (the point then has two blocks: 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落).
       // 在这里加一段: an instruction under the heading. It closes on a click elsewhere with an empty box, and on Escape; typed words keep it.
       await page.locator('[data-book-point] .book-point__add').first().click();
       await panel.waitFor({ timeout: 5000 });
@@ -280,15 +278,15 @@ test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right aft
       const fold = page.locator('[data-book-point] .book-layer__fold').first();
       await fold.waitFor({ timeout: 5000 });
       assert.equal(await page.locator('[data-book-point] .book-ai').count(), width === 1280 ? 2 : 3, `${width}px: the blocks of the point`);
-      assert.equal((await fold.innerText()).trim(), '全部收起');
+      assert.equal((await fold.innerText()).trim(), '收起这个知识点的 AI 段落');
       await fold.click();
       await page.locator('.book-ai[data-ai-folded]').nth(1).waitFor({ timeout: 5000 });
       assert.equal(await page.locator('.book-ai:not([data-ai-folded])').count(), 0, `${width}px: all folded`);
-      assert.equal((await fold.innerText()).trim(), '全部展开');
+      assert.equal((await fold.innerText()).trim(), '展开这个知识点的 AI 段落');
       if (shots) await page.screenshot({ path: join(shots, `ai-folded-all-${width}.png`) });
       await fold.click();
       await page.locator('.book-ai[data-ai-folded]').first().waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal((await fold.innerText()).trim(), '全部收起');
+      assert.equal((await fold.innerText()).trim(), '收起这个知识点的 AI 段落');
       // Taking the first block out is still 删除 (the editor and the export read the file, which a fold never touched).
       await page.locator('.book-ai[data-ai-state="kept"]', { hasText: `关于：「${words}」` }).first().getByText('删除', { exact: true }).click();
       await page.locator('.book-ai', { hasText: `关于：「${words}」` }).first().waitFor({ state: 'detached', timeout: 30000 });

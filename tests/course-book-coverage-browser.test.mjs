@@ -15,7 +15,7 @@ import { bookModel } from './helpers/course-book-model.mjs';
 /* The quality workflow in the real page at 1280 and 420 px. A course of three documents (a paged lecture of six topics, a case-study handout and a sample
    paper) gets its book from the real task with a fake model: the inventory, the outline of knowledge points, writing, review and repair, one point left short.
    Then the 总纲 page: the paper is used without opening anything, the book line says the three-level coverage, the short point says 「概念覆盖 N/M」 and
-   「未达标：缺 1 个概念」 with what it misses, and 补漏 asks for that one point; the book page's header says the coverage and 查找 lists 生词与概念; nothing
+   「未达标：缺 1 个概念」 with what it misses, and 补漏 asks for that one point; the book page's 目录 says the coverage on top and 更多 › 速查页… lists 生词与概念; nothing
    scrolls sideways. Screenshots go to COURSE_BOOK_SHOTS when it is set. */
 
 const COURSE = 'ArchSS';
@@ -52,7 +52,7 @@ const sideways = (page, scope) => page.evaluate(selector => {
 const argsOf = request => JSON.parse(request.postData()).args;
 const flat = text => text.replace(/\s+/g, ' ');
 
-test('the paper used by default, the three-level coverage, a short point\'s 概念覆盖 and 补漏, and 生词与概念 in 查找 (1280 and 420 px)', { timeout: 480000 }, async (t) => {
+test('the paper used by default, the three-level coverage, a short point\'s 概念覆盖 and 补漏, and 生词与概念 in 速查页 (1280 and 420 px)', { timeout: 480000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-quality-dist-'));
@@ -87,13 +87,18 @@ test('the paper used by default, the three-level coverage, a short point\'s 概�
       const build = argsOf(await asked);
       assert.deepEqual([build.course, build.coverage, typeof build.point], [COURSE, 'standard', 'string'], `${width}px: 补漏 asks for that point at the book's level`);
       held.release('generation.courseBook.build', { jobId: 'course-book-x', status: 'running', steps: 2 });
-      // The book page: the coverage in its header, and 生词与概念 in 查找.
+      // The book page: the coverage on top of its 目录 (the slide-over at 420), and 生词与概念 in 更多 › 速查页….
       await line.getByRole('button', { name: '打开书页' }).click();
-      const levels = page.locator('[data-book-levels]');
+      await page.locator('.book-bar').waitFor({ timeout: 30000 });
+      if (width === 420) await page.locator('.book-bar__toc').click();
+      const levels = page.locator('.book-toc [data-book-levels]');
       await levels.waitFor({ timeout: 30000 });
       assert.match(flat(await levels.innerText()), /覆盖：资料用了 2\/2 份/);
-      await page.locator('.book-header__mode').getByText('查找', { exact: true }).click();
-      const glossary = page.locator('.book-lookup__glossary');
+      if (width === 420) { await page.keyboard.press('Escape'); await page.locator('.book-toc').waitFor({ state: 'detached' }); }
+      // A press like the learner's (Playwright's own click first scrolls this short page under the sticky bar, and a scroll closes a menu).
+      await page.locator('.book-bar__more').evaluate(element => element.click());
+      await page.getByRole('menuitem', { name: '速查页…' }).click();
+      const glossary = page.locator('dialog .book-lookup__glossary');
       await glossary.waitFor({ timeout: 30000 });
       assert.ok(await glossary.locator('[data-glossary-term]').count() > 10, `${width}px: the glossary lists the covered concepts`);
       const book = await sideways(page, '.book-page');

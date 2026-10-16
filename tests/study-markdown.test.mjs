@@ -67,10 +67,14 @@ test('a 角标 is one no-wrap unit with the character before it and the full sto
   const word = cited('熵[^1]是无序度。');
   assert.match(word, /<span class="md-cite-keep">熵<sup class="md-cite">[\s\S]*?<\/sup><\/span>是无序度。/);
   assert.match(cited('The entropy[^3] grows.'), /entrop<span class="md-cite-keep">y<sup class="md-cite">[\s\S]*?<\/sup><\/span> grows\./);
-  // Two marks in a row, a mark at the very start and a mark right after a bold word: every mark has a unit or stands where nothing can break before it.
+  // Two marks in a row and a mark at the very start: every mark has a unit or stands where nothing can break before it.
   assert.equal((cited('甲[^1]乙[^2]。').match(/md-cite-keep/g) || []).length, 2);
   assert.match(cited('[^1]开头'), /<p><sup class="md-cite">[\s\S]*?<\/sup>开头/);
-  assert.match(cited('**重点**[^1]。'), /<\/strong><span class="md-cite-keep"><sup class="md-cite">[\s\S]*?<\/sup>。<\/span>/);
+  // Right after an inline element (bold, a link, code, a formula) there is no character of its own to take along: the unit starts with a WORD JOINER (U+2060),
+  // which forbids the break between the element and the mark, so the line never starts on the mark.
+  assert.match(cited('**重点**[^1]。'), /<\/strong><span class="md-cite-keep">⁠<sup class="md-cite">[\s\S]*?<\/sup>。<\/span>/);
+  assert.match(cited('`code`[^1]'), /<\/code><span class="md-cite-keep">⁠<sup class="md-cite">/);
+  assert.match(cited('甲[^1][^2]'), /<\/sup><\/span><span class="md-cite-keep">⁠<sup class="md-cite">/, 'a second mark right after the first keeps to it');
   assert.doesNotMatch(render('熵[^1]。'), /md-cite/, 'without a handler a 角标 stays the text it was written as');
   assert.match(render('熵[^1]。'), /熵\[\^1\]。/);
 });

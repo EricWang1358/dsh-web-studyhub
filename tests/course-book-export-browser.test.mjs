@@ -16,9 +16,11 @@ import { openCourseBook } from '../lib/course-book-files.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { answerCard } from './helpers/course-book-export-book.mjs';
 
-/* 复习全书 M6 in the real page at 1280 and 420 px (docs/plans/review-book.md): 查找 shows the lookup made from the book (目录 with codes, 按题型 from an
-   answer card, 按概念, 易错点), a code opens the book at its heading; 导出 shows the estimate of each choice, saves a page limit that the header then
-   compares quietly, and downloads one Markdown file that starts with the lookup; nothing scrolls sideways. Screenshots go to COURSE_BOOK_EXPORT_SHOTS. */
+/* 复习全书 M6 in the real page at 1280 and 420 px (docs/plans/review-book.md, docs/review-book.md "More"): 更多 › 速查页… shows the lookup made from the book
+   in a dialog (按题型 from an answer card, 按概念, 易错点; the page has its own 目录), a code closes it and opens the book at its heading; the printed code is
+   not beside the heading but in the 目录's hover and in 复制编号 (h7 · 1.1 Title · course); 更多 › 导出… shows the estimate of each choice, saves a page
+   limit that the bar then compares quietly (one red line under it, only when over), and downloads one Markdown file that starts with the lookup; nothing
+   scrolls sideways. Screenshots go to COURSE_BOOK_EXPORT_SHOTS. */
 
 async function seed(root) {
   await mkdir(root, { recursive: true });
@@ -72,28 +74,45 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await page.locator('.outline-tree--book').waitFor({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click();
       await page.locator('.book-step').waitFor({ timeout: 30000 });
-      assert.match(await page.locator('.book-step__heading').innerText(), /H\d+/, `${width}px: a point shows its code`);
+      assert.doesNotMatch(await page.locator('.book-step__heading').innerText(), /H\d+/, `${width}px: no printed code beside the heading`);
+      const hidShown = await page.locator('.book-step').getAttribute('data-book-step');
+      if (width === 1280) assert.equal(await page.locator('.book-toc__go[aria-current="location"]').count(), 1, `${width}px: the 目录 beside the text marks the point`);
+      // 复制编号: the lowercase hid the book tools match, the number and title, the course.
+      await page.evaluate(() => { window.copied = ''; navigator.clipboard.writeText = text => { window.copied = text; return Promise.resolve(); }; });
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitem', { name: /^复制编号/ }).click();
+      await page.waitForFunction(() => window.copied, null, { timeout: 5000 });
+      assert.equal(await page.evaluate(() => window.copied), `${hidShown.toLowerCase()} · 1.1 What architects do · ${COURSE}`, `${width}px: 复制编号`);
 
-      // 查找: the lookup of the book.
-      await page.locator('.book-header__mode').getByText('查找', { exact: true }).click();
-      await page.locator('.book-lookup').waitFor({ timeout: 30000 });
+      // 速查页: the lookup of the book, in a dialog from 更多.
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitem', { name: '速查页…' }).click();
+      await page.locator('dialog .book-lookup').waitFor({ timeout: 30000 });
       const text = await page.locator('.book-lookup').innerText();
-      for (const part of ['目录', '按题型', '可用性', '检查顺序 · 公式', '按概念', '决策日志', '易错点（按知识点）', '易错：把串联的可用性相加']) assert.ok(text.includes(part), `${width}px: 查找 shows ${part}`);
+      for (const part of ['按题型', '可用性', '检查顺序 · 公式', '按概念', '决策日志', '易错点（按知识点）', '易错：把串联的可用性相加']) assert.ok(text.includes(part), `${width}px: 速查页 shows ${part}`);
+      assert.equal(await page.locator('#book-lookup-toc').count(), 0, `${width}px: without its own 目录 (the page has one)`);
       assert.doesNotMatch(text, /只给自己看/, 'the lookup lists terms, not the noprint text');
       let overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways in 查找: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `lookup-${width}.png`), fullPage: true });
-      // A code goes to its heading in 预览.
+      // A code closes the dialog and goes to its heading on the reading surface.
       const code = page.locator('.book-lookup__concepts .book-lookup__code').first(), hid = await code.getAttribute('data-book-code');
       await code.click();
+      await page.locator('dialog .book-lookup').waitFor({ state: 'detached', timeout: 30000 });
       await page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
       await page.waitForTimeout(300);
       const top = await page.evaluate(id => Math.round(document.getElementById(`book-${id}`).getBoundingClientRect().top), hid);
       assert.ok(top >= 0 && top < 400, `${width}px: the code brought its heading on screen: ${top}`);
 
-      // 导出: the estimate of each choice, the page limit, the download.
-      await page.locator('.book-header__export').click();
+      // 导出: the estimate of each choice (its item names the pages), the page limit, the download.
+      assert.equal(await page.locator('.book-bar-limit').count(), 0, `${width}px: no limit, no line under the bar (nothing reserved for it)`);
+      // Where the bar's buttons and the place are before any limit (the line that comes later moves none of them and squeezes nothing).
+      const barBefore = await page.evaluate(() => ({ buttons: [...document.querySelectorAll('.book-bar__row > :not(.book-bar__where-tip)')].map(item => Math.round(item.getBoundingClientRect().left)),
+        where: Math.round(document.querySelector('.book-bar__where').getBoundingClientRect().width), height: Math.round(document.querySelector('.book-bar').getBoundingClientRect().height) }));
+      await page.locator('.book-bar__more').click();
+      assert.match(await page.getByRole('menuitem', { name: /^导出…/ }).innerText(), /约 \d+ 页/);
+      await page.getByRole('menuitem', { name: /^导出…/ }).click();
       const dialog = page.locator('.book-export');
       await dialog.locator('.book-export__pages').waitFor({ timeout: 30000 });
       assert.match(await dialog.locator('.book-export__pages').innerText(), /约 \d+ 页 A4/);
@@ -109,7 +128,7 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await dialog.locator('input[type="number"]').fill('1');
       await dialog.locator('input[type="number"]').press('Enter');
       await dialog.locator('.book-export__pages .sh-badge').waitFor({ timeout: 30000 });
-      assert.match(await dialog.locator('.book-export__pages').innerText(), /超出上限 \d+ 页/, `${width}px: over a limit of one page`);
+      assert.match(await dialog.locator('.book-export__pages').innerText(), /比上限多 \d+ 页/, `${width}px: over a limit of one page`);
       overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways in the dialog: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
@@ -129,11 +148,30 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       assert.ok(await dialog.locator('.book-export__file').count() >= 4, `${width}px: the folder's files`);
       if (shots) await page.screenshot({ path: join(shots, `export-files-${width}.png`) });
       await page.keyboard.press('Escape');
-      // The header compares quietly once a limit is set.
-      await page.locator('.book-header__budget').waitFor({ timeout: 30000 });
-      assert.match(await page.locator('.book-header__budget').innerText(), /导出约 \d+ 页 \/ 上限 1 页/);
+      // Over the limit: one quiet line under the bar (the estimate and how far over; its Tooltip says where to change the limit). It is not in the bar: the
+      // buttons stay where they were, the place keeps its room, and it covers nothing (the way back, the point's path and heading, the 目录).
+      await page.locator('.book-bar-limit').waitFor({ timeout: 30000 });
+      assert.match(await page.locator('.book-bar-limit').innerText(), /^导出约 \d+ 页，超过 \d+ 页的上限$/);
+      assert.equal(await page.locator('.book-bar .book-bar-limit').count(), 0, `${width}px: not inside the sticky bar`);
+      const cover = await page.evaluate(() => {
+        const box = element => element && element.getBoundingClientRect();
+        const meets = (a, b) => !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        const notice = box(document.querySelector('.book-bar-limit')), bar = box(document.querySelector('.book-bar'));
+        return { under: notice.top >= bar.bottom - 0.5, back: meets(notice, box(document.querySelector('.book-header'))), path: meets(notice, box(document.querySelector('.book-step__path'))),
+          toc: meets(notice, box(document.querySelector('.book-toc'))), heading: meets(notice, box(document.querySelector('.book-step__heading'))),
+          buttons: [...document.querySelectorAll('.book-bar__row > :not(.book-bar__where-tip)')].map(item => Math.round(item.getBoundingClientRect().left)),
+          where: Math.round(document.querySelector('.book-bar__where').getBoundingClientRect().width), height: Math.round(bar.height) };
+      });
+      assert.ok(cover.under && !cover.back && !cover.path && !cover.toc && !cover.heading, `${width}px: the line is under the bar and covers nothing: ${JSON.stringify(cover)}`);
+      assert.deepEqual({ buttons: cover.buttons, where: cover.where, height: cover.height }, barBefore, `${width}px: no button of the bar moved and the place kept its room`);
+      await page.locator('.book-bar-limit__text').focus();
+      await page.getByRole('tooltip').filter({ hasText: /上限是 1 页：在「导出…」里改，留空就是不限。/ }).waitFor({ timeout: 10000 });
+      await page.locator('.book-bar-limit__text').blur();
+      await page.locator('.book-bar__more').click();
+      assert.match(await page.getByRole('menuitem', { name: /^导出…/ }).innerText(), /约 \d+ 页 \/ 上限 1 页/);
+      await page.keyboard.press('Escape');
       overflow = await sideways(page);
-      assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways with the header line: ${JSON.stringify(overflow)}`);
+      assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways with the line under the bar: ${JSON.stringify(overflow)}`);
       if (shots) await page.screenshot({ path: join(shots, `header-${width}.png`) });
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();

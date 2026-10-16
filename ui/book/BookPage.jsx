@@ -1,349 +1,104 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
-import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, EmptyState, ErrorState, LoadingState, PageHeader, SegmentedControl } from '../components/index.js';
-import { usePersistentState } from '../storage.js';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ui, uiFormat } from '../i18n.js';
+import { Button, EmptyState, ErrorState, LoadingState } from '../components/index.js';
+import { usePersistentState, readText, removeKey } from '../storage.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
-import { useLiveEffect } from '../use-async.js';
+import { useNarrow } from '../use-narrow.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
 import { modelReadiness } from '../generation-status.js';
 import { BOOK_BUILD_KIND, runningBuild } from '../outline/model.js';
-import { bookStartedText, writingText } from '../outline/words.js';
+import { writingText } from '../outline/words.js';
+import { ReadingBlock } from '../reading-settings/ReadingSettings.jsx';
+import BookHeader from './BookHeader.jsx';
+import BookBar from './BookBar.jsx';
+import BookMore from './BookMore.jsx';
+import BookToc from './BookToc.jsx';
 import BookChapter from './BookChapter.jsx';
 import BookStep from './BookStep.jsx';
-import BookToc from './BookToc.jsx';
-import { BookReadContext, bookSteps, stepIndexOf, useBookReading, useStepKeys } from './reading.js';
-import BookEditor from './BookEditor.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
-import BookToChat from './BookToChat.jsx';
-import { useSendToChat } from './send-to-chat.js';
-import BookLookup from './BookLookup.jsx';
-import BookExport, { budgetText } from './BookExport.jsx';
-import BookFlip from './BookFlip.jsx';
+import BookExport from './BookExport.jsx';
+import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
+import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, useAiFold, useLandedBlocks } from './ai-fold.js';
-import { showBlock, showWords } from './ai-anchors.js';
-import CrunchDay from './CrunchDay.jsx';
-import { localDate } from '../../lib/board-model.js';
-import { bookLookup } from '../../lib/course-book-lookup.js';
+import { useSendToChat } from './send-to-chat.js';
+import { useBookData } from './use-book-data.js';
+import { useBookPlace } from './use-book-place.js';
+import { startBookBuild, useBookAi, useBookCrunch, useBookHandlers, useBookPages } from './use-book-actions.js';
+import { useMoreActions } from './more-actions.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
-import { levelsText } from '../outline/words.js';
-import BookMoves from './BookMoves.jsx';
-import { usePolling } from '../use-polling.js';
-import { isActiveJob } from '../../lib/job-status.js';
-import { bookRows, crunchDateHint, defaultFile, goneSet, keepBook, keptBook, rowOf, tocEntries } from './model.js';
+import { bookRows, crunchDateHint, keepBook, rowOf, tocEntries } from './model.js';
 import css from './book.css';
 
-/* 复习全书 (docs/plans/review-book.md, M1: read only). The book of the current course (course.book.open, lib/course-book-files.js): the 目录 beside the
-   rendered Markdown at wide widths, one column with a folded 目录 at narrow ones. 预览 reads 逐节读 (one point at a time, ← / →) or 整章滚动 (the chapters,
-   each point folded but the one being read), ui/book/reading.js. Only the open chapters render (I8). A question link goes to the practice
-   page with the way back (回到复习全书), and the page comes back at the same heading and scroll; 本节问答 opens the point's questions and answers in place.
-   Reached from the sidebar's 复习全书 (when the book is written) and from the 总纲 page (打开书页). */
+/* 复习全书 (docs/review-book.md). The book of the current course (course.book.open, lib/course-book-files.js) on ONE reading surface: the header, the sticky book
+   bar (目录 · where · ‹ › · Aa · ⋯ 更多, ui/book/BookBar.jsx), the 目录 beside the text at wide widths and sliding over it on a narrow page, and the point being
+   read (逐节读) or the chapters in one scroll (整章连着读, from 更多). Every other view (编辑, 翻看, 速查页, 导出, 模拟卷, 发给主会话) opens from 更多 and comes
+   back to the same point. The place is kept for the next visit (ui/book/use-book-place.js); what the main chat wrote shows up when the page comes back into view. */
 
-const wideNow = () => typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
-const scrollerOf = element => {
-  for (let node = element?.parentElement; node; node = node.parentElement) {
-    const style = window.getComputedStyle(node);
-    if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) return node;
-  }
-  return document.scrollingElement;
-};
-
-/** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }) keeps the way back (place: the point left, said on the practice page); onOpenSource(sourceId, quote) (the reader); onCreate() (出题); onOpenTask(jobId);
-    onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId): opens the course's settings (the exam date is its first field); theme: 'light' | 'dark' (the editor's). */
+/** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
+    onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's). */
 export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme }) {
   useInjectCss(css, 'study-book');
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
-  const [state, setState] = useState({ book: null, error: null, ticket: 0 });
-  useLiveEffect(isLive => {
-    call('course.book.open', { course }).then(book => { if (isLive()) setState(current => ({ ...current, book, error: null })); },
-      error => { if (isLive()) setState(current => ({ ...current, error })); });
-  }, [call, course, state.ticket]);
-  const book = state.book;
+  const pageRef = useRef(null), tocRef = useRef(null), narrow = useNarrow(pageRef);
+  // The view: the reading surface, or the editor / 翻看 that take its place until 「完成 · 回到阅读」. Never remembered, except the old 翻看 mode once (below).
+  const [view, setView] = useState('read');
+  const [dialog, setDialog] = useState(null), [todayOpen, setTodayOpen] = useState(false);
+  const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(null);
+  const place = useRef(null);
+  const { book, error, setBook, reload } = useBookData({ call, course, paused: view === 'edit', onReplaced: () => place.current?.hold() });
   const rows = useMemo(() => (book?.status === 'ok' ? bookRows(book.nodes) : []), [book]);
   const toc = useMemo(() => tocEntries(book), [book]);
   const chapters = useMemo(() => (book?.status === 'ok' ? [...book.nodes, ...(book.unplaced.text.trim() ? [{ hid: 'unplaced', title: book.unplaced.title, text: book.unplaced.text, file: book.unplaced.file, number: '' }] : [])] : []), [book]);
-  // 预览, 原文 or 查找 (M6), remembered per library and course; 原文 shows one file, the learner's own file of the point being read at first.
-  const [mode, setMode] = usePersistentState(`study-book-mode:${root}:${course}`, 'preview', { parse: value => (['source', 'lookup', 'flip'].includes(value) ? value : 'preview'), serialize: value => value });
-  // 期末一周 (M7, book.crunch): the plan of the course's last days before its exam; 「今天读哪几节」 in the header and the 翻看 view read it. Asked again
-  // when the book changes or a mark is set. The home's card can open the page in 翻看 or with 今天读哪几节 open (`view`, kept by keepBook).
-  const [crunch, setCrunch] = useState(null);
-  const view = useRef(keptBook(root, course)?.view ?? null);
-  const [todayOpen, setTodayOpen] = useState(view.current === 'today');
-  // The home's card switched the app to this course on its way here (`switched`, kept by keepBook): said once, in a quiet line of the header.
-  const [switched] = useState(() => !!keptBook(root, course)?.switched);
-  useEffect(() => {
-    if (view.current === 'flip') setMode('flip');
-    if (view.current) keepBook(root, course, { view: null });
-    if (switched) keepBook(root, course, { switched: false });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useLiveEffect(isLive => {
-    if (book?.status !== 'ok' || !book.notes) return;
-    call('book.crunch', { course, date: localDate() }).then(next => { if (isLive()) setCrunch(next); }, () => { if (isLive()) setCrunch({ status: 'error' }); });
-  }, [call, course, book?.revision, book?.status, book?.notes]);
-  const crunchDay = crunch?.status === 'ok' ? crunch.plan.today : null;
-  const crunchPoints = useMemo(() => { const byId = new Map((crunch?.points || []).map(point => [point.id, point])); return (crunchDay?.points || []).map(id => byId.get(id)).filter(Boolean); }, [crunch, crunchDay]);
-  // 读完了 / 已看 (book.crunch.mark): kept per course in the book's record; the answer is the plan again.
-  const mark = useCallback(async (hid, kind, on) => {
-    try { setCrunch(await call('book.crunch.mark', { course, hid, kind, on, date: localDate() })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
-  }, [call, course, notify]);
-  // 查找 is made from the book as it is now (lib/course-book-lookup.js); 导出 and the page limit (settings.book.pageLimit) compare the export's estimate.
-  const lookup = useMemo(() => (mode === 'lookup' ? bookLookup(book, book ?? {}) : null), [book, mode]);
-  const [exporting, setExporting] = useState(false);
-  const pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
-  const [pages, setPages] = useState(null);
-  useLiveEffect(isLive => {
-    if (!pageLimit || book?.status !== 'ok') { setPages(null); return; }
-    call('course.book.export', { course, estimateOnly: true }).then(done => { if (isLive()) setPages(done?.estimate?.book ?? null); }, () => {});
-  }, [call, course, pageLimit, book?.revision, book?.status]);
-  const [file, setFile] = useState(null);
-  const [choosing, setChoosing] = useState(false);
-  const setBook = useCallback(next => setState(current => ({ ...current, book: next })), []);
-  // The fold of the AI blocks (kept per library and course in this browser): read by the points through AiFoldContext, so a fold draws only the blocks;
-  // a block that lands from a task started here opens and is shown.
-  const aiFold = useAiFold(root, course), foldAi = aiFold.fold, expectBlock = useLandedBlocks(book, aiFold);
-  // 逐节读 / 整章滚动 (kept per course; ui/book/reading.js) and the point 逐节读 shows.
   const reading = useBookReading(root, course), steps = useMemo(() => bookSteps(book), [book]);
-  const [stepHid, setStepHid] = useState(null);
-  const stepAt = Math.max(0, steps.findIndex(step => step.hid === stepHid));
-  // 弄懂 / 加一段: the panel over the selected words (or a heading), and the tasks started from this page (the book is read again when one ends).
-  const [ask, setAsk] = useState(null);
-  const [pending, setPending] = useState(() => new Set());
-  // `fromPanel`: started from the panel over selected words, which stays showing its state until the block appears (the one under a heading closes now).
-  const startAi = useCallback(async (args, fromPanel = false) => {
-    try {
-      const started = await call('generation.courseBook.explain', { course, ...args });
-      setPending(current => new Set([...current, started.jobId]));
-      notify({ text: ui('已开始：写好后会出现在这一节里；任务页可以看进度。'), tone: 'success' });
-      setAsk(current => (fromPanel && current?.words ? { ...current, jobId: started.jobId } : null));
-      window.getSelection?.()?.removeAllRanges?.();
-    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
-  }, [call, course, notify]);
-  // The panel of a task closes when the task is over (its block is in the book, or the failure said).
-  useEffect(() => { if (ask?.jobId && !pending.has(ask.jobId)) setAsk(null); }, [ask, pending]);
-  const closeAsk = useCallback(() => setAsk(null), []);
-  // 发给主会话 over selected words: the message names the point and the words (ui/book/send-to-chat.js); the panel closes when it is handed over.
+  const where = useBookPlace({ root, course, book, rows, toc, steps, chapters, reading, pageRef, active: view === 'read' });
+  place.current = where;
+  // The home's card can open the page in 翻看 or with 今天读哪几节 open, and says once that it switched the course (one-shots of ui/book/model.js); the old
+  // remembered mode `study-book-mode` opens 翻看 once when it was 翻看, and is forgotten.
+  const [switched] = useState(() => !!where.kept?.switched);
+  useEffect(() => {
+    const legacy = readText(`study-book-mode:${root}:${course}`, null);
+    if (legacy !== null) removeKey(`study-book-mode:${root}:${course}`);
+    if (where.kept?.view === 'flip' || (legacy === 'flip' && !where.kept?.target)) setView('flip');
+    if (where.kept?.view === 'today') setTodayOpen(true);
+    keepBook(root, course, { view: null, switched: false });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const plan = useBookCrunch({ call, course, book, notify });
+  const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
+  const aiFold = useAiFold(root, course), expectBlock = useLandedBlocks(book, aiFold);
+  const ai = useBookAi({ call, course, notify, reload, expectBlock });
   const sendToChat = useSendToChat(course);
-  // A task started here is looked at now and then (job.status) until it ends; then the book is read again, its block in place.
-  usePolling(async () => {
-    for (const jobId of pending) {
-      let job;
-      try { job = await call('job.status', { jobId }); } catch { continue; }
-      const status = job?.status ?? job?.contract?.status;
-      if (!status || isActiveJob({ status })) continue;
-      setPending(current => { const next = new Set(current); next.delete(jobId); return next; });
-      if (status === 'failed') notify({ text: job?.error?.message || job?.contract?.error?.message || ui('没有写成，可以在任务页重试。'), tone: 'error' });
-      else expectBlock();
-      setState(current => ({ ...current, ticket: current.ticket + 1 }));
-    }
-  }, { intervalMs: 1500, enabled: pending.size > 0 });
-  // Words selected in a point's text open the panel under them.
-  const onSelect = useCallback(() => {
-    const selection = window.getSelection?.(), words = selection?.toString().replace(/\s+/g, ' ').trim();
-    if (!words || words.length < 2 || !selection.rangeCount) return;
-    const point = (selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement)?.closest?.('[data-book-point]');
-    if (!point) return;
-    const rect = selection.getRangeAt(0).getBoundingClientRect();
-    setAsk({ heading: point.dataset.bookPoint, words: words.slice(0, 600), top: rect.bottom + 6, left: rect.left });
-  }, []);
-  const [open, setOpen] = useState(() => new Set());
-  const [here, setHere] = useState(null);
-  const [qa, setQa] = useState(() => new Set());
-  const [tocOpen, setTocOpen] = useState(wideNow);
-  const restore = useRef(null), pageRef = useRef(null), first = useRef(keptBook(root, course)), placed = useRef(false);
-
-  // Where to open: the point the 总纲 asked for, else where the learner was (heading and scroll), else the first chapter.
-  useEffect(() => {
-    // Once: a book read again later (a save, a Q&A added) keeps the chapters the learner has open.
-    if (book?.status !== 'ok' || placed.current) return;
-    placed.current = true;
-    const kept = first.current, wanted = kept?.target ?? kept?.heading, row = wanted ? rowOf(rows, wanted) : null;
-    // A typed heading is not in the manifest: its chapter was kept with it.
-    const chapter = row ? chapters[row.chapter]?.hid : kept?.chapter && wanted ? kept.chapter : chapters[0]?.hid;
-    setOpen(new Set(chapter ? [chapter] : []));
-    // 逐节读 shows the point of that heading (the first one without), 整章滚动 opens it.
-    const step = steps[Math.max(0, stepIndexOf(steps, toc, rows, row?.hid ?? wanted ?? ''))];
-    setStepHid(step?.hid ?? null);
-    reading.only(step?.hid ?? null);
-    setHere(row?.hid ?? (kept?.chapter && wanted) ?? step?.hid ?? chapter ?? null);
-    // Back from a practice round (`back`, set by the return itself: ui/app/page-views.jsx BookView): the point's heading takes the focus where it stands, once.
-    restore.current = row || (kept?.chapter && wanted) ? { hid: row?.hid ?? wanted, offset: kept?.target ? null : kept?.offset ?? null,
-      point: kept?.back && !kept.target ? kept.point : null, focus: !!kept?.back && !kept.target } : null;
-    first.current = null;
-    keepBook(root, course, { target: null, back: false });
-  }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    // In 翻看 a point is its row of the view (`flip-<id>`), in 预览 its heading; a new point of 逐节读 shows from its top (its chapter and section path).
-    const wanted = restore.current, element = wanted && ((wanted.step && pageRef.current?.querySelector(`[data-book-step="${wanted.hid}"]`))
-      || document.getElementById(`book-${wanted.hid}`) || document.getElementById(`flip-${wanted.hid}`));
-    if (!element) return;
-    restore.current = null;
-    // The page is still rising into place (shell.css page-in: a few pixels of translateY), which moves every rectangle measured below by what is left of it; it lands first.
-    element.closest('.page')?.getAnimations?.().forEach(animation => animation.finish());
-    // One jump, not smooth: the heading where it was on screen (from the way back), else just under the top of the scroller (from the 目录).
-    const scroller = scrollerOf(element), top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
-    scroller.scrollTo({ top: scroller.scrollTop + element.getBoundingClientRect().top - (wanted.offset ?? top + 16), behavior: 'instant' });
-    if (wanted.focus) {
-      // The app puts the focus on a page's heading after an arrival (ui/app/use-learning-navigation.js); this one is named so it is the one, and nothing scrolls.
-      const heading = (wanted.point && document.getElementById(`book-${wanted.point}`)) || element;
-      heading.setAttribute('data-return-focus', '');
-      if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
-      heading.focus({ preventScroll: true });
-      setTimeout(() => heading.removeAttribute('data-return-focus'), 1500);
-    }
-  });
-  // 你在这里: the highest heading on screen of the open chapters (逐节读: the point shown, set where it changes).
-  useEffect(() => {
-    const scope = pageRef.current;
-    if (!scope || reading.mode !== 'scroll' || typeof IntersectionObserver === 'undefined') return undefined;
-    const seen = new Map();
-    const observer = new IntersectionObserver(entries => {
-      for (const entry of entries) seen.set(entry.target.dataset.bookHeading, entry.isIntersecting ? entry.boundingClientRect.top : null);
-      const top = [...seen].filter(([, at]) => at !== null).sort((a, b) => a[1] - b[1])[0];
-      if (top) setHere(top[0]);
-    });
-    scope.querySelectorAll('[data-book-heading]').forEach(element => observer.observe(element));
-    return () => observer.disconnect();
-  }, [open, book, reading.mode, reading.expanded]);
-
-  // The way back after practice: the heading just above the link (a typed heading too), where it was on screen, and the chapter that holds it.
-  // Returns where the way back leads, as the practice page says it: the number and title of the point left ("1.2.2 Title"; '' when it is not in the 总纲).
-  const remember = useCallback((hid, from) => {
-    const placeOf = id => { const found = rowOf(rows, id); return found ? [found.number, found.title].filter(Boolean).join(' ') : ''; };
-    // From 翻看: its row of the point, where it was on screen (the view comes back in 翻看, kept per course).
-    const flipPoint = from?.closest?.('[data-flip-point]');
-    if (flipPoint) {
-      const id = flipPoint.dataset.flipPoint, row = rowOf(rows, id);
-      keepBook(root, course, { heading: id, offset: flipPoint.querySelector(`#flip-${id}`)?.getBoundingClientRect().top ?? 0, target: null, chapter: row ? chapters[row.chapter]?.hid ?? null : null,
-        point: id });
-      return placeOf(id);
-    }
-    const headings = from && pageRef.current ? [...pageRef.current.querySelectorAll('[data-book-heading]')].filter(item => item.compareDocumentPosition(from) & 4) : [];
-    const element = headings.at(-1) || document.getElementById(`book-${hid}`), row = rowOf(rows, hid);
-    // The point is the one the link is in, which a heading the learner typed inside its text does not change.
-    const point = from?.closest?.('[data-book-point]')?.dataset.bookPoint || hid;
-    keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
-      chapter: row ? chapters[row.chapter]?.hid ?? null : null, point });
-    return placeOf(point) || placeOf(hid);
-  }, [root, course, rows, chapters]);
-  // A heading of the 目录 (or of 查找, 翻看, 今天读哪几节): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
-  const goTo = useCallback(id => {
-    const entry = toc.find(item => item.id === id), step = steps[stepIndexOf(steps, toc, rows, id)], row = rowOf(rows, id);
-    if (entry?.chapter) setOpen(current => new Set([...current, entry.chapter]));
-    if (step) { setStepHid(step.hid); reading.expand(step.hid, true); }
-    // 逐节读 draws no chapter or section heading: their first point is shown instead.
-    const shown = reading.mode === 'step' && step && row && !row.leaf ? step.hid : id;
-    restore.current = { hid: shown, offset: null };
-    setHere(shown);
-    if (!wideNow()) setTocOpen(false);
-  }, [toc, steps, rows, reading]);
-  // 上一节 / 下一节 (and ← / →): the point before or after, shown from its top.
-  const go = useCallback(delta => {
-    const next = steps[stepAt + delta];
-    if (!next) return;
-    setStepHid(next.hid);
-    setHere(next.hid);
-    restore.current = { hid: next.hid, offset: null, step: true };
-  }, [steps, stepAt]);
-  // Switching how to read keeps the point being read: shown alone, or open in its chapter.
-  const switchReading = useCallback(value => {
-    const step = steps[stepIndexOf(steps, toc, rows, here ?? '')] ?? steps[stepAt];
-    if (step) {
-      const row = rowOf(rows, step.hid), chapter = row ? chapters[row.chapter]?.hid : step.hid;
-      setStepHid(step.hid);
-      reading.only(step.hid);
-      if (chapter) setOpen(current => new Set([...current, chapter]));
-      restore.current = { hid: step.hid, offset: null, step: value === 'step' };
-    }
-    reading.setMode(value);
-  }, [steps, toc, rows, here, stepAt, chapters, reading]);
-  useStepKeys(mode === 'preview' && reading.mode === 'step' && book?.status === 'ok' && !!book.notes, go);
-  const handlers = useMemo(() => ({
-    gone: goneSet(book?.missing),
-    qaOpen: heading => qa.has(heading),
-    toggleQa: heading => setQa(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
-    source: (sourceId, quote) => onOpenSource?.(sourceId, quote),
-    card: (ref, from, element) => { const place = remember(from, element); onPractice([ref], { resume: true, place }); },
-    // 练 N 道: the next N of the point's questions in a practice round's order (due, weak, new); an open round of exactly those goes on.
-    practice: async (heading, n, from, element) => {
-      const row = rowOf(rows, heading);
-      if (!row) { notify(ui('这一节已不在总纲里。')); return; }
-      try {
-        const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
-        const scope = practice?.scope.slice(0, n) || [];
-        if (!scope.length) { notify(ui('还没出题')); return; }
-        const place = remember(from, element);
-        onPractice(scope, { resume: true, place });
-      } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
-    },
-    create: onCreate,
-    reload: () => setState(current => ({ ...current, ticket: current.ticket + 1 })),
-    files: book?.files,
-    busy: choosing,
-    // 采用 / 忽略 of a file's suggestion, compare-and-set on the version shown.
-    choose: async (name, action, id) => {
-      setChoosing(true);
-      try { setBook(await call('course.book.suggestion', { course, file: name, action, id, version: book.files[name].version })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
-      finally { setChoosing(false); }
-    },
-    // 弄懂 / 加一段 (M4): 「在这里加一段」 on a point; 保留 / 删除 / 重新生成 / 接着问 of an AI block.
-    addHere: (node, element) => { const rect = element.getBoundingClientRect(); setAsk({ heading: node.hid, top: rect.bottom + 6, left: rect.left }); },
-    aiAction: async (node, action, block) => {
-      if (action === 'again') {
-        startAi({ heading: node.hid, mode: block.mode === 'follow' ? 'follow' : block.mode, ...(block.mode !== 'here' ? { words: block.about } : {}),
-          ...(block.ask ? { instruction: block.ask } : {}), replace: block.id });
-        return;
-      }
-      setChoosing(true);
-      try { setBook(await call('course.book.block', { course, file: node.files.mine, id: block.id, action })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
-      finally { setChoosing(false); }
-    },
-    aiFollow: (node, block, question) => startAi({ heading: node.hid, mode: 'follow', words: block.about || node.title, instruction: question, after: block.id }),
-    // The fold of the blocks (kept in this browser), and the two ways between a block and its dashed words (ui/book/ai-anchors.js): open the block, then show it.
-    aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
-    aiWords: id => showWords(id),
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, startAi, foldAi]);
-  const writeBook = useCallback(async () => {
-    try {
-      await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
-    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
-  }, [act, course, notify]);
-
+  const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai, foldAi: aiFold.fold });
+  const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
+  const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
+  useEffect(() => { setTocOver(false); }, [narrow]);
+  const tocOpen = narrow ? tocOver : tocWide;
+  useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
+  // Leaving the editor with unsaved text asks first (the 完成 button, 回到总纲, another course; closing or reloading the tab: the browser's own question).
+  // The sidebar and the other pages do not ask yet (no navigation guard in the app; S4 saves as you type).
+  const guard = useCallback(then => (view === 'edit' && dirty ? setLeaving(() => then) : then()), [view, dirty]);
+  useUnsavedWarning(view === 'edit' && dirty);
+  const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
+  // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
+  const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
   const courseName = course === '' ? ui('未分类课程') : course || '';
-  // 期末一周 needs an exam date: without one a quiet link to the course settings, and with one beyond the window a quiet line saying when the week starts.
   const courseRecord = (data?.courses || []).find(item => item.name === course);
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
-  const dateLine = dateHint?.kind === 'later' ? <p className="book-header__crunch">{uiFormat('期末一周在考前 {0} 天开始', [dateHint.window])}</p>
-    : dateHint?.kind === 'none' && courseRecord?.id && onCourseSettings ? <p className="book-header__crunch">
-      <Button variant="link" size="sm" onClick={() => onCourseSettings(courseRecord.id)}>{ui('设置考试日期，开启期末一周')}</Button></p> : null;
-  const header = <PageHeader className="book-header" back={{ label: ui('回到总纲'), onClick: onBack }} title={uiFormat('复习全书 · {0}', [courseName])}
-    titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
-    {book?.status === 'ok' && book.notes && <div className="book-header__tools">
-      <SegmentedControl size="sm" label={ui('看书页的方式')} className="book-header__mode" value={mode} onChange={setMode}
-        options={[{ value: 'preview', label: ui('预览') }, { value: 'source', label: ui('原文') }, { value: 'lookup', label: ui('查找') }, { value: 'flip', label: ui('翻看') }]} />
-      {mode === 'preview' && <SegmentedControl size="sm" label={ui('怎么读')} className="book-header__reading" value={reading.mode} onChange={switchReading}
-        options={[{ value: 'step', label: ui('逐节读') }, { value: 'scroll', label: ui('整章滚动') }]} />}
-      {mode === 'preview' && <Button size="sm" variant="quiet" icon="list" className="book-header__toc" aria-expanded={tocOpen} onClick={() => setTocOpen(value => !value)}>{ui('目录')}</Button>}
-      {crunchDay && mode !== 'source' && <Button size="sm" variant="quiet" icon="calendar" className="book-header__today" aria-expanded={todayOpen} onClick={() => setTodayOpen(value => !value)}>{ui('今天读哪几节')}</Button>}
-      <Button size="sm" variant="secondary" icon="download" className="book-header__export" onClick={() => setExporting(true)}>{ui('导出')}</Button>
-      <BookToChat scope="book" course={course} />
-      {pages !== null && pageLimit && <span className="book-header__budget" data-over={pages > pageLimit || undefined}>
-        {uiFormat('导出约 {0} 页 / 上限 {1} 页', [pages, pageLimit])}{pages > pageLimit ? ` · ${budgetText(pages, pageLimit).text}` : ''}</span>}
-    </div>}
-    {switched && <p className="book-header__crunch" role="status">{uiFormat('已切换到课程 {0}', [courseName])}</p>}
-    {dateLine}
-    {book?.status === 'ok' && book.coverage && <p className="book-header__crunch" data-book-levels="">{levelsText(book.coverage)}</p>}
-    {book?.status === 'ok' && book.moves && <BookMoves course={course} moves={book.moves} />}
-  </PageHeader>;
-  if (state.error && !book) return <section className="page book-page">{header}<ErrorState error={state.error} title={ui('复习全书读取失败')} onRetry={() => setState(current => ({ ...current, ticket: current.ticket + 1 }))} /></section>;
-  if (!book) return <section className="page book-page">{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
-  if (book.status !== 'ok') return <section className="page book-page">{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
+  const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
+  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask}
+    onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
+  const step = steps[where.current] ?? null;
+  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord });
+  if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('复习全书读取失败')} onRetry={reload} /></section>;
+  if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
+  if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
     description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), onClick: onBack }} /></section>;
   if (!book.notes) {
-    const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND), model = modelReadiness(data);
+    const model = modelReadiness(data);
+    const writeBook = () => startBookBuild({ act, course, notify });
     return (
-      <section className="page book-page">
+      <section className="page book-page" ref={pageRef}>
         {header}
         {writing ? <p className="book-writing" role="status"><LoadingState inline label={writingText(writing)} />
           {onOpenTask && <Button variant="link" size="sm" onClick={() => onOpenTask(writing.jobId)}>{ui('看进度')}</Button>}</p>
@@ -354,64 +109,54 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     );
   }
   // A new selection or heading is a new panel (its own, empty instruction).
-  const askNode = ask?.words ? rowOf(rows, ask.heading)?.node ?? null : null;
-  const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => startAi({ heading: ask.heading, ...args }, true)} onClose={closeAsk}
-    onSend={askNode ? async ({ words, instruction }) => {
+  const ask = ai.ask, askNode = ask?.words ? rowOf(rows, ask.heading)?.node ?? null : null;
+  const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => ai.startAi({ heading: ask.heading, ...args }, true)}
+    onClose={ai.closeAsk} onSend={askNode ? async ({ words, instruction }) => {
       await sendToChat({ scope: 'selection', node: askNode, files: book.files, selection: words, instruction });
-      closeAsk();
+      ai.closeAsk();
       window.getSelection?.()?.removeAllRanges?.();
     } : undefined} />;
-  const exportDialog = exporting &&<BookExport course={course} pageLimit={pageLimit} onClose={() => setExporting(false)} />;
-  // 今天读哪几节: today's day of the plan, under the header (the same day the home's 期末一周 card shows).
-  const todayPanel = crunchDay && todayOpen && mode !== 'source' && <section className="book-today" aria-label={ui('今天读哪几节')}>
-    <CrunchDay course={course} daysLeft={crunch.daysLeft} day={crunchDay} points={crunchPoints}
-      onRead={point => { if (crunchDay.mode === 'flip') { setMode('flip'); return; } setMode('preview'); goTo(point.id); }}
-      onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => mark(point.id, 'read', on)}
-      onFlip={() => setMode('flip')} onMockStarted={onExamRun} />
-  </section>;
-  if (mode === 'source') return (
-    <section className="page book-page">
-      {header}
-      <BookEditor key={book.course} book={book} file={file && book.files[file] ? file : defaultFile(book, here)} onPick={setFile} onChanged={setBook} theme={theme} />
-      {exportDialog}
-    </section>
-  );
-  // 翻看 (M7): the points in the plan's order, their 易错点 first; a point opens in 预览 at its heading.
-  if (mode === 'flip') return (
-    <section className="page book-page">
-      {header}
-      {todayPanel}
-      {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
-      {crunch ? <AiFoldContext.Provider value={aiFold}><BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={(hid, on) => mark(hid, 'seen', on)}
-        onGo={hid => { setMode('preview'); goTo(hid); }} onMockStarted={onExamRun} /></AiFoldContext.Provider> : <LoadingState label={ui('正在排期末一周…')} />}
-      {askPanel}
-      {exportDialog}
-    </section>
-  );
-  // A code of 查找 opens the book (预览) at its heading.
-  if (mode === 'lookup' && lookup) return (
-    <section className="page book-page">
-      {header}
-      <BookLookup lookup={lookup} onGo={hid => { setMode('preview'); goTo(hid); }} />
-      {exportDialog}
-    </section>
-  );
+  const over = pages !== null && pageLimit && pages > pageLimit;
+  // Over the page limit: one quiet line under the bar (the estimate and how far over); its Tooltip says where the limit is changed.
+  const notice = over ? { text: uiFormat('导出约 {0} 页，超过 {1} 页的上限', [pages, pageLimit]), tip: uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit]) } : null;
+  const unplaced = step?.hid === 'unplaced', counted = steps.filter(item => item.hid !== 'unplaced').length;
+  const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
+    today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)} />;
+  const dialogs = <>
+    {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} onClose={() => setDialog(null)} />}
+    {dialog === 'lookup' && <LookupDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
+    {dialog === 'chat' && <ChatDialog course={course} onClose={() => setDialog(null)} />}
+    {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
+  </>;
+  if (view === 'edit') return <section className="page book-page" ref={pageRef}>{header}
+    <EditView book={book} step={step} theme={theme} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
+      onLeave={() => { const then = leaving; back(); then?.(); }} onDone={() => guard(back)} /></section>;
+  if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
+    <FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
+      onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} />{askPanel}{dialogs}</section>;
   return (
-    <section className="page book-page" ref={pageRef}>
+    <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
       {header}
-      {todayPanel}
-      <div className={tocOpen ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <nav className="book-toc" aria-label={ui('目录')}><BookToc entries={toc} here={here} onGo={goTo} /></nav>}
-        <div className="book-read" onMouseUp={onSelect}>
+      <BookBar ref={tocRef} at={step && !unplaced ? where.current + 1 : 0} total={counted} number={step?.node.number || ''} title={step?.node.title ?? ''}
+        hid={step?.hid ?? null} tocOpen={tocOpen}
+        onToc={() => (narrow ? setTocOver(value => !value) : setTocWide(!tocWide))} onPrev={where.current > 0 ? () => where.go(-1) : null}
+        onNext={where.current < steps.length - 1 ? () => where.go(1) : null} more={menu} notice={notice} />
+      {plan.day && todayOpen && <TodayPanel course={course} crunch={plan.crunch} day={plan.day} points={plan.points}
+        onRead={point => { if (plan.day.mode === 'flip') { openView('flip'); return; } where.goTo(point.id); }}
+        onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
+        onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
+      <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} />}
+        <ReadingBlock className="book-read" measure onMouseUp={ai.onSelect}>
           <AiFoldContext.Provider value={aiFold}><BookReadContext.Provider value={reading}>
-            {reading.mode === 'step' ? <BookStep steps={steps} at={stepAt} onGo={index => go(index - stepAt)} course={course} handlers={handlers} />
-              : chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={open.has(chapter.hid)} course={course} handlers={handlers}
-                onToggle={value => setOpen(current => { const next = new Set(current); if (value) next.add(chapter.hid); else next.delete(chapter.hid); return next; })} />)}
+            {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />
+              : chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={where.open.has(chapter.hid)} course={course} handlers={handlers}
+                onToggle={value => where.toggleChapter(chapter.hid, value)} />)}
           </BookReadContext.Provider></AiFoldContext.Provider>
-        </div>
+        </ReadingBlock>
       </div>
       {askPanel}
-      {exportDialog}
+      {dialogs}
     </section>
   );
 }
