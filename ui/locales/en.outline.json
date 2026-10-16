@@ -392,5 +392,6 @@
   "这段删除之后书又改过了，没法撤销。": "The book changed after this deletion, so it cannot be undone.",
   "弄懂和写进这个知识点要调用 AI 模型；读书页、改书页、发给主会话不需要模型。": "Explaining and writing into a point call an AI model; reading and editing the book and sending to the main chat need none.",
   "弄懂和写进这个知识点需要先配置模型；发给主会话、读书页照常能用。": "Set up a model to explain or write into a point; sending to the main chat and reading work as usual.",
-  "读书页、改书页、发给主会话照常能用；弄懂和写进这个知识点前需要先配置模型。": "Reading and editing the book and sending to the main chat work as usual; set up a model before explaining or writing into a point."
+  "读书页、改书页、发给主会话照常能用；弄懂和写进这个知识点前需要先配置模型。": "Reading and editing the book and sending to the main chat work as usual; set up a model before explaining or writing into a point.",
+  "写进这个知识点，或发给主会话": "Write into this point, or send it to the main chat"
 }

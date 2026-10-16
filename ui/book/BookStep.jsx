@@ -3,7 +3,7 @@ import { ui } from '../i18n.js';
 import { Button } from '../components/index.js';
 import PointBody from './PointBody.jsx';
 import { UnplacedBody } from './BookChapter.jsx';
-import { AskRow } from './BookAsk.jsx';
+import { AskButton } from './BookAsk.jsx';
 
 /* 逐节读 (复习全书, docs/review-book.md "Reading a point"): ONE knowledge point of the book, under its chapter and section path, with 上一个知识点 /
    下一个知识点 below it (with the neighbour's title; on the first point the first card is off). Where it is in the book and ‹ › are the book bar's (ui/book/BookBar.jsx); the ← / → keys do the
@@ -19,14 +19,16 @@ export default function BookStep({ steps, at, onGo, course, handlers }) {
   const prev = steps[at - 1], next = steps[at + 1], node = step.node;
   return (
     <article className="book-step" data-book-step={step.hid} aria-labelledby={`book-${step.hid}`}>
-      {step.path.length > 0 && <ol className="book-step__path" aria-label={ui('所在章节')}>
-        {step.path.map(item => <li key={item.hid} className="book-step__crumb"><span className="book-node__number">{item.number}</span> {item.title}</li>)}
-      </ol>}
-      <AskRow onAsk={step.hid !== 'unplaced' && handlers.ask ? element => handlers.ask(node, element) : null}>
+      {/* The path, the title and 问 AI: at its right on a wide page, on the path's row on a narrow one (the title keeps the whole width). */}
+      <div className="book-ask-top">
+        {step.path.length > 0 && <ol className="book-step__path" aria-label={ui('所在章节')}>
+          {step.path.map(item => <li key={item.hid} className="book-step__crumb"><span className="book-node__number">{item.number}</span> {item.title}</li>)}
+        </ol>}
         <h2 id={`book-${step.hid}`} className="book-step__heading" data-book-heading={step.hid} tabIndex={-1}>
           {node.number && <span className="book-node__number">{node.number}</span>} {node.title}
         </h2>
-      </AskRow>
+        {step.hid !== 'unplaced' && handlers.ask && <AskButton onAsk={element => handlers.ask(node, element)} />}
+      </div>
       {step.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} /> : <PointBody node={node} course={course} handlers={handlers} level={3} />}
       {/* Named like the bar's ‹ › (知识点), one word for the unit the learner steps through. */}
       <nav className="book-step__nav" aria-label={ui('上一个与下一个知识点')}>

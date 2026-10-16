@@ -229,7 +229,8 @@
       white-space: nowrap;
     }
 
-    /* 「✦ 问 AI」 at the right of a point's title: quiet, the title keeps the room it needs and wraps before the button does. */
+    /* 「✦ 问 AI」 at the right of a point's title: quiet, the title keeps the room it needs and wraps before the button does. On a narrow page it is its ✦
+       alone (its name stays on it, its hover says where it goes). */
     .book-ask-row {
       display: flex;
       align-items: flex-start;
@@ -240,9 +241,49 @@
       flex: 1 1 auto;
       min-width: 0;
     }
-    .book-ask-open {
+    .book-ask-tip {
+      display: inline-flex;
       flex: none;
+    }
+    .book-ask-open {
       color: var(--text-muted);
+    }
+    .book-page[data-narrow] .book-ask-open {
+      justify-content: center;
+      width: var(--control-h-sm);
+      padding-inline: 0;
+    }
+    .book-page[data-narrow] .book-ask-open__word {
+      display: none;
+    }
+    /* 逐节读's top: the path, then the title with 问 AI at its right; on a narrow page 问 AI moves up to the path's row, so the title keeps the whole width
+       (and the first line of the text does not move down). */
+    .book-ask-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'path path' 'title ask';
+      gap: var(--space-3);
+      align-items: start;
+      min-width: 0;
+    }
+    .book-ask-top > ol {
+      grid-area: path;
+    }
+    .book-ask-top > h2 {
+      grid-area: title;
+      min-width: 0;
+    }
+    /* The button takes no height of its own beyond the line it sits on (its box reaches a little above and below), so the text starts where it did. */
+    .book-ask-top > .book-ask-tip {
+      grid-area: ask;
+      margin-block: calc(var(--space-1) * -1);
+    }
+    .book-page[data-narrow] .book-ask-top {
+      grid-template-areas: 'path ask' 'title title';
+      align-items: center;
+    }
+    .book-page[data-narrow] .book-ask-top > .book-ask-tip {
+      margin-block: calc(var(--space-2) * -1);
     }
     /* The panel and the toolbar: absolute in the page, placed against their anchor by useRangeAnchor; hidden until placed and while the anchor is gone. */
     .book-ask,

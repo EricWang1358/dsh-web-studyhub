@@ -6,7 +6,8 @@
    目录 open: the column at 1280, the slide-over at 420), lookup (the 速查页 dialog), edit and flip (更多 › 编辑这个知识点… and 翻看, with 「完成 · 回到阅读」), chat
    (整本书 · 发给主会话…), placed (the point with a short explain block, in its place), placed-block (that block in the middle of the window), open-here (a
    whole-point block open), mine-tip (the 我的 row with the explanation of its label), full (the whole page), notice (over a page limit of one page: the line under
-   the bar), course (a second course added: the title's switcher open). It prints one JSON line per fixture and width:
+   the bar), course (a second course added: the title's switcher open), and 问 AI: ask-panel, selection-toolbar, writing-line, landed-folded, deleted-undo
+   (lookAtAi below). It prints one JSON line per fixture and width:
      controlsBeforeFirstLine  the visible interactive elements (button, a, summary, [role=button], input, select, textarea) of the book page above the first line
                               of the 讲解 text (the 目录 beside the text at 1280 is not above it and not counted)
      firstLineY               where that line starts, from the top of the window with the page scrolled to its top
@@ -21,6 +22,10 @@ import { fileURLToPath } from 'node:url';
 import { launchChromium } from './browser.mjs';
 import { openPage, settleAnimations, startLateServer } from './layout-late.mjs';
 import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture } from '../../tests/helpers/book-fixtures.mjs';
+import { StudyService } from '../../lib/service.js';
+import { createFakeModel } from '../fake-model.mjs';
+import { switchOptions } from '../../tests/helpers/runtime-switch.mjs';
+import { settleJob } from '../../tests/helpers/wait.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -184,6 +189,68 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
   } finally { await context.close(); }
 }
 
+/** 问 AI (docs/review-book.md "Ask AI"): ask-panel (问 AI at the title open), selection-toolbar (words selected with the keyboard's way: selection.modify),
+    writing-line (弄懂 started: the one line right after the paragraph), landed-folded (the block in that line's place, folded, its short highlight) and
+    deleted-undo (⋯ › 删除: 「已删除这段 · 撤销」; left deleted, so the book is as it was for the next picture). The task is run by a second service over the same
+    library (the fake model); its end is held until the writing line is taken. */
+async function lookAtAi(browser, running, { kind, width, theme, shots }) {
+  const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
+  const model = createFakeModel({ latencyMs: 5 });
+  const service = new StudyService(join(running.base, 'library'), { complete: model, ...switchOptions('runtime', { complete: model, paths: [] }) });
+  const ended = new Map();
+  let held = true;
+  const answer = (route, value) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, value }) });
+  await page.route('**/api/call', async route => {
+    let body = {};
+    try { body = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }
+    if (body.action === 'generation.courseBook.explain') {
+      const started = await service.call('generation.courseBook.explain', body.args);
+      settleJob(service, started.jobId).then(job => ended.set(started.jobId, job.status), () => ended.set(started.jobId, 'failed'));
+      return answer(route, started);
+    }
+    if (body.action === 'job.status' && body.args?.jobId) return answer(route, { status: !held && ended.has(body.args.jobId) ? ended.get(body.args.jobId) : 'running' });
+    return route.continue();
+  });
+  const name = shot => join(shots, `${kind}-${width}-${theme}-${shot}.png`);
+  const save = async shot => { await page.waitForTimeout(250); await settleAnimations(page); await page.screenshot({ path: name(shot) }); };
+  try {
+    await openBook(page, running);
+    await toTop(page);
+    await page.locator('.book-step [data-book-ask-open]').click();
+    await page.locator('.book-ask[data-placed]').waitFor({ timeout: 30000 });
+    await save('ask-panel');
+    await page.keyboard.press('Escape');
+    await page.locator('.book-ask').waitFor({ state: 'detached', timeout: 30000 });
+    await page.evaluate(() => {
+      const paragraph = document.querySelector('[data-book-point] .book-point__part .book-file p');
+      paragraph.scrollIntoView({ block: 'center', behavior: 'instant' });
+      const node = document.createTreeWalker(paragraph, 4).nextNode(), selection = window.getSelection();
+      selection.collapse(node, Math.min(4, node.data.length - 1));
+      for (let step = 0; step < 400 && !/[。.]/.test(selection.toString()); step += 1) selection.modify('extend', 'forward', 'character');
+      document.activeElement?.blur?.();
+    });
+    await page.locator('.book-select[data-placed]').waitFor({ timeout: 30000 });
+    await page.mouse.move(width - 10, 890);
+    await save('selection-toolbar');
+    await page.locator('.book-select [data-book-select="explain"]').click();
+    await page.locator('[data-ai-line="writing"]').waitFor({ timeout: 30000 });
+    await page.mouse.move(width - 10, 890);
+    await save('writing-line');
+    held = false;
+    const landed = page.locator('.book-ai[data-ai-landed]');
+    await landed.waitFor({ timeout: 90000 });
+    const id = await landed.getAttribute('data-ai-block');
+    await page.screenshot({ path: name('landed-folded') });
+    await page.locator('.book-ai[data-ai-landed]').waitFor({ state: 'detached', timeout: 30000 });
+    await page.locator(`.book-ai[data-ai-block="${id}"] .book-ai__more`).click();
+    await page.getByRole('menuitem', { name: /删除/ }).click();
+    await page.locator('[data-ai-line="undo"]').waitFor({ timeout: 30000 });
+    await page.mouse.move(width - 10, 890);
+    await save('deleted-undo');
+    return errors;
+  } finally { await context.close(); await service.dispose(); }
+}
+
 /** Two courses (a note of a second one added): the title's course is the home's switcher; the picture has its list open. */
 async function lookAtCourse(browser, running, { kind, width, theme, shots }) {
   const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
@@ -218,6 +285,12 @@ export async function bookShots({ shots = process.env.BOOK_SHOTS, kinds = (proce
           }
         }
         if (shots) {
+          for (const width of [1280, 420]) {
+            for (const theme of ['dark', 'light']) {
+              const errors = await lookAtAi(browser, running, { kind, width, theme, shots });
+              if (errors.length) console.error(`${kind} ${width} ${theme} ai: page errors ${JSON.stringify(errors)}`);
+            }
+          }
           await running.api('source.add', { title: '软件测试 笔记', text: '另一门课的一份笔记。', course: '软件测试' });
           for (const width of [1280, 420]) {
             for (const theme of ['dark', 'light']) {

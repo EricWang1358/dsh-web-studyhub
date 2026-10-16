@@ -14,9 +14,14 @@ import { askStaysOpen } from './ask-visibility.js';
 
 export const PRESETS = ['讲细点', '加个例子', '润色成大白话', '加过渡', '还漏了哪些小知识点、要不要补进来'];
 
-/** 「✦ 问 AI」: a quiet button at the right of a point's title; onAsk(element) opens the panel under it. */
+/** 「✦ 问 AI」: a quiet button at the right of a point's title (on a narrow page only its ✦, beside the path); onAsk(element) opens the panel under it. */
 export function AskButton({ onAsk }) {
-  return <Button variant="quiet" size="sm" icon="sparkle" className="book-ask-open" data-book-ask-open="" aria-haspopup="dialog" onClick={event => onAsk(event.currentTarget)}>{ui('问 AI')}</Button>;
+  return (
+    <Tooltip layer content={ui('写进这个知识点，或发给主会话')} anchorClassName="book-ask-tip">
+      <Button variant="quiet" size="sm" icon="sparkle" className="book-ask-open" data-book-ask-open="" aria-haspopup="dialog" aria-label={ui('问 AI')} onClick={event => onAsk(event.currentTarget)}>
+        <span className="book-ask-open__word">{ui('问 AI')}</span></Button>
+    </Tooltip>
+  );
 }
 
 /** A point's title with 问 AI at its right (the title itself is the caller's heading element). */

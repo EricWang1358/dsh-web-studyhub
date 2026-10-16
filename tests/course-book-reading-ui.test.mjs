@@ -132,8 +132,8 @@ test('逐节读: one point under its path, 上一个知识点 / 下一个知识�
   const steps = ui.bookSteps(book), html = render(h(ui.BookStep, { steps, at: 0, onGo: noop, course: 'SA', handlers })), text = textOf(html);
   assert.match(html, /data-book-step="h2"/);
   assert.match(html, /<h2 id="book-h2"[^>]*data-book-heading="h2"/);
-  assert.match(text, /^1 热力学 1\.1 熵 问 AI 熵是系统无序程度的度量/, 'the path, then the heading with 问 AI at its right, then the takeaway (no 第 i / N 节, no ‹ ›, no printed code)');
-  assert.match(html, /<div class="book-ask-row"><h2 id="book-h2"[\s\S]*?<\/h2><button[^>]*class="sh-btn sh-btn--quiet sh-btn--sm book-ask-open"[^>]*data-book-ask-open/, '问 AI is a quiet button beside the title, outside the heading');
+  assert.match(text, /^1 热力学 1\.1 熵 问 AI 写进这个知识点，或发给主会话 熵是系统无序程度的度量/, 'the path, then the heading with 问 AI at its right (its hover says where it goes), then the takeaway (no 第 i / N 节, no ‹ ›, no printed code)');
+  assert.match(html, /<div class="book-ask-top"><ol class="book-step__path"[\s\S]*?<\/ol><h2 id="book-h2"[\s\S]*?<\/h2><span class="sh-popover-anchor book-ask-tip"><button[^>]*class="sh-btn sh-btn--quiet sh-btn--sm book-ask-open"[^>]*data-book-ask-open/, '问 AI is a quiet button beside the title, outside the heading');
   assert.doesNotMatch(html, /book-step__back|book-step__jump/);
   assert.match(text, /上一个知识点 下一个知识点 1\.2 焓$/);
   assert.match(html, /disabled=""[^>]*><span class="book-step__dir">上一个知识点/);
@@ -159,7 +159,7 @@ test('English: the reading words are English (the book\'s own text stays as writ
   assert.match(text, /Checklist .*Mine Your notes, AI paragraphs and the Q&A you put into the book are here Collapse this point's AI paragraphs/);
   assert.match(text, /AI Mostly repeats/);
   assert.match(text, /Sources 1/);
-  assert.match(text, /1\.1 熵 Ask AI 熵是系统无序程度的度量[\s\S]*Sources 1 Practise 5 Questions and answers Previous knowledge point Next knowledge point/);
+  assert.match(text, /1\.1 熵 Ask AI Write into this point, or send it to the main chat 熵是系统无序程度的度量[\s\S]*Sources 1 Practise 5 Questions and answers Previous knowledge point Next knowledge point/);
   // What is left once the book's own words are taken out (its text, its labels, the blocks' first lines and summaries).
   const written = [restate, '熵是系统无序程度的度量。', '熵是系统无序程度的度量', '它在孤立系统里只增不减', '冰块融化', '它在孤立系统里只增不减。', '冰块融化。', '熵度量无序', '玻尔兹曼公式', '补充（资料以外）', '讲解', '例子', '关于：「熵」',
     '关于：「只增不减」', '热力学', '焓', '熵', '。'];
