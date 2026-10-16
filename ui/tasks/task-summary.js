@@ -1,4 +1,4 @@
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, uiMessage } from '../i18n.js';
 import { describeFailure, failureSentence, stageCodeLabel } from '../generation-status.js';
 import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
@@ -32,7 +32,8 @@ export function taskState(job) {
     case STATUS.FAILED: return 'fail';
     // A restart (or a closed host) interrupted it: nothing is wrong with the work, it is waiting to be continued. Not 'failed'.
     case STATUS.INTERRUPTED: return 'interrupted';
-    case STATUS.CANCELLED: return 'stopped';
+    // A one-click install that was stopped keeps what it downloaded and continues where it stopped: it is paused, the word the card uses too.
+    case STATUS.CANCELLED: return contract.detail?.install ? 'paused' : 'stopped';
     default: return 'run';
   }
 }
@@ -67,6 +68,8 @@ export function stageLabel(stage) {
   if (family === 'translation') return name === 'queued' ? ui('排队中') : stage.args?.total > 0 ? uiFormat('正在翻译 · {0}/{1} 段', [stage.args.done, stage.args.total]) : ui('正在翻译');
   if (['generation', 'repair', 'publish'].includes(family)) return stageCodeLabel(name === 'blueprinting' ? 'blueprinting' : name) || ui('进行中');
   if (family === 'task') return name === 'queued' ? ui('排队中') : ui('进行中');
+  // A one-click install says its step (第 3/6 步：安装 MinerU) or how it ended, in the producer's words (lib/application-messages.js has the English).
+  if (family === 'install') return stage.text ? uiMessage(stage.text) : ui('进行中');
   return stage.text || '';
 }
 
