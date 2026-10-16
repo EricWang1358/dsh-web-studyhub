@@ -164,7 +164,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
             <strong>{planHeading(adaptiveLocal, pieceCount)}</strong>
             <span>{uiFormat('共 {0} 页 · {1}', [plan.pages, formatBytes(plan.bytes)])}</span>
           </p>
-          {localReady && estimate && <p className="mineru-plan__estimate">{uiFormat('约 {0} 分钟（估算：{1} 档每页约 {2} 秒，实际取决于这台电脑）', [minutesOf(estimate), tier, local.estimates?.[tier]])}</p>}
+          {localReady && estimate && <p className="mineru-plan__estimate">{uiFormat('约 {0} 分钟（估算：每页约 {1} 秒，实际取决于这台电脑）', [minutesOf(estimate), local.estimates?.[tier]])}</p>}
           <Disclosure summary={ui('分段与页码详情')}>
           {adaptiveLocal && <p className="mineru-plan__why">{uiFormat('先做 {0} 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 {1} 秒，{2}–{3} 页）。', [plan.adaptive.firstPages, plan.adaptive.targetSeconds, plan.adaptive.minPages, plan.adaptive.maxPages])}</p>}
           {pieceCount > 1 && <p className="mineru-plan__why">

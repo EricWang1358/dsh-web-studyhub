@@ -60,7 +60,7 @@ test('local ready: the plan, an estimate labelled as one, and no privacy checkbo
   assert.doesNotMatch(html, /name="mineru-route"|云端|暂不可用/);
   assert.match(html, /这本书会分 9 段处理/);
   assert.match(html, /每 50 页一段/);
-  assert.match(html, /约 12 分钟（估算：basic 档每页约 1\.6 秒/);
+  assert.match(html, /约 12 分钟（估算：每页约 1\.6 秒/);
   assert.match(html, /开始本地解析/);
   assert.match(html, /本地解析：不会上传任何内容。/);
   assert.doesNotMatch(html, /type="checkbox"/);

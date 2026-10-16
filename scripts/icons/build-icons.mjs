@@ -40,6 +40,8 @@ export const ICON_MAP = {
   key: 'key',
   refresh: 'arrow-clockwise',
   folder: 'folder',
+  location: 'map-pin',
+  stop: 'stop',
   help: 'question',
   'thumb-up': 'thumbs-up',
   'thumb-down': 'thumbs-down',

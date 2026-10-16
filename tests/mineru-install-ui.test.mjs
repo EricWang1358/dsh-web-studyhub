@@ -78,7 +78,7 @@ test('the one fix of each failure (FIX_FOR), with the second network failure on 
   const ids = Object.fromEntries(Object.keys(FIX_FOR).map(code => [code, fixFor(code).id]));
   assert.deepEqual(ids, { network: 'retry', checksum: 'retry', cancelled: 'continue', interrupted: 'continue', 'no-space': 'relocate', 'not-writable': 'relocate', 'folder-in-use': 'relocate',
     'bad-location': 'relocate', 'path-too-long': 'relocate', 'tools-failed': 'repair', 'python-failed': 'repair', 'package-failed': 'repair', 'models-failed': 'repair', 'check-failed': 'repair',
-    'needs-models': 'repair', 'service-failed': 'restart-service', 'port-in-use': 'restart-service', 'vc-runtime': 'vc-runtime', unreadable: 'recheck' });
+    'needs-models': 'repair', 'models-missing': 'repair', 'service-failed': 'restart-service', 'service-timeout': 'restart-service', 'port-in-use': 'restart-service', 'vc-runtime': 'vc-runtime', unreadable: 'recheck' });
   assert.deepEqual([fixFor('network', { attempts: 2, source: 'mainland' }).id, fixFor('network', { attempts: 2, source: 'mainland' }).source], ['switch-source', 'global']);
   assert.equal(fixFor('port-in-use', { external: true }).id, 'stop-external');
   assert.equal(fixFor('something-new').id, 'repair');
@@ -90,12 +90,15 @@ test('the one fix of each failure (FIX_FOR), with the second network failure on 
   // The network hint names the button the card offers.
   assert.match(errorHint('network', { attempts: 1 }), /点「重试」/);
   assert.match(errorHint('network', { attempts: 2, source: 'mainland' }), /换成海外官方源再试/);
-  // The service hints name the button too: 修复 inside an unfinished install, 重新启动服务 after it; another MinerU only when one was found.
+  // The service hints name the button too: 修复 inside an unfinished install, 重新启动服务 after it; a hint only where it adds something to the line and the button.
   assert.match(errorHint('service-failed', { origin: 'install' }), /点「修复」/);
-  assert.match(errorHint('service-failed', { origin: 'service' }), /重新启动一次服务/);
-  assert.match(errorHint('port-in-use', { origin: 'install' }), /关掉那个程序后点「修复」/);
-  assert.match(errorHint('port-in-use', { origin: 'service' }), /关掉那个程序后点「重新启动服务」/);
-  assert.match(errorHint('port-in-use', { origin: 'install', external: true }), /先停掉另一份 MinerU/);
+  assert.equal(errorHint('service-failed', { origin: 'service' }), '', '重新启动服务 says it all');
+  assert.match(errorHint('port-in-use', { origin: 'install' }), /关掉占用端口的程序后点「修复」/);
+  assert.match(errorHint('port-in-use', { origin: 'service' }), /关掉占用端口的程序后点「重新启动服务」/);
+  assert.equal(errorHint('port-in-use', { origin: 'install', external: true }), '', '停止另一份 MinerU 并重试 says it all');
+  for (const code of ['no-space', 'not-writable', 'path-too-long', 'folder-in-use', 'bad-location', 'needs-models', 'models-failed']) assert.equal(errorHint(code, {}), '', code);
+  // Each fix's icon says its action.
+  assert.deepEqual(['no-space', 'port-in-use'].map(code => fixFor(code, { external: true }).icon), ['location', 'stop']);
 });
 
 test('the line under the bar is a downloaded size or nothing: never a command, a package name or progress glyphs', () => {
@@ -129,7 +132,7 @@ test('where the default folder came from, in words', () => {
 
 /* ---------- each state ---------- */
 
-test('checking: the status line keeps its two-line slot and the body holds the offer\'s rows, so the most common answer (not installed) moves nothing', () => {
+test('checking: the status line keeps its one-line slot and the body holds the offer\'s rows, so the most common answer (not installed) moves nothing', () => {
   const html = render({ call: undefined });
   assert.match(html, /data-state="checking"/);
   assert.match(textOf(html), /检测中 正在检测本机 MinerU…/);
@@ -176,7 +179,7 @@ test('installing: step n of 6 (said once, in the status line), where it goes, wh
   assert.match(text, /已下载 360 MB \/ 约 800 MB/);
   assert.doesNotMatch(text, /Downloading 360M/, 'the raw output stays in the log');
   assert.equal((text.match(/第 4\/6 步/g) || []).length, 1);
-  assert.match(text, /取消/);
+  assert.match(text, /暂停/);
   assert.match(text, /可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。/);
   assert.equal((html.match(/<li data-state="done"/g) || []).length, 3);
   assert.doesNotMatch(html, /\stitle="/);
@@ -202,17 +205,27 @@ test('ready: where it is and that it works (the version and the tier in the badg
   assert.match(textOf(render({ initialLocal: local.ready, compact: true })), /可以开始解析了。/);
 });
 
-test('every failure: where it stopped, the reason, and exactly one fix button', () => {
-  const cases = [[local.network, /安装停在「安装 MinerU」/, '重试'], [local.network2, /安装停在「安装 MinerU」/, '换下载源重试'],
-    [local.vc, /安装停在「启用本机服务」/, '下载 VC++ 运行库'], [local.port, /本机服务没能启动/, '停止另一份 MinerU 并重试'], [local.unreadable, /检测没有通过/, '重新检测'],
-    [local.enablePort, /安装停在「启用本机服务」/, '修复'], [local.enablePortExternal, /安装停在「启用本机服务」/, '停止另一份 MinerU 并重试'], [local.enableService, /安装停在「启用本机服务」/, '修复']];
-  for (const [state, title, fix] of cases) {
+const sentenceOf = html => textOf(/mineru-install__sentence">([^<]*)</.exec(html)?.[1] || '');
+
+test('every failure: one short line that says what is wrong (the status line), at most one new hint, and exactly one fix button', () => {
+  const needsModels = { state: 'needs-models', origin: 'installed', folder: FOLDER, install: complete, lastError: null };
+  const cases = [[local.network, /^下载失败：连不上下载源/, '重试'], [local.network2, /^下载失败/, '换下载源重试'],
+    [local.vc, /^失败（vc-runtime）$/, '下载 VC++ 运行库'], [local.port, /^本机服务没能启动：另一份 MinerU 占用了它要用的端口。$/, '停止另一份 MinerU 并重试'],
+    [local.unreadable, /^读不出本机 MinerU 的状态。$/, '重新检测'], [needsModels, /^本机 MinerU 的模型还没有下载完整。$/, '修复'],
+    [local.enablePort, /^本机服务要用的端口被别的程序占用了。$/, '修复'], [local.enablePortExternal, /^另一份 MinerU 占用了本机服务要用的端口。$/, '停止另一份 MinerU 并重试'],
+    [local.enableService, /^失败（service-failed）$/, '修复']];
+  for (const [state, line, fix] of cases) {
     const html = render({ initialLocal: state });
     assert.match(html, /data-state="error"/);
-    assert.match(textOf(html), title);
+    assert.match(sentenceOf(html), line, fix);
     assert.equal(primaries(html), 1, fix);
     assert.match(html, new RegExp(`sh-btn--primary[^>]*>(?:(?!</button>).)*${fix.replace(/[+]/g, '\\+')}`, 's'), fix);
+    // Never a pointer to the page the learner is on, never a title that explains nothing, never the same button twice.
+    for (const banned of ['设置 › PDF 转换', '检测没有通过', '安装停在']) assert.ok(!textOf(html).includes(banned), `${fix}: ${banned}`);
+    assert.equal(html.split(`>${fix}<`).length - 1, 1, `${fix} is offered once`);
+    assert.ok((html.match(/class="sh-hint[" ]/g) || []).length <= 1, `${fix}: at most one hint`);
   }
+  assert.doesNotMatch(render({ initialLocal: local.port }), /class="sh-hint/, 'another MinerU found: the button says it all');
   assert.match(render({ initialLocal: local.vc }), />重试</, 'beside the VC++ download sits a quiet 重试');
   assert.match(render({ initialLocal: local.network2 }), /role="tooltip"[^>]*>换成海外官方源再试；已装好的步骤不会重做。/);
   assert.match(textOf(render({ initialLocal: local.network })), /网络恢复后点「重试」/);
@@ -303,7 +316,7 @@ test('a fresh install is one click: 一键安装 starts with the default folder 
   const tree = card.render();
   assert.deepEqual(calls.map(item => item.action), ['mineru.install.plan'], 'opening the card only plans');
   await find(tree, named('一键安装')).props.onClick(); await flush();
-  assert.deepEqual(calls.find(item => item.action === 'mineru.install.start').args, { confirm: true, location: FOLDER });
+  assert.deepEqual(calls.find(item => item.action === 'mineru.install.start').args, { confirm: true, location: FOLDER, tier: 'basic' });
   card.close();
 });
 
@@ -321,7 +334,7 @@ test('another drive is two more clicks: 选择位置, the drive, then 一键安�
   chooser.props.onChoose('E:\\StudyHub\\MinerU'); card.render(); await flush(); await flush();
   assert.equal(calls.filter(item => item.action === 'mineru.install.plan').at(-1).args.location, 'E:\\StudyHub\\MinerU', 'the plan is read again for that drive');
   await find(card.render(), named('一键安装')).props.onClick(); await flush();
-  assert.deepEqual(calls.find(item => item.action === 'mineru.install.start').args, { confirm: true, location: 'E:\\StudyHub\\MinerU' });
+  assert.deepEqual(calls.find(item => item.action === 'mineru.install.start').args, { confirm: true, location: 'E:\\StudyHub\\MinerU', tier: 'basic' });
   card.close();
 });
 
@@ -338,7 +351,7 @@ test('cancel, then 继续安装 starts again in the same folder (the finished st
   const card = await mount({ call: fake, initialLocal: local.installing });
   card.render(); await flush();
   const row = find(card.render(), item => Array.isArray(item.props?.actions));
-  await row.props.actions.find(action => action.label === '取消').onClick(); await flush(); await flush();
+  await row.props.actions.find(action => action.label === '暂停').onClick(); await flush(); await flush();
   card.render(); await flush();
   const fix = find(card.render(), named('继续安装'));
   assert.ok(fix, 'the one fix of a cancelled install is 继续安装');
@@ -370,7 +383,7 @@ test('换下载源重试 continues in the folder the install used, not the defau
   const elsewhere = 'E:\\Tools\\MinerU';
   const status = { ...local.network2, install: { ...local.network2.install, folder: elsewhere } };
   const [started] = await pressFix(t, status, '换下载源重试');
-  assert.deepEqual(started, { action: 'mineru.install.start', args: { confirm: true, location: elsewhere, source: 'global' } });
+  assert.deepEqual(started, { action: 'mineru.install.start', args: { confirm: true, location: elsewhere, source: 'global', tier: 'basic' } });
 });
 
 test('a first install that stopped at 启用本机服务 is fixed by starting the install again, after stopping another MinerU when there is one', async t => {
@@ -378,4 +391,106 @@ test('a first install that stopped at 启用本机服务 is fixed by starting th
   assert.deepEqual(repair, { action: 'mineru.install.start', args: { confirm: true, location: FOLDER, tier: 'basic' } }, 'not a service start: nothing is installed yet');
   const [stop] = await pressFix(t, local.enablePortExternal, '停止另一份 MinerU 并重试');
   assert.deepEqual(stop, { action: 'mineru.install.start', args: { confirm: true, location: FOLDER, tier: 'basic', stopExternal: true } });
+});
+
+/* ---------- round 3: the tier after a remount, a change of tier that did not finish, no raw CLI text, one primary ---------- */
+
+const standard = { ...complete, tier: 'standard', installedTier: 'standard' };
+const readyStandard = { state: 'ready', origin: 'installed', folder: FOLDER, install: standard, version: '4.0.12', tier: 'standard', running: true, lastError: null };
+function findAll(tree, predicate, found = []) {
+  if (Array.isArray(tree)) { tree.forEach(item => findAll(item, predicate, found)); return found; }
+  if (!React.isValidElement(tree)) return found;
+  if (predicate(tree)) found.push(tree);
+  findAll(tree.props.children, predicate, found);
+  if (tree.props.body) findAll(tree.props.body, predicate, found);
+  return found;
+}
+/** Mount the card on `status` (a remount: no tier chosen here), with every call recorded; resolves { card, calls }. */
+async function remount(t, status, props = {}) {
+  const saved = globalThis.document;
+  globalThis.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
+  t.after(() => { if (saved === undefined) delete globalThis.document; else globalThis.document = saved; });
+  const calls = [];
+  const fake = async (action, args) => { calls.push({ action, args });
+    if (action === 'mineru.local.status') return status; if (action === 'mineru.install.status') return status.install;
+    if (action === 'mineru.install.plan') return plan(args.location ? { folder: args.location } : {}); if (action === 'mineru.install.start') return running('tools'); return {}; };
+  const card = await mount({ call: fake, initialLocal: status, ...props });
+  card.render(); await flush(); await flush();
+  t.after(() => card.close());
+  return { card, calls, starts: () => calls.filter(item => item.action === 'mineru.install.start').map(item => item.args) };
+}
+
+test('after a remount every start sends the tier of the install it fixes or moves: 安装到其他位置 keeps standard, 修复 and 继续安装 keep the install\'s tier', async t => {
+  const moving = await remount(t, readyStandard, { initialMore: true });
+  find(moving.card.render(), named('安装到其他位置…')).props.onClick();
+  moving.card.render(); await flush(); await flush();
+  await find(moving.card.render(), named('安装到这个位置')).props.onClick(); await flush();
+  assert.deepEqual(moving.starts().at(-1), { confirm: true, location: FOLDER, tier: 'standard', removePrevious: true });
+  // A standard install whose models went missing: 修复 repairs standard, never the backend's default basic.
+  const repair = await remount(t, { state: 'needs-models', origin: 'installed', folder: FOLDER, install: standard, lastError: null });
+  await find(repair.card.render(), named('修复')).props.onClick(); await flush();
+  assert.equal(repair.starts().at(-1).tier, 'standard');
+  // A paused standard install continues as standard; a VC++ failure's 重试 too.
+  const paused = await remount(t, { ...local.cancelled, install: { ...ended('cancelled', 'cancelled', 'models'), tier: 'standard' } });
+  await find(paused.card.render(), named('继续安装')).props.onClick(); await flush();
+  assert.equal(paused.starts().at(-1).tier, 'standard');
+  const vc = await remount(t, { ...local.vc, install: { ...local.vc.install, tier: 'standard' } });
+  await find(vc.card.render(), named('重试')).props.onClick(); await flush();
+  assert.equal(vc.starts().at(-1).tier, 'standard');
+  // A service that failed to start outside an install is restarted (not reinstalled) by that 重试.
+  const service = await remount(t, { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: standard, lastError: { code: 'vc-runtime', message: '', at: '2026-10-16T00:00:00Z' } });
+  await find(service.card.render(), named('重试')).props.onClick(); await flush();
+  assert.deepEqual(service.calls.filter(item => item.action === 'mineru.local.start').map(item => item.args), [{ restart: true }]);
+  assert.deepEqual(service.starts(), []);
+});
+
+test('a change of tier that did not finish: the ready state of the installed tier, plus one quiet line 换成 standard 档没有完成 · 重试 (why in its Tooltip)', async t => {
+  const failedChange = { ...complete, status: 'failed', stage: 'models', tier: 'standard', installedTier: 'basic', done: ['tools', 'python', 'package'],
+    error: { code: 'models-failed', message: '模型没有下载完整。' } };
+  const status = { ...local.ready, install: failedChange };
+  const html = render({ initialLocal: status, initialPlan: plan(), initialMore: true });
+  assert.match(html, /data-state="ready"/, 'the old tier still works');
+  assert.match(textOf(html), /换成 standard 档没有完成 .*· 重试/);
+  assert.match(html, /role="tooltip"[^>]*>模型没有下载完整。/);
+  assert.match(html, /name="mineru-install-tier" checked="" value="basic"/, '更多 shows the tier that is installed');
+  assert.doesNotMatch(textOf(html), /换成 standard 档(?!没有完成)/, 'no second offer of the same change');
+  assert.equal(primaries(html), 0);
+  const cancelled = render({ initialLocal: { ...status, install: { ...failedChange, status: 'cancelled', error: { code: 'cancelled', message: '' } } } });
+  assert.match(textOf(cancelled), /换成 standard 档没有完成/);
+  assert.match(cancelled, /role="tooltip"[^>]*>已暂停；已下载的部分会保留。/);
+  const card = await remount(t, status);
+  await find(card.card.render(), named('重试')).props.onClick(); await flush();
+  assert.deepEqual(card.starts().at(-1), { confirm: true, location: FOLDER, tier: 'standard' });
+});
+
+test('a service that does not start never shows a traceback or English CLI text on the status line: a plain reason by its code; the raw text only in 更多 › 详细信息', () => {
+  const raw = 'Traceback (most recent call last):\n  File "mineru\\cli\\server.py", line 88, in start\nRuntimeError: worker exited with code 3';
+  for (const [code, line] of [['service-failed', '本机服务没能启动：它一启动就退出了。'], ['service-timeout', '本机服务没能启动：等了很久它还没有准备好。'],
+    ['models-missing', '本机服务没能启动：模型文件不完整。'], ['port-in-use', '本机服务没能启动：它要用的端口被别的程序占用了。'], ['vc-runtime', '本机服务没能启动：这台电脑缺少微软 VC++ 运行库。'],
+    ['something-new', '本机服务没能启动：它一启动就退出了。']]) {
+    const status = { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: complete, external: null,
+      lastError: { code, message: `本机服务没能启动：${raw}`, detail: raw, at: '2026-10-16T00:00:00Z' } };
+    const html = render({ initialLocal: status });
+    assert.equal(sentenceOf(html), line, code);
+    assert.doesNotMatch(textOf(html), /Traceback|RuntimeError|worker exited|server\.py/, code);
+    const more = render({ initialLocal: status, initialPlan: plan(), initialMore: true });
+    assert.match(textOf(more), /详细信息/);
+    assert.doesNotMatch(sentenceOf(more), /Traceback/);
+  }
+});
+
+test('while the location chooser is open after a location failure, its confirm is the one primary: 换位置 gives way', async t => {
+  const status = { state: 'not-installed', origin: null, install: ended('failed', 'no-space', 'models'), lastError: null, external: null };
+  const card = await remount(t, status);
+  const primaryButtons = () => findAll(card.card.render(), item => item.props?.variant === 'primary');
+  assert.deepEqual(primaryButtons().map(item => item.props.children), ['换位置']);
+  find(card.card.render(), named('换位置')).props.onClick();
+  card.card.render(); await flush(); await flush();
+  assert.deepEqual(primaryButtons().map(item => item.props.children), ['安装到这个位置'], 'one primary, the chooser\'s confirm');
+});
+
+test('the path field\'s placeholder reads as an example, and 取消 and 收起 are never stacked', async () => {
+  const source = await (await import('node:fs/promises')).readFile(new URL('../ui/install/LocationChooser.jsx', import.meta.url), 'utf8');
+  assert.match(source, /placeholder=\{uiFormat\('例如 \{0\}'/);
+  assert.match(source, /\{draft === null && <div className="mineru-install__row">/, 'the 收起 row shows only while the path field is closed');
 });

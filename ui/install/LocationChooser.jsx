@@ -5,7 +5,7 @@ import { sizeLabel } from '../mineru-flow.js';
 
 /* Where to install (opened by 「选择位置」, inline, never a dialog). On Windows one card per fixed drive, each its would-be folder with the free space,
    the recommended one marked, the system drive and a full drive said so; choosing a card applies it at once. 「其他文件夹…」 opens the host's folder
-   picker when it has one, else a path field. Elsewhere (no drives) only the default folder and 「其他文件夹…」. */
+   picker when it has one, else a path field (its placeholder reads as an example, not a value). Elsewhere (no drives) only the default folder and 「其他文件夹…」. */
 
 export default function LocationChooser({ plan, location, pickDirectory, onChoose, onClose, disabled = false }) {
   const [draft, setDraft] = useState(null), [problem, setProblem] = useState('');
@@ -35,7 +35,7 @@ export default function LocationChooser({ plan, location, pickDirectory, onChoos
     </RadioCardGroup> : <p className="mineru-install__where"><span>{ui('默认位置')}</span><code translate="no">{plan?.defaultFolder || ''}</code></p>}
     {draft !== null && <form className="mineru-install__draft" onSubmit={event => { event.preventDefault(); use(); }}>
       <Field label={ui('文件夹的完整路径')}>
-        <TextInput autoFocus value={draft} placeholder="D:\StudyHub\MinerU" aria-label={ui('文件夹的完整路径')} onChange={event => setDraft(event.target.value)} />
+        <TextInput autoFocus value={draft} placeholder={uiFormat('例如 {0}', ['D:\\StudyHub\\MinerU'])} aria-label={ui('文件夹的完整路径')} onChange={event => setDraft(event.target.value)} />
       </Field>
       <div className="mineru-install__row">
         <Button type="submit" size="sm" disabled={!draft.trim()}>{ui('使用这个位置')}</Button>
@@ -43,9 +43,10 @@ export default function LocationChooser({ plan, location, pickDirectory, onChoos
       </div>
     </form>}
     {problem && <InlineMessage tone="warning">{problem}</InlineMessage>}
-    <div className="mineru-install__row">
-      {draft === null && <Button size="sm" variant="secondary" disabled={disabled} onClick={other}>{ui('其他文件夹…')}</Button>}
+    {/* While the path field is open its own 取消 closes it: one way back at a time, never 取消 above 收起. */}
+    {draft === null && <div className="mineru-install__row">
+      <Button size="sm" variant="secondary" disabled={disabled} onClick={other}>{ui('其他文件夹…')}</Button>
       <Button size="sm" variant="quiet" onClick={onClose}>{ui('收起')}</Button>
-    </div>
+    </div>}
   </div>;
 }

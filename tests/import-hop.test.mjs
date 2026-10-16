@@ -130,7 +130,8 @@ test('the panel offers local conversion only: no cloud route, no second choice o
     initialLocal: { state: 'ready', tier: 'basic', estimates: { basic: 1.6 } }, initialPlan: { name: 'Book.pdf', pages: 450, bytes: 12e6, windows: [{ index: 1, startPage: 1, endPage: 50, pages: 50 }] } }));
   assert.doesNotMatch(html, /暂不可用|云端|用哪种方式解析|name="mineru-route"|type="checkbox"/);
   assert.match(html, /开始本地解析/);
-  assert.match(html, /约 12 分钟（估算：basic 档每页约 1\.6 秒/, 'the estimate stays: it is the cost the learner is about to accept');
+  assert.match(html, /约 12 分钟（估算：每页约 1\.6 秒/, 'the estimate stays: it is the cost the learner is about to accept');
+  assert.doesNotMatch(html, /basic 档/, 'no tier jargon on the main path');
   assert.equal((html.match(/name="[^"]*-converter"/g) || []).length, 2, 'MinerU or Marker, once');
 });
 

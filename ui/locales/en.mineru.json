@@ -15,7 +15,7 @@
   "第 {0} 段 · 第 {1} 页": "Piece {0} · pages {1}",
   "本地 mineru": "Local mineru",
   "需要设置": "Needs setup",
-  "约 {0} 分钟（估算：{1} 档每页约 {2} 秒，实际取决于这台电脑）": "About {0} minutes (an estimate: tier {1} takes about {2} seconds per page; the real time depends on this computer)",
+  "约 {0} 分钟（估算：每页约 {1} 秒，实际取决于这台电脑）": "About {0} minutes (an estimate: about {1} seconds per page; the real time depends on this computer)",
   "开始本地解析": "Start local conversion",
   "换一份 PDF": "Choose another PDF",
   "手动": "Manual",
