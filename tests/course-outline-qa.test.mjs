@@ -15,6 +15,7 @@ import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { followupDigest } from '../lib/followup.js';
 import { textHash } from '../lib/annotation.js';
+import { openCourseBook } from '../lib/course-book-files.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 const NOW = Date.parse('2026-10-10T08:00:00.000Z');
@@ -100,4 +101,29 @@ test('course.outline.qa through the runtime: registered, read-only, documented f
   assert.equal(JSON.stringify(await service.call('snapshot')).includes('Why keep a decision log?'), false, 'the 问答 are read on demand, not carried by the snapshot');
   assert.match(libraryContracts.learning, /course\.outline\.qa \{course\?,keys\?,cards\?/);
   assert.match(studyToolDescription, /course\.outline, course\.outline\.qa/);
+});
+
+test('course.book.open gives every point the count course.outline.qa would list for it alone (one pass), at first paint', () => {
+  const state = library();
+  const book = openCourseBook(state, { course: COURSE }, { write: false });
+  const leaves = book.nodes.flatMap(function walk(node) { return node.leaf ? [node] : node.children.flatMap(walk); });
+  assert.deepEqual(leaves.map(leaf => [leaf.title, leaf.qaCount]), [['What architects do', 4], ['Stakeholders', 1]]);
+  for (const leaf of leaves) assert.equal(leaf.qaCount, courseOutlineQa(state, { course: COURSE, keys: [leaf.key] }, { now: NOW }).items.length, leaf.title);
+});
+
+test('the 134-material library with every chapter a point: each count equals course.outline.qa\'s, and the open stays cheap', t => {
+  const state = library();
+  state.sources = state.sources.filter(source => source.provenance !== 'course-outline');
+  const lectures = [1, 2, 3, 4, 5, 6].map(n => groupSourcesByDocument(state.sources).find(item => item.sourceIds.includes(`document-l${n}-p1`)).key);
+  const record = courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: COURSE }).allDocuments),
+    nodes: lectures.map((key, at) => ({ id: `l${at + 1}`, title: `Lecture ${at + 1}`, children: [0, 1, 2].map(chapter => ({ id: `l${at + 1}c${chapter}`, title: `Lecture ${at + 1} · ${chapter}`, anchors: [`${key}#${chapter}`] })) })),
+    other: { anchors: [] }, counts: { units: 18, leftover: 0, invalid: 0, repeated: 0 } });
+  state.sources.push({ ...record, createdAt: '2026-10-09T00:00:00.000Z' });
+  openCourseBook(state, { course: COURSE }, { write: false });
+  const started = performance.now(), book = openCourseBook(state, { course: COURSE }, { write: false }), took = performance.now() - started;
+  const leaves = book.nodes.flatMap(node => node.children);
+  assert.equal(leaves.length, 18);
+  for (const leaf of leaves) assert.equal(leaf.qaCount, courseOutlineQa(state, { course: COURSE, keys: [leaf.key] }, { now: NOW }).items.length, leaf.title);
+  assert.ok(leaves.some(leaf => leaf.qaCount > 0));
+  t.diagnostic(`course.book.open on the 134-material library, 18 points with their 问答 counts: ${Math.round(took)} ms`);
 });

@@ -122,10 +122,46 @@ test('a point is learnt when at least five of its questions were answered on a d
   assert.equal(point.done, TODAY);
   assert.ok(plan.plan.today.points.includes(what.hid) && plan.plan.today.done.includes(what.hid), 'done today: on today, done');
   assert.ok(point.weakness < 0.6, 'answered well: less weak');
-  // 读完了 is the learner's mark (kept by day); it only counts for a point without questions.
+  // 读完了 is the learner's mark (kept by day); marking it again the same day changes nothing.
   const marked = await study.call('book.crunch.mark', { hid: what.hid, kind: 'read', date: TODAY });
   assert.equal(marked.write, 'marked');
   assert.equal((await study.call('book.crunch.mark', { hid: what.hid, kind: 'read', date: TODAY })).write, 'unchanged');
+});
+
+test('读完了 counts for every point and wins over the answers; a mark from before the window still counts; it is kept without an exam date and course.book.open carries it', async t => {
+  const { study, what, who } = await service(t);
+  assert.ok(what.questionTotal > 0 && who.questionTotal >= 0);
+  const long = addDays(TODAY, -40);
+  // No exam date: the mark is taken and shown, the plan has no days.
+  const marked = await study.call('book.crunch.mark', { hid: what.hid, kind: 'read', date: long });
+  assert.equal(marked.write, 'marked');
+  assert.equal(marked.status, 'no-exam');
+  assert.equal(marked.points.find(point => point.id === what.hid).done, long, 'a point with questions is 读完 by the mark alone');
+  assert.equal(marked.points.find(point => point.id === who.hid).done, null);
+  assert.deepEqual((await study.call('course.book.open')).marks, { read: { [what.hid]: long }, seen: {} }, 'the book carries the marks at first paint');
+  // An exam in a week: the window starts 14 days before today; the mark 40 days ago still counts (a mark never expires) and the point is not planned again.
+  await examIn(study, 7);
+  const week = await study.call('book.crunch', { date: TODAY });
+  assert.equal(week.points.find(point => point.id === what.hid).done, long);
+  assert.ok(!week.plan.days.filter(day => day.mode === 'learn' && day.offset >= 0).some(day => day.points.includes(what.hid)), 'a read point is not on a learn day');
+  // Cleared: back to the answers (none yet).
+  const cleared = await study.call('book.crunch.mark', { hid: what.hid, kind: 'read', on: false, date: TODAY });
+  assert.equal(cleared.points.find(point => point.id === what.hid).done, null);
+});
+
+test('the minutes of a point leave out the AI blocks of the learner\'s file: a 5,000-character block does not make a point long', async t => {
+  const { study, who } = await service(t);
+  await examIn(study, 7);
+  const before = await study.call('book.crunch', { date: TODAY });
+  const size = before.points.find(point => point.id === who.hid).size;
+  const opened = await study.call('course.book.open');
+  const file = opened.nodes[0].children[1].files.mine, body = '架构'.repeat(2500);
+  await study.call('course.book.save', { file, version: opened.files[file].version,
+    text: `我的一句话。\n\n<!-- sh:ai id=big at=h:any state=new mode=here -->\n关于：「Stakeholders」\n\n${body}\n<!-- /sh:ai -->` });
+  const after = await study.call('book.crunch', { date: TODAY });
+  const point = after.points.find(item => item.id === who.hid);
+  assert.equal(point.size, size + '我的一句话。'.length, 'the learner\'s own words count, the block does not');
+  assert.equal(after.plan.scores[who.hid].minutes, before.plan.scores[who.hid].minutes, 'the same minutes');
 });
 
 test('已看 is kept in the book\'s record per point, cleared on request; an unknown point is refused; the book\'s files and its export do not change', async t => {
