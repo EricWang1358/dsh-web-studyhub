@@ -126,6 +126,39 @@ test('each failure of a step ends the install with its code: the network, the mo
   }
 });
 
+test('a first install that stops at 启用本机服务 is fixed by the card\'s one button: the install starts again, skips the finished steps and ends ready', async t => {
+  const h = await serviceHarness(t, { mineru: { portInUse: true } });
+  await h.start();
+  const failed = await h.ended('failed');
+  assert.deepEqual([failed.error.code, failed.stage, failed.installedFolder], ['port-in-use', 'enable', '']);
+  const local = await h.call('mineru.local.status', { fresh: true });
+  assert.deepEqual([local.state, local.origin, local.external], ['not-installed', null, null], 'nothing else to stop: the fix is to start the install again');
+  // A service start alone cannot help: no mineru is installed yet as far as the status knows.
+  await assert.rejects(h.call('mineru.local.start', { restart: true }));
+  await h.setMineru({ portInUse: false });
+  const venvs = (await h.uvLog()).filter(entry => entry.args[0] === 'venv').length;
+  // What the card's 修复 sends for an install that stopped: the same folder and tier.
+  await h.call('mineru.install.start', { confirm: true, location: failed.folder, tier: failed.tier });
+  const done = await h.ended('complete');
+  assert.equal(done.installedFolder, h.location);
+  assert.equal((await h.uvLog()).filter(entry => entry.args[0] === 'venv').length, venvs, 'the finished steps were skipped');
+  assert.equal((await h.call('mineru.local.status', { fresh: true })).state, 'ready');
+});
+
+test('another mineru holding the port during a first install is offered, and 停止另一份 MinerU 并重试 stops it before the service starts', async t => {
+  const freePort = 'const fs = require("fs"); const file = process.env.FAKE_MINERU_STATE; const state = JSON.parse(fs.readFileSync(file, "utf8")); state.portInUse = false; fs.writeFileSync(file, JSON.stringify(state)); console.log("server stopped");';
+  let stops = 0;
+  const h = await serviceHarness(t, { mineru: { portInUse: true }, extra: { external: { exe: 'X:\\Other\\mineru.exe' },
+    externalCli: () => { stops += 1; return { file: process.execPath, prefix: ['-e', freePort], env: { FAKE_MINERU_STATE: join(h.dir, 'mineru-state.json') } }; } } });
+  await h.start();
+  const failed = await h.ended('failed');
+  assert.equal(failed.error.code, 'port-in-use');
+  assert.deepEqual((await h.call('mineru.local.status', { fresh: true })).external, { exe: 'X:\\Other\\mineru.exe', state: 'found' });
+  await h.call('mineru.install.start', { confirm: true, location: failed.folder, tier: failed.tier, stopExternal: true });
+  assert.equal((await h.ended('complete')).installedFolder, h.location);
+  assert.equal(stops, 1, 'the other service was stopped once, before ours started');
+});
+
 test('cancel keeps what was downloaded; 继续安装 skips the finished steps; an uninstall removes only what StudyHub made', async t => {
   const h = await serviceHarness(t, { uv: { delayPipMs: 4000 } });
   await h.start();

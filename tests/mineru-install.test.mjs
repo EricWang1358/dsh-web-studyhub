@@ -281,3 +281,65 @@ test('a system Python chosen in 更多 is passed to uv venv and the managed-Pyth
   assert.deepEqual(venv.args.slice(2, 4), ['--python', plan.pythons[0].path]);
   assert.equal(venv.env.UV_MANAGED_PYTHON, undefined);
 });
+
+test('a repair or a change of tier needs only the room of the steps not yet done, so a nearly full disk does not refuse it', async t => {
+  const h = await installHarness(t, { mineru: { portInUse: true } });
+  const installer = createMineruInstaller(h.seams);
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.deepEqual([(await installer.status()).stage, (await installer.status()).error.code], ['enable', 'port-in-use']);
+  h.seams.free = 3000;
+  const repair = await installer.plan({ location: h.location });
+  assert.equal(repair.existing, true);
+  assert.deepEqual(repair.problems, [], 'tools, Python, MinerU and the models are already on the disk');
+  assert.equal(repair.disk.neededMb, MINERU_INSTALL.marginMb);
+  assert.deepEqual((await installer.plan({ location: join(h.dir, 'Elsewhere', 'MinerU') })).problems.map(item => item.code), ['no-space'], 'a new folder still needs the whole install');
+  await h.setMineru({ portInUse: false });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.equal((await installer.status()).status, 'complete');
+  const tierChange = await installer.plan({ location: h.location, tier: 'standard' });
+  assert.equal(tierChange.disk.neededMb, 2000 + MINERU_INSTALL.marginMb, 'only the standard models and the margin');
+  assert.deepEqual(tierChange.problems, []);
+  h.seams.free = 1000;
+  assert.deepEqual((await installer.plan({ location: h.location, tier: 'standard' })).problems.map(item => item.code), ['no-space']);
+});
+
+test('a first install that stopped and starts again elsewhere (换位置) removes its partial folder once the new one passes', async t => {
+  const h = await installHarness(t, { uv: { failPip: true } });
+  const installer = createMineruInstaller(h.seams), second = join(h.dir, 'Other', 'MinerU');
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.equal((await installer.status()).status, 'failed');
+  assert.ok(await exists(mineruLayout(h.location).uv), 'the first folder holds a partial install');
+  await h.setUv({});
+  await installer.start({ confirm: true, location: second }); await installer.idle();
+  const done = await installer.status();
+  assert.equal(done.status, 'complete', JSON.stringify(done.error));
+  assert.equal(done.installedFolder, second);
+  assert.equal(await exists(h.location), false, 'the partial first folder is gone');
+  assert.equal(JSON.parse(await readFile(mineruInstallStatePath(), 'utf8')).previous, undefined, 'and forgotten');
+});
+
+test('a partial folder left behind by a relocation that failed too is still removed by an uninstall', async t => {
+  const h = await installHarness(t, { uv: { failPip: true } });
+  const installer = createMineruInstaller(h.seams), second = join(h.dir, 'Other', 'MinerU');
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  await installer.start({ confirm: true, location: second }); await installer.idle();
+  assert.equal((await installer.status()).status, 'failed');
+  const result = await installer.uninstall({ confirm: true });
+  assert.deepEqual(result.removedFolders.sort(), [second, h.location].sort());
+  assert.equal(await exists(h.location), false);
+  assert.equal(await exists(second), false);
+});
+
+test('moving the install stops the old folder\'s service (with its own MINERU_HOME) before the new one starts', async t => {
+  const h = await installHarness(t);
+  const installer = createMineruInstaller(h.seams), second = join(h.dir, 'Other', 'MinerU');
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  const before = (await h.mineruLog()).length;
+  await installer.start({ confirm: true, location: second, removePrevious: true }); await installer.idle();
+  assert.equal((await installer.status()).status, 'complete');
+  const calls = (await h.mineruLog()).slice(before).map(entry => ({ argv: entry.argv.join(' '), home: entry.env?.MINERU_HOME }));
+  const stopOld = calls.findIndex(call => call.argv === 'server stop' && call.home === mineruLayout(h.location).home);
+  const startNew = calls.findIndex(call => call.argv === 'server start' && call.home === mineruLayout(second).home);
+  assert.ok(stopOld >= 0, 'the old service was stopped');
+  assert.ok(stopOld < startNew, 'before the new one started');
+});
