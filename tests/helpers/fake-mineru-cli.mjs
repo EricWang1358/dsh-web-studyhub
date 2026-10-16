@@ -87,6 +87,8 @@ else if (command === 'config' && sub === 'show') {
 } else if (command === 'server' && (sub === 'start' || sub === 'restart')) {
   if (state.vcRuntime) fail('ImportError: DLL load failed while importing onnxruntime_pybind11_state: 找不到指定的模块。');
   if (state.startFails || state.portInUse) fail('服务启动失败：端口被占用');
+  // A service that crashes as it starts: what a learner must never read (a Python traceback in English).
+  if (state.startTraceback) fail('Traceback (most recent call last):\n  File "mineru\\cli\\server.py", line 88, in start\n    raise RuntimeError("worker exited with code 3")\nRuntimeError: worker exited with code 3');
   if (state.startBlocksMs) await new Promise(resolve => setTimeout(resolve, state.startBlocksMs));
   state.running = true; state.starts = (state.starts || 0) + 1; save(); out('server started');
 } else if (command === 'server' && sub === 'stop') { state.running = false; save(); out('server stopped'); }

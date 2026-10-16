@@ -109,6 +109,60 @@ test('a service that does not start says why on the status (the card\'s one fix)
   assert.equal((await h.call('mineru.local.status', { fresh: true })).lastError, null);
 });
 
+test('a start that fails says why in plain words by its code; what the program printed (a traceback) stays in the detail, never in the message', async t => {
+  const h = await serviceHarness(t);
+  await h.start(); await h.ended('complete');
+  await h.call('mineru.local.stop');
+  await h.setMineru({ startTraceback: true });
+  const thrown = await h.call('mineru.local.start').then(() => null, error => error);
+  assert.equal(thrown?.code, 'server-start-failed');
+  assert.doesNotMatch(thrown.message, /Traceback|RuntimeError|worker exited/, 'the thrown message is plain');
+  const { lastError } = await h.call('mineru.local.status', { fresh: true });
+  assert.equal(lastError.code, 'service-failed');
+  assert.equal(lastError.message, '本机服务没能启动：它一启动就退出了。');
+  assert.match(lastError.detail, /Traceback \(most recent call last\)/, 'the raw text is kept for 更多 › 详细信息');
+  // 停止服务 clears it: the service was stopped on purpose.
+  await h.call('mineru.local.stop');
+  assert.equal((await h.call('mineru.local.status', { fresh: true })).lastError, null);
+});
+
+test('the last start failure is cleared by a conversion that starts the service itself, and by a repair that completes', async t => {
+  const h = await serviceHarness(t);
+  await h.start(); await h.ended('complete');
+  await h.call('mineru.local.stop');
+  await h.setMineru({ portInUse: true, total: 3 });
+  await assert.rejects(h.call('mineru.local.start'));
+  assert.equal((await h.call('mineru.local.status', { fresh: true })).lastError.code, 'port-in-use');
+  await h.setMineru({ portInUse: false });
+  const pdf = join(h.dir, 'Book.pdf'); await writeFile(pdf, await makePdf({ pages: 3 }));
+  const { jobId } = await h.call('mineru.import', { path: pdf });
+  await until(async () => (await h.call('snapshot')).jobs.find(job => job.id === jobId)?.status === 'complete', 'the conversion');
+  // The service is stopped again (a reboot): the old failure must not come back, because a start has worked since.
+  await h.setMineru({ running: false });
+  const after = await h.call('mineru.local.status', { fresh: true });
+  assert.deepEqual([after.state, after.lastError], ['server-stopped', null]);
+  // A failure, then a repair (the install again) that completes: cleared too, though the repair stopped the service at its end.
+  await h.setMineru({ portInUse: true });
+  await assert.rejects(h.call('mineru.local.start'));
+  await h.setMineru({ portInUse: false });
+  await h.start({ tier: 'basic' }); await h.ended('complete');
+  await h.setMineru({ running: false });
+  assert.equal((await h.call('mineru.local.status', { fresh: true })).lastError, null);
+});
+
+test('a change of tier that fails keeps the installed tier apart from the one asked for: the old tier still works and still converts', async t => {
+  const h = await serviceHarness(t);
+  await h.start({ tier: 'standard' });
+  const first = await h.ended('complete');
+  assert.deepEqual([first.tier, first.installedTier], ['standard', 'standard']);
+  await h.setMineru({ downloadFails: true, downloadError: 'model.onnx: checksum mismatch, the download was cut' });
+  await h.start({ tier: 'basic' });
+  const failed = await h.ended('failed');
+  assert.deepEqual([failed.tier, failed.installedTier, failed.error.code], ['basic', 'standard', 'models-failed']);
+  const local = await h.call('mineru.local.status', { fresh: true });
+  assert.deepEqual([local.state, local.tier, local.install.installedTier], ['ready', 'standard', 'standard'], 'the old service still runs with its own tier');
+});
+
 test('each failure of a step ends the install with its code: the network, the models, the VC++ runtime, a port in use', async t => {
   const cases = [
     [{ uv: { failPip: true } }, 'network', 'package'],

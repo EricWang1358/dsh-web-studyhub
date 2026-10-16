@@ -47,6 +47,10 @@ test('the assistant cannot choose the program StudyHub runs, install or uninstal
   for (const args of [{ command: process.execPath }, { command: '' }, { command: 42 }])
     await assert.rejects(h.assistant('marker.local.status', args), /marker\.local\.status with a command is not available to the assistant/, JSON.stringify(args));
   assert.deepEqual(await h.spawns(), [], 'asking about a path started nothing');
+  // Stopping another MinerU on the way to a start is the learner's too (like mineru.local.stop); a plain start stays the assistant's (a conversion starts it anyway).
+  for (const args of [{ stopExternal: true }, { restart: true, stopExternal: true }])
+    await assert.rejects(h.assistant('mineru.local.start', args), /mineru\.local\.start with stopExternal is not available to the assistant: .*the learner does that in Settings/, JSON.stringify(args));
+  assert.deepEqual(await h.spawns(), [], 'nothing was stopped or started');
   // With no program chosen, Marker is simply not found: nothing the assistant sent was kept.
   assert.equal((await h.assistant('marker.local.status')).state, 'not-installed');
   await assert.rejects(h.assistant('marker.import', { path: h.files.pdf }), /Marker/);
