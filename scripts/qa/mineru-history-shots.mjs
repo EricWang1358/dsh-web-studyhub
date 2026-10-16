@@ -86,6 +86,12 @@ async function upload(bytes, name) {
 const convert = async (bytes, name, extra = {}) => (await call('mineru.import', { uploadId: await upload(bytes, name), ...extra })).jobId;
 const settled = async (id, status) => until(async () => { const job = (await jobs()).find(item => item.id === id); return job?.status === status ? job : null; }, `${name_(id)} to be ${status}`);
 const name_ = id => id.slice(0, 8);
+// The Add-material dialog folds the PDF converter (and its 解析历史 link) into the 「PDF 解析」 disclosure: open it when it is closed.
+const openConversion = async tab => {
+  const details = tab.locator('dialog[open] details.import-hub__conversion').first();
+  await details.waitFor({ timeout: 10_000 });
+  if (!(await details.evaluate(element => element.open))) await details.locator(':scope > summary').click();
+};
 
 try {
   /* A conversion a crash interrupted: seeded on disk before the app asks about the library (it is recovered when the first snapshot is read). */
@@ -171,9 +177,10 @@ try {
 
       // The Add-material dialog and its link.
       await tab.locator('[data-tour="sources-add"]').first().click(); await settle(500);
-      const link = tab.locator('dialog[open] .import-hub__mineru').getByRole('button', { name: lang === 'en' ? /Conversion history/ : /解析历史/ });
+      await openConversion(tab); await settle(300);
+      const link = tab.locator('dialog[open] .import-hub__conversion').getByRole('button', { name: lang === 'en' ? /Conversion history/ : /解析历史/ });
       await link.first().waitFor({ timeout: 10_000 });
-      await tab.locator('dialog[open] .import-hub__mineru').first().scrollIntoViewIfNeeded();
+      await tab.locator('dialog[open] .import-hub__conversion').first().scrollIntoViewIfNeeded();
       await shot('dialog-1-footer-link');
       await link.first().click(); await settle(500);
       await tab.locator('dialog[open] .pdf-history__row').first().waitFor({ timeout: 15_000 });
@@ -215,7 +222,8 @@ try {
 
       // Jump from a row to the imported document.
       await tab.locator('[data-tour="sources-add"]').first().click(); await settle(500);
-      await tab.locator('dialog[open] .import-hub__mineru').getByRole('button', { name: T(/解析历史/, /Conversion history/) }).first().click(); await settle(500);
+      await openConversion(tab); await settle(300);
+      await tab.locator('dialog[open] .import-hub__conversion').getByRole('button', { name: T(/解析历史/, /Conversion history/) }).first().click(); await settle(500);
       const open = tab.locator('dialog[open] .pdf-history__row', { hasText: 'Databases Lecture Notes.pdf' }).getByRole('button', { name: T(/打开/, /Open/) }).first();
       await open.click(); await settle(900);
       const reader = await tab.locator('dialog[open]').first().innerText().catch(() => '');
@@ -231,7 +239,9 @@ try {
         const failedRow = tab.locator('.pdf-history__row', { hasText: 'Networks.pdf' });
         await failedRow.getByRole('button', { name: /接着/ }).first().click();
         await settled(failedCloud, 'complete');
-        await settle(1200);
+        // The history row is read again when the job list changes and every 5 s while a row runs: it may follow the card by a few seconds.
+        await until(async () => /已完成/.test(await tab.locator('.pdf-history__row', { hasText: 'Networks.pdf' }).first().innerText()), 'the resumed row to read complete', 15_000).catch(() => {});
+        await settle(400);
         must(await parses() - parsesBefore === 2, `only the failed window and the one after it were converted (${await parses() - parsesBefore})`);
         const row = (await tab.locator('.pdf-history__row', { hasText: 'Networks.pdf' }).first().innerText()).replace(/\s+/g, ' ');
         must(/已完成/.test(row) && /已尝试 2 次/.test(row), `the resumed row is complete with two attempts: ${row.slice(0, 120)}`);
@@ -250,7 +260,8 @@ try {
       const clearButton = tab.getByRole('button', { name: T(/清空历史/, /Clear history/) }).first();
       await clearButton.scrollIntoViewIfNeeded();
       await clearButton.focus(); await tab.keyboard.press('Enter'); await settle(300);
-      must(await tab.getByRole('alertdialog').count() === 1, 'clearing asks first');
+      // The confirm is inline (InlineConfirm: a labelled group under the bar), not a dialog.
+      must(await tab.locator('.pdf-history [role="group"]', { hasText: T(/确认清空/, /Yes, clear them/) }).count() === 1, 'clearing asks first');
       await shot('4-clear-confirm');
       await audit(tab, `${label}/confirm`, { scopes: ['.pdf-history', '.pdf-history__confirm'] });
       const confirm = tab.getByRole('button', { name: T(/确认清空/, /Yes, clear them/) }).first();

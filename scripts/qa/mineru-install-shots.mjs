@@ -1,10 +1,13 @@
 /* global document */
 /* node scripts/qa/mineru-install-shots.mjs [--out <dir>] [--quick] [--langs=zh,en]
    Screenshots and a layout audit of the one-click local MinerU (设置 › PDF 转换, and the same card inline in the import route), zh/en x dark/light at 1280 and 420 px:
-   1. the Settings card in every state (scripts/qa/mineru-install-gallery.jsx, fixed answers): checking, not installed (default D:, only C:), the location chooser,
-      no space, installing 2/6 and 4/6, cancelled, network failures 1 and 2, the VC++ runtime, service stopped, ready (ours, the learner's own), 更多 open;
+   1. the Settings card in every state (scripts/qa/mineru-install-gallery.jsx, fixed answers): checking, not installed (default D:, only C:), the location chooser
+      (drives, and the typed path of 其他文件夹…), no space, installing 2/6 and 4/6, paused (cancelled, interrupted), every failure with its one fix (network 1
+      and 2, package, no space during the install, the service inside the install with and without another MinerU, the VC++ runtime, the service after the
+      install, a port held by another MinerU, an unreadable status, missing models), service stopped, ready (ours, the learner's own), 更多 open, the move
+      (安装到其他位置… with 先不换), a change of tier, the uninstall confirmation, and one open Tooltip of each kind;
    2. the import route when MinerU is not ready (not installed, installing, stopped with the auto-start hint), a conversion starting the stopped service, and
-      the large-textbook card's converter;
+      the large-textbook card's converter; the 任务 console with the install's row running and after 取消;
    3. the click-through against a QA server where the REAL installer runs on a local index, a fake uv and the fake mineru (no network, nothing real installed):
       一键安装 -> installing -> ready -> 停止服务 -> stopped.
    Layout audit (scripts/qa/mineru-layout.mjs) on every shot, no horizontal overflow, and no shift of the card between checking and not installed.
@@ -114,7 +117,21 @@ const snap = async (tab, name, where, target = '.gallery') => {
   await tab.locator(target).first().screenshot({ path }); shots.push(path);
   await audit(tab, where, ['.mineru-install', '.mineru-route-panel', '.pdf-convert-jobs > *', '.pdf-detail', '.large-doc__group']);
 };
-const SETTINGS = ['checking', 'missing', 'only-c', 'chooser', 'no-space', 'installing-2', 'installing-4', 'cancelled', 'network-1', 'network-2', 'vc-runtime', 'stopped', 'ready', 'external', 'more'];
+const SETTINGS = ['checking', 'missing', 'only-c', 'chooser', 'chooser-path', 'no-space', 'installing-2', 'installing-4', 'cancelled', 'interrupted', 'network-1', 'network-2',
+  'package-failed', 'install-no-space', 'install-service', 'install-port', 'vc-runtime', 'service-failed', 'port-in-use', 'unreadable', 'needs-models', 'stopped', 'ready', 'external',
+  'more', 'moving', 'tier-switch', 'uninstall-confirm'];
+// A case that is another case after some clicks: [gallery case, what to do].
+const CLICKED = {
+  'chooser-path': ['missing', async tab => { await tab.getByRole('button', { name: /选择位置|Choose location/ }).click(); await tab.getByRole('button', { name: /其他文件夹|Another folder/ }).click(); }],
+  moving: ['more', async tab => { await tab.getByRole('button', { name: /安装到其他位置|Install in another location/ }).click(); }],
+  'tier-switch': ['more', async tab => { await tab.locator('input[name="mineru-install-tier"][value="standard"]').check({ force: true }); }],
+  'uninstall-confirm': ['more', async tab => { await tab.getByRole('button', { name: /^卸载$|^Uninstall$/ }).click(); await tab.waitForSelector('[role="dialog"], [role="alertdialog"]'); }],
+};
+// One open Tooltip of each kind: [name, gallery case, the element hovered].
+const TIPS = [['tip-badge-ready', 'ready', '.mineru-install__line .mineru-install__tipped'], ['tip-badge-stopped', 'stopped', '.mineru-install__line .mineru-install__tipped'],
+  ['tip-source', 'missing', '.mineru-install__facts .mineru-install__tipped'], ['tip-install', 'missing', '.mineru-install__row .sh-btn--primary'],
+  ['tip-blocked', 'no-space', '.mineru-install__row .sh-btn--primary'], ['tip-fix', 'network-2', '.mineru-install__problem .sh-btn--primary'],
+  ['tip-python', 'more', '.mineru-install__choices .mineru-install__tipped'], ['tip-stop', 'more', '.mineru-install__more-body .mineru-install__row .sh-btn--secondary']];
 const IMPORT = ['missing', 'installing-4', 'stopped'];
 
 try {
@@ -123,22 +140,43 @@ try {
     const tag = `${lang}-${theme}-${width}`;
     // 1. The Settings card in every state.
     for (const name of SETTINGS) {
-      const where = `settings/${name}/${tag}`;
-      const tab = await open(context, `${base}/?lang=${lang}&theme=${theme}&scene=settings&case=${name}`, where);
+      const where = `settings/${name}/${tag}`, [shown, clicks] = CLICKED[name] || [name, null];
+      const tab = await open(context, `${base}/?lang=${lang}&theme=${theme}&scene=settings&case=${shown}`, where);
       await tab.waitForSelector(`.mineru-install[data-state]`, { timeout: 15000 });
-      if (['missing', 'only-c', 'chooser', 'no-space', 'network-1', 'more'].includes(name)) await tab.waitForSelector('.mineru-install__facts:not([aria-busy]), .mineru-install__more-body', { timeout: 15000 }).catch(() => {});
+      if (['missing', 'only-c', 'chooser', 'no-space', 'network-1', 'more'].includes(shown)) await tab.waitForSelector('.mineru-install__facts:not([aria-busy]), .mineru-install__more-body', { timeout: 15000 }).catch(() => {});
       if (name === 'chooser') { await tab.getByRole('button', { name: /选择位置|Choose location/ }).click(); await tab.waitForSelector('.mineru-install__chooser'); }
-      await snap(tab, `settings-${name}-${tag}`, where);
+      if (clicks) { await clicks(tab); await sleep(300); }
+      // The uninstall confirmation is a dialog in the top layer: the whole viewport is the shot.
+      if (name === 'uninstall-confirm') { await sleep(200); const path = join(out, `settings-${name}-${tag}.png`); await tab.screenshot({ path }); shots.push(path); }
+      else await snap(tab, `settings-${name}-${tag}`, where);
       await tab.close();
     }
-    // The card does not move when the answer arrives: checking and not installed start at the same place, the body below a two-line status slot.
+    for (const [name, shown, target] of TIPS) {
+      const where = `tooltip/${name}/${tag}`;
+      const tab = await open(context, `${base}/?lang=${lang}&theme=${theme}&scene=settings&case=${shown}`, where);
+      await tab.waitForSelector(`.mineru-install[data-state]`, { timeout: 15000 });
+      await tab.waitForSelector('.mineru-install__facts:not([aria-busy]), .mineru-install__more-body, .mineru-install__problem, .mineru-install[data-state="ready"], .mineru-install[data-state="stopped"]', { timeout: 15000 }).catch(() => {});
+      const anchor = tab.locator(target).first();
+      await anchor.scrollIntoViewIfNeeded(); await anchor.hover();
+      await sleep(800);
+      const path = join(out, `${name}-${tag}.png`); await tab.screenshot({ path }); shots.push(path);
+      await tab.close();
+    }
+    // The card does not move when the answer arrives: checking and not installed start at the same place (the status line, the body, 更多 below them).
     {
       const tab = await open(context, `${base}/?lang=${lang}&theme=${theme}&scene=settings&case=checking`, `shift/${tag}`);
       await tab.waitForSelector('.mineru-install');
-      const before = await tab.evaluate(() => { const box = document.querySelector('.mineru-install__status').getBoundingClientRect(); return { top: box.top, height: box.height }; });
-      await tab.goto(`${base}/?lang=${lang}&theme=${theme}&scene=settings&case=missing`); await tab.waitForSelector('.mineru-install[data-state="not-installed"]');
-      const after = await tab.evaluate(() => { const box = document.querySelector('.mineru-install__status').getBoundingClientRect(); return { top: box.top, height: box.height }; });
-      if (Math.abs(before.top - after.top) > 1 || Math.abs(before.height - after.height) > 1) problems.push(`shift/${tag}: the status line moved ${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+      const measure = () => tab.evaluate(() => {
+        const box = selector => { const rect = document.querySelector(selector)?.getBoundingClientRect(); return rect ? { top: Math.round(rect.top), height: Math.round(rect.height) } : null; };
+        return { status: box('.mineru-install__status'), button: box('.mineru-install__row .sh-btn'), more: box('.mineru-install__more'), card: box('.mineru-install') };
+      });
+      const before = await measure();
+      await tab.goto(`${base}/?lang=${lang}&theme=${theme}&scene=settings&case=missing`); await tab.waitForSelector('.mineru-install[data-state="not-installed"] .mineru-install__facts:not([aria-busy])');
+      const after = await measure();
+      for (const part of ['status', 'button', 'more', 'card']) {
+        const [a, b] = [before[part], after[part]];
+        if (!a || !b || Math.abs(a.top - b.top) > 1 || Math.abs(a.height - b.height) > 1) problems.push(`shift/${tag}: ${part} moved ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+      }
       await tab.close();
     }
     // 2. The import route when MinerU is not ready, a conversion starting the service, the large-textbook converter.
@@ -149,10 +187,11 @@ try {
       await snap(tab, `import-${name}-${tag}`, where);
       await tab.close();
     }
-    for (const [scene, name] of [['job', 'job-start-service'], ['large', 'large-converter']]) {
-      const where = `${scene}/${tag}`;
-      const tab = await open(context, `${base}/?lang=${lang}&theme=${theme}&scene=${scene}&case=missing`, where);
-      await tab.waitForSelector(scene === 'job' ? '.pdf-convert-jobs' : '.large-doc__group', { timeout: 15000 });
+    for (const [scene, name, which] of [['job', 'job-start-service', 'missing'], ['large', 'large-converter', 'missing'], ['console', 'console-install-running', 'running'],
+      ['console', 'console-install-cancelled', 'cancelled']]) {
+      const where = `${scene}/${name}/${tag}`;
+      const tab = await open(context, `${base}/?lang=${lang}&theme=${theme}&scene=${scene}&case=${which}`, where);
+      await tab.waitForSelector({ job: '.pdf-convert-jobs', large: '.large-doc__group', console: '.gallery .tc-list' }[scene], { timeout: 15000, state: 'attached' });
       if (scene === 'large') await tab.waitForSelector('.mineru-install', { timeout: 15000 });
       await snap(tab, `${name}-${tag}`, where);
       await tab.close();

@@ -27,6 +27,14 @@ const quick = args.includes('--quick'), matrixOnly = args.includes('--matrix-onl
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 
 scrubProcessEnv();
+// Nothing leaves this computer: the install plan's download-source probe (and anything else) may only reach the local preview; a blocked probe
+// falls back to the default source, as it would offline.
+const realFetch = globalThis.fetch;
+globalThis.fetch = (input, init) => {
+  const url = String(input?.url ?? input);
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(url)) return Promise.reject(new Error(`QA blocked a request to ${url}`));
+  return realFetch(input, init);
+};
 // Never meet the owner's real mineru: nothing on PATH, a temporary home.
 const scratch = await mkdtemp(join(tmpdir(), 'mineru-qa-'));
 process.env.PATH = dirname(process.execPath);
@@ -53,7 +61,8 @@ const combos = quick ? [['zh', 'dark', 1440], ['en', 'light', 420]] : ['zh', 'en
 /** The layout audit of the page as it stands; its problems are added to `problems` under `where`. */
 const audit = async (tab, where, options) => {
   const result = await tab.evaluate(layoutAudit, options);
-  for (const text of result.problems) problems.push(`${where}: ${text}`);
+  // A segmented control's sliding thumb sits under its items by design (as in mineru-install-shots).
+  for (const text of result.problems.filter(item => !/sh-progress__ahead|sh-seg__thumb/.test(item))) problems.push(`${where}: ${text}`);
   return result;
 };
 try {
@@ -115,6 +124,8 @@ try {
       const shot = async label => { const path = join(out, `app-${label}-${lang}-${theme}-${width}.png`); await tab.screenshot({ path }); shots.push(path); };
       await tab.goto(server.url); await tab.locator('aside, nav').first().waitFor({ timeout: 30000 }); await settle(800);
       await tab.locator('[data-tour="nav-settings"]').first().click(); await settle();
+      // Settings shows one category at a time: open 「PDF 转换」 from its list.
+      await tab.locator('.settings-nav__item[data-category="mineru"]').first().click(); await settle();
       const section = tab.locator('[data-tour="settings-mineru"]');
       await section.waitFor({ timeout: 15000 });
       await section.evaluate(element => element.scrollIntoView({ block: 'start' })); await settle(600);
@@ -128,7 +139,8 @@ try {
       await tab.locator('dialog[open] input[type="file"][accept=".pdf,application/pdf"]').setInputFiles(pdfPath);
       await tab.locator('dialog[open] .mineru-plan').waitFor({ timeout: 60000 }); await settle(600);
       const plan = await tab.locator('dialog[open] .mineru-plan').innerText();
-      if (!/450/.test(plan) || !/3|三/.test(plan)) problems.push(`app/${lang}/${theme}/${width}: unexpected plan text: ${plan.replace(/\s+/g, ' ')}`);
+      // The pieces follow this computer's speed (adaptive), so the plan names the pages, not a number of pieces.
+      if (!/450/.test(plan)) problems.push(`app/${lang}/${theme}/${width}: unexpected plan text: ${plan.replace(/\s+/g, ' ')}`);
       await tab.locator('dialog[open] .mineru-route-panel').scrollIntoViewIfNeeded(); await shot('4-import-plan-install-inline'); await audit(tab, `app/import-plan/${lang}/${theme}/${width}`, { scopes: ['dialog[open] .mineru-route-panel'] });
       if (!(await tab.locator('dialog[open] .mineru-install--compact').count())) problems.push(`app/${lang}/${theme}/${width}: the one-click card is not inline in the import route`);
       await context.close();

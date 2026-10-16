@@ -3,6 +3,7 @@
    scene=settings&case=<key>: 设置 › PDF 转换 in ONE state, with fixed answers (no backend);
    scene=import&case=<key>: the import dialog's PDF conversion with a PDF chosen, MinerU in that state (the compact card inline);
    scene=job: a conversion card while the run starts the stopped service; scene=large: the large-textbook card's converter;
+   scene=console&case=running|cancelled: the 任务 console with the install's legacy row (type local-install), running and after 取消;
    scene=flow: Settings talking to the QA server, where the REAL installer (lib/mineru-install.js) runs against a local index, a fake uv and the fake mineru. */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -13,7 +14,10 @@ import PdfConversion from '../../ui/PdfConversion.jsx';
 import { PdfConvertJobs, PdfDetail } from '../../ui/PdfConvertJob.jsx';
 import { ConverterMain } from '../../ui/LargeDocumentCard.jsx';
 import { StudyServicesContext } from '../../ui/study-context.jsx';
-import { MINERU_INSTALL_MESSAGES as TEXT } from '../../lib/mineru-install-text.js';
+import { AppContext } from '../../ui/app/app-context.js';
+import TaskConsole from '../../ui/tasks/TaskConsole.jsx';
+import { fakeApp } from '../../tests/helpers/fake-app.mjs';
+import { MINERU_INSTALL_JOB_TEXT as JOB_TEXT, MINERU_INSTALL_MESSAGES as TEXT } from '../../lib/mineru-install-text.js';
 
 const params = new URLSearchParams(location.search);
 const lang = params.get('lang') === 'en' ? 'en' : 'zh';
@@ -26,6 +30,7 @@ const style = document.createElement('style');
 style.textContent = `${styleCss}
   html, body, #root { min-height: 100%; margin: 0; }
   .gallery { max-width: 880px; margin: 0 auto; padding: 24px 20px 64px; }
+  .gallery--wide { max-width: 1240px; height: 760px; display: flex; flex-direction: column; }
   @media (max-width: 480px) { .gallery { padding: 16px 16px 48px; } }`;
 document.head.appendChild(style);
 
@@ -33,6 +38,8 @@ const FOLDER = 'D:\\StudyHub\\MinerU';
 const STAGES = ['tools', 'python', 'package', 'models', 'enable', 'check'];
 const drives = [{ root: 'C:\\', freeMb: 41_000, totalMb: 255_000, system: true, recommended: false, folder: 'C:\\StudyHub\\MinerU' },
   { root: 'D:\\', freeMb: 118 * 1024, totalMb: 476_000, system: false, recommended: true, folder: FOLDER },
+  // An external USB disk: Windows lists it as fixed; it is offered (marked 外接硬盘) but never recommended.
+  { root: 'F:\\', freeMb: 880_000, totalMb: 953_000, system: false, removable: true, recommended: false, folder: 'F:\\StudyHub\\MinerU' },
   { root: 'E:\\', freeMb: 2100, totalMb: 30_000, system: false, recommended: false, folder: 'E:\\StudyHub\\MinerU' }];
 const plan = (extra = {}) => ({ ok: true, problems: [], warnings: [], folder: FOLDER, adjusted: false, existing: false, defaultFolder: FOLDER, defaultReason: 'largest-data-drive', platform: 'win32',
   drives, disk: { freeMb: 118 * 1024, neededMb: 4000, drive: 'D:' }, estimate: { downloadMb: 1300, minutes: [10, 30] }, tier: 'basic',
@@ -58,6 +65,8 @@ const complete = { ...idle, status: 'complete', stage: 'done', step: 6, done: [.
 const NETWORK = TEXT.network;
 const est = { basic: 1.6, standard: 2.5 };
 const local = (state, extra = {}) => ({ state, next: null, origin: null, folder: '', install: idle, lastError: null, external: null, estimates: est, windowPages: 50, ...extra });
+const failedAt = (code, stage, message) => local('not-installed', { install: ended('failed', code, stage, message) });
+const EXTERNAL = { exe: 'C:\\Users\\student\\miniconda3\\Scripts\\mineru.exe', state: 'found' };
 const CASES = {
   checking: { local: null },
   missing: { local: local('not-installed'), plan: plan() },
@@ -67,13 +76,26 @@ const CASES = {
   'installing-2': { local: local('installing', { install: running('python', { lastLine: 'Downloading cpython-3.12.15-windows-x86_64 (21.9MiB)  42%|####      | 9.2M/21.9M', stageFraction: 0.42 }) }) },
   'installing-4': { local: local('installing', { install: running('models', { lastLine: 'Downloading basic models from modelscope  45%|####5     | 360M/800M', stageFraction: 0.45 }) }) },
   cancelled: { local: local('not-installed', { install: ended('cancelled', 'cancelled', 'models', TEXT.cancelled) }) },
+  interrupted: { local: local('not-installed', { install: ended('interrupted', 'interrupted', 'package', TEXT.interrupted) }) },
+  'package-failed': { local: failedAt('package-failed', 'package', TEXT.packageFailed), plan: plan() },
+  'install-no-space': { local: failedAt('no-space', 'models', TEXT.noSpaceShort), plan: plan() },
+  // The service failed inside an install that has not finished: 修复 starts the install again; with another MinerU on the port, it is stopped first.
+  'install-service': { local: failedAt('service-failed', 'enable', TEXT.serviceFailed), plan: plan() },
+  'install-port': { local: { ...failedAt('port-in-use', 'enable', TEXT.portInUse), external: EXTERNAL }, plan: plan() },
+  // After an install: the service did not start (重新启动服务), or another MinerU holds its port (停止另一份 MinerU 并重试).
+  'service-failed': { local: local('server-stopped', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12',
+    lastError: { code: 'service-failed', message: '本机服务没能启动：mineru server start 在 330 秒内没有回应。', at: new Date().toISOString() } }) },
+  'port-in-use': { local: local('server-stopped', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12', external: EXTERNAL,
+    lastError: { code: 'port-in-use', message: '本机服务没能启动：端口被占用', at: new Date().toISOString() } }) },
+  unreadable: { local: local('unknown', { origin: 'search', exe: EXTERNAL.exe }) },
+  'needs-models': { local: local('needs-models', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12' }), plan: plan() },
   'network-1': { local: local('not-installed', { install: { ...ended('failed', 'network', 'package', NETWORK), attempts: 1 } }), plan: plan() },
   'network-2': { local: local('not-installed', { install: { ...ended('failed', 'network', 'package', NETWORK), attempts: 2 } }), plan: plan() },
   'vc-runtime': { local: local('not-installed', { install: ended('failed', 'vc-runtime', 'enable', TEXT.vcRuntime) }), plan: plan() },
   stopped: { local: local('server-stopped', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12' }) },
   ready: { local: local('ready', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12', tier: 'basic', running: true }) },
   external: { local: local('ready', { origin: 'search', exe: 'C:\\Users\\student\\.local\\bin\\mineru.exe', version: '4.0.10', tier: 'standard', running: true }) },
-  more: { local: local('ready', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12', tier: 'basic', running: true }), plan: plan(), more: true },
+  more: { local: local('ready', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12', tier: 'basic', running: true }), plan: plan({ existing: true }), more: true },
 };
 const spec = CASES[which] || CASES.missing;
 
@@ -103,12 +125,21 @@ const noop = () => {};
 const startService = { id: 'job-start', type: 'pdf-convert', route: 'local', converter: 'mineru', filename: 'Operating Systems.pdf', status: 'running', phase: 'start-service',
   stage: '正在启动本机 MinerU 服务（第一次约 1 分钟）', done: 0, total: 422, chunk: { index: 0, count: 0 }, chunks: [], warnings: [], note: '', local: { adaptive: true },
   env: { kind: 'local', mineruVersion: '4.0.12', tier: 'basic', model: 'MinerU-4_models_onnx', windows: { kind: 'adaptive', firstPages: 10, targetSeconds: 75, minPages: 5, maxPages: 50 } },
-  service: { state: 'stopped', basis: 'check', at: new Date().toISOString() }, startedAt: new Date(Date.now() - 20_000).toISOString() };
+  service: { state: 'starting', basis: 'start', at: new Date().toISOString() }, startedAt: new Date(Date.now() - 20_000).toISOString() };
+// The install's legacy row of the shared job list (lib/contexts/audio/install-row.js), as the console reads it.
+const installRow = which === 'cancelled'
+  ? { id: 'mineru-install-qa', type: 'local-install', tool: 'mineru', label: JOB_TEXT.title, status: 'cancelled', stage: JOB_TEXT.cancelled, done: 3, total: 6,
+    startedAt: new Date(Date.now() - 400_000).toISOString(), finishedAt: new Date(Date.now() - 5_000).toISOString() }
+  : { id: 'mineru-install-qa', type: 'local-install', tool: 'mineru', label: JOB_TEXT.title, status: 'running', stage: JOB_TEXT.stage(4, '下载模型'), done: 3, total: 6,
+    startedAt: new Date(Date.now() - 400_000).toISOString() };
+const consoleData = { jobs: [installRow], archivedJobs: [], drafts: [], decks: [] };
 
 function Scene() {
   if (scene === 'import') return <main className="gallery"><PdfConversion file={pdf} call={call} onFile={noop} onOpenSettings={noop} initialLocal={spec.local || undefined} /></main>;
   if (scene === 'job') return <main className="gallery"><PdfConvertJobs call={call} jobs={[startService]} onOpenSettings={noop} /><PdfDetail job={startService} /></main>;
   if (scene === 'large') return <main className="gallery"><ConverterMain call={call} file={pdf} onOpenSettings={noop} /></main>;
+  if (scene === 'console') return <main className="gallery gallery--wide"><AppContext.Provider value={fakeApp({ data: consoleData, call, app: { lib: { taskFocus: null } } })}>
+    <TaskConsole data={consoleData} openers={{ resultOf: () => null }} /></AppContext.Provider></main>;
   return <main className="gallery"><MineruSettings call={call} initialLocal={scene === 'flow' ? null : spec.local} initialMore={!!spec.more} /></main>;
 }
 createRoot(document.getElementById('root')).render(<div className="study-app" data-theme={theme} lang={lang === 'en' ? 'en' : 'zh-CN'}>
