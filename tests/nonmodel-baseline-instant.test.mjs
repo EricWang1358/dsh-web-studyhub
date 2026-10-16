@@ -74,7 +74,7 @@ test('plan, status and history are instant calls: they answer with data, never a
   assert.equal(await exists(mineruInstallStatePath()), false, 'a plan writes nothing');
 });
 
-test('the MinerU install is a background run with its own status call AND a row of the shared job list; the Marker install is still only its own status', async t => {
+test('the MinerU and the Marker install are background runs with their own status call AND a row each of the shared job list', async t => {
   const h = await harness(t);
   await assert.rejects(h.call('mineru.install.start', {}), /confirm/);
   await assert.rejects(h.call('marker.install.start', {}), /confirm/);
@@ -84,10 +84,10 @@ test('the MinerU install is a background run with its own status call AND a row 
   const install = await h.call('marker.install.start', { confirm: true });
   assert.deepEqual([setup.status, install.status], ['running', 'running']);
   assert.ok(!('jobId' in setup) && !('jobId' in install));
-  assert.deepEqual((await h.jobs()).map(job => [job.type, job.tool]), [['local-install', 'mineru']], 'the MinerU install is in the task list while it runs');
+  assert.deepEqual((await h.jobs()).map(job => [job.type, job.tool]).sort(), [['local-install', 'marker'], ['local-install', 'mineru']], 'both installs are in the task list while they run');
   await until(async () => (await h.call('mineru.install.status')).status === 'complete', 'the MinerU install', { timeoutMs: 240_000 });
   await until(async () => (await h.call('marker.install.status')).status === 'complete', 'the Marker install', { timeoutMs: 240_000 });
-  assert.deepEqual((await h.jobs()).map(job => [job.type, job.status]), [['local-install', 'complete']], 'and stays there, finished, until it is dismissed');
+  assert.deepEqual((await h.jobs()).map(job => [job.type, job.status]), [['local-install', 'complete'], ['local-install', 'complete']], 'and stay there, finished, until they are dismissed');
 });
 
 test('DEFECT BASELINE: unloading the service stops neither a running Marker install nor a running MinerU install (pilot off): nothing owns their end', async t => {
