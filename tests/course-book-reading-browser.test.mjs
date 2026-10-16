@@ -18,7 +18,7 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 复习全书 reading in the real page at 1280 and 420 px (docs/review-book.md "The book bar", "Reading a point"): one point at a time by default, under its
    path, the bar saying where it is (知识点 1/6 · its title); 下一节 / ‹ and ← / → go point by point and the window starts at its top, under the bar; the 目录
-   marks it; the row of the point's actions closes the point (练 5 道, 本节问答, 发给主会话), a point without questions says nothing about it; the takeaway comes
+   marks it; the row of the point's actions (出处, 本节问答 only with items, 发给主会话) and then its one end button (练 5 道 first) close the point, a point without questions says nothing about it; the takeaway comes
    first; 我的 is a label, its long whole-point block starts folded as one row (AI, its first real sentence, its size, 多为重复; the fold remembered), a short one
    about words is open right after its paragraph, 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落 fold them all; 更多 › 整章连着读 folds the other points and is remembered; a formula is
    drawn once; nothing scrolls sideways. Screenshots (dark and light) go to COURSE_BOOK_READING_SHOTS when set. */
@@ -118,10 +118,11 @@ test('复习全书 reading: one point at a time with 下一节, ‹ and the keys
         return { right: Math.round(point.right - Math.max(...boxes.map(box => box.right))), lefts: [...rows.values()].map(left => Math.round(left - point.left)),
           after: Math.min(...boxes.map(box => box.top)) >= text - 1, count: boxes.length };
       });
-      assert.ok(bar.after && bar.count === 5, `${width}px: the toolbar closes the point (出处 is its first action): ${JSON.stringify(bar)}`);
+      assert.ok(bar.after && bar.count === 3, `${width}px: the toolbar closes the point (出处 is its first action; 练 5 道 is the end button, 本节问答 only with items): ${JSON.stringify(bar)}`);
       if (width === 1280) assert.ok(bar.right <= 2, `${width}px: the toolbar is at the top right: ${JSON.stringify(bar)}`);
       else assert.ok(bar.lefts.every(left => left <= 2), `${width}px: every row of the toolbar starts at the left edge: ${JSON.stringify(bar)}`);
-      assert.match(await page.locator('.book-point__actions').evaluate(element => element.textContent), /^出处 1[\s\S]*练 5 道[\s\S]*本节问答[\s\S]*发给主会话$/);
+      assert.match(await page.locator('.book-point__actions').evaluate(element => element.textContent), /^出处 1[\s\S]*发给主会话$/);
+      assert.doesNotMatch(await page.locator('.book-point__actions').evaluate(element => element.textContent), /练 5 道|本节问答/);
       assert.equal(await page.locator('.book-point__tidy-button').count(), 0, `${width}px: no 整理 menu`);
       // The takeaway first, then 讲解 without it; 要点清单 and 补充 folded; 出处 one chip.
       assert.equal((await page.locator('.book-point__gist').innerText()).trim(), 'What architects do is the part of the work an architect owns from the first day.');
@@ -201,9 +202,12 @@ test('复习全书 reading: one point at a time with 下一节, ‹ and the keys
       assert.equal(await page.locator('.book-ai[data-ai-folded]').count(), 0, `${width}px: all open`);
       await flat(page, width, 'the open blocks');
 
-      // 下一节: the next point, the window at its top, the 目录 marks it.
-      await page.locator('.book-step__next').scrollIntoViewIfNeeded();
-      await page.locator('.book-step__next').click();
+      // The point ends in its one end button (练 5 道 first on a point with questions, 读完了 beside it), then the next point by the bar's ›: the window at
+      // its top, the 目录 marks it.
+      const end = page.locator('.book-end:not([data-waiting])');
+      await end.waitFor({ timeout: 30000 });
+      assert.match(await end.innerText(), /练 5 道\s+读完了，下一个[\s\S]*接下来：1\.2 Stakeholders and concerns/, `${width}px: the end of a point with questions`);
+      await page.locator('.book-bar__next').click();
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep !== id, first);
       const second = await stepOf(page);
       assert.match(await words(page.locator('.book-step__heading')), /1\.2 Stakeholders and concerns/);
@@ -229,11 +233,12 @@ test('复习全书 reading: one point at a time with 下一节, ‹ and the keys
       await page.locator('.book-toc__go', { hasText: 'A point without questions' }).click();
       await page.locator('.book-step__heading', { hasText: 'A point without questions' }).waitFor();
       if (width === 420) await page.locator('.book-toc').waitFor({ state: 'detached' });
-      assert.match(await page.locator('.book-point__actions').innerText(), /^(?:出处 \d+\s+)?本节问答[\s\S]*发给主会话$/, 'no 练 5 道: 出处 (when it has some), 本节问答, 发给主会话');
+      assert.match(await page.locator('.book-point__actions').innerText(), /^(?:出处 \d+\s+)?发给主会话$/, 'no 练 5 道, no empty 本节问答: 出处 (when it has some), 发给主会话');
       assert.doesNotMatch(await page.locator('.book-point').innerText(), /暂无题|还没有题|还没出题/);
       assert.equal(await page.locator('.book-point__practice').count(), 0);
       assert.doesNotMatch(await page.locator('.book-point').innerText(), /这一节还没有题/);
-      assert.equal(await page.locator('.book-step__next').isDisabled(), true, `${width}px: the last point has no 下一节`);
+      assert.equal(await page.locator('.book-bar__next').isDisabled(), true, `${width}px: the last point has no ›`);
+      assert.match(await page.locator('.book-end:not([data-waiting])').innerText(), /^读完了$/, `${width}px: the last point's end: 读完了, no 下一个`);
       await flat(page, width, 'the last point');
 
       // 更多 › 整章连着读: the chapters, the point being read open and the others folded to a line; remembered.

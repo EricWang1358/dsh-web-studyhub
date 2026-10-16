@@ -102,7 +102,7 @@ test('发给主会话: a point\'s popover with presets, the selection panel and 
       assert.equal((await trigger.innerText()).trim(), '发给主会话');
       assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
       assert.equal(await page.locator('.book-chat__panel').count(), 0);
-      assert.match(await page.locator('.book-point__actions').innerText(), /练 5 道[\s\S]*本节问答[\s\S]*发给主会话/);
+      assert.match(await page.locator('.book-point__actions').innerText(), /发给主会话$/);
       // Open it with the keyboard: the focus goes into the box; Escape closes it and the focus is back on the button.
       await trigger.focus();
       await page.keyboard.press('Enter');

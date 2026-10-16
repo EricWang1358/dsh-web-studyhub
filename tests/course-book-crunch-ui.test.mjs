@@ -1,5 +1,5 @@
 /* 期末一周 on the page (static zh and en, docs/plans/review-book.md M7): a day of the plan says what kind of day it is and why, lists its points with
-   去读 / 练 5 道 / 读完了 (learn) or 翻看 (a 翻看 day), 翻看全书 and the mock paper; 翻看 lists every point in the plan's order with its 易错点 open and its
+   去读 / 练 5 道 (learn, 读完 once read) or 翻看 (a 翻看 day, 已看 once looked over), 翻看全书 and the mock paper; a knowledge point is 知识点 / 个, never 节; 翻看 lists every point in the plan's order with its 易错点 open and its
    讲解 folded (not drawn), 已看 and the progress; every reason code has a line in both languages. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,23 +28,25 @@ const POINTS = [{ id: 'h2', key: 'bk:a', code: 'H2', title: 'Availability', ques
 const LEARN = { date: '2026-10-11', offset: 0, mode: 'learn', mock: false, points: ['h2', 'h3'], done: ['h2'], minutes: 40, reason: { code: 'learn', count: 2, tested: 1, weak: 1, minutes: 40 } };
 const FLIP = { date: '2026-10-17', offset: 0, mode: 'flip', mock: true, points: ['h2', 'h3'], done: [], minutes: 9, reason: { code: 'flip-mock', count: 2, pitfalls: 2 } };
 
-test('a learn day: what it is, why, its points with 去读 and 练 5 道, 读完了 for a point without questions, the mock paper', () => {
-  const html = render(h(ui.CrunchDay, { course: 'SA', daysLeft: 7, day: LEARN, points: POINTS, onRead: noop, onPractice: noop, onMarkRead: noop, onMockStarted: noop }));
+test('a learn day: what it is, why, its points with 去读 and 练 5 道, 读完 on a point read, the mock paper', () => {
+  const html = render(h(ui.CrunchDay, { course: 'SA', daysLeft: 7, day: LEARN, points: POINTS, onRead: noop, onPractice: noop, onMockStarted: noop }));
   const text = textOf(html);
-  for (const part of ['学习日', '距考试 7 天', '先学考得多又薄弱的 2 节（1 节样卷考过）：每节读完练 5 道，约 40 分钟。', 'H2 Availability', '12 道题 · 样卷考过 2 份 · 3 题薄弱 · 2 条易错点',
-    '只读，没有题', '去读', '练 5 道', '读完了', '已完成', '用这些知识点出一套模拟卷']) assert.ok(text.includes(part), part);
+  for (const part of ['学习日', '距考试 7 天', '先学考得多又薄弱的 2 个知识点（1 个样卷考过）：每个读完练 5 道，约 40 分钟。', 'H2 Availability', '12 道题 · 样卷考过 2 份 · 3 题薄弱 · 2 条易错点',
+    '只读，没有题', '去读', '练 5 道', '读完', '用这些知识点出一套模拟卷']) assert.ok(text.includes(part), part);
+  assert.doesNotMatch(text, /已完成|节/, 'one wording: 读完, 知识点');
   assert.equal((html.match(/>练 5 道</g) || []).length, 1, '练 5 道 only for the point with questions');
   assert.doesNotMatch(text, /翻看全书/, 'a learn day has no 翻看全书');
   english(() => {
-    const en = textOf(render(h(ui.CrunchDay, { course: 'SA', daysLeft: 7, day: LEARN, points: POINTS, onRead: noop, onPractice: noop, onMarkRead: noop })));
-    for (const part of ['Study day', 'Exam in 7 days', 'Read', 'Practise 5', 'Read it', 'Make a mock paper from these points', 'Tested in 2 sample papers']) assert.ok(en.includes(part), part);
+    const en = textOf(render(h(ui.CrunchDay, { course: 'SA', daysLeft: 7, day: LEARN, points: POINTS, onRead: noop, onPractice: noop })));
+    for (const part of ['Study day', 'Exam in 7 days', 'Read', 'Practise 5', 'Make a mock paper from these points', 'Tested in 2 sample papers']) assert.ok(en.includes(part), part);
     assert.ok(!han.test(en.replace(/Availability|Performance/g, '')), en);
   });
 });
 
-test('the last 翻看 day: 翻看 for each point, 翻看全书, the mock paper; at most `max` points, then 还有 N 节', () => {
+test('the last 翻看 day: 翻看 for each point, 翻看全书, the mock paper; at most `max` points, then 还有 N 个', () => {
   const text = textOf(render(h(ui.CrunchDay, { course: 'SA', daysLeft: 1, day: FLIP, points: POINTS, max: 1, onRead: noop, onFlip: noop, onMore: noop })));
-  for (const part of ['翻看日 · 模拟卷', '距考试 1 天', '考前最后一天：翻看剩下的 2 节，再做一套模拟卷。', '翻看', '翻看全书', '还有 1 节', '用这些知识点出一套模拟卷']) assert.ok(text.includes(part), part);
+  for (const part of ['翻看日 · 模拟卷', '距考试 1 天', '考前最后一天：翻看剩下的 2 个知识点，再做一套模拟卷。', '翻看', '翻看全书', '还有 1 个', '用这些知识点出一套模拟卷']) assert.ok(text.includes(part), part);
+  assert.match(textOf(render(h(ui.CrunchDay, { course: 'SA', daysLeft: 1, day: { ...FLIP, done: ['h2'] }, points: POINTS, onRead: noop }))), /Availability 已看/, 'a 翻看 day says 已看');
   assert.doesNotMatch(text, /练 5 道|Performance/);
   english(() => assert.ok(textOf(render(h(ui.CrunchDay, { course: 'SA', daysLeft: 0, day: FLIP, points: POINTS, onFlip: noop }))).includes('Look over the book')));
 });
@@ -54,6 +56,7 @@ test('every reason code has a line in both languages; what a mock paper leaves o
     { code: 'learn-free' }, { code: 'flip', count: 4, pitfalls: 6 }, { code: 'flip-mock', count: 4 }, { code: 'exam-today', count: 8 }, { code: 'off' }, { code: 'done', count: 2 }];
   for (const reason of reasons) {
     assert.ok(ui.reasonText(reason).length > 4, reason.code);
+    assert.doesNotMatch(ui.reasonText(reason), /节/, `${reason.code}: a knowledge point is 知识点 / 个`);
     english(() => { const line = ui.reasonText(reason); assert.ok(line.length > 4 && !han.test(line), `${reason.code}: ${line}`); });
   }
   assert.equal(ui.reasonText({ code: 'nothing' }), '');

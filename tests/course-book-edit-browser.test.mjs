@@ -152,7 +152,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       await conflict(`Server ${width}`);
       await openBook();
       // The learner's file of 1.2: the book opens where the learner was (1.1 here), 下一节 is 1.2.
-      const toSecond = async () => { await page.locator('.book-step__next').click(); await page.locator('.book-step__heading', { hasText: 'Stakeholders' }).waitFor(); };
+      const toSecond = async () => { await page.locator('.book-bar__next').click(); await page.locator('.book-step__heading', { hasText: 'Stakeholders' }).waitFor(); };
       assert.match(await page.locator('.book-step__heading').innerText(), /What architects do/);
       await toSecond();
       const suggestion = page.locator('.book-suggestion', { hasText: '书已更新' });

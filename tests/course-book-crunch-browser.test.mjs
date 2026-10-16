@@ -18,7 +18,8 @@ import { addDays } from '../lib/crunch-plan.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 期末一周 in the real page at 1280 and 420 px (docs/plans/review-book.md M7): with the course's exam a week away the home shows the 期末一周 card (the
-   day's kind, its reason, its points); 去读 opens the book at that point, with 「今天读哪几节」 in 更多; 更多 › 翻看 lists the points with their 易错点 first,
+   day's kind, its reason, its points); 去读 opens the book at that point, today's points on top of its 目录 (no 今天读哪几节 in 更多); 打开复习全书 lands on
+   today's first point not read; 更多 › 翻看 lists the points with their 易错点 first,
    已看 is kept after a reload, a round from 翻看 comes back to the reading surface at its point; 「用这些知识点出一套模拟卷」 says what can go in and starts the ordinary exam page. Nothing scrolls sideways.
    Screenshots go to COURSE_BOOK_CRUNCH_SHOTS. */
 
@@ -84,7 +85,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await card.waitFor({ timeout: 30000 });
       const text = await card.innerText();
       for (const part of ['期末一周 · SA', '学习日', '距考试 7 天', '练 5 道', '用这些知识点出一套模拟卷']) assert.ok(text.includes(part), `${width}px: the card shows ${part}`);
-      assert.match(text, /每节读完练 5 道，约 \d+ 分钟/, `${width}px: the reason`);
+      assert.match(text, /每个读完练 5 道，约 \d+ 分钟/, `${width}px: the reason`);
       // The card's own parts (the rest of the home is not this test's).
       let overflow = await sideways(page, '.crunch-card *');
       assert.ok(flat(overflow), `${width}px: nothing scrolls sideways on the home: ${JSON.stringify(overflow)}`);
@@ -109,7 +110,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await card.waitFor({ timeout: 30000 });
       assert.equal(await page.getByText('已切换到课程').count(), 0, `${width}px: nothing is said before the card acts`);
 
-      // 去读: the book at that point, 今天读哪几节 in the header.
+      // 去读: the book at that point.
       await first.getByRole('button', { name: '去读' }).click();
       await page.getByText('已切换到课程 SA').first().waitFor({ timeout: 30000 });
       assert.equal(await page.getByText('已切换到课程 SA').count(), 1, `${width}px: said once`);
@@ -125,15 +126,20 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await page.locator('.book-header').scrollIntoViewIfNeeded();
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-switched-${tag}.png`) });
-      // 更多 › 期末一周 › 今天读哪几节: today's day of the plan under the bar.
-      await page.locator('.book-bar__more').click();
-      await page.getByRole('menuitem', { name: '今天读哪几节' }).click();
-      await page.locator('.book-today .crunch-day').waitFor({ timeout: 30000 });
-      assert.match(await page.locator('.book-today').innerText(), /学习日[\s\S]*去读/);
+      // Today's points are the 目录's 今天 group, on top (the slide-over on a narrow page); 更多 has no 今天读哪几节 any more.
+      if (width < 900) { await page.locator('.book-bar__toc').click(); await page.locator('.book-toc[data-overlay]').waitFor({ timeout: 30000 }); }
+      const todayGroup = page.locator('[data-book-today]');
+      await todayGroup.waitFor({ timeout: 30000 });
+      assert.match(await todayGroup.innerText(), /今天 \d+ 个 · 已读完 \d+/, `${width}px: the 今天 head`);
+      assert.ok(await todayGroup.locator('.book-toc__go').count() >= 1, `${width}px: today's points listed`);
       overflow = await sideways(page);
-      assert.ok(flat(overflow), `${width}px: nothing scrolls sideways in the book with 今天读哪几节: ${JSON.stringify(overflow)}`);
+      assert.ok(flat(overflow), `${width}px: nothing scrolls sideways in the book with the 目录 open: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-today-${tag}.png`) });
+      if (width < 900) { await page.keyboard.press('Escape'); await page.locator('.book-toc').waitFor({ state: 'detached', timeout: 30000 }); }
+      await page.locator('.book-bar__more').click();
+      assert.equal(await page.getByRole('menuitem', { name: '今天读哪几节' }).count(), 0, `${width}px: no 今天读哪几节 in 更多`);
+      await page.keyboard.press('Escape');
 
       // 更多 › 翻看: the 易错点 first, the 讲解 folded; 已看 kept; 「完成 · 回到阅读」 on top.
       await page.locator('.book-bar__more').click();
@@ -155,12 +161,13 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       assert.ok(flat(overflow), `${width}px: nothing scrolls sideways in 翻看: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `flip-${tag}.png`), fullPage: true });
-      // A reload keeps 已看 (kept in the book's record). The home card's 打开复习全书 opens the reading surface with 今天读哪几节 (a view is never remembered:
-      // the book does not reopen in 翻看 by itself); 翻看 is one press away in 更多.
+      // A reload keeps 已看 (kept in the book's record). The home card's 打开复习全书 opens the reading surface at today's first point not read yet (a view is
+      // never remembered: the book does not reopen in 翻看 by itself); 翻看 is one press away in 更多.
       await page.reload();
       await page.locator('.crunch-card').waitFor({ timeout: 30000 });
+      const firstToday = await page.evaluate(() => [...document.querySelectorAll('.crunch-card .crunch-day__point')].find(row => !/读完/.test(row.innerText))?.dataset.point);
       await page.locator('.crunch-card__open').click();
-      await page.locator('.book-today .crunch-day').waitFor({ timeout: 30000 });
+      await page.locator(`[data-book-step="${firstToday}"]`).waitFor({ timeout: 30000 });
       assert.equal(await page.locator('.book-flip').count(), 0, `${width}px: not in 翻看 by itself`);
       await page.locator('.book-bar__more').click();
       await page.getByRole('menuitem', { name: /^翻看/ }).click();

@@ -31,14 +31,14 @@ test('更多: four groups; a fold item only where there are AI blocks, named by 
   assert.equal(item(ui.moreItems({ bookFold: { folded: false } }), 'fold-book').label, '收起整本书的 AI 段落');
 });
 
-test('更多: the export item names the pages (and the limit), the mock paper its scope, today only with a plan day', () => {
+test('更多: the export item names the pages (and the limit), the mock paper its scope; no item for today (the 目录 has it)', () => {
   assert.equal(item(ui.moreItems({}), 'export').hint, undefined, 'no estimate yet: no hint');
   assert.equal(item(ui.moreItems({ pages: 42 }), 'export').hint, '约 42 页');
   assert.equal(item(ui.moreItems({ pages: 42, pageLimit: 30 }), 'export').hint, '约 42 页 / 上限 30 页');
   assert.equal(item(ui.moreItems({}), 'mock').hint, '整本书');
-  assert.equal(item(ui.moreItems({ today: true, mockScope: 3 }), 'mock').hint, '今天的 3 个知识点');
-  assert.equal(item(ui.moreItems({}), 'today'), undefined);
-  assert.deepEqual(ids(ui.moreItems({ today: true })).slice(-2), ['today', 'mock']);
+  assert.equal(item(ui.moreItems({ mockScope: 3 }), 'mock').hint, '今天的 3 个知识点');
+  assert.equal(item(ui.moreItems({ mockScope: 3 }), 'today'), undefined, '今天读哪几节 is gone: the 目录 lists the points of the day');
+  assert.deepEqual(ids(ui.moreItems({ mockScope: 3 })).slice(-1), ['mock']);
 });
 
 test('更多: the exam date item only without a date and with the course settings; a far date says when the final week starts', () => {
@@ -61,7 +61,7 @@ test('更多 on 未归位: only 编辑这个知识点… in its group (no code t
 test('更多 in English: every item has its words', () => {
   ui.setUiLanguage('en');
   try {
-    const items = ui.moreItems({ pointFold: { folded: false }, bookFold: { folded: false }, today: true, dateHint: { kind: 'none' }, settings: true, pages: 3 });
+    const items = ui.moreItems({ pointFold: { folded: false }, bookFold: { folded: false }, mockScope: 2, dateHint: { kind: 'none' }, settings: true, pages: 3 });
     for (const entry of items) assert.doesNotMatch(`${entry.label} ${entry.hint ?? ''}`, /[㐀-鿿]/, `${entry.id ?? entry.label} in English`);
   } finally { ui.setUiLanguage('zh'); }
 });

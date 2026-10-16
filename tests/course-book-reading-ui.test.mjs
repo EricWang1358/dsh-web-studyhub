@@ -2,7 +2,7 @@
    no 「一句话」), then 讲解 without that sentence with the AI blocks about its words right after their paragraphs, 例子, 要点清单 and 补充 folded, 我的 (a hairline and a
    label: notes, whole-point blocks, Q&A), the questions and 出处 behind one chip; one toolbar row (练 5 道, 本节问答, 发给主会话; a quiet 出题 without questions, no
    整理, no 暂无题); an AI block is one row (open below 1,500 characters or when kept, else folded: AI, its first real sentence, its size, 多为重复, no 新);
-   逐节读 shows one point under its path with 上一节 / 下一节; 整章滚动 folds a point to its title and one line. Fakes only. */
+   逐节读 shows one point under its path (its end button and the bar go on); 整章滚动 folds a point to its title and one line. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -127,17 +127,13 @@ test('a point without questions says nothing about it: no 出题 in the toolbar 
 
 const book = { status: 'ok', title: 'B', unplaced: { title: '未归位', text: '' }, nodes: [{ hid: 'h1', key: 'bk:c1', title: '热力学', number: '1', depth: 1, leaf: false,
   children: [point(), { ...point(), hid: 'h3', key: 'bk:p2', title: '焓', number: '1.2', gen: '**讲解**\n\n焓是热含量。更多。', mine: '' }] }] };
-test('逐节读: one point under its path, 上一个知识点 / 下一个知识点 with the neighbour\'s title below it (the first card is off); where it is and ‹ › are the book bar\'s', () => {
-  const steps = ui.bookSteps(book), html = render(h(ui.BookStep, { steps, at: 0, onGo: noop, course: 'SA', handlers })), text = textOf(html);
+test('逐节读: one point under its path, no cards of its neighbours (its end button and the book bar\'s ‹ › go on)', () => {
+  const steps = ui.bookSteps(book), html = render(h(ui.BookStep, { steps, at: 0, course: 'SA', handlers })), text = textOf(html);
   assert.match(html, /data-book-step="h2"/);
   assert.match(html, /<h2 id="book-h2"[^>]*data-book-heading="h2"/);
   assert.match(text, /^1 热力学 1\.1 熵 熵是系统无序程度的度量/, 'the path, then the heading, then the takeaway (no 第 i / N 节, no ‹ ›, no printed code)');
-  assert.doesNotMatch(html, /book-step__back|book-step__jump/);
-  assert.match(text, /上一个知识点 下一个知识点 1\.2 焓$/);
-  assert.match(html, /disabled=""[^>]*><span class="book-step__dir">上一个知识点/);
+  assert.doesNotMatch(html, /book-step__back|book-step__jump|book-step__nav|上一个知识点|下一个知识点/);
   assert.doesNotMatch(html, /data-book-point="h3"/, 'only the point shown is drawn');
-  const last = textOf(render(h(ui.BookStep, { steps, at: 1, onGo: noop, course: 'SA', handlers })));
-  assert.match(last, /上一个知识点 1\.1 熵 下一个知识点$/);
 });
 
 test('整章滚动: a point is its title and one line, folded, unless it is open', () => {
@@ -151,13 +147,13 @@ test('整章滚动: a point is its title and one line, folded, unless it is open
 });
 
 test('English: the reading words are English (the book\'s own text stays as written)', () => english(() => {
-  const steps = ui.bookSteps(book), text = `${textOf(body())} ${textOf(render(h(ui.BookStep, { steps, at: 0, onGo: noop, course: 'SA', handlers })))}`;
+  const steps = ui.bookSteps(book), text = `${textOf(body())} ${textOf(render(h(ui.BookStep, { steps, at: 0, course: 'SA', handlers })))}`;
   assert.match(text, /Practise 5 Questions and answers Send to the main chat/);
   assert.doesNotMatch(text, /Tidy up|In one sentence|My notes and AI explanations/);
   assert.match(text, /Checklist .*Mine Your notes, AI paragraphs and the Q&A you put into the book are here Collapse this point's AI paragraphs/);
   assert.match(text, /AI Mostly repeats/);
   assert.match(text, /Sources 1/);
-  assert.match(text, /Add a paragraph here Sources 1 Practise 5 Questions and answers Send to the main chat Previous knowledge point Next knowledge point/);
+  assert.match(text, /Add a paragraph here Sources 1 Practise 5 Questions and answers Send to the main chat/);
   // What is left once the book's own words are taken out (its text, its labels, the blocks' first lines and summaries).
   const written = [restate, '熵是系统无序程度的度量。', '熵是系统无序程度的度量', '它在孤立系统里只增不减', '冰块融化', '它在孤立系统里只增不减。', '冰块融化。', '熵度量无序', '玻尔兹曼公式', '补充（资料以外）', '讲解', '例子', '关于：「熵」',
     '关于：「只增不减」', '热力学', '焓', '熵', '。'];

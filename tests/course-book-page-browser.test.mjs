@@ -17,7 +17,7 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 复习全书 M1 in the real page at 1280 and 420 px (docs/plans/review-book.md): from the home to the 总纲 and 打开书页; the 目录 beside the book at 1280,
    sliding over it at 420 from the bar's 目录; the heading being read marked in it; one point drawn at a time (ui/book/BookStep.jsx); a question link goes to the practice page with 回到复习全书 and comes back at the same heading
-   and scroll, the heading focused; the result page of a round started here has 回到复习全书 as its main button (the point left in a second line); 本节问答 opens in place; a link to a deleted question says so; nothing scrolls sideways. Screenshots go to COURSE_BOOK_PAGE_SHOTS when set. */
+   and scroll, the heading focused; the result page of a round started here has 回到复习全书 as its main button (the point left in a second line); no 本节问答 without items; a link to a deleted question says so; nothing scrolls sideways. Screenshots go to COURSE_BOOK_PAGE_SHOTS when set. */
 
 async function seed(root) {
   await mkdir(root, { recursive: true });
@@ -122,9 +122,8 @@ test('复习全书: 打开书页 from the 总纲, the 目录 and the heading bei
       assert.equal(await page.locator('.book-toc__here').count(), 0, `${width}px: no 你在这里 badge`);
       if (width === 420) { await page.keyboard.press('Escape'); await page.locator('.book-toc').waitFor({ state: 'detached' }); }
 
-      // 本节问答 of the point opens in place (this library keeps none: it says so).
-      await page.locator('.book-point [data-book-link="qa"]').first().click();
-      await page.locator('.book-qa__none, .book-qa').first().waitFor({ timeout: 30000 });
+      // 本节问答 shows only when the point has some (course.book.open counts them, so it is right at first paint): this library keeps none.
+      assert.equal(await page.locator('.book-point [data-book-link="qa"]').count(), 0, `${width}px: no empty 本节问答`);
 
       // A question link of 1.2 (under 本节的题, folded) goes to the practice page with 回到复习全书, and comes back at the same heading and scroll.
       if (width === 420) await page.locator('.book-bar__toc').click();
@@ -163,16 +162,16 @@ test('复习全书: 打开书页 from the 总纲, the 目录 and the heading bei
       await page.waitForFunction(id => document.activeElement?.id === id, `book-${hid}`, { timeout: 5000 });
       assert.equal(await topOf(page, hid), after, `${width}px: the focus did not scroll the page`);
 
-      // 练 5 道 on the next chapter's point (a long title) starts a round of five of its questions; finished, its result page goes back first.
+      // 练 5 道 (the point's end button) on the next chapter's point (a long title) starts a round of five of its questions; finished, its result page goes back first.
       if (width === 420) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: '2.2 Quality attribute scenarios' }).click();
       await page.locator('.book-step__heading', { hasText: 'Quality attribute scenarios' }).waitFor();
       const hid2 = await page.locator('.book-step').getAttribute('data-book-step');
-      await page.locator('.book-point__practice').scrollIntoViewIfNeeded();
+      await page.locator('.book-end:not([data-waiting]) [data-book-end-action="practice"]').scrollIntoViewIfNeeded();
       await page.waitForTimeout(300);
       const before2 = await topOf(page, hid2);
       const five = page.waitForRequest(request => request.url().includes('/api/call') && /"action":"review\.start"/.test(request.postData() || ''));
-      await page.locator('.book-point__practice').click();
+      await page.locator('.book-end:not([data-waiting]) [data-book-end-action="practice"]').click();
       const chunk = JSON.parse((await five).postData()).args;
       assert.equal(chunk.scope.length, 5, `${width}px: 练 5 道 is five questions`);
       await finishRound(page);
@@ -230,8 +229,9 @@ test('复习全书: 打开书页 from the 总纲, the 目录 and the heading bei
         call.args.reading = { documentId: 'doc-l2', sourceId: 'document-l2-p2', page: 2, sectionTitle: 'Quality attribute scenarios', scope: { kind: 'chapter', count: 4, label: '这一章' } };
         await route.continue({ postData: JSON.stringify(call) });
       });
-      await page.locator('.book-point__practice').scrollIntoViewIfNeeded();
-      await page.locator('.book-point__practice').click();
+      // The point counts as read now (five of its questions answered today): 下一个 is its end button, 练 5 道 the quiet one beside it.
+      await page.locator('.book-end[data-book-end="next"] [data-book-end-action="practice"]').scrollIntoViewIfNeeded();
+      await page.locator('.book-end[data-book-end="next"] [data-book-end-action="practice"]').click();
       await finishRound(page);
       await page.unroute('**/api/call');
       await page.locator('.reading-result').waitFor({ timeout: 10000 });
