@@ -52,8 +52,9 @@ test('复习全书 frame: the sticky bar, no mode switch, 更多 › 翻看 and 
       assert.equal(await page.locator('.book-page .sh-seg').count(), 0, `${width}px: no standing mode switch`);
       assert.equal(await page.locator('.book-page h1 [aria-label="切换当前课程"]').count(), 0, `${width}px: one course, no switcher`);
       assert.match(await page.locator('.book-page h1').innerText(), /^复习全书 · ArchSS$/);
-      // Narrow: the count alone and the title without its number (no room for a cut 「1.1.…」).
-      assert.equal(await where(page), width === 420 ? `1/16 · ${points[0].title}` : `知识点 1/16 · ${points[0].number} ${points[0].title}`);
+      // Narrow: the count alone and the title without its number (no room for a cut 「1.1.…」). The exam is in five days: the first point is today's first,
+      // counted in today's order (book-where-browser has the book's order).
+      assert.equal(await where(page), width === 420 ? `今天 1/5 · ${points[0].title}` : `今天 1/5 · ${points[0].number} ${points[0].title}`);
 
       // The bar sticks under the app's top bar while the point scrolls, and its line is part way (the point made long: its whole-point AI block open).
       await page.locator('.book-ai[data-ai-block^="h"] .book-ai__toggle').first().click();
