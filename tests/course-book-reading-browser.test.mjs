@@ -20,7 +20,7 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
    path, the bar saying where it is (知识点 1/6 · its title); 下一节 / ‹ and ← / → go point by point and the window starts at its top, under the bar; the 目录
    marks it; the row of the point's actions closes the point (练 5 道, 本节问答, 发给主会话), a point without questions says nothing about it; the takeaway comes
    first; 我的 is a label, its long whole-point block starts folded as one row (AI, its first real sentence, its size, 多为重复; the fold remembered), a short one
-   about words is open right after its paragraph, 收起这一节的 AI 段落 / 展开这一节的 AI 段落 fold them all; 更多 › 整章连着读 folds the other points and is remembered; a formula is
+   about words is open right after its paragraph, 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落 fold them all; 更多 › 整章连着读 folds the other points and is remembered; a formula is
    drawn once; nothing scrolls sideways. Screenshots (dark and light) go to COURSE_BOOK_READING_SHOTS when set. */
 
 const explainOf = title => [`${title} is the part of the work an architect owns from the first day.`, ...Array.from({ length: 4 }, (_, i) =>
@@ -86,7 +86,7 @@ async function openBook(page, running) {
   await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
 }
 
-test('复习全书 reading: one point at a time with 下一节, ‹ and the keys, the toolbar, 我的, the folded AI row, 收起这一节的 AI 段落, 整章连着读 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+test('复习全书 reading: one point at a time with 下一节, ‹ and the keys, the toolbar, 我的, the folded AI row, 收起这个知识点的 AI 段落, 整章连着读 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-reading-dist-'));
@@ -193,10 +193,10 @@ test('复习全书 reading: one point at a time with 下一节, ‹ and the keys
       assert.match(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('study-book-ai-folded:')).map(([, value]) => value).join('')), /here1/);
       // From two blocks, one quiet link on the divider's row folds or opens them all.
       const all = page.locator('.book-layer__fold');
-      assert.equal((await all.innerText()).trim(), '收起这一节的 AI 段落', `${width}px: one block is open: the link folds them`);
+      assert.equal((await all.innerText()).trim(), '收起这个知识点的 AI 段落', `${width}px: one block is open: the link folds them`);
       await all.click();
       assert.equal(await page.locator('.book-ai:not([data-ai-folded])').count(), 0, `${width}px: all folded`);
-      assert.equal((await all.innerText()).trim(), '展开这一节的 AI 段落');
+      assert.equal((await all.innerText()).trim(), '展开这个知识点的 AI 段落');
       await all.click();
       assert.equal(await page.locator('.book-ai[data-ai-folded]').count(), 0, `${width}px: all open`);
       await flat(page, width, 'the open blocks');
@@ -224,7 +224,7 @@ test('复习全书 reading: one point at a time with 下一节, ‹ and the keys
       await page.locator('.book-bar__prev').click();
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep === id, first);
       assert.equal(await page.locator('.book-bar__prev').isDisabled(), true, `${width}px: the first point has no ‹`);
-      // The 目录 goes to any point (at 420 the row closes the slide-over): one without questions says nothing about it (给这一节出题 is in 更多).
+      // The 目录 goes to any point (at 420 the row closes the slide-over): one without questions says nothing about it (给这个知识点出题 is in 更多).
       if (width === 420) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: 'A point without questions' }).click();
       await page.locator('.book-step__heading', { hasText: 'A point without questions' }).waitFor();

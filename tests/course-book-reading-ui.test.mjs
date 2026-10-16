@@ -71,7 +71,7 @@ test('the takeaway is shown without 「一句话：」, and the file is as it wa
   assert.match(labelled.gen, /一句话：熵/, 'the text of the file keeps it');
 });
 
-test('我的: a hairline and a small label (not a toggle) with its explanation; the notes, the whole-point blocks; 收起这一节的 AI 段落 / 展开这一节的 AI 段落 from two blocks', () => {
+test('我的: a hairline and a small label (not a toggle) with its explanation; the notes, the whole-point blocks; 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落 from two blocks', () => {
   const html = body(), layer = html.slice(html.indexOf('data-book-layer'));
   assert.match(layer, /^data-book-layer="h2"/);
   assert.match(html, /aria-label="我的" data-book-layer="h2"/);
@@ -79,9 +79,9 @@ test('我的: a hairline and a small label (not a toggle) with its explanation; 
   assert.doesNotMatch(html, /book-layer__toggle|我的笔记与 AI 解释/, 'no toggle, no old title');
   assert.ok(layer.indexOf('My note.') < layer.indexOf('data-ai-block="b1"'), 'notes, then the whole-point block');
   assert.doesNotMatch(layer, /data-ai-block="b2"/, 'a block about words is not in 我的');
-  assert.match(textOf(layer), /我的 你的笔记、AI 段落和加进书里的问答都在这里 收起这一节的 AI 段落 My note\./, 'two blocks in the point: one link folds them all, the label has its words');
-  assert.match(textOf(body(point(), fold({ shut: ['b1', 'b2'] }))), /我的 你的笔记、AI 段落和加进书里的问答都在这里 展开这一节的 AI 段落/, 'all folded: it opens them');
-  assert.doesNotMatch(textOf(body(point({ mine: `My note.\n\n${mine}` }))), /收起这一节的 AI 段落|展开这一节的 AI 段落/, 'one block: no link');
+  assert.match(textOf(layer), /我的 你的笔记、AI 段落和加进书里的问答都在这里 收起这个知识点的 AI 段落 My note\./, 'two blocks in the point: one link folds them all, the label has its words');
+  assert.match(textOf(body(point(), fold({ shut: ['b1', 'b2'] }))), /我的 你的笔记、AI 段落和加进书里的问答都在这里 展开这个知识点的 AI 段落/, 'all folded: it opens them');
+  assert.doesNotMatch(textOf(body(point({ mine: `My note.\n\n${mine}` }))), /收起这个知识点的 AI 段落|展开这个知识点的 AI 段落/, 'one block: no link');
   assert.doesNotMatch(body(point({ mine: '', qa: '' })), /data-book-layer/, 'nothing of the learner\'s: no divider');
   assert.match(body(point({ mine: '', qa: 'Q and A put into the book.' })), /data-book-layer[\s\S]*Q and A put into the book\./, 'a Q&A put into the book is in 我的');
   const lostBlock = ui.aiBlock({ id: 'b9', at: 'z', about: 'words that are nowhere', body: 'Orphan.', state: 'kept' }, 'zh'), after = body(point({ mine: `${here}\n\n${lostBlock}`, qa: 'The Q and A.' }));
@@ -118,7 +118,7 @@ test('an AI block row: open below 1,500 characters, folded above unless kept; fo
   assert.doesNotMatch(textOf(row(body(point({ mine: mine })), 'b2')), /保留/, 'a kept block has no 保留');
 });
 
-test('a point without questions says nothing about it: no 出题 in the toolbar (it is 给这一节出题 in 更多), no standing line, no 本节的题', () => {
+test('a point without questions says nothing about it: no 出题 in the toolbar (it is 给这个知识点出题 in 更多), no standing line, no 本节的题', () => {
   const html = body(point({ questionTotal: 0, questions: [] })), text = textOf(html);
   assert.match(text, /在这里加一段 出处 1 本节问答 发给主会话$/, 'the row of actions closes the point (出处 the first of them)');
   assert.doesNotMatch(html, /book-node__create/);

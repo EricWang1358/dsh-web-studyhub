@@ -18,16 +18,16 @@ const item = (items, id) => items.find(entry => entry.id === id);
 
 test('更多: four groups; a fold item only where there are AI blocks, named by their state; 整章连着读 a check', () => {
   const plain = ui.moreItems({});
-  assert.deepEqual(headings(plain), ['这一节', '阅读', '整本书', '期末一周']);
+  assert.deepEqual(headings(plain), ['这个知识点', '阅读', '整本书', '期末一周']);
   assert.deepEqual(ids(plain), ['edit', 'create', 'code', 'scroll', 'flip', 'lookup', 'export', 'chat', 'mock'], 'no blocks, no plan, no settings: the plain items');
   assert.equal(item(plain, 'scroll').checked, false, '整章连着读 is a check, off');
   assert.equal(item(ui.moreItems({ scroll: true }), 'scroll').checked, true);
-  assert.equal(item(plain, 'code').hint, '在主对话里指认这一节时用');
+  assert.equal(item(plain, 'code').hint, undefined, '复制编号 says nothing more: a hint only where a rule is hidden');
   assert.equal(item(plain, 'chat').hint, '只填进输入框，不自动发送');
   const folds = ui.moreItems({ pointFold: { folded: false }, bookFold: { folded: true } });
-  assert.equal(item(folds, 'fold-point').label, '收起这一节的 AI 段落');
+  assert.equal(item(folds, 'fold-point').label, '收起这个知识点的 AI 段落');
   assert.equal(item(folds, 'fold-book').label, '展开全书的 AI 段落');
-  assert.equal(item(ui.moreItems({ pointFold: { folded: true } }), 'fold-point').label, '展开这一节的 AI 段落');
+  assert.equal(item(ui.moreItems({ pointFold: { folded: true } }), 'fold-point').label, '展开这个知识点的 AI 段落');
   assert.equal(item(ui.moreItems({ bookFold: { folded: false } }), 'fold-book').label, '收起全书的 AI 段落');
 });
 
@@ -36,14 +36,14 @@ test('更多: the export item names the pages (and the limit), the mock paper it
   assert.equal(item(ui.moreItems({ pages: 42 }), 'export').hint, '约 42 页');
   assert.equal(item(ui.moreItems({ pages: 42, pageLimit: 30 }), 'export').hint, '约 42 页 / 上限 30 页');
   assert.equal(item(ui.moreItems({}), 'mock').hint, '全书');
-  assert.equal(item(ui.moreItems({ today: true, mockScope: 3 }), 'mock').hint, '今天的 3 节');
+  assert.equal(item(ui.moreItems({ today: true, mockScope: 3 }), 'mock').hint, '今天的 3 个知识点');
   assert.equal(item(ui.moreItems({}), 'today'), undefined);
   assert.deepEqual(ids(ui.moreItems({ today: true })).slice(-2), ['today', 'mock']);
 });
 
 test('更多: the exam date item only without a date and with the course settings; a far date says when the final week starts', () => {
   assert.equal(item(ui.moreItems({ dateHint: { kind: 'none' } }), 'exam-date'), undefined, 'no way to the settings: no item');
-  assert.equal(item(ui.moreItems({ dateHint: { kind: 'none' }, settings: true }), 'exam-date').hint, '开启期末一周');
+  assert.equal(item(ui.moreItems({ dateHint: { kind: 'none' }, settings: true }), 'exam-date').hint, undefined, 'what the item is for is no hint');
   assert.equal(item(ui.moreItems({ dateHint: { kind: 'none' }, settings: true }), 'settings').hint, undefined);
   const later = ui.moreItems({ dateHint: { kind: 'later', window: 7 }, settings: true });
   assert.equal(item(later, 'exam-date'), undefined, 'a date: no 设置考试日期');
@@ -51,7 +51,7 @@ test('更多: the exam date item only without a date and with the course setting
   assert.equal(item(ui.moreItems({ settings: true }), 'settings').hint, undefined, 'inside the window: nothing to say');
 });
 
-test('更多 on 未归位: only 编辑这一节… in its group (no code the book tools match, no questions, no AI blocks of a point)', () => {
+test('更多 on 未归位: only 编辑这个知识点… in its group (no code the book tools match, no questions, no AI blocks of a point)', () => {
   const items = ui.moreItems({ unplaced: true, pointFold: { folded: false }, bookFold: { folded: false } });
   assert.deepEqual(ids(items).slice(0, 2), ['edit', 'scroll']);
   for (const id of ['create', 'code', 'fold-point']) assert.equal(item(items, id), undefined, `${id} is left out on 未归位`);

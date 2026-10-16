@@ -14,7 +14,7 @@ import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
-/* 复习全书 M2 in the real page at 1280 and 420 px (docs/plans/review-book.md, docs/review-book.md "Edit it"): 更多 › 编辑这一节… opens the Markdown editor on
+/* 复习全书 M2 in the real page at 1280 and 420 px (docs/plans/review-book.md, docs/review-book.md "Edit it"): 更多 › 编辑这个知识点… opens the Markdown editor on
    the point's explanation, 「完成 · 回到阅读」 comes back to the same point and asks first when there are unsaved edits; edit a generated file and save (it is
    then 已改动), the book shows the edit, a save that met another change leaves a 书已更新 suggestion to 采用 or 忽略, 回退到上一版 takes the edit back, nothing
    scrolls sideways. Screenshots go to COURSE_BOOK_EDIT_SHOTS when set. */
@@ -69,7 +69,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       const mode = async name => {
         if (name === '原文') {
           await page.locator('.book-bar__more').click();
-          await page.getByRole('menuitem', { name: '编辑这一节…' }).click();
+          await page.getByRole('menuitem', { name: '编辑这个知识点…' }).click();
           await page.locator('.book-editor').waitFor();
         } else {
           await page.locator('.book-mode__done').click();
@@ -85,7 +85,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       await page.locator('[data-book-point]').first().waitFor();
       assert.equal(await page.locator('.book-editor').count(), 0, `${width}px: the book never opens in the editor`);
 
-      // 编辑这一节: the editor opens on the explanation of the point being read (1.1), edited and saved; it is 已改动 from then on.
+      // 编辑这个知识点: the editor opens on the explanation of the point being read (1.1), edited and saved; it is 已改动 from then on.
       await mode('原文');
       await page.locator('.book-editor__file', { hasText: '1.1 What architects do · 讲解（生成）' }).waitFor();
       assert.match(await page.locator('.book-mode__title').innerText(), /1\.1 What architects do/);

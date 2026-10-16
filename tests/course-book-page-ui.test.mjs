@@ -1,6 +1,6 @@
 /* 复习全书 page M1 (static zh and en; docs/plans/review-book.md): a closed chapter is only its heading (I8), an open one renders a point's generated file
    with its question links drawn by the book, 这道题已被删除 for a gone question and plain text for an unknown studyhub:// link (I5); a point without
-   questions says nothing about it in its toolbar (给这一节出题 is in 更多); the live 目录 marks the heading being read (bold, an ink line, no badge) and keeps the
+   questions says nothing about it in its toolbar (给这个知识点出题 is in 更多); the live 目录 marks the heading being read (bold, an ink line, no badge) and keeps the
    printed code for hover; the 总纲 page offers 打开书页 only when the book is written. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,6 +15,8 @@ const ui = await loadUi(`
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
   export { emptyPick } from './ui/outline/model.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
+  export { startBookBuild } from './ui/book/use-book-actions.js';
+  export { createActRunner } from './ui/act-runner.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement, noop = () => {}, han = /[㐀-鿿]/;
 const services = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
@@ -57,7 +59,7 @@ test('a closed chapter is its heading only; an open one renders its points with 
   assert.match(text, /本节的题 \(7\) 练习：Live question 0\? 练习：Live question 1\? 练习：Live question 2\? 练习：Live question 3\? 练习：Live question 4\? 还有 2 道/, 'the point\'s questions live: the first five, then 还有 N 道');
   assert.doesNotMatch(text, /Live question 5/);
   assert.match(text, /出处 1 练 5 道 本节问答 发给主会话 1\.2 Enthalpy/, 'the row of actions closes a point');
-  assert.match(text, /My note\. 在这里加一段 本节问答 发给主会话 2 Kinetics|My note\. 本节问答 发给主会话/, 'a point without questions says nothing about it in its toolbar (给这一节出题 is in 更多)');
+  assert.match(text, /My note\. 在这里加一段 本节问答 发给主会话 2 Kinetics|My note\. 本节问答 发给主会话/, 'a point without questions says nothing about it in its toolbar (给这个知识点出题 is in 更多)');
   assert.doesNotMatch(html, /book-node__create/);
   assert.doesNotMatch(html, /book-node__code|>H[0-9]</, 'no printed code beside the headings');
   assert.doesNotMatch(text, /暂无题|这一节还没有题。|还没出题/, 'and says nothing else about it: no badge, no standing line');
@@ -105,4 +107,18 @@ test('the 总纲 page offers 打开书页 once the book is written, and on an op
   assert.equal(textOf(view(true, new Set(['bk:c1', 'bk:p1']))).split('打开书页').length - 1, 2, 'and one on the opened point');
   assert.doesNotMatch(textOf(view(false, new Set(['bk:c1', 'bk:p1']))), /打开书页/, 'no book written: no 打开书页');
   assert.match(english(() => textOf(view(true, new Set(['bk:c1'])))), /Open the book page/);
+});
+
+test('生成复习全书 on a course without a book: a refused start is said (act() asked to rethrow says nothing itself), a started one says so', async () => {
+  const said = [], errors = [];
+  const runner = refuse => ui.createActRunner(() => ({ call: async () => { if (refuse) throw new Error('model quota is used up'); return { jobId: 'j1' }; },
+    refresh: async () => {}, epoch: () => 0, setBusy: noop, setError: text => { if (text) errors.push(text); }, holdMs: 0 }));
+  await ui.startBookBuild({ act: runner(true).act, course: 'SA', notify: note => said.push(note) });
+  assert.equal(said.length, 1, 'the failure is said once');
+  assert.equal(said[0].tone, 'error');
+  assert.match(said[0].text, /model quota is used up/);
+  assert.deepEqual(errors, [], 'act() itself said nothing: the notice is the only word');
+  said.length = 0;
+  await ui.startBookBuild({ act: runner(false).act, course: 'SA', notify: note => said.push(note) });
+  assert.deepEqual(said.map(note => note.tone), ['success']);
 });

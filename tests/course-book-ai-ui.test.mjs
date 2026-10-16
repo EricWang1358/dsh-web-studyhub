@@ -100,19 +100,19 @@ test('a folded block: one row, the caret, AI, the first real sentence of the ans
   assert.match(shut.slice(shut.indexOf('data-ai-block="ai2"')), /book-ai__actions/, 'the other block is still open');
 });
 
-test('no 整理 menu and no 只留我写的: the toolbar has 在这里加一段, 本节问答 and 发给主会话 (给这一节出题 is in 更多); 我的 folds all blocks from two of them', () => {
+test('no 整理 menu and no 只留我写的: the toolbar has 在这里加一段, 本节问答 and 发给主会话 (给这个知识点出题 is in 更多); 我的 folds all blocks from two of them', () => {
   assert.match(textOf(folded([])), /在这里加一段 本节问答 发给主会话/);
   assert.doesNotMatch(textOf(folded([])), /整理|只留我写的|暂无题|已隐藏/);
   assert.doesNotMatch(textOf(chapter()), /整理/, 'without the page\'s fold');
-  assert.match(textOf(folded([])), /我的 你的笔记、AI 段落和加进书里的问答都在这里 收起这一节的 AI 段落/, 'two blocks: one quiet link');
-  assert.match(textOf(folded(['ai1', 'ai2'])), /展开这一节的 AI 段落/);
-  assert.doesNotMatch(textOf(folded([], { ...node, mine: `My note.\n\n${block}` })), /收起这一节的 AI 段落|展开这一节的 AI 段落/, 'one block: none');
+  assert.match(textOf(folded([])), /我的 你的笔记、AI 段落和加进书里的问答都在这里 收起这个知识点的 AI 段落/, 'two blocks: one quiet link');
+  assert.match(textOf(folded(['ai1', 'ai2'])), /展开这个知识点的 AI 段落/);
+  assert.doesNotMatch(textOf(folded([], { ...node, mine: `My note.\n\n${block}` })), /收起这个知识点的 AI 段落|展开这个知识点的 AI 段落/, 'one block: none');
 });
 
 test('nothing of its own in 我的: no divider and no fold-all, even with blocks in the text; the blocks whose words are gone come after the suggestions', () => {
   const second = ui.aiBlock({ id: 'ai3', at: 'z', about: 'Third paragraph', body: 'More.' }, 'zh');
   const text = textOf(folded([], { ...node, mine: `${block}\n\n${second}` }));
-  assert.doesNotMatch(text, /我的|你的笔记、AI 段落和加进书里的问答都在这里|收起这一节的 AI 段落|展开这一节的 AI 段落/, 'two blocks in the text and nothing else: the tooltip would point at an empty layer, so there is no divider');
+  assert.doesNotMatch(text, /我的|你的笔记、AI 段落和加进书里的问答都在这里|收起这个知识点的 AI 段落|展开这个知识点的 AI 段落/, 'two blocks in the text and nothing else: the tooltip would point at an empty layer, so there is no divider');
   assert.doesNotMatch(textOf(folded([], { ...node, mine: block })), /我的/, 'one block in the text and nothing else: no 我的');
   const withSuggestion = { ...handlers, files: { 'p1.mine.md': { suggestions: [{ id: 's1', kind: 'generated', text: 'New text.' }] } } };
   const lastText = textOf(render(h(ui.BookChapter, { node, open: true, onToggle: noop, course: 'SA', handlers: withSuggestion })));

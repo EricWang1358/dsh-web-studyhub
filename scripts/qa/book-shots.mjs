@@ -3,9 +3,9 @@
    (archss: sixteen points, a 3,000-6,000 character AI block each, no questions; questions: most points with 10-25 questions) at 1280 and 420 px, light and dark,
    Chinese, it opens the book and saves, into BOOK_SHOTS, <fixture>-<width>-<theme>-<shot>.png: top (the top of the first point), end (the end of it), ai-row (the
    folded AI row), more (the bar's 更多 menu open), bar-mid (scrolled into the middle of the first point: the bar stuck, its reading line part way), toc (the
-   目录 open: the column at 1280, the slide-over at 420), lookup (the 速查页 dialog), edit and flip (更多 › 编辑这一节… and 翻看, with 「完成 · 回到阅读」), chat
+   目录 open: the column at 1280, the slide-over at 420), lookup (the 速查页 dialog), edit and flip (更多 › 编辑这个知识点… and 翻看, with 「完成 · 回到阅读」), chat
    (整本书 · 发给主会话…), placed (the point with a short explain block, in its place), placed-block (that block in the middle of the window), open-here (a
-   whole-point block open), mine-tip (the 我的 row with the explanation of its label), full (the whole page), notice (over a page limit of one page: the word in
+   whole-point block open), mine-tip (the 我的 row with the explanation of its label), full (the whole page), notice (over a page limit of one page: the line under
    the bar), course (a second course added: the title's switcher open). It prints one JSON line per fixture and width:
      controlsBeforeFirstLine  the visible interactive elements (button, a, summary, [role=button], input, select, textarea) of the book page above the first line
                               of the 讲解 text (the 目录 beside the text at 1280 is not above it and not counted)
@@ -105,8 +105,8 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
     await save('lookup');
     await page.keyboard.press('Escape');
     await page.locator('dialog.book-lookup-dialog').waitFor({ state: 'detached', timeout: 30000 });
-    // 更多 › 编辑这一节… and 翻看 take the page's place with 「完成 · 回到阅读」; 整本书 · 发给主会话… opens in a dialog.
-    for (const [item, ready, shot] of [[/^编辑这一节/, '.book-editor .cm-content', 'edit'], [/^翻看/, '.book-flip', 'flip']]) {
+    // 更多 › 编辑这个知识点… and 翻看 take the page's place with 「完成 · 回到阅读」; 整本书 · 发给主会话… opens in a dialog.
+    for (const [item, ready, shot] of [[/^编辑这个知识点/, '.book-editor .cm-content', 'edit'], [/^翻看/, '.book-flip', 'flip']]) {
       await page.locator('.book-bar__more').click();
       await page.getByRole('menuitem', { name: item }).click();
       await page.locator(ready).first().waitFor({ timeout: 30000 });
@@ -171,11 +171,11 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
     await page.locator('.book-step__heading', { hasText: 'What architects do' }).waitFor({ timeout: 30000 });
     if (shots) await whole(page, width, name('full'));
     if (shots) {
-      // Over the page limit (one page, set for this picture and cleared again): the short word in the bar's row.
+      // Over the page limit (one page, set for this picture and cleared again): the quiet line under the bar.
       await running.api('settings.book.set', { patch: { pageLimit: 1 } });
       try {
         await openBook(page, running);
-        await page.locator('.book-bar__notice').waitFor({ timeout: 30000 });
+        await page.locator('.book-bar-limit').waitFor({ timeout: 30000 });
         await toTop(page);
         await save('notice');
       } finally { await running.api('settings.book.set', { patch: { pageLimit: null } }); }

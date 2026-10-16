@@ -141,7 +141,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       await page.locator('.book-flip').waitFor({ timeout: 30000 });
       assert.equal(await page.locator('.book-mode__done').count(), 1, `${width}px: 翻看 has its way back to reading`);
       const flip = await page.locator('.book-flip').innerText();
-      for (const part of ['问过：决策日志和架构图有什么区别？', '弄懂：decision log', '这一节还没有记下的易错点。', '讲解', '选进模拟卷']) assert.ok(flip.includes(part), `${width}px: 翻看 shows ${part}`);
+      for (const part of ['问过：决策日志和架构图有什么区别？', '弄懂：decision log', '这个知识点还没有记下的易错点。', '讲解', '选进模拟卷']) assert.ok(flip.includes(part), `${width}px: 翻看 shows ${part}`);
       assert.doesNotMatch(flip, /the explanation that 翻看 keeps folded/, `${width}px: the 讲解 is folded`);
       const firstFlip = page.locator('.book-flip__point').first(), flipHid = await firstFlip.getAttribute('data-flip-point');
       assert.match(await firstFlip.innerText(), /What architects do/, `${width}px: the point with the most 易错点 first`);

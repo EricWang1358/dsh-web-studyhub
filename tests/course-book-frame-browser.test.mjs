@@ -88,10 +88,10 @@ test('复习全书 frame: the sticky bar, no mode switch, 更多 › 翻看 and 
       assert.equal(check, 'false', `${width}px: 整章连着读 is reached by ↓ and is off`);
       await page.keyboard.press('Escape');
       await page.locator('[role="menu"]').waitFor({ state: 'detached' });
-      // 更多 › 展开 / 收起这一节的 AI 段落 (the point's long block starts folded), the same words as 我的's link.
-      await more(page, '展开这一节的 AI 段落');
+      // 更多 › 展开 / 收起这个知识点的 AI 段落 (the point's long block starts folded), the same words as 我的's link.
+      await more(page, '展开这个知识点的 AI 段落');
       await page.waitForFunction(() => document.querySelectorAll('[data-book-point] .book-ai:not([data-ai-folded])').length > 0);
-      await more(page, '收起这一节的 AI 段落');
+      await more(page, '收起这个知识点的 AI 段落');
       await page.waitForFunction(() => document.querySelectorAll('[data-book-point] .book-ai:not([data-ai-folded])').length === 0);
       // 更多 › 出一套模拟卷… asks at once in a dialog; this book has no single or multiple choice question, and 知道了 closes it.
       await more(page, /^出一套模拟卷/);
@@ -180,7 +180,7 @@ Written by the main chat at ${width}.` });
     await switcher.waitFor({ timeout: 30000 });
     await switcher.hover();
     await page.getByText('会切换整个应用的当前课程').waitFor({ timeout: 5000 });
-    await more(page, /^编辑这一节/);
+    await more(page, /^编辑这个知识点/);
     await page.locator('.book-editor .cm-content').click();
     await page.keyboard.type('Unsaved words.');
     const pick = async () => { await switcher.click(); await page.getByRole('option', { name: /Second course/ }).click(); };

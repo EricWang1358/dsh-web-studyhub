@@ -77,11 +77,11 @@ test('复习全书 in the sidebar: the book page with the 期末一周 date hint
         await pressBook(page);
         await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
         assert.match(await page.locator('.book-page h1').innerText(), /复习全书 · SA/, `${width}px: the sidebar opened the book page`);
-        // No exam date: 更多 › 期末一周 offers 设置考试日期 (开启期末一周), and it opens the course settings.
+        // No exam date: 更多 › 期末一周 offers 设置考试日期 (no hint: it says what it is), and it opens the course settings.
         await page.locator('.book-bar__more').click();
         const link = page.getByRole('menuitem', { name: /^设置考试日期/ });
         await link.waitFor({ timeout: 30000 });
-        assert.equal((await link.locator('.sh-menu__hint').innerText()).trim(), '开启期末一周', `${width}px: no date, the item says what it starts`);
+        assert.equal(await link.locator('.sh-menu__hint').count(), 0, `${width}px: no date, the item without a hint`);
         assert.equal(flat(await sideways(page)), true, `${width}px: nothing scrolls sideways`);
         await settleAnimations(page);
         if (shots) await page.screenshot({ path: join(shots, `book-no-date-${width}.png`) });
