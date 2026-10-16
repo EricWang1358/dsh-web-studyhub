@@ -80,10 +80,11 @@
     .book-page[data-narrow] .book-bar__toc[aria-expanded='true'] {
       color: var(--text);
     }
-    /* The bar's buttons are glyphs, not words: a disabled one takes the faint decoration ink (--text-faint is held to the text contrast and is all but
-       --text-muted in the light theme, so a disabled ‹ would look like ›). */
+    /* A disabled bar button: the faint text ink, dimmed (--text-faint is held to the text contrast and is all but --text-muted in the light theme, so a
+       disabled ‹ would look like › without the dimming; --decor-faint is for decoration, never for a control's ink). */
     .book-bar__btn:disabled {
-      color: var(--decor-faint);
+      color: var(--text-faint);
+      opacity: 0.5;
     }
     /* At 16 px the light glyphs' straight hairlines fall between pixels: in the same ink ≡'s lines and ⋯'s dots read fainter than ‹ › and Aa, as if
        disabled. A thin stroke of the same colour (in the glyphs' 256 grid; a little more on ≡ and ⋯) gives the five one weight. */
