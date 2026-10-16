@@ -19,7 +19,7 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 /* 期末一周 in the real page at 1280 and 420 px (docs/plans/review-book.md M7): with the course's exam a week away the home shows the 期末一周 card (the
    day's kind, its reason, its points); 去读 opens the book at that point, with 「今天读哪几节」 in 更多; 更多 › 翻看 lists the points with their 易错点 first,
-   已看 is kept after a reload, a round from 翻看 comes back to the reading surface at its point; 「用这几节出一套模拟卷」 says what can go in and starts the ordinary exam page. Nothing scrolls sideways.
+   已看 is kept after a reload, a round from 翻看 comes back to the reading surface at its point; 「用这些知识点出一套模拟卷」 says what can go in and starts the ordinary exam page. Nothing scrolls sideways.
    Screenshots go to COURSE_BOOK_CRUNCH_SHOTS. */
 
 const options = [{ id: 'a', text: 'Yes', correct: true }, { id: 'b', text: 'No', correct: false }];
@@ -83,7 +83,7 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       const card = page.locator('.crunch-card');
       await card.waitFor({ timeout: 30000 });
       const text = await card.innerText();
-      for (const part of ['期末一周 · SA', '学习日', '距考试 7 天', '练 5 道', '用这几节出一套模拟卷']) assert.ok(text.includes(part), `${width}px: the card shows ${part}`);
+      for (const part of ['期末一周 · SA', '学习日', '距考试 7 天', '练 5 道', '用这些知识点出一套模拟卷']) assert.ok(text.includes(part), `${width}px: the card shows ${part}`);
       assert.match(text, /每节读完练 5 道，约 \d+ 分钟/, `${width}px: the reason`);
       // The card's own parts (the rest of the home is not this test's).
       let overflow = await sideways(page, '.crunch-card *');
@@ -194,11 +194,11 @@ test('期末一周: the home card, a point in the book, 翻看 with the 易错�
       assert.equal(await seenCount(page), before + 1, `${width}px: 翻看 keeps its progress`);
 
       // The mock paper: what can go in, then the ordinary exam page.
-      await page.locator('.book-flip__mock').getByRole('button', { name: '用这几节出一套模拟卷' }).click();
+      await page.locator('.book-flip__mock').getByRole('button', { name: '用这些知识点出一套模拟卷' }).click();
       const mock = page.locator('.book-flip__mock .book-mock');
       await mock.waitFor({ timeout: 30000 });
       const said = await mock.innerText();
-      assert.match(said, /这 2 节共 \d+ 道题，其中 9 道单选或多选可以进模拟卷/, `${width}px: the coverage: ${said}`);
+      assert.match(said, /这 2 个知识点共 \d+ 道题，其中 9 道单选或多选可以进模拟卷/, `${width}px: the coverage: ${said}`);
       assert.match(said, /不进卷：.*开放 1 道.*闪卡 \d+ 道/, `${width}px: what is left out: ${said}`);
       await settleAnimations(mock);
       if (shots) await mock.screenshot({ path: join(shots, `mock-${tag}.png`) });

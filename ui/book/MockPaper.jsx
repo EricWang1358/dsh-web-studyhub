@@ -6,7 +6,7 @@ import { EXAM_LIMIT_MS } from '../../lib/exam-timing.js';
 import { QUESTION_COUNT } from '../../lib/limits.js';
 import { leftOutText } from './crunch-words.js';
 
-/* 「用这几节出一套模拟卷」 (M7): the same control on the book page and on the home's 期末一周 card. A click asks what the paper would take (book.mock.plan:
+/* 「用这些知识点出一套模拟卷」 (M7): the same control on the book page and on the home's 期末一周 card. A click asks what the paper would take (book.mock.plan:
    how many questions the points have, how many single or multiple choice can go in, what the exam mode leaves out) and says it before anything starts;
    开始模拟卷 starts the ordinary exam (book.mock → the exam page, unchanged). pointIds: the heading ids (none: today's points of the plan, else the
    whole book); onStarted(run) enters the exam run. autoAsk: ask at once (in the book's dialog, where the button would be one click more); onCancel: what
@@ -31,13 +31,13 @@ export default function MockPaper({ course, pointIds, onStarted, className, auto
     catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     finally { setBusy(false); }
   };
-  if (!plan) return <Button size="sm" variant="secondary" icon="clock" className={className} busy={busy} disabled={busy} data-usage="book.mock" onClick={ask}>{ui('用这几节出一套模拟卷')}</Button>;
+  if (!plan) return <Button size="sm" variant="secondary" icon="clock" className={className} busy={busy} disabled={busy} data-usage="book.mock" onClick={ask}>{ui('用这些知识点出一套模拟卷')}</Button>;
   const minutes = plan.limitMinutes ?? EXAM_LIMIT_MS / 60000, left = leftOutText(plan.leftOut);
   return (
     <div className={className ? `book-mock ${className}` : 'book-mock'} role="group" aria-label={ui('模拟卷')}>
-      <p className="book-mock__line">{uiFormat('这 {0} 节共 {1} 道题，其中 {2} 道单选或多选可以进模拟卷。', [plan.points.length, plan.questions, plan.eligible])}</p>
+      <p className="book-mock__line">{uiFormat('这 {0} 个知识点共 {1} 道题，其中 {2} 道单选或多选可以进模拟卷。', [plan.points.length, plan.questions, plan.eligible])}</p>
       {left && <p className="book-mock__muted">{uiFormat('不进卷：{0}（模拟考试只考单选和多选）。', [left])}</p>}
-      {plan.unknown?.length > 0 && <p className="book-mock__muted">{uiFormat('{0} 节已不在书里，没有算进去。', [plan.unknown.length])}</p>}
+      {plan.unknown?.length > 0 && <p className="book-mock__muted">{uiFormat('{0} 个知识点已不在书里，没有算进去。', [plan.unknown.length])}</p>}
       {plan.eligible > 0 ? (
         <form className="book-mock__start" onSubmit={start}>
           <Field inline width="sm" label={ui('题数')}>
@@ -48,7 +48,7 @@ export default function MockPaper({ course, pointIds, onStarted, className, auto
           <Button size="sm" variant="quiet" disabled={busy} onClick={cancel}>{ui('取消')}</Button>
         </form>
       ) : (
-        <InlineMessage tone="warning" action={{ label: ui('知道了'), onClick: cancel }}>{ui('这几节没有单选或多选题，出不了模拟卷。')}</InlineMessage>
+        <InlineMessage tone="warning" action={{ label: ui('知道了'), onClick: cancel }}>{ui('这些知识点没有单选或多选题，出不了模拟卷。')}</InlineMessage>
       )}
     </div>
   );

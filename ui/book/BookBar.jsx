@@ -19,8 +19,8 @@ export const readShare = (box, barBottom, windowHeight, scrolled) => {
   if (box.top < barBottom) return Math.min(1, Math.max(0, (windowHeight - box.top) / box.height));
   return scrolled && box.bottom <= windowHeight ? 1 : 0;
 };
-/** Whether the page under `bar` has scrolled at all (the app's scroller, or the window's). */
-const scrolledAt = bar => (bar.closest('.study-app, .study-seat')?.scrollTop || 0) > 0 || (document.scrollingElement?.scrollTop || 0) > 0;
+/** The reader's own scrolling (not a jump by ‹ ›, ← → or the 目录, which scrolls the page as well): the wheel, a touch drag or a scroll key. */
+const SCROLL_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'End', 'Home', ' ']);
 
 /** Where the bar sticks, in px from the top of the app's scroller: under the app's top bar while it is on screen, else 0. */
 const stickAt = bar => {
@@ -42,23 +42,30 @@ function useReadLine(hid, barRef) {
   const line = useRef(null);
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    let frame = 0;
+    // A new point starts unread until the reader scrolls it themselves.
+    let frame = 0, moved = false;
     const draw = () => {
       frame = 0;
       const bar = stickBar(barRef.current?.closest('.book-page')) || barRef.current;
       const point = hid && document.querySelector(`[data-book-point="${CSS.escape(hid)}"]`);
-      const share = point && bar ? readShare(point.getBoundingClientRect(), bar.getBoundingClientRect().bottom, window.innerHeight, scrolledAt(bar)) : 0;
+      const share = point && bar ? readShare(point.getBoundingClientRect(), bar.getBoundingClientRect().bottom, window.innerHeight, moved) : 0;
       if (line.current) line.current.style.transform = `scaleX(${share})`;
     };
     const later = () => { if (!frame) frame = requestAnimationFrame(draw); };
+    const byHand = event => {
+      if (event.type === 'keydown' && (!SCROLL_KEYS.has(event.key) || event.target?.closest?.('input, textarea, [contenteditable], .cm-editor'))) return;
+      moved = true;
+      later();
+    };
     draw();
     document.addEventListener('scroll', later, { capture: true, passive: true });
+    for (const type of ['wheel', 'touchmove', 'keydown']) window.addEventListener(type, byHand, { passive: true });
     window.addEventListener('resize', later);
     // The point grows or shrinks without a scroll (a block opened, a fold, a late answer): drawn again.
     const point = hid && document.querySelector(`[data-book-point="${CSS.escape(hid)}"]`);
     const sizes = point && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(later) : null;
     sizes?.observe(point);
-    return () => { cancelAnimationFrame(frame); sizes?.disconnect(); document.removeEventListener('scroll', later, { capture: true }); window.removeEventListener('resize', later); };
+    return () => { cancelAnimationFrame(frame); sizes?.disconnect(); document.removeEventListener('scroll', later, { capture: true }); window.removeEventListener('resize', later); for (const type of ['wheel', 'touchmove', 'keydown']) window.removeEventListener(type, byHand); };
   }, [hid, barRef]);
   return line;
 }

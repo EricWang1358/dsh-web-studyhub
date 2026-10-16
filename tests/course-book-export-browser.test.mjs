@@ -128,7 +128,7 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       await dialog.locator('input[type="number"]').fill('1');
       await dialog.locator('input[type="number"]').press('Enter');
       await dialog.locator('.book-export__pages .sh-badge').waitFor({ timeout: 30000 });
-      assert.match(await dialog.locator('.book-export__pages').innerText(), /超出上限 \d+ 页/, `${width}px: over a limit of one page`);
+      assert.match(await dialog.locator('.book-export__pages').innerText(), /比上限多 \d+ 页/, `${width}px: over a limit of one page`);
       overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways in the dialog: ${JSON.stringify(overflow)}`);
       await settleAnimations(page);
@@ -151,7 +151,7 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       // Over the limit: one quiet line under the bar (the estimate and how far over; its Tooltip says where to change the limit). It is not in the bar: the
       // buttons stay where they were, the place keeps its room, and it covers nothing (the way back, the point's path and heading, the 目录).
       await page.locator('.book-bar-limit').waitFor({ timeout: 30000 });
-      assert.match(await page.locator('.book-bar-limit').innerText(), /^导出约 \d+ 页，超出上限 \d+ 页$/);
+      assert.match(await page.locator('.book-bar-limit').innerText(), /^导出约 \d+ 页，超过 \d+ 页的上限$/);
       assert.equal(await page.locator('.book-bar .book-bar-limit').count(), 0, `${width}px: not inside the sticky bar`);
       const cover = await page.evaluate(() => {
         const box = element => element && element.getBoundingClientRect();

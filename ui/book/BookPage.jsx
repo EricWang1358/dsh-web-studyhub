@@ -17,7 +17,7 @@ import BookToc from './BookToc.jsx';
 import BookChapter from './BookChapter.jsx';
 import BookStep from './BookStep.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
-import BookExport, { budgetText } from './BookExport.jsx';
+import BookExport from './BookExport.jsx';
 import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, useAiFold, useLandedBlocks } from './ai-fold.js';
@@ -118,7 +118,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     } : undefined} />;
   const over = pages !== null && pageLimit && pages > pageLimit;
   // Over the page limit: one quiet line under the bar (the estimate and how far over); its Tooltip says where the limit is changed.
-  const notice = over ? { text: uiFormat('导出约 {0} 页，{1}', [pages, budgetText(pages, pageLimit).text]), tip: uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit]) } : null;
+  const notice = over ? { text: uiFormat('导出约 {0} 页，超过 {1} 页的上限', [pages, pageLimit]), tip: uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit]) } : null;
   const unplaced = step?.hid === 'unplaced', counted = steps.filter(item => item.hid !== 'unplaced').length;
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
     today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)} />;

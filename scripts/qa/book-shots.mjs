@@ -117,7 +117,7 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
       await page.locator('.book-bar').waitFor({ timeout: 30000 });
     }
     await page.locator('.book-bar__more').click();
-    await page.getByRole('menuitem', { name: /^整本书 · 发给主会话/ }).click();
+    await page.getByRole('menuitem', { name: /^发给主会话…/ }).click();
     await page.locator('dialog.book-chat-dialog').waitFor({ timeout: 30000 });
     await page.waitForTimeout(250);
     await save('chat');

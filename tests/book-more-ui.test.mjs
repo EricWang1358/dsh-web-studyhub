@@ -26,16 +26,16 @@ test('更多: four groups; a fold item only where there are AI blocks, named by 
   assert.equal(item(plain, 'chat').hint, '只填进输入框，不自动发送');
   const folds = ui.moreItems({ pointFold: { folded: false }, bookFold: { folded: true } });
   assert.equal(item(folds, 'fold-point').label, '收起这个知识点的 AI 段落');
-  assert.equal(item(folds, 'fold-book').label, '展开全书的 AI 段落');
+  assert.equal(item(folds, 'fold-book').label, '展开整本书的 AI 段落');
   assert.equal(item(ui.moreItems({ pointFold: { folded: true } }), 'fold-point').label, '展开这个知识点的 AI 段落');
-  assert.equal(item(ui.moreItems({ bookFold: { folded: false } }), 'fold-book').label, '收起全书的 AI 段落');
+  assert.equal(item(ui.moreItems({ bookFold: { folded: false } }), 'fold-book').label, '收起整本书的 AI 段落');
 });
 
 test('更多: the export item names the pages (and the limit), the mock paper its scope, today only with a plan day', () => {
   assert.equal(item(ui.moreItems({}), 'export').hint, undefined, 'no estimate yet: no hint');
   assert.equal(item(ui.moreItems({ pages: 42 }), 'export').hint, '约 42 页');
   assert.equal(item(ui.moreItems({ pages: 42, pageLimit: 30 }), 'export').hint, '约 42 页 / 上限 30 页');
-  assert.equal(item(ui.moreItems({}), 'mock').hint, '全书');
+  assert.equal(item(ui.moreItems({}), 'mock').hint, '整本书');
   assert.equal(item(ui.moreItems({ today: true, mockScope: 3 }), 'mock').hint, '今天的 3 个知识点');
   assert.equal(item(ui.moreItems({}), 'today'), undefined);
   assert.deepEqual(ids(ui.moreItems({ today: true })).slice(-2), ['today', 'mock']);

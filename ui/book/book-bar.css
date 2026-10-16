@@ -94,13 +94,13 @@
     }
     .book-bar__toc svg,
     .book-bar__more svg {
-      stroke-width: 8;
+      stroke-width: 13;
     }
     /* The page limit, when the export is over it: one quiet cinnabar line under the bar (not in the sticky bar: no button moves, the place is not squeezed),
        there only while the estimate is over the limit; its Tooltip says where to change it. */
     .book-bar-limit {
       margin: var(--space-1) 0 0;
-      padding-inline: var(--space-2);
+      padding-inline: 0;
       color: var(--accent-text);
       font-size: var(--fs-xs);
       line-height: var(--lh-snug);

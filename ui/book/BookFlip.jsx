@@ -11,7 +11,7 @@ import { codeOf } from '../../lib/course-book-lookup.js';
 /* 翻看 (M7): the book for the last days before the exam. Every point in the plan's 翻看 order (the most 易错点 first, then the weakest; book.crunch's
    `plan.order.flip`, the book's order without a plan), each with its 易错点 open (what the learner once asked, an answer card's pitfalls, what was
    explained: lib/book-flip.js) and its 讲解 folded (drawn only when opened). 已看 is kept per course (book.crunch.mark), so the progress survives;
-   「用这几节出一套模拟卷」 takes the points picked here, else today's, else the whole book. Nothing here changes the book's files or its export. */
+   「用这些知识点出一套模拟卷」 takes the points picked here, else today's, else the whole book. Nothing here changes the book's files or its export. */
 export default function BookFlip({ book, crunch, course, handlers, onMark, onGo, onMockStarted }) {
   const rows = useMemo(() => bookRows(book.nodes).filter(row => row.leaf), [book]);
   const mistakes = useMemo(() => pointMistakes(book), [book]);

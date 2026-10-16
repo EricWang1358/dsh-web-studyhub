@@ -96,7 +96,7 @@ test('复习全书 frame: the sticky bar, no mode switch, 更多 › 翻看 and 
       // 更多 › 出一套模拟卷… asks at once in a dialog; this book has no single or multiple choice question, and 知道了 closes it.
       await more(page, /^出一套模拟卷/);
       const mock = page.locator('dialog.book-mock-dialog');
-      await mock.getByText('这几节没有单选或多选题，出不了模拟卷。').waitFor({ timeout: 30000 });
+      await mock.getByText('这些知识点没有单选或多选题，出不了模拟卷。').waitFor({ timeout: 30000 });
       await mock.getByRole('button', { name: '知道了' }).click();
       await mock.waitFor({ state: 'detached' });
       await page.evaluate(() => { document.querySelector('.study-app').scrollTop = 0; });

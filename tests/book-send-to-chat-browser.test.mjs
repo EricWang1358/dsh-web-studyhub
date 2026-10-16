@@ -164,9 +164,9 @@ test('发给主会话: a point\'s popover with presets, the selection panel and 
       assert.match(selected, /知识点 id（hid）：/);
       await ask.waitFor({ state: 'detached', timeout: 5000 });
 
-      // 更多 › 整本书 · 发给主会话…: the whole book, with the same form in a dialog; the message starts at book.toc and has no point.
+      // 更多 › 整本书 › 发给主会话…: the whole book, with the same form in a dialog; the message starts at book.toc and has no point.
       await page.locator('.book-bar__more').click();
-      const book = page.getByRole('menuitem', { name: /^整本书 · 发给主会话…/ });
+      const book = page.getByRole('menuitem', { name: /^发给主会话…/ });
       assert.match(await book.innerText(), /只填进输入框，不自动发送/, `${width}px: the item says it only fills the box`);
       await book.click();
       const whole_ = page.locator('dialog.book-chat-dialog');
