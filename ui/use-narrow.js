@@ -19,6 +19,6 @@ export function useNarrow(ref) {
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   return narrow;
 }

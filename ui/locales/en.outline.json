@@ -375,5 +375,6 @@
   "翻看 · 易错点多的在前": "Look over · most mistakes first",
   "速查页": "Lookup pages",
   "出一套模拟卷": "Make a mock paper",
-  "复习全书：← → 换一个知识点，Esc 关掉目录或菜单": "Review book: ← → to the previous or next point, Esc closes the contents or a menu"
+  "复习全书：← → 换一个知识点；Esc 关掉滑出的目录或菜单": "Review book: ← → to the previous or next point; Esc closes the slid-out contents or a menu",
+  "上一个与下一个知识点": "Previous and next knowledge point"
 }

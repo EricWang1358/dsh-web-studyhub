@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, EmptyState, ErrorState, LoadingState, Tooltip } from '../components/index.js';
+import { Button, EmptyState, ErrorState, LoadingState } from '../components/index.js';
 import { usePersistentState, readText, removeKey } from '../storage.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
@@ -18,7 +18,7 @@ import BookChapter from './BookChapter.jsx';
 import BookStep from './BookStep.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
 import BookExport, { budgetText } from './BookExport.jsx';
-import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel } from './book-views.jsx';
+import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, useAiFold, useLandedBlocks } from './ai-fold.js';
 import { useSendToChat } from './send-to-chat.js';
@@ -75,8 +75,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   useEffect(() => { setTocOver(false); }, [narrow]);
   const tocOpen = narrow ? tocOver : tocWide;
   useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
-  // Leaving the editor with unsaved text asks first (the 完成 button, 回到总纲, another course).
+  // Leaving the editor with unsaved text asks first (the 完成 button, 回到总纲, another course; closing or reloading the tab: the browser's own question).
+  // The sidebar and the other pages do not ask yet (no navigation guard in the app; S4 saves as you type).
   const guard = useCallback(then => (view === 'edit' && dirty ? setLeaving(() => then) : then()), [view, dirty]);
+  useUnsavedWarning(view === 'edit' && dirty);
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
   // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
@@ -115,9 +117,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       window.getSelection?.()?.removeAllRanges?.();
     } : undefined} />;
   const over = pages !== null && pageLimit && pages > pageLimit;
-  const notice = over && <Tooltip layer content={uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit])} anchorClassName="book-bar__notice-tip">
-    <p className="book-bar__notice" tabIndex={0}>{uiFormat('导出约 {0} 页，{1}', [pages, budgetText(pages, pageLimit).text])}</p></Tooltip>;
-  const menu = <BookMore onSelect={more.select} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
+  const notice = over ? { text: budgetText(pages, pageLimit).text, tip: <>{uiFormat('导出约 {0} 页，{1}', [pages, budgetText(pages, pageLimit).text])}
+    <br />{uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit])}</> } : null;
+  const unplaced = step?.hid === 'unplaced', counted = steps.filter(item => item.hid !== 'unplaced').length;
+  const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
     today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)} />;
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} onClose={() => setDialog(null)} />}
@@ -134,8 +137,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   return (
     <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
       {header}
-      <BookBar ref={tocRef} where={step && step.hid !== 'unplaced' ? uiFormat('知识点 {0}/{1}', [where.current + 1, steps.filter(item => item.hid !== 'unplaced').length]) : ''}
-        title={step ? [step.node.number, step.node.title].filter(Boolean).join(' ') : ''} hid={step?.hid ?? null} tocOpen={tocOpen}
+      <BookBar ref={tocRef} at={step && !unplaced ? where.current + 1 : 0} total={counted} number={step?.node.number || ''} title={step?.node.title ?? ''}
+        hid={step?.hid ?? null} tocOpen={tocOpen}
         onToc={() => (narrow ? setTocOver(value => !value) : setTocWide(!tocWide))} onPrev={where.current > 0 ? () => where.go(-1) : null}
         onNext={where.current < steps.length - 1 ? () => where.go(1) : null} more={menu} notice={notice} />
       {plan.day && todayOpen && <TodayPanel course={course} crunch={plan.crunch} day={plan.day} points={plan.points}

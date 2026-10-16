@@ -17,7 +17,7 @@ export default function BookMoves({ course, moves }) {
   // A write that fails only shows the line again next time.
   const done = () => { writeText(keyOf(course), moves.at); setSeen(moves.at); };
   return (
-    <section className="book-header__status" data-book-moves="" aria-label={ui('笔记换了位置')}>
+    <section className="book-header__moves" data-book-moves="" aria-label={ui('笔记换了位置')}>
       <p>{uiFormat('{0} 个知识点的笔记被移到了新位置（总纲重新整理过）：', [moves.list.length])}</p>
       <ul>{moves.list.slice(0, 12).map(move => <li key={`${move.from}|${move.to}`}>{uiFormat(move.folded ? '「{0}」并入「{1}」' : '「{0}」→「{1}」', [move.from, move.to])}</li>)}</ul>
       {moves.list.length > 12 && <p>{uiFormat('还有 {0} 个', [moves.list.length - 12])}</p>}

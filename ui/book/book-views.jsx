@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Dialog, InlineConfirm, LoadingState } from '../components/index.js';
 import BookEditor from './BookEditor.jsx';
@@ -23,6 +23,16 @@ function ModeBar({ title, onDone }) {
       <Button size="sm" variant="secondary" icon="arrow-left" className="book-mode__done" onClick={onDone}>{ui('完成 · 回到阅读')}</Button>
     </div>
   );
+}
+
+/** While `on` (unsaved edits in the editor), closing or reloading the tab asks first (the browser's own question). */
+export function useUnsavedWarning(on) {
+  useEffect(() => {
+    if (!on || typeof window === 'undefined') return undefined;
+    const warn = event => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [on]);
 }
 
 /** The point's files in the editor, the explanation first (the file picker still lists every file of the book). */
