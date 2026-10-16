@@ -73,6 +73,7 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
     : { label: ui('查看详情'), run: openConsole });
   if (title) summary.title = title;
   const stoppable = contract.actions.cancel.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
+  const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={<span aria-hidden="true">→</span>} onClick={go.run}>{go.label}</Button>;
   return (
     <article className={['cjc', job.leaving && 'is-leaving', className].filter(Boolean).join(' ')} data-job-id={job.id} data-state={tone} aria-label={summary.title} {...rest}
       aria-hidden={job.leaving ? 'true' : undefined} inert={job.leaving || undefined}>
@@ -95,7 +96,8 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
       {links?.length > 0 && <div className="cjc__links">{links.map((link) => <Button key={link.label} variant="link" size="sm" disabled={link.disabled} onClick={link.run}>{link.label}</Button>)}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}
       {dismissFailure && <InlineMessage className="cjc__problem" tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
-      <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={<span aria-hidden="true">→</span>} onClick={go.run}>{go.label}</Button>
+      {/* `primary.tip`: what the button does first, on hover and focus (never a title attribute). */}
+      {go.tip ? <Tooltip layer content={go.tip} anchorClassName="cjc__go-anchor">{goButton}</Tooltip> : goButton}
     </article>
   );
 }

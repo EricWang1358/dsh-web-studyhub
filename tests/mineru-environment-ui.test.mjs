@@ -90,6 +90,10 @@ test('a failed run with a stopped service names it, and 接着做 starts the ser
   assert.match(html, />接着做</);
   assert.doesNotMatch(html, /重新启动本地服务并接着做/);
   assert.match(html, /点「接着做」会先启动本机服务/);
+  // The card's own 接着做 explains it on hover and focus (a Tooltip, as on the history row; never a title attribute).
+  assert.match(html, /role="tooltip"[^>]*>会先启动本机 MinerU 服务，再从停下的那一段接着解析。/);
+  const other = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'parse-failed', finishedAt: new Date(now).toISOString() })]));
+  assert.doesNotMatch(other, /会先启动本机 MinerU 服务/, 'only when the service stopped');
 });
 
 test('an old cloud run says what did the work: MinerU, the model version, the language, the piece limits; nothing about a token', () => {

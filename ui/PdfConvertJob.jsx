@@ -16,6 +16,10 @@ import css from './mineru.css';
    the run itself; open the pages; the settings when only the installation can help). What used to fill the card (the 运行环境, the window in hand and the service's own state, the pace, the windows) is
    `PdfDetail`, the kind's section of the 任务 console. */
 
+/** What 接着做 does first when the local service stopped under the run: said on hover and focus, as on the history row. */
+const SERVICE_STOPPED = ['server-stopped', 'server-start-failed'];
+const retryTip = job => (job.converter !== 'marker' && SERVICE_STOPPED.includes(job.errorCode || job.failure?.code) ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : undefined);
+
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
   const [working, setWorking] = useState('');
   const run = async (name, work) => {
@@ -28,7 +32,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
   const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
   const primary = needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
-    : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working }
+    : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
     <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
