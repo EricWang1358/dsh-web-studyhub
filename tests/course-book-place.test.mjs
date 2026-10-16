@@ -41,9 +41,15 @@ test('keepBook: the place (heading, offset) is kept in storage per library and c
   assert.equal(ui.keptBook('lib-a', 'Other', storage), null);
   storage.setItem('study-book-place:lib-a:Other', JSON.stringify({ heading: 7 }));
   assert.equal(ui.keptBook('lib-a', 'Other', storage), null);
-  // No storage at all (a private window): the page still works from memory.
-  ui.keepBook('lib-c', null, { heading: 'h2', offset: 10 }, null);
-  assert.equal(ui.keptBook('lib-c', null, null), null, 'nothing kept without storage: the book opens at its start');
+  // No storage at all (a private window, blocked or full): the place survives in memory for this page load, so the way back from practice still lands there.
+  ui.keepBook('lib-c', null, { heading: 'h2', offset: 10.4 }, null);
+  assert.deepEqual(ui.keptBook('lib-c', null, null), { heading: 'h2', offset: 10 }, 'kept in memory without storage');
+  ui.keepBook('lib-c', null, { offset: -300, back: true, point: 'h2' }, null);
+  assert.deepEqual(ui.keptBook('lib-c', null, null), { heading: 'h2', offset: -300, back: true, point: 'h2' }, 'the way back keeps heading and offset in memory');
+  // A storage that refuses every write (full): the memory copy is the latest within this page load.
+  const full = { getItem: () => JSON.stringify({ heading: 'h1', offset: 0 }), setItem: () => { throw new Error('QuotaExceededError'); }, removeItem() {} };
+  ui.keepBook('lib-d', 'ArchSS', { heading: 'h9', offset: 120 }, full);
+  assert.deepEqual(ui.keptBook('lib-d', 'ArchSS', full), { heading: 'h9', offset: 120 }, 'a full storage: memory wins in this page load');
 });
 
 test('复制编号: the lowercase hid the book tools match, then the number and title, then the course', () => {

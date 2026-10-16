@@ -42,7 +42,9 @@ const readPlace = (root, course, storage) => {
   const place = readJSON(placeKey(root, course), null, storage);
   return place && typeof place.heading === 'string' && place.heading ? { heading: place.heading, offset: Number.isFinite(place.offset) ? place.offset : null } : null;
 };
-/** Where the learner was in the book of a course: { heading, offset } (offset: the heading's distance from the top of the window), and the one-shots above. */
+/** Where the learner was in the book of a course: { heading, offset } (offset: the heading's distance from the top of the window), and the one-shots above.
+    The place is also kept in memory: within one page load that copy is the latest (and the only one when the storage is missing, blocked or full, so the way
+    back from practice still lands where the learner left); a fresh page load has only the stored one. */
 export function keptBook(root, course, storage = browserStorage()) {
   const place = readPlace(root, course, storage), once = kept.get(keyOf(root, course));
   return place || once ? { ...place, ...once } : null;
@@ -51,8 +53,13 @@ export function keepBook(root, course, view, storage = browserStorage()) {
   const place = {}, once = {};
   for (const [key, value] of Object.entries(view || {})) (PLACE.has(key) ? place : once)[key] = value;
   if ('heading' in place || 'offset' in place) {
-    const before = readPlace(root, course, storage) || {}, heading = place.heading ?? before.heading ?? null, offset = place.offset ?? before.offset ?? null;
-    if (heading) writeJSON(placeKey(root, course), { heading, offset: Number.isFinite(offset) ? Math.round(offset) : 0 }, storage);
+    const before = kept.get(keyOf(root, course))?.heading ? kept.get(keyOf(root, course)) : readPlace(root, course, storage) || {};
+    const heading = place.heading ?? before.heading ?? null, offset = place.offset ?? before.offset ?? null;
+    if (heading) {
+      const next = { heading, offset: Number.isFinite(offset) ? Math.round(offset) : 0 };
+      writeJSON(placeKey(root, course), next, storage);
+      Object.assign(once, next);
+    }
   }
   if (!Object.keys(once).length) return;
   kept.set(keyOf(root, course), { ...(kept.get(keyOf(root, course)) || {}), ...once });
