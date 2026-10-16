@@ -158,6 +158,13 @@
     .book-page[data-narrow] .book-bar__row {
       gap: 0;
     }
+    /* Narrow: 目录 and 更多 keep only their icons, as square as the other icon buttons, so the four on the right are evenly spaced. */
+    .book-page[data-narrow] .book-bar__toc,
+    .book-page[data-narrow] .book-bar__more {
+      justify-content: center;
+      width: var(--control-h-sm);
+      padding-inline: 0;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
