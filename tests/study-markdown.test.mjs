@@ -78,3 +78,13 @@ test('a 角标 is one no-wrap unit with the character before it and the full sto
   assert.doesNotMatch(render('熵[^1]。'), /md-cite/, 'without a handler a 角标 stays the text it was written as');
   assert.match(render('熵[^1]。'), /熵\[\^1\]。/);
 });
+
+test('an ordered list keeps its start number: items cut apart by paragraphs (an AI block\'s 「1. 2. 3.」) read 1, 2, 3, not 1, 1, 1', () => {
+  const html = render('1. 第一条\n\n说明一段。\n\n2. 第二条\n\n说明。\n\n3. 第三条');
+  assert.deepEqual([...html.matchAll(/<ol(?: start="(\d+)")?>/g)].map(match => match[1] ?? '1'), ['1', '2', '3']);
+  assert.match(render('1. a\n2. b'), /<ol><li>a<\/li><li>b<\/li><\/ol>/, 'a list from 1 has no start attribute');
+  assert.match(render('4) d\n5) e'), /<ol start="4">/, 'the 4) form too');
+  assert.match(render('3、 丙'), /<ol start="3">/, 'and 3、');
+  assert.match(render('- a\n- b'), /<ul><li>a/, 'a bullet list has none');
+  assert.match(render('1. a\n   2. nested'), /<ol start="2">/, 'a nested list keeps its own start');
+});
