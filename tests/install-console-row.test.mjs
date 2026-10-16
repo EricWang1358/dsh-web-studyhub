@@ -76,6 +76,7 @@ test('继续安装 starts the install of its tool again, in the folder and the t
 test('English: the step and the steps are in the learner\'s language', () => {
   const html = render([row()], 'en');
   assert.match(textOf(html), /Step 3\/6: Installing MinerU/);
+  assert.match(textOf(html), /Install the local MinerU/, 'the title too');
   assert.match(textOf(detailOf(html)), /Install steps 6/);
   assert.match(textOf(detailOf(html)), /Getting the installer/);
 });
