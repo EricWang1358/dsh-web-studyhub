@@ -172,10 +172,10 @@ test('复习全书 reading: one point at a time with 下一节, ‹ and the keys
       assert.equal(await here.evaluate(element => !!element.closest('[data-book-layer]')), true, `${width}px: the whole-point block is`);
       assert.equal((await here.locator('.book-ai__summary').innerText()).trim(), 'What architects do is the part of the work an architect owns from the first day.', `${width}px: the first real sentence, not the template`);
       assert.match(await here.locator('.book-ai__toggle').innerText(), /^[\s\S]*AI[\s\S]*约 [\d,]+ 字[\s\S]*多为重复/);
-      // A folded row is one line (cut with an ellipsis) at wide widths; the summary may take two lines only on narrow ones.
+      // A folded row is one line at every width (cut with an ellipsis), as high as the line a task leaves.
       const lines = await here.locator('.book-ai__summary').evaluate(element => { const style = window.getComputedStyle(element); return Math.round(element.getBoundingClientRect().height / parseFloat(style.lineHeight)); });
-      assert.ok(lines <= (width === 1280 ? 1 : 2), `${width}px: the folded summary takes ${lines} line(s)`);
-      assert.equal(await here.locator('.book-ai__summary').evaluate(element => window.getComputedStyle(element).webkitLineClamp), width === 1280 ? '1' : '2');
+      assert.equal(lines, 1, `${width}px: the folded summary takes ${lines} line(s)`);
+      assert.deepEqual(await here.locator('.book-ai__summary').evaluate(element => { const style = window.getComputedStyle(element); return [style.whiteSpace, style.textOverflow]; }), ['nowrap', 'ellipsis']);
       assert.equal(await page.locator('.book-ai-anchor').count(), 1, `${width}px: its words are dashed in the paragraph`);
       await flat(page, width, '逐节读');
       await settleAnimations(page);

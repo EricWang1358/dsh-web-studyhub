@@ -16,7 +16,7 @@ const ui = await loadUi(`
   export { default as BookAiLine } from './ui/book/BookAiLine.jsx';
   export * from './ui/book/model.js';
   export { aiBlock, aiBlocks } from './lib/course-book-ai-text.js';
-  export { AiFoldContext } from './ui/book/ai-fold.js';
+  export { AiFoldContext, BookAiContext } from './ui/book/ai-fold.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement, noop = () => {}, han = /[㐀-鿿]/;
@@ -33,7 +33,7 @@ const node = { hid: 'h2', key: 'bk:p1', title: 'Entropy', number: '1', depth: 1,
   files: { gen: 'p1.gen.md', mine: 'p1.mine.md' }, questionTotal: 0, questions: [], children: [] };
 const handlers = { gone: ui.goneSet([]), qaOpen: () => false, toggleQa: noop, source: noop, card: noop, practice: noop, create: noop, files: {}, choose: noop, busy: false,
   ask: noop, aiAction: noop, aiFollow: noop };
-const chapterOf = (point, extra = {}) => render(h(ui.BookChapter, { node: point, open: true, onToggle: noop, course: 'SA', handlers: { ...handlers, ...extra } }));
+const chapterOf = (point, extra = {}, lines = null) => render(h(ui.BookAiContext.Provider, { value: lines }, h(ui.BookChapter, { node: point, open: true, onToggle: noop, course: 'SA', handlers: { ...handlers, ...extra } })));
 const chapter = () => chapterOf(node);
 const rowOf = (html, id) => { const from = html.indexOf(`data-ai-block="${id}"`); return html.slice(from, html.indexOf('</aside>', from)); };
 
@@ -79,7 +79,10 @@ test('the ⋯ menu of a folded row: 保留 (a new block only) / 重新生成 / �
   const html = state => renderToStaticMarkup(h(menuItems.BookAiBlock, { item: item(state), folded: true, onAction: noop, onFollow: noop }));
   assert.match(html('new'), /aria-label="这段 AI 段落的操作"/);
   const source = (await import('node:fs')).readFileSync(new URL('../ui/book/BookAiBlock.jsx', import.meta.url), 'utf8');
-  assert.match(source, /block\.state === 'new' && \{ id: 'keep'[\s\S]*id: 'again'[\s\S]*id: 'copy'[\s\S]*id: 'delete'[^}]*danger: true[^}]*hint: ui\('可以撤销'\)/, 'the four items in that order, 保留 only while new');
+  assert.match(source, /block\.state === 'new' && \{ id: 'keep'[\s\S]*id: 'again'[\s\S]*id: 'copy'[\s\S]*id: 'delete'[^}]*hint: ui\('可以撤销'\)/, 'the four items in that order, 保留 only while new');
+  assert.doesNotMatch(source, /danger/, '删除 in the menu\'s normal ink: it can be undone');
+  const flip = (await import('node:fs')).readFileSync(new URL('../ui/book/BookFlip.jsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(flip, /AskButton|handlers\.ask/, '翻看\'s cards have no 问 AI of their own (the selection toolbar covers them)');
 });
 
 test('nothing of its own in 我的: no divider and no fold-all, even with blocks in the text; the blocks whose words are gone come after the suggestions', () => {
@@ -95,22 +98,29 @@ test('nothing of its own in 我的: no divider and no fold-all, even with blocks
 
 test('the lines in a point: 「AI 正在写 · 约 1 分钟 · 取消」 right after the paragraph; a failure with its reason and 重试; 「已删除这段 · 撤销」 where the block was', () => {
   const writing = { key: 'l1', kind: 'writing', id: 'ai7', jobId: 'job-7', heading: 'h2', mode: 'explain', words: 'records each decision', title: 'Entropy' };
-  const html = chapterOf({ ...node, mine: '' }, { aiLines: () => [writing] }), text = textOf(html);
+  const html = chapterOf({ ...node, mine: '' }, {}, [writing]), text = textOf(html);
   assert.match(html, /data-ai-line="writing"/);
   assert.match(text, /The architect records each decision and its reasons\. AI 正在写 · 约 1 分钟 · 取消 停下这个任务，这里什么也不会写进书里。 Third paragraph\./, 'right after its paragraph, with 取消 (its hover words)');
   assert.match(html, /role="status"/);
-  const failed = textOf(chapterOf({ ...node, mine: '' }, { aiLines: () => [{ ...writing, kind: 'failed', error: '没有找到这几句话' }] }));
+  const failed = textOf(chapterOf({ ...node, mine: '' }, {}, [{ ...writing, kind: 'failed', error: '没有找到这几句话' }]));
   assert.match(failed, /AI 没写成：没有找到这几句话 没有找到这几句话 重试 关闭 Third paragraph\./, 'a failure in the same place: the reason (one line, the whole of it on hover), 重试, 关闭');
   const deleted = ui.aiBlocks(block)[0];
-  const undo = chapterOf({ ...node, mine: gone }, { aiLines: () => [{ key: 'u', kind: 'undo', id: 'ai1', heading: 'h2', index: 0, block: deleted }] });
+  const undo = chapterOf({ ...node, mine: gone }, {}, [{ key: 'u', kind: 'undo', id: 'ai1', heading: 'h2', index: 0, block: deleted }]);
   assert.match(textOf(undo), /its reasons\. 已删除这段 · 撤销 只能撤销最近一次删除，几秒后这一行会消失。 Third paragraph\./, 'where the block was, its hover says only the latest can come back');
   assert.match(undo, /data-book-ai="undo"/);
+  // Past its seconds the line fades out and keeps its room: hidden from the screen reader, its 撤销 off.
+  const faded = chapterOf({ ...node, mine: gone }, {}, [{ key: 'u', kind: 'undo', id: 'ai1', heading: 'h2', index: 0, block: deleted, faded: true }]);
+  assert.match(faded, /data-ai-line="undo" data-ai-faded="" aria-hidden="true"/);
+  assert.match(faded, /disabled=""[^>]*data-book-ai="undo"/);
+  assert.doesNotMatch(faded, /role="status"/);
+  // A line drawn before the host answered has 取消 too (it stops the task as soon as its id is known).
+  assert.match(textOf(chapterOf({ ...node, mine: '' }, {}, [{ ...writing, jobId: undefined }])), /AI 正在写 · 约 1 分钟 · 取消/);
   // A block that just landed is drawn folded, whatever its size (it stands as high as the line did).
-  const landed = chapterOf({ ...node, mine: block }, { aiLines: () => [{ ...writing, id: 'ai1', kind: 'done' }] });
+  const landed = chapterOf({ ...node, mine: block }, {}, [{ ...writing, id: 'ai1', kind: 'done' }]);
   assert.match(rowOf(landed, 'ai1'), /data-ai-folded="true"/);
   assert.doesNotMatch(landed, /data-ai-line/, 'and the line is gone');
   // 重新生成 running: the old text stays, the row says so and can stop it.
-  const again = chapterOf({ ...node, mine: block }, { aiLines: () => [{ ...writing, id: 'ai1', replace: 'ai1' }] });
+  const again = chapterOf({ ...node, mine: block }, {}, [{ ...writing, id: 'ai1', replace: 'ai1' }]);
   assert.match(rowOf(again, 'ai1'), /data-ai-rewriting=""/);
   assert.match(textOf(rowOf(again, 'ai1')), /正在重新生成 取消 关于：「records each decision」 An explanation of it\./);
 });

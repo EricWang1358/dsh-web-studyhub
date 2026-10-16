@@ -13,12 +13,14 @@ import { BOOK_COURSE, seedBookFixture } from './helpers/book-fixtures.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { replaceAiBlock } from '../lib/course-book-ai-text.js';
 
 /* 复习全书 问 AI in the real page at 1280 and 420 px (docs/review-book.md "Ask AI", "AI blocks"), on the ArchSS-like book: words selected with the keyboard
    (selection.modify, what Shift+arrows do: only `selectionchange` tells the page) show the toolbar 弄懂 / 写一段… / 发给主会话 (弄懂 secondary, the page keeps at
    most one primary); 弄懂 closes it and leaves ONE line right after the paragraph at once; the block lands in that line's place, folded, and the point's text does
    not move (CLS ≤ 0.05, the next paragraph's top the same); its ⋯ menu deletes it, 「已删除这段 · 撤销」 brings it back, and a write since the deletion refuses the
-   撤销; 取消 stops a running task; a failure says why and 重试 starts it again; 问 AI at the title writes into 我的 with Ctrl+Enter. The task is answered by a second
+   撤销; 取消 stops a running task; a failure says why and 重试 starts it again; 问 AI at the title writes into 我的 with Ctrl+Enter; 删除 of a block another writer
+   already took out leaves no 撤销; in 整章连着读 scrolling keeps the 问 AI panel and its text; the first Tab goes into the toolbar once. The task is answered by a second
    service over the same library with the unified runtime (the fake model); job.status is held until the test lets it go. Screenshots to COURSE_BOOK_AI_SHOTS. */
 
 /** Answers generation.courseBook.explain and job.status / job.cancel at the network edge. `mode`: 'real' (the second service runs the task) or 'fake' (a task
@@ -56,6 +58,8 @@ const selectByKeys = (page, from, to) => page.evaluate(([start, end]) => {
   const walker = document.createTreeWalker(paragraph, 4);
   let node = walker.nextNode();
   while (node && !node.data.includes(start)) node = walker.nextNode();
+  // The focus goes where the caret is (caret browsing, a press in the text): off the sidebar button that opened the page.
+  document.activeElement?.blur?.();
   const selection = window.getSelection();
   selection.collapse(node, node.data.indexOf(start));
   for (let step = 0; step < 400 && !selection.toString().includes(end); step += 1) selection.modify('extend', 'forward', 'character');
@@ -97,7 +101,8 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       assert.match(await askOpen.getAttribute('class'), /sh-btn--quiet/);
       assert.ok(await visiblePrimaries(page) <= 1, `${width}px: at most one primary`);
 
-      // A keyboard selection (no mouseup): the toolbar shows, above the selection's last line; 弄懂 is secondary and no second primary appears.
+      // A keyboard selection (no mouseup): the toolbar shows, above the selection's first line (every selected word in sight) and within the reading column;
+      // 弄懂 is secondary and no second primary appears. (The column check allows 2 px: placeInHost's zoom scale is read from a rounded width.)
       const words = await selectByKeys(page, '只有架构师', '。');
       assert.match(words, /成立\s*1?。/, `${width}px: the selection runs over the 角标: ${words}`);
       const bar = page.locator('.book-select[data-placed]');
@@ -106,10 +111,11 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       assert.deepEqual(await bar.locator('button').allInnerTexts(), ['弄懂', '写一段…', '发给主会话']);
       assert.ok(await visiblePrimaries(page) <= 1, `${width}px: 弄懂 is not a second primary`);
       const place = await page.evaluate(() => {
-        const selection = window.getSelection(), rects = selection.getRangeAt(0).getClientRects(), last = rects[rects.length - 1], box = document.querySelector('.book-select').getBoundingClientRect();
-        return { above: box.bottom <= last.top + 1, inside: box.left >= 0 && box.right <= window.innerWidth };
+        const selection = window.getSelection(), rects = [...selection.getRangeAt(0).getClientRects()].filter(rect => rect.width > 0), box = document.querySelector('.book-select').getBoundingClientRect();
+        const top = Math.min(...rects.map(rect => rect.top)), column = document.querySelector('.book-read').getBoundingClientRect();
+        return { above: box.bottom <= top + 1, inside: box.left >= column.left - 2 && box.right <= column.right + 2, lines: new Set(rects.map(rect => Math.round(rect.top))).size > 1 };
       });
-      assert.deepEqual(place, { above: true, inside: true }, `${width}px: above the last line, inside the window`);
+      assert.deepEqual({ ...place, lines: undefined }, { above: true, inside: true, lines: undefined }, `${width}px: above the first line, inside the reading column: ${JSON.stringify(place)}`);
       // The selection's colour is the theme's token (--bg-selected), not the browser's blue.
       const wash = await page.evaluate(() => {
         const probe = document.createElement('span');
@@ -121,9 +127,15 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       });
       assert.equal(wash.selection, wash.token, `${width}px: the selection colour is the token: ${JSON.stringify(wash)}`);
       if (shots) await page.screenshot({ path: join(shots, `selection-toolbar-${width}.png`) });
-      // Tab goes into it from the selection; Escape hides it.
+      // Tab goes into it from the selection, once: Tab on goes through the toolbar and out of it, never back in (no loop for the keyboard).
       await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(() => document.activeElement?.dataset.bookSelect), 'explain', `${width}px: Tab moves into the toolbar`);
+      const tabs = [];
+      for (let step = 0; step < 5; step += 1) { await page.keyboard.press('Tab'); tabs.push(await page.evaluate(() => document.activeElement?.dataset.bookSelect || document.activeElement?.tagName)); }
+      assert.deepEqual(tabs.slice(0, 2), ['write', 'chat'], `${width}px: through the toolbar`);
+      assert.equal(tabs.slice(2).some(name => ['explain', 'write', 'chat'].includes(name)), false, `${width}px: and on through the page, not back into it: ${tabs}`);
+      await selectByKeys(page, '只有架构师', '。');
+      await bar.waitFor({ timeout: 5000 });
 
       // 弄懂: the toolbar goes at once, ONE line right after the paragraph.
       await bar.locator('[data-book-select="explain"]').click();
@@ -231,7 +243,48 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       const layerLine = page.locator('[data-book-layer] [data-ai-line="writing"]');
       await layerLine.waitFor({ timeout: 5000 });
       assert.equal(control.started.at(-1).mode, 'here');
-      await page.locator('[data-book-layer] .book-ai[data-ai-landed]').waitFor({ timeout: 90000 });
+      const hereId = await page.locator('[data-book-layer] .book-ai[data-ai-landed]').getAttribute('data-ai-block', { timeout: 90000 });
+
+      // 删除 of a block another writer already took out (the main chat rewrote the file; the page still shows it): no 「撤销」 (it would take back their
+      // write), only a notice. The page looks for a newer book when the focus comes into it (S1); that look
+      // is over before the menu opens, and the other write comes while the learner is choosing 删除.
+      const here = page.locator(`.book-ai[data-ai-block="${hereId}"]`);
+      await page.locator('[data-book-layer] .book-ai[data-ai-landed]').waitFor({ state: 'detached', timeout: 5000 });
+      // In the middle of the window, so its menu opens without scrolling the page (a scroll closes a menu).
+      await here.evaluate(element => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+      await page.waitForTimeout(2100);
+      await page.locator('.book-bar__where').focus();
+      await page.waitForTimeout(1000);
+      await here.locator('.book-ai__more').click();
+      await page.getByRole('menuitem', { name: /删除/ }).waitFor({ timeout: 5000 });
+      await page.waitForTimeout(500);
+      const book = await running.api('course.book.open', { course: BOOK_COURSE }), point = book.nodes[0].children[0].children[0], file = point.files.mine;
+      const without = replaceAiBlock(point.mine ?? '', hereId, '');
+      assert.equal(typeof without, 'string', `${width}px: the block ${hereId} is in ${file}`);
+      await running.api('course.book.save', { course: BOOK_COURSE, file, text: without, version: book.files[file].version });
+      await page.getByRole('menuitem', { name: /删除/ }).click();
+      await page.getByText('这段已经不在书里了').first().waitFor({ timeout: 10000 });
+      assert.equal(await page.locator('[data-ai-line="undo"]').count(), 0, `${width}px: nothing of this page's to undo`);
+
+      // 整章连着读: scrolling keeps the 问 AI panel and what is typed in it (the place read changes; the panel's point is still drawn).
+      await page.evaluate(() => { const app = document.querySelector('.study-app'); if (app) app.scrollTop = 0; window.scrollTo(0, 0); });
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitemcheckbox', { name: '整章连着读' }).click();
+      await page.locator('.book-chapter').first().waitFor({ timeout: 10000 });
+      await page.locator('.book-node[data-book-folded] .book-node__toggle').first().click();
+      const second = page.locator('.book-chapter [data-book-ask-open]').nth(1);
+      await second.scrollIntoViewIfNeeded();
+      await second.click();
+      await panel.waitFor({ timeout: 5000 });
+      await panel.locator('textarea').fill('我自己打的一段要求');
+      const placeBefore = await page.locator('.book-bar__title').innerText();
+      await page.mouse.move(Math.round(width / 2), 600);
+      for (let step = 0; step < 30 && (await page.locator('.book-bar__title').innerText()) === placeBefore; step += 1) { await page.mouse.wheel(0, 120); await page.waitForTimeout(120); }
+      assert.notEqual(await page.locator('.book-bar__title').innerText(), placeBefore, `${width}px: the place read moved`);
+      await page.waitForTimeout(300);
+      assert.equal(await page.locator('.book-ask').count(), 1, `${width}px: scrolling keeps the panel`);
+      assert.equal(await page.locator('.book-ask textarea').inputValue(), '我自己打的一段要求', `${width}px: and what is typed in it`);
+      await page.keyboard.press('Escape');
 
       const overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);

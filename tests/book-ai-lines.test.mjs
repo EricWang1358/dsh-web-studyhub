@@ -7,7 +7,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const ui = await loadUi(`
   export { pointView } from './ui/book/point-parts.js';
-  export { withLines, aboutOf, linesOf } from './ui/book/ai-lines.js';
+  export { withLines, aboutOf, linesOf, deletedLine } from './ui/book/ai-lines.js';
   export { aiBlock, aiBlocks } from './lib/course-book-ai-text.js';`);
 
 const gen = '**讲解**\n\nFirst paragraph.\n\nThe architect records each decision and its reasons.\n\nThird paragraph.';
@@ -53,6 +53,14 @@ test('a deleted block\'s 撤销 line stands where the block was (among the other
   assert.deepEqual(order(ui.pointView(node(`${first}\n\n${third}`), [undo])), ['The architec', 'ai1', 'ai2', 'ai3', 'Third paragr']);
   assert.equal(ui.pointView(node(`${first}\n\n${third}`), [undo]).blocks[1].block.line, undo);
   assert.equal(ui.pointView(node(`${first}\n\n${second}\n\n${third}`), [undo]).blocks.some(item => item.block.line), false);
+});
+
+test('a deletion leaves 撤销 only when this delete took the block out: a block already gone from the file (another writer) leaves none, so 撤销 can never take back their write', () => {
+  const deleted = ui.aiBlocks(block('ai2', 'records each decision'))[0], point = { hid: 'h2', files: { mine: 'p.mine.md' }, mine: `${block('ai1', 'x')}\n\n${block('ai2', 'y')}` };
+  const view = (write, version) => ({ write, files: { 'p.mine.md': { version } } });
+  assert.deepEqual(ui.deletedLine(view('deleted', 4), point, deleted), { key: 'undo-ai2', kind: 'undo', id: 'ai2', heading: 'h2', index: 1, block: deleted, file: 'p.mine.md', version: 4 });
+  assert.equal(ui.deletedLine(view('unchanged', 4), point, deleted), null, 'the block was not there any more: nothing to undo');
+  assert.equal(ui.deletedLine(null, point, deleted), null);
 });
 
 test('what a block will be about: the words, quotes off, at most 120 characters; a 加一段 is about the title; the lines of one point', () => {
