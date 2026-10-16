@@ -38,12 +38,12 @@ export function useUnsavedWarning(on) {
 /** The point's files in the editor, the explanation first (the file picker still lists every file of the book). */
 export const editFile = (book, step) => (step?.hid === 'unplaced' ? book.unplaced.file : step?.node.files?.gen ?? null);
 
-/** 编辑这一节: the editor on the point's files. Leaving with unsaved text asks first (`leaving`: what to do once the learner agrees; onStay keeps editing). */
+/** 编辑这个知识点: the editor on the point's files. Leaving with unsaved text asks first (`leaving`: what to do once the learner agrees; onStay keeps editing). */
 export function EditView({ book, step, theme, onChanged, onDirty, leaving, onLeave, onStay, onDone }) {
   const [file, setFile] = useState(() => editFile(book, step) ?? Object.keys(book.files)[0]);
   const title = step ? uiFormat('编辑 · {0}', [[step.node.number, step.node.title].filter(Boolean).join(' ')]) : ui('编辑');
   return (
-    <section className="book-mode" aria-label={ui('编辑这一节')}>
+    <section className="book-mode" aria-label={ui('编辑这个知识点')}>
       <ModeBar title={title} onDone={onDone} />
       {leaving && <InlineConfirm title={ui('还有没保存的改动')} confirmLabel={ui('丢掉改动，离开')} cancelLabel={ui('继续编辑')} onConfirm={onLeave} onCancel={onStay}>
         {ui('离开编辑会丢掉这些改动；先按「保存」就不会丢。')}</InlineConfirm>}
@@ -52,7 +52,7 @@ export function EditView({ book, step, theme, onChanged, onDirty, leaving, onLea
   );
 }
 
-/** 翻看: the points in the plan's order, their 易错点 first; a point's 「在书里看这一节」 goes back to reading at it. */
+/** 翻看: the points in the plan's order, their 易错点 first; a point's 「在书里看这个知识点」 goes back to reading at it. */
 export function FlipView({ book, crunch, course, handlers, aiFold, onMark, onGo, onMockStarted, onDone }) {
   return (
     <section className="book-mode" aria-label={ui('翻看')}>

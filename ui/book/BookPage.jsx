@@ -8,7 +8,7 @@ import { useNarrow } from '../use-narrow.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
 import { modelReadiness } from '../generation-status.js';
 import { BOOK_BUILD_KIND, runningBuild } from '../outline/model.js';
-import { bookStartedText, writingText } from '../outline/words.js';
+import { writingText } from '../outline/words.js';
 import { ReadingBlock } from '../reading-settings/ReadingSettings.jsx';
 import BookHeader from './BookHeader.jsx';
 import BookBar from './BookBar.jsx';
@@ -24,7 +24,7 @@ import { AiFoldContext, useAiFold, useLandedBlocks } from './ai-fold.js';
 import { useSendToChat } from './send-to-chat.js';
 import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
-import { useBookAi, useBookCrunch, useBookHandlers, useBookPages } from './use-book-actions.js';
+import { startBookBuild, useBookAi, useBookCrunch, useBookHandlers, useBookPages } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { bookRows, crunchDateHint, keepBook, rowOf, tocEntries } from './model.js';
@@ -96,7 +96,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), onClick: onBack }} /></section>;
   if (!book.notes) {
     const model = modelReadiness(data);
-    const writeBook = async () => { try { await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true }); } catch { /* act said it */ } };
+    const writeBook = () => startBookBuild({ act, course, notify });
     return (
       <section className="page book-page" ref={pageRef}>
         {header}
@@ -117,8 +117,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       window.getSelection?.()?.removeAllRanges?.();
     } : undefined} />;
   const over = pages !== null && pageLimit && pages > pageLimit;
-  const notice = over ? { text: budgetText(pages, pageLimit).text, tip: <>{uiFormat('导出约 {0} 页，{1}', [pages, budgetText(pages, pageLimit).text])}
-    <br />{uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit])}</> } : null;
+  // Over the page limit: one quiet line under the bar (the estimate and how far over); its Tooltip says where the limit is changed.
+  const notice = over ? { text: uiFormat('导出约 {0} 页，{1}', [pages, budgetText(pages, pageLimit).text]), tip: uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit]) } : null;
   const unplaced = step?.hid === 'unplaced', counted = steps.filter(item => item.hid !== 'unplaced').length;
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
     today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)} />;

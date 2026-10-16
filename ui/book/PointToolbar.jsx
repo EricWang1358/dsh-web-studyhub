@@ -6,7 +6,7 @@ import { useLiveEffect } from '../use-async.js';
 import BookToChat from './BookToChat.jsx';
 
 /* The one row of a knowledge point's actions (复习全书, docs/review-book.md "Reading a point"), in place of the 练 5 道 · 本节问答 line and 这一节还没有题。
-   at its end: 在这里加一段 on the left; on the right 练 5 道 (a point with questions; one without says nothing about it here, 给这一节出题 is in 更多),
+   at its end: 在这里加一段 on the left; on the right 练 5 道 (a point with questions; one without says nothing about it here, 给这个知识点出题 is in 更多),
    本节问答 (N) and 发给主会话. On a narrow page the buttons are one left-aligned row that wraps. Folding and hiding the AI blocks is not here: each block is one
    row that folds, and 我的 can fold them all (ui/book/PointLayer.jsx). */
 

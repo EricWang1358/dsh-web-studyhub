@@ -71,17 +71,39 @@
       transform-origin: left center;
       transition: transform 0.12s linear;
     }
-    /* The page limit, when the export is over it: a short quiet word in the bar's own row, before ‹ › (the row's height is fixed: it covers nothing and
-       moves no button; the title gives up its room). */
-    .book-bar__notice-tip {
-      display: inline-flex;
-      flex: none;
+    /* One ink for the bar's five buttons (all quiet and small): the muted text colour; the full ink on hover, keyboard focus, a press and while its menu or
+       panel is open; a disabled one (‹ on the first point, › on the last) the faint colour. The 目录 column open beside the text is a state, not a press. */
+    .book-bar__btn {
+      color: var(--text-muted);
     }
-    .book-bar__notice {
-      padding-inline: var(--space-1);
-      color: var(--warn-ink);
+    .book-bar__btn:is(:hover, :focus-visible, :active, [aria-haspopup][aria-expanded='true']):not(:disabled),
+    .book-page[data-narrow] .book-bar__toc[aria-expanded='true'] {
+      color: var(--text);
+    }
+    /* The bar's buttons are glyphs, not words: a disabled one takes the faint decoration ink (--text-faint is held to the text contrast and is all but
+       --text-muted in the light theme, so a disabled ‹ would look like ›). */
+    .book-bar__btn:disabled {
+      color: var(--decor-faint);
+    }
+    /* At 16 px the light glyphs' straight hairlines fall between pixels: in the same ink ≡'s lines and ⋯'s dots read fainter than ‹ › and Aa, as if
+       disabled. A thin stroke of the same colour (in the glyphs' 256 grid; a little more on ≡ and ⋯) gives the five one weight. */
+    .book-bar__btn svg {
+      stroke: currentColor;
+      stroke-width: 4;
+      stroke-linejoin: round;
+    }
+    .book-bar__toc svg,
+    .book-bar__more svg {
+      stroke-width: 8;
+    }
+    /* The page limit, when the export is over it: one quiet cinnabar line under the bar (not in the sticky bar: no button moves, the place is not squeezed),
+       there only while the estimate is over the limit; its Tooltip says where to change it. */
+    .book-bar-limit {
+      margin: var(--space-1) 0 0;
+      padding-inline: var(--space-2);
+      color: var(--accent-text);
       font-size: var(--fs-xs);
-      white-space: nowrap;
+      line-height: var(--lh-snug);
     }
     /* The header above the bar (ui/book/BookHeader.jsx): the way back is a quiet ink link (not cinnabar); one quiet status line while a book task runs. */
     .book-header {

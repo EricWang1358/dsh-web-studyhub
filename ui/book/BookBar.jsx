@@ -8,16 +8,19 @@ import css from './book-bar.css';
 /* The book bar (复习全书, docs/review-book.md "The book bar"): the page's one toolbar, sticky under the app's top bar while the book scrolls. 目录 · where the
    learner is (知识点 5/16 · the point's number and title; on a narrow page 5/16 · the title) · ‹ › · Aa (the shared reading settings) · ⋯ 更多. No primary
    button. A thin cinnabar line under it says how far the point being read is read (transform only, at most once a frame, no transition with reduced motion).
-   `notice`: a short quiet word in the bar's own row (the page limit), before ‹ ›, so it covers nothing and moves no button. The app's top bar sticks only as
+   `notice`: one quiet line under the bar (the page limit), only while it holds; it is not part of the sticky bar, so no button moves. The app's top bar sticks only as
    far as its own column reaches (ui/shell.css: on a long page it scrolls away), so the bar sticks where the top bar's lower edge is, and at the very top once
    it is gone (--book-bar-top on the page). */
 
-/** How far the point is read, 0 to 1: 0 while its top is under the bar, 1 once its end reaches the window's lower edge. A point that fits between the bar and
-    the window's foot has nothing to read on: 0 (no cinnabar for a short point). */
-export const readShare = (box, barBottom, windowHeight) => {
-  const room = windowHeight - barBottom, travel = box.height - room;
-  return travel > 0 ? Math.min(1, Math.max(0, (barBottom - box.top) / travel)) : 0;
+/** How far the point is read, 0 to 1: nothing while its top is still below the bar; once its top has gone under the bar, the share of it above the window's
+    foot (so 1 once its end is on screen). A point wholly between the bar and the foot is 1 once the reader has scrolled at all (`scrolled`), else 0. */
+export const readShare = (box, barBottom, windowHeight, scrolled) => {
+  if (!(box.height > 0)) return 0;
+  if (box.top < barBottom) return Math.min(1, Math.max(0, (windowHeight - box.top) / box.height));
+  return scrolled && box.bottom <= windowHeight ? 1 : 0;
 };
+/** Whether the page under `bar` has scrolled at all (the app's scroller, or the window's). */
+const scrolledAt = bar => (bar.closest('.study-app, .study-seat')?.scrollTop || 0) > 0 || (document.scrollingElement?.scrollTop || 0) > 0;
 
 /** Where the bar sticks, in px from the top of the app's scroller: under the app's top bar while it is on screen, else 0. */
 const stickAt = bar => {
@@ -44,7 +47,7 @@ function useReadLine(hid, barRef) {
       frame = 0;
       const bar = stickBar(barRef.current?.closest('.book-page')) || barRef.current;
       const point = hid && document.querySelector(`[data-book-point="${CSS.escape(hid)}"]`);
-      const share = point && bar ? readShare(point.getBoundingClientRect(), bar.getBoundingClientRect().bottom, window.innerHeight) : 0;
+      const share = point && bar ? readShare(point.getBoundingClientRect(), bar.getBoundingClientRect().bottom, window.innerHeight, scrolledAt(bar)) : 0;
       if (line.current) line.current.style.transform = `scaleX(${share})`;
     };
     const later = () => { if (!frame) frame = requestAnimationFrame(draw); };
@@ -66,10 +69,10 @@ function useReadLine(hid, barRef) {
 const BookBar = forwardRef(function BookBar({ at, total, number, title, hid, tocOpen, onToc, onPrev, onNext, more, notice }, tocRef) {
   useInjectCss(css, 'study-book-bar');
   const bar = useRef(null), line = useReadLine(hid, bar);
-  return (
+  return <>
     <div ref={bar} className="book-bar" role="group" aria-label={ui('书栏')}>
       <div className="book-bar__row">
-        <Button ref={tocRef} size="sm" variant="quiet" icon="list" className="book-bar__toc" aria-label={ui('目录')} aria-expanded={tocOpen} onClick={onToc}>
+        <Button ref={tocRef} size="sm" variant="quiet" icon="list" className="book-bar__btn book-bar__toc" aria-label={ui('目录')} aria-expanded={tocOpen} onClick={onToc}>
           <span className="book-bar__word" aria-hidden="true">{ui('目录')}</span></Button>
         <Tooltip layer content={ui('按全书的顺序数；‹ › 和 ← → 也按这个顺序走')} anchorClassName="book-bar__where-tip">
           <p className="book-bar__where" tabIndex={0}>
@@ -80,19 +83,19 @@ const BookBar = forwardRef(function BookBar({ at, total, number, title, hid, toc
             <span className="book-bar__title">{number && <span className="book-bar__number">{number} </span>}{title}</span>
           </p>
         </Tooltip>
-        {notice && <Tooltip layer content={notice.tip} anchorClassName="book-bar__notice-tip">
-          <span className="book-bar__notice" tabIndex={0}>{notice.text}</span></Tooltip>}
         <Tooltip layer content={ui('上一个知识点（也可以按 ←）')}>
-          <IconButton icon="chevron" size="sm" className="book-bar__prev" label={ui('上一个知识点')} title={undefined} disabled={!onPrev} onClick={onPrev || undefined} />
+          <IconButton icon="chevron" size="sm" className="book-bar__btn book-bar__prev" label={ui('上一个知识点')} title={undefined} disabled={!onPrev} onClick={onPrev || undefined} />
         </Tooltip>
         <Tooltip layer content={ui('下一个知识点（也可以按 →）')}>
-          <IconButton icon="chevron" size="sm" className="book-bar__next" label={ui('下一个知识点')} title={undefined} disabled={!onNext} onClick={onNext || undefined} />
+          <IconButton icon="chevron" size="sm" className="book-bar__btn book-bar__next" label={ui('下一个知识点')} title={undefined} disabled={!onNext} onClick={onNext || undefined} />
         </Tooltip>
-        <ReadingSettingsButton className="book-bar__aa" />
+        <ReadingSettingsButton className="book-bar__aa" size="sm" buttonClassName="book-bar__btn" />
         {more}
       </div>
       <div className="book-bar__line" aria-hidden="true"><span ref={line} /></div>
     </div>
-  );
+    {notice && <p className="book-bar-limit">
+      <Tooltip layer content={notice.tip}><span className="book-bar-limit__text" tabIndex={0}>{notice.text}</span></Tooltip></p>}
+  </>;
 });
 export default BookBar;

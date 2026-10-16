@@ -7,9 +7,16 @@ import { isActiveJob } from '../../lib/job-status.js';
 import { localDate } from '../../lib/board-model.js';
 import { goneSet, rowOf } from './model.js';
 import { showBlock, showWords } from './ai-anchors.js';
+import { bookStartedText } from '../outline/words.js';
 
 /* What the review book page does besides placing the reader (ui/book/BookPage.jsx): the 期末一周 plan, the export's page estimate, the AI tasks started on the
    page (弄懂 / 加一段 / 接着问) and the handlers every point reads. */
+
+/** 生成复习全书 on a course without a book: act() asked to rethrow says nothing itself (ui/act-runner.js), so a refused start is said here. */
+export async function startBookBuild({ act, course, notify }) {
+  try { await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true }); }
+  catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+}
 
 /** 期末一周 (M7, book.crunch): the plan of the course's last days, asked again when the book changes or a mark is set. -> { crunch, day, points, mark }. */
 export function useBookCrunch({ call, course, book, notify }) {

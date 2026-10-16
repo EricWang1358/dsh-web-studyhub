@@ -8,7 +8,7 @@ import BookSuggestion from './BookSuggestion.jsx';
 /* The learner's layer of a knowledge point (复习全书, docs/review-book.md "Reading a point"), after the program's text, under a quiet divider 「我的」 (a hairline
    and a small label with its explanation on hover and focus; not a toggle): the notes (open), the AI blocks for the whole point (each one row, ui/book/BookAiBlock.jsx),
    the Q&A put into the book, the suggestions, and the blocks whose words are gone (原位置已变) at the end. The AI blocks about words are not here: they sit right after
-   their paragraphs. A point with two blocks or more has one quiet 收起这一节的 AI 段落 (or 展开) on the divider's row, the same words as the item of 更多 that
+   their paragraphs. A point with two blocks or more has one quiet 收起这个知识点的 AI 段落 (or 展开) on the divider's row, the same words as the item of 更多 that
    does the same. With nothing of its own there is no 我的 at all. */
 
 /** node, view (ui/book/point-parts.js pointView), handlers, aiFold (ui/book/ai-fold.js, or null), isFolded(item): the block's fold, renderBlock(item), onAnchored(key, ids). */
@@ -25,7 +25,7 @@ export default function PointLayer({ node, view, handlers, aiFold, isFolded, ren
           <span className="book-layer__label" tabIndex={0}>{ui('我的')}</span>
         </Tooltip>
         {aiFold && ids.length > 1 && <Button variant="link" size="sm" className="book-layer__fold" onClick={() => aiFold.foldAll(ids, !allFolded)}>
-          {allFolded ? ui('展开这一节的 AI 段落') : ui('收起这一节的 AI 段落')}</Button>}
+          {allFolded ? ui('展开这个知识点的 AI 段落') : ui('收起这个知识点的 AI 段落')}</Button>}
       </div>
       {view.mine && <PointText name="mine" text={view.mine} view={view} node={node} handlers={handlers} className="book-file book-file--mine" citeText={node.mine}
         renderBlock={renderBlock} onAnchored={onAnchored} />}

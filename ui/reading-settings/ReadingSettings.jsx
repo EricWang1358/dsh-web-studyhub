@@ -58,20 +58,21 @@ export function DisplayControls({ settings, onChange, onReset, underline = true,
 }
 
 /** The Aa button and its popover for the given settings. Inside the reader the panel is kept within the viewer; elsewhere within the window. */
-export function DisplaySettings({ settings, onChange, onReset, underline = true, className, extra = null }) {
+export function DisplaySettings({ settings, onChange, onReset, underline = true, className, extra = null, size, buttonClassName }) {
   useInjectCss(css, 'study-reading');
   // On a narrow pane the Aa button can sit anywhere along a wrapped toolbar: Popover slides the panel back inside its bounds at any interface zoom.
   return <Popover label={ui('显示设置')} icon="type" className={`reader-popover${className ? ` ${className}` : ''}`} panelClassName="reader-popover__panel"
     boundsSelector=".study-document-viewer" flip={false}
-    trigger={({ props, ref }) => <IconButton ref={ref} icon="type" label={ui('显示设置')} data-usage="reader.display" {...props} />}>
+    trigger={({ props, ref }) => <IconButton ref={ref} icon="type" label={ui('显示设置')} size={size} className={buttonClassName} data-usage="reader.display" {...props} />}>
     <DisplayControls settings={settings} onChange={onChange} onReset={onReset} underline={underline} extra={extra} />
   </Popover>;
 }
 
-/** The Aa button wired to the shared setting: size, text width, typeface and background of every reading block, in every open panel. */
-export function ReadingSettingsButton({ underline = false, className }) {
+/** The Aa button wired to the shared setting: size, text width, typeface and background of every reading block, in every open panel. `size`: the button's
+    (sm in a row of small buttons; md by default); `buttonClassName`: the button's own class (a toolbar that styles its buttons as one). */
+export function ReadingSettingsButton({ underline = false, className, size, buttonClassName }) {
   const [settings, update, reset] = useReadingSettings();
-  return <DisplaySettings settings={settings} onChange={update} onReset={reset} underline={underline} className={className} />;
+  return <DisplaySettings settings={settings} onChange={update} onReset={reset} underline={underline} className={className} size={size} buttonClassName={buttonClassName} />;
 }
 
 /** The props (class, face, tone, size variables) a long-form container carries; spread them on any element, or use <ReadingBlock>. */

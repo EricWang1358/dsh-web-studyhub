@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { keepBook, keptBook, rowOf } from './model.js';
 import { stepIndexOf } from './reading.js';
 import { stickBar } from './BookBar.jsx';
 
 /* Where the learner is in the review book (docs/review-book.md "Where you were"): the point shown (逐节读), the chapters open (整章连着读), the heading being
    read, and the place kept for the next visit. Landing: an entry's target (总纲, home, the way back from practice) > the place kept in this browser (ui/book/model.js
-   keepBook: heading and offset per library and course) > the first point. The place is written when the point changes, at most every 500 ms while the page
-   scrolls, and when the page is hidden. The focus goes to a heading only on a real return from practice (`back`, set by the way back), never on a plain open. */
+   keepBook: heading and offset per library and course) > the first point. The place is measured on every scroll frame and written when the point changes, at
+   most every 500 ms while the page scrolls, when the page is hidden, and (that last measure) when the page goes away. The focus goes to a heading only on a real return from practice (`back`, set by the way back), never on a plain open. */
 
 const SAVE_EVERY = 500;
 const instant = (scroller, top) => scroller.scrollTo({ top, behavior: 'instant' });
@@ -19,6 +19,19 @@ export const scrollerOf = element => {
   }
   return document.scrollingElement;
 };
+
+/** The place written for the next visit, from what was last measured: measure() reads the heading being read and where it is on screen (null when it is not
+    drawn: keeps the last one), write() writes that last measure without touching the page, save() does both, keep(place) writes a place found another way
+    (the way back to practice) and makes it the last one, so a write on leaving does not put an older measure back. */
+export function placeKeeper(read, write) {
+  let last = null;
+  return {
+    measure() { const next = read(); if (next) last = next; return last; },
+    write() { if (last) write(last); },
+    save() { this.measure(); this.write(); },
+    keep(place) { last = place; write(place); },
+  };
+}
 
 /** -> { kept (what the page was handed at mount), open, toggleChapter, here, stepAt, current, goTo(id), go(delta), switchReading(mode), remember(hid, from), hold() }. */
 export function useBookPlace({ root, course, book, rows, toc, steps, chapters, reading, pageRef, active }) {
@@ -95,22 +108,30 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
   // The place for the next visit: the heading being read and where it is on screen (above the window when the learner is deep in a long point).
   const live = useRef({});
   live.current = { id: reading.mode === 'step' ? stepHid : here, active };
-  const save = useCallback(() => {
+  const keeper = useMemo(() => placeKeeper(() => {
     const { id, active: on } = live.current, element = on && placed.current && id ? document.getElementById(`book-${id}`) : null;
-    if (element) keepBook(root, course, { heading: id, offset: element.getBoundingClientRect().top });
-  }, [root, course]);
-  useEffect(() => { save(); }, [stepHid, here, reading.mode, save]);
+    return element ? { heading: id, offset: element.getBoundingClientRect().top } : null;
+  }, place => keepBook(root, course, place)), [root, course]);
+  useEffect(() => { keeper.save(); }, [stepHid, here, reading.mode, keeper]);
   useEffect(() => {
-    let last = 0, timer = 0;
+    let last = 0, timer = 0, frame = 0;
+    const measure = () => { frame = 0; keeper.measure(); };
     const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
       const wait = last + SAVE_EVERY - Date.now();
-      if (wait <= 0) { last = Date.now(); save(); } else if (!timer) timer = setTimeout(() => { timer = 0; last = Date.now(); save(); }, wait);
+      if (wait <= 0) { last = Date.now(); keeper.save(); } else if (!timer) timer = setTimeout(() => { timer = 0; last = Date.now(); keeper.save(); }, wait);
     };
-    const onHide = () => { if (document.visibilityState === 'hidden') save(); };
+    const onHide = () => { if (document.visibilityState === 'hidden') keeper.save(); };
+    // Leaving (pagehide, or the page taken away: the sidebar) writes what the last scroll frame measured; React has removed the page by the time this runs.
+    const onLeave = () => keeper.write();
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     document.addEventListener('visibilitychange', onHide);
-    return () => { clearTimeout(timer); save(); document.removeEventListener('scroll', onScroll, { capture: true }); document.removeEventListener('visibilitychange', onHide); };
-  }, [save]);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      clearTimeout(timer); cancelAnimationFrame(frame); keeper.write();
+      document.removeEventListener('scroll', onScroll, { capture: true }); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onLeave);
+    };
+  }, [keeper]);
 
   // The way back after practice: the heading just above the link (a typed heading too), where it was on screen, and the chapter that holds it.
   // Returns where the way back leads, as the practice page says it: the number and title of the point left ("1.2.2 Title"; '' when it is not in the 总纲).
@@ -120,7 +141,7 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     const flipPoint = from?.closest?.('[data-flip-point]');
     if (flipPoint) {
       const id = flipPoint.dataset.flipPoint, row = rowOf(rows, id);
-      keepBook(root, course, { heading: id, offset: flipPoint.querySelector(`#flip-${CSS.escape(id)}`)?.getBoundingClientRect().top ?? 0, target: null,
+      keeper.keep({ heading: id, offset: flipPoint.querySelector(`#flip-${CSS.escape(id)}`)?.getBoundingClientRect().top ?? 0, target: null,
         chapter: row ? chapters[row.chapter]?.hid ?? null : null, point: id });
       return placeOf(id);
     }
@@ -128,10 +149,10 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     const element = headings.at(-1) || document.getElementById(`book-${hid}`), row = rowOf(rows, hid);
     // The point is the one the link is in, which a heading the learner typed inside its text does not change.
     const point = from?.closest?.('[data-book-point]')?.dataset.bookPoint || hid;
-    keepBook(root, course, { heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
+    keeper.keep({ heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
       chapter: row ? chapters[row.chapter]?.hid ?? null : null, point });
     return placeOf(point) || placeOf(hid);
-  }, [root, course, rows, chapters, pageRef]);
+  }, [keeper, rows, chapters, pageRef]);
 
   // A heading of the 目录 (or of 速查页, 翻看, 今天读哪几节): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
   const goTo = useCallback(id => {
