@@ -5,9 +5,10 @@
       (drives, and the typed path of 其他文件夹…), no space, installing 2/6 and 4/6, paused (cancelled, interrupted), every failure with its one fix (network 1
       and 2, package, no space during the install, the service inside the install with and without another MinerU, the VC++ runtime, the service after the
       install, a port held by another MinerU, an unreadable status, missing models), service stopped, ready (ours, the learner's own), 更多 open, the move
-      (安装到其他位置… with 先不换), a change of tier, the uninstall confirmation, and one open Tooltip of each kind;
+      (安装到其他位置… with 先不换), a change of tier, a change of tier that did not finish, the chooser opened by 换位置 after a failure, a service failure's raw text in 更多 ›
+      详细信息, the uninstall confirmation, and one open Tooltip of each kind;
    2. the import route when MinerU is not ready (not installed, installing, stopped with the auto-start hint), a conversion starting the stopped service, and
-      the large-textbook card's converter; the 任务 console with the install's row running and after 取消;
+      the large-textbook card's converter; the 任务 console with the install's row running and after 暂停;
    3. the click-through against a QA server where the REAL installer runs on a local index, a fake uv and the fake mineru (no network, nothing real installed):
       一键安装 -> installing -> ready -> 停止服务 -> stopped.
    Layout audit (scripts/qa/mineru-layout.mjs) on every shot, no horizontal overflow, and no shift of the card between checking and not installed.
@@ -119,19 +120,23 @@ const snap = async (tab, name, where, target = '.gallery') => {
 };
 const SETTINGS = ['checking', 'missing', 'only-c', 'chooser', 'chooser-path', 'no-space', 'installing-2', 'installing-4', 'cancelled', 'interrupted', 'network-1', 'network-2',
   'package-failed', 'install-no-space', 'install-service', 'install-port', 'vc-runtime', 'service-failed', 'port-in-use', 'unreadable', 'needs-models', 'stopped', 'ready', 'external',
-  'more', 'moving', 'tier-switch', 'uninstall-confirm'];
+  'more', 'moving', 'tier-switch', 'uninstall-confirm', 'tier-unfinished', 'relocate-choosing', 'service-detail'];
 // A case that is another case after some clicks: [gallery case, what to do].
 const CLICKED = {
   'chooser-path': ['missing', async tab => { await tab.getByRole('button', { name: /选择位置|Choose location/ }).click(); await tab.getByRole('button', { name: /其他文件夹|Another folder/ }).click(); }],
   moving: ['more', async tab => { await tab.getByRole('button', { name: /安装到其他位置|Install in another location/ }).click(); }],
   'tier-switch': ['more', async tab => { await tab.locator('input[name="mineru-install-tier"][value="standard"]').check({ force: true }); }],
+  // After a failure a different folder fixes: 换位置 opens the chooser, whose confirm is then the one primary.
+  'relocate-choosing': ['install-no-space', async tab => { await tab.getByRole('button', { name: /^换位置$|^Choose another location$/ }).click(); await tab.waitForSelector('.mineru-install__chooser'); }],
+  // What the program printed when the service did not start: 更多 › 详细信息 only.
+  'service-detail': ['service-failed', async tab => { await tab.locator('.mineru-install__more > summary').click(); await tab.getByText(/^详细信息$|^Details$/).click(); }],
   'uninstall-confirm': ['more', async tab => { await tab.getByRole('button', { name: /^卸载$|^Uninstall$/ }).click(); await tab.waitForSelector('[role="dialog"], [role="alertdialog"]'); }],
 };
 // One open Tooltip of each kind: [name, gallery case, the element hovered].
 const TIPS = [['tip-badge-ready', 'ready', '.mineru-install__line .mineru-install__tipped'], ['tip-badge-stopped', 'stopped', '.mineru-install__line .mineru-install__tipped'],
   ['tip-source', 'missing', '.mineru-install__facts .mineru-install__tipped'], ['tip-install', 'missing', '.mineru-install__row .sh-btn--primary'],
   ['tip-blocked', 'no-space', '.mineru-install__row .sh-btn--primary'], ['tip-fix', 'network-2', '.mineru-install__problem .sh-btn--primary'],
-  ['tip-python', 'more', '.mineru-install__choices .mineru-install__tipped'], ['tip-stop', 'more', '.mineru-install__more-body .mineru-install__row .sh-btn--secondary']];
+  ['tip-python', 'more', '.mineru-install__choices .mineru-install__tipped'], ['tip-tier-unfinished', 'tier-unfinished', '.mineru-install__tipped-text'], ['tip-stop', 'more', '.mineru-install__more-body .mineru-install__row .sh-btn--secondary']];
 const IMPORT = ['missing', 'installing-4', 'stopped'];
 
 try {

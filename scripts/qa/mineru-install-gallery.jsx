@@ -3,7 +3,7 @@
    scene=settings&case=<key>: 设置 › PDF 转换 in ONE state, with fixed answers (no backend);
    scene=import&case=<key>: the import dialog's PDF conversion with a PDF chosen, MinerU in that state (the compact card inline);
    scene=job: a conversion card while the run starts the stopped service; scene=large: the large-textbook card's converter;
-   scene=console&case=running|cancelled: the 任务 console with the install's legacy row (type local-install), running and after 取消;
+   scene=console&case=running|cancelled: the 任务 console with the install's legacy row (type local-install), running (its step, its steps and its log) and after 暂停 (继续安装);
    scene=flow: Settings talking to the QA server, where the REAL installer (lib/mineru-install.js) runs against a local index, a fake uv and the fake mineru. */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -17,7 +17,7 @@ import { StudyServicesContext } from '../../ui/study-context.jsx';
 import { AppContext } from '../../ui/app/app-context.js';
 import TaskConsole from '../../ui/tasks/TaskConsole.jsx';
 import { fakeApp } from '../../tests/helpers/fake-app.mjs';
-import { MINERU_INSTALL_JOB_TEXT as JOB_TEXT, MINERU_INSTALL_MESSAGES as TEXT } from '../../lib/mineru-install-text.js';
+import { MINERU_INSTALL_JOB_TEXT as JOB_TEXT, MINERU_INSTALL_MESSAGES as TEXT, MINERU_STAGE_NAMES } from '../../lib/mineru-install-text.js';
 
 const params = new URLSearchParams(location.search);
 const lang = params.get('lang') === 'en' ? 'en' : 'zh';
@@ -66,6 +66,7 @@ const NETWORK = TEXT.network;
 const est = { basic: 1.6, standard: 2.5 };
 const local = (state, extra = {}) => ({ state, next: null, origin: null, folder: '', install: idle, lastError: null, external: null, estimates: est, windowPages: 50, ...extra });
 const failedAt = (code, stage, message) => local('not-installed', { install: ended('failed', code, stage, message) });
+const TRACEBACK = 'Traceback (most recent call last):\n  File "mineru\\cli\\server.py", line 88, in start\n    raise RuntimeError("worker exited with code 3")\nRuntimeError: worker exited with code 3';
 const EXTERNAL = { exe: 'C:\\Users\\student\\miniconda3\\Scripts\\mineru.exe', state: 'found' };
 const CASES = {
   checking: { local: null },
@@ -83,10 +84,14 @@ const CASES = {
   'install-service': { local: failedAt('service-failed', 'enable', TEXT.serviceFailed), plan: plan() },
   'install-port': { local: { ...failedAt('port-in-use', 'enable', TEXT.portInUse), external: EXTERNAL }, plan: plan() },
   // After an install: the service did not start (重新启动服务), or another MinerU holds its port (停止另一份 MinerU 并重试).
+  // What the program printed (a traceback) is in 更多 › 详细信息 only; the status line says the plain reason of the code.
   'service-failed': { local: local('server-stopped', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12',
-    lastError: { code: 'service-failed', message: '本机服务没能启动：mineru server start 在 330 秒内没有回应。', at: new Date().toISOString() } }) },
+    lastError: { code: 'service-failed', message: '本机服务没能启动：它一启动就退出了。', detail: TRACEBACK, at: new Date().toISOString() } }), plan: plan() },
   'port-in-use': { local: local('server-stopped', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12', external: EXTERNAL,
-    lastError: { code: 'port-in-use', message: '本机服务没能启动：端口被占用', at: new Date().toISOString() } }) },
+    lastError: { code: 'port-in-use', message: '本机服务没能启动：它要用的端口被别的程序占用了。', detail: '服务启动失败：端口被占用', at: new Date().toISOString() } }) },
+  // A change to standard that did not finish while basic still works: the ready card of basic and one quiet line to retry the change.
+  'tier-unfinished': { local: local('ready', { origin: 'installed', folder: FOLDER, version: '4.0.12', tier: 'basic', running: true,
+    install: { ...complete, status: 'failed', stage: 'models', tier: 'standard', installedTier: 'basic', done: STAGES.slice(0, 3), error: { code: 'models-failed', message: TEXT.modelsFailed } } }), plan: plan() },
   unreadable: { local: local('unknown', { origin: 'search', exe: EXTERNAL.exe }) },
   'needs-models': { local: local('needs-models', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12' }), plan: plan() },
   'network-1': { local: local('not-installed', { install: { ...ended('failed', 'network', 'package', NETWORK), attempts: 1 } }), plan: plan() },
@@ -127,11 +132,15 @@ const startService = { id: 'job-start', type: 'pdf-convert', route: 'local', con
   env: { kind: 'local', mineruVersion: '4.0.12', tier: 'basic', model: 'MinerU-4_models_onnx', windows: { kind: 'adaptive', firstPages: 10, targetSeconds: 75, minPages: 5, maxPages: 50 } },
   service: { state: 'starting', basis: 'start', at: new Date().toISOString() }, startedAt: new Date(Date.now() - 20_000).toISOString() };
 // The install's legacy row of the shared job list (lib/contexts/audio/install-row.js), as the console reads it.
+// As lib/contexts/audio/install/install-view.js marks them: the step a paused install stopped at stays the one in hand.
+const rowSteps = () => STAGES.map((id, index) => ({ id, name: MINERU_STAGE_NAMES[id], state: index < 3 ? 'done' : index === 3 ? 'active' : 'pending' }));
+const rowEvents = [{ id: 'e1', at: new Date(Date.now() - 400_000).toISOString(), level: 'info', code: 'status', args: { status: 'running' }, text: JOB_TEXT.stage(1, MINERU_STAGE_NAMES.tools) },
+  { id: 'e2', at: new Date(Date.now() - 200_000).toISOString(), level: 'step', code: 'stage', text: JOB_TEXT.stage(4, MINERU_STAGE_NAMES.models) }];
 const installRow = which === 'cancelled'
-  ? { id: 'mineru-install-qa', type: 'local-install', tool: 'mineru', label: JOB_TEXT.title, status: 'cancelled', stage: JOB_TEXT.cancelled, done: 3, total: 6,
-    startedAt: new Date(Date.now() - 400_000).toISOString(), finishedAt: new Date(Date.now() - 5_000).toISOString() }
-  : { id: 'mineru-install-qa', type: 'local-install', tool: 'mineru', label: JOB_TEXT.title, status: 'running', stage: JOB_TEXT.stage(4, '下载模型'), done: 3, total: 6,
-    startedAt: new Date(Date.now() - 400_000).toISOString() };
+  ? { id: 'mineru-install-qa', type: 'local-install', tool: 'mineru', label: JOB_TEXT.title, status: 'cancelled', stage: JOB_TEXT.cancelled, done: 3, total: 6, installSteps: rowSteps(true),
+    folder: FOLDER, tier: 'basic', events: rowEvents, startedAt: new Date(Date.now() - 400_000).toISOString(), finishedAt: new Date(Date.now() - 5_000).toISOString() }
+  : { id: 'mineru-install-qa', type: 'local-install', tool: 'mineru', label: JOB_TEXT.title, status: 'running', stage: JOB_TEXT.stage(4, MINERU_STAGE_NAMES.models), done: 3, total: 6,
+    installSteps: rowSteps(false), folder: FOLDER, tier: 'basic', events: rowEvents, startedAt: new Date(Date.now() - 400_000).toISOString() };
 const consoleData = { jobs: [installRow], archivedJobs: [], drafts: [], decks: [] };
 
 function Scene() {
