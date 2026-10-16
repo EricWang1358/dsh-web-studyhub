@@ -191,7 +191,8 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
 
 /** 问 AI (docs/review-book.md "Ask AI"): ask-panel (问 AI at the title open), selection-toolbar (words selected with the keyboard's way: selection.modify),
     writing-line (弄懂 started: the one line right after the paragraph), landed-folded (the block in that line's place, folded, its short highlight) and
-    deleted-undo (⋯ › 删除: 「已删除这段 · 撤销」; left deleted, so the book is as it was for the next picture). The task is run by a second service over the same
+    block-menu (the folded row's ⋯ open), deleted-undo (⋯ › 删除: 「已删除这段 · 撤销」; left deleted, so the book is as it was for the next picture) and
+    deleted-faded (that line past its 8 seconds: faded out, its room kept). The task is run by a second service over the same
     library (the fake model); its end is held until the writing line is taken. */
 async function lookAtAi(browser, running, { kind, width, theme, shots }) {
   const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
@@ -243,10 +244,14 @@ async function lookAtAi(browser, running, { kind, width, theme, shots }) {
     await page.screenshot({ path: name('landed-folded') });
     await page.locator('.book-ai[data-ai-landed]').waitFor({ state: 'detached', timeout: 30000 });
     await page.locator(`.book-ai[data-ai-block="${id}"] .book-ai__more`).click();
+    await page.getByRole('menuitem', { name: /删除/ }).waitFor({ timeout: 30000 });
+    await save('block-menu');
     await page.getByRole('menuitem', { name: /删除/ }).click();
     await page.locator('[data-ai-line="undo"]').waitFor({ timeout: 30000 });
     await page.mouse.move(width - 10, 890);
     await save('deleted-undo');
+    await page.locator('[data-ai-line="undo"][data-ai-faded]').waitFor({ timeout: 30000 });
+    await save('deleted-faded');
     return errors;
   } finally { await context.close(); await service.dispose(); }
 }
