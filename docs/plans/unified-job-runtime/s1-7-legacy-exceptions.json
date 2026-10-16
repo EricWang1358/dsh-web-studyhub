@@ -967,7 +967,7 @@
       "evidence": "mineru-conversion.md; s6-0-coverage.md",
       "sites": [
         {
-          "what": "the console row (type local-install) of the original MinerU install run, with its cancel controller",
+          "what": "the console row (type local-install) of the original install run (MinerU, Marker), with its cancel controller",
           "disposition": "delete-s6-2",
           "kind": "legacy-bypass",
           "reached": false,
