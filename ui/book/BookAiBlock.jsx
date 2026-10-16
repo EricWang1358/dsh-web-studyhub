@@ -28,7 +28,7 @@ function BlockMenu({ block, busy, onAction }) {
     block.state === 'new' && { id: 'keep', icon: 'check', label: ui('保留') },
     { id: 'again', icon: 'refresh', label: ui('重新生成'), disabled: busy, hint: ui('旧的留着，新的写好再换') },
     { id: 'copy', icon: 'copy', label: ui('复制') },
-    { id: 'delete', icon: 'trash', label: ui('删除'), danger: true, disabled: busy, hint: ui('可以撤销') },
+    { id: 'delete', icon: 'trash', label: ui('删除'), disabled: busy, hint: ui('可以撤销') },
   ].filter(Boolean);
   return <Menu label={ui('这段 AI 段落的操作')} items={items} onSelect={id => onAction(id, block)} className="book-ai__menu"
     trigger={({ props, ref }) => <IconButton ref={ref} size="sm" icon="more" label={ui('这段 AI 段落的操作')} className="book-ai__more" {...props} />} />;
@@ -36,9 +36,9 @@ function BlockMenu({ block, busy, onAction }) {
 
 /** item: { block, status } (lib/course-book-ai-text.js weaveBlocks); resolveLink; onAction(action, block) with keep | delete | again | copy; onFollow(block, question);
     busy; folded, onFold(id, on): the fold; anchored, onWords(id): the block's words are marked in the paragraph and a press goes back to them; repeat: it mostly
-    restates the point's notes (多为重复, ui/book/point-parts.js); rewriting: the line of its 重新生成 (ui/book/ai-lines.js) while it runs, onCancel(line);
-    fresh: it landed on this page in a line's place (its folded row keeps one line, as high as the line was; data-ai-landed is its short highlight). */
-export default function BookAiBlock({ item, resolveLink, onAction, onFollow, busy = false, folded = false, onFold, anchored = false, onWords, repeat = false, rewriting = null, onCancel, fresh = false }) {
+    restates the point's notes (多为重复, ui/book/point-parts.js); rewriting: the line of its 重新生成 (ui/book/ai-lines.js) while it runs, onCancel(line).
+    A folded row is always one line (its summary cut with an ellipsis), as high as the line a task leaves; data-ai-landed is a landed block's short highlight. */
+export default function BookAiBlock({ item, resolveLink, onAction, onFollow, busy = false, folded = false, onFold, anchored = false, onWords, repeat = false, rewriting = null, onCancel }) {
   const { block, status } = item, gone = status === 'gone';
   const [question, setQuestion] = useState('');
   const summary = useMemo(() => (folded ? aiSummary(block.body) : ''), [folded, block.body]);
@@ -46,7 +46,7 @@ export default function BookAiBlock({ item, resolveLink, onAction, onFollow, bus
   useLayoutEffect(() => (folded ? undefined : markLabels(bodyRef.current)), [folded, block.body]);
   const stuck = busy || !!rewriting;
   return (
-    <aside className="book-ai" data-ai-block={block.id} data-ai-state={block.state} data-ai-folded={folded || undefined} data-ai-rewriting={rewriting ? '' : undefined} data-ai-fresh={fresh ? '' : undefined} aria-label={ui('AI 段落')}>
+    <aside className="book-ai" data-ai-block={block.id} data-ai-state={block.state} data-ai-folded={folded || undefined} data-ai-rewriting={rewriting ? '' : undefined} aria-label={ui('AI 段落')}>
       <div className="book-ai__head">
         <Tooltip layer content={hintOf(repeat, gone)} anchorClassName="book-ai__tip">
           <Button variant="quiet" size="sm" className="book-ai__toggle" aria-expanded={!folded} onClick={() => onFold?.(block.id, !folded)}>
@@ -60,7 +60,7 @@ export default function BookAiBlock({ item, resolveLink, onAction, onFollow, bus
         </Tooltip>
         {/* 重新生成 running: the old text stays; the row says so and can stop it. */}
         {rewriting && <span className="book-ai__again" role="status"><Spinner size="sm" />{ui('正在重新生成')}
-          {rewriting.kind === 'writing' && rewriting.jobId && <Button variant="link" size="sm" onClick={() => onCancel?.(rewriting)}>{ui('取消')}</Button>}</span>}
+          {rewriting.kind === 'writing' && <Button variant="link" size="sm" onClick={() => onCancel?.(rewriting)}>{ui('取消')}</Button>}</span>}
         {folded && !rewriting && <BlockMenu block={block} busy={stuck} onAction={onAction} />}
       </div>
       {!folded && <>

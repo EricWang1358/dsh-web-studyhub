@@ -6,6 +6,7 @@
    A line: { kind: 'writing' | 'failed' | 'undo', id (the block's id: a task's blockId, a deleted block's id), heading (the point's hid), mode, words, title
    (the point's title: a 加一段's block is about it), after (a follow-up continues that block), replace (重新生成 writes that block again), index (undo: where
    the block was among the point's blocks), block (undo: the deleted block), error (failed: the reason) }. */
+import { aiBlocks } from '../../lib/course-book-ai-text.js';
 
 const squash = text => String(text ?? '').replace(/\s+/g, ' ').trim();
 
@@ -47,6 +48,16 @@ export function withLines(blocks, lines = []) {
     else list.push(lineBlock(line));
   }
   return { blocks: list, rewriting, landed };
+}
+
+/** The 「已删除这段 · 撤销」 line of a 删除 (course.book.block's answer `view`): only when this delete took the block out (write 'deleted'), with the version
+    it left, so 撤销 (course.book.revert with that version) can take back only this page's own delete. A block that was already gone ('unchanged': another
+    writer took it out meanwhile) leaves no line: its 撤销 would take back that writer's text. */
+export function deletedLine(view, node, block) {
+  if (view?.write !== 'deleted') return null;
+  const file = node.files.mine;
+  return { key: `undo-${block.id}`, kind: 'undo', id: block.id, heading: node.hid, index: aiBlocks(node.mine).findIndex(item => item.id === block.id), block, file,
+    version: view.files?.[file]?.version };
 }
 
 /** The lines of one point (`lines`: every line of the page). */

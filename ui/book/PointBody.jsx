@@ -11,7 +11,8 @@ import PointToolbar from './PointToolbar.jsx';
 import PointLayer from './PointLayer.jsx';
 import PointText from './PointText.jsx';
 import { foldsByDefault, pointView } from './point-parts.js';
-import { AiFoldContext } from './ai-fold.js';
+import { linesOf } from './ai-lines.js';
+import { AiFoldContext, BookAiContext } from './ai-fold.js';
 
 /* A knowledge point's body (复习全书; also the folded 讲解 of 翻看, ui/book/BookFlip.jsx), in reading order (docs/review-book.md "Reading a point"): the
    one-sentence takeaway (type, no box), the story (讲解, 例子) with the AI blocks about words right after their paragraphs, 要点清单 and 补充 folded, the
@@ -45,7 +46,8 @@ function PointQuestions({ node, handlers }) {
 /** node, course, handlers (ui/book/BookPage.jsx); `level`: the heading level of the point's own part labels (one under the point's heading). */
 export default function PointBody({ node, course, handlers, level = 4 }) {
   // The lines AI tasks and deletions leave in this point (ui/book/ai-lines.js), placed like the blocks they stand for.
-  const lines = handlers.aiLines?.(node.hid) ?? NO_LINES, linesKey = lines.map(line => `${line.key}:${line.kind}:${line.id}`).join('|');
+  const allLines = useContext(BookAiContext);
+  const lines = allLines ? linesOf(allLines, node.hid) : NO_LINES, linesKey = lines.map(line => `${line.key}:${line.kind}:${line.id}:${line.faded ? 1 : 0}`).join('|');
   const view = useMemo(() => pointView(node, lines), [node, linesKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const resolve = useMemo(() => resolverOf(handlers, node.hid), [handlers, node.hid]);
   const aiFold = useContext(AiFoldContext);
@@ -62,11 +64,11 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
   // in a line's place is folded (it stands as high as the line did).
   const isFolded = item => view.landed.has(item.block.id) || !!aiFold?.folded(item.block.id, foldsByDefault(item.block));
   const renderBlock = item => (item.block.line
-    ? <BookAiLine key={item.block.id} line={item.block.line} onCancel={handlers.aiCancel} onRetry={handlers.aiRetry} onDismiss={handlers.aiDismiss} onUndo={handlers.aiUndo} />
+    ? <BookAiLine key={item.block.id} line={item.block.line} onCancel={handlers.aiCancel} onRetry={handlers.aiRetry} onDismiss={handlers.aiDismiss} onUndo={handlers.aiUndo}
+      onForget={handlers.aiForget} />
     : <BookAiBlock key={item.block.id} item={item} resolveLink={resolve} busy={handlers.busy} onAction={(action, block) => handlers.aiAction?.(node, action, block)}
       onFollow={(block, question) => handlers.aiFollow?.(node, block, question)} folded={isFolded(item)} onFold={aiFold?.fold}
       anchored={anchored.has(item.block.id)} onWords={handlers.aiWords} repeat={view.repeats.has(item.block.id)} rewriting={view.rewriting.get(item.block.id) ?? null}
-      fresh={view.landed.has(item.block.id) || !!handlers.aiFresh?.(item.block.id)}
       onCancel={handlers.aiCancel} />);
   const text = (part, props = {}) => <PointText key={part.name} name={part.name} text={part.text} view={view} node={node} handlers={handlers} citeText={node.gen} renderBlock={renderBlock}
     onAnchored={onAnchored} className="book-file" {...props} />;

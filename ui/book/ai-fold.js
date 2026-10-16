@@ -8,6 +8,9 @@ import { usePersistentState } from '../storage.js';
 
 /** The page's fold, for the points under it (null: nothing is folded). */
 export const AiFoldContext = createContext(null);
+/** The lines AI tasks and deletions leave on the page (ui/book/use-book-ai.js `lines`), for the points under it: kept out of the points' handlers so a line
+    that comes or goes re-renders no point's text (null: no lines). */
+export const BookAiContext = createContext(null);
 
 const KEPT = 1000;
 const codec = {

@@ -5,7 +5,6 @@ import { useLiveEffect } from '../use-async.js';
 import { localDate } from '../../lib/board-model.js';
 import { goneSet, rowOf } from './model.js';
 import { showBlock, showWords } from './ai-anchors.js';
-import { linesOf } from './ai-lines.js';
 import { bookStartedText } from '../outline/words.js';
 
 /* What the review book page does besides placing the reader (ui/book/BookPage.jsx): the 期末一周 plan, the export's page estimate and the handlers every point
@@ -48,7 +47,8 @@ async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
 
-/** The handlers every point reads (ui/book/PointBody.jsx and below). ai: ui/book/use-book-ai.js. */
+/** The handlers every point reads (ui/book/PointBody.jsx and below). ai: the stable ctions of ui/book/use-book-ai.js (the lines themselves reach the points
+    through BookAiContext, so a line or the 问 AI panel never gives every point new handlers). */
 export function useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, ai, foldAi }) {
   const [qa, setQa] = useState(() => new Set());
   const [choosing, setChoosing] = useState(false);
@@ -94,9 +94,7 @@ export function useBookHandlers({ call, course, notify, book, setBook, rows, rel
       finally { setChoosing(false); }
     },
     aiFollow: (node, block, question) => ai.start({ heading: node.hid, mode: 'follow', words: block.about || node.title, instruction: question, after: block.id }),
-    aiLines: heading => linesOf(ai.lines, heading),
-    aiFresh: id => ai.fresh.has(id),
-    aiCancel: ai.cancel, aiRetry: ai.retry, aiDismiss: ai.dismiss, aiUndo: ai.restore,
+    aiCancel: ai.cancel, aiRetry: ai.retry, aiDismiss: ai.dismiss, aiUndo: ai.restore, aiForget: ai.forget,
     // The fold of the blocks (kept in this browser), and the two ways between a block and its dashed words (ui/book/ai-anchors.js): open the block, then show it.
     aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
     aiWords: id => showWords(id),
