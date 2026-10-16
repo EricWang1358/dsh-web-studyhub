@@ -92,7 +92,7 @@ export function useBookAi({ call, course, notify, reload, book, setBook, rows, a
         setTimeout(() => { flushSync(() => latest.current.aiFold?.fold(line.id, false)); showBlock(line.id); }, 120);
       } } });
     }
-  }, [book, lines]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [book, lines]);
   // 删除: the block goes, a line says so for 8 seconds; 撤销 takes it back only while nothing else was written to the file.
   const remove = useCallback(async (node, block) => {
     const file = node.files.mine, index = aiBlocks(node.mine).findIndex(item => item.id === block.id);
