@@ -76,7 +76,8 @@ export default function BookAsk({ target, host, scrollerRef, model, onWrite, onS
     // Escape closes; a press outside closes it unless words are typed in the box (nothing the learner wrote is taken from them).
     const onKey = event => { if (event.key === 'Escape' && !event.defaultPrevented) latest.current.onClose(); };
     const onDown = event => {
-      if (panel.current?.contains(event.target) || event.target?.closest?.('.sh-tooltip-layer, [role="menu"]')) return;
+      // A press on its own 问 AI is the button's (a second press closes it there).
+      if (panel.current?.contains(event.target) || (anchor.current?.contains && anchor.current.contains(event.target))) return;
       if (!askStaysOpen({ kind: 'here', hasText: latest.current.typed(), outside: true })) latest.current.onClose();
     };
     window.addEventListener('keydown', onKey);

@@ -16,6 +16,7 @@ export default function BookAiLine({ line, onCancel, onRetry, onDismiss, onUndo 
           <Spinner size="sm" className="book-ai__spin" />
           <Badge size="sm" className="book-ai__tag">AI</Badge>
           <span className="book-ai__state">{ui('正在写 · 约 1 分钟')}</span>
+          {line.kind === 'writing' && <span className="book-ai__dot" aria-hidden="true">·</span>}
           {line.kind === 'writing' && <Tooltip layer content={ui('停下这个任务，这里什么也不会写进书里。')} anchorClassName="book-ai__act">
             <Button variant="link" size="sm" className="book-ai__link" onClick={() => onCancel?.(line)}>{ui('取消')}</Button>
           </Tooltip>}
@@ -33,6 +34,7 @@ export default function BookAiLine({ line, onCancel, onRetry, onDismiss, onUndo 
         </>}
         {kind === 'undo' && <>
           <span className="book-ai__state">{ui('已删除这段')}</span>
+          <span className="book-ai__dot" aria-hidden="true">·</span>
           <Tooltip layer content={ui('只能撤销最近一次删除，几秒后这一行会消失。')} anchorClassName="book-ai__act">
             <Button variant="link" size="sm" className="book-ai__link" data-book-ai="undo" onClick={() => onUndo?.()}>{ui('撤销')}</Button>
           </Tooltip>

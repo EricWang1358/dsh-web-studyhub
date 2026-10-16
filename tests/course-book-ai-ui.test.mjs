@@ -97,13 +97,13 @@ test('the lines in a point: 「AI 正在写 · 约 1 分钟 · 取消」 right a
   const writing = { key: 'l1', kind: 'writing', id: 'ai7', jobId: 'job-7', heading: 'h2', mode: 'explain', words: 'records each decision', title: 'Entropy' };
   const html = chapterOf({ ...node, mine: '' }, { aiLines: () => [writing] }), text = textOf(html);
   assert.match(html, /data-ai-line="writing"/);
-  assert.match(text, /The architect records each decision and its reasons\. AI 正在写 · 约 1 分钟 取消 停下这个任务，这里什么也不会写进书里。 Third paragraph\./, 'right after its paragraph, with 取消 (its hover words)');
+  assert.match(text, /The architect records each decision and its reasons\. AI 正在写 · 约 1 分钟 · 取消 停下这个任务，这里什么也不会写进书里。 Third paragraph\./, 'right after its paragraph, with 取消 (its hover words)');
   assert.match(html, /role="status"/);
   const failed = textOf(chapterOf({ ...node, mine: '' }, { aiLines: () => [{ ...writing, kind: 'failed', error: '没有找到这几句话' }] }));
   assert.match(failed, /AI 没写成：没有找到这几句话 没有找到这几句话 重试 关闭 Third paragraph\./, 'a failure in the same place: the reason (one line, the whole of it on hover), 重试, 关闭');
   const deleted = ui.aiBlocks(block)[0];
   const undo = chapterOf({ ...node, mine: gone }, { aiLines: () => [{ key: 'u', kind: 'undo', id: 'ai1', heading: 'h2', index: 0, block: deleted }] });
-  assert.match(textOf(undo), /its reasons\. 已删除这段 撤销 只能撤销最近一次删除，几秒后这一行会消失。 Third paragraph\./, 'where the block was, its hover says only the latest can come back');
+  assert.match(textOf(undo), /its reasons\. 已删除这段 · 撤销 只能撤销最近一次删除，几秒后这一行会消失。 Third paragraph\./, 'where the block was, its hover says only the latest can come back');
   assert.match(undo, /data-book-ai="undo"/);
   // A block that just landed is drawn folded, whatever its size (it stands as high as the line did).
   const landed = chapterOf({ ...node, mine: block }, { aiLines: () => [{ ...writing, id: 'ai1', kind: 'done' }] });

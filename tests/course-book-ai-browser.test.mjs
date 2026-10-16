@@ -131,7 +131,7 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       await line.waitFor({ timeout: 5000 });
       assert.equal(await page.locator('.book-select').count(), 0, `${width}px: the toolbar is gone`);
       assert.equal(await page.locator('[data-ai-line]').count(), 1);
-      assert.match((await line.innerText()).replace(/\s+/g, ' '), /AI 正在写 · 约 1 分钟 取消/);
+      assert.match((await line.innerText()).replace(/\s+/g, ' '), /AI 正在写 · 约 1 分钟 · 取消/);
       assert.equal(control.started.at(-1).mode, 'explain');
       assert.doesNotMatch(control.started.at(-1).words, /成立1|1。/, `${width}px: the words sent carry no 角标 digit: ${control.started.at(-1).words}`);
       const order = await line.evaluate(element => {

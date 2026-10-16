@@ -76,10 +76,11 @@ export function useBookAi({ call, course, notify, reload, book, setBook, rows, a
   }, { intervalMs: 1500, enabled: running.length > 0 });
   // A task that ended is shown once the book read after it is here: its block, drawn folded in the line's place (ui/book/ai-lines.js `landed`, so it stands
   // as high as the line did), that fold kept, and a short highlight. A new block is folded; one written again (重新生成) keeps the learner's fold.
+  // A new block already in the book (read again meanwhile for another reason) lands at once; a block written again waits for the book read after its end.
   useLayoutEffect(() => {
-    const ended = lines.filter(line => line.kind === 'done' && (book?.revision ?? 0) > line.revision);
-    if (!ended.length) return;
     const has = line => aiBlocks(pointOf(latest.current.rows, line.heading)?.mine).some(block => block.id === line.id);
+    const ended = lines.filter(line => line.kind === 'done' && ((!line.replace && has(line)) || (book?.revision ?? 0) > line.revision));
+    if (!ended.length) return;
     const written = ended.filter(has), landed = written.filter(line => !line.replace).map(line => line.id);
     landed.forEach(id => latest.current.aiFold?.fold(id, true));
     if (landed.length) setFresh(current => new Set([...current, ...landed]));
@@ -91,7 +92,7 @@ export function useBookAi({ call, course, notify, reload, book, setBook, rows, a
         setTimeout(() => { flushSync(() => latest.current.aiFold?.fold(line.id, false)); showBlock(line.id); }, 120);
       } } });
     }
-  }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [book, lines]); // eslint-disable-line react-hooks/exhaustive-deps
   // 删除: the block goes, a line says so for 8 seconds; 撤销 takes it back only while nothing else was written to the file.
   const remove = useCallback(async (node, block) => {
     const file = node.files.mine, index = aiBlocks(node.mine).findIndex(item => item.id === block.id);
@@ -115,6 +116,8 @@ export function useBookAi({ call, course, notify, reload, book, setBook, rows, a
     }
   }, [undo, call, course, notify, setBook]);
   const all = useMemo(() => (undo ? [...lines, undo] : lines), [lines, undo]);
-  const openAsk = useCallback(target => setAsk(target), []), closeAsk = useCallback(() => setAsk(null), []);
+  // A second press on the same 问 AI closes its panel.
+  const openAsk = useCallback(target => setAsk(current => (current && !current.words && !target.words && current.heading === target.heading ? null : target)), []);
+  const closeAsk = useCallback(() => setAsk(null), []);
   return useMemo(() => ({ lines: all, fresh, ask, openAsk, closeAsk, start, cancel, retry, dismiss, remove, restore }), [all, fresh, ask, openAsk, closeAsk, start, cancel, retry, dismiss, remove, restore]);
 }
