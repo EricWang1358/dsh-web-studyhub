@@ -6,7 +6,10 @@
    目录 open: the column at 1280, the slide-over at 420), lookup (the 速查页 dialog), edit and flip (更多 › 编辑这个知识点… and 翻看, with 「完成 · 回到阅读」), chat
    (整本书 · 发给主会话…), placed (the point with a short explain block, in its place), placed-block (that block in the middle of the window), open-here (a
    whole-point block open), mine-tip (the 我的 row with the explanation of its label), full (the whole page), notice (over a page limit of one page: the line under
-   the bar), course (a second course added: the title's switcher open). It prints one JSON line per fixture and width:
+   the bar), course (a second course added: the title's switcher open); S2: find (在书里找 by Ctrl+F, a word only a point not on screen has: the matches in the
+   目录), find-hit (the match chosen: its point open, the words painted), find-jump (H12 typed: 跳到 H12 first), end-today (the end of today's last point:
+   今天的读完了), end-read (the first point after 读完了: 下一个) and toc-marks (the 目录 with the ✓ it got; the mark is taken back after). It prints one JSON line
+   per fixture and width:
      controlsBeforeFirstLine  the visible interactive elements (button, a, summary, [role=button], input, select, textarea) of the book page above the first line
                               of the 讲解 text (the 目录 beside the text at 1280 is not above it and not counted)
      firstLineY               where that line starts, from the top of the window with the page scrolled to its top
@@ -21,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { launchChromium } from './browser.mjs';
 import { openPage, settleAnimations, startLateServer } from './layout-late.mjs';
 import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture } from '../../tests/helpers/book-fixtures.mjs';
+import { POINTS } from '../../tests/helpers/book-topics.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -62,6 +66,13 @@ async function whole(page, width, path) {
   await settleAnimations(page);
   await page.screenshot({ path });
   await page.setViewportSize({ width, height: 900 });
+}
+
+/** Goes to the point titled `title` through the 目录 (the slide-over on a narrow page). */
+async function goPoint(page, width, title) {
+  if (width < 900) { await page.locator('.book-bar__toc').click(); await page.locator('.book-toc[data-overlay]').waitFor({ timeout: 30000 }); }
+  await page.locator('.book-toc .book-toc__go', { hasText: title }).last().click();
+  await page.locator('.book-step__heading', { hasText: title }).waitFor({ timeout: 30000 });
 }
 
 async function openBook(page, running) {
@@ -143,9 +154,7 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
     await toEnd(page);
     await save('end');
     // The next point has a short explain block on words of its 讲解: shown in its place.
-    await page.locator('.book-step__next').first().scrollIntoViewIfNeeded();
-    await page.locator('.book-step__next').first().click();
-    await page.locator('.book-step__heading', { hasText: 'Architect the Solution' }).waitFor({ timeout: 30000 });
+    await goPoint(page, width, 'Architect the Solution');
     await toTop(page);
     await save('placed');
     // The short block in its place (opened by default, with 保留 because it is new), the whole-point block open, and the 我的 row of this point (two blocks: the
@@ -167,9 +176,9 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
       await save('mine-tip');
       await page.mouse.move(900, 100);
     }
-    await page.locator('.book-bar__prev').first().click();
-    await page.locator('.book-step__heading', { hasText: 'What architects do' }).waitFor({ timeout: 30000 });
+    await goPoint(page, width, 'What architects do');
     if (shots) await whole(page, width, name('full'));
+    if (shots) await lookAtWhere(page, running, { width, save, name });
     if (shots) {
       // Over the page limit (one page, set for this picture and cleared again): the quiet line under the bar.
       await running.api('settings.book.set', { patch: { pageLimit: 1 } });
@@ -182,6 +191,57 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
     }
     return { numbers, errors };
   } finally { await context.close(); }
+}
+
+/** S2 (我在哪): 在书里找 (a word only the last point has, then H12), today's last point's end, and a point marked 读完 (its end and its ✓, taken back after). */
+async function lookAtWhere(page, running, { width, save }) {
+  const word = POINTS.at(-1).example.slice(0, 6);
+  await toTop(page);
+  await page.locator('.book-step__heading').first().click();
+  await page.keyboard.press('Control+f');
+  await page.locator('.book-find .reader-find__input').waitFor({ timeout: 30000 });
+  await page.keyboard.type(word);
+  await page.locator('.book-find__hit').first().waitFor({ timeout: 30000 });
+  await page.waitForTimeout(300);
+  await save('find');
+  await page.locator('.book-find__hit').first().click();
+  await page.locator('.book-step__heading', { hasText: POINTS.at(-1).title }).waitFor({ timeout: 30000 });
+  await page.waitForTimeout(400);
+  await save('find-hit');
+  await page.keyboard.press('Control+f');
+  await page.locator('.book-find .reader-find__input').fill('H12');
+  await page.locator('.book-find__jump').waitFor({ timeout: 30000 });
+  await page.waitForTimeout(300);
+  await save('find-jump');
+  // Esc in the field ends the search (the picture let go of the focus): the groups come back.
+  await page.locator('.book-find .reader-find__input').press('Escape');
+  if (width < 900) await page.locator('.book-toc').waitFor({ state: 'detached', timeout: 30000 });
+  else await page.locator('.book-toc__group').first().waitFor({ timeout: 30000 });
+  // Today's last point: its end says 今天的读完了 (or 练 5 道 first, with questions).
+  if (width < 900) { await page.locator('.book-bar__toc').click(); await page.locator('.book-toc[data-overlay]').waitFor({ timeout: 30000 }); }
+  const today = page.locator('[data-book-today] .book-toc__go');
+  if (await today.count()) {
+    await today.last().click();
+    await page.locator('.book-end:not([data-waiting])').waitFor({ timeout: 30000 });
+    await page.locator('.book-end').evaluate(element => element.scrollIntoView({ block: 'center' }));
+    await save('end-today');
+  } else if (width < 900) await page.keyboard.press('Escape');
+  // The first point marked 读完 by its end button (the quiet one beside 练 5 道 when it has questions), then back to it: 下一个, and its ✓ in the 目录.
+  await goPoint(page, width, 'What architects do');
+  await page.locator('.book-end:not([data-waiting])').waitFor({ timeout: 30000 });
+  await page.locator('.book-end [data-book-end-action="read"]').first().click();
+  await page.waitForFunction(() => !document.querySelector('.book-step__heading')?.textContent.includes('What architects do'), null, { timeout: 30000 });
+  await goPoint(page, width, 'What architects do');
+  await page.locator('.book-end[data-book-end="next"]').waitFor({ timeout: 30000 });
+  await page.locator('.book-end').evaluate(element => element.scrollIntoView({ block: 'center' }));
+  await save('end-read');
+  if (width < 900) { await page.locator('.book-bar__toc').click(); await page.locator('.book-toc[data-overlay]').waitFor({ timeout: 30000 }); }
+  await toTop(page);
+  await page.waitForTimeout(300);
+  await save('toc-marks');
+  if (width < 900) await page.keyboard.press('Escape');
+  const hid = await page.locator('[data-book-step]').getAttribute('data-book-step');
+  await running.api('book.crunch.mark', { course: BOOK_COURSE, hid, kind: 'read', on: false });
 }
 
 /** Two courses (a note of a second one added): the title's course is the home's switcher; the picture has its list open. */
