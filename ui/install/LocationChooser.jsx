@@ -28,6 +28,7 @@ export default function LocationChooser({ plan, location, pickDirectory, onChoos
           badges={<>
             {drive.recommended && <Badge size="sm" tone="success">{ui('推荐')}</Badge>}
             {drive.system && <Tooltip layer content={ui('系统盘：装在这里会占用 C 盘空间。')}><span tabIndex={0} className="mineru-install__tipped"><Badge size="sm" tone="warning">{ui('系统盘')}</Badge></span></Tooltip>}
+            {drive.removable && <Tooltip layer content={ui('外接的 USB 硬盘或存储卡：拔掉后装在上面的程序就用不了。')}><span tabIndex={0} className="mineru-install__tipped"><Badge size="sm" tone="warning">{ui('外接硬盘')}</Badge></span></Tooltip>}
             {full && <Badge size="sm" tone="error">{ui('空间不够')}</Badge>}
           </>} />;
       })}

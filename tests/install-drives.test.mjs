@@ -37,6 +37,20 @@ test('locked, removable and optical drives are not listed by PowerShell, so they
   assert.deepEqual(drives.map(drive => drive.root), ['C:\\']);
 });
 
+test('a USB or SD disk (Windows calls an external hard disk "Fixed") is marked removable and is never the default while an internal drive has room', () => {
+  const drives = parseDriveLines([`C:\\|${60 * GB}|${256 * GB}|NVMe`, `E:\\|${900 * GB}|${1000 * GB}|USB`, `F:\\|${50 * GB}|${64 * GB}|SD`, `D:\\|${20 * GB}|${200 * GB}|SATA`].join('\n'), 'C:');
+  assert.deepEqual(drives.map(drive => [drive.root, !!drive.removable]), [['C:\\', false], ['E:\\', true], ['F:\\', true], ['D:\\', false]]);
+  assert.equal(defaultDataFolder({ neededMb: 4000, drives, dataFolder: '/data' }).folder, 'D:\\StudyHub\\MinerU', 'the internal data drive, not the bigger USB disk');
+  // Only C: and a USB disk: C: (it stays when the disk is unplugged), said as the other drives being unsuitable.
+  const usbOnly = defaultDataFolder({ neededMb: 4000, drives: drives.filter(drive => drive.root !== 'D:\\'), dataFolder: '/data' });
+  assert.deepEqual([usbOnly.folder, usbOnly.reason], ['C:\\StudyHub\\MinerU', 'other-drives-removable']);
+  // C: full too: the external disk after all, rather than a folder that cannot fit.
+  const cFull = defaultDataFolder({ neededMb: 4000, drives: [{ root: 'C:\\', freeMb: 1000, system: true }, { root: 'E:\\', freeMb: 900_000, system: false, removable: true }], dataFolder: '/data' });
+  assert.equal(cFull.folder, 'E:\\StudyHub\\MinerU');
+  // Without a bus type (older PowerShell, no Storage module) the line still reads as an internal drive.
+  assert.equal(parseDriveLines(`D:\\|${GB}|${GB}|`, 'C:')[0].removable, false);
+});
+
 test('PowerShell failing falls back to statfs on each letter', async () => {
   const seen = [];
   const statfs = async root => {
