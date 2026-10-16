@@ -106,7 +106,9 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       assert.ok(top >= 0 && top < 400, `${width}px: the code brought its heading on screen: ${top}`);
 
       // 导出: the estimate of each choice (its item names the pages), the page limit, the download.
-      assert.equal(await page.locator('.book-bar__notice').count(), 0, `${width}px: no limit, no line under the bar`);
+      assert.equal(await page.locator('.book-bar__notice').count(), 0, `${width}px: no limit, no word in the bar`);
+      // Where the bar's buttons are before any limit (the notice that comes later moves none of them).
+      const buttonsBefore = await page.evaluate(() => [...document.querySelectorAll('.book-bar__row > :not(.book-bar__where-tip):not(.book-bar__notice-tip)')].map(item => Math.round(item.getBoundingClientRect().left)));
       await page.locator('.book-bar__more').click();
       assert.match(await page.getByRole('menuitem', { name: /^导出…/ }).innerText(), /约 \d+ 页/);
       await page.getByRole('menuitem', { name: /^导出…/ }).click();
@@ -145,9 +147,19 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       assert.ok(await dialog.locator('.book-export__file').count() >= 4, `${width}px: the folder's files`);
       if (shots) await page.screenshot({ path: join(shots, `export-files-${width}.png`) });
       await page.keyboard.press('Escape');
-      // Over the limit: one quiet red line under the bar (in the gap below it: nothing moves), and the item says the limit.
+      // Over the limit: a short quiet word in the bar's own row (it covers nothing, and the buttons stay where they were), and the item says the limit.
       await page.locator('.book-bar__notice').waitFor({ timeout: 30000 });
-      assert.match(await page.locator('.book-bar__notice').innerText(), /^导出约 \d+ 页，超出上限 \d+ 页$/);
+      assert.match(await page.locator('.book-bar__notice').innerText(), /^超出上限 \d+ 页$/);
+      const cover = await page.evaluate(() => {
+        const box = element => element && element.getBoundingClientRect();
+        const meets = (a, b) => !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        const notice = box(document.querySelector('.book-bar__notice')), row = box(document.querySelector('.book-bar__row'));
+        return { inRow: notice.top >= row.top - 1 && notice.bottom <= row.bottom + 1, path: meets(notice, box(document.querySelector('.book-step__path'))),
+          toc: meets(notice, box(document.querySelector('.book-toc'))), heading: meets(notice, box(document.querySelector('.book-step__heading'))),
+          buttons: [...document.querySelectorAll('.book-bar__row > :not(.book-bar__where-tip):not(.book-bar__notice-tip)')].map(item => Math.round(item.getBoundingClientRect().left)) };
+      });
+      assert.ok(cover.inRow && !cover.path && !cover.toc && !cover.heading, `${width}px: the notice is inside the bar and covers nothing: ${JSON.stringify(cover)}`);
+      assert.deepEqual(cover.buttons, buttonsBefore, `${width}px: no button of the bar moved when the notice came`);
       await page.locator('.book-bar__more').click();
       assert.match(await page.getByRole('menuitem', { name: /^导出…/ }).innerText(), /约 \d+ 页 \/ 上限 1 页/);
       await page.keyboard.press('Escape');

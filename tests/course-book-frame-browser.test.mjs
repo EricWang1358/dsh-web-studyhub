@@ -1,4 +1,4 @@
-/* global window document */
+/* global window document DOMMatrix */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -52,12 +52,15 @@ test('复习全书 frame: the sticky bar, no mode switch, 更多 › 翻看 and 
       assert.equal(await page.locator('.book-page .sh-seg').count(), 0, `${width}px: no standing mode switch`);
       assert.equal(await page.locator('.book-page h1 [aria-label="切换当前课程"]').count(), 0, `${width}px: one course, no switcher`);
       assert.match(await page.locator('.book-page h1').innerText(), /^复习全书 · ArchSS$/);
-      assert.equal(await where(page), `知识点 1/16 · ${points[0].number} ${points[0].title}`);
+      // Narrow: the count alone and the title without its number (no room for a cut 「1.1.…」).
+      assert.equal(await where(page), width === 420 ? `1/16 · ${points[0].title}` : `知识点 1/16 · ${points[0].number} ${points[0].title}`);
 
       // The bar sticks under the app's top bar while the point scrolls, and its line is part way (the point made long: its whole-point AI block open).
       await page.locator('.book-ai[data-ai-block^="h"] .book-ai__toggle').first().click();
       await page.locator('.book-ai[data-ai-block^="h"] .book-ai__body').first().waitFor();
       const scaleOf = () => page.evaluate(() => new DOMMatrix(window.getComputedStyle(document.querySelector('.book-bar__line > span')).transform).a);
+      // (Back at the top of the page: the press may have scrolled the block into view.)
+      await page.evaluate(() => { document.querySelector('.study-app').scrollTop = 0; });
       await page.waitForTimeout(400);
       const atTop = await scaleOf();
       await scrollBy(page, 1200);
@@ -70,9 +73,33 @@ test('复习全书 frame: the sticky bar, no mode switch, 更多 › 翻看 and 
       });
       // Under the app's top bar while it is on screen; at the very top once a long page has scrolled it away (it sticks only as far as its column reaches).
       assert.ok(Math.abs(bar.top - Math.max(0, bar.under)) <= 1, `${width}px: the bar sticks under the top bar: ${JSON.stringify(bar)}`);
+      assert.equal(atTop, 0, `${width}px: nothing read yet: the line is empty while the point's top is under the bar`);
       assert.ok(bar.scale > atTop && bar.scale < 1, `${width}px: the line moves on as the point is read: ${atTop} -> ${JSON.stringify(bar)}`);
 
       await page.locator('.book-ai[data-ai-block^="h"] .book-ai__toggle').first().click();
+      // 更多 is reached by the keys like any menu: ↓ moves through its items, the check (整章连着读, off) among them.
+      await page.locator('.book-bar__more').evaluate(element => element.click());
+      await page.locator('[role="menu"]').waitFor();
+      let check = null;
+      for (let n = 0; n < 20 && !check; n += 1) {
+        await page.keyboard.press('ArrowDown');
+        check = await page.evaluate(() => (document.activeElement?.getAttribute('role') === 'menuitemcheckbox' ? document.activeElement.getAttribute('aria-checked') : null));
+      }
+      assert.equal(check, 'false', `${width}px: 整章连着读 is reached by ↓ and is off`);
+      await page.keyboard.press('Escape');
+      await page.locator('[role="menu"]').waitFor({ state: 'detached' });
+      // 更多 › 展开 / 收起这一节的 AI 段落 (the point's long block starts folded), the same words as 我的's link.
+      await more(page, '展开这一节的 AI 段落');
+      await page.waitForFunction(() => document.querySelectorAll('[data-book-point] .book-ai:not([data-ai-folded])').length > 0);
+      await more(page, '收起这一节的 AI 段落');
+      await page.waitForFunction(() => document.querySelectorAll('[data-book-point] .book-ai:not([data-ai-folded])').length === 0);
+      // 更多 › 出一套模拟卷… asks at once in a dialog; this book has no single or multiple choice question, and 知道了 closes it.
+      await more(page, /^出一套模拟卷/);
+      const mock = page.locator('dialog.book-mock-dialog');
+      await mock.getByText('这几节没有单选或多选题，出不了模拟卷。').waitFor({ timeout: 30000 });
+      await mock.getByRole('button', { name: '知道了' }).click();
+      await mock.waitFor({ state: 'detached' });
+      await page.evaluate(() => { document.querySelector('.study-app').scrollTop = 0; });
       // ›: the next point, under the bar; 更多 › 翻看 takes the page's place, 「完成 · 回到阅读」 comes back to that point.
       await page.locator('.book-bar__next').click();
       await page.waitForFunction(id => document.querySelector('.book-step')?.dataset.bookStep === id, points[1].hid);
@@ -143,5 +170,31 @@ Written by the main chat at ${width}.` });
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
     }
+
+    // Two courses: the title's course is the home's switcher (with what it does on hover); with unsaved text in the editor, switching asks first.
+    await running.api('source.add', { title: 'Second course notes', text: 'A note of another course.', course: 'Second course' });
+    const { page, errors, context } = await openPage(browser, running, { width: 1280, height: 900 });
+    await page.goto(running.server.url);
+    await fromSidebar(page);
+    const switcher = page.locator('.book-page h1').getByRole('combobox', { name: '切换当前课程' });
+    await switcher.waitFor({ timeout: 30000 });
+    await switcher.hover();
+    await page.getByText('会切换整个应用的当前课程').waitFor({ timeout: 5000 });
+    await more(page, /^编辑这一节/);
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Unsaved words.');
+    const pick = async () => { await switcher.click(); await page.getByRole('option', { name: /Second course/ }).click(); };
+    await pick();
+    const ask = page.locator('.sh-confirm', { hasText: '还有没保存的改动' });
+    await ask.waitFor({ timeout: 30000 });
+    await ask.getByRole('button', { name: '继续编辑' }).click();
+    await ask.waitFor({ state: 'detached' });
+    assert.match(await page.locator('.book-page h1').innerText(), /ArchSS/, 'still the same course');
+    assert.match(await page.locator('.book-editor .cm-content').innerText(), /Unsaved words\./, 'the text is kept');
+    await pick();
+    await ask.getByRole('button', { name: '丢掉改动，离开' }).click();
+    await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 30000 });
+    assert.deepEqual(errors, [], 'two courses: no page errors');
+    await context.close();
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
 });
