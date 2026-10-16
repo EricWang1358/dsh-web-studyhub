@@ -18,12 +18,16 @@ import BookChapter from './BookChapter.jsx';
 import BookStep from './BookStep.jsx';
 import BookAiAsk from './BookAiAsk.jsx';
 import BookExport from './BookExport.jsx';
-import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
+import BookFind from './BookFind.jsx';
+import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, useAiFold, useLandedBlocks } from './ai-fold.js';
 import { useSendToChat } from './send-to-chat.js';
 import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
+import { useBookEnds } from './use-book-ends.js';
+import { useBookFind } from './use-book-find.js';
+import { PointEndContext } from './point-end.js';
 import { startBookBuild, useBookAi, useBookCrunch, useBookHandlers, useBookPages } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
@@ -33,7 +37,9 @@ import css from './book.css';
 /* 复习全书 (docs/review-book.md). The book of the current course (course.book.open, lib/course-book-files.js) on ONE reading surface: the header, the sticky book
    bar (目录 · where · ‹ › · Aa · ⋯ 更多, ui/book/BookBar.jsx), the 目录 beside the text at wide widths and sliding over it on a narrow page, and the point being
    read (逐节读) or the chapters in one scroll (整章连着读, from 更多). Every other view (编辑, 翻看, 速查页, 导出, 模拟卷, 发给主会话) opens from 更多 and comes
-   back to the same point. The place is kept for the next visit (ui/book/use-book-place.js); what the main chat wrote shows up when the page comes back into view. */
+   back to the same point. The place is kept for the next visit (ui/book/use-book-place.js); what the main chat wrote shows up when the page comes back into view.
+   The 目录 starts with 在书里找 (ui/book/use-book-find.js) and, in the 期末一周, today's points; ← →, ‹ › and each point's one end button follow one order
+   (ui/book/use-book-ends.js, ui/book/route.js). */
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's). */
@@ -44,7 +50,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const pageRef = useRef(null), tocRef = useRef(null), narrow = useNarrow(pageRef);
   // The view: the reading surface, or the editor / 翻看 that take its place until 「完成 · 回到阅读」. Never remembered, except the old 翻看 mode once (below).
   const [view, setView] = useState('read');
-  const [dialog, setDialog] = useState(null), [todayOpen, setTodayOpen] = useState(false);
+  const [dialog, setDialog] = useState(null);
   const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(null);
   const place = useRef(null);
   const { book, error, setBook, reload } = useBookData({ call, course, paused: view === 'edit', onReplaced: () => place.current?.hold() });
@@ -54,14 +60,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const reading = useBookReading(root, course), steps = useMemo(() => bookSteps(book), [book]);
   const where = useBookPlace({ root, course, book, rows, toc, steps, chapters, reading, pageRef, active: view === 'read' });
   place.current = where;
-  // The home's card can open the page in 翻看 or with 今天读哪几节 open, and says once that it switched the course (one-shots of ui/book/model.js); the old
-  // remembered mode `study-book-mode` opens 翻看 once when it was 翻看, and is forgotten.
+  // The home's card can open the page in 翻看, and says once that it switched the course (one-shots of ui/book/model.js); the old remembered mode
+  // `study-book-mode` opens 翻看 once when it was 翻看, and is forgotten.
   const [switched] = useState(() => !!where.kept?.switched);
   useEffect(() => {
     const legacy = readText(`study-book-mode:${root}:${course}`, null);
     if (legacy !== null) removeKey(`study-book-mode:${root}:${course}`);
     if (where.kept?.view === 'flip' || (legacy === 'flip' && !where.kept?.target)) setView('flip');
-    if (where.kept?.view === 'today') setTodayOpen(true);
     keepBook(root, course, { view: null, switched: false });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const plan = useBookCrunch({ call, course, book, notify });
@@ -71,10 +76,16 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const sendToChat = useSendToChat(course);
   const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai, foldAi: aiFold.fold });
   const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
-  const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
+  const [tocOver, setTocOver] = useState(false), [findFirst, setFindFirst] = useState(false);
+  const closeToc = useCallback(() => { setTocOver(false); setFindFirst(false); }, []);
   useEffect(() => { setTocOver(false); }, [narrow]);
   const tocOpen = narrow ? tocOver : tocWide;
-  useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
+  // Where a point leads (one order for ← →, ‹ › and its end button), its end button, the 目录's 今天 and marks; 在书里找 (Ctrl+F or /) shows the 目录 first.
+  const openMock = useCallback(() => setDialog('mock'), []);
+  const ends = useBookEnds({ steps, toc, book, plan, where, handlers, openMock });
+  const reveal = useCallback(() => { setFindFirst(true); if (narrow) setTocOver(true); else setTocWide(true); }, [narrow, setTocWide]);
+  const find = useBookFind({ book, toc, goTo: where.goTo, aiFold, pageRef, reveal });
+  useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, ends.step);
   // Leaving the editor with unsaved text asks first (the 完成 button, 回到总纲, another course; closing or reloading the tab: the browser's own question).
   // The sidebar and the other pages do not ask yet (no navigation guard in the app; S4 saves as you type).
   const guard = useCallback(then => (view === 'edit' && dirty ? setLeaving(() => then) : then()), [view, dirty]);
@@ -89,7 +100,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask}
     onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
-  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord });
+  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, onCreate, onCourseSettings, courseRecord });
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('复习全书读取失败')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
@@ -119,9 +130,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const over = pages !== null && pageLimit && pages > pageLimit;
   // Over the page limit: one quiet line under the bar (the estimate and how far over); its Tooltip says where the limit is changed.
   const notice = over ? { text: uiFormat('导出约 {0} 页，超过 {1} 页的上限', [pages, pageLimit]), tip: uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit]) } : null;
-  const unplaced = step?.hid === 'unplaced', counted = steps.filter(item => item.hid !== 'unplaced').length;
+  const unplaced = step?.hid === 'unplaced', route = ends.route;
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
-    today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)} />;
+    mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)} />;
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} onClose={() => setDialog(null)} />}
     {dialog === 'lookup' && <LookupDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
@@ -134,25 +145,26 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
     <FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
       onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} />{askPanel}{dialogs}</section>;
+  // Inside the 期末一周 the reading surface waits for the plan (asked beside the book): the bar's 今天 2/4, the 目录's 今天 and each end button are right at
+  // the first paint, so nothing moves or changes its words when the plan comes (ui/DESIGN.md "Late content").
+  if (dateHint === null && !plan.ready) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   return (
     <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
       {header}
-      <BookBar ref={tocRef} at={step && !unplaced ? where.current + 1 : 0} total={counted} number={step?.node.number || ''} title={step?.node.title ?? ''}
-        hid={step?.hid ?? null} tocOpen={tocOpen}
-        onToc={() => (narrow ? setTocOver(value => !value) : setTocWide(!tocWide))} onPrev={where.current > 0 ? () => where.go(-1) : null}
-        onNext={where.current < steps.length - 1 ? () => where.go(1) : null} more={menu} notice={notice} />
-      {plan.day && todayOpen && <TodayPanel course={course} crunch={plan.crunch} day={plan.day} points={plan.points}
-        onRead={point => { if (plan.day.mode === 'flip') { openView('flip'); return; } where.goTo(point.id); }}
-        onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
-        onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
+      <BookBar ref={tocRef} at={route.at} total={route.total} today={route.kind === 'today'} number={step?.node.number || ''} title={step?.node.title ?? ''}
+        hid={step?.hid ?? null} tocOpen={tocOpen} onToc={() => { setFindFirst(false); if (narrow) setTocOver(value => !value); else setTocWide(!tocWide); }}
+        onPrev={route.prev !== null ? () => ends.step(-1) : null} onNext={route.next !== null ? () => ends.step(1) : null} more={menu} notice={notice} />
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} />}
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null}
+          today={ends.today} read={ends.read} points={ends.points} marks={ends.marks} searching={find.searching} findFirst={findFirst}
+          find={<BookFind find={find} onPick={at => { find.pick(at); if (narrow) closeToc(); }} onJump={() => { find.goJump(); if (narrow) closeToc(); }}
+            onStep={delta => { if (find.step(delta) && narrow) closeToc(); }} onClose={() => { find.close(); if (narrow) closeToc(); }} />} />}
         <ReadingBlock className="book-read" measure onMouseUp={ai.onSelect}>
-          <AiFoldContext.Provider value={aiFold}><BookReadContext.Provider value={reading}>
-            {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />
+          <AiFoldContext.Provider value={aiFold}><BookReadContext.Provider value={reading}><PointEndContext.Provider value={ends.endOf}>
+            {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} course={course} handlers={handlers} />
               : chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={where.open.has(chapter.hid)} course={course} handlers={handlers}
                 onToggle={value => where.toggleChapter(chapter.hid, value)} />)}
-          </BookReadContext.Provider></AiFoldContext.Provider>
+          </PointEndContext.Provider></BookReadContext.Provider></AiFoldContext.Provider>
         </ReadingBlock>
       </div>
       {askPanel}

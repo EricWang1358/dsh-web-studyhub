@@ -15,9 +15,10 @@ const REVIEW = [
   ["G / B", "👍 这题不错 / 👎 这题有问题"],
   ["A", "自动驾驶 开/关"],
 ];
-// 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx).
+// 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx, ui/book/use-book-find.js).
 const BOOK = [
   ["← → / Esc", "复习全书：← → 换一个知识点；Esc 关掉滑出的目录或菜单"],
+  ["Ctrl+F / /", "复习全书：在书里找（Enter 下一处，Shift+Enter 上一处；输入 H12 跳到那里）"],
 ];
 const EVERYWHERE = [
   ["S", "从任意页继续上一轮或开始今日学习"],

@@ -201,45 +201,6 @@
       line-height: var(--lh-tight);
       scroll-margin-top: var(--space-6);
     }
-    .book-step__nav {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-3);
-      padding-top: var(--space-4);
-      border-top: 1px solid var(--line-soft);
-    }
-    .book-step__prev,
-    .book-step__next {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-1);
-      height: auto;
-      min-width: 0;
-      padding-block: var(--space-2);
-      text-align: left;
-    }
-    .book-step__next {
-      align-items: flex-end;
-      text-align: right;
-    }
-    /* There is no point before the first one (nor after the last): the card is off, and looks it. */
-    .book-step__prev:disabled,
-    .book-step__next:disabled {
-      border-style: dashed;
-      background: none;
-      box-shadow: none;
-      color: var(--text-faint);
-    }
-    .book-step__dir {
-      font-weight: var(--fw-strong);
-    }
-    .book-step__title {
-      max-width: 100%;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-      font-weight: var(--fw-regular);
-      overflow-wrap: anywhere;
-    }
     /* 整章滚动: a folded point is its title and one line. */
     .book-node__toggle {
       text-align: left;
@@ -732,7 +693,7 @@
       overflow-wrap: anywhere;
       text-align: left;
     }
-    /* M7 期末一周: one day of the plan (the home's card and the book's 今天读哪几节), the mock paper, the 翻看 view. A hairline block, never a box
+    /* M7 期末一周: one day of the plan (the home's card), the mock paper, the 翻看 view. A hairline block, never a box
        inside a box; long titles wrap. */
     .crunch-card {
       display: grid;
@@ -822,13 +783,6 @@
       flex-wrap: wrap;
       align-items: center;
       gap: var(--space-2);
-      min-width: 0;
-    }
-    .book-today {
-      padding: var(--space-3);
-      border: 1px solid var(--line-soft);
-      border-radius: var(--radius);
-      background: var(--bg-raised);
       min-width: 0;
     }
     .book-flip {

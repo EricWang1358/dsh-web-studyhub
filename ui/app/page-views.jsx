@@ -44,7 +44,7 @@ import { retryForm, retryNotice } from './retry-generation.js';
 function LibraryView() {
   const { data, core, nav, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry, learn } = useApp();
   const { busy, notify } = core;
-  /* 期末一周 (M7): a course's book at a point, in 翻看 or with 今天读哪几节 open; another course than the current one is made current first (the book
+  /* 期末一周 (M7): a course's book at a point (today's first not read, for 打开复习全书) or in 翻看; another course than the current one is made current first (the book
      page shows the current course's book). 练 5 道 practises the point's next five, in a practice round's order. */
   const openCrunchBook = async (course, { target = null, view = null } = {}) => {
     const switched = course !== (data.focus?.course ?? null);

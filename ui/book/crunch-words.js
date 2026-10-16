@@ -7,15 +7,15 @@ import { formatList, joinMeta } from '../format.js';
 export function reasonText(reason) {
   const r = reason || {};
   switch (r.code) {
-    case 'learn': return uiFormat('先学考得多又薄弱的 {0} 节（{1} 节样卷考过）：每节读完练 5 道，约 {2} 分钟。', [r.count, r.tested, r.minutes]);
-    case 'learn-size': return uiFormat('样卷没有考情，各节一样重：先学最薄弱的 {0} 节，每节读完练 5 道，约 {1} 分钟。', [r.count, r.minutes]);
-    case 'learn-over': return uiFormat('节数多于时间：这一天合并了 {0} 节，约 {1} 分钟，超过每天的 {2} 分钟。', [r.count, r.minutes, r.capacity]);
-    case 'learn-free': return ui('这一天没有新的节：复习到期和薄弱的题。');
-    case 'flip': return uiFormat('不再做新题：翻看 {0} 节，易错点多的先看（共 {1} 条易错点）。', [r.count, r.pitfalls]);
-    case 'flip-mock': return uiFormat('考前最后一天：翻看剩下的 {0} 节，再做一套模拟卷。', [r.count]);
-    case 'exam-today': return uiFormat('今天考试：只翻看 {0} 节的易错点。', [r.count]);
+    case 'learn': return uiFormat('先学考得多又薄弱的 {0} 个知识点（{1} 个样卷考过）：每个读完练 5 道，约 {2} 分钟。', [r.count, r.tested, r.minutes]);
+    case 'learn-size': return uiFormat('样卷没有考情，各知识点一样重：先学最薄弱的 {0} 个，每个读完练 5 道，约 {1} 分钟。', [r.count, r.minutes]);
+    case 'learn-over': return uiFormat('知识点多于时间：这一天合并了 {0} 个，约 {1} 分钟，超过每天的 {2} 分钟。', [r.count, r.minutes, r.capacity]);
+    case 'learn-free': return ui('这一天没有新的知识点：复习到期和薄弱的题。');
+    case 'flip': return uiFormat('不再做新题：翻看 {0} 个知识点，易错点多的先看（共 {1} 条易错点）。', [r.count, r.pitfalls]);
+    case 'flip-mock': return uiFormat('考前最后一天：翻看剩下的 {0} 个知识点，再做一套模拟卷。', [r.count]);
+    case 'exam-today': return uiFormat('今天考试：只翻看 {0} 个知识点的易错点。', [r.count]);
     case 'off': return ui('这一天休息。');
-    case 'done': return uiFormat('这一天做完了 {0} 节。', [r.count]);
+    case 'done': return uiFormat('这一天做完了 {0} 个知识点。', [r.count]);
     default: return '';
   }
 }

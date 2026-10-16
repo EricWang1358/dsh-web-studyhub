@@ -54,6 +54,26 @@
       z-index: calc(var(--z-overlay) - 1);
       background: var(--scrim);
     }
+    /* The groups (今天 inside the 期末一周, 全书) under 在书里找: a quiet head each, its rule on hover and focus. */
+    .book-toc__group {
+      display: grid;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-toc__group + .book-toc__group {
+      margin-top: var(--space-3);
+    }
+    .book-toc__head-tip {
+      display: block;
+    }
+    .book-toc__head {
+      margin: 0;
+      padding: 0 var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-snug);
+    }
     /* The coverage line: quiet, its rule on hover and focus. */
     .book-toc__levels-tip {
       display: block;
@@ -74,7 +94,37 @@
     }
     .book-toc__item {
       display: flex;
+      align-items: center;
+      gap: var(--space-1);
       min-width: 0;
+    }
+    /* One fixed-width slot at the end of every row, kept when empty: a mark that comes late moves no text. */
+    .book-toc__mark-tip {
+      display: flex;
+      flex: none;
+    }
+    .book-toc__mark {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      justify-content: flex-end;
+      width: 3.5em;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .book-toc__mark[data-mark='mistakes'] {
+      color: var(--warn-text);
+    }
+    .book-toc__mark[data-mark='read'] {
+      color: var(--ok-ink);
+    }
+    .book-toc__dot {
+      width: var(--space-1-5);
+      height: var(--space-1-5);
+      border-radius: var(--radius-pill);
+      background: var(--info-solid);
     }
     /* One indent step per level (chapter → section → point the same step). */
     .book-toc__item[data-level='3'] {

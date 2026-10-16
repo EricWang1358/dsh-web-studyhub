@@ -5,7 +5,6 @@ import BookEditor from './BookEditor.jsx';
 import BookFlip from './BookFlip.jsx';
 import BookLookup from './BookLookup.jsx';
 import { BookToChatForm } from './BookToChat.jsx';
-import CrunchDay from './CrunchDay.jsx';
 import MockPaper from './MockPaper.jsx';
 import { AiFoldContext } from './ai-fold.js';
 import { useSendToChat } from './send-to-chat.js';
@@ -60,16 +59,6 @@ export function FlipView({ book, crunch, course, handlers, aiFold, onMark, onGo,
       {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
       {crunch ? <AiFoldContext.Provider value={aiFold}><BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={onMark} onGo={onGo}
         onMockStarted={onMockStarted} /></AiFoldContext.Provider> : <LoadingState label={ui('正在排期末一周…')} />}
-    </section>
-  );
-}
-
-/** 今天读哪几节: today's day of the plan, under the bar (the same day the home's 期末一周 card shows). */
-export function TodayPanel({ course, crunch, day, points, onRead, onPractice, onMarkRead, onFlip, onMockStarted }) {
-  return (
-    <section className="book-today" aria-label={ui('今天读哪几节')}>
-      <CrunchDay course={course} daysLeft={crunch.daysLeft} day={day} points={points} onRead={onRead} onPractice={onPractice} onMarkRead={onMarkRead}
-        onFlip={onFlip} onMockStarted={onMockStarted} />
     </section>
   );
 }

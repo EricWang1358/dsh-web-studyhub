@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { ui, errorMessage } from '../i18n.js';
 import { useLiveEffect } from '../use-async.js';
@@ -18,20 +18,33 @@ export async function startBookBuild({ act, course, notify }) {
   catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
 }
 
-/** 期末一周 (M7, book.crunch): the plan of the course's last days, asked again when the book changes or a mark is set. -> { crunch, day, points, mark }. */
+/** 期末一周 (M7, book.crunch): the plan of the course's last days, asked again when the book changes or a mark is set.
+    -> { crunch, day, points, mark(hid, kind, on) -> marked?, ready, today: { ids, count, done, flip } | null, read: Set, seen: Set }: `today` only inside the
+    期末一周 (a learn or 翻看 day with points); read / seen: the points 读完 / 已看, the plan's once it answered (`ready`), the book's own marks until then. */
 export function useBookCrunch({ call, course, book, notify }) {
   const [crunch, setCrunch] = useState(null);
+  const latest = useRef(null);
+  latest.current = crunch;
+  // Asked at once, beside course.book.open (the page waits for both inside the 期末一周), and again when the book's revision moves past the plan's.
   useLiveEffect(isLive => {
-    if (book?.status !== 'ok' || !book.notes) return;
+    if (book && (book.status !== 'ok' || !book.notes)) return;
+    if (book && latest.current?.revision === book.revision) return;
     call('book.crunch', { course, date: localDate() }).then(next => { if (isLive()) setCrunch(next); }, () => { if (isLive()) setCrunch({ status: 'error' }); });
   }, [call, course, book?.revision, book?.status, book?.notes]);
   const day = crunch?.status === 'ok' ? crunch.plan.today : null;
   const points = useMemo(() => { const byId = new Map((crunch?.points || []).map(point => [point.id, point])); return (day?.points || []).map(id => byId.get(id)).filter(Boolean); }, [crunch, day]);
   // 读完了 / 已看 (book.crunch.mark): kept per course in the book's record; the answer is the plan again.
   const mark = useCallback(async (hid, kind, on) => {
-    try { setCrunch(await call('book.crunch.mark', { course, hid, kind, on, date: localDate() })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+    try { setCrunch(await call('book.crunch.mark', { course, hid, kind, on, date: localDate() })); return true; } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); return false; }
   }, [call, course, notify]);
-  return { crunch, day, points, mark };
+  const marks = book?.marks;
+  const status = useMemo(() => {
+    const known = Array.isArray(crunch?.points) ? crunch.points : null;
+    const of = kind => new Set(known ? known.filter(point => point[kind === 'read' ? 'done' : 'seen']).map(point => point.id) : Object.keys(marks?.[kind] || {}));
+    const today = day && (day.mode === 'learn' || day.mode === 'flip') && day.points.length ? { ids: day.points, count: day.points.length, done: day.done.length, flip: day.mode === 'flip' } : null;
+    return { ready: crunch !== null, today, read: of('read'), seen: of('seen') };
+  }, [crunch, day, marks]);
+  return { crunch, day, points, mark, ...status };
 }
 
 /** 导出's estimate against the page limit (settings.book.pageLimit): the A4 pages of the book, or null until known (and without a book). */

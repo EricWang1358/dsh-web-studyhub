@@ -11,11 +11,13 @@ import PointLayer from './PointLayer.jsx';
 import PointText from './PointText.jsx';
 import { foldsByDefault, pointView } from './point-parts.js';
 import { AiFoldContext } from './ai-fold.js';
+import { PointEndContext } from './point-end.js';
 
 /* A knowledge point's body (复习全书; also the folded 讲解 of 翻看, ui/book/BookFlip.jsx), in reading order (docs/review-book.md "Reading a point"): the
    one-sentence takeaway (type, no box), the story (讲解, 例子) with the AI blocks about words right after their paragraphs, 要点清单 and 补充 folded, the
-   learner's layer (我的: notes, AI blocks for the whole point, Q&A), the point's questions, 出处 behind one quiet chip, and last the row of its actions
-   (在这里加一段, 练 5 道, 本节问答 with its panel under it, 发给主会话). Nothing is left out of the file: the parts are only shown in another order. */
+   learner's layer (我的: notes, AI blocks for the whole point, Q&A), the point's questions, 出处 behind one quiet chip, the row of its actions (在这里加一段,
+   本节问答 with its panel under it, 发给主会话) and last its one end button (ui/book/PointEnd.jsx, with 练 5 道; where the page gives none, 练 5 道 stays in the row).
+   Nothing is left out of the file: the parts are only shown in another order. */
 
 /** How many of a point's questions show before 还有 N 道. */
 const FIRST = 5;
@@ -44,6 +46,8 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
   const view = useMemo(() => pointView(node), [node]);
   const resolve = useMemo(() => resolverOf(handlers, node.hid), [handlers, node.hid]);
   const aiFold = useContext(AiFoldContext);
+  // The point's end button, where the page gives one (the reading surface; not 翻看): it carries 练 5 道 and the leading-on sentence.
+  const endOf = useContext(PointEndContext), end = endOf ? endOf(node) : null;
   // Which blocks have their words marked (each text says so once drawn).
   const [marked, setMarked] = useState({});
   const [cites, setCites] = useState(false);
@@ -78,16 +82,17 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
             : text(part)))}
       {folded(view.points)}
       {folded(view.extra)}
-      {node.bridge?.out && <p className="book-point__bridge">{node.bridge.out}</p>}
+      {!end && node.bridge?.out && <p className="book-point__bridge">{node.bridge.out}</p>}
       <BookSuggestion meta={handlers.files?.[node.files?.gen]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.gen, action, id)} />
       <PointLayer node={node} view={view} handlers={handlers} aiFold={aiFold} isFolded={isFolded} renderBlock={renderBlock} onAnchored={onAnchored} />
       <PointQuestions node={node} handlers={handlers} />
       {/* The point's actions close it, so the reading starts right under its heading (S2 turns this row into the point's end); 出处 is the first of them, its
           list opens under the row. */}
-      <PointToolbar node={node} course={course} handlers={handlers} cites={view.citeCount > 0 ? <Button variant="quiet" size="sm" icon="external"
+      <PointToolbar node={node} course={course} handlers={handlers} practice={!end} cites={view.citeCount > 0 ? <Button variant="quiet" size="sm" icon="external"
         className="book-point__cites-toggle" aria-expanded={cites} onClick={() => setCites(value => !value)}>{uiFormat('出处 {0}', [view.citeCount])}</Button> : null} />
       {cites && view.citeCount > 0 && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
+      {end}
     </div>
   );
 }

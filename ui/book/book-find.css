@@ -1,0 +1,74 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 在书里找 at the top of the review book's 目录 (ui/book/BookFind.jsx): the reader's search bar fitted to the column (the field on its own line, the count and
+       the three buttons under it), then the matches. Tokens only; the match is marked as the reader marks it (--warn-mark). */
+    .book-find {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-toc .book-find__bar {
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-2);
+      padding: 0 0 var(--space-2);
+      border-bottom: 1px solid var(--line-soft);
+      background: none;
+    }
+    /* Nothing typed: the field alone (the count and the three buttons come with the first letter). */
+    .book-find:not([data-searching]) .book-find__bar > :not(.reader-find__icon, .reader-find__input) {
+      display: none;
+    }
+    .book-find__results {
+      display: grid;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-find__list {
+      display: grid;
+      gap: var(--space-half);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-find__jump,
+    .book-find__hit {
+      width: 100%;
+      justify-content: flex-start;
+      text-align: left;
+    }
+    .book-find__hit {
+      display: grid;
+      gap: var(--space-half);
+      color: var(--text-muted);
+    }
+    .book-find__hit[aria-current='true'] {
+      color: var(--text);
+      box-shadow: inset 2px 0 0 var(--text);
+    }
+    .book-find__title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      color: var(--text);
+      font-weight: var(--fw-medium);
+    }
+    .book-find__words {
+      font-size: var(--fs-xs);
+      line-height: var(--lh-snug);
+    }
+    .book-find__match {
+      padding: 0;
+      border-radius: var(--radius-xs);
+      background: var(--warn-mark);
+      color: inherit;
+    }
+    .book-find__more {
+      margin: 0;
+      padding: 0 var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+  }
+}

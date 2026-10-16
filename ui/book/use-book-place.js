@@ -33,7 +33,8 @@ export function placeKeeper(read, write) {
   };
 }
 
-/** -> { kept (what the page was handed at mount), open, toggleChapter, here, stepAt, current, goTo(id), go(delta), switchReading(mode), remember(hid, from), hold() }. */
+/** -> { kept (what the page was handed at mount), open, toggleChapter, here, stepAt, current, goTo(id), go(delta), goIndex(index), switchReading(mode), remember(hid, from),
+    hold() }. */
 export function useBookPlace({ root, course, book, rows, toc, steps, chapters, reading, pageRef, active }) {
   const [open, setOpen] = useState(() => new Set());
   const [here, setHere] = useState(null);
@@ -154,7 +155,7 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     return placeOf(point) || placeOf(hid);
   }, [keeper, rows, chapters, pageRef]);
 
-  // A heading of the 目录 (or of 速查页, 翻看, 今天读哪几节): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
+  // A heading of the 目录 (its 今天 group too, or of 速查页, 翻看, 在书里找): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
   const goTo = useCallback(id => {
     const entry = toc.find(item => item.id === id), step = steps[stepIndexOf(steps, toc, rows, id)], row = rowOf(rows, id);
     if (entry?.chapter) setOpen(current => new Set([...current, entry.chapter]));
@@ -164,15 +165,16 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     restore.current = { hid: shown, offset: null };
     setHere(shown);
   }, [toc, steps, rows, reading]);
-  // ‹ › and ← →: the point before or after the one being read, shown from its top (整章连着读: opened in its chapter).
-  const go = useCallback(delta => {
-    const next = steps[current + delta];
+  // ‹ ›, ← → and a point's end button: the point at `index` (the page's order, ui/book/route.js), shown from its top (整章连着读: opened in its chapter).
+  const goIndex = useCallback(index => {
+    const next = steps[index];
     if (!next) return;
     if (reading.mode !== 'step') { goTo(next.hid); return; }
     setStepHid(next.hid);
     setHere(next.hid);
     restore.current = { hid: next.hid, offset: null, step: true };
-  }, [steps, current, reading.mode, goTo]);
+  }, [steps, reading.mode, goTo]);
+  const go = useCallback(delta => goIndex(current + delta), [goIndex, current]);
   // Switching how to read keeps the point being read: shown alone, or open in its chapter.
   const switchReading = useCallback(value => {
     const step = steps[current];
@@ -193,5 +195,5 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     // `read`: for the reading surface only (not a row of 翻看, which may be what is drawn until then).
     if (element) restore.current = { hid: id, offset: element.getBoundingClientRect().top, read: true };
   }, []);
-  return { kept, open, toggleChapter, here, stepAt, current, goTo, go, switchReading, remember, hold };
+  return { kept, open, toggleChapter, here, stepAt, current, goTo, go, goIndex, switchReading, remember, hold };
 }

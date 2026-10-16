@@ -31,7 +31,7 @@ export function crunchDateHint(exam, windowDays, now = new Date()) {
 
 // Where the learner was ({ heading, offset }) survives a reload and the next day: kept in this browser per library and course (ui/storage.js, a small JSON).
 // Everything else the page is handed is a one-shot of this page load, in memory and never written: `target` (a node key an entry link opens at), `view`
-// (the home's card: 'flip' or 'today'), `back` and `point` (the way back from practice: focus that point's heading), `switched` (the home switched the course),
+// (the home's card: 'flip'), `back` and `point` (the way back from practice: focus that point's heading), `switched` (the home switched the course),
 // `chapter` (the chapter of a typed heading the way back left from).
 const kept = new Map();
 const keyOf = (root, course) => JSON.stringify([root, course]);

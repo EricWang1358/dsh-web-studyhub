@@ -70,10 +70,11 @@ function useReadLine(hid, barRef) {
   return line;
 }
 
-/** at / total: the point's place in the book's order (at 0 for 未归位: no count); number, title: the point's; hid: the point being read; tocOpen, onToc;
+/** at / total: the point's place in the order the page follows (ui/book/route.js; at 0 for 未归位: no count), `today`: that order is today's (今天 2/4), else
+    the book's (知识点 5/16); number, title: the point's; hid: the point being read; tocOpen, onToc;
     onPrev / onNext (null at an end); more: the 更多 menu; notice: { text, tip } or null (the page limit); tocRef: the 目录 button (the slide-over gives the
     focus back to it). */
-const BookBar = forwardRef(function BookBar({ at, total, number, title, hid, tocOpen, onToc, onPrev, onNext, more, notice }, tocRef) {
+const BookBar = forwardRef(function BookBar({ at, total, today = false, number, title, hid, tocOpen, onToc, onPrev, onNext, more, notice }, tocRef) {
   useInjectCss(css, 'study-book-bar');
   const bar = useRef(null), line = useReadLine(hid, bar);
   return <>
@@ -81,11 +82,13 @@ const BookBar = forwardRef(function BookBar({ at, total, number, title, hid, toc
       <div className="book-bar__row">
         <Button ref={tocRef} size="sm" variant="quiet" icon="list" className="book-bar__btn book-bar__toc" aria-label={ui('目录')} aria-expanded={tocOpen} onClick={onToc}>
           <span className="book-bar__word" aria-hidden="true">{ui('目录')}</span></Button>
-        <Tooltip layer content={ui('按全书的顺序数；‹ › 和 ← → 也按这个顺序走')} anchorClassName="book-bar__where-tip">
+        <Tooltip layer content={ui('在今天的知识点上按今天的顺序数，‹ › 和 ← → 也这样走，今天最后一个之后接着全书的顺序；其余时候按全书的顺序')}
+          anchorClassName="book-bar__where-tip">
           <p className="book-bar__where" tabIndex={0}>
             {/* On a narrow page the count alone and the title without its number (the bar has no room; the heading and the 目录 carry the number). */}
-            {at > 0 && <span className="book-bar__count book-bar__count--wide">{uiFormat('知识点 {0}/{1}', [at, total])}</span>}
-            {at > 0 && <span className="book-bar__count book-bar__count--narrow">{`${at}/${total}`}</span>}
+            {at > 0 && <span className="book-bar__count book-bar__count--wide" data-order={today ? 'today' : 'book'}>
+              {today ? uiFormat('今天 {0}/{1}', [at, total]) : uiFormat('知识点 {0}/{1}', [at, total])}</span>}
+            {at > 0 && <span className="book-bar__count book-bar__count--narrow">{today ? uiFormat('今天 {0}/{1}', [at, total]) : `${at}/${total}`}</span>}
             {at > 0 && <span className="book-bar__dot" aria-hidden="true"> · </span>}
             <span className="book-bar__title">{number && <span className="book-bar__number">{number} </span>}{title}</span>
           </p>
