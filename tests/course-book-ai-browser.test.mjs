@@ -1,4 +1,4 @@
-/* global window document MouseEvent */
+/* global window document getComputedStyle */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -8,293 +8,236 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
-import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
-import { courseNotesMaterial } from '../lib/course-book.js';
-import { buildOutlineIndex } from '../lib/course-outline-index.js';
-import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
+import { BOOK_COURSE, seedBookFixture } from './helpers/book-fixtures.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
 
-/* 复习全书 M4 in the real page at 1280 and 420 px (docs/plans/review-book.md): select words of a point's explanation → 弄懂 → a visible task → the block
-   appears right after the paragraph that holds the words (shown when it lands; its words dashed in the paragraph), 保留 until kept; 删除 takes it out;
-   「在这里加一段」 with an instruction puts a block in 我的; 我的's 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落 folds them all; nothing scrolls sideways. The preview server's fake
-   model answers. Screenshots go to COURSE_BOOK_AI_SHOTS when set. */
+/* 复习全书 问 AI in the real page at 1280 and 420 px (docs/review-book.md "Ask AI", "AI blocks"), on the ArchSS-like book: words selected with the keyboard
+   (selection.modify, what Shift+arrows do: only `selectionchange` tells the page) show the toolbar 弄懂 / 写一段… / 发给主会话 (弄懂 secondary, the page keeps at
+   most one primary); 弄懂 closes it and leaves ONE line right after the paragraph at once; the block lands in that line's place, folded, and the point's text does
+   not move (CLS ≤ 0.05, the next paragraph's top the same); its ⋯ menu deletes it, 「已删除这段 · 撤销」 brings it back, and a write since the deletion refuses the
+   撤销; 取消 stops a running task; a failure says why and 重试 starts it again; 问 AI at the title writes into 我的 with Ctrl+Enter. The task is answered by a second
+   service over the same library with the unified runtime (the fake model); job.status is held until the test lets it go. Screenshots to COURSE_BOOK_AI_SHOTS. */
 
-async function seed(root) {
-  await mkdir(root, { recursive: true });
-  const service = new StudyService(root);
-  await service.call('snapshot');
-  const { sources, decks } = outlineLibrary();
-  await service.store.update(state => {
-    state.sources.push(...sources);
-    state.decks.push(...decks);
-    state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] };
-    const lecture = groupSourcesByDocument(state.sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
-    const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: COURSE }).allDocuments),
-      nodes: [{ id: 'c1', title: 'Introduction', children: [{ id: 'what', title: 'What architects do', anchors: [`${lecture}#0`] }, { id: 'who', title: 'Stakeholders and concerns', anchors: [`${lecture}#1`] }] }],
-      other: { anchors: [] }, counts: { units: 2, leftover: 0, invalid: 0, repeated: 0 } }), createdAt: '2026-10-09T00:00:00.000Z' };
-    state.sources.push(outline);
-    const page = state.sources.find(source => source.id === 'document-l1-p1'), leaves = outline.courseOutline.nodes[0].children;
-    state.sources.push({ ...courseNotesMaterial({ title: '复习全书 · SA', course: COURSE, outlineId: outline.id, language: 'zh', papers: [], counts: {}, leaves: leaves.map(leaf => ({ id: leaf.id, title: leaf.title, anchors: leaf.anchors,
-      body: { fingerprint: 'f'.repeat(16), points: [`${leaf.title} in one line [^1].`], explain: `The architect of ${leaf.title} writes each decision down with its reasons.\n\nA second paragraph about ${leaf.title}.`,
-        cites: [{ n: 1, sourceId: page.id, quote: page.text.slice(0, 40), start: 0, end: 40 }] } })) }), createdAt: '2026-10-09T01:00:00.000Z' });
-  });
-  await service.dispose();
-}
-
-const sideways = page => page.evaluate(() => {
-  const width = window.innerWidth, wide = [...document.querySelectorAll('.book-page *, .book-ai-ask *')].filter(element => element.getBoundingClientRect().right > width + 1)
-    .map(element => `${element.tagName.toLowerCase()}.${element.className}`).slice(0, 5);
-  return { doc: document.documentElement.scrollWidth - width, wide };
-});
-
-/** Select `text` in a paragraph of a point (as the learner's drag does) and let the page see the mouseup. */
-const selectWords = (page, text) => page.evaluate(words => {
-  const paragraph = [...document.querySelectorAll('[data-book-point] .book-file p')].find(element => element.textContent.includes(words) && !element.closest('.book-ai'));
-  const node = [...paragraph.childNodes].find(child => child.nodeType === 3 && child.textContent.includes(words)), at = node.textContent.indexOf(words);
-  paragraph.scrollIntoView({ block: 'center', behavior: 'instant' });
-  const range = document.createRange();
-  range.setStart(node, at); range.setEnd(node, at + words.length);
-  const selection = window.getSelection();
-  selection.removeAllRanges(); selection.addRange(range);
-  paragraph.closest('.book-read').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-}, text);
-
-/** The preview server has no job executor: the page's start of a 弄懂 task is answered by a second service over the same library with the unified runtime on
-    (the real Job, the preview's fake model), and its job.status by how that Job ended. */
-async function runTasksFor(page, root) {
-  const fake = createFakeModel({ latencyMs: 5 });
-  const service = new StudyService(root, { complete: fake, ...switchOptions('runtime', { complete: fake, paths: [] }) });
-  const ended = new Map();
+/** Answers generation.courseBook.explain and job.status / job.cancel at the network edge. `mode`: 'real' (the second service runs the task) or 'fake' (a task
+    that only answers what `fake` says: running until told otherwise, 'failed' with a reason). A real task's end is held until `release(jobId)`. */
+async function tasksFor(page, root) {
+  const model = createFakeModel({ latencyMs: 5 });
+  const service = new StudyService(root, { complete: model, ...switchOptions('runtime', { complete: model, paths: [] }) });
+  const control = { mode: 'real', ended: new Map(), held: true, fake: new Map(), cancels: [], started: [], n: 0 };
+  const answer = (route, value) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, value }) });
   await page.route('**/api/call', async route => {
     let body = {};
     try { body = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }
     if (body.action === 'generation.courseBook.explain') {
+      control.started.push(body.args);
+      if (control.mode === 'fake') { control.n += 1; const jobId = `fake-${control.n}`; control.fake.set(jobId, { status: 'running' }); return answer(route, { jobId, status: 'running', blockId: `aifake${control.n}` }); }
       const started = await service.call('generation.courseBook.explain', body.args);
-      ended.set(started.jobId, (await settleJob(service, started.jobId)).status);
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, value: started }) });
+      settleJob(service, started.jobId).then(job => control.ended.set(started.jobId, job.status), () => control.ended.set(started.jobId, 'failed'));
+      return answer(route, started);
     }
-    if (body.action === 'job.status' && ended.has(body.args?.jobId)) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, value: { status: ended.get(body.args.jobId) } }) });
+    if (body.action === 'job.status') {
+      const id = body.args?.jobId;
+      if (control.fake.has(id)) return answer(route, control.fake.get(id));
+      return answer(route, { status: !control.held && control.ended.has(id) ? control.ended.get(id) : 'running' });
+    }
+    if (body.action === 'job.cancel') { control.cancels.push(body.args?.jobId); control.fake.set(body.args?.jobId, { status: 'cancelled' }); return answer(route, { status: 'cancelled' }); }
     return route.continue();
   });
-  return { dispose: () => service.dispose(), ended };
+  return { control, dispose: () => service.dispose() };
 }
 
-test('复习全书 弄懂 / 加一段: select → 弄懂 → the block right after its paragraph, 保留, 删除; 在这里加一段 in 我的 (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+/** Select, from the start of `from`, up to and with `to` in the first point's text, the way Shift+arrows do (selection.modify, one character at a time). */
+const selectByKeys = (page, from, to) => page.evaluate(([start, end]) => {
+  const paragraph = [...document.querySelectorAll('[data-book-point] .book-point__part .book-file p')].find(element => element.textContent.includes(start));
+  paragraph.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const walker = document.createTreeWalker(paragraph, 4);
+  let node = walker.nextNode();
+  while (node && !node.data.includes(start)) node = walker.nextNode();
+  const selection = window.getSelection();
+  selection.collapse(node, node.data.indexOf(start));
+  for (let step = 0; step < 400 && !selection.toString().includes(end); step += 1) selection.modify('extend', 'forward', 'character');
+  return selection.toString();
+}, [from, to]);
+
+const visiblePrimaries = page => page.evaluate(() => [...document.querySelectorAll('.book-page .sh-btn--primary, .book-select .sh-btn--primary, .book-ask .sh-btn--primary')]
+  .filter(element => { const box = element.getBoundingClientRect(); return box.width && box.height && box.bottom > 0 && box.top < window.innerHeight; }).length);
+const sideways = page => page.evaluate(() => {
+  const width = window.innerWidth, wide = [...document.querySelectorAll('.book-page *')].filter(element => element.getBoundingClientRect().right > width + 1)
+    .map(element => `${element.tagName.toLowerCase()}.${element.className}`).slice(0, 5);
+  return { doc: document.documentElement.scrollWidth - width, wide };
+});
+/** The top of the paragraph after the first one of the first point's 讲解 (the text the line and the block stand above). */
+const nextTop = page => page.evaluate(() => Math.round([...document.querySelectorAll('[data-book-point] .book-point__part .book-file p')][1].getBoundingClientRect().top * 10) / 10);
+
+test('复习全书 问 AI: the keyboard selection toolbar, the writing line and the quiet landing, ⋯ 删除 / 撤销 with a version check, 取消, 重试 and 问 AI at the title (1280 and 420 px)', { timeout: 600000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-ai-dist-'));
   await buildPreview({ outdir: dist });
-  const running = await startLateServer({ distDir: dist, seed });
+  const running = await startLateServer({ distDir: dist, seed: root => seedBookFixture(root, 'archss') });
   const shots = process.env.COURSE_BOOK_AI_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
   try {
     for (const width of [1280, 420]) {
-      await running.api('focus.set', { course: COURSE });
-      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
-      const tasks = await runTasksFor(page, join(running.base, 'library'));
+      await running.api('focus.set', { course: BOOK_COURSE });
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme: 'light' });
+      const tasks = await tasksFor(page, join(running.base, 'library'));
       t.after(() => tasks.dispose());
+      const { control } = tasks;
       await page.goto(running.server.url);
-      await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
-      await page.locator('.outline-book-line__open').click({ timeout: 30000 });
+      await page.locator('[data-tour="nav-book"]').click({ timeout: 30000 });
       await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
+      await page.mouse.move(width - 10, 890);
 
-      // Select words of the first point's explanation; the panel opens under them.
-      const words = 'writes each decision down';
-      await selectWords(page, words);
-      await page.locator('.book-ai-ask [data-book-ai="explain"]').waitFor({ timeout: 10000 });
-      let overflow = await sideways(page);
-      assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: the panel fits: ${JSON.stringify(overflow)}`);
-      if (shots) await page.screenshot({ path: join(shots, `ai-panel-${width}.png`) });
+      // 问 AI is a quiet button at the title; the page has at most one primary.
+      const askOpen = page.locator('.book-step [data-book-ask-open]');
+      assert.match(await askOpen.getAttribute('class'), /sh-btn--quiet/);
+      assert.ok(await visiblePrimaries(page) <= 1, `${width}px: at most one primary`);
 
-      // The panel belongs to its selection: a click elsewhere, Escape, a new selection; scrolling keeps it; typed words and the focus inside keep it.
-      const panel = page.locator('.book-ai-ask'), elsewhere = () => page.locator('.book-header [data-context-heading]').click();
-      await elsewhere();
-      await panel.waitFor({ state: 'detached', timeout: 5000 });
-      await selectWords(page, words);
-      await panel.waitFor({ timeout: 5000 });
-      await page.evaluate(() => { for (const node of [document.scrollingElement, ...document.querySelectorAll('*')]) if (node.scrollHeight > node.clientHeight) node.scrollBy?.(0, 40); });
-      await page.waitForTimeout(400);
-      assert.equal(await panel.count(), 1, `${width}px: scrolling does not close it`);
-      await page.keyboard.press('Escape');
-      await panel.waitFor({ state: 'detached', timeout: 5000 });
-      await selectWords(page, words);
-      await panel.waitFor({ timeout: 5000 });
-      // A selection in another paragraph replaces the panel with a new one (its instruction box is empty again).
-      await page.locator('.book-ai-ask .book-ai__input').fill('旧的');
-      await selectWords(page, 'A second paragraph');
-      await page.waitForFunction(() => document.querySelector('.book-ai-ask .book-ai__input')?.value === '', null, { timeout: 5000 });
-      assert.equal(await panel.count(), 1, `${width}px: a selection in another paragraph replaces the panel`);
-      await selectWords(page, words);
-      await page.waitForTimeout(400);
-      assert.equal(await panel.count(), 1);
-      // The learner clicks the instruction box (the selection leaves the text) and types: it stays, even after a click elsewhere.
-      await page.locator('.book-ai-ask .book-ai__input').click();
-      await page.waitForTimeout(400);
-      assert.equal(await panel.count(), 1, `${width}px: the focus inside keeps it`);
-      await page.locator('.book-ai-ask .book-ai__input').fill('讲细点');
-      await page.waitForTimeout(400);
-      await elsewhere();
-      await page.waitForTimeout(400);
-      assert.equal(await panel.count(), 1, `${width}px: typed words keep it`);
-      assert.equal(await page.locator('.book-ai-ask .book-ai__input').inputValue(), '讲细点');
-      await page.locator('.book-ai-ask .book-ai__input').fill('');
-      await elsewhere();
-      await panel.waitFor({ state: 'detached', timeout: 5000 });
-      await selectWords(page, words);
-      await panel.waitFor({ timeout: 5000 });
-      // The ×, a secondary way to close it.
-      await page.locator('.book-ai-ask').getByRole('button', { name: '关闭' }).click();
-      await panel.waitFor({ state: 'detached', timeout: 5000 });
-      await selectWords(page, words);
-      await page.locator('.book-ai-ask [data-book-ai="explain"]').click();
-      // A task started from it is pending: the panel shows its state until the block appears, then closes.
-      await page.locator('.book-ai-ask [data-book-ai="state"]').waitFor({ timeout: 10000 });
-      await elsewhere();
-      await page.waitForTimeout(400);
-      assert.equal(await panel.count(), 1, `${width}px: a pending task keeps it`);
-      const block = page.locator('.book-ai', { hasText: `关于：「${words}」` }).last();
-      await block.waitFor({ timeout: 60000 });
-      await panel.waitFor({ state: 'detached', timeout: 10000 });
-      assert.deepEqual([...tasks.ended.values()], ['complete'], `${width}px: one task, run to the end`);
-      const order = await block.evaluate((element, text) => {
-        const paragraph = [...document.querySelectorAll('[data-book-point] .book-file p')].find(item => item.textContent.includes(text) && !item.closest('.book-ai'));
-        const second = [...document.querySelectorAll('[data-book-point] .book-file p')].find(item => item.textContent.startsWith('A second paragraph'));
-        return { after: !!(paragraph.compareDocumentPosition(element) & 4), beforeNext: !!(second.compareDocumentPosition(element) & 2), layer: !!element.closest('[data-book-layer]') };
-      }, words);
-      assert.deepEqual(order, { after: true, beforeNext: true, layer: false }, `${width}px: right after the paragraph that holds its words, before the next one, not in 我的`);
-      assert.equal(await block.evaluate(element => { const rect = element.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; }), true,
-        `${width}px: a block that lands is shown`);
-      assert.equal(await block.getAttribute('data-ai-state'), 'new');
-      assert.match(await block.innerText(), /资料原文/);
-      assert.match(await block.innerText(), /补充（资料以外）/);
-      await settleAnimations(page);
-      if (shots) await page.screenshot({ path: join(shots, `ai-block-${width}.png`) });
-
-      // The words the block is about carry a dashed underline in their paragraph, focusable, named 查看 AI 解释.
-      const anchor = page.locator('[data-book-point] .book-file p .book-ai-anchor').first();
-      await anchor.waitFor({ timeout: 10000 });
-      assert.equal((await anchor.innerText()).replace(/\s+/g, ' '), words);
-      const look = await anchor.evaluate(element => { const style = window.getComputedStyle(element);
-        return { line: style.textDecorationLine, style: style.textDecorationStyle, name: element.getAttribute('aria-label'), tab: element.tabIndex, role: element.getAttribute('role') }; });
-      assert.deepEqual(look, { line: 'underline', style: 'dashed', name: '查看 AI 解释', tab: 0, role: 'button' }, `${width}px: dashed, focusable, named`);
-      assert.equal(await page.locator('.book-ai-anchor').count(), 1, `${width}px: one mark for one block`);
-      // The underline follows the theme's colour: both themes show it, in their own accent.
-      const lines = {}, theme = await page.evaluate(() => document.querySelector('[data-theme]').getAttribute('data-theme'));
-      for (const scheme of ['light', 'dark']) {
-        await page.evaluate(mode => document.querySelector('[data-theme]').setAttribute('data-theme', mode), scheme);
-        await settleAnimations(page);
-        lines[scheme] = await anchor.evaluate(element => window.getComputedStyle(element).textDecorationColor);
-        if (shots) await page.screenshot({ path: join(shots, `ai-anchor-${scheme}-${width}.png`) });
-      }
-      await page.evaluate(mode => document.querySelector('[data-theme]').setAttribute('data-theme', mode), theme);
-      assert.notEqual(lines.light, lines.dark, `${width}px: the underline colour is the theme's: ${JSON.stringify(lines)}`);
-      assert.notEqual(lines.light, 'rgba(0, 0, 0, 0)');
-
-      // The block folds to one row: AI, the first real sentence of the answer and its size; the fold is remembered in this browser, not in the book.
-      // A folded row no longer says 关于：「…」, so it is found by its id from here.
-      const blockId = await block.getAttribute('data-ai-block'), row = page.locator(`.book-ai[data-ai-block="${blockId}"]`), toggle = row.locator('.book-ai__toggle');
-      assert.equal(await toggle.getAttribute('aria-expanded'), 'true', `${width}px: a short block starts open`);
-      await toggle.click();
-      await row.locator('.book-ai__body').waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal(await row.getAttribute('data-ai-folded'), 'true');
-      assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
-      assert.match(await row.locator('.book-ai__summary').innerText(), /\S/, `${width}px: the first sentence of the answer is the summary`);
-      assert.match(await row.locator('.book-ai__meta').first().innerText(), /^约 [\d,]+ 字$/, `${width}px: and its size`);
-      assert.equal(await row.locator('.book-ai__actions, .book-ai__follow').count(), 0);
-      const kept = () => page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('study-book-ai-folded:')).map(([, value]) => value).join(''));
-      assert.match(await kept(), new RegExp(blockId), `${width}px: the fold is kept in the browser`);
-      overflow = await sideways(page);
-      assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: the folded header fits: ${JSON.stringify(overflow)}`);
-      await settleAnimations(page);
-      if (shots) await page.screenshot({ path: join(shots, `ai-folded-${width}.png`) });
-      // A reload keeps it folded.
-      await page.reload();
-      await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
-      await page.locator('.outline-book-line__open').click({ timeout: 30000 });
-      await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
-      await page.locator('.book-ai[data-ai-folded="true"]').first().waitFor({ timeout: 30000 });
-      const seen = el => { const rect = el.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; };
-      // The dashed words go to the block: opened, shown, flashed, its header focused.
-      await page.locator('.book-ai-anchor').first().evaluate(element => element.scrollIntoView({ block: 'start' }));
-      await page.locator('.book-ai-anchor').first().click();
-      await page.locator('.book-ai[data-ai-folded]').first().waitFor({ state: 'detached', timeout: 5000 });
-      const shown = row;
-      assert.equal(await shown.evaluate(seen), true, `${width}px: the block is in view`);
-      assert.equal(await page.evaluate(() => document.querySelector('.book-ai[data-ai-flash]') !== null), true, `${width}px: the block flashes`);
-      assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('book-ai__toggle')), true, `${width}px: focus is on the block's header`);
-      // The block's 关于：「…」 goes back to the words.
-      await shown.evaluate(element => element.scrollIntoView({ block: 'start' }));
-      await shown.locator('.book-ai__words').click();
-      assert.equal(await page.locator('.book-ai-anchor').first().evaluate(element => { const rect = element.getBoundingClientRect(); return rect.top >= 0 && rect.bottom <= window.innerHeight; }), true, `${width}px: back at the words`);
-      assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('book-ai-anchor')), true, `${width}px: focus is on the words`);
-      // Keyboard: Enter and Space on the words open a folded block.
-      await shown.locator('.book-ai__toggle').click();
-      await shown.locator('.book-ai__body').waitFor({ state: 'detached', timeout: 5000 });
-      await page.locator('.book-ai-anchor').first().focus();
-      await page.keyboard.press('Enter');
-      await shown.locator('.book-ai__body').waitFor({ timeout: 5000 });
-      await shown.locator('.book-ai__toggle').click();
-      await shown.locator('.book-ai__body').waitFor({ state: 'detached', timeout: 5000 });
-      await page.locator('.book-ai-anchor').first().focus();
-      await page.keyboard.press('Space');
-      await shown.locator('.book-ai__body').waitFor({ timeout: 5000 });
-      // The header's chevron button folds with the keyboard too.
-      await shown.locator('.book-ai__toggle').press('Enter');
-      await shown.locator('.book-ai__body').waitFor({ state: 'detached', timeout: 5000 });
-      await shown.locator('.book-ai__toggle').press('Space');
-      await shown.locator('.book-ai__body').waitFor({ timeout: 5000 });
-
-      await shown.getByText('保留', { exact: true }).click();
-      await page.locator(`.book-ai[data-ai-state="kept"]`, { hasText: `关于：「${words}」` }).first().waitFor({ timeout: 30000 });
-
-      // 在这里加一段: an instruction under the heading (the point then has two blocks: 收起这个知识点的 AI 段落 / 展开这个知识点的 AI 段落).
-      // 在这里加一段: an instruction under the heading. It closes on a click elsewhere with an empty box, and on Escape; typed words keep it.
-      await page.locator('[data-book-point] .book-point__add').first().click();
-      await panel.waitFor({ timeout: 5000 });
-      await elsewhere();
-      await panel.waitFor({ state: 'detached', timeout: 5000 });
-      await page.locator('[data-book-point] .book-point__add').first().click();
-      await panel.waitFor({ timeout: 5000 });
-      await page.keyboard.press('Escape');
-      await panel.waitFor({ state: 'detached', timeout: 5000 });
-      await page.locator('[data-book-point] .book-point__add').first().click();
-      await page.locator('.book-ai-ask .book-ai__input').fill(`对比两种做法 ${width}`);
-      await elsewhere();
-      await page.waitForTimeout(400);
-      assert.equal(await panel.count(), 1, `${width}px: typed words keep the box under a heading`);
-      await page.locator('.book-ai-ask [data-book-ai="write"]').click();
-      await panel.waitFor({ state: 'detached', timeout: 10000 });
-      const here = page.locator('.book-ai', { hasText: `对比两种做法 ${width}` }).first();
-      await here.waitFor({ timeout: 60000 });
-      const below = await here.evaluate(element => {
-        const point = element.closest('[data-book-point]'), text = point.querySelector('.book-file');
-        return !!(text.compareDocumentPosition(element) & 4) && !!element.closest('[data-book-layer]');
+      // A keyboard selection (no mouseup): the toolbar shows, above the selection's last line; 弄懂 is secondary and no second primary appears.
+      const words = await selectByKeys(page, '只有架构师', '。');
+      assert.match(words, /成立\s*1?。/, `${width}px: the selection runs over the 角标: ${words}`);
+      const bar = page.locator('.book-select[data-placed]');
+      await bar.waitFor({ timeout: 5000 });
+      assert.match(await bar.locator('[data-book-select="explain"]').getAttribute('class'), /sh-btn--secondary/);
+      assert.deepEqual(await bar.locator('button').allInnerTexts(), ['弄懂', '写一段…', '发给主会话']);
+      assert.ok(await visiblePrimaries(page) <= 1, `${width}px: 弄懂 is not a second primary`);
+      const place = await page.evaluate(() => {
+        const selection = window.getSelection(), rects = selection.getRangeAt(0).getClientRects(), last = rects[rects.length - 1], box = document.querySelector('.book-select').getBoundingClientRect();
+        return { above: box.bottom <= last.top + 1, inside: box.left >= 0 && box.right <= window.innerWidth };
       });
-      assert.equal(below, true, `${width}px: in 我的, after the point's text (never above it)`);
-      // 我的 has one quiet link that folds and opens every block of the point (two blocks from here; at 420 also the 在这里加一段 block of 1280: same library).
-      const fold = page.locator('[data-book-point] .book-layer__fold').first();
-      await fold.waitFor({ timeout: 5000 });
-      assert.equal(await page.locator('[data-book-point] .book-ai').count(), width === 1280 ? 2 : 3, `${width}px: the blocks of the point`);
-      assert.equal((await fold.innerText()).trim(), '收起这个知识点的 AI 段落');
-      await fold.click();
-      await page.locator('.book-ai[data-ai-folded]').nth(1).waitFor({ timeout: 5000 });
-      assert.equal(await page.locator('.book-ai:not([data-ai-folded])').count(), 0, `${width}px: all folded`);
-      assert.equal((await fold.innerText()).trim(), '展开这个知识点的 AI 段落');
-      if (shots) await page.screenshot({ path: join(shots, `ai-folded-all-${width}.png`) });
-      await fold.click();
-      await page.locator('.book-ai[data-ai-folded]').first().waitFor({ state: 'detached', timeout: 5000 });
-      assert.equal((await fold.innerText()).trim(), '收起这个知识点的 AI 段落');
-      // Taking the first block out is still 删除 (the editor and the export read the file, which a fold never touched).
-      await page.locator('.book-ai[data-ai-state="kept"]', { hasText: `关于：「${words}」` }).first().getByText('删除', { exact: true }).click();
-      await page.locator('.book-ai', { hasText: `关于：「${words}」` }).first().waitFor({ state: 'detached', timeout: 30000 });
-      await page.locator('.book-ai-anchor').first().waitFor({ state: 'detached', timeout: 5000 });
-      overflow = await sideways(page);
+      assert.deepEqual(place, { above: true, inside: true }, `${width}px: above the last line, inside the window`);
+      // The selection's colour is the theme's token (--bg-selected), not the browser's blue.
+      const wash = await page.evaluate(() => {
+        const probe = document.createElement('span');
+        probe.style.background = 'var(--bg-selected)';
+        document.querySelector('.book-read').append(probe);
+        const token = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return { token, selection: getComputedStyle(document.querySelector('[data-book-point] .book-file p'), '::selection').backgroundColor };
+      });
+      assert.equal(wash.selection, wash.token, `${width}px: the selection colour is the token: ${JSON.stringify(wash)}`);
+      if (shots) await page.screenshot({ path: join(shots, `selection-toolbar-${width}.png`) });
+      // Tab goes into it from the selection; Escape hides it.
+      await page.keyboard.press('Tab');
+      assert.equal(await page.evaluate(() => document.activeElement?.dataset.bookSelect), 'explain', `${width}px: Tab moves into the toolbar`);
+
+      // 弄懂: the toolbar goes at once, ONE line right after the paragraph.
+      await bar.locator('[data-book-select="explain"]').click();
+      const line = page.locator('[data-book-point] [data-ai-line="writing"]');
+      await line.waitFor({ timeout: 5000 });
+      assert.equal(await page.locator('.book-select').count(), 0, `${width}px: the toolbar is gone`);
+      assert.equal(await page.locator('[data-ai-line]').count(), 1);
+      assert.match((await line.innerText()).replace(/\s+/g, ' '), /AI 正在写 · 约 1 分钟 取消/);
+      assert.equal(control.started.at(-1).mode, 'explain');
+      assert.doesNotMatch(control.started.at(-1).words, /成立1|1。/, `${width}px: the words sent carry no 角标 digit: ${control.started.at(-1).words}`);
+      const order = await line.evaluate(element => {
+        const paragraphs = [...document.querySelectorAll('[data-book-point] .book-point__part .book-file p')];
+        return { after: !!(paragraphs[0].compareDocumentPosition(element) & 4), beforeNext: !!(paragraphs[1].compareDocumentPosition(element) & 2) };
+      });
+      assert.deepEqual(order, { after: true, beforeNext: true }, `${width}px: right after the paragraph`);
+      await page.waitForTimeout(700);
+      await settleAnimations(page);
+      if (shots) await page.screenshot({ path: join(shots, `writing-line-${width}.png`) });
+      // The task ends: the block takes the line's place, folded, and nothing below moves.
+      const before = await nextTop(page);
+      await drainLayoutStability(page);
+      control.held = false;
+      const landed = page.locator('[data-book-point] .book-ai[data-ai-landed]');
+      await landed.waitFor({ timeout: 90000 });
+      const id = await landed.getAttribute('data-ai-block'), block = page.locator(`.book-ai[data-ai-block="${id}"]`);
+      assert.equal(await page.locator('[data-ai-line]').count(), 0, `${width}px: the line is gone`);
+      assert.equal(await block.getAttribute('data-ai-folded'), 'true', `${width}px: it lands folded`);
+      await page.waitForTimeout(400);
+      const verdict = judgeLayoutStability(await drainLayoutStability(page));
+      assert.ok(verdict.cls <= 0.05, `${width}px: the landing moves nothing (CLS ${verdict.cls})`);
+      assert.equal(await nextTop(page), before, `${width}px: the next paragraph stays where it was`);
+      if (shots) await page.screenshot({ path: join(shots, `landed-folded-${width}.png`) });
+      await page.locator('.book-ai[data-ai-landed]').waitFor({ state: 'detached', timeout: 5000 });
+
+      // ⋯ › 删除: 「已删除这段 · 撤销」 in place; 撤销 brings it back.
+      await block.locator('.book-ai__more').click();
+      const items = await page.getByRole('menuitem').allInnerTexts();
+      assert.deepEqual(items.map(text => text.split('\n')[0].trim()), ['保留', '重新生成', '复制', '删除'], `${width}px: the menu`);
+      if (shots) await page.screenshot({ path: join(shots, `block-menu-${width}.png`) });
+      await page.getByRole('menuitem', { name: /删除/ }).click();
+      const undo = page.locator('[data-ai-line="undo"]');
+      await undo.waitFor({ timeout: 10000 });
+      assert.equal(await block.count(), 0);
+      if (shots) await page.screenshot({ path: join(shots, `deleted-undo-${width}.png`) });
+      await undo.locator('[data-book-ai="undo"]').click();
+      await block.waitFor({ timeout: 10000 });
+      assert.equal(await undo.count(), 0);
+      // A write since the deletion (here the file saved by another hand) refuses the 撤销, and says so.
+      await block.locator('.book-ai__more').click();
+      await page.getByRole('menuitem', { name: /删除/ }).click();
+      await undo.waitFor({ timeout: 10000 });
+      const opened = await running.api('course.book.open', { course: BOOK_COURSE }), mine = opened.nodes[0].children[0].children[0].files.mine;
+      await running.api('course.book.save', { course: BOOK_COURSE, file: mine, text: `${opened.files[mine].text ?? ''}\n\nTyped meanwhile.`, version: opened.files[mine].version });
+      await undo.locator('[data-book-ai="undo"]').click();
+      await page.getByText('这段删除之后书又改过了，没法撤销。').first().waitFor({ timeout: 10000 });
+      assert.equal(await block.count(), 0, `${width}px: the refused 撤销 brings nothing back`);
+
+      // 取消 stops a running task: job.cancel, and the line goes.
+      control.mode = 'fake';
+      await selectByKeys(page, '只有架构师', '。');
+      await bar.waitFor({ timeout: 5000 });
+      await bar.locator('[data-book-select="explain"]').click();
+      await line.waitFor({ timeout: 5000 });
+      await page.waitForTimeout(300);
+      await line.getByRole('button', { name: '取消' }).click();
+      await line.waitFor({ state: 'detached', timeout: 5000 });
+      assert.equal(control.cancels.length, 1, `${width}px: the task was stopped`);
+      // A failure says why in the line's place; 重试 starts it again.
+      await selectByKeys(page, '只有架构师', '。');
+      await bar.waitFor({ timeout: 5000 });
+      await bar.locator('[data-book-select="explain"]').click();
+      await line.waitFor({ timeout: 5000 });
+      control.fake.set(`fake-${control.n}`, { status: 'failed', error: { message: '资料里找不到这几句话' } });
+      const failed = page.locator('[data-book-point] [data-ai-line="failed"]');
+      await failed.waitFor({ timeout: 10000 });
+      assert.match(await failed.innerText(), /没写成：资料里找不到这几句话/);
+      const startedBefore = control.started.length;
+      await failed.getByRole('button', { name: '重试' }).click();
+      await line.waitFor({ timeout: 5000 });
+      assert.equal(control.started.length, startedBefore + 1, `${width}px: 重试 starts it again`);
+      await line.getByRole('button', { name: '取消' }).click();
+      await line.waitFor({ state: 'detached', timeout: 5000 });
+
+      // 问 AI at the title: a preset fills the box, Escape closes it (the focus back on the button), Ctrl+Enter writes into 我的.
+      control.mode = 'real';
+      control.held = false;
+      await page.evaluate(() => { const app = document.querySelector('.study-app'); if (app) app.scrollTop = 0; window.scrollTo(0, 0); });
+      await askOpen.click();
+      const panel = page.locator('.book-ask[data-placed]');
+      await panel.waitFor({ timeout: 5000 });
+      assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'TEXTAREA', `${width}px: the focus is in the box`);
+      await panel.locator('[data-book-ask-preset="加个例子"]').click();
+      assert.equal(await panel.locator('textarea').inputValue(), '加个例子');
+      assert.equal(await panel.locator('[data-book-ask="write"]').isDisabled(), false);
+      const fits = await panel.evaluate(element => { const box = element.getBoundingClientRect(), page = document.querySelector('.book-page').getBoundingClientRect(); return box.left >= page.left - 1 && box.right <= page.right + 1; });
+      assert.equal(fits, true, `${width}px: the panel stays inside the page column`);
+      if (shots) await page.screenshot({ path: join(shots, `ask-panel-${width}.png`) });
+      await page.keyboard.press('Escape');
+      await panel.waitFor({ state: 'detached', timeout: 5000 });
+      assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-book-ask-open')), true, `${width}px: the focus is back on 问 AI`);
+      await askOpen.click();
+      await panel.locator('textarea').fill(`对比两种做法 ${width}`);
+      await panel.locator('textarea').press('Control+Enter');
+      await panel.waitFor({ state: 'detached', timeout: 2000 });
+      const layerLine = page.locator('[data-book-layer] [data-ai-line="writing"]');
+      await layerLine.waitFor({ timeout: 5000 });
+      assert.equal(control.started.at(-1).mode, 'here');
+      await page.locator('[data-book-layer] .book-ai[data-ai-landed]').waitFor({ timeout: 90000 });
+
+      const overflow = await sideways(page);
       assert.equal(overflow.doc <= 0 && overflow.wide.length === 0, true, `${width}px: nothing scrolls sideways: ${JSON.stringify(overflow)}`);
-      if (shots) await page.screenshot({ path: join(shots, `ai-here-${width}.png`) });
-      assert.deepEqual(errors, [], `${width}px: no page errors`);
+      // The one refused 撤销 is the host's answer 400 (course-book-conflict), which the browser logs; nothing else.
+      assert.deepEqual(errors.filter(error => !/status of 400/.test(error)), [], `${width}px: no page errors`);
+      assert.ok(errors.length <= 1, `${width}px: only the refused 撤销 answered 400: ${JSON.stringify(errors)}`);
       await context.close();
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
