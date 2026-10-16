@@ -1,11 +1,10 @@
-import { createContext, useCallback, useEffect, useMemo, useRef } from 'react';
+import { createContext, useCallback, useMemo } from 'react';
 import { usePersistentState } from '../storage.js';
-import { aiBlocks } from '../../lib/course-book-ai-text.js';
-import { showBlock } from './ai-anchors.js';
 
 /* Which AI blocks of the book the learner folded or opened (复习全书 M4): kept per library and course in this browser (like the book's mode), never in the
    book's text, so it changes nothing in the files, the export or the editor. A block the learner never folded or opened follows the default of its own size
-   (ui/book/point-parts.js foldsByDefault: folded over 1,500 characters unless kept, else open). The old 只留我写的 list of an earlier version is not read. */
+   (ui/book/point-parts.js foldsByDefault: folded over 1,500 characters unless kept, else open); a block that lands from a task started on the page is folded
+   (ui/book/use-book-ai.js). The old 只留我写的 list of an earlier version is not read. */
 
 /** The page's fold, for the points under it (null: nothing is folded). */
 export const AiFoldContext = createContext(null);
@@ -34,28 +33,4 @@ export function useAiFold(root, course) {
   }, [setList, setOpenList]);
   const fold = useCallback((id, on) => foldAll([id], on), [foldAll]);
   return useMemo(() => ({ folded, fold, foldAll }), [folded, fold, foldAll]);
-}
-
-const blocksOf = book => {
-  const out = new Map();
-  const walk = list => (list || []).forEach(node => { if (node.leaf) for (const block of aiBlocks(node.mine)) out.set(block.id, node.hid); walk(node.children); });
-  walk(book?.status === 'ok' ? book.nodes : []);
-  return out;
-};
-/** A block that lands from a task started on the page is opened (whatever its size) and scrolled to.
-    -> expect(): call when such a task ended; the next book with a block it did not have before shows it. */
-export function useLandedBlocks(book, aiFold) {
-  const known = useRef(null), waiting = useRef(false);
-  useEffect(() => {
-    if (book?.status !== 'ok') return undefined;
-    const now = blocksOf(book), before = known.current;
-    known.current = now;
-    const fresh = before && waiting.current ? [...now.keys()].filter(id => !before.has(id)) : [];
-    if (!fresh.length) return undefined;
-    waiting.current = false;
-    aiFold.foldAll(fresh, false);
-    const timer = setTimeout(() => showBlock(fresh[0]), 80);
-    return () => clearTimeout(timer);
-  }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
-  return useCallback(() => { waiting.current = true; }, []);
 }

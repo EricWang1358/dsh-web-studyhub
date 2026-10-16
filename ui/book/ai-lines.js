@@ -27,24 +27,26 @@ function lineBlock(line) {
  * block is in `rewriting` (its failure is a line right under it).
  */
 export function withLines(blocks, lines = []) {
-  const list = [...blocks], ids = new Set(blocks.map(block => block.id)), rewriting = new Map();
+  const list = [...blocks], ids = new Set(blocks.map(block => block.id)), rewriting = new Map(), landed = new Set();
   for (const line of lines) {
     if (line.kind === 'undo') {
       if (ids.has(line.id) || !line.block) continue;
       list.splice(Math.max(0, Math.min(line.index ?? list.length, list.length)), 0, lineBlock(line));
       continue;
     }
+    // 'done': the task ended and the book is being read again; it stands like a running one until its block is here.
     if (line.replace && ids.has(line.replace)) {
-      if (line.kind === 'writing') { rewriting.set(line.replace, line); continue; }
+      if (line.kind !== 'failed') { rewriting.set(line.replace, line); continue; }
       list.splice(list.findIndex(block => block.id === line.replace) + 1, 0, lineBlock({ ...line, after: line.replace }));
       continue;
     }
-    if (ids.has(line.id)) continue;
+    // The block is written: it stands in the line's place, folded until the page has kept that fold (`landed`), so it is never drawn open for a moment.
+    if (ids.has(line.id)) { if (line.kind !== 'failed') landed.add(line.id); continue; }
     const parent = line.after ? list.findIndex(block => block.id === line.after) : -1;
     if (parent >= 0) list.splice(parent + 1, 0, lineBlock(line));
     else list.push(lineBlock(line));
   }
-  return { blocks: list, rewriting };
+  return { blocks: list, rewriting, landed };
 }
 
 /** The lines of one point (`lines`: every line of the page). */

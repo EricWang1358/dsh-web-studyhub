@@ -6,6 +6,7 @@ import BookQa from './BookQa.jsx';
 import BookFile, { resolverOf } from './BookFile.jsx';
 import BookSuggestion from './BookSuggestion.jsx';
 import BookAiBlock from './BookAiBlock.jsx';
+import BookAiLine from './BookAiLine.jsx';
 import PointToolbar from './PointToolbar.jsx';
 import PointLayer from './PointLayer.jsx';
 import PointText from './PointText.jsx';
@@ -15,10 +16,12 @@ import { AiFoldContext } from './ai-fold.js';
 /* A knowledge point's body (复习全书; also the folded 讲解 of 翻看, ui/book/BookFlip.jsx), in reading order (docs/review-book.md "Reading a point"): the
    one-sentence takeaway (type, no box), the story (讲解, 例子) with the AI blocks about words right after their paragraphs, 要点清单 and 补充 folded, the
    learner's layer (我的: notes, AI blocks for the whole point, Q&A), the point's questions, 出处 behind one quiet chip, and last the row of its actions
-   (在这里加一段, 练 5 道, 本节问答 with its panel under it, 发给主会话). Nothing is left out of the file: the parts are only shown in another order. */
+   (练 5 道, 本节问答 with its panel under it; 问 AI is at the title). The line an AI task or a deletion leaves stands where its block is or will be
+   (ui/book/ai-lines.js). Nothing is left out of the file: the parts are only shown in another order. */
 
 /** How many of a point's questions show before 还有 N 道. */
 const FIRST = 5;
+const NO_LINES = [];
 
 /** The point's questions as they are now (never stored in a file), folded under 本节的题 (N) (练 5 道 is in the toolbar): the first few as links, 还有 N 道
     for the rest; none: nothing (the 总纲 says 还没出题). */
@@ -41,7 +44,9 @@ function PointQuestions({ node, handlers }) {
 
 /** node, course, handlers (ui/book/BookPage.jsx); `level`: the heading level of the point's own part labels (one under the point's heading). */
 export default function PointBody({ node, course, handlers, level = 4 }) {
-  const view = useMemo(() => pointView(node), [node]);
+  // The lines AI tasks and deletions leave in this point (ui/book/ai-lines.js), placed like the blocks they stand for.
+  const lines = handlers.aiLines?.(node.hid) ?? NO_LINES, linesKey = lines.map(line => `${line.key}:${line.kind}:${line.id}`).join('|');
+  const view = useMemo(() => pointView(node, lines), [node, linesKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const resolve = useMemo(() => resolverOf(handlers, node.hid), [handlers, node.hid]);
   const aiFold = useContext(AiFoldContext);
   // Which blocks have their words marked (each text says so once drawn).
@@ -53,11 +58,16 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
   const homed = new Set(view.blocks.filter(item => item.part !== null).map(item => item.block.id));
   const anchored = new Set(Object.values(marked).flat().filter(id => homed.has(id)));
   const Label = `h${Math.min(6, level)}`;
-  // A block is open unless it is long and not kept, or the learner folded it; the learner's own fold or open wins (ui/book/ai-fold.js).
-  const isFolded = item => !!aiFold?.folded(item.block.id, foldsByDefault(item.block));
-  const renderBlock = item => <BookAiBlock key={item.block.id} item={item} resolveLink={resolve} busy={handlers.busy} onAction={(action, block) => handlers.aiAction?.(node, action, block)}
-    onFollow={(block, question) => handlers.aiFollow?.(node, block, question)} folded={isFolded(item)} onFold={aiFold?.fold}
-    anchored={anchored.has(item.block.id)} onWords={handlers.aiWords} repeat={view.repeats.has(item.block.id)} />;
+  // A block is open unless it is long and not kept, or the learner folded it; the learner's own fold or open wins (ui/book/ai-fold.js). A block that just landed
+  // in a line's place is folded (it stands as high as the line did).
+  const isFolded = item => view.landed.has(item.block.id) || !!aiFold?.folded(item.block.id, foldsByDefault(item.block));
+  const renderBlock = item => (item.block.line
+    ? <BookAiLine key={item.block.id} line={item.block.line} onCancel={handlers.aiCancel} onRetry={handlers.aiRetry} onDismiss={handlers.aiDismiss} onUndo={handlers.aiUndo} />
+    : <BookAiBlock key={item.block.id} item={item} resolveLink={resolve} busy={handlers.busy} onAction={(action, block) => handlers.aiAction?.(node, action, block)}
+      onFollow={(block, question) => handlers.aiFollow?.(node, block, question)} folded={isFolded(item)} onFold={aiFold?.fold}
+      anchored={anchored.has(item.block.id)} onWords={handlers.aiWords} repeat={view.repeats.has(item.block.id)} rewriting={view.rewriting.get(item.block.id) ?? null}
+      fresh={view.landed.has(item.block.id) || !!handlers.aiFresh?.(item.block.id)}
+      onCancel={handlers.aiCancel} />);
   const text = (part, props = {}) => <PointText key={part.name} name={part.name} text={part.text} view={view} node={node} handlers={handlers} citeText={node.gen} renderBlock={renderBlock}
     onAnchored={onAnchored} className="book-file" {...props} />;
   // 要点清单 and 补充 are folded: the blocks about their words sit right under the fold, and a press on the dashed words opens it.

@@ -14,7 +14,8 @@ import BookSuggestion from './BookSuggestion.jsx';
 /** node, view (ui/book/point-parts.js pointView), handlers, aiFold (ui/book/ai-fold.js, or null), isFolded(item): the block's fold, renderBlock(item), onAnchored(key, ids). */
 export default function PointLayer({ node, view, handlers, aiFold, isFolded, renderBlock, onAnchored }) {
   const qa = String(node.qa ?? '').trim(), mineMeta = handlers.files?.[node.files?.mine], qaMeta = node.files?.qa ? handlers.files?.[node.files.qa] : null;
-  const ids = view.blocks.map(item => item.block.id), allFolded = ids.length > 0 && view.blocks.every(isFolded);
+  // The lines tasks and deletions leave (ui/book/ai-lines.js) are not blocks: they do not fold.
+  const blocks = view.blocks.filter(item => !item.block.line), ids = blocks.map(item => item.block.id), allFolded = ids.length > 0 && blocks.every(isFolded);
   // With nothing of its own (no notes, no whole-point block, no Q&A, no suggestion, no lost block) there is no divider at all, even when blocks sit in the text above:
   // its words would point at an empty layer, and a fold-all would go nowhere (those blocks are short and fold one by one).
   if (!view.mine && !view.here.length && !view.lost.length && !qa && !mineMeta?.suggestions?.length && !qaMeta?.suggestions?.length) return null;

@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Checkbox, Disclosure, ProgressBar } from '../components/index.js';
 import PointBody from './PointBody.jsx';
 import MockPaper from './MockPaper.jsx';
+import { AskButton } from './BookAsk.jsx';
 import { bookRows } from './model.js';
 import { mistakeText, pointMeta, reasonText } from './crunch-words.js';
 import { pointMistakes } from '../../lib/book-flip.js';
@@ -47,6 +48,7 @@ export default function BookFlip({ book, crunch, course, handlers, onMark, onGo,
                 {today.has(hid) && <Badge tone="info">{ui('今天')}</Badge>}
               </h3>
               <div className="book-flip__checks">
+                {handlers.ask && <AskButton onAsk={element => handlers.ask(row.node, element)} />}
                 <Checkbox label={ui('已看')} checked={!!point?.seen} disabled={!point} onChange={on => onMark(hid, on)} />
                 <Checkbox label={ui('选进模拟卷')} checked={picked.has(hid)} onChange={on => flip(setPicked, hid, on)} />
               </div>

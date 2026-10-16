@@ -175,5 +175,5 @@ export function pointView(node, lines = []) {
   const repeats = new Set(blocks.filter(({ block }) => block.mode === 'here' && block.body.length > explainLength && repeatShare(block.body, notes) >= REPEAT_SHARE)
     .map(({ block }) => block.id));
   return { story, takeaway: take, points, extra, cites: split.parts.cites || '', citeCount: citeCount(split.parts.cites), mine, blocks, anchors, repeats, weave,
-    here: blocks.filter(item => item.part === null && item.status === 'same'), lost: blocks.filter(item => item.status === 'gone'), rewriting: placed.rewriting };
+    here: blocks.filter(item => item.part === null && item.status === 'same'), lost: blocks.filter(item => item.status === 'gone'), rewriting: placed.rewriting, landed: placed.landed };
 }

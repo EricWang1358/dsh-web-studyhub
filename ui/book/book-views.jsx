@@ -4,7 +4,7 @@ import { Button, Dialog, InlineConfirm, LoadingState } from '../components/index
 import BookEditor from './BookEditor.jsx';
 import BookFlip from './BookFlip.jsx';
 import BookLookup from './BookLookup.jsx';
-import { BookToChatForm } from './BookToChat.jsx';
+import { AskForm } from './BookAsk.jsx';
 import CrunchDay from './CrunchDay.jsx';
 import MockPaper from './MockPaper.jsx';
 import { AiFoldContext } from './ai-fold.js';
@@ -84,17 +84,12 @@ export function LookupDialog({ book, onGo, onClose }) {
   );
 }
 
-/** 整本书 · 发给主会话: the same form as a point's, in a dialog. */
+/** 整本书 · 发给主会话: the 问 AI form (ui/book/BookAsk.jsx) with its one destination for the whole book, in a dialog. */
 export function ChatDialog({ course, onClose }) {
   const send = useSendToChat(course);
-  const [pending, setPending] = useState(false);
-  const onSend = async instruction => {
-    setPending(true);
-    try { await send({ scope: 'book', instruction }); onClose(); } finally { setPending(false); }
-  };
   return (
     <Dialog title={ui('整本书 · 发给主会话')} size="sm" className="book-chat-dialog" onClose={onClose}>
-      <BookToChatForm scope="book" pending={pending} onSend={onSend} />
+      <AskForm scope="book" autoFocus onSend={async ({ instruction }) => { await send({ scope: 'book', instruction }); onClose(); }} />
     </Dialog>
   );
 }
