@@ -44,7 +44,8 @@ test('PDF assets are read locally as transferable bytes and unsafe requests are 
   await assert.rejects(remote.fetch({ kind: 'cMapUrl', filename: 'fixture.bin' }), /Missing local PDF asset directory/);
 });
 
-for (const runtime of ['node', 'renderer', 'utility']) for (const entry of ['text', 'outline']) {
+// The outline entry (readOutline) went with the MinerU cloud route; the text entry is what the app still loads in every host.
+for (const runtime of ['node', 'renderer', 'utility']) for (const entry of ['text']) {
   test(`PDF ${entry} loads in a fresh ${runtime} host without workerSrc configuration`, async () => {
     const bytes = await makePdf({ pages: 2, outline: [{ title: 'Chapter one', page: 1 }] });
     const probe = `

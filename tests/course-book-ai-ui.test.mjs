@@ -73,7 +73,9 @@ test('a folded block: one row, the caret, AI, the first real sentence and its si
 });
 
 test('the ⋯ menu of a folded row: 保留 (a new block only) / 重新生成 / 复制 / 删除, 删除 says it can be undone', async () => {
-  const menuItems = await loadUi(`export { default as BookAiBlock } from './ui/book/BookAiBlock.jsx'; export { aiBlocks, aiBlock } from './lib/course-book-ai-text.js';`);
+  const menuItems = await loadUi(`export { default as BookAiBlock } from './ui/book/BookAiBlock.jsx'; export { aiBlocks, aiBlock } from './lib/course-book-ai-text.js'; export { setUiLanguage } from './ui/i18n.js';`);
+  // Its own bundle has its own language state, which follows the machine's locale (English on CI): the asserts read Chinese.
+  menuItems.setUiLanguage('zh');
   const item = state => ({ block: menuItems.aiBlocks(menuItems.aiBlock({ id: 'ai9', at: 'x', about: 'w', body: 'Text.', state }, 'zh'))[0], status: 'same' });
   // The Menu draws its list only when open; its items are read from the trigger's own render with the menu open by default.
   const html = state => renderToStaticMarkup(h(menuItems.BookAiBlock, { item: item(state), folded: true, onAction: noop, onFollow: noop }));
