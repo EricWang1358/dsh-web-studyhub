@@ -12,24 +12,22 @@ import PdfConversion from './PdfConversion.jsx';
 import css from './large-documents.css';
 
 /* 大教材建议 (WP28, WP28b). StudyHub does not index a 1000-page textbook itself, and
-   the learner never edits a file or types a command: StudyHub converts the PDF with MinerU
-   itself (local mineru and its models first, or an explicitly chosen cloud route after it recovers; big books
-   are cut into pieces and put back together), and, for whole-book questions, installs
+   the learner never edits a file or types a command: StudyHub installs MinerU on this computer in
+   one click and converts the PDF with it (big books in windows of pages, put back together), and, for whole-book questions, installs
    StudyHub's search extension with one click and builds the index of the course with
    another. The desktop client, the command line, Docker and hand-written configuration
    routes exist but live under 高级. It never claims a tool is installed: `retrieval`
    is what the host reported (retrieval.status). */
 
 const SUMMARY = {
-  'mineru-local': () => ui('优先安装本地 mineru 并下载模型，在「设置 › PDF 转换（MinerU）」完成检测和启用。解析不会上传文档；模型下载需先确认。'),
-  'mineru-cloud': () => ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。'),
+  'mineru-local': () => ui('在「设置 › PDF 转换（MinerU）」点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹（默认不在 C 盘），之后在本机解析，不上传文档。'),
   mineru: () => <>{ui('桌面客户端目前也反馈不可用，优先使用上面的本地模型；客户端恢复后可再尝试。')}{' '}{ui('手动路线：有图形界面的桌面客户端（Windows / macOS），或本地命令行 mineru parse --pages。导出带页码的 JSON 再拖进来。')}</>,
   docling: () => ui('开源（MIT），输出带页码的 JSON，适合愿意用命令行或 Python 的人。导入时选它输出的 .json。'),
   'mcp-local-rag': () => ui('在本机检索，文档不出电脑；读 PDF、Word、Markdown 和纯文本。默认的向量模型偏英文，中文教材要换多语言模型。'),
   ragflow: () => ui('完整的知识库应用（用 Docker 运行，建议 16 GB 内存），中文友好；通过 MCP 接口被 DSH 调用。'),
 };
 const KIND_LABEL = { official: () => ui('官方'), source: () => ui('源码'), package: () => ui('安装包'), mainland: () => ui('国内可用') };
-const NEEDS = { token: () => ui('需要免费令牌'), 'command-line': () => ui('需要命令行'), docker: () => ui('需要 Docker'), manual: () => ui('需要手动配置') };
+const NEEDS = { 'one-click': () => ui('一键安装'), 'command-line': () => ui('需要命令行'), docker: () => ui('需要 Docker'), manual: () => ui('需要手动配置') };
 
 /** The one name for a provider: the tool and, for MCP, the server it comes from. */
 export function providerLabel(provider) {
@@ -52,7 +50,7 @@ function reasonText(reason, detail = {}) {
 }
 
 const STEPS = {
-  convert: [() => ui('点下面的「开始本地解析」：用本机的 mineru（免费、不上传）。尚未就绪时，先到「设置 › PDF 转换」安装并下载模型。'),
+  convert: [() => ui('点下面的「开始本地解析」：用本机的 MinerU（免费、不上传）。还没装好时，下面就有「一键安装」。'),
     () => ui('StudyHub 自动分段、逐段解析、合并，进度显示在资料页；中途出错只重做出错的那一段。'),
     () => ui('解析完成后按页保存，并按标题分出章节，不用再拖文件。'),
     () => ui('在「创建题组」里按章节勾选；整本书都要用时，点下面的「安装检索扩展」，再为这门课建立检索索引。')],
@@ -66,7 +64,7 @@ export function ToolCard({ tool }) {
     <article className="large-doc__tool" data-tool={tool.id}>
       <header className="large-doc__tool-head">
         <strong>{ui(tool.name)}</strong>
-        {tool.recommended && (tool.id === 'mineru-local' || ['download', 'token'].includes(tool.needs)) && <Badge tone="info" size="sm">{ui('推荐')}</Badge>}
+        {tool.recommended && (tool.id === 'mineru-local' || ['download', 'one-click'].includes(tool.needs)) && <Badge tone="info" size="sm">{ui('推荐')}</Badge>}
         {NEEDS[tool.needs] && <Badge size="sm">{NEEDS[tool.needs]()}</Badge>}
       </header>
       <p className="large-doc__summary">{SUMMARY[tool.id]()}</p>
@@ -95,8 +93,8 @@ export function ConverterMain({ available = true, call, file = null, courses = [
       <h3 className="large-doc__group-title">{ui('转换：把 PDF 变成带页码的文字')}</h3>
       {typeof call === 'function'
         ? <PdfConversion available={available} compact file={file || picked} onFile={file ? undefined : setPicked} call={call} courses={courses} onOpenSettings={onOpenSettings} onStarted={onStarted} />
-        : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /><Hint>{ui('云端暂不可用，优先使用本地模型。恢复后可手动选择云端；已保存令牌不代表服务可用。')}</Hint></div>}
-      <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；超过 200 页的书会自动分段处理。')}</Hint>
+        : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /></div>}
+      <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。')}</Hint>
     </div>
   );
 }

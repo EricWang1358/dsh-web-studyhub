@@ -100,15 +100,15 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 ## 4. 旧实现与旁路的剩余例外
 
-清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **23 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"；第 20 个是课程总纲的整理任务 `course-outline-build`，第 21 个是复习全书的生成任务 `course-book-build`，都在 2026-10-09 加入；第 22 个是复习全书的弄懂 / 加一段 `course-book-ai`，第 23 个是分析题答案卡 `case-answer-card`，都在 2026-10-11 加入）；其余全部在下面。
+清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **22 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"；第 19 个是课程总纲的整理任务 `course-outline-build`，第 20 个是复习全书的生成任务 `course-book-build`，都在 2026-10-09 加入；第 21 个是复习全书的弄懂 / 加一段 `course-book-ai`，第 22 个是分析题答案卡 `case-answer-card`，都在 2026-10-11 加入。3.6 起本机 MinerU 的旧准备任务 `mineru-setup` 删除，Marker 与 MinerU 的一键安装共用一个定义 `install-job.js`，所以比之前少一个）；其余全部在下面。
 
-**数量**：模型形状的调用点 36 行、后台启动点 32 行（合计 89 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
+**数量**：模型形状的调用点 36 行、后台启动点 35 行（合计 93 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
 
 | 处置 | 数量 | 含义 |
 |---|---|---|
 | `migrate`（开关全开后仍在运行时之外，须由某一步迁移） | **0** | 没有。每一个迁移位置都已迁移，没有"以后再迁"的静默旁路 |
 | `delete-s6-2`（旧路径，开关全开后不可达） | 21 | 24 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
-| `exception`（有意保留，写明类别和理由） | 68 | 见下表的类别与理由；没有"待定"类 |
+| `exception`（有意保留，写明类别和理由） | 72 | 见下表的类别与理由；没有"待定"类 |
 
 **不是干净清零的几处，以及所有者对它们的决定（2026-10-07）：**
 
@@ -157,13 +157,13 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/translation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The translation pipeline takes its model as an argument (the reader asks it directly; the translate card is a Job when translation is on) | retained; S6-2 (original callers) |
 | `lib/workflow-teaching.js` | existing domain maintainer | 旧路径（开关关时的默认）（删除待默认值翻转） | The in-process teaching call (the Job runs it behind the gateway when workflow is on) | after default flip |
 
-### 4.2 后台启动点（32 行）
+### 4.2 后台启动点（35 行）
 
 | 文件 | 负责人 | 类别 | 理由 | 移除时点 |
 |---|---|---|---|---|
 | `lib/contexts/audio/convert.js` | audio family (lane A/D) | 旧路径（开关关时的默认）（删除待默认值翻转）；历史读取适配 | startConvertJob: the original conversion run (job record, retry entry, cancel controller) | after default flip |
+| `lib/contexts/audio/install-row.js` | non-model family (lane D) | 旧路径（开关关时的默认）（删除待默认值翻转） | the console row (type local-install) of the original install run (MinerU, Marker), with its cancel controller | after default flip |
 | `lib/contexts/audio/operations.js` | audio family (lane A) | 会话子系统；旧路径（开关关时的默认）（删除待默认值翻转） | live.start: the live class session (a connection with its own lifecycle; its correction and its save are the jobs) | after default flip |
-| `lib/contexts/audio/setup/legacy-setup-run.js` | non-model family (lane D) | 旧路径（开关关时的默认）（删除待默认值翻转） | the original background run of the local MinerU setup | after default flip |
 | `lib/contexts/audio/worker.js` | audio family (lane A) | 旧路径（开关关时的默认）（删除待默认值翻转）；历史读取适配 | startAudioJob: the original audio runner. With the five audio switches on (audioLiveSave included, S2-6) nothing calls it | after default flip |
 | `lib/contexts/coach/worker.js` | coach family (lane C) | 领域自己的结构（缓存/队列/单飞）；旧路径（开关关时的默认）（删除待默认值翻转） | coachTask: the library lane that queues a prep batch (its body is a Job when coach is on) and runs a card rewrite | after default flip |
 | `lib/contexts/generation/jobs/generation.js` | generation family (lane B) | 控制适配 | the Job registers its cancel controller in the legacy table the console controls read (until the controls read the kernel) | exception |
@@ -179,6 +179,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/contexts/notes/operations.js` | notes family (lane D) | 领域自己的结构（缓存/队列/单飞）；旧路径（开关关时的默认）（删除待默认值翻转） | the pending draft of a note: what a save, a delete or an unloaded plugin stops it by (the draft itself is a Job when noteGenerate is on) | after default flip |
 | `lib/generation-continuable.js` | runtime/domain maintainer | 服务商叶子实现 | the host sub-agent of a continuable generation phase (agent execution mode behind the model route) | exception |
 | `lib/groq.js` | audio family (lane A) | 服务商叶子实现 | ffmpeg decode and cut of the audio windows, inside an audio Job (stopped with it; not recorded as a Call) | exception |
+| `lib/install-drives.js` | non-model family (lane D) | 历史读取适配 | the read-only list of fixed drives (PowerShell DriveInfo) for the default install location | never (not a job) |
 | `lib/host-capabilities.js` | runtime kernel maintainer | 服务商叶子实现 | startBoundedChild: the one place a host sub-agent is started (the gateway uses it, for the policies that prefer an agent: dailyRecapAgent, workflowAg… | exception |
 | `lib/job-control.js` | runtime/domain maintainer | 控制适配 | the pause-boundary poll of a job control (the console controls of generation, translation and audio read it) | exception |
 | `lib/jobs/lifecycle/control.js` | runtime kernel maintainer | 内核 | the kernel writes its own job into the job table | exception |
@@ -187,10 +188,12 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/live-correction.js` | audio family (lane A) | 旧路径（开关关时的默认）（删除待默认值翻转） | the rolling-correction timer of a class; a managed class (audioLiveCorrection) starts none | after default flip |
 | `lib/live.js` | audio family (lane A) | 会话子系统 | the watchdog of a live class connection | exception |
 | `lib/local-command.js` | non-model family (lane D) | 服务商叶子实现 | runLocalCommand: the one runner of local programs (process tree stop, KILL_WAIT_MS) | exception |
-| `lib/marker-install.js` | non-model family (lane D) | 服务商叶子实现；领域自己的结构（缓存/队列/单飞）；旧路径（开关关时的默认）（删除待默认值翻转） | the install stages (venv, pip, check) inside begin(): a Call of the Job when markerInstall is on | after default flip |
+| `lib/marker-install.js` | non-model family (lane D) | 服务商叶子实现 | Marker's install stages (venv, pip, check) inside the shared engine's begin(): a Call of the Job when markerInstall is on | after default flip |
 | `lib/marker-local.js` | non-model family (lane D) | 前台即时请求；服务商叶子实现 | detectMarker: the instant "is Marker ready" question (awaited by the caller) | exception |
+| `lib/mineru-install.js` | non-model family (lane D) | 历史读取适配；服务商叶子实现 | the read-only probe of the system Pythons for 更多 (python --version), during the plan; stopping the installed service before an uninstall | never (not a job) |
 | `lib/mineru-local.js` | non-model family (lane D) | 服务商叶子实现 | runCli: status, server start and the parse windows of a local conversion | exception |
 | `lib/runtime/tasks.js` | runtime/domain maintainer | 公开 API | extension tasks (kind extension): a published public API of the plugin; no model gateway | exception |
+| `lib/tool-install.js` | non-model family (lane D) | 领域自己的结构（缓存/队列/单飞）；服务商叶子实现；旧路径（开关关时的默认）（删除待默认值翻转） | the one install slot per tool state file (Marker, MinerU), shared by the original installer and the Job (claim/begin) | after default flip |
 | `lib/workflow-skeleton.js` | workflow family (lane C) | 领域自己的结构（缓存/队列/单飞）；旧路径（开关关时的默认）（删除待默认值翻转） | the single-flight table of skeleton generation (the run is a Job when workflow is on) | after default flip |
 | `lib/workflow-teaching.js` | workflow family (lane C) | 领域自己的结构（缓存/队列/单飞）；旧路径（开关关时的默认）（删除待默认值翻转） | the single-flight table of teachings (the run is a Job when workflow is on) | after default flip |
 

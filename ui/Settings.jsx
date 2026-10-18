@@ -10,7 +10,7 @@ import { useComponentCss } from './components/css.js';
 import fieldsCss from './components/fields.css';
 import { useInjectCss } from './shared.js';
 import css from './settings.css';
-import { loadMineruSettings } from './use-mineru.js';
+import { loadMineruLocal } from './use-mineru.js';
 import { loadRetrievalStatus } from './retrieval-status.js';
 import { readText, writeText } from './storage.js';
 import { useHostQuery } from './host-query.js';
@@ -104,7 +104,8 @@ export default function Settings({
   useLiveEffect((live) => {
     if (typeof call !== 'function') return;
     const keep = (name) => (value) => { if (live() && value) setStatus((current) => ({ ...current, [name]: value })); };
-    if (hasContext(data, 'audio')) loadMineruSettings(call).then((value) => keep('mineru')(value && !value.unavailable && { configured: !!value.token?.set }), () => {});
+    // MinerU is set up when it is installed (running or not: a conversion starts a stopped service); read through the shared key the PDF conversion pane reads too.
+    if (hasContext(data, 'audio')) loadMineruLocal(call).then((value) => keep('mineru')(value && { configured: ['ready', 'server-stopped'].includes(value.state) }), () => {});
     if (hasContext(data, 'generation')) loadRetrievalStatus(call).then((value) => keep('retrieval')(value && { status: value, plan: null }), () => {});
   }, []);
 

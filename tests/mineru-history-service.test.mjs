@@ -7,39 +7,41 @@ import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { prepareJob } from '../lib/mineru-job.js';
 import { closeRecord, historyDir, listRecords, openRecord } from '../lib/mineru-history.js';
-import { FAKE_TOKEN, startFakeMineru } from './helpers/fake-mineru.mjs';
 import { makePdf } from './helpers/pdf.mjs';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
+import { patientCli, readJsonFile, writeJsonFile } from './helpers/wait.mjs';
 
-/* The conversion history through the real service: a record per conversion (cloud and local), kept while it runs and after it ends,
-   resumed from the history, deleted without touching the imported documents. The cloud is the fake MinerU server, the local mineru a fake CLI. */
+/* The conversion history through the real service: a record per conversion, kept while it runs and after it ends, resumed from the history,
+   deleted without touching the imported documents. The local mineru is a fake CLI (tests/helpers/fake-mineru-cli.mjs) converting fixed windows
+   of 50 pages. Rows of the cloud route (removed in 3.6) still list, and never resume. */
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 const han = /[㐀-鿿]/;
 
-async function harness(t, { serverOptions = {}, cliState = {}, pages = 120, cloud = true, contexts } = {}) {
+async function harness(t, { cliState = {}, hold = false, contexts } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'study-hist-home-'));
   const root = await mkdtemp(join(tmpdir(), 'study-hist-lib-'));
   const work = await mkdtemp(join(tmpdir(), 'study-hist-fake-'));
-  const before = { DSH_HOME: process.env.DSH_HOME, MINERU_API_KEY: process.env.MINERU_API_KEY, MINERU_BIN: process.env.MINERU_BIN };
-  process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
-  const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl');
-  await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: pages, modelsReady: true, ...cliState })); await writeFile(logPath, '');
-  const cli = { file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } };
-  const fake = cloud ? await startFakeMineru(serverOptions) : null;
-  const clock = { time: 5_000_000 };
+  const before = { DSH_HOME: process.env.DSH_HOME, MINERU_BIN: process.env.MINERU_BIN };
+  process.env.DSH_HOME = home; delete process.env.MINERU_BIN;
+  const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl'), signal = join(work, 'release');
+  // `hold`: every window waits for the test to release it (a synthetic hold: the fake finishes once the signal file exists).
+  await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: 3, totalFromPdf: true, modelsReady: true,
+    ...(hold ? { finishSignal: signal } : {}), ...cliState })); await writeFile(logPath, '');
+  const cli = patientCli({ file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } });
   // (`windowPages` is the seam for fixed local windows: these tests count windows of 50 pages; the adaptive plan has its own tests, tests/mineru-adaptive-*.test.mjs.)
-  const options = { mineru: { ...(fake ? { baseUrl: fake.baseUrl } : {}), now: () => clock.time, limits: { windowPages: 50 },
-    sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); },
-    local: { cli, home: work, modelsCli: { file: process.execPath, prefix: [FAKE], env: cli.env } } } };
+  const options = { mineru: { limits: { windowPages: 50, livenessMs: 0 }, local: { cli, home: work } } };
   const open = () => new StudyService(root, { ...options, ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), ...(contexts ? { contexts } : {}) });
   let service = open();
+  const log = async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
   const h = {
-    home, root, fake, work,
+    home, root, work,
     get service() { return service; },
     restart() { service.dispose(); service = open(); return service; },
     call: (action, args) => service.call(action, args),
-    configure: () => service.call('mineru.settings.set', { token: fake.token, acknowledge: true }),
+    release: () => writeFile(signal, ''),
+    set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }),
+    parses: async () => (await log()).filter(entry => entry.argv[0] === 'parse'),
     jobs: async () => (await service.call('snapshot')).jobs.filter(job => job.type === 'pdf-convert'),
     history: async (args = {}) => service.call('mineru.history.list', args),
     until: async (condition, what) => { for (let i = 0; i < 1500; i++) { const value = await condition(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error(`Timed out waiting for ${what}`); },
@@ -53,7 +55,7 @@ async function harness(t, { serverOptions = {}, cliState = {}, pages = 120, clou
   };
   t.after(async () => {
     await new Promise(resolve => setTimeout(resolve, 20));
-    service.dispose(); await fake?.close();
+    service.dispose();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
@@ -68,28 +70,26 @@ async function filesUnder(directory) {
   return found;
 }
 
-test('before any conversion the history is empty, and it works with neither route set up', async t => {
-  const h = await harness(t, { cloud: false });
+test('before any conversion the history is empty, and the removed cloud settings are not asked for', async t => {
+  const h = await harness(t);
   const view = await h.history();
   assert.deepEqual(view.records, []);
   assert.deepEqual([view.keepLatest, view.keepDays], [50, 90]);
-  assert.equal((await h.call('mineru.settings.get')).token.set, false);
+  await assert.rejects(h.call('mineru.settings.get'), /Unknown/);
 });
 
-test('a cloud conversion is on record while it runs, and complete only once the document is really imported', async t => {
-  let release = false;
-  const h = await harness(t, { serverOptions: { holdWhen: () => !release } });
-  await h.configure();
+test('a conversion is on record while it runs, and complete only once the document is really imported', async t => {
+  const h = await harness(t, { hold: true });
   const bytes = await makePdf({ pages: 3 });
   const started = await h.call('mineru.import', { uploadId: await h.upload(bytes, 'Databases.pdf'), courses: ['Databases'] });
   const [running] = (await h.history()).records;
   assert.equal(running.id, started.jobId, 'the record is the job: one id');
-  assert.deepEqual([running.status, running.route, running.filename, running.pages, running.pieces, running.bytes], ['running', 'cloud', 'Databases.pdf', 3, 1, bytes.length]);
+  assert.deepEqual([running.status, running.route, running.tier, running.filename, running.pages, running.pieces, running.bytes], ['running', 'local', 'basic', 'Databases.pdf', 3, 1, bytes.length]);
   assert.equal(running.canRetry, false);
   assert.equal(running.live, true, 'a running row links to its live card');
   assert.equal(running.document, undefined, 'nothing is imported yet');
-  await h.until(async () => (await h.history()).records[0].phase === 'parse', 'the parse phase to be recorded');
-  release = true;
+  await h.until(async () => (await h.history()).records[0].phase === 'local', 'the local phase to be recorded');
+  await h.release();
   await h.finished();
   const [done] = (await h.history()).records;
   assert.equal(done.status, 'complete');
@@ -109,40 +109,38 @@ test('a cloud conversion is on record while it runs, and complete only once the 
   assert.ok(sources.some(source => source.id === done.document.sourceIds[0]), 'and it is one of the imported pages');
 });
 
-test('a local conversion is recorded with its tier and pieces (page windows)', async t => {
-  const h = await harness(t, { cloud: false, pages: 120 });
+test('a conversion is recorded with its tier and pieces (page windows)', async t => {
+  const h = await harness(t);
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
   await h.finished();
   const [record] = (await h.history()).records;
   assert.deepEqual([record.status, record.route, record.tier, record.pages, record.pieces, record.importedPages], ['complete', 'local', 'basic', 120, 3, 120]);
 });
 
-test('the record, the exported library and every file of the library hold no token, no document text and no temporary path', async t => {
+test('the record, the exported library and every file of the library hold no document text and no temporary path', async t => {
   const h = await harness(t);
-  await h.configure();
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
   await h.finished();
   const files = await readdir(historyDir(h.root));
   assert.equal(files.length, 1);
   const raw = await readFile(join(historyDir(h.root), files[0]), 'utf8');
-  for (const forbidden of [FAKE_TOKEN, h.home, 'tmp', 'pdf-convert', 'source.pdf', 'local page 1', 'Authorization', 'Bearer']) assert.ok(!raw.includes(forbidden), `the record holds ${forbidden}`);
+  for (const forbidden of [h.home, h.work, 'pdf-convert', 'source.pdf', '页的正文', 'Authorization', 'Bearer']) assert.ok(!raw.includes(forbidden), `the record holds ${forbidden}`);
   const allowed = ['attemptStartedAt', 'attempts', 'bytes', 'converter', 'documentId', 'elapsedMs', 'env', 'failure', 'filename', 'finishedAt', 'id', 'importedPages', 'pages', 'pagesDone', 'phase', 'piece', 'pieces', 'plan', 'route', 'skippedPages', 'startedAt', 'status', 'tier', 'title', 'updatedAt', 'version', 'windows'];
   assert.deepEqual(Object.keys(JSON.parse(raw)).filter(key => !allowed.includes(key)), [], 'only the whitelisted facts are stored');
   assert.equal(JSON.parse(raw).converter, 'mineru');
   const exported = JSON.stringify(await h.call('export', {}));
-  assert.ok(!exported.includes(FAKE_TOKEN) && !exported.includes(h.home));
+  assert.ok(!exported.includes(h.home));
   assert.ok(!exported.includes('conversion-history'), 'the history is a job record: it is not part of the library export');
   const listed = JSON.stringify(await h.history());
-  assert.ok(!listed.includes(FAKE_TOKEN) && !listed.includes(h.home));
+  assert.ok(!listed.includes(h.home) && !listed.includes(h.work));
   for (const file of await filesUnder(h.root)) {
     const bytes = await readFile(file).catch(() => Buffer.alloc(0));
-    assert.ok(!bytes.includes(FAKE_TOKEN), file);
+    assert.ok(!bytes.includes(h.work), file);
   }
 });
 
 test('the history is not in the snapshot the panel polls, so keeping it never slows the app', async t => {
   const h = await harness(t);
-  await h.configure();
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
   await h.finished();
   assert.equal(JSON.stringify(await h.call('snapshot')).includes('conversion-history'), false);
@@ -150,22 +148,20 @@ test('the history is not in the snapshot the panel polls, so keeping it never sl
 });
 
 test('a piece that fails: the record says failed, at which stage, why; "接着做" from the history redoes only that piece and is the same record', async t => {
-  let healthy = false;
-  const h = await harness(t, { serverOptions: { failWhen: file => (/-2-/.test(file.data_id) && !healthy ? 'internal error' : undefined) } });
-  await h.configure();
-  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 450 }), 'Big.pdf') });
+  const h = await harness(t, { cliState: { failStarts: [51] } });
+  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 150 }), 'Big.pdf') });
   const failed = await h.finished('failed');
   const [row] = (await h.history()).records;
   assert.equal(row.status, 'failed');
   assert.equal(row.id, failed.id);
-  assert.equal(row.failure.stage, 'parse');
-  assert.equal(row.failure.piece, 2);
-  assert.match(row.failure.reason, /MinerU/);
-  assert.ok(row.pagesDone >= 200, 'the finished piece still counts');
+  assert.equal(row.failure.stage, 'local');
+  assert.deepEqual(row.windows.map(window => window.state), ['done', 'failed', 'planned'], 'the second window is the one that failed');
+  assert.ok(row.failure.reason);
+  assert.ok(row.pagesDone >= 50, 'the finished piece still counts');
   assert.equal(row.canRetry, true);
   assert.equal(row.document, undefined, 'a failed conversion imported nothing');
-  const uploadsBefore = h.fake.uploads.length;
-  healthy = true;
+  const parsesBefore = (await h.parses()).length;
+  await h.set({ failStarts: [] });
   await h.call('mineru.retry', { jobId: row.id });
   assert.ok(['running', 'complete'].includes((await h.history()).records[0].status), 'the new attempt is on record as soon as it starts');
   await h.finished();
@@ -174,14 +170,13 @@ test('a piece that fails: the record says failed, at which stage, why; "接着�
   assert.equal(after[0].status, 'complete');
   assert.equal(after[0].attempts, 2);
   assert.equal(after[0].failure, undefined);
-  assert.equal(after[0].importedPages, 450);
-  assert.equal(h.fake.uploads.length - uploadsBefore >= 1, true);
+  assert.equal(after[0].importedPages, 150);
+  assert.deepEqual((await h.parses()).slice(parsesBefore).map(entry => entry.argv[entry.argv.indexOf('--pages') + 1]), ['51-100', '101-150'], 'the finished first piece is not converted again');
   assert.ok(after[0].elapsedMs >= 0);
 });
 
 test('a conversion whose import step fails is failed at the save stage, never complete', async t => {
-  const h = await harness(t, { serverOptions: { contentList: file => Array.from({ length: file.pages }, (_, index) => ({ type: 'image', img_path: `images/page-${index + 1}.jpg`, page_idx: index })) } });
-  await h.configure();
+  const h = await harness(t, { cliState: { blank: [1, 2, 3] } });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
   await h.finished('failed');
   const [row] = (await h.history()).records;
@@ -193,10 +188,9 @@ test('a conversion whose import step fails is failed at the save stage, never co
 });
 
 test('a cancelled conversion is recorded as cancelled, with no retry offered', async t => {
-  const h = await harness(t, { serverOptions: { holdWhen: () => true } });
-  await h.configure();
-  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 450 })) });
-  const running = await h.until(async () => { const [job] = await h.jobs(); return job?.phase === 'parse' ? job : null; }, 'the first piece to be parsed');
+  const h = await harness(t, { hold: true });
+  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 150 })) });
+  const running = await h.until(async () => { const [job] = await h.jobs(); return job?.phase === 'local' ? job : null; }, 'the first piece to be converted');
   await h.call('job.cancel', { jobId: running.id });
   await h.finished('cancelled');
   const [row] = (await h.history()).records;
@@ -209,8 +203,7 @@ test('a cancelled conversion is recorded as cancelled, with no retry offered', a
 });
 
 test('dismissing the card of a failed conversion keeps its row, which can no longer resume because its files are cleaned', async t => {
-  const h = await harness(t, { serverOptions: { failWhen: () => 'internal error' } });
-  await h.configure();
+  const h = await harness(t, { cliState: { failStarts: [1] } });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
   const failed = await h.finished('failed');
   assert.equal((await h.history()).records[0].canRetry, true);
@@ -222,18 +215,17 @@ test('dismissing the card of a failed conversion keeps its row, which can no lon
 
 /* ---------- restarts ---------- */
 
-async function crashed(h, { pages = 450, manifest = true } = {}) {
+async function crashed(h, { pages = 150, manifest = true, route = 'local' } = {}) {
   const source = join(h.root, 'Crashed.pdf');
   await writeFile(source, await makePdf({ pages }));
-  const prepared = await prepareJob({ root: h.root, source, filename: 'Crashed.pdf', courses: [] });
-  const record = await openRecord(h.root, { id: prepared.manifest.id, filename: 'Crashed.pdf', bytes: prepared.manifest.sourceBytes, pages, pieces: prepared.manifest.chunks.length, route: 'cloud' });
+  const prepared = await prepareJob({ root: h.root, source, filename: 'Crashed.pdf', courses: [], route, tier: 'basic', limits: { windowPages: 50 } });
+  const record = await openRecord(h.root, { id: prepared.manifest.id, filename: 'Crashed.pdf', bytes: prepared.manifest.sourceBytes, pages, pieces: prepared.manifest.chunks.length, route, tier: 'basic' });
   if (!manifest) await rm(prepared.dir, { recursive: true, force: true });
   return { prepared, record };
 }
 
 test('a record a crash left running comes back as interrupted and can be resumed while its pieces are on disk', async t => {
   const h = await harness(t);
-  await h.configure();
   const { record } = await crashed(h);
   h.restart();
   const [row] = (await h.history()).records;
@@ -248,7 +240,7 @@ test('a record a crash left running comes back as interrupted and can be resumed
   const [done] = (await h.history()).records;
   assert.equal(done.status, 'complete');
   assert.equal(done.attempts, 2);
-  assert.equal(done.importedPages, 450);
+  assert.equal(done.importedPages, 150);
 });
 
 test('a record whose files are gone is interrupted and honest about it: no resume button', async t => {
@@ -264,20 +256,35 @@ test('a conversion that was unfinished before the history existed gets a record 
   const h = await harness(t);
   const source = join(h.root, 'Old.pdf');
   await writeFile(source, await makePdf({ pages: 3 }));
-  const prepared = await prepareJob({ root: h.root, source, filename: 'Old.pdf', courses: [] });
+  const prepared = await prepareJob({ root: h.root, source, filename: 'Old.pdf', courses: [], route: 'local', tier: 'basic' });
   assert.deepEqual(await listRecords(h.root), []);
   const [row] = (await h.history()).records;
   assert.equal(row.id, prepared.manifest.id);
   assert.equal(row.status, 'interrupted');
   assert.equal(row.filename, 'Old.pdf');
+  assert.equal(row.route, 'local');
   assert.equal(row.canRetry, true);
+});
+
+test('an unfinished conversion of the removed cloud route comes back failed for good, with what to do instead; its row lists and never resumes', async t => {
+  const h = await harness(t);
+  const { record } = await crashed(h, { route: 'cloud', pages: 3 });
+  h.restart();
+  const [row] = (await h.history()).records;
+  assert.equal(row.id, record.id);
+  assert.equal(row.route, 'cloud');
+  assert.equal(row.status, 'interrupted');
+  assert.equal(row.canRetry, false, 'a cloud row never offers 接着做');
+  const [job] = await h.jobs();
+  assert.equal(job.retryable, false);
+  assert.match(job.stage, /云端解析已停用/);
+  await assert.rejects(h.call('mineru.retry', { jobId: job.id }), /云端解析已停用|不能重试/);
 });
 
 /* ---------- deleting ---------- */
 
 test('deleting a record or clearing the history never deletes an imported document', async t => {
   const h = await harness(t);
-  await h.configure();
   for (const name of ['One.pdf', 'Two.pdf']) {
     await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: name === 'One.pdf' ? 3 : 4 }), name) });
     await h.until(async () => (await h.jobs()).every(job => job.status === 'complete') && (await h.jobs()).length >= 1, 'the conversion');
@@ -297,8 +304,7 @@ test('deleting a record or clearing the history never deletes an imported docume
 });
 
 test('a conversion that is running cannot be deleted from the history, and clearing leaves it', async t => {
-  const h = await harness(t, { serverOptions: { holdWhen: () => true } });
-  await h.configure();
+  const h = await harness(t, { hold: true });
   const { jobId } = await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
   await assert.rejects(h.call('mineru.history.remove', { id: jobId }), /进行/);
   assert.equal((await h.call('mineru.history.clear', { confirm: true })).removed, 0);
@@ -308,7 +314,7 @@ test('a conversion that is running cannot be deleted from the history, and clear
 });
 
 test('removing an unknown record is a plain no-op, and a bad id is refused', async t => {
-  const h = await harness(t, { cloud: false });
+  const h = await harness(t);
   assert.equal((await h.call('mineru.history.remove', { id: 'job-unknown-1' })).removed, false);
   await assert.rejects(h.call('mineru.history.remove', { id: '../../etc' }), /无效/);
   await assert.rejects(h.call('mineru.history.remove', {}), /id/);
@@ -316,7 +322,6 @@ test('removing an unknown record is a plain no-op, and a bad id is refused', asy
 
 test('a document the learner deleted later shows as deleted in the row; the row stays', async t => {
   const h = await harness(t);
-  await h.configure();
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 2 })) });
   await h.finished();
   const [row] = (await h.history()).records;
@@ -332,9 +337,8 @@ test('a document the learner deleted later shows as deleted in the row; the row 
 
 test('the latest 50 records are kept and older ones go when a new conversion is written', async t => {
   const h = await harness(t);
-  await h.configure();
   const longAgo = Date.now() - 400 * 24 * 60 * 60_000;
-  for (let i = 0; i < 52; i++) { await openRecord(h.root, { id: `seed-${String(i).padStart(4, '0')}`, filename: `old-${i}.pdf`, bytes: 1, pages: 1, pieces: 1, route: 'cloud' }, { now: () => longAgo + i * 1000 });
+  for (let i = 0; i < 52; i++) { await openRecord(h.root, { id: `seed-${String(i).padStart(4, '0')}`, filename: `old-${i}.pdf`, bytes: 1, pages: 1, pieces: 1, route: i % 2 ? 'cloud' : 'local' }, { now: () => longAgo + i * 1000 });
     await closeRecord(h.root, `seed-${String(i).padStart(4, '0')}`, { status: 'complete', documentId: 'd' }, { now: () => longAgo + i * 1000 + 10 }); }
   assert.equal((await listRecords(h.root)).length, 52, 'each was young when it was written');
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })) });
@@ -347,8 +351,7 @@ test('the latest 50 records are kept and older ones go when a new conversion is 
 /* ---------- other behaviours ---------- */
 
 test('a refused import (the same book twice, no materials, unreadable PDF) leaves no record', async t => {
-  const h = await harness(t, { serverOptions: { holdWhen: () => true } });
-  await h.configure();
+  const h = await harness(t, { hold: true });
   const bytes = await makePdf({ pages: 3 });
   const { jobId } = await h.call('mineru.import', { uploadId: await h.upload(bytes) });
   await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(bytes, 'Copy.pdf') }), /已经在转换/);
@@ -359,20 +362,18 @@ test('a refused import (the same book twice, no materials, unreadable PDF) leave
 });
 
 test('English: the history has no Chinese outside file names and titles', async t => {
-  const h = await harness(t, { serverOptions: { failWhen: file => (/-2-/.test(file.data_id) ? 'internal error' : undefined) } });
-  await h.configure();
-  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 450 }), 'Big.pdf') });
+  const h = await harness(t, { cliState: { failStarts: [51] } });
+  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 150 }), 'Big.pdf') });
   await h.finished('failed');
   const english = await h.call('mineru.history.list', { uiLanguage: 'en' });
   assert.doesNotMatch(JSON.stringify(english), han);
-  assert.match(english.records[0].failure.reason, /MinerU/);
+  assert.ok(english.records[0].failure.reason);
   const chinese = await h.call('mineru.history.list', {});
-  assert.match(chinese.records[0].failure.reason, /MinerU 没能转换|MinerU 服务/);
+  assert.match(chinese.records[0].failure.reason, han);
 });
 
 test('a file name in Chinese is user data and stays as it is in English', async t => {
   const h = await harness(t);
-  await h.configure();
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 2 }), '数据库系统.pdf') });
   await h.finished();
   const english = await h.call('mineru.history.list', { uiLanguage: 'en' });

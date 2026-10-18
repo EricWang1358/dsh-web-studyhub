@@ -59,6 +59,16 @@ test('the assistant tool refuses to install or uninstall: it is the learner\'s c
   for (const action of ['marker.install.plan', 'marker.install.status', 'marker.install.cancel']) assert.equal(assistantRefusal(action), null, action);
 });
 
+test('with the pilot off, the install is a 「安装 Marker」 row of the task console, closed when it ends', { skip: SWITCH_MODE === 'runtime' && 'the Job is the row with the pilot on' }, async t => {
+  const h = await harness(t);
+  await h.call('marker.install.start', { confirm: true });
+  const rows = async () => (await h.call('snapshot')).jobs.filter(job => job.type === 'local-install' && job.tool === 'marker');
+  const [row] = await rows();
+  assert.ok(row, 'the console lists the install');
+  assert.deepEqual([row.label, row.total], ['安装 Marker', 4]);
+  await h.until(async () => (await rows())[0]?.status === 'complete');
+});
+
 test('cancel and a failed install through the service', async t => {
   const h = await harness(t, { delayPip: true });
   await h.call('marker.install.start', { confirm: true });

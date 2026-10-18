@@ -1,17 +1,17 @@
 /* global document */
 /* node scripts/qa/mineru-history-shots.mjs [--out <dir>] [--quick]
    The conversion history (解析历史) and the 运行环境 block in the REAL app, in the browser preview, with an isolated library and nothing real:
-   - the cloud is the fake MinerU server (tests/helpers/fake-mineru.mjs) and the local mineru a fake CLI (tests/helpers/fake-mineru-cli.mjs);
-     the preview's own service is given their addresses through a QA-only wrapper of StudyService.call (the shipped host has no such seam);
-   - conversions are really run through mineru.upload.* / mineru.import: a cloud one, a local one, a failed one, a cancelled one, a local one whose service
-     died, one a crash interrupted (seeded on disk before the app starts), and one still running while the screenshots are taken;
+   - the local mineru is a fake CLI (tests/helpers/fake-mineru-cli.mjs); the preview's own service is given it through a QA-only wrapper of
+     StudyService.call (the shipped host has no such seam);
+   - conversions are really run through mineru.upload.* / mineru.import: two complete, a failed one, a cancelled one, one whose service died, one a crash
+     interrupted (seeded on disk before the app starts), one still running while the screenshots are taken, and an old row of the removed cloud route;
    - then, per language x theme x width (1440, 1194, 420), the Sources page and the Add-material dialog (from its "解析历史" link), each with the layout audit
      of scripts/qa/mineru-layout.mjs (no overlap, no gap over 48 px, nothing spilling out of its card, no horizontal scroll);
    - and the journeys: jump from a row to the imported document, resume a failed conversion, delete one record, clear the history (with its confirm), keyboard
      only, checking after each that no imported document was deleted.
-   Every key/token/base-url variable is removed from the environment, PATH holds no mineru, HOME is a temporary folder: the owner's library, ~/.mineru, the
-   real MinerU token and the real DSH are never touched. Chromium: PLAYWRIGHT_CHROMIUM or the one under ms-playwright. */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+   Every key/token/base-url variable is removed from the environment, PATH holds no mineru, HOME is a temporary folder: the owner's library, ~/.mineru and
+   the real DSH are never touched. Chromium: PLAYWRIGHT_CHROMIUM or the one under ms-playwright. */
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,8 +19,7 @@ import { fileURLToPath as toPath } from 'node:url';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { StudyService } from '../../lib/service.js';
 import { prepareJob } from '../../lib/mineru-job.js';
-import { openRecord } from '../../lib/mineru-history.js';
-import { startFakeMineru } from '../../tests/helpers/fake-mineru.mjs';
+import { closeRecord, openRecord } from '../../lib/mineru-history.js';
 import { createPreviewServer, previewCall } from '../preview-server.mjs';
 import { launchChromium } from './browser.mjs';
 import { layoutAudit } from './mineru-layout.mjs';
@@ -48,20 +47,19 @@ globalThis.fetch = (input, init) => {
 };
 
 /* ---------- the fakes ---------- */
-const control = { hold: false, fail: false };
-const cloud = await startFakeMineru({ holdWhen: () => control.hold, failWhen: file => (control.fail && /-2-/.test(file.data_id) ? 'internal error' : undefined) });
 const work = join(scratch, 'fake-cli');
 await mkdir(join(work, 'models', 'MinerU2.5-Pro-2605-1.2B-GGUF'), { recursive: true });
-const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl');
-const writeState = async patch => writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'standard', running: true, total: 120, modelsReady: true, ...patch }));
+const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl'), release = join(work, 'release');
+const writeState = async patch => writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'standard', running: true, total: 120, totalFromPdf: true, modelsReady: true, ...patch }));
 await writeState({}); await writeFile(logPath, '');
 const cli = { file: process.execPath, prefix: [toPath(new URL('../../tests/helpers/fake-mineru-cli.mjs', import.meta.url))], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } };
-const seam = { baseUrl: cloud.baseUrl, sleep: (ms, signal) => new Promise((resolveSleep, reject) => {
+const parses = async () => (await readFile(logPath, 'utf8')).split('\n').filter(Boolean).filter(line => line.includes('"parse"')).length;
+const seam = { limits: { windowPages: 50, livenessMs: 0 }, sleep: (ms, signal) => new Promise((resolveSleep, reject) => {
   if (signal?.aborted) return reject(signal.reason);
   const timer = setTimeout(resolveSleep, Math.min(ms, 120));
   signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
-}), local: { cli, home: work, modelsCli: { ...cli, prefix: cli.prefix } } };
-/* QA only: the shipped host has no seam for MinerU's address or the CLI, so the preview's service is given them here. */
+}), local: { cli, home: work } };
+/* QA only: the shipped host has no seam for the CLI, so the preview's service is given it here. */
 StudyService.prototype.call = function call(action, callArgs = {}) {
   if (!this.runtime.hasAction(action)) return Promise.reject(new Error(`Unknown study action: ${action}`));
   return this.runtime.call(action, callArgs, { ...this.modelOptions, mineru: seam });
@@ -88,34 +86,44 @@ async function upload(bytes, name) {
 const convert = async (bytes, name, extra = {}) => (await call('mineru.import', { uploadId: await upload(bytes, name), ...extra })).jobId;
 const settled = async (id, status) => until(async () => { const job = (await jobs()).find(item => item.id === id); return job?.status === status ? job : null; }, `${name_(id)} to be ${status}`);
 const name_ = id => id.slice(0, 8);
+// The Add-material dialog folds the PDF converter (and its 解析历史 link) into the 「PDF 解析」 disclosure: open it when it is closed.
+const openConversion = async tab => {
+  const details = tab.locator('dialog[open] details.import-hub__conversion').first();
+  await details.waitFor({ timeout: 10_000 });
+  if (!(await details.evaluate(element => element.open))) await details.locator(':scope > summary').click();
+};
 
 try {
   /* A conversion a crash interrupted: seeded on disk before the app asks about the library (it is recovered when the first snapshot is read). */
   const libraryRoot = server.libraryRoot;
   const crashedSource = join(scratch, 'Distributed Systems.pdf');
   await writeFile(crashedSource, await book(450, 'Distributed Systems'));
-  const prepared = await prepareJob({ root: libraryRoot, source: crashedSource, filename: 'Distributed Systems.pdf', courses: [], language: 'zh' });
-  await openRecord(libraryRoot, { id: prepared.manifest.id, filename: 'Distributed Systems.pdf', bytes: prepared.manifest.sourceBytes, pages: 450, pieces: prepared.manifest.chunks.length, route: 'cloud',
-    env: { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * 1024 * 1024, bookBytes: prepared.manifest.sourceBytes }, plan: prepared.manifest.plan }, { now: () => Date.now() - 7 * 3_600_000 });
+  const prepared = await prepareJob({ root: libraryRoot, source: crashedSource, filename: 'Distributed Systems.pdf', courses: [], language: 'zh', route: 'local', tier: 'standard', limits: seam.limits });
+  await openRecord(libraryRoot, { id: prepared.manifest.id, filename: 'Distributed Systems.pdf', bytes: prepared.manifest.sourceBytes, pages: 450, pieces: prepared.manifest.chunks.length, route: 'local', tier: 'standard',
+    env: { kind: 'local', mineruVersion: '4.0.10', tier: 'standard', model: 'MinerU2.5-Pro-2605-1.2B-GGUF', windows: { kind: 'fixed', pages: 50 } }, plan: prepared.manifest.plan }, { now: () => Date.now() - 7 * 3_600_000 });
+  // An old row of the cloud route (removed in 3.6): it still lists, with its badge, and never resumes.
+  await openRecord(libraryRoot, { id: 'qa-cloud-old', filename: 'Security.pdf', bytes: 12 * 1024 * 1024, pages: 300, pieces: 2, route: 'cloud',
+    env: { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * 1024 * 1024, bookBytes: 12 * 1024 * 1024 } }, { now: () => Date.now() - 30 * 3_600_000 });
+  await closeRecord(libraryRoot, 'qa-cloud-old', { status: 'failed', pagesDone: 200, failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' } }, { now: () => Date.now() - 29 * 3_600_000 });
 
-  await call('mineru.settings.set', { token: cloud.token, acknowledge: true });
-  // 1. cloud, complete
-  const cloudDone = await convert(await book(3, 'Databases'), 'Databases Lecture Notes.pdf', { route: 'cloud' });
+  // 1. complete
+  const cloudDone = await convert(await book(3, 'Databases'), 'Databases Lecture Notes.pdf');
   await settled(cloudDone, 'complete');
-  // 2. local, complete (3 windows of 50 pages, as the seam says)
+  // 2. complete (3 windows of 50 pages, as the seam says)
   const localDone = await convert(await book(120, 'Algorithms'), 'Algorithms.pdf', { route: 'local' });
   await settled(localDone, 'complete');
-  // 3. cloud, failed at piece 2
-  control.fail = true;
-  const failedCloud = await convert(await book(450, 'Networks'), 'Networks.pdf', { route: 'cloud' });
+  // 3. failed at window 2
+  await writeState({ failStarts: [51] });
+  const failedCloud = await convert(await book(150, 'Networks'), 'Networks.pdf');
   await settled(failedCloud, 'failed');
-  // 4. cloud, cancelled while parsing
-  control.fail = false; control.hold = true;
-  const cancelled = await convert(await book(450, 'Machine Learning'), 'Machine Learning.pdf', { route: 'cloud' });
-  await until(async () => (await jobs()).find(job => job.id === cancelled)?.phase === 'parse', 'the cancelled one to be parsing');
+  // 4. cancelled while a window converts
+  await writeState({ finishSignal: release });
+  const cancelled = await convert(await book(150, 'Machine Learning'), 'Machine Learning.pdf');
+  await until(async () => (await jobs()).find(job => job.id === cancelled)?.phase === 'local', 'the cancelled one to be converting');
   await call('job.cancel', { jobId: cancelled });
   await settled(cancelled, 'cancelled');
-  control.hold = false;
+  await writeFile(release, '');
+  await writeState({});
   // 5. local, the service dies in window 2
   await writeState({ dieOnFirst: 51 });
   const stopped = await convert(await book(120, 'Compilers'), 'Compilers.pdf', { route: 'local' });
@@ -154,7 +162,7 @@ try {
 
       // The Sources page: the running card with its environment, and the history under it.
       await tab.locator('[data-tour="nav-sources"]').first().click(); await settle(600);
-      await tab.locator('.pdf-convert-jobs .job.running').first().waitFor({ timeout: 20_000 });
+      await tab.locator('.pdf-convert-jobs .cjc[data-state="run"]').first().waitFor({ timeout: 20_000 });
       await tab.locator('.pdf-history summary').first().waitFor({ timeout: 20_000 });
       await shot('sources-1-card-and-history-closed');
       await audit(tab, `sources-closed/${label}`, { scopes: ['.pdf-convert-jobs > *', '.pdf-env'] }); await noSpill(tab, `sources-closed/${label}`);
@@ -164,18 +172,15 @@ try {
       await audit(tab, `sources-open/${label}`, { scopes }); await noSpill(tab, `sources-open/${label}`);
       if (lang === 'en') await hanOutsideData(tab, `sources/${label}`);
       const text = await tab.locator('.pdf-history').innerText();
-      const expectations = lang === 'en' ? [/Finished|Completed/, /Did not finish/, /Cancelled/, /Interrupted/, /Running|In progress/, /Cloud|cloud/, /Local/] : [/已完成/, /没有完成/, /已取消/, /被中断/, /进行中/, /云端/, /本地/];
+      const expectations = lang === 'en' ? [/Finished|Completed/, /Did not finish/, /Cancelled/, /Interrupted/, /Running|In progress/, /Cloud|cloud/, /Local/, /choose this PDF again/] : [/已完成/, /没有完成/, /已取消/, /被中断/, /进行中/, /云端/, /本地/, /云端解析已停用/];
       for (const pattern of expectations) if (!pattern.test(text)) problems.push(`sources-open/${label}: the history lacks ${pattern}`);
-      // The running local card names what runs it.
-      const card = await tab.locator('.pdf-convert-jobs .job.running .pdf-env').first().innerText();
-      for (const pattern of lang === 'en' ? [/4\.0\.10/, /standard/, /MinerU2\.5-Pro-2605-1\.2B-GGUF/, /service is running/i] : [/4\.0\.10/, /standard/, /MinerU2\.5-Pro-2605-1\.2B-GGUF/, /本地服务运行中/])
-        if (!pattern.test(card)) problems.push(`card/${label}: the environment lacks ${pattern}: ${card.replace(/\s+/g, ' ')}`);
 
       // The Add-material dialog and its link.
       await tab.locator('[data-tour="sources-add"]').first().click(); await settle(500);
-      const link = tab.locator('dialog[open] .import-hub__mineru').getByRole('button', { name: lang === 'en' ? /Conversion history/ : /解析历史/ });
+      await openConversion(tab); await settle(300);
+      const link = tab.locator('dialog[open] .import-hub__conversion').getByRole('button', { name: lang === 'en' ? /Conversion history/ : /解析历史/ });
       await link.first().waitFor({ timeout: 10_000 });
-      await tab.locator('dialog[open] .import-hub__mineru').first().scrollIntoViewIfNeeded();
+      await tab.locator('dialog[open] .import-hub__conversion').first().scrollIntoViewIfNeeded();
       await shot('dialog-1-footer-link');
       await link.first().click(); await settle(500);
       await tab.locator('dialog[open] .pdf-history__row').first().waitFor({ timeout: 15_000 });
@@ -203,7 +208,7 @@ try {
 
       // The running conversion is stopped from its card; its row becomes cancelled.
       if (steps.stop) {
-        await tab.locator('.pdf-convert-jobs .job.running').getByRole('button', { name: /停止/ }).first().click();
+        await tab.locator('.pdf-convert-jobs .cjc[data-state="run"]').getByRole('button', { name: /停止/ }).first().click();
         await until(async () => (await jobs()).find(job => job.id === running)?.status === 'cancelled', 'the stop');
         await settle(800);
         await ensureOpen();
@@ -217,7 +222,8 @@ try {
 
       // Jump from a row to the imported document.
       await tab.locator('[data-tour="sources-add"]').first().click(); await settle(500);
-      await tab.locator('dialog[open] .import-hub__mineru').getByRole('button', { name: T(/解析历史/, /Conversion history/) }).first().click(); await settle(500);
+      await openConversion(tab); await settle(300);
+      await tab.locator('dialog[open] .import-hub__conversion').getByRole('button', { name: T(/解析历史/, /Conversion history/) }).first().click(); await settle(500);
       const open = tab.locator('dialog[open] .pdf-history__row', { hasText: 'Databases Lecture Notes.pdf' }).getByRole('button', { name: T(/打开/, /Open/) }).first();
       await open.click(); await settle(900);
       const reader = await tab.locator('dialog[open]').first().innerText().catch(() => '');
@@ -225,16 +231,18 @@ try {
       await shot('2-opened-imported-document');
       await tab.keyboard.press('Escape'); await settle(400);
 
-      // Resume the failed cloud conversion from its history row: only the failed piece is redone.
-      control.fail = false;
-      const uploadsBefore = cloud.uploads.length;
+      // Resume the failed conversion from its history row: only the failed window and the rest are converted, never the finished first one.
+      await writeState({ running: true });
+      const parsesBefore = await parses();
       await ensureOpen();
       if (steps.resume) {
         const failedRow = tab.locator('.pdf-history__row', { hasText: 'Networks.pdf' });
         await failedRow.getByRole('button', { name: /接着/ }).first().click();
         await settled(failedCloud, 'complete');
-        await settle(1200);
-        must(cloud.uploads.length - uploadsBefore >= 1 && cloud.uploads.length - uploadsBefore <= 2, `only the failed pieces were uploaded again (${cloud.uploads.length - uploadsBefore})`);
+        // The history row is read again when the job list changes and every 5 s while a row runs: it may follow the card by a few seconds.
+        await until(async () => /已完成/.test(await tab.locator('.pdf-history__row', { hasText: 'Networks.pdf' }).first().innerText()), 'the resumed row to read complete', 15_000).catch(() => {});
+        await settle(400);
+        must(await parses() - parsesBefore === 2, `only the failed window and the one after it were converted (${await parses() - parsesBefore})`);
         const row = (await tab.locator('.pdf-history__row', { hasText: 'Networks.pdf' }).first().innerText()).replace(/\s+/g, ' ');
         must(/已完成/.test(row) && /已尝试 2 次/.test(row), `the resumed row is complete with two attempts: ${row.slice(0, 120)}`);
         await shot('3-resumed-row-complete');
@@ -252,7 +260,8 @@ try {
       const clearButton = tab.getByRole('button', { name: T(/清空历史/, /Clear history/) }).first();
       await clearButton.scrollIntoViewIfNeeded();
       await clearButton.focus(); await tab.keyboard.press('Enter'); await settle(300);
-      must(await tab.getByRole('alertdialog').count() === 1, 'clearing asks first');
+      // The confirm is inline (InlineConfirm: a labelled group under the bar), not a dialog.
+      must(await tab.locator('.pdf-history [role="group"]', { hasText: T(/确认清空/, /Yes, clear them/) }).count() === 1, 'clearing asks first');
       await shot('4-clear-confirm');
       await audit(tab, `${label}/confirm`, { scopes: ['.pdf-history', '.pdf-history__confirm'] });
       const confirm = tab.getByRole('button', { name: T(/确认清空/, /Yes, clear them/) }).first();
@@ -267,8 +276,9 @@ try {
     }
   } finally { await browser.close(); }
 } finally {
-  control.hold = false;
-  await server.close().catch(() => {}); await cloud.close().catch(() => {});
+  await writeFile(release, '').catch(() => {});
+  await server.close().catch(() => {});
+
   await rm(scratch, { recursive: true, force: true }).catch(() => {});
 }
 

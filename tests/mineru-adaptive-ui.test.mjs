@@ -59,7 +59,7 @@ test('each state of the window has its own plain label; "no response" says for h
     starting: ['服务正在启动', null],
     quiet: ['转换中（服务还没有报告这一段）', null],
     silent: ['无响应（已 6 分钟没有新状态）', /点「停止」[^。]*同一个 PDF[^。]*已经完成的段落会直接复用/],
-    stopped: ['服务已停止', /点「重新启动本地服务并接着做」/],
+    stopped: ['服务已停止', /失败之后点「接着做」：会先启动服务/],
     unknown: ['未知（读不到服务的状态）', /这不表示出了问题/],
   };
   for (const [state, [label, advice]] of Object.entries(states)) {
@@ -167,12 +167,11 @@ test('a row of a conversion that did not measure anything has no timings to show
 /* ---------- before it starts ---------- */
 
 const states = { ready: { state: 'ready', next: null, tier: 'basic', version: '4.0.10', estimates: { basic: 1.6, standard: 2.5 }, windowPages: 50 } };
-const saved = { token: { set: true, hint: '••••abcd', source: 'file' }, acknowledged: true, docsUrl: 'https://mineru.net/apiManage/docs' };
-const adaptivePlan = { name: 'Book.pdf', pages: 450, bytes: 12 * 1024 * 1024, byChapters: false, maySplitFurther: false, pieces: [], windows: [{ index: 1, startPage: 1, endPage: 10, pages: 10 }],
-  adaptive: { firstPages: 10, rampPages: [10, 20, 20], targetSeconds: 75, minPages: 5, maxPages: 50 }, tokenSet: true, acknowledged: true };
+const adaptivePlan = { name: 'Book.pdf', pages: 450, bytes: 12 * 1024 * 1024, windows: [{ index: 1, startPage: 1, endPage: 10, pages: 10 }],
+  adaptive: { firstPages: 10, rampPages: [10, 20, 20], targetSeconds: 75, minPages: 5, maxPages: 50 } };
 
 test('before a local run starts the plan is told as what it will do, not as a count of windows nobody has decided yet', () => {
-  const html = render(h(MineruRoute, { file: { name: 'Book.pdf', size: 12 * 1024 * 1024 }, call, initialSettings: saved, initialLocal: states.ready, initialPlan: adaptivePlan }));
+  const html = render(h(MineruRoute, { file: { name: 'Book.pdf', size: 12 * 1024 * 1024 }, call, initialLocal: states.ready, initialPlan: adaptivePlan }));
   const said = text(html);
   assert.match(said, /共 450 页/);
   assert.match(said, /先做 10 页看一看这台电脑有多快，再按它的速度调整每段的页数（每段约 75 秒，5–50 页）/);
@@ -196,7 +195,7 @@ test('English: no Chinese anywhere in the live card, in any state, nor in the hi
   const row = text(render(history([record()]), 'en'));
   assert.doesNotMatch(row, han);
   assert.match(row, /about 3\.1 sec a page/i);
-  const route = text(render(h(MineruRoute, { file: { name: 'Book.pdf', size: 1e6 }, call, initialSettings: saved, initialLocal: states.ready, initialPlan: adaptivePlan }), 'en'));
+  const route = text(render(h(MineruRoute, { file: { name: 'Book.pdf', size: 1e6 }, call, initialLocal: states.ready, initialPlan: adaptivePlan }), 'en'));
   assert.doesNotMatch(route, han);
   assert.match(route, /starts with 10 pages/i);
 });

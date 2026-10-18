@@ -27,18 +27,8 @@
     .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
     .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .mineru-privacy { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
-      background: var(--warn-bg); }
     .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
     .mineru-local .sh-btn, .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
-    .mineru-local__summary { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .mineru-local[data-state="ready"] .mineru-local__summary { color: var(--ok-ink); font-weight: var(--fw-strong); }
-    .mineru-local__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .mineru-local__steps { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .mineru-local__setup { display: grid; gap: var(--space-3); }
-    .mineru-progress { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 7%, transparent); }
-    .mineru-progress p { margin: 0; font-size: var(--fs-sm); }
-    .mineru-progress__line { color: var(--text-muted); font-size: var(--fs-xs); font-family: var(--font-mono, ui-monospace, monospace); overflow-wrap: anywhere; }
   }
   @media (max-width: 480px) {
     :is(.study-app, .study-seat) {
@@ -84,6 +74,7 @@
     .pdf-env__service[data-state="stopped"], .pdf-env__warning { color: var(--bad-ink); font-weight: var(--fw-strong); }
     .pdf-env__service[data-state="stopped"] .pdf-env__dot { background: var(--bad); }
     .pdf-env__service[data-state="unknown"] .pdf-env__dot { background: var(--warn); }
+    .pdf-env__service[data-state="starting"] .pdf-env__dot { background: var(--accent); }
     .pdf-env__hint { color: var(--bad-ink); }
     .pdf-env__where summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--accent-text); }
     .pdf-env__where summary:focus-visible, .pdf-env-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

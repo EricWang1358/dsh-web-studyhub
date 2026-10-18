@@ -8,13 +8,12 @@ import { StudyService } from '../lib/service.js';
 import { prepareJob } from '../lib/mineru-job.js';
 import { closeRecord, historyDir, listRecords, openRecord } from '../lib/mineru-history.js';
 import { LOCAL, detectLocal, readLocalEnvironment } from '../lib/mineru-local.js';
-import { startFakeMineru } from './helpers/fake-mineru.mjs';
 import { makePdf } from './helpers/pdf.mjs';
 import { patientCli, readJsonFile, sleep, until, writeJsonFile } from './helpers/wait.mjs';
 
 /* The 运行环境 of a conversion: WHAT is doing the work (local: the mineru version, the tier, the model folder in use, whether its service is up, the window
-   size; cloud: the model version, the language, the piece limits), captured when the conversion starts, kept in the history record without any path, and the
-   service state kept honest while it runs: read-only calls before the work, then derived from the window process, never polled during a window. */
+   size; an old cloud row: the model version, the language, the piece limits), captured when the conversion starts, kept in the history record without any
+   path, and the service state kept honest while it runs: read-only calls before the work, then derived from the window process, never polled during a window. */
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 const han = /[㐀-鿿]/;
@@ -86,21 +85,20 @@ test('without a command line there is still an environment: the route, and nothi
 
 /* ---------- through the service ---------- */
 
-async function harness(t, { state = {}, cloud = true, pages = 120, limits = {}, models = true } = {}) {
+async function harness(t, { state = {}, pages = 120, limits = {}, models = true } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'study-env-home-'));
   const root = await mkdtemp(join(tmpdir(), 'study-env-lib-'));
   const fake = await fakeCli(t, { total: pages, ...state });
-  const before = { DSH_HOME: process.env.DSH_HOME, MINERU_API_KEY: process.env.MINERU_API_KEY, MINERU_BIN: process.env.MINERU_BIN };
-  process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
+  const before = { DSH_HOME: process.env.DSH_HOME, MINERU_BIN: process.env.MINERU_BIN };
+  process.env.DSH_HOME = home; delete process.env.MINERU_BIN;
   if (models) await mkdir(join(fake.work, 'models', MODELS.basic), { recursive: true });
-  const server = cloud ? await startFakeMineru() : null;
   const clock = { time: 9_000_000 };
-  const options = { mineru: { ...(server ? { baseUrl: server.baseUrl } : {}), now: () => clock.time, limits,
+  const options = { mineru: { now: () => clock.time, limits,
     sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); },
-    local: { cli: fake.cli, home: fake.work, modelsCli: patientCli({ file: process.execPath, prefix: [FAKE], env: fake.env }) } } };
+    local: { cli: fake.cli, home: fake.work } } };
   const open = () => new StudyService(root, options);
   let service = open();
-  const h = { home, root, fake, server, get service() { return service; },
+  const h = { home, root, fake, get service() { return service; },
     restart() { service.dispose(); service = open(); return service; },
     call: (action, args) => service.call(action, args),
     jobs: async (args = {}) => (await service.call('snapshot', args)).jobs.filter(job => job.type === 'pdf-convert'),
@@ -115,7 +113,7 @@ async function harness(t, { state = {}, cloud = true, pages = 120, limits = {}, 
     finished: async status => { const job = await h.until(async () => { const [entry] = await h.jobs(); return entry && (status ? entry.status === status : ['complete', 'failed', 'cancelled'].includes(entry.status)) ? entry : null; }, 'the end of the conversion'); await service.call('job.wait', { jobId: job.id, timeoutSeconds: 120 }); return job; } };
   t.after(async () => {
     await sleep(20);
-    service.dispose(); await server?.close();
+    service.dispose();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true }); await rm(root, { recursive: true, force: true });
   });
@@ -151,7 +149,7 @@ test('the service state follows the work: confirmed up when a window finishes, a
   assert.deepEqual(calls.slice(first, last + 1), ['parse', 'parse', 'parse'], 'between the windows the CLI is not asked anything else: no polling');
 });
 
-test('a conversion never starts, stops or reconfigures the local service on its own', async t => {
+test('a conversion with the service up never starts, stops or reconfigures it', async t => {
   const h = await harness(t, { cloud: false, limits: { windowPages: 50 } });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
   await h.finished();
@@ -215,22 +213,20 @@ test('the record reserves the windows and the plan: every piece of the book with
   assert.deepEqual(row.plan, { kind: 'fixed', windowPages: 50 });
 });
 
-test('a cloud conversion has its own environment: the model version, the language, the piece limits and the size of the book, never the token', async t => {
+test('a row of the removed cloud route keeps its own environment, and a cloud import is refused before anything is read', async t => {
   const h = await harness(t);
-  await h.call('mineru.settings.set', { token: h.server.token, acknowledge: true });
-  const bytes = await makePdf({ pages: 3 });
-  await h.call('mineru.import', { uploadId: await h.upload(bytes), route: 'cloud' });
-  const [job] = await h.jobs();
-  assert.deepEqual({ ...job.env }, { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * 1024 * 1024, bookBytes: bytes.length });
-  assert.equal(job.service, undefined, 'the cloud has no local service');
-  assert.ok(!JSON.stringify(job).includes(h.server.token));
-  await h.finished();
+  await openRecord(h.root, { id: 'job-cloud-1', filename: 'Old.pdf', bytes: 9, pages: 3, pieces: 1, route: 'cloud',
+    env: { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * 1024 * 1024, bookBytes: 9 }, plan: { kind: 'chunks', maxPages: 200, maxBytes: 180 * 1024 * 1024 } });
+  await closeRecord(h.root, 'job-cloud-1', { status: 'complete', documentId: 'd' });
   const [row] = (await h.history()).records;
+  assert.equal(row.route, 'cloud');
   assert.equal(row.env.modelVersion, 'vlm');
   assert.equal(row.env.language, 'ch');
   assert.deepEqual(row.plan, { kind: 'chunks', maxPages: 200, maxBytes: 180 * 1024 * 1024 });
-  assert.ok(!JSON.stringify(row).includes(h.server.token));
+  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'cloud-removed' && /云端解析已停用/.test(error.message));
+  assert.deepEqual(await h.jobs(), [], 'no job was made');
 });
+
 
 test('English: the environment and the service state have no Chinese outside file names and folder names', async t => {
   const h = await harness(t, { cloud: false, limits: { windowPages: 50 }, state: { dieOnFirst: 51 } });

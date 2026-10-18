@@ -10,12 +10,13 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 哪些要你自己装，哪些由 StudyHub 做：
 
-- StudyHub 不会替你安装任何转换工具。本地 `mineru` 由你自己安装；云端解析用的是你自己的 MinerU 令牌。
+- 只有你点「一键安装」时（设置 › PDF 转换，或直接在导入窗口里），StudyHub 才会在这台电脑上安装 MinerU。所有东西都装进一个文件夹，默认不在系统盘：见[用 MinerU 转换 PDF](mineru-conversion.zh-CN.md#一键安装)。
 - 检索扩展只在你点「安装检索扩展」时才安装。
 - 手动路线的工具（MinerU 桌面客户端、Docling、RAGFlow、手动配置的检索服务器）都由你自己安装和运行。
 - 只有 DeepSeek Harness（DSH）确实报告了某个检索工具，StudyHub 才会说它可用。
 
-**云端暂不可用，优先使用本地 MinerU 和下载的模型。** 先自行安装，再在设置里确认模型下载；已保存云端令牌不会自动选择云端解析。桌面客户端目前也反馈不可用，保留为恢复后的高级备选。
+**PDF 都在这台电脑上转换。** MinerU 云端解析（令牌、上传 PDF）已在 3.6 版移除。桌面客户端目前也反馈不可用，保留为恢复后的高级备选。
+
 
 ## 什么时候会给出建议
 
@@ -103,7 +104,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 | 工具 | 协议 | 平台 | MCP | StudyHub 读取的输出 | 说明 |
 |---|---|---|---|---|---|
-| **MinerU**（推荐；由 StudyHub 运行：优先使用本地 `mineru` 和下载的模型；云端暂不可用。桌面客户端和命令行是手动路线） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表，带 `page_idx`；v2 按页分组）。它的 Markdown 不带 `<!-- page: N -->` 分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，没有介绍客户端。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
+| **MinerU**（推荐；StudyHub 一键装到这台电脑上并在本机运行。桌面客户端和命令行是手动路线） | MinerU 开源许可证：Apache-2.0 加附加条件（月活超过 1 亿或月收入超过 2000 万美元需另行授权；在线服务需署名） | Windows、macOS、Linux（库需要 Python 3.10–3.14） | 项目本身没有（社区版服务调用它的云端 API） | `content_list.json`（v1 为平铺列表，带 `page_idx`；v2 按页分组）。它的 Markdown 不带 `<!-- page: N -->` 分页标记 | 能处理扫描件、公式、表格和中文。官网提供 Windows 和 macOS（Apple 芯片与 Intel）桌面客户端：[mineru.net/client](https://mineru.net/client)。该页没有说明客户端在本机解析还是在云端解析，处理私密资料前请先确认。GitHub 的 README 介绍的是命令行、SDK 和 WebUI，没有介绍客户端。CPU 即可运行（基础档 2 GB 内存），GPU 可选。 |
 | **Docling**（高级：需要命令行） | MIT | Windows、macOS、Linux | `docling-mcp`（MIT；stdio、SSE、streamable HTTP） | JSON（`DoclingDocument`，`prov.page_no` 从 1 开始）；Markdown | 用命令行或 Python 运行：`docling file.pdf --to json`。OCR 引擎有 RapidOCR、EasyOCR、Tesseract（`--ocr-engine`、`--ocr-lang`）。没有桌面应用。 |
 
 也核对过、但**不推荐**：
@@ -115,7 +116,7 @@ StudyHub 读取 PDF 的文字层，按页保存，并把你选中的页面交给
 
 | 工具 | 官方 | 源码 | 安装包 | 国内可用 |
 |---|---|---|---|---|
-| MinerU | [mineru.net](https://mineru.net/client) · [文档](https://opendatalab.github.io/MinerU/) | [GitHub](https://github.com/opendatalab/MinerU) | [PyPI](https://pypi.org/project/mineru/) | [mineru.net API 文档与令牌管理](https://mineru.net/apiManage/docs) · [ModelScope（OpenDataLab）](https://www.modelscope.cn/organization/OpenDataLab) · [PyPI 清华镜像](https://pypi.tuna.tsinghua.edu.cn/simple/mineru/) |
+| MinerU | [mineru.net](https://mineru.net/client) · [文档](https://opendatalab.github.io/MinerU/) | [GitHub](https://github.com/opendatalab/MinerU) | [PyPI](https://pypi.org/project/mineru/) | [ModelScope（OpenDataLab）](https://www.modelscope.cn/organization/OpenDataLab) · [PyPI 清华镜像](https://pypi.tuna.tsinghua.edu.cn/simple/mineru/) |
 | Docling | [文档](https://docling-project.github.io/docling/) | [GitHub](https://github.com/docling-project/docling) · [docling-mcp](https://github.com/docling-project/docling-mcp) | [PyPI](https://pypi.org/project/docling/) | [PyPI 清华镜像](https://pypi.tuna.tsinghua.edu.cn/simple/docling/) |
 | mcp-local-rag | | [GitHub](https://github.com/shinpr/mcp-local-rag) | npm | [npmmirror](https://registry.npmmirror.com/mcp-local-rag) |
 | RAGFlow | [ragflow.io](https://ragflow.io/) · [MCP](https://ragflow.io/docs/use_ragflow_as_mcp_server) | [GitHub](https://github.com/infiniflow/ragflow) | Docker 镜像 | [Gitee](https://gitee.com/infiniflow/ragflow) |

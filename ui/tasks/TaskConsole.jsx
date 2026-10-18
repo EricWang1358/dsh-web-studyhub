@@ -16,7 +16,7 @@ import DeleteTasksDialog from './DeleteTasksDialog.jsx';
 import { taskSummary } from './task-summary.js';
 import { usageLine } from './task-facts.js';
 import Metrics from './Metrics.jsx';
-import { headerActions, autoToggle, retryTitle, fixOf } from './task-control.js';
+import { headerActions, autoToggle, retryTitle, fixOf, installResume } from './task-control.js';
 import RunLine from './RunLine.jsx';
 import TimeLimit from './TimeLimit.jsx';
 import { limitFacts, marksOf, slowSteps } from './time-limit.js';
@@ -118,6 +118,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   const draftContinue = !live && !actions.retry && shortfall?.action === 'continue' && shortfall.continueKind === 'count' ? draft : null;
   // A conversion that failed for a reason only its installation can fix (Marker 2.x without Docker, a missing program): 前往设置 first; 接着做 stays, second, for after the fix.
   const fix = !live && !archived && fixOf(task) === 'settings' && settingsEntry?.openSettings ? (contract.detail?.converter === 'marker' ? 'settings-marker' : 'settings-mineru') : null;
+  // A one-click install that stopped (paused, failed or interrupted) goes on where it stopped: 继续安装 is its one action here, in the folder it used (in place of the crimson 删除: 知道了 still archives it).
+  const install = contract.detail?.install || null, resume = install && !live && !archived ? installResume(task) : null;
   return (
     <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
@@ -152,7 +154,8 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
             : <Tooltip content={ui('放进「已归档」，不会删除任何东西；之后可以取消归档或删除。')} layer placement="bottom-end">
               <Button size="sm" variant="quiet" disabled={core.busy} onClick={archive}>{ui('知道了')}</Button>
             </Tooltip>)}
-          {!live && !day && <Button size="sm" variant="danger" className="tc-head__delete" disabled={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
+          {resume && <Button size="sm" variant="primary" data-install-resume disabled={core.busy} onClick={() => core.act(resume.action, resume.args, () => core.notify?.(ui('已开始安装：进度在这里和「任务」里。')))}>{ui('继续安装')}</Button>}
+          {!live && !day && !resume && <Button size="sm" variant="danger" className="tc-head__delete" disabled={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />

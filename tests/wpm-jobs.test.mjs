@@ -55,10 +55,10 @@ test('a failed conversion shows its reason as an alert and keeps its way on (#98
   assert.match(out, />接着做</);
   assert.match(out, /知道了/);
   assert.doesNotMatch(out, /className="warning"|class="warning"/);
-  const token = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'invalid-token', stage: '令牌无效' })]));
-  assert.match(token, /去设置里换一个令牌/);
   const stopped = render(jobs([job({ status: 'failed', retryable: true, route: 'local', errorCode: 'server-stopped', stage: '服务停了' })]));
-  assert.match(stopped, /重新启动本地服务并接着做/);
+  assert.match(stopped, />接着做</, 'a stopped service is started by the run itself: one 接着做');
+  assert.doesNotMatch(stopped, /去设置里换一个令牌|重新启动本地服务并接着做/);
+
 });
 
 test('a finished conversion is jade, with the open button and a dismiss (#98)', () => {

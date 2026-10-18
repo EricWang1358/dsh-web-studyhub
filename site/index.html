@@ -576,7 +576,7 @@ footer{
   <section class="sec sec--auto" id="capture" data-stage="MATERIALS">
     <div class="eyebrow rise"><b>02</b><em>MATERIALS</em></div><h2 class="rise d1">课件、笔记、录音，<br>放进同一门课</h2>
     <div class="split"><div><p class="lede rise d2">导入 PDF、Word（.docx）、PowerPoint（.pptx）、Markdown、HTML 或 TXT；已有题目可以用 JSON 导入。按文档、页或章节选出题范围，课程设置保存评分说明、重点主题和考试时间。</p>
-    <p class="note rise d2">普通 PDF 入口限 8 MB / 200 页，Word 和 PowerPoint 限 40 MB 且只提取文字。大书可用 MinerU 转换或导入转换结果；云端转换会上传 PDF，需先同意。图片、扫描件和复杂排版要核对提取结果。</p>
+    <p class="note rise d2">普通 PDF 入口限 8 MB / 200 页，Word 和 PowerPoint 限 40 MB 且只提取文字。大书可用 MinerU 转换（在本机一键安装，不上传 PDF），或导入转换结果。图片、扫描件和复杂排版要核对提取结果。</p>
     <p class="note rise d3">录音和字幕走音频组件；实时课堂转录目前需要 Gemini。转录、校对和翻译是不同步骤，密钥与收费由对应服务商决定。 <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/audio-import.md" target="_blank" rel="noopener">录音说明 ↗</a></p></div>
     <div class="col-b"><figure class="rise d3"><div class="shot"><img src="assets/shot-import-960.webp" srcset="assets/shot-import-960.webp 960w, assets/shot-import-1600.webp 1600w" sizes="(max-width:1100px) 90vw, 45vw" alt="示例库的录音转录与资料导入面板" loading="lazy" width="1600" height="1295"></div><figcaption>现有应用 · 示例资料</figcaption></figure></div></div>
   </section>
@@ -606,7 +606,7 @@ footer{
   <section class="sec sec--auto" id="speed" data-stage="DATA & COST">
     <div class="eyebrow rise"><b>07</b><em>DATA & COST</em></div><h2 class="rise d1">资料存在哪里，<br>费用花在哪里</h2>
     <div class="facts rise d2"><div class="fact"><div class="fact-n">MIT</div><div class="fact-k">StudyHub 免费开源</div></div><div class="fact"><div class="fact-n">0<small> 次模型调用</small></div><div class="fact-k">浏览资料、客观题判分与排期</div></div><div class="fact"><div class="fact-n">API</div><div class="fact-k">生成与 AI 辅助按服务商计费</div></div></div>
-    <p class="lede rise d2">学习库存为运行 DSH 的电脑或服务器上的文件夹。选中的资料、题目与作答会在对应 AI 功能中发给模型；音频发给转录服务，选择 MinerU 云转换时 PDF 发给 MinerU。<span class="hi">本地存储不等于所有处理都离线。</span></p>
+    <p class="lede rise d2">学习库存为运行 DSH 的电脑或服务器上的文件夹。选中的资料、题目与作答会在对应 AI 功能中发给模型；音频发给转录服务；PDF 转换在本机进行。<span class="hi">本地存储不等于所有处理都离线。</span></p>
     <p class="note rise">生成前的 token 估算在本地计算，完成后显示能取得的实际用量；推理程度、重试、分批与服务商缓存都会影响费用。Claude、ChatGPT 或 Codex 订阅不能直接当成 DSH 的 API 密钥；Coding Plan 是否允许学习用途，要看服务商条款。</p>
     <p class="note rise">备份包含资料、题目与复习记录；按引用附加的外部原文件不会被复制进备份。转录密钥放在学习库外，不进入导出。可选检索扩展使用本地索引。 <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/README.md#data-and-privacy" target="_blank" rel="noopener">数据与隐私 ↗</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/token-usage.md" target="_blank" rel="noopener">用量说明 ↗</a></p>
     <p class="note rise">浏览资料、客观题判分和复习排期无需等待模型。出题在后台进行，通过检查的结果会保留；速度取决于设备、资料规模和模型响应。</p>

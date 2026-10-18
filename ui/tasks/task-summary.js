@@ -1,4 +1,4 @@
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, uiMessage } from '../i18n.js';
 import { describeFailure, failureSentence, stageCodeLabel } from '../generation-status.js';
 import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
@@ -32,7 +32,8 @@ export function taskState(job) {
     case STATUS.FAILED: return 'fail';
     // A restart (or a closed host) interrupted it: nothing is wrong with the work, it is waiting to be continued. Not 'failed'.
     case STATUS.INTERRUPTED: return 'interrupted';
-    case STATUS.CANCELLED: return 'stopped';
+    // A one-click install that was stopped keeps what it downloaded and continues where it stopped: it is paused, the word the card uses too.
+    case STATUS.CANCELLED: return contract.detail?.install ? 'paused' : 'stopped';
     default: return 'run';
   }
 }
@@ -45,7 +46,8 @@ export function taskTitle(job) {
   if (kind === 'coach-daily') return uiFormat('为你定制 · {0}', [dayName(title)]);
   // A new draft that will be the next part of a deck (lib/deck-parts.js): 「期中复习 · 第二部分」.
   if (detail?.part?.deckTitle) return partTitle(detail.part.deckTitle, detail.part.n);
-  if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : title;
+  // An install's title is the producer's words (安装本机 MinerU): in the learner's language like its step.
+  if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : detail?.install ? uiMessage(title) : title;
   return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKindOf(job));
 }
 
@@ -54,7 +56,7 @@ export const taskPercent = (job) => contractOf(job).progress.percent;
 
 const AUDIO_PHASES = { queued: '排队中', read: '读取并切分音频', transcribe: '转写音频', proofread: '校对识别错误的词', translate: '翻译并整理成中英对照',
   batch: '按顺序整理逐字稿', assemble: '合成逐字稿', done: '完成' };
-const PDF_PHASES = { queued: '排队中', split: '切分', upload: '上传', parse: '解析文档', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
+const PDF_PHASES = { queued: '排队中', 'start-service': '启动本机服务', split: '切分', upload: '上传', parse: '解析文档', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
 const withCount = (label, { done, total } = {}) => (total > 0 && done !== undefined ? uiFormat('{0} · {1}/{2}', [label, Math.min(done + 1, total), total]) : label);
 
 /** A stage of a contract in words: `{ code, args }` to a short phrase. An unknown code falls back to the producer's own prose. */
@@ -67,6 +69,8 @@ export function stageLabel(stage) {
   if (family === 'translation') return name === 'queued' ? ui('排队中') : stage.args?.total > 0 ? uiFormat('正在翻译 · {0}/{1} 段', [stage.args.done, stage.args.total]) : ui('正在翻译');
   if (['generation', 'repair', 'publish'].includes(family)) return stageCodeLabel(name === 'blueprinting' ? 'blueprinting' : name) || ui('进行中');
   if (family === 'task') return name === 'queued' ? ui('排队中') : ui('进行中');
+  // A one-click install says its step (第 3/6 步：安装 MinerU) or how it ended, in the producer's words (lib/application-messages.js has the English).
+  if (family === 'install') return stage.text ? uiMessage(stage.text) : ui('进行中');
   return stage.text || '';
 }
 
