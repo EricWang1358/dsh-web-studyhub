@@ -367,7 +367,6 @@
   "没写成：{0}": "Not written: {0}",
   "已删除这段": "Paragraph deleted",
   "只能撤销最近一次删除，几秒后这一行会消失。": "Only the latest deletion can be undone; this line goes away in a few seconds.",
-  "正在重新生成": "Regenerating",
   "问 AI": "Ask AI",
   "常用的问法": "Common requests",
   "你想让 AI 做什么": "What should the AI do?",
