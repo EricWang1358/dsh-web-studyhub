@@ -78,6 +78,17 @@ test('the study preset never composes shell, file or edit tools', async () => {
   assert.deepEqual(names.filter(name => FORBIDDEN.test(name)), []);
 });
 
+test('the study persona only references prompt variables DSH actually registers', async () => {
+  // DSH registers exactly `provider` and `model` (packages/core/agent-loop/src/index.ts);
+  // interpolation is strict, so any other `{{name}}` fails prompt assembly before the
+  // model request and every turn in this preset reports 本轮运行失败. DSH 0.2.1-alpha.2
+  // removed the old built-in `cwd`, which this preset used to reference.
+  const persona = rows((await preset()).config.plugins).find(plugin => plugin.name === '@deepseek-ai/dsh-persona');
+  const templates = [persona.config.prefix, persona.config.suffix ?? ''];
+  const referenced = templates.flatMap(text => [...text.matchAll(/\{\{([^{}]*)\}\}/g)].map(match => match[1]));
+  assert.deepEqual([...new Set(referenced)].filter(name => !['provider', 'model'].includes(name)), []);
+});
+
 test('the study persona makes the library the default meaning and asks once when ambiguous', async () => {
   const persona = rows((await preset()).config.plugins).find(plugin => plugin.name === '@deepseek-ai/dsh-persona');
   const text = persona.config.prefix;
