@@ -22,9 +22,9 @@ const withHome = async (t, work) => {
   try { return await work(home); } finally { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; }
 };
 
-test('the versions the readers accept are exactly the ones release 2.7.1 wrote, and nothing else', () => {
-  assert.deepEqual(Object.fromEntries(Object.entries(STORED_VERSIONS).map(([name, list]) => [name, [...list]])), { jobArchive: known.jobArchive, pdfConvertManifest: known.pdfConvertManifest, markerInstall: known.markerInstall });
-  for (const name of Object.keys(known).filter(key => key !== 'note')) {
+test('the versions the readers accept are exactly the ones release 2.7.1 wrote (and mineru-install.json, new in 3.6, at v1), and nothing else', () => {
+  assert.deepEqual(Object.fromEntries(Object.entries(STORED_VERSIONS).map(([name, list]) => [name, [...list]])), { jobArchive: known.jobArchive, pdfConvertManifest: known.pdfConvertManifest, markerInstall: known.markerInstall, mineruInstall: [1] });
+  for (const name of [...Object.keys(known).filter(key => key !== 'note'), 'mineruInstall']) {
     assert.ok(knownVersion(name, { version: 1 }) && knownVersion(name, {}) && knownVersion(name, null), `${name}: v1, no version, nothing`);
     for (const unknown of [0, 2, 99, '1', null, true]) assert.equal(knownVersion(name, { version: unknown }), false, `${name}: ${JSON.stringify(unknown)}`);
   }

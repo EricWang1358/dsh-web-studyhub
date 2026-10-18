@@ -86,7 +86,7 @@ test('retrieval.status is asked for only through the shared store, and the Miner
     if (allowed.has(normal)) continue;
     assert.doesNotMatch(read(file), /call\(\s*['"]retrieval\.status['"]/, `${normal} calls retrieval.status itself`);
   }
-  for (const file of ['ui/PdfConversion.jsx', 'ui/MineruSettings.jsx']) {
+  for (const file of ['ui/PdfConversion.jsx', 'ui/MineruInstallCard.jsx']) {
     const text = read(file);
     assert.match(text, /useMineruState/, `${file} uses the shared MinerU hook`);
     assert.doesNotMatch(text, /call\(\s*['"]mineru\.(settings\.get|local\.status)['"]/, `${file} loads MinerU itself`);

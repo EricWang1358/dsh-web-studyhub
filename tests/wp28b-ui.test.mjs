@@ -206,7 +206,7 @@ test('the card in English', () => {
 
 test('the catalogue says what each route needs', () => {
   const need = id => TOOLS.find(tool => tool.id === id).needs;
-  assert.deepEqual([need('mineru-cloud'), need('mineru'), need('docling'), need('ragflow'), need('mcp-local-rag')], ['token', 'download', 'command-line', 'docker', 'manual']);
+  assert.deepEqual([need('mineru-local'), need('mineru'), need('docling'), need('ragflow'), need('mcp-local-rag')], ['one-click', 'download', 'command-line', 'docker', 'manual']);
   assert.equal(EXTENSION.package, '@ericwang1358/studyhub-retrieval');
 });
 

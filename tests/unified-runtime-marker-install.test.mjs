@@ -96,7 +96,8 @@ test('the 任务 console lists the install with its own words while it runs and 
   assert.deepEqual([running.kind, running.state, running.title, running.line], ['extension', 'run', INSTALL_JOB_TEXT.title, INSTALL_JOB_TEXT.stage.install]);
   await h.call('marker.install.cancel'); await h.ended('cancelled');
   await until(async () => consoleCode.runningTaskCount(await h.call('snapshot')) === 0, 'the console count to drop');
-  assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await h.call('snapshot'))[0]).state, 'stopped');
+  // A stopped install keeps what it made and continues where it stopped: 已暂停 (the console's word for a stopped install, MinerU's and Marker's alike).
+  assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await h.call('snapshot'))[0]).state, 'paused');
 });
 
 test('every sentence of the install job has its English form', () => {

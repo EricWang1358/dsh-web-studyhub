@@ -1,5 +1,4 @@
-/* The pure side of the MinerU conversion entry (cloud and local): which route to lead with, how a PDF goes to the
-   backend, and how long things take in words. No React, no DOM beyond a File's own methods, so it runs in tests. */
+/* The pure side of the PDF conversion entry: how a PDF goes to the backend, and how long things take in words. No React, no DOM beyond a File's own methods, so it runs in tests. */
 
 import { uploadInChunks } from './upload.js';
 import { formatBytes } from './format.js';
@@ -63,7 +62,3 @@ export function groupHistoryByDay(records = [], now = Date.now()) {
  * Page-by-page progress does not change it, so the list is read when something ends, not on every tick.
  */
 export const historyRefreshKey = jobs => (Array.isArray(jobs) ? jobs : []).filter(isConvertJob).map(job => `${job.id}:${job.status}`).sort().join('|');
-
-/** The phase codes the backend reports, in the order a conversion goes through them (the local route has just one). */
-export const CLOUD_PHASES = Object.freeze(['split', 'upload', 'parse', 'download', 'merge', 'save']);
-export const LOCAL_PHASES = Object.freeze(['local', 'merge', 'save']);

@@ -5,7 +5,7 @@ import { partAvailable } from '../settings-groups.js';
 import MineruSettings from '../MineruSettings.jsx';
 import MarkerSettings from '../MarkerSettings.jsx';
 
-/** PDF 转换: the MinerU routes (they need the audio component, as the registry says) and the local Marker route (always shown). */
+/** PDF 转换: MinerU on this computer (it needs the audio component, as the registry says) and the local Marker route (always shown). */
 export default function MineruPane({ capabilities, busy, call }) {
   const routes = partAvailable('mineru', 'routes', capabilities);
   return <>

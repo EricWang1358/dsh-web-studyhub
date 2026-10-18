@@ -148,6 +148,15 @@ export const fixOf = (job) => {
   return ['failed', 'interrupted'].includes(contract.status) ? (contract.detail?.failure?.fix ?? contract.detail?.legacy?.failure?.fix ?? job?.failure?.fix ?? null) : null;
 };
 
+/** 继续安装 of a one-click install that stopped (paused, failed or interrupted; the legacy row or the Job): { action, args } of the start of its tool, in the folder
+ *  (and, for MinerU, the tier) it used; null when it did not stop or names no tool. */
+export function installResume(job) {
+  const contract = contractOf(job), install = contract.detail?.install;
+  const tool = install?.tool || ({ 'mineru-install': 'mineru', 'marker-install': 'marker' })[contract.kind];
+  if (!tool || !['cancelled', 'failed', 'interrupted'].includes(contract.status)) return null;
+  return { action: `${tool}.install.start`, args: { confirm: true, ...(install.folder ? { location: install.folder } : {}), ...(tool === 'mineru' && install.tier ? { tier: install.tier } : {}) } };
+}
+
 /**
  * What 存为默认 writes: the action and its arguments, from the values in force, or null when this kind of job has no saved default
  * (a translation job takes its size from the reader, not from a setting).

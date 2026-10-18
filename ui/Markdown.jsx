@@ -308,7 +308,7 @@ function blocks(rows, options) {
       const items = [];
       for (; i < rows.length; i++) {
         const m = rows[i].match(LIST);
-        if (m) items.push({ indent: m[1].length, ordered: /\d/.test(m[2]), text: m[3] });
+        if (m) items.push({ indent: m[1].length, ordered: /\d/.test(m[2]), number: parseInt(m[2], 10), text: m[3] });
         else if (rows[i].trim() && items.length && /^\s+/.test(rows[i]))
           items.at(-1).text += "\n" + rows[i].trim();
         else break;
@@ -332,9 +332,11 @@ function blocks(rows, options) {
   }
   return out;
 }
+// An ordered list starts at its first item's number (as CommonMark does): items cut apart by a paragraph are separate lists and still read 1, 2, 3.
 function list(items, options, key) {
   const base = items[0].indent,
     Tag = items[0].ordered ? "ol" : "ul",
+    start = items[0].ordered && items[0].number !== 1 && Number.isInteger(items[0].number) ? items[0].number : undefined,
     children = [];
   for (let j = 0; j < items.length; j++) {
     const nested = [];
@@ -342,7 +344,7 @@ function list(items, options, key) {
     children.push({ item: items[nested.length ? j - nested.length : j], nested });
   }
   return (
-    <Tag key={key}>
+    <Tag key={key} start={start}>
       {children.map(({ item, nested }, y) => (
         <li key={y}>
           {lines(item.text, options, `${key}.${y}`)}

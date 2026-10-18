@@ -3,7 +3,7 @@
    Screenshots of the MinerU conversion UI in zh/en x dark/light at 1440 and 420 px, each with a layout audit
    (scripts/qa/mineru-layout.mjs: no overlapping blocks, no gap over 48 px, nothing spilling out of its card):
    1. a static gallery of every state (scripts/qa/mineru-gallery.jsx, fixed props, no backend): settings, the import route
-      panel, the local setup panel and the job card;
+      panel, the job card and the history (every state of the one-click install card: scripts/qa/mineru-install-shots.mjs);
    2. the real app in the browser preview: Settings › MinerU, then Add material › Convert with MinerU with a generated
       450-page PDF read by the real backend (chunked upload, local plan; nothing is sent anywhere and no conversion is started).
    The preview runs with no `mineru` on PATH and a temporary home, so the owner's own install is never touched; every
@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
-import { createPreviewServer, previewCall } from '../preview-server.mjs';
+import { createPreviewServer } from '../preview-server.mjs';
 import { launchChromium } from './browser.mjs';
 import { layoutAudit } from './mineru-layout.mjs';
 import { scrubProcessEnv } from './env.mjs';
@@ -27,6 +27,14 @@ const quick = args.includes('--quick'), matrixOnly = args.includes('--matrix-onl
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 
 scrubProcessEnv();
+// Nothing leaves this computer: the install plan's download-source probe (and anything else) may only reach the local preview; a blocked probe
+// falls back to the default source, as it would offline.
+const realFetch = globalThis.fetch;
+globalThis.fetch = (input, init) => {
+  const url = String(input?.url ?? input);
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(url)) return Promise.reject(new Error(`QA blocked a request to ${url}`));
+  return realFetch(input, init);
+};
 // Never meet the owner's real mineru: nothing on PATH, a temporary home.
 const scratch = await mkdtemp(join(tmpdir(), 'mineru-qa-'));
 process.env.PATH = dirname(process.execPath);
@@ -53,26 +61,26 @@ const combos = quick ? [['zh', 'dark', 1440], ['en', 'light', 420]] : ['zh', 'en
 /** The layout audit of the page as it stands; its problems are added to `problems` under `where`. */
 const audit = async (tab, where, options) => {
   const result = await tab.evaluate(layoutAudit, options);
-  for (const text of result.problems) problems.push(`${where}: ${text}`);
+  // A segmented control's sliding thumb sits under its items by design (as in mineru-install-shots).
+  for (const text of result.problems.filter(item => !/sh-progress__ahead|sh-seg__thumb/.test(item))) problems.push(`${where}: ${text}`);
   return result;
 };
 try {
   // 0. The layout matrix: every state of the settings section at the owner's panel width and the usual ones.
   if (!noMatrix) {
     const widths = quick ? [1194, 420] : [1194, 1440, 768, 420];
-    const cases = ['none-missing', 'saved-stopped', 'ack-needs', 'ack-needs-standard', 'ack-needs-confirm', 'ack-ready', 'saved-running', 'ack-unknown'];
+    const cases = ['missing', 'needs', 'stopped', 'ready', 'external', 'unknown'];
     const matrix = join(out, 'matrix'); await mkdir(matrix, { recursive: true });
     for (const lang of ['zh', 'en']) for (const theme of ['dark', 'light']) for (const width of widths) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1 });
       const tab = await context.newPage();
       tab.on('pageerror', error => problems.push(`matrix/${lang}/${theme}/${width}: ${error.message}`));
       for (const name of cases) {
-        const key = name, click = { 'ack-needs-standard': 'input[name="mineru-tier"][value="standard"]', 'ack-needs-confirm': '.mineru-local__setup button.sh-btn--primary' }[name];
-        await tab.goto(`${gallery}?lang=${lang}&theme=${theme}&scene=case&case=${name.replace(/-standard|-confirm/, '')}`);
-        await tab.waitForSelector('.mineru-settings'); await sleep(120);
-        if (click) { await tab.locator(click).first().click(); await sleep(100); }
+        const key = name;
+        await tab.goto(`${gallery}?lang=${lang}&theme=${theme}&scene=case&case=${name}`);
+        await tab.waitForSelector('.mineru-settings .mineru-install'); await sleep(120);
         const where = `matrix/${key}/${lang}/${theme}/${width}`;
-        await audit(tab, where, { scopes: ['.audio-provider-card'] });
+        await audit(tab, where, { scopes: ['.mineru-install'] });
         const overflow = await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         if (overflow > 1) problems.push(`${where}: horizontal overflow ${overflow}px`);
         const section = tab.locator('.mineru-settings');
@@ -85,7 +93,7 @@ try {
   if (!matrixOnly) {
 
   // 1. The gallery.
-  for (const [lang, theme, width] of combos) for (const scene of ['settings', 'route', 'local', 'jobs', 'history']) {
+  for (const [lang, theme, width] of combos) for (const scene of ['settings', 'route', 'jobs', 'history']) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1 });
     const tab = await context.newPage();
     tab.on('pageerror', error => problems.push(`${scene}/${lang}/${theme}/${width}: ${error.message}`));
@@ -97,7 +105,7 @@ try {
     // No horizontal scroll at any width.
     const overflow = await tab.evaluate(() => document.querySelector('.study-app').scrollWidth - document.querySelector('.study-app').clientWidth);
     if (overflow > 1) problems.push(`${scene}/${lang}/${theme}/${width}: horizontal overflow ${overflow}px`);
-    await audit(tab, `${scene}/${lang}/${theme}/${width}`, { scopes: scene === 'jobs' ? ['.pdf-convert-jobs > *'] : scene === 'history' ? ['.pdf-history', '.pdf-history__row', '.pdf-history__empty', '.pdf-history__confirm', '.mineru-route-panel'] : ['.audio-provider-card', '.mineru-route-panel', '.mineru-local'] });
+    await audit(tab, `${scene}/${lang}/${theme}/${width}`, { scopes: scene === 'jobs' ? ['.pdf-convert-jobs > *'] : scene === 'history' ? ['.pdf-history', '.pdf-history__row', '.pdf-history__empty', '.pdf-history__confirm', '.mineru-route-panel'] : ['.mineru-install', '.mineru-route-panel'] });
     const path = join(out, `gallery-${scene}-${lang}-${theme}-${width}.png`);
     await tab.screenshot({ path }); shots.push(path);
     await context.close();
@@ -116,17 +124,12 @@ try {
       const shot = async label => { const path = join(out, `app-${label}-${lang}-${theme}-${width}.png`); await tab.screenshot({ path }); shots.push(path); };
       await tab.goto(server.url); await tab.locator('aside, nav').first().waitFor({ timeout: 30000 }); await settle(800);
       await tab.locator('[data-tour="nav-settings"]').first().click(); await settle();
+      // Settings shows one category at a time: open 「PDF 转换」 from its list.
+      await tab.locator('.settings-nav__item[data-category="mineru"]').first().click(); await settle();
       const section = tab.locator('[data-tour="settings-mineru"]');
       await section.waitFor({ timeout: 15000 });
       await section.evaluate(element => element.scrollIntoView({ block: 'start' })); await settle(600);
-      await shot('1-settings-unset'); await audit(tab, `app/settings-unset/${lang}/${theme}/${width}`, { scopes: ['.mineru-settings .audio-provider-card'] });
-      // A saved token is only ever shown as its last four characters (saving writes a file; it calls nobody).
-      await previewCall(server, 'mineru.settings.set', { token: 'eyJ0eXBlIjoiSldUIn0.qa_token_0000000000000000000.sig-qa42' });
-      await tab.reload(); await tab.locator('aside, nav').first().waitFor({ timeout: 30000 }); await settle(600);
-      await tab.locator('[data-tour="nav-settings"]').first().click(); await settle();
-      await section.evaluate(element => element.scrollIntoView({ block: 'start' })); await settle(600);
-      await shot('2-settings-token-saved'); await audit(tab, `app/settings-token-saved/${lang}/${theme}/${width}`, { scopes: ['.mineru-settings .audio-provider-card'] });
-      if (await tab.getByText('qa_token_0000000000000000000').count()) problems.push(`app/${lang}/${theme}/${width}: the token appears on the page`);
+      await shot('1-settings-not-installed'); await audit(tab, `app/settings/${lang}/${theme}/${width}`, { scopes: ['.mineru-settings .mineru-install'] });
 
       // Add material › PDF conversion (folded), with a real 450-page PDF read by the backend.
       await tab.locator('[data-tour="nav-sources"]').first().click(); await settle();
@@ -136,10 +139,10 @@ try {
       await tab.locator('dialog[open] input[type="file"][accept=".pdf,application/pdf"]').setInputFiles(pdfPath);
       await tab.locator('dialog[open] .mineru-plan').waitFor({ timeout: 60000 }); await settle(600);
       const plan = await tab.locator('dialog[open] .mineru-plan').innerText();
-      if (!/450/.test(plan) || !/3|三/.test(plan)) problems.push(`app/${lang}/${theme}/${width}: unexpected plan text: ${plan.replace(/\s+/g, ' ')}`);
-      await tab.locator('dialog[open] .mineru-route-panel').scrollIntoViewIfNeeded(); await shot('4-import-plan-cloud-ack'); await audit(tab, `app/import-plan/${lang}/${theme}/${width}`, { scopes: ['dialog[open] .mineru-route-panel'] });
-      const box = tab.locator('dialog[open] .mineru-privacy input[type="checkbox"]');
-      if (await box.count()) { await box.check(); await settle(200); await shot('5-import-ready-to-start'); }
+      // The pieces follow this computer's speed (adaptive), so the plan names the pages, not a number of pieces.
+      if (!/450/.test(plan)) problems.push(`app/${lang}/${theme}/${width}: unexpected plan text: ${plan.replace(/\s+/g, ' ')}`);
+      await tab.locator('dialog[open] .mineru-route-panel').scrollIntoViewIfNeeded(); await shot('4-import-plan-install-inline'); await audit(tab, `app/import-plan/${lang}/${theme}/${width}`, { scopes: ['dialog[open] .mineru-route-panel'] });
+      if (!(await tab.locator('dialog[open] .mineru-install--compact').count())) problems.push(`app/${lang}/${theme}/${width}: the one-click card is not inline in the import route`);
       await context.close();
     } finally { await server.close(); }
   }
@@ -147,4 +150,5 @@ try {
 } finally { await browser.close(); await rm(scratch, { recursive: true, force: true }).catch(() => {}); }
 
 console.log(`${shots.length} screenshots in ${out}`);
-if (problems.length) { console.log(`PROBLEMS:\n- ${problems.join('\n- ')}`); process.exitCode = 1; } else console.log('no page errors, no horizontal overflow, no token on the page');
+if (problems.length) { console.log(`PROBLEMS:\n- ${problems.join('\n- ')}`); process.exitCode = 1; } else console.log('no page errors, no horizontal overflow');
+

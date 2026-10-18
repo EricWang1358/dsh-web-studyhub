@@ -1,4 +1,4 @@
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, uiMessage } from '../i18n.js';
 import { formatElapsed, formatNumber } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
 import { runForecast } from '../../lib/coverage-run.js';
@@ -71,6 +71,12 @@ function windowsFact(job, contract) {
   return contract.detail?.adaptive ? String(done) : `${done} / ${chunks.length}`;
 }
 
+/** The step an install is on (or stopped at), '全部完成' when every step is done. */
+function installStepFact(steps) {
+  const current = steps.find((step) => ['active', 'failed'].includes(step.state));
+  return current ? uiMessage(current.name) : steps.length && steps.every((step) => step.state === 'done') ? ui('全部完成') : dash;
+}
+
 const noticesOf = (contract) => (Array.isArray(contract.detail?.notices) ? contract.detail.notices.length : Array.isArray(contract.detail?.warnings) ? contract.detail.warnings.length : 0);
 
 /** 为你定制 by the day: what was written and kept, what was practised and how well, the tokens in / out / from cache, what was skipped. */
@@ -127,6 +133,8 @@ export function taskFacts(job, now = Date.now()) {
     { ...primary, label: unit, value: count, ...(hint ? { hint } : {}) },
     { key: 'elapsed', label: queued ? ui('排队中') : ui('已用'), value: queued ? uiFormat('已等 {0}', [waitedOf(contract, now)]) : elapsedOf(contract, isRunningTask(job), now), ...note },
     contract.kind === 'pdf-convert' ? { key: 'calls', label: ui('已完成的段'), value: windowsFact(job, contract) }
+      // An install makes no model calls: the tile says the step it is on (the same step the list below marks).
+      : contract.detail?.install?.steps ? { key: 'calls', label: ui('当前步骤'), value: installStepFact(contract.detail.install.steps) }
       : { key: 'calls', label: ui('模型任务'), value: usage.tokens > 0 ? `${callsFact(contract)} · ${formatCompactTokens(usage.tokens)}` : callsFact(contract) },
     { key: 'warnings', label: ui('提醒'), value: notices ? uiFormat('{0} 条', [formatNumber(notices)]) : dash },
   ];

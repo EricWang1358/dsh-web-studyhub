@@ -140,11 +140,11 @@ test('clearSecret clears through the page callback and refuses an environment ke
   assert.deepEqual(log, ['clear'], 'an environment key or canClear:false is never cleared');
 });
 
-test('the audio, Jev and MinerU settings all use the shared form', async () => {
+test('the audio and Jev settings use the shared form; MinerU has no key at all (its token went with the cloud route in 3.6)', async () => {
   const count = async (file) => ((await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8')).match(/type="password"/g) || []).length;
   assert.equal(await count('components/SecretKeyForm.jsx'), 1);
-  for (const file of ['AudioSettings.jsx', 'JevSettings.jsx', 'MineruSettings.jsx']) assert.equal(await count(file), 0, file);
+  for (const file of ['AudioSettings.jsx', 'JevSettings.jsx', 'MineruSettings.jsx', 'MineruInstallCard.jsx']) assert.equal(await count(file), 0, file);
   const audio = await readFile(new URL('../ui/AudioSettings.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(audio, /audio-key-(form|input|actions|foot|clear)/, 'the audio page does not reuse the old form classes');
-  for (const file of ['AudioSettings.jsx', 'JevSettings.jsx', 'MineruSettings.jsx']) assert.match(await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8'), /SecretKeyForm/, file);
+  for (const file of ['AudioSettings.jsx', 'JevSettings.jsx']) assert.match(await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8'), /SecretKeyForm/, file);
 });

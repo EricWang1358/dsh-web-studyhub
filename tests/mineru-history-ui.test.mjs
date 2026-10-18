@@ -26,11 +26,11 @@ const NOW = new Date(2026, 5, 15, 15, 0, 0).getTime();
 const at = (minutesAgo) => new Date(NOW - minutesAgo * 60_000).toISOString();
 const MB = 1024 * 1024;
 let n = 0;
-const record = (extra = {}) => ({ id: `job-${String(++n).padStart(4, '0')}`, version: 1, filename: 'Databases.pdf', bytes: 12 * MB, pages: 450, pieces: 3, route: 'cloud', status: 'complete', phase: 'done',
+const record = (extra = {}) => ({ id: `job-${String(++n).padStart(4, '0')}`, version: 1, filename: 'Databases.pdf', bytes: 12 * MB, pages: 450, pieces: 3, route: 'local', tier: 'basic', status: 'complete', phase: 'done',
   pagesDone: 450, attempts: 1, elapsedMs: 260_000, startedAt: at(8), finishedAt: at(3), importedPages: 448, skippedPages: 2, documentId: 'document-a-json', title: 'Databases',
   canRetry: false, live: false, document: { exists: true, title: 'Databases', sourceIds: ['s1', 's2'] }, ...extra });
-const failed = (extra = {}) => record({ status: 'failed', phase: 'parse', finishedAt: at(60), startedAt: at(70), elapsedMs: 600_000, pagesDone: 200, documentId: undefined, importedPages: undefined, document: undefined,
-  failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' }, canRetry: true, ...extra });
+const failed = (extra = {}) => record({ status: 'failed', phase: 'local', finishedAt: at(60), startedAt: at(70), elapsedMs: 600_000, pagesDone: 200, documentId: undefined, importedPages: undefined, document: undefined,
+  failure: { stage: 'local', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' }, canRetry: true, ...extra });
 const view = (records, extra = {}) => h(PdfConvertHistory, { call, initialRecords: records, now: NOW, ...extra });
 
 /* ---------- helpers ---------- */
@@ -102,7 +102,8 @@ test('a finished row: file name, size and pages, the route, the status, when and
   const html = render(view([record()]));
   assert.match(html, /Databases\.pdf/);
   assert.match(html, /12 MB · 450 页/);
-  assert.match(html, /sh-badge[^>]*data-tone="info"[^>]*>云端</);
+  assert.match(html, /sh-badge[^>]*data-tone="neutral"[^>]*>本地 · basic</);
+  assert.match(render(view([record({ route: 'cloud', tier: undefined })])), /sh-badge[^>]*data-tone="info"[^>]*>云端</, 'an old cloud row keeps its badge');
   assert.match(html, /已完成/);
   assert.match(html, /3 分钟前 · 用时 4 分 20 秒/);
   assert.match(html, /已导入为「Databases」· 共 448 页/);
@@ -123,10 +124,10 @@ test('a local row names the tier; a document that was deleted says so and has no
 test('a failed row: the stage and the reason in plain words, and a retry that does not redo finished pieces', () => {
   const html = render(view([failed()]));
   assert.match(html, /没有完成/);
-  assert.match(html, /在「云端解析」阶段（第 2 段）没能完成/);
+  assert.match(html, /在「本地解析」阶段（第 2 段）没能完成/);
   assert.match(html, /MinerU 没能转换这一段文件/);
   assert.match(html, /已解析 200\/450 页/);
-  assert.match(html, />接着做（不重复已完成的段落）</);
+  assert.match(html, />接着做</);
   assert.match(html, /用时 10 分钟/);
 });
 
@@ -135,6 +136,12 @@ test('a failed row that cannot resume says why and how to go on', () => {
   assert.doesNotMatch(html, />接着做/);
   assert.match(html, /临时文件已清理/);
   assert.match(html, /重新选择这份 PDF/);
+  // A row of the cloud route (removed in 3.6) never resumes, and says what to do instead.
+  const cloud = render(view([failed({ route: 'cloud', tier: undefined, phase: 'parse', failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' }, canRetry: false })]));
+  assert.doesNotMatch(cloud, />接着做/);
+  assert.match(cloud, /在「云端解析」阶段（第 2 段）没能完成/);
+  assert.match(cloud, /云端解析已停用；请重新选择这份 PDF 用本机解析。/);
+  assert.match(cloud, /data-route="cloud"/);
 });
 
 test('an interrupted row has no end and no duration, and offers 接着做 only when it can', () => {
@@ -195,27 +202,27 @@ test('the rows reuse the conversion job card markup, so one component per action
 });
 
 test('where the owner looks: the MinerU panel opened from "用 MinerU 解析" has the history, and it does not depend on a PDF being chosen', () => {
-  const route = render(h(MineruRoute, { call, onFile() {}, initialSettings: { token: { set: false }, acknowledged: false }, initialLocal: { state: 'not-installed', next: 'install' },
+  const route = render(h(MineruRoute, { call, onFile() {}, initialLocal: { state: 'not-installed', next: 'install' },
     initialHistory: [record()], historyNow: NOW }));
   assert.match(route, /解析历史/);
   assert.match(route, /Databases\.pdf/);
-  const none = render(h(MineruRoute, { call, onFile() {}, initialSettings: { token: { set: false }, acknowledged: false }, initialLocal: { state: 'not-installed', next: 'install' }, initialHistory: [], historyNow: NOW }));
+  const none = render(h(MineruRoute, { call, onFile() {}, initialLocal: { state: 'not-installed', next: 'install' }, initialHistory: [], historyNow: NOW }));
   assert.match(none, /还没有解析记录/);
-  const compact = render(h(MineruRoute, { call, compact: true, onFile() {}, initialSettings: { token: { set: false }, acknowledged: false }, initialLocal: { state: 'not-installed', next: 'install' } }));
+  const compact = render(h(MineruRoute, { call, compact: true, onFile() {}, initialLocal: { state: 'not-installed', next: 'install' } }));
   assert.doesNotMatch(compact, /解析历史/, 'the compact card inside the large-document advice stays small');
 });
 
 /* ---------- English ---------- */
 
 test('English: no Chinese outside file names and titles, in any state of the history', () => {
-  const states = [view([]), view([record(), failed(), record({ route: 'local', tier: 'basic' })]),
+  const states = [view([]), view([record(), failed(), record({ route: 'cloud', tier: undefined }), failed({ route: 'cloud', tier: undefined, phase: 'parse', canRetry: false })]),
     view([record({ status: 'interrupted', finishedAt: undefined, elapsedMs: 0, documentId: undefined, document: undefined, canRetry: true })]),
     view([record({ status: 'interrupted', finishedAt: undefined, elapsedMs: 0, documentId: undefined, document: undefined, canRetry: false })]),
     view([failed({ canRetry: false })]), view([record({ status: 'cancelled', documentId: undefined, document: undefined })]),
     view([record({ status: 'running', phase: 'parse', finishedAt: undefined, live: true, documentId: undefined, document: undefined })]),
     view([record({ document: { exists: false, sourceIds: [] } })]), view([record()], { initialConfirmClear: true }),
     view(Array.from({ length: 14 }, (_, index) => record({ startedAt: at(index * 700) }))),
-    h(MineruRoute, { call, onFile() {}, initialSettings: { token: { set: true }, acknowledged: true }, initialLocal: { state: 'ready', tier: 'basic' }, initialHistory: [record(), failed()], historyNow: NOW })];
+    h(MineruRoute, { call, onFile() {}, initialLocal: { state: 'ready', tier: 'basic' }, initialHistory: [record(), failed()], historyNow: NOW })];
   for (const element of states) {
     // The reason texts of a failure come from the backend already in the learner's language (lib/application-messages-en.js); a file name stays as it is.
     const html = render(element, 'en').replace(/MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。/g, 'MinerU could not convert this piece (the file may be protected or its content unusual).');
@@ -225,8 +232,9 @@ test('English: no Chinese outside file names and titles, in any state of the his
   assert.match(english, /Conversion history/);
   assert.match(english, /Imported as “Databases” · 448 pages/);
   assert.match(english, /3 minutes ago · took 4 min 20 sec/);
-  assert.match(english, /Did not finish at the “Cloud conversion” stage \(piece 2\)/);
+  assert.match(english, /Did not finish at the “Converting locally” stage \(piece 2\)/);
+
   assert.match(english, /Open the material/);
-  assert.match(english, /Resume \(finished pieces are not redone\)/);
+  assert.match(english, />Continue</);
   assert.match(english, /Clear history/);
 });

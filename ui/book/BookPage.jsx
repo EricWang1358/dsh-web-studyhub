@@ -16,19 +16,20 @@ import BookMore from './BookMore.jsx';
 import BookToc from './BookToc.jsx';
 import BookChapter from './BookChapter.jsx';
 import BookStep from './BookStep.jsx';
-import BookAiAsk from './BookAiAsk.jsx';
+import BookAskLayer from './BookAskLayer.jsx';
 import BookExport from './BookExport.jsx';
 import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
-import { AiFoldContext, useAiFold, useLandedBlocks } from './ai-fold.js';
-import { useSendToChat } from './send-to-chat.js';
+import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
 import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
-import { startBookBuild, useBookAi, useBookCrunch, useBookHandlers, useBookPages } from './use-book-actions.js';
+import { useBookAi } from './use-book-ai.js';
+import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
-import { bookRows, crunchDateHint, keepBook, rowOf, tocEntries } from './model.js';
+import { bookRows, crunchDateHint, keepBook, tocEntries } from './model.js';
 import css from './book.css';
+import aiCss from './book-ai.css';
 
 /* 复习全书 (docs/review-book.md). The book of the current course (course.book.open, lib/course-book-files.js) on ONE reading surface: the header, the sticky book
    bar (目录 · where · ‹ › · Aa · ⋯ 更多, ui/book/BookBar.jsx), the 目录 beside the text at wide widths and sliding over it on a narrow page, and the point being
@@ -39,6 +40,7 @@ import css from './book.css';
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's). */
 export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme }) {
   useInjectCss(css, 'study-book');
+  useInjectCss(aiCss, 'study-book-ai');
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
   const pageRef = useRef(null), tocRef = useRef(null), narrow = useNarrow(pageRef);
@@ -66,10 +68,16 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const plan = useBookCrunch({ call, course, book, notify });
   const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
-  const aiFold = useAiFold(root, course), expectBlock = useLandedBlocks(book, aiFold);
-  const ai = useBookAi({ call, course, notify, reload, expectBlock });
-  const sendToChat = useSendToChat(course);
-  const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai, foldAi: aiFold.fold });
+  const aiFold = useAiFold(root, course);
+  const ai = useBookAi({ call, course, notify, reload, book, setBook, rows, aiFold, goTo: where.goTo });
+  // The 问 AI panel belongs to the point it was opened on: in 逐节读 another point closes it, and so does another view or reading mode. In 整章连着读 the place
+  // read (the top heading on screen) changes with every scroll, so scrolling keeps the panel (and what is typed in it); it closes there only when its point is folded or no longer drawn.
+  useEffect(() => { ai.closeAsk(); }, [reading.mode === 'step' ? where.current : -1, reading.mode, view]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (reading.mode !== 'scroll' || view !== 'read' || !ai.ask || !pageRef.current) return;
+    if (!pageRef.current.querySelector(`[data-book-point="${CSS.escape(ai.ask.heading)}"]`)) ai.closeAsk();
+  });
+  const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai: ai.actions, foldAi: aiFold.fold });
   const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);
@@ -108,14 +116,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       </section>
     );
   }
-  // A new selection or heading is a new panel (its own, empty instruction).
-  const ask = ai.ask, askNode = ask?.words ? rowOf(rows, ask.heading)?.node ?? null : null;
-  const askPanel = ask && <BookAiAsk key={`${ask.heading}|${ask.words ?? ''}`} target={ask} model={modelReadiness(data)} onStart={args => ai.startAi({ heading: ask.heading, ...args }, true)}
-    onClose={ai.closeAsk} onSend={askNode ? async ({ words, instruction }) => {
-      await sendToChat({ scope: 'selection', node: askNode, files: book.files, selection: words, instruction });
-      ai.closeAsk();
-      window.getSelection?.()?.removeAllRanges?.();
-    } : undefined} />;
+  // The selection toolbar and the 问 AI panel (a new selection or title is a new panel, its box empty).
+  const askPanel = <BookAskLayer ai={ai} rows={rows} book={book} course={course} model={modelReadiness(data)} pageRef={pageRef} />;
   const over = pages !== null && pageLimit && pages > pageLimit;
   // Over the page limit: one quiet line under the bar (the estimate and how far over); its Tooltip says where the limit is changed.
   const notice = over ? { text: uiFormat('导出约 {0} 页，超过 {1} 页的上限', [pages, pageLimit]), tip: uiFormat('上限是 {0} 页：在「导出…」里改，留空就是不限。', [pageLimit]) } : null;
@@ -132,8 +134,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     <EditView book={book} step={step} theme={theme} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
       onLeave={() => { const then = leaving; back(); then?.(); }} onDone={() => guard(back)} /></section>;
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
-    <FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
-      onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} />{askPanel}{dialogs}</section>;
+    <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
+      onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} /></BookAiContext.Provider>{askPanel}{dialogs}</section>;
   return (
     <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
       {header}
@@ -147,12 +149,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
         {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} />}
-        <ReadingBlock className="book-read" measure onMouseUp={ai.onSelect}>
-          <AiFoldContext.Provider value={aiFold}><BookReadContext.Provider value={reading}>
+        <ReadingBlock className="book-read" measure>
+          <AiFoldContext.Provider value={aiFold}><BookAiContext.Provider value={ai.lines}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />
               : chapters.map(chapter => <BookChapter key={chapter.hid} node={chapter} open={where.open.has(chapter.hid)} course={course} handlers={handlers}
                 onToggle={value => where.toggleChapter(chapter.hid, value)} />)}
-          </BookReadContext.Provider></AiFoldContext.Provider>
+          </BookReadContext.Provider></BookAiContext.Provider></AiFoldContext.Provider>
         </ReadingBlock>
       </div>
       {askPanel}

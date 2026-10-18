@@ -1,7 +1,7 @@
 import { getUiLanguage } from '../i18n.js';
 import { fenceData, say } from './say.js';
 
-/* The prompt of 「发给主会话」 on the 复习全书 page (ui/book/BookToChat.jsx, ui/book/send-to-chat.js; docs/review-book-agent.md). It is the contract with the main
+/* The prompt of 「发给主会话」 on the 复习全书 page (ui/book/BookAsk.jsx, ui/book/send-to-chat.js; docs/review-book-agent.md). It is the contract with the main
    chat: the skill (study-book) and the tools (book.toc, book.read, book.coverage, source.pages, book.write, course.book.revert) are named here and nowhere
    else on the page. It carries NO book text: the chat reads the point itself with book.read. What the prompt does carry from the library (a point's
    title, the words the learner selected) sits in a data fence; the learner's own request sits in a fence too, but one that says it is theirs. */

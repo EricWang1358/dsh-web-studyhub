@@ -6,11 +6,10 @@
     "lib/contexts/audio/jobs/live-save.js",
     "lib/contexts/audio/jobs/live-correction.js",
     "lib/contexts/audio/jobs/review.js",
-    "lib/contexts/audio/install/marker-install-job.js",
+    "lib/contexts/audio/install/install-job.js",
     "lib/contexts/audio/jobs/single-import.js",
     "lib/contexts/audio/jobs/subtitles.js",
     "lib/contexts/audio/pdf/pdf-convert-job.js",
-    "lib/contexts/audio/setup/mineru-setup-job.js",
     "lib/contexts/coach/jobs/coach-prep.js",
     "lib/contexts/generation/jobs/generation.js",
     "lib/contexts/generation/translation/jobs/translation.js",
@@ -949,6 +948,37 @@
       "removeAt": "after default flip"
     },
     {
+      "file": "lib/contexts/audio/install-row.js",
+      "calls": [
+        {
+          "callee": "generationControllers.set",
+          "count": 1
+        },
+        {
+          "callee": "jobs.set",
+          "count": 1
+        },
+        {
+          "callee": "ownWork",
+          "count": 1
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "mineru-conversion.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the console row (type local-install) of the original install run (MinerU, Marker), with its cancel controller",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "mineruInstall"
+          ]
+        }
+      ],
+      "removeAt": "after default flip"
+    },
+    {
       "file": "lib/contexts/audio/operations.js",
       "calls": [
         {
@@ -984,29 +1014,6 @@
             "audioSubtitles",
             "audioReview",
             "audioLiveSave"
-          ]
-        }
-      ],
-      "removeAt": "after default flip"
-    },
-    {
-      "file": "lib/contexts/audio/setup/legacy-setup-run.js",
-      "calls": [
-        {
-          "callee": "registry:setups",
-          "count": 1
-        }
-      ],
-      "owner": "non-model family (lane D)",
-      "evidence": "s5-4-mineru-setup.md; s6-0-coverage.md",
-      "sites": [
-        {
-          "what": "the original background run of the local MinerU setup",
-          "disposition": "delete-s6-2",
-          "kind": "legacy-bypass",
-          "reached": false,
-          "switches": [
-            "mineruSetup"
           ]
         }
       ],
@@ -1437,6 +1444,26 @@
       ]
     },
     {
+      "file": "lib/install-drives.js",
+      "calls": [
+        {
+          "callee": "runLocalCommand",
+          "count": 1
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "mineru-conversion.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the read-only list of fixed drives (PowerShell DriveInfo) for the default install location",
+          "disposition": "exception",
+          "kind": "read-adapter",
+          "reached": true
+        }
+      ],
+      "removeAt": "never (not a job)"
+    },
+    {
       "file": "lib/job-control.js",
       "calls": [
         {
@@ -1577,37 +1604,18 @@
       "file": "lib/marker-install.js",
       "calls": [
         {
-          "callee": "registry:live",
-          "count": 1
-        },
-        {
           "callee": "runLocalCommand",
-          "count": 3
+          "count": 2
         }
       ],
       "owner": "non-model family (lane D)",
-      "evidence": "s5-3-marker-install.md; s6-0-coverage.md",
+      "evidence": "s5-3-marker-install.md; s6-0-coverage.md (3.6: the install slot, start and cancel moved to lib/tool-install.js)",
       "sites": [
         {
-          "what": "the install stages (venv, pip, check) inside begin(): a Call of the Job when markerInstall is on",
+          "what": "Marker's install stages (venv, pip, check) inside the shared engine's begin(): a Call of the Job when markerInstall is on",
           "disposition": "exception",
           "kind": "provider-leaf",
           "reached": true
-        },
-        {
-          "what": "the one install slot of a DSH home (shared by the original installer and the Job)",
-          "disposition": "exception",
-          "kind": "domain-structure",
-          "reached": true
-        },
-        {
-          "what": "the original installer start/cancel",
-          "disposition": "delete-s6-2",
-          "kind": "legacy-bypass",
-          "reached": false,
-          "switches": [
-            "markerInstall"
-          ]
         }
       ],
       "removeAt": "after default flip"
@@ -1642,6 +1650,32 @@
           "reached": true
         }
       ]
+    },
+    {
+      "file": "lib/mineru-install.js",
+      "calls": [
+        {
+          "callee": "runLocalCommand",
+          "count": 2
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "mineru-conversion.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the read-only probe of the system Pythons for 更多 (python --version), during the plan",
+          "disposition": "exception",
+          "kind": "read-adapter",
+          "reached": true
+        },
+        {
+          "what": "stopping the installed service before an uninstall removes its folder",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ],
+      "removeAt": "never (not a job)"
     },
     {
       "file": "lib/mineru-local.js",
@@ -1688,6 +1722,46 @@
           "reached": true
         }
       ]
+    },
+    {
+      "file": "lib/tool-install.js",
+      "calls": [
+        {
+          "callee": "registry:live",
+          "count": 1
+        },
+        {
+          "callee": "runLocalCommand",
+          "count": 1
+        }
+      ],
+      "owner": "non-model family (lane D)",
+      "evidence": "s5-3-marker-install.md; mineru-conversion.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the one install slot per tool state file (Marker, MinerU), shared by the original installer and the Job (claim/begin)",
+          "disposition": "exception",
+          "kind": "domain-structure",
+          "reached": true
+        },
+        {
+          "what": "each install command inside begin() (ctx.go): a Call of the Job when the tool's install switch is on",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        },
+        {
+          "what": "the original installer start/cancel",
+          "disposition": "delete-s6-2",
+          "kind": "legacy-bypass",
+          "reached": false,
+          "switches": [
+            "markerInstall",
+            "mineruInstall"
+          ]
+        }
+      ],
+      "removeAt": "after default flip"
     },
     {
       "file": "lib/workflow-skeleton.js",

@@ -58,8 +58,8 @@ test('a closed chapter is its heading only; an open one renders its points with 
   assert.match(html, /class="md-cite"/, 'the 角标 is a button');
   assert.match(text, /本节的题 \(7\) 练习：Live question 0\? 练习：Live question 1\? 练习：Live question 2\? 练习：Live question 3\? 练习：Live question 4\? 还有 2 道/, 'the point\'s questions live: the first five, then 还有 N 道');
   assert.doesNotMatch(text, /Live question 5/);
-  assert.match(text, /出处 1 练 5 道 本节问答 发给主会话 1\.2 Enthalpy/, 'the row of actions closes a point');
-  assert.match(text, /My note\. 在这里加一段 本节问答 发给主会话 2 Kinetics|My note\. 本节问答 发给主会话/, 'a point without questions says nothing about it in its toolbar (给这个知识点出题 is in 更多)');
+  assert.match(text, /出处 1 练 5 道 本节问答 1\.2 Enthalpy/, 'the row of actions closes a point');
+  assert.match(text, /My note\. 本节问答 2 Kinetics|My note\. 本节问答/, 'a point without questions says nothing about it in its toolbar (给这个知识点出题 is in 更多)');
   assert.doesNotMatch(html, /book-node__create/);
   assert.doesNotMatch(html, /book-node__code|>H[0-9]</, 'no printed code beside the headings');
   assert.doesNotMatch(text, /暂无题|这一节还没有题。|还没出题/, 'and says nothing else about it: no badge, no standing line');

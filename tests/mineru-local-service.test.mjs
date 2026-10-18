@@ -7,35 +7,34 @@ import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { convertHome } from '../lib/mineru-job.js';
 import { LOCAL_MESSAGES } from '../lib/mineru-local.js';
-import { startFakeMineru } from './helpers/fake-mineru.mjs';
+import { MINERU_INSTALL_MESSAGES } from '../lib/mineru-install-text.js';
 import { makePdf } from './helpers/pdf.mjs';
 import { patientCli, readJsonFile, sleep, until, writeJsonFile } from './helpers/wait.mjs';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
-/* The local mineru route through the real service: detection, the explicit start/setup steps, page windows as one job in the
-   shared job list, retry of only the failed window, cancel, and the choice between local and cloud. The CLI is a fake. */
+/* The local mineru route through the real service: detection, the explicit start step, page windows as one job in the shared job list, retry of only the
+   failed window (a stopped service is started by the run), cancel, and the refusals before anything runs. The CLI is a fake. (Installing it is
+   tests/mineru-install*.test.mjs.) */
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 const han = /[㐀-鿿]/;
 
-async function harness(t, { state = {}, cloud = false, noCli = false, pages = 120 } = {}) {
+async function harness(t, { state = {}, noCli = false, pages = 120 } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'study-local-home-'));
   const root = await mkdtemp(join(tmpdir(), 'study-local-lib-'));
   const work = await mkdtemp(join(tmpdir(), 'study-local-fake-'));
-  const before = { DSH_HOME: process.env.DSH_HOME, MINERU_API_KEY: process.env.MINERU_API_KEY, MINERU_BIN: process.env.MINERU_BIN };
-  process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
+  const before = { DSH_HOME: process.env.DSH_HOME, MINERU_BIN: process.env.MINERU_BIN };
+  process.env.DSH_HOME = home; delete process.env.MINERU_BIN;
   const statePath = join(work, 'state.json'), logPath = join(work, 'log.jsonl');
   await writeFile(statePath, JSON.stringify({ version: '4.0.10', mode: 'managed', tier: 'basic', running: true, total: pages, modelsReady: true, ...state })); await writeFile(logPath, '');
   const env = { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath };
   const cli = patientCli({ file: process.execPath, prefix: [FAKE], env });
-  const fake = cloud ? await startFakeMineru() : null;
   const clock = { time: 9_000_000 };
   // (`windowPages` is the seam for fixed local windows: these tests count windows of 50 pages; the adaptive plan has its own tests, tests/mineru-adaptive-*.test.mjs.)
-  const service = new StudyService(root, { ...switchOptions(SWITCH_MODE, { paths: ['mineruSetup', 'pdfConvert'] }), mineru: { ...(fake ? { baseUrl: fake.baseUrl } : {}), now: () => clock.time, limits: { windowPages: 50 },
-    sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); },
-    local: { cli: noCli ? null : cli, home: work, modelsCli: patientCli({ file: process.execPath, prefix: [FAKE], env }) } } });
+  const service = new StudyService(root, { ...switchOptions(SWITCH_MODE, { paths: ['pdfConvert'] }), mineru: { now: () => clock.time, limits: { windowPages: 50 },
+    local: { cli: noCli ? null : cli, home: work } } });
   const h = {
-    home, root, work, fake, service,
+    home, root, work, service,
     call: (action, args) => service.call(action, args),
     set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }),
     state: () => readJsonFile(statePath),
@@ -52,7 +51,7 @@ async function harness(t, { state = {}, cloud = false, noCli = false, pages = 12
   };
   t.after(async () => {
     await sleep(20);
-    service.dispose(); await fake?.close();
+    service.dispose();
     for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
@@ -77,7 +76,7 @@ test('mineru.local.status reports one honest state with its next step, from read
   const needs = await fresh.call('mineru.local.status');
   assert.deepEqual([needs.state, needs.next], ['needs-models', 'download-models']);
   assert.equal(needs.modelsMbByTier.basic, 800);
-  assert.equal(needs.modelsMbByTier.standard, 1200);
+  assert.equal(needs.modelsMbByTier.standard, 2000);
   const stopped = await harness(t, { state: { running: false } });
   assert.deepEqual(await stopped.call('mineru.local.status').then(s => [s.state, s.next]), ['server-stopped', 'start-server']);
   // A stopped service cannot say how it is configured, so a never-configured one is also just "stopped" until it is started.
@@ -109,43 +108,6 @@ test('starting the stopped service is an explicit step; its failure is a plain m
   assert.deepEqual([afterStart.state, afterStart.next], ['needs-models', 'download-models'], 'only with the service up can its settings be read');
   const english = await harness(t, { state: { running: false, startFails: true } }).then(e => e.call('mineru.local.start', { uiLanguage: 'en' }).catch(error => error.message));
   assert.match(english, /could not start/);
-});
-
-test('setup is confirmed first, sized, runs in the background, and ends with a ready local mineru', async t => {
-  const h = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false } });
-  await assert.rejects(h.call('mineru.local.setup', { tier: 'basic' }), /确认.*800 MB/);
-  assert.deepEqual((await h.log()).filter(entry => entry.argv[0] === '--tier'), [], 'nothing was downloaded without the confirmation');
-  await assert.rejects(h.call('mineru.local.setup', { tier: 'giant', confirm: true }), /basic 或 standard/);
-  const started = await h.call('mineru.local.setup', { tier: 'basic', confirm: true });
-  assert.equal(started.status, 'running');
-  assert.equal(started.modelsMb, 800);
-  const done = await h.until(async () => { const run = await h.call('mineru.local.setup.status'); return run.status === 'complete' ? run : null; }, 'the setup');
-  assert.equal(done.state.state, 'ready');
-  const calls = (await h.log()).map(entry => entry.argv.join(' '));
-  const start = calls.findIndex(call => call === 'server start'), download = calls.findIndex(call => call.startsWith('--tier basic')), tierSet = calls.findIndex(call => call.includes('managed_tier basic')), modeSet = calls.findIndex(call => call.includes('parse_server.local.mode managed')), restart = calls.findIndex(call => call === 'server restart');
-  assert.ok(start >= 0 && start < tierSet, `settings live in the service, so a stopped one is started before any config set: ${calls.join(' | ')}`);
-  assert.ok(download >= 0 && download < tierSet && tierSet < modeSet && modeSet < restart, `models, then the tier, then the mode, then the service restarts to use it: ${calls.join(' | ')}`);
-  assert.equal((await h.call('mineru.local.status')).state, 'ready');
-});
-
-test('a failed model download changes nothing and says why', async t => {
-  const h = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false, downloadFails: true } });
-  await h.call('mineru.local.setup', { tier: 'standard', confirm: true });
-  const failed = await h.until(async () => { const run = await h.call('mineru.local.setup.status'); return run.status === 'failed' ? run : null; }, 'the failure');
-  assert.match(failed.error, /模型没能下载/);
-  const state = await h.state();
-  assert.deepEqual([state.mode, state.tier], ['disabled', 'flash'], 'nothing was configured');
-});
-
-test('the setup can be cancelled, which stops the download', async t => {
-  const h = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false, downloadDelayMs: 60_000 } });
-  await h.call('mineru.local.setup', { tier: 'basic', confirm: true });
-  await h.until(async () => (await h.log()).some(entry => entry.argv[0] === '--tier'), 'the download to start');
-  const cancelled = await h.call('mineru.local.setup.cancel');
-  const done = await h.until(async () => { const run = await h.call('mineru.local.setup.status'); return run.status === 'cancelled' ? run : null; }, 'the cancel');
-  assert.equal(done.status, 'cancelled');
-  assert.ok(cancelled);
-  assert.equal((await h.state()).mode, 'disabled');
 });
 
 /* ---------- converting ---------- */
@@ -212,7 +174,7 @@ test('a window that fails stops the job; "接着做" redoes only that window and
   assert.equal((await h.call('snapshot')).sources.filter(source => source.document?.converter === 'mineru').length, 120);
 });
 
-test('the service dying mid-run is named, offers the restart, and the job resumes after it', async t => {
+test('the service dying mid-run is named, and 接着做 starts it again before it resumes', async t => {
   const h = await harness(t, { state: { dieOnFirst: 51 } });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
   const failed = await h.until(async () => { const [job] = await h.jobs(); return job?.status === 'failed' ? job : null; }, 'the failure');
@@ -220,10 +182,11 @@ test('the service dying mid-run is named, offers the restart, and the job resume
   assert.equal(failed.stage, LOCAL_MESSAGES.serverStopped);
   assert.equal((await h.call('mineru.local.status')).state, 'server-stopped');
   await h.set({ dieOnFirst: 0 });
-  assert.equal((await h.call('mineru.local.start', { restart: true })).state, 'ready');
   await h.call('mineru.retry', { jobId: failed.id });
-  await h.until(async () => (await h.jobs())[0]?.status === 'complete', 'the resumed run');
+  const resumed = await h.until(async () => { const [job] = await h.jobs(); return job?.status === 'complete' && job; }, 'the resumed run');
   assert.deepEqual((await h.parses()).map(pagesArg), ['1-50', '51-100', '51-100', '101-120']);
+  assert.equal((await h.state()).running, true, 'the run started the service itself');
+  assert.equal(resumed.service.state, 'running');
 });
 
 test('cancel stops the running window promptly, kills the process and cleans the temporary files', async t => {
@@ -242,36 +205,23 @@ test('cancel stops the running window promptly, kills the process and cleans the
   assert.equal((await h.call('snapshot')).inbox.items.filter(item => item.kind.startsWith('pdf-')).length, 0);
 });
 
-test('the local route is refused, before anything runs, unless it is ready', async t => {
-  const stopped = await harness(t, { state: { running: false } });
-  await assert.rejects(stopped.call('mineru.import', { uploadId: await stopped.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.serverStopped);
-  assert.deepEqual(await stopped.parses(), []);
+test('the local route is refused, before anything runs, unless MinerU is set up (a stopped service is fine: the run starts it)', async t => {
   const none = await harness(t, { noCli: true });
-  await assert.rejects(none.call('mineru.import', { uploadId: await none.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.notInstalled);
+  await assert.rejects(none.call('mineru.import', { uploadId: await none.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === MINERU_INSTALL_MESSAGES.notInstalled);
   const fresh = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: true } });
-  await assert.rejects(fresh.call('mineru.import', { uploadId: await fresh.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.setupNeedsModels);
-  const freshStopped = await harness(t, { state: { mode: 'disabled', tier: 'flash', running: false } });
-  await assert.rejects(freshStopped.call('mineru.import', { uploadId: await freshStopped.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.serverStopped, 'a stopped service is never reported as missing models');
+  await assert.rejects(fresh.call('mineru.import', { uploadId: await fresh.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === MINERU_INSTALL_MESSAGES.notInstalled);
+  assert.deepEqual(await fresh.parses(), []);
   const unread = await harness(t, { state: { running: true, configFails: true } });
   await assert.rejects(unread.call('mineru.import', { uploadId: await unread.upload(await makePdf({ pages: 3 })), route: 'local' }), error => error.message === LOCAL_MESSAGES.unreadable);
   await assert.rejects(fresh.call('mineru.import', { uploadId: await fresh.upload(await makePdf({ pages: 3 })), route: 'nonsense' }), /route/);
 });
 
-test('"auto" prefers the local route when it is ready and falls back to the cloud, which still needs its token and confirmation', async t => {
-  const h = await harness(t, { cloud: true, pages: 3 });
-  const local = await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'auto' });
+test('"auto" and no route both convert locally; the removed cloud is refused in words', async t => {
+  const h = await harness(t, { pages: 3 });
+  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'auto' });
   await h.until(async () => (await h.jobs())[0]?.status === 'complete', 'the local conversion');
   assert.equal((await h.jobs())[0].route, 'local');
-  assert.equal(h.fake.requests.length, 0, 'nothing went to the cloud');
-  assert.ok(local.jobId);
-  await h.set({ running: false });
-  await h.call('job.dismiss', { all: true });
-  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'auto' }), /MinerU 令牌/);
-  await h.call('mineru.settings.set', { token: h.fake.token, acknowledge: true });
-  await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'auto' });
-  await h.until(async () => (await h.jobs())[0]?.status === 'complete', 'the cloud conversion');
-  assert.equal((await h.jobs())[0].route, 'cloud');
-  assert.ok(h.fake.uploads.length >= 1);
+  await assert.rejects(h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 3 })), route: 'cloud' }), error => error.code === 'cloud-removed');
 });
 
 test('the local route in English: no Chinese in stages, notes or status', async t => {

@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { startFakeMineru } from '../../helpers/fake-mineru.mjs';
 import { fakeIndexPort, untilAborted } from '../../helpers/index-port.mjs';
 import { managedRuntimeOptions } from '../../helpers/runtime-switch.mjs';
 import { makePdf } from '../../helpers/pdf.mjs';
@@ -19,12 +18,13 @@ const root = join(work, 'library'), home = join(work, 'home');
 process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
 const hash = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
 const here = name => fileURLToPath(new URL(`../../helpers/${name}`, import.meta.url));
-const ALL = ['pdfConvert', 'markerInstall', 'mineruSetup', 'retrievalIndex'];
+// (mineruInstall replaced mineruSetup in 3.6; an older tree simply ignores a switch it does not know.)
+const ALL = ['pdfConvert', 'markerInstall', 'mineruInstall', 'retrievalIndex'];
 const state = name => join(work, name);
 const readJson = async name => JSON.parse(await readFile(state(name), 'utf8'));
 const patchJson = async (name, patch) => writeFile(state(name), JSON.stringify({ ...await readJson(name).catch(() => ({})), ...patch }));
 
-async function build({ lib, withSwitches, indexOptions, cloud }) {
+async function build({ lib, withSwitches, indexOptions }) {
   const { StudyService } = await import(pathToFileURL(join(lib, 'lib/service.js')).href);
   const { venvLayout } = await import(pathToFileURL(join(lib, 'lib/marker-install.js')).href);
   const index = fakeIndexPort(indexOptions), clock = { time: 5_000_000 };
@@ -36,8 +36,7 @@ async function build({ lib, withSwitches, indexOptions, cloud }) {
   const options = { coach: false, retrieval: index.port, ...managed,
     marker: { install: { pythons: [python(pyEnv)], freeMegabytes: async () => 100_000, venvPython: folder => python({ ...pyEnv, FAKE_PY_VENV: venvLayout(folder).venv }),
       markerCli: () => patientCli({ file: process.execPath, prefix: [here('fake-marker-cli.mjs')], env: {} }) } },
-    mineru: { limits: { windowPages: 50 }, ...(cloud ? { baseUrl: cloud.baseUrl, now: () => clock.time,
-      sleep: async (ms, signal) => { signal?.throwIfAborted(); clock.time += ms; await new Promise(resolve => setTimeout(resolve, 15)); } } : {}),
+    mineru: { limits: { windowPages: 50 }, now: () => clock.time,
       local: { cli: mineruCli, home: join(work, 'mineru-home'), modelsCli: patientCli({ file: process.execPath, prefix: [here('fake-mineru-cli.mjs')], env: mineruEnv }) } } };
   return { service: new StudyService(root, options), index };
 }
@@ -62,7 +61,8 @@ const crash = () => { console.log(`RESULT ${JSON.stringify({ scenario, prepared:
 async function view(service) {
   const docs = await documents(service);
   const history = (await service.call('mineru.history.list')).records;
-  const coverage = await service.call('retrieval.index.coverage', {}), install = await service.call('marker.install.status'), setup = await service.call('mineru.local.setup.status');
+  // mineru.local.setup was replaced by the one-click install in 3.6: a tree without it reports its setup as idle.
+  const coverage = await service.call('retrieval.index.coverage', {}), install = await service.call('marker.install.status'), setup = await service.call('mineru.local.setup.status').catch(() => ({ status: 'idle' }));
   return { pages: docs.length, pageHash: hash(docs.map(source => `${source.id}:${hash(String(source.text ?? source.content ?? ''))}`).sort().join('|')), history: history.map(row => `${row.status}${row.canRetry ? '+retry' : ''}`).sort(),
     indexed: coverage.indexed.length, missing: coverage.missing.length, install: install.status, installed: install.installed === true, setup: setup.status };
 }
@@ -105,23 +105,22 @@ if (mode === 'prepare') {
   await writeFile(state('py.json'), JSON.stringify({ delayPip: scenario === 'install' })); await writeFile(state('py.log'), ''); await writeFile(state('mineru.log'), '');
   const fresh = { version: '4.0.10', total: 120, mode: 'disabled', tier: 'flash', running: false, modelsReady: false };
   const ready = { ...fresh, mode: 'managed', tier: 'basic', running: true, modelsReady: true };
-  await writeFile(state('mineru.json'), JSON.stringify(scenario === 'setup' ? { ...fresh, downloadDelayMs: 60_000 } : scenario === 'pdf' ? { ...ready, slowFromPage: 51, slowMs: 60_000 } : scenario === 'settled' ? fresh : ready));
-  const cloud = scenario === 'settled' ? await startFakeMineru() : null;
-  const { service } = await build({ lib: libRoot, withSwitches: true, cloud,
+  await writeFile(state('mineru.json'), JSON.stringify(scenario === 'setup' ? { ...fresh, downloadDelayMs: 60_000 } : scenario === 'pdf' ? { ...ready, slowFromPage: 51, slowMs: 60_000 } : ready));
+  const { service } = await build({ lib: libRoot, withSwitches: true,
     indexOptions: scenario === 'index' ? { onIngest: (args, n, options) => (n >= 3 ? untilAborted(args, n, options) : undefined) } : {} });
   await importBook(service);
   if (scenario === 'settled') {
-    await service.call('mineru.settings.set', { token: cloud.token, acknowledge: true });
+    // The MinerU cloud route was removed in 3.6: the finished conversion is a local one.
+    await patchJson('mineru.json', { total: 3 });
     const done = await service.call('mineru.import', { uploadId: await upload(service, 3), courses: ['OS'] });
     assert.equal((await settledJob(service, done.jobId)).status, 'complete');
     assert.equal((await service.call('marker.install.start', { confirm: true })).status, 'running');
     await until(async () => (await service.call('marker.install.status')).status === 'complete', 'the install', { timeoutMs: 240_000 });
-    await service.call('mineru.local.setup', { tier: 'basic', confirm: true });
-    await until(async () => (await service.call('mineru.local.setup.status')).status === 'complete', 'the setup', { timeoutMs: 240_000 });
     await service.call('retrieval.index.start', { course: 'OS' });
     await until(async () => (await service.call('retrieval.index.status', {})).status === 'complete', 'the index build', { timeoutMs: 240_000 });
     await writeFile(state('prepared.json'), JSON.stringify(await view(service)));
-    await service.dispose(); await cloud.close();
+    await service.dispose();
+
   } else if (scenario === 'pdf') {
     await service.call('mineru.import', { uploadId: await upload(service, 120), route: 'local' });
     await until(async () => (await resultsOf()).length > 0, 'the first window to be saved', { timeoutMs: 240_000 });

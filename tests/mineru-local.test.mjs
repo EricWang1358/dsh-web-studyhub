@@ -257,7 +257,7 @@ test('a CLI that ignored --pages (pages 1-10 for window 11-20) is caught, not si
 test('a stopped service becomes a plain message with the way out, not a stack trace', async t => {
   const fake = await fakeCli(t, { mode: 'managed', running: false });
   await assert.rejects(parseWindow({ cli: fake.cli, pdf: 'book.pdf', tier: 'basic', startPage: 1, endPage: 5, totalPages: 120, outFile: join(fake.dir, 'o.md') }),
-    error => error instanceof LocalMineruError && error.code === 'server-stopped' && error.retryable === true && /本地服务/.test(error.message) && /重新启动/.test(error.message));
+    error => error instanceof LocalMineruError && error.code === 'server-stopped' && error.retryable === true && /本机 MinerU 服务/.test(error.message) && /接着做/.test(error.message));
 });
 
 test('the service dying in the middle of a window is told apart from an ordinary failure', async t => {

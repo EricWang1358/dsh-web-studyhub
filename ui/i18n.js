@@ -55,6 +55,7 @@ import examCopy from './locales/en.exam.json';
 import feedbackLoop from './locales/en.feedback-loop.json';
 import pages from './locales/en.pages.json';
 import markerInstall from './locales/en.marker-install.json';
+import mineruInstall from './locales/en.mineru-install.json';
 import layoutStability from './locales/en.layout-stability.json';
 import taskConsole from './locales/en.task-console.json';
 import coverageCopy from './locales/en.coverage.json';
@@ -122,6 +123,7 @@ export const ENGLISH_SOURCES = {
   'en.feedback-loop.json': feedbackLoop,
   'en.pages.json': pages,
   'en.marker-install.json': markerInstall,
+  'en.mineru-install.json': mineruInstall,
   'en.layout-stability.json': layoutStability,
   'en.task-console.json': taskConsole,
   'en.coverage.json': coverageCopy,

@@ -30,7 +30,7 @@ What StudyHub saves:
 - The original PDF, kept with the source.
 - Nothing new when you import the same file again: the pages already saved are reused.
 
-If no page has readable text, nothing is saved and the dialog says the file may be a scan. Convert it with MinerU, which reads scanned pages, or run OCR on it first.
+If no page has readable text, nothing is saved and the dialog says the file may be a scan. Convert it with MinerU, which reads scanned pages (if MinerU is not installed yet, **One-click install** is right there in the dialog), or run OCR on it first.
 
 ## Generate questions
 

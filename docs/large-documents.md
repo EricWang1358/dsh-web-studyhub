@@ -10,12 +10,13 @@ StudyHub reads a PDF's text layer, saves it page by page and sends the pages you
 
 What you install yourself and what StudyHub does:
 
-- StudyHub never installs a converter. The local `mineru` is yours to install; the cloud route uses your own MinerU token.
+- StudyHub installs MinerU on this computer only when you click **One-click install** (Settings › PDF conversion, or right in the import dialog). Everything goes into one folder, not on the system drive by default: see [Convert a PDF with MinerU](mineru-conversion.md#one-click-install).
 - The search extension is installed only when you click **Install the search extension**.
 - The manual tools (MinerU desktop client, Docling, RAGFlow, a hand-configured search server) are yours to install and run.
 - StudyHub says a search tool is available only when DeepSeek Harness (DSH) reports it.
 
-**Cloud conversion is temporarily unavailable. Use local MinerU and downloaded models first.** Install the tool yourself, then confirm model downloads in Settings. A saved cloud token does not select cloud conversion automatically. The desktop client is also currently reported unavailable; it remains an advanced option for when it recovers.
+**PDFs are converted on this computer.** The MinerU cloud route (a token, the PDF uploaded) was removed in 3.6. The desktop client is also currently reported unavailable; it remains an advanced option for when it recovers.
+
 
 ## When StudyHub suggests this
 
@@ -100,7 +101,7 @@ Checked on 2026-10-01 against each project's own pages. Licences and features ca
 
 | Tool | Licence | Platforms | MCP | Output StudyHub reads | Notes |
 |---|---|---|---|---|---|
-| **MinerU** (recommended; StudyHub runs it: with local `mineru` and downloaded models first; cloud conversion is temporarily unavailable. The desktop client and the command line are the manual routes.) | MinerU Open Source License: Apache-2.0 with extra conditions (a separate licence above 100 million monthly active users or USD 20 million monthly revenue; attribution for online services) | Windows, macOS, Linux (Python 3.10–3.14 for the library) | none from the project (community servers call its cloud API) | `content_list.json` (v1: flat, with `page_idx`; v2: grouped by page). Its Markdown carries no `<!-- page: N -->` markers. | Handles scanned pages, formulas, tables and Chinese. Its website offers a desktop client for Windows and macOS (Apple silicon and Intel): [mineru.net/client](https://mineru.net/client). That page does not say whether the client parses locally or in the cloud: check before you upload private material. The GitHub README documents the command line, SDK and WebUI, not the client. A CPU is enough (2 GB RAM for the basic tier); a GPU is optional. |
+| **MinerU** (recommended; StudyHub installs it on this computer in one click and runs it there. The desktop client and the command line are the manual routes.) | MinerU Open Source License: Apache-2.0 with extra conditions (a separate licence above 100 million monthly active users or USD 20 million monthly revenue; attribution for online services) | Windows, macOS, Linux (Python 3.10–3.14 for the library) | none from the project (community servers call its cloud API) | `content_list.json` (v1: flat, with `page_idx`; v2: grouped by page). Its Markdown carries no `<!-- page: N -->` markers. | Handles scanned pages, formulas, tables and Chinese. Its website offers a desktop client for Windows and macOS (Apple silicon and Intel): [mineru.net/client](https://mineru.net/client). That page does not say whether the client parses locally or in the cloud: check before you upload private material. The GitHub README documents the command line, SDK and WebUI, not the client. A CPU is enough (2 GB RAM for the basic tier); a GPU is optional. |
 | **Docling** (advanced: needs a command line) | MIT | Windows, macOS, Linux | `docling-mcp` (MIT; stdio, SSE, streamable HTTP) | JSON (`DoclingDocument`, `prov.page_no`, 1-based); Markdown | Run it from a command line or Python: `docling file.pdf --to json`. OCR engines include RapidOCR, EasyOCR and Tesseract (`--ocr-engine`, `--ocr-lang`). No desktop app. |
 
 Also checked and **not** recommended:
@@ -112,7 +113,7 @@ Also checked and **not** recommended:
 
 | Tool | Official | Source | Package | Works in mainland China |
 |---|---|---|---|---|
-| MinerU | [mineru.net](https://mineru.net/client) · [docs](https://opendatalab.github.io/MinerU/) | [GitHub](https://github.com/opendatalab/MinerU) | [PyPI](https://pypi.org/project/mineru/) | [mineru.net API docs and tokens](https://mineru.net/apiManage/docs) · [ModelScope (OpenDataLab)](https://www.modelscope.cn/organization/OpenDataLab) · [PyPI Tsinghua mirror](https://pypi.tuna.tsinghua.edu.cn/simple/mineru/) |
+| MinerU | [mineru.net](https://mineru.net/client) · [docs](https://opendatalab.github.io/MinerU/) | [GitHub](https://github.com/opendatalab/MinerU) | [PyPI](https://pypi.org/project/mineru/) | [ModelScope (OpenDataLab)](https://www.modelscope.cn/organization/OpenDataLab) · [PyPI Tsinghua mirror](https://pypi.tuna.tsinghua.edu.cn/simple/mineru/) |
 | Docling | [docs](https://docling-project.github.io/docling/) | [GitHub](https://github.com/docling-project/docling) · [docling-mcp](https://github.com/docling-project/docling-mcp) | [PyPI](https://pypi.org/project/docling/) | [PyPI Tsinghua mirror](https://pypi.tuna.tsinghua.edu.cn/simple/docling/) |
 | mcp-local-rag | | [GitHub](https://github.com/shinpr/mcp-local-rag) | npm | [npmmirror](https://registry.npmmirror.com/mcp-local-rag) |
 | RAGFlow | [ragflow.io](https://ragflow.io/) · [MCP](https://ragflow.io/docs/use_ragflow_as_mcp_server) | [GitHub](https://github.com/infiniflow/ragflow) | Docker image | [Gitee](https://gitee.com/infiniflow/ragflow) |

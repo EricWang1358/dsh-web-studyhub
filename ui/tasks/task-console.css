@@ -124,6 +124,15 @@
     .tc-num[data-state='fail'] { color: var(--bad-ink); }
     .tc-num[data-state='interrupted'] { color: var(--warn-ink); }
     .tc-empty { padding: var(--space-6) var(--space-4); color: var(--text-muted); }
+    /* 安装步骤 of a one-click install: one row per step with its mark (done, the one in hand, failed, waiting). */
+    .tc-steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); color: var(--text-muted); }
+    .tc-steps li { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; padding: 0 var(--space-4); border-bottom: 1px solid var(--line-soft); }
+    .tc-steps li[data-state='active'] { color: var(--text); font-weight: var(--fw-medium); }
+    .tc-steps li[data-state='done'] { color: var(--ok-ink); }
+    .tc-steps li[data-state='failed'] { color: var(--bad-ink); font-weight: var(--fw-medium); }
+    .tc-steps__mark { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 50%; }
+    .tc-steps li:is([data-state='done'], [data-state='failed']) .tc-steps__mark { border-color: transparent; }
+    .tc-steps li[data-state='active'] .tc-steps__mark { border-color: var(--accent); background: var(--accent-glow); }
 
     /* A column, not a grid with a fixed row list: the header, metrics, controls and the optional usage line keep their own height and the body takes
        the rest, whether or not the usage line is there (a fixed list of four rows pushed the body into an extra row when it was). */

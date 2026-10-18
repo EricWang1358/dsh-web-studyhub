@@ -1,6 +1,6 @@
 /* 「发给主会话」 on the 复习全书 page (docs/review-book-agent.md "Sending it from the book page"): the message is built by ui/agent-prompts/book.js (pure: the study-book skill and
    the book.* tools named, the course and hid, the files and version, the coverage figure, the learner's request and the selected words in fences, no book text, three scopes,
-   both languages); the buttons are static (a point's toolbar row, the book's header, the selection panel). Fakes only. */
+   both languages); the way to it is one destination of 问 AI (ui/book/BookAsk.jsx: at a point's title, over selected words, and the whole book in 更多). Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -9,8 +9,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const ui = await loadUi(`
   export { bookEditPrompt } from './ui/agent-prompts/book.js';
-  export { default as BookToChat, BookToChatForm, PRESETS } from './ui/book/BookToChat.jsx';
-  export { default as BookAiAsk } from './ui/book/BookAiAsk.jsx';
+  export { default as BookAsk, AskForm } from './ui/book/BookAsk.jsx';
   export { default as PointToolbar } from './ui/book/PointToolbar.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
@@ -95,42 +94,22 @@ test('English: every sentence is English (the learner\'s words and the tool name
   }
 });
 
-test('the point toolbar and the header carry the button; the popover has presets, a box, a send button and the hint', () => {
+test('发给主会话 is one destination of 问 AI: the point\'s row has no button of its own; the panel sends from its own box, over words or the whole point; the whole book has the same form', () => {
   const handlers = { qaOpen: () => false, toggleQa: noop, practice: noop, files: { 'p12.gen.md': { version: 3 } } };
-  const bar = textOf(render(h(ui.PointToolbar, { node: { ...node, questionTotal: 1 }, course: 'SA', handlers, tidy: null })));
-  assert.match(bar, /练 5 道.*本节问答.*发给主会话/);
-  const closed = render(h(ui.BookToChat, { scope: 'book', course: 'SA' }));
-  assert.match(closed, /data-book-chat="book"/);
-  assert.match(closed, /aria-haspopup="dialog"/);
-  assert.match(textOf(closed), /整本书 · 发给主会话/);
-  assert.doesNotMatch(closed, /book-chat__form/, 'closed until pressed');
-  const open = render(h(ui.BookToChat, { scope: 'point', node, course: 'SA', files: handlers.files, defaultOpen: true }));
-  const text = textOf(open);
-  for (const preset of ['润色成大白话', '补全没讲到的概念', '加例子和过渡']) assert.ok(text.includes(preset), preset);
-  assert.match(open, /<textarea[^>]*aria-label="你想怎么改（可以留空）"/);
-  assert.match(open, /data-book-chat-send/);
-  assert.match(text, /让主会话改这一节/);
-  assert.match(text, /也可以直接在主对话里说你想怎么改，主会话会按 study-book 改书，每次改动都能回退/);
-  assert.match(textOf(render(h(ui.BookToChat, { scope: 'book', course: 'SA', defaultOpen: true }))), /让主会话改整本书/);
+  const bar = textOf(render(h(ui.PointToolbar, { node: { ...node, questionTotal: 1 }, course: 'SA', handlers })));
+  assert.match(bar, /^练 5 道 本节问答$/, 'the row of actions keeps 练 5 道 and 本节问答 only');
+  const point = render(h(ui.BookAsk, { target: { heading: 'h12', anchor: null }, model: { ready: true }, onWrite: noop, onSend: noop, onClose: noop }));
+  assert.match(point, /data-book-ask="chat"[^>]*>发给主会话</);
+  assert.match(textOf(point), /只填进主对话的输入框，由你按发送；没有主对话时复制到剪贴板。/, 'its rule: it never sends by itself');
+  const words = render(h(ui.BookAsk, { target: { heading: 'h12', words: '熵只增不减', anchor: null }, model: { ready: false, status: 'missing' }, onWrite: noop, onSend: noop, onClose: noop }));
+  assert.match(words, /data-book-ask="chat"(?![^>]*disabled)/, 'sending to the chat works without a model');
+  const book = render(h(ui.AskForm, { scope: 'book', onSend: noop }));
+  assert.match(book, /data-book-ask-form="book"/);
+  assert.match(book, /placeholder="想让主会话怎么改整本书？（可以留空）"/);
   english(() => {
-    const en = textOf(render(h(ui.BookToChat, { scope: 'point', node, course: 'SA', defaultOpen: true })));
+    const en = textOf(render(h(ui.AskForm, { scope: 'book', onSend: noop })));
     assert.match(en, /Send to the main chat/);
-    assert.match(en, /Polish into plain language.*Fill in the concepts it skips.*Add examples and transitions/);
     assert.match(en, /every change can be undone/);
     assert.equal(han.test(en), false, `no Chinese: ${en}`);
   });
-});
-
-test('the selection panel offers 发给主会话 beside 弄懂 only when it can send, and a model is not needed for it', () => {
-  const target = { heading: 'h12', words: '熵只增不减', top: 10, left: 10 };
-  const off = { ready: false, status: 'missing' };
-  const panel = props => render(h(ui.BookAiAsk, { target, model: { ready: true }, onStart: noop, onClose: noop, ...props }));
-  assert.doesNotMatch(panel({}), /data-book-ai="chat"/, 'no way to send: no button');
-  const html = panel({ onSend: noop });
-  assert.match(html, /data-book-ai="chat"[^>]*>发给主会话</);
-  assert.match(html, /data-book-ai="explain"/);
-  const noModel = render(h(ui.BookAiAsk, { target, model: off, onStart: noop, onSend: noop, onClose: noop }));
-  assert.match(noModel, /data-book-ai="chat"(?![^>]*disabled)/, 'sending to the chat works without a model');
-  assert.doesNotMatch(noModel, /<input[^>]*book-ai__input[^>]*disabled/, 'the box can be typed in');
-  assert.doesNotMatch(render(h(ui.BookAiAsk, { target: { heading: 'h12', top: 1, left: 1 }, model: { ready: true }, onStart: noop, onSend: noop, onClose: noop })), /data-book-ai="chat"/, 'under a heading there are no words to send');
 });

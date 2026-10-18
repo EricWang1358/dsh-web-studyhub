@@ -33,7 +33,7 @@ marker-pdf 2.x (2.0.0, July 2026) runs its OCR models through a separate inferen
 
 The task's **日志** tab tells the run as it happens (the same lines on the original path and on the unified runtime):
 
-- the start: the tool (Marker / MinerU, local or cloud), which Marker program (StudyHub's own install, the path saved in Settings, or one found on the search path; never the path itself), the Marker version and the Python version StudyHub's install recorded, the number of pages and the window plan;
+- the start: the tool (Marker / MinerU, both local; the MinerU cloud route was removed in 3.6), which Marker program (StudyHub's own install, the path saved in Settings, or one found on the search path; never the path itself), the Marker version and the Python version StudyHub's install recorded, the number of pages and the window plan;
 - pages reused from an earlier attempt; one line when each window starts (pages a–b) and one when it ends (time taken, pages done of the total, time left estimated from the pace so far); a window that failed and, for MinerU's adaptive plan, the halves it is retried as;
 - what Marker printed, as plain lines: a progress bar (tqdm redraws its line) becomes ONE line with its last state, at most the first 12 and the last 8 lines per window are kept and the rest is counted (「中间省略 N 行输出」); the bar Marker is drawing right now shows live in 转换详情, not in the log;
 - the merge, the save (pages and characters), pages with no text, warnings, and a summary line (pages of material, its title, windows, retries, characters, total time);

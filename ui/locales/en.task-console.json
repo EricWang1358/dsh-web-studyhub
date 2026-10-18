@@ -450,5 +450,7 @@
   "在审阅": "Reviewing",
   "未达标": "Short",
   "没写成": "Not written",
-  "知识点都没变，不用重写。": "No knowledge point changed; nothing to write."
+  "知识点都没变，不用重写。": "No knowledge point changed; nothing to write.",
+  "当前步骤": "Current step",
+  "全部完成": "All done"
 }

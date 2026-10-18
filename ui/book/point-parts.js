@@ -5,6 +5,7 @@
    checks of the AI blocks of the learner's own file: which part holds a block's words (the block goes right after that paragraph, ui/book/PointBody.jsx),
    whether a whole-point block mostly restates the notes, and whether a block starts folded. Pure, no React, no DOM; nothing here changes a file. */
 import { aiBlocks, anchorIn, weaveBlocks, withoutAiBlocks } from '../../lib/course-book-ai-text.js';
+import { withLines } from './ai-lines.js';
 
 const LABELS = {
   takeaway: ['一句话', 'In one sentence'],
@@ -133,7 +134,7 @@ export const foldsByDefault = block => block.state !== 'kept' && String(block.bo
  * words are gone: 原位置已变, at the end of 我的), weave: Map<part, [{ text, anchors } | { item }]> (a part that holds the words of blocks, cut after the paragraph
  * that holds them: each block comes right after it, the words of the blocks dashed in the paragraph before).
  */
-export function pointView(node) {
+export function pointView(node, lines = []) {
   const split = splitPoint(node.gen), take = takeawayOf(split), story = [];
   const add = (name, text, label) => { if (String(text ?? '').trim()) story.push({ name, text: String(text).trim(), label }); };
   add('lead', split.lead);
@@ -147,14 +148,15 @@ export function pointView(node) {
   const points = part('points'), extra = part('extra'), mine = withoutAiBlocks(node.mine);
   const texts = [...story, points, extra, { name: 'mine', text: mine }].filter(item => item?.text);
   const anchors = new Map(), notes = [take?.text, split.parts.explain, split.parts.example, split.parts.points, split.lead].filter(Boolean).join('\n');
-  const blocks = [];
-  for (const block of aiBlocks(node.mine)) {
+  const blocks = [], placed = withLines(aiBlocks(node.mine), lines);
+  for (const block of placed.blocks) {
     const before = blocks.at(-1);
     // A whole-point block (under the heading) stays in 我的, and so does a follow-up of one; any other block goes where its words are, else it is lost.
+    // A line (ui/book/ai-lines.js) is placed like the block it stands for; its words are not dashed (there is no block to go to yet).
     if (block.at.startsWith('h:') || (block.mode === 'follow' && before?.part === null && before.status === 'same')) { blocks.push({ block, status: 'same', part: null }); continue; }
     const home = block.about ? texts.find(item => anchorIn(item.text, block.about)) : null;
     if (!home) { blocks.push({ block, status: 'gone', part: null }); continue; }
-    anchors.set(home.name, [...(anchors.get(home.name) || []), { id: block.id, quote: block.about }]);
+    if (!block.line) anchors.set(home.name, [...(anchors.get(home.name) || []), { id: block.id, quote: block.about }]);
     blocks.push({ block, status: 'same', part: home.name });
   }
   const weave = new Map();
@@ -165,7 +167,7 @@ export function pointView(node) {
     weave.set(text.name, pieces.map((piece, at) => {
       if (piece.block) return { item: held.find(item => item.block.id === piece.block.id) };
       const after = [];
-      for (let next = at + 1; pieces[next]?.block; next += 1) after.push({ id: pieces[next].block.id, quote: pieces[next].block.about });
+      for (let next = at + 1; pieces[next]?.block; next += 1) if (!pieces[next].block.line) after.push({ id: pieces[next].block.id, quote: pieces[next].block.about });
       return { text: piece.text, anchors: after };
     }));
   }
@@ -173,5 +175,5 @@ export function pointView(node) {
   const repeats = new Set(blocks.filter(({ block }) => block.mode === 'here' && block.body.length > explainLength && repeatShare(block.body, notes) >= REPEAT_SHARE)
     .map(({ block }) => block.id));
   return { story, takeaway: take, points, extra, cites: split.parts.cites || '', citeCount: citeCount(split.parts.cites), mine, blocks, anchors, repeats, weave,
-    here: blocks.filter(item => item.part === null && item.status === 'same'), lost: blocks.filter(item => item.status === 'gone') };
+    here: blocks.filter(item => item.part === null && item.status === 'same'), lost: blocks.filter(item => item.status === 'gone'), rewriting: placed.rewriting, landed: placed.landed };
 }

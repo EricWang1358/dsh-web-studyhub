@@ -18,6 +18,7 @@ const bin = folder => join(folder, process.platform === 'win32' ? 'Scripts' : 'b
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 if (args[0] === '--version') { console.log(`Python ${state.version || '3.11.4'}`); process.exit(0); }
+if (args[0] === '-c' && /python_version/.test(args[1] || '')) { console.log(state.version || '3.11.4'); console.log(state.executable || process.execPath); process.exit(0); }
 if (args[0] === '-c') {
   if (state.noVenvModule) { console.error('ModuleNotFoundError: No module named ensurepip'); process.exit(1); }
   process.exit(0);

@@ -11,6 +11,7 @@ import { StudyService } from '../lib/service.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { saveBookFile, bookSuggestion, takenIds } from '../lib/course-book-edit.js';
 import { capHistory, HISTORY_KEPT } from '../lib/course-book-history.js';
+import { aiBlock, aiBlocks } from '../lib/course-book-ai-text.js';
 import { assignHeadingIds, bookIndex, stitchBook } from '../lib/course-book-links.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
@@ -212,6 +213,36 @@ test('interleaving: a program refresh, an editor save from before it and a secon
   // A save of another file from an old version is no conflict: only that file's version counts.
   const other = await study.call('course.book.save', { file: what.files.mine, text: 'Mine.', version: 1 });
   assert.equal(other.write, 'saved');
+});
+
+test('撤销 of a deleted AI block: course.book.revert with the version the delete left takes it back; any write since (another delete, a new block) refuses it', async t => {
+  const { study } = await service(t);
+  let book = await study.call('course.book.open');
+  const [what] = leaves(book.nodes), mine = what.files.mine;
+  const one = aiBlock({ id: 'ai1', at: 'x', about: 'About', body: 'First block.' }, 'zh'), two = aiBlock({ id: 'ai2', at: 'y', about: 'About', body: 'Second block.' }, 'zh');
+  book = await study.call('course.book.save', { file: mine, text: `My note.\n\n${one}\n\n${two}`, version: book.files[mine].version });
+  const withBoth = leaves(book.nodes)[0].mine;
+  // Delete, then 撤销 with the version the delete answered: the block is back, as it was.
+  book = await study.call('course.book.block', { file: mine, id: 'ai1', action: 'delete' });
+  const left = book.files[mine].version;
+  assert.deepEqual(aiBlocks(leaves(book.nodes)[0].mine).map(block => block.id), ['ai2']);
+  book = await study.call('course.book.revert', { file: mine, version: left });
+  assert.equal(leaves(book.nodes)[0].mine, withBoth, 'the deleted block is back in its place');
+  assert.equal(book.write, 'reverted');
+  // Only the latest deletion: after a second delete, the first one's version is refused, and the book is as it was.
+  book = await study.call('course.book.block', { file: mine, id: 'ai1', action: 'delete' });
+  const stale = book.files[mine].version;
+  book = await study.call('course.book.block', { file: mine, id: 'ai2', action: 'delete' });
+  const now = leaves(book.nodes)[0].mine, history = book.history[mine];
+  await assert.rejects(study.call('course.book.revert', { file: mine, version: stale }), error => error.code === 'course-book-conflict');
+  const after = await study.call('course.book.open');
+  assert.equal(leaves(after.nodes)[0].mine, now, 'a refused 撤销 changes nothing');
+  assert.equal(after.history[mine], history, 'and keeps the history');
+  // A write since the delete (a block landing, an edit) refuses it too; without a version 回退到上一版 works as before.
+  book = await study.call('course.book.save', { file: mine, text: `${now}\n\nTyped.`, version: after.files[mine].version });
+  await assert.rejects(study.call('course.book.revert', { file: mine, version: book.files[mine].version - 1 }), error => error.code === 'course-book-conflict');
+  book = await study.call('course.book.revert', { file: mine });
+  assert.equal(leaves(book.nodes)[0].mine, now);
 });
 
 test('crash safety: a write that fails leaves the book and its history as they were', async t => {

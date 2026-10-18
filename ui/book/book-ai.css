@@ -1,0 +1,409 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 复习全书, the AI on the page (docs/review-book.md "Ask AI", "AI blocks"): the 问 AI button and panel (ui/book/BookAsk.jsx), the selection toolbar
+       (ui/book/BookSelectBar.jsx), the AI blocks (ui/book/BookAiBlock.jsx) and the line a task or a deletion leaves (ui/book/BookAiLine.jsx). Tokens only;
+       motion only on opacity and transform, none with reduced motion. */
+
+    /* An AI block: one row (the same fold look as 要点清单, 补充 and 本节的题: a hairline above, the caret, the label, the room under it), the text and the
+       quiet actions indented under the caret when it is open. A folded row is the caret, the AI tag, the first real sentence, the size and ⋯. The line of a
+       task or a deletion is a row of the same height in the same place. */
+    .book-ai {
+      position: relative;
+      isolation: isolate;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-2);
+      min-width: 0;
+      border-top: 1px solid var(--line-soft);
+      font-size: var(--fs-md);
+      overflow-wrap: anywhere;
+    }
+    .book-ai > :not(.book-ai__head, .book-ai__line) {
+      margin-left: calc(var(--space-4) + var(--space-2));
+    }
+    .book-ai > :last-child:not(.book-ai__head, .book-ai__line) {
+      margin-bottom: var(--space-4);
+    }
+    .book-ai__head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-ai__tip {
+      display: flex;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .book-ai__toggle {
+      flex: 1 1 auto;
+      align-items: flex-start;
+      justify-content: flex-start;
+      gap: var(--space-2);
+      min-width: 0;
+      padding: var(--space-3) 0;
+      color: var(--text-dim);
+      font-size: inherit;
+      font-weight: var(--fw-medium);
+      text-align: left;
+    }
+    .book-ai__toggle:hover:not(:disabled) {
+      background: none;
+      color: var(--text);
+    }
+    .book-ai__caret {
+      flex: none;
+      margin-top: var(--space-half);
+      color: var(--text-muted);
+      transition: transform var(--dur-fast) var(--ease);
+    }
+    .book-ai__toggle[aria-expanded='true'] > .book-ai__caret {
+      transform: rotate(90deg);
+    }
+    /* The folded row is one line at every width, cut with an ellipsis (the whole first sentence is in the open block): the summary is what shrinks, the size
+       and ⋯ keep their room at the right, and the row stands as high as the line a task leaves (nothing below moves when a block lands or is opened again). */
+    .book-ai__summary {
+      flex: 1 1 0;
+      min-width: 0;
+      overflow: hidden;
+      color: var(--text-dim);
+      font-weight: var(--fw-regular);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .book-ai__meta {
+      flex: none;
+      margin-top: var(--space-half);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      white-space: nowrap;
+    }
+    /* ⋯ of a folded row: quiet, never wider than its icon. */
+    .book-ai__more {
+      flex: none;
+      color: var(--text-muted);
+    }
+    .book-ai__again {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      gap: var(--space-1-5);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      white-space: nowrap;
+    }
+    .book-ai[data-ai-rewriting] .book-ai__body {
+      opacity: 0.6;
+    }
+    .book-point .book-ai .book-ai__quote,
+    .book-point .book-ai .book-ai__words {
+      min-width: 0;
+      margin-block: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      text-align: left;
+    }
+    .book-point .book-ai .book-ai__words {
+      text-decoration: underline dashed;
+      text-underline-offset: 3px;
+    }
+    /* The labels a whole-point block is written with (原文说：, 意思就是：) are quieter than what follows them (ui/book/ai-labels.js). */
+    .book-ai__label {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+    }
+    /* The block right under the 我的 divider has no hairline of its own (the divider's is the one); a block in the story is closed by one, so it is set off
+       from the book's own text. */
+    .book-layer__divider + .book-ai {
+      border-top: 0;
+    }
+    .book-point > .book-ai,
+    .book-point__part > .book-ai {
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .book-point__part > .book-ai {
+      margin-bottom: var(--space-2);
+    }
+    /* A short highlight: the dashed words' way to their block (data-ai-flash) and a block that just landed (data-ai-landed). A layer under the row that fades
+       in and out (opacity only), so nothing moves. */
+    .book-ai::before {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: var(--radius-sm);
+      background: var(--bg-selected);
+      content: '';
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur-slow) var(--ease);
+    }
+    .book-ai[data-ai-flash]::before,
+    .book-ai[data-ai-landed]::before {
+      opacity: 1;
+    }
+    .book-ai-anchor[data-ai-flash] {
+      background: var(--bg-selected);
+    }
+    /* The words an AI block is about: a quiet dashed underline in ink (the text stays the book's own colour); a press goes to the block. */
+    .book-ai-anchor {
+      text-decoration: underline dashed var(--text-dim);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+    .book-ai-anchor:hover {
+      background: var(--bg-hover);
+    }
+    .book-ai-anchor:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .book-ai > .book-ai__actions {
+      margin-left: var(--space-3);
+    }
+    .book-ai__actions,
+    .book-ai__follow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-ai__input {
+      flex: 1 1 12rem;
+      min-width: 0;
+    }
+    .book-ai__act {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    /* The line: as high as a folded row (the toggle's padding around one line of text; its links have no box of their own). */
+    .book-ai__line {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
+      padding: var(--space-3) 0;
+      color: var(--text-muted);
+      line-height: var(--lh-tight);
+    }
+    /* The folded row and the line stand exactly as high (one line of the row between the same padding), so the block that lands moves nothing. */
+    .book-ai__toggle,
+    .book-ai__line {
+      box-sizing: border-box;
+      min-height: calc(var(--space-3) * 2 + var(--space-5));
+    }
+    /* 「已删除这段 · 撤销」 past its seconds: faded out with its hairlines (opacity only), its room kept until it is off screen or the book is read again. */
+    .book-ai--line {
+      transition: opacity var(--dur-slow) var(--ease);
+    }
+    .book-ai--line[data-ai-faded] {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .book-ai__line .book-ai__link {
+      padding-block: 0;
+      color: var(--text-dim);
+      line-height: inherit;
+    }
+    .book-ai__spin {
+      flex: none;
+    }
+    .book-ai__state {
+      min-width: 0;
+      font-size: var(--fs-sm);
+    }
+    .book-ai__dot {
+      color: var(--text-faint);
+      font-size: var(--fs-sm);
+    }
+    .book-ai__why {
+      display: flex;
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .book-ai__state--failed {
+      overflow: hidden;
+      color: var(--text-dim);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 「✦ 问 AI」 at the right of a point's title: quiet, the title keeps the room it needs and wraps before the button does. On a narrow page it is its ✦
+       alone (its name stays on it, its hover says where it goes). */
+    .book-ask-row {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2) var(--space-3);
+      min-width: 0;
+    }
+    .book-ask-row > :first-child {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .book-ask-tip {
+      display: inline-flex;
+      flex: none;
+    }
+    .book-ask-open {
+      color: var(--text-muted);
+    }
+    .book-page[data-narrow] .book-ask-open {
+      justify-content: center;
+      width: var(--control-h-sm);
+      padding-inline: 0;
+    }
+    .book-page[data-narrow] .book-ask-open__word {
+      display: none;
+    }
+    /* 逐节读's top: the path, then the title with 问 AI at its right; on a narrow page 问 AI moves up to the path's row, so the title keeps the whole width
+       (and the first line of the text does not move down). */
+    .book-ask-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'path path' 'title ask';
+      gap: var(--space-3);
+      align-items: start;
+      min-width: 0;
+    }
+    .book-ask-top > ol {
+      grid-area: path;
+    }
+    .book-ask-top > h2 {
+      grid-area: title;
+      min-width: 0;
+    }
+    /* The button takes no height of its own beyond the line it sits on (its box reaches a little above and below), so the text starts where it did. */
+    .book-ask-top > .book-ask-tip {
+      grid-area: ask;
+      margin-block: calc(var(--space-1) * -1);
+    }
+    .book-page[data-narrow] .book-ask-top {
+      grid-template-areas: 'path ask' 'title title';
+      align-items: center;
+    }
+    .book-page[data-narrow] .book-ask-top > .book-ask-tip {
+      margin-block: calc(var(--space-2) * -1);
+    }
+    /* The panel and the toolbar: absolute in the page, placed against their anchor by useRangeAnchor; hidden until placed and while the anchor is gone. */
+    .book-ask,
+    .book-select {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: var(--z-popover);
+      box-sizing: border-box;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-popover);
+    }
+    .book-ask:not([data-placed]),
+    .book-ask[data-away],
+    .book-select:not([data-placed]),
+    .book-select[data-away] {
+      visibility: hidden;
+    }
+    .book-ask {
+      display: grid;
+      gap: var(--space-2);
+      width: min(380px, calc(100vw - var(--space-6)));
+      padding: var(--space-2) var(--space-3) var(--space-3);
+    }
+    .book-ask__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-ask__title {
+      margin: 0;
+      font-weight: var(--fw-strong);
+    }
+    .book-ask__words {
+      display: -webkit-box;
+      margin: 0;
+      overflow: hidden;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .book-ask__form {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    /* The presets: the four short ones two by two, the long one on its own row (an even block at every panel width). */
+    .book-ask__presets {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-ask__preset {
+      justify-content: flex-start;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .book-ask__preset:last-child {
+      grid-column: 1 / -1;
+    }
+    .book-ask__send {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
+    }
+    .book-ask__send {
+      justify-content: flex-end;
+    }
+    .book-ask__tip {
+      display: inline-flex;
+    }
+    .book-ask__input {
+      width: 100%;
+      min-width: 0;
+      resize: vertical;
+    }
+    .book-ask__hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-select {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1);
+    }
+    .book-select__tip {
+      display: inline-flex;
+    }
+    /* Selected words in the book: the theme's own wash, not the browser's blue. */
+    .book-read ::selection,
+    .book-flip ::selection {
+      background: var(--bg-selected);
+      color: inherit;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .book-ai::before,
+      .book-ai--line,
+      .book-ai__caret {
+        transition: none;
+      }
+    }
+  }
+}
