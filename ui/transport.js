@@ -4,6 +4,12 @@ const ROUTES = {
   legacy: ["/study-workspace", "call"],
 };
 const missingRoute = (e) => /HTTP (404|405)\b/.test(e?.message || "");
+// DSH 0.2.1 answers 403 on plugin routes to every browser that is not the owner's (remote access; @deepseek-ai/dsh-client-connection lib/index.js:829-831).
+const ownerOnly = (e) => /HTTP 403\b/.test(e?.message || "");
+const ownerOnlyError = (cause) => Object.assign(new Error("StudyHub 只对这台电脑上的 DSH 主人开放；通过远程访问打开的浏览器不能使用它。StudyHub is only available to the owner of this DSH, not to remote-access browsers."), {
+  code: "STUDY_OWNER_ONLY",
+  cause,
+});
 
 export function createStudyCall(connection, sessionId) {
   // Switch to the legacy route only after it actually answers. While the host
@@ -18,6 +24,7 @@ export function createStudyCall(connection, sessionId) {
     try {
       result = await send(route);
     } catch (e) {
+      if (ownerOnly(e)) throw ownerOnlyError(e);
       if (!missingRoute(e)) throw e;
       const other = route === "native" ? "legacy" : "native";
       try {
@@ -25,6 +32,7 @@ export function createStudyCall(connection, sessionId) {
         route = other;
       } catch (fallback) {
         route = "native";
+        if (ownerOnly(fallback)) throw ownerOnlyError(fallback);
         if (!missingRoute(fallback)) throw fallback;
         throw Object.assign(new Error("学习插件还没有就绪（宿主可能刚重启），正在重试…"), {
           code: "STUDY_UNAVAILABLE",

@@ -116,3 +116,10 @@ test("legacy fallback only follows 404/405, never auth failure or unknown server
   await assert.rejects(() => denied("snapshot"), /401/);
   assert.equal(count, 1);
 });
+
+test("a remote-access browser that DSH 0.2.1 answers with 403 reads that StudyHub is owner-only, once", async () => {
+  let count = 0;
+  const call = createStudyCall({ rpc: { call: async () => { count++; throw new Error("transport failure for /api: HTTP 403"); } } }, "s");
+  await assert.rejects(() => call("snapshot"), (e) => e.code === "STUDY_OWNER_ONLY" && /owner/.test(e.message) && /HTTP 403/.test(e.cause.message));
+  assert.equal(count, 1, "no fallback to the legacy route for a refusal");
+});

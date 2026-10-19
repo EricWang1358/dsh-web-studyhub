@@ -13,6 +13,7 @@ StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app
 **What you need**
 
 - **DSH 0.2.** StudyHub 3.5.5 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
+- **DSH versions tested.** StudyHub 3.5.6 is tested in isolated DSH hosts 0.2.0-rc.2 and 0.2.1-rc.2. On DSH 0.2.1-rc.2 use StudyHub 3.5.6 or later: in 3.5.0–3.5.5 every message in 学习模式 fails with `unknown prompt variable "{{cwd}}"`.
 - **A supported computer.** The desktop installers in this guide are for Windows x64 and Macs with Apple silicon. On any other system, check the official DSH site or use the DSH web version with Node.js 22.19 or later.
 - **A model, only for AI features.** Generation and explanations need one; see [Configure a model provider](#configure-a-model-provider). Installing, the sample tour, browsing sources and practising existing decks do not.
 

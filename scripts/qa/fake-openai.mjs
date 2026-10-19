@@ -14,7 +14,7 @@ const text = (content) => typeof content === "string" ? content
   : Array.isArray(content) ? content.map((part) => typeof part === "string" ? part : part?.text || "").join("") : "";
 
 /** Start the server. Returns { url (…/v1), log, close() }. */
-export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, beforeReply } = {}) {
+export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, beforeReply, toolCall } = {}) {
   const log = [];
   const studyLog = [];
   const study = model || createFakeModel({ log: studyLog });
@@ -36,6 +36,27 @@ export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, be
         const turns = messages.filter((m) => m.role === "user").map((m) => text(m.content));
         const prompt = turns.findLast((turn) => !/^\s*Current runtime context\./.test(turn)) ?? turns.at(-1) ?? "";
         await beforeReply?.(system, prompt); // a run may hold the model (scripts/qa/dsh-runtime-smoke.mjs shows a job while it runs)
+        // `toolCall({ prompt, tools })` may return { name, arguments } to make the model call a tool instead of answering (once: the turn after the tool result is a plain answer).
+        const toolNames = (request.tools || []).map((tool) => tool.function?.name || tool.name).filter(Boolean);
+        const lastTool = messages.at(-1)?.role === "tool" ? text(messages.at(-1).content) : "";
+        const call = !lastTool && toolCall ? toolCall({ prompt: prompt.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim(), tools: toolNames }) : null;
+        if (call && toolNames.includes(call.name)) {
+          log.push({ at: new Date().toISOString(), model: request.model, stream: !!request.stream, handled: false, toolCall: call.name, tools: toolNames, systemHead: system.slice(0, 200) });
+          const id = `call_qa_${log.length}`, args = JSON.stringify(call.arguments ?? {});
+          const base = { id: `chatcmpl-qa-${log.length}`, created: Math.floor(Date.now() / 1000), model: request.model || FAKE_OPENAI_MODEL };
+          const usage = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 };
+          if (!request.stream) {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(JSON.stringify({ ...base, object: "chat.completion", usage, choices: [{ index: 0, message: { role: "assistant", content: null, tool_calls: [{ id, type: "function", function: { name: call.name, arguments: args } }] }, finish_reason: "tool_calls" }] }));
+            return;
+          }
+          res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+          const emit = (value) => res.write(`data: ${JSON.stringify({ ...base, object: "chat.completion.chunk", ...value })}\n\n`);
+          emit({ choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id, type: "function", function: { name: call.name, arguments: args } }] }, finish_reason: null }] });
+          emit({ choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage });
+          res.end("data: [DONE]\n\n");
+          return;
+        }
         const before = studyLog.length;
         // DSH prepends <system-reminder> blocks to the user turn of every request, and a delegated call carries the plugin's instruction inside that turn: the study model is
         // asked what the plugin asked, and its handlers (which match on the system text) are shown the instruction as well.
@@ -46,7 +67,7 @@ export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, be
         // DSH prepends <system-reminder> blocks to the user turn; echo only what the learner wrote.
         if (!handled) content = `【StudyHub QA fake model】收到：${prompt.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim().slice(0, 60)}`;
         log.push({ at: new Date().toISOString(), model: request.model, stream: !!request.stream, handled,
-          tools: (request.tools || []).map((tool) => tool.function?.name || tool.name).filter(Boolean), systemHead: system.slice(0, 200) });
+          tools: (request.tools || []).map((tool) => tool.function?.name || tool.name).filter(Boolean), systemHead: system.slice(0, 200), systemText: system.slice(0, 40000), toolResult: lastTool.slice(0, 600) });
         const base = { id: `chatcmpl-qa-${log.length}`, created: Math.floor(Date.now() / 1000), model: request.model || FAKE_OPENAI_MODEL };
         const usage = { prompt_tokens: Math.ceil((system.length + prompt.length) / 4), completion_tokens: Math.ceil(content.length / 4) };
         usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;

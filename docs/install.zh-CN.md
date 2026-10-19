@@ -13,6 +13,7 @@ StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面�
 **需要准备**
 
 - **DSH 0.2**：StudyHub 3.5.5 要求 DSH `>=0.2.0-rc.2 <0.3`。DSH 和 StudyHub 的版本号各自独立。
+- **测试过的 DSH 版本**：StudyHub 3.5.6 在隔离的 DSH 0.2.0-rc.2 和 0.2.1-rc.2 宿主里测试过。DSH 0.2.1-rc.2 请用 StudyHub 3.5.6 或更新版本：3.5.0–3.5.5 在「学习模式」里发任何消息都会报 `unknown prompt variable "{{cwd}}"`。
 - **能装 DSH 的电脑**：本文提供的桌面安装器适用于 Windows x64 和 Apple 芯片（M 系列）的 Mac。其他电脑先查看 DSH 官网，或用 DSH 网页版（需要 Node.js 22.19 或以上）。
 - **模型，只在用 AI 功能时需要**：出题和讲解要用模型，见[配置模型服务商](#配置模型服务商)。安装、示例导览、浏览资料和练习已有题组都不需要模型。
 
