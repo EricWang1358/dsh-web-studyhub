@@ -8,7 +8,8 @@
       SSH_TTY=audit (in-browser folder picker, never a native dialog), a local
       fake OpenAI-compatible model (scripts/qa/fake-openai.mjs) as the default
       model, and the default workspace under output/qa/dsh-documents;
-   4. opens Study with Playwright, screenshots it, then stops everything.
+   4. opens Study with Playwright, screenshots it, chats in the standard preset and in 学习模式 (the same command,
+      sandbox-leaving command and file turns in both: same tools, same approvals, same outcome), then stops everything.
    It never reads or writes ~/.dsh or the owner's Documents folder.
    Output: output/qa/dsh-e2e/*.png and summary.json. Not part of npm test. */
 /* global document, window, getComputedStyle -- callbacks passed to page.evaluate / waitForFunction run in the browser */
@@ -398,13 +399,67 @@ export async function runDshE2e(options) {
             await shot(`11-chat-study-${turn.name}`);
           }
         }
+        // The host's own command and file tools: the SAME three turns in both presets. 学习模式 composes the rows of the standard preset, so each turn must ask for
+        // the same approval (DSH's permission preset decides that, not the agent preset) and end the same way. An approval card is accepted once and recorded.
+        if (result.reply && !result.error) {
+          const shellTool = process.platform === "win32" ? "pwsh" : "bash", probe = join(workspace, "studyhub-work", "qa-probe.txt"), content = `StudyHub QA probe (${key})`;
+          const hostTurns = [
+            { name: "shell", tool: shellTool, text: `[[tool:${shellTool} {"description":"Print the Node.js version","command":"node -v"}]]`,
+              ran: async (seen) => /\bv\d+\.\d+\.\d+\b/.test(seen.map((entry) => entry.toolResult || "").join("\n")) },
+            // the same command asking to leave the sandbox: the host must ask the learner first (accepted once here), in both presets alike
+            { name: "shell-escalated", tool: shellTool, text: `[[tool:${shellTool} {"description":"Print the Node.js version","command":"node -v","sandbox_permissions":"danger-full-access","justification":"QA check outside the sandbox"}]]`,
+              ran: async (seen) => /\bv\d+\.\d+\.\d+\b/.test(seen.map((entry) => entry.toolResult || "").join("\n")) },
+            // a new file each time (the fs observation policy treats overwriting an unread file differently), in the session workspace
+            { name: "file", tool: "write", text: `[[tool:write {"file_path":"studyhub-work/qa-probe.txt","content":"${content}"}]]`, before: () => rm(probe, { force: true }),
+              ran: async () => (await readFile(probe, "utf8").catch(() => "")) === content },
+          ];
+          result.hostTurns = {};
+          const allow = page.getByRole("button", { name: /^(允许一次|Allow once)$/ });
+          for (const turn of hostTurns) {
+            await turn.before?.();
+            const outcome = result.hostTurns[turn.name] = { tool: turn.tool, offered: result.tools.includes(turn.tool), called: false, approval: false, approvalText: "", ran: false, reply: false };
+            const beforeTool = await leaves(replyText), requestsBeforeTool = model.log.length;
+            await page.getByRole("textbox").last().click();
+            await page.keyboard.type(turn.text);
+            await page.getByRole("button", { name: /^(发送消息|Send)/ }).click();
+            for (const end = Date.now() + 60000; Date.now() < end && !outcome.reply; await sleep(400)) {
+              if (await leaves(replyText) > beforeTool) outcome.reply = true;
+              else if (await allow.first().isVisible().catch(() => false)) {
+                outcome.approval = true;
+                outcome.approvalText = await allow.first().evaluate((element) => { let node = element; while (node.parentElement && (node.parentElement.innerText || "").length < 300) node = node.parentElement; return (node.innerText || "").replace(/\s+/g, " ").slice(0, 300); });
+                await shot(`12-chat-${key}-${turn.name}-approval`);
+                await allow.first().click();
+              }
+            }
+            const seen = model.log.slice(requestsBeforeTool);
+            outcome.called = seen.some((entry) => entry.toolCall === turn.tool);
+            outcome.toolResult = (seen.map((entry) => entry.toolResult).find(Boolean) || "").slice(0, 400);
+            outcome.ran = await turn.ran(seen);
+            await shot(`12-chat-${key}-${turn.name}`);
+          }
+        }
       }
+      // The same tools as the standard preset: StudyHub's study_* tools are registered host-wide, so both lists carry them and must be equal.
+      const study = summary.presetChat.study || {}, standard = summary.presetChat.standard || {};
+      const studyOwn = (study.tools || []).filter((name) => /^study_/.test(name));
+      summary.hostToolComparison = {
+        tools: { studyOnly: (study.tools || []).filter((name) => !(standard.tools || []).includes(name)), standardOnly: (standard.tools || []).filter((name) => !(study.tools || []).includes(name)), studyTools: studyOwn },
+        turns: Object.fromEntries(["shell", "shell-escalated", "file"].map((name) => [name, { study: study.hostTurns?.[name] && { approval: study.hostTurns[name].approval, ran: study.hostTurns[name].ran },
+          standard: standard.hostTurns?.[name] && { approval: standard.hostTurns[name].approval, ran: standard.hostTurns[name].ran } }])),
+      };
+      const sameTools = JSON.stringify(study.tools || []) === JSON.stringify([...new Set([...(standard.tools || []), ...studyOwn])].sort());
       const problem = (key, value) => value.error || (!value.reply && "no reply") || (key === "study" && !value.personaSent && "the preset's persona never reached the model")
         || Object.entries(value.toolTurns || {}).map(([name, turn]) => !(turn.called && turn.resultSeen && turn.reply) && `the ${name} tool turn did not complete: ${JSON.stringify(turn)}`).find(Boolean);
       const workerAt = (summary.presetPicker || []).findIndex((text) => /StudyHub 后台|StudyHub background/.test(text));
       if (workerAt < 0) throw new Error(`the worker preset is missing from the picker: ${JSON.stringify(summary.presetPicker || [])}`);
       if (workerAt !== summary.presetPicker.length - 1) throw new Error(`the worker preset is not last in the picker: ${JSON.stringify(summary.presetPicker)}`);
       const bad = Object.entries(summary.presetChat).map(([key, value]) => [key, problem(key, value)]).filter(([, text]) => text);
+      if (!sameTools || studyOwn.length < 7) bad.push(["tools", `学习模式 is not offered the standard tools plus StudyHub's: ${JSON.stringify(summary.hostToolComparison.tools)}`]);
+      for (const [name, { study: a, standard: b }] of Object.entries(summary.hostToolComparison.turns)) {
+        for (const [key, value] of [["study", study], ["standard", standard]])
+          if (!value.hostTurns?.[name]?.called || !value.hostTurns[name].reply) bad.push([key, `the ${name} turn did not complete: ${JSON.stringify(value.hostTurns?.[name] || null)}`]);
+        if (JSON.stringify(a) !== JSON.stringify(b)) bad.push([name, `学习模式 ${JSON.stringify(a)} differs from standard ${JSON.stringify(b)}`]);
+      }
       if (bad.length) throw new Error(bad.map(([key, text]) => `${key}: ${text}`).join(" | "));
     });
     // StudyHub's own background child (lib/subagent-api.js): the AI helper on a card of the sample library, asked twice on the same card, first from the live study

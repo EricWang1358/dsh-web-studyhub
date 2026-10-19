@@ -1,5 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
-import { say } from './say.js';
+import { nameData, say } from './say.js';
 
 /* "Record the questions I paste into this conversation": the options of the setup form (Ingest.jsx) and the prompt that
    hands them to the conversation's agent (ui-consistency #124). One registry describes each option once: the label and hint the
@@ -29,7 +29,7 @@ const START = '开始录题：接下来这段对话里我贴的题目（刷题�
   + '- 题型：{2}\n'
   + '- 错题：{3}\n'
   + '- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n'
-  + '- 如果我贴的是讲义 PDF 而不是现成题目，请用 source.import 按页导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n'
+  + '- 如果我贴的是讲义 PDF 而不是现成题目，请用 study_materials 的 document.import 导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n'
   + '- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n'
   + '- 我说「停止录题」时调用 ingest.stop。\n'
   + '第一批题目：\n';
@@ -37,8 +37,8 @@ const START = '开始录题：接下来这段对话里我贴的题目（刷题�
 /** The hand-off for `ingest.start`'s result. input: { deckTitle, folder, kind, mistakes } (kind and mistakes are registry ids). */
 export function ingestPrompt({ deckTitle = '', folder = '', kind = 'auto', mistakes = 'auto' }, language = getUiLanguage()) {
   return say(language, START, [
-    deckTitle,
-    folder ? say(language, FOLDER, [folder]) : '',
+    nameData(deckTitle),
+    folder ? say(language, FOLDER, [nameData(folder)]) : '',
     say(language, optionOf(INGEST_KINDS, kind).instruction),
     say(language, optionOf(INGEST_MISTAKES, mistakes).instruction),
   ]);

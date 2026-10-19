@@ -168,7 +168,7 @@ See [audio import](docs/audio-import.md) and [live class](docs/live-class.md).
 
 ## Use StudyHub from the DSH chat
 
-- **Study mode preset.** For a new session, pick the agent preset **学习模式 · StudyHub** (Study mode; the label is in Chinese in both languages). The assistant then takes "materials", "my notes" or "this lecture" to mean your StudyHub library, asks when a request is ambiguous, and never runs commands or edits your files.
+- **Study mode preset.** For a new session, pick the agent preset **学习模式 · StudyHub** (Study mode; the label is in Chinese in both languages). The assistant then takes "materials", "my notes" or "this lecture" to mean your StudyHub library and asks when a request is ambiguous. It has the same tools as DSH's standard preset, so it can also run commands and edit files to convert material (for example split a question book by chapter) before importing it: it writes the results under `studyhub-work/` in the workspace, never deletes or overwrites your originals, and asks before installing anything.
 - **Ask about your library** in the main chat: see [query sources and decks from the main chat](docs/main-session-queries.md).
 - **Save a question you could not answer.** Type `/study-spar <your question>` in a DSH chat. StudyHub files it in your question bank as a flashcard. Add `--mq` for single choice or `--multi` for multiple choice; start with `--pre` to file it as a prerequisite of the question you are working on.
 - **Follow background tasks** in DSH's sidebar: see [background tasks and the sidebar](docs/generation-agents-sidebar.md).

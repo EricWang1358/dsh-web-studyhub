@@ -1,5 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
-import { fenceData, say } from './say.js';
+import { fenceData, nameData, say } from './say.js';
 import { installCommand } from '../archify.js';
 
 /* The knowledge-skeleton page's hand-offs to the conversation (ui-consistency #124): make a skeleton of picked topics, or extend a
@@ -19,15 +19,15 @@ function wanted({ intent, term, text }, language) {
   const entry = intent && EXTEND_ASK[intent];
   if (!entry) return text;
   const [template, fallback] = entry;
-  if (intent === 'contrast') return say(language, template, [term, text]);
-  return say(language, template, [term, text ? `: ${text}` : say(language, fallback)]);
+  if (intent === 'contrast') return say(language, template, [nameData(term), nameData(text)]);
+  return say(language, template, [nameData(term), text ? `: ${text}` : say(language, fallback)]);
 }
 
 /** Extend one saved skeleton incrementally (new concepts, relations, cards). input: { skeleton ({ id, title }), nodeId, term, intent, text }. */
 export function extendSkeletonPrompt({ skeleton, nodeId, term, intent, text }, language = getUiLanguage()) {
   const want = wanted({ intent, term, text }, language);
-  const origin = nodeId ? say(language, '，从节点 {0}「{1}」出发', [nodeId, term]) : '';
-  return say(language, '请扩展知识骨架「{0}」（id: {1}）{2}：\n{3}\n\n', [skeleton.title, skeleton.id, origin, want])
+  const origin = nodeId ? say(language, '，从节点 {0}「{1}」出发', [nodeId, nameData(term)]) : '';
+  return say(language, '请扩展知识骨架「{0}」（id: {1}）{2}：\n{3}\n\n', [nameData(skeleton.title), skeleton.id, origin, want])
     + say(language, '做法：\n')
     + say(language, '1. 用 study_workspace 的 skeleton.get（payload 为 {"id": "') + skeleton.id + say(language, '"}）读当前骨架；需要的概念已经在骨架里就复用它的节点。\n')
     + say(language, '2. 不在骨架里的概念：先用 card.search 查题库有没有相关题，用 source.search 查资料依据；再用 skeleton.patch 的 node.add 加节点（meaning 依据资料，资料里没有的明确写是补充知识），挂到合适的上位概念（parent），用 attributes 写 2–5 条关键特征，让差异在类图里一眼可见。\n')
@@ -45,7 +45,7 @@ export function designSkeletonPrompt({ scope, lint = null, topics = [], update =
     ? Object.entries(lint.counts).filter(([, n]) => n).map(([code, n]) => say(language, '{0} {1} 题', [lint.labels[code], n])).join('；') || say(language, '没有发现散装问题')
     : say(language, '（还没做质量检测，skeleton.context 会带上每道题的检测结果）');
   const names = `\n${fenceData('主题', topics.join('、'), language)}`;
-  return (update ? say(language, '请更新知识骨架「{0}」（id: {1}），', [update.title, update.id]) : say(language, '请为下面这组题做一份「知识骨架」，'))
+  return (update ? say(language, '请更新知识骨架「{0}」（id: {1}），', [nameData(update.title), update.id]) : say(language, '请为下面这组题做一份「知识骨架」，'))
     + say(language, '把散装的名词串成结构，并修掉只能死记的题：\n')
     + say(language, '主题：{0}\n', [names])
     + say(language, '范围 scope：{0}\n', [JSON.stringify(scope)])

@@ -79,7 +79,9 @@ test('every shipped preset and patch uses only prompt variables every supported 
   const files = await shippedPatches();
   assert.ok(files.includes('presets/study.patch.yml'));
   const texts = [];
-  for (const file of files) texts.push(...personaTexts(parse(await read(file)), file));
+  // `!!js` scalars (the host Loader's dialect, as in the standard preset's shell rows) are expressions, not prompt text.
+  const customTags = [{ tag: 'tag:yaml.org,2002:js', resolve: source => ({ __jsExpr: source }) }];
+  for (const file of files) texts.push(...personaTexts(parse(await read(file), { customTags }), file));
   assert.ok(texts.some(([where]) => /preset-study > persona\.suffix$/.test(where)), 'the study persona suffix is scanned');
   assert.deepEqual(texts.flatMap(([where, text]) => templateProblems(text, where)), []);
 });

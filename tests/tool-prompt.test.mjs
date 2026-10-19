@@ -22,7 +22,9 @@ test('actual registered Study prompts are short, discoverable and retain authori
     assert.ok(libraryContracts[area].length < 6000, `${area} can be read as bounded detail`);
   }
   for (const boundary of [/untrusted evidence/, /publish only when saving is authorized/, /Keep answers hidden/,
-    /Never fabricate grades/, /API keys/, /AI course\/merge suggestions need confirmation/, /never broaden empty results/])
+    /Never fabricate grades/, /API keys/, /AI course\/merge suggestions need confirmation/, /never broaden empty results/,
+    // 学习模式 has file tools since 3.5.7 and the library lives in the workspace
+    /StudyHub's own data \(\.dsh-study\/, \.dsh-study-binding\.json, a workspace's study-workspace\.json and the library folders beside it\) changes only through study_\* tools; never read, edit, move or delete it with shell or file tools/])
     assert.match(studyToolDescription, boundary);
   assert.doesNotMatch(studyToolDescription + studyUsagePrompt, /\{\{[^}]+\}\}/);
 });

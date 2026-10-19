@@ -4,7 +4,7 @@
 
 In DSH, the main chat reaches your StudyHub library through the `study_workspace` tool. You ask in plain words, and the assistant chooses the calls. This page lists what it can look up, so you can phrase requests precisely and check what it reports.
 
-The assistant reads your library in small pages through these calls. It does not need temporary scripts that scan your files.
+The assistant reads your library in small pages through these calls; reading needs no scripts. In 学习模式 the assistant can also run commands and edit files, which it uses to convert material (for example split a PDF by chapter) before importing it into the library.
 
 ## What you can ask
 
