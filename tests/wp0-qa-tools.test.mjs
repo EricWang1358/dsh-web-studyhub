@@ -94,15 +94,15 @@ test("the DSH e2e patch routes the default model to the local fake and keeps doc
   assert.doesNotMatch(provider.apiKeyEnv, /_API_KEY|_TOKEN|BASE_URL/, "the fake key survives the secret scrub");
 });
 
-test("the DSH harness takes the host release from --dsh-version or DSH_QA_VERSION and keeps 0.2.0-rc.2 as the default", () => {
+test("the DSH harness takes the host release from --dsh-version or DSH_QA_VERSION and defaults to 0.2.1-rc.2", () => {
   const saved = process.env.DSH_QA_VERSION;
   try {
     delete process.env.DSH_QA_VERSION;
     assert.equal(parseDshArgs([]).dshVersion, DSH_VERSION);
-    assert.equal(DSH_VERSION, "0.2.0-rc.2");
-    assert.equal(parseDshArgs(["--dsh-version", "0.2.1-rc.2"]).dshVersion, "0.2.1-rc.2");
-    assert.equal(parseDshArgs(["--dsh-version=0.2.1-rc.2"]).dshVersion, "0.2.1-rc.2");
-    assert.match(parseDshArgs(["--dsh-version", "0.2.1-rc.2"]).out, /dsh-e2e-0\.2\.1-rc\.2$/, "another release gets its own output folder");
+    assert.equal(DSH_VERSION, "0.2.1-rc.2", "the newest supported host by default; 0.2.0-rc.2 is still run with --dsh-version");
+    assert.equal(parseDshArgs(["--dsh-version", "0.2.0-rc.2"]).dshVersion, "0.2.0-rc.2");
+    assert.equal(parseDshArgs(["--dsh-version=0.2.0-rc.2"]).dshVersion, "0.2.0-rc.2");
+    assert.match(parseDshArgs(["--dsh-version", "0.2.0-rc.2"]).out, /dsh-e2e-0\.2\.0-rc\.2$/, "another release gets its own output folder");
     assert.match(parseDshArgs([]).out, /dsh-e2e$/);
     process.env.DSH_QA_VERSION = "0.2.2";
     assert.equal(resolveDshVersion(), "0.2.2");

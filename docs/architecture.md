@@ -32,6 +32,7 @@ Since 2.0, StudyHub has been a set of separately installable capability plugins 
 | `locale/` | Names and descriptions shown in DSH's plugin manager: the package's in `locale/en.json` and `locale/zh.json`, each component's in `locale/plugins/<component>/` |
 | `packages/studyhub-retrieval/` | The search extension, a companion bundle (see [Retrieval providers](#retrieval-providers-large-textbooks)) |
 | `presets/study.patch.yml` | The DSH agent preset 学习模式 · StudyHub |
+| `presets/study-worker.patch.yml` | The tool-less preset StudyHub's background children run under on DSH 0.2.1 (`lib/subagent-api.js`) |
 | `cordis.patch.yml` | The full-install composition (see [Full install](#full-install)) |
 | `scripts/` | `build.mjs`, `build-demo.mjs`, `dev.mjs` (`npm run dev`), `release-alpha.mjs` (`npm run release:pack`), the `qa/` journeys (`npm run qa:*`), benchmarks and the Jev evaluation scripts |
 | `tests/` | `node --test` suites (`npm test`) |

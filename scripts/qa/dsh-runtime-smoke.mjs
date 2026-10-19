@@ -1,4 +1,4 @@
-/* npm run qa:dsh-runtime [-- --dsh-bin <bin.js> --port 3190 --model-port 4194 --out output/qa/s67-smoke]
+/* npm run qa:dsh-runtime [-- --dsh-version 0.2.0-rc.2 | --dsh-bin <bin.js> --port 3190 --model-port 4194 --out output/qa/s67-smoke]
    The unified job runtime inside a real, isolated DSH 0.2 host (S6-7 host evidence):
    1. builds and packs this plugin and adds it to a fresh profile in a private DSH_HOME (pnpm offline: nothing is downloaded);
    2. boots DSH with every *_API_KEY/*_TOKEN/*BASE_URL variable removed, SSH_TTY=audit, private TEMP/TMP, and ALL migration switches on in the plugin config;
@@ -23,14 +23,14 @@ import { subtitleText, wav } from "../../tests/helpers/audio-fakes.mjs";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-const DEFAULT_BIN = process.env.DSH_QA_BIN || "D:/Program Files/nodejs/node_global/node_modules/@deepseek-ai/dsh/lib/bin.js";
 
 function parse(argv) {
   const values = {};
   for (let i = 0; i < argv.length; i++) { const match = /^--([a-z-]+)(?:=(.*))?$/.exec(argv[i]); if (!match) throw new Error(`Unexpected argument ${argv[i]}`); values[match[1]] = match[2] ?? argv[++i]; }
-  // --dsh-version (or DSH_QA_VERSION) installs that release the way qa:dsh does (output/qa/dsh-cli[-<version>]); without it the old default bin is used.
-  const wanted = values["dsh-version"] || process.env.DSH_QA_VERSION || "";
-  return { bin: resolve(values["dsh-bin"] || DEFAULT_BIN), dshVersion: wanted ? resolveDshVersion(wanted) : "", installVersion: !values["dsh-bin"] && !!wanted, port: Number(values.port ?? 3190), modelPort: Number(values["model-port"] ?? 4194), out: resolve(values.out ?? join(repo, "output/qa/s67-smoke")) };
+  // The host release is installed the way qa:dsh does it (output/qa/dsh-cli[-<version>]): --dsh-version, else DSH_QA_VERSION, else the pinned default.
+  // Only --dsh-bin or DSH_QA_BIN runs an already installed bin instead.
+  const own = values["dsh-bin"] || process.env.DSH_QA_BIN;
+  return { bin: own ? resolve(own) : "", dshVersion: resolveDshVersion(values["dsh-version"]), installVersion: !own, port: Number(values.port ?? 3190), modelPort: Number(values["model-port"] ?? 4194), out: resolve(values.out ?? join(repo, "output/qa/s67-smoke")) };
 }
 function run(command, args, { cwd = repo, env, label = command } = {}) {
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout: 10 * 60 * 1000, windowsHide: true, shell: process.platform === "win32" && command === "npm" });

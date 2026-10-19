@@ -47,7 +47,10 @@
                 citations or page numbers. You cannot run commands or edit files; do not offer to.
                 Keep replies short. Delegate long batch work (many decks, long transcripts, a whole
                 course) to a subagent and report its result.
-              suffix: The session workspace folder is {{cwd}}; it is not the StudyHub library.
+              # Static on purpose: DSH 0.2.1 registers only {{provider}} and {{model}} and refuses any other
+              # variable, so a {{cwd}} here failed every study-mode turn. The host now names the folder itself
+              # in the runtime context ("Current working directory: ...").
+              suffix: The session working directory (the workspace folder) is not the StudyHub library.
           # ── conversation hygiene (as in standard) ─────────────────────────────
           - id: compaction
             name: cordis:group

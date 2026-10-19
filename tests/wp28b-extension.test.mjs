@@ -231,3 +231,16 @@ test('update over an installed older file: DSH says ambiguous-install, so the ol
   const stuck = managerOf(ambiguous); stuck.removeBundle = async () => { throw new Error('locked'); };
   await assert.rejects(installExtension({ manager: stuck, version: VERSION, fetch, dir: where }), error => /ambiguous-install/.test(error.message));
 });
+
+test('reinstalling the same file on DSH 0.2.1: "already-installed" is answered the same way (remove, then install)', async t => {
+  // @deepseek-ai/dsh-plugin-manager 0.2.1-rc.2 lib/index.js:1991 refuses a spec naming an installed package when live reload is mounted.
+  const { fetch } = fetchOf(), where = await dir(t);
+  const refused = { changed: false, application: 'failed', stage: 'install', target: EXTENSION_PACKAGE, error: { code: 'already-installed' } };
+  let removed = false;
+  const manager = managerOf(() => removed ? applied : refused);
+  const remove = manager.removeBundle;
+  manager.removeBundle = async name => { removed = true; return remove(name); };
+  const result = await installExtension({ manager, version: VERSION, fetch, dir: where });
+  assert.deepEqual(manager.calls.map(call => call[0]), ['install', 'remove', 'install']);
+  assert.equal(result.status, 'installed');
+});

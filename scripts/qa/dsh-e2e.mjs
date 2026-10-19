@@ -1,6 +1,6 @@
-/* npm run qa:dsh [-- --lang zh|en --port 3190 --model-port 4194 --dsh-version 0.2.1-rc.2 --dsh-bin <bin.js> --reuse-home]
+/* npm run qa:dsh [-- --lang zh|en --port 3190 --model-port 4194 --dsh-version 0.2.0-rc.2 --dsh-bin <bin.js> --reuse-home]
    The plugin inside a real, isolated DSH 0.2 web host:
-   1. installs @deepseek-ai/dsh@<--dsh-version | DSH_QA_VERSION | 0.2.0-rc.2> into output/qa/dsh-cli[-<version>] when missing
+   1. installs @deepseek-ai/dsh@<--dsh-version | DSH_QA_VERSION | 0.2.1-rc.2> into output/qa/dsh-cli[-<version>] when missing
       (or uses --dsh-bin / DSH_QA_BIN, the path of an installed lib/bin.js);
    2. creates a fresh DSH_HOME at output/qa/dsh-home with a profile made from
       the shipped `web` template, builds and packs this plugin and adds it;
@@ -22,7 +22,8 @@ import { launchChromium } from "./browser.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "./fake-openai.mjs";
 
 // The host release the harness pins by default; `--dsh-version <x>` / DSH_QA_VERSION tests another release (see resolveDshVersion).
-export const DSH_VERSION = "0.2.0-rc.2";
+// StudyHub supports 0.2.0-rc.2 and 0.2.1-rc.2: run both before a release (`npm run qa:dsh -- --dsh-version 0.2.0-rc.2`).
+export const DSH_VERSION = "0.2.1-rc.2";
 export const DSH_PROFILE = "studyhub-e2e";
 export const FAKE_PROVIDER = "studyhub-qa-fake";
 // Deliberately not *_API_KEY: it must survive the secret scrub, and it is not a secret.
@@ -397,6 +398,40 @@ export async function runDshE2e(options) {
         || Object.entries(value.toolTurns || {}).map(([name, turn]) => !(turn.called && turn.resultSeen && turn.reply) && `the ${name} tool turn did not complete: ${JSON.stringify(turn)}`).find(Boolean);
       const bad = Object.entries(summary.presetChat).map(([key, value]) => [key, problem(key, value)]).filter(([, text]) => text);
       if (bad.length) throw new Error(bad.map(([key, text]) => `${key}: ${text}`).join(" | "));
+    });
+    // StudyHub's own background child (lib/subagent-api.js): the AI helper on a card of the sample library, asked from the live study session. The host must run it
+    // as a DSH sub-agent with NO tools (DSH 0.2.0: toolFilter; 0.2.1: the study-worker preset plus the mask on the exact child), and its JSON comes back to StudyHub.
+    await step("studyhub-child", async () => {
+      const rpc = (method, payload) => page.evaluate(async ({ method: name, payload: body }) => {
+        const response = await fetch(`/api/${name}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "client-request", rpcId: crypto.randomUUID(), method: name, payload: body }) });
+        return (await response.json()).result;
+      }, { method, payload });
+      const items = (await rpc("session/list", { args: { _request: {} } })).value.items;
+      const sessionId = items[0]?.sessionId;
+      const call = async (action, args = {}) => { const result = await rpc("study-workspace/call", { sessionId, action, args }); if (!result.ok) throw new Error(`${action}: ${result.error?.message || "refused"}`); return result.value; };
+      await call("sample.load", { language: options.lang });
+      const [card] = (await call("card.search", { query: options.lang === "en" ? "snapshot" : "快照", limit: 1 })).results;
+      if (!card) throw new Error("the sample library has no card to ask about");
+      const requestsBefore = model.log.length;
+      const task = await call("assist.start", { deckId: card.deckId, cardId: card.cardId, mode: "ask", text: options.lang === "en" ? "Why is that the answer?" : "为什么是这个答案？" });
+      const result = summary.studyChild = { runtime: task.runtime, status: task.status, workerRequests: 0, toolsOffered: null, workerPersona: false };
+      for (const end = Date.now() + 60000; Date.now() < end; await sleep(500)) {
+        const worker = model.log.slice(requestsBefore).filter((entry) => entry.handled);
+        if (worker.length) {
+          result.workerRequests = worker.length;
+          result.toolsOffered = [...new Set(worker.flatMap((entry) => entry.tools))].sort();
+          result.workerPersona = worker.some((entry) => /StudyHub background worker/.test(entry.systemText || ""));
+          break;
+        }
+      }
+      // DSH 0.2.0 composes the child from its parent's preset, and its toolFilter cannot hide a preset-scoped tool: the 学习模式 parent's `subagent` stays visible
+      // there (as in every StudyHub release on 0.2.0). DSH 0.2.1 starts the child in the study-worker preset, so it must see no tool at all.
+      const known = (options.dshVersion || DSH_VERSION).startsWith("0.2.0") ? ["subagent"] : [];
+      result.knownHostLeak = (result.toolsOffered || []).filter((name) => known.includes(name));
+      const offered = (result.toolsOffered || []).filter((name) => !known.includes(name));
+      const problems = [task.runtime !== "subagent" && `the helper ran as ${task.runtime}, not as a DSH sub-agent`,
+        !result.workerRequests && "the child never reached the model", offered.length && `the child was offered tools: ${offered.join(", ")}`].filter(Boolean);
+      if (problems.length) throw new Error(problems.join(" | "));
     });
     const flushWarnings = summary.consoleErrors.filter((text) => /flushSync|Maximum update depth|Invalid hook call/i.test(text));
     if (flushWarnings.length) summary.steps.push({ name: "no-react-warnings", status: "failed", ms: 0, error: flushWarnings.join(" | ").slice(0, 800) });
