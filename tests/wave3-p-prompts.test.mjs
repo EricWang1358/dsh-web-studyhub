@@ -41,18 +41,18 @@ test('ingest prompt: the exact text, both languages', () => {
   const input = { deckTitle: 'OS 错题', folder: '第 3 章', kind: 'quiz', mistakes: 'all' };
   assert.equal(m.ingestPrompt(input, 'zh'),
     '开始录题：接下来这段对话里我贴的题目（刷题软件、Canvas 错题记录、截图都可能），请都用 study_workspace 的 ingest 直接录入学习库，不用再问我确认。\n'
-    + '- 题组：「OS 错题」（目录 第 3 章）\n- 题型：一律单选 MQ\n- 错题：这批全部当错题\n'
+    + '- 题组：「`OS 错题`」（目录 `第 3 章`）\n- 题型：一律单选 MQ\n- 错题：这批全部当错题\n'
     + '- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n'
-    + '- 如果我贴的是讲义 PDF 而不是现成题目，请用 source.import 按页导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n'
+    + '- 如果我贴的是讲义 PDF 而不是现成题目，请用 study_materials 的 document.import 导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n'
     + '- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n- 我说「停止录题」时调用 ingest.stop。\n第一批题目：\n');
   assert.equal(m.ingestPrompt(input, 'en'), [
     'Start recording questions: use study_workspace ingest to add questions I paste in this conversation (including quiz apps, Canvas mistakes and screenshots) directly to my study library without asking for confirmation again.',
-    '- Deck: “OS 错题” (folder: 第 3 章)',
+    '- Deck: “`OS 错题`” (folder: `第 3 章`)',
     '- Question type: Create single-choice questions; add distractors where options are missing.',
     '- Mistakes: Mark every question in this batch as a mistake.',
     '- Preserve the original language of questions, options and answers. Reply in English.',
     '- For screenshots, transcribe questions, options and answers before importing. Large batches may be split.',
-    '- If I paste a lecture PDF rather than existing questions, import its pages with source.import, then use generate to create a draft under the deck name above. Do not record lecture material as mistakes.',
+    '- If I paste a lecture PDF rather than existing questions, import it with study_materials document.import, then use generate to create a draft under the deck name above. Do not record lecture material as mistakes.',
     '- After each batch, briefly report the imported count, duplicates, failures with reasons, and inferred answers that need checking.',
     '- When I say “stop recording”, call ingest.stop.', 'First batch of questions:', ''].join('\n'));
   assert.doesNotMatch(m.ingestPrompt({ deckTitle: 'D' }, 'zh'), /目录/, 'no folder, no folder clause');
@@ -131,6 +131,7 @@ test('library names in a hand-off sit in an inline fence the name cannot close o
     m.workflowStepPrompt({ session: { id: 's', version: 1, topic: evil }, step: { title: evil, kind: 'lesson' } }, 'zh'),
     m.extendSkeletonPrompt({ skeleton: { id: 'k', title: evil }, nodeId: 'n', term: evil, intent: 'contrast', text: evil }, 'zh'),
     m.designSkeletonPrompt({ scope: [], topics: [], update: { id: 'k', title: evil } }, 'zh'),
+    m.ingestPrompt({ deckTitle: evil, folder: evil }, 'zh'), m.ingestPrompt({ deckTitle: evil, folder: evil }, 'en'),
     m.deckAnalysisPrompt({ deckTitle: evil }, 'en'), m.workflowStepPrompt({ session: { id: 's', version: 1, topic: evil }, step: { title: evil, kind: 'lesson' } }, 'en')];
   for (const text of prompts) {
     assert.ok(text.includes(fenced), text);
