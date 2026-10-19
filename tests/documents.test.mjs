@@ -527,7 +527,7 @@ test("source removal waits until a generation using it has finished", async (t) 
 test("document guidance: import first, the shell only to convert first, and no repeated waits", async () => {
   const text = `${studyToolDescription}\n${studyUsagePrompt}\n${Object.values(libraryContracts).join("\n")}`;
   // 学习模式 has the standard preset's tools since 3.5.7: the shell converts what document.import cannot take, it never replaces the import
-  assert.ok(studyUsagePrompt.includes("documents use study_materials document.import (source.import stays a PDF alias)"));
+  assert.ok(studyUsagePrompt.includes("Documents use study_materials document.import (source.import stays a PDF alias)"));
   assert.ok(libraryContracts.imports.includes("Documents go through study_materials operation document.import"));
   assert.ok(libraryContracts.imports.includes("(pdf, docx, pptx, ppt, md, html, txt, MinerU/Docling JSON)"));
   assert.ok(libraryContracts.imports.includes("Oversized, scanned or unsupported files may be converted with the shell first, then imported"));
