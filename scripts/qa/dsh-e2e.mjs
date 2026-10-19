@@ -402,7 +402,8 @@ export async function runDshE2e(options) {
       const problem = (key, value) => value.error || (!value.reply && "no reply") || (key === "study" && !value.personaSent && "the preset's persona never reached the model")
         || Object.entries(value.toolTurns || {}).map(([name, turn]) => !(turn.called && turn.resultSeen && turn.reply) && `the ${name} tool turn did not complete: ${JSON.stringify(turn)}`).find(Boolean);
       const workerAt = (summary.presetPicker || []).findIndex((text) => /StudyHub 后台|StudyHub background/.test(text));
-      if (workerAt >= 0 && workerAt !== summary.presetPicker.length - 1) throw new Error(`the worker preset is not last in the picker: ${JSON.stringify(summary.presetPicker)}`);
+      if (workerAt < 0) throw new Error(`the worker preset is missing from the picker: ${JSON.stringify(summary.presetPicker || [])}`);
+      if (workerAt !== summary.presetPicker.length - 1) throw new Error(`the worker preset is not last in the picker: ${JSON.stringify(summary.presetPicker)}`);
       const bad = Object.entries(summary.presetChat).map(([key, value]) => [key, problem(key, value)]).filter(([, text]) => text);
       if (bad.length) throw new Error(bad.map(([key, text]) => `${key}: ${text}`).join(" | "));
     });
@@ -500,6 +501,8 @@ export async function runDshE2e(options) {
       const after = (await rpc("session/list", { args: { _request: {} } })).value.items.find((item) => item.sessionId === sessionId);
       summary.studyChildCold.kindAfter = after?.projections?.kind ?? null;
       if (result.problems.length) throw new Error(result.problems.join(" | "));
+      // both asks must have run from the cold panel: if one loaded the conversation, the second took the live path and the cold reuse guard proved nothing
+      if (summary.studyChildCold.kindAfter !== "cached") throw new Error(`the cold conversation was loaded during the asks (kind ${summary.studyChildCold.kindAfter})`);
     });
     const flushWarnings = summary.consoleErrors.filter((text) => /flushSync|Maximum update depth|Invalid hook call/i.test(text));
     if (flushWarnings.length) summary.steps.push({ name: "no-react-warnings", status: "failed", ms: 0, error: flushWarnings.join(" | ").slice(0, 800) });
