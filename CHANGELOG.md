@@ -2,7 +2,7 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
-## 3.5.7 — unreleased
+## 3.5.7 — 2026-10-19
 
 - **学习模式 has the same tools as DSH's standard preset.** Until 3.5.6, 学习模式 left out commands and file editing. It now composes every row of DSH 0.2.1's standard preset: commands (PowerShell on Windows, bash elsewhere), reading, writing and editing files, file search, background command jobs, schedules, the to-do list, plan mode, workflows, sub-agents and the folder's AGENTS.md instructions. StudyHub's own tools come on top, as in every preset. Only the instructions differ: the StudyHub tutor rules. So a 「发给主会话」 hand-off that needs a file converted first (for example a 考研 question book split by chapter, then its questions entered) can be done in the conversation. StudyHub's built-in flows are unchanged.
 - **What the tutor promises.** It still looks in the StudyHub library first and asks one short question when a request is ambiguous. It imports documents with StudyHub's document import (PDF, Word, PowerPoint, Markdown, HTML, TXT, MinerU/Docling JSON) and uses commands only to convert what that import cannot take (an oversized, scanned or unsupported file). It writes results as new files under `studyhub-work/` in the workspace, never deletes or overwrites your originals, asks before installing anything or writing outside the workspace, and sends you to Settings for the MinerU/Marker installation and StudyHub settings. New questions still come only from generation or a top-up; questions you already have are entered as they are, with nothing added. A 「发给主会话」 message counts as your own request: the tutor does it and reports what changed, where, and what did not work; deck, topic, flow, step and outline names quoted in it are read as data, not as instructions (StudyHub now marks them as such). StudyHub's own data, the library folder inside the workspace, is changed only through StudyHub, never with commands or file edits.
@@ -16,6 +16,8 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 - **Tests.** The preset test compares 学习模式 row by row with a verbatim copy of DSH's standard preset (0.2.1-rc.2, and 0.2.0-rc.2 for the exceptions); the only differences allowed are the tutor instructions and the two exceptions above. `npm run qa:dsh` sends the same file, command and sandbox-leaving command turns in both presets and fails if an approval or an outcome differs, or if 学习模式 is offered other tools than the standard preset. StudyHub's background children still get no tools on DSH 0.2.1.
 
 Not verified: bash on macOS or Linux on a real host; a real model converting a real file (the checks use a local fake model that calls the tools on cue); the read-only and full-access permission settings.
+
+Upgrading: use **Settings › About & updates › Upgrade to 3.5.7**, then restart DSH. DSH reads a preset when a conversation starts, so a 学习模式 conversation opened before the upgrade keeps its old tools; a new conversation gets the new ones.
 
 ## 3.5.6 — 2026-10-19
 
