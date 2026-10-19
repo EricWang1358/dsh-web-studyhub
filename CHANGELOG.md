@@ -2,7 +2,7 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
-## 3.5.6 — unreleased
+## 3.5.6 — 2026-10-19
 
 - **学习模式 works on DSH 0.2.1.** Since DSH 0.2.1-rc.2, every message in 学习模式 failed with `unknown prompt variable "{{cwd}}" in section "deployment:persona-suffix"`: the new DSH only knows `{{provider}}` and `{{model}}`, and the preset's last line named the session folder with `{{cwd}}`. That line is now plain text; DSH itself tells the model the current folder. A test now fails whenever a shipped preset uses a variable a supported DSH does not register.
 - **Background work runs as DSH sub-agents again on DSH 0.2.1.** DSH 0.2.1 replaced the sub-agent API StudyHub used, so question writing and checking, the AI helper on a card, transcript correction and model calls in Tasks quietly fell back to direct model calls. StudyHub now starts these children through the new API under a preset of its own, **StudyHub 后台（勿选）**, which has a persona and no tools; StudyHub's own tools and the folder tool are also hidden from that exact child. On DSH 0.2.1 the child has no tools at all. On DSH 0.2.0 nothing changes: the child can still see 学习模式's sub-agent tool, as in earlier releases.
@@ -12,6 +12,10 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 - **Paths you name follow the conversation's current folder.** DSH 0.2.1 can change a conversation's folder (its `working_directory` tool). A relative path or @ mention in an audio import or a diagram, and the audio picker in the add-source form, now read from that folder, as DSH's own @ mentions do; this also holds in a StudyHub panel on a conversation the host has not loaded, which reads the folder DSH saved for it (if DSH saved none, the folder the conversation started in is used). A diagram file may be in the current folder, in the folder the conversation started in, or in the library; nowhere else. The StudyHub library stays bound to the folder the conversation started in.
 - **Smaller DSH 0.2.1 differences.** Reinstalling the same search extension file, which DSH 0.2.1 refuses as `already-installed`, removes and installs it as for an update. A browser opened through DSH remote access, which DSH 0.2.1 answers with 403, says that StudyHub is only available to the owner.
 - **Tested on both hosts.** `npm run qa:dsh` and `npm run qa:dsh-runtime` default to DSH 0.2.1-rc.2 and take `--dsh-version 0.2.0-rc.2`; the e2e now sends a message in 学习模式 (with tool, sub-agent and question turns) and asks StudyHub's AI helper twice on one card, in an open conversation and in one the host has not loaded, checking the saved answers, the child's tools and the host's usage record. The DSH development packages used by the unit tests are on 0.2.1-rc.2.
+
+Upgrading: on DSH 0.2.1, 3.5.5's 学习模式 fails but the StudyHub page still opens. Use **Settings › About & updates › Upgrade to 3.5.6**, then restart DSH; DSH 0.2.1 may load the new version live without asking for a restart, and one restart is the safe choice. Reinstalling from the new package as the install guide says also works.
+
+未验证 (not verified): the one-click upgrade on DSH 0.2.1, including a live reload of the new version, was not run on a real host.
 
 ## 3.5.5 — 2026-10-18
 
