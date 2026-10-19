@@ -1,5 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
-import { fenceData, say } from './say.js';
+import { fenceData, nameData, say } from './say.js';
 
 /* The prompts of the learning-flow pages (Workflows.jsx, WorkflowPortal.jsx) that hand work to the conversation (ui-consistency #124).
    They are the contract with the agent: study_workspace workflow.context / workflow.save / workflow.session.material and
@@ -15,7 +15,7 @@ const DESIGN_SAVE = '用 workflow.save 保存完整流程，更新已有流程�
 /** Design or adjust a learning flow with the conversation. input: { template (the flow being adjusted, or null), wish }. */
 export function workflowDesignPrompt({ template = null, wish = '' }, language = getUiLanguage()) {
   return say(language, DESIGN_HEAD, [
-    template ? say(language, '调整学习流「{0}」', [template.title]) : say(language, '设计一条个性化学习流'),
+    template ? say(language, '调整学习流「{0}」', [nameData(template.title)]) : say(language, '设计一条个性化学习流'),
     wish ? say(language, '我的要求：{0}', [wish]) : say(language, '先了解我想怎样学习，再组合合适的组件。'),
   ]) + say(language, DESIGN_TAIL)
     + (template ? say(language, DESIGN_EXISTING, [template.id, template.version]) : say(language, DESIGN_NEW))
@@ -38,7 +38,7 @@ export function workflowSkeletonPrompt({ topic = '', topicNames = [], workflowTi
   const typed = String(topic).trim();
   const fenced = !typed && topicNames.length ? `\n${fenceData('主题', topicNames.join('、'), language)}` : '';
   return say(language, SKELETON_HEAD) + typed + fenced
-    + say(language, SKELETON_FLOW) + workflowTitle
+    + say(language, SKELETON_FLOW) + nameData(workflowTitle)
     + say(language, SKELETON_SCOPE) + JSON.stringify(scope) + '\n'
     + say(language, SKELETON_CONTEXT) + say(language, SKELETON_SHAPE) + say(language, SKELETON_SAVE) + say(language, SKELETON_ONLY);
 }
@@ -62,7 +62,7 @@ const STEP_OTHER = '内容请连起概念、例子和条件，避免只罗列名
 /** Ask the conversation for help with the current step of a running session. input: { session ({ id, version, topic }), step ({ title, kind }), wish }. */
 export function workflowStepPrompt({ session, step, wish = '' }, language = getUiLanguage()) {
   const handoff = WORKFLOW_HANDOFF[step.kind] || WORKFLOW_HANDOFF.lesson;
-  return say(language, STEP_HEAD, [session.topic, step.title, wish ? say(language, '我的要求：{0}', [wish]) : say(language, handoff.ask)])
+  return say(language, STEP_HEAD, [nameData(session.topic), nameData(step.title), wish ? say(language, '我的要求：{0}', [wish]) : say(language, handoff.ask)])
     + say(language, STEP_CONTEXT, [JSON.stringify({ sessionId: session.id }), session.version])
     + say(language, STEP_MATERIAL)
     + say(language, step.kind === 'recall' ? STEP_RECALL : STEP_OTHER);

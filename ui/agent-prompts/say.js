@@ -34,3 +34,16 @@ export function fenceData(label, text, language = getUiLanguage()) {
   const fence = '`'.repeat(longest + 1);
   return `${say(language, NOT_INSTRUCTIONS, [name])}\n${fence}data ${name}\n${body}\n${fence}`;
 }
+
+/**
+ * A short library name (a deck, topic, flow, step, skeleton or concept name) inside a sentence of a hand-off: on one line, in a
+ * backtick span longer than any backtick run in the name, so the name cannot close its 「」 quotes or its span and read as part of
+ * the request. The study persona says such quoted names are data, not instructions. An empty name gives an empty string.
+ */
+export function nameData(text) {
+  const body = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!body) return '';
+  const fence = '`'.repeat(Math.max(0, ...(body.match(/`+/g) || []).map(run => run.length)) + 1);
+  const pad = body.startsWith('`') || body.endsWith('`') ? ' ' : '';
+  return `${fence}${pad}${body}${pad}${fence}`;
+}
