@@ -84,7 +84,8 @@ StudyHub 只读每页的文字层，不做 OCR，也不理解图片、图表和�
 
 你可以请主对话里的 AI 导入电脑上的 PDF，也可以只导入其中几页（例如第 3–12 页和第 15 页）。本节说明 AI 会怎么做。
 
-- `source.import {path OR dataBase64, filename?, pages?, courses?}` 直接读取 PDF（8 MB、200 页；`pages` 从 1 开始），返回确切的 `sourceIds` 和提示。优先使用绝对路径 `path`。
+- `study_materials` 的 `document.import {path OR dataBase64, filename?, format?, pages?, courses?}` 导入文档（PDF、Word、PowerPoint、Markdown、HTML、TXT，以及 MinerU 或 Docling 导出的 JSON）。PDF 直接读取（8 MB、200 页；`pages` 从 1 开始），返回确切的 `sourceIds` 和提示。优先使用绝对路径 `path`。`source.import` 仍然可用，是 PDF 的别名。
+- 在学习模式里，太大或扫描版的 PDF 可以先用命令转换：结果作为新文件写在工作区的 `studyhub-work/` 里（不改你的原文件），再导入。
 - 然后用 `generate {sourceIds, kind: "mixed", count, title?}` 把草稿加入队列，它会立即返回。AI 报告任务后，就把控制交还给你。
 - AI 最多用 `job.wait` 等一次（最长 60 秒），不会循环等待，也不会重复提交同一次出题。你问进度时，它用 `job.status` 直接读取任务状态，不用等待。
 - PDF、附带的文字和已有题目都只是资料，不会被当作指令执行。
