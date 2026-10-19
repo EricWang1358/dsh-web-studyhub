@@ -1,6 +1,6 @@
-/* npm run qa:dsh [-- --lang zh|en --port 3190 --model-port 4194 --dsh-bin <bin.js> --reuse-home]
+/* npm run qa:dsh [-- --lang zh|en --port 3190 --model-port 4194 --dsh-version 0.2.1-rc.2 --dsh-bin <bin.js> --reuse-home]
    The plugin inside a real, isolated DSH 0.2 web host:
-   1. installs @deepseek-ai/dsh@0.2.0-rc.2 into output/qa/dsh-cli when missing
+   1. installs @deepseek-ai/dsh@<--dsh-version | DSH_QA_VERSION | 0.2.0-rc.2> into output/qa/dsh-cli[-<version>] when missing
       (or uses --dsh-bin / DSH_QA_BIN, the path of an installed lib/bin.js);
    2. creates a fresh DSH_HOME at output/qa/dsh-home with a profile made from
       the shipped `web` template, builds and packs this plugin and adds it;
@@ -21,6 +21,7 @@ import { scrubSecrets, scrubProcessEnv } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "./fake-openai.mjs";
 
+// The host release the harness pins by default; `--dsh-version <x>` / DSH_QA_VERSION tests another release (see resolveDshVersion).
 export const DSH_VERSION = "0.2.0-rc.2";
 export const DSH_PROFILE = "studyhub-e2e";
 export const FAKE_PROVIDER = "studyhub-qa-fake";
@@ -43,6 +44,13 @@ export function dshPatch({ fakeModelUrl, documentsDirectory, keyEnv = FAKE_KEY_E
   ];
 }
 
+/** The host release to test: --dsh-version, else DSH_QA_VERSION, else the pinned default. */
+export function resolveDshVersion(value) {
+  const version = String(value || process.env.DSH_QA_VERSION || DSH_VERSION).trim();
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error(`--dsh-version must be a DSH release such as 0.2.1-rc.2, got ${version}`);
+  return version;
+}
+
 export function parseDshArgs(argv = []) {
   const values = {};
   for (let i = 0; i < argv.length; i++) {
@@ -53,9 +61,11 @@ export function parseDshArgs(argv = []) {
   }
   const lang = values.lang ?? "zh";
   if (!["zh", "en"].includes(lang)) throw new Error("--lang must be zh or en");
+  const dshVersion = resolveDshVersion(values["dsh-version"]);
   return { lang, port: Number(values.port ?? 3190), modelPort: Number(values["model-port"] ?? 4194),
+    dshVersion,
     dshBin: values["dsh-bin"] || process.env.DSH_QA_BIN || "", reuseHome: !!values["reuse-home"],
-    out: resolve(values.out ?? join(qaRoot, "dsh-e2e")) };
+    out: resolve(values.out ?? join(qaRoot, dshVersion === DSH_VERSION ? "dsh-e2e" : `dsh-e2e-${dshVersion}`)) };
 }
 
 /** Run a command to completion with the scrubbed environment; throws with its output on failure. */
@@ -69,15 +79,18 @@ const npm = (args, options) => process.env.npm_execpath
   ? run(process.execPath, [process.env.npm_execpath, ...args], { label: `npm ${args[0]}`, ...options })
   : run("npm", args, { shell: process.platform === "win32", label: `npm ${args[0]}`, ...options });
 
-async function ensureDsh(options, env) {
+export async function ensureDsh(options, env) {
   if (options.dshBin) return resolve(options.dshBin);
-  const cli = join(qaRoot, "dsh-cli"), manifest = join(cli, "node_modules/@deepseek-ai/dsh/package.json");
+  const wanted = options.dshVersion || DSH_VERSION;
+  // The pinned default keeps its folder; another release gets its own, so both can stay installed.
+  const cli = join(qaRoot, wanted === DSH_VERSION ? "dsh-cli" : `dsh-cli-${wanted}`), manifest = join(cli, "node_modules/@deepseek-ai/dsh/package.json");
   const installed = await readFile(manifest, "utf8").then((text) => JSON.parse(text).version, () => "");
-  if (installed !== DSH_VERSION) {
-    console.log(`Installing @deepseek-ai/dsh@${DSH_VERSION} into ${cli} …`);
+  if (installed !== wanted) {
+    console.log(`Installing @deepseek-ai/dsh@${wanted} into ${cli} …`);
     await mkdir(cli, { recursive: true });
     if (!await exists(join(cli, "package.json"))) await writeFile(join(cli, "package.json"), JSON.stringify({ name: "studyhub-qa-dsh-cli", private: true }) + "\n");
-    npm(["install", `@deepseek-ai/dsh@${DSH_VERSION}`, "--no-audit", "--no-fund"], { cwd: cli, env });
+    // --legacy-peer-deps=false: the host's boot package takes @deepseek-ai/cordis-plugin-group as a peer, which a user-level legacy-peer-deps=true would skip.
+    npm(["install", `@deepseek-ai/dsh@${wanted}`, "--legacy-peer-deps=false", "--no-audit", "--no-fund"], { cwd: cli, env });
   }
   return join(cli, "node_modules/@deepseek-ai/dsh/lib/bin.js");
 }
@@ -124,7 +137,9 @@ export async function runDshE2e(options) {
   try {
     const bin = await step("install-dsh", () => ensureDsh(options, baseEnv));
     const version = run(process.execPath, [bin, "--version"], { env: baseEnv }).trim();
-    if (version !== DSH_VERSION) throw new Error(`DSH ${version} found; this harness pins ${DSH_VERSION}`);
+    const wantedVersion = options.dshVersion || DSH_VERSION;
+    summary.dshVersion = version;
+    if (version !== wantedVersion) throw new Error(`DSH ${version} found; this run wants ${wantedVersion}`);
     const tgz = await step("pack-plugin", async () => {
       npm(["run", "build"], { env: baseEnv });
       await rm(packDir, { recursive: true, force: true });
@@ -140,7 +155,8 @@ export async function runDshE2e(options) {
         run(process.execPath, [bin, "--profile", DSH_PROFILE, "--from-default-profile", "web", "--dump-config"], { cwd: workspace, env: baseEnv, label: "dsh profile" });
       run(process.execPath, [bin, "plugin", "--profile", DSH_PROFILE, "add", tgz], { cwd: workspace, env: baseEnv, label: "dsh plugin add" });
     });
-    model = await createFakeOpenAI({ port: options.modelPort });
+    // "[[tool:<name>]]" in a message makes the fake model call that tool once (the preset-chat step)
+    model = await createFakeOpenAI({ port: options.modelPort, toolCall: ({ prompt }) => { const match = /\[\[tool:(\w+)(?: (\{.*?\}))?\]\]/.exec(prompt); return match ? { name: match[1], arguments: match[2] ? JSON.parse(match[2]) : {} } : null; } });
     const patch = join(options.out, "qa.patch.yml");
     await writeFile(patch, "# Generated by scripts/qa/dsh-e2e.mjs (test-only overlay).\n" + YAML.stringify(dshPatch({ fakeModelUrl: model.url, documentsDirectory: documents })));
     dsh = await step("boot-dsh", () => bootDsh(bin, { env: { ...baseEnv, [FAKE_KEY_ENV]: "not-a-real-key" }, cwd: workspace, patch, port: options.port }));
@@ -237,7 +253,9 @@ export async function runDshE2e(options) {
       await shot("05-select-open");
       const options = await popup.getByRole("option").allInnerTexts();
       if (options.length < 3) throw new Error(`the select offers ${options.length} options`);
-      await popup.getByRole("option").nth(1).click();
+      // an option other than the one shown (the default may be any of them)
+      const other = popup.getByRole("option").filter({ hasNotText: before }).first();
+      await other.click();
       await popup.waitFor({ state: "hidden" });
       if ((await select.innerText()).trim() === before) throw new Error("choosing an option did not change the select");
       await focused(select, "focus did not return to the select after a choice");
@@ -306,6 +324,79 @@ export async function runDshE2e(options) {
       await page.keyboard.press("Escape");
       await popup.waitFor({ state: "hidden" });
       await focused(scope, "Escape did not return focus to the combobox trigger");
+    });
+    // A chat turn per agent preset: the standard preset (control) and the 学习模式 preset this plugin ships (presets/study.patch.yml). The turn goes through the
+    // local fake model; the page must show its reply and no host error. A host that refuses the preset's prompt (an unknown {{variable}}, say) shows the error text.
+    await step("preset-chat", async () => {
+      const message = options.lang === "en" ? "Hello, what can you do?" : "你好，请简单介绍一下你能做什么";
+      const presets = [{ key: "standard", pick: null }, { key: "study", pick: /学习模式|Study mode/ }];
+      const failedRun = /本轮运行失败|Run failed|This run failed/, replyText = /^【StudyHub QA fake model】收到/;
+      // leaf elements (no child element) whose text matches: the page repeats a text in containers, sidebar titles and the conversation
+      const leaves = (re) => page.evaluate((source) => [...document.querySelectorAll("body *")].filter((element) => !element.children.length && new RegExp(source).test(element.textContent || "")).length, re.source);
+      const leafParent = (re) => page.evaluate((source) => { const hit = [...document.querySelectorAll("body *")].find((element) => !element.children.length && new RegExp(source).test(element.textContent || "")); return hit ? (hit.parentElement?.innerText || hit.textContent) : ""; }, re.source);
+      summary.presetChat = {};
+      for (const { key, pick } of presets) {
+        const result = summary.presetChat[key] = { reply: false, error: "" };
+        const requestsBefore = model.log.length;
+        await page.getByText(/^(新会话|New (chat|session))$/).first().click();
+        const box = page.getByRole("textbox").last();
+        await box.waitFor({ timeout: 30000 });
+        if (pick) {
+          // the preset picker is the button that names the current preset; the standard one is the default
+          await page.getByRole("button", { name: /^(标准模式|Standard)/ }).first().click();
+          await page.getByText(pick).first().click();
+          await sleep(500);
+        }
+        await shot(`09-chat-${key}-selected`);
+        await box.click();
+        await page.keyboard.type(message);
+        const before = await leaves(replyText);
+        await page.getByRole("button", { name: /^(发送消息|Send)/ }).click();
+        // the fake model's echo ("【StudyHub QA fake model】收到：…") shows once in the conversation (and again as the session title); a host error shows its own text
+        for (const end = Date.now() + 45000; Date.now() < end && !result.reply && !result.error; await sleep(400)) {
+          if (await leaves(replyText) > before) result.reply = true;
+          else result.error = await leafParent(failedRun);
+        }
+        if (!result.reply && !result.error) result.error = "no reply and no error text within 45 s";
+        result.error = result.error.slice(0, 600);
+        result.modelRequests = model.log.length - requestsBefore;
+        // the persona the preset sent (study only), and the tools it offered: the request that carried the most of them
+        result.personaSent = model.log.slice(requestsBefore).some((entry) => /StudyHub study tutor/.test(entry.systemText || ""));
+        result.tools = (model.log.slice(requestsBefore).map((entry) => entry.tools).sort((a, b) => b.length - a.length)[0] || []).slice().sort();
+        await shot(`10-chat-${key}-after`);
+        if (key === "study" && result.reply && !result.error) {
+          // more turns in the same session: the model calls a tool and the plugin's / the host's code runs inside the agent loop. study_capabilities is StudyHub's own tool
+          // (registered on the host tools registry); subagent is the host's, started from the preset's delegation group (the child answers through the same fake model).
+          const turns = [
+            { name: "study_capabilities", text: "[[tool:study_capabilities]]", seen: /"contexts"/ },
+            { name: "subagent", text: '[[tool:subagent {"description":"QA child","prompt":"Reply with one short sentence."}]]', seen: /started subagent/ },
+            // the preset's "ask ONE short question" path: the host shows the question and waits for the learner's choice
+            { name: "ask_user_question", text: '[[tool:ask_user_question {"questions":[{"id":"deck","question":"Which QA deck?","options":[{"label":"Deck Alpha"},{"label":"Deck Beta"}]}]}]]', seen: /Deck Alpha/,
+              answer: async () => { await page.getByText("Which QA deck?", { exact: true }).waitFor({ timeout: 30000 }); await shot("11-chat-study-ask-question"); await page.getByText("Deck Alpha", { exact: true }).click(); await sleep(500);
+                for (const name of [/^(提交|确认|Submit|Confirm|Send|发送)/]) { const button = page.getByRole("button", { name }).last(); if (await button.isVisible().catch(() => false) && await button.isEnabled().catch(() => false)) await button.click(); } } },
+          ];
+          result.toolTurns = {};
+          for (const turn of turns) {
+            const tool = result.toolTurns[turn.name] = { reply: false, called: false, resultSeen: false, pageTail: "" };
+            const beforeTool = await leaves(replyText), requestsBeforeTool = model.log.length;
+            await page.getByRole("textbox").last().click();
+            await page.keyboard.type(turn.text);
+            await page.getByRole("button", { name: /^(发送消息|Send)/ }).click();
+            if (turn.answer) await turn.answer().catch((error) => { tool.answerError = String(error?.message || error).slice(0, 300); });
+            for (const end = Date.now() + 45000; Date.now() < end && !tool.reply; await sleep(400)) if (await leaves(replyText) > beforeTool) tool.reply = true;
+            const seen = model.log.slice(requestsBeforeTool);
+            tool.called = seen.some((entry) => entry.toolCall === turn.name);
+            tool.resultSeen = seen.some((entry) => turn.seen.test(entry.toolResult || ""));
+            tool.modelRequests = seen.length;
+            tool.pageTail = tool.reply ? "" : await page.evaluate(() => document.body.innerText.slice(-500));
+            await shot(`11-chat-study-${turn.name}`);
+          }
+        }
+      }
+      const problem = (key, value) => value.error || (!value.reply && "no reply") || (key === "study" && !value.personaSent && "the preset's persona never reached the model")
+        || Object.entries(value.toolTurns || {}).map(([name, turn]) => !(turn.called && turn.resultSeen && turn.reply) && `the ${name} tool turn did not complete: ${JSON.stringify(turn)}`).find(Boolean);
+      const bad = Object.entries(summary.presetChat).map(([key, value]) => [key, problem(key, value)]).filter(([, text]) => text);
+      if (bad.length) throw new Error(bad.map(([key, text]) => `${key}: ${text}`).join(" | "));
     });
     const flushWarnings = summary.consoleErrors.filter((text) => /flushSync|Maximum update depth|Invalid hook call/i.test(text));
     if (flushWarnings.length) summary.steps.push({ name: "no-react-warnings", status: "failed", ms: 0, error: flushWarnings.join(" | ").slice(0, 800) });

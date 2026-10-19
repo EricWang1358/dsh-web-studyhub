@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { scrubSecrets, secretEnvNames } from "../scripts/qa/env.mjs";
 import { findChromium } from "../scripts/qa/browser.mjs";
 import { parseJourneyArgs, JOURNEY_STEPS } from "../scripts/qa/journey.mjs";
-import { dshPatch } from "../scripts/qa/dsh-e2e.mjs";
+import { dshPatch, parseDshArgs, resolveDshVersion, DSH_VERSION } from "../scripts/qa/dsh-e2e.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "../scripts/qa/fake-openai.mjs";
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
@@ -92,4 +92,23 @@ test("the DSH e2e patch routes the default model to the local fake and keeps doc
   assert.equal(provider.baseURL, "http://127.0.0.1:3191/v1");
   assert.equal(provider.apiKeyEnv, "STUDYHUB_QA_FAKE_KEY");
   assert.doesNotMatch(provider.apiKeyEnv, /_API_KEY|_TOKEN|BASE_URL/, "the fake key survives the secret scrub");
+});
+
+test("the DSH harness takes the host release from --dsh-version or DSH_QA_VERSION and keeps 0.2.0-rc.2 as the default", () => {
+  const saved = process.env.DSH_QA_VERSION;
+  try {
+    delete process.env.DSH_QA_VERSION;
+    assert.equal(parseDshArgs([]).dshVersion, DSH_VERSION);
+    assert.equal(DSH_VERSION, "0.2.0-rc.2");
+    assert.equal(parseDshArgs(["--dsh-version", "0.2.1-rc.2"]).dshVersion, "0.2.1-rc.2");
+    assert.equal(parseDshArgs(["--dsh-version=0.2.1-rc.2"]).dshVersion, "0.2.1-rc.2");
+    assert.match(parseDshArgs(["--dsh-version", "0.2.1-rc.2"]).out, /dsh-e2e-0\.2\.1-rc\.2$/, "another release gets its own output folder");
+    assert.match(parseDshArgs([]).out, /dsh-e2e$/);
+    process.env.DSH_QA_VERSION = "0.2.2";
+    assert.equal(resolveDshVersion(), "0.2.2");
+    assert.equal(resolveDshVersion("0.2.1-rc.2"), "0.2.1-rc.2", "the option wins over the variable");
+    assert.throws(() => resolveDshVersion("latest"), /must be a DSH release/);
+  } finally {
+    if (saved === undefined) delete process.env.DSH_QA_VERSION; else process.env.DSH_QA_VERSION = saved;
+  }
 });
