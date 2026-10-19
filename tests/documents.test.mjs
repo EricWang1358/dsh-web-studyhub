@@ -524,11 +524,34 @@ test("source removal waits until a generation using it has finished", async (t) 
   assert.equal((await service.call("job.wait", { jobId: started.jobId })).status, "complete");
 });
 
-test("PDF workflow guidance does not instruct repeated waits or external extraction", async () => {
-  const text = `${studyToolDescription}\n${studyUsagePrompt}\n${libraryContracts.imports}`;
-  assert.ok(studyUsagePrompt.includes("PDF uses source.import"));
+test("document guidance: import first, the shell only to convert first, and no repeated waits", async () => {
+  const text = `${studyToolDescription}\n${studyUsagePrompt}\n${Object.values(libraryContracts).join("\n")}`;
+  // 学习模式 has the standard preset's tools since 3.5.7: the shell converts what document.import cannot take, it never replaces the import
+  assert.ok(studyUsagePrompt.includes("documents use study_materials document.import (source.import stays a PDF alias)"));
+  assert.ok(libraryContracts.imports.includes("Documents go through study_materials operation document.import"));
+  assert.ok(libraryContracts.imports.includes("(pdf, docx, pptx, ppt, md, html, txt, MinerU/Docling JSON)"));
+  assert.ok(libraryContracts.imports.includes("Oversized, scanned or unsupported files may be converted with the shell first, then imported"));
+  assert.ok(libraryContracts.imports.includes("never pretend to have read an image"));
+  assert.ok(/source\.import [^.]*PDF alias/.test(libraryContracts.imports));
+  assert.ok(!text.includes("never probe shell PDF extractors"));
   assert.ok(libraryContracts.imports.includes("Lecture material always uses generate"));
   assert.ok(!text.includes("then call job.wait for each"));
+});
+
+test("question and job guidance fits a tutor that has the host's shell and jobs tools", () => {
+  const text = `${studyToolDescription}\n${studyUsagePrompt}\n${Object.values(libraryContracts).join("\n")}`;
+  assert.ok(!/author a question set in chat|chat-authored ingest/.test(text), "the old ingest wording is gone");
+  assert.ok(!/shell job-kill/.test(text), "the old job-kill wording is gone");
+  // The Authorization lines of the tool description (always loaded) carry both rules; the library.context areas where ingest/deck.import
+  // (imports) and job details (organization) are documented repeat them, and the generation area points there (it is near its size cap).
+  const authorization = studyToolDescription.slice(studyToolDescription.indexOf("Authorization:"));
+  for (const contract of [authorization, libraryContracts.imports]) {
+    assert.ok(/new questions only via (reviewed )?generate or supplement/i.test(contract), contract.slice(0, 80));
+    assert.ok(/questions the learner already has are entered as they are with ingest or deck\.import, no new questions on that path/i.test(contract));
+  }
+  assert.ok(/new questions only via generate or supplement \(existing ones: imports area\)/.test(libraryContracts.generation));
+  for (const contract of [authorization, libraryContracts.organization])
+    assert.ok(contract.includes("StudyHub jobs are cancelled with job.cancel/job.control; the host jobs tool only manages shell processes you started."));
 });
 
 // Model-stage fixtures keep every actual call visible to concurrency tests;
