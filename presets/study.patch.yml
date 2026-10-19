@@ -3,14 +3,26 @@
 # default stays `standard`); the 3.0 standalone profile only sets
 # `agent-preset-registry: { config: { default: study } }`.
 #
-# Derived from the official DSH 0.2 `standard` preset
-# (@deepseek-ai/dsh-web-app/presets/standard.patch.yml), minus everything that
-# runs commands or reads/writes/edits files: bash/pwsh, fs, fs-search, jobs,
-# present, PTC workflows, plan mode and workspace AGENTS.md instructions.
+# The same composition as the official DSH `standard` preset
+# (@deepseek-ai/dsh-web-app 0.2.1-rc.2, presets/standard.patch.yml): every row,
+# with the same ids, names, groups, isolate flags and config, so 学习模式 gets
+# the same tools (commands, files, search, jobs, schedules, todo, plan mode,
+# workflows, AGENTS.md instructions, ...). The tutor uses them to convert
+# material (split a question book by chapter, OCR a scan, export) and then
+# brings the result into the library. Only the persona row differs: the
+# StudyHub tutor rules. Exceptions, each tested in tests/wp2-preset.test.mjs:
+#   - tool-subagent / tool-subagent-fork keep `backgroundMode: continuable`, as
+#     the DSH 0.2.0-rc.2 standard preset does; 0.2.1 dropped the option and
+#     ignores it.
+#   - tool-schedule is disabled where its package is not installed: DSH
+#     0.2.0-rc.2 does not ship @deepseek-ai/dsh-tool-schedule, and an enabled
+#     row whose package is missing breaks the whole preset there. On 0.2.1 the
+#     package resolves and the row is enabled, as in standard.
 # The StudyHub tools (study_workspace, study_capabilities, study_bank,
 # study_materials, study_generate_selection, study_practice, study_audio) are
 # registered by the plugin on the host tools registry, so every preset sees
-# them; this row only decides what ELSE the tutor gets.
+# them. Keep every persona line free of {{...}} except {{model}}/{{provider}}:
+# DSH 0.2.1 refuses any other variable (tests/preset-template-vars.test.mjs).
 - insert:
     - id: preset-study
       name: '@deepseek-ai/dsh-agent-preset'
@@ -18,7 +30,7 @@
         id: study
         order: 0
         name: 学习模式 · StudyHub
-        description: StudyHub 学习助手：默认使用学习库里的资料与题组出题、讲解、复习；不运行命令、不改文件。Study tutor over your StudyHub library; no shell or file editing.
+        description: StudyHub 学习助手：默认使用学习库里的资料与题组出题、讲解、复习；工具与标准模式相同，需要时用命令行和文件转换资料。Study tutor over your StudyHub library; the same tools as the standard preset, used to convert material when needed.
         plugins:
           - id: persona
             name: '@deepseek-ai/dsh-persona'
@@ -33,10 +45,13 @@
                 "这节课", "课件", "讲义", "slides", "题库", "题组", "错题" and similar words: materials,
                 decks, cards, notes, recordings and the wrong-answer book all live there. Look there
                 first with study_capabilities, study_workspace (action "snapshot"), study_materials and
-                study_bank. Files in the session workspace folder are NOT the library. Use one only when
-                the student explicitly points at it (an @path reference, a file name with an extension,
-                or "this folder"), and bring it in with study_materials operation document.import
-                instead of reasoning over raw files.
+                study_bank. Files in the session workspace folder are NOT the library. Use a workspace
+                file only when the student points at it (an @path reference, a file name with an
+                extension, or "this folder") or a 「发给主会话」 message names it. Bring it in with
+                study_materials operation document.import when the format is supported (PDF, Word,
+                PowerPoint, Markdown, HTML, TXT, MinerU or Docling JSON); otherwise convert it first
+                with the shell and file tools, then import the result. Do not answer from raw files
+                the student did not hand you.
 
                 When a request is ambiguous between the library and workspace files, or matches
                 several materials or decks, ask ONE short question with ask_user_question that lists
@@ -44,14 +59,81 @@
                 the two ways in: add material in the StudyHub view, or name a file to import.
 
                 Ground every generated question in a library source, cite it, and never invent
-                citations or page numbers. You cannot run commands or edit files; do not offer to.
-                Keep replies short. Delegate long batch work (many decks, long transcripts, a whole
-                course) to a subagent and report its result.
+                citations or page numbers. New questions come only from generate or supplement.
+                Questions the student already has (a question book, a spreadsheet, a screenshot, a
+                wrong-answer export) are entered as they are with ingest or deck.import: keep their
+                wording and answer keys, mark answers you inferred, and add no new questions on that
+                path.
+
+                You may run commands and read, write and edit files to convert, split, OCR or export
+                material. Write results as new files under studyhub-work/ in the workspace; never
+                delete or overwrite the student's originals. Ask before installing anything or writing
+                outside the workspace. MinerU/Marker installation and StudyHub settings belong to the
+                Settings page: send the student there. A 「发给主会话」 message the student sends from
+                StudyHub is their own request: do it, then report what changed, where, and what did
+                not work.
+
+                Keep replies short. Delegate long batch work (many decks, long transcripts, a question
+                book chapter by chapter, a whole course) to a subagent and report its result.
               # Static on purpose: DSH 0.2.1 registers only {{provider}} and {{model}} and refuses any other
               # variable, so a {{cwd}} here failed every study-mode turn. The host now names the folder itself
               # in the runtime context ("Current working directory: ...").
               suffix: The session working directory (the workspace folder) is not the StudyHub library.
-          # ── conversation hygiene (as in standard) ─────────────────────────────
+          # ── from here on, the rows of the DSH 0.2.1 standard preset, unchanged ──
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: tool-schedule
+            name: '@deepseek-ai/dsh-tool-schedule'
+            # Exception (see the header): enabled only where the host resolves the package, the way the
+            # Loader resolves this row (from the profile, `baseUrl`). DSH 0.2.0-rc.2 has no such package.
+            disabled: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(new URL('.', baseUrl)).resolve('@deepseek-ai/dsh-tool-schedule/package.json'); return false } catch { return true } })()"
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
           - id: compaction
             name: cordis:group
             group: true
@@ -69,7 +151,6 @@
                   thresholdChars: 8192
                   headChars: 4096
                   tailChars: 1024
-          # ── delegation: spawned children join THIS composition (no shell either)
           - id: delegation
             name: cordis:group
             group: true
@@ -86,16 +167,37 @@
                   provider: spawn
                   toolName: subagent
                   modelSelectionSettings: true
+                  # Exception (see the header): as in the DSH 0.2.0-rc.2 standard preset; 0.2.1 ignores it.
                   backgroundMode: continuable
-          # ── asking, skills, web ───────────────────────────────────────────────
+              - id: tool-subagent-fork
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: fork
+                  toolName: subagent_fork
+                  # Exception (see the header): as in the DSH 0.2.0-rc.2 standard preset; 0.2.1 ignores it.
+                  backgroundMode: continuable
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
           - id: tool-ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
-          - id: skill-filesystem
-            name: '@deepseek-ai/dsh-skill-filesystem'
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
           - id: tool-web
             name: '@deepseek-ai/dsh-tool-web'
             config:
               fetch: true
               searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+          - id: tool-plugin-manager
+            name: '@deepseek-ai/dsh-plugin-manager/tools'
+            disabled: true
+          - id: tool-plugin-market
+            name: '@deepseek-ai/dsh-plugin-market/tools'
+            disabled: true
