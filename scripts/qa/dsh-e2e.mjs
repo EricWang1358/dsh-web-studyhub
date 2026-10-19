@@ -345,6 +345,11 @@ export async function runDshE2e(options) {
         if (pick) {
           // the preset picker is the button that names the current preset; the standard one is the default
           await page.getByRole("button", { name: /^(标准模式|Standard)/ }).first().click();
+          // The roster as the picker shows it: DSH lists every preset a plugin registers (no hidden flag), so StudyHub's worker preset must come last.
+          await sleep(500);
+          summary.presetPicker = await page.evaluate(() => [...document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"], [role="radio"]')]
+            .filter((element) => element.getClientRects().length).map((element) => (element.innerText || element.textContent || "").trim().split(/\r?\n/)[0]).filter(Boolean));
+          await shot("09-preset-picker");
           await page.getByText(pick).first().click();
           await sleep(500);
         }
@@ -396,42 +401,105 @@ export async function runDshE2e(options) {
       }
       const problem = (key, value) => value.error || (!value.reply && "no reply") || (key === "study" && !value.personaSent && "the preset's persona never reached the model")
         || Object.entries(value.toolTurns || {}).map(([name, turn]) => !(turn.called && turn.resultSeen && turn.reply) && `the ${name} tool turn did not complete: ${JSON.stringify(turn)}`).find(Boolean);
+      const workerAt = (summary.presetPicker || []).findIndex((text) => /StudyHub 后台|StudyHub background/.test(text));
+      if (workerAt >= 0 && workerAt !== summary.presetPicker.length - 1) throw new Error(`the worker preset is not last in the picker: ${JSON.stringify(summary.presetPicker)}`);
       const bad = Object.entries(summary.presetChat).map(([key, value]) => [key, problem(key, value)]).filter(([, text]) => text);
       if (bad.length) throw new Error(bad.map(([key, text]) => `${key}: ${text}`).join(" | "));
     });
-    // StudyHub's own background child (lib/subagent-api.js): the AI helper on a card of the sample library, asked from the live study session. The host must run it
-    // as a DSH sub-agent with NO tools (DSH 0.2.0: toolFilter; 0.2.1: the study-worker preset plus the mask on the exact child), and its JSON comes back to StudyHub.
-    await step("studyhub-child", async () => {
-      const rpc = (method, payload) => page.evaluate(async ({ method: name, payload: body }) => {
-        const response = await fetch(`/api/${name}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "client-request", rpcId: crypto.randomUUID(), method: name, payload: body }) });
-        return (await response.json()).result;
-      }, { method, payload });
-      const items = (await rpc("session/list", { args: { _request: {} } })).value.items;
-      const sessionId = items[0]?.sessionId;
+    // StudyHub's own background child (lib/subagent-api.js): the AI helper on a card of the sample library, asked twice on the same card, first from the live study
+    // session and then, after a host restart, from a cold panel (a conversation the host has not loaded: lib/host-capabilities.js starts the child under a fresh
+    // idle coordinator there). The host must run each as a DSH sub-agent with NO tools (DSH 0.2.0: toolFilter; 0.2.1: the study-worker preset plus the mask on the
+    // exact child); its JSON must come back to StudyHub and be saved on the card; the child's session must hold the host's token usage and timing. On DSH 0.2.1 a
+    // settled child is torn down by the host, so a second ask must start a NEW child rather than continue the old one.
+    const rpc = (method, payload) => page.evaluate(async ({ method: name, payload: body }) => {
+      const response = await fetch(`/api/${name}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "client-request", rpcId: crypto.randomUUID(), method: name, payload: body }) });
+      return (await response.json()).result;
+    }, { method, payload });
+    const host021 = !(options.dshVersion || DSH_VERSION).startsWith("0.2.0");
+    // DSH 0.2.0 composes the child from its parent's preset, and its toolFilter cannot hide a preset-scoped tool: the 学习模式 parent's `subagent` stays visible
+    // there (as in every StudyHub release on 0.2.0). DSH 0.2.1 starts the child in the study-worker preset, so it must see no tool at all.
+    const known = host021 ? [] : ["subagent"];
+    const askTwice = async (sessionId, label) => {
       const call = async (action, args = {}) => { const result = await rpc("study-workspace/call", { sessionId, action, args }); if (!result.ok) throw new Error(`${action}: ${result.error?.message || "refused"}`); return result.value; };
-      await call("sample.load", { language: options.lang });
-      const [card] = (await call("card.search", { query: options.lang === "en" ? "snapshot" : "快照", limit: 1 })).results;
+      const query = options.lang === "en" ? "snapshot" : "快照";
+      let [card] = (await call("card.search", { query, limit: 1 })).results;
+      if (!card) { await call("sample.load", { language: options.lang }); [card] = (await call("card.search", { query, limit: 1 })).results; }
       if (!card) throw new Error("the sample library has no card to ask about");
-      const requestsBefore = model.log.length;
-      const task = await call("assist.start", { deckId: card.deckId, cardId: card.cardId, mode: "ask", text: options.lang === "en" ? "Why is that the answer?" : "为什么是这个答案？" });
-      const result = summary.studyChild = { runtime: task.runtime, status: task.status, workerRequests: 0, toolsOffered: null, workerPersona: false };
-      for (const end = Date.now() + 60000; Date.now() < end; await sleep(500)) {
+      const followups = async () => ((await call("card.locate", { deckId: card.deckId, cardId: card.cardId })).card.followups || []).length;
+      const asks = [];
+      // a question of its own per run: the sample library outlives a run (output/qa/dsh-documents) and a card keeps one answer per question
+      const stamp = `${label} ${Date.now().toString(36)}`;
+      for (const text of (options.lang === "en" ? ["Why is that the answer?", "Give me one more example."] : ["为什么是这个答案？", "再举一个例子。"]).map((question) => `${question} (QA ${stamp})`)) {
+        const requestsBefore = model.log.length, savedBefore = await followups();
+        const started = await call("assist.start", { deckId: card.deckId, cardId: card.cardId, mode: "ask", text });
+        const ask = { runtime: started.runtime, status: started.status, workerRequests: 0, toolsOffered: null, workerPersona: false };
+        let task = started;
+        for (const end = Date.now() + 90000; Date.now() < end && task.status === "running"; await sleep(500))
+          task = ((await call("snapshot")).assist || []).find((item) => item.id === started.id) || task;
+        const saved = await followups() - savedBefore;
+        Object.assign(ask, { status: task.status, message: task.message || "", childId: task.childId || null, reused: task.reused ?? null, saved });
         const worker = model.log.slice(requestsBefore).filter((entry) => entry.handled);
-        if (worker.length) {
-          result.workerRequests = worker.length;
-          result.toolsOffered = [...new Set(worker.flatMap((entry) => entry.tools))].sort();
-          result.workerPersona = worker.some((entry) => /StudyHub background worker/.test(entry.systemText || ""));
-          break;
+        ask.workerRequests = worker.length;
+        ask.toolsOffered = [...new Set(worker.flatMap((entry) => entry.tools))].sort();
+        ask.workerPersona = worker.some((entry) => /StudyHub background worker/.test(entry.systemText || ""));
+        // The host's own record of the child's session: its token usage and the timing its 会话统计 shows (TTFT, decode speed).
+        if (ask.childId) {
+          const projected = await rpc("session/projections", { args: { request: { sessionId: ask.childId } } }).catch((error) => ({ error: String(error) }));
+          const values = projected?.value?.values || projected?.values || {};
+          ask.hostUsage = values.tokenUsage ?? null;
+          ask.hostStats = values.sessionStats ? { steps: values.sessionStats.steps, ttftSteps: values.sessionStats.ttftSteps, ttftMs: values.sessionStats.ttftMs,
+            decodeTokens: values.sessionStats.decodeTokens, decodeMs: values.sessionStats.decodeMs } : null;
+          ask.projectionKind = projected?.value?.kind ?? projected?.kind ?? null;
+          if (!ask.hostUsage && !ask.hostStats) ask.projectionRaw = JSON.stringify(projected).slice(0, 600);
         }
+        ask.knownHostLeak = (ask.toolsOffered || []).filter((name) => known.includes(name));
+        asks.push(ask);
       }
-      // DSH 0.2.0 composes the child from its parent's preset, and its toolFilter cannot hide a preset-scoped tool: the 学习模式 parent's `subagent` stays visible
-      // there (as in every StudyHub release on 0.2.0). DSH 0.2.1 starts the child in the study-worker preset, so it must see no tool at all.
-      const known = (options.dshVersion || DSH_VERSION).startsWith("0.2.0") ? ["subagent"] : [];
-      result.knownHostLeak = (result.toolsOffered || []).filter((name) => known.includes(name));
-      const offered = (result.toolsOffered || []).filter((name) => !known.includes(name));
-      const problems = [task.runtime !== "subagent" && `the helper ran as ${task.runtime}, not as a DSH sub-agent`,
-        !result.workerRequests && "the child never reached the model", offered.length && `the child was offered tools: ${offered.join(", ")}`].filter(Boolean);
-      if (problems.length) throw new Error(problems.join(" | "));
+      const problems = [];
+      asks.forEach((ask, index) => {
+        const which = `${label} ask ${index + 1}`;
+        const offered = (ask.toolsOffered || []).filter((name) => !known.includes(name));
+        const usage = ask.hostUsage, counted = usage && ["uncachedInputTokens", "outputTokens"].some((key) => Number(usage[key]) > 0);
+        problems.push(ask.runtime !== "subagent" && `${which}: the helper ran as ${ask.runtime}, not as a DSH sub-agent`,
+          ask.status !== "done" && `${which}: the task ended ${ask.status} (${ask.message})`,
+          ask.saved !== 1 && `${which}: ${ask.saved} answers saved on the card, not 1`,
+          !ask.childId && `${which}: the task names no child`,
+          // a reused child answers through followup(): the request carries the same tools and persona as its first turn
+          !ask.workerRequests && `${which}: the child never reached the model`,
+          !ask.workerPersona && host021 && `${which}: the worker persona never reached the model`,
+          offered.length && `${which}: the child was offered tools: ${offered.join(", ")}`,
+          !counted && `${which}: the host recorded no token usage for the child (${JSON.stringify(usage)})`,
+          !(ask.hostStats?.ttftSteps > 0) && `${which}: the host recorded no time to first token for the child`);
+      });
+      // DSH 0.2.1 tears a settled child down, so the second ask must not continue it (the cold-panel case is the one that used to).
+      if (host021 && asks[1] && (asks[1].reused || asks[1].childId === asks[0].childId)) problems.push(`${label}: the second ask continued the settled child ${asks[0].childId}`);
+      return { asks, problems: problems.filter(Boolean) };
+    };
+    await step("studyhub-child", async () => {
+      const items = (await rpc("session/list", { args: { _request: {} } })).value.items;
+      const live = summary.studyChild = await askTwice(items[0]?.sessionId, "live");
+      if (live.problems.length) throw new Error(live.problems.join(" | "));
+    });
+    // A cold panel: restart the host, then ask from a conversation the restarted host has not loaded (session/list marks it `cached`, not `sequenced`).
+    await step("studyhub-child-cold", async () => {
+      // leave the page first, so the stopped host does not show up as the page's connection errors
+      await page.goto("about:blank");
+      stopTree(dsh.child);
+      await new Promise((done) => { if (dsh.child.exitCode !== null) done(); else { dsh.child.once("exit", done); setTimeout(done, 15000); } });
+      await writeFile(join(options.out, "dsh-first-boot.log"), dsh.output().replace(/token=\S+/g, "token=…"));
+      dsh = await bootDsh(bin, { env: { ...baseEnv, [FAKE_KEY_ENV]: "not-a-real-key" }, cwd: workspace, patch, port: options.port });
+      await page.goto(dsh.url, { waitUntil: "networkidle" });
+      await sleep(1500);
+      const items = (await rpc("session/list", { args: { _request: {} } })).value.items;
+      const cold = items.filter((item) => item.projections?.kind === "cached");
+      const sessionId = cold.at(-1)?.sessionId;
+      summary.studyChildCold = { sessions: items.map((item) => ({ sessionId: item.sessionId, kind: item.projections?.kind ?? null })), sessionId: sessionId ?? null };
+      if (!sessionId) throw new Error(`no cold conversation after the restart: ${JSON.stringify(summary.studyChildCold.sessions)}`);
+      const result = await askTwice(sessionId, "cold");
+      Object.assign(summary.studyChildCold, result);
+      const after = (await rpc("session/list", { args: { _request: {} } })).value.items.find((item) => item.sessionId === sessionId);
+      summary.studyChildCold.kindAfter = after?.projections?.kind ?? null;
+      if (result.problems.length) throw new Error(result.problems.join(" | "));
     });
     const flushWarnings = summary.consoleErrors.filter((text) => /flushSync|Maximum update depth|Invalid hook call/i.test(text));
     if (flushWarnings.length) summary.steps.push({ name: "no-react-warnings", status: "failed", ms: 0, error: flushWarnings.join(" | ").slice(0, 800) });

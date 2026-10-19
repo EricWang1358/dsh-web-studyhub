@@ -232,6 +232,29 @@ test('the host replaces any workspace the caller supplied with the session works
   assert.deepEqual(scopeDiagramArgs('skeleton.diagram.list', { id: 'k' }, '/work/space'), { id: 'k' });
 });
 
+/* DSH 0.2.1 lets a conversation change its folder (working_directory). A relative path is read from the folder it is in now; a file in
+   the folder the conversation started in (the session header, where the library is bound) stays allowed, and nothing else is widened. */
+test('after the conversation changed folder: relative paths follow the current folder, the folder it started in stays allowed', async t => {
+  const { put, attach, workspace, elsewhere } = await setup(t);
+  const moved = join(workspace, '..', 'moved');
+  await put('here.html', html('in the current folder'), moved);
+  const started = await put('start.html', html('in the starting folder'));
+  const both = { workspace: moved, startFolder: workspace };
+  assert.equal((await attach('diagrams/here.html', both)).diagram.title, 'in the current folder', 'relative to the current folder');
+  assert.equal((await attach(started, both)).diagram.title, 'in the starting folder', 'the folder the conversation started in');
+  const outside = await put('out.html', html('out'), elsewhere);
+  await assert.rejects(attach(outside, both), /工作目录或学习库/, 'nothing else is allowed');
+  await assert.rejects(attach(join(moved, 'diagrams', 'here.html'), { workspace }), /工作目录或学习库/, 'a folder the host did not name is not allowed');
+});
+
+test('the host names both folders and replaces any the caller supplied', () => {
+  assert.deepEqual(scopeDiagramArgs('skeleton.diagram.attach', { id: 'k', path: 'a.html', workspace: '/', startFolder: '/' }, '/work/moved', '/work/space'),
+    { id: 'k', path: 'a.html', workspace: '/work/moved', startFolder: '/work/space' });
+  assert.deepEqual(scopeDiagramArgs('skeleton.diagram.attach', { id: 'k', path: 'a.html', startFolder: '/' }, '/work/space', '/work/space'),
+    { id: 'k', path: 'a.html', workspace: '/work/space' }, 'one folder when it has not moved');
+  assert.deepEqual(scopeDiagramArgs('skeleton.diagram.attach', { id: 'k', startFolder: '/' }, undefined), { id: 'k', workspace: '' });
+});
+
 test('the agent-facing contract names the four operations in a line or two and stays within the area limit', () => {
   const text = libraryContracts.skeletons;
   for (const name of ['skeleton.diagram.attach', 'skeleton.diagram.list', 'skeleton.diagram.get/remove']) assert.ok(text.includes(name), name);

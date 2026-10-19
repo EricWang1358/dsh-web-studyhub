@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { runGenerationAgent } from '../lib/generation-agent.js';
 import { runCorrectionAgent } from '../lib/live-correction-agent.js';
 import { backgroundCapability, startBoundedChild } from '../lib/host-capabilities.js';
-import { subagentApi, boundChildTools, WORKER_PRESET } from '../lib/subagent-api.js';
+import { subagentApi, boundChildTools, startWorker, WORKER_PRESET } from '../lib/subagent-api.js';
 import { foldSessionUsage } from '../lib/token-usage.js';
 
 /*
@@ -16,24 +16,29 @@ import { foldSessionUsage } from '../lib/token-usage.js';
  * The fake below follows that API: a receipt { childId, messageId, result, dispose }, the result arriving after
  * DSH has torn the settled child down, and the child announced through `agent/created` before its first prompt.
  */
-function activationHost({ observe = true, stopReason = 'completed', text = '{"ok":true}', presets = true, inherits = false } = {}) {
-  const listeners = new Set(), calls = { start: [], disposed: 0, messages: [] };
+function activationHost({ observe = true, stopReason = 'completed', text = '{"ok":true}', presets = true, inherits = false, desktop = false, teacher = false } = {}) {
+  const listeners = new Set(), calls = { start: [], disposed: 0, messages: [] }, created = [], followups = [];
   const tools = { restricted: [], mode: undefined, restrict(filter) { this.restricted.push(filter); return () => {}; }, presentAs(mode) { this.mode = mode; } };
   const parent = { id: 'learner' };
-  const live = new Map([[parent.id, parent]]);
+  const live = new Map(desktop ? [] : [[parent.id, parent]]);
   const usageEvent = { type: 'assistant/usage', data: {} };
   const subagents = {
     getProvider: () => ({ name: 'spawn', inheritsParentContext: inherits, prepareContinuable() {},
       capabilities: { agentOptions: true, agentPreset: true, outputSchema: true, depthLimit: true } }),
     async startActivation(spec) {
       calls.start.push(spec);
+      spec.signal.throwIfAborted(); // dsh-subagent 0.2.1 startLocal, unguarded
       const child = { id: spec.childId, status: 'running', ctx: { get: name => name === 'tools' ? tools : undefined },
         session: { seq: 2, eventAt: seq => [usageEvent, { type: 'turn/end', data: { reason: { kind: stopReason,
           ...(stopReason === 'error' ? { error: { code: 'NO_ADAPTER', message: 'no adapter' } } : {}) } } }][seq] } };
+      // A torn-down DSH 0.2.1 Agent still says 'idle' and keeps its teacher methods.
+      if (teacher) Object.assign(child, { followup: message => followups.push(message), whenIdle: async () => {}, cancel() {} },
+        { session: { ...child.session, snapshotEvents: () => [] } });
       live.set(child.id, child);
       if (observe) for (const listener of listeners) await listener({ agent: child });
       const result = new Promise(resolve => setImmediate(() => {
         live.delete(child.id); // DSH releases a settled child before its result resolves
+        child.status = 'idle';
         resolve({ stopReason, output: [{ type: 'text', text }] });
       }));
       return { childId: spec.childId, messageId: 'message-1', result, dispose: async () => { calls.disposed++; } };
@@ -42,10 +47,15 @@ function activationHost({ observe = true, stopReason = 'completed', text = '{"ok
   };
   const ctx = {
     on: (name, listener) => { if (name !== 'agent/created') return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
-    get: name => name === 'subagents' ? subagents : name === 'agents' ? { get: id => live.get(id) }
+    get: name => name === 'subagents' ? subagents : name === 'agents' ? agents
       : name === 'agentPresets' && presets ? { mount() {} } : undefined,
+    // A cold panel: the conversation is not live, its folder is known from the session header.
+    ...(desktop ? { sessions: { get: id => id === 'panel' ? { header: { cwd: 'D:/work' } } : undefined } } : {}),
   };
-  return { ctx, subagents, parent, tools, calls, listeners };
+  const agents = { get: id => live.get(id),
+    ...(desktop ? { async create(options) { const agent = { id: options.sessionId, meta: options.meta }; created.push(agent);
+      return { agent, dispose: async () => {} }; } } : {}) };
+  return { ctx, subagents, parent, tools, calls, listeners, created, followups };
 }
 
 const route = { provider: 'p', model: 'm' };
@@ -155,6 +165,58 @@ test('a settled child still hands its events to usage and is never reused as a l
   assert.equal(run.localAgent.session.eventAt(1).type, 'turn/end');
   assert.doesNotThrow(() => foldSessionUsage(run.localAgent.session));
   await run.dispose();
+});
+
+/*
+ * A cold StudyHub panel (no live chat agent) runs its children under a fresh idle coordinator (the desktop path).
+ * A real DSH 0.2.1 Agent that has been torn down still reports status 'idle' and still has followup / whenIdle /
+ * cancel (dsh-agent-loop 0.2.1 lib/index.js:790-808), so a settled child must never be handed out as a teacher.
+ */
+function coldPanelHost() {
+  return activationHost({ desktop: true, teacher: true });
+}
+
+test('a cold panel (no live chat) never reuses a settled DSH 0.2.1 child as a teacher', async () => {
+  const host = coldPanelHost();
+  const capability = backgroundCapability(host.ctx, 'panel', route);
+  assert.equal(capability.parent, undefined, 'no live chat agent');
+  assert.equal(capability.desktop, true);
+  assert.equal(capability.native, true);
+  const request = () => ({ label: 'Assist', signal: new AbortController().signal, agentOptions: route,
+    prompt: [{ type: 'text', text: 'Task' }] });
+
+  const run = await startBoundedChild(host.subagents, request(), capability);
+  assert.equal(run.localAgent?.status, 'running', 'the live child while it runs');
+  await run.result;
+  assert.equal(run.localAgent?.status, 'settled', 'after settlement localAgent is the read-only stub, not the torn-down Agent');
+  assert.equal(typeof run.localAgent.followup, 'undefined');
+  await run.dispose();
+
+  const { createAssistChildren } = await import('../lib/assist-child.js');
+  const children = createAssistChildren();
+  const ask = async () => {
+    const task = {};
+    const raw = await children.withAssistChild(capability, { root: 'r', key: 'card-1', task, reuse: true,
+      followupPrompt: [{ type: 'text', text: 'Again' }], request: request(), consume: async raw => raw });
+    return { raw, task };
+  };
+  const first = await ask();
+  const second = await ask();
+  assert.equal(first.raw, '{"ok":true}');
+  assert.equal(second.raw, '{"ok":true}');
+  assert.equal(second.task.reused, false, 'the second ask starts a new child');
+  assert.notEqual(second.task.childId, first.task.childId);
+  assert.equal(host.followups.length, 0, 'followup() is never called on a torn-down child');
+  assert.equal(host.calls.start.length, 3);
+  children.disposeAssistChildren(host.ctx);
+});
+
+test('a worker started without a signal still gets one (DSH 0.2.1 calls signal.throwIfAborted unguarded)', async () => {
+  const host = activationHost();
+  const run = await startWorker(host.ctx, host.subagents, { parent: host.parent, label: 'Assist', prompt: [{ type: 'text', text: 'Task' }] });
+  assert.equal(typeof host.calls.start[0].signal?.throwIfAborted, 'function');
+  assert.equal(host.calls.start[0].signal.aborted, false);
+  assert.equal((await run.result).stopReason, 'completed');
 });
 
 test('live transcript correction runs on a DSH 0.2.1 child too', async () => {

@@ -18,9 +18,11 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: study-worker
-        order: 90
-        name: StudyHub 后台任务（内部）
-        description: 仅供 StudyHub 的后台出题、批改与校正使用：没有任何工具，不用于聊天。Internal to StudyHub background work; no tools, not for chatting.
+        # DSH has no way to keep a preset out of its picker (the registry lists every definition; the picker
+        # drops only broken ones), so this one sorts after every preset that sets an order (shipped: 0-4).
+        order: 10000
+        name: StudyHub 后台（勿选）
+        description: StudyHub 后台出题、批改时自动使用；没有工具，不用于聊天。Used by StudyHub's background tasks; no tools, not for chatting.
         plugins:
           - id: persona
             name: '@deepseek-ai/dsh-persona'

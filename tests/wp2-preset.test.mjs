@@ -116,4 +116,18 @@ test('the background worker preset composes a persona and nothing else', async (
   assert.equal(persona.complete, true, 'the worker prompt is its own persona only, not the tutor usage notes');
   assert.match(persona.prefix, /untrusted/);
   assert.match(persona.prefix, /no\s+tools/);
+
+});
+
+/* DSH has no way to keep a preset out of its picker: the registry lists every registered definition
+   (@deepseek-ai/dsh-agent-preset-registry 0.2.0-rc.2 / 0.2.1-rc.2 `list()`), and the picker drops only broken
+   ones (@deepseek-ai/dsh-client-ui-agent-preset `presetOptions`), which cannot be started either. So the worker
+   sorts after every preset that sets an order (shipped ones use 0-4), with a short name that says not to pick it. */
+test('the worker preset is listed last among ordered presets, with a short name that says not to pick it', async () => {
+  const worker = (await preset('presets/study-worker.patch.yml')).config;
+  const study = (await preset('presets/study.patch.yml')).config;
+  assert.ok(Number.isSafeInteger(worker.order) && worker.order >= 1000 && worker.order > study.order, `order ${worker.order}`);
+  assert.ok([...worker.name].length <= 16, worker.name);
+  assert.match(worker.name, /StudyHub/);
+  assert.match(worker.name, /勿选/);
 });
