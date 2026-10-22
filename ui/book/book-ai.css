@@ -376,11 +376,6 @@
       min-width: 0;
       resize: vertical;
     }
-    .book-ask__hint {
-      margin: 0;
-      color: var(--text-muted);
-      font-size: var(--fs-sm);
-    }
     .book-select {
       display: flex;
       align-items: center;

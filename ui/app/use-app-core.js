@@ -33,11 +33,14 @@ export function useAppCore(transportCall, host) {
   const act = useCallback((action, args = {}, after, options) =>
     actRunner.current.act(action, args, after, { afterNavigation: action === 'restore', ...options }), []);
   const toast = useMemo(() => createToastApi({ setNotice: notify, setError }), [notify]);
-  /* 「发给主会话」: the one writer of the main chat's input box and its one set of notices (ui/hand-off/use-hand-off.js deliverToChat). Never sends;
-     never over the learner's own words. askInChat(prompt, { said }) -> 'filled' | 'kept' | 'copied' | 'shown'. */
-  const askInChat = useCallback((prompt, { said = '' } = {}) => deliverToChat({ host: hostRef.current, prompt, said, notify }), [notify]);
+  /* 「发给主会话」: the one writer of the main chat's input box and its one set of receipts (ui/hand-off/use-hand-off.js deliverToChat). Never sends;
+     never over the learner's own words. askInChat(prompt, { said }) -> 'filled' | 'kept' | 'copied' | 'shown'. The full-text card it may open
+     (ui/hand-off/HandOffSheet.jsx) is `handOffSheet`, drawn by App; closeHandOffSheet() forgets it. */
+  const [handOffSheet, setHandOffSheet] = useState(null);
+  const closeHandOffSheet = useCallback(() => setHandOffSheet(null), []);
+  const askInChat = useCallback((prompt, { said = '' } = {}) => deliverToChat({ host: hostRef.current, prompt, said, notify, openSheet: setHandOffSheet }), [notify]);
   // One stable bag: hooks list it as a dependency and it must never change identity.
   const refs = useMemo(() => ({ epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef }), []);
   return { refs,
-    call, act, refresh, notify, toast, askInChat, error, setError, busy, setBusy, quick, quickApi, quickStamp };
+    call, act, refresh, notify, toast, askInChat, handOffSheet, closeHandOffSheet, error, setError, busy, setBusy, quick, quickApi, quickStamp };
 }

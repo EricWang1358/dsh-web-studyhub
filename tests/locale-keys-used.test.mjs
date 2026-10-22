@@ -8,9 +8,7 @@ import { englishCatalogues, sourceCorpus, unreferencedKeys } from './helpers/loc
 
 /* Keys the source does not spell out in one piece, each with where it is built. An entry is checked: it must match a key, and everything it matches
    must still be missing from the source (a key that is spelled out again does not need an exception). */
-const BUILT_AT_RUN_TIME = Object.freeze([
-  { startsWith: '开始录题：', where: 'ui/agent-prompts/ingest.js: START is one string written as nine concatenated lines, and say() looks the whole of it up' },
-]);
+const BUILT_AT_RUN_TIME = Object.freeze([]);
 const excepted = (key) => BUILT_AT_RUN_TIME.some((entry) => key.startsWith(entry.startsWith));
 
 const catalogues = await englishCatalogues();

@@ -18,13 +18,13 @@
 
 ## 从书页发给主会话
 
-书页可以替你把消息填进对话的输入框（只填入，不会发送；你看过再按发送）。消息里写明用 `study-book` 技能、课程和知识点、这一点的文件和生成文件的版本、这一点的资料页已经读了几页，以及你的要求，并用两行重申三条规则：尊重资料（可核对的脚注、（资料以外）标记）、小步调用一次一个知识点、做完汇报改了哪些知识点（每次改动都保留上一版，`course.book.revert` 可以退回）。消息里没有书的正文：主会话自己用 `book.read` 读这个知识点。你的要求和选中的话都放在代码围栏里；选中的话和知识点标题标明是数据，你的要求标明是你写的。
+书页可以替你把消息填进对话的输入框（只填入，不会发送；你看过再按发送）。消息第一句是你自己的话（要对哪个知识点做什么，知识点标题作为名字写在句子里），紧接着是放在围栏里的你的要求，所以输入框里先看到的就是你要的。空一行之后，在「StudyHub 附注（给助手）」下面，每行一条写主会话要用的：先读 `study-book` 技能、用 `book.read` 读这一节，课程和知识点，这一点的文件和生成文件的版本，资料页读了几页，规则（可核对的脚注、按书的语言标资料以外、一次只写一个小节），做完汇报什么（每次改动都保留上一版，`course.book.revert` 可以退回），以及一行说明围栏里是什么；选中的话随后放在数据围栏里，最后是语言句。消息里没有书的正文：主会话自己读。
 
 - 知识点标题旁的「问 AI」（见[读的时候问 AI](review-book.zh-CN.md#读的时候问-ai)）：一个框，五个预设（「讲细点」「加个例子」「润色成大白话」「加过渡」「还漏了哪些小知识点、要不要补进来」），两个去处；「发给主会话」就是发到这里。框可以留空（消息会请主会话把这一节改得更清楚易读）。按 Escape 关闭，焦点回到「问 AI」。它不需要应用里设置模型。
 - 选中几句话：工具条上的「发给主会话」直接把它们（放在数据围栏里，不带角标数字）连同这一个知识点发过去，请主会话只改与它们有关的地方；「写一段…」打开同一个框，选中的话在最上面，在框里写的要求也一起发。
-- 书栏「更多 › 整本书 › 发给主会话…」：同一个框，只有这一个去处，在对话框里（Ctrl+Enter 发送）；消息里没有具体知识点，请主会话先用 `book.toc` 看目录，一次一个知识点。输入框留空时，请主会话先说哪些知识点最值得改，等你挑好再写。
+- 书栏「更多 › 整本书 › 发给主会话」：点了直接发（没有表单；想提要求就在主会话的输入框里写）；消息里没有具体知识点，请主会话先说哪些知识点最值得改、等你挑好再写，并从 `book.toc` 开始一次一个知识点。
 
-宿主没有对话输入框时（单独打开应用），消息会复制到剪贴板，并有提示说明。你也可以不点任何按钮，直接在主对话里说想怎么改书。
+发生了什么，页面底部会出一张盖章回执：「已填进主会话的输入框」（5 秒后收起；应用已经切到主会话）；输入框里你已经写了字时是「输入框里你写的字都留着」（消息改为复制，宿主能切到主会话时带「去主会话」）；宿主没有对话输入框时（单独打开应用）是「已复制到剪贴板」（「看看内容」打开消息）。浏览器不让用剪贴板时，整条消息会在一张卡片里打开，有「复制全文」和全选兜底；只有不复制就关掉卡片，才会留下「请手动复制」那张回执。你也可以不点任何按钮，直接在主对话里说想怎么改书。
 
 ## 长时间的工作
 
@@ -39,5 +39,5 @@
 - `book.toc {course?, offset?, limit?}`（每次最多 40 行）、`book.read {course?, hid, file?: 'gen' | 'mine' | 'qa', offset?}`（正文合计 4 500 字符，`more: {file, offset}` 接着读）、`book.coverage {course?, hid}`：lib/book-agent-read.js，只读；`book.toc` 先像 `course.book.open` 一样把书更新到最新（没有就建，总纲重整后重新对应）。每个结果都在宿主截断工具结果的 8 192 字符以内。按有质量把关的流程写成的书（[课程总纲](course-outline.zh-CN.md#复习全书讲解层)），`book.toc` 还给每个知识点 `concepts: 'N/M'`（清单里必讲条目讲到了几个），未达标的带 `short: true`，并给出全书三层的 `coverage`；`book.coverage` 多一项 `concepts {covered, total, status, missing?}`，列出还缺的名字。
 - `source.pages {sourceId | documentId, from?, to?, offset?, hid?, course?}`：lib/book-pages.js，最多 4 页、6 000 字符（`next: {from, offset?}`，`end: true`）；学习库自己的清单（考点清单、总纲、复习全书本身）会被拒绝。显示过的内容由 lib/book-reading.js 记在学习库文件夹下的 `book-history/reading.json`（每份资料读过的字符区间、每个知识点的工作打开过哪些资料、每个知识点写入时被拿掉的引文），经临时文件和改名写入；它不在学习库里，也不进可携带备份。
 - `book.write {course?, hid, file?, markdown | section: {heading, markdown} | edits: [{find, replace}], version?}`：lib/book-agent-write.js，脚注规则在 lib/book-footnotes.js，引文定位是 lib/book-quote.js（和复习全书的生成共用）。每次最多 20 000 字符、20 处替换。它走书的写入队列（lib/course-book-writer.js），在一个存储事务里按 `course.book.save` 的规则保存（lib/course-book-edit.js），所以书页上的保存和主会话的写入一个接一个进行。脚注按书的格式写回，`[^n]: [「原文」](studyhub://source/<id>) · 标题`，在「出处」下按顺序编号；标题放在知识点自己的标题之下；「练 5 道」那一行保持在最后；问答块、答题卡和 AI 块原样保留。整份写入的 `version` 过期时，保存主会话的文本，另一份作为建议保留；按节写入或替换则作用在文件现在的样子上。返回 `{status, hid, file, name, version, dropped: [{n, quote, reason, again?}], outsideCount, warnings, advice?, note?}`；warnings 会指出语言和书不一致、资料页还没打开、文件里的块不见了。拒绝码：book-write-mode、book-write-too-long、book-edit-find、book-section-missing、book-file-invalid、book-point-missing、book-point-not-leaf、course-book-missing。
-- 「发给主会话」：消息是 ui/agent-prompts/book.js 的 `bookEditPrompt({course, hid?, title?, files, version, coverage, selection?, instruction, scope: 'point' | 'selection' | 'book'}, language)`（纯函数；两种语言；不含书的正文；标题和选中的话放在 `fenceData` 数据围栏里，学习者的要求放在自己的围栏里并说明是学习者写的）。框是 ui/book/BookAsk.jsx（`AskForm`，整本书的对话框 ui/book/book-views.jsx 也用它），选区工具条是 ui/book/BookSelectBar.jsx，两者在 ui/book/BookAskLayer.jsx 里接起来；发出去的路径是 ui/book/send-to-chat.js 的 `useSendToChat(course)`（读这个知识点的 `book.coverage`，再调用 `askInChat`：宿主的对话输入框，否则剪贴板）。测试：tests/book-send-to-chat.test.mjs、tests/book-send-to-chat-browser.test.mjs。
+- 「发给主会话」：消息是登记表里的 `book.edit`（ui/agent-prompts/index.js，技能 `study-book`）；ui/agent-prompts/book.js 的 `bookEditPrompt({course, hid?, title?, files, version, coverage, selection?, instruction, scope: 'point' | 'selection' | 'book'}, language)` 给出各部分，ui/agent-prompts/message.js 排版（纯函数；两种语言；不含书的正文；标题是名字片段，选中的话在数据围栏里，学习者的要求在 request 围栏里）。框是 ui/book/BookAsk.jsx（`AskForm`；整本书是「更多」里的一项，ui/book/more-actions.js），选区工具条是 ui/book/BookSelectBar.jsx，两者在 ui/book/BookAskLayer.jsx 里接起来；发出去的路径是 ui/book/send-to-chat.js 的 `useSendToChat(course)`（读这个知识点的 `book.coverage`，再调用 `askInChat`：宿主的对话输入框，否则剪贴板）。测试：tests/book-send-to-chat.test.mjs、tests/book-send-to-chat-browser.test.mjs。
 - 技能在 lib/study-skills.js：`skills/<名字>/SKILL.md`（YAML 头部 `name`、`description`、`whenToUse`），宿主注入 `skills` 时用 `ctx.skills.register` 注册。工具说明是 `library.context` 的 `book` 区。

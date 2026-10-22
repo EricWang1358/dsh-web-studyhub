@@ -23,24 +23,29 @@ export const INGEST_MISTAKES = Object.freeze([
 
 const optionOf = (list, id) => list.find((item) => item.id === id) || list[0];
 
-const FOLDER = '（目录 {0}）';
-const START = '开始录题：接下来这段对话里我贴的题目（刷题软件、Canvas 错题记录、截图都可能），请都用 study_workspace 的 ingest 直接录入学习库，不用再问我确认。\n'
-  + '- 题组：「{0}」{1}\n'
-  + '- 题型：{2}\n'
-  + '- 错题：{3}\n'
-  + '- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n'
-  + '- 如果我贴的是讲义 PDF 而不是现成题目，请用 study_materials 的 document.import 导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n'
-  + '- 我给的是整本题册文件时，按 skill study-import 按章录入。\n'
-  + '- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n'
-  + '- 我说「停止录题」时调用 ingest.stop。\n'
-  + '第一批题目：\n';
+const ASK = '接下来我会在这里贴题目，帮我直接录进题组 {0}。';
+const RECORD = '录入：用 study_workspace 的 ingest 直接录进学习库，不用再问我确认{0}。';
+const FOLDER = '；目录 {0}';
+const KIND = '题型：{0}。';
+const MISTAKES = '错题：{0}。';
+const NOTES = [
+  '语言：题目、选项和答案保持原文语言，不要翻译。',
+  '截图：先逐字转写题目、选项和答案再录入；题多可以分批。',
+  '讲义：我贴的是讲义 PDF 而不是现成题目时，用 study_materials 的 document.import 导入，再用 generate 出新题草稿，题组名照旧；不要当错题录入。',
+  '题册：我给的是整本题册文件时，按 skill study-import 按章录入。',
+  '每批：简短告诉我录入几道、哪些重复、哪些没录成及原因、哪些答案是推断的需要我核对。',
+  '停止：我说「停止录题」时调用 ingest.stop。',
+];
 
-/** The hand-off for `ingest.start`'s result. input: { deckTitle, folder, kind, mistakes } (kind and mistakes are registry ids). */
+/** The parts of the hand-off for `ingest.start`'s result; the registry ends it with 第一批题目：. input: { deckTitle, folder, kind, mistakes } (kind and mistakes are registry ids). */
 export function ingestPrompt({ deckTitle = '', folder = '', kind = 'auto', mistakes = 'auto' }, language = getUiLanguage()) {
-  return say(language, START, [
-    nameData(deckTitle),
-    folder ? say(language, FOLDER, [nameData(folder)]) : '',
-    say(language, optionOf(INGEST_KINDS, kind).instruction),
-    say(language, optionOf(INGEST_MISTAKES, mistakes).instruction),
-  ]);
+  return {
+    ask: say(language, ASK, [nameData(deckTitle)]),
+    notes: [
+      say(language, RECORD, [folder ? say(language, FOLDER, [nameData(folder)]) : '']),
+      say(language, KIND, [say(language, optionOf(INGEST_KINDS, kind).instruction)]),
+      say(language, MISTAKES, [say(language, optionOf(INGEST_MISTAKES, mistakes).instruction)]),
+      ...NOTES.map(line => say(language, line)),
+    ],
+  };
 }

@@ -68,6 +68,10 @@ export const ICON_MAP = {
   book: 'book-open',
   settings: 'gear-six',
   chat: 'chat-circle-text',
+  // The four receipts of 「发给主会话」 (ui/hand-off/Receipt.jsx; filled is 'success'): the glyph in the seal of an English interface.
+  note: 'note-pencil',
+  clipboard: 'clipboard-text',
+  'select-all': 'selection-all',
   // The sidebar rail: one mark per destination.
   'nav-audio': 'file-audio',
   'nav-live': 'microphone',

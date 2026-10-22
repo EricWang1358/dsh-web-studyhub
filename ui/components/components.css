@@ -434,6 +434,15 @@
       .sh-toast__text { grid-column: 2; grid-row: 1; }
       .sh-toast__close { grid-column: 3; grid-row: 1; }
       .sh-toast__action { grid-column: 2 / -1; grid-row: 2; justify-self: start; min-width: 0; max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+      /* A receipt on a phone: the action moves under the words, lined up with them; the slip keeps one height whatever the outcome (one more class
+         than the receipt's own rules below, which come later in this sheet). */
+      .sh-toasts__inner .sh-toast.sh-toast--receipt {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        min-height: calc(var(--space-9) + var(--space-8));
+        padding-bottom: var(--space-2);
+      }
+      .sh-toasts__inner .sh-toast--receipt .sh-toast__action { grid-column: 2; grid-row: 2; justify-self: start; margin-left: calc(var(--space-2-5) * -1); }
+      .sh-toasts__inner .sh-toast--receipt .sh-toast__close { grid-column: 3; grid-row: 1; align-self: start; min-width: calc(var(--space-7) + var(--space-1)); min-height: calc(var(--space-7) + var(--space-1)); }
     }
   }
   :is(.study-app, .study-seat) {
@@ -497,6 +506,77 @@
     }
     .sh-toasts--dialog > .sh-toasts__inner { width: min(520px, 100%); }
     .sh-toasts--dialog .sh-toast { animation-name: sh-toast-up; }
+    /* ── Receipt: the outcome of a 「发给主会话」 (ui/hand-off/, direction B 「盖章回执」) drawn as a stamped slip: its seal (ui/hand-off/Receipt.jsx) in place
+       of the tone icon, title and line, one quiet action, ×; no tone stripe. Seal / words / action / ×; the countdown line along the bottom. ── */
+    .sh-toast.sh-toast--receipt {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
+      overflow: hidden;
+      border-color: var(--line);
+      box-shadow: var(--shadow-popover);
+    }
+    .sh-toast--receipt[data-receipt="filled"] { --sh-receipt-line: var(--ok-mid); }
+    .sh-toast--receipt[data-receipt="kept"] { --sh-receipt-line: var(--warn-mid); }
+    .sh-toast--receipt[data-receipt="copied"] { --sh-receipt-line: color-mix(in srgb, var(--text) 38%, transparent); }
+    .sh-toast--receipt[data-receipt="shown"] { --sh-receipt-line: var(--text); }
+    .sh-toast--receipt .sh-toast__text {
+      display: grid;
+      grid-column: 2;
+      grid-row: 1;
+      gap: var(--space-half);
+      padding-top: 0;
+      animation: sh-receipt-words 0.15s var(--ease) both;
+    }
+    .sh-toast--receipt .sh-toast__title {
+      margin: 0;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-tight);
+      text-wrap: pretty;
+    }
+    .sh-toast--receipt .sh-toast__message {
+      max-height: none;
+      overflow: visible;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      text-wrap: pretty;
+    }
+    .sh-toast--receipt .sh-toast__action {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+      min-height: calc(var(--space-7) + var(--space-1));
+      margin: 0;
+      color: var(--text);
+    }
+    .sh-toast--receipt .sh-toast__close { grid-column: 4; grid-row: 1; align-self: center; margin: 0; }
+    /* What is left of the time, drawn: a hairline along the bottom that the receipt's own clock shrinks (Feedback.jsx useReceiptTime). */
+    .sh-toast__timer {
+      position: absolute;
+      right: var(--space-3);
+      bottom: 0;
+      left: var(--space-3);
+      height: var(--space-half);
+      border-radius: var(--radius-xs);
+      background: var(--sh-receipt-line);
+      transform-origin: left center;
+      pointer-events: none;
+    }
+    /* In review's action slot the receipt is in the flow: no lift, the same slip. */
+    :is(.sh-toasts--inline, .action-feedback-slot .sh-toasts--auto) .sh-toast.sh-toast--receipt {
+      border-color: var(--line);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-item);
+    }
+    /* Above the phone's home bar and the book's sticky bar (it sets --sh-toast-offset). */
+    :is(.sh-toasts--page, .sh-toasts--auto):has(.sh-toast--receipt):not(.action-feedback-slot .sh-toasts--auto) {
+      bottom: max(var(--sh-toast-offset, var(--space-4)), calc(env(safe-area-inset-bottom) + var(--space-2)));
+    }
     /* ── Inline message and banner ──────────────────────────────────────── */
     .sh-inline {
       display: flex;
@@ -925,4 +1005,5 @@
 @keyframes sh-fade-in { from { opacity: 0; } }
 @keyframes sh-toast-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 @keyframes sh-toast-up { from { opacity: 0; transform: translateY(6px) scale(0.985); } }
+@keyframes sh-receipt-words { from { opacity: 0; } }
 @keyframes sh-dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } }

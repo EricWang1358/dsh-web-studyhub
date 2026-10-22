@@ -1,12 +1,12 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Menu } from '../components/index.js';
-import { HAND_OFF_MENU_HINT } from '../hand-off/use-hand-off.js';
+import { HAND_OFF_LABEL, HAND_OFF_MENU_HINT } from '../hand-off/use-hand-off.js';
 
 /* 「⋯ 更多」 of the book bar (复习全书, docs/review-book.md "More"): everything that is not reading, in one menu of four small groups, so the page has no standing
    mode switch. A one-line hint only where a rule is hidden (not what an item is for). The old views (编辑, 翻看, 速查页) open from here and come back with 「完成 · 回到阅读」.
    这个知识点: 编辑这个知识点… / 给这个知识点出题 / 复制编号 / 收起或展开这个知识点的 AI 段落. 阅读: 整章连着读 (a check) / 翻看 / 收起或展开整本书的 AI 段落.
-   整本书: 速查页… / 导出… / 发给主会话…. 期末一周: 今天读哪几节 / 出一套模拟卷… / 设置考试日期 / 前往设置. */
+   整本书: 速查页… / 导出… / 发给主会话 (no ellipsis: it opens nothing first, the chat's input box is where a request is added). 期末一周: 今天读哪几节 / 出一套模拟卷… / 设置考试日期 / 前往设置. */
 
 /** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
     questions of its own, no AI blocks: only 编辑这个知识点… in its group). */
@@ -26,7 +26,7 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
     { heading: true, label: ui('整本书') },
     { id: 'lookup', label: ui('速查页…') },
     { id: 'export', label: ui('导出…'), hint: pagesHint },
-    { id: 'chat', label: ui('发给主会话…'), hint: ui(HAND_OFF_MENU_HINT) },
+    { id: 'chat', label: ui(HAND_OFF_LABEL), hint: ui(HAND_OFF_MENU_HINT) },
     { heading: true, label: ui('期末一周') },
     today && { id: 'today', label: ui('今天读哪几节') },
     { id: 'mock', label: ui('出一套模拟卷…'), hint: mockScope ? uiFormat('今天的 {0} 个知识点', [mockScope]) : ui('整本书') },

@@ -154,11 +154,7 @@ test('without a model: the gate for 写进这个知识点 only; 发给主会话 
   assert.match(off, /data-book-ask="chat"(?![^>]*disabled)/, '发给主会话 needs no model');
   assert.doesNotMatch(off, /<textarea[^>]*disabled/, 'the box can be typed in');
   assert.match(textOf(off), /弄懂和写进这个知识点需要先配置模型|发给主会话、读书页照常能用/);
-  const book = render(h(ui.AskForm, { scope: 'book', onSend: noop }));
-  assert.doesNotMatch(book, /data-book-ask="write"/, 'the whole book: 发给主会话 only');
-  assert.match(book, /sh-btn--secondary[^>]*data-book-ask="chat"/);
-  assert.doesNotMatch(book, /book-model-gate|sh-gate/, 'and no gate');
-  assert.match(textOf(book), /也可以直接在主会话里说你想怎么改，主会话会按 study-book 改书，每次改动都能回退/);
+  // (the whole book has no form: 更多 › 整本书 › 发给主会话 hands it over at once, tests/book-send-to-chat.test.mjs)
 });
 
 test('the selection toolbar\'s 弄懂 is secondary and its words never carry the 角标 digits (the source pins both)', async () => {

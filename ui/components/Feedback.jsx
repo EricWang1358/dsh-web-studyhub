@@ -14,12 +14,15 @@ export const TOAST_TIMEOUT = 6000;
 
 /**
  * Only messages nobody needs to act on or re-read may vanish on their own. An
- * undo offer (`undo: true`, with its action) is the one action toast that may:
- * it lives for `timeout`, and hovering or focusing it still holds it.
+ * undo offer (`undo: true`, with its action) may too: it lives for `timeout`,
+ * and hovering or focusing it still holds it. So may a receipt (`receipt`, the
+ * 「发给主会话」 outcome, ui/hand-off/): its one action is a convenience, and it
+ * lives for its own `timeout` unless it is persistent.
  */
 export function shouldAutoDismiss(toast = {}) {
   const tone = toneOf(toast.tone);
   if (toast.persistent || (tone !== 'info' && tone !== 'success')) return false;
+  if (toast.receipt) return Number(toast.timeout) > 0;
   return !toast.action || !!toast.undo;
 }
 
@@ -27,38 +30,73 @@ const dismissLabel = tone => tone === 'error' ? ui('关闭错误') : ui('关闭�
 
 /**
  * One notification card. action: { label, onClick, disabled? }.
+ * A receipt (`receipt`: the outcome of a 「发给主会话」) has a `seal` in place of the tone's icon, its action as a quiet button and, when it leaves by
+ * itself, a countdown line (`timerRef`); `stamp` changes with every new receipt, so its seal and words are pressed again in place.
  * Prefer ToastRegion (or App's setNotice) over placing Toasts by hand.
  */
-export function Toast({ tone, title, children, action, onDismiss, dismissText, className, ...rest }) {
+export function Toast({ tone, title, children, action, onDismiss, dismissText, receipt, seal, stamp, timerRef, className, ...rest }) {
   useComponentCss(css);
   const kind = toneOf(tone);
   return (
-    <div className={cx('sh-toast', `sh-toast--${kind}`, className)} {...rest}>
-      <Icon name={kind} size={20} className="sh-toast__icon" />
-      <div className="sh-toast__text">
+    <div className={cx('sh-toast', `sh-toast--${kind}`, receipt && 'sh-toast--receipt', className)} data-receipt={receipt || undefined} {...rest}>
+      {receipt ? <React.Fragment key={`seal:${stamp ?? ''}`}>{seal}</React.Fragment> : <Icon name={kind} size={20} className="sh-toast__icon" />}
+      <div className="sh-toast__text" key={receipt ? `text:${stamp ?? ''}` : undefined}>
         {title && <strong className="sh-toast__title">{title}</strong>}
         <span className="sh-toast__message">{children}</span>
       </div>
-      {action && <Button variant="link" size="sm" className="sh-toast__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
+      {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-toast__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
+      {timerRef && <span ref={timerRef} className="sh-toast__timer" aria-hidden="true" />}
     </div>
   );
+}
+
+/* Whether the page is hidden (another tab, a minimised window): a receipt's time does not run out unseen. */
+function usePageHidden() {
+  const [hidden, setHidden] = useState(() => typeof document !== 'undefined' && document.hidden);
+  useEffect(() => {
+    const update = () => setHidden(document.hidden);
+    document.addEventListener('visibilitychange', update);
+    return () => document.removeEventListener('visibilitychange', update);
+  }, []);
+  return hidden;
+}
+
+/* A receipt's time: what is left of it runs while nothing holds it (the pointer, the keyboard focus, a hidden page) and goes on where it stopped; the
+   countdown line is the same time drawn (a Web Animation, so a reduced-motion rule that shortens CSS animations cannot make it lie). A new `stamp`
+   starts the whole time again. */
+function useReceiptTime({ active, held, timeout, stamp, timerRef, onEnd }) {
+  const left = useRef(timeout), run = useRef(null), drawn = useRef(null);
+  useEffect(() => {
+    if (!active) return undefined;
+    if (run.current !== stamp) { run.current = stamp; left.current = timeout; drawn.current?.cancel(); drawn.current = null; }
+    if (held) { drawn.current?.pause(); return undefined; }
+    const started = Date.now(), timer = setTimeout(() => onEnd.current?.(), left.current);
+    const line = timerRef.current;
+    if (!drawn.current && line?.animate) drawn.current = line.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: timeout, easing: 'linear', fill: 'forwards' });
+    drawn.current?.play();
+    return () => { clearTimeout(timer); left.current = Math.max(0, left.current - (Date.now() - started)); drawn.current?.pause(); };
+  }, [active, held, timeout, stamp, timerRef, onEnd]);
 }
 
 /* A toast in a region: owns its timer, which pauses while the pointer or the
    keyboard focus is on it. */
 function ToastItem({ toast, onDismiss }) {
   const [held, setHeld] = useState(false);
-  const dismiss = useRef(null);
+  const hidden = usePageHidden();
+  const dismiss = useRef(null), timerRef = useRef(null);
   dismiss.current = toast.dismiss || (() => onDismiss?.(toast.id));
   const auto = shouldAutoDismiss(toast);
+  const receipt = !!toast.receipt;
   useEffect(() => {
-    if (!auto || held) return;
+    if (receipt || !auto || held) return;
     const timer = setTimeout(() => dismiss.current?.(), toast.timeout ?? TOAST_TIMEOUT);
     return () => clearTimeout(timer);
-  }, [auto, held, toast.timeout]);
+  }, [receipt, auto, held, toast.timeout]);
+  useReceiptTime({ active: receipt && auto, held: held || hidden, timeout: Number(toast.timeout) || TOAST_TIMEOUT, stamp: toast.stamp, timerRef, onEnd: dismiss });
   return (
     <Toast tone={toast.tone} title={toast.title} action={toast.action} dismissText={toast.dismissLabel}
+      receipt={toast.receipt} seal={toast.seal} stamp={toast.stamp} timerRef={receipt && auto ? timerRef : undefined}
       onDismiss={toast.dismissible === false ? undefined : () => dismiss.current?.()}
       onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}
       onFocus={() => setHeld(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false); }}>
@@ -81,7 +119,7 @@ function ToastStacks({ toasts, onDismiss }) {
 
 /**
  * Live region for toasts. toasts: [{ id, key?, tone, title?, message, action?,
- * persistent?, undo?, timeout?, dismissLabel? }]; onDismiss(id).
+ * persistent?, undo?, timeout?, dismissLabel?, receipt?, seal?, stamp? }]; onDismiss(id).
  * placement: 'page' (sticky under the top bar of the visible Study viewport —
  * render it as a direct child of <main>), 'inline' (in flow, next to the
  * control) or 'auto' (inline inside .action-feedback-slot, page elsewhere).

@@ -21,6 +21,10 @@
     .sh-handoff__tip {
       display: inline-flex;
     }
+    /* The button while it hands over: the same label at the same width, only quieter (no spinner is added beside it, so the line never moves). */
+    .sh-handoff__btn[aria-busy="true"] {
+      opacity: 0.62;
+    }
     /* The Tooltip around a page's own full-width primary button (录题, 生成骨架): the anchor takes the button's width. */
     .sh-handoff__block {
       display: flex;
@@ -48,5 +52,169 @@
       display: flex;
       justify-content: flex-end;
     }
+
+    /* ── The receipt's ink (direction B 「盖章回执」): filled jade, kept ochre, copied an ink line, shown solid ink. Never the info blue, never cinnabar. ── */
+    .sh-seal[data-o="filled"] {
+      --o-ink: var(--ok-ink); --o-bg: var(--ok-bg); --o-line: var(--ok-line); --o-mid: var(--ok-mid);
+    }
+    .sh-seal[data-o="kept"] {
+      --o-ink: var(--warn-ink); --o-bg: var(--warn-bg); --o-line: var(--warn-line); --o-mid: var(--warn-mid);
+    }
+    .sh-seal[data-o="copied"] {
+      --o-ink: var(--text); --o-bg: color-mix(in srgb, var(--text) 5%, var(--bg-surface)); --o-line: var(--line-strong); --o-mid: color-mix(in srgb, var(--text) 38%, transparent);
+    }
+    .sh-seal[data-o="shown"] {
+      --o-ink: var(--bg-raised); --o-bg: var(--text); --o-line: color-mix(in srgb, var(--bg-raised) 40%, transparent); --o-mid: var(--text);
+    }
+
+    /* The seal: a double-ringed square in the outcome's ink, a Kai character (or, in English, the outcome's glyph), resting at a slight tilt. */
+    .sh-seal {
+      --sh-seal-size: var(--space-8);
+      position: relative;
+      display: inline-grid;
+      flex: none;
+      place-items: center;
+      width: var(--sh-seal-size);
+      height: var(--sh-seal-size);
+      border-radius: var(--radius-sm);
+      background: var(--o-bg);
+      color: var(--o-ink);
+      box-shadow: inset 0 0 0 calc(var(--space-half) * 0.75) var(--o-mid);
+      font-family: var(--font-stack-kai), var(--font-stack-serif);
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-strong);
+      line-height: 1;
+      transform: rotate(-3deg);
+      animation: sh-seal-press 0.26s var(--ease-out) 0.08s both;
+    }
+    .sh-seal::after {
+      position: absolute;
+      inset: calc(var(--space-half) * 1.5);
+      border-radius: calc(var(--radius-sm) - var(--space-half) * 1.5);
+      box-shadow: inset 0 0 0 calc(var(--space-half) * 0.5) var(--o-line);
+      opacity: 0.75;
+      content: "";
+    }
+    .sh-seal__glyph { display: block; }
+    .sh-seal--lg { --sh-seal-size: calc(var(--space-8) + var(--space-2)); font-size: var(--fs-2xl); }
+
+    /* ── The full-text card (ui/hand-off/HandOffSheet.jsx). ── */
+    .sh-handoff-sheet__title {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .sh-handoff-sheet__summary {
+      display: grid;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+    }
+    .sh-handoff-sheet__ask {
+      margin: 0;
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-snug);
+      text-wrap: pretty;
+    }
+    .sh-handoff-sheet__name {
+      padding: 0 var(--space-half);
+      border-radius: var(--radius-xs);
+      background: var(--warn-mark);
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+    .sh-handoff-sheet__request {
+      display: grid;
+      gap: var(--space-half);
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      border-left: var(--space-half) solid var(--line-strong);
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+      line-height: var(--lh-snug);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .sh-handoff-sheet__label {
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-medium);
+    }
+    .sh-handoff-sheet__box {
+      padding: var(--space-3) var(--space-4);
+      border: calc(var(--space-half) / 2) solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-sunken);
+      color: var(--text);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-body);
+      user-select: text;
+    }
+    .sh-handoff-sheet__box ::selection { background: var(--warn-mark); color: inherit; }
+    .sh-handoff-sheet__top, .sh-handoff-sheet__notes, .sh-handoff-sheet__tail {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .sh-handoff-sheet__fold {
+      margin-top: var(--space-3);
+      padding-top: var(--space-2-5);
+      border-top: calc(var(--space-half) / 2) dashed var(--line);
+    }
+    .sh-handoff-sheet__fold > summary {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      cursor: pointer;
+      user-select: none;
+    }
+    .sh-handoff-sheet__notes {
+      margin-top: var(--space-2);
+      color: var(--text-dim);
+      font-family: var(--font-stack-mono);
+      font-size: var(--fs-xs);
+      line-height: var(--lh-body);
+    }
+    .sh-handoff-sheet__tail { margin-top: var(--space-3); color: var(--text-dim); }
+    .sh-handoff-sheet__foot {
+      display: flex;
+      flex: 1 1 auto;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-3);
+      /* the select-all fallback is a quiet ink link: cinnabar stays the card's one filled button */
+      --sh-link-ink: var(--text-muted);
+    }
+    /* Both labels share one cell, so 「已复制」 takes the place of 「复制全文」 at the same width. */
+    .sh-handoff-sheet__labels { display: inline-grid; }
+    .sh-handoff-sheet__labels > span { grid-area: 1 / 1; }
+    .sh-handoff-sheet__labels > [aria-hidden="true"] { visibility: hidden; }
+  }
+  @container toasts (max-width: 400px) {
+    :is(.study-app, .study-seat) {
+      /* A phone: a smaller seal, at the top beside the words (the receipt's action moves under them: ui/components/components.css). */
+      .sh-toast--receipt .sh-seal { --sh-seal-size: calc(var(--space-7) + var(--space-1)); align-self: start; }
+    }
+  }
+  @media (max-width: 600px) {
+    :where(.study-app, .study-seat) {
+      .sh-handoff-sheet__foot { flex-direction: column-reverse; align-items: stretch; }
+      .sh-handoff-sheet__copy { width: 100%; }
+      .sh-handoff-sheet__select { align-self: center; }
+    }
+  }
+  /* Reduced motion (the system's, or 设置 › 界面 › 动画): the seal only fades in; the countdown line still runs (it tells how long is left). */
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .sh-seal { animation-name: sh-seal-fade; }
+    }
+  }
+  :is(.study-app, .study-seat) {
+    &:is([data-motion='reduced'], [data-motion='off']) .sh-seal { animation-name: sh-seal-fade; }
   }
 }
+
+@keyframes sh-seal-press {
+  from { opacity: 0; transform: rotate(-10deg) scale(1.18); }
+  to { opacity: 1; transform: rotate(-3deg) scale(1); }
+}
+@keyframes sh-seal-fade { from { opacity: 0; } }

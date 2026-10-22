@@ -2,9 +2,9 @@
    learner already typed into the main chat's input box and must never send anything.
      seedHandOffBook(workspace, home)  puts a 复习全书 (tests/helpers/book-fixtures.mjs, 'archss') into the workspace's library once, before DSH boots;
      handOffStep(page, { lang, model, shot })  opens a new conversation and types into its input box, goes to the top-level StudyHub page (it follows the
-       selected conversation), hands a book point over from 问 AI and checks: the notice says the box was kept and the prompt copied, the clipboard holds
-       the prompt, and back in the conversation the typed words are still there; then, with the box emptied, the same hand-off fills it and reveals the
-       conversation. The model must get no request at all, and the box is emptied at the end. Returns what it saw. */
+       selected conversation), hands a book point over from 问 AI and checks: the receipt 留 says the learner's text was kept and the message copied (with
+       去主会话, as this host can show the chat), the clipboard holds the message, and back in the conversation the typed words are still there; then, with
+       the box emptied, the same hand-off fills it (the learner's sentence on the first line, no tool name in it) and reveals the conversation. The model must get no request at all, and the box is emptied at the end. Returns what it saw. */
 /* global document, navigator */
 import { StudyService } from '../../lib/service.js';
 import { workspaceLibrary } from '../../lib/host.js';
@@ -74,7 +74,10 @@ export async function handOffStep(page, { lang = 'zh', model, shot = async () =>
   // 2. From the book: StudyHub must not write over them; the prompt is copied and the notice says why.
   await openBook();
   await handOver();
-  await page.getByText(en ? /The input box already has your text/ : /输入框里已有文字，没有覆盖/).first().waitFor({ timeout: 10000 });
+  const receipt = page.locator('.sh-toast--receipt[data-receipt="kept"]').first();
+  await receipt.waitFor({ timeout: 10000 });
+  result.keptReceipt = { title: await receipt.locator('.sh-toast__title').innerText(), action: await receipt.locator('.sh-toast__action').allInnerTexts() };
+  if (result.keptReceipt.title !== (en ? 'Your text in the main chat is untouched' : '输入框里你写的字都留着')) throw new Error(`the kept receipt says ${result.keptReceipt.title}`);
   await sleep(800);
   await shot('13-hand-off-kept-notice');
   const clipboard = await page.evaluate(() => navigator.clipboard.readText().catch((error) => `!${error.message}`));
@@ -91,9 +94,11 @@ export async function handOffStep(page, { lang = 'zh', model, shot = async () =>
   await handOver();
   await needComposer('after the hand-off revealed the conversation');
   const filled = await composerText();
-  result.filled = { hasPrompt: /study-book/.test(filled), endsWithLanguage: (en ? /do not translate them\.$/ : /不要翻译。$/).test(filled), length: filled.length };
+  const firstLine = filled.split('\n')[0];
+  result.filled = { hasPrompt: /study-book/.test(filled), endsWithLanguage: (en ? /do not translate them\.$/ : /不要翻译。$/).test(filled), length: filled.length, firstLine: firstLine.slice(0, 80) };
   await shot('13-hand-off-filled');
   if (!result.filled.hasPrompt) throw new Error(`the empty box did not get the prompt: ${JSON.stringify(filled.slice(0, 200))}`);
+  if (/study_workspace|study-book|book\.\w/.test(firstLine)) throw new Error(`the first line is not the learner's own: ${firstLine}`);
   await clear();
   await sleep(1500);
   result.requests = model.log.length - requestsBefore;

@@ -1,63 +1,64 @@
-/* The hand-off that asks the main chat to fold fine-grained topics into topic
-   groups. Shared by the knowledge-skeleton page and the library's reminder.
-   Topics are read a page at a time: a whole large library in one result is
-   spilled to a file that the chat would then try to parse with a shell. */
+import { nameData, say } from './agent-prompts/say.js';
 
-const NO_SHELL = "每次返回都可以直接阅读，不要用命令行或脚本去解析结果。";
+/* The hand-off that asks the main chat to fold fine-grained topics into topic groups ('topics.group', ui/agent-prompts/index.js). Shared by the
+   knowledge-skeleton page and the library's reminder. It returns the parts of one message (ui/agent-prompts/message.js); every sentence is one catalogue
+   key (ui/locales/en.agent.json). Topics are read a page at a time: a whole large library in one result is spilled to a file that the chat would then
+   try to parse with a shell. The course is a name span in the sentences; inside a payload it is a JSON string value, exactly as the call takes it. */
+
 // Merge mode reads small pages (a weak model handles 60 topics reliably); replace mode reads the whole library, so its pages are larger.
 const MERGE_PAGE = 60, REPLACE_PAGE = 200;
 // The real shape of one skeleton.topics page (see lib/contexts/skeleton/operations.js); nextOffset is present only when more remain.
 const shape = (limit) => `{"topics":[{"key":"…","topic":"…","count":3,"decks":["…"],"samples":["…"]}],"total":100,"nextOffset":${limit},"groups":{"groups":[{"id":"…","title":"…","description":"…","count":4}],"ungroupedCount":100}}`;
+const GROUPS = ',"groups":[{"title":…,"description":…,"topics":[主题 key]}]}';
 
+const ASK = {
+  merge: ['帮我把学习库里还没归组的 {0} 个主题归进主题组。', '帮我把课程 {1} 里还没归组的 {0} 个主题归进主题组。'],
+  replace: ['学习库的主题太碎了（{0} 个，很多只有 1–2 题），帮我按知识域归并成主题组。', '课程 {1} 的主题太碎了（{0} 个，很多只有 1–2 题），帮我按知识域归并成主题组。'],
+};
+const READ = {
+  merge: '读：用 study_workspace 的 skeleton.topics {0}，一次 {1} 个还没归组的主题，返回的 groups.groups 是已有的主题组；每次返回都直接读，不要用命令行或脚本解析。',
+  replace: '读：用 study_workspace 的 skeleton.topics {0} 分页读全部主题，按 nextOffset 读到没有为止；每条有 key、名称、题数、所在题组和一条示例题干；每次返回都直接读，不要用命令行或脚本解析。',
+};
+const SHAPE = '结果形状：{0}（字段名完全一致；nextOffset 只在还有剩余时出现；{1}）。';
+const COUNTS = { merge: 'total 和 groups.ungroupedCount 都是还没归组的主题数', replace: 'total 是主题总数' };
+const GROUP = {
+  merge: '归：放得进已有组就沿用它的 title；放不进的新建组（title 是知识域名称，≤20 字；description 一句话说明范围）。',
+  replace: '归：分成 12–30 个主题组；同一概念的不同叫法、中英文混写、被拆开的细主题（「XX 的定义」「XX 的计算」「XX 例题」「XX 与 YY 的区别」）放进同一组；按课程里的知识域划分，组名用我熟悉的说法（≤20 字），description 一句话说明范围；每个主题只进一个组，归不进的放「其他」组。',
+};
+const SAVE = {
+  merge: '存：每读一批就用 topic.groups.save {0} 保存这一批；再用同样的 payload（offset 仍为 0）读下一批，直到 total 为 0。不要修改题目本身。',
+  replace: '存：用 topic.groups.save {0} 保存。这只是题目之上的分组，不要修改题目本身。',
+};
+const DONE = { merge: '做完：告诉我各主题分别归到了哪里。', replace: '做完：列出分了哪些组、每组大概多少题。' };
+const SCOPE = '范围：只动课程 {0} 的主题；其他课程的主题和主题组保持原样。';
+const ALTERNATIVE = [
+  '改做：如果我在最后说要把全部主题重新归并，就改做那个：用 skeleton.topics {0} 分页读全部主题（按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save {1} 保存。',
+  '改做：如果我在最后说要把课程 {2} 的全部主题重新归并，就改做那个：用 skeleton.topics {0} 分页读这门课的全部主题（按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save {1} 保存；其他课程的主题和主题组保持原样。',
+];
+
+/** A topic.groups.save payload: the mode, the course when scoped, and the groups' shape in the message's language. */
+const savePayload = (mode, scoped, course, language) => JSON.stringify({ mode, ...(scoped ? { course } : {}) }).replace(/\}$/, say(language, GROUPS));
+
+/**
+ * input: { mode ('merge' | 'replace'), topicCount, ungrouped, course (one course, '' for the unassigned ones; undefined, null or '*' for the whole library),
+ * alternative (merge only: the page offered the quicker way, so the learner may ask for the full regroup at the end; the message then ends with 我想：) }.
+ */
 export function groupPrompt({ mode, topicCount, ungrouped, course, alternative = false }, language = 'zh') {
-  const text = groupText({ mode, topicCount, ungrouped, course }, language);
-  // The page offered the quicker way (only the new topics); the learner may ask for the other in the chat's input box.
-  if (!alternative || mode !== 'merge') return text;
+  const scoped = course !== undefined && course !== null && course !== '*';
+  const merge = mode === 'merge', kind = merge ? 'merge' : 'replace';
+  const only = scoped ? nameData(course || say(language, '未分类')) : '';
+  const read = { compact: true, samples: 1, ...(scoped ? { course } : {}), ...(merge ? { ungrouped: true, limit: MERGE_PAGE } : { limit: REPLACE_PAGE, offset: 0 }) };
+  const notes = [
+    ...(scoped ? [say(language, SCOPE, [only])] : []),
+    say(language, READ[kind], [JSON.stringify(read), MERGE_PAGE]),
+    say(language, SHAPE, [shape(merge ? MERGE_PAGE : REPLACE_PAGE), say(language, COUNTS[kind])]),
+    say(language, GROUP[kind]),
+    say(language, SAVE[kind], [savePayload(kind, scoped, course, language)]),
+  ];
   // Inside one course the other way is that course's own replace too: an unscoped replace starts from an empty list and would drop every other course's groups.
-  const scoped = course !== undefined && course !== null && course !== '*';
-  const only = scoped ? course || (language === 'en' ? 'Unassigned' : '未分类') : '';
-  const json = scoped ? JSON.stringify(course) : '';
-  if (language === 'en') return text + (scoped
-    ? `\nIf I say at the end that I want all topics of the course "${only}" regrouped, do that instead: read all topics of that course page by page with skeleton.topics (payload with "course": ${json}, without ungrouped; limit ${REPLACE_PAGE}, then follow nextOffset), regroup them all into 12–30 knowledge domains and save with topic.groups.save in replace mode (payload with "course": ${json}); topics and topic groups of other courses stay as they are.`
-    : `\nIf I say at the end that I want all topics regrouped, do that instead: read all topics page by page with skeleton.topics (without ungrouped; limit ${REPLACE_PAGE}, then follow nextOffset), regroup them all into 12–30 knowledge domains and save with topic.groups.save in replace mode.`);
-  return text + (scoped
-    ? `\n如果我在最后说要把课程「${only}」的全部主题重新归并，就改做那个：用 skeleton.topics 分页读取这门课程的全部主题（payload 带 "course": ${json}，不带 ungrouped，limit ${REPLACE_PAGE}，按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save 的 replace 模式保存（payload 带 "course": ${json}）；其他课程的主题和主题组保持原样。`
-    : `\n如果我在最后说要把全部主题重新归并，就改做那个：用 skeleton.topics 分页读取全部主题（不带 ungrouped，limit ${REPLACE_PAGE}，按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save 的 replace 模式保存。`);
-}
-
-function groupText({ mode, topicCount, ungrouped, course }, language) {
-  // Inside one course the chat reads and regroups only that course's topics; other courses' groups stay as they are.
-  const scoped = course !== undefined && course !== null && course !== '*';
-  const only = scoped ? course || (language === 'en' ? 'Unassigned' : '未分类') : '';
-  if (language === 'en') {
-    const merge = mode === 'merge';
-    return [
-      merge ? `Please organize the ${ungrouped} ungrouped topics${only ? ` of the course "${only}"` : ''} in my study library.` : `Please organize the ${topicCount} fragmented topics${only ? ` of the course "${only}"` : ''} in my study library into knowledge domains.`,
-      ...(only ? [`Work on only the course "${only}": topics and topic groups that belong to other courses must stay as they are.`] : []),
-      `1. Read topics in pages using study_workspace skeleton.topics with payload ${JSON.stringify({ compact: true, samples: 1, ...(scoped ? { course } : {}), ...(merge ? { ungrouped: true, limit: MERGE_PAGE } : { limit: REPLACE_PAGE, offset: 0 }) })}. Read each result directly; do not parse it using shell commands or scripts.`,
-      `   A result looks like this (these field names are exact; nextOffset appears only when more remain; ${merge ? 'total and groups.ungroupedCount are the number of topics still ungrouped' : 'total is the number of topics'}): ${shape(merge ? MERGE_PAGE : REPLACE_PAGE)}`,
-      merge ? '2. Reuse existing group titles returned in groups.groups where appropriate. Create a concise domain title and a one-sentence description for topics that do not fit an existing group.' : '2. Create 12–30 topic groups by knowledge domain. Merge alternate names and fragmented subtopics for the same concept. Give each group a concise title and a one-sentence description. Put each topic in exactly one group; use Other for topics that do not fit.',
-      `3. Save using topic.groups.save with payload {"mode":"${merge ? 'merge' : 'replace'}",${scoped ? `"course":${JSON.stringify(course)},` : ''}"groups":[{"title":"domain title","description":"scope","topics":["topic key"]}]}. ${merge ? 'Save each batch, then read the next batch with the same payload and offset 0 until total is 0.' : 'Follow nextOffset while reading until there is no nextOffset, then save the groups.'} Do not modify the questions or translate their saved content.`,
-      '4. Reply in English with the groups and an approximate question count for each.',
-    ].join('\n');
-  }
-  const scope = scoped ? `\"course\": ${JSON.stringify(course)}, ` : "";
-  const onlyNote = only ? `只归并课程「${only}」的主题，其他课程的主题和主题组保持原样。\n` : "";
-  if (mode === "merge")
-    return (
-      (only ? `课程「${only}」里有 ${ungrouped} 个主题还没归入主题组，请帮我归并：\n` : `学习库里有 ${ungrouped} 个主题还没归入主题组，请帮我归并：\n`) + onlyNote +
-      "1. 分批读取：用 study_workspace 的 skeleton.topics，payload 为 {\"compact\": true, \"samples\": 1, " + scope + "\"ungrouped\": true, \"limit\": " + MERGE_PAGE + "}，每次只返回 " + MERGE_PAGE + " 个还没归入的主题；返回的 groups.groups 是已有主题组的标题。" + NO_SHELL + "\n" +
-      "   返回形状示例（字段名完全一致，直接阅读，不要用脚本解析；nextOffset 只在还有剩余时出现；total 和 groups.ungroupedCount 都是还没归入主题组的主题数）：" + shape(MERGE_PAGE) + "\n" +
-      "2. 能放进已有组的，沿用那个组的 title；放不进的新建组（组名是知识域名称，≤20 字，description 一句话说明范围）。\n" +
-      "3. 每读一批就用 topic.groups.save 保存这一批，payload 为 {\"mode\": \"merge\", " + scope + "\"groups\": [{title, description?, topics: [主题 key]}]}；保存后用同样的 payload（offset 仍为 0）读下一批，直到 total 为 0。不要修改题目本身。\n" +
-      "4. 最后告诉我它们分别归到了哪里。"
-    );
-  return (
-    (only ? `课程「${only}」的主题太碎了（共 ${topicCount} 个，很多只有 1–2 题），请帮我按知识域归并成主题组：\n` : `学习库的主题太碎了（共 ${topicCount} 个，很多只有 1–2 题），请帮我按知识域归并成主题组：\n`) + onlyNote +
-    "1. 用 study_workspace 的 skeleton.topics 分页读取全部主题：payload 为 {\"compact\": true, \"samples\": 1, " + scope + "\"limit\": " + REPLACE_PAGE + ", \"offset\": 0}，按返回的 nextOffset 继续，直到没有 nextOffset；每条有 key、名称、题数、所在题组和一条示例题干。" + NO_SHELL + "\n" +
-    "   返回形状示例（字段名完全一致，直接阅读，不要用脚本解析；nextOffset 只在还有剩余时出现；total 是主题总数）：" + shape(REPLACE_PAGE) + "\n" +
-    "2. 归并成 12–30 个主题组：同一概念的不同叫法、中英文混写、被拆开的细主题（例如「XX 的定义」「XX 的计算」「XX 例题」「XX 与 YY 的区别」）放进同一组；按课程里的知识域划分（例如可用性度量与计算、冗余与容错、安全与风险、架构描述与视图、架构方法论、集成与通信……以实际主题为准）。组名用学习者熟悉的说法（≤20 字），description 用一句话说明范围。每个主题只进一个组；实在归不进去的放进「其他」组。\n" +
-    "3. 用 topic.groups.save 保存，payload 为 {\"mode\": \"replace\", " + scope + "\"groups\": [{title, description, topics: [主题 key]}]}。这只是题目之上的分组，不要修改题目本身。\n" +
-    "4. 最后列出分了哪些组、每组大概多少题。"
-  );
+  const offered = alternative && merge;
+  if (offered) notes.push(say(language, ALTERNATIVE[scoped ? 1 : 0], [JSON.stringify({ compact: true, samples: 1, ...(scoped ? { course } : {}), limit: REPLACE_PAGE, offset: 0 }),
+    savePayload('replace', scoped, course, language), only]));
+  notes.push(say(language, DONE[kind]));
+  return { ask: say(language, ASK[kind][scoped ? 1 : 0], [merge ? ungrouped : topicCount, only]), notes, ...(offered ? { tail: 'ask' } : {}) };
 }

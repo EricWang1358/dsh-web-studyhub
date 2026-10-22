@@ -5,21 +5,22 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { groupPrompt } from '../ui/topic-group-prompt.js';
+import { loadUi } from './helpers/ui-module.mjs';
 
 const require = createRequire(import.meta.url);
 const { parse } = createRequire(require.resolve('eslint/package.json'))('espree');
 const han = /[\u3400-\u9fff]/;
 const compiled = await build({ stdin: { contents: `export * from './ui/i18n.js'; export { boardColumnLabel } from './ui/Board.jsx'; export { default as DocumentLearning, PassageLinks } from './ui/document-preview/DocumentLearning.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
-test('English topic-group handoffs retain API names and preserve existing questions', () => {
+test('English topic-group handoffs retain API names and preserve existing questions', async () => {
+  const { handOffText } = await loadUi(`export { handOffText } from './ui/agent-prompts/index.js';`);
   for (const mode of ['merge', 'replace']) {
-    const text = groupPrompt({ mode, ungrouped: 12, topicCount: 36 }, 'en');
+    const text = handOffText('topics.group', { mode, ungrouped: 12, topicCount: 36 }, 'en');
     assert.doesNotMatch(text, han);
     assert.match(text, /skeleton.topics/);
     assert.match(text, /topic.groups.save/);
-    assert.match(text, /Do not modify the questions/);
+    assert.match(text, /[Nn]ever change the questions themselves/);
   }
-  assert.match(groupPrompt({ mode: 'merge', ungrouped: 12 }), /不要修改题目本身/);
+  assert.match(handOffText('topics.group', { mode: 'merge', ungrouped: 12 }, 'zh'), /不要修改题目本身/);
 });
 function load() {
   const module = { exports: {} };
