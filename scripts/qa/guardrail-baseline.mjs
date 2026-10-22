@@ -32,14 +32,19 @@ export const RULES = {
   elementSelector: { issue: '#137', why: 'rule that targets a bare button / input / select / textarea / label element outside base.css and ui/components', fix: 'give the element a class (or use <Button>, <Field>, <Checkbox>) and style that class' },
   serviceHandoff: { issue: '#113', why: 'call / act / askInChat / busy handed to a child component as a prop (busy on Button, Dialog and the like is a display prop and not counted)',
     fix: 'read it with useStudy() (ui/study-context.jsx) in the component that uses it' },
-  chatHandOff: { issue: 'hand-off S2a', why: 'askInChat used outside the shared 发给主会话 unit (only ui/app/use-app-core.js, ui/host/workspace.jsx, ui/study-context.jsx and ui/hand-off/ may)',
+  chatHandOff: { issue: 'hand-off S2b', why: 'askInChat used outside the shared 发给主会话 unit (a hard rule: only the files that wire the service, CHAT_HANDOFF_HOMES, and ui/hand-off/ may; ALLOW.chatHandOff lists the rest)',
     fix: 'use useHandOff() / <HandOff> from ui/hand-off/ with an id of ui/agent-prompts/index.js' },
-  chatOldWording: { issue: 'hand-off S2a', why: 'an old name for the main chat in UI code (主对话 / 对话中 / 在对话里 / 发到对话 / 让对话 / AI 归并); S2b drives it to zero',
+  chatOldWording: { issue: 'hand-off S2b', why: 'an old name for the main chat in UI code (主对话 / 对话中 / 在对话里 / 发到对话 / 让对话 / AI 归并); a hard rule (ALLOW.chatOldWording lists the rest)',
     fix: 'say 主会话 (the button is 发给主会话); English stays "the main chat"' },
 };
 
-/* The files that may name askInChat: the writer, the host adapter, the services list and the shared unit (the hand-off plan, section 1.2). */
-const CHAT_HANDOFF_HOMES = /^ui\/(?:app\/use-app-core\.js|host\/workspace\.jsx|study-context\.jsx|hand-off\/)/;
+/* The files that may name askInChat (the hand-off plan, section 1.2) because they WIRE the service, none of them hands anything over:
+     ui/app/use-app-core.js   the one writer: askInChat -> deliverToChat (the notices, the clipboard)
+     ui/host/workspace.jsx    the host adapter: the DSH composer behind host.askInChat
+     ui/study-context.jsx     the list of services a page may read with useStudy()
+     ui/App.jsx               puts core.askInChat into that list (the services bag every page reads)
+     ui/hand-off/             the shared unit itself (useHandOff().send is the only caller) */
+const CHAT_HANDOFF_HOMES = /^ui\/(?:App\.jsx|app\/use-app-core\.js|host\/workspace\.jsx|study-context\.jsx|hand-off\/)/;
 /* The old names for the main chat (the hand-off plan, section 1: one fact, one wording). 「在新对话中打开」 names a new conversation, not the main chat. */
 const CHAT_OLD_WORDING = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并/g;
 
@@ -53,6 +58,15 @@ export const ALLOW = {
   dialogCalls: [],
   /* No exceptions: CSS-generated text cannot be translated (the follow-up fold label is rendered in JSX, #160). */
   cjkContent: [],
+  /* The home page's first-run hand-off (plan item 5: 首页空状态, library.workspaceFile -> import.file) is still the old one: its page is being rewritten on another
+     branch (codex/3.6-first-run-line), so it moves to the shared unit after that lands. StudyMap.jsx only passes askInChat on to it. Delete both entries then. */
+  chatHandOff: [
+    { file: 'ui/StudyMap.jsx', issue: 'hand-off S2b: home first-run hand-off (plan item 5)' },
+    { file: 'ui/study-map/home-plan.js', issue: 'hand-off S2b: home first-run hand-off (plan item 5)' },
+  ],
+  chatOldWording: [
+    { file: 'ui/study-map/home-plan.js', issue: 'hand-off S2b: home first-run hand-off (plan item 5)' },
+  ],
   /* Custom properties that no ui CSS or JS defines because the host or the runtime provides them. */
   undefinedVars: [
     /* Provided by the DSH host shell, never by StudyHub CSS (each use has a fallback). */
@@ -332,12 +346,21 @@ export function scanUi(root = ROOT) {
     undefinedVars.push({ name: use.name, site: `${use.file}:${use.line}` });
   }
   for (const rule of Object.values(metrics)) for (const file of Object.keys(rule)) if (!rule[file]) delete rule[file];
+  /* The hard rules about the main chat: a listed file is left out of the counts (so nothing is baselined), and a listed file that has nothing left is stale. */
+  const staleChat = [];
+  for (const rule of ['chatHandOff', 'chatOldWording']) {
+    for (const allowed of ALLOW[rule]) {
+      if (metrics[rule][allowed.file]) delete metrics[rule][allowed.file];
+      else staleChat.push(`${rule} ${allowed.file} (${allowed.issue})`);
+    }
+  }
   /* An allow-list entry that no longer matches anything must be deleted so the rule stays tight. */
   const usedNames = new Set(found.used.map((use) => use.name));
   const staleAllow = [
     ...ALLOW.dialogCalls.filter((a) => !found.dialogs.some((hit) => hit.file === a.file)).map((a) => `dialogCalls ${a.file} (${a.issue})`),
     ...ALLOW.cjkContent.filter((a) => !found.cjk.some((hit) => hit.file === a.file && hit.selector.includes(a.selector))).map((a) => `cjkContent ${a.file} ${a.selector} (${a.issue})`),
     ...ALLOW.undefinedVars.filter((a) => found.defined.has(a.name) || !usedNames.has(a.name)).map((a) => `undefinedVars ${a.name}`),
+    ...(root === ROOT ? staleChat : []),
   ];
   return { metrics, duplicateKeyframes, cjkContent, dialogCalls, undefinedVars, staleAllow };
 }

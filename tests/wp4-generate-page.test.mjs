@@ -62,8 +62,8 @@ test("the submit button carries its tour anchor and stays one primary action", (
 });
 
 test("conversation recording is offered only where a chat can take it", () => {
-  assert.doesNotMatch(render({}, { canChat: false }), /录入已有题目|在对话里录题/);
-  assert.match(render({}, { canChat: true }), /在对话里录题/);
+  assert.doesNotMatch(render({}, { canChat: false }), /录入已有题目|在主会话里录题|在对话里录题/);
+  assert.match(render({}, { canChat: true }), /在主会话里录题/);
 });
 
 test("with no materials the tab says what to do first and opens the import dialog", () => {

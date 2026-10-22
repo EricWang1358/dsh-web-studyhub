@@ -22,7 +22,7 @@ const FROM_CONTEXT = [
   ['ui/document-preview/OriginalFile.jsx', 'OriginalMenuEntry', ['call', 'busy']],
   ['ui/document-preview/reader/OutlineDialog.jsx', 'OutlineDialog', ['call', 'act']],
   ['ui/JsonImport.jsx', 'JsonImport', ['busy', 'act', 'call']], ['ui/RetrievalPanel.jsx', 'RetrievalPanel', ['call']],
-  ['ui/GenerationPath.jsx', 'GenerationPath', ['call', 'askInChat']],
+  ['ui/GenerationPath.jsx', 'GenerationPath', ['call']], // the hand-off is <HandOff id="path.brief"> (S2b): no page reads askInChat any more
   ['ui/CaseWorkspace.jsx', 'RubricAnswer', ['busy', 'call']], ['ui/ExplanationFollowup.jsx', 'ExplanationFollowup', ['call']],
   ['ui/SetupChecklist.jsx', 'SetupChecklist', ['call', 'busy']], ['ui/study-map/HomeActivity.jsx', 'HomeActivity', ['busy']],
 ];

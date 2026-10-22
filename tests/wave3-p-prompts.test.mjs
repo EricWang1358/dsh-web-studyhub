@@ -44,6 +44,7 @@ test('ingest prompt: the exact text, both languages', () => {
     + '- 题组：「`OS 错题`」（目录 `第 3 章`）\n- 题型：一律单选 MQ\n- 错题：这批全部当错题\n'
     + '- 截图请先逐字转写题目、选项和答案再录入；一次贴很多题时可以分批。\n'
     + '- 如果我贴的是讲义 PDF 而不是现成题目，请用 study_materials 的 document.import 导入，再用 generate 生成新题草稿，沿用上述题组名称；不要把讲义当错题录入。\n'
+    + '- 我给的是整本题册文件时，按 skill study-import 按章录入。\n'
     + '- 每批录完简短告诉我：录入几道、哪些重复、哪些没录成功及原因、哪些答案是推断的需要我核对。\n- 我说「停止录题」时调用 ingest.stop。\n第一批题目：\n');
   assert.equal(m.ingestPrompt(input, 'en'), [
     'Start recording questions: use study_workspace ingest to add questions I paste in this conversation (including quiz apps, Canvas mistakes and screenshots) directly to my study library without asking for confirmation again.',
@@ -53,6 +54,7 @@ test('ingest prompt: the exact text, both languages', () => {
     '- Preserve the original language of questions, options and answers. Reply in English.',
     '- For screenshots, transcribe questions, options and answers before importing. Large batches may be split.',
     '- If I paste a lecture PDF rather than existing questions, import it with study_materials document.import, then use generate to create a draft under the deck name above. Do not record lecture material as mistakes.',
+    '- If I give you a whole question-book file, enter it chapter by chapter following the study-import skill.',
     '- After each batch, briefly report the imported count, duplicates, failures with reasons, and inferred answers that need checking.',
     '- When I say “stop recording”, call ingest.stop.', 'First batch of questions:', ''].join('\n'));
   assert.doesNotMatch(m.ingestPrompt({ deckTitle: 'D' }, 'zh'), /目录/, 'no folder, no folder clause');
@@ -110,7 +112,7 @@ test('learning-flow prompts: design, skeleton for a scope, help with a step', ()
 });
 
 test('library hand-offs', () => {
-  assert.equal(m.deckAnalysisPrompt({ deckTitle: 'OS' }, 'zh'), '请用 study_workspace 查看题组「`OS`」的掌握情况（map），告诉我哪些主题最薄弱，并安排接下来的学习顺序。');
+  assert.equal(m.deckAnalysisPrompt({ deckTitle: 'OS' }, 'zh'), '请用 study_workspace 查看题组「`OS`」的掌握情况（map），告诉我哪些主题最薄弱，并安排接下来的学习顺序。\n如果我在最后写了别的要求，就按我写的办，不做这次分析。');
   assert.equal(m.topicExplainPrompt({ topic: '死锁', deckTitle: 'OS', mastery: 40, weak: 2 }, 'zh'), '请结合学习库里的资料，给我讲解「`死锁`」（题组「`OS`」）。我目前掌握度 40%，有 2 道题当前薄弱。先讲核心概念，再用一两道小问题检查我是否理解。');
   assert.match(m.topicExplainPrompt({ topic: '死锁', deckTitle: 'OS', mastery: 40, weak: 0 }, 'zh'), /掌握度 40%。先讲/);
   assert.equal(m.workspaceFilePrompt('zh'), '请读取工作区里的 `<文件路径>`，用 study_workspace 添加为学习资料，并生成 10 道题。');
