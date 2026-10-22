@@ -63,7 +63,7 @@ const walk = (dir, out = []) => {
 /* Pages that keep their own <h1>: the shared header, the welcome card and the app's pre-library start page, and the host seat's no-session screen. */
 const H1_ALLOWED = new Map([
   ['ui/components/PageHeader.jsx', 'the shared header'],
-  ['ui/Welcome.jsx', 'the welcome card is not a page frame'],
+  ['ui/first-run/FirstRunLine.jsx', 'the first-run line is the whole first screen of an empty library, not a page frame'],
   ['ui/app/page-views.jsx', 'StartPage: the pre-library start screen'],
   ['ui/host/studyhub-page.jsx', 'the "open a session first" screen of the host seat'],
   ['ui/tasks/TaskConsole.jsx', 'the 任务 console is a master-detail surface that fills the window: its list header is the page title, there is no page frame above it'],

@@ -109,15 +109,41 @@ export async function runHonestQa(options) {
         await sleep(1500);
         return { text: flat(await page.locator(".tc-detail").first().innerText()), buttons: await labels(page.locator(".tc-detail").first()) };
       };
-      const homeOf = async ({ buttonOnBanner } = {}) => {
+      /* The 待发布 rows on the home. These libraries have no deck of their own yet, so the home is the first-run line (3.6 D2); 以后再说 puts it away and the
+         ordinary home is back (the run's card on top, the 待发布 list folded under the day's work), which is what these states are read off. */
+      const drafts = async () => {
         await goto("library");
+        const later = page.locator('.first-run [data-first-run="later"]');
+        if (await later.count()) { await later.first().click(); await page.locator('[data-first-run="compact"]').waitFor({ timeout: 30000 }); }
+        const fold = page.locator("details.home-drafts").first();
+        await fold.waitFor({ state: "attached", timeout: 30000 });
+        if (!await fold.evaluate((element) => element.open)) await fold.locator("summary").first().click();
         await page.locator(".draft-row").first().waitFor({ timeout: 30000 });
+      };
+      /* The first-run line itself, read BEFORE 以后再说: its third step must tell the run's story (the run's card, the same one the home shows), not
+         「第一组题出好了」 over a draft that came out short, refused or stopped. null when the library has a deck of its own (no line). */
+      const firstRunOf = async ({ buttonOnBanner } = {}) => {
+        await goto("library");
+        const line = page.locator('.first-run[data-first-run="page"]');
+        if (!await line.count()) return null;
+        const deck = line.locator('.frl-step[data-step="deck"]');
+        await waitFor("the line to show the run as ended", async () => (await deck.locator(".cjc").count()) === 0 || (await deck.locator(".cjc[data-state='run']").count()) === 0, { timeoutMs: 60000 });
+        if (buttonOnBanner) await waitFor(`the line's card to offer ${buttonOnBanner}`, async () => (await deck.locator(".cjc").first().locator("button", { hasText: new RegExp(`^${buttonOnBanner}`) }).count()) > 0, { timeoutMs: 60000 });
+        // The draft's coverage arrives after the snapshot: give it the same time the home gets.
+        await sleep(2500);
+        const card = deck.locator(".cjc").first(), hasCard = (await card.count()) > 0;
+        return { status: await deck.getAttribute("data-status"), sentence: flat(await deck.locator(".frl-step__text").first().innerText()), cards: await page.locator(".cjc").count(),
+          card: hasCard ? flat(await card.innerText()) : "", cardButtons: hasCard ? await labels(card) : [], buttons: await labels(line) };
+      };
+      const homeOf = async ({ buttonOnBanner } = {}) => {
+        await drafts();
         // The page polls the library: wait until it has caught up with a run that has ended (no stop control on the banner, the row not busy).
         await waitFor("the home to show the run as ended", async () => (await page.locator(".cjc").count()) === 0 || (await page.locator(".cjc[data-state='run']").count()) === 0, { timeoutMs: 60000 });
         if (buttonOnBanner) await waitFor(`the banner to offer ${buttonOnBanner}`, async () => (await page.locator(".cjc").first().locator("button", { hasText: new RegExp(`^${buttonOnBanner}`) }).count()) > 0, { timeoutMs: 60000 });
         await sleep(1200);
-        const banner = page.locator(".cjc").first(), row = page.locator(".draft-row").first();
-        return { banner: (await banner.count()) ? flat(await banner.innerText()) : "", bannerButtons: (await banner.count()) ? await labels(banner) : [], row: flat(await row.innerText()), rowButtons: await labels(row), rowBadge: flat(await row.locator("[data-draft-status]").innerText().catch(() => "")) };
+        const banner = page.locator(".cjc").first(), row = page.locator(".draft-row").first(), compact = page.locator('[data-first-run="compact"]').first(), hasCompact = (await compact.count()) > 0;
+        return { banner: (await banner.count()) ? flat(await banner.innerText()) : "", bannerButtons: (await banner.count()) ? await labels(banner) : [], row: flat(await row.innerText()), rowButtons: await labels(row), rowBadge: flat(await row.locator("[data-draft-status]").innerText().catch(() => "")),
+          compact: hasCompact ? flat(await compact.innerText()) : "", compactDeck: hasCompact ? flat(await compact.locator('.frl-step[data-step="deck"] .frl-step__text').innerText()) : "", compactButtons: hasCompact ? await labels(compact) : [] };
       };
       const draftPageOf = async () => {
         await page.locator(".draft-open").first().click();
@@ -136,6 +162,9 @@ export async function runHonestQa(options) {
           await goto("generate");
           await page.locator('[data-tour="generate-sources"]').waitFor({ timeout: 30000 });
           await page.getByRole("button", { name: /选择当前范围|Select this scope/ }).first().click();
+          // 覆盖强度 is under 更多选项 since the short form.
+          const more = page.locator(".generate-more").first();
+          if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
           await page.locator("[data-coverage-strength]").scrollIntoViewIfNeeded();
           await page.locator(".cov-strength__levels .sh-seg__item", { hasText: t("精简", "Lean") }).first().click();
           await page.locator("[data-coverage-auto-note]").waitFor({ timeout: 30000 });
@@ -184,10 +213,26 @@ export async function runHonestQa(options) {
       }
 
       let home, consoleView, draft;
-      await step("home", async () => { home = await homeOf(scenario === "paused" ? { buttonOnBanner: t("继续", "Continue") } : scenario === "restart" ? { buttonOnBanner: t("接着做", "Continue") } : {}); facts.home = home; });
+      const waitButton = scenario === "paused" ? { buttonOnBanner: t("继续", "Continue") } : scenario === "restart" ? { buttonOnBanner: t("接着做", "Continue") } : {};
+      await step("first-run", async () => { facts.firstRun = await firstRunOf(waitButton); });
+      await step("home", async () => { home = await homeOf(waitButton); facts.home = home; });
+      if (facts.firstRun) {
+        await check("the first-run line tells the run's story before 以后再说, and its compact card after: the run's card, never 「第一组题出好了」", async () => {
+          const line = facts.firstRun, ready = /第一组题出好了|Your first deck is ready/;
+          assert.ok(["stopped", "generating"].includes(line.status), `step 3 is the run's, not the draft's: ${JSON.stringify(line)}`);
+          assert.ok(!ready.test(line.sentence) && !ready.test(home.compactDeck), `no 「出好了」 over this draft: ${line.sentence} | ${home.compactDeck}`);
+          assert.equal(line.cards, 1, `the run's card is drawn once, inside step 3: ${JSON.stringify(line)}`);
+          assert.equal(line.card, home.banner, "the line's card says what the home's card says");
+          const draftWays = (labels) => labels.filter((label) => new RegExp(`^(${t("检查草稿|发布并开始练", "Check the draft|Publish and practise")})$`).test(label)).length;
+          assert.equal(draftWays(line.buttons), draftWays(line.cardButtons), `检查草稿 / 发布并开始练 only as the card's own choice: ${JSON.stringify(line)}`);
+          assert.equal(home.compactDeck, line.sentence, "the compact card's third row says what the line said");
+          assert.deepEqual(home.compactButtons, [], `the compact card leaves the action to the run's card: ${JSON.stringify(home.compactButtons)}`);
+          return { status: line.status, sentence: line.sentence, card: line.card };
+        });
+      }
       await step("console", async () => { consoleView = await consoleOf(); facts.console = consoleView; });
       if (scenario !== "restart") await step("console-log", async () => { await page.locator(".tc-tab", { hasText: t("日志", "Log") }).first().click(); await sleep(900); facts.log = flat(await page.locator(".tc-detail").first().innerText()); });
-      await step("draft-top", async () => { await goto("library"); draft = await draftPageOf(); facts.draft = draft; await noOverflow("the draft page"); });
+      await step("draft-top", async () => { await drafts(); draft = await draftPageOf(); facts.draft = draft; await noOverflow("the draft page"); });
       await step("draft-run", async () => { await page.locator("[data-coverage-run]").first().scrollIntoViewIfNeeded(); await sleep(400); });
       const snap = await draftOf();
       const spec = snap.editorial.coverageSpec, kept = snap.cards.length, goal = spec.goal;
@@ -281,8 +326,7 @@ export async function runHonestQa(options) {
           assert.ok(home.row.includes(t("已中断", "Interrupted")), home.row);
         });
         await step("press-continue", async () => {
-          await goto("library");
-          await page.locator(".draft-row").first().waitFor({ timeout: 30000 });
+          await drafts();
           await page.locator(".draft-row").first().getByRole("button", { name: new RegExp(`^${t("接着做", "Continue")}$`) }).click();
           await sleep(1500);
           facts.afterPress = flat(await page.locator(".cjc").first().innerText().catch(() => ""));
@@ -302,7 +346,7 @@ export async function runHonestQa(options) {
           for (const text of [`${home.banner} ${home.row}`, consoleView.text, draft.text]) assert.ok(!/100%/.test(text.replace(/(覆盖现在|Coverage now) .*?(题|questions)/g, "").replace(/覆盖 ?\d+%|Covered \d+%/g, "")), "a paused run is not 100%");
         });
         await step("press-continue", async () => {
-          await goto("library");
+          await drafts();
           await page.locator(".draft-row").first().getByRole("button", { name: new RegExp(`^${t("继续", "Continue")}$`) }).click();
           await sleep(2500);
           facts.afterPress = flat(await page.locator(".cjc").first().innerText().catch(() => ""));

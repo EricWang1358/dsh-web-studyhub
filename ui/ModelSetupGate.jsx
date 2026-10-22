@@ -48,7 +48,7 @@ const keyHint = () => <>{ui('去哪拿 Key、要不要充值：看')}<a href={ke
  * `pick` is how this page lets the learner choose a model (the pane of Settings has the choice right there).
  */
 function setupSteps({ reason, label } = {}, pick) {
-  const choose = { text: pick || ui('选一个模型：在对话输入框的模型选择器里选，或在 StudyHub「设置 › 学习库与模型」的「生成模型」里选') };
+  const choose = { text: pick || ui('选一个模型：在对话输入框的模型选择器里选，或在 StudyHub「设置 › 学习库与模型」的「生成模型」里选'), choose: true };
   if (reason === 'no-credential') {
     const provider = providerOf(label);
     return [{ text: provider ? uiFormat('在 DSH 打开「设置 › 模型」，在「{0}」卡片填入 API Key 并保存', [provider]) : ui('在 DSH 打开「设置 › 模型」，给所选服务商填入 API Key 并保存'), hint: keyHint() }];
@@ -125,10 +125,10 @@ const FEATURES = {
     line: ui('提问和补题需要先配置模型；原文与已有引用仍可浏览。'),
     note: ui('阅读可以继续；提问和补题前需要先配置模型。'),
   }),
-  // The first screen: a model is for the questions, the first import and the tour need none.
-  welcome: () => ({
+  // The first-run line's step 1 (ui/first-run/FirstRunLine.jsx): a model is for the questions; adding material and the tour need none. The line reads the state again by itself.
+  welcome: (model, { recheck } = {}) => ({
     why: ui('出题、讲解和提问需要 AI 模型；示例导览和已有题组的练习不需要，可以先体验。'),
-    then: ui('回到这里，点「添加资料」'),
+    then: recheck ? ui('回到这里，这一步会自己打勾；没有变就点「重新检查」') : ui('回到这里，点「添加资料」'),
     line: ui('出题、讲解和提问需要先配置模型。'),
     note: ui('可以先体验示例；出题前需要先配置模型。'),
   }),
@@ -221,6 +221,17 @@ const FEATURES = {
     note: ui('可以先自己写；AI 起草前需要先配置模型。'),
   }),
 };
+
+/**
+ * The block's words for a page that lays the steps out itself (the first-run line's step 1, ui/first-run/FirstRunLine.jsx), from the same table as the block:
+ * { why, steps: [{ text, hint?, choose? }], then }. `choose` marks the step that picks a model, where such a page may put its one quiet link to the settings;
+ * `then` is '' when there are no steps (a DSH that did not hand StudyHub the model). `recheck`: the page has a button that reads the state again.
+ */
+export function modelSetupCopy(model, feature = 'generate', { recheck = false } = {}) {
+  const copy = (FEATURES[feature] || FEATURES.generate)(model || {}, { recheck });
+  const steps = setupSteps(model || {}, copy.pick);
+  return { why: say(modelFact(model || {}), copy.why), steps, then: steps.length ? copy.then : '' };
+}
 
 /** Every feature the gate has wording for. */
 export const MODEL_GATE_FEATURES = Object.freeze(Object.keys(FEATURES));

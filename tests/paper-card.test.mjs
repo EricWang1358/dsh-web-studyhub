@@ -20,7 +20,7 @@ const SURFACES = {
   'ui/review/QuestionRun.jsx': ['question-card'],
   'ui/FlipCard.jsx': ['flip-face'],
   'ui/study-map/TodayCard.jsx': ['today-card'],
-  'ui/Welcome.jsx': ['welcome-card'],
+  'ui/first-run/FirstRunLine.jsx': ['first-run-card'],
   'ui/CaseResult.jsx': ['case-report__hero'],
   'ui/CaseWorkspace.jsx': ['case-scenario'],
   'ui/ExamShell.jsx': ['es-sheet'],
