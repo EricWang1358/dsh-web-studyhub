@@ -39,7 +39,7 @@ test('EmptyStudyActions uses Button: one primary per state', () => {
   assert.match(study, /<button[^>]*sh-btn--primary[^>]*>开始学习<\/button>/);
   const create = html(m.EmptyStudyActions, { data: { decks: [] }, onCreate: noop, onSources: noop });
   assert.match(create, /sh-btn--primary[^>]*>创建题组</);
-  assert.match(create, /sh-btn--secondary[^>]*>添加学习资料</);
+  assert.match(create, /sh-btn--secondary[^>]*>添加资料</);
   assert.equal((create.match(/sh-btn--primary/g) || []).length, 1);
   assert.match(html(m.EmptyStudyActions, { data: { decks: [], drafts: [{}] }, onLibrary: noop }), /sh-btn--primary[^>]*>查看待发布草稿</);
   assert.match(html(m.EmptyStudyActions, { data: { decks }, busy: true, onStart: noop }), /disabled=""/);

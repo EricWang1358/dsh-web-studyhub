@@ -9,7 +9,7 @@ export default function EmptyStudyActions({ data, busy, onStart, onLibrary, onCr
       : data?.drafts?.length ? <Button variant="primary" disabled={busy} onClick={onLibrary}>{ui("查看待发布草稿")}</Button>
         : <>
           <Button variant="primary" disabled={busy} onClick={onCreate}>{ui("创建题组")}</Button>
-          <Button disabled={busy} onClick={onSources}>{ui("添加学习资料")}</Button>
+          <Button disabled={busy} onClick={onSources}>{ui("添加资料")}</Button>
         </>}
   </div>;
 }

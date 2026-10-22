@@ -8,6 +8,7 @@ import { parseDraft } from '../draft-editor.js';
 import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } from '../workspace-views.jsx';
 import { materialOpener, resultOpener } from '../tasks/task-actions.js';
 import StudyMap from '../StudyMap.jsx';
+import { hasOwnDeck } from '../study-map/home-plan.js';
 import Welcome, { SampleBanner } from '../Welcome.jsx';
 import Dashboard from '../Dashboard.jsx';
 import Exam from '../Exam.jsx';
@@ -92,7 +93,7 @@ function LibraryView() {
           onCourseSettings: settingsEntry.setCourseSettings,
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
         }}>
-        {pageAvailable(data, 'review') && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
+        {pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
         {pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
         <RecoveryBanner />

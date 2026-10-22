@@ -9,9 +9,9 @@ import { topUpArgs, topUpNotice } from '../coverage/top-up.js';
 const recoveryKey = (root) => `study-draft:${root}`;
 
 /**
- * 发布并练习, the one quick publication: save the draft as it is on the page (`save`, default; the finished card has nothing to save), publish it with draft.publish.quick (into `intoDeck` when the
- * draft is the next part of a deck), and start the new questions of the deck; with no new question to start the learner is told and lands on the library. The draft page's 保存并发布 and the finished
- * card's 发布并练习 both call this, so there is one sequence and one set of words. `call`/`act` are the app's (ui/study-context.jsx), `toast` the app's toast; the follow-up work runs even if the
+ * 发布并开始练, the one quick publication: save the draft as it is on the page (`save`, default; the finished card has nothing to save), publish it with draft.publish.quick (into `intoDeck` when the
+ * draft is the next part of a deck), and start the new questions of the deck; with no new question to start the learner is told and lands on the library. The draft page's 发布并开始练 and the finished
+ * card's 发布并开始练 both call this, so there is one sequence and one set of words. `call`/`act` are the app's (ui/study-context.jsx), `toast` the app's toast; the follow-up work runs even if the
  * learner has left the page (afterNavigation), and only its UI effects are skipped then.
  */
 export async function publishAndPractice({ call, act, toast, draft, intoDeck, save = true, openDraft, clearRecovery, enterRun, setPage }) {
@@ -81,7 +81,7 @@ export function useDrafts({ core, lib, nav, data, session }) {
     setRecovery(null);
     setDraft(null);
   }, [root, setRecovery, setDraft]);
-  /** 发布并练习 from the finished card of a run: the quick publication of the draft as it is (nothing to save), then the new questions. The stash of the page is dropped only when it is this draft's. */
+  /** 发布并开始练 from the finished card of a run: the quick publication of the draft as it is (nothing to save), then the new questions. The stash of the page is dropped only when it is this draft's. */
   const publishDraft = useCallback((target, { intoDeck } = {}) => publishAndPractice({ call: core.call, act: core.act, toast: core.toast, draft: target, intoDeck, save: false,
     clearRecovery: () => { if (draft?.id === target.id) clearRecovery(); }, enterRun: session?.enterRun, setPage: nav.navigate }), [core, session, nav, draft, clearRecovery]);
   /** Put the stashed edit back and open it. */

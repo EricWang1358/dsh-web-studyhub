@@ -47,7 +47,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
             onPracticePages={intents.practiceFromReading}
             onGeneratePages={(ids) => intents.goGenerate({ sourceIds: ids, remember: true, closeModal: true })} resume={modal.resume}
             onOpenDraftPages={(draftIds) => {
-              // The questions of these pages are still in a draft: the same 草稿 page the home card and 检查并发布草稿 open.
+              // The questions of these pages are still in a draft: the same 草稿 page the home card and 检查草稿 open.
               const draft = draftToOpen(draftIds, data.drafts);
               if (!draft) { toast.error(ui('这份草稿已经不在了，可能已发布或删除。')); return; }
               onClose(); drafts.openDraft(draft, { navigation: true });

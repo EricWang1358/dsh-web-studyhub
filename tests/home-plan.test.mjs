@@ -7,14 +7,14 @@ import { loadUi } from './helpers/ui-module.mjs';
 const m = await loadUi("export * from './ui/study-map/home-plan.js'; export { setUiLanguage } from './ui/i18n.js';");
 const deck = (id, extra = {}) => ({ id, title: id, course: 'A', ...extra });
 const today = (extra = {}) => ({ due: 3, weak: 2, new: 10, size: 15, ahead: false, more: 0, course: 'A', scope: [{ deckId: 'd1' }], elsewhere: 0, ...extra });
-function plan({ data = {}, todayPatch = {}, runs = [], route = null, fresh = 14, started = [], resumed = [] } = {}) {
+function plan({ data = {}, todayPatch = {}, runs = [], route = null, fresh = 14, started = [], resumed = [], generated = [] } = {}) {
   const full = { decks: [deck('d1')], sources: [{ id: 's' }], drafts: [], jobs: [], runs,
     focus: { mode: 'class', course: 'A', fresh: Array(fresh).fill({}), route }, ...data };
   const t = today(todayPatch);
   const home = m.buildHomePlan({ data: full, today: t, runs, runFor: (scope) => runs.find((run) => run.mode === 'path' && JSON.stringify(run.scope) === JSON.stringify(scope)),
     activeJobs: [], inFocus: () => true, canChat: false, revealActivity() {},
     actions: { start: (args) => started.push(args), resume: (id) => resumed.push(id), openDraft() {}, addSource() {}, importLibrary() {}, askInChat() {},
-      generateFromSources() {}, startCourseFlow() {}, onCoachPractice: undefined, onWeakPoints: undefined } });
+      generateFromSources: (ids) => generated.push(ids), startCourseFlow() {}, onCoachPractice: undefined, onWeakPoints: undefined } });
   return { home, started, resumed };
 }
 const labels = (home) => home.alternatives.map(([label]) => label);
@@ -95,4 +95,47 @@ test('a newcomer keeps the next step in front while only the sample course is th
   assert.equal(own.starter, null, 'one deck of their own is a library');
   assert.equal(plan({ data: { decks: [deck('mine')] } }).home.starter, null);
   assert.equal(plan({ data: { decks: [] , sources: [], drafts: [] } }).home.starter?.kind, 'empty');
+});
+
+test('the sample course never ticks a step of the first deck: its material and its draft are not the newcomer\'s', () => {
+  m.setUiLanguage('zh');
+  const sample = { loaded: true, deckId: 'sample-deck-patterns', draftId: 'sample-draft-patterns', sourceId: 'sample-lecture' };
+  const bare = (extra, generated) => plan({ data: { decks: [], sources: [], drafts: [], sample, ...extra }, generated }).home;
+  const sampleOnly = bare({ sources: [{ id: 'sample-lecture', sample: true }], drafts: [{ id: 'sample-draft-patterns', sample: true }] });
+  assert.equal(sampleOnly.plan.step, 0, 'no material of their own: still the first step');
+  assert.equal(sampleOnly.plan.action.label, '添加资料', 'the one name of adding material');
+  assert.equal(bare({ sources: [{ id: 'sample-lecture' }], drafts: [{ id: 'sample-draft-patterns' }] }).plan.step, 0, 'the sample is known by its ids too');
+  const generated = [];
+  const material = bare({ sources: [{ id: 'sample-lecture', sample: true }, { id: 'mine', title: '我的讲义', text: 'y' }], drafts: [{ id: 'sample-draft-patterns', sample: true }] }, generated);
+  assert.equal(material.plan.step, 1, 'one material of their own, the sample draft is not theirs');
+  assert.equal(material.plan.action.label, '用这 1 份资料出题');
+  material.plan.action.run();
+  assert.deepEqual(generated, [['mine']], 'and only their own material is what the run is asked to use');
+  const drafted = bare({ sources: [{ id: 'mine', title: '我的讲义', text: 'y' }], drafts: [{ id: 'sample-draft-patterns', sample: true }, { id: 'mine-draft' }] });
+  assert.equal(drafted.plan.step, 2);
+  assert.equal(drafted.plan.action.label, '检查草稿', 'opening a draft is 检查草稿; the publishing button of the draft page is 发布并开始练');
+  assert.match(drafted.plan.next, /出题时已审阅过/, 'what really happens: the review ran while the questions were made');
+  assert.match(drafted.plan.next, /发布时再检查一遍题目的结构/, 'and what publishing adds');
+  m.setUiLanguage('en');
+  try {
+    const english = bare({ sources: [{ id: 'mine', title: 'Notes', text: 'y' }], drafts: [{ id: 'mine-draft' }] }).plan;
+    assert.doesNotMatch(`${english.action.label} ${english.next}`, /[\u3400-\u9fff]/);
+    assert.equal(english.action.label, 'Check the draft');
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('an own deck is one the learner published: not the sample\'s, not one the app made, archived or not', () => {
+  assert.equal(m.hasOwnDeck(undefined), false);
+  assert.equal(m.hasOwnDeck({ decks: [] }), false);
+  assert.equal(m.hasOwnDeck({ decks: [deck('s', { sample: true })] }), false);
+  assert.equal(m.hasOwnDeck({ decks: [deck('sample-deck-patterns')], sample: { deckId: 'sample-deck-patterns' } }), false);
+  assert.equal(m.hasOwnDeck({ decks: [deck('x', { systemKind: 'coach' })] }), false);
+  assert.equal(m.hasOwnDeck({ decks: [deck('sample-deck-patterns', { sample: true }), deck('mine')] }), true);
+  assert.equal(m.hasOwnDeck({ decks: [deck('mine', { archived: true })] }), true);
+});
+
+test('课程准备 and 今天先做什么 wait for the first deck of their own, on the library home', async () => {
+  const { readFile } = await import('node:fs/promises');
+  assert.match(await readFile('ui/StudyMap.jsx', 'utf8'), /\{hasOwnDeck\(data\) && <SetupChecklist /);
+  assert.match(await readFile('ui/app/page-views.jsx', 'utf8'), /pageAvailable\(data, 'review'\) && hasOwnDeck\(data\) && <DailyPlan /);
 });

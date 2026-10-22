@@ -17,7 +17,7 @@ import { EMPTY_PROGRESS, sameScope } from "./study-map/map-model.js";
 import { useDeckTree } from "./study-map/useDeckTree.js";
 import { useCourseFolders } from "./study-map/useCourseFolders.js";
 import { useCourseMastery } from "./study-map/useCourseMastery.js";
-import { buildHomePlan } from "./study-map/home-plan.js";
+import { buildHomePlan, hasOwnDeck } from "./study-map/home-plan.js";
 import HomeActivity, { HomeDrafts } from "./study-map/HomeActivity.jsx";
 import DeskIntro from "./study-map/DeskIntro.jsx";
 import TodayCard from "./study-map/TodayCard.jsx";
@@ -103,8 +103,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
         start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
         retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} />
-      {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after. */}
-      <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />
+      {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after; it waits until the learner has published a deck of their own. */}
+      {hasOwnDeck(data) && <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />}
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <DeskIntro data={data} home={home} mastery={mastery} role={role} busy={busy} start={start} resume={resume} endRun={endRun}
           onFocus={onFocus} onCourseSettings={onCourseSettings} onShowOutline={onShowOutline} suggestRole={suggestRole} />

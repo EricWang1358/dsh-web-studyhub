@@ -128,7 +128,7 @@ const FEATURES = {
   // The first screen: a model is for the questions, the first import and the tour need none.
   welcome: () => ({
     why: ui('出题、讲解和提问需要 AI 模型；示例导览和已有题组的练习不需要，可以先体验。'),
-    then: ui('回到这里，点「导入我的第一份资料」'),
+    then: ui('回到这里，点「添加资料」'),
     line: ui('出题、讲解和提问需要先配置模型。'),
     note: ui('可以先体验示例；出题前需要先配置模型。'),
   }),

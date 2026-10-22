@@ -13,7 +13,7 @@ import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-
 import { StudyService } from '../lib/service.js';
 
 /* From the form to practice, and the places that used to be dead ends, in the browser preview on a seeded library (fake model; the failure and the slow run are the model's):
-   1. 创建题组 → 生成 → the finished card says 发布并练习 and one press publishes and starts the questions;
+   1. 创建题组 → 生成 → the finished card says 发布并开始练 and one press publishes and starts the questions;
    2. a failed run: the time limit links to the field of the limit in 设置, a run the contract can retry is one press;
    3. a draft with sections without a question: the top-up is pressed with unsaved edits (they are saved first), the draft page says which job works on it and why saving waits, and 停止 frees it;
    4. the 资料 row of a published deck: the confirm button carries the estimate.
@@ -92,10 +92,10 @@ test('a finished run of a clean draft is published and practised from its card i
       await page.locator('[data-usage="generate.submit"]').click();
       // the home: the job card, then (when the run is done and its draft clean) the one-press button
       await page.locator('.cjc').first().waitFor({ timeout: 60000 });
-      await until(async () => /发布并练习/.test(await page.locator('.cjc').first().innerText()), 'the card of the finished run offers 发布并练习', { timeoutMs: 120000 });
+      await until(async () => /发布并开始练/.test(await page.locator('.cjc').first().innerText()), 'the card of the finished run offers 发布并开始练', { timeoutMs: 120000 });
       await settleAnimations(page);
       assert.equal(await page.locator('.cjc').first().locator('.cjc__go').count(), 1, 'one primary button');
-      assert.match(await page.locator('.cjc__links').first().innerText(), /打开草稿/, 'and the quiet way to look first');
+      assert.match(await page.locator('.cjc__links').first().innerText(), /检查草稿/, 'and the quiet way to look first');
       assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll on the card`);
       await shot(page, `card-${width}`);
       if (width === 1280) {
@@ -103,7 +103,7 @@ test('a finished run of a clean draft is published and practised from its card i
         await until(async () => (await area(page)) === 'review', 'practice starts by itself', { timeoutMs: 60000 });
         await shot(page, 'practice-1280');
       } else {
-        await page.locator('.cjc__links button', { hasText: '打开草稿' }).first().click();
+        await page.locator('.cjc__links button', { hasText: '检查草稿' }).first().click();
         await until(async () => (await area(page)) === 'draft', 'the draft page opens from the link');
         await frames(page, 3);
         assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll on the draft page`);

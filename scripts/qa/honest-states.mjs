@@ -275,7 +275,7 @@ export async function runHonestQa(options) {
           const again = t("接着做", "Continue");
           assert.ok(home.bannerButtons.includes(again), `the banner's action: ${home.bannerButtons}`);
           assert.ok(home.rowButtons.includes(again), `the row's action: ${home.rowButtons}`);
-          assert.ok(!home.bannerButtons.some((label) => /打开草稿|Open draft/.test(label)), `the banner has ONE primary action: ${home.bannerButtons}`);
+          assert.ok(!home.bannerButtons.some((label) => /检查草稿|Check the draft|打开草稿|Open draft/.test(label)), `the banner has ONE primary action: ${home.bannerButtons}`);
           assert.ok(!/正在补齐|Adding questions to/.test(home.banner), `an interrupted run is not "being filled": ${home.banner}`);
           assert.ok(home.banner.includes(snap.title), `the title is the deck's own: ${home.banner}`);
           assert.ok(home.row.includes(t("已中断", "Interrupted")), home.row);
@@ -297,7 +297,7 @@ export async function runHonestQa(options) {
           const again = t("继续", "Continue");
           assert.ok(home.bannerButtons.includes(again), `the banner's action: ${home.bannerButtons}`);
           assert.ok(home.rowButtons.includes(again), `the row's action: ${home.rowButtons}`);
-          assert.ok(!home.bannerButtons.some((label) => /打开草稿|Open draft/.test(label)), `the banner has ONE primary action: ${home.bannerButtons}`);
+          assert.ok(!home.bannerButtons.some((label) => /检查草稿|Check the draft|打开草稿|Open draft/.test(label)), `the banner has ONE primary action: ${home.bannerButtons}`);
           assert.match(consoleView.text, new RegExp(t("暂停于第 \\d+ 轮之后", "Paused after round \\d+")), consoleView.text.slice(0, 400));
           for (const text of [`${home.banner} ${home.row}`, consoleView.text, draft.text]) assert.ok(!/100%/.test(text.replace(/(覆盖现在|Coverage now) .*?(题|questions)/g, "").replace(/覆盖 ?\d+%|Covered \d+%/g, "")), "a paused run is not 100%");
         });

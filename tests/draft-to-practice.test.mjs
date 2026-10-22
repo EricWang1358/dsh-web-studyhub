@@ -7,8 +7,8 @@ import { inApp } from './helpers/fake-app.mjs';
 import { reviewedCardFingerprint } from '../lib/review-integrity.js';
 import { draftView, seedView, small } from './helpers/coverage-view.mjs';
 
-/* From a finished run to practising, with the fewest presses: 发布并练习 on the finished card of a clean draft (the same quick publish as 保存并发布 on the draft page, one shared function),
-   打开草稿 beside it so the learner can still look first; and while a job works on the draft, the draft page says which job, why 保存并发布 waits, and offers to stop it. */
+/* From a finished run to practising, with the fewest presses: 发布并开始练 on the finished card of a clean draft (the same quick publish as 发布并开始练 on the draft page, one shared function),
+   检查草稿 beside it so the learner can still look first; and while a job works on the draft, the draft page says which job, why 发布并开始练 waits, and offers to stop it. */
 
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
@@ -118,23 +118,23 @@ const draw = (job, { draft = cleanDraft(), app = {}, language = 'zh', props = {}
 });
 const buttons = html => [...html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map(match => text(match[1]).replace(/\s*→$/, ''));
 
-test('the finished card of a clean draft says 发布并练习, and keeps 打开草稿 as the quiet way to look first', () => {
+test('the finished card of a clean draft says 发布并开始练, and keeps 检查草稿 as the quiet way to look first', () => {
   const html = draw(done());
-  assert.match(html, /class="[^"]*cjc__go[^"]*"[^>]*>(?:(?!<\/button>)[\s\S])*发布并练习/, 'the primary button');
+  assert.match(html, /class="[^"]*cjc__go[^"]*"[^>]*>(?:(?!<\/button>)[\s\S])*发布并开始练/, 'the primary button');
   const links = html.match(/<div class="cjc__links"[\s\S]*?<\/div>/)?.[0] || '';
-  assert.match(text(links), /打开草稿/, 'the other way is a link under the card');
+  assert.match(text(links), /检查草稿/, 'the other way is a link under the card');
   assert.equal((html.match(/cjc__go/g) || []).length, 1, 'still one primary button');
-  inLanguage('en', () => assert.doesNotMatch(text(draw(done(), { language: 'en' })), /发布并练习|打开草稿/));
+  inLanguage('en', () => assert.doesNotMatch(text(draw(done(), { language: 'en' })), /发布并开始练|检查草稿/));
   assert.match(text(draw(done(), { language: 'en' })), /Publish and practise/);
 });
 
 test('every other finished card keeps its own button: a draft with something missing, a next part, a failed run', () => {
-  assert.doesNotMatch(draw(done(), { all: false }), /发布并练习/, 'sections without a question: the card offers the top-up, not publication');
+  assert.doesNotMatch(draw(done(), { all: false }), /发布并开始练/, 'sections without a question: the card offers the top-up, not publication');
   const html = draw(done(), { draft: cleanDraft({ editorial: { rejectedIssues: { c1: ['x'] } } }) });
-  assert.doesNotMatch(html, /发布并练习/);
-  assert.match(buttons(html).join('|'), /打开草稿/);
-  assert.doesNotMatch(draw(done(), { app: { drafts: {} } }), /发布并练习/, 'a host without the publish action does not draw a button that cannot work');
-  assert.doesNotMatch(draw(done({ status: 'failed', stage: 'boom' })), /发布并练习/);
+  assert.doesNotMatch(html, /发布并开始练/);
+  assert.match(buttons(html).join('|'), /检查草稿/);
+  assert.doesNotMatch(draw(done(), { app: { drafts: {} } }), /发布并开始练/, 'a host without the publish action does not draw a button that cannot work');
+  assert.doesNotMatch(draw(done({ status: 'failed', stage: 'boom' })), /发布并开始练/);
 });
 
 /* ---------- the draft page while a job works on it ---------- */
@@ -176,7 +176,7 @@ const holdOf = html => /<div[^>]*data-draft-hold[\s\S]*?<\/div><\/div><\/div>/.e
 const buttonTag = (html, label) => new RegExp('<button([^>]*)>(?:<[^>]+>)*' + label).exec(html)?.[0];
 const working = (extra = {}) => ({ id: 'j9', draftId: 'd1', type: 'generate', status: 'running', continued: true, savedCount: 5, requestedTotal: 10, startedAt: '2026-10-06T10:00:00.000Z', ...extra });
 
-test('while a job works on the draft, the page says which job, why 保存并发布 waits and how to stop it; with nothing working there is no such line', () => {
+test('while a job works on the draft, the page says which job, why 发布并开始练 waits and how to stop it; with nothing working there is no such line', () => {
   const draft = cleanDraft();
   assert.doesNotMatch(page(draft), /data-draft-hold/);
   const html = page(draft, { jobs: [working()] });
@@ -184,8 +184,8 @@ test('while a job works on the draft, the page says which job, why 保存并发�
   assert.ok(hold, 'the line is there');
   assert.match(text(hold), /补题中 · 草稿 5\/10 题。这期间不能保存或发布；想现在发布，先停止它/);
   assert.match(text(hold), /停止并保留已出的题/, 'and the way out');
-  assert.match(buttonTag(html, '保存并发布'), /disabled/, 'the button is still off');
-  assert.match(buttonTag(html, '保存并发布'), /aria-describedby="draft-hold"/, 'and the line is its description');
+  assert.match(buttonTag(html, '发布并开始练'), /disabled/, 'the button is still off');
+  assert.match(buttonTag(html, '发布并开始练'), /aria-describedby="draft-hold"/, 'and the line is its description');
   assert.ok(html.indexOf('data-draft-hold') > html.indexOf('sticky-actions'), 'under the buttons');
   assert.doesNotMatch(html, /后台任务正在更新这份草稿/, 'the old generic line is gone: one fact once');
   // a publication check cannot be stopped from here; it says what it is doing
@@ -208,7 +208,7 @@ test('while the job writes the draft the library moves ahead of the page: the sa
   const html = page(draft, { jobs: [working()], drafts: [newer] });
   assert.match(text(holdOf(html)), /这期间不能保存或发布.*完成后本页会自动载入最新内容。/);
   assert.doesNotMatch(html, /后台修题正在更新草稿/, 'a top-up is not a repair');
-  assert.match(buttonTag(html, '保存并发布'), /disabled/);
+  assert.match(buttonTag(html, '发布并开始练'), /disabled/);
   // idle and behind: the old line about loading what was repaired stays
   assert.match(text(page(draft, { jobs: [], drafts: [newer] })), /正在载入后台修好的题目…/);
   inLanguage('en', () => assert.match(text(holdOf(page(draft, { jobs: [working()], drafts: [newer] }, { language: 'en' }))), /This page loads the new content by itself when it is done./));
@@ -218,10 +218,19 @@ test('right after a save the page is ahead of the snapshot: that is not "stale",
   const draft = cleanDraft(), older = { ...draft, draftVersion: draft.draftVersion - 1 };
   const html = page(draft, { drafts: [older] });
   assert.doesNotMatch(html, /草稿已在后台更新|正在载入后台修好的题目/);
-  assert.doesNotMatch(buttonTag(html, '保存并发布') || '', /disabled/, 'and publishing is not held for it');
+  assert.doesNotMatch(buttonTag(html, '发布并开始练') || '', /disabled/, 'and publishing is not held for it');
 });
 
 test('a sticky bar that waits does not move the buttons: the line sits under the bar, not inside it', () => {
   const html = page(cleanDraft(), { jobs: [working()] });
   assert.doesNotMatch(sticky(html), /data-draft-hold/);
+});
+
+test('the draft page of a new deck says 发布并开始练 →; an edit of a published deck and a repair keep their own names', () => {
+  const names = (draft) => buttons(page(draft)).filter(label => /发布|补发|更新题组/.test(label));
+  assert.ok(names(cleanDraft()).includes('发布并开始练'), `a new deck: ${names(cleanDraft())}`);
+  assert.ok(!names(cleanDraft()).some(label => /保存并发布/.test(label)), 'the old name is gone');
+  assert.ok(names(cleanDraft({ draft: { editingDeckId: 'd9' } })).includes('保存并更新题组'), 'an edit of a published deck keeps its name');
+  assert.ok(names(cleanDraft({ editorial: { repairOfDeckId: 'd9' } })).includes('保存并补发到原题组'), 'a repair keeps its name');
+  assert.match(buttons(page(cleanDraft(), {}, { language: 'en' })).join('|'), /Publish and practise/);
 });

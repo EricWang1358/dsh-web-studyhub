@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
-import { Button, Icon } from "./components/index.js";
+import { Button, Icon, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { readJSON, readText, removeKey, writeJSON, writeText } from "./storage.js";
 import { useInjectCss } from "./shared.js";
@@ -43,7 +43,7 @@ export function stepAction(step, setup, on = {}) {
     sources: [step.id === "convert" ? ui("去资料页转换") : ui("去资料页处理"), on.sources],
     index: [ui("打开检索设置"), on.index],
     generate: [ui("用这门课的资料出题"), on.generate && (() => on.generate(course))],
-    draft: [ui("检查并发布草稿"), on.draft && (() => on.draft(step.detail.draftId))],
+    draft: [ui("检查草稿"), on.draft && (() => on.draft(step.detail.draftId))],
     course: [ui("设置考试信息"), on.course && (() => on.course(step.detail.courseId))],
     skeleton: [ui("去知识骨架页"), on.skeleton],
   };
@@ -88,7 +88,9 @@ function Step({ step, index, setup, on, busy, next, onLater }) {
     <li className="setup-step" data-step={step.id} data-status={step.status} data-next={next ? "true" : undefined}>
       <span className="setup-mark" aria-hidden="true">{done ? <Icon name="check" size={14} /> : index + 1}</span>
       <div className="setup-body">
-        <strong className="setup-title" title={copy.hint}>{copy.title}{copy.optional && <span className="setup-optional">{ui("可选")}</span>}</strong>
+        <Tooltip layer content={copy.hint}>
+          <strong className="setup-title">{copy.title}{copy.optional && <span className="setup-optional">{ui("可选")}</span>}</strong>
+        </Tooltip>
         <small className="setup-text">{copy.text}</small>
       </div>
       {!done && (
@@ -160,10 +162,11 @@ export default function SetupChecklist({ data, on = {}, later: laterProp, initia
   if (setup.mode === "chip") {
     return (
       <section className="setup-chip" data-setup-checklist="" data-mode="chip" aria-label={ui("课程准备")}>
-        <Button size="sm" className="setup-chip-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}
-          title={uiFormat("{0} · 每门课开头做一次的准备", [name])}>
-          {open ? uiFormat("课程准备 {0}/{1} · 收起", [setup.done, setup.total]) : uiFormat("课程准备 {0}/{1} · 查看", [setup.done, setup.total])}
-        </Button>
+        <Tooltip layer content={uiFormat("{0} · 每门课开头做一次的准备", [name])}>
+          <Button size="sm" className="setup-chip-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+            {open ? uiFormat("课程准备 {0}/{1} · 收起", [setup.done, setup.total]) : uiFormat("课程准备 {0}/{1} · 查看", [setup.done, setup.total])}
+          </Button>
+        </Tooltip>
         {open && list}
       </section>
     );
