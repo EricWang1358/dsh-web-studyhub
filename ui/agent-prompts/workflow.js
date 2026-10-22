@@ -1,5 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
-import { fenceData, nameData, say } from './say.js';
+import { fenceData, fenceRequest, nameData, say } from './say.js';
 
 /* The prompts of the learning-flow pages (Workflows.jsx, WorkflowPortal.jsx) that hand work to the conversation (ui-consistency #124).
    They are the contract with the agent: study_workspace workflow.context / workflow.save / workflow.session.material and
@@ -16,7 +16,8 @@ const DESIGN_SAVE = '用 workflow.save 保存完整流程，更新已有流程�
 export function workflowDesignPrompt({ template = null, wish = '' }, language = getUiLanguage()) {
   return say(language, DESIGN_HEAD, [
     template ? say(language, '调整学习流「{0}」', [nameData(template.title)]) : say(language, '设计一条个性化学习流'),
-    wish ? say(language, '我的要求：{0}', [wish]) : say(language, '先了解我想怎样学习，再组合合适的组件。'),
+    // the learner's own words: in a request fence, whatever they hold
+    String(wish ?? '').trim() ? fenceRequest(wish, language).trimEnd() : say(language, '先了解我想怎样学习，再组合合适的组件。'),
   ]) + say(language, DESIGN_TAIL)
     + (template ? say(language, DESIGN_EXISTING, [template.id, template.version]) : say(language, DESIGN_NEW))
     + say(language, DESIGN_SAVE);
@@ -62,7 +63,7 @@ const STEP_OTHER = '内容请连起概念、例子和条件，避免只罗列名
 /** Ask the conversation for help with the current step of a running session. input: { session ({ id, version, topic }), step ({ title, kind }), wish }. */
 export function workflowStepPrompt({ session, step, wish = '' }, language = getUiLanguage()) {
   const handoff = WORKFLOW_HANDOFF[step.kind] || WORKFLOW_HANDOFF.lesson;
-  return say(language, STEP_HEAD, [nameData(session.topic), nameData(step.title), wish ? say(language, '我的要求：{0}', [wish]) : say(language, handoff.ask)])
+  return say(language, STEP_HEAD, [nameData(session.topic), nameData(step.title), String(wish ?? '').trim() ? fenceRequest(wish, language).trimEnd() : say(language, handoff.ask)])
     + say(language, STEP_CONTEXT, [JSON.stringify({ sessionId: session.id }), session.version])
     + say(language, STEP_MATERIAL)
     + say(language, step.kind === 'recall' ? STEP_RECALL : STEP_OTHER);

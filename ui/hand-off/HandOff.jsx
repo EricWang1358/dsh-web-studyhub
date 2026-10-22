@@ -52,7 +52,7 @@ export function HandOff({ id, input, what = '', lead = '', shape = 'link', said 
 /**
  * <HandOffForm id input prepare chips placeholder label what said submitLabel needsText disabled rows onSent>: only for the migrated places that already had
  * a box of their own (knowledge skeleton extension, learning flows). New places have no box: the chat's input box is the box. chips: catalogue keys, a tap
- * fills the box; input(text, prepared): the entry's input made from what was typed (the place fences it with fenceRequest) and what prepare returned;
+ * fills the box; input(text, prepared): the entry's input made from what was typed (the entry's builder puts it in a fenceRequest fence) and what prepare returned;
  * prepare(text): the write before the hand-off (a flow saved, notes saved), resolving to what input needs, or `false` to stop (the place said why itself);
  * submitLabel: 「保存并发给主会话」 when a write comes first; needsText: the button waits for a word; disabled: the place's own reasons; rows: the box's height;
  * children: a control above the box (the extension's intent). The box empties once it was handed over.

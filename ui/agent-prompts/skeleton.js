@@ -20,7 +20,9 @@ function wanted({ intent, term, text }, language) {
   if (!entry) return fenceRequest(text, language).trimEnd();
   const [template, fallback] = entry;
   if (intent === 'contrast') return say(language, template, [nameData(term), nameData(text)]);
-  return say(language, template, [nameData(term), text ? `: ${text}` : say(language, fallback)]);
+  // the learner's words follow the sentence in a request fence; without words the sentence ends with its own default
+  if (String(text ?? '').trim()) return `${say(language, template, [nameData(term), '']).trimEnd()}\n${fenceRequest(text, language).trimEnd()}`;
+  return say(language, template, [nameData(term), say(language, fallback)]);
 }
 
 /** Extend one saved skeleton incrementally (new concepts, relations, cards). input: { skeleton ({ id, title }), nodeId, term, intent, text }. */

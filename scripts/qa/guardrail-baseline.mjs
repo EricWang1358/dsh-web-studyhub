@@ -34,7 +34,7 @@ export const RULES = {
     fix: 'read it with useStudy() (ui/study-context.jsx) in the component that uses it' },
   chatHandOff: { issue: 'hand-off S2b', why: 'askInChat used outside the shared 发给主会话 unit (a hard rule: only the files that wire the service, CHAT_HANDOFF_HOMES, and ui/hand-off/ may; ALLOW.chatHandOff lists the rest)',
     fix: 'use useHandOff() / <HandOff> from ui/hand-off/ with an id of ui/agent-prompts/index.js' },
-  chatOldWording: { issue: 'hand-off S2b', why: 'an old name for the main chat in UI code (主对话 / 对话中 / 在对话里 / 发到对话 / 让对话 / AI 归并); a hard rule (ALLOW.chatOldWording lists the rest)',
+  chatOldWording: { issue: 'hand-off S2b', why: 'an old name for the main chat in UI code (主对话 / 对话中 / 在对话里 / 发到对话 / 让对话 / AI 归并 / 对话里的 AI / 对话里出题); a hard rule (ALLOW.chatOldWording lists the rest)',
     fix: 'say 主会话 (the button is 发给主会话); English stays "the main chat"' },
 };
 
@@ -46,7 +46,7 @@ export const RULES = {
      ui/hand-off/             the shared unit itself (useHandOff().send is the only caller) */
 const CHAT_HANDOFF_HOMES = /^ui\/(?:App\.jsx|app\/use-app-core\.js|host\/workspace\.jsx|study-context\.jsx|hand-off\/)/;
 /* The old names for the main chat (the hand-off plan, section 1: one fact, one wording). 「在新对话中打开」 names a new conversation, not the main chat. */
-const CHAT_OLD_WORDING = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并/g;
+const CHAT_OLD_WORDING = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并|对话里(?:的 AI|出题)/g;
 
 /* `busy={busy}` on these is the component's own "working" look, not the study services being threaded down. */
 const DISPLAY_BUSY_TAGS = new Set(['Button', 'IconButton', 'Dialog', 'ConfirmDialog', 'PermanentDeleteDialog']);

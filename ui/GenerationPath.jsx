@@ -59,7 +59,7 @@ export default function GenerationPath({ path, disabled = false, onUseStep, onSe
     <section className="gen-path" aria-label={ui('分步出题')}>
       <header className="gen-path__head">
         <p className="muted">{uiFormat('分成 {0} 步，每一步都在一次生成的上限内；按顺序一步一步出题，比一次塞进去更准。', [steps.length])}</p>
-        {indexed && <p className="gen-path__index" role="status">{ui('这些资料的检索索引已建好：对话里的 AI 可以按主题挑页面来定制章节。')}</p>}
+        {indexed && <p className="gen-path__index" role="status">{ui('这些资料的检索索引已建好：主会话里的 AI 可以按主题挑页面来定制章节。')}</p>}
       </header>
       <div className="gen-path__actions">
         <Button size="sm" variant="secondary" icon="sparkle" busy={aiState.phase === 'loading'} disabled={disabled || typeof call !== 'function'} onClick={path.refine} data-usage="generate.path-refine">

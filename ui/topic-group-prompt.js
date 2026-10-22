@@ -13,7 +13,15 @@ export function groupPrompt({ mode, topicCount, ungrouped, course, alternative =
   const text = groupText({ mode, topicCount, ungrouped, course }, language);
   // The page offered the quicker way (only the new topics); the learner may ask for the other in the chat's input box.
   if (!alternative || mode !== 'merge') return text;
-  return text + (language === 'en' ? `\nIf I say at the end that I want all topics regrouped, do that instead: read all topics page by page with skeleton.topics (without ungrouped; limit ${REPLACE_PAGE}, then follow nextOffset), regroup them all into 12–30 knowledge domains and save with topic.groups.save in replace mode.`
+  // Inside one course the other way is that course's own replace too: an unscoped replace starts from an empty list and would drop every other course's groups.
+  const scoped = course !== undefined && course !== null && course !== '*';
+  const only = scoped ? course || (language === 'en' ? 'Unassigned' : '未分类') : '';
+  const json = scoped ? JSON.stringify(course) : '';
+  if (language === 'en') return text + (scoped
+    ? `\nIf I say at the end that I want all topics of the course "${only}" regrouped, do that instead: read all topics of that course page by page with skeleton.topics (payload with "course": ${json}, without ungrouped; limit ${REPLACE_PAGE}, then follow nextOffset), regroup them all into 12–30 knowledge domains and save with topic.groups.save in replace mode (payload with "course": ${json}); topics and topic groups of other courses stay as they are.`
+    : `\nIf I say at the end that I want all topics regrouped, do that instead: read all topics page by page with skeleton.topics (without ungrouped; limit ${REPLACE_PAGE}, then follow nextOffset), regroup them all into 12–30 knowledge domains and save with topic.groups.save in replace mode.`);
+  return text + (scoped
+    ? `\n如果我在最后说要把课程「${only}」的全部主题重新归并，就改做那个：用 skeleton.topics 分页读取这门课程的全部主题（payload 带 "course": ${json}，不带 ungrouped，limit ${REPLACE_PAGE}，按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save 的 replace 模式保存（payload 带 "course": ${json}）；其他课程的主题和主题组保持原样。`
     : `\n如果我在最后说要把全部主题重新归并，就改做那个：用 skeleton.topics 分页读取全部主题（不带 ungrouped，limit ${REPLACE_PAGE}，按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save 的 replace 模式保存。`);
 }
 

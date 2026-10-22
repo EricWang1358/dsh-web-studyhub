@@ -126,6 +126,7 @@ test('Menu keeps its API, uses sh-menu classes and needs no board icon set', () 
   assert.match(out, /sh-menu__item is-danger/);
   assert.match(out, /sh-menu__heading[^>]*>移到/);
   assert.match(out, /sh-menu__hint[^>]*>不可恢复/);
+  assert.doesNotMatch(out.slice(out.indexOf('role="menu"')), /title=/, 'a hint is shown inline in the list; no item carries a native title attribute');
   assert.match(out, /<button[^>]*role="menuitem"[^>]*disabled=""[^>]*>/);
   assert.doesNotMatch(out, /board-menu/);
   const text = html(m.Menu, { label: '整理与添加', items, onSelect() {}, trigger: ({ props, ref, open }) => h('button', { ...props, ref, type: 'button' }, `整理与添加${open ? '▲' : ''}`) });

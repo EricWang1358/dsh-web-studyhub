@@ -10,6 +10,8 @@ const PURPOSES = Object.freeze({
   audio: {
     area: '音频导入',
     goal: '把这些音频按我指定的顺序合成一份逐字稿',
+    // recordings are not documents: StudyHub's text extraction and source.export do not apply
+    extract: false,
     hints: [
       '- 用 audio.import 的 files:[{path}] 导入，路径用绝对路径；files 的顺序就是录音的顺序。',
       '- 视频先抽出音频，超过上限就按章拆开，按顺序导入同一课程。',
@@ -24,5 +26,5 @@ export const IMPORT_PURPOSES = Object.freeze(Object.keys(PURPOSES));
 export function importFilePrompt({ purpose = 'audio', facts = null, error = '', files = [] } = {}, language = getUiLanguage()) {
   const entry = PURPOSES[purpose];
   if (!entry) throw new Error(`Unknown import purpose: ${purpose}`);
-  return situationPrompt({ area: entry.area, goal: entry.goal, facts, error, files, skill: 'study-import', context: 'imports', hints: entry.hints }, language);
+  return situationPrompt({ area: entry.area, goal: entry.goal, facts, error, files, skill: 'study-import', context: 'imports', hints: entry.hints, extract: entry.extract !== false }, language);
 }

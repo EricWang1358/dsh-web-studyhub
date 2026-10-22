@@ -65,7 +65,7 @@ test('no page names askInChat except the home first-run hand-off that another br
 });
 
 test('the Chinese catalogue has one name for the main chat: no old wording left in a key (the home first-run hand-off is the one that stays, plan item 5)', () => {
-  const old = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并/;
+  const old = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并|对话里(?:的 AI|出题)/;
   const left = [];
   for (const name of readdirSync(join(ROOT, 'ui', 'locales')).filter(file => file.endsWith('.json'))) {
     for (const key of Object.keys(JSON.parse(readFileSync(join(ROOT, 'ui', 'locales', name), 'utf8')))) if (old.test(key)) left.push(key);

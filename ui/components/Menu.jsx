@@ -85,7 +85,7 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
       {items.map((item, index) => item.heading
         ? <p key={`h${index}`} role="presentation" className="sh-menu__heading">{item.label}</p>
         : <button key={item.id} type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'} aria-checked={item.checked === undefined ? undefined : !!item.checked}
-          disabled={item.disabled} title={item.hint} {...item.attrs}
+          disabled={item.disabled} {...item.attrs}
           className={cx('sh-menu__item', item.danger && 'is-danger')}
           onClick={() => { setOpen(false); button.current?.focus(); if (item.run) item.run(); else onSelect?.(item.id); }}>
           {item.icon ? glyph(item.icon, 16) : item.checked ? glyph('check', 16) : iconColumn && <span className="sh-menu__gap" aria-hidden="true" />}
