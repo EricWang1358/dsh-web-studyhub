@@ -42,6 +42,8 @@
   "为这几页出题": "Make questions for these pages",
   "这几页的掌握度 {0}%（这一轮没有变化）": "Mastery of these pages {0}% (no change this round)",
   "这几页的掌握度 {0}% → {1}%": "Mastery of these pages {0}% → {1}%",
+  "这组题掌握度 {0}%（这一轮没有变化）": "Mastery of these questions {0}% (no change this round)",
+  "这组题掌握度 {0}% → {1}%": "Mastery of these questions {0}% → {1}%",
   "回到「{0}」": "Back to “{0}”",
   "回到你读到的位置": "Back to where you were reading",
   "这几页的掌握度": "Mastery of these pages",
