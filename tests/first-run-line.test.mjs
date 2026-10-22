@@ -78,6 +78,72 @@ test('the third step: a run, a run that ended, a draft to publish at once, a dra
     assert.equal(m.firstRunLine(library({ sources: [mine], jobs: [job('running', other)] })).steps[2].status, 'ready', JSON.stringify(other));
 });
 
+test('a first run that ended badly but left a draft: the run is the story, not 「第一组题出好了」', () => {
+  m.setUiLanguage('zh');
+  // A refused key, 停止, a host that went away: the draft holds what passed, and the run's card (its one honest action) is what step 3 carries.
+  for (const status of ['failed', 'cancelled', 'interrupted']) {
+    const line = m.firstRunLine(library({ sources: [mine], drafts: [draft], jobs: [job(status, { draftId: 'd1' })] }));
+    assert.equal(line.steps[2].status, 'stopped', status);
+    assert.deepEqual(line.steps[2].jobIds, [`j-${status}`], `${status}: the step carries the run's card`);
+    assert.equal(line.step, 2);
+    assert.equal(m.stepSentence(line.steps[2]), '第一组题没有出完', status);
+    // Even when the coverage would call the draft clean, a run that ended badly is not 「出好了」.
+    assert.equal(m.firstRunLine(library({ sources: [mine], drafts: [draft], jobs: [job(status, { draftId: 'd1' })] }), { publishAtOnce: true }).steps[2].status, 'stopped', `${status} + clean`);
+  }
+  // A run that finished but short: the shortfall's action (接着做, 去配置模型, 继续, 为没覆盖的部分补题) says the run stands.
+  for (const action of ['continue', 'model-settings', 'resume', 'topup']) {
+    const line = m.firstRunLine(library({ sources: [mine], drafts: [draft], jobs: [job('complete', { draftId: 'd1' })] }), { shortfallAction: action });
+    assert.equal(line.steps[2].status, 'stopped', action);
+    assert.deepEqual(line.steps[2].jobIds, ['j-complete'], action);
+  }
+  // Short, and the run's card was put away (知道了): the draft is the way on, still not 「出好了」.
+  const gone = m.firstRunLine(library({ sources: [mine], drafts: [draft] }), { shortfallAction: 'continue' });
+  assert.equal(gone.steps[2].status, 'stopped');
+  assert.deepEqual(gone.steps[2].jobIds, []);
+  // What stays as it was: a run continued by another one, a clean finish, a draft with no shortfall action.
+  const continued = library({ sources: [mine], drafts: [draft], jobs: [job('failed', { draftId: 'd1', continuedBy: 'j2' })] });
+  assert.equal(m.firstRunLine(continued).steps[2].status, 'draft-review', 'a continued run is not the story');
+  const done = library({ sources: [mine], drafts: [draft], jobs: [job('complete', { draftId: 'd1' })] });
+  assert.equal(m.firstRunLine(done, { shortfallAction: null }).steps[2].status, 'draft-review');
+  assert.equal(m.firstRunLine(done, { publishAtOnce: true, shortfallAction: null }).steps[2].status, 'draft-clean');
+  // The run of another draft (or none) does not speak for this one.
+  const other = library({ sources: [mine], drafts: [draft], jobs: [job('failed', { draftId: 'elsewhere' })] });
+  assert.equal(m.firstRunLine(other).steps[2].status, 'draft-review');
+});
+
+test('a run that stands is drawn as its card: no 「出好了」 body, no second primary; the compact card leaves the action to the card', () => {
+  m.setUiLanguage('zh');
+  const refused = m.firstRunLine(library({ sources: [mine], drafts: [draft], jobs: [job('failed', { draftId: 'd1' })] }));
+  const markup = page(refused, { jobs: h('div', { className: 'cjc' }, h('button', { className: 'sh-btn sh-btn--primary' }, '去配置模型')) });
+  assert.match(markup, /class="cjc"/, 'the run\'s card is inside step 3');
+  assert.doesNotMatch(text(markup), /第一组题出好了|发布前先在草稿页看一遍/);
+  assert.doesNotMatch(markup, /data-first-run="(review|publish)"/, 'no 检查草稿 or 发布并开始练 of the step beside the card');
+  assert.equal(primaries(markup), 1, 'the card\'s own action is the one primary');
+  assert.equal(m.compactAction(refused, on), null, 'the compact card does not say 检查草稿 over a run that stands');
+  assert.match(text(compact(refused)), /第一组题没有出完/);
+  assert.doesNotMatch(text(compact(refused)), /第一组题出好了|检查草稿/);
+  // The card was put away: the step's way on is the draft (its page says what is missing and continues it).
+  const gone = m.firstRunLine(library({ sources: [mine], drafts: [draft] }), { shortfallAction: 'continue' });
+  const alone = page(gone);
+  assert.equal(primaries(alone), 1);
+  assert.match(alone, /data-first-run="review"[^>]*>检查草稿</);
+  assert.doesNotMatch(text(alone), /第一组题出好了/);
+  assert.equal(m.compactAction(gone, on).label, '检查草稿');
+});
+
+test('the compact card offers no button that belongs to another step than the one it marks', () => {
+  m.setUiLanguage('zh');
+  // No model yet, a material added: the model is the step marked, so 出第一组题 (which would open a form whose generate button is greyed) is not offered.
+  for (const data of [library({ model: NO_KEY, sources: [mine] }), library({ model: NOTHING, sources: [mine] }), library({ model: NOTHING })]) {
+    const line = m.firstRunLine(data);
+    assert.equal(line.step, 0);
+    assert.equal(m.compactAction(line, on), null, JSON.stringify(data.model));
+    const markup = compact(line);
+    assert.equal(primaries(markup), 0);
+    assert.match(markup, /data-step="model"[^>]*aria-current="step"/);
+  }
+});
+
 test('the sample course never counts, and the line is gone once a deck of the learner\'s own is published', () => {
   const sampleOnly = library({ sample: SAMPLE, decks: [{ id: 'sample-deck', sample: true }], sources: [{ id: 'sample-src', sample: true, title: '示例讲义' }],
     drafts: [{ id: 'sample-draft', sample: true, cards: [] }], jobs: [job('running', { draftId: 'sample-draft' })] });
@@ -164,7 +230,7 @@ test('the page form: only the open step has a body, with at most one primary but
 test('the compact card (以后再说) is the same line: three rows and the open step\'s one button', () => {
   m.setUiLanguage('zh');
   const cases = [
-    [library(), '添加资料'], [library({ model: NOTHING }), '添加资料'], [library({ sources: [mine] }), '出第一组题'],
+    [library(), '添加资料'], [library({ model: NOTHING }), null], [library({ sources: [mine] }), '出第一组题'],
     [library({ sources: [mine], jobs: [job('running')] }), null], [library({ sources: [mine], drafts: [draft] }), '检查草稿'],
   ];
   for (const [data, label] of cases) {
@@ -183,7 +249,8 @@ test('English: the whole line has no Chinese left', () => {
   m.setUiLanguage('en');
   try {
     for (const data of [library({ model: NOTHING }), library({ model: NO_KEY }), library(), library({ sources: [{ id: 's1', title: 'Lecture 3' }] }),
-      library({ sources: [{ id: 's1', title: 'Lecture 3' }], drafts: [{ ...draft, title: 'Deck' }] })]) {
+      library({ sources: [{ id: 's1', title: 'Lecture 3' }], drafts: [{ ...draft, title: 'Deck' }] }),
+      library({ sources: [{ id: 's1', title: 'Lecture 3' }], drafts: [{ ...draft, title: 'Deck' }], jobs: [job('failed', { draftId: 'd1' })] })]) {
       for (const markup of [page(m.firstRunLine(data)), page(m.firstRunLine(data, { publishAtOnce: true })), compact(m.firstRunLine(data), { todayLabel: 'Thu 22 Oct' })])
         assert.doesNotMatch(text(markup), han, text(markup).slice(0, 200));
     }
@@ -202,4 +269,9 @@ test('the library home draws the line: the whole first screen, or the compact ca
   assert.doesNotMatch(welcome, /export default/, 'only the sample banner is left of the welcome page');
   assert.doesNotMatch(tour, /showWelcome/);
   assert.doesNotMatch(tour.slice(tour.indexOf('function startTour'), tour.indexOf('const startFullTour')), /hideWelcome\(\)/, 'a tour does not put the line away');
+  // 载入示例并开始导览: the sample banner does not slide in above the line while the sample loads for the tour (the tour's home replaces the page as a whole).
+  assert.match(views, /data\.sample\?\.loaded && !\(linePage && tour\.sampleForTour\) && <SampleBanner/);
+  assert.match(tour, /setSampleForTour\(true\)/);
+  // The draft's shortfall reaches the line: a run that came out short stands over its draft.
+  assert.match(await read('ui/first-run/use-first-run-line.js'), /shortfallAction: shortfall\?\.action/);
 });

@@ -106,7 +106,6 @@
   "已带回可用资料、题型、题数、覆盖强度、侧重点和难度；请核对后再生成。": "The sources that still exist, question type, count, coverage strength, focus and difficulty are back on the form; check them, then generate.",
   "另有资料已不在资料库里，没有带回。": "Some sources are no longer in the library and were not brought back.",
   "配一个 AI 模型，出题要用它": "Set up an AI model: making questions needs one",
-  "已连接：{0}": "Connected: {0}",
   "添加一份资料：讲义、课件或笔记": "Add a source: a handout, slides or notes",
   "{0} 等 {1} 份资料 · 已添加": "{0} and the rest: {1} sources added",
   "{0} · 已添加": "{0} · added",
@@ -121,5 +120,6 @@
   "出题时已逐题审阅；发布时会再检查一遍题目的结构，然后直接开始练第一轮。": "Every question was reviewed while it was made; publishing checks their structure once more and starts your first round right away.",
   "发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练 →」。": "Look through it on the draft page before publishing: every question can be edited; then press \"Publish and practise →\".",
   "在「创建题组」里，这份资料已经勾好；确认题型和题数，AI 出题后会逐题检查，再交给你确认。": "On Create deck your material is already ticked; confirm the question types and count, and the AI checks every question before handing them to you.",
-  "回到这里，这一步会自己打勾；没有变就点「重新检查」": "Come back here: this step ticks itself; if it does not, press \"Check again\""
+  "回到这里，这一步会自己打勾；没有变就点「重新检查」": "Come back here: this step ticks itself; if it does not, press \"Check again\"",
+  "已出的题都在草稿里。打开草稿能看到还差什么，也能从那里接着出。": "The questions made so far are in the draft. Open it to see what is still missing and to carry on from there."
 }

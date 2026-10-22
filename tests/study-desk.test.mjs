@@ -40,7 +40,8 @@ test("the home card offers exactly one primary action in every state", () => {
     resume: render({ runs: [{ id: "r", mode: "path", scope: [], index: 1, total: 4, title: "今日学习" }] }),
     fresh: render({ focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: Array(14).fill({}) } }),
     clear: render({ today: { due: 0, weak: 0, new: 0, size: 0 } }),
-    empty: render({ decks: [], progress: {}, today: { due: 0, weak: 0, new: 0, size: 0 } }),
+    // A newcomer with a model set up (with none, the first-run card marks the model step and offers no other step's button).
+    empty: render({ decks: [], progress: {}, today: { due: 0, weak: 0, new: 0, size: 0 }, model: { ready: true, reason: "ok", label: "DeepSeek" } }),
   };
   for (const [name, html] of Object.entries(states)) assert.equal(primaries(html), 1, name);
   assert.deepEqual(count(states.path), ["3", "题待学"]);

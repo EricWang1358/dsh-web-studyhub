@@ -1,4 +1,4 @@
-/* global document, window -- page.evaluate callbacks run in the browser */
+/* global document, window, getComputedStyle -- page.evaluate callbacks run in the browser */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -161,6 +161,80 @@ test('the first-run line from no model to the first question: one primary per st
         await settleAnimations(page);
         await shot(page, `07-after-publish-${width}`);
         assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll`);
+        assert.deepEqual(errors.filter((error) => !/favicon|Failed to load resource/.test(error)), [], `${width}px: no console or page errors`);
+        await context.close();
+      } finally {
+        await running?.server.close().catch(() => {});
+        await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+      }
+    }
+  } finally {
+    delete process.env.__FRL_DIST;
+    await browser.close().catch(() => {});
+    await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+  }
+});
+
+/* The compact card (after 以后再说) with a long model label (a real provider's): every row stays inside the card and is cut with an ellipsis, and the rows sit
+   on the card's 32px ruling, at 1280 and 390 px. */
+test('the compact card keeps its rows inside the card and on its ruling, with a long model label', { timeout: 300000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  scrubProcessEnv();
+  const dist = await mkdtemp(join(tmpdir(), 'study-first-run-compact-dist-'));
+  await buildPreview({ outdir: dist });
+  process.env.__FRL_DIST = dist;
+  const LONG = 'SiliconFlow · Qwen/Qwen3-235B-A22B-Instruct-2507';
+  try {
+    for (const width of [1280, 390]) {
+      const base = await mkdtemp(join(tmpdir(), 'study-first-run-compact-'));
+      const root = join(base, 'library'), home = join(base, 'home');
+      let running = null;
+      try {
+        running = { server: await server(root, home, createFakeModel({ latencyMs: 0 })) };
+        const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: 'light', width, height: width < 700 ? 844 : 800 });
+        // The provider's label as DSH reports it for a real model (the fake model's is short).
+        await page.route('**/api/call', async (route) => {
+          let action = '';
+          try { action = JSON.parse(route.request().postData() || '{}').action; } catch { /* not JSON */ }
+          if (action !== 'snapshot') return route.continue();
+          const response = await route.fetch(), body = await response.json();
+          if (body?.value?.model && typeof body.value.model === 'object') body.value.model.label = LONG;
+          return route.fulfill({ response, json: body });
+        });
+        await page.goto(running.server.url);
+        await page.locator('.first-run').waitFor({ timeout: 30000 });
+        // A material of the learner's own, so the second row has a long title too.
+        await page.locator('.first-run .sh-btn--primary').click();
+        const dialog = page.locator('dialog[open], [role="dialog"]').first();
+        await dialog.waitFor({ timeout: 30000 });
+        await dialog.locator('.sh-drop input[type="file"]').first().setInputFiles({ name: '第3讲 进程与线程：调度、同步与死锁的完整讲义.md', mimeType: 'text/markdown',
+          buffer: Buffer.from('# 第3讲\n\n## 进程\n\n进程是资源分配的单位。\n') });
+        await page.locator('.generate-page').waitFor({ timeout: 60000 });
+        await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
+        await page.locator('.first-run [data-first-run="later"]').click();
+        const card = page.locator('[data-first-run="compact"]');
+        await card.waitFor({ timeout: 30000 });
+        await until(async () => /SiliconFlow/.test(await card.innerText()), 'the long label is on the card');
+        await settleAnimations(page);
+        const box = await card.evaluate((element) => {
+          const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
+          const inner = { left: rect.left + parseFloat(style.paddingLeft), right: rect.right - parseFloat(style.paddingRight) };
+          const rows = [...element.querySelectorAll('.frl-step')].map((li) => {
+            const text = li.querySelector('.frl-step__text'), row = li.querySelector('.frl-step__row').getBoundingClientRect(), own = text.getBoundingClientRect();
+            return { right: Math.round(own.right), liRight: Math.round(li.getBoundingClientRect().right), top: Math.round(row.top - rect.top), height: Math.round(row.height), cut: text.scrollWidth > text.clientWidth };
+          });
+          return { inner: { left: Math.round(inner.left), right: Math.round(inner.right) }, rows, overflow: document.documentElement.scrollWidth - window.innerWidth };
+        });
+        for (const row of box.rows) {
+          assert.ok(row.right <= box.inner.right + 1 && row.liRight <= box.inner.right + 1, `${width}px: a row stays inside the card: ${JSON.stringify(box)}`);
+          assert.equal(row.height, 32, `${width}px: one 32px ruled line per row: ${JSON.stringify(box)}`);
+          // The ruling (ui/study-map/desk.css) starts 52px down the card and repeats every 32px: each row starts on a rule.
+          assert.equal((row.top - 52) % 32, 0, `${width}px: the row sits on the ruling: ${JSON.stringify(box)}`);
+        }
+        assert.ok(box.rows[0].cut, `${width}px: the long label is cut with an ellipsis, not spilled: ${JSON.stringify(box)}`);
+        assert.ok(box.overflow <= 0, `${width}px: no sideways scroll`);
+        await shot(page, `09-later-compact-long-label-${width}`);
         assert.deepEqual(errors.filter((error) => !/favicon|Failed to load resource/.test(error)), [], `${width}px: no console or page errors`);
         await context.close();
       } finally {

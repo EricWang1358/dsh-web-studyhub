@@ -35,14 +35,21 @@ export function stepSentence(step) {
     ready: step.modelReady ? ui('用资料出第一组题') : ui('配好模型后，用资料出第一组题'),
     generating: ui('正在出第一组题'),
     failed: ui('第一组题没有出完'),
+    stopped: ui('第一组题没有出完'),
     'draft-clean': ui('第一组题出好了'),
     'draft-review': ui('第一组题出好了'),
   })[step.status] || ui('用资料出第一组题');
 }
 
-/** The one action of the open step in the compact card (the page form says more in the step's body). null: nothing to press here (a run's card or the model's steps carry it). */
+/**
+ * The one action of the open step in the compact card (the page form says more in the step's body). null: nothing to press here. The button always belongs to
+ * the step the card marks: while the model is that step its setup is in DSH (the row says so), so the card offers no other step's button; a run's card (on the
+ * home, beside this one) carries a run that is going or that stands; a run that stands without its card leaves the draft as the way on.
+ */
 export function compactAction(line, on = {}) {
   const [, material, deck] = line.steps;
+  if (line.step === 0) return null;
+  if (deck.status === 'stopped') return !deck.jobIds.length && on.openDraft ? { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) } : null;
   if (material.status === 'todo' && on.importFirst) return { label: ui('添加资料'), run: on.importFirst };
   if (deck.status === 'ready' && on.generate) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds) };
   if (deck.status === 'draft-clean' && on.publish) return { label: ui('发布并开始练'), run: () => on.publish(deck.draft) };
@@ -103,7 +110,17 @@ function MaterialBody({ on }) {
 function DeckBody({ step, on, jobs }) {
   const { busy } = useStudy();
   const { status, draft } = step;
-  if (status === 'generating' || status === 'failed') return (
+  // A run that stands over its draft: its card is the story and carries the one way on (接着做, 去配置模型, 为没覆盖的部分补题, or 检查草稿). Without the card
+  // (it was put away), the draft is the way on; it is not called 「出好了」.
+  if (status === 'stopped' && !jobs) return (
+    <>
+      <p className="frl-body__text">{ui('已出的题都在草稿里。打开草稿能看到还差什么，也能从那里接着出。')}</p>
+      {on.openDraft && <div className="frl-body__actions">
+        <Button variant="primary" iconEnd="arrow-right" disabled={busy} data-first-run="review" onClick={() => on.openDraft(draft)}>{ui('检查草稿')}</Button>
+      </div>}
+    </>
+  );
+  if (status === 'generating' || status === 'failed' || status === 'stopped') return (
     <>
       {jobs}
       {status === 'generating' && <p className="frl-body__note">{ui('出题在后台进行，离开这一页也不会中断。')}</p>}
@@ -180,7 +197,7 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
     const action = compactAction(line, on);
     return (
       <div className="today-card sh-paper-card first-run-card" data-first-run="compact">
-        <div className="today-card-head">
+        <div className="today-card-head frl-head">
           <span>{ui('第一组题')}</span>
           {todayLabel && <time>{todayLabel}</time>}
         </div>

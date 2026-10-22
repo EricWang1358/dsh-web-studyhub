@@ -11,8 +11,12 @@ import { isActiveJob, isAudioJob, JOB_STATUS, JOB_TYPES } from '../../lib/job-st
 /** The steps, in order. */
 export const FIRST_RUN_STEPS = Object.freeze(['model', 'material', 'deck']);
 
-/** What the third step can be: nothing to make it from yet, ready to start, a run going, a run that ended without a draft, a draft to publish at once, a draft to look at first. */
-export const DECK_STATES = Object.freeze(['waiting', 'ready', 'generating', 'failed', 'draft-clean', 'draft-review']);
+/** What the third step can be: nothing to make it from yet, ready to start, a run going, a run that ended without a draft, a run that ended before it was done
+ * but left a draft (failed, stopped, interrupted, or finished short: the run's card is the story, not 「出好了」), a draft to publish at once, a draft to look at first. */
+export const DECK_STATES = Object.freeze(['waiting', 'ready', 'generating', 'failed', 'stopped', 'draft-clean', 'draft-review']);
+
+// The shortfall actions (lib/shortfall.js) that say a draft's run is not done: 接着做, 去配置模型, 继续, 为没覆盖的部分补题.
+const STANDING = new Set(['continue', 'model-settings', 'resume', 'topup']);
 
 // The jobs of the home's question runs (the cards the home draws), not a conversion, an audio import, a translation, 为你定制, a repair, a publication or a supplement to a deck.
 const NOT_A_RUN = new Set([JOB_TYPES.PDF_CONVERT, JOB_TYPES.TRANSLATION, JOB_TYPES.COACH_DAILY, JOB_TYPES.DRAFT_PUBLISH, JOB_TYPES.DRAFT_REPAIR, JOB_TYPES.SUPPLEMENT]);
@@ -32,13 +36,16 @@ export function firstRunDraft(data) {
  * `step` is -1 and `steps` is empty. Otherwise `step` is the index of the one step that is open, and `steps` are, in FIRST_RUN_STEPS order:
  *   model     { status: 'done' | 'todo', ready, reason, label, verified }: the readiness (modelReadiness); `verified` when DSH said the key is there too
  *   material  { status: 'done' | 'todo', count, title, sourceIds }: the learner's own materials (a PDF is one), the newest one's title, their ids
- *   deck      { status: one of DECK_STATES, draft, jobIds, sourceIds, modelReady }: `jobIds` are the runs the step carries (the running ones, or the one
- *             that ended without a draft), `draft` the draft it publishes or opens
+ *   deck      { status: one of DECK_STATES, draft, jobIds, sourceIds, modelReady }: `jobIds` are the runs the step carries (the running ones, the one
+ *             that ended without a draft, or the draft's run that stands), `draft` the draft it publishes or opens
  * `publishAtOnce` is what canPublishAtOnce (ui/draft-publish.js) says of that draft: 'draft-clean' only then, else 'draft-review'.
+ * `shortfallAction` is the draft's shortfall action (lib/shortfall.js, the same one its run's card and 待发布 row offer). The run wins over its draft ('stopped',
+ * carrying the run's card) when the newest run of the draft ended before it was done (failed, stopped, interrupted, and not continued by another run) or the
+ * shortfall has an action: the draft is not 「出好了」 then, and the card says why and offers the one way on.
  * The open step: the third while something is made or waits there; else the model while there is none; else the material while there is none; else the third.
  * The second step is never locked behind the first: a material can be added before the model is set up.
  */
-export function firstRunLine(data, { publishAtOnce = false } = {}) {
+export function firstRunLine(data, { publishAtOnce = false, shortfallAction = null } = {}) {
   if (!data || hasOwnDeck(data)) return { show: false, step: -1, steps: [] };
   const sample = sampleIdsOf(data);
   const own = (item) => !!item && !item.sample && !sample.has(item.id);
@@ -53,9 +60,15 @@ export function firstRunLine(data, { publishAtOnce = false } = {}) {
   const running = runs.filter(isActiveJob);
   const last = runs.filter((job) => !isActiveJob(job)).at(-1);
   const failed = !draft && last && ENDED.has(last.status) && !last.continuedBy ? last : null;
-  const status = running.length ? 'generating' : draft ? (publishAtOnce ? 'draft-clean' : 'draft-review') : failed ? 'failed' : count ? 'ready' : 'waiting';
-  const deck = { id: 'deck', status, draft, jobIds: running.length ? running.map((job) => job.id) : failed ? [failed.id] : [], sourceIds: material.sourceIds, modelReady: readiness.ready };
-  const working = ['generating', 'failed', 'draft-clean', 'draft-review'].includes(status);
+  // The draft's own newest run that has ended: when it ended badly, or the draft's shortfall still has a way on, that run (its card) is the step's story.
+  const drafted = draft ? runs.filter((job) => job.draftId === draft.id && !isActiveJob(job)).at(-1) || null : null;
+  const endedBadly = !!drafted && ENDED.has(drafted.status) && !drafted.continuedBy;
+  const stands = !!draft && (endedBadly || STANDING.has(shortfallAction));
+  const stood = stands && drafted && !drafted.continuedBy ? drafted : null;
+  const status = running.length ? 'generating' : draft ? (stands ? 'stopped' : publishAtOnce ? 'draft-clean' : 'draft-review') : failed ? 'failed' : count ? 'ready' : 'waiting';
+  const deck = { id: 'deck', status, draft, jobIds: running.length ? running.map((job) => job.id) : failed ? [failed.id] : stood ? [stood.id] : [],
+    sourceIds: material.sourceIds, modelReady: readiness.ready };
+  const working = ['generating', 'failed', 'stopped', 'draft-clean', 'draft-review'].includes(status);
   const step = working ? 2 : model.status === 'todo' ? 0 : material.status === 'todo' ? 1 : 2;
   return { show: true, step, steps: [model, material, deck] };
 }

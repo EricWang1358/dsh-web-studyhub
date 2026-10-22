@@ -30,7 +30,9 @@
     .first-run__sub { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--fs-md); line-height: var(--lh-body); }
 
     /* ── The three steps: one row each, between hairlines ──────────────── */
-    .frl-steps { display: grid; margin: 0; padding: 0; list-style: none; }
+    /* One shrinkable track: a row's text never widens the list past its card (the compact rows cut it with an ellipsis). */
+    .frl-steps { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+    .frl-step { min-width: 0; }
     .first-run .frl-steps { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
     .first-run .frl-step + .frl-step { border-top: 1px solid var(--line-soft); }
     .frl-step__row {
@@ -106,8 +108,13 @@
     .first-run__later { margin-left: auto; }
 
     /* ── The compact card (after 以后再说): the home's today slot ──────── */
-    .first-run-card .frl-steps { margin: var(--space-4) 0 var(--space-5); }
-    .first-run-card .frl-step__row { min-height: 40px; padding: 0; gap: var(--space-2); }
+    /* The rows sit on the today card's index-card ruling (ui/study-map/desk.css: a rule every 32px from 52px down the card's border box): the head ends
+       exactly there (the 1px border, the top padding, the head), whatever the font's line height; then one ruled line left blank, then one 32px line per row. --frl-rule is that
+       ruling's pitch, not a spacing token: it must not scale with the density setting. */
+    .first-run-card { --frl-rule: 32px; }
+    .first-run-card .frl-head { box-sizing: border-box; height: calc(51px - var(--paper-pad-top)); flex-wrap: nowrap; }
+    .first-run-card .frl-steps { margin: var(--frl-rule) 0 var(--space-5); }
+    .first-run-card .frl-step__row { height: var(--frl-rule); min-height: 0; padding: 0; gap: var(--space-2); }
     .first-run-card .frl-step__text { color: var(--paper-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .first-run-card .frl-step[aria-current="step"] .frl-step__text { color: var(--paper-ink); }
     .first-run-card .frl-step[data-status="done"] .frl-step__text { color: var(--paper-dim); }

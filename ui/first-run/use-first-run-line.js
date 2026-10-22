@@ -13,5 +13,5 @@ export function useFirstRunLine(data) {
   const draft = data && !hasOwnDeck(data) ? firstRunDraft(data) : null;
   const { shortfall } = useDraftShortfall(draft, data, { enabled: !!draft });
   const publishAtOnce = !!draft && canPublishAtOnce({ draft, shortfall, jobs: data?.jobs || [], targets: partTargets(draft, data) });
-  return firstRunLine(data, { publishAtOnce });
+  return firstRunLine(data, { publishAtOnce, shortfallAction: shortfall?.action ?? null });
 }

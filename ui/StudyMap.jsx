@@ -107,8 +107,9 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const line = useFirstRunLine(data);
   const lineOn = { importFirst: addSource, generate: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
   if (line.show && firstRun?.form === "page") {
-    // The first screen is the line alone: its third step carries the runs of the first deck (their cards are not drawn anywhere else on it).
-    const carried = new Set(line.steps[2].jobIds), deckJobs = visibleJobs.filter((job) => carried.has(job.id));
+    // The first screen is the line alone: its third step carries the runs of the first deck (their cards are not drawn anywhere else on it), running first;
+    // the line chose them, so a run that stands over its draft is carried even when newer finished jobs push it out of the home's recent cards.
+    const carried = new Set(line.steps[2].jobIds), deckJobs = [...jobs.filter((job) => carried.has(job.id) && isActiveJob(job)), ...jobs.filter((job) => carried.has(job.id) && !isActiveJob(job))];
     return (
       <section className="page library-page map-page first-run-page" ref={pageRef}>
         {children}

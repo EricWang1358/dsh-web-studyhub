@@ -14,6 +14,8 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const { call, act, setError, notify, refresh, refs } = core;
   const { setModal, setDraft, setSelectedSources, setSkeletonFocus } = lib.set;
   const [tourStep, setTourStep] = useState(null), [sampleBusy, setSampleBusy] = useState(false);
+  // 载入示例并开始导览 is loading the sample for a tour: until the tour starts (in the same render), the first-run line holds still (no banner above it).
+  const [sampleForTour, setSampleForTour] = useState(false);
   // Which tour is running: the short one (the core chain) or, when the learner asked for it, the full one.
   const [fullTour, setFullTour] = useState(false);
   const [removingSample, setRemovingSample] = useState(false), [hiddenWelcome, setHiddenWelcome] = useState('');
@@ -167,7 +169,11 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
       setSampleBusy(false);
     }
   }
-  async function loadSampleAndTour() { if (await loadSample()) startTour({ restart: true }); }
+  // The line's own 载入示例并开始导览: the flag is set before the sample is written (a poll may bring it back first) and cleared together with the tour's first step.
+  async function loadSampleAndTour() {
+    setSampleForTour(true);
+    try { if (await loadSample()) startTour({ restart: true }); } finally { setSampleForTour(false); }
+  }
   async function loadSampleInTour() { if (await loadSample()) moveTour(1); }
   async function loadSampleOnly() { if (await loadSample()) notify({ text: ui('示例课程已载入，在学习库里就能看到。'), tone: 'success' }); }
   async function removeSampleData() {
@@ -193,6 +199,6 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     }
   }
 
-  return { tourStep, fullTour, sampleBusy, removingSample, setRemovingSample, modelState, tourSteps, tourResume, lineLater, hideWelcome, openFirstImport, startTour,
+  return { tourStep, fullTour, sampleBusy, sampleForTour, removingSample, setRemovingSample, modelState, tourSteps, tourResume, lineLater, hideWelcome, openFirstImport, startTour,
     startFullTour, moveTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
 }

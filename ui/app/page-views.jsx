@@ -79,7 +79,8 @@ function LibraryView() {
     startSample: tour.loadSampleAndTour, later: tour.hideWelcome } } : undefined;
   return (
     <>
-      {data.sample?.loaded && <SampleBanner sample={data.sample} busy={busy || tour.sampleBusy} onTour={() => tour.startTour({ restart: true })} onRemove={() => tour.setRemovingSample(true)} />}
+      {/* While 载入示例并开始导览 loads the sample, the banner waits: the tour's home replaces the line as a whole, nothing slides in above the line first. */}
+      {data.sample?.loaded && !(linePage && tour.sampleForTour) && <SampleBanner sample={data.sample} busy={busy || tour.sampleBusy} onTour={() => tour.startTour({ restart: true })} onRemove={() => tour.setRemovingSample(true)} />}
       <StudyMap data={data} setupHandlers={createSetupHandlers({ data, nav, set, intents, drafts, settingsEntry })} notebooks={notebooks} firstRun={firstRun}
         reveal={intents.revealHome} onRevealed={() => intents.setRevealHome(0)}
         actions={{
