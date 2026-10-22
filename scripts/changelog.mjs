@@ -9,11 +9,15 @@
    node scripts/changelog.mjs --preview <version> [--lang=zh-CN]  prints the section the release adds (English by default), or that section of the
                                                              changelog once it is released: the gh release notes
    node scripts/changelog.mjs --release <version> <date>     writes "## <version> — <date>" with the fragments into both changelogs, deletes the fragments
+                                                             and seals the changelogs (changes/released.json)
+   node scripts/changelog.mjs --seal                         the release commit only, after a released section was corrected by hand
+   (--check also fails when a changelog no longer matches its seal: it was edited outside a release.)
    (--root=<dir> works on another checkout; the tests use it.)
 
    Order: by the commit that added each change (git log --diff-filter=A, oldest first), the same in both languages; changes added in the
    same commit, and files git does not know yet, by name. */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +27,7 @@ const CHANGELOGS = { en: 'CHANGELOG.md', 'zh-CN': 'CHANGELOG.zh-CN.md' };
 export const FRAGMENTS_DIR = 'changes/unreleased';
 const NAME = /^(?<slug>[a-z0-9][a-z0-9-]*)(?<note>\.note)?\.(?<lang>en|zh-CN)\.md$/;
 const KEEP = new Set(['.gitkeep']);
+export const SEAL = 'changes/released.json';
 
 const text = file => readFileSync(file, 'utf8').replace(/^﻿/, '').replace(/\r\n?/g, '\n').trim();
 
@@ -108,6 +113,23 @@ export function releasedSection(changelog, version) {
   return `${lines.slice(start, next < 0 ? undefined : next).join('\n').trim()}\n`;
 }
 
+/** The changelog text as the seal sees it: no BOM, LF line ends (a Windows checkout has CRLF), so every checkout seals the same. */
+export const digest = changelog => `sha256:${createHash('sha256').update(changelog.replace(/^﻿/, '').replace(/\r\n?/g, '\n')).digest('hex')}`;
+
+/** Writes the seal: what the release left in both changelogs. */
+export function seal(root) {
+  const files = Object.fromEntries(LANGS.map(lang => [CHANGELOGS[lang], digest(readFileSync(join(root, CHANGELOGS[lang]), 'utf8'))]));
+  writeFileSync(join(root, SEAL), `${JSON.stringify({ about: 'Written by npm run changelog:release. A pull request adds a fragment to changes/unreleased instead of editing a changelog (changes/README.md).', files }, null, 2)}\n`, 'utf8');
+}
+
+/** The changelogs that differ from their seal: they were edited outside a release. */
+export function unsealed(root) {
+  let sealed;
+  try { sealed = JSON.parse(readFileSync(join(root, SEAL), 'utf8')).files ?? {}; } catch { return [`${SEAL}: missing or not JSON (npm run changelog:release writes it)`]; }
+  return LANGS.map(lang => CHANGELOGS[lang]).filter(file => sealed[file] !== digest(readFileSync(join(root, file), 'utf8')))
+    .map(file => `${file}: edited outside a release. A change goes into changes/unreleased/ as a fragment (changes/README.md); only the release commit writes the changelogs.`);
+}
+
 function load(root) {
   const { changes, problems } = readFragments(root);
   return { changes: ordered(changes, addedOrder(root)), problems };
@@ -125,6 +147,7 @@ export function release(root, version, date) {
     writeFileSync(file, insertSection(readFileSync(file, 'utf8'), section(changes, lang, version, date)), 'utf8');
   }
   for (const change of changes) for (const lang of LANGS) rmSync(join(root, change.files[lang]));
+  seal(root);
   return changes;
 }
 
@@ -133,7 +156,7 @@ function main(argv) {
   const root = resolve(option('--root') ?? fileURLToPath(new URL('../', import.meta.url)));
   const positional = name => { const at = argv.indexOf(name); return at < 0 ? [] : argv.slice(at + 1).filter(arg => !arg.startsWith('--')); };
   if (argv.includes('--check')) {
-    const { changes, problems } = load(root);
+    const { changes, problems: fragmentProblems } = load(root), problems = [...fragmentProblems, ...unsealed(root)];
     if (problems.length) { console.error(`Changelog fragments:\n${problems.map(problem => `  ${problem}`).join('\n')}\nSee changes/README.md.`); return 1; }
     console.log(`Changelog fragments: ${changes.filter(change => !change.note).length} changes, ${changes.filter(change => change.note).length} notes, both languages.`);
     return 0;
@@ -154,11 +177,16 @@ function main(argv) {
     if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version || '') || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) { console.error('Usage: --release <version> <YYYY-MM-DD>, e.g. --release 3.6.0 2026-10-23'); return 2; }
     try {
       const changes = release(root, version, date);
-      console.log(`${version} — ${date}: ${changes.length} fragments written into ${Object.values(CHANGELOGS).join(' and ')} and deleted.`);
+      console.log(`${version} — ${date}: ${changes.length} fragments written into ${Object.values(CHANGELOGS).join(' and ')} and deleted; ${SEAL} updated.`);
       return 0;
     } catch (error) { console.error(error.message); return 1; }
   }
-  console.error('Usage: node scripts/changelog.mjs --check | --preview <version> [--lang=zh-CN] | --release <version> <YYYY-MM-DD>');
+  if (argv.includes('--seal')) {
+    seal(root);
+    console.log(`${SEAL}: sealed ${Object.values(CHANGELOGS).join(' and ')} as they are now.`);
+    return 0;
+  }
+  console.error('Usage: node scripts/changelog.mjs --check | --preview <version> [--lang=zh-CN] | --release <version> <YYYY-MM-DD> | --seal');
   return 2;
 }
 

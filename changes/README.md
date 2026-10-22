@@ -2,7 +2,7 @@
 
 English · [简体中文](#简体中文)
 
-A pull request does not edit `CHANGELOG.md` or `CHANGELOG.zh-CN.md`. It adds its own files under `changes/unreleased/`, and the release writes them into both changelogs. Two pull requests never touch the same lines, so merging one does not make the others conflict. A test fails if the top section of a changelog is not a released version.
+A pull request does not edit `CHANGELOG.md` or `CHANGELOG.zh-CN.md`. It adds its own files under `changes/unreleased/`, and the release writes them into both changelogs. Two pull requests never touch the same lines, so merging one does not make the others conflict. The release seals what it wrote (`changes/released.json`), and a test fails when a changelog no longer matches its seal: it was edited outside a release.
 
 ## One change, two files
 
@@ -39,14 +39,15 @@ A note is a paragraph, not a bullet.
 ```sh
 npm run changelog:check                      # every fragment is well formed, in both languages
 npm run changelog:preview -- 3.6.0           # the section the release will add (add --lang=zh-CN for Chinese)
-npm run changelog:release -- 3.6.0 2026-10-23  # the release commit only: writes both changelogs, deletes the fragments
+npm run changelog:release -- 3.6.0 2026-10-23  # the release commit only: writes both changelogs, deletes the fragments, seals them
+npm run changelog:seal                       # the release commit only, after correcting a released section by hand
 ```
 
 Changes are listed in the order they were added (the commit that added each fragment); changes added in the same commit by name.
 
 ## 简体中文
 
-拉取请求不直接改 `CHANGELOG.md` 和 `CHANGELOG.zh-CN.md`，而是在 `changes/unreleased/` 下加自己的两份文件，发版时再一起写进两份更新日志。这样两个拉取请求不会改到同一行，合并一个不会让其他的冲突。更新日志最上面一节不是已发布的版本时，测试会失败。
+拉取请求不直接改 `CHANGELOG.md` 和 `CHANGELOG.zh-CN.md`，而是在 `changes/unreleased/` 下加自己的两份文件，发版时再一起写进两份更新日志。这样两个拉取请求不会改到同一行，合并一个不会让其他的冲突。发版时会给写好的更新日志记一个校验值（`changes/released.json`），更新日志和校验值对不上（在发版之外被改过）时，测试会失败。
 
 - 一项改动两份文件：`<名字>.en.md` 和 `<名字>.zh-CN.md`，名字只用小写字母、数字和 `-`。
 - 每份文件一条，以 `- **` 开头，先用一句加粗的话说清改了什么，再写学习者能注意到的变化。

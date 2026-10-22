@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addedOrder, ordered, readFragments } from '../scripts/changelog.mjs';
+import { addedOrder, digest, ordered, readFragments, unsealed } from '../scripts/changelog.mjs';
 
 /* The next release's changelog waits as fragments in changes/unreleased/ (one pair of files per change, see changes/README.md), so pull
    requests never edit the same lines of the changelogs. The release writes them in (scripts/changelog.mjs --release). */
@@ -31,6 +31,15 @@ test('each changelog starts with the released version: a change goes into change
     assert.equal(all[0].split(' ')[1], version, `${file}: the top section is the version of package.json (the release commit sets both)`);
     assert.deepEqual(all.filter(line => /unreleased|未发布/i.test(line)), [], `${file}: no unreleased section; add a fragment instead`);
   }
+});
+
+test('the changelogs are as the last release wrote them: a pull request that edits one directly fails', () => {
+  assert.deepEqual(unsealed(root), [], 'add a fragment under changes/unreleased instead (changes/README.md); only npm run changelog:release writes the changelogs');
+  const sealed = JSON.parse(readFileSync(join(root, 'changes/released.json'), 'utf8')).files;
+  const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8');
+  assert.equal(digest(changelog.replace(/\r?\n/g, '\r\n')), sealed['CHANGELOG.md'], 'a Windows checkout (CRLF) seals the same');
+  const edited = changelog.replace(/^(- \*\*)/m, '- **Added by hand.** Text.\n$1');
+  assert.notEqual(digest(edited), sealed['CHANGELOG.md'], 'one bullet added to a released section is caught');
 });
 
 test('a malformed fragment is named, and --check fails', async t => {
@@ -99,6 +108,14 @@ test('--release writes both changelogs in the order the changes were added, keep
     '- **Zeta 最先。** 它的提交最早。', '- **Alpha。** 和 beta 同一个提交，按名字。', '- **Beta。** 和 alpha 同一个提交。', '  - 一个子项',
     '- **Gamma 还没提交。** 排最后。', '', '升级：重启 DSH。', '', '## 1.0.0 — 2026-01-01', '', '- **旧的。** 文字。', ''].join('\n'));
   assert.deepEqual(readdirSync(at), ['.gitkeep'], 'the fragments are gone, the folder stays');
+  assert.deepEqual(unsealed(dir), [], 'the release seals what it wrote');
+  await writeFile(join(dir, 'CHANGELOG.zh-CN.md'), `${readFileSync(join(dir, 'CHANGELOG.zh-CN.md'), 'utf8')}- **手改的。**\n`, 'utf8');
+  assert.match(unsealed(dir).join(), /CHANGELOG\.zh-CN\.md: edited outside a release/);
+  const check = cli('--check', `--root=${dir}`);
+  assert.equal(check.status, 1);
+  assert.match(check.stderr, /CHANGELOG\.zh-CN\.md: edited outside a release/);
+  assert.equal(cli('--seal', `--root=${dir}`).status, 0);
+  assert.deepEqual(unsealed(dir), [], '--seal accepts a correction made in the release commit');
 
   assert.equal(cli('--preview', '1.1.0', `--root=${dir}`).stdout, `## 1.1.0 — 2026-02-02\n\n${expectedEn.split('\n\n').slice(1).join('\n\n')}`, 'after the release, the released section');
   const again = cli('--release', '1.2.0', '2026-03-03', `--root=${dir}`);

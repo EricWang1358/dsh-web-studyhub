@@ -37,7 +37,7 @@ Releases are for people who use the stable channel, not a checkpoint after every
 
 ## The changelog between releases
 
-A pull request does not edit `CHANGELOG.md` or `CHANGELOG.zh-CN.md`. It adds one bullet per language under `changes/unreleased/` (`<slug>.en.md` and `<slug>.zh-CN.md`; [changes/README.md](../changes/README.md) says how to write one), so that pull requests never edit the same lines and merging one does not make the others conflict. `npm run changelog:check` checks the fragments; `tests/changelog-fragments.test.mjs` fails when a fragment is malformed or the top section of a changelog is not the released version of `package.json`.
+A pull request does not edit `CHANGELOG.md` or `CHANGELOG.zh-CN.md`. It adds one bullet per language under `changes/unreleased/` (`<slug>.en.md` and `<slug>.zh-CN.md`; [changes/README.md](../changes/README.md) says how to write one), so that pull requests never edit the same lines and merging one does not make the others conflict. `npm run changelog:check` checks the fragments; `tests/changelog-fragments.test.mjs` fails when a fragment is malformed, when the top section of a changelog is not the released version of `package.json`, or when a changelog no longer matches the seal the release wrote (`changes/released.json`): it was edited outside a release.
 
 ## Before a release
 
@@ -45,7 +45,7 @@ All of these, in this order. A box that cannot be ticked is written into the rel
 
 1. `main` has run on the experience channel for at least a day of real use, and the problems found there are fixed or listed.
 2. CI is green on `main` (ubuntu and windows `verify`), and `npm run verify` passes locally on the commit to be released.
-3. The changelog (English and 简体中文) describes what a user will notice, and says what is not fixed. Read what the release will add with `npm run changelog:preview -- <version>` (and `--lang=zh-CN`) and fix the wording in the fragments. The release commit sets the version in `package.json` and runs `npm run changelog:release -- <version> <YYYY-MM-DD>`, which writes `## <version> — <date>` with the fragments into both changelogs (in the order they were added) and deletes them. An upgrade step or a known issue is a note fragment (`<slug>.note.en.md`, `<slug>.note.zh-CN.md`) or is written into that section in the same commit.
+3. The changelog (English and 简体中文) describes what a user will notice, and says what is not fixed. Read what the release will add with `npm run changelog:preview -- <version>` (and `--lang=zh-CN`) and fix the wording in the fragments. The release commit sets the version in `package.json` and runs `npm run changelog:release -- <version> <YYYY-MM-DD>`, which writes `## <version> — <date>` with the fragments into both changelogs (in the order they were added), deletes them and seals both changelogs. An upgrade step or a known issue is a note fragment (`<slug>.note.en.md`, `<slug>.note.zh-CN.md`), or is written into that section in the same commit followed by `npm run changelog:seal`.
 4. The real-environment check, on the experience channel, with the real library and a real model. Tick what applies to the changes in the release:
    - [ ] A question run, a top-up, and a draft published; the 资料 rows and the reader show the same counts.
    - [ ] An audio import (several files), a restart in the middle, the tasks still in the console, an archived task still readable.

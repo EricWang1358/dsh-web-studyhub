@@ -165,6 +165,7 @@
     "changelog:check": "node scripts/changelog.mjs --check",
     "changelog:preview": "node scripts/changelog.mjs --preview",
     "changelog:release": "node scripts/changelog.mjs --release",
+    "changelog:seal": "node scripts/changelog.mjs --seal",
     "sync:main": "node scripts/sync-main.mjs",
     "release:check": "node scripts/qa/release-artifacts.mjs",
     "site:build": "node scripts/site-build.mjs",
