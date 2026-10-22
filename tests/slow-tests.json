@@ -31,6 +31,7 @@
     "tests/index-shortcut-browser.test.mjs",
     "tests/job-model-choice-browser.test.mjs",
     "tests/layout-late-picker.test.mjs",
+    "tests/layout-late-result.test.mjs",
     "tests/layout-late-shell.test.mjs",
     "tests/layout-late-sources.test.mjs",
     "tests/layout-late-wrongbook.test.mjs",

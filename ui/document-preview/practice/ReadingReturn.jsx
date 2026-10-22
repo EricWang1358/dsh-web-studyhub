@@ -11,12 +11,28 @@ import css from './practice.css';
 /* The way back to the text from the practice page (ui/Review.jsx). Everything here reads `run.reading`, the context the run keeps
    in the library (lib/reading-return.js), so it is there after the app was closed and opened again. */
 
-/** "这几页的掌握度 41% → 58%": the same cards, before the first answer and now. */
-export function masteryChangeText(reading) {
-  const before = reading?.before, after = reading?.after;
+/* The words of a mastery change, by what was measured: the pages a reader round was started on, or the questions of any other round. */
+const CHANGE_WORDS = {
+  pages: ['这几页的掌握度 {0}%（这一轮没有变化）', '这几页的掌握度 {0}% → {1}%'],
+  round: ['这组题掌握度 {0}%（这一轮没有变化）', '这组题掌握度 {0}% → {1}%'],
+};
+
+/** "这几页的掌握度 41% → 58%" (kind 'pages') or "这组题掌握度 41% → 58%" (kind 'round'): the same cards, before the first answer and now
+    (`change` is { before, after }: run.reading or run.mastery, lib/run-mastery.js). Empty when either side has no questions. */
+export function masteryChangeText(change, kind = 'pages') {
+  const before = change?.before, after = change?.after;
   if (!before?.total || !after?.total) return '';
-  if (before.percent === after.percent) return uiFormat('这几页的掌握度 {0}%（这一轮没有变化）', [after.percent]);
-  return uiFormat('这几页的掌握度 {0}% → {1}%', [before.percent, after.percent]);
+  const [same, moved] = CHANGE_WORDS[kind] || CHANGE_WORDS.pages;
+  if (before.percent === after.percent) return uiFormat(same, [after.percent]);
+  return uiFormat(moved, [before.percent, after.percent]);
+}
+
+/** The one line of a mastery change, the same on every result page: the mark of those cards now and the change in words. Nothing when there is no change to say. */
+export function MasteryChange({ change, kind = 'pages', className }) {
+  useInjectCss(css, 'study-reading-loop');
+  const text = masteryChangeText(change, kind);
+  if (!text) return null;
+  return <p className={cx('reading-result__change', className)} data-testid="mastery-change"><MasteryMark summary={change.after} size={18} /> <strong>{text}</strong></p>;
 }
 
 /** Where the way back leads: the page or section the reader was on. */
@@ -60,9 +76,9 @@ export function ReadingResult({ run, onReturn, busy }) {
   useInjectCss(css, 'study-reading-loop');
   const reading = run?.reading;
   if (!reading) return null;
-  const text = masteryChangeText(reading), rose = reading.after?.percent > reading.before?.percent;
+  const rose = reading.after?.percent > reading.before?.percent;
   return <section className="reading-result" aria-label={ui('这几页的掌握度')} data-rose={rose || undefined}>
-    {text && <p className="reading-result__change" data-testid="mastery-change"><MasteryMark summary={reading.after} size={18} /> <strong>{text}</strong></p>}
+    <MasteryChange change={reading} />
     <p className="reading-result__meaning muted">{scopeLabel(reading.scope)} · {meaningLine()}</p>
     <ReturnPrimary arrow label={ui('回到阅读')} place={placeText(reading)} disabled={busy} onReturn={() => onReturn(reading)} />
   </section>;

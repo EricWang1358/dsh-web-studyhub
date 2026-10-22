@@ -16,7 +16,7 @@ import { useStudy } from "./study-context.jsx";
 import { weakTopicsPrompt } from "./agent-prompts/library.js";
 import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
-import { ReadingBackButton, ReadingResult, ReturnPrimary } from "./document-preview/practice/ReadingReturn.jsx";
+import { MasteryChange, ReadingBackButton, ReadingResult, ReturnPrimary } from "./document-preview/practice/ReadingReturn.jsx";
 import { practiceArgs } from "./learning-navigation.js";
 import { isBackDestination, wayBackOf } from "./review/way-back.js";
 import { resolvePracticeSettings } from "../lib/practice-settings.js";
@@ -136,7 +136,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="result-kicker">{ui("本轮学习结果")}</div>
           <h2 className="result-title">{run.closed ? ui("这一轮，已结束。") : ui("这一轮，完成了。")}</h2>
           <p className="result-subtitle">{uiFormat("{0} · {1} 道题", [shellTitle, run.questions ?? run.total])}</p>
-          {onReturnToReading && <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} />}
+          {/* The mastery of this round's questions before the first answer and now, in the run itself (lib/run-mastery.js), so it is drawn with the page.
+              A reader round says it about its pages, in its own card with the way back. */}
+          {readingBack ? <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} /> : <MasteryChange kind="round" change={run.mastery} className="result-mastery" />}
           <div className="result-hero sh-paper-card sh-paper-card--roomy">
             <div className="result-headline">
               <strong>{run.correct}</strong>
