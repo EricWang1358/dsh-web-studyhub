@@ -18,6 +18,8 @@
     }
     .result-page .result-title { margin: var(--space-2-5) 0 var(--space-1-5); font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
     .result-page .result-subtitle { margin: 0 0 26px; color: var(--text-muted); }
+    /* 这组题掌握度 a% → b%: one line between the subtitle and the score, part of the page's first draw (the run carries it). */
+    .result-page .result-mastery { margin: 0 0 var(--space-5); }
     .result-hero {
       display: grid;
       grid-template-columns: minmax(190px, .75fr) 1.4fr;

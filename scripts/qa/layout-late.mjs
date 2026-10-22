@@ -1,4 +1,4 @@
-/* node scripts/qa/layout-late.mjs --scenario picker|sources|wrongbook|titles [--dist dist] [--lang zh|en] [--theme dark|light] [--width 1280|420]
+/* node scripts/qa/layout-late.mjs --scenario picker|sources|wrongbook|titles|result [--dist dist] [--lang zh|en] [--theme dark|light] [--width 1280|420]
                                    [--out output/layout-stability/<scenario>] [--label before|after]
    WP-LS (#205 #206 #207): late data on a seeded temporary library, measured in the browser preview. The preview serves the real app with the fake
    model, a library written under the OS temp dir and every key/token/base-url variable removed. The late answer (index coverage, recommendations)
@@ -6,7 +6,7 @@
    is let through, and the same elements are measured again. Prints one JSON line per scenario with positions, CLS and the longest long task, and
    writes <out>/<label>-<width>-<lang>-<theme>-{before-arrival,after-arrival}.png.
    The same functions drive tests/layout-late-*.test.mjs. */
-/* global document, window, MutationObserver, requestAnimationFrame */
+/* global document, window, MutationObserver, requestAnimationFrame, localStorage */
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -355,6 +355,77 @@ export async function shellScenario({ browser, running, lang = "zh", theme = "da
   return { scenario: "shell", width, cls: verdict.cls, shifts: verdict.shifts, main: main[0], errors };
 }
 
+/* ---------- scenario: the result page of a round says its mastery change from its first draw (3.6) ---------- */
+
+export const RESULT_DECK = "Consistency models";
+/** One deck of three new flashcards: a round of it goes from 0% to more. */
+export async function seedResultLibrary(root) {
+  await mkdir(root, { recursive: true });
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  await service.store.update((state) => {
+    state.decks.push({ id: "late-deck", title: RESULT_DECK, course: "Distributed systems", folder: "", cards: [1, 2, 3].map((n) => ({ id: `late-${n}`, kind: "flashcard", topic: "Consistency",
+      objective: `Objective ${n}`, prompt: `Question ${n}: what does linearizability promise?`, answer: `Answer ${n}: every read sees the latest write.`, hint: "", explanation: "Because.", misconception: "", citations: [] })) });
+  });
+  await service.dispose();
+  return { deck: RESULT_DECK };
+}
+
+const readResult = (page) => page.evaluate(() => {
+  const box = (selector) => { const element = document.querySelector(selector); if (!element) return null; const r = element.getBoundingClientRect(); return { y: Math.round(r.top * 10) / 10, height: Math.round(r.height * 10) / 10 }; };
+  return { line: box('.result-page [data-testid="mastery-change"]'), hero: box(".result-page .result-hero"), title: box(".result-page .result-title"),
+    text: document.querySelector('.result-page [data-testid="mastery-change"]')?.textContent?.trim() ?? "" };
+});
+
+/** Start the deck's round from the library, answer it as a learner does, and look at the result page: whether the mastery line was in the page when it was put
+ *  in the document (a MutationObserver runs before the browser paints), then whether the 点评 and the recap arriving late (held at the network edge) move it or the score. */
+export async function resultScenario({ browser, running, lang = "zh", theme = "dark", width = 1280, height = 900, shots = null }) {
+  const { page, errors, context } = await openPage(browser, running, { lang, theme, width, height });
+  await context.addInitScript(() => { try { localStorage.setItem("study-autopilot", "off"); } catch { /* blocked */ } });
+  const hold = await holdActions(page, ["coach.debrief", "note.daily.status"]);
+  await page.goto(running.server.url);
+  const start = page.getByRole("button", { name: lang === "en" ? `Start studying ${RESULT_DECK}` : `开始学习 ${RESULT_DECK}` }).first();
+  await start.waitFor({ timeout: 30000 });
+  await start.click();
+  await page.locator('[data-usage="review.flip"]').waitFor({ timeout: 30000 });
+  await page.evaluate(() => {
+    window.__resultFirstDraw = null;
+    const look = () => {
+      const result = document.querySelector(".result-page");
+      if (!result || window.__resultFirstDraw) return;
+      const line = result.querySelector('[data-testid="mastery-change"]'), hero = result.querySelector(".result-hero");
+      window.__resultFirstDraw = { line: !!line, text: line?.textContent?.trim() ?? "", heroBelowLine: line && hero ? Math.round(hero.getBoundingClientRect().top - line.getBoundingClientRect().top) : null };
+    };
+    new MutationObserver(look).observe(document.body, { childList: true, subtree: true });
+  });
+  for (let guard = 0; guard < 12 && !(await page.locator(".result-page").count()); guard++) {
+    if (!(await page.locator(".next-due").count())) { await page.locator('[data-usage="review.flip"]').click(); await page.locator(".grade.high").first().click(); }
+    await page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 10000 });
+    await page.locator('[data-usage="review.next"]').click();
+    // The next question is in when the answered one's line (.next-due) is gone.
+    await until(async () => (await page.locator(".result-page").count()) || !(await page.locator(".next-due").count()), "the next question or the result page");
+  }
+  await page.locator(".result-page").waitFor({ timeout: 10000 });
+  const first = await page.evaluate(() => window.__resultFirstDraw);
+  await until(() => hold.seen("coach.debrief"), "the result page to ask for the 点评");
+  await settleAnimations(page);
+  await frames(page, 4);
+  const before = await readResult(page);
+  await drainLayoutStability(page);
+  if (shots) await page.screenshot({ path: join(shots, "before-arrival.png"), fullPage: true });
+  hold.release("coach.debrief");
+  hold.release("note.daily.status");
+  await until(() => page.evaluate(() => !!document.querySelector(".coach-debrief h2")), "the 点评 to arrive");
+  await settleAnimations(page);
+  await frames(page, 4);
+  const after = await readResult(page);
+  const log = await drainLayoutStability(page);
+  if (shots) await page.screenshot({ path: join(shots, "after-arrival.png"), fullPage: true });
+  const verdict = judgeLayoutStability(log);
+  await context.close();
+  return { scenario: "result", width, first, before, after, cls: verdict.cls, shifts: verdict.shifts, errors };
+}
+
 /* ---------- CLI ---------- */
 
 function parse(argv) {
@@ -368,7 +439,7 @@ function parse(argv) {
     dist: values.dist ? resolve(values.dist) : resolve(repoRoot, "dist"), label: values.label ?? "run", out: values.out ? resolve(values.out) : resolve(repoRoot, "output/layout-stability") };
 }
 
-const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], sources: [sourcesScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)], titles: [titlesScenario, (root) => seedTitlesLibrary(root)], shell: [shellScenario, () => null] };
+const SCENARIOS = { picker: [pickerScenario, (root, lang) => seedPickerLibrary(root, { lang })], sources: [sourcesScenario, (root, lang) => seedPickerLibrary(root, { lang })], wrongbook: [wrongBookScenario, (root) => seedWrongBookLibrary(root)], titles: [titlesScenario, (root) => seedTitlesLibrary(root)], shell: [shellScenario, () => null], result: [resultScenario, (root) => seedResultLibrary(root)] };
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invoked) {

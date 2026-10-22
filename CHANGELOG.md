@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.6.0 — unreleased
+
+- **Every round's result page says how its questions moved.** Until now only a round started from the reader showed the mastery of its pages before and after. Now every practice round (a deck, a course batch, today's round, a topic, 复习全书 and 总纲 rounds, weak-question and prerequisite rounds, learning-flow steps, daily-plan tasks) keeps the mastery of its own questions from before the first answer, and its result page shows one line under the title: 「这组题掌握度 a% → b%」. It is the same number the library shows, computed the same way; nothing about how mastery is counted changed. A reader round keeps its own line, 「这几页的掌握度」, with 回到阅读. Rounds started before this version have no stored number and show no line. Mock-exam reports are a different page and are unchanged. Not verified: a real learner's library with long histories; the line was checked on test libraries in the browser (zh, 390 and 1280 px, light and dark).
+
 ## 3.5.7 — 2026-10-19
 
 - **学习模式 has the same tools as DSH's standard preset.** Until 3.5.6, 学习模式 left out commands and file editing. It now composes every row of DSH 0.2.1's standard preset: commands (PowerShell on Windows, bash elsewhere), reading, writing and editing files, file search, background command jobs, schedules, the to-do list, plan mode, workflows, sub-agents and the folder's AGENTS.md instructions. StudyHub's own tools come on top, as in every preset. Only the instructions differ: the StudyHub tutor rules. So a 「发给主会话」 hand-off that needs a file converted first (for example a 考研 question book split by chapter, then its questions entered) can be done in the conversation. StudyHub's built-in flows are unchanged.
