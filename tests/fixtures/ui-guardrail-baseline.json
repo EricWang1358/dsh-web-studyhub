@@ -276,6 +276,24 @@
       "ui/study-map/TopicGroupReminder.jsx": 3,
       "ui/study-map/home-plan.js": 2,
       "ui/use-generation-path.js": 2
+    },
+    "chatOldWording": {
+      "ui/AudioImport.jsx": 1,
+      "ui/Generate.jsx": 1,
+      "ui/GenerationSettings.jsx": 1,
+      "ui/ModelSetupGate.jsx": 6,
+      "ui/Review.jsx": 1,
+      "ui/Skeleton.jsx": 9,
+      "ui/SkeletonCanvas.jsx": 2,
+      "ui/WorkflowPortal.jsx": 4,
+      "ui/WorkflowScope.jsx": 2,
+      "ui/Workflows.jsx": 7,
+      "ui/agent-prompts/workflow.js": 6,
+      "ui/app/AppBanners.jsx": 1,
+      "ui/review/QuestionRun.jsx": 1,
+      "ui/study-map/DeckRow.jsx": 3,
+      "ui/study-map/TopicGroupReminder.jsx": 2,
+      "ui/study-map/home-plan.js": 1
     }
   }
 }
