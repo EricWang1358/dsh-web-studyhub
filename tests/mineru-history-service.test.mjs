@@ -13,7 +13,7 @@ import { patientCli, readJsonFile, writeJsonFile } from './helpers/wait.mjs';
 
 /* The conversion history through the real service: a record per conversion, kept while it runs and after it ends, resumed from the history,
    deleted without touching the imported documents. The local mineru is a fake CLI (tests/helpers/fake-mineru-cli.mjs) converting fixed windows
-   of 50 pages. Rows of the cloud route (removed in 3.6) still list, and never resume. */
+   of 50 pages. Rows of the cloud route (removed in 3.5.5) still list, and never resume. */
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));
 const han = /[㐀-鿿]/;

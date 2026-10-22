@@ -2,7 +2,7 @@
    built and screenshotted by scripts/qa/mineru-shots.mjs. Every state of the one-click install card has its own gallery: scripts/qa/mineru-install-gallery.jsx.
    Query: ?lang=zh|en&theme=dark|light&scene=settings|route|jobs|history|case
    scene=case&case=<key>: ONE settings section in one state (the layout matrix, measured by scripts/qa/mineru-layout.mjs). The cloud route was removed in
-   3.6: only old history rows still show it. */
+   3.5.5: only old history rows still show it. */
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import styleCss from '../../ui/styles.js';

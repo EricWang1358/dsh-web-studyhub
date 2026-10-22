@@ -9,7 +9,7 @@ export function renderContent(lang = 'zh') {
     <div class="hero-grid"><div>
       <div class="hero-mark rise">StudyHub · 2.5.10 ${c('本地预览', 'local preview')}</div>
       <h1 class="rise d1">${c('自己的资料，<br>扎实地学', 'Your own materials.<br>Learn them well.')}</h1>
-      <p class="hero-lede rise d2">${c('把课程资料、课堂录音和已有题目，变成<span class="hi">能回到原文核对</span>的练习。读资料、检查草稿、答题和复习，在 DeepSeek Harness（DSH）里连起来。', 'Turn course materials, lecture recordings and existing questions into practice you can <span class="hi">check against the source</span>. Read, inspect drafts, practise and review inside DeepSeek Harness (DSH).')}</p>
+      <p class="hero-lede rise d2">${c('把老师的课件变成题，<span class="hi">每道题都点得回原页</span>；做完一轮，看得见自己变熟。开源免费，资料存在你电脑上；模型自己选，按用量付费。', 'Turn your lecture slides into questions that <span class="hi">each link back to their page</span>; finish a round and see yourself getting it. Free and open source, your materials stay on your computer; pick your own model and pay for what you use.')}</p>
       <div class="hero-meta rise d3"><span>MIT · ${c('开源', 'open source')}</span><span>${c('桌面 / 网页 DSH', 'Desktop / web DSH')}</span><span>SM-2</span><span>English / 中文</span></div>
       <div class="links rise d3"><a class="btn btn--go" href="#start">${c('安装与配置 →', 'Install & configure →')}</a><a class="btn" href="https://daily-flashcard-demo.ziangw1358.chatgpt.site" target="_blank" rel="noopener">${c('试用静态演示', 'Try the static demo')}</a></div>
       <p class="note rise">${c('演示用示例资料和预置回复，无需模型密钥；它不是你的真实学习库。', 'The demo uses sample materials and prepared replies. No model key is needed; it is separate from your real library.')}</p>

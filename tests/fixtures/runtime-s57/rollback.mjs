@@ -18,7 +18,7 @@ const root = join(work, 'library'), home = join(work, 'home');
 process.env.DSH_HOME = home; delete process.env.MINERU_API_KEY; delete process.env.MINERU_BIN;
 const hash = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
 const here = name => fileURLToPath(new URL(`../../helpers/${name}`, import.meta.url));
-// (mineruInstall replaced mineruSetup in 3.6; an older tree simply ignores a switch it does not know.)
+// (mineruInstall replaced mineruSetup in 3.5.5; an older tree simply ignores a switch it does not know.)
 const ALL = ['pdfConvert', 'markerInstall', 'mineruInstall', 'retrievalIndex'];
 const state = name => join(work, name);
 const readJson = async name => JSON.parse(await readFile(state(name), 'utf8'));
@@ -61,7 +61,7 @@ const crash = () => { console.log(`RESULT ${JSON.stringify({ scenario, prepared:
 async function view(service) {
   const docs = await documents(service);
   const history = (await service.call('mineru.history.list')).records;
-  // mineru.local.setup was replaced by the one-click install in 3.6: a tree without it reports its setup as idle.
+  // mineru.local.setup was replaced by the one-click install in 3.5.5: a tree without it reports its setup as idle.
   const coverage = await service.call('retrieval.index.coverage', {}), install = await service.call('marker.install.status'), setup = await service.call('mineru.local.setup.status').catch(() => ({ status: 'idle' }));
   return { pages: docs.length, pageHash: hash(docs.map(source => `${source.id}:${hash(String(source.text ?? source.content ?? ''))}`).sort().join('|')), history: history.map(row => `${row.status}${row.canRetry ? '+retry' : ''}`).sort(),
     indexed: coverage.indexed.length, missing: coverage.missing.length, install: install.status, installed: install.installed === true, setup: setup.status };
@@ -110,7 +110,7 @@ if (mode === 'prepare') {
     indexOptions: scenario === 'index' ? { onIngest: (args, n, options) => (n >= 3 ? untilAborted(args, n, options) : undefined) } : {} });
   await importBook(service);
   if (scenario === 'settled') {
-    // The MinerU cloud route was removed in 3.6: the finished conversion is a local one.
+    // The MinerU cloud route was removed in 3.5.5: the finished conversion is a local one.
     await patchJson('mineru.json', { total: 3 });
     const done = await service.call('mineru.import', { uploadId: await upload(service, 3), courses: ['OS'] });
     assert.equal((await settledJob(service, done.jobId)).status, 'complete');

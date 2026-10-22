@@ -4,11 +4,11 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
 ## 3.6.0 — unreleased
 
-- **One sentence for what StudyHub is.** The first screen, the READMEs and the plugin description now say the same thing: turn your lecture slides into questions that each link back to their page, and see yourself getting it after a round; free and open source, your materials stay on your computer, you pick the model and pay for what you use. The sidebar shows its first clause, "Every question links back to its page", because the whole sentence does not fit there.
+- **One sentence for what StudyHub is.** The first screen, the READMEs and the introduction site now say the same thing: turn your lecture slides into questions that each link back to their page, and see yourself getting it after a round; free and open source, your materials stay on your computer, you pick the model and pay for what you use. The package description has the main sentence; the DSH plugin-manager description and the sidebar show the first half only (the sidebar's is "Every question links back to its page"), because the whole thing does not fit there.
 - **The model setup step says where to get a key.** Under the first step of "Set up an AI model first" there is one quiet line linking to the install guide's model section. Where to get a key and whether to top up depends on your provider; the provider's own page is the authority. The link opens GitHub in a new tab.
-- **Fixed a wrong version number in the READMEs and the MinerU guide.** The MinerU cloud route was removed in 3.5.5, not 3.6.
+- **Fixed a wrong version number in the READMEs, the guides and the host config text.** The MinerU cloud route was removed, and the one-click local install arrived, in 3.5.5, not 3.6. Every README and user guide now says so, and so does the description of the `mineruInstall` switch in the host config; a test fails if a guide says 3.6 again. Code comments carry the right number too.
 
-Not verified: the link target was checked against the guides in this repository, not opened on GitHub; no real DSH host was used for the screenshots.
+Not verified: the link target was checked against the guides in this repository, not opened on GitHub; no real DSH host was used for the screenshots; the introduction site was built and checked locally, not published.
 
 ## 3.5.7 — 2026-10-19
 

@@ -4,7 +4,7 @@ import { PdfChunkError, inspectPdf } from '../lib/pdf-chunker.js';
 import { makeEncryptedPdf, makePdf } from './helpers/pdf.mjs';
 
 /* Reading a PDF before it is converted on this computer: its page count, and a plain message for a PDF that cannot be read. (Cutting a book into
-   pieces for the MinerU cloud went with the cloud route in 3.6.) */
+   pieces for the MinerU cloud went with the cloud route in 3.5.5.) */
 
 test('inspectPdf reads the page count and the size', async () => {
   const bytes = await makePdf({ pages: 12, outline: [{ title: 'One', page: 1 }, { title: 'Two', page: 5 }] });

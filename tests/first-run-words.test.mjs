@@ -121,7 +121,35 @@ test('StudyHub says what it is once: the welcome page, the sidebar, the READMEs 
   assert.ok(readmeZh.includes(ZH) && readmeZh.includes(ZH_SUB));
   assert.ok(readmeEn.includes(EN) && readmeEn.includes(EN_SUB));
   assert.doesNotMatch(readmeZh + readmeEn, /removed in 3\.6|在 3\.6 版移除|before 3\.6|3\.6 之前/, 'the MinerU cloud route went in 3.5.5');
+  const { readdir } = await import('node:fs/promises');
+  const guides = (await readdir('docs')).filter((name) => name.endsWith('.md'));
+  for (const name of guides) assert.doesNotMatch(await read(`docs/${name}`), /removed in 3\.6|在 3\.6 版移除|before 3\.6|3\.6 之前|replaced `mineruSetup` in 3\.6/, `docs/${name}: the MinerU cloud route went in 3.5.5, not 3.6`);
+  assert.doesNotMatch(await read('lib/runtime-config.js'), /\(3\.6; replaces mineruSetup\)/, 'the host-config description names the release that shipped the install');
   assert.match(await read('ui/app/AppSidebar.jsx'), /<small>\{ui\('每道题都点得回原页'\)\}<\/small>/, 'the sidebar has room for the first clause only');
   assert.match(JSON.parse(await read('package.json')).description, /^StudyHub: turn your lecture slides into questions that each link back to their page/);
   assert.match(JSON.parse(await read('locale/zh.json')).meta.description, /^把老师的课件变成题，每道题都点得回原页/);
+});
+
+test('the introduction site carries the same positioning in its title, description and lede, in both languages', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { buildSite } = await import('../scripts/site-build.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'studyhub-site-'));
+  try {
+    await buildSite({ outdir: dir });
+    const zh = await readFile(join(dir, 'index.html'), 'utf8'), en = await readFile(join(dir, 'en.html'), 'utf8');
+    const pick = (html, re) => (html.match(re) || [])[1] || '';
+    const strip = (value) => value.replace(/<[^>]+>/g, '');
+    for (const [html, first, sentence, sub] of [
+      [zh, '把老师的课件变成题，每道题都点得回原页', '把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。', '开源免费，资料存在你电脑上；模型自己选，按用量付费。'],
+      [en, 'Turn your lecture slides into questions that each link back to their page', 'Turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.', 'Free and open source, your materials stay on your computer; pick your own model and pay for what you use.'],
+    ]) {
+      assert.ok(pick(html, /<title>([\s\S]*?)<\/title>/).includes(first), 'the title leads with the positioning');
+      assert.ok(pick(html, /<meta name="description" content="([^"]*)"/).includes(first), 'the meta description carries it');
+      const lede = strip(pick(html, /<p class="hero-lede[^"]*">([\s\S]*?)<\/p>/));
+      assert.ok(lede.includes(sentence) && lede.includes(sub), 'the hero lede carries the sentence and the sub-line');
+    }
+    assert.doesNotMatch(zh + en, /自己的资料，扎实地学|Learn from your own sources/, 'the old tagline is gone from the built pages');
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

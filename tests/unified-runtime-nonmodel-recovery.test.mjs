@@ -19,7 +19,7 @@ import { dirname, join } from 'node:path';
 
 /* S5-6: the unknown-side-effect and stop/recovery matrix of the non-model paths (docs/plans/unified-job-runtime/s5-6-recovery-matrix.md).
    Rows are paths, columns are three failure points: BEFORE the side effect, COMMITTED but not yet recorded, STOP not confirmed.
-   Every cell is a test against a real fake (fake CLIs, a fake uv index, fake extension); the title starts with its cell. (The cloud route was removed in 3.6.) */
+   Every cell is a test against a real fake (fake CLIs, a fake uv index, fake extension); the title starts with its cell. (The cloud route was removed in 3.5.5.) */
 
 /* ---------- PDF (local): the import is the commit ---------- */
 

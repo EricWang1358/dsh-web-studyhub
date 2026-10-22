@@ -10,7 +10,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 const h = React.createElement;
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-/* ---------- 1. Secret fields (#118; the MinerU token form went with the cloud route in 3.6) ---------- */
+/* ---------- 1. Secret fields (#118; the MinerU token form went with the cloud route in 3.5.5) ---------- */
 
 test('type="password" lives only inside ui/components', async () => {
   const walk = async (dir) => (await readdir(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }))

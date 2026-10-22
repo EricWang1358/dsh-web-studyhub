@@ -6,7 +6,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 /* The MinerU entry in the UI: the settings section (the one-click card itself: tests/mineru-install-ui.test.mjs), the import route panel, the job card,
-   and the demoted desktop client. The cloud route was removed in 3.6: an old cloud job still renders, and nothing offers the cloud. */
+   and the demoted desktop client. The cloud route was removed in 3.5.5: an old cloud job still renders, and nothing offers the cloud. */
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `

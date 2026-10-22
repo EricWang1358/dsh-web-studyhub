@@ -11,7 +11,7 @@ import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { harness } from './helpers/pdf-convert-harness.mjs';
 import { makePdf } from './helpers/pdf.mjs';
 
-/* The MinerU cloud route (a token, the PDF uploaded) was removed in 3.6. What is left of it: a request for it is refused with what to do instead, the
+/* The MinerU cloud route (a token, the PDF uploaded) was removed in 3.5.5. What is left of it: a request for it is refused with what to do instead, the
    token and test operations are gone, an unfinished cloud conversion comes back failed for good, and old cloud rows still list but never resume. */
 
 test('a cloud import is refused before anything is read, and an import without a route is local', async t => {

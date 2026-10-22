@@ -136,7 +136,7 @@ test('a failed row that cannot resume says why and how to go on', () => {
   assert.doesNotMatch(html, />接着做/);
   assert.match(html, /临时文件已清理/);
   assert.match(html, /重新选择这份 PDF/);
-  // A row of the cloud route (removed in 3.6) never resumes, and says what to do instead.
+  // A row of the cloud route (removed in 3.5.5) never resumes, and says what to do instead.
   const cloud = render(view([failed({ route: 'cloud', tier: undefined, phase: 'parse', failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' }, canRetry: false })]));
   assert.doesNotMatch(cloud, />接着做/);
   assert.match(cloud, /在「云端解析」阶段（第 2 段）没能完成/);
