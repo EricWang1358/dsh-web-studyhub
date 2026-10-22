@@ -13,20 +13,24 @@ import { writeSync } from 'node:fs';
 export const TIMEOUT_MARK = 'TEST TIMEOUT';
 
 const ms = Number(new URL(import.meta.url).searchParams.get('ms'));
+// The real timers, taken before any test file's code runs: tests swap the global ones (a setTimeout that calls back at once, mock.timers
+// ticked 20 minutes), and a test or subtest that starts under such a swap is still timed by the real clock.
+const { setTimeout: realSetTimeout, clearTimeout: realClearTimeout } = globalThis;
 // Only the test file's own process: a program a test starts may forward execArgv, but it is no *.test.mjs file.
 if (ms > 0 && process.env.NODE_TEST_CONTEXT && /\.test\.[cm]?js$/.test(process.argv[1] || '')) {
   const running = new Map();
   beforeEach(t => {
-    const timer = setTimeout(expire, ms);
+    const timer = realSetTimeout(() => expire(t), ms);
     timer.unref();
     running.set(t, timer);
   });
-  afterEach(t => { clearTimeout(running.get(t)); running.delete(t); });
-  function expire() {
-    // The test started last is the one that is stuck (a parent test runs as long as its subtests).
-    const [stuck, ...others] = [...running.keys()].reverse().map(t => `"${t.fullName}"`);
-    const also = others.length ? ` (also still running: ${others.join(', ')})` : '';
-    writeSync(2, `\n${TIMEOUT_MARK}: ${stuck} was still running after ${ms} ms${also}; the rest of this file was not run.`
+  afterEach(t => { realClearTimeout(running.get(t)); running.delete(t); });
+  function expire(over) {
+    // The test whose own time ran out is the one named. A parent runs as long as its subtests, so its time can run out while a subtest
+    // that started later is running: that subtest (the newest one still running inside it) is added as where it is now.
+    const now = [...running.keys()].reverse().find(t => t !== over && t.fullName.startsWith(`${over.fullName} > `));
+    const where = now ? ` (running now: "${now.fullName}")` : '';
+    writeSync(2, `\n${TIMEOUT_MARK}: "${over.fullName}" was still running after ${ms} ms${where}; the rest of this file was not run.`
       + ' Limit per test: --test-timeout=<ms> or STUDY_TEST_TIMEOUT_MS.\n');
     process.exit(1);
   }

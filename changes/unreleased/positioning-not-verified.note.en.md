@@ -1,1 +1,0 @@
-Not verified: the link target was checked against the guides in this repository, not opened on GitHub; no real DSH host was used for the screenshots; the introduction site was built and checked locally, not published.

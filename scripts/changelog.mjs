@@ -2,8 +2,9 @@
 /* The changelog of the next release is kept as fragments, one pair of files per change, so that pull requests never edit the same lines of
    CHANGELOG.md and CHANGELOG.zh-CN.md (one merged PR made every other open PR conflict and run CI again). changes/README.md says how to write one.
 
-   changes/unreleased/<slug>.en.md + <slug>.zh-CN.md            one bullet: "- **What changed.** What a learner notices ..."
-   changes/unreleased/<slug>.note.en.md + <slug>.note.zh-CN.md  a paragraph after the bullets: "Not verified: ...", "Upgrading: ...", "Known issue: ..."
+   changes/unreleased/<slug>.en.md + <slug>.zh-CN.md            one bullet: "- **What changed.** What a learner notices ... Not verified: ..."
+                                                                (未验证：... in Chinese); --check fails a change without that line
+   changes/unreleased/<slug>.note.en.md + <slug>.note.zh-CN.md  a paragraph after the bullets: "Upgrading: ...", "Known issue: ..."
 
    node scripts/changelog.mjs --check                        every fragment is well formed and has both languages
    node scripts/changelog.mjs --preview <version> [--lang=zh-CN]  prints the section the release adds (English by default), or that section of the
@@ -27,6 +28,8 @@ const CHANGELOGS = { en: 'CHANGELOG.md', 'zh-CN': 'CHANGELOG.zh-CN.md' };
 export const FRAGMENTS_DIR = 'changes/unreleased';
 const NAME = /^(?<slug>[a-z0-9][a-z0-9-]*)(?<note>\.note)?\.(?<lang>en|zh-CN)\.md$/;
 const KEEP = new Set(['.gitkeep']);
+/** What every change (not a note) says in its own language: what was not checked. */
+const UNVERIFIED = { en: 'Not verified: ', 'zh-CN': '未验证：' };
 export const SEAL = 'changes/released.json';
 
 const text = file => readFileSync(file, 'utf8').replace(/^﻿/, '').replace(/\r\n?/g, '\n').trim();
@@ -57,6 +60,7 @@ export function readFragments(root) {
         const [first, ...rest] = body.split('\n');
         if (!/^- \*\*\S.*?\*\*/.test(first)) problems.push(`${label}: a change starts with "- **" and a bold first sentence, e.g. "- **Pausing an install stops it.** ..."`);
         if (rest.some(line => !/^\s+\S/.test(line))) problems.push(`${label}: one bullet; any further line is indented (a sub-bullet "  - ..."), with no blank line`);
+        if (!body.includes(UNVERIFIED[lang])) problems.push(`${label}: no "${UNVERIFIED[lang]}..." line; every change says plainly what was not checked`);
       }
     }
   }

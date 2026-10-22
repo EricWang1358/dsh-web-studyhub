@@ -19,13 +19,13 @@ The name is a short slug (a-z, 0-9 and `-`) that says what changed. Each file ho
 
 - Start with `- **` and a bold first sentence that says what changed for a learner.
 - Then what they notice: what they see, click or no longer run into. Not how the code does it.
-- Say honestly what was not checked: `Not verified: ...` in English, `未验证：...` in Chinese.
+- Say honestly what was not checked, in the bullet itself: `Not verified: ...` in English, `未验证：...` in Chinese. `npm run changelog:check` fails a change without it.
 - Plain words. The Chinese text uses the words of the interface, not internal API, file or function names.
 - One bullet. Sub-bullets are allowed (indent them: `  - ...`); blank lines and headings are not.
 
 ## Notes after the bullets
 
-For a paragraph that belongs after the list (an upgrade step, a known issue, what a set of changes did not verify), add a note pair:
+For a paragraph that belongs after the list (an upgrade step, a known issue; what a change did not verify stays in that change's own bullet), add a note pair:
 
 ```
 changes/unreleased/<slug>.note.en.md      Upgrading: ...
@@ -51,7 +51,7 @@ Changes are listed in the order they were added (the commit that added each frag
 
 - 一项改动两份文件：`<名字>.en.md` 和 `<名字>.zh-CN.md`，名字只用小写字母、数字和 `-`。
 - 每份文件一条，以 `- **` 开头，先用一句加粗的话说清改了什么，再写学习者能注意到的变化。
-- 老实写没验证的部分：英文写 `Not verified: ...`，中文写 `未验证：...`。
+- 老实写没验证的部分，写在这一条里面：英文写 `Not verified: ...`，中文写 `未验证：...`。缺了这一句，`npm run changelog:check` 会失败。
 - 用平常的话。中文用界面上的叫法，不写内部 API、文件名或函数名。
 - 升级说明、已知问题这类放在列表后面的段落，写成 `<名字>.note.en.md` 和 `<名字>.note.zh-CN.md`。
 - `npm run changelog:check` 检查格式；`npm run changelog:preview -- 3.6.0` 预览要加的一节。

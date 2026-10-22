@@ -48,7 +48,8 @@ test('a malformed fragment is named, and --check fails', async t => {
   const at = join(dir, 'changes', 'unreleased');
   await mkdir(at, { recursive: true });
   const files = {
-    'fine.en.md': '- **Fine.** Text.\n', 'fine.zh-CN.md': '- **好。** 文字。\n',
+    'fine.en.md': '- **Fine.** Text. Not verified: a real host.\n', 'fine.zh-CN.md': '- **好。** 文字。未验证：真实宿主。\n',
+    'no-unverified.en.md': '- **Says nothing unchecked.** Text.\n', 'no-unverified.zh-CN.md': '- **没写没验证的。** 文字。Not verified: 英文的写法。\n',
     'only-english.en.md': '- **One language.** Text.\n',
     'no-bold.en.md': '- Plain text.\n', 'no-bold.zh-CN.md': '- **好。** 文字。\n',
     'two-bullets.en.md': '- **One.** Text.\n\n- **Two.** Text.\n', 'two-bullets.zh-CN.md': '- **一。** 文字。\n',
@@ -64,6 +65,9 @@ test('a malformed fragment is named, and --check fails', async t => {
   assert.match(about('only-english.zh-CN.md').join(), /missing/);
   assert.match(about('no-bold.en.md').join(), /starts with "- \*\*"/);
   assert.match(about('two-bullets.en.md').join(), /one bullet/);
+  assert.match(about('no-unverified.en.md').join(), /no "Not verified: \.\.\." line/);
+  assert.match(about('no-unverified.zh-CN.md').join(), /no "未验证：\.\.\." line/, 'each language has its own wording');
+  assert.equal(about('list.note.zh-CN.md').length, 0, 'a note needs no such line');
   assert.match(about('empty.en.md').join(), /empty/);
   assert.match(about('heading.en.md').join(), /no headings/);
   assert.match(about('list.note.en.md').join(), /paragraph, not a bullet/);
@@ -84,15 +88,15 @@ test('--release writes both changelogs in the order the changes were added, keep
   await writeFile(join(dir, 'CHANGELOG.zh-CN.md'), '# 更新日志\n\n## 1.0.0 — 2026-01-01\n\n- **旧的。** 文字。\n', 'utf8');
   const fragment = (slug, en, zh) => Promise.all([writeFile(join(at, `${slug}.en.md`), `${en}\n`, 'utf8'), writeFile(join(at, `${slug}.zh-CN.md`), `${zh}\r\n`, 'utf8')]);
   git(dir, 'init', '-q');
-  await fragment('zeta', '- **Zeta came first.** Its commit is the oldest.', '- **Zeta 最先。** 它的提交最早。');
+  await fragment('zeta', '- **Zeta came first.** Its commit is the oldest. Not verified: a real release.', '- **Zeta 最先。** 它的提交最早。未验证：真实发版。');
   git(dir, 'add', '.'); git(dir, 'commit', '-q', '-m', 'zeta');
-  await fragment('beta', '- **Beta.** Same commit as alpha.\n  - a sub-bullet', '- **Beta。** 和 alpha 同一个提交。\n  - 一个子项');
-  await fragment('alpha', '- **Alpha.** Same commit as beta, so by name.', '- **Alpha。** 和 beta 同一个提交，按名字。');
+  await fragment('beta', '- **Beta.** Same commit as alpha. Not verified: a real release.\n  - a sub-bullet', '- **Beta。** 和 alpha 同一个提交。未验证：真实发版。\n  - 一个子项');
+  await fragment('alpha', '- **Alpha.** Same commit as beta, so by name. Not verified: a real release.', '- **Alpha。** 和 beta 同一个提交，按名字。未验证：真实发版。');
   await fragment('upgrade.note', 'Upgrading: restart DSH.', '升级：重启 DSH。');
   git(dir, 'add', '.'); git(dir, 'commit', '-q', '-m', 'alpha beta');
-  await fragment('gamma', '- **Gamma is not committed yet.** Last.', '- **Gamma 还没提交。** 排最后。');
+  await fragment('gamma', '- **Gamma is not committed yet.** Last. Not verified: a real release.', '- **Gamma 还没提交。** 排最后。未验证：真实发版。');
 
-  const expectedEn = '## 1.1.0\n\n- **Zeta came first.** Its commit is the oldest.\n- **Alpha.** Same commit as beta, so by name.\n- **Beta.** Same commit as alpha.\n  - a sub-bullet\n- **Gamma is not committed yet.** Last.\n\nUpgrading: restart DSH.\n';
+  const expectedEn = '## 1.1.0\n\n- **Zeta came first.** Its commit is the oldest. Not verified: a real release.\n- **Alpha.** Same commit as beta, so by name. Not verified: a real release.\n- **Beta.** Same commit as alpha. Not verified: a real release.\n  - a sub-bullet\n- **Gamma is not committed yet.** Last. Not verified: a real release.\n\nUpgrading: restart DSH.\n';
   const preview = cli('--preview', '1.1.0', `--root=${dir}`);
   assert.equal(preview.status, 0, preview.stderr);
   assert.equal(preview.stdout, expectedEn);
@@ -102,11 +106,11 @@ test('--release writes both changelogs in the order the changes were added, keep
   const released = cli('--release', '1.1.0', '2026-02-02', `--root=${dir}`);
   assert.equal(released.status, 0, released.stderr);
   assert.equal(readFileSync(join(dir, 'CHANGELOG.md'), 'utf8'), ['# Changelog', '', 'English', '', '## 1.1.0 — 2026-02-02', '',
-    '- **Zeta came first.** Its commit is the oldest.', '- **Alpha.** Same commit as beta, so by name.', '- **Beta.** Same commit as alpha.', '  - a sub-bullet',
-    '- **Gamma is not committed yet.** Last.', '', 'Upgrading: restart DSH.', '', '## 1.0.0 — 2026-01-01', '', '- **Old.** Text.', ''].join('\r\n'));
+    '- **Zeta came first.** Its commit is the oldest. Not verified: a real release.', '- **Alpha.** Same commit as beta, so by name. Not verified: a real release.', '- **Beta.** Same commit as alpha. Not verified: a real release.', '  - a sub-bullet',
+    '- **Gamma is not committed yet.** Last. Not verified: a real release.', '', 'Upgrading: restart DSH.', '', '## 1.0.0 — 2026-01-01', '', '- **Old.** Text.', ''].join('\r\n'));
   assert.equal(readFileSync(join(dir, 'CHANGELOG.zh-CN.md'), 'utf8'), ['# 更新日志', '', '## 1.1.0 — 2026-02-02', '',
-    '- **Zeta 最先。** 它的提交最早。', '- **Alpha。** 和 beta 同一个提交，按名字。', '- **Beta。** 和 alpha 同一个提交。', '  - 一个子项',
-    '- **Gamma 还没提交。** 排最后。', '', '升级：重启 DSH。', '', '## 1.0.0 — 2026-01-01', '', '- **旧的。** 文字。', ''].join('\n'));
+    '- **Zeta 最先。** 它的提交最早。未验证：真实发版。', '- **Alpha。** 和 beta 同一个提交，按名字。未验证：真实发版。', '- **Beta。** 和 alpha 同一个提交。未验证：真实发版。', '  - 一个子项',
+    '- **Gamma 还没提交。** 排最后。未验证：真实发版。', '', '升级：重启 DSH。', '', '## 1.0.0 — 2026-01-01', '', '- **旧的。** 文字。', ''].join('\n'));
   assert.deepEqual(readdirSync(at), ['.gitkeep'], 'the fragments are gone, the folder stays');
   assert.deepEqual(unsealed(dir), [], 'the release seals what it wrote');
   await writeFile(join(dir, 'CHANGELOG.zh-CN.md'), `${readFileSync(join(dir, 'CHANGELOG.zh-CN.md'), 'utf8')}- **手改的。**\n`, 'utf8');

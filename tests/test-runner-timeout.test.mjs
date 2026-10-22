@@ -14,6 +14,7 @@ const runner = fileURLToPath(new URL('../scripts/qa/run-tests.mjs', import.meta.
 const testScript = fileURLToPath(new URL('../scripts/test.mjs', import.meta.url));
 const hangSuite = fileURLToPath(new URL('./fixtures/runner-hang/', import.meta.url));
 const passSuite = fileURLToPath(new URL('./fixtures/runner-suite/', import.meta.url));
+const subtestSuite = fileURLToPath(new URL('./fixtures/runner-subtests/', import.meta.url));
 const customReporter = fileURLToPath(new URL('./fixtures/runner-reporter.mjs', import.meta.url));
 
 async function tempDir(t) {
@@ -57,6 +58,19 @@ test('a test that never settles fails at the per-test limit with its name and fi
   assert.match(err, /Timed out \(2\):\n {2}tests\/fixtures\/runner-hang\/hang\.test\.mjs: "never settles" was still running after 1000 ms[^\n]*\n {2}tests\/fixtures\/runner-hang\/stays-open\.test\.mjs: the whole file/);
   assert.match(out, /quick/, 'the other files still ran and were reported');
   assert.doesNotMatch(out + err, /never reached/, 'the rest of the hung file did not run');
+});
+
+test('the limit names the test that is over it, with the subtest running now; swapped or mocked timers do not trip it', async t => {
+  const dir = await tempDir(t);
+  const { done } = start(dir, { suite: subtestSuite, args: ['--test-timeout=1000', '--test-reporter=spec'], env: { STUDY_TEST_FILE_TIMEOUT_MS: '20000' } });
+  const { code, out, err } = await done;
+  assert.equal(code, 1, err + out);
+  // Each subtest runs 700 ms; the parent's total crosses 1000 ms while "sub b" has run about 300 ms of it.
+  assert.match(err, /slow-parent\.test\.mjs: TEST TIMEOUT: "slow parent" was still running after 1000 ms \(running now: "slow parent > sub b"\)/);
+  assert.doesNotMatch(err, /fake-timers\.test\.mjs: TEST TIMEOUT/, 'a subtest started under a swapped or mocked setTimeout is timed with the real one');
+  assert.match(err, /Timed out \(1\):\n {2}tests\/fixtures\/runner-subtests\/slow-parent\.test\.mjs: "slow parent"/);
+  assert.match(out, /✔ runs under the swapped setTimeout/);
+  assert.match(out, /✔ ticks the mocked clock/);
 });
 
 test('every reporter node --test takes prints its report and the run ends, piped or to a file', async t => {
