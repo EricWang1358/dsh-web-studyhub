@@ -30,10 +30,12 @@ jobs:
 
   # The suite is cut into shards of about equal weight (tests/test-weights.json, scripts/qa/test-schedule.mjs) and each shard runs on its own machine.
   # Windows is slower than Linux, so it gets more shards. tests/test-runner-shards.test.mjs checks that the shards below are 1..N for each system.
+  # A shard takes 3.5 to 5 minutes (a slow runner took 9). A hung test fails at the runner's own limits (scripts/qa/run-tests.mjs: per test, per file)
+  # with its name; 15 minutes is the last resort.
   test:
     name: test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
