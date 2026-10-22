@@ -233,8 +233,14 @@ test("a finished run whose draft has been published says so; a draft still waiti
   assert.equal(inLanguage("zh", () => m.jobStageLabel(job, waiting, [], published)), "草稿已生成，检查后即可发布");
   assert.equal(inLanguage("zh", () => m.jobHeadline(job, [], published)), "「索引小测」已发布", "the deck has the draft's id");
   assert.equal(inLanguage("zh", () => m.jobStageLabel(job, [], [], published)), "题组已发布，可以在学习库里练习");
-  assert.equal(inLanguage("zh", () => m.jobStageLabel(job, [], [], { decks: [{ id: "other" }] })), "草稿已生成，检查后即可发布", "no deck of that id: nothing is claimed");
   assert.equal(inLanguage("zh", () => m.jobStageLabel(job, [], [])), "草稿已生成，检查后即可发布", "a caller that does not know the decks claims nothing");
+  // A draft published as the next part of a deck has no deck of its own id: the deck it went into says it is published; with neither deck present the card stops claiming 检查后即可发布.
+  const merged = { ...job, mergeTargetId: "target" }, intoTarget = { decks: [{ id: "target" }] };
+  assert.equal(inLanguage("zh", () => m.jobHeadline(merged, [], intoTarget)), "「索引小测」已发布", "merged into the deck it was meant for");
+  assert.equal(inLanguage("zh", () => m.jobStageLabel(merged, [], [], intoTarget)), "题组已发布，可以在学习库里练习");
+  assert.equal(inLanguage("zh", () => m.jobStageLabel(merged, waiting, [], intoTarget)), "草稿已生成，检查后即可发布", "still waiting: the target deck existing proves nothing");
+  assert.equal(inLanguage("zh", () => m.jobStageLabel(job, [], [], { decks: [{ id: "other" }] })), "草稿已不在待发布里", "gone and not published: no promise to publish it");
+  assert.equal(inLanguage("en", () => m.jobStageLabel(job, [], [], { decks: [] })), "The draft is no longer waiting to be published");
   assert.equal(inLanguage("zh", () => m.jobHeadline({ ...job, status: "failed", stageCode: "failed" }, [], published)), "「索引小测」没有生成完成", "only a finished run");
   for (const label of [inLanguage("en", () => m.jobHeadline({ ...job, deckTitle: "Indexes" }, [], published)), inLanguage("en", () => m.jobStageLabel(job, [], [], published))]) assert.doesNotMatch(label, han);
   assert.equal(inLanguage("en", () => m.jobHeadline({ ...job, deckTitle: "Indexes" }, [], published)), '"Indexes" is published');

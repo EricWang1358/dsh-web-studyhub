@@ -361,8 +361,8 @@
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
       /* A narrow pane gives the page title the room: the decorative "Study ›"
-         goes, and the steady "已连接" shrinks to its dot (busy and failing
-         states keep their words). */
+         goes, and the steady "已连接" shrinks to its dot (busy, failing and
+         未配置模型 keep their words). */
       .crumbs > .crumb:first-child,
       .crumbs > .breadcrumb {
         display: none;
@@ -374,6 +374,23 @@
         overflow: hidden;
         clip-path: inset(50%);
         white-space: nowrap;
+      }
+      /* A label that stays (busy, failing, 未配置模型) gives way before the page title does: the crumb keeps its own width, the right side shrinks, the label ends in an ellipsis. */
+      .crumbs {
+        flex-shrink: 0;
+        max-width: 50%;
+      }
+      .top-right {
+        flex-shrink: 1;
+        min-width: 0;
+      }
+      .top-status:not(.idle) {
+        min-width: 0;
+      }
+      .top-status:not(.idle) .top-status-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
   }

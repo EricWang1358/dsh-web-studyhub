@@ -98,6 +98,8 @@ test('the checklist button for the skeleton goes to the page, and says so (it ge
   const checklist = await readFile('ui/SetupChecklist.jsx', 'utf8');
   assert.doesNotMatch(checklist, /ui\("生成知识骨架"\)/);
   assert.doesNotMatch(checklist, /ui\("(导入资料|加入资料)"\)|先加入资料/);
+  // No button anywhere is called 导入资料 any more: the page where it was a second name (创建题组, 今天先做什么, 备考补习) says 添加资料.
+  for (const file of ['ui/Generate.jsx', 'ui/DailyPlan.jsx', 'ui/exam-prep/ExamPrepCreate.jsx']) assert.doesNotMatch(await readFile(file, 'utf8'), /ui\((['"])导入资料\)/, file);
   m.setUiLanguage('en');
   try { assert.match(m.stepAction({ id: 'skeleton', action: 'skeleton' }, { course: '' }, { skeleton: noop }).label, /^Open the knowledge outline page$/); } finally { m.setUiLanguage('zh'); }
 });

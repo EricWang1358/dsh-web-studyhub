@@ -19,7 +19,7 @@ This page covers ordinary lecture PDFs. For a scanned PDF, or a book over 8 MB o
 
 ## Import a PDF
 
-1. On the **Sources** page, click **Add source**. In **Create deck**, the **Import sources** link opens the same dialog.
+1. On the **Sources** page, click **Add source**. In **Create deck**, the **Add source** link opens the same dialog.
 2. Under **Which course is this material for?**, choose the course.
 3. On the **Files** tab, drop one or more PDFs, or click **Choose files**.
 4. Each file shows its result next to its name, for example "PDF · 12 pages · saved to Sources", or which pages had no text and were skipped.
