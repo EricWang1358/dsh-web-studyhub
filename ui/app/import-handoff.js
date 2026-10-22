@@ -14,7 +14,7 @@ export function importHandoff(open, summary) {
   }
   if (open?.onImported && summary?.done) {
     if (open.otherwise === 'usual') return ids.length
-      ? { ids, call: open.onImported, reference: false, notice: { text: uiFormat('{0}。已勾选，可以直接生成题组。', [importDoneMessage(summary)]), tone: 'success' } }
+      ? { ids, call: open.onImported, reference: false, notice: { text: open.line ? importDoneMessage(summary) : uiFormat('{0}。已勾选，可以直接生成题组。', [importDoneMessage(summary)]), tone: 'success' } }
       : null;
     return { ids, call: ids.length ? open.onImported : undefined, reference: false, notice: { text: importDoneMessage(summary), tone: 'success' } };
   }
@@ -27,3 +27,10 @@ export function importHandoff(open, summary) {
  */
 export const importForQuestions = (goGenerate, extra = {}) => ({ type: 'add', ...extra, otherwise: 'usual',
   onImported: (ids) => goGenerate({ sourceIds: ids, remember: true }) });
+
+/**
+ * The dialog request of an import from the first-run line (its 添加资料 and 再加一份, 3.6 D4): the learner comes back to the line, not to 创建题组; the line's
+ * third step then says what will be made from what is in, and its estimate. `onImported(ids)` puts the learner back on the library home. Anything that is not
+ * a material (a JSON deck's draft, a PDF still converting in the background) takes the usual way.
+ */
+export const importForLine = (onImported) => ({ type: 'add', otherwise: 'usual', line: true, onImported });

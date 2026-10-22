@@ -27,6 +27,11 @@ test("the default tour stays short: at most 9 steps; the full one is the extra, 
     assert.equal(list.at(-1).id, "finish");
   }
   assert.equal(full.length, TOUR_STEPS.filter((item) => item.only !== "core").length);
+  // While the first-run line is up, the short tour is as long and hands off on the line's step 2 instead (3.6 D5); the full tour does not change.
+  const onLine = availableTourSteps(TOUR_STEPS, { sample, line: true });
+  assert.equal(onLine.length, CORE_TOUR_LENGTH);
+  assert.equal(onLine.at(-1).id, "finish-line");
+  assert.deepEqual(availableTourSteps(TOUR_STEPS, { sample, full: true, line: true }).map((item) => item.id), full.map((item) => item.id));
 });
 
 test("the new generate form is toured: the picker, the switches with 帮我想想, then the 预计 token line", () => {

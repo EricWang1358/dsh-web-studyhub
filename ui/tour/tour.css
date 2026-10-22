@@ -24,6 +24,10 @@
       scroll-margin-bottom: 16px;
     }
   }
+  /* On a narrow panel the card is docked along the bottom, so an anchor scrolled to sits lower under the top bar, with room to spare if what is above it settles. */
+  @container study (max-width: 560px) {
+    :is(.study-app, .study-seat) [data-tour] { scroll-margin-top: 96px; }
+  }
   :where(.study-app, .study-seat) {
     .tour-shade {
       position: absolute;

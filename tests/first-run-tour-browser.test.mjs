@@ -20,7 +20,8 @@ import { TOUR_STEPS, CORE_TOUR_LENGTH } from '../ui/tour/steps.js';
 const SHOTS = process.env.FIRST_RUN_SHOTS || '';
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 const overflow = page => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-const byTitle = new Map(TOUR_STEPS.map(step => [step.title, step]));
+// A step by what its card says: the title, and the body where two steps share a title (the short tour's two last steps).
+const stepOf = (title, body) => TOUR_STEPS.find(step => step.title === title && step.body === body) || TOUR_STEPS.find(step => step.title === title);
 
 async function start(distDir) {
   scrubProcessEnv();
@@ -33,11 +34,11 @@ async function start(distDir) {
 /** The card of the step on screen, once it is placed: { at, total, title, lit }. */
 async function card(page) {
   await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
-  const step = byTitle;
   const read = async () => {
     const [at, total] = (await page.locator('.tour-pop__count').first().innerText()).split('/').map(part => Number(part.trim()));
     const title = (await page.locator('.tour-pop__title').first().innerText()).trim();
-    return { at, total, title, step: step.get(title) };
+    const body = (await page.locator('.tour-pop__body').first().innerText()).trim();
+    return { at, total, title, step: stepOf(title, body) };
   };
   const first = await read();
   // The popover is placed when the anchor is found, or after the wait for it ends; the spotlight is the sign that it was found.
@@ -88,7 +89,15 @@ test('the default tour is short and lit, the full tour is one button away, and S
         }
         assert.equal(seen.length, CORE_TOUR_LENGTH, `${width}px: the default tour has ${CORE_TOUR_LENGTH} steps`);
         assert.ok(seen.every(item => item.total === CORE_TOUR_LENGTH), 'the counter says the same total all the way');
-        assert.deepEqual(seen.map(item => item.step?.id), ['welcome', 'sources', 'generate-quick', 'tasks', 'draft', 'practice', 'settings-model', 'finish']);
+        // 3.6 D5: the first-run line's order, 任务 only in the full tour, and the last step on the line's step 2 (the sample never counts in the line).
+        assert.deepEqual(seen.map(item => item.step?.id), ['welcome', 'settings-model', 'sources', 'generate-quick', 'draft', 'practice', 'finish-line']);
+        assert.equal(CORE_TOUR_LENGTH, 7);
+        assert.ok(await page.locator('[data-first-run="compact"] [data-tour="first-run-material"]').isVisible(), `${width}px: the last step shows the line's step 2`);
+        assert.equal(await page.locator('[data-first-run="compact"] .frl-step[data-step="material"]').getAttribute('data-status'), 'todo', 'the sample material does not tick step 2');
+        assert.equal(await page.locator('.tour-spot').count() > 0, true, 'and lights it');
+        const [row, pop] = await Promise.all([page.locator('[data-first-run="compact"] [data-tour="first-run-material"]').boundingBox(), page.locator('.tour-pop').boundingBox()]);
+        assert.ok(row.y + row.height <= pop.y || row.y >= pop.y + pop.height || row.x + row.width <= pop.x || row.x >= pop.x + pop.width,
+          `${width}px: the card does not cover the line's step 2 (row ${JSON.stringify(row)}, card ${JSON.stringify(pop)})`);
         assert.deepEqual(seen.filter(item => item.step?.anchor && !item.lit).map(item => item.title), [], `${width}px: every anchored step finds its element`);
         assert.ok(actions <= CORE_TOUR_LENGTH + 1, `${actions} clicks to take the default tour (was 22)`);
         const last = page.locator('.tour-pop');

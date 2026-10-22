@@ -11,6 +11,7 @@ import StudyMap from '../StudyMap.jsx';
 import { hasOwnDeck } from '../study-map/home-plan.js';
 import { SampleBanner } from '../Welcome.jsx';
 import { firstRunLine } from '../first-run/line.js';
+import { useFirstDeck } from '../first-run/use-first-deck.js';
 import Dashboard from '../Dashboard.jsx';
 import Exam from '../Exam.jsx';
 import WrongBook from '../WrongBook.jsx';
@@ -44,7 +45,7 @@ import { retryForm, retryNotice } from './retry-generation.js';
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
 
 function LibraryView() {
-  const { data, core, nav, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry, learn } = useApp();
+  const { data, core, nav, lib, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry, learn, connection } = useApp();
   const { busy, notify } = core;
   /* 期末一周 (M7): a course's book at a point, in 翻看 or with 今天读哪几节 open; another course than the current one is made current first (the book
      page shows the current course's book). 练 5 道 practises the point's next five, in a practice round's order. */
@@ -67,14 +68,15 @@ function LibraryView() {
   };
   const startMock = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
   /* The first-run line (ui/first-run): the whole first screen until the first own deck is published, unless 以后再说 put it away or a tour shows the home;
-     then it is the compact card. Its 添加资料 goes on to 创建题组 with the file ticked; 再加一份 ticks the new file beside the ones already there. */
-  const lineShown = firstRunLine(data).show;
+     then it is the compact card. Its 添加资料 and 再加一份 come back to the line (3.6 D4), whose third step says what will be made and its estimate and makes
+     the first deck with 创建题组's own request (出第一组题, the learner's click only); 改题型和题数 opens 创建题组 with the materials ticked. */
+  const line = firstRunLine(data), lineShown = line.show;
   const linePage = lineShown && !tour.tourStep && !tour.lineLater;
-  const firstRun = lineShown ? { form: linePage ? 'page' : 'compact', on: {
-    importFirst: tour.openFirstImport,
-    importMore: (ownIds) => set.setModal(importForQuestions((args) => intents.goGenerate({ ...args, sourceIds: [...new Set([...ownIds, ...args.sourceIds])] }))),
-    // D4 seam: 出第一组题 goes to 创建题组 with the material ticked; generating from the line itself replaces this handler.
-    generate: (sourceIds) => intents.goGenerate({ sourceIds }),
+  const firstDeck = useFirstDeck({ data, gen: lib?.gen, setGen: set.setGen, deck: lineShown ? line.steps[2] : null,
+    reasoningEffort: connection?.binding?.effort?.current || '', services: core });
+  const firstRun = lineShown ? { form: linePage ? 'page' : 'compact', plan: firstDeck, on: {
+    importFirst: tour.openFirstImport, importMore: tour.openFirstImport,
+    generate: firstDeck.start, tune: (sourceIds) => intents.goGenerate({ sourceIds, remember: true }),
     recheck: core.refresh, openModelSettings: settingsEntry.openModelSettings,
     startSample: tour.loadSampleAndTour, later: tour.hideWelcome } } : undefined;
   return (
@@ -93,7 +95,7 @@ function LibraryView() {
             intents.goGenerate({ sourceIds: wanted.filter((id) => available.has(id)), genPatch: patch });
             notify(retryNotice({ lost, gone: wanted.filter((id) => !available.has(id)).length }));
           },
-          addSource: () => set.setModal(data.decks.length ? { type: 'add' } : importForQuestions(intents.goGenerate)), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
+          addSource: () => (lineShown ? tour.openFirstImport() : set.setModal(data.decks.length ? { type: 'add' } : importForQuestions(intents.goGenerate))), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
           generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }), startCourseFlow: intents.startCourseFlow,
           onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,

@@ -14,8 +14,10 @@ import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-
 
 /* 3.6 D2 in the browser preview, on an empty temporary library: the first-run line from no model to the first question. No model (step 1 open with the gate's
    steps, 重新检查 the one primary, no bounce to the settings) → a model (the same library opened again with the fake model: step 1 ticked) → 添加资料 (the
-   existing import, landing on 创建题组 with the file ticked) → generating (the run's card inside step 3, drawn once, no 查看进度) → the draft (发布并开始练
-   with 先看看草稿, and nothing moved when the run finished) → publishing (the first question; back on the library the line is gone and the home is back).
+   existing import, back on the line, 3.6 D4) → step 3 says what will be made and its estimate before anything is spent, on the first screen, and the estimate's
+   arrival moves nothing → 出第一组题 (创建题组's own request, from the line) → generating (the run's card inside step 3, drawn once, no 查看进度) → the draft
+   (发布并开始练 with 先看看草稿, and nothing moved from the ready step through the run) → publishing (the first question; back on the library the line is
+   gone and the home is back).
    Every state has at most one primary button on the page. At 1280 and 390 px, light. FIRST_RUN_LINE_SHOTS=<dir> keeps a screenshot of each state. */
 
 const SHOTS = process.env.FIRST_RUN_LINE_SHOTS || '';
@@ -78,34 +80,56 @@ test('the first-run line from no model to the first question: one primary per st
         assert.equal((await page.locator('.first-run .sh-btn--primary').innerText()).trim(), '添加资料');
         await shot(page, `02-model-ready-${width}`);
 
-        /* ---- 添加资料: the existing import, on to 创建题组 with the file ticked ---- */
+        /* ---- 添加资料: the existing import, and back on the line (3.6 D4), not on 创建题组 ---- */
+        let clicks = 0;
         await page.locator('.first-run .sh-btn--primary').click();
+        clicks++;
         const dialog = page.locator('dialog[open], [role="dialog"]').first();
         await dialog.waitFor({ timeout: 30000 });
         await dialog.locator('.sh-drop input[type="file"]').first().setInputFiles({ name: '第3讲 进程与线程.md', mimeType: 'text/markdown',
           buffer: Buffer.from('# 第3讲 进程与线程\n\n## 进程\n\n进程是资源分配的单位，拥有独立的地址空间。\n\n## 线程\n\n线程是调度的单位，同一进程的线程共享地址空间。\n') });
-        await page.locator('.generate-page').waitFor({ timeout: 60000 });
-        await until(async () => (await page.locator('.generate-page input[type="checkbox"]:checked').count()) > 0, 'the material is ticked on 创建题组');
-
-        // Back on the library before generating: step 2 ticked with the title, step 3 open with 出第一组题.
-        await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
-        await page.locator('.first-run').waitFor({ timeout: 30000 });
-        await until(async () => (await status(page, 'material')) === 'done', 'step 2 is ticked');
+        clicks++;
+        await until(async () => !(await page.locator('dialog[open]').count()) && (await status(page, 'material')) === 'done', 'the import closes on the line, step 2 ticked');
+        assert.equal(await page.locator('.generate-page').count(), 0, 'the first import does not hop to 创建题组');
         assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /第3讲 进程与线程(\.md)? · 已添加/, 'the material by the title 资料 shows');
         assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /再加一份/);
         assert.equal(await openStep(page), 'deck');
         assert.equal(await primaries(page), 1);
         assert.equal((await page.locator('.first-run .sh-btn--primary').innerText()).trim(), '出第一组题');
+        assert.equal(await page.locator('.first-run [data-first-run="tune"]').innerText(), '改题型和题数', 'the full form is one quiet link away');
+
+        /* ---- what will be made and its estimate, on screen before anything is spent; its arrival moves nothing ---- */
+        const plan = page.locator('.first-run [data-first-run="plan"]');
+        await plan.waitFor({ timeout: 30000 });
+        await drainLayoutStability(page);
+        await until(async () => (await plan.locator('[data-token-estimate][data-status="ready"]').count()) > 0, 'the estimate arrives', { timeoutMs: 30000 });
+        await frames(page, 3);
+        const arrival = await drainLayoutStability(page);
+        arrival.shifts = arrival.shifts.filter((shift) => !shift.sources.length || !shift.sources.every((source) => /sh-toast|top-right|topbar/.test(source.element)));
+        const arrived = judgeLayoutStability(arrival, { maxCls: 0.01 });
+        assert.ok(arrived.ok, `${width}px: the estimate's arrival moved the page: ${arrived.message}`);
+        const planText = (await plan.innerText()).replace(/\s+/g, ' ');
+        assert.match(planText, /将从 1 份资料出 \d+ 题 · 混合难度 · 中文 · 单选测验/, '创建题组\'s summary sentence and the types');
+        assert.match(planText, /预计 [\d.]+K?–[\d.]+K? tok · [\d–]+ 次模型调用/, '创建题组\'s estimate line');
+        const onScreen = (locator) => locator.evaluate((element) => { const box = element.getBoundingClientRect(); return box.height > 0 && box.top >= 0 && box.bottom <= window.innerHeight; });
+        assert.ok(await onScreen(plan.locator('[data-token-estimate]')), `${width}px: the estimate is on the first screen`);
+        assert.ok(await onScreen(page.locator('.first-run [data-first-run="generate"]')), `${width}px: 出第一组题 is on the first screen, no scrolling (创建题组's button was 1.75 screens down at 390)`);
+        // Nothing is spent by itself: no run starts until the button is pressed.
+        await page.waitForTimeout(1500);
+        assert.equal(await status(page, 'deck'), 'ready', 'no run starts on its own');
+        assert.equal(await page.locator('.cjc').count(), 0);
         await settleAnimations(page);
         await shot(page, `03-material-added-${width}`);
+        const ready = await page.evaluate(() => {
+          const rect = (selector) => { const box = document.querySelector(selector)?.getBoundingClientRect(); return box ? { top: Math.round(box.top), height: Math.round(box.height) } : null; };
+          return { body: rect('.first-run [data-body="deck"]'), footer: rect('.first-run__footer') };
+        });
 
-        /* ---- 出第一组题 → 创建题组 (D4 will generate from the line) → the run's card inside step 3 ---- */
-        await page.locator('.first-run .sh-btn--primary').click();
-        await page.locator('.generate-page').waitFor({ timeout: 30000 });
-        await until(async () => (await page.locator('.generate-page input[type="checkbox"]:checked').count()) > 0, 'the material is ticked again');
-        await page.locator('[data-tour="generate-submit"]').first().click();
-        await page.locator('.first-run').waitFor({ timeout: 30000 });
+        /* ---- 出第一组题: 创建题组's own request, from the line → the run's card inside step 3 ---- */
+        await page.locator('.first-run [data-first-run="generate"]').click();
+        clicks++;
         await until(async () => (await status(page, 'deck')) === 'generating', 'step 3 says the run is going', { timeoutMs: 30000 });
+        assert.equal(await page.locator('.generate-page').count(), 0, 'generated from the line, not from the form');
         const card = page.locator('.first-run [data-body="deck"] .cjc');
         await card.waitFor({ timeout: 30000 });
         assert.equal(await page.locator('.cjc').count(), 1, 'the run\'s card is drawn once, inside step 3');
@@ -117,6 +141,8 @@ test('the first-run line from no model to the first question: one primary per st
           const rect = (selector) => { const box = document.querySelector(selector)?.getBoundingClientRect(); return box ? { top: Math.round(box.top), height: Math.round(box.height) } : null; };
           return { body: rect('.first-run [data-body="deck"]'), footer: rect('.first-run__footer') };
         });
+        for (const part of ['body', 'footer']) for (const side of ['top', 'height'])
+          assert.ok(Math.abs(before[part][side] - ready[part][side]) <= 2, `${width}px: the run's card coming in keeps step 3's place and height (${part} ${side} ${ready[part][side]} → ${before[part][side]})`);
         await drainLayoutStability(page);
 
         /* ---- the draft: 发布并开始练 (clean) or 检查草稿, and nothing moved when the run finished ---- */
@@ -151,9 +177,13 @@ test('the first-run line from no model to the first question: one primary per st
         else {
           await page.locator('.first-run .sh-btn--primary').click();
           await page.getByRole('button', { name: '发布并开始练 →' }).first().click();
+          clicks++;
         }
+        clicks++;
         await page.locator('.options .option').first().waitFor({ timeout: 60000 });
         await shot(page, `06-first-question-${width}`);
+        // From the line's first screen with a model to the first question: 添加资料, the file, 出第一组题, 发布并开始练 (检查草稿 adds one), no scrolling.
+        assert.ok(clicks <= (state === 'draft-clean' ? 4 : 5), `${width}px: ${clicks} presses to the first question`);
         await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
         await page.locator('.desk').waitFor({ timeout: 30000 });
         assert.equal(await page.locator('.first-run, [data-first-run]').count(), 0, 'the line is gone after the first publish');
@@ -210,8 +240,8 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
         await dialog.waitFor({ timeout: 30000 });
         await dialog.locator('.sh-drop input[type="file"]').first().setInputFiles({ name: '第3讲 进程与线程：调度、同步与死锁的完整讲义.md', mimeType: 'text/markdown',
           buffer: Buffer.from('# 第3讲\n\n## 进程\n\n进程是资源分配的单位。\n') });
-        await page.locator('.generate-page').waitFor({ timeout: 60000 });
-        await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
+        await until(async () => !(await page.locator('dialog[open]').count()) && (await page.locator('.first-run .frl-step[data-step="deck"][data-open]').count()) > 0,
+          'back on the line after the import');
         await page.locator('.first-run [data-first-run="later"]').click();
         const card = page.locator('[data-first-run="compact"]');
         await card.waitFor({ timeout: 30000 });
@@ -224,7 +254,10 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
             const text = li.querySelector('.frl-step__text'), row = li.querySelector('.frl-step__row').getBoundingClientRect(), own = text.getBoundingClientRect();
             return { right: Math.round(own.right), liRight: Math.round(li.getBoundingClientRect().right), top: Math.round(row.top - rect.top), height: Math.round(row.height), cut: text.scrollWidth > text.clientWidth };
           });
-          return { inner: { left: Math.round(inner.left), right: Math.round(inner.right) }, rows, overflow: document.documentElement.scrollWidth - window.innerWidth };
+          // The first deck's summary and estimate (3.6 D4): two more ruled lines under the rows.
+          const planLines = [...element.querySelectorAll('.frl-compact-plan__line')].map((line) => { const own = line.getBoundingClientRect();
+            return { top: Math.round(own.top - rect.top), height: Math.round(own.height), right: Math.round(own.right) }; });
+          return { inner: { left: Math.round(inner.left), right: Math.round(inner.right) }, rows, planLines, overflow: document.documentElement.scrollWidth - window.innerWidth };
         });
         for (const row of box.rows) {
           assert.ok(row.right <= box.inner.right + 1 && row.liRight <= box.inner.right + 1, `${width}px: a row stays inside the card: ${JSON.stringify(box)}`);
@@ -233,6 +266,14 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
           assert.equal((row.top - 52) % 32, 0, `${width}px: the row sits on the ruling: ${JSON.stringify(box)}`);
         }
         assert.ok(box.rows[0].cut, `${width}px: the long label is cut with an ellipsis, not spilled: ${JSON.stringify(box)}`);
+        assert.equal(box.planLines.length, 2, `${width}px: the summary and the estimate under the rows: ${JSON.stringify(box)}`);
+        for (const line of box.planLines) {
+          assert.equal(line.height, 32, `${width}px: one ruled line each: ${JSON.stringify(box)}`);
+          assert.equal((line.top - 52) % 32, 0, `${width}px: on the ruling: ${JSON.stringify(box)}`);
+          assert.ok(line.right <= box.inner.right + 1, `${width}px: inside the card: ${JSON.stringify(box)}`);
+        }
+        await until(async () => /预计 .+ tok/.test(await card.innerText()), 'the estimate is on the card before 出第一组题', { timeoutMs: 30000 });
+        assert.equal((await card.locator('.sh-btn--primary').innerText()).trim(), '出第一组题');
         assert.ok(box.overflow <= 0, `${width}px: no sideways scroll`);
         await shot(page, `09-later-compact-long-label-${width}`);
         assert.deepEqual(errors.filter((error) => !/favicon|Failed to load resource/.test(error)), [], `${width}px: no console or page errors`);

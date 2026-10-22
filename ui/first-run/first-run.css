@@ -67,8 +67,12 @@
     .frl-body__text { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-body); }
     .frl-body__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .frl-body__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-1); }
-    /* One height for every state of the third step (ready, a run's card, a draft): late content never moves the page. */
-    .frl-body[data-body="deck"] { min-height: 152px; }
+    /* What the first deck will be, said before anything is spent (3.6 D4): 创建题组's summary sentence and its estimate line, in ink, not a card. */
+    .frl-plan { display: grid; gap: var(--space-1); min-width: 0; }
+    .frl-plan__line { margin: 0; color: var(--text); font-size: var(--fs-md); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* One height for every state of the third step (ready with its summary and estimate, a run's card, a draft): late content never moves the page, and
+       the run's card that comes in after 出第一组题 does not pull the bottom links up. */
+    .frl-body[data-body="deck"] { min-height: 176px; }
     /* Step 1's setup, in the gate's words (ModelSetupGate is the one source). */
     .frl-setup { display: grid; gap: var(--space-2-5); margin: 0; padding: 0; list-style: none; }
     .frl-setup li { display: flex; align-items: baseline; gap: var(--space-2-5); line-height: var(--lh-snug); font-size: var(--fs-md); }
@@ -121,6 +125,20 @@
     .first-run-card .frl-mark { width: 20px; height: 20px; border-color: currentColor; color: var(--paper-dim); }
     .first-run-card .frl-step[aria-current="step"] .frl-mark { border-color: var(--paper-ink); background: var(--paper-ink); color: var(--paper); }
     .first-run-card .frl-step[data-status="done"] .frl-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); color: var(--paper-dim); }
+    /* The first deck's summary and estimate: two more ruled lines under the rows (held while the estimate is asked), cut with an ellipsis like the rows. */
+    .first-run-card .frl-steps:has(+ .frl-compact-plan) { margin-bottom: 0; }
+    .frl-compact-plan { margin: 0 0 var(--space-5); min-width: 0; }
+    .frl-compact-plan__line {
+      height: var(--frl-rule);
+      margin: 0;
+      overflow: hidden;
+      color: var(--paper-ink);
+      font-size: var(--fs-sm);
+      line-height: var(--frl-rule);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .frl-compact-plan__estimate { color: var(--paper-dim); font-variant-numeric: tabular-nums; }
   }
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {
@@ -131,7 +149,7 @@
       .first-run__title { font-size: var(--fs-2xl); }
       .first-run__lead { font-size: var(--fs-md); }
       .first-run__sub { font-size: var(--fs-sm); }
-      .frl-body[data-body="deck"] { min-height: 224px; }
+      .frl-body[data-body="deck"] { min-height: 240px; }
       .first-run__footer { justify-content: flex-start; }
     }
   }

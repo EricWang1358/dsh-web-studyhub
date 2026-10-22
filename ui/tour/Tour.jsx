@@ -4,7 +4,7 @@ import { ui, uiFormat } from "../i18n.js";
 import { Button, IconButton, Icon, ProgressBar } from "../components/index.js";
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
-import { placePopover, spotlightBox } from "./geometry.js";
+import { NARROW_WIDTH, placePopover, spotlightBox } from "./geometry.js";
 import { tourKeyAction } from "./steps.js";
 import css from "./tour.css";
 import { usePolling } from '../use-polling.js';
@@ -115,7 +115,9 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       if (found) {
         targetRef.current = found;
         const box = found.getBoundingClientRect(), view = layerRef.current?.getBoundingClientRect();
-        const visible = view && box.top >= view.top + 8 && box.bottom <= view.bottom - 8;
+        // On a narrow panel the card is docked along the bottom and covers the lower half: there an anchor counts as seen only in the upper part.
+        const floor = view && (view.width <= NARROW_WIDTH ? view.top + view.height * 0.45 : view.bottom - 8);
+        const visible = view && box.top >= view.top + 8 && box.bottom <= floor;
         if (!visible) found.scrollIntoView({ block: box.height > (view?.height || 800) * 0.6 || (view?.width || 1000) <= 560 ? "start" : "center",
           inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
         setTarget(found);

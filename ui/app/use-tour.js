@@ -4,7 +4,8 @@ import { hasContext, pageAvailable } from '../capabilities.js';
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from '../tour/steps.js';
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from '../tour/progress.js';
 import { practiceArgs } from '../learning-navigation.js';
-import { importForQuestions } from './import-handoff.js';
+import { importForLine } from './import-handoff.js';
+import { firstRunLine } from '../first-run/line.js';
 
 /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────────
    Whether the first-run line was put away (以后再说), the sample course (sample.* host actions, C6) and the feature tour that switches to
@@ -25,8 +26,9 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const page = nav.page;
 
   const modelState = data ? data.model || { ready: !!data.modelReady } : null;
-  /** The steps of the short tour or of the full one, for what this library and host can show. */
-  const stepsFor = (full) => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample, full,
+  /** The steps of the short tour or of the full one, for what this library and host can show; while the first-run line is up (the sample never counts in it),
+      the short tour ends on its step 2. */
+  const stepsFor = (full) => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample, full, line: firstRunLine(data).show,
     pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [];
   const savedTour = data?.root && !tourStep ? readTourProgress(data.root) : null;
   // While paused, the tour on offer is the one that was paused (the sidebar says "继续 3/8" for it).
@@ -42,8 +44,9 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     dismissWelcome(data.root);
     setHiddenWelcome(data.root);
   }
-  // The first import goes on to 创建题组 with the file ticked (ui/app/import-handoff.js), not to 资料 with a toast to press.
-  const openFirstImport = () => setModal(importForQuestions(intents.goGenerate));
+  // The first import comes back to the first-run line (ui/app/import-handoff.js, 3.6 D4): its third step makes the first deck, so neither 创建题组 nor 资料
+  // with a toast to press is in the way. From elsewhere (the tour's last step ended on another page) it lands on the library home.
+  const openFirstImport = () => setModal(importForLine(() => { if (latest.current.page !== 'library') nav.show.page('library'); }));
   /** The tour switches pages at once: no leave animation, no stale context trail, each step starts at the top of its page. */
   const showPage = (id) => nav.navigate(id, { keepTrail: false, enter: 'tour', scroll: true });
 

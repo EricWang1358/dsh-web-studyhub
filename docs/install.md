@@ -52,7 +52,7 @@ These steps work in desktop and web DSH. Web users need no desktop client and no
 4. Click **Enable** for StudyHub and the components you want. If DSH asks to reload, finish or cancel background tasks first.
 5. StudyHub opens by itself the first time. Later, open **StudyHub** from DSH's left sidebar; you do not need to send a chat message first. StudyHub is also a tab in each session and in DSH's right sidebar.
 
-On an empty library, the welcome page leads with **Add source**. To look around first, click **Load the sample and start the tour**. It loads a sample course (one lecture handout, nine cited questions and three weeks of practice history) and starts a short tour (8 steps, a minute or two). Neither needs a model, and **Remove sample data** clears the sample whenever you like.
+On an empty library, the welcome page leads with **Add source**. To look around first, click **Load the sample and start the tour**. It loads a sample course (one lecture handout, nine cited questions and three weeks of practice history) and starts a short tour (7 steps, a minute or two). Neither needs a model, and **Remove sample data** clears the sample whenever you like.
 
 StudyHub keeps your library in the workspace folder of the current DSH session. If it shows **Open a session first**, start or open a session in DSH.
 
