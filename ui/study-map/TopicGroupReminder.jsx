@@ -1,16 +1,16 @@
 import React from 'react';
-import { ui, uiFormat, getUiLanguage } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { usePersistentState } from '../storage.js';
 import { Button } from '../components/index.js';
-import { groupPrompt } from '../topic-group-prompt.js';
+import { HandOff } from '../hand-off/HandOff.jsx';
 
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
    holds until the next import changes what is ungrouped. */
-export default function TopicGroupReminder({ grouping, root, askInChat }) {
+export default function TopicGroupReminder({ grouping, root }) {
   const key = `study-topic-group-later:${root || 'local'}`;
   const [later, setLater] = usePersistentState(key, '', { parse: String, serialize: String }); // per-device only
-  if (!grouping?.ungrouped || !askInChat) return null;
+  if (!grouping?.ungrouped) return null;
   // A handful of topics needs no grouping; once groups exist, new topics should join them.
   if (!grouping.groups && grouping.topics < 12) return null;
   const signature = `${grouping.groups}:${grouping.ungrouped}`;
@@ -21,7 +21,8 @@ export default function TopicGroupReminder({ grouping, root, askInChat }) {
     <div className="group-reminder" role="status">
       <span>{first ? uiFormat('学习库有 {0} 个主题，还没按知识域归并成主题组', [grouping.topics]) : uiFormat('有 {0} 个主题还没归入主题组（通常来自新导入的题组）', [grouping.ungrouped])}</span>
       <span className="group-reminder-actions">
-        <Button variant="link" size="sm" iconEnd="arrow-right" onClick={() => askInChat(groupPrompt(first ? { mode: 'replace', topicCount: grouping.topics } : { mode: 'merge', ungrouped: grouping.ungrouped }, getUiLanguage()))}>{first ? ui('让对话归并主题') : ui('让对话归入主题组')}</Button>
+        <HandOff id="topics.group" what={first ? '让主会话把主题按知识域归并成主题组（不改题目）' : '让主会话把新增的主题归入主题组（不改题目）'}
+          input={first ? { mode: 'replace', topicCount: grouping.topics } : { mode: 'merge', ungrouped: grouping.ungrouped, alternative: true }} />
         <Button variant="quiet" size="sm" onClick={hold}>{ui('稍后')}</Button>
       </span>
     </div>

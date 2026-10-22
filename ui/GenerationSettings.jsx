@@ -100,7 +100,7 @@ export function GenerationSettingsForm({ root, saved, busy = false, act, efforts
       {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
       {field('focus', <TextArea {...propsFor('focus')} rows={3} maxLength={GENERATION_SETTINGS_LIMITS.focus.max}
         placeholder={ui('例如：重点解释成立条件，再比较相似概念。')} />, ui('可留空；这次出题的侧重点可以覆盖这里的默认值。'))}
-      {numberField('count', ui('只在让助手在对话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
+      {numberField('count', ui('只在让助手在主会话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
       <h3 className="settings-subtitle">{ui('生成安排')}</h3>
       {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
       {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}

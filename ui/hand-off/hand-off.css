@@ -21,6 +21,14 @@
     .sh-handoff__tip {
       display: inline-flex;
     }
+    /* The Tooltip around a page's own full-width primary button (录题, 生成骨架): the anchor takes the button's width. */
+    .sh-handoff__block {
+      display: flex;
+      width: 100%;
+    }
+    .sh-handoff__block > :first-child {
+      flex: 1 1 auto;
+    }
     .sh-handoff-form {
       display: grid;
       gap: var(--space-2);

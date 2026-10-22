@@ -45,12 +45,12 @@ export function workflowSkeletonPrompt({ topic = '', topicNames = [], workflowTi
 
 /** What each kind of step asks the conversation for: the button label and the request (a goal step wants goal options, not an audit). */
 export const WORKFLOW_HANDOFF = Object.freeze({
-  overview: { label: '请主对话帮我把目标说具体', ask: '请帮我把这次的学习目标说具体：结合本次范围，给我 2–3 个可选的目标句（学完后我能说清或做到什么），每句配一个适合当主攻的例子，由我挑选或改写。不要替我写进回答，也不要做覆盖检查或列清单。' },
-  skeleton: { label: '请主对话帮我理清概念关系', ask: '请帮我理清本次范围里概念之间的关系：一条先学后学的主线、谁属于谁、因果和容易混淆的对比，写成能顺着读的结构说明。' },
-  lesson: { label: '请主对话帮我讲清楚', ask: '请提供清楚、连贯的讲解和一个可以推演的例子。' },
-  recall: { label: '请主对话通过追问帮我补全', ask: '请检查我的复述是否漏了关键条件，用追问引导我自己补全。' },
-  practice: { label: '请主对话帮我弄懂做错的题', ask: '请帮我弄懂本步练习里做错或拿不准的题：为什么是这个答案，容易错在哪里。' },
-  reflection: { label: '请主对话帮我回顾', ask: '请根据本次学习记录帮我回顾：哪些已经讲清、哪些还需要补、下次先做什么。由我决定写进回顾的内容。' },
+  overview: { label: '请主会话帮我把目标说具体', ask: '请帮我把这次的学习目标说具体：结合本次范围，给我 2–3 个可选的目标句（学完后我能说清或做到什么），每句配一个适合当主攻的例子，由我挑选或改写。不要替我写进回答，也不要做覆盖检查或列清单。' },
+  skeleton: { label: '请主会话帮我理清概念关系', ask: '请帮我理清本次范围里概念之间的关系：一条先学后学的主线、谁属于谁、因果和容易混淆的对比，写成能顺着读的结构说明。' },
+  lesson: { label: '请主会话帮我讲清楚', ask: '请提供清楚、连贯的讲解和一个可以推演的例子。' },
+  recall: { label: '请主会话通过追问帮我补全', ask: '请检查我的复述是否漏了关键条件，用追问引导我自己补全。' },
+  practice: { label: '请主会话帮我弄懂做错的题', ask: '请帮我弄懂本步练习里做错或拿不准的题：为什么是这个答案，容易错在哪里。' },
+  reflection: { label: '请主会话帮我回顾', ask: '请根据本次学习记录帮我回顾：哪些已经讲清、哪些还需要补、下次先做什么。由我决定写进回顾的内容。' },
 });
 
 const STEP_HEAD = '请帮助我学习「{0}」的「{1}」这一步。{2}\n';

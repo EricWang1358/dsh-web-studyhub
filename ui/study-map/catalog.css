@@ -247,7 +247,7 @@
       flex-shrink: 0;
     }
     .mastery-value.zero { color: var(--text-faint); }
-    .map-play, .map-ask {
+    .map-play {
       flex-shrink: 0;
       padding: var(--space-1-5) var(--space-2-5);
       font-size: var(--fs-md);
@@ -255,6 +255,10 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+    }
+    /* The topic's 发给主会话 icon (ui/hand-off/HandOff.jsx, shape icon): the Tooltip anchor holds the quiet icon button. */
+    .map-ask {
+      flex-shrink: 0;
     }
     /* Fixed width: "▶" and "继续" occupy the same slot, so bars line up. */
     .map-play {
@@ -295,17 +299,6 @@
     }
   }
   :where(.study-app, .study-seat) {
-    .map-ask {
-      border-color: transparent;
-      background: transparent;
-      color: var(--text-muted);
-      min-width: 34px;
-    }
-    .map-ask:hover:not(:disabled) {
-      background: var(--bg-hover);
-      border-color: transparent;
-      color: var(--text);
-    }
     .map-topics { padding: var(--space-half) 0 var(--space-2-5) 34px; }
     .topic-row { min-height: 42px; padding: var(--space-2) var(--space-2-5) var(--space-2) var(--space-2); }
     .map-menu-wrap { position: relative; flex-shrink: 0; }

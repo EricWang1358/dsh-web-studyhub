@@ -9,7 +9,15 @@ const MERGE_PAGE = 60, REPLACE_PAGE = 200;
 // The real shape of one skeleton.topics page (see lib/contexts/skeleton/operations.js); nextOffset is present only when more remain.
 const shape = (limit) => `{"topics":[{"key":"…","topic":"…","count":3,"decks":["…"],"samples":["…"]}],"total":100,"nextOffset":${limit},"groups":{"groups":[{"id":"…","title":"…","description":"…","count":4}],"ungroupedCount":100}}`;
 
-export function groupPrompt({ mode, topicCount, ungrouped, course }, language = 'zh') {
+export function groupPrompt({ mode, topicCount, ungrouped, course, alternative = false }, language = 'zh') {
+  const text = groupText({ mode, topicCount, ungrouped, course }, language);
+  // The page offered the quicker way (only the new topics); the learner may ask for the other in the chat's input box.
+  if (!alternative || mode !== 'merge') return text;
+  return text + (language === 'en' ? `\nIf I say at the end that I want all topics regrouped, do that instead: read all topics page by page with skeleton.topics (without ungrouped; limit ${REPLACE_PAGE}, then follow nextOffset), regroup them all into 12–30 knowledge domains and save with topic.groups.save in replace mode.`
+    : `\n如果我在最后说要把全部主题重新归并，就改做那个：用 skeleton.topics 分页读取全部主题（不带 ungrouped，limit ${REPLACE_PAGE}，按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save 的 replace 模式保存。`);
+}
+
+function groupText({ mode, topicCount, ungrouped, course }, language) {
   // Inside one course the chat reads and regroups only that course's topics; other courses' groups stay as they are.
   const scoped = course !== undefined && course !== null && course !== '*';
   const only = scoped ? course || (language === 'en' ? 'Unassigned' : '未分类') : '';

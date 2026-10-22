@@ -5,19 +5,20 @@ import { Badge, DisclosureToggle, Icon, Menu, foldLabel } from '../components/in
 import ArchivedDeckRow from '../ArchivedDeckRow.jsx';
 import MasteryBar from './MasteryBar.jsx';
 import { dotLevel, topicKey } from './map-model.js';
-import { deckAnalysisPrompt, topicExplainPrompt } from '../agent-prompts/library.js';
+import { HandOff } from '../hand-off/HandOff.jsx';
+import { useHandOff } from '../hand-off/use-hand-off.js';
 
-/** One deck of the tree: its fold, selection, mastery, play button and ⋯ menu, and its topics when open. */
+/** One deck of the tree: its fold, selection, mastery, play button and ⋯ menu (with 发给主会话), and its topics when open (each with a 发给主会话 icon). */
 export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy, actions }) {
+  const handOff = useHandOff();
   if (d.archived) return <ArchivedDeckRow deck={d} busy={busy} onRestore={actions.restoreDeck} onRemove={actions.removeDeck} onManage={actions.manage} />;
-  const { start, resume, manage, askInChat } = actions;
+  const { start, resume, manage } = actions;
   const key = topicKey(d.id), whole = tree.selected.has(key), run = runFor([{ deckId: d.id }]);
   const choose = {
     new: () => start({ deckId: d.id, mode: 'new', fresh: true }),
     flashcard: () => start({ deckId: d.id, mode: 'flashcard' }),
     quiz: () => start({ deckId: d.id, mode: 'quiz' }),
     wrong: () => start({ deckId: d.id, mode: 'wrong' }),
-    ask: () => askInChat(deckAnalysisPrompt({ deckTitle: d.title })),
     manage: () => manage(d.id),
   };
   const items = [
@@ -25,7 +26,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
     { id: 'flashcard', label: ui('闪卡翻看'), disabled: busy || !d.available },
     { id: 'quiz', label: ui('测验'), disabled: busy || !d.quizCount },
     { id: 'wrong', label: uiFormat('待巩固重练 {0}', [d.wrong || 0]), disabled: busy || !d.wrong },
-    { id: 'ask', label: ui('在对话中分析'), disabled: busy },
+    { ...handOff.item('deck.ask', { deckTitle: d.title }), disabled: busy },
     { id: 'manage', label: ui('管理题组'), disabled: busy },
   ];
   return (
@@ -74,8 +75,8 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
                   onClick={() => (topicRun ? resume(topicRun.id) : start({ mode: 'path', scope: [{ deckId: d.id, topic: t.name }] }))}>
                   {topicRun ? ui('继续') : <Icon name="play" size={14} />}
                 </button>
-                <button className="map-ask" title={ui('在对话中讲解这个主题')} aria-label={uiFormat('在对话中讲解 {0}', [t.name])}
-                  onClick={() => askInChat(topicExplainPrompt({ topic: t.name, deckTitle: d.title, mastery: t.mastery, weak: t.counts.weak }))}>{ui('问')}</button>
+                <HandOff id="topic.explain" shape="icon" what="让主会话讲解这个主题" anchorClassName="map-ask"
+                  input={{ topic: t.name, deckTitle: d.title, mastery: t.mastery, weak: t.counts.weak }} />
               </li>
             );
           })}

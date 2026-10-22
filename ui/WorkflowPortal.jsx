@@ -7,7 +7,8 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from "rea
 import Markdown from "./Markdown.jsx";
 import SkeletonSpine from "./SkeletonSpine.jsx";
 import { Banner, Button, Disclosure, ErrorState, InlineMessage, LoadingState, PageHeader, ProgressBar, useToast } from "./components/index.js";
-import { WORKFLOW_HANDOFF as HANDOFF, workflowStepPrompt } from "./agent-prompts/workflow.js";
+import { WORKFLOW_HANDOFF as HANDOFF } from "./agent-prompts/workflow.js";
+import { HandOffForm } from "./hand-off/HandOff.jsx";
 import WorkflowLesson, { TeachingArticle } from "./WorkflowLesson.jsx";
 import { Readings, ScopeBar } from "./WorkflowScope.jsx";
 import ModelErrorNote, { ModelSettingsContext } from "./ModelErrorNote.jsx";
@@ -34,7 +35,7 @@ function MaterialHistory({ record, disabled, onRestore }) {
   if (!history.length) return null;
   return <details className="wf-material-history"><summary>{uiFormat("之前的版本 · {0}", [history.length])}</summary><ol>
     {history.map((item, index) => ({ item, index })).reverse().map(({ item, index }) => <li key={`${index}:${item.at}`}>
-      <div className="wf-material-history-head"><span>{item.by === "ai" ? ui("AI 讲解") : ui("主对话")} · {stamp(item.at)}</span><Button variant="link" size="sm" disabled={disabled} onClick={() => onRestore(index)}>{ui("恢复这一版")}</Button></div>
+      <div className="wf-material-history-head"><span>{item.by === "ai" ? ui("AI 讲解") : ui("主会话")} · {stamp(item.at)}</span><Button variant="link" size="sm" disabled={disabled} onClick={() => onRestore(index)}>{ui("恢复这一版")}</Button></div>
       <details><summary>{preview(item.content)}</summary><TeachingArticle content={item.content} /></details>
     </li>)}
   </ol><p className="muted small">{ui("恢复后，当前版本也会留在这里。")}</p></details>;
@@ -44,7 +45,7 @@ function MaterialHistory({ record, disabled, onRestore }) {
 function PracticeStep({ step, resources, pending, disabled, onStart, onOpen }) {
   const p = resources.practice;
   const count = Math.min(step.count || resources.cardCount, resources.cardCount);
-  if (!p && !resources.cardCount) return <div className="wf-practice-intro"><p>{ui("本次范围还没有可练习的题目，可以请主对话补充内容，或跳过本步。")}</p></div>;
+  if (!p && !resources.cardCount) return <div className="wf-practice-intro"><p>{ui("本次范围还没有可练习的题目，可以请主会话补充内容，或跳过本步。")}</p></div>;
   if (!p) return <div className="wf-practice-intro">
     <p>{uiRich("从本次范围里练 {0} 道题。打开的是完整的刷题页：提示、讲解、AI 追问和教学都能用，练完点「回到学习流」回到这里。", <strong>{count}</strong>)}</p>
     <p className="muted small">{ui("作答照常判分，并进入闪卡复习安排。")}</p>
@@ -141,12 +142,12 @@ export default function WorkflowPortal({ onOpenSettings, ...props }) {
 function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision }) {
   useInjectCss(css, "study-workflows");
   useInjectCss(skeletonCss, "study-skeleton");
-  const { call, askInChat } = useStudy();
+  const { call } = useStudy();
   const [session, setSession] = useState(null), [resources, setResources] = useState({ readings: [], sources: [], cardCount: 0 });
   const [output, setOutput] = useState(""), [remote, setRemote] = useState(null);
   const toast = useToast();
   const [pending, setPending] = useState(""), [error, setError] = useState("");
-  const [showRecallMaterial, setShowRecallMaterial] = useState(false), [wish, setWish] = useState("");
+  const [showRecallMaterial, setShowRecallMaterial] = useState(false);
   const current = useRef(null), outputRef = useRef(""), lock = useRef(false), live = useRef(true), pollToken = useRef(0);
   const transition = useRef(null), reading = useRef(null);
   const arrive = useRef(false), wantFocus = useRef(false), headingRef = useRef(null), outputField = useRef(null);
@@ -160,7 +161,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
     current.current = next; outputRef.current = value;
     setSession(next); setOutput(value);
     if (options.resources) setResources(options.resources);
-    if (changedStep) { setShowRecallMaterial(false); setWish(""); }
+    if (changedStep) setShowRecallMaterial(false);
     if (cached && cached.base !== savedOutput(next) && cached.output !== savedOutput(next)) setRemote({ session: next, resources: options.resources });
     else setRemote(null);
   }, [libraryKey]);
@@ -295,10 +296,12 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
     const result = await call("workflow.teaching.undo", { id, version: latest.version, stepId: latest.currentStepId });
     if (live.current) { adopt(result.session, { resources: result.resources, keepOutput: true }); toast.success(ui("已恢复上一次讲解。")); }
   });
-  const ask = () => act("chat", async () => {
-    const saved = await persist(), step = saved.template.steps.find((item) => item.id === saved.currentStepId);
-    await askInChat(workflowStepPrompt({ session: saved, step, wish: wish.trim() }));
-  });
+  // The write before the 发给主会话 of this step: the notes are saved first (HandOffForm then sends); `false` when they could not be (act put the error on the page).
+  const saveBeforeHandOff = async () => {
+    let saved = null;
+    await act("chat", async () => { saved = await persist(); });
+    return saved || false;
+  };
   const restoreMaterial = (index) => act("restore", async () => {
     const saved = await persist();
     const next = await call("workflow.session.material.restore", { id, version: saved.version, stepId: saved.currentStepId, index });
@@ -422,7 +425,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
       {step.kind === "skeleton" && (resources.skeleton ? <div className="wf-skeleton"><h3>{resources.skeleton.title}</h3>{resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} stepKind="skeleton" /></div> : <SkeletonMaker session={session} resources={resources} disabled={!active || busy || !!remote} onGenerate={generateSkeleton} />)}
       {step.kind === "lesson" && <WorkflowLesson key={step.id} topic={session.topic} content={content} record={record} resources={resources} disabled={!active || busy || !!remote} onTeach={teach} onUndo={undoTeaching} call={call} sessionId={id} stepId={step.id} />}
       {!["lesson", "recall"].includes(step.kind) && content && <section className="wf-material" aria-label={ui("本步材料")}>
-        <p className="wf-material-head"><span className="wf-eyebrow">{!record.content ? ui("本步材料") : record.materialBy === "ai" ? ui("AI 补充的材料") : ui("主对话补充的材料")}</span>{record.materialAt && <time>{stamp(record.materialAt)}</time>}</p>
+        <p className="wf-material-head"><span className="wf-eyebrow">{!record.content ? ui("本步材料") : record.materialBy === "ai" ? ui("AI 补充的材料") : ui("主会话补充的材料")}</span>{record.materialAt && <time>{stamp(record.materialAt)}</time>}</p>
         <div className="wf-lesson"><TeachingArticle content={content} /></div>
       </section>}
       <MaterialHistory record={record} disabled={!active || busy || !!remote} onRestore={restoreMaterial} />
@@ -446,7 +449,11 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
         <p className="muted small">{stale ? ui("你改过复述了。按上面的缺口补好后，可以请 AI 再看一遍。") : ui("这是对这一次复述的建议，不是判分，也不代表是否已经掌握。")}</p>
       </section>}
       {step.kind === "recall" && <div className="wf-recall-reference"><Button aria-expanded={showRecallMaterial} onClick={() => setShowRecallMaterial((value) => !value)}>{showRecallMaterial ? ui("收起参考内容") : ui("我已尝试，查看参考与讲解")}</Button>{showRecallMaterial && <div>{recallContent && <TeachingArticle content={recallContent} />}<Readings resources={resources} /></div>}</div>}
-      <details className="wf-chat"><summary>{ui((HANDOFF[step.kind] || HANDOFF.lesson).label)}</summary><label>{ui("我需要什么帮助")}<textarea rows={2} value={wish} maxLength={2000} onChange={(e) => setWish(e.target.value)} placeholder={ui("例如：用一个具体例子解释这里的因果关系。")} disabled={!active || busy} /></label><Button disabled={!active || busy || !!remote} busy={pending === "chat"} busyLabel={ui("交接中…")} onClick={ask}>{ui("保存笔记并交给主对话")}</Button><p className="muted small">{ui("补充的讲解会回到这一步，你的回答与学习判断由你自己完成。")}</p></details>
+      <details className="wf-chat"><summary>{ui((HANDOFF[step.kind] || HANDOFF.lesson).label)}</summary>
+        <HandOffForm key={step.id} id="workflow.step" className="wf-chat__form" rows={2} maxLength={2000} label="我需要什么帮助" placeholder="例如：用一个具体例子解释这里的因果关系。" submitLabel="保存笔记并发给主会话"
+          what="先保存你的笔记，再让主会话帮这一步" said="笔记已保存。" disabled={!active || busy || !!remote} prepare={saveBeforeHandOff}
+          input={(text, saved) => ({ session: saved, step: saved.template.steps.find((item) => item.id === saved.currentStepId), wish: text })} />
+        <p className="muted small">{ui("补充的讲解会回到这一步，你的回答与学习判断由你自己完成。")}</p></details>
       <footer className="wf-advance"><div className="wf-continue-heading"><div><strong>{ui("按自己的节奏继续")}</strong><p className="muted small">{uiFormat("下一站：{0}", [branchText(step.next)])}</p></div>{askable ? <div className="wf-primary-pair"><Button variant="link" size="sm" disabled={cannotComplete} onClick={() => advance("done")}>{ui("直接继续")}</Button><Button variant="primary" disabled={!active || busy || !!remote} busy={pending === "feedback"} busyLabel={ui("AI 正在看…")} onClick={askFeedback}>{lastFeedback ? ui("请 AI 再看一遍 →") : ui("请 AI 看看我的复述 →")}</Button></div>
         : feedback ? <div className="wf-primary-pair">{feedback.suggestion === "revisit"
           ? <><Button variant="link" size="sm" disabled={cannotComplete} onClick={() => advance("done")}>{ui("先继续")}</Button><Button variant="primary" disabled={!active || busy || !!remote} onClick={revisit}>{ui("回到讲解补一补 →")}</Button></>

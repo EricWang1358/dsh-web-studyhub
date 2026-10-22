@@ -1,5 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
-import { fenceData, nameData, say } from './say.js';
+import { fenceData, fenceRequest, nameData, say } from './say.js';
 import { installCommand } from '../archify.js';
 
 /* The knowledge-skeleton page's hand-offs to the conversation (ui-consistency #124): make a skeleton of picked topics, or extend a
@@ -17,7 +17,7 @@ const EXTEND_ASK = {
 /** What the learner asked of one concept: a comparison, a correction, new questions, or their own words. */
 function wanted({ intent, term, text }, language) {
   const entry = intent && EXTEND_ASK[intent];
-  if (!entry) return text;
+  if (!entry) return fenceRequest(text, language).trimEnd();
   const [template, fallback] = entry;
   if (intent === 'contrast') return say(language, template, [nameData(term), nameData(text)]);
   return say(language, template, [nameData(term), text ? `: ${text}` : say(language, fallback)]);
