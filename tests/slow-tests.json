@@ -87,6 +87,7 @@
     "tests/audio-retry.runtime.test.mjs",
     "tests/audio-retry.test.mjs",
     "tests/audio-single-characterization.test.mjs",
+    "tests/changelog-fragments.test.mjs",
     "tests/course-book-export-pandoc.test.mjs",
     "tests/documents.test.mjs",
     "tests/exam-blueprint-material.test.mjs",
