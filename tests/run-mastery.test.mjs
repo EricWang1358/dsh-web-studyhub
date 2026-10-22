@@ -135,6 +135,44 @@ test('finished: the projection carries before and after on the same cards; befor
   assert.equal(ended.mastery.before.percent, ended.mastery.after.percent);
 });
 
+test('a question skipped mid-round (review.skip) is still in the after: before and after are measured on the same stored cards', async t => {
+  const f = await fixture(t);
+  await f.service.store.update(s => { s.decks.find(deck => deck.id === 'd').cards.push(quiz('ungradable', { publicationUngrable: true })); });
+  const scope = [{ deckId: 'd', cardId: 'ungradable' }, { deckId: 'd', cardId: 'q3' }, { deckId: 'd', cardId: 'q4' }];
+  let run = await f.service.call('review.start', { mode: 'path', scope, ordered: true, fresh: true });
+  const kept = await f.stored(run.id);
+  assert.deepEqual(kept.mastery.cards, masteryCards(kept), 'the measured cards are stored with the value');
+  assert.equal(kept.mastery.before.total, 3);
+  for (let guard = 0; guard < 10 && run.card?.id !== 'ungradable' && !run.complete; guard++) {
+    const ref = { runId: run.id, cardId: run.card.id, queueVersion: run.queueVersion };
+    run = await f.service.call('review.answer', { ...ref, selected: ['a'] });
+    if (!run.complete && run.feedback) run = await f.service.call('review.move', { runId: run.id, direction: 1 });
+  }
+  assert.equal(run.card?.id, 'ungradable', 'the round reaches the ungradable question');
+  run = await f.service.call('review.skip', { runId: run.id, cardId: 'ungradable', queueVersion: run.queueVersion });
+  run = await answerAll(f.service, run, 5);
+  assert.equal(run.complete, true);
+  assert.equal(run.mastery.after.total, run.mastery.before.total, 'the same three cards, before and after');
+  assert.deepEqual(run.mastery.after, scopeSummary(await f.service.store.read(), kept.mastery.cards));
+});
+
+test('a daily-plan task whose scope changes after the first answer keeps measuring the cards it started on', async t => {
+  const f = await fixture(t);
+  const scope = [{ deckId: 'd', cardId: 'q3' }, { deckId: 'd', cardId: 'q4' }];
+  const card = { id: 'task-2', learningTask: { kind: 'practice', scope }, studyRef: { id: 'd', root: f.root } };
+  let run = await startPracticeRun(f.service.store, card, f.root);
+  const ref = { runId: run.id, cardId: run.card.id, queueVersion: run.queueVersion };
+  await f.service.call('review.answer', { ...ref, selected: ['a'] });
+  const started = (await f.stored(run.id)).mastery;
+  card.learningTask.scope = [...scope, { deckId: 'd', cardId: 'q2' }];
+  run = await startPracticeRun(f.service.store, card, f.root);
+  const kept = await f.stored(run.id);
+  assert.deepEqual(kept.mastery, started, 'answered already: the stored value and its cards stay');
+  run = await f.service.call('review.end', { runId: run.id });
+  assert.equal(run.mastery.after.total, 2, 'after is of the two cards the before was measured on');
+  assert.deepEqual(run.mastery.after, scopeSummary(await f.service.store.read(), started.cards));
+});
+
 test('runs stored before 3.6: without the value there is no change to show; an old reader round keeps its own before', async t => {
   const f = await fixture(t);
   const run = await f.service.call('review.start', { mode: 'path', scope: [{ deckId: 'd', cardId: 'q3' }], fresh: true });
@@ -156,6 +194,11 @@ test('pure: the cards of a round are its questions once each, tail retries left 
   const run = { deckId: 'd', entries: [{ card: { id: 'a' } }, { deckId: 'e', card: { id: 'b' } }, { card: { id: 'a' }, retry: true }] };
   assert.deepEqual(masteryCards(run), [{ deckId: 'd', cardId: 'a' }, { deckId: 'e', cardId: 'b' }]);
   const state = { attempts: [], decks: [{ id: 'd', cards: [{ id: 'a', review: mastered }] }, { id: 'e', cards: [{ id: 'b' }] }] };
-  assert.deepEqual(masteryAtStart(state, run), { v: 1, before: scopeSummary(state, masteryCards(run)) });
+  assert.deepEqual(masteryAtStart(state, run), { v: 1, before: scopeSummary(state, masteryCards(run)), cards: masteryCards(run) });
+  // A reader round's measured cards are its own stored page scope: not copied.
+  const reader = { ...run, reading: { v: 1 }, scope: [{ deckId: 'e', cardId: 'b' }] };
+  assert.deepEqual(masteryAtStart(state, reader), { v: 1, before: scopeSummary(state, reader.scope) });
+  // A 3.6 run stored before the cards were kept ({ v: 1, before } only) is measured on its questions, as it was.
+  assert.deepEqual(masteryView(state, { ...run, mastery: { v: 1, before: masteryAtStart(state, run).before } }).after, scopeSummary(state, masteryCards(run)));
   assert.equal(masteryAtStart(state, run).before.percent, 50);
 });
