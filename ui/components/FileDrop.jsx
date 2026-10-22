@@ -121,9 +121,10 @@ const fileIcon = name => /\.(mp3|wav|m4a|aac|ogg|oga|flac|opus|webm|aiff?)$/i.te
  * files are listed with the reason; `items` shows per-file progress.
  * onFiles(acceptedFiles, rejections) is called for every pick or drop.
  * items: [{ id, name, status: 'pending'|'working'|'done'|'error', detail?, action?: { label, onClick } }]
+ * rejectAction(rejections) -> { label, onClick, tip? } | null: another way on for the files it did not take, under their list (only when passed).
  */
 export default function FileDrop({ accept = [], multiple = false, maxBytes, label, hint, buttonLabel, disabled = false, busy = false,
-  onFiles, items, compact = false, icon = 'upload', className, ...rest }) {
+  onFiles, items, compact = false, icon = 'upload', rejectAction, className, ...rest }) {
   useComponentCss(css);
   const zone = useRef(null), input = useRef(null), latest = useRef(null);
   const labelId = useId(), hintId = useId();
@@ -168,7 +169,7 @@ export default function FileDrop({ accept = [], multiple = false, maxBytes, labe
             onFiles?.(result.accepted, result.rejected);
           }} />
       </div>
-      {rejected.length > 0 && <InlineMessage tone="warning" boxed className="sh-drop__rejects" onDismiss={() => setRejected([])}
+      {rejected.length > 0 && <InlineMessage tone="warning" boxed className="sh-drop__rejects" onDismiss={() => setRejected([])} secondary={rejectAction?.(rejected) || undefined}
         title={uiFormat('{0} 个文件没有添加', [rejected.length])}>
         <ul>{rejected.map((item, index) => <li key={`${item.name}:${index}`}><span className="sh-drop__reject-name">{item.name}</span>{item.message}</li>)}</ul>
       </InlineMessage>}

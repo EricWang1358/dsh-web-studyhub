@@ -27,6 +27,7 @@
     "tests/follow-label-fit-browser.test.mjs",
     "tests/generate-flow-browser.test.mjs",
     "tests/generate-short-browser.test.mjs",
+    "tests/hand-off-browser.test.mjs",
     "tests/import-hop-browser.test.mjs",
     "tests/index-shortcut-browser.test.mjs",
     "tests/job-model-choice-browser.test.mjs",

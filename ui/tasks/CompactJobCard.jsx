@@ -92,8 +92,11 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
         {stoppable ? <Button variant="quiet" size="sm" aria-label={uiFormat('停止：{0}', [summary.title])} onClick={cancel}>{ui('停止')}</Button>
           : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('知道了：{0}', [summary.title])} onClick={dismiss}>{ui('知道了')}</Button> : null}
       </div>
-      {/* The other ways on, as quiet links under the card ([{ label, run, disabled }]): the card keeps ONE primary button. */}
-      {links?.length > 0 && <div className="cjc__links">{links.map((link) => <Button key={link.label} variant="link" size="sm" disabled={link.disabled} onClick={link.run}>{link.label}</Button>)}</div>}
+      {/* The other ways on, as quiet links under the card ([{ label, run (or onClick), disabled, tip }]; tip: on hover and focus): the card keeps ONE primary button. */}
+      {links?.length > 0 && <div className="cjc__links">{links.map((link) => {
+        const button = <Button key={link.label} variant="link" size="sm" disabled={link.disabled} onClick={link.run ?? link.onClick}>{link.label}</Button>;
+        return link.tip ? <Tooltip key={link.label} layer content={link.tip} anchorClassName="cjc__link-anchor">{button}</Tooltip> : button;
+      })}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}
       {dismissFailure && <InlineMessage className="cjc__problem" tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
       {/* `primary.tip`: what the button does first, on hover and focus (never a title attribute). */}

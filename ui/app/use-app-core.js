@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { languageSystem } from '../../lib/language.js';
 import { ui, uiMessage, getUiLanguage } from '../i18n.js';
 import { localizeRunResponse } from '../run-titles.js';
 import { createActRunner } from '../act-runner.js';
 import { useQuickActionsController } from '../quick-actions.js';
 import { createToastApi } from '../components/Feedback.jsx';
+import { deliverToChat } from '../hand-off/use-hand-off.js';
 
 /* What every other app hook leans on: the refs that fence late answers (library epoch, navigation request), the host call that
    honours them, the single-flight act(), the quick-action controller and the feedback slots. One place, so a hook never has
@@ -33,17 +33,9 @@ export function useAppCore(transportCall, host) {
   const act = useCallback((action, args = {}, after, options) =>
     actRunner.current.act(action, args, after, { afterNavigation: action === 'restore', ...options }), []);
   const toast = useMemo(() => createToastApi({ setNotice: notify, setError }), [notify]);
-  /* Hand a prompt to the conversation: into its input box when the host has one, else onto the clipboard, else on screen to copy. */
-  const askInChat = useCallback(async (prompt) => {
-    const text = prompt + languageSystem('', getUiLanguage());
-    if (hostRef.current.askInChat?.(text)) { notify(ui('已填入对话输入框，确认后发送。')); return; }
-    try {
-      await navigator.clipboard.writeText(text);
-      notify(ui('已复制提示词，粘贴到对话中即可。'));
-    } catch {
-      notify({ text, persistent: true });
-    }
-  }, [notify]);
+  /* 「发给主会话」: the one writer of the main chat's input box and its one set of notices (ui/hand-off/use-hand-off.js deliverToChat). Never sends;
+     never over the learner's own words. askInChat(prompt, { said }) -> 'filled' | 'kept' | 'copied' | 'shown'. */
+  const askInChat = useCallback((prompt, { said = '' } = {}) => deliverToChat({ host: hostRef.current, prompt, said, notify }), [notify]);
   // One stable bag: hooks list it as a dependency and it must never change identity.
   const refs = useMemo(() => ({ epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef }), []);
   return { refs,

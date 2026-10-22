@@ -86,11 +86,9 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
       writeDraft(keyFor(draft), null);
       writeDraft(keyFor(saved), null);
       onSaved(saved, forChat);
-      toast.success(ui("学习流已保存；正在进行的学习保持原来的步骤。"));
-      if (forChat) {
-        await askInChat(workflowDesignPrompt({ template: saved, wish: wish.trim() }));
-        toast.info(ui("请求已准备好，请在主对话确认发送。保存后可载入更新的流程。"));
-      }
+      // Handed over: the shared notice says what happened (filled, kept, copied …), with the save said first; the page adds no toast of its own.
+      if (forChat) await askInChat(workflowDesignPrompt({ template: saved, wish: wish.trim() }), { said: "学习流已保存；正在进行的学习保持原来的步骤。" });
+      else toast.success(ui("学习流已保存；正在进行的学习保持原来的步骤。"));
     } catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(""); }
   }
@@ -163,7 +161,6 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
   const [skeletonId, setSkeletonId] = useState("");
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState(false), [error, setError] = useState("");
-  const toast = useToast();
   const [skeletonPending, setSkeletonPending] = useState(false);
   const requestId = useRef(crypto.randomUUID()), lock = useRef(false);
   const topicMap = new Map(listing.topics.map((item) => [item.key, item]));
@@ -184,7 +181,6 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
     try {
       await askInChat(workflowSkeletonPrompt({ topic, topicNames: [...selected].map((key) => topicMap.get(key)?.topic).filter(Boolean),
         workflowTitle: template.title, scope }));
-      toast.info(ui("请求已准备好，请在主对话发送。骨架保存后会出现在列表，选中后即可开始学习。"));
     } catch (err) { setError(err.message); }
     finally { lock.current = false; setSkeletonPending(false); }
   }
@@ -228,7 +224,6 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   useInjectCss(css, "study-workflows");
   const [listing, setListing] = useState(initialListing), [screen, setScreen] = useState(() => openSession ? { kind: "portal", id: openSession } : { kind: "list" });
   const [error, setError] = useState(""), [pending, setPending] = useState("");
-  const toast = useToast();
   const [confirm, setConfirm] = useState(""), [wish, setWish] = useState("");
   // What the learner typed; until they type (or clear the box) the recommended topic is in it, so starting is one click.
   const [typedGoal, setTypedGoal] = useState(null), quickRequest = useRef(null);
@@ -264,7 +259,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   async function ask() {
     if (lock.current) return;
     lock.current = true; setPending("chat"); setError("");
-    try { await askInChat(workflowDesignPrompt({ wish: wish.trim() })); toast.info(ui("请求已准备好，请在主对话确认发送。保存后的学习流会出现在这里。")); }
+    try { await askInChat(workflowDesignPrompt({ wish: wish.trim() })); }
     catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(""); }
   }

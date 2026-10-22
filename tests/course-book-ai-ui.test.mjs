@@ -140,7 +140,7 @@ test('问 AI: a quiet button at a point\'s title; the panel has one box, the fiv
   assert.match(panel, /sh-btn--quiet[^>]*data-book-ask="chat"/);
   assert.doesNotMatch(panel, /sh-btn--primary/, 'no primary in the panel: the page keeps its one');
   assert.match(text, /写进这个知识点 用你设置的模型写，约 1 分钟；写好后收成一行，放在它针对的那段后面。/);
-  assert.match(text, /发给主会话 只填进主对话的输入框，由你按发送；没有主对话时复制到剪贴板。/);
+  assert.match(text, /发给主会话 只填进主会话的输入框，由你按发送；没有主会话时复制到剪贴板。/);
   const over = render(h(ui.BookAsk, { target: { heading: 'h2', words: 'records each decision', anchor: null }, model: { ready: true }, onWrite: noop, onSend: noop, onClose: noop }));
   assert.match(over, /data-book-ask-panel="selection"/);
   assert.match(textOf(over), /「records each decision」/, 'the words it is about, on top');
@@ -158,7 +158,7 @@ test('without a model: the gate for 写进这个知识点 only; 发给主会话 
   assert.doesNotMatch(book, /data-book-ask="write"/, 'the whole book: 发给主会话 only');
   assert.match(book, /sh-btn--secondary[^>]*data-book-ask="chat"/);
   assert.doesNotMatch(book, /book-model-gate|sh-gate/, 'and no gate');
-  assert.match(textOf(book), /也可以直接在主对话里说你想怎么改，主会话会按 study-book 改书，每次改动都能回退/);
+  assert.match(textOf(book), /也可以直接在主会话里说你想怎么改，主会话会按 study-book 改书，每次改动都能回退/);
 });
 
 test('the selection toolbar\'s 弄懂 is secondary and its words never carry the 角标 digits (the source pins both)', async () => {

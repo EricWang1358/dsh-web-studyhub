@@ -13,10 +13,11 @@ import { InlineMessage } from './Feedback.jsx';
  * cannot be dismissed and a second click does nothing); if it throws, the
  * message appears inside the dialog and the learner can try again. When it
  * succeeds, onDone() runs (default: onClose). `busy` is for work the caller
- * already tracks, `blocked` disables only the confirm button.
+ * already tracks, `blocked` disables only the confirm button. errorAction: { label, onClick, tip? } (or a
+ * function of the error's text that returns one) drawn on the error line, another way on when the confirm failed.
  */
 export default function ConfirmDialog({ title, description, children, tone = 'danger', confirmLabel, cancelLabel, icon, onConfirm, onDone, onClose,
-  busy = false, blocked = false, size = 'sm', className }) {
+  busy = false, blocked = false, size = 'sm', className, errorAction }) {
   const cancel = useRef(null), flight = useRef(false), alive = useRef(true);
   const [working, setWorking] = useState(false), [error, setError] = useState('');
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -43,7 +44,7 @@ export default function ConfirmDialog({ title, description, children, tone = 'da
         <Button variant={tone === 'primary' ? 'primary' : 'danger'} icon={icon} busy={working} disabled={busy || blocked} onClick={confirm}>{confirmLabel}</Button>
       </>}>
       {children}
-      {error && <InlineMessage tone="error">{error}</InlineMessage>}
+      {error && <InlineMessage tone="error" secondary={typeof errorAction === 'function' ? errorAction(error) : errorAction}>{error}</InlineMessage>}
     </Dialog>
   );
 }

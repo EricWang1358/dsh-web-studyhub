@@ -3,6 +3,7 @@ import { ui } from '../i18n.js';
 import { Button, Tooltip } from '../components/index.js';
 import useRangeAnchor from '../document-preview/translation/useRangeAnchor.js';
 import { columnBounds, selectedWords, selectionBox, selectionPoint, toolbarStays } from './ask-visibility.js';
+import { HandOffButton } from '../hand-off/HandOff.jsx';
 
 /* The selection toolbar of the review book (docs/review-book.md "Ask AI"): words selected in a point, by mouse, keyboard or touch (it listens to
    `selectionchange`, so a Shift+arrow selection and a long press count, in 翻看 too), show 「弄懂」「写一段…」「发给主会话」 above the selection's first line,
@@ -77,9 +78,7 @@ export default function BookSelectBar({ host, scrollerRef, hidden = false, model
         <Button size="sm" variant="secondary" icon="sparkle" data-book-select="explain" onClick={done(now => (model?.ready ? onExplain(now) : onWrite({ ...now, range: rangeRef.current })))}>{ui('弄懂')}</Button>
       </Tooltip>
       <Button size="sm" variant="quiet" data-book-select="write" onClick={done(now => onWrite({ ...now, range: rangeRef.current }))}>{ui('写一段…')}</Button>
-      <Tooltip layer content={ui('只填进主对话的输入框，由你按发送。')} anchorClassName="book-select__tip">
-        <Button size="sm" variant="quiet" data-book-select="chat" onClick={done(onSend)}>{ui('发给主会话')}</Button>
-      </Tooltip>
+      <HandOffButton shape="quiet" anchorClassName="book-select__tip" data-book-select="chat" onClick={done(onSend)} />
     </div>
   );
 }

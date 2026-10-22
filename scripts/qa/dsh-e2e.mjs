@@ -8,7 +8,8 @@
       SSH_TTY=audit (in-browser folder picker, never a native dialog), a local
       fake OpenAI-compatible model (scripts/qa/fake-openai.mjs) as the default
       model, and the default workspace under output/qa/dsh-documents;
-   4. opens Study with Playwright, screenshots it, chats in the standard preset and in 学习模式 (the same command,
+   4. opens Study with Playwright, screenshots it, checks that 发给主会话 from the 复习全书 (seeded into the workspace's library) never overwrites what
+      was typed into the chat's input box and never sends, chats in the standard preset and in 学习模式 (the same command,
       sandbox-leaving command and file turns in both: same tools, same approvals, same outcome), then stops everything.
    It never reads or writes ~/.dsh or the owner's Documents folder.
    Output: output/qa/dsh-e2e/*.png and summary.json. Not part of npm test. */
@@ -21,6 +22,7 @@ import YAML from "yaml";
 import { scrubSecrets, scrubProcessEnv } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
 import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "./fake-openai.mjs";
+import { handOffStep, seedHandOffBook } from "./dsh-hand-off.mjs";
 
 // The host release the harness pins by default; `--dsh-version <x>` / DSH_QA_VERSION tests another release (see resolveDshVersion).
 // StudyHub supports 0.2.0-rc.2 and 0.2.1-rc.2: run both before a release (`npm run qa:dsh -- --dsh-version 0.2.0-rc.2`).
@@ -157,6 +159,8 @@ export async function runDshE2e(options) {
         run(process.execPath, [bin, "--profile", DSH_PROFILE, "--from-default-profile", "web", "--dump-config"], { cwd: workspace, env: baseEnv, label: "dsh profile" });
       run(process.execPath, [bin, "plugin", "--profile", DSH_PROFILE, "add", tgz], { cwd: workspace, env: baseEnv, label: "dsh plugin add" });
     });
+    // A 复习全书 in the workspace's library, for the 发给主会话 step below (seeded once; the documents folder outlives a run).
+    summary.handOffBook = await step("seed-hand-off-book", () => seedHandOffBook(workspace, home));
     // "[[tool:<name>]]" in a message makes the fake model call that tool once (the preset-chat step)
     model = await createFakeOpenAI({ port: options.modelPort, toolCall: ({ prompt }) => { const match = /\[\[tool:(\w+)(?: (\{.*?\}))?\]\]/.exec(prompt); return match ? { name: match[1], arguments: match[2] ? JSON.parse(match[2]) : {} } : null; } });
     const patch = join(options.out, "qa.patch.yml");
@@ -327,6 +331,8 @@ export async function runDshE2e(options) {
       await popup.waitFor({ state: "hidden" });
       await focused(scope, "Escape did not return focus to the combobox trigger");
     });
+    // 发给主会话 never overwrites what the learner typed into the chat's input box and never sends (scripts/qa/dsh-hand-off.mjs).
+    await step("hand-off-keeps-typed", async () => { summary.handOff = await handOffStep(page, { lang: options.lang, model, shot }); });
     // A chat turn per agent preset: the standard preset (control) and the 学习模式 preset this plugin ships (presets/study.patch.yml). The turn goes through the
     // local fake model; the page must show its reply and no host error. A host that refuses the preset's prompt (an unknown {{variable}}, say) shows the error text.
     await step("preset-chat", async () => {

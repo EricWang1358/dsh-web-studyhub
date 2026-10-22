@@ -298,7 +298,6 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
   const ask = () => act("chat", async () => {
     const saved = await persist(), step = saved.template.steps.find((item) => item.id === saved.currentStepId);
     await askInChat(workflowStepPrompt({ session: saved, step, wish: wish.trim() }));
-    toast.info(ui("请求已准备好，请在主对话确认发送。补充材料保存后会在这里显示。"));
   });
   const restoreMaterial = (index) => act("restore", async () => {
     const saved = await persist();
