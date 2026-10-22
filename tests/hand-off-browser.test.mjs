@@ -60,7 +60,7 @@ const host = await build({ stdin: { contents: `
 const parts = await build({ stdin: { contents: `
   import React, { useState } from 'react';
   import { createRoot } from 'react-dom/client';
-  import { ConfirmDialog, FileDrop } from './ui/components/index.js';
+  import { ConfirmDialog, FileDrop, Menu } from './ui/components/index.js';
   import CompactJobCard from './ui/tasks/CompactJobCard.jsx';
   import { AppContext } from './ui/app/app-context.js';
   import css from './ui/styles.js';
@@ -73,7 +73,11 @@ const parts = await build({ stdin: { contents: `
     const [open, setOpen] = useState(true);
     const job = { id: 'j1', type: 'audio-import', filename: 'Week 3.wav', status: 'failed', error: 'ffmpeg missing', startedAt: '2026-10-05T10:00:00.000Z' };
     return React.createElement(AppContext.Provider, { value: { core: {}, nav: {} } },
-      React.createElement('div', { className: 'study-app', style: { padding: 16 } },
+      React.createElement('div', { className: 'study-app', style: { padding: 16, height: '100vh', boxSizing: 'border-box', overflow: 'auto' } },
+        // (A fixed-height surface that scrolls, as the app's is: the Menu closes on a scroll of the page around it.)
+        // A Menu item that carries run (useHandOff().item) runs it on select; one without goes to onSelect as before.
+        React.createElement(Menu, { label: '更多', onSelect: (id) => log.push('select:' + id),
+          items: [{ id: 'hand-off:deck.ask', label: '交给它', run: () => log.push('run:item') }, { id: 'plain', label: '普通项' }] }),
         React.createElement(FileDrop, { accept: ['.pdf'], multiple: true, rejectAction: (rejections) => action('拒收 ' + rejections.length), onFiles: () => {} }),
         React.createElement(FileDrop, { accept: ['.pdf'], className: 'plain-drop', onFiles: () => {} }),
         React.createElement(CompactJobCard, { job, onDismiss: () => {}, links: [{ label: '旧写法', run: () => log.push('run') }, { label: '新写法', onClick: () => log.push('onClick'), tip: '新写法的说明' }] }),
@@ -206,6 +210,25 @@ test('发给主会话 from the book through the real host adapter: filled, kept,
     await shot('more-menu');
     await page.keyboard.press('Escape');
 
+    // 学习流 still hands over through askInChat until S2b moves it: the shared notice is the last word there too; no older toast of its own
+    // (「请求已准备好，请在主对话确认发送…」) replaces it and tells a learner whose box was kept that the request is waiting in the main chat.
+    if (shots || (width === 1280 && theme === 'light')) {
+      await reset({ composerText: '我自己先打的字' });
+      await page.getByRole('button', { name: '回到总纲' }).first().click();
+      await page.locator('[data-tour="nav-workflows"]').first().click();
+      await page.locator('details.wf-advanced > summary').click();
+      const chat = page.locator('details.wf-advanced details.wf-chat');
+      await chat.locator('summary').click();
+      await chat.locator('textarea').fill('先讲例子');
+      await chat.getByRole('button').click();
+      await notice.getByText('输入框里已有文字，没有覆盖：提示词已复制，粘贴到合适的位置再发送。').waitFor({ timeout: 10000 });
+      await page.waitForTimeout(800);
+      assert.equal(await page.locator('.sh-toasts').getByText(/请求已准备好/).count(), 0, `${tag}: no toast of the page's own after the hand-off`);
+      assert.match(await notice.innerText(), /输入框里已有文字，没有覆盖/, `${tag}: the shared notice stays the last word`);
+      assert.equal(await page.evaluate(() => window.composerText), '我自己先打的字');
+      await shot('workflows-notice-kept');
+    }
+
     assert.equal((await page.evaluate(() => window.dshLog)).some((entry) => /submit/.test(entry)), false, `${tag}: submit was never touched`);
     assert.deepEqual(errors, [], `${tag}: no page errors`);
     await context.close();
@@ -246,6 +269,16 @@ test('the shared parts: ConfirmDialog\'s errorAction on its error line, FileDrop
   await newer.focus();
   await page.getByRole('tooltip').filter({ hasText: '新写法的说明' }).waitFor({ timeout: 5000 });
   await newer.click();
-  assert.deepEqual(await page.evaluate(() => window.partsLog), ['换个做法：被前置题挡住', '拒收 1', 'run', 'onClick']);
+  // The menu: the item with run is run (and not also handed to onSelect); the plain one reaches onSelect.
+  const more = page.getByRole('button', { name: '更多' });
+  // (Chosen from the keyboard, as the Menu's own focus puts the first item under it: this bare page is no study surface to place the list in view.)
+  await more.click();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('role') === 'menuitem');
+  await page.keyboard.press('Enter');
+  await more.click();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('role') === 'menuitem');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await page.evaluate(() => window.partsLog), ['换个做法：被前置题挡住', '拒收 1', 'run', 'onClick', 'run:item', 'select:plain']);
   assert.deepEqual(errors, []);
 });

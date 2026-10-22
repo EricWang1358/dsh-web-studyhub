@@ -19,11 +19,12 @@ const More = <Icon name="more" size={18} />;
  * keys/Home/End move, Enter/Space choose, Escape closes and returns focus, Tab
  * closes, ArrowDown on the button opens it.
  *
- * items: [{ id, label, icon?, hint?, danger?, disabled?, heading?, checked?, attrs? }] (`icon` is
+ * items: [{ id, label, icon?, hint?, danger?, disabled?, heading?, checked?, attrs?, run? }] (`icon` is
  * an Icon name or a node; `heading` makes a non-interactive group title; `checked`
  * (true or false) makes the item a menuitemcheckbox with a check mark while on; `attrs`
  * are extra attributes of the item's button, such as a data-usage name).
- * onSelect(id). `icon`: the default trigger's glyph (Icon name or node).
+ * onSelect(id): an item that carries `run` (useHandOff().item) is run instead and does not reach onSelect.
+ * `icon`: the default trigger's glyph (Icon name or node).
  * trigger({ props, ref, open }): a text trigger instead ("整理与添加"); spread
  * `props` and attach `ref`.
  */
@@ -86,7 +87,7 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
         : <button key={item.id} type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'} aria-checked={item.checked === undefined ? undefined : !!item.checked}
           disabled={item.disabled} title={item.hint} {...item.attrs}
           className={cx('sh-menu__item', item.danger && 'is-danger')}
-          onClick={() => { setOpen(false); button.current?.focus(); onSelect(item.id); }}>
+          onClick={() => { setOpen(false); button.current?.focus(); if (item.run) item.run(); else onSelect?.(item.id); }}>
           {item.icon ? glyph(item.icon, 16) : item.checked ? glyph('check', 16) : iconColumn && <span className="sh-menu__gap" aria-hidden="true" />}
           <span className="sh-menu__label">{item.label}</span>
           {item.hint && <span className="sh-menu__hint">{item.hint}</span>}
