@@ -39,7 +39,7 @@
 - 第一页课程名；
 - 契约分区列表。
 
-需要某类操作的具体参数时，读取对应分区，例如 `library.context {area:"sources"}`、`{area:"generation"}` 或 `{area:"cards"}`。分区有 `sources`、`imports`、`classroom`、`generation`、`cards`、`learning`、`organization`、`notes`、`board`、`workflows`、`cases` 和 `skeletons`。
+需要某类操作的具体参数时，读取对应分区，例如 `library.context {area:"sources"}`、`{area:"generation"}` 或 `{area:"cards"}`。分区有 `dailyPlan`、`sources`、`imports`、`decks`、`classroom`、`generation`、`cards`、`learning`、`book`、`organization`、`notes`、`board`、`workflows`、`cases` 和 `skeletons`。
 
 资料原文、题目和关联关系只在需要时分页读取。
 
