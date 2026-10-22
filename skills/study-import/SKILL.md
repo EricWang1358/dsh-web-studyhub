@@ -19,8 +19,8 @@ whenToUse: The learner asks in chat to import, add, convert, split or enter a fi
 ## 2. Material
 
 1. StudyHub's own import first: `study_materials` operation `document.import {"path": "<absolute path>"}` (pdf, docx, pptx, ppt, md, html, txt, MinerU/Docling JSON). It keeps the original, finds the pages and returns `sourceIds` and `warnings`. Pass `course` when the learner named one.
-2. Convert only when that import refuses the file (too large, too many pages, a scan without text, a format it does not take):
-   - A long PDF: import it in parts with `pages`, or split it by chapter. A scanned or long PDF can also go through the local MinerU when it is installed: `mineru.plan`, then `mineru.import`.
+2. Convert only when that import refuses the file (too large, too many pages, too much text, not UTF-8, a scan without text, a format it does not take):
+   - A PDF over the page limit in area imports is refused whatever `pages` says: split it into files first (by chapter), or send it through the local MinerU when it is installed: `mineru.plan`, then `mineru.import` (a scanned PDF too). `pages` only narrows a PDF within that limit, for example to stay under the character limit.
    - Anything else: convert it to Markdown or plain text with the shell. Prefer Node (`node -e` or a small `.mjs` script): the host already runs on it. Use another program only when it is already installed.
    - Ask before installing anything (a package, a program, a model) and say what it is and how large. MinerU and Marker are installed and set up only in StudyHub's Settings page (设置 › PDF 转换): send the learner there, never install or configure them yourself.
    - Write every result as a new file under `studyhub-work/` in the workspace. Never delete, move or overwrite the learner's originals.

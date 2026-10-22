@@ -21,6 +21,11 @@ import { EXAM_FORMATS } from '../lib/courses.js';
 import { ACTIONS as JOB_ACTIONS } from '../lib/jobs/contract-schema.js';
 import { importExample } from '../lib/deck-format.js';
 import { importExample as uiImportExample } from '../ui/json-prompts.js';
+import { SELECTION_CHARS } from '../lib/limits.js';
+import { extractPdf } from '../lib/documents.js';
+import { projectDocument } from '../lib/contexts/materials/files.js';
+import { IMPORT_ERROR } from '../lib/import-errors.js';
+import { normalizeImportText } from '../lib/bulk-import.js';
 import { materialsSchemas } from '../lib/contexts/materials/contracts.js';
 import { capabilityIndex, discoveryTool, domainTool, filterCapabilities } from '../lib/runtime/tools.js';
 import { parseSkill, studySkills } from '../lib/study-skills.js';
@@ -56,6 +61,12 @@ test('area decks: the card format comes from the constants validateDeck and the 
   assert.ok(decks.endsWith(`Example: ${example}`));
   const { deck } = prepareJsonImport(example);
   assert.deepEqual(deck.quality.errors, [], 'the example imports without errors');
+  // Only deck.import takes a bare card array (titled by its file name); draft.import parses the object directly.
+  assert.match(decks, /deck\.import also takes a bare card array \(titled by its file name\); draft\.import needs the \{title,cards\} object/);
+  assert.doesNotMatch(decks, /^The question-deck format of deck\.import, draft\.import and study_bank append\. A file is \{title,folder\?,course\?,cards:\[\.\.\.\]\} or a bare card array/);
+  const bare = JSON.stringify(JSON.parse(importExample('quiz', 'en')).cards);
+  assert.throws(() => prepareJsonImport(bare), /JSON 顶层必须是包含 title 和 cards 的对象/);
+  assert.equal(JSON.parse(normalizeImportText(bare, 'chapter-3.json')).title, 'chapter-3');
 });
 
 test('validateDeck requires exactly REQUIRED_CARD_FIELDS', () => {
@@ -71,14 +82,35 @@ test('validateDeck requires exactly REQUIRED_CARD_FIELDS', () => {
 test('area imports: every limit is written from the constant that enforces it', () => {
   const imports = libraryContracts.imports;
   const expected = [`${megabytes(MAX_TEXT_DOCUMENT_BYTES)} MB`, `${megabytes(MAX_OFFICE_BYTES)} MB`, `${LARGE_DOCUMENT_LIMITS.pdfPages} pages`,
-    `up to ${MAX_IMPORT_FILES} files`, `${MAX_JSON_IMPORT_CHARS} characters each`, `(${MAX_INGEST_CHARS} chars)`];
+    `${SELECTION_CHARS} characters per import`, `up to ${MAX_IMPORT_FILES} files`, `${MAX_JSON_IMPORT_CHARS} characters each`, `(${MAX_INGEST_CHARS} chars)`];
   for (const phrase of expected) assert.ok(imports.includes(phrase), phrase);
-  const allowed = new Set([megabytes(MAX_TEXT_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES), LARGE_DOCUMENT_LIMITS.pdfPages, MAX_IMPORT_FILES,
+  const allowed = new Set([megabytes(MAX_TEXT_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES), LARGE_DOCUMENT_LIMITS.pdfPages, SELECTION_CHARS, MAX_IMPORT_FILES,
     MAX_JSON_IMPORT_CHARS, MAX_INGEST_CHARS].map(String));
   const numbers = [...imports.matchAll(/(\d[\d,]*)\s*(?:MB|pages|files|characters|chars)\b/g)].map(match => match[1]);
   assert.ok(numbers.length >= expected.length);
   for (const number of numbers) assert.ok(allowed.has(number), `${number} in area imports comes from a constant`);
   assert.doesNotMatch(imports, /8 MB\/200 pages/, 'the old hand-copied PDF limit is gone');
+  assert.match(imports, /text documents must be UTF-8/);
+  // pages cannot import part of a PDF over the page limit: it is checked before pages is read.
+  assert.match(imports, /a longer PDF is refused whatever pages says: split it into files first or use MinerU/);
+});
+
+test('a PDF over the page limit is refused even when pages picks one page, and the character cap is the one the importers enforce', async () => {
+  const count = LARGE_DOCUMENT_LIMITS.pdfPages + 1;
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', ''];
+  for (let i = 0; i < count; i++) objects.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] >>');
+  objects[1] = `<< /Type /Pages /Count ${count} /Kids [${objects.slice(2).map((_, i) => `${i + 3} 0 R`).join(' ')}] >>`;
+  let body = '%PDF-1.7\n';
+  const offsets = objects.map((object, i) => { const at = Buffer.byteLength(body); body += `${i + 1} 0 obj\n${object}\nendobj\n`; return at; });
+  const xref = Buffer.byteLength(body);
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(at => `${String(at).padStart(10, '0')} 00000 n \n`).join('')}`;
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  await assert.rejects(extractPdf({ dataBase64: Buffer.from(body).toString('base64'), pages: [1] }),
+    error => error.code === IMPORT_ERROR.TOO_MANY_PAGES && error.limit === LARGE_DOCUMENT_LIMITS.pdfPages);
+  assert.equal(SELECTION_CHARS, LARGE_DOCUMENT_LIMITS.selectionChars);
+  await assert.rejects(projectDocument(Buffer.from('x'.repeat(SELECTION_CHARS + 1)), { format: 'txt', filename: 'a.txt' }),
+    error => error.code === IMPORT_ERROR.TEXT_TOO_LONG && error.limit === SELECTION_CHARS);
+  await assert.rejects(projectDocument(Buffer.from([0xff, 0xfe, 0x41]), { format: 'txt', filename: 'a.txt' }), error => error.code === IMPORT_ERROR.NOT_UTF8);
 });
 
 test('the operations hand-offs rely on are written down, and every one of them exists', async t => {
@@ -116,6 +148,7 @@ test('study_capabilities: a compact index without arguments, exact schemas for a
   assert.ok(byContext.contexts[0].operations.find(item => item.name === 'document.import').input, 'a context comes with its schemas');
   const byApi = await tool.execute({ context: 'materials.v1', operation: 'document.import' }, {});
   assert.deepEqual(byApi.contexts.map(domain => [domain.id, domain.operations.map(item => item.name)]), [['materials', ['document.import']]]);
+  assert.ok(JSON.stringify(await tool.execute({ operation: 'document.import' }, {})).length < INDEX_CAP, 'the schema study_materials points at is small');
   const byOperation = await tool.execute({ operation: 'job.control' }, {});
   assert.deepEqual(byOperation.contexts.map(domain => domain.id), ['jobs']);
   assert.equal(byOperation.contexts[0].operations[0].available, true);
@@ -138,6 +171,17 @@ test('study_materials takes every parameter document.import declares, typed the 
   const declared = materialsSchemas['materials.document.import'].input.oneOf[0].properties;
   for (const [name, schema] of Object.entries(declared)) assert.deepEqual(parametersOf(tool)[name], schema, name);
   assert.deepEqual(parametersOf(tool).pages, { type: 'array', items: { type: 'integer' } });
+  // The pointer asks for the one schema it needs, not the whole materials context (several times the index cap).
+  assert.match(tool.description, /study_capabilities \{operation:"document\.import"\}/);
+  assert.doesNotMatch(tool.description, /\{context:"materials"\}/);
+});
+
+test('the user docs list every library.context area', async () => {
+  for (const [file, lead] of [['main-session-queries.md', 'The areas are '], ['main-session-queries.zh-CN.md', '分区有']]) {
+    const line = (await readFile(new URL(`../docs/${file}`, import.meta.url), 'utf8')).split(/\r?\n/).find(row => row.includes(lead));
+    const listed = [...line.slice(line.indexOf(lead)).matchAll(/`([a-zA-Z]+)`/g)].map(match => match[1]);
+    assert.deepEqual(listed.sort(), Object.keys(libraryContracts).sort(), file);
+  }
 });
 
 test('study_bank append says it only adds to an existing deck and checks citations; new decks go through deck.import', () => {
@@ -168,8 +212,12 @@ test('the study-import skill is registered, parses as YAML, names real actions a
     /Questions the learner already has/, /Add no questions/, /A recording/, /结束时用中文简短汇报/])
     assert.match(skill.content, rule);
   assert.doesNotMatch(skill.content, /\d[\d,]*\s*(?:MB|KB|GB|pages?|页|characters?|chars?|字符?|files?|个文件)\b/i, 'no hand-copied limit');
-  for (const limit of [MAX_IMPORT_FILES, MAX_JSON_IMPORT_CHARS, MAX_INGEST_CHARS, LARGE_DOCUMENT_LIMITS.pdfPages, megabytes(MAX_TEXT_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])
-    assert.doesNotMatch(skill.content, new RegExp(`(?<![\\d.])${limit}(?![\\d])`), `${limit} is not written in the skill`);
+  // pages only narrows a PDF within the page limit; a longer one is split into files first (the importer checks the page count before pages).
+  assert.doesNotMatch(skill.content, /import it in parts with `pages`/);
+  assert.match(skill.content, /A PDF over the page limit .* is refused whatever `pages` says: split it into files first/);
+  assert.match(skill.content, /`pages` only narrows a PDF within that limit/);
+  for (const limit of [MAX_IMPORT_FILES, MAX_JSON_IMPORT_CHARS, MAX_INGEST_CHARS, LARGE_DOCUMENT_LIMITS.pdfPages, SELECTION_CHARS, megabytes(MAX_TEXT_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])
+    assert.doesNotMatch(skill.content, new RegExp(`(?<![\\d.]|UTF-)${limit}(?![\\d])`), `${limit} is not written in the skill`);
   const { runtime } = await bundle(t);
   for (const action of ['library.context', 'materials.document.import', 'mineru.plan', 'mineru.import', 'ingest', 'deck.import', 'generate', 'supplement',
     'audio.import', 'audio.settings.get', 'job.status', 'job.wait']) assert.equal(runtime.hasAction(action), true, action);
