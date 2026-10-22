@@ -4,11 +4,12 @@ import { Button, CloseButton, TextArea, Tooltip } from '../components/index.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
 import useRangeAnchor from '../document-preview/translation/useRangeAnchor.js';
 import { askStaysOpen } from './ask-visibility.js';
+import { HandOffButton } from '../hand-off/HandOff.jsx';
 
 /* 「问 AI」 of the review book (docs/review-book.md "Ask AI"): ONE box, two destinations. Opened by 「✦ 问 AI」 at a point's title (about the whole point) or by
    「写一段…」 of the selection toolbar (about the selected words, shown on top). One tap on a preset fills the box. 「写进这个知识点」 writes with the app's model
    (about a minute; generation.courseBook.explain: 弄懂 when the box is empty over selected words, else the instruction) and closes the panel at once, a line
-   standing where the answer will go; 「发给主会话」 fills the main chat's input box (never sends; without a chat it copies) through ui/book/send-to-chat.js.
+   standing where the answer will go; 「发给主会话」 fills the main chat's input box (never sends; without a chat it copies) through ui/book/send-to-chat.js and the shared unit (ui/hand-off/).
    Without a model the shared gate stands under 写进这个知识点 only; 发给主会话 still works. Ctrl+Enter writes, Escape closes. The same form, with 发给主会话 only,
    is 更多 › 整本书 · 发给主会话… (ui/book/book-views.jsx). */
 
@@ -51,12 +52,10 @@ export function AskForm({ scope, model, onWrite, onSend, autoFocus = false }) {
         {onWrite && <Tooltip layer content={ui('用你设置的模型写，约 1 分钟；写好后收成一行，放在它针对的那段后面。')} anchorClassName="book-ask__tip">
           <Button size="sm" variant="secondary" type="submit" icon="sparkle" disabled={!canWrite} data-book-ask="write">{ui('写进这个知识点')}</Button>
         </Tooltip>}
-        <Tooltip layer content={ui('只填进主对话的输入框，由你按发送；没有主对话时复制到剪贴板。')} anchorClassName="book-ask__tip">
-          <Button size="sm" variant={onWrite ? 'quiet' : 'secondary'} type="button" busy={sending} data-book-ask="chat" onClick={send}>{ui('发给主会话')}</Button>
-        </Tooltip>
+        <HandOffButton shape={onWrite ? 'quiet' : 'secondary'} anchorClassName="book-ask__tip" busy={sending} data-book-ask="chat" onClick={send} />
       </div>
       {off && <ModelSetupGate variant="compact" feature="bookAi" model={model} />}
-      {scope === 'book' && <p className="book-ask__hint">{ui('也可以直接在主对话里说你想怎么改，主会话会按 study-book 改书，每次改动都能回退')}</p>}
+      {scope === 'book' && <p className="book-ask__hint">{ui('也可以直接在主会话里说你想怎么改，主会话会按 study-book 改书，每次改动都能回退')}</p>}
     </form>
   );
 }

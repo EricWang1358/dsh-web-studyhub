@@ -127,7 +127,7 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
       assert.match(first, /````?request 我的要求\n润色成大白话，再慢一点\n````?/);
       assert.match(first, /data 知识点标题\nWhat architects do\n/);
       assert.doesNotMatch(first, /writes each decision down/, `${width}px: no book text`);
-      await toastSaid(page, '已复制提示词，粘贴到对话中即可。');
+      await toastSaid(page, '没有主会话：提示词已复制，粘贴到对话里再发送。');
       // An empty box is allowed.
       await trigger.click();
       await panel.waitFor();

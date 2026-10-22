@@ -15,6 +15,7 @@ import { sessionFileAddress } from '../document-preview/selection.js';
 import { canOpenBackgroundAgent, openBackgroundAgent } from './open-agent.js';
 import { createPoller } from "../use-polling.js";
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
+import { fillComposer } from './composer-draft.js';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
 export const STUDYHUB_PANEL = "studyhub";
 const PAGE_SLOT = "study-workspace.page";
@@ -257,19 +258,20 @@ export function apply(ctx, registerDocumentLearning) {
           sessions.open(id);
           return id;
         },
-        // Prefill (never auto-send) this session's composer.
+        // Prefill (never auto-send) this session's composer, and never over what the learner already typed (ui/host/composer-draft.js):
+        // 'filled', 'kept' (their words stay; the app copies the prompt) or false (no chat here: the app copies).
         askInChat: (text) => {
+          let actx, conversation;
           try {
-            const actx = ctx.get("sessions")?.scope?.(sessionId),
-              conversation = actx?.get("conversation");
-            if (!conversation) return false;
-            conversation.input.for(actx).setDraft(text);
-            // StudyHub covers the chat; switch so the draft is visible.
-            showChat();
-            return true;
+            actx = ctx.get("sessions")?.scope?.(sessionId);
+            conversation = actx?.get("conversation");
           } catch {
             return false;
           }
+          const outcome = fillComposer(conversation, actx, text);
+          // StudyHub covers the chat; switch so the draft is visible. A kept box stays behind StudyHub, whose notice says the prompt was copied.
+          if (outcome === "filled") try { showChat(); } catch { /* the draft is in; the learner can switch views themselves */ }
+          return outcome;
         },
         onReviewState: (run) => call("panel.visible", { placement,
           sequence: ++visibleSequence.current,

@@ -1,0 +1,44 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :where(.study-app, .study-seat) {
+    /* 「发给主会话」 (ui/hand-off/HandOff.jsx): a lead sentence and the button on one line that may wrap; the form of a migrated place with a box. */
+    .sh-handoff {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
+      max-width: 100%;
+    }
+    .sh-handoff--quiet {
+      display: flex;
+    }
+    .sh-handoff__lead {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .sh-handoff__tip {
+      display: inline-flex;
+    }
+    .sh-handoff-form {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .sh-handoff-form__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+    }
+    .sh-handoff-form__box {
+      width: 100%;
+      min-width: 0;
+      resize: vertical;
+    }
+    .sh-handoff-form__send {
+      display: flex;
+      justify-content: flex-end;
+    }
+  }
+}

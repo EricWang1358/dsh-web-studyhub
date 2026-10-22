@@ -32,7 +32,12 @@ export const RULES = {
   elementSelector: { issue: '#137', why: 'rule that targets a bare button / input / select / textarea / label element outside base.css and ui/components', fix: 'give the element a class (or use <Button>, <Field>, <Checkbox>) and style that class' },
   serviceHandoff: { issue: '#113', why: 'call / act / askInChat / busy handed to a child component as a prop (busy on Button, Dialog and the like is a display prop and not counted)',
     fix: 'read it with useStudy() (ui/study-context.jsx) in the component that uses it' },
+  chatHandOff: { issue: 'hand-off S2a', why: 'askInChat used outside the shared 发给主会话 unit (only ui/app/use-app-core.js, ui/host/workspace.jsx, ui/study-context.jsx and ui/hand-off/ may)',
+    fix: 'use useHandOff() / <HandOff> from ui/hand-off/ with an id of ui/agent-prompts/index.js' },
 };
+
+/* The files that may name askInChat: the writer, the host adapter, the services list and the shared unit (the hand-off plan, section 1.2). */
+const CHAT_HANDOFF_HOMES = /^ui\/(?:app\/use-app-core\.js|host\/workspace\.jsx|study-context\.jsx|hand-off\/)/;
 
 /* `busy={busy}` on these is the component's own "working" look, not the study services being threaded down. */
 const DISPLAY_BUSY_TAGS = new Set(['Button', 'IconButton', 'Dialog', 'ConfirmDialog', 'PermanentDeleteDialog']);
@@ -301,6 +306,10 @@ export function scanUi(root = ROOT) {
     else {
       if (file.endsWith('.jsx')) scanJsxFile(file, source, metrics, found);
       scanJsFile(file, source, found);
+      if (!CHAT_HANDOFF_HOMES.test(file)) {
+        const asks = (stripJsComments(source).match(/\baskInChat\b/g) || []).length;
+        if (asks) metrics.chatHandOff[file] = asks;
+      }
     }
   }
   const byName = new Map();

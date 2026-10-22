@@ -11,7 +11,6 @@
       "ui/FlipCard.jsx": 1,
       "ui/Inbox.jsx": 1,
       "ui/LanguageSwitch.jsx": 1,
-      "ui/review/QuestionRun.jsx": 3,
       "ui/ReviewNavigator.jsx": 1,
       "ui/Settings.jsx": 1,
       "ui/SideNav.jsx": 2,
@@ -34,6 +33,7 @@
       "ui/document-preview/reader/ReadingSections.jsx": 1,
       "ui/document-preview/translation/TranslationMenu.jsx": 1,
       "ui/host/workspace.jsx": 1,
+      "ui/review/QuestionRun.jsx": 3,
       "ui/study-map/DeckRow.jsx": 4,
       "ui/study-map/DeckTree.jsx": 2,
       "ui/study-map/DeskIntro.jsx": 1,
@@ -217,7 +217,6 @@
       "ui/OralExam.jsx": 1,
       "ui/PdfConversion.jsx": 2,
       "ui/Review.jsx": 7,
-      "ui/review/QuestionRun.jsx": 3,
       "ui/SetupChecklist.jsx": 1,
       "ui/Sources.jsx": 9,
       "ui/StudyMap.jsx": 8,
@@ -243,6 +242,7 @@
       "ui/document-preview/reader/OutlineAssist.jsx": 1,
       "ui/document-preview/reader/OutlineDialog.jsx": 1,
       "ui/host/workspace.jsx": 1,
+      "ui/review/QuestionRun.jsx": 3,
       "ui/settings/AudioPane.jsx": 3,
       "ui/settings/DailyRecapPane.jsx": 2,
       "ui/settings/DataPane.jsx": 6,
@@ -258,6 +258,24 @@
       "ui/study-map/DeskIntro.jsx": 2,
       "ui/study-map/HomeActivity.jsx": 5,
       "ui/tour/Tour.jsx": 1
+    },
+    "chatHandOff": {
+      "ui/App.jsx": 4,
+      "ui/AudioImport.jsx": 3,
+      "ui/Generate.jsx": 2,
+      "ui/GenerationPath.jsx": 2,
+      "ui/Review.jsx": 2,
+      "ui/Skeleton.jsx": 9,
+      "ui/StudyMap.jsx": 6,
+      "ui/WorkflowPortal.jsx": 2,
+      "ui/Workflows.jsx": 10,
+      "ui/app/modals/AddSourceDialog.jsx": 1,
+      "ui/app/page-views.jsx": 1,
+      "ui/review/useReviewSession.js": 2,
+      "ui/study-map/DeckRow.jsx": 3,
+      "ui/study-map/TopicGroupReminder.jsx": 3,
+      "ui/study-map/home-plan.js": 2,
+      "ui/use-generation-path.js": 2
     }
   }
 }

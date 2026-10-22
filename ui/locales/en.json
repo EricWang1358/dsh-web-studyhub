@@ -1446,8 +1446,6 @@
   "已斩这道题：移入斩题组，不再复习。": "Question retired: moved to the retired deck and removed from review.",
   "撤销": "Undo",
   "已恢复到原题组，复习进度不变；本轮练习不再出现这道题。": "Restored to the original deck without changing its schedule. It will not reappear in this session.",
-  "已填入对话输入框，确认后发送。": "Added to the chat input. Review before sending.",
-  "已复制提示词，粘贴到对话中即可。": "Prompt copied. Paste it into chat.",
   "已切换学习库": "Study library switched",
   "已更新生成模型": "Generation model updated",
   "无法打开目录选择器，请直接输入路径。": "Cannot open the folder picker. Enter a path directly.",

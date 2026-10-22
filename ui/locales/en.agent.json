@@ -1,1 +1,23 @@
-{}
+{
+  "已填进主会话的输入框，确认后按发送。": "Filled into the main chat’s input box. Check it, then press send.",
+  "输入框里已有文字，没有覆盖：提示词已复制，粘贴到合适的位置再发送。": "The input box already has your text, so it was left as it is: the prompt is copied. Paste it where it fits, then send.",
+  "没有主会话：提示词已复制，粘贴到对话里再发送。": "No main chat here: the prompt is copied. Paste it into a chat, then send.",
+  "输入框里已有文字，没有覆盖。": "The input box already has your text, so it was left as it is.",
+  "复制这段提示词，粘贴到对话里": "Copy this prompt and paste it into a chat",
+  "没能发给主会话：{0}": "Could not send it to the main chat: {0}",
+  "请用中文回复；已有的题目和引文保持原文，不要翻译。": "Please reply in English; keep existing questions and quotations as they are, do not translate them.",
+  "先读 skill {0}。": "Read the skill {0} first.",
+  "我想：": "What I want:",
+  "文件（不在工作区就粘贴完整路径）：@": "File (paste the full path if it is outside the workspace): @",
+  "我在 StudyHub 的「{0}」想{1}，内置做法走不通或不合我意，请你来办。": "In StudyHub’s “{0}” I wanted to {1}; the built-in way does not work or does not suit me, so please do it.",
+  "做法：": "How:",
+  "- 先读 skill {0}，再用 study_workspace 读 library.context {\"area\":\"{1}\"}。": "- First read the skill {0}, then read library.context {\"area\":\"{1}\"} with study_workspace.",
+  "- 有对应的 StudyHub 工具就直接用。": "- Where a StudyHub tool does it, use that tool.",
+  "- 格式不支持时，先用 StudyHub 自带的抽取：study_materials 的 document.import，再用 source.export 写成文件；还不行，再用命令行转换。": "- When a format is not supported, use StudyHub’s own extraction first: study_materials document.import, then source.export to write it to a file; only if that fails, convert it with the command line.",
+  "- 转换结果写到工作区的 studyhub-work/ 下，再导入。": "- Write converted results under studyhub-work/ in the workspace, then import them.",
+  "- 装软件前先问我；不删除、不覆盖我的原文件。": "- Ask me before installing anything; never delete or overwrite my original files.",
+  "- 不装、不配置 MinerU 或 Marker，不改 StudyHub 设置；需要时让我去设置页。": "- Do not install or configure MinerU or Marker and do not change StudyHub settings; send me to the Settings page when they are needed.",
+  "做完告诉我：做了什么，结果在哪（题组、草稿、资料或文件路径），哪些没做成以及原因，哪些是推断的需要我核对。": "When done, tell me what you did, where the result is (question set, draft, material or file path), what did not work and why, and what was inferred and needs my check.",
+  "情况": "Situation",
+  "错误原文": "Error as shown"
+}
