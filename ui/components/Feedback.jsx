@@ -4,6 +4,7 @@ import css from './components.css';
 import { useComponentCss, cx } from './css.js';
 import { Button, IconButton } from './Button.jsx';
 import Icon from './Icon.jsx';
+import Tooltip from './Tooltip.jsx';
 import { publishToasts, retractToasts, useToastChannels, useTopDialog } from './dialog-stack.js';
 
 const TONES = new Set(['info', 'success', 'warning', 'error']);
@@ -120,13 +121,18 @@ export function DialogToasts({ dialog }) {
   return <div className="sh-toasts sh-toasts--dialog"><ToastStacks toasts={toasts} /></div>;
 }
 
+/* An action button of a message, with its explanation on hover and focus when it has a `tip` (a layered Tooltip, never a title attribute). */
+function withTip(tip, button) {
+  return tip ? <Tooltip layer content={tip} anchorClassName="sh-feedback__tip">{button}</Tooltip> : button;
+}
+
 /**
  * A message placed right next to the control it is about (a field error, a
  * gate that failed). Errors are announced assertively. `boxed` gives it a
  * tinted background for multi-line content. Give it an `id` and point the
- * control's aria-describedby at it.
+ * control's aria-describedby at it. action / secondary: { label, onClick, disabled?, tip? } (the same shape as Banner's).
  */
-export function InlineMessage({ tone = 'error', title, children, action, onDismiss, dismissText, boxed = false, className, ...rest }) {
+export function InlineMessage({ tone = 'error', title, children, action, secondary, onDismiss, dismissText, boxed = false, className, ...rest }) {
   useComponentCss(css);
   const kind = toneOf(tone);
   return (
@@ -136,7 +142,8 @@ export function InlineMessage({ tone = 'error', title, children, action, onDismi
         {title && <strong className="sh-inline__title">{title}</strong>}
         {children}
       </div>
-      {action && <Button variant="link" size="sm" className="sh-inline__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
+      {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
+      {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-inline__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
     </div>
   );
@@ -144,7 +151,7 @@ export function InlineMessage({ tone = 'error', title, children, action, onDismi
 
 /**
  * A page- or section-level message that stays until its cause is fixed (no
- * model configured, library read-only…). action / secondary: { label, onClick }.
+ * model configured, library read-only…). action / secondary: { label, onClick, disabled?, tip? } (tip: a layered Tooltip on hover and focus).
  */
 export function Banner({ tone = 'info', title, children, action, secondary, onDismiss, icon, className, ...rest }) {
   useComponentCss(css);
@@ -158,8 +165,8 @@ export function Banner({ tone = 'info', title, children, action, secondary, onDi
           {children && <div className="sh-banner__body">{children}</div>}
         </div>
         {(action || secondary) && <div className="sh-banner__actions">
-          {action && <Button size="sm" variant={action.variant || 'secondary'} icon={action.icon} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
-          {secondary && <Button size="sm" variant="quiet" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
+          {action && withTip(action.tip, <Button size="sm" variant={action.variant || 'secondary'} icon={action.icon} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
+          {secondary && withTip(secondary.tip, <Button size="sm" variant="quiet" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
         </div>}
         {onDismiss && <IconButton icon="close" size="sm" className="sh-banner__close" label={dismissLabel(kind)} onClick={onDismiss} />}
       </div>

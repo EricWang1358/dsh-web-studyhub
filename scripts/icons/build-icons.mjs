@@ -67,6 +67,7 @@ export const ICON_MAP = {
   copy: 'copy',
   book: 'book-open',
   settings: 'gear-six',
+  chat: 'chat-circle-text',
   // The sidebar rail: one mark per destination.
   'nav-audio': 'file-audio',
   'nav-live': 'microphone',

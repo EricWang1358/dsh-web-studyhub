@@ -50,11 +50,13 @@ export function useNotice(scope) {
 const toObject = value => typeof value === 'string' ? { text: value } : value || {};
 const actionOf = (value, busy) => value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled };
 
-/** A notice as the toast the region draws. An undo offer (`undo`, with `timeout`) may leave by itself but is held while hovered or focused. */
+/** A notice as the toast the region draws. An undo offer (`undo`, with `timeout`) may leave by itself but is held while hovered or focused.
+    `title`: a heading line; `copy`: the text is something to copy as it is (the whole prompt of a 发给主会话 the clipboard refused), never translated. */
 export function noticeToToast(notice, busy) {
   const value = toObject(notice);
   return { id: 'notice', key: `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
-    message: uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
+    ...(value.title ? { title: uiMessage(value.title) } : {}),
+    message: value.copy ? String(value.text ?? '') : uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
     ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), action: actionOf(value, busy) };
 }
 
