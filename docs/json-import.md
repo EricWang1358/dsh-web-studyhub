@@ -127,7 +127,7 @@ The draft opens on the **Draft & publish** page.
 
 - **Save & validate** saves your edits and checks them again.
 - For choice questions, you can add options (up to 6) or click **Delete this option**. Choosing the correct option of a single-choice question clears the others.
-- **Save & publish** publishes every question at once, without waiting for model review. It then starts a round of up to 10 new questions. If none can start, StudyHub says the deck is published and returns to the library.
+- **Publish and practise** publishes every question at once, without waiting for model review. It then starts a round of up to 10 new questions. If none can start, StudyHub says the deck is published and returns to the library.
 - If you ticked the merge option, publishing merges the questions into the suggested deck and keeps its questions and records.
 - Questions with problems are published with their flags. During practice, a question with nothing to grade can be skipped with **Skip without scoring**. Skipping records no score and does not change the review schedule.
 
@@ -172,7 +172,7 @@ In the main chat, you can ask StudyHub to import JSON deck files from your compu
 | --- | --- |
 | `draft.import.propose {text}` | Checks the JSON and returns `originalTitle`, `title`, `course`, `mergeTargetId` and `method` (`ai` or `rules`). Writes nothing. |
 | `draft.import {text, title?, course?, mergeTargetId?}` | Saves the import source and the new draft in one transaction. |
-| `draft.publish.quick {id, draftVersion, mergeTargetId?}` | What **Save & publish** calls after saving the draft. Publishes all questions with structural checks only. |
+| `draft.publish.quick {id, draftVersion, mergeTargetId?}` | What **Publish and practise** calls after saving the draft. Publishes all questions with structural checks only. |
 | `draft.publish` / `draft.publish.start` | Reviewed publication, now or as a background task. |
 | `deck.import {path \| paths \| text, folder?, course?, into?}` | Imports files from disk and publishes them, as described above. |
 

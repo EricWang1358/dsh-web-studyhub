@@ -49,7 +49,7 @@ The **Study directory** below the card lists the current course, newest publishe
 
 ### After you publish a deck
 
-**Save & publish** on a draft starts a round of up to 10 new questions from that deck, in deck order. This applies to generated decks and imported JSON decks.
+**Publish and practise** on a draft starts a round of up to 10 new questions from that deck, in deck order. This applies to generated decks and imported JSON decks.
 
 When a round ends, you choose what comes next. After a round of new questions, **Continue with new questions** starts the next 10 when there are more. After a course batch, the result page shows course progress and offers **Continue to next course batch** and **Learn before practising the next batch**.
 
@@ -169,7 +169,7 @@ StudyHub stores only your public profile address. It never asks for your CSDN pa
 The loop StudyHub supports today:
 
 1. Get a deck: generate one from your sources, or import JSON that an external AI wrote from them.
-2. Check the draft and confirm its title and course, then **Save & publish**.
+2. Check the draft and confirm its title and course, then **Publish and practise**.
 3. Practise up to 10 new questions.
 4. Answer, or flip a card and rate yourself.
 5. Read the explanation; SM-2 schedules the next review.

@@ -25,7 +25,7 @@ Generation tasks appear on the **Study library** page. Each task card shows:
 - the current stage, and how many questions are saved out of how many you asked for;
 - **Stop**, which stops generating and keeps the saved questions in the draft;
 - **Show the steps**, which lists each step with its status (**Starting**, **In progress**, **Finishing**, **Completed** or **Failed**), its tokens and how long it took. Click **View background assistant** to open that step's DSH subagent session;
-- **Open draft**, once the task has ended and a draft exists;
+- **Check the draft**, once the task has ended and a draft exists;
 - if the task failed, the reason and how to fix it, with **Set up a model** when the model is the problem. The raw error is under **Technical details**.
 
 At the end of the step list, open **Method, usage and technical details** to see, for each stage, whether it ran as a **DSH subagent** or a **Direct model call**, its reasoning effort and its subagent session ID. The token usage of the whole task is there too.

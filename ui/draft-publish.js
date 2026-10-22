@@ -4,7 +4,7 @@ import { cardMatchesReview } from '../lib/review-integrity.js';
 import { draftWork, draftWorkLabel } from './draft-shortfall.js';
 
 /* From a finished run to practising (the owner's short flow): which draft may be published from the card of its run in one press (発布并练习), and what the draft page
-   says while a job works on the draft, so that 保存并发布 being off has a reason and a way out. Pure; the publication itself is ui/app/use-drafts.js publishAndPractice. */
+   says while a job works on the draft, so that 发布并开始练 being off has a reason and a way out. Pure; the publication itself is ui/app/use-drafts.js publishAndPractice. */
 
 /**
  * May the finished card publish this draft at once? Only when there is nothing left to look at: the run is done and nothing is missing (the shortfall says 'done' only once the plan is met or the

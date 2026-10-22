@@ -48,7 +48,7 @@ const visibleText = (html) => html.replace(/<[^>]+>/g, " ");
 test("an empty library asks for a first material, with JSON import as the second way in", () => {
   const html = render();
   assert.equal(primaries(html), 1);
-  assert.equal(primaryLabel(html), "添加第一份资料");
+  assert.equal(primaryLabel(html), "添加资料");
   assert.match(html, /<button[^>]*class="sh-btn sh-btn--link[^"]*"[^>]*>已有题目？导入 JSON 题组<\/button>/);
   assert.doesNotMatch(html, /还没有卡片/);
   assert.doesNotMatch(html, /在对话中用工作区文件出题/, "a chat-only start is not offered without a chat");
@@ -82,7 +82,7 @@ test("while the first deck is generating or waiting in drafts the home says so",
   assert.equal(primaryLabel(generating), "查看进度");
   const drafted = render({ sources: pdfPages, drafts: [{ id: "dr", title: "索引小测", cards: [{ id: "c" }], editorial: {} }] });
   assert.equal(primaries(drafted), 1);
-  assert.equal(primaryLabel(drafted), "检查并发布草稿");
+  assert.equal(primaryLabel(drafted), "检查草稿");
 });
 
 test("tour anchors mark the hero, today's card and the catalogue", () => {
@@ -121,7 +121,7 @@ test("a finished job opens its draft, and a stopped one says what was kept", () 
   const drafts = [{ id: "dr", title: "索引小测", cards: [{ id: "a" }, { id: "b" }, { id: "c" }], editorial: {} }];
   const done = render({ sources: pdfPages, drafts, jobs: [{ id: "j", status: "complete", stageCode: "done", draftId: "dr", deckTitle: "索引小测",
     savedCount: 3, requestedTotal: 3, steps: [] }] });
-  assert.match(done, /<button[^>]*>打开草稿<span[^>]*>→<\/span><\/button>/);
+  assert.match(done, /<button[^>]*>检查草稿<span[^>]*>→<\/span><\/button>/);
   const stoppedWithDraft = render({ sources: pdfPages, drafts, jobs: [{ id: "j", status: "cancelled", stageCode: "cancelled", draftId: "dr",
     deckTitle: "索引小测", savedCount: 3, stage: "Generation cancelled; approved questions were retained", steps: [] }] });
   assert.match(stoppedWithDraft, /已生成的 3 题保存在草稿里/);
@@ -148,4 +148,11 @@ test("the English home reads in English, job cards included", () => {
     const visible = visibleText(withoutTechDetails(html)).replace(/讲义 第 \d 页/g, "");
     assert.doesNotMatch(visible, /[㐀-鿿]/, visible.match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
   } finally { setUiLanguage("zh"); }
+});
+
+test("课程准备 stays off the home until the learner has a deck of their own; the sample course does not count", () => {
+  const withMaterial = { sources: pdfPages, focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: [] } };
+  assert.doesNotMatch(render(withMaterial), /data-setup-checklist/, "material only: the first step is the only thing on the page");
+  assert.doesNotMatch(render({ ...withMaterial, decks: [{ ...deck, id: "sample-deck-patterns", sample: true }], sample: { loaded: true, deckId: "sample-deck-patterns" } }), /data-setup-checklist/, "a sample deck is not a deck of their own");
+  assert.match(render({ ...withMaterial, decks: [deck], progress }), /data-setup-checklist/, "their own deck brings it back");
 });

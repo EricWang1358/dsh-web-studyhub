@@ -42,7 +42,7 @@ Only questions that were saved into the deck count as added. A question that was
 - Questions that pass review join the deck itself. No new deck is created.
 - Existing questions keep their IDs, review schedules and answer history.
 - If every question is added, the task's working draft is deleted.
-- If some questions are left over, they stay in a draft with the reason each one was rejected. Open it from the task card with **Open draft**.
+- If some questions are left over, they stay in a draft with the reason each one was rejected. Open it from the task card with **Check the draft**.
 
 ## Limits and failures
 

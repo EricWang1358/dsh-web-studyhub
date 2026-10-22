@@ -17,7 +17,7 @@
   "提问和补题需要先配置模型；原文与已有引用仍可浏览。": "Asking and topping up questions need a model first; the original text and existing citations can still be browsed.",
   "阅读可以继续；提问和补题前需要先配置模型。": "Reading can go on; set up a model before asking or topping up questions.",
   "出题、讲解和提问需要 AI 模型；示例导览和已有题组的练习不需要，可以先体验。": "Generating questions, explanations and asking need an AI model; the sample tour and practising existing decks do not, so you can start there.",
-  "回到这里，点「导入我的第一份资料」": "Come back here and select Import my first source",
+  "回到这里，点「添加资料」": "Come back here and select Add source",
   "出题、讲解和提问需要先配置模型。": "Generating questions, explanations and asking need a model first.",
   "可以先体验示例；出题前需要先配置模型。": "You can try the sample first; set up a model before generating questions.",
   "模型未连接": "Model not connected",

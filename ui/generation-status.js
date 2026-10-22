@@ -60,6 +60,10 @@ export const documentCount = countDocuments;
 export const jobCode = (job) => (typeof job?.stageCode === 'string' && job.stageCode) || stageCodeOf(job);
 const draftOf = (job, drafts = []) => (job?.draftId && drafts.find((draft) => draft.id === job.draftId)) || null;
 const ownProse = (job) => job?.type === JOB_TYPES.DRAFT_PUBLISH || job?.type === JOB_TYPES.DRAFT_REPAIR;
+/* What became of a finished run's draft, once the library's decks are known (`decks` is the library's; a caller that does not pass them claims nothing). 'waiting': still in the drafts. 'published': a deck took its id, or the deck it was merged into as its next part exists (the request records mergeTargetId). 'gone': neither, e.g. it was discarded. */
+const draftFate = (job, drafts = [], decks) => !Array.isArray(decks) || jobCode(job) !== 'done' || ownProse(job) || !job?.draftId ? null
+  : drafts.some((draft) => draft.id === job.draftId) ? 'waiting'
+  : decks.some((deck) => deck.id === job.draftId || (job.mergeTargetId && deck.id === job.mergeTargetId)) ? 'published' : 'gone';
 
 /** Where a job is, as a short status. */
 export function stageCodeLabel(code) {
@@ -194,7 +198,7 @@ export function repeatedJobFailure(text = '') {
 }
 
 /** The card's first line: what happened to which deck. */
-export function jobHeadline(job = {}, drafts = []) {
+export function jobHeadline(job = {}, drafts = [], { decks } = {}) {
   const name = jobDeckName(job, drafts), named = (label) => uiFormat('{0} ·「{1}」', [label, name]);
   if (job.type === JOB_TYPES.SUPPLEMENT) {
     const label = supplementJobLabel(job);
@@ -229,13 +233,13 @@ export function jobHeadline(job = {}, drafts = []) {
       const { missing } = standing(job, draftOf(job, drafts));
       return missing > 0 || !job.requestedTotal ? uiFormat('「{0}」草稿待补齐', [name]) : uiFormat('「{0}」草稿已生成', [name]);
     }
-    case 'done': return uiFormat('「{0}」草稿已生成', [name]);
+    case 'done': return draftFate(job, drafts, decks) === 'published' ? uiFormat('「{0}」已发布', [name]) : uiFormat('「{0}」草稿已生成', [name]);
     default: return job.continued ? uiFormat('正在补齐「{0}」', [name]) : uiFormat('正在生成「{0}」', [name]);
   }
 }
 
 /** The card's second line: the stage in plain words, its batch and what is saved. */
-export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved = true } = {}) {
+export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved = true, decks } = {}) {
   const code = jobCode(job), draft = draftOf(job, drafts);
   if (job.kind === 'case' && job.publication && code === 'done') return ui('批改结果已进信箱；这套案例在学习库里，可以随时再练。');
   // A passage supplement saves into the deck itself: there is no draft to check.
@@ -258,6 +262,9 @@ export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved =
       return uiFormat('还差 {0} 题，正在补题；进度见新的任务卡。', [missing]);
     return missing > 0 ? uiFormat('已出 {0}/{1} 题', [saved, requested]) : ui('草稿已补齐，检查后即可发布');
   }
+  const fate = draftFate(job, drafts, decks);
+  if (fate === 'published') return ui('题组已发布，可以在学习库里练习');
+  if (fate === 'gone') return ui('草稿已不在待发布里');
   if (!isActiveJob(job) || code === 'queued' || code === JOB_STATUS.CANCELLING) return stageCodeLabel(code);
   // While running, the newest step in flight says more than the job-level stage.
   const step = [...(job.steps || [])].reverse().find((item) => ['starting', 'running', 'finishing'].includes(item.status));
@@ -471,8 +478,8 @@ export function generationStartedNotice(job = {}, gen = {}, materials = 0) {
   const text = job.status === 'queued'
     ? title ? uiFormat('「{0}」已加入队列，前面还有 {1} 个任务。', [title, job.queuedBehind ?? 1])
       : uiFormat('已加入队列，前面还有 {0} 个任务。', [job.queuedBehind ?? 1])
-    : title ? uiFormat('已开始生成「{0}」…完成后在这里打开草稿。', [title])
-      : uiFormat('已开始用 {0} 份资料出题…完成后在这里打开草稿。', [materials]);
+    : title ? uiFormat('已开始生成「{0}」…完成后在这里检查草稿。', [title])
+      : uiFormat('已开始用 {0} 份资料出题…完成后在这里检查草稿。', [materials]);
   // A plan of several rounds: this run makes the first (the heaviest sections); whether the rest goes on by itself is the job's own answer (job.autoComplete: 标准 and 完整 do, 精简 waits),
   // so the notice never sends the learner to the draft page for rounds that are coming without them. The total number of questions is the form's to say (once), not this notice's.
   return { text: text + roundsNotice(job), tone: 'success' };

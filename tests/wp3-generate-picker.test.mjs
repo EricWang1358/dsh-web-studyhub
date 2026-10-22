@@ -33,5 +33,5 @@ test('the generation form lists documents and counts documents', () => {
   assert.match(evidencePicker, /已选择 1 \/ 2 份资料/);
   assert.match(evidencePicker, /PDF · 4 页/);
   assert.doesNotMatch(html, /slides\.pdf · p\.3|排版提取|旧版提取/);
-  assert.match(html, /导入资料/, 'adding material still goes through the shared import dialog');
+  assert.match(html, /添加资料/, 'adding material still goes through the shared import dialog');
 });

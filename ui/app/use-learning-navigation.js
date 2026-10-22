@@ -4,7 +4,7 @@ import { backLabelOf, navLabelOf } from '../pages.js';
 import { trailKindOf } from '../review/way-back.js';
 import {
   ABORT, captureContext as captureOrigin, currentStudyReference as referenceOf, leavesTrail, loadLearningTarget, loadReturnTarget,
-  openLearningTarget as openTarget, openReturnTarget, returnTargetFor,
+  openLearningTarget as openTarget, openReturnTarget, returnTargetFor, withoutSelfReturn,
 } from '../learning-navigation.js';
 
 /* Links between learning objects and the way back (ui-consistency #110): open a card, source, note, deck or exam from anywhere,
@@ -84,6 +84,13 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     if (reference) { rememberContext(); lib.set.setBoardStudyRef(reference); }
     nav.navigate('board');
   }, [currentStudyReference, rememberContext, lib.set, nav]);
+
+  /* Arriving on the library with its own page as the way back (a first import remembers the library, the learner generates and lands here): the way back leads nowhere, so it goes. */
+  const onPage = nav.page;
+  useEffect(() => {
+    if (onPage !== 'library') return;
+    setContextTrail((trail) => withoutSelfReturn(trail, 'library'));
+  }, [onPage, setContextTrail]);
 
   const returnFromContext = useCallback(async () => {
     const origin = latest.current.state.contextTrail.at(-1), live = guard();

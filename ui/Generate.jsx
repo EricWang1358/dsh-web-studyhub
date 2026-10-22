@@ -220,7 +220,7 @@ export default function Generate({
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               <div className="generate-sources-actions">
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
-                <Button variant="link" icon="upload" onClick={openImport}>{ui("导入资料")}</Button>
+                <Button variant="link" icon="upload" onClick={openImport}>{ui("添加资料")}</Button>
               </div>
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}

@@ -7,7 +7,7 @@ This page explains which checks run when StudyHub writes questions from your sou
 In short:
 
 - **Generate from sources** (on the **Create deck** page) runs every question through evidence extraction, answer preparation, writing with a self-check and one independent review. Only questions that pass reach the draft.
-- **Save & publish** on the draft page publishes at once with structural checks only. It does not wait for a model review. Questions without a current review record are marked **Not automatically reviewed**.
+- **Publish and practise** on the draft page publishes at once with structural checks only. It does not wait for a model review. Questions without a current review record are marked **Not automatically reviewed**.
 - [JSON decks you import](json-import.md) and questions saved through `ingest` do not go through this pipeline.
 - A passed review does not prove a question is factually correct. Check the sources before you rely on it.
 
@@ -68,7 +68,7 @@ Each generated question stores a fingerprint of the content that was reviewed. E
 
 ### Quick publication (the default)
 
-The draft page's main button is **Save & publish**. It reads **Save & update deck** when you edit a deck, and **Save & add to original deck** after a repair. Clicking it:
+The draft page's main button is **Publish and practise**. It reads **Save & update deck** when you edit a deck, and **Save & add to original deck** after a repair. Clicking it:
 
 1. saves the draft and checks its structure question by question;
 2. publishes every question, without a model review;

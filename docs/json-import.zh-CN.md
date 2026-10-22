@@ -127,7 +127,7 @@
 
 - 「保存并校验」保存修改并重新检查。
 - 选择题可以增加选项（最多 6 个），也可以点「删除这个选项」。单选题选定一个正确项后，其他选项会自动取消。
-- 「保存并发布」一次发布全部题目，不等待模型审核，随后开始一轮最多 10 道新题。没有可开始的新题时，会提示题组已发布并回到学习库。
+- 「发布并开始练」一次发布全部题目，不等待模型审核，随后开始一轮最多 10 道新题。没有可开始的新题时，会提示题组已发布并回到学习库。
 - 如果勾选了并入，发布时题目会并入建议的题组，原题和记录都保留。
 - 有问题的题带着标记发布。练习时遇到无法判分的题，可以点「跳过此题，不计成绩」，不记录成绩，也不改变复习进度。
 
@@ -172,7 +172,7 @@
 | --- | --- |
 | `draft.import.propose {text}` | 检查 JSON，返回 `originalTitle`、`title`、`course`、`mergeTargetId` 和 `method`（`ai` 或 `rules`），不写入任何数据 |
 | `draft.import {text, title?, course?, mergeTargetId?}` | 在同一事务中保存导入资料和新草稿 |
-| `draft.publish.quick {id, draftVersion, mergeTargetId?}` | 「保存并发布」在保存草稿后调用；只做结构检查，发布全部题目 |
+| `draft.publish.quick {id, draftVersion, mergeTargetId?}` | 「发布并开始练」在保存草稿后调用；只做结构检查，发布全部题目 |
 | `draft.publish` / `draft.publish.start` | 逐题审核后发布，后者作为后台任务运行 |
 | `deck.import {path \| paths \| text, folder?, course?, into?}` | 从磁盘导入文件并直接发布，规则见上一节 |
 

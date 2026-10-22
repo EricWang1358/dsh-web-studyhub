@@ -155,3 +155,21 @@ test('the card is injected with its own stylesheet and App mounts it inside the 
   assert.match(css, /@container study|@media/, 'it has a narrow layout');
   assert.match(css, /\.setup-actions\s+\.sh-btn\s*\{[^}]*white-space:\s*normal/s, 'a long button label wraps instead of leaving the column');
 });
+
+test('the checklist explains itself with a Tooltip, never a title attribute: the chip, the step names and the hint stay in the page', () => {
+  setUiLanguage('zh');
+  for (const markup of [render(library({ sources: [note()] })), render(library({ sources: [note()] }), { initialOpen: true }), render(newCourseInUse())]) {
+    assert.doesNotMatch(markup, /\stitle="/, 'no title attribute');
+  }
+  const chip = render(library({ sources: [note()] }));
+  assert.match(chip, /role="tooltip"[^>]*>[^<]*每门课开头做一次的准备/, 'what the chip is, on hover');
+  setUiLanguage('en');
+  try { assert.doesNotMatch(render(newCourseInUse()).replace(/Cloud Native|New course|Note n1/g, ''), han); } finally { setUiLanguage('zh'); }
+});
+
+test('the step that opens a draft is called 检查草稿, the one name of looking at a draft before publishing', () => {
+  setUiLanguage('zh');
+  assert.equal(stepAction({ id: 'deck', action: 'draft', detail: { draftId: 'dr' } }, { course: '' }, { draft: () => {} }).label, '检查草稿');
+  setUiLanguage('en');
+  try { assert.equal(stepAction({ id: 'deck', action: 'draft', detail: { draftId: 'dr' } }, { course: '' }, { draft: () => {} }).label, 'Check the draft'); } finally { setUiLanguage('zh'); }
+});

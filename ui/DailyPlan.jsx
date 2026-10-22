@@ -123,7 +123,7 @@ function EmptyProposal({ proposal, plan, onSettings, onAdjust }) {
     <div className="daily-plan__actions">
       {reason === 'nothing-due' ? <>
         <Button variant="secondary" disabled={!!plan.busy} onClick={() => navigate('library')}>{ui('去学习库')}</Button>
-        <Button variant="quiet" disabled={!!plan.busy} onClick={() => openModal({ type: 'add' })}>{ui('导入资料')}</Button>
+        <Button variant="quiet" disabled={!!plan.busy} onClick={() => openModal({ type: 'add' })}>{ui('添加资料')}</Button>
       </> : <>
         <Button variant="secondary" disabled={!!plan.busy || !onAdjust} onClick={onAdjust}>{ui('今天再学一会儿')}</Button>
         <Button variant="quiet" busy={plan.busy === 'accept'} disabled={!!plan.busy} onClick={() => plan.accept(proposal.id)}>{ui('今天到此为止')}</Button>

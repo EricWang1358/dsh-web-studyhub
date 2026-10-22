@@ -146,7 +146,7 @@ test('the ONE primary action of each state is the same on the banner and the row
     for (const other of Object.values(labels).filter(item => item !== label)) {
       assert.ok(!buttonsOf(row).includes(other), `${state}: the row offers ONE action, not ${other}: ${buttonsOf(row)}`);
     }
-    assert.ok(!buttonsOf(banner).some(button => /打开草稿/.test(button)), `${state}: 打开草稿 is not the banner's primary action`);
+    assert.ok(!buttonsOf(banner).some(button => /检查草稿/.test(button)), `${state}: 检查草稿 is not the banner's primary action`);
   }
   // an interrupted run is not "being filled", and its title is the deck's own
   const interrupted = text(home('interrupted').match(/<article[\s\S]*?<\/article>/)[0]);

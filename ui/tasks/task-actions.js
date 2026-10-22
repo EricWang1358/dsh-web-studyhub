@@ -27,7 +27,7 @@ export function resultOpener(job, app) {
     app.nav.navigate('outline');
   } };
   const draft = refs.find((ref) => ref.kind === 'draft'), found = draft && data?.drafts?.find((item) => item.id === draft.id);
-  if (found && app?.drafts?.openDraft && !isLiveStatus(contract.status)) return { label: ui('打开草稿'), run: () => app.drafts.openDraft(found, { navigation: true }) };
+  if (found && app?.drafts?.openDraft && !isLiveStatus(contract.status)) return { label: ui('检查草稿'), run: () => app.drafts.openDraft(found, { navigation: true }) };
   return null;
 }
 
