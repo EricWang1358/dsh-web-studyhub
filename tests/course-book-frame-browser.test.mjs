@@ -146,6 +146,10 @@ Written by the main chat at ${width}.` });
       // An entry's target wins over the kept place: the home's 期末一周 card opens the book at its point.
       await page.locator('[data-tour="nav-home"], [data-tour="nav-library"]').first().dispatchEvent('click');
       const card = page.locator('.crunch-card .crunch-day__point').first();
+      // This library has a book and no deck of the learner's own, so the home opens on the first-run line (3.6), which holds the 期末一周 card back;
+      // 以后再说 folds the line and the home, its 期末一周 card included, is back.
+      await page.locator('.crunch-card .crunch-day__point, [data-first-run="later"]').first().waitFor({ timeout: 30000 });
+      if (await page.locator('[data-first-run="later"]').count()) await page.locator('[data-first-run="later"]').click();
       await card.waitFor({ timeout: 30000 });
       const target = await card.getAttribute('data-point');
       assert.notEqual(target, points[2].hid, 'the card points elsewhere than the kept place');
