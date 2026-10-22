@@ -1,7 +1,7 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
   "version": "3.5.7",
-  "description": "StudyHub: turn course materials and lecture recordings into source-cited flashcards, quizzes and SM-2 spaced review.",
+  "description": "StudyHub: turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/EricWang1358/dsh-web-studyhub.git"

@@ -2,6 +2,14 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.6.0 — unreleased
+
+- **One sentence for what StudyHub is.** The first screen, the READMEs and the plugin description now say the same thing: turn your lecture slides into questions that each link back to their page, and see yourself getting it after a round; free and open source, your materials stay on your computer, you pick the model and pay for what you use. The sidebar shows its first clause, "Every question links back to its page", because the whole sentence does not fit there.
+- **The model setup step says where to get a key.** Under the first step of "Set up an AI model first" there is one quiet line linking to the install guide's model section. Where to get a key and whether to top up depends on your provider; the provider's own page is the authority. The link opens GitHub in a new tab.
+- **Fixed a wrong version number in the READMEs and the MinerU guide.** The MinerU cloud route was removed in 3.5.5, not 3.6.
+
+Not verified: the link target was checked against the guides in this repository, not opened on GitHub; no real DSH host was used for the screenshots.
+
 ## 3.5.7 — 2026-10-19
 
 - **学习模式 has the same tools as DSH's standard preset.** Until 3.5.6, 学习模式 left out commands and file editing. It now composes every row of DSH 0.2.1's standard preset: commands (PowerShell on Windows, bash elsewhere), reading, writing and editing files, file search, background command jobs, schedules, the to-do list, plan mode, workflows, sub-agents and the folder's AGENTS.md instructions. StudyHub's own tools come on top, as in every preset. Only the instructions differ: the StudyHub tutor rules. So a 「发给主会话」 hand-off that needs a file converted first (for example a 考研 question book split by chapter, then its questions entered) can be done in the conversation. StudyHub's built-in flows are unchanged.

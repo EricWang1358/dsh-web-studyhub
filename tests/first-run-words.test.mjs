@@ -101,3 +101,27 @@ test('the checklist button for the skeleton goes to the page, and says so (it ge
   m.setUiLanguage('en');
   try { assert.match(m.stepAction({ id: 'skeleton', action: 'skeleton' }, { course: '' }, { skeleton: noop }).label, /^Open the knowledge outline page$/); } finally { m.setUiLanguage('zh'); }
 });
+
+test('StudyHub says what it is once: the welcome page, the sidebar, the READMEs and the plugin descriptions use the one positioning', async () => {
+  const ZH = '把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。', ZH_SUB = '开源免费，资料存在你电脑上；模型自己选，按用量付费。';
+  const EN = 'Turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.';
+  const EN_SUB = 'Free and open source, your materials stay on your computer; pick your own model and pay for what you use.';
+  m.setUiLanguage('zh');
+  const first = text(welcome());
+  assert.ok(first.includes(ZH) && first.includes(ZH_SUB), 'the first screen carries both lines');
+  assert.ok(!text(welcome({ sample: { loaded: true, course: '示例课程 · 设计模式' } })).includes(ZH_SUB), 'a loaded sample leads with its tour, not the pitch');
+  m.setUiLanguage('en');
+  try {
+    const english = text(welcome());
+    assert.ok(english.includes(EN) && english.includes(EN_SUB));
+    assert.doesNotMatch(english, han);
+  } finally { m.setUiLanguage('zh'); }
+  const read = (file) => readFile(file, 'utf8');
+  const [readmeZh, readmeEn] = [await read('README.zh-CN.md'), await read('README.md')];
+  assert.ok(readmeZh.includes(ZH) && readmeZh.includes(ZH_SUB));
+  assert.ok(readmeEn.includes(EN) && readmeEn.includes(EN_SUB));
+  assert.doesNotMatch(readmeZh + readmeEn, /removed in 3\.6|在 3\.6 版移除|before 3\.6|3\.6 之前/, 'the MinerU cloud route went in 3.5.5');
+  assert.match(await read('ui/app/AppSidebar.jsx'), /<small>\{ui\('每道题都点得回原页'\)\}<\/small>/, 'the sidebar has room for the first clause only');
+  assert.match(JSON.parse(await read('package.json')).description, /^StudyHub: turn your lecture slides into questions that each link back to their page/);
+  assert.match(JSON.parse(await read('locale/zh.json')).meta.description, /^把老师的课件变成题，每道题都点得回原页/);
+});

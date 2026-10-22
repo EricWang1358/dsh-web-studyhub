@@ -25,7 +25,8 @@ export default function Welcome({ model, sample, busy = false, onStartSample, on
         <h1 className="welcome__title" id="study-welcome-title">{loaded ? ui("示例课程已就绪") : ui("欢迎使用 StudyHub")}</h1>
         <p className="welcome__lead">{loaded
           ? uiFormat("「{0}」已经载入：一份讲义、一个题组、三周的练习记录和一份待发布的草稿。", [sample.course || ""])
-          : ui("把讲义和课件变成标明出处的练习题，按记忆曲线复习，真正学会。")}</p>
+          : ui("把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。")}</p>
+        {!loaded && <p className="welcome__sub">{ui("开源免费，资料存在你电脑上；模型自己选，按用量付费。")}</p>}
       </header>
       {loaded ? (
         <div className="welcome__choices">

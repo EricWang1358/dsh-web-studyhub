@@ -58,5 +58,8 @@
   "已选择模型：{0}": "Model selected: {0}",
   "已选择模型": "Model selected",
   "这个 DSH 没有告诉 StudyHub 密钥是否已配置，所以还不能确认可用；第一次用到时才会知道。": "This DSH does not tell StudyHub whether the key is set, so the model cannot be confirmed yet; you will know the first time it is used.",
-  "已重新检查，目前还没有连上。": "Checked again: still not connected."
+  "已重新检查，目前还没有连上。": "Checked again: still not connected.",
+  "去哪拿 Key、要不要充值：看": "Where to get a key and whether to top up: see the ",
+  "安装说明": "install guide",
+  "（以服务商页面为准）": " (the provider's page is the authority)"
 }
