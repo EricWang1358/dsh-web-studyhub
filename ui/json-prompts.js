@@ -1,36 +1,7 @@
-export function importExample(kind, language = "zh") {
-  if (language === "en") return JSON.stringify(englishExample(JSON.parse(importExample(kind))), null, 2);
-  if (kind === "mixed") {
-    const cards = ["quiz", "multi", "flashcard", "open", "cloze"].map((type) => JSON.parse(importExample(type)).cards[0]);
-    const objectives = ["识别可直接二分查找的序列", "辨别二分查找支持的排序方向", "回忆二分查找的输入条件", "解释无序输入为何不能排除半区", "补全二分查找的前提条件"];
-    cards.forEach((card, i) => { card.objective = objectives[i]; });
-    const open = cards.find((card) => card.kind === "open");
-    open.prompt = "为什么不能直接对无序序列进行二分查找？请解释原因。";
-    open.answer = "无序序列中，中间值与目标的大小关系无法确定目标位于哪一半，因此不能安全排除半区。";
-    return JSON.stringify({ title: "二分查找混合练习", folder: "算法", cards }, null, 2);
-  }
-  const card = {
-    kind, topic: "二分查找", objective: "解释二分查找的输入条件",
-    prompt: "二分查找对输入序列有什么要求？", answer: "序列需要有序。",
-    hint: "考虑每次排除一半范围的依据。", explanation: "只有有序序列才能通过比较中间值排除一半搜索范围。",
-    misconception: "误以为任意序列都能直接二分查找。",
-  };
-  if (kind === "quiz" || kind === "multi") {
-    card.prompt = kind === "quiz" ? "哪种序列可以直接用于二分查找？" : "哪些序列可以直接用于二分查找？";
-    card.answer = kind === "quiz" ? "升序序列" : "升序序列、降序序列（比较方向需相应调整）";
-    card.options = [
-      { id: "a", text: "升序序列", correct: true, explanation: "升序关系允许排除一半搜索范围。" },
-      { id: "b", text: kind === "quiz" ? "随机乱序序列" : "降序序列", correct: kind === "multi", explanation: kind === "quiz" ? "乱序无法根据中间值排除半区。" : "调整比较方向后，降序关系同样允许排除半区。" },
-      { id: "c", text: "没有顺序保证的序列", correct: false, explanation: "没有顺序保证就不能确定目标所在半区。" },
-    ];
-  }
-  if (kind === "open") card.rubric = "指出有序得 1 分；解释根据中间值排除半区得 1 分。";
-  if (kind === "cloze") {
-    card.prompt = "二分查找要求序列{{order}}。";
-    card.cloze = { text: card.prompt, answers: [{ id: "order", value: "有序", accept: ["已排序"] }] };
-  }
-  return JSON.stringify({ title: "二分查找练习", folder: "算法", cards: [card] }, null, 2);
-}
+import { importExample } from "../lib/deck-format.js";
+
+// The format example lives in lib/deck-format.js: the main session reads the same one (library.context area decks).
+export { importExample };
 
 const qualityInstructions = `出题质量要求（所有题型都必须遵守）：
 1. 先规划考点和证据：每题只测一个明确、有学习价值的目标，定位资料中支持答案及其边界的段落，再写题。优先覆盖核心概念、易混区别和应用条件；同一题组不要把同一考点换个题型重复凑数。按要求分配题型、数量与难度，基础闪卡保持简洁。
@@ -54,25 +25,6 @@ export function importPrompt(kind, label, language = "zh") {
   return `请根据我随后提供的资料生成${kind === "mixed" ? "混合题型" : label}题组，只输出合法 JSON，不加说明或 Markdown 围栏。\n顶层包含 title、可选 folder、cards（至少 1 道，无总数上限）；${typeInstruction}\n每题必须包含非空字符串 topic、objective、prompt、answer、hint、explanation、misconception；题干和学习目标不得重复，hint 不得直接给出答案。不要编造资料中没有的事实。\n单选 quiz 和多选 multi 必须有 3–6 个 options，每项包含唯一 id、text、布尔值 correct、逐项 explanation；单选恰好一个正确项，多选至少一个正确项且不能全选。开放问答 open 必须有 rubric 评分标准；填空 cloze 使用 {{空位id}} 并在 cloze.answers 中给出 id、value 和可选 accept 数组。flashcard 为问答闪卡。\n\n${qualityInstructions}\n\n格式示例（仅说明字段结构，正式出题应按上述质量要求重新规划内容，不照搬示例考点）：\n${importExample(kind)}\n\n我的资料和出题要求：\n`;
 }
 
-// These are application-owned examples, never imported learner content.
-const exampleCopy = {
-  '二分查找混合练习':'Binary search: mixed practice','算法':'Algorithms','二分查找练习':'Binary search practice','二分查找':'Binary search',
-  '识别可直接二分查找的序列':'Identify sequences suitable for binary search','辨别二分查找支持的排序方向':'Distinguish supported sort directions','回忆二分查找的输入条件':'Recall the input requirement','解释无序输入为何不能排除半区':'Explain why unordered input prevents eliminating half','补全二分查找的前提条件':'Complete the prerequisite for binary search',
-  '为什么不能直接对无序序列进行二分查找？请解释原因。':'Why does binary search not work directly on an unordered sequence? Explain.',
-  '无序序列中，中间值与目标的大小关系无法确定目标位于哪一半，因此不能安全排除半区。':'Without ordering, comparing the middle value with the target cannot determine which half contains the target, so neither half can safely be discarded.',
-  '解释二分查找的输入条件':'Explain the input requirement for binary search','二分查找对输入序列有什么要求？':'What does binary search require of the input sequence?','序列需要有序。':'The sequence must be sorted.',
-  '考虑每次排除一半范围的依据。':'Consider what justifies eliminating half of the search range.','只有有序序列才能通过比较中间值排除一半搜索范围。':'Ordering allows comparison with the middle value to eliminate half of the search range.','误以为任意序列都能直接二分查找。':'Assuming binary search works directly on any sequence.',
-  '哪种序列可以直接用于二分查找？':'Which sequence can be used directly for binary search?','哪些序列可以直接用于二分查找？':'Which sequences support binary search?','升序序列':'An ascending sequence','升序序列、降序序列（比较方向需相应调整）':'Ascending and descending sequences (with the comparison direction adjusted)',
-  '升序关系允许排除一半搜索范围。':'Ascending order allows half of the search range to be discarded.','随机乱序序列':'A randomly shuffled sequence','降序序列':'A descending sequence','乱序无法根据中间值排除半区。':'Shuffled data cannot eliminate half based on the middle value.','调整比较方向后，降序关系同样允许排除半区。':'With the comparison reversed, descending order also allows eliminating half.',
-  '没有顺序保证的序列':'A sequence with no ordering guarantee','没有顺序保证就不能确定目标所在半区。':'Without ordering, the correct half cannot be determined.','指出有序得 1 分；解释根据中间值排除半区得 1 分。':'1 point for identifying ordering; 1 point for explaining elimination based on the middle value.',
-  '二分查找要求序列{{order}}。':'Binary search requires a {{order}} sequence.','有序':'sorted','已排序':'ordered',
-};
-function englishExample(value) {
-  if (typeof value === 'string') return exampleCopy[value] || value;
-  if (Array.isArray(value)) return value.map(englishExample);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key,item]) => [key,englishExample(item)]));
-  return value;
-}
 function englishImportPrompt(kind, label) {
   const types = kind === 'mixed' ? 'Mix quiz, multi, flashcard, open and cloze cards in one cards array. Follow my requested types and counts; otherwise create ten cards, two per type. Every card must use a concrete kind, never mixed.' : 'Every card must have kind: ' + kind + '.';
   return 'Create a ' + (kind === 'mixed' ? 'mixed question' : label) + ' deck from the sources I provide below. Return valid JSON only, without commentary or Markdown fences. Write new questions in English unless I explicitly request another content language. Preserve verbatim source quotations.\n' +

@@ -39,7 +39,7 @@ test('every action the skill names is an action of the study workspace', async t
 test('the shipped skills are registered with the host\'s registry as bundled, model- and user-invocable skills', () => {
   const registered = [], ctx = { skills: { register: skill => { registered.push(skill); return () => {}; } } };
   assert.equal(registerStudySkills(ctx).length, SHIPPED_SKILLS.length);
-  assert.deepEqual(registered.map(skill => skill.name), ['study-book']);
+  assert.deepEqual(registered.map(skill => skill.name), ['study-book', 'study-import']);
   const [skill] = registered;
   assert.equal(skill.source, 'bundled');
   assert.deepEqual(skill.invocation, { modelInvocable: true, userInvocable: true });
