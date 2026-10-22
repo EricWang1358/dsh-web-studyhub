@@ -106,14 +106,12 @@
       "ui/components/feedback.css",
       "ui/course-settings.css",
       "ui/focus.css",
-      "ui/generate-home.css",
       "ui/mineru.css",
       "ui/workflows.css"
     ],
     "is-done": [
       "ui/board/board.css",
-      "ui/components/feedback.css",
-      "ui/generate-home.css"
+      "ui/components/feedback.css"
     ],
     "is-dragging": [
       "ui/board/board.css",
@@ -345,7 +343,6 @@
       "ui/components/button-variants.css",
       "ui/components/components.css",
       "ui/course-settings.css",
-      "ui/welcome.css",
       "ui/wrongbook.css"
     ],
     "sh-btn--primary": [
@@ -450,8 +447,7 @@
       "ui/charts/charts.css",
       "ui/components/components.css",
       "ui/draft.css",
-      "ui/skeleton.css",
-      "ui/welcome.css"
+      "ui/skeleton.css"
     ],
     "sh-panel__head": [
       "ui/charts/charts.css",

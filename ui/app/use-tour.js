@@ -7,7 +7,7 @@ import { practiceArgs } from '../learning-navigation.js';
 import { importForQuestions } from './import-handoff.js';
 
 /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────────
-   The welcome page of an empty library, the sample course (sample.* host actions, C6) and the feature tour that switches to
+   Whether the first-run line was put away (以后再说), the sample course (sample.* host actions, C6) and the feature tour that switches to
    each key page. Hosts without sample support send no `sample` in the snapshot; then the tour still runs and the steps that
    need sample data are left out. */
 export function useTour({ core, lib, nav, session, drafts, intents, data, rootRef }) {
@@ -32,10 +32,9 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const tourSteps = useMemo(() => stepsFor(shownFull), [data, shownFull]); // eslint-disable-line react-hooks/exhaustive-deps
   const resumeAt = savedTour && !savedTour.done ? tourSteps.findIndex((step) => step.id === savedTour.stepId) : -1;
   const tourResume = resumeAt > 0 ? { index: resumeAt, total: tourSteps.length } : null;
-  const ownLibraryEmpty = !!data && !data.sources.some((source) => !source.sample) && !data.drafts.some((item) => !item.sample) &&
-    !data.decks.some((deck) => !deck.systemKind && !deck.sample);
-  const showWelcome = !!data?.sample && page === 'library' && !tourStep && hiddenWelcome !== data.root &&
-    !welcomeDismissed(data.root) && (ownLibraryEmpty || !!data.sample.loaded);
+  /* The first-run line (ui/first-run) is the library's whole first screen until 「以后再说」 puts it away for this library; then, and while a tour shows the
+     home, it is the compact card in the today slot. */
+  const lineLater = !!data?.root && (hiddenWelcome === data.root || welcomeDismissed(data.root));
   function hideWelcome() {
     if (!data?.root) return;
     dismissWelcome(data.root);
@@ -59,7 +58,6 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     const first = !restart && paused && !!paused.full === wantFull && steps.some((step) => step.id === paused.stepId) ? paused.stepId : steps[skipWelcome ? 1 : 0].id;
     if (!tourStep) tourOrigin.current = { page, runId: page === 'review' ? session.run?.id : null,
       opener: rootRef.current?.contains(document.activeElement) ? document.activeElement : null };
-    hideWelcome();
     setError('');
     setFullTour(wantFull);
     setTourStep(first);
@@ -195,6 +193,6 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     }
   }
 
-  return { tourStep, fullTour, sampleBusy, removingSample, setRemovingSample, modelState, tourSteps, tourResume, showWelcome, hideWelcome, openFirstImport, startTour,
+  return { tourStep, fullTour, sampleBusy, removingSample, setRemovingSample, modelState, tourSteps, tourResume, lineLater, hideWelcome, openFirstImport, startTour,
     startFullTour, moveTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
 }

@@ -1,117 +1,9 @@
-/* ui/welcome.css — the welcome page of an empty library and the sample
-   banner on the home page. Tokens only; both themes; one column under the
-   study container's narrow widths. Injected as <style data-study-welcome>. */
+/* ui/welcome.css — the sample banner on the home page (the welcome page itself is the first-run line, ui/first-run/first-run.css). Tokens only; both
+   themes. Injected as <style data-study-welcome>. */
 
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
-    .welcome {
-      max-width: 980px;
-      padding-top: 48px;
-    }
-  }
-  :where(.study-app, .study-seat) {
-    .welcome__intro { max-width: 640px; margin-bottom: var(--space-6-5); }
-    .welcome__eyebrow {
-      margin: 0 0 var(--space-2-5);
-      color: var(--accent-text);
-      font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
-      letter-spacing: 0.06em;
-    }
-    .welcome__title {
-      margin: 0 0 var(--space-3);
-      font-family: var(--font-display);
-      font-size: var(--fs-3xl);
-      font-weight: var(--fw-strong);
-      line-height: var(--lh-tight);
-      letter-spacing: -0.02em;
-    }
-    .welcome__lead {
-      margin: 0;
-      color: var(--text-dim);
-      font-size: var(--fs-lg);
-      line-height: var(--lh-body);
-    }
-    /* The second line of the positioning: quiet, under the lead, only on the first screen. */
-    .welcome__sub {
-      margin: var(--space-2) 0 0;
-      color: var(--text-muted);
-      font-size: var(--fs-md);
-      line-height: var(--lh-body);
-    }
-    .welcome__choices {
-      display: grid;
-      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-      gap: var(--space-4);
-      margin-bottom: var(--space-4);
-    }
-    /* An empty library: one lead card for the learner's own material, the sample as a line under it. */
-    .welcome__choices--first { grid-template-columns: minmax(0, 640px); }
-    .welcome__sample {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      gap: var(--space-1) var(--space-2);
-      margin: 0;
-      color: var(--text-dim);
-      font-size: var(--fs-md);
-      line-height: var(--lh-body);
-    }
-    .welcome__sample small { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .welcome-card {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
-      min-width: 0;
-    }
-    /* The lead choice carries the cinnabar head rule of a card. */
-    .welcome-card--lead { border-top: 3px solid var(--accent); }
-    .welcome-card__icon {
-      display: grid;
-      place-items: center;
-      width: 40px;
-      height: 40px;
-      margin-bottom: var(--space-1);
-      border-radius: var(--radius);
-      background: color-mix(in srgb, var(--text) 7%, transparent);
-      color: var(--text);
-    }
-    .welcome-card--lead .welcome-card__icon {
-      background: color-mix(in srgb, var(--accent) 16%, transparent);
-      color: var(--accent-text);
-    }
-    .welcome-card__title {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: var(--fs-xl);
-      font-weight: var(--fw-strong);
-      line-height: var(--lh-tight);
-    }
-    .welcome-card__text {
-      margin: 0;
-      color: var(--text-dim);
-      font-size: var(--fs-md);
-      line-height: var(--lh-body);
-    }
-    .welcome-card__action {
-      margin-top: auto;
-      padding-top: var(--space-4);
-    }
-    .welcome__model { margin-bottom: var(--space-4); }
-    .welcome__footer {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: flex-end;
-      gap: var(--space-4);
-      color: var(--text-muted);
-    }
-    /* "Later" is the quiet way out, not a call to action. */
-    .welcome__footer .sh-btn--link { color: var(--text-muted); }
-    .welcome__footer .sh-btn--link:hover { color: var(--text); }
-  }
   :is(.study-app, .study-seat) {
     /* The sample banner rides at the top of the home page. */
     .sample-banner {
@@ -123,25 +15,7 @@
   }
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {
-      .welcome { padding-top: var(--space-6-5); }
-    }
-    :where(.study-app, .study-seat) {
-      .welcome__choices { grid-template-columns: minmax(0, 1fr); }
-      .welcome__title { font-size: var(--fs-2xl); }
-      .welcome__lead { font-size: var(--fs-md); }
-      .welcome__sub { font-size: var(--fs-sm); }
-      .welcome__footer { justify-content: flex-start; }
-    }
-    :is(.study-app, .study-seat) {
       .sample-banner { width: calc(100% - 32px); }
     }
-  }
-}
-
-@layer study.features {
-  :is(.study-app, .study-seat) {
-    /* The welcome cards are <Panel>s (ui-consistency #143): the Panel owns the surface; these settle the padding, the paper radius and the lead card's tint. */
-    .welcome-card.sh-panel { padding: var(--space-5); border-radius: var(--radius); }
-    .welcome-card--lead.sh-panel { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%), var(--bg-raised); }
   }
 }

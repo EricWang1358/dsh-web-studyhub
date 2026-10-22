@@ -12,7 +12,8 @@ const han = /[㐀-鿿]/;
 const require = createRequire(import.meta.url);
 const compiled = await build({
   stdin: { contents: `export * from './ui/i18n.js';
-    export { default as Welcome } from './ui/Welcome.jsx';
+    export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
+    export { firstRunLine } from './ui/first-run/line.js';
     export { TourPopover } from './ui/tour/Tour.jsx';
     export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
     export { readTourProgress, writeTourProgress } from './ui/tour/progress.js';
@@ -26,8 +27,9 @@ const m = loaded.exports;
 const h = React.createElement;
 const noop = () => {};
 const text = (markup) => markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-const welcome = (props = {}) => renderToStaticMarkup(h(m.Welcome, { model: { ready: true }, sample: { loaded: false }, onStartSample: noop, onImport: noop, onSetupModel: noop, onLater: noop,
-  onStartTour: noop, onRemoveSample: noop, ...props }));
+// The first screen of an empty library is the first-run line (ui/first-run, 3.6 D2); a loaded sample keeps it, with the sample banner above.
+const welcome = ({ sample = { loaded: false } } = {}) => renderToStaticMarkup(h(m.FirstRunLine, { line: m.firstRunLine({ root: '/l', model: { ready: true }, decks: [], sources: [], drafts: [], jobs: [] }),
+  form: 'page', sample, on: { importFirst: noop, startSample: noop, later: noop } }));
 
 test('the first step has one name on the welcome page, the tour and the checklist: 添加资料', () => {
   m.setUiLanguage('zh');
@@ -42,7 +44,7 @@ test('the first step has one name on the welcome page, the tour and the checklis
   assert.equal(m.stepAction({ id: 'materials', action: 'import' }, { course: '' }, {}).disabled, true, 'no handler, no dead button');
 });
 
-test('the welcome page says 网页文件 (.html), the formats the hub takes, and a tour time that is true', () => {
+test('the first screen says 网页文件 (.html), the formats the hub takes, and a tour time that is true', () => {
   m.setUiLanguage('zh');
   const words = text(welcome());
   assert.match(words, /网页文件（\.html）/, 'only saved .html files are taken, not an address');
@@ -52,9 +54,7 @@ test('the welcome page says 网页文件 (.html), the formats the hub takes, and
   assert.doesNotMatch(words, /三分钟|两三分钟/);
   assert.match(words, new RegExp(`${m.CORE_TOUR_LENGTH} 步`), 'the step count is the default tour\'s own');
   const loaded = text(welcome({ sample: { loaded: true, course: '示例课程 · 设计模式' } }));
-  assert.match(loaded, new RegExp(`${m.CORE_TOUR_LENGTH} 步，一两分钟`));
-  assert.doesNotMatch(loaded, /三分钟|两三分钟/);
-  assert.match(loaded, /完整导览/, 'the way to the rest is said where the time is');
+  assert.doesNotMatch(loaded, /载入示例并开始导览/, 'a loaded sample has its banner (重新开始导览 / 移除示例数据), not a second offer');
   m.setUiLanguage('en');
   try {
     for (const markup of [welcome(), welcome({ sample: { loaded: true, course: 'Sample course' } })]) assert.doesNotMatch(text(markup), han);
@@ -111,7 +111,6 @@ test('StudyHub says what it is once: the welcome page, the sidebar, the READMEs 
   m.setUiLanguage('zh');
   const first = text(welcome());
   assert.ok(first.includes(ZH) && first.includes(ZH_SUB), 'the first screen carries both lines');
-  assert.ok(!text(welcome({ sample: { loaded: true, course: '示例课程 · 设计模式' } })).includes(ZH_SUB), 'a loaded sample leads with its tour, not the pitch');
   m.setUiLanguage('en');
   try {
     const english = text(welcome());

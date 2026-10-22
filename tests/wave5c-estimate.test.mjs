@@ -72,6 +72,13 @@ test('the 为没覆盖的部分补题 button and 打开 stay put when the estima
     await page.route('**/api/call', async route => { if (/usage\.estimate/.test(route.request().postData() || '')) await gate; await route.continue(); });
     await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-autopilot', 'off'); });
     await page.goto(server.url);
+    // No deck of its own yet: the first-run line is the home until 以后再说; then the row is in the folded 待发布 list.
+    await page.locator('[data-first-run], .desk').first().waitFor({ timeout: 30000 });
+    const later = page.locator('.first-run [data-first-run="later"]');
+    if (await later.count()) await later.click();
+    const fold = page.locator('details.home-drafts').first();
+    await fold.waitFor({ state: 'attached', timeout: 30000 });
+    if (!await fold.evaluate(element => element.open)) await fold.locator('summary').first().click();
     const topup = page.locator('.draft-row [data-coverage-topup]').first();
     await topup.waitFor({ timeout: 30000 });
     await page.locator('[data-coverage-topup] [data-token-estimate][data-status="loading"]').waitFor({ timeout: 30000 });

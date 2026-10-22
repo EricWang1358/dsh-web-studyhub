@@ -1,4 +1,4 @@
-/* WP5 · welcome page, tour popover, placement and per-library progress.
+/* WP5 · the first screen (the first-run line), tour popover, placement and per-library progress.
    Server-rendered structure and ARIA, plus the pure helpers the runtime uses. */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -11,7 +11,9 @@ const require = createRequire(import.meta.url);
 const han = /[㐀-鿿]/;
 const compiled = await build({
   stdin: { contents: `export * from './ui/i18n.js';
-    export { default as Welcome, SampleBanner } from './ui/Welcome.jsx';
+    export { SampleBanner } from './ui/Welcome.jsx';
+    export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
+    export { firstRunLine } from './ui/first-run/line.js';
     export { TourPopover } from './ui/tour/Tour.jsx';
     export { placePopover } from './ui/tour/geometry.js';
     export { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from './ui/tour/progress.js';
@@ -28,37 +30,41 @@ const html = (element) => renderToStaticMarkup(element);
 const noop = () => {};
 const text = (markup) => markup.replace(/<[^>]+>/g, " ");
 
-test("the welcome page offers the sample tour, a first import and — without a model — the model setup", () => {
+/* The first screen of an empty library is the first-run line (ui/first-run, 3.6 D2): the welcome page's empty branch and its loaded-sample branch are gone. */
+const lineOf = (model) => ui.firstRunLine({ root: "/l", model, decks: [], sources: [], drafts: [], jobs: [] });
+const firstScreen = (model, sample = { loaded: false }) => html(React.createElement(ui.FirstRunLine, { line: lineOf(model), form: "page", sample,
+  on: { recheck: noop, openModelSettings: noop, importFirst: noop, startSample: noop, later: noop } }));
+
+test("the first screen offers a first import, the sample tour as a quiet link and, without a model, the model setup in place", () => {
   ui.setUiLanguage("zh");
-  const props = { model: { ready: false, reason: "no-credential" }, sample: { loaded: false }, busy: false,
-    onStartSample: noop, onImport: noop, onSetupModel: noop, onLater: noop, onStartTour: noop, onRemoveSample: noop };
-  const empty = html(React.createElement(ui.Welcome, props));
+  const empty = firstScreen({ ready: false, reason: "no-credential" });
   assert.match(empty, /<h1[^>]*>/);
   assert.match(empty, /载入示例并开始导览/);
   assert.match(empty, /添加资料/);
   assert.match(empty, /以后再说/);
-  // The walkthrough of new learners: the first screen leads with "my first material"; the sample is a quiet link after it.
-  const primary = empty.match(/<button[^>]*sh-btn--primary[^>]*>(?:(?!<\/button>).)*<\/button>/s)[0];
-  assert.match(primary, /添加资料/, "the one primary action imports the learner's own material");
+  assert.match(empty, /data-body="model"/, "no model: step 1 is open, with the gate's steps");
+  assert.match(empty, /AI 模型/);
+  assert.match(empty, /<button[^>]*sh-btn--link[^>]*>(?:(?!<\/button>).)*添加资料/s, "step 2 is never locked: a quiet 添加资料 on its row");
   assert.match(empty, /<button[^>]*sh-btn--link[^>]*>(?:(?!<\/button>).)*载入示例并开始导览/s, "the sample is a link, not the lead");
   assert.ok(empty.indexOf("添加资料") < empty.indexOf("载入示例并开始导览"), "the import comes first");
-  assert.match(empty, /sh-setup/, "the model gate is a SetupRequired card");
-  assert.match(empty, /AI 模型/);
   assert.doesNotMatch(empty, /JSON/);
-  const ready = html(React.createElement(ui.Welcome, { ...props, model: { ready: true, reason: "ok", label: "DeepSeek · chat" } }));
-  assert.doesNotMatch(ready, /sh-setup/, "no setup card once a model is ready");
-  const loaded = html(React.createElement(ui.Welcome, { ...props, sample: { loaded: true, course: "示例课程 · 设计模式" } }));
-  assert.match(loaded, /开始导览/);
-  assert.match(loaded, /移除示例数据/);
-  assert.match(loaded, /示例课程 · 设计模式/);
   assert.equal((empty.match(/sh-btn--primary/g) || []).length, 1, "one primary action per view");
+  const ready = firstScreen({ ready: true, reason: "ok", label: "DeepSeek · chat" });
+  assert.doesNotMatch(ready, /data-body="model"/, "no setup once a model is ready: a ticked row");
+  const primary = ready.match(/<button[^>]*sh-btn--primary[^>]*>(?:(?!<\/button>).)*<\/button>/s)[0];
+  assert.match(primary, /添加资料/, "the one primary action imports the learner's own material");
+  const loaded = firstScreen({ ready: true, reason: "ok" }, { loaded: true, course: "示例课程 · 设计模式" });
+  assert.doesNotMatch(loaded, /载入示例并开始导览|开始导览/, "a loaded sample is the banner's business (重新开始导览 / 移除示例数据)");
+  const banner = html(React.createElement(ui.SampleBanner, { sample: { loaded: true, course: "示例课程 · 设计模式" }, onTour: noop, onRemove: noop }));
+  assert.match(banner, /重新开始导览/);
+  assert.match(banner, /移除示例数据/);
+  assert.match(banner, /示例课程 · 设计模式/);
 });
 
-test("the welcome page and sample banner speak English in the English UI", () => {
+test("the first screen and sample banner speak English in the English UI", () => {
   ui.setUiLanguage("en");
-  const props = { model: { ready: false }, sample: { loaded: false }, onStartSample: noop, onImport: noop, onSetupModel: noop, onLater: noop };
-  assert.doesNotMatch(text(html(React.createElement(ui.Welcome, props))), han);
-  assert.doesNotMatch(text(html(React.createElement(ui.Welcome, { ...props, sample: { loaded: true, course: "Sample course · Design patterns" } }))), han);
+  assert.doesNotMatch(text(firstScreen({ ready: false })), han);
+  assert.doesNotMatch(text(firstScreen({ ready: true }, { loaded: true, course: "Sample course · Design patterns" })), han);
   const banner = html(React.createElement(ui.SampleBanner, { sample: { loaded: true, course: "Sample course · Design patterns" }, onTour: noop, onRemove: noop }));
   assert.doesNotMatch(text(banner), han);
   assert.match(banner, /Remove sample data/);

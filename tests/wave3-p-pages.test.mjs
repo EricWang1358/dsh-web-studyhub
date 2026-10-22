@@ -55,7 +55,7 @@ test('StudyMap takes the snapshot and the home verbs, not 48 props (#113)', asyn
   const signature = source.match(/export default function StudyMap\(\{(.*)\}\) \{/)[1];
   const props = signature.split(',').map(item => item.trim().split(/[=\s]/)[0]).filter(Boolean);
   assert.ok(props.length <= 20, `${props.length} props: ${props.join(', ')}`);
-  assert.deepEqual(props.sort(), ['actions', 'children', 'data', 'notebooks', 'onRevealed', 'reveal', 'setupHandlers']);
+  assert.deepEqual(props.sort(), ['actions', 'children', 'data', 'firstRun', 'notebooks', 'onRevealed', 'reveal', 'setupHandlers']);
   assert.match(source, /useStudy\(\)/);
 });
 

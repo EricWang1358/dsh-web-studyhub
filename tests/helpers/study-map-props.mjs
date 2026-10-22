@@ -10,7 +10,7 @@ export function mapProps(old = {}) {
   const actions = Object.fromEntries(ACTIONS.filter(key => old[key] !== undefined).map(key => [key, old[key]]));
   const hasNotebooks = old.notebooks !== undefined || old.onNotebookPublish || old.onNotebookOpen;
   return {
-    data: old.data, actions, setupHandlers: old.setupHandlers, reveal: old.reveal, onRevealed: old.onRevealed, children: old.children,
+    data: old.data, actions, setupHandlers: old.setupHandlers, reveal: old.reveal, onRevealed: old.onRevealed, children: old.children, firstRun: old.firstRun,
     ...(hasNotebooks ? { notebooks: { notebooks: old.notebooks, notebookError: old.notebookError, publish: old.onNotebookPublish, unpublish: old.onNotebookUnpublish,
       open: old.onNotebookOpen, loadNotebooks: old.refreshNotebooks, search: old.onNotebookSearch } } : {}),
   };

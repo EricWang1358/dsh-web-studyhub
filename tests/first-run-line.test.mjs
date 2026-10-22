@@ -1,0 +1,205 @@
+/* 3.6 D2: the first-run line, 配模型 → 加资料 → 做第一组. firstRunLine (ui/first-run/line.js) reads the step and its state off the snapshot (the sample course never
+   counts, the line is gone once a deck of the learner's own is published), and FirstRunLine draws it with one sentence per row, a body only on the open step
+   and at most one primary button in it; the compact card after 以后再说 is the same component. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { loadUi } from './helpers/ui-module.mjs';
+
+const m = await loadUi(`export * from './ui/first-run/line.js';
+  export { default as FirstRunLine, stepSentence, compactAction } from './ui/first-run/FirstRunLine.jsx';
+  export { setUiLanguage } from './ui/i18n.js';`);
+const h = React.createElement;
+const noop = () => {};
+const han = /[㐀-鿿]/;
+const text = (markup) => markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+const primaries = (markup) => (markup.match(/sh-btn--primary/g) || []).length;
+const READY = { ready: true, reason: 'ok', label: 'DeepSeek · V4 Flash' };
+const NO_KEY = { ready: false, reason: 'no-credential', label: 'DeepSeek · V4 Flash' };
+const NOTHING = { ready: false, reason: 'no-route', label: '' };
+const SAMPLE = { loaded: true, course: '示例课程 · 设计模式', deckId: 'sample-deck', draftId: 'sample-draft', sourceId: 'sample-src' };
+const library = (extra = {}) => ({ root: '/lib', model: READY, decks: [], sources: [], drafts: [], jobs: [], ...extra });
+const mine = { id: 's1', title: '第3讲 进程与线程' };
+const draft = { id: 'd1', title: '第3讲 · 题组', cards: [{ id: 'c1' }] };
+const job = (status, extra = {}) => ({ id: `j-${status}`, type: 'generate', status, sourceIds: ['s1'], ...extra });
+const ids = (line) => line.steps.map((step) => `${step.id}:${step.status}`);
+const on = { recheck: noop, openModelSettings: noop, importFirst: noop, importMore: noop, generate: noop, publish: noop, openDraft: noop, startSample: noop, later: noop };
+const page = (line, props = {}) => renderToStaticMarkup(h(m.FirstRunLine, { line, form: 'page', sample: { loaded: false }, on, ...props }));
+const compact = (line, props = {}) => renderToStaticMarkup(h(m.FirstRunLine, { line, form: 'compact', todayLabel: '10月22日周四', on, ...props }));
+
+test('the line walks model, material, deck and opens one step at a time', () => {
+  assert.deepEqual(m.FIRST_RUN_STEPS, ['model', 'material', 'deck']);
+  const none = m.firstRunLine(library({ model: NOTHING }));
+  assert.equal(none.show, true);
+  assert.equal(none.step, 0, 'no model: the model step is open');
+  assert.deepEqual(ids(none), ['model:todo', 'material:todo', 'deck:waiting']);
+  const ready = m.firstRunLine(library());
+  assert.equal(ready.step, 1, 'a model and no material: the material step');
+  assert.equal(ready.steps[0].verified, true);
+  assert.equal(ready.steps[0].label, 'DeepSeek · V4 Flash');
+  const material = m.firstRunLine(library({ sources: [{ id: 'old', title: '旧讲义' }, mine] }));
+  assert.equal(material.step, 2);
+  assert.deepEqual(ids(material), ['model:done', 'material:done', 'deck:ready']);
+  assert.equal(material.steps[1].title, '第3讲 进程与线程', 'the newest material names the step');
+  assert.equal(material.steps[1].count, 2);
+  assert.deepEqual(material.steps[2].sourceIds, ['old', 's1'], '出第一组题 ticks every material of the learner');
+  const pdf = m.firstRunLine(library({ sources: [1, 2, 3].map((page) => ({ id: `p${page}`, title: `讲义.pdf · p.${page}`, text: 'x', document: { id: 'pdf', page, format: 'pdf' } })) }));
+  assert.equal(pdf.steps[1].count, 1, 'a PDF is one material, not one per page');
+  assert.doesNotMatch(pdf.steps[1].title, /p\.\d/, 'named as 资料 names the document, not by its last page');
+  const noModelYet = m.firstRunLine(library({ model: NO_KEY, sources: [mine] }));
+  assert.equal(noModelYet.step, 0, 'the material came first (step 2 is never locked); the model is still the open step');
+  assert.deepEqual(ids(noModelYet), ['model:todo', 'material:done', 'deck:ready']);
+  assert.equal(noModelYet.steps[2].modelReady, false);
+});
+
+test('the third step: a run, a run that ended, a draft to publish at once, a draft to look at first', () => {
+  const generating = m.firstRunLine(library({ sources: [mine], jobs: [job('running')] }));
+  assert.equal(generating.steps[2].status, 'generating');
+  assert.deepEqual(generating.steps[2].jobIds, ['j-running'], 'the step carries the run\'s card');
+  assert.equal(generating.step, 2);
+  const failed = m.firstRunLine(library({ sources: [mine], jobs: [job('failed')] }));
+  assert.equal(failed.steps[2].status, 'failed');
+  assert.deepEqual(failed.steps[2].jobIds, ['j-failed']);
+  assert.equal(m.firstRunLine(library({ sources: [mine], jobs: [job('failed', { continuedBy: 'j2' })] })).steps[2].status, 'ready', 'a run continued elsewhere is not the story');
+  assert.equal(m.firstRunLine(library({ sources: [mine], jobs: [job('complete')] })).steps[2].status, 'ready', 'a finished run whose draft is gone: start again');
+  const drafted = library({ sources: [mine], drafts: [draft], jobs: [job('complete', { draftId: 'd1' })] });
+  assert.equal(m.firstRunLine(drafted).steps[2].status, 'draft-review', 'until the coverage says the draft is clean, it is looked at first');
+  assert.deepEqual(m.firstRunLine(drafted).steps[2].jobIds, [], 'a draft is the step\'s own button, not the run\'s card');
+  const clean = m.firstRunLine(drafted, { publishAtOnce: true });
+  assert.equal(clean.steps[2].status, 'draft-clean');
+  assert.equal(clean.steps[2].draft.id, 'd1');
+  assert.equal(m.firstRunLine(library({ sources: [mine], drafts: [draft], jobs: [job('running', { draftId: 'd1' })] })).steps[2].status, 'generating', 'a fill running on the draft is still a run');
+  const noModel = m.firstRunLine(library({ model: NOTHING, sources: [mine], drafts: [draft] }));
+  assert.equal(noModel.step, 2, 'a draft waits in step 3 even without a model: publishing needs none');
+  // Jobs the line does not carry: an audio import, a PDF conversion, a publication, a selection supplement.
+  for (const other of [{ type: 'audio-import' }, { type: 'pdf-convert' }, { type: 'draft-publish' }, { type: 'generate', origin: 'selection' }])
+    assert.equal(m.firstRunLine(library({ sources: [mine], jobs: [job('running', other)] })).steps[2].status, 'ready', JSON.stringify(other));
+});
+
+test('the sample course never counts, and the line is gone once a deck of the learner\'s own is published', () => {
+  const sampleOnly = library({ sample: SAMPLE, decks: [{ id: 'sample-deck', sample: true }], sources: [{ id: 'sample-src', sample: true, title: '示例讲义' }],
+    drafts: [{ id: 'sample-draft', sample: true, cards: [] }], jobs: [job('running', { draftId: 'sample-draft' })] });
+  const line = m.firstRunLine(sampleOnly);
+  assert.equal(line.show, true, 'a loaded sample is not the learner\'s library');
+  assert.deepEqual(ids(line), ['model:done', 'material:todo', 'deck:waiting'], 'its material, draft and run tick nothing');
+  assert.equal(m.firstRunLine(library({ sample: { ...SAMPLE, loaded: false }, sources: [{ id: 'sample-src' }] })).steps[1].status, 'todo', 'known by its ids too');
+  assert.equal(m.firstRunDraft(sampleOnly), null);
+  const published = m.firstRunLine(library({ sources: [mine], decks: [{ id: 'deck-1' }] }));
+  assert.deepEqual(published, { show: false, step: -1, steps: [] });
+  assert.equal(m.firstRunLine(library({ decks: [{ id: 'coach', systemKind: 'coach' }] })).show, true, 'a deck the app made itself is not one');
+  assert.equal(m.firstRunLine(null).show, false);
+});
+
+test('one sentence per row, in both languages', () => {
+  m.setUiLanguage('zh');
+  const [model, material, deck] = m.firstRunLine(library({ sources: [mine] })).steps;
+  assert.equal(m.stepSentence(model), '已连接：DeepSeek · V4 Flash');
+  assert.equal(m.stepSentence({ ...model, verified: false }), '已选择模型：DeepSeek · V4 Flash', 'a DSH that cannot tell is not called connected');
+  assert.equal(m.stepSentence(material), '第3讲 进程与线程 · 已添加');
+  assert.equal(m.stepSentence({ ...material, count: 3 }), '第3讲 进程与线程 等 3 份资料 · 已添加');
+  assert.equal(m.stepSentence(deck), '用资料出第一组题');
+  m.setUiLanguage('en');
+  try {
+    for (const status of m.DECK_STATES) assert.doesNotMatch(m.stepSentence({ ...deck, status }), han, status);
+    assert.doesNotMatch(m.stepSentence({ id: 'model', status: 'todo' }) + m.stepSentence({ id: 'material', status: 'todo' }), han);
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('the page form: only the open step has a body, with at most one primary button, and no step bounces to the settings', () => {
+  m.setUiLanguage('zh');
+  // No model: the gate's own steps in place, 重新检查 as the one primary, the settings only as a quiet link inside the step that picks a model.
+  const none = page(m.firstRunLine(library({ model: NOTHING })));
+  assert.equal(primaries(none), 1);
+  assert.match(none, /data-body="model"/);
+  assert.equal((none.match(/data-body=/g) || []).length, 1, 'one open step');
+  assert.match(text(none), /在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存/);
+  assert.match(text(none), /去哪拿 Key、要不要充值：看/, 'where to get a key, said once');
+  assert.match(text(none), /选一个模型：在对话输入框的模型选择器里选.*前往设置/, 'the quiet settings link sits inside the step that picks a model');
+  assert.equal((text(none).match(/前往设置/g) || []).length, 1, 'and nowhere else');
+  assert.match(none, />重新检查</);
+  assert.match(text(none), /回到这里，这一步会自己打勾；没有变就点「重新检查」/);
+  assert.match(none, /class="sh-btn sh-btn--link[^"]*"[^>]*>添加资料</, 'the material step is never locked: a quiet 添加资料 on its row');
+  // A missing key: only the key step (no model to pick), and no settings link at all.
+  const noKey = page(m.firstRunLine(library({ model: NO_KEY })));
+  assert.match(text(noKey), /在「DeepSeek」卡片填入 API Key 并保存/);
+  assert.doesNotMatch(text(noKey), /前往设置/);
+  // Every state of the line: one primary at most, the bottom's two quiet links, no title=.
+  const states = [
+    library(), library({ sources: [mine] }), library({ sources: [mine], jobs: [job('running')] }),
+    library({ sources: [mine], drafts: [draft] }),
+  ];
+  for (const data of states) {
+    const markup = page(m.firstRunLine(data), { jobs: h('div', { className: 'cjc' }, 'card') });
+    assert.ok(primaries(markup) <= 1, `one primary at most: ${markup.slice(0, 120)}`);
+    assert.doesNotMatch(markup, / title="/, 'explanations are Tooltips, never title=');
+    assert.match(markup, /载入示例并开始导览/);
+    assert.match(markup, />以后再说</);
+  }
+  const material = page(m.firstRunLine(library()));
+  assert.match(material, /data-first-run="import"[^>]*>|>添加资料</);
+  assert.match(text(material), /网页文件（\.html）/, 'the formats the hub takes, in the step that takes them');
+  const ready = page(m.firstRunLine(library({ sources: [mine] })));
+  assert.match(ready, /data-first-run="generate"/);
+  assert.match(ready, />出第一组题</);
+  assert.match(ready, />再加一份</, 'an added material can have a second one, quietly');
+  const running = page(m.firstRunLine(library({ sources: [mine], jobs: [job('running')] })), { jobs: h('div', { className: 'cjc' }, 'card') });
+  assert.equal(primaries(running), 0, 'a run in progress has nothing to press but its own card');
+  assert.match(running, /class="cjc"/, 'the run\'s card is inside the third step');
+  assert.doesNotMatch(running, /查看进度/);
+  const clean = page(m.firstRunLine(library({ sources: [mine], drafts: [draft] }), { publishAtOnce: true }));
+  assert.match(clean, /sh-btn--primary[^>]*data-first-run="publish"/);
+  assert.match(clean, />发布并开始练</);
+  assert.match(clean, />先看看草稿</);
+  const review = page(m.firstRunLine(library({ sources: [mine], drafts: [draft] })));
+  assert.match(review, /data-first-run="review"/);
+  assert.match(review, />检查草稿</);
+  assert.doesNotMatch(review, /发布并开始练<\/button>/);
+  // The sample link needs a host with a sample that is not loaded.
+  assert.doesNotMatch(page(m.firstRunLine(library()), { sample: null }), /载入示例并开始导览/);
+  assert.doesNotMatch(page(m.firstRunLine(library()), { sample: { loaded: true } }), /载入示例并开始导览/, 'a loaded sample has its banner');
+});
+
+test('the compact card (以后再说) is the same line: three rows and the open step\'s one button', () => {
+  m.setUiLanguage('zh');
+  const cases = [
+    [library(), '添加资料'], [library({ model: NOTHING }), '添加资料'], [library({ sources: [mine] }), '出第一组题'],
+    [library({ sources: [mine], jobs: [job('running')] }), null], [library({ sources: [mine], drafts: [draft] }), '检查草稿'],
+  ];
+  for (const [data, label] of cases) {
+    const markup = compact(m.firstRunLine(data));
+    assert.equal((markup.match(/class="frl-step"/g) || []).length, 3);
+    assert.doesNotMatch(markup, /data-body=/, 'no bodies in the card');
+    assert.equal(primaries(markup), label ? 1 : 0);
+    if (label) assert.equal(m.compactAction(m.firstRunLine(data), on).label, label);
+    assert.match(markup, /today-card/);
+  }
+  assert.equal(m.compactAction(m.firstRunLine(library({ sources: [mine], drafts: [draft] }), { publishAtOnce: true }), on).label, '发布并开始练');
+  assert.equal(m.compactAction(m.firstRunLine(library()), {}), null, 'no handler, no dead button');
+});
+
+test('English: the whole line has no Chinese left', () => {
+  m.setUiLanguage('en');
+  try {
+    for (const data of [library({ model: NOTHING }), library({ model: NO_KEY }), library(), library({ sources: [{ id: 's1', title: 'Lecture 3' }] }),
+      library({ sources: [{ id: 's1', title: 'Lecture 3' }], drafts: [{ ...draft, title: 'Deck' }] })]) {
+      for (const markup of [page(m.firstRunLine(data)), page(m.firstRunLine(data, { publishAtOnce: true })), compact(m.firstRunLine(data), { todayLabel: 'Thu 22 Oct' })])
+        assert.doesNotMatch(text(markup), han, text(markup).slice(0, 200));
+    }
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('the library home draws the line: the whole first screen, or the compact card after 以后再说; the welcome page and the starter are gone', async () => {
+  const read = (file) => readFile(file, 'utf8');
+  const [views, map, today, welcome, tour] = await Promise.all(['ui/app/page-views.jsx', 'ui/StudyMap.jsx', 'ui/study-map/TodayCard.jsx', 'ui/Welcome.jsx', 'ui/app/use-tour.js'].map(read));
+  assert.match(views, /const linePage = lineShown && !tour\.tourStep && !tour\.lineLater;/);
+  assert.match(views, /firstRun=\{firstRun\}/);
+  assert.doesNotMatch(views, /<Welcome /);
+  assert.match(map, /line\.show && firstRun\?\.form === "page"/);
+  assert.match(map, /<FirstRunLine line=\{line\} form="compact"/);
+  assert.doesNotMatch(today, /starter-steps|plan\.kind === 'empty'/);
+  assert.doesNotMatch(welcome, /export default/, 'only the sample banner is left of the welcome page');
+  assert.doesNotMatch(tour, /showWelcome/);
+  assert.doesNotMatch(tour.slice(tour.indexOf('function startTour'), tour.indexOf('const startFullTour')), /hideWelcome\(\)/, 'a tour does not put the line away');
+});

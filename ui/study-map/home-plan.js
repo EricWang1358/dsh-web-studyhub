@@ -7,7 +7,7 @@ import { JOB_TYPES } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 
 /** The ids of the sample course's records (设置 › 学习画像与导览): its decks, its draft and its first material; the records themselves carry `sample` too. */
-const sampleIdsOf = (data) => new Set([data?.sample?.deckId, data?.sample?.caseDeckId, data?.sample?.draftId, data?.sample?.sourceId].filter(Boolean));
+export const sampleIdsOf = (data) => new Set([data?.sample?.deckId, data?.sample?.caseDeckId, data?.sample?.draftId, data?.sample?.sourceId].filter(Boolean));
 
 /**
  * Has the learner published a deck of their own? The sample course's decks, a draft and material do not count, and neither does a deck the app made itself

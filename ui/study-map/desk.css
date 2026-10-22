@@ -249,14 +249,6 @@
       line-height: 1.6;
       color: var(--paper-dim);
     }
-    .today-card-empty {
-      margin: var(--space-7-less) 0 var(--space-4-5);
-      font-family: var(--font-display);
-      font-size: var(--fs-2xl);
-      font-weight: var(--fw-strong);
-      line-height: 1.55;
-      color: var(--paper-ink);
-    }
     .today-card .today-go {
       display: flex;
       justify-content: space-between;
@@ -304,7 +296,6 @@
     .desk .resume-list > summary::before { content: "▸  "; color: var(--text-faint); }
     .desk .resume-list[open] > summary::before { content: "▾  "; }
     .desk .resume-list > summary:hover { color: var(--text); }
-      .desk.is-empty .today-card-empty { margin-bottom: var(--space-3); }
     .home-activity .draft-row:last-child { border-bottom: 0; }
     .home-activity .jobs-actions { display: flex; justify-content: flex-end; }
 }

@@ -42,7 +42,6 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
    ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
 export const KNOWN_LAYOUT = {
   "import-files": { maxCls: 0.16, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows)" },
-  "job-progress": { maxCls: 0.25, why: "a finished generation inserts the 待发布 list above the course desk and moves it down (0.044 at 1280; at 420 0.19 to 0.24, the same ~180-200 px as before, but the compact job card keeps one height from running to done where the card it replaced got shorter when it finished, so nothing offsets the insertion any more: reserve the 待发布 area while a run is going)" },
 };
 
 /* ---------- steps ---------- */
@@ -94,12 +93,15 @@ export const JOURNEY_STEPS = [
     await j.nav("generate");
     await j.clickIfPresent(j.anchor("generate-from-sources").or(j.page.getByRole("tab", { name: j.t("从资料补题") })));
     await j.clickIfPresent(j.page.getByRole("button", { name: j.t("选择当前范围") }));
-    await j.page.getByRole("button", { name: j.t("单选测验"), exact: true }).click();
-    await j.page.locator("#generate-count").fill("4"); // the stepper group, its buttons and presets share the 题数 label
-    // 题组名称 lives under 更多选项 since the 2.1.1 form redesign.
-    const name = j.page.getByLabel(j.t("题组名称（可选）"));
-    if (!await name.isVisible()) await j.page.locator(".generate-more summary").click();
-    await name.fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
+    // The short form says what will be made in one line; the question types (单选测验 is the default), the count (自定义题数) and the deck name are under 更多选项.
+    const more = j.page.locator(".generate-more").first();
+    if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
+    const quiz = more.getByRole("checkbox", { name: j.t("单选测验"), exact: true });
+    if (!await quiz.isChecked()) await quiz.check();
+    const count = j.page.locator("#generate-count");
+    if (!await count.isVisible()) await j.page.locator(".cov-strength__custom summary").first().click();
+    await count.fill("4");
+    await j.page.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
     await j.shot("form", { fullPage: true });
     const before = (await j.snapshot()).jobs.length;
     await j.anchor("generate-submit").or(j.page.getByRole("button", { name: new RegExp(`^(${escapeRe(j.t("生成并检查题组 →"))}|${escapeRe(j.t("加入生成队列 →"))})`) })).first().click();
@@ -115,9 +117,12 @@ export const JOURNEY_STEPS = [
     const done = await j.api("job.wait", { jobId: j.state.jobId, timeoutSeconds: 60 });
     if (done.status !== "complete") throw new Error(`generation ended as ${done.status}: ${done.stage}`);
     j.state.draftId = done.draft?.id;
-    // WP4: the finished job card at the top of the home offers 检查草稿.
-    await j.page.locator(".generation-jobs .cjc").getByRole("button", { name: new RegExp(`^${escapeRe(j.t("检查草稿"))}`) }).first().waitFor({ timeout: 15000 });
-    await j.page.locator(".generation-jobs .cjc").first().scrollIntoViewIfNeeded();
+    // Before the first deck is published the run's card is inside the first-run line's step 3, and the finished run leaves the step's own button there
+    // (发布并开始练 or 检查草稿); with a deck of their own it is the card at the top of the home, which offers 检查草稿.
+    const next = j.page.locator('.first-run [data-first-run="publish"], .first-run [data-first-run="review"]')
+      .or(j.page.locator(".generation-jobs .cjc").getByRole("button", { name: new RegExp(`^${escapeRe(j.t("检查草稿"))}`) })).first();
+    await next.waitFor({ timeout: 15000 });
+    await next.scrollIntoViewIfNeeded();
     await j.settle();
     await j.shot("done");
   } },
@@ -129,19 +134,14 @@ export const JOURNEY_STEPS = [
     await j.shot();
   } },
   { name: "draft", needs: ["draft"], run: async (j) => {
-    const open = j.page.locator(".draft-row .draft-open").first();
-    if (!await open.count()) await j.nav("library");
-    await j.page.locator(".draft-row .draft-open").first().click();
+    await j.openDraftFromHome();
     await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().waitFor({ timeout: 15000 });
     await j.settle();
     await j.shot();
     await j.shot("full", { fullPage: true });
   } },
   { name: "publish", needs: ["draft"], run: async (j) => {
-    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) {
-      await j.nav("library");
-      await j.page.locator(".draft-row .draft-open").first().click();
-    }
+    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) await j.openDraftFromHome();
     const before = (await j.snapshot()).decks.length;
     await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().click();
     await j.until(async () => (await j.snapshot()).decks.length > before, "the deck is published");
@@ -222,13 +222,16 @@ export const JOURNEY_STEPS = [
     const input = j.page.locator('.audio-drop-zone input[type="file"]');
     await input.waitFor({ state: "attached", timeout: 15000 });
     await input.setInputFiles(j.fixtures.longM4a);
-    await j.page.locator(".audio-check--split").first().waitFor({ timeout: 30000 });
+    // The lossless split is said under the file (offered, or already taken: 将无损分成 2 段转写), and the one start button says the parts and the requests.
+    const split = j.page.locator(".audio-check--split, .audio-check--split-confirmed").first();
+    await split.waitFor({ timeout: 30000 });
     await j.settle();
-    await j.page.locator(".audio-check--split").first().scrollIntoViewIfNeeded();
+    await split.scrollIntoViewIfNeeded();
     await j.shot("split");
     const finished = () => j.snapshot().then((snapshot) => snapshot.jobs.filter((job) => job.type === "audio-import" && job.status === "complete"));
     const before = (await finished()).length;
-    await j.page.getByRole("button", { name: j.t("分段并继续") }).first().click();
+    if (!await j.clickIfPresent(j.page.getByRole("button", { name: j.t("分段并继续") })))
+      await j.page.getByRole("button", { name: new RegExp(`^${escapeRe(j.t("开始"))}`) }).filter({ hasText: /2/ }).first().click();
     await j.until(async () => (await finished()).length > before, "the long recording is transcribed in parts", 180000);
     const job = (await finished()).find((item) => /76|long/i.test(item.filename) || item.usage?.siliconflow?.requests === 2);
     if (job?.usage?.siliconflow?.requests !== 2) throw new Error(`expected 2 SiliconFlow requests for the 76-minute recording, got ${job?.usage?.siliconflow?.requests}`);
@@ -261,10 +264,13 @@ export const JOURNEY_STEPS = [
     await j.dialog().waitFor({ timeout: 10000 });
     await j.settle();
     await j.shot("panel");
+    // The panel leads with the exam date; the format, the marks, the parts and the merge are under 更多设置.
+    const moreSettings = j.dialog().locator("details.course-settings__more").first();
+    if (await moreSettings.count() && !await moreSettings.evaluate((element) => element.open)) await moreSettings.locator("summary").first().click();
     await j.dialog().getByRole("button", { name: j.t("开卷案例"), exact: true }).click();
     await j.dialog().getByLabel(j.t("总分"), { exact: true }).fill("40");
     const date = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
-    await j.dialog().getByLabel(j.t("考试日期")).fill(date);
+    await j.dialog().locator('input[type="date"]').first().fill(date); // the date block is labelled 考试日期 as well as its field
     await j.dialog().getByRole("button", { name: j.t("添加考试部分") }).click();
     await j.dialog().getByLabel(j.t("标题"), { exact: true }).first().fill(j.lang === "en" ? "Part A · Architecture styles" : "第一部分 · 架构风格");
     await j.dialog().getByLabel(j.t("分值"), { exact: true }).first().fill("20");
@@ -285,6 +291,8 @@ export const JOURNEY_STEPS = [
     await j.shot("heading");
     // Course pickers list existing courses first.
     await j.openAddSource();
+    // The dialog says the course in one line; its field (with the picks) is behind 更改.
+    await j.clickIfPresent(j.dialog().locator(".import-hub__chip button"));
     await j.dialog().locator(".course-field__picks").first().waitFor({ timeout: 10000 });
     await j.settle();
     await j.shot("import-course-picks");
@@ -305,7 +313,7 @@ export const JOURNEY_STEPS = [
 export const TOUR_STEPS = [
   { name: "tour-welcome", run: async (j) => {
     await j.nav("library");
-    await j.page.locator(".welcome").waitFor({ timeout: 15000 });
+    await j.page.locator(".first-run").waitFor({ timeout: 15000 });
     await j.settle();
     await j.shot();
   } },
@@ -377,18 +385,14 @@ export const CASE_STEPS = [
     await j.shot("done");
   } },
   { name: "case-draft", needs: ["caseDraft"], run: async (j) => {
-    await j.nav("library");
-    await j.page.locator(".draft-row .draft-open").first().click();
+    await j.openDraftFromHome();
     await j.page.locator(".case-draft").waitFor({ timeout: 15000 });
     await j.settle();
     await j.shot();
     await j.shot("full", { fullPage: true });
   } },
   { name: "case-practice", needs: ["caseDraft"], run: async (j) => {
-    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) {
-      await j.nav("library");
-      await j.page.locator(".draft-row .draft-open").first().click();
-    }
+    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) await j.openDraftFromHome();
     await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().click();
     await j.page.locator(".rubric-answer textarea").first().waitFor({ timeout: 20000 });
     // Highlight the cue sentence of paragraph 4 with the highlighter (select, mouse up).
@@ -718,6 +722,15 @@ function journeyContext({ page, server, options, english, fixtures, step }) {
       const add = j.anchor("sources-add").or(page.getByRole("button", { name: t("＋ 添加资料") }));
       if (await add.count() && await add.first().isVisible()) await add.first().click();
       await j.settle(400);
+    },
+    /** The newest draft's page, from the library: the first-run line's step 3 before the first deck is published, else the folded 待发布 list. */
+    async openDraftFromHome() {
+      if (!await page.locator('.first-run [data-first-run="look"], .first-run [data-first-run="review"], .draft-row').count()) await j.nav("library");
+      const fromLine = page.locator('.first-run [data-first-run="look"], .first-run [data-first-run="review"]').first();
+      if (await fromLine.count()) { await fromLine.click(); return; }
+      const fold = page.locator("details.home-drafts").first();
+      if (await fold.count() && !await fold.evaluate((element) => element.open)) await fold.locator("summary").first().click();
+      await page.locator(".draft-row .draft-open").first().click();
     },
     async closeDialog() {
       if (!await page.locator("dialog[open], [role=dialog], .modal").count()) return;

@@ -27,7 +27,7 @@ function render(patch = {}) {
   const noop = () => {};
   return renderToStaticMarkup(React.createElement(StudyMap, mapProps({
     data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop,
-    continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop,
+    continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, generateFromSources: noop,
     askInChat: noop, notebooks: [], onFocus: noop,
   })));
 }

@@ -30,6 +30,9 @@ import DeckTree from "./study-map/DeckTree.jsx";
 import NotebookDirectory from "./study-map/NotebookDirectory.jsx";
 import SelectionBar from "./study-map/SelectionBar.jsx";
 import { isAudioJob, JOB_TYPES } from '../lib/job-status.js';
+import FirstRunLine from "./first-run/FirstRunLine.jsx";
+import { useFirstRunLine } from "./first-run/use-first-run-line.js";
+import { AppContext } from "./app/app-context.js";
 
 /* The library home: the day's one card, the course heading, generation
    progress and drafts, and the catalogue of decks by course. Each part lives in
@@ -43,9 +46,13 @@ import { isAudioJob, JOB_TYPES } from '../lib/job-status.js';
      setupHandlers  the 课程准备 checklist's handlers (createSetupHandlers)
      notebooks      the cross-workspace notebook directory (useNotebooks: notebooks, notebookError, publish, unpublish, open,
                     loadNotebooks, search)
-     reveal / onRevealed   scroll the progress card into view after a generation starts */
-export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, children }) {
+     reveal / onRevealed   scroll the progress card into view after a generation starts
+     firstRun       until the learner's first own deck is published, the first-run line (ui/first-run): { form: 'page' | 'compact', on } where `on` adds the
+                    line's own verbs to the ones taken from `actions` (see FirstRunLine). 'page' is the whole home (the line, with the runs of its third step);
+                    'compact' puts the line's card in the today slot. Left out, the line is the compact card. */
+export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
   const { call, act, busy, askInChat, host } = useStudy();
+  const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const toast = useToast();
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
@@ -97,6 +104,21 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
   const deckActions = { start, resume, manage, askInChat, restoreDeck, removeDeck };
+  const line = useFirstRunLine(data);
+  const lineOn = { importFirst: addSource, generate: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
+  if (line.show && firstRun?.form === "page") {
+    // The first screen is the line alone: its third step carries the runs of the first deck (their cards are not drawn anywhere else on it).
+    const carried = new Set(line.steps[2].jobIds), deckJobs = visibleJobs.filter((job) => carried.has(job.id));
+    return (
+      <section className="page library-page map-page first-run-page" ref={pageRef}>
+        {children}
+        <FirstRunLine line={line} form="page" sample={data.sample} on={lineOn}
+          jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
+            start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
+            retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} /> : null} />
+      </section>
+    );
+  }
   return (
     <section className="page library-page map-page" ref={pageRef}>
       {children}
@@ -108,7 +130,9 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <DeskIntro data={data} home={home} mastery={mastery} role={role} busy={busy} start={start} resume={resume} endRun={endRun}
           onFocus={onFocus} onCourseSettings={onCourseSettings} onShowOutline={onShowOutline} suggestRole={suggestRole} />
-        <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} />
+        {line.show
+          ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} /></div>
+          : <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} />}
       </div>
       {/* 待发布 is folded and sits under the day's work, not above it. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} />
