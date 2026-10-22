@@ -26,8 +26,15 @@ export const HAND_OFF_NOTICES = Object.freeze({
   failed: '没能发给主会话：{0}',
 });
 
-/* Sentences one after another: a space after one that ends in a Latin character (English), none after a Chinese one. */
-const joinSentences = parts => parts.filter(Boolean).reduce((text, part) => (text ? `${text}${/[!-~]$/.test(text) ? ' ' : ''}${part}` : part), '');
+/* Sentences one after another: one that does not end a sentence yet gets the language's full stop (a place's `what` may be a bare phrase), then a space
+   after one that ends in a Latin character (English), none after a Chinese one. A closing quote or bracket after the end mark still counts as ended. */
+const ENDED = /[.!?。！？…:：;；][\s"'”’」』)）]*$/;
+const endSentence = text => (ENDED.test(text) ? text : `${text}${/^zh/i.test(getUiLanguage()) ? '。' : '.'}`);
+const joinSentences = parts => parts.filter(Boolean).reduce((text, part) => {
+  if (!text) return part;
+  const ended = endSentence(text);
+  return `${ended}${/[!-~]$/.test(ended) ? ' ' : ''}${part}`;
+}, '');
 
 /** The Tooltip text: this place's `what` (optional, a catalogue key) and the fixed rule. */
 export const handOffTip = (what = '') => joinSentences([what ? ui(what) : '', ui(HAND_OFF_RULE)]);
@@ -61,7 +68,7 @@ export async function deliverToChat({ host, prompt, said = '', notify = () => {}
  *   send(id, input, { said }) -> Promise<'filled'|'kept'|'copied'|'shown'|'failed'>: `input` may be an async function (read what the message needs first);
  *     a write before the hand-off stays at the call site (await act(..., { rethrow: true }), then send with `said`). 'failed': the input could not be read.
  *   action(id, input, { what, said }) -> { label, onClick, tip }: for a Feedback action/secondary, a CompactJobCard link, a FileDrop rejectAction.
- *   item(id, input) -> { id, label, hint (the short rule), run }: a Menu item; the Menu's onSelect calls run() for its id (no dialog of its own).
+ *   item(id, input) -> { id, label, hint (the short rule), run }: a Menu item; Menu runs it when chosen (it does not reach onSelect; no dialog of its own).
  * An id the registry does not have throws at once.
  */
 export function useHandOff() {

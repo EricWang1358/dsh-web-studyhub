@@ -84,8 +84,16 @@ test('English: the notices and the language sentence are English', async () => {
     await deliver('p');
     assert.equal(copied[0], `p\n${m.languageTail('en')}`);
     assert.match(notices[0], /^The input box already has your text, so it was left as it is: the prompt is copied/);
-    assert.equal(m.handOffTip('写进这个知识点，或发给主会话'), 'Write into this point, or send it to the main chat Only fills the main chat’s input box and you press send; without a main chat it is copied to the clipboard.');
+    assert.equal(m.handOffTip('写进这个知识点，或发给主会话'), 'Write into this point, or send it to the main chat. Only fills the main chat’s input box and you press send; without a main chat it is copied to the clipboard.');
   } finally { m.setUiLanguage('zh'); }
+});
+
+test('the Tooltip: a place\'s `what` without a sentence end gets one before the fixed rule; one that has it is left alone', () => {
+  m.setUiLanguage('zh');
+  assert.equal(m.handOffTip('写进这个知识点，或发给主会话'), `写进这个知识点，或发给主会话。${m.HAND_OFF_RULE}`);
+  assert.equal(m.handOffTip('写进这个知识点。'), `写进这个知识点。${m.HAND_OFF_RULE}`);
+  assert.equal(m.handOffTip('要换个讲法？'), `要换个讲法？${m.HAND_OFF_RULE}`);
+  assert.equal(m.handOffTip(), m.HAND_OFF_RULE);
 });
 
 /* The host side: a session input as DSH has it (SessionInputShell: projection.detectText, state.getSnapshot(), setDraft, submit), wrapped so a submit throws. */
