@@ -233,7 +233,7 @@ test("skeleton.patch extends a skeleton step by step, atomically, widening scope
     ],
     relations: [],
   } });
-  assert.equal(saved.lastChange.summary, "对话生成了骨架");
+  assert.equal(saved.lastChange.summary, "主会话生成了骨架");
 
   // Contrast Retry spikes with a concept the skeleton (and its scope) lacked; b2 lives in another deck/topic.
   const { skeleton, change } = await service.call("skeleton.patch", { id: saved.id, note: "对比冗余", ops: [

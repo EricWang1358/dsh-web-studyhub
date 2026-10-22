@@ -37,7 +37,8 @@ export function HandOff({ id, input, what = '', lead = '', shape = 'link', said 
     if (flight.current) return;
     flight.current = true;
     setSending(true);
-    try { onSent?.(await send(id, input, { said })); } finally { flight.current = false; setSending(false); }
+    // (`onSent?.(await send(...))` would not call send at all without an onSent: the optional call skips its arguments)
+    try { const outcome = await send(id, input, { said }); onSent?.(outcome); } finally { flight.current = false; setSending(false); }
   };
   const button = <HandOffButton shape={shape} what={what} busy={sending} disabled={disabled} onClick={go} data-hand-off={id} {...rest} />;
   if (!lead) return className ? <span className={className}>{button}</span> : button;
@@ -49,30 +50,42 @@ export function HandOff({ id, input, what = '', lead = '', shape = 'link', said 
 }
 
 /**
- * <HandOffForm id input chips placeholder label what said onSent />: only for the migrated places that already had a box of their own (knowledge
- * skeleton extension, learning flows). New places have no box: the chat's input box is the box. chips: catalogue keys, a tap fills the box;
- * input(text): the entry's input made from what was typed (the place fences it with fenceRequest).
+ * <HandOffForm id input prepare chips placeholder label what said submitLabel needsText disabled rows onSent>: only for the migrated places that already had
+ * a box of their own (knowledge skeleton extension, learning flows). New places have no box: the chat's input box is the box. chips: catalogue keys, a tap
+ * fills the box; input(text, prepared): the entry's input made from what was typed (the entry's builder puts it in a fenceRequest fence) and what prepare returned;
+ * prepare(text): the write before the hand-off (a flow saved, notes saved), resolving to what input needs, or `false` to stop (the place said why itself);
+ * submitLabel: 「保存并发给主会话」 when a write comes first; needsText: the button waits for a word; disabled: the place's own reasons; rows: the box's height;
+ * children: a control above the box (the extension's intent). The box empties once it was handed over.
  */
-export function HandOffForm({ id, input, chips = [], placeholder = '', label = '', what = '', said = '', onSent, maxLength = 600, className }) {
+export function HandOffForm({ id, input, prepare, chips = [], placeholder = '', label = '', what = '', said = '', submitLabel = HAND_OFF_LABEL, needsText = false, disabled = false, rows = 3,
+  onSent, maxLength = 600, className, children }) {
   useInjectCss(css, 'study-hand-off');
   const { send } = useHandOff();
   const [text, setText] = useState(''), [sending, setSending] = useState(false), flight = useRef(false);
+  const waiting = disabled || (needsText && !text.trim());
   const go = async () => {
-    if (flight.current) return;
+    if (flight.current || waiting) return;
     flight.current = true;
     setSending(true);
-    try { onSent?.(await send(id, () => input(text.trim()), { said })); } finally { flight.current = false; setSending(false); }
+    try {
+      const typed = text.trim(), prepared = prepare ? await prepare(typed) : undefined;
+      if (prepared === false) return;
+      const outcome = await send(id, () => input(typed, prepared), { said });
+      if (outcome !== 'failed') setText('');
+      onSent?.(outcome);
+    } finally { flight.current = false; setSending(false); }
   };
   return (
     <form className={['sh-handoff-form', className].filter(Boolean).join(' ')} data-hand-off-form={id} onSubmit={event => { event.preventDefault(); go(); }}>
       {chips.length > 0 && <div className="sh-handoff-form__chips" role="group" aria-label={ui('常用的问法')}>
         {chips.map(chip => <Button key={chip} size="sm" variant="quiet" type="button" onClick={() => setText(ui(chip))}>{ui(chip)}</Button>)}
       </div>}
-      <TextArea className="sh-handoff-form__box" rows={3} maxLength={maxLength} value={text} onChange={event => setText(event.target.value)}
+      {children}
+      <TextArea className="sh-handoff-form__box" rows={rows} maxLength={maxLength} value={text} disabled={disabled} onChange={event => setText(event.target.value)}
         aria-label={label ? ui(label) : ui(HAND_OFF_LABEL)} placeholder={placeholder ? ui(placeholder) : undefined}
         onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); go(); } }} />
       <div className="sh-handoff-form__send">
-        <HandOffButton shape="secondary" what={what} busy={sending} type="submit" data-hand-off={id} />
+        <HandOffButton shape="secondary" what={what} label={submitLabel} busy={sending} disabled={waiting} type="submit" data-hand-off={id} />
       </div>
     </form>
   );

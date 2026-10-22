@@ -217,8 +217,8 @@ test('学习流 and the daily plan use the compact gate where they had plain tex
   assert.doesNotMatch(portal, /连接模型后可以一键生成/);
   assert.doesNotMatch(plan, /配置模型后可以协商安排/);
   assert.match(portal, /useContext\(ModelSettingsContext\)/, 'the portal falls back to the app\'s context instead of masking it with null');
-  for (const [feature, line] of [['workflow', '讲解、复述反馈和后台骨架需要先配置模型；现在会按主题和题组名匹配材料。'], ['lesson', '生成讲解需要先配置模型；也可以在下方请主对话补充材料。'],
-    ['skeleton', '一键生成骨架需要先配置模型；也可以请主对话帮你设计骨架。'], ['plan', '协商安排需要先配置模型；已接受的行动可以继续。']])
+  for (const [feature, line] of [['workflow', '讲解、复述反馈和后台骨架需要先配置模型；现在会按主题和题组名匹配材料。'], ['lesson', '生成讲解需要先配置模型；也可以在下方请主会话补充材料。'],
+    ['skeleton', '一键生成骨架需要先配置模型；也可以请主会话帮你设计骨架。'], ['plan', '协商安排需要先配置模型；已接受的行动可以继续。']])
     assert.equal(m.gateMessage(feature), line, feature);
 });
 

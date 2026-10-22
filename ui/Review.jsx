@@ -13,7 +13,7 @@ import { Badge, Button, PageHeader, Tooltip } from "./components/index.js";
 import { cx } from "./components/css.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
-import { weakTopicsPrompt } from "./agent-prompts/library.js";
+import { HandOff } from "./hand-off/HandOff.jsx";
 import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
 import { MasteryChange, ReadingBackButton, ReadingResult, ReturnPrimary } from "./document-preview/practice/ReadingReturn.jsx";
@@ -46,7 +46,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   useInjectCss(reviewCss, "study-review");
   const { run, choice, actions } = session;
   const { reviewAct } = actions;
-  const { call, act, busy, host, askInChat, navigate, openModal, openSettings, notify } = useStudy();
+  const { call, act, busy, host, navigate, openModal, openSettings, notify } = useStudy();
   const { onBackToWorkflow, onCourseFlow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
@@ -213,11 +213,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               <Button disabled={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
             )}
             {run.weakTopics?.length > 0 && (
-              <Button
-                onClick={() =>
-                  askInChat(weakTopicsPrompt({ title: shellTitle, topics: run.weakTopics }))
-                }
-              >{ui("在对话中讲解薄弱点")}</Button>
+              <HandOff id="review.weakTopics" lead="讲解薄弱点：" what="让主会话逐个讲清这一轮还没掌握稳的主题，并各出一道小题检查你"
+                input={{ title: shellTitle, topics: run.weakTopics }} />
             )}
             </div>
           </details>

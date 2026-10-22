@@ -22,6 +22,7 @@ import { useAudioPreflight } from './audio/useAudioPreflight.js';
 import { useAudioUpload } from './audio/useAudioUpload.js';
 import { useHostQuery } from './host-query.js';
 import { useStudy } from './study-context.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
    这里只管导入表单；出题仍走「资料 → 生成」。转写在后台进行，进度来自快照里的
@@ -39,7 +40,6 @@ const subtitleAlone = () => ui("字幕文件请单独导入：一次选一个字
 
 export default function AudioImport({
   data,
-  canAsk = false,
   openAgent,
   onOpenSources,
   onStarted,
@@ -56,7 +56,7 @@ export default function AudioImport({
   initialReadiness = null,
   initialChecks,
 }) {
-  const { busy, act, call, askInChat } = useStudy();
+  const { busy, act, call } = useStudy();
   useInjectCss(settingsCss, 'study-audio-settings');
   useInjectCss(audioCss, 'study-audio-import');
   const language = useUiLanguage(), toast = useToast();
@@ -260,8 +260,7 @@ export default function AudioImport({
         </div>}
         <div className="audio-ways">
           <AudioWorkspace call={call} onPick={(picked) => pickPath(picked.path, picked.size)} />
-          {canAsk && askInChat && <Button variant="link" size="sm" disabled={busy}
-            onClick={() => askInChat(ui("请把这些音频按我指定的顺序合成一份逐字稿（用 audio.import files:[{path:...}]，路径用绝对路径）：@"))}>{ui("在对话里用 @ 选文件")}</Button>}
+          <HandOff id="import.file" input={{ purpose: 'audio' }} lead="多段录音或别处的文件：" disabled={busy} what="让主会话按你指定的顺序导入这些音频；文件在输入框里用 @ 选" />
           <details className="audio-path"><summary>{ui("粘贴文件路径（高级）")}</summary>
             <div className="audio-path-row">
               <input value={pathText} onChange={(event) => setPathText(event.target.value)} placeholder={ui("例如：C:\\Users\\你\\Downloads\\lecture.mp3")}

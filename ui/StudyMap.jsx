@@ -103,7 +103,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
-  const deckActions = { start, resume, manage, askInChat, restoreDeck, removeDeck };
+  const deckActions = { start, resume, manage, restoreDeck, removeDeck };
   const line = useFirstRunLine(data);
   const lineOn = { importFirst: addSource, generate: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
   if (line.show && firstRun?.form === "page") {
@@ -141,7 +141,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} busy={busy} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}
         onShowOutline={home.route?.chapters?.length ? onShowOutline : undefined} />
-      <TopicGroupReminder grouping={data.topicGrouping} root={data.root} askInChat={askInChat} />
+      <TopicGroupReminder grouping={data.topicGrouping} root={data.root} />
       <MergeSuggestions merge={merge} busy={busy} />
       {data.decks.length > 0 && <CatalogToolbar search={search} onSearch={setSearch} showArchived={showArchived}
         onToggleArchived={() => { setShowArchived((value) => !value); tree.clearSelection(); }} />}

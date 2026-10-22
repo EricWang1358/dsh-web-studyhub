@@ -4,7 +4,7 @@ import { readFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  scanUi, readBaseline, diffMetrics, describe as describeDrift, mergeLowered, parseCss, RULES, BASELINE_FILE, ROOT,
+  scanUi, readBaseline, diffMetrics, describe as describeDrift, mergeLowered, parseCss, RULES, ALLOW, BASELINE_FILE, ROOT,
 } from '../scripts/qa/guardrail-baseline.mjs';
 
 // UI consistency guard rails (tracker #161). Per-file ratchets may only fall; the hard rules
@@ -58,6 +58,23 @@ test('no window.confirm / alert / prompt in ui (#67)', () => {
 test('every var(--x) used in ui CSS is defined (#96)', () => {
   assert.deepEqual(scan.undefinedVars.map((v) => `${v.name} first used at ${v.site}`), [],
     'define the token (ui/tokens.css or ui/components/components.css) or fix the name; host-provided variables go in ALLOW.undefinedVars with a reason');
+});
+
+/* The hand-off plan (S2b): the main chat is written to by the shared unit alone, and it has one name. Both are hard rules with no baseline. What ALLOW lists is the home
+   page's first-run hand-off, which another branch is rewriting (plan item 5); the entries go when it moves to ui/hand-off/. */
+test('askInChat is named only by the files that wire the service and by ui/hand-off/ (hand-off S2b)', () => {
+  assert.deepEqual(scan.metrics.chatHandOff, {}, 'hand it over with useHandOff() / <HandOff> (ui/hand-off/) and an id of ui/agent-prompts/index.js; a page never calls askInChat');
+  assert.deepEqual(baseline.chatHandOff, {}, 'no baseline for this rule: fix the page instead of recording it');
+  assert.deepEqual(ALLOW.chatHandOff.map((entry) => entry.file), ['ui/StudyMap.jsx', 'ui/study-map/home-plan.js'], 'only the home first-run hand-off (plan item 5) is excepted');
+  // The wiring itself: the services bag in App.jsx, the one writer, the host adapter and the services list name it, and each really does.
+  for (const file of ['ui/App.jsx', 'ui/app/use-app-core.js', 'ui/host/workspace.jsx', 'ui/study-context.jsx', 'ui/hand-off/use-hand-off.js'])
+    assert.match(readFileSync(join(ROOT, file), 'utf8'), /\baskInChat\b/, `${file} wires askInChat`);
+});
+
+test('the main chat has one name in the Chinese UI: 主会话 (hand-off S2b)', () => {
+  assert.deepEqual(scan.metrics.chatOldWording, {}, 'say 主会话 (the button is 发给主会话); English stays "the main chat"');
+  assert.deepEqual(baseline.chatOldWording, {}, 'no baseline for this rule');
+  assert.deepEqual(ALLOW.chatOldWording.map((entry) => entry.file), ['ui/study-map/home-plan.js'], 'only the home first-run hand-off (plan item 5) is excepted');
 });
 
 test('allow-list entries that no longer match anything are removed', () => {
@@ -147,9 +164,10 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       'const old = () => <p>{ui("交给主对话")}<b>{ui("让对话归并主题")}</b>{ui("在新对话中打开")}</p>; // 主对话 in a comment', '',
     ].join('\n'));
     writeFileSync(join(root, 'ui', 'components', 'Ok.jsx'), 'export const B = () => <button className="primary">z</button>;\n');
-    // The shared unit may name askInChat; nothing else may.
+    // The shared unit and the files that wire the service (App.jsx puts it in the services bag) may name askInChat; nothing else may.
     mkdirSync(join(root, 'ui', 'hand-off'), { recursive: true });
     writeFileSync(join(root, 'ui', 'hand-off', 'use-hand-off.js'), 'export const send = ({ askInChat }) => askInChat("x");\n');
+    writeFileSync(join(root, 'ui', 'App.jsx'), 'export const study = (core) => ({ askInChat: core.askInChat });\n');
     const found = scanUi(root);
     const total = (rule) => Object.values(found.metrics[rule]).reduce((a, b) => a + b, 0);
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {

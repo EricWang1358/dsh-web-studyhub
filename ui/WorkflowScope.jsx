@@ -77,9 +77,9 @@ function ReadingCard({ card }) {
 export const Readings = React.memo(function Readings({ resources }) {
   useInjectCss(css, "study-workflow-scope");
   const titles = new Map((resources.sources || []).map((source) => [source.id, source.title]));
-  if (!resources.readings?.length) return <p className="muted">{ui("本次范围还没有关联资料。可以请主对话围绕这个主题补充讲解，或把自己的资料写在笔记里。")}</p>;
+  if (!resources.readings?.length) return <p className="muted">{ui("本次范围还没有关联资料。可以请主会话围绕这个主题补充讲解，或把自己的资料写在笔记里。")}</p>;
   return <details className="wf-readings"><summary>{ui("参考已有题解与引用材料")} <span className="muted">{uiFormat("{0} 条", [resources.readings.length])}</span></summary>
-    <p className="muted small">{ui("这些是所选范围内的现有内容，可请主对话整理成连贯讲解。")}</p>
+    <p className="muted small">{ui("这些是所选范围内的现有内容，可请主会话整理成连贯讲解。")}</p>
     {resources.readings.map((reading, index) => <article key={`${reading.deckId}:${reading.cardId}`}>
       <h4>{index + 1}. {reading.topic || ui("参考材料")}</h4>
       {reading.card && <ReadingCard card={reading.card} />}

@@ -1,7 +1,10 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useState } from "react";
 import CourseField from './CourseField.jsx';
-import { Button, Combobox, SegmentedControl } from './components/index.js';
+import { Button, Combobox, SegmentedControl, Tooltip } from './components/index.js';
+import { handOffTip } from './hand-off/use-hand-off.js';
+import { useInjectCss } from './shared.js';
+import handOffCss from './hand-off/hand-off.css';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 import { INGEST_KINDS, INGEST_MISTAKES } from './agent-prompts/ingest.js';
@@ -9,6 +12,7 @@ import { deckChoices, deckEntries } from './deck-picker-entries.js';
 
 /** Setup for recording questions straight from the conversation. */
 export default function Ingest({ data, busy, start, onOpenSettings }) {
+  useInjectCss(handOffCss, 'study-hand-off');
   const decks = data.decks.filter(d => !d.archived && !d.systemKind);
   const currentCourse = data.focus?.course ?? '';
   const [target, setTarget] = useState(() => decks.find(d => (d.course ?? d.folder ?? '') === currentCourse)?.id || 'new'),
@@ -33,7 +37,7 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
         });
       }}
     >
-      <p className="muted">{ui("刷题软件、Canvas 错题记录、截图都可以直接贴进对话。开启后这段对话里贴的题会自动录入，不需要先整理成文档；贴的原文会作为这些题的资料保存。")}</p>
+      <p className="muted">{ui("刷题软件、Canvas 错题记录、截图都可以直接贴进主会话。开启后这段对话里贴的题会自动录入，不需要先整理成文档；贴的原文会作为这些题的资料保存。")}</p>
       <fieldset>
         <legend>{ui("01 / 放进哪个题组")}</legend>
         <label>{ui("题组")}<Combobox value={target} valueLabel={ui("＋ 新建题组")} onChange={setTarget} options={deckOptions} label={ui("题组")} searchPlaceholder={ui("搜索题组")}
@@ -74,7 +78,10 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
         <small className="sh-seg-note">{uiFormat("{0}。错题会记为「薄弱」，学习路径优先出。", [ui(INGEST_MISTAKES.find((item) => item.id === mistakes).hint)])}</small>
       </fieldset>
       <ModelSetupGate variant="inline" feature="ingest" model={modelReadiness(data)} onOpenSettings={onOpenSettings} />
-      <Button type="submit" variant="primary" block busy={busy} disabled={!data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题 → 去对话里粘贴")}</Button>
+      {/* The one place whose main action IS the hand-off: its own primary button, the rule in the Tooltip (ui/hand-off/). */}
+      <Tooltip layer content={handOffTip('先进入录题模式')} anchorClassName="sh-handoff__block">
+        <Button type="submit" variant="primary" block busy={busy} disabled={!data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题并发给主会话")}</Button>
+      </Tooltip>
     </form>
   );
 }

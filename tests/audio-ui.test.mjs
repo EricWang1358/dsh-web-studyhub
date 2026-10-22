@@ -106,10 +106,10 @@ test("English audio import copy is fully translated and keeps user content as wr
     assert.doesNotMatch(picked, /[㐀-鿿]/);
     for (const text of ["Start import", "Use the paid key only", "45 MB · Uploaded", "Change"]) assert.ok(picked.includes(text), text);
     assert.ok(!picked.includes("Drop an audio file"), "once a file is chosen the drop zone gives way to the options");
-    assert.ok(!html.includes("Pick a file with @"), "no @ button when the host cannot fill the composer");
-    const asking = render({ canAsk: true, askInChat() {} });
-    assert.ok(asking.includes("Pick a file with @ in the conversation"));
-    assert.doesNotMatch(asking.replace(/lecture\.mp3|数据库|server says no/g, ""), /[㐀-鿿]/);
+    // 发给主会话 (import.file, S2b) is always there: with no chat to fill, the shared unit copies the prompt.
+    assert.ok(html.includes("Several recordings, or files from elsewhere:") && html.includes("Send to the main chat"), "the hand-off for several recordings, with its lead");
+    assert.ok(!html.includes("Pick a file with @"), "the old button is gone");
+    assert.ok(html.includes("pick the files with @ in the input box"), "its Tooltip says where the files are picked");
     assert.ok(render({ initialFile: chosen }).includes("数据库") && render().includes("lecture.mp3"), "course and file names stay in their own language");
     assert.doesNotMatch(renderToStaticMarkup(React.createElement(AudioCorrections, { audio })), /[㐀-鿿]/);
     setUiLanguage("zh");

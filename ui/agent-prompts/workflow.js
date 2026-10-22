@@ -1,5 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
-import { fenceData, nameData, say } from './say.js';
+import { fenceData, fenceRequest, nameData, say } from './say.js';
 
 /* The prompts of the learning-flow pages (Workflows.jsx, WorkflowPortal.jsx) that hand work to the conversation (ui-consistency #124).
    They are the contract with the agent: study_workspace workflow.context / workflow.save / workflow.session.material and
@@ -16,7 +16,8 @@ const DESIGN_SAVE = '用 workflow.save 保存完整流程，更新已有流程�
 export function workflowDesignPrompt({ template = null, wish = '' }, language = getUiLanguage()) {
   return say(language, DESIGN_HEAD, [
     template ? say(language, '调整学习流「{0}」', [nameData(template.title)]) : say(language, '设计一条个性化学习流'),
-    wish ? say(language, '我的要求：{0}', [wish]) : say(language, '先了解我想怎样学习，再组合合适的组件。'),
+    // the learner's own words: in a request fence, whatever they hold
+    String(wish ?? '').trim() ? fenceRequest(wish, language).trimEnd() : say(language, '先了解我想怎样学习，再组合合适的组件。'),
   ]) + say(language, DESIGN_TAIL)
     + (template ? say(language, DESIGN_EXISTING, [template.id, template.version]) : say(language, DESIGN_NEW))
     + say(language, DESIGN_SAVE);
@@ -45,12 +46,12 @@ export function workflowSkeletonPrompt({ topic = '', topicNames = [], workflowTi
 
 /** What each kind of step asks the conversation for: the button label and the request (a goal step wants goal options, not an audit). */
 export const WORKFLOW_HANDOFF = Object.freeze({
-  overview: { label: '请主对话帮我把目标说具体', ask: '请帮我把这次的学习目标说具体：结合本次范围，给我 2–3 个可选的目标句（学完后我能说清或做到什么），每句配一个适合当主攻的例子，由我挑选或改写。不要替我写进回答，也不要做覆盖检查或列清单。' },
-  skeleton: { label: '请主对话帮我理清概念关系', ask: '请帮我理清本次范围里概念之间的关系：一条先学后学的主线、谁属于谁、因果和容易混淆的对比，写成能顺着读的结构说明。' },
-  lesson: { label: '请主对话帮我讲清楚', ask: '请提供清楚、连贯的讲解和一个可以推演的例子。' },
-  recall: { label: '请主对话通过追问帮我补全', ask: '请检查我的复述是否漏了关键条件，用追问引导我自己补全。' },
-  practice: { label: '请主对话帮我弄懂做错的题', ask: '请帮我弄懂本步练习里做错或拿不准的题：为什么是这个答案，容易错在哪里。' },
-  reflection: { label: '请主对话帮我回顾', ask: '请根据本次学习记录帮我回顾：哪些已经讲清、哪些还需要补、下次先做什么。由我决定写进回顾的内容。' },
+  overview: { label: '请主会话帮我把目标说具体', ask: '请帮我把这次的学习目标说具体：结合本次范围，给我 2–3 个可选的目标句（学完后我能说清或做到什么），每句配一个适合当主攻的例子，由我挑选或改写。不要替我写进回答，也不要做覆盖检查或列清单。' },
+  skeleton: { label: '请主会话帮我理清概念关系', ask: '请帮我理清本次范围里概念之间的关系：一条先学后学的主线、谁属于谁、因果和容易混淆的对比，写成能顺着读的结构说明。' },
+  lesson: { label: '请主会话帮我讲清楚', ask: '请提供清楚、连贯的讲解和一个可以推演的例子。' },
+  recall: { label: '请主会话通过追问帮我补全', ask: '请检查我的复述是否漏了关键条件，用追问引导我自己补全。' },
+  practice: { label: '请主会话帮我弄懂做错的题', ask: '请帮我弄懂本步练习里做错或拿不准的题：为什么是这个答案，容易错在哪里。' },
+  reflection: { label: '请主会话帮我回顾', ask: '请根据本次学习记录帮我回顾：哪些已经讲清、哪些还需要补、下次先做什么。由我决定写进回顾的内容。' },
 });
 
 const STEP_HEAD = '请帮助我学习「{0}」的「{1}」这一步。{2}\n';
@@ -62,7 +63,7 @@ const STEP_OTHER = '内容请连起概念、例子和条件，避免只罗列名
 /** Ask the conversation for help with the current step of a running session. input: { session ({ id, version, topic }), step ({ title, kind }), wish }. */
 export function workflowStepPrompt({ session, step, wish = '' }, language = getUiLanguage()) {
   const handoff = WORKFLOW_HANDOFF[step.kind] || WORKFLOW_HANDOFF.lesson;
-  return say(language, STEP_HEAD, [nameData(session.topic), nameData(step.title), wish ? say(language, '我的要求：{0}', [wish]) : say(language, handoff.ask)])
+  return say(language, STEP_HEAD, [nameData(session.topic), nameData(step.title), String(wish ?? '').trim() ? fenceRequest(wish, language).trimEnd() : say(language, handoff.ask)])
     + say(language, STEP_CONTEXT, [JSON.stringify({ sessionId: session.id }), session.version])
     + say(language, STEP_MATERIAL)
     + say(language, step.kind === 'recall' ? STEP_RECALL : STEP_OTHER);

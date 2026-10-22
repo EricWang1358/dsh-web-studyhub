@@ -8,7 +8,6 @@ import { usePersistentState } from '../storage.js';
 import { usePolling } from '../use-polling.js';
 import { EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
-import { askAboutCardPrompt, improveCardPrompt } from '../agent-prompts/card.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, reviewChoiceKind,
@@ -256,9 +255,6 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     returnInput.current = { runId: runRef.current.id, input: { key: reviewEntryKey(runRef.current), ...entryRef.current } };
     return act('review.start', practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: runRef.current.id }), enterRun);
   }, [act, enterRun]);
-  const deckTitle = () => refs.dataRef.current?.decks.find((deck) => deck.id === runRef.current.deckId)?.title || '';
-  const askAboutCard = useCallback((extra = '') => core.askInChat(askAboutCardPrompt({ run: runRef.current, deckTitle: deckTitle(), extra })), [core]); // eslint-disable-line react-hooks/exhaustive-deps
-  const improveCard = useCallback((extra = '') => core.askInChat(improveCardPrompt({ run: runRef.current, deckTitle: deckTitle(), extra })), [core]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── the keyboard ── */
   const engaged = useRef(false), keyHandler = useRef(null);
@@ -333,14 +329,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     canShortcut, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
   };
   const actions = useMemo(() => ({
-    reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, askAboutCard, improveCard,
+    reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
     toggleHelp: () => patch((value) => (runRef.current?.revealed ? { explain: !value.explain } : { hint: !value.hint })),
     showExplanation: () => patch({ explain: true }),
     setResponse: (response) => patch({ response }),
     setClozeValue: (id, value) => patch((current) => ({ clozeValues: { ...current.clozeValues, [id]: value } })),
     setTeachAnswer: (teachAnswer) => patch({ teachAnswer }),
     closeShortcutHelp: () => setShortcutHelp(false), toggleAutopilot,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, askAboutCard, improveCard, patch, toggleAutopilot]);
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
     shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions };
 }

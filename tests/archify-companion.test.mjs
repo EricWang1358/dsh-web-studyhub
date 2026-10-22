@@ -107,7 +107,7 @@ test('the page never puts the file into its own DOM and only the isolated frame 
   assert.doesNotMatch(viewer, /dangerouslySetInnerHTML|innerHTML|insertAdjacentHTML|createObjectURL|window\.open|location\.|document\.write|eval\(/);
   assert.match(viewer, /<DiagramFrame html=\{state\.html\}/);
   const page = await readFile('ui/Skeleton.jsx', 'utf8');
-  assert.match(page, /askInChat\(archifySkeletonPrompt\(\{ skeleton: viewing \}\)\)/, 'the button hands the open skeleton to the conversation');
+  assert.match(page, /<HandOff id="skeleton\.archify"[^>]*input=\{\{ skeleton: viewing \}\}/, 'the button hands the open skeleton to the main chat (发给主会话, S2b)');
   assert.match(page, /<SkeletonDiagrams skeletonId=\{viewing\.id\}/);
   assert.match(page, /archifyPutOff\(data\?\.root\)/, 'the put-off choice is per library');
 });

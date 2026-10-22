@@ -202,7 +202,7 @@ export function AudioView() {
   return (
     <section className="page">
       <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
-      <AudioImport data={data} canAsk={!!host.askInChat}
+      <AudioImport data={data}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')} onGenerate={sources.generateFromSources}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
       <AudioDashboard />

@@ -3,6 +3,7 @@ import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Disclosure, Tooltip } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
 import { useStudy } from './study-context.jsx';
 import { matterWord, stepPages, stepTitle } from './generation-path-titles.js';
 import css from './generation-path.css';
@@ -45,7 +46,7 @@ function Step({ step, disabled, patch, onUseStep }) {
 
 /** Props: path (useGenerationPath), disabled, onUseStep(step), onSettings (the model setup, when the AI helper has nothing to answer with). */
 export default function GenerationPath({ path, disabled = false, onUseStep, onSettings }) {
-  const { call, askInChat } = useStudy();
+  const { call } = useStudy();
   useInjectCss(css, 'study-generation-path');
   const [showAll, setShowAll] = useState(false);
   if (!path?.available) return null;
@@ -58,13 +59,13 @@ export default function GenerationPath({ path, disabled = false, onUseStep, onSe
     <section className="gen-path" aria-label={ui('分步出题')}>
       <header className="gen-path__head">
         <p className="muted">{uiFormat('分成 {0} 步，每一步都在一次生成的上限内；按顺序一步一步出题，比一次塞进去更准。', [steps.length])}</p>
-        {indexed && <p className="gen-path__index" role="status">{ui('这些资料的检索索引已建好：对话里的 AI 可以按主题挑页面来定制章节。')}</p>}
+        {indexed && <p className="gen-path__index" role="status">{ui('这些资料的检索索引已建好：主会话里的 AI 可以按主题挑页面来定制章节。')}</p>}
       </header>
       <div className="gen-path__actions">
         <Button size="sm" variant="secondary" icon="sparkle" busy={aiState.phase === 'loading'} disabled={disabled || typeof call !== 'function'} onClick={path.refine} data-usage="generate.path-refine">
           {ai || aiState.phase === 'unavailable' ? ui('重新让 AI 优化') : ui('让 AI 优化路径')}
         </Button>
-        {typeof askInChat === 'function' && <Button size="sm" variant="quiet" onClick={path.chat} data-usage="generate.path-chat">{ui('和 AI 聊聊怎么学')}</Button>}
+        <HandOff id="path.brief" shape="quiet" lead="想先和主会话聊聊怎么学：" what="把这条分步路径发给主会话，一起商量每一步学什么；确认之前不会出题" input={path.brief} data-usage="generate.path-chat" />
       </div>
       {aiState.phase === 'unavailable' && <AiHelperNote unavailable={aiState.unavailable} fallback="先用按章节做的路径" onSettings={onSettings} />}
       {aiState.phase === 'done' && <p className="muted small" role="status">{ui('AI 给了每一步的名称、重点和顺序；都可以改。页面范围不会变。')}</p>}

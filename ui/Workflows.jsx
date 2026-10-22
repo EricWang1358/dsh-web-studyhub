@@ -4,7 +4,7 @@ import WorkflowPortal from "./WorkflowPortal.jsx";
 import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness } from "./generation-status.js";
 import { Banner, Button, Checkbox, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, Select, useToast } from "./components/index.js";
-import { workflowDesignPrompt, workflowSkeletonPrompt } from "./agent-prompts/workflow.js";
+import { HandOff, HandOffForm } from "./hand-off/HandOff.jsx";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
 import { QUESTION_COUNT } from "../lib/limits.js";
@@ -34,7 +34,7 @@ function BranchSelect({ label, value, onChange, steps }) {
     ...steps.map((step, index) => ({ value: step.id, label: `${index + 1}. ${step.title || ui("未命名步骤")}` }))]} /></label>;
 }
 
-export function FlowEditor({ initial, components, latest, storageKey, draftName, call, askInChat, onSaved, onBack }) {
+export function FlowEditor({ initial, components, latest, storageKey, draftName, call, onSaved, onBack }) {
   const keyFor = (value) => `${storageKey}:${value.id || draftName}`;
   const [draft, setDraft] = useState(() => {
     const restored = readDraft(keyFor(initial));
@@ -46,7 +46,6 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
   const toast = useToast();
-  const [wish, setWish] = useState("");
   const [expanded, setExpanded] = useState(() => initial.steps[0]?.id || "");
   const [confirm, setConfirm] = useState("");
   const dragId = useRef(null), lock = useRef(false), confirmTrigger = useRef(null);
@@ -73,8 +72,9 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
     setConfirm("");
     toast.success(ui("已移除步骤；原本指向它的分支已恢复为顺序继续或留在原步。"));
   };
+  /** Saves the flow; resolves to the saved flow, or `false` when it could not be saved (the error is on the page). A save for the hand-off is followed by it (HandOffForm). */
   async function save(forChat = false) {
-    if (lock.current) return;
+    if (lock.current) return false;
     lock.current = true;
     setPending(forChat ? "chat" : "save");
     setError("");
@@ -87,9 +87,9 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
       writeDraft(keyFor(saved), null);
       onSaved(saved, forChat);
       // Handed over: the shared notice says what happened (filled, kept, copied …), with the save said first; the page adds no toast of its own.
-      if (forChat) await askInChat(workflowDesignPrompt({ template: saved, wish: wish.trim() }), { said: "学习流已保存；正在进行的学习保持原来的步骤。" });
-      else toast.success(ui("学习流已保存；正在进行的学习保持原来的步骤。"));
-    } catch (err) { setError(err.message); }
+      if (!forChat) toast.success(ui("学习流已保存；正在进行的学习保持原来的步骤。"));
+      return saved;
+    } catch (err) { setError(err.message); return false; }
     finally { lock.current = false; setPending(""); }
   }
   const reloadLatest = () => {
@@ -138,7 +138,7 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
             <p className="muted small">{component?.description}</p>
             <label>{ui("步骤名称")}<input value={step.title} maxLength={60} onChange={(e) => changeStep(step.id, { title: e.target.value })} /></label>
             <label>{ui("学习要求")}<textarea rows={3} value={step.instructions} maxLength={2000} onChange={(e) => changeStep(step.id, { instructions: e.target.value })} /></label>
-            <label>{step.kind === "recall" ? ui("复述提示（不要放参考答案）") : ui("预置材料（可选）")}<textarea rows={4} maxLength={20000} value={step.content} placeholder={ui("支持 Markdown；也可在学习时请主对话补充材料。")} onChange={(e) => changeStep(step.id, { content: e.target.value })} /></label>
+            <label>{step.kind === "recall" ? ui("复述提示（不要放参考答案）") : ui("预置材料（可选）")}<textarea rows={4} maxLength={20000} value={step.content} placeholder={ui("支持 Markdown；也可在学习时请主会话补充材料。")} onChange={(e) => changeStep(step.id, { content: e.target.value })} /></label>
             {step.kind === "practice" && <label>{ui("本步练习题数")}<input type="number" min={QUESTION_COUNT.min} max={QUESTION_COUNT.max} value={step.count} onChange={(e) => changeStep(step.id, { count: Number(e.target.value) })} /></label>}
             <div className="wf-branch-fields"><BranchSelect label={ui("完成或跳过后")} value={step.next} onChange={(next) => changeStep(step.id, { next })} steps={draft.steps} /><BranchSelect label={ui("还需巩固时")} value={step.retry} onChange={(retry) => changeStep(step.id, { retry })} steps={draft.steps} /></div>
           </fieldset>
@@ -151,17 +151,20 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
     </ol>
     <div className="wf-components"><h3>{ui("添加一个组件")}</h3><div className="wf-component-options">{components.map((c) => <Button key={c.kind} icon="plus" size="sm" disabled={!!pending || draft.steps.length >= 16} title={c.description} onClick={() => { const step = newStep(c); change({ ...draft, steps: [...draft.steps, step] }); setExpanded(step.id); }}>{c.title}</Button>)}</div></div>
     <div className="wf-savebar"><Button variant="primary" disabled={!!pending || !draft.title.trim() || !draft.steps.length || !!conflict} busy={pending === "save"} busyLabel={ui("保存中…")} onClick={() => save()}>{ui("保存学习流")}</Button><span className="small muted" role="status">{ui("每次学习都会保留开始时的流程副本。")}</span></div>
-    <details className="wf-chat"><summary>{ui("让主对话帮我调整")}</summary><label>{ui("想怎样学")}<textarea rows={3} value={wish} onChange={(e) => setWish(e.target.value)} maxLength={2000} placeholder={ui("例如：先看例子，再讲原理；不用选择题，改成口述复盘。")} /></label><Button disabled={!!pending || !!conflict || !draft.title.trim()} busy={pending === "chat"} busyLabel={ui("交接中…")} onClick={() => save(true)}>{ui("保存并交给主对话")}</Button></details>
+    <details className="wf-chat"><summary>{ui("让主会话帮我调整")}</summary>
+      <HandOffForm id="workflow.design" className="wf-chat__form" label="想怎样学" placeholder="例如：先看例子，再讲原理；不用选择题，改成口述复盘。" maxLength={2000}
+        submitLabel="保存并发给主会话" what="先保存这条学习流，再让主会话按你写的想法调整它" said="学习流已保存；正在进行的学习保持原来的步骤。"
+        disabled={!!pending || !!conflict || !draft.title.trim()} prepare={() => save(true)} input={(text, saved) => ({ template: saved, wish: text })} />
+    </details>
   </section>;
 }
 
-export function StartFlow({ template, listing, call, askInChat, onRefresh, onStarted, onBack }) {
+export function StartFlow({ template, listing, call, onRefresh, onStarted, onBack }) {
   const [topic, setTopic] = useState("");
   const [selected, setSelected] = useState(new Set());
   const [skeletonId, setSkeletonId] = useState("");
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState(false), [error, setError] = useState("");
-  const [skeletonPending, setSkeletonPending] = useState(false);
   const requestId = useRef(crypto.randomUUID()), lock = useRef(false);
   const topicMap = new Map(listing.topics.map((item) => [item.key, item]));
   const scope = [...selected].flatMap((key) => topicMap.get(key)?.decks.map((deck) => ({ deckId: deck.deckId, topic: deck.topic })) || []);
@@ -175,15 +178,6 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
     requestId.current = crypto.randomUUID();
   };
   const matched = listing.topics.filter((t) => !query.trim() || `${t.topic} ${t.decks.map((d) => d.deckTitle).join(" ")}`.toLowerCase().includes(query.toLowerCase()));
-  async function generateSkeleton() {
-    if (lock.current || !scope.length) return;
-    lock.current = true; setSkeletonPending(true); setError("");
-    try {
-      await askInChat(workflowSkeletonPrompt({ topic, topicNames: [...selected].map((key) => topicMap.get(key)?.topic).filter(Boolean),
-        workflowTitle: template.title, scope }));
-    } catch (err) { setError(err.message); }
-    finally { lock.current = false; setSkeletonPending(false); }
-  }
   async function start(event) {
     event.preventDefault();
     if (lock.current) return;
@@ -195,10 +189,10 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
     } catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(false); }
   }
-  return <section className="wf-start"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} disabled={pending || skeletonPending}>{ui("← 学习流工作台")}</Button></div>
+  return <section className="wf-start"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} disabled={pending}>{ui("← 学习流工作台")}</Button></div>
     <PageHeader className="wf-heading" eyebrow={ui("开始一次学习")} title={template.title} description={template.description || ui("选定主题，从第一步开始。")} />
     {error && <ErrorState error={error} />}
-    <form onSubmit={start}><fieldset disabled={pending || skeletonPending} className="wf-fields">
+    <form onSubmit={start}><fieldset disabled={pending} className="wf-fields">
       <details className="wf-scope" open={listing.topics.length > 0}>
         <summary>{ui("选择已有主题与题目范围")}{" "}<span className="muted">{selected.size ? uiFormat("· 已选 {0} 个主题 / {1} 题", [selected.size, selectedCount]) : ui("· 可选")}</span></summary>
         <p className="muted small">{ui("未选题目时，使用关联骨架的题目范围；都不选则从阅读、讲解和复述开始。")}</p>
@@ -211,20 +205,24 @@ export function StartFlow({ template, listing, call, askInChat, onRefresh, onSta
       <label>{ui("关联知识骨架")}<Select value={skeletonId} onChange={(next) => { setSkeletonId(next); requestId.current = crypto.randomUUID(); if (!topic.trim()) setTopic(listing.skeletons.find((s) => s.id === next)?.title || ""); }}
         options={[{ value: "", label: ui("暂不关联") }, ...listing.skeletons.map((s) => ({ value: s.id, label: s.title }))]} /></label>
       <div className="wf-skeleton-shortcut">
-        <div className="wf-actions"><Button onClick={generateSkeleton} disabled={!scope.length}>{skeletonPending ? ui("准备请求…") : ui("生成知识骨架")}</Button><Button onClick={() => void onRefresh()}>{ui("刷新骨架")}</Button></div>
-        <p className="muted small" role="status">{scope.length ? ui("根据上方已选题目，交给主对话生成；保存后可在这里关联。") : ui("先选择上方题目范围，即可生成对应骨架；也可以直接关联已有骨架。")}</p>
+        <div className="wf-actions">
+          <HandOff id="workflow.skeleton" lead="生成知识骨架：" disabled={!scope.length} what="让主会话按上方已选的题目生成知识骨架；保存后可在这里关联"
+            input={() => ({ topic, topicNames: [...selected].map((key) => topicMap.get(key)?.topic).filter(Boolean), workflowTitle: template.title, scope })} />
+          <Button onClick={() => void onRefresh()}>{ui("刷新骨架")}</Button>
+        </div>
+        <p className="muted small" role="status">{scope.length ? ui("根据上方已选题目，发给主会话生成；保存后可在这里关联。") : ui("先选择上方题目范围，即可生成对应骨架；也可以直接关联已有骨架。")}</p>
       </div>
-    </fieldset><div className="wf-route-preview" aria-label={ui("本次学习步骤")}>{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><Button type="submit" variant="primary" disabled={skeletonPending || !topic.trim()} busy={!!pending} busyLabel={ui("进入中…")}>{ui("进入学习 Portal")}</Button></form>
+    </fieldset><div className="wf-route-preview" aria-label={ui("本次学习步骤")}>{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><Button type="submit" variant="primary" disabled={!topic.trim()} busy={!!pending} busyLabel={ui("进入中…")}>{ui("进入学习 Portal")}</Button></form>
   </section>;
 }
 
 export default function Workflows({ data, openSession, openRun, initialListing = null, renderRelated }) {
-  const { call, askInChat } = useStudy();
+  const { call } = useStudy();
   const language = useUiLanguage();
   useInjectCss(css, "study-workflows");
   const [listing, setListing] = useState(initialListing), [screen, setScreen] = useState(() => openSession ? { kind: "portal", id: openSession } : { kind: "list" });
   const [error, setError] = useState(""), [pending, setPending] = useState("");
-  const [confirm, setConfirm] = useState(""), [wish, setWish] = useState("");
+  const [confirm, setConfirm] = useState("");
   // What the learner typed; until they type (or clear the box) the recommended topic is in it, so starting is one click.
   const [typedGoal, setTypedGoal] = useState(null), quickRequest = useRef(null);
   const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && uiFormat("{0} 的核心概念", [data.focus.course])].filter(Boolean);
@@ -256,13 +254,6 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(""); }
   }
-  async function ask() {
-    if (lock.current) return;
-    lock.current = true; setPending("chat"); setError("");
-    try { await askInChat(workflowDesignPrompt({ wish: wish.trim() })); }
-    catch (err) { setError(err.message); }
-    finally { lock.current = false; setPending(""); }
-  }
   const edit = (template, key = template.id) => setScreen({ kind: "edit", template: clone(template), key });
   // One sentence in, a running session out: AI picks the material and order.
   async function quickStart(event) {
@@ -283,8 +274,8 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
   if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <LoadingState label={ui("正在读取学习流…")} />}</section>;
-  if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} askInChat={askInChat} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
-  if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} askInChat={askInChat} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
+  if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
+  if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
   return <section className="page workflow-page">
     <PageHeader title={ui("今天想学什么？")} description={ui("说一句就行。AI 从你的学习库里挑材料、排顺序、讲给你听，再看你的复述；你只管往下走。")} />
     <form className="wf-quick" onSubmit={quickStart} data-tour="workflows-main">
@@ -318,7 +309,11 @@ export default function Workflows({ data, openSession, openRun, initialListing =
         busy={!!pending} returnFocusRef={confirmTrigger} onConfirm={() => remove("template", template)} onCancel={() => setConfirm("")} />}
     </article>)}</div>
     <article className="wf-suggested"><div><p className="wf-eyebrow">{ui("从一条建议开始")}</p><h3>{listing.suggested.title}</h3><p className="muted">{listing.suggested.description}</p><div className="wf-route-preview">{listing.suggested.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div><Button disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit(listing.suggested, "suggested")}>{ui("编辑并保存这条流程")}</Button></article>
-    <details className="wf-chat"><summary>{ui("和主对话一起拼")}</summary><label>{ui("告诉它你的学习习惯")}<textarea rows={3} value={wish} onChange={(e) => setWish(e.target.value)} maxLength={2000} placeholder={ui("例如：我只想轻松刷卡，最后记一下容易忘的点；或先讲例子，再让我口述。")} /></label><Button disabled={!!pending || listing.templates.length >= listing.limit} onClick={ask}>{ui("在主对话中设计")}</Button><p className="muted small" role="status">{ui("主对话与这里编辑同一份流程；你可以随时再手动调整。")}</p></details>
+    <details className="wf-chat"><summary>{ui("和主会话一起拼")}</summary>
+      <HandOffForm id="workflow.design" className="wf-chat__form" label="告诉主会话你的学习习惯" placeholder="例如：我只想轻松刷卡，最后记一下容易忘的点；或先讲例子，再让我口述。" maxLength={2000}
+        what="让主会话按你写的学习习惯设计一条学习流" disabled={!!pending || listing.templates.length >= listing.limit} input={(text) => ({ wish: text })} />
+      <p className="muted small">{ui("主会话与这里编辑同一份流程；你可以随时再手动调整。")}</p>
+    </details>
     </details>
   </section>;
 }
