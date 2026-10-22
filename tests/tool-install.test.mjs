@@ -9,12 +9,15 @@ import { InstallError, classifyFailure, createToolInstaller, liveRun } from '../
    restart, the format version, the one slot per state file, the uninstall rules and the task-console row. */
 
 const exists = file => stat(file).then(() => true, () => false);
-const wait = (ms, signal) => new Promise((resolve, reject) => { const timer = setTimeout(resolve, ms); signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true }); });
+const wait = (ms, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) return reject(signal.reason);
+  const timer = setTimeout(resolve, ms); signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+});
 
-async function toy(t, { hold = false } = {}) {
+async function toy(t, { hold = false, holdOne = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'tool-install-'));
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
-  const ran = [], gate = { hold };
+  const ran = [], gate = { hold, holdOne };
   const stage = (id, { mutating = true, file } = {}) => ({ id, mutating,
     isDone: async ctx => exists(join(ctx.folder, file || id, 'done')),
     run: async ctx => {
@@ -22,6 +25,7 @@ async function toy(t, { hold = false } = {}) {
       await mkdir(join(ctx.folder, file || id), { recursive: true });
       await writeFile(join(ctx.folder, file || id, 'part'), 'downloading');
       while (gate.hold && id === 'two') await wait(20, ctx.signal);
+      while (gate.holdOne && id === 'one') await wait(20);
       await writeFile(join(ctx.folder, file || id, 'done'), 'ok');
     } });
   const spec = {
@@ -102,6 +106,7 @@ test('one slot per state file: two tools run side by side, one tool only once', 
   const a = await toy(t, { hold: true }), b = await toy(t);
   const first = createToolInstaller(a.spec), other = createToolInstaller(b.spec);
   await first.start({ confirm: true, location: a.location });
+  for (let i = 0; i < 400 && !(await exists(join(a.location, 'two', 'part'))); i++) await wait(10);
   await other.start({ confirm: true, location: b.location }); await other.idle();
   assert.equal((await other.status()).status, 'complete');
   assert.ok(liveRun(a.stateFile));
@@ -123,6 +128,20 @@ test('the row seam shows the run in the console: opened with the run, updated, c
   assert.ok(events.some(([kind, stage]) => kind === 'update' && stage === 'two'));
   assert.deepEqual(events.at(-1), ['close', 'cancelled']);
   assert.equal((await installer.status()).status, 'cancelled');
+});
+
+test('a cancel during a step that ignores it stops before the next step', async t => {
+  const h = await toy(t, { hold: true, holdOne: true });
+  const installer = createToolInstaller(h.spec);
+  await installer.start({ confirm: true, location: h.location });
+  for (let i = 0; i < 400 && !(await exists(join(h.location, 'one', 'part'))); i++) await wait(10);
+  await installer.cancel();
+  h.gate.holdOne = false;
+  await installer.idle();
+  const view = await installer.status();
+  assert.deepEqual([view.status, view.stage, view.error.code], ['cancelled', 'one', 'cancelled']);
+  assert.deepEqual(h.ran, ['one'], 'step two never started');
+  assert.equal(await exists(join(h.location, 'two')), false);
 });
 
 test('the shared failure reading', () => {
