@@ -1,4 +1,4 @@
-/* Wave 1 · WP-E QA page (built by scripts/qa/wave1-e.mjs): the MinerU settings (the one-click card; the token form went with the cloud route in 3.6), the audio job rows,
+/* Wave 1 · WP-E QA page (built by scripts/qa/wave1-e.mjs): the MinerU settings (the one-click card; the token form went with the cloud route in 3.5.5), the audio job rows,
    the mailbox opened from the keyboard, and the exam error state, with fake data.
    Query: ?lang=zh|en&theme=dark|light&scene=mineru|audio|inbox|exam */
 import React from 'react';

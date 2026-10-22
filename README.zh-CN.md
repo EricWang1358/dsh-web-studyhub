@@ -2,7 +2,9 @@
 
 [English](README.md) · 中文
 
-StudyHub 把你的课程资料变成能追溯原文的练习题。导入 PDF、PPT、讲义笔记或课堂录音后，StudyHub 生成的每道题都会标明出自原文哪一段。你检查草稿后发布，之后由 SM-2 间隔重复按时安排复习（Anki 经典调度用的也是这个算法）。学习库保存在你自己的电脑上，界面支持中文和 English。
+把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。
+
+开源免费，资料存在你电脑上；模型自己选，按用量付费。
 
 StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)的插件。DSH 是 AI 助手应用，可以装成桌面版，也可以在自己电脑上以网页版运行；StudyHub 就在 DSH 里打开使用。
 
@@ -77,7 +79,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 **大教材**（超过 8 MB 或 200 页）：
 
 - 在导入窗口点「用 MinerU 解析」。PDF 最大 800 MB，转换后作为一份分页文档导入，可以按章节选择。
-- MinerU 在这台电脑上运行。在「设置 › PDF 转换」（或直接在导入窗口里）点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹，默认不在系统盘，不需要管理员权限，也不需要事先装任何东西。PDF 不上传，也不需要令牌。云端解析已在 3.6 版移除（[说明](docs/mineru-conversion.zh-CN.md)）。
+- MinerU 在这台电脑上运行。在「设置 › PDF 转换」（或直接在导入窗口里）点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹，默认不在系统盘，不需要管理员权限，也不需要事先装任何东西。PDF 不上传，也不需要令牌。云端解析已在 3.5.5 版移除（[说明](docs/mineru-conversion.zh-CN.md)）。
 - 想整本书出题，可以用检索扩展，或在「创建题组」用「分步生成路径」。
 
 详见[大教材](docs/large-documents.zh-CN.md)和[用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md)。
@@ -187,7 +189,7 @@ DSH 插件不会自动更新，只重启 DSH 也不会换成新版本。
 **留在你电脑上的**
 
 - 学习库：资料及原文件、题组、作答和复习计划，分片保存。默认在 DSH 会话的工作区文件夹里，可在「设置 › 学习库与模型」换到别的文件夹。
-- 转写密钥：保存在 DSH 主目录下的 `study/`（默认 `~/.dsh/study/`），不会进入学习库、导出或备份。模型 Key 由 DSH 保存。（3.6 之前保存的 MinerU 令牌仍在 `study/mineru.json`，现在没有任何东西会读它，可以手动删除。）
+- 转写密钥：保存在 DSH 主目录下的 `study/`（默认 `~/.dsh/study/`），不会进入学习库、导出或备份。模型 Key 由 DSH 保存。（3.5.5 之前保存的 MinerU 令牌仍在 `study/mineru.json`，现在没有任何东西会读它，可以手动删除。）
 - 使用频率记录：默认关闭，在「设置 › 使用频率记录」打开后才记录；StudyHub 不会把它发送到任何地方（[说明](docs/usage-frequency.zh-CN.md)）。
 
 **只有用到相应功能时才会发出去的**

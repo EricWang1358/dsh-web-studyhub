@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { ui, uiFormat, uiIsEnglish } from './i18n.js';
-import { Banner, Button, Hint, InlineMessage, SetupRequired } from './components/index.js';
+import { Banner, Button, Hint, Icon, InlineMessage, SetupRequired } from './components/index.js';
 import { ModelSettingsContext, useModelSettingsLabel } from './ModelErrorNote.jsx';
 
 /* "There is no AI model yet", said in one place. Every page that needs a model shows this gate instead of its own wording:
@@ -35,6 +35,13 @@ export function modelFact({ reason, label } = {}) {
 /** "DeepSeek · V4 Flash" is the provider's name and the model's: the card to look for in DSH is the provider's. */
 const providerOf = (label) => String(label || '').split(' · ')[0].trim();
 
+/* Where to get a key and whether to top up is the install guide's job (its model section), not this gate's: one quiet line under the key step, linking there.
+   The link opens in a new tab like every outside link of a setup step (ui/components/SetupRequired.jsx). */
+const GUIDE = 'https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/';
+export const keyGuideUrl = () => (uiIsEnglish() ? `${GUIDE}install.md#configure-a-model-provider` : `${GUIDE}install.zh-CN.md#${encodeURIComponent('配置模型服务商')}`);
+const keyHint = () => <>{ui('去哪拿 Key、要不要充值：看')}<a href={keyGuideUrl()} target="_blank" rel="noreferrer">{ui('安装说明')}<Icon name="external" size={14} />
+  <span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a>{ui('（以服务商页面为准）')}</>;
+
 /**
  * The steps before the last one, by what is missing. A chosen model needs only its key; no model needs a key and a choice; a provider DSH does not
  * know needs another choice; a DSH that did not hand StudyHub the model has nothing the learner can enter (the sentence above says what to check).
@@ -44,11 +51,11 @@ function setupSteps({ reason, label } = {}, pick) {
   const choose = { text: pick || ui('选一个模型：在对话输入框的模型选择器里选，或在 StudyHub「设置 › 学习库与模型」的「生成模型」里选') };
   if (reason === 'no-credential') {
     const provider = providerOf(label);
-    return [{ text: provider ? uiFormat('在 DSH 打开「设置 › 模型」，在「{0}」卡片填入 API Key 并保存', [provider]) : ui('在 DSH 打开「设置 › 模型」，给所选服务商填入 API Key 并保存') }];
+    return [{ text: provider ? uiFormat('在 DSH 打开「设置 › 模型」，在「{0}」卡片填入 API Key 并保存', [provider]) : ui('在 DSH 打开「设置 › 模型」，给所选服务商填入 API Key 并保存'), hint: keyHint() }];
   }
   if (reason === 'unknown' && label) return [];
   if (reason === 'no-route' && label) return [choose];
-  return [{ text: ui('在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存') }, choose];
+  return [{ text: ui('在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存'), hint: keyHint() }, choose];
 }
 
 /* Per feature: `why` (block), `then` (the last step of a block), `line` (inline, compact), `note` (banner), `badge` (block, optional), `pick` (block: how to

@@ -12,7 +12,7 @@ import { makePdf } from './helpers/pdf.mjs';
 import { patientCli, until } from './helpers/wait.mjs';
 
 /* S5-0 baseline of which MinerU / Marker / index operations are INSTANT calls and which long-running work is invisible to the shared job list
-   (docs/plans/unified-job-runtime/s5-0-nonmodel-baseline.md), as it is since 3.6: the cloud route is gone, and the one-click MinerU install shows in the job list
+   (docs/plans/unified-job-runtime/s5-0-nonmodel-baseline.md), as it is since 3.5.5: the cloud route is gone, and the one-click MinerU install shows in the job list
    as a `local-install` row. Fakes only: fake mineru, uv and python programs and a local uv index, a fake marker_single. */
 
 const FAKE_MINERU = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));

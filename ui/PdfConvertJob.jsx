@@ -172,7 +172,7 @@ function environmentHeading(env, converter) {
 /**
  * The 运行环境 of a conversion: WHAT is doing the work, so a slow or failed run is never a mystery. Local: the mineru version, the tier and what it means,
  * the model folder in use (and where the models live, in a disclosure: the folder may be a link to another drive), a device only when the CLI said one,
- * whether the service is up, and how pages are worked on. Cloud (old rows, the route was removed in 3.6): MinerU, the model version and language, the
+ * whether the service is up, and how pages are worked on. Cloud (old rows, the route was removed in 3.5.5): MinerU, the model version and language, the
  * piece limits and the size of the book. One component for the live card (`service`: the state kept honest while it runs) and the history rows
  * (`bare`, no service, `stoppedAtFailure` from the record).
  */

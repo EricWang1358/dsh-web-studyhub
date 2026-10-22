@@ -117,7 +117,7 @@ When `MINERU_BIN` is set, or `mineru` is on the search path, StudyHub uses it an
 
 ## No more cloud route
 
-The MinerU cloud route (a MinerU token, uploading the PDF) was removed in 3.6: its entry had stopped working. Old cloud rows still show in the conversion history, but cannot be resumed: choose the PDF again to convert it on this computer. A conversion request that asks for the cloud is refused with that message.
+The MinerU cloud route (a MinerU token, uploading the PDF) was removed in 3.5.5: its entry had stopped working. Old cloud rows still show in the conversion history, but cannot be resumed: choose the PDF again to convert it on this computer. A conversion request that asks for the cloud is refused with that message.
 
 A token saved by an older version stays in `<DSH home>/study/mineru.json`. Nothing reads it any more; you can delete the file by hand. `MINERU_API_KEY` is ignored.
 

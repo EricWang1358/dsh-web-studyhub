@@ -9,7 +9,7 @@ import { parseConvertedDocument } from '../lib/converted-document.js';
 import { makeEncryptedPdf, makePdf } from './helpers/pdf.mjs';
 
 /* One conversion of one PDF on this computer, with a stand-in for the window runner: prepare (pages, the first windows), convert window by window, merge,
-   import, discard. (The cloud route and its pieces, uploads and polls were removed in 3.6; the local route has its own deeper tests in
+   import, discard. (The cloud route and its pieces, uploads and polls were removed in 3.5.5; the local route has its own deeper tests in
    tests/mineru-local*.test.mjs and tests/mineru-adaptive-*.test.mjs.) */
 
 async function setup(t, { pages = 3, pdf } = {}) {

@@ -19,9 +19,9 @@ export async function buildSite({ outdir = SITE_OUTPUT } = {}) {
   for (const lang of ['zh', 'en']) {
     let html = source.replace(/<main(?:\s[^>]*)?>[\s\S]*?<\/main>/, renderContent(lang).replaceAll('2.5.10', version));
     html = html.replace(/<html lang="[^"]*">/, `<html lang="${lang === 'en' ? 'en' : 'zh-CN'}">`)
-      .replace(/<title>[\s\S]*?<\/title>/, `<title>StudyHub ${version} — ${lang === 'en' ? 'Learn from your own sources' : '自己的资料，扎实地学'}</title>`);
+      .replace(/<title>[\s\S]*?<\/title>/, `<title>StudyHub ${version} — ${lang === 'en' ? 'Turn your lecture slides into questions that each link back to their page' : '把老师的课件变成题，每道题都点得回原页'}</title>`);
     if (lang === 'en') {
-      html = html.replace(/<meta name="description"[^>]*>/, `<meta name="description" content="Turn your materials, recordings and existing questions into practice you can check against the source. DSH study plugin · local ${version} preview.">`)
+      html = html.replace(/<meta name="description"[^>]*>/, `<meta name="description" content="Turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it. Free and open source, your materials stay on your computer; pick your own model and pay for what you use. DSH study plugin · local ${version} preview.">`)
         .replace('href="en.html" hreflang="en">English', 'href="index.html" hreflang="zh-CN" lang="zh-CN">简体中文')
         .replace('跳到正文', 'Skip to content').replace('章节导航', 'Section navigation').replace('安装 <span>↓</span>', 'Install <span>↓</span>')
         .replace('示例截图来自现有应用；交互图在浏览器中演示机制，不读取真实学习库。', 'Screenshots show the existing app with samples. Interactive figures demonstrate the mechanism without reading a real library.');

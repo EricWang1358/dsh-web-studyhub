@@ -101,7 +101,7 @@ try {
   const prepared = await prepareJob({ root: libraryRoot, source: crashedSource, filename: 'Distributed Systems.pdf', courses: [], language: 'zh', route: 'local', tier: 'standard', limits: seam.limits });
   await openRecord(libraryRoot, { id: prepared.manifest.id, filename: 'Distributed Systems.pdf', bytes: prepared.manifest.sourceBytes, pages: 450, pieces: prepared.manifest.chunks.length, route: 'local', tier: 'standard',
     env: { kind: 'local', mineruVersion: '4.0.10', tier: 'standard', model: 'MinerU2.5-Pro-2605-1.2B-GGUF', windows: { kind: 'fixed', pages: 50 } }, plan: prepared.manifest.plan }, { now: () => Date.now() - 7 * 3_600_000 });
-  // An old row of the cloud route (removed in 3.6): it still lists, with its badge, and never resumes.
+  // An old row of the cloud route (removed in 3.5.5): it still lists, with its badge, and never resumes.
   await openRecord(libraryRoot, { id: 'qa-cloud-old', filename: 'Security.pdf', bytes: 12 * 1024 * 1024, pages: 300, pieces: 2, route: 'cloud',
     env: { kind: 'cloud', modelVersion: 'vlm', language: 'ch', maxPages: 200, maxBytes: 180 * 1024 * 1024, bookBytes: 12 * 1024 * 1024 } }, { now: () => Date.now() - 30 * 3_600_000 });
   await closeRecord(libraryRoot, 'qa-cloud-old', { status: 'failed', pagesDone: 200, failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' } }, { now: () => Date.now() - 29 * 3_600_000 });

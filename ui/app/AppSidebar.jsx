@@ -77,7 +77,7 @@ export default function AppSidebar() {
     <aside className={sidebarNarrow ? 'sidebar is-narrow' : 'sidebar'}>
       <div className="brand">
         <span className="brand-mark" aria-hidden="true"><Icon name="brand" size={30} /></span>
-        <div>{ui('StudyHub')}<small>{ui('自己的资料，扎实地学')}</small></div>
+        <div>{ui('StudyHub')}<small>{ui('每道题都点得回原页')}</small></div>
         <Button variant="quiet" size="sm" className="collapse-toggle" data-usage="nav.collapse" aria-label={toggleLabel} aria-expanded={!sidebarNarrow}
           title={toggleLabel} onClick={() => shell.setSidebarCollapsed((value) => !value)}>
           {sidebarNarrow ? '»' : '«'}

@@ -10,7 +10,7 @@ import { until } from './helpers/wait.mjs';
 /* The Settings-only boundary of the assistant's study_workspace tool (S5-0 defect D-10, docs/plans/unified-job-runtime/s5-0-nonmodel-baseline.md).
    Choosing which program StudyHub runs, installing or removing software (Marker, the one-click local MinerU) and stopping the local MinerU service
    are the learner's own clicks in Settings. Status, plan and history reads, and the imports that use what the learner set up, stay with the
-   assistant. The MinerU cloud route (its token and upload consent) was removed in 3.6: its operations no longer exist for either door. */
+   assistant. The MinerU cloud route (its token and upload consent) was removed in 3.5.5: its operations no longer exist for either door. */
 
 const exists = file => stat(file).then(() => true, () => false);
 const finished = async (h, jobId) => until(async () => {

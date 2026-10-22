@@ -34,7 +34,8 @@ test('native initial and reused help omit embedded raster bytes without changing
 });
 const card = { id: 'c', kind: 'flashcard', topic: 'Bridge', objective: 'Explain Bridge', prompt: 'What does Bridge separate?', answer: 'Abstraction and implementation.', hint: 'Two dimensions.', explanation: 'Both vary independently.', misconception: 'It adapts interfaces.', citations: [{ sourceId: 's', quote: evidence }] };
 const gate = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-const until = async predicate => { for (let i = 0; i < 200; i++) { if (await predicate()) return; await new Promise(r => setTimeout(r, 5)); } throw new Error('Task did not settle'); };
+// A deadline in time, not a count of 5 ms turns: a slow CI machine (Windows under load) can take over a second to settle a task.
+const until = async (predicate, ms = 10000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await predicate()) return; await new Promise(r => setTimeout(r, 5)); } throw new Error('Task did not settle'); };
 function desktopHost(cwd, output, { failure, delayedCreation } = {}) {
   const calls = { created: [], started: [], disposed: [] };
   const coordinator = { id: 'coordinator' };

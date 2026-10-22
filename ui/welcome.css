@@ -34,6 +34,13 @@
       font-size: var(--fs-lg);
       line-height: var(--lh-body);
     }
+    /* The second line of the positioning: quiet, under the lead, only on the first screen. */
+    .welcome__sub {
+      margin: var(--space-2) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+      line-height: var(--lh-body);
+    }
     .welcome__choices {
       display: grid;
       grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
@@ -122,6 +129,7 @@
       .welcome__choices { grid-template-columns: minmax(0, 1fr); }
       .welcome__title { font-size: var(--fs-2xl); }
       .welcome__lead { font-size: var(--fs-md); }
+      .welcome__sub { font-size: var(--fs-sm); }
       .welcome__footer { justify-content: flex-start; }
     }
     :is(.study-app, .study-seat) {

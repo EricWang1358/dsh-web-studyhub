@@ -624,6 +624,8 @@
     .sh-setup__step a:hover { text-decoration-color: currentColor; }
     .sh-setup__step a .sh-icon { margin-left: var(--space-1); vertical-align: -2px; }
     .sh-setup__hint { display: block; margin-top: var(--space-half); color: var(--text-muted); font-size: var(--fs-sm); }
+    /* A link inside the quiet line stays as quiet as the line: ink, underlined, not the step's accent. */
+    .sh-setup__step .sh-setup__hint a { color: var(--text); font-weight: inherit; }
     .sh-setup__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-6); }
     /* ── File drop ──────────────────────────────────────────────────────── */
     .sh-drop {

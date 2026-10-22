@@ -4,7 +4,7 @@ import { SettingsSection } from './components/index.js';
 import MineruInstallCard from './MineruInstallCard.jsx';
 
 /* 设置 › PDF 转换（MinerU）: MinerU on this computer, installed and kept running by StudyHub in one click (ui/MineruInstallCard.jsx). Nothing is
-   uploaded and no token is needed (the cloud route was removed in 3.6). `initialLocal` / `initialPlan` skip the first reads (previews, tests). */
+   uploaded and no token is needed (the cloud route was removed in 3.5.5). `initialLocal` / `initialPlan` skip the first reads (previews, tests). */
 export default function MineruSettings({ call, initialLocal = null, initialPlan = null, initialMore = false, pickDirectory }) {
   return (
     <SettingsSection className="mineru-settings" tour="settings-mineru" title={ui('PDF 转换（MinerU）')}

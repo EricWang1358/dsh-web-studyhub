@@ -12,7 +12,7 @@ import { extractRelease } from '../extract-release.mjs';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const tag = process.argv[2] || 'v2.7.1', scratch = join(repo, '.local', 'drill'), older = join(repo, '.local', `old-${tag.replace(/^v/, '')}`);
 const script = join(dirname(fileURLToPath(import.meta.url)), 'rollback.mjs');
-// 'setup' (mineru.local.setup) is gone since 3.6: the one-click install replaced it, so a drill of the current code has no such scenario; the recorded evidence keeps the 2.7.1 one.
+// 'setup' (mineru.local.setup) is gone since 3.5.5: the one-click install replaced it, so a drill of the current code has no such scenario; the recorded evidence keeps the 2.7.1 one.
 const SCENARIOS = ['settled', 'pdf', 'install', 'index'];
 for (const key of Object.keys(process.env)) if (/_API_KEY$|_TOKEN$|BASE_URL$/.test(key)) delete process.env[key];
 process.env.SSH_TTY ||= 'audit';

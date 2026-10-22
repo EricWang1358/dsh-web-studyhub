@@ -41,18 +41,20 @@ const NO_PROVIDER = { ready: false, reason: 'no-route', label: 'Acme · acme-1' 
 const NO_CALL = { ready: false, reason: 'unknown', label: 'DeepSeek · V4 Flash' };
 const buttons = html => [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(match => ({ variant: /sh-btn--(primary|secondary|quiet|link|danger)/.exec(match[1])?.[1], text: text(match[2]) }));
 const labelOf = (html, variant) => buttons(html).find(button => button.variant === variant)?.text;
+// The one quiet line under the key step: where to get a key and whether to top up (the install guide's model section).
+const KEY_LINE = ' 去哪拿 Key、要不要充值：看 安装说明 （在新标签页打开） （以服务商页面为准）';
 const steps = html => [...html.matchAll(/<li><span class="sh-setup__num"[^>]*>\d+<\/span><span class="sh-setup__step">([\s\S]*?)<\/span><\/li>/g)].map(match => text(match[1]));
 
 test('the block gate says where the key is set in DSH, for each reason, and never promises a key field', () => {
   const none = gate({ variant: 'block', feature: 'generate', model: NO_ROUTE, onOpenSettings: noop });
   assert.deepEqual(steps(none), [
-    '在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存',
+    '在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存' + KEY_LINE,
     '选一个模型：在对话输入框的模型选择器里选，或在 StudyHub「设置 › 学习库与模型」的「生成模型」里选',
     '回到这里，点「生成并检查题组」']);
   assert.doesNotMatch(none, /打开模型设置，选择一个服务商|填入这个服务商的 API Key/, 'the old steps promised a button that led nowhere');
 
   const key = gate({ variant: 'block', feature: 'generate', model: NO_KEY, onOpenSettings: noop });
-  assert.deepEqual(steps(key), ['在 DSH 打开「设置 › 模型」，在「DeepSeek」卡片填入 API Key 并保存', '回到这里，点「生成并检查题组」'], 'a chosen model needs only its key');
+  assert.deepEqual(steps(key), ['在 DSH 打开「设置 › 模型」，在「DeepSeek」卡片填入 API Key 并保存' + KEY_LINE, '回到这里，点「生成并检查题组」'], 'a chosen model needs only its key');
   assert.match(text(key), /已选择「DeepSeek · V4 Flash」，但 DSH 里还没有它的 API Key/);
 
   const provider = gate({ variant: 'block', feature: 'generate', model: NO_PROVIDER, onOpenSettings: noop });
@@ -135,7 +137,7 @@ test('Settings › 学习库与模型: not connected shows the reason and the ga
   assert.match(none, /先配置一个 AI 模型/);
   assert.match(text(none), /还没有选择 AI 模型。/);
   assert.deepEqual(steps(none), [
-    '在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存',
+    '在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存' + KEY_LINE,
     '在下面的「生成模型」里选一个模型，或在对话输入框的模型选择器里选',
     '回到这里，状态会变成「模型已连接」；没有变就点「重新检查」']);
   assert.equal(labelOf(none, 'quiet'), '重新检查', 'one click to read the state again');
@@ -145,7 +147,7 @@ test('Settings › 学习库与模型: not connected shows the reason and the ga
 
   const key = pane(NO_KEY);
   assert.match(text(key), /已选择「DeepSeek · V4 Flash」，但 DSH 里还没有它的 API Key/);
-  assert.deepEqual(steps(key), ['在 DSH 打开「设置 › 模型」，在「DeepSeek」卡片填入 API Key 并保存', '回到这里，状态会变成「模型已连接」']);
+  assert.deepEqual(steps(key), ['在 DSH 打开「设置 › 模型」，在「DeepSeek」卡片填入 API Key 并保存' + KEY_LINE, '回到这里，状态会变成「模型已连接」']);
   assert.doesNotMatch(key, /重新检查/, 'no re-check without a refresh to call: the last step does not promise one');
 
   const opens = pane(NO_ROUTE, { host: { openModelSettings: noop }, refresh: noop });
@@ -248,4 +250,22 @@ test('the install docs and the READMEs say where the status is, not that a butto
     assert.match(doc, /Settings › Library & model/, `${file}: names the page that shows the state`);
     assert.match(doc, /Model connected/, `${file}: names the word the learner looks for`);
   }
+});
+
+test('the key step carries one quiet line to the install guide\'s model section, in both languages, and only the key step does', () => {
+  const zh = gate({ variant: 'block', feature: 'generate', model: NO_ROUTE, onOpenSettings: noop });
+  assert.match(zh, /<a href="https:\/\/github\.com\/EricWang1358\/dsh-web-studyhub\/blob\/main\/docs\/install\.zh-CN\.md#%E9%85%8D%E7%BD%AE%E6%A8%A1%E5%9E%8B%E6%9C%8D%E5%8A%A1%E5%95%86" target="_blank" rel="noreferrer">安装说明/);
+  assert.equal([...zh.matchAll(/sh-setup__hint/g)].length, 1, 'one line, not one per step');
+  assert.ok(zh.indexOf('sh-setup__hint') < zh.indexOf('选一个模型：'), 'it sits right under the first step');
+  const en = gate({ variant: 'block', feature: 'generate', model: NO_ROUTE, onOpenSettings: noop }, { language: 'en' });
+  assert.match(en, /href="https:\/\/github\.com\/EricWang1358\/dsh-web-studyhub\/blob\/main\/docs\/install\.md#configure-a-model-provider"/);
+  assert.match(text(en), /Where to get a key and whether to top up: see the install guide/);
+  assert.doesNotMatch(en, han, 'the English line has no Chinese');
+  assert.equal(buttons(zh).length, 1, 'no new button');
+  // No key step, no line: a provider DSH does not know, and a host that did not hand over the model.
+  assert.doesNotMatch(gate({ variant: 'block', feature: 'generate', model: NO_PROVIDER, onOpenSettings: noop }), /sh-setup__hint/);
+  assert.doesNotMatch(gate({ variant: 'block', feature: 'generate', model: NO_CALL, onOpenSettings: noop }), /sh-setup__hint/);
+  // Both anchors exist in the guides this line links to.
+  assert.match(read('docs/install.zh-CN.md'), /^## 配置模型服务商\s*$/m);
+  assert.match(read('docs/install.md'), /^## Configure a model provider\s*$/m);
 });

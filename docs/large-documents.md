@@ -15,7 +15,7 @@ What you install yourself and what StudyHub does:
 - The manual tools (MinerU desktop client, Docling, RAGFlow, a hand-configured search server) are yours to install and run.
 - StudyHub says a search tool is available only when DeepSeek Harness (DSH) reports it.
 
-**PDFs are converted on this computer.** The MinerU cloud route (a token, the PDF uploaded) was removed in 3.6. The desktop client is also currently reported unavailable; it remains an advanced option for when it recovers.
+**PDFs are converted on this computer.** The MinerU cloud route (a token, the PDF uploaded) was removed in 3.5.5. The desktop client is also currently reported unavailable; it remains an advanced option for when it recovers.
 
 
 ## When StudyHub suggests this

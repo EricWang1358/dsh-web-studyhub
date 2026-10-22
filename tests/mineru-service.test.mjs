@@ -11,7 +11,7 @@ import { patientCli, readJsonFile, writeJsonFile } from './helpers/wait.mjs';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
 /* PDF conversion through the real service with the local mineru (a fake command line): the mineru.* operations, the shared job list, the recovery of a
-   conversion a crash interrupted, and the refusals before anything runs. Nothing leaves the machine. (The cloud route was removed in 3.6:
+   conversion a crash interrupted, and the refusals before anything runs. Nothing leaves the machine. (The cloud route was removed in 3.5.5:
    tests/mineru-cloud-legacy.test.mjs keeps what remains of it.) */
 
 const FAKE = fileURLToPath(new URL('./helpers/fake-mineru-cli.mjs', import.meta.url));

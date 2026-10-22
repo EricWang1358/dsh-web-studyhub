@@ -60,7 +60,7 @@ test('the catalogue states what is true and checkable: licence, platforms, downl
   for (const tool of TOOLS.filter(entry => entry.recommended))
     assert.ok(tool.channels.some(channel => channel.kind === 'mainland'), `${tool.id} is reachable from mainland China`);
   const recommended = role => TOOLS.filter(tool => tool.role === role && tool.recommended).map(tool => tool.id);
-  // The one-click local MinerU leads; the desktop export route remains optional; the cloud route was removed in 3.6.
+  // The one-click local MinerU leads; the desktop export route remains optional; the cloud route was removed in 3.5.5.
   assert.deepEqual(recommended('converter'), ['mineru-local', 'docling']);
   assert.equal(TOOLS.find(tool => tool.id === 'mineru').recommended, false);
   assert.deepEqual(recommended('retrieval'), ['mcp-local-rag', 'ragflow']);
