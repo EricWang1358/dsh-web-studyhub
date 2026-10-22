@@ -49,7 +49,8 @@ test("the PDF importer is no longer embedded; one link opens the import dialog",
   const html = render();
   assert.doesNotMatch(html, /<input[^>]*type="file"/);
   assert.doesNotMatch(html, /PDF \/ 讲义 → 新题/);
-  assert.match(html, /<button[^>]*>(?:<svg.*?<\/svg>)?导入资料<\/button>/);
+  assert.match(html, /<button[^>]*>(?:<svg.*?<\/svg>)?添加资料<\/button>/);
+  assert.doesNotMatch(html, /导入资料/, 'one name for adding material: no second button called 导入资料');
 });
 
 test("the submit button carries its tour anchor and stays one primary action", () => {

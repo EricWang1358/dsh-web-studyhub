@@ -44,7 +44,7 @@ test('a proposal with no action because nothing is due: the reason and the way t
   assert.doesNotMatch(html, /接受这份安排/);
   assert.match(html, /没有到期复习或待学内容/);
   assert.match(html, />去学习库</);
-  assert.match(html, />导入资料</);
+  assert.match(html, />添加资料</);
   assert.doesNotMatch(html, /有一份安排等你接受/);
   assert.match(html, /daily-plan__summary[^>]*>[^<]*没有到期复习或待学内容/);
 });
@@ -119,7 +119,7 @@ test('in the browser: the empty-proposal buttons act, and the recorded-time row 
   await due.getByText('没有到期复习或待学内容').first().waitFor();
   assert.equal(await due.getByRole('button', { name: '接受这份安排' }).count(), 0);
   if (shots) await other.screenshot({ path: `${shots}/nothing-due-1100.png` });
-  await due.getByRole('button', { name: '导入资料' }).click();
+  await due.getByRole('button', { name: '添加资料' }).click();
   await other.getByRole('dialog').waitFor();
 });
 

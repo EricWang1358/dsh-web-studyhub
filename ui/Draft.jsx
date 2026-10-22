@@ -101,7 +101,7 @@ export default function Draft({
   const publishedDeck = data.decks.find((deck) => deck.id === publishedDeckId);
   const publicationLabel = draft.editingDeckId
     ? ui("保存并更新题组 →")
-    : draft.editorial?.repairOfDeckId ? ui("保存并补发到原题组 →") : ui("保存并发布 →");
+    : draft.editorial?.repairOfDeckId ? ui("保存并补发到原题组 →") : ui("发布并开始练 →");
   const repairJob = data.jobs?.find((job) => job.draftId === draft.id &&
     job.type === JOB_TYPES.DRAFT_REPAIR && isActiveJob(job));
   const repairRunning = !!repairJob;
@@ -123,7 +123,7 @@ export default function Draft({
   React.useEffect(() => {
     if (staleDraft && !updatingDraft && !unsavedDraft) openDraft(latestDraft);
   }, [staleDraft, updatingDraft, unsavedDraft, latestDraft, openDraft]);
-  // While a job works on this draft 保存并发布 waits: the reason is said under the buttons (which job, which round) with the way out (stop it; what passed the checks stays).
+  // While a job works on this draft 发布并开始练 waits: the reason is said under the buttons (which job, which round) with the way out (stop it; what passed the checks stays).
   // While it works the library's copy moves ahead of the page's (stale): the line says so too, and the page loads the new content by itself when the work is done.
   const hold = work ? [holdLine(work, draft, covered.view?.coverage?.percentLeaves), staleDraft && !unsavedDraft ? ui("完成后本页会自动载入最新内容。") : ""].filter(Boolean).join(" ") : "";
   function stopWork() {
@@ -208,7 +208,7 @@ export default function Draft({
               toast.error("JSON 格式不正确：" + e.message);
               return;
             }
-            // The same quick publication as 发布并练习 on the finished card of a run (ui/app/use-drafts.js).
+            // The same quick publication as 发布并开始练 on the finished card of a run (ui/app/use-drafts.js).
             await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage });
           }}
         >
@@ -307,7 +307,7 @@ export default function Draft({
           : draft.editorial?.repairOfDeckId
             ? ui("先前通过检查的题目已发布；当前草稿中的题目尚未发布。")
             : ui("当前草稿中的题目尚未发布。"),
-        retryPublishCount > 0 && ui("可点击「保存并发布」重新检查其余题目。"),
+        retryPublishCount > 0 && uiFormat("可点击「{0}」重新检查其余题目。", [publicationLabel.replace(/\s*→$/, "")]),
         ui("待处理题目可自行修改，或选择交给后台修题。")].filter(Boolean).join(" ")}</p>
         {publishedDeck && <p>{uiFormat("已发布题组「{0}」现有 {1} 题。", [publishedDeck.title, publishedDeck.count])}{" "}
           <Button variant="link" size="sm" disabled={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>

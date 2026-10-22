@@ -115,8 +115,8 @@ export const JOURNEY_STEPS = [
     const done = await j.api("job.wait", { jobId: j.state.jobId, timeoutSeconds: 60 });
     if (done.status !== "complete") throw new Error(`generation ended as ${done.status}: ${done.stage}`);
     j.state.draftId = done.draft?.id;
-    // WP4: the finished job card at the top of the home offers 打开草稿.
-    await j.page.locator(".generation-jobs .cjc").getByRole("button", { name: new RegExp(`^${escapeRe(j.t("打开草稿"))}`) }).first().waitFor({ timeout: 15000 });
+    // WP4: the finished job card at the top of the home offers 检查草稿.
+    await j.page.locator(".generation-jobs .cjc").getByRole("button", { name: new RegExp(`^${escapeRe(j.t("检查草稿"))}`) }).first().waitFor({ timeout: 15000 });
     await j.page.locator(".generation-jobs .cjc").first().scrollIntoViewIfNeeded();
     await j.settle();
     await j.shot("done");
@@ -132,18 +132,18 @@ export const JOURNEY_STEPS = [
     const open = j.page.locator(".draft-row .draft-open").first();
     if (!await open.count()) await j.nav("library");
     await j.page.locator(".draft-row .draft-open").first().click();
-    await j.page.getByRole("button", { name: j.t("保存并发布 →") }).first().waitFor({ timeout: 15000 });
+    await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().waitFor({ timeout: 15000 });
     await j.settle();
     await j.shot();
     await j.shot("full", { fullPage: true });
   } },
   { name: "publish", needs: ["draft"], run: async (j) => {
-    if (!await j.page.getByRole("button", { name: j.t("保存并发布 →") }).count()) {
+    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) {
       await j.nav("library");
       await j.page.locator(".draft-row .draft-open").first().click();
     }
     const before = (await j.snapshot()).decks.length;
-    await j.page.getByRole("button", { name: j.t("保存并发布 →") }).first().click();
+    await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().click();
     await j.until(async () => (await j.snapshot()).decks.length > before, "the deck is published");
     await j.settle(1500);
     await j.shot();
@@ -385,11 +385,11 @@ export const CASE_STEPS = [
     await j.shot("full", { fullPage: true });
   } },
   { name: "case-practice", needs: ["caseDraft"], run: async (j) => {
-    if (!await j.page.getByRole("button", { name: j.t("保存并发布 →") }).count()) {
+    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) {
       await j.nav("library");
       await j.page.locator(".draft-row .draft-open").first().click();
     }
-    await j.page.getByRole("button", { name: j.t("保存并发布 →") }).first().click();
+    await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().click();
     await j.page.locator(".rubric-answer textarea").first().waitFor({ timeout: 20000 });
     // Highlight the cue sentence of paragraph 4 with the highlighter (select, mouse up).
     const paragraph = j.page.locator(".case-review-scenario .case-para__text").nth(3);

@@ -34,7 +34,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
   const covered = loop.coverage && loop.outlineCoverage ? rangeCoverageOf(loop.outlineCoverage, selected?.ids ?? null, loop.coverage) : null;
   const coverageLine = covered && covered.covered > 0 && covered.uncovered > 0 ? rangeUncoveredLine(covered.uncovered, covered.leaves, loop.coverage.units === 'page' ? 'page' : 'section') : '';
   const openDraft = drafted && onOpenDraft && drafted.draftIds?.length ? <Button size="sm" variant="secondary" icon="arrow-right" onClick={() => onOpenDraft(drafted.draftIds)}
-    data-testid="practice-open-draft">{ui('打开草稿')}</Button> : null;
+    data-testid="practice-open-draft">{ui('检查草稿')}</Button> : null;
   // On a narrow pane the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
   return <Popover open={open} onOpenChange={setOpen} label={ui('做这几页的题')} className="reader-popover reader-practice" panelClassName="reader-popover__panel reader-practice__panel"
     boundsSelector=".study-document-viewer" flip={false} data-tour="reader-practice"

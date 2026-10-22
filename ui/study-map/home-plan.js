@@ -6,6 +6,15 @@ import { joinMeta, formatDateTime } from '../format.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 
+/** The ids of the sample course's records (设置 › 学习画像与导览): its decks, its draft and its first material; the records themselves carry `sample` too. */
+const sampleIdsOf = (data) => new Set([data?.sample?.deckId, data?.sample?.caseDeckId, data?.sample?.draftId, data?.sample?.sourceId].filter(Boolean));
+
+/**
+ * Has the learner published a deck of their own? The sample course's decks, a draft and material do not count, and neither does a deck the app made itself
+ * (为你定制). The home hides 课程准备 and 今天先做什么 until it is true, so the first screen has one next step.
+ */
+export const hasOwnDeck = (data) => { const sample = sampleIdsOf(data); return (data?.decks || []).some((deck) => !deck.sample && !deck.systemKind && !sample.has(deck.id)); };
+
 /**
  * What `start` is given for today's path: the current course's round (due, weak, then new, at most the round size), which is the number the home card
  * counts (lib/daily-path.js); every active course's path in 笔试 / 面试 mode and when no course is current. `today` is the snapshot's `data.today`.
@@ -30,25 +39,26 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   /* No decks yet: the card walks a newcomer from materials to a first deck
      (D1): add a material → generate from it → check and publish the draft.
      JSON import stays one link away for people who already have questions. */
-  const materials = documentCount(data.sources || []), newestDraft = data.drafts?.at(-1);
+  const sampleIds = sampleIdsOf(data), own = (item) => !item.sample && !sampleIds.has(item.id);
+  const ownSources = (data.sources || []).filter(own);
+  const materials = documentCount(ownSources), newestDraft = (data.drafts || []).filter(own).at(-1);
   const generating = activeJobs.some((job) => job.type !== JOB_TYPES.DRAFT_REPAIR);
   const jsonLink = [ui('已有题目？导入 JSON 题组'), importLibrary];
-  /* The sample course (设置 › 学习画像与导览) can stay after its tour; it is not the learner's library, so it does not hide the way to a first deck of their own. */
-  const sampleIds = new Set([data.sample?.deckId, data.sample?.caseDeckId].filter(Boolean));
-  const starter = data.decks.some((deck) => !sampleIds.has(deck.id)) ? null
+  /* The sample course (设置 › 学习画像与导览) can stay after its tour; it is not the learner's library, so its material, its draft and its decks neither hide the way to a first deck of their own nor tick a step of it. */
+  const starter = hasOwnDeck(data) ? null
     : newestDraft ? { kind: 'empty', step: 2, eyebrow: ui('下一步'), headline: ui('检查草稿，就能开始练习'),
-      title: ui('草稿已生成'), next: ui('草稿里的每道题都能修改；发布时还会再检查一遍。'),
-      action: { label: ui('检查并发布草稿'), run: () => openDraft(newestDraft) }, also: [jsonLink] }
+      title: ui('草稿已生成'), next: ui('草稿里的每道题都能修改。出题时已审阅过，发布时再检查一遍题目的结构。'),
+      action: { label: ui('检查草稿'), run: () => openDraft(newestDraft) }, also: [jsonLink] }
       : generating ? { kind: 'empty', step: 1, eyebrow: ui('正在出题'), headline: ui('第一组题正在生成'),
         title: ui('正在出第一组题'), next: ui('出题在后台进行，离开这一页也不会中断；完成后草稿会出现在上方。'),
         action: { label: ui('查看进度'), run: revealActivity }, also: [] }
         : materials ? { kind: 'empty', step: 1, eyebrow: ui('下一步'), headline: ui('用资料出第一组题'),
           title: uiFormat('{0} 份资料已就绪', [materials]), next: ui('选好资料、题型和题数，AI 出题后会逐题检查，再交给你确认。'),
-          action: { label: uiFormat('用这 {0} 份资料出题', [materials]), run: () => generateFromSources?.(data.sources.map((source) => source.id)) },
+          action: { label: uiFormat('用这 {0} 份资料出题', [materials]), run: () => generateFromSources?.(ownSources.map((source) => source.id)) },
           also: [[ui('＋ 再添加资料'), addSource], jsonLink] }
           : { kind: 'empty', step: 0, eyebrow: ui('开始'), headline: ui('从一份资料开始'),
             title: ui('还没有资料'), next: ui('添加讲义、笔记或 PDF，AI 会据此出题；发布后这里会给出学习路径。'),
-            action: { label: ui('添加第一份资料'), run: addSource },
+            action: { label: ui('添加资料'), run: addSource },
             also: [jsonLink, ...(canChat ? [[ui('在对话中用工作区文件出题'), () => askInChat(
               workspaceFilePrompt())]] : [])] };
   const breakdown = [

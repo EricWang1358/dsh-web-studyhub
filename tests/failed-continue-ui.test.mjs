@@ -64,7 +64,7 @@ test('the home banner: why (the time limit), what 接着做 does (13 of 15 kept,
   const buttons = buttonsOf(banner(html));
   assert.ok(buttons.includes('接着做'), `the banner continues: ${buttons}`);
   assert.ok(!buttons.includes('为没覆盖的部分补题'), `the top-up does not compete on the banner: ${buttons}`);
-  assert.equal(buttons.filter(label => ['接着做', '为没覆盖的部分补题', '去配置模型', '打开草稿'].includes(label)).length, 1, `one primary action: ${buttons}`);
+  assert.equal(buttons.filter(label => ['接着做', '为没覆盖的部分补题', '去配置模型', '检查草稿'].includes(label)).length, 1, `one primary action: ${buttons}`);
   inLanguage('en', () => {
     const english = text(banner(home([failed()], 'en')));
     assert.match(english, /13\/15 questions made and kept; Continue makes the 2 still missing/, english);

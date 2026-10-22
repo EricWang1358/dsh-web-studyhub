@@ -49,8 +49,8 @@ export default function JobCard({ job: j, jobs = [], drafts, data, busy, openDra
     : stands ? joinMeta([shortfallLine(shortfall), shortfall.state === 'interrupted' && shortfall.round ? uiFormat('中断于第 {0} 轮', [shortfall.round])
     : shortfall.state === 'paused' ? uiFormat('暂停于第 {0} 轮之后', [shortfall.pausedAfter ?? shortfall.roundsDone ?? 0])
     : shortfall.state === 'refused' ? reasonWord(shortfall.failure || 'credential') : why]) : '';
-  const stage = standing || (failure ? failure.title : joinMeta([jobStageLabel(j, drafts, jobs, { includeSaved: !progress }), why]));
-  // A finished run of a clean draft is published and practised in one press (发布并练习: the draft page's quick publication); 打开草稿 stays beside it, so the learner can still look first.
+  const stage = standing || (failure ? failure.title : joinMeta([jobStageLabel(j, drafts, jobs, { includeSaved: !progress, decks: data?.decks }), why]));
+  // A finished run of a clean draft is published and practised in one press (发布并开始练: the draft page's quick publication); 检查草稿 stays beside it, so the learner can still look first.
   const atOnce = !active && generation && !!publishDraft && j.type !== JOB_TYPES.SUPPLEMENT && j.origin !== 'selection' && j.status === 'complete' && !j.continuedBy && !j.publication && jobCode(j) === 'done'
     && canPublishAtOnce({ draft, shortfall, jobs, targets: partTargets(draft, data) });
   // A failed run the contract can retry (a run with a draft goes through 接着做 above) is one press, and it carries the whole request: the contract's retry prepares the run again from what the job was asked with.
@@ -66,23 +66,23 @@ export default function JobCard({ job: j, jobs = [], drafts, data, busy, openDra
     topup: view?.canTopUp && view.round?.sections > 0 && topUpDraft && { label: actionLabel('topup'), run: () => topUpDraft(draft, view.round.picks.map((pick) => pick.key), view.round), disabled: !modelReady },
   })[shortfall.action];
   const choices = [
-    atOnce && { label: ui('发布并练习'), run: () => publishDraft(draft) },
+    atOnce && { label: ui('发布并开始练'), run: () => publishDraft(draft) },
     published && practiceCards && { label: published.cardIds.length === 1 ? ui('马上练这 1 张') : uiFormat('马上练这 {0} 张', [published.cardIds.length]),
       run: () => practiceCards(published.deckId, published.cardIds) },
     own,
     failure?.action === 'settings' && openModelSettings && { label: ui('去配置模型'), run: openModelSettings },
     retryAgain && { label: ui('再试一次'), disabled: !modelReady, run: () => act('job.control', { jobId, action: 'retry' }) },
-    draft && !active && !atOnce && { label: ui('打开草稿'), run: () => openDraft(draft) },
+    draft && !active && !atOnce && { label: ui('检查草稿'), run: () => openDraft(draft) },
     retryGeneration && generation && j.type !== JOB_TYPES.SUPPLEMENT && ['failed', 'cancelled'].includes(j.status) && !draft && !retryAgain && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
     published && openDeck && { label: ui('打开题组'), run: () => openDeck(published.deckId) },
   ].filter(Boolean);
   // The quiet other ways, under the card: look at the draft first; the limit that ended the run is one press from its setting (设置 › 出题偏好); the form again when the one-press retry is the button.
   const links = [
-    atOnce && { label: ui('打开草稿'), run: () => openDraft(draft), disabled: busy },
+    atOnce && { label: ui('检查草稿'), run: () => openDraft(draft), disabled: busy },
     failure && hitTimeLimit(j.stage) && openSettings && { label: ui('调整时限'), run: () => openSettings(LIMIT_ANCHOR) },
     retryAgain && choices[0]?.label === ui('再试一次') && retryGeneration && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
   ].filter(Boolean);
-  return <CompactJobCard job={j} primary={choices[0] && { ...choices[0], disabled: busy || choices[0].disabled }} links={links.length ? links : undefined} title={jobHeadline(j, drafts)} line={progress && !standing ? [`${progress.label} ${uiFormat("{0}/{1} 题", [progress.saved, progress.total])}`, stage].filter(Boolean).join(' · ') : stage}
+  return <CompactJobCard job={j} primary={choices[0] && { ...choices[0], disabled: busy || choices[0].disabled }} links={links.length ? links : undefined} title={jobHeadline(j, drafts, { decks: data?.decks })} line={progress && !standing ? [`${progress.label} ${uiFormat("{0}/{1} 题", [progress.saved, progress.total])}`, stage].filter(Boolean).join(' · ') : stage}
     onStop={cancelJob && j.type !== JOB_TYPES.DRAFT_PUBLISH ? () => cancelJob(j.id) : undefined}
     onDismiss={dismissJob ? () => dismissJob(j.id) : undefined} />;
 }

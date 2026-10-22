@@ -101,15 +101,15 @@ test('the reader: no question and no draft keeps its panel; a draft shows the sa
   const drafted = loopOf([option('here', none(), { draftCards: 3, draftIds: ['dr1'] })]);
   const zh = render(practice(drafted, { onOpenDraft() {} }));
   assert.ok(zh.includes('还没发布 · 草稿里有 3 题'), 'the same words as the row');
-  assert.ok(zh.includes('打开草稿') && zh.includes('发布草稿后才能练习这几页的题'));
+  assert.ok(zh.includes('检查草稿') && zh.includes('发布草稿后才能练习这几页的题'));
   assert.ok(zh.includes('为这几页出题'), 'making new ones is still possible');
   assert.ok(!zh.includes('这几页还没有题'), 'it is not "no questions"');
   assert.equal(buttons(zh), 3, 'the control, the way to the draft, and the generate button');
-  assert.ok(!render(practice(drafted)).includes('打开草稿'), 'no way to open it where the host gave none');
+  assert.ok(!render(practice(drafted)).includes('检查草稿'), 'no way to open it where the host gave none');
   setUiLanguage('en');
   const en = render(practice(drafted, { onOpenDraft() {} }));
   assert.doesNotMatch(en, han);
-  assert.ok(en.includes('Not published yet · 3 questions in drafts') && en.includes('Open draft'));
+  assert.ok(en.includes('Not published yet · 3 questions in drafts') && en.includes('Check the draft'));
   setUiLanguage('zh');
 });
 
@@ -131,7 +131,7 @@ test('the range chooser says the same in each option and shows the drafts beside
   assert.ok(zh.includes('还没发布 · 草稿里有 2 题'));
   assert.ok(zh.includes('还没出题'), 'the option with nothing anywhere');
   const withDrafts = render(practice(loopOf([document], { selected: document }), { onOpenDraft() {} }));
-  assert.ok(withDrafts.includes('开始做这 2 道题') && withDrafts.includes('另有 4 题在草稿') && withDrafts.includes('打开草稿'));
+  assert.ok(withDrafts.includes('开始做这 2 道题') && withDrafts.includes('另有 4 题在草稿') && withDrafts.includes('检查草稿'));
   setUiLanguage('en');
   const en = render(practice(loopOf([here, chapter, document]), { onOpenDraft() {} }));
   assert.doesNotMatch(en, han);

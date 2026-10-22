@@ -25,11 +25,11 @@ export function LibraryChip({ root, onOpen }) {
   );
 }
 
-function statusText({ busy, running, publishing, syncIssue, data }) {
+function statusText({ busy, running, publishing, syncIssue, data, noModel }) {
   if (busy) return ui('正在保存…');
   if (running) return publishing ? ui('正在发布…') : ui('正在生成…');
   if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : ui('学习库读取失败');
-  return data ? ui('已连接') : ui('待连接');
+  return data ? noModel ? ui('未配置模型') : ui('已连接') : ui('待连接');
 }
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
@@ -37,7 +37,9 @@ export default function AppTopbar({ title }) {
   const { data, core, nav, connection, inbox, settingsEntry } = useApp();
   const { busy, act, quick, quickApi } = core;
   const { binding, running, publishing, syncIssue } = connection;
-  const idle = !busy && !running && !syncIssue && data;
+  // 已连接 is about the library; with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
+  const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
+  const idle = !busy && !running && !syncIssue && data && !noModel;
   return (
     <header className="topbar">
       <nav className="crumbs" aria-label={ui('位置')}>
@@ -48,8 +50,8 @@ export default function AppTopbar({ title }) {
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={() => { settingsEntry.setSettingsFocus('settings-model'); nav.navigate('settings', { animate: true, keepTrail: false }); }} />
         <span className={'top-status' + (idle ? ' idle' : '')} role="status" title={syncIssue || undefined}>
-          <i className={`dot ${busy || running ? 'busy' : data && !syncIssue ? 'is-online' : ''}`} aria-hidden="true" />
-          <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data })}</span>
+          <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />
+          <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data, noModel })}</span>
         </span>
         {data && (
           <Inbox inbox={data.inbox} busy={busy} onOpen={inbox.openInboxItem} onReadAll={() => markInboxRead(quick)} readError={quickApi.failures['inbox:read']}

@@ -101,6 +101,8 @@ export function openLearningTarget(target, result, nav, env) {
 
 /** Does opening this target leave a way back? */
 export const leavesTrail = (target) => targetOf(target)?.trail !== false;
+/** The way back, minus a way back that leads to the page the learner is on (a first import remembers the library, generating lands on it): such a way back goes nowhere. A reader dialog is part of the place it leads to, so it stays. */
+export const withoutSelfReturn = (trail, page) => (trail.at(-1)?.page === page && !trail.at(-1).modal ? trail.slice(0, -1) : trail);
 
 /** The object on screen, for "add to the board with where I am". state: { root, page, run, noteInitialId, skeletonFocus, managedDeck, workflowReturn, exam, modal, focus }. */
 export function currentStudyReference(state) {
