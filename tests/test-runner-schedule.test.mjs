@@ -25,7 +25,8 @@ test('only a plain full run is scheduled by us; file arguments and unknown optio
   assert.deepEqual(parseTestArgs([]), { files: false, ordered: true });
   assert.deepEqual(parseTestArgs(['--test-concurrency=4', '--test-reporter=spec', '--test-reporter-destination', 'stdout']), { files: false, ordered: true });
   assert.deepEqual(parseTestArgs(['--test-name-pattern', 'groq', '--test-skip-pattern=slow']), { files: false, ordered: true });
-  assert.deepEqual(parseTestArgs(['--test-timeout=5000']), { files: false, ordered: false });
+  assert.deepEqual(parseTestArgs(['--test-timeout=5000']), { files: false, ordered: true }, 'the ordered runner takes a limit per test');
+  assert.deepEqual(parseTestArgs(['--test-timeout', '5000', 'tests/groq.test.mjs']), { files: true, ordered: false });
   assert.deepEqual(parseTestArgs(['--test-shard=1/2']), { files: false, ordered: false });
   assert.deepEqual(parseTestArgs(['tests/groq.test.mjs']), { files: true, ordered: false });
   assert.deepEqual(parseTestArgs(['--test-name-pattern', 'x', 'tests/groq.test.mjs']), { files: true, ordered: false });
