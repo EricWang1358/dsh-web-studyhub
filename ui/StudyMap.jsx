@@ -112,8 +112,9 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
     // The first screen is the line alone: its third step carries the runs of the first deck (their cards are not drawn anywhere else on it), running first;
     // the line chose them, so a run that stands over its draft is carried even when newer finished jobs push it out of the home's recent cards.
     const carried = new Set(line.steps[2].jobIds), deckJobs = [...jobs.filter((job) => carried.has(job.id) && isActiveJob(job)), ...jobs.filter((job) => carried.has(job.id) && !isActiveJob(job))];
+    // Its own element (key): the home that replaces it (a tour, 以后再说, the first publish) is new content, not this page moved down under a banner.
     return (
-      <section className="page library-page map-page first-run-page" ref={pageRef}>
+      <section key="first-run" className="page library-page map-page first-run-page" ref={pageRef}>
         {children}
         <FirstRunLine line={line} form="page" sample={data.sample} on={lineOn} plan={firstRun?.plan}
           jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}

@@ -49,13 +49,14 @@ export function stepSentence(step) {
  * The one action of the open step in the compact card (the page form says more in the step's body). null: nothing to press here. The button always belongs to
  * the step the card marks: while the model is that step its setup is in DSH (the row says so), so the card offers no other step's button; a run's card (on the
  * home, beside this one) carries a run that is going or that stands; a run that stands without its card leaves the draft as the way on.
+ * `plan` is the third step's (useFirstDeck): 出第一组题 carries `blocked`, the reason it cannot be pressed ('' when it can), as the page form's button does.
  */
-export function compactAction(line, on = {}) {
+export function compactAction(line, on = {}, plan = null) {
   const [, material, deck] = line.steps;
   if (line.step === 0) return null;
   if (deck.status === 'stopped') return !deck.jobIds.length && on.openDraft ? { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) } : null;
   if (material.status === 'todo' && on.importFirst) return { label: ui('添加资料'), run: on.importFirst };
-  if (deck.status === 'ready' && on.generate && deck.modelReady) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds) };
+  if (deck.status === 'ready' && on.generate && deck.modelReady) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds), blocked: generateBlockReason(deck, plan) };
   if (deck.status === 'draft-clean' && on.publish) return { label: ui('发布并开始练'), run: () => on.publish(deck.draft) };
   if (deck.status === 'draft-review' && on.openDraft) return { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) };
   return null;
@@ -120,12 +121,14 @@ export function generateBlockReason(step, plan) {
 }
 
 /** What will be made and what it is expected to cost, said before anything is spent: 创建题组's summary sentence and its estimate line (the room of both is
-    held while the estimate is asked, so its arrival moves nothing). */
+    held while the estimate is asked, so its arrival moves nothing). An estimate that is not coming (nothing to estimate, or it could not be made) leaves no
+    line, as on 创建题组; its slot keeps the line's height, so that moves nothing either. Not drawn over a selection that cannot be sent (the reason is said). */
 function DeckPlan({ plan }) {
+  const status = plan?.estimate?.status;
   return (
     <div className="frl-plan" data-first-run="plan">
       <p className="frl-plan__line">{plan?.summary || '\u00a0'}</p>
-      <TokenEstimateView state={plan?.estimate?.status === 'idle' ? { status: 'loading' } : plan?.estimate} tight />
+      <div className="frl-plan__estimate">{(status === 'loading' || status === 'ready') && <TokenEstimateView state={plan.estimate} tight />}</div>
     </div>
   );
 }
@@ -171,7 +174,7 @@ function DeckBody({ step, on, jobs, plan }) {
   return (
     <>
       <p className="frl-body__text">{ui('出题时会逐题核对原文、审阅，出好的题先放进草稿。')}</p>
-      {plan && <DeckPlan plan={plan} />}
+      {plan && !blocked && <DeckPlan plan={plan} />}
       {(on.generate || on.tune) && <div className="frl-body__actions">
         {on.generate && <Button variant="primary" iconEnd="arrow-right" disabled={busy || !!blocked} data-first-run="generate" data-usage="first-run.generate"
           onClick={() => on.generate(step.sourceIds)}>{ui('出第一组题')}</Button>}
@@ -183,14 +186,28 @@ function DeckBody({ step, on, jobs, plan }) {
 }
 
 /** The compact card's two ruled lines under the rows while the first deck is ready to be made: what will be made, and the estimate's tokens (the first half of
-    创建题组's estimate line; the number of calls is in the page form and on 创建题组), held while it is asked. */
+    创建题组's estimate line; the number of calls is in the page form and on 创建题组), held while it is asked; an estimate that is not coming leaves the second
+    ruled line blank (it stays, so nothing under the card moves). */
 function CompactPlan({ plan }) {
-  const estimate = plan?.estimate?.status === 'ready' ? plan.estimate.estimate : null;
+  const status = plan?.estimate?.status, estimate = status === 'ready' ? plan.estimate.estimate : null;
   return (
     <div className="frl-compact-plan" data-first-run="plan">
       <p className="frl-compact-plan__line">{plan?.summary || '\u00a0'}</p>
       <p className="frl-compact-plan__line frl-compact-plan__estimate" aria-live="polite">{estimate ? `${ui('预计')} ${rangeTok(estimate.totalTokens)}`
-        : plan?.estimate?.status === 'error' ? '\u00a0' : ui('正在估算…')}</p>
+        : status === 'loading' ? ui('正在估算…') : '\u00a0'}</p>
+    </div>
+  );
+}
+
+/** The compact card over a selection that cannot be sent as it is: instead of the summary, the reason 出第一组题 is off (on the card's ruled lines), and the
+    quiet way that reason names (改题型和题数), as in the page form. */
+function CompactBlocked({ reason, sourceIds, on }) {
+  const { busy } = useStudy();
+  return (
+    <div className="frl-compact-plan frl-compact-plan--blocked">
+      <p className="frl-compact-plan__reason" data-first-run="blocked">{reason}</p>
+      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" disabled={busy} data-first-run="tune"
+        onClick={() => on.tune(sourceIds)}>{ui('改题型和题数')}</Button>}
     </div>
   );
 }
@@ -237,7 +254,8 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
   const { busy } = useStudy();
   if (!line?.show) return null;
   if (form === 'compact') {
-    const action = compactAction(line, on);
+    const action = compactAction(line, on, plan), deck = line.steps[2];
+    const planned = plan && line.step === 2 && deck.status === 'ready' && deck.modelReady;
     return (
       <div className="today-card sh-paper-card first-run-card" data-first-run="compact">
         <div className="today-card-head frl-head">
@@ -245,8 +263,8 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
           {todayLabel && <time>{todayLabel}</time>}
         </div>
         <Steps line={line} on={on} compact />
-        {plan && line.step === 2 && line.steps[2].status === 'ready' && line.steps[2].modelReady && <CompactPlan plan={plan} />}
-        {action && <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={busy} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
+        {planned && (action?.blocked ? <CompactBlocked reason={action.blocked} sourceIds={deck.sourceIds} on={on} /> : <CompactPlan plan={plan} />)}
+        {action && <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={busy || !!action.blocked} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
       </div>
     );
   }

@@ -34,3 +34,9 @@ export const importForQuestions = (goGenerate, extra = {}) => ({ type: 'add', ..
  * a material (a JSON deck's draft, a PDF still converting in the background) takes the usual way.
  */
 export const importForLine = (onImported) => ({ type: 'add', otherwise: 'usual', line: true, onImported });
+
+/**
+ * The first import of the tour's last step and of the line (`openFirstImport`): back to the line while it is up (importForLine, `back`), else, for a learner
+ * whose line is gone (a deck of their own, the tour taken again from Settings), the old way on to 创建题组 with the file ticked (importForQuestions).
+ */
+export const importForFirstRun = (lineShown, { back, goGenerate }) => (lineShown ? importForLine(back) : importForQuestions(goGenerate));

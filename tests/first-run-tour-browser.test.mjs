@@ -10,6 +10,7 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { TOUR_STEPS, CORE_TOUR_LENGTH } from '../ui/tour/steps.js';
 
 /* The first run in the browser preview, on an empty temporary library with the host's 备考补习 switch on: the welcome page, the default tour
@@ -48,6 +49,70 @@ async function card(page) {
   await frames(page, 3);
   return { ...first, lit: (await page.locator('.tour-spot').count()) > 0 };
 }
+
+/* 载入示例并开始导览 when the library is slow: the app's own refresh after sample.load is overtaken by a poll (its answer comes back first and is dropped, the
+   poll's comes 2 s later), and the sample takes well over the 500 ms during which a shift still counts as the learner's own doing. The tour's home replaces the
+   line as a whole: it is not drawn on the old snapshot (the banner and the sample course coming in above and inside it later), and the line's page is not the
+   same element as the home's, so the banner inserted above the home moves nothing that was on screen. At 420 and 1440 px. */
+test('载入示例并开始导览 moves nothing when a poll overtakes the refresh after the sample is loaded', { timeout: 300000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-first-run-race-dist-'));
+  await buildPreview({ outdir: dist });
+  try {
+    for (const width of [420, 1440]) {
+      const running = await start(dist);
+      try {
+        const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: 'dark', width, height: 900 });
+        let phase = 'idle', releaseOurs = null;
+        await page.route('**/api/call', async (route) => {
+          let action = '';
+          try { action = JSON.parse(route.request().postData() || '{}').action; } catch { /* not JSON */ }
+          if (action === 'sample.load') {
+            const response = await route.fetch();
+            await new Promise((done) => setTimeout(done, 700));
+            phase = 'ours';
+            return route.fulfill({ response });
+          }
+          if (action === 'snapshot' && phase === 'ours') { // the app's own refresh: answered only once a poll has overtaken it
+            phase = 'poll';
+            const response = await route.fetch();
+            await new Promise((done) => { releaseOurs = done; setTimeout(done, 4000); });
+            return route.fulfill({ response });
+          }
+          if (action === 'snapshot' && phase === 'poll') { // the poll that overtook it, answered 2 s later
+            phase = 'done';
+            const response = await route.fetch();
+            releaseOurs?.();
+            await new Promise((done) => setTimeout(done, 2000));
+            return route.fulfill({ response });
+          }
+          return route.continue();
+        });
+        await page.goto(running.server.url);
+        await page.locator('.first-run').waitFor({ timeout: 30000 });
+        await settleAnimations(page);
+        await drainLayoutStability(page);
+        await page.getByRole('button', { name: '载入示例并开始导览' }).click();
+        await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
+        await until(async () => phase === 'done', 'the overtaking poll');
+        await page.waitForTimeout(2500);
+        await settleAnimations(page);
+        await frames(page, 3);
+        assert.equal(await page.locator('.sample-banner').count(), 1, `${width}px: the sample banner is there`);
+        const log = await drainLayoutStability(page);
+        log.shifts = log.shifts.filter((shift) => !shift.sources.length || !shift.sources.every((source) => /sh-toast|top-right|topbar/.test(source.element)));
+        const layout = judgeLayoutStability(log, { maxCls: 0.01 });
+        assert.ok(layout.ok, `${width}px: the tour's home came in by moving the page: ${layout.message}`);
+        assert.deepEqual(errors, [], 'no console or page errors');
+        await context.close();
+      } finally { await running.close(); }
+    }
+  } finally {
+    await browser.close().catch(() => {});
+    await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+  }
+});
 
 test('the default tour is short and lit, the full tour is one button away, and Settings has one name', { timeout: 900000 }, async (t) => {
   let browser;

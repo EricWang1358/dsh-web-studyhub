@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
-import { createPreviewServer } from '../scripts/preview-server.mjs';
+import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
@@ -206,7 +206,8 @@ test('the first-run line from no model to the first question: one primary per st
 });
 
 /* The compact card (after 以后再说) with a long model label (a real provider's): every row stays inside the card and is cut with an ellipsis, and the rows sit
-   on the card's 32px ruling, at 1280 and 390 px. */
+   on the card's 32px ruling, at 1280 and 390 px. Then sources more than one run takes: 出第一组题 is greyed on the card with the reason and 改题型和题数 in
+   place of the summary (no 将从…, no estimate), still on the ruling. */
 test('the compact card keeps its rows inside the card and on its ruling, with a long model label', { timeout: 300000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
@@ -276,6 +277,31 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
         assert.equal((await card.locator('.sh-btn--primary').innerText()).trim(), '出第一组题');
         assert.ok(box.overflow <= 0, `${width}px: no sideways scroll`);
         await shot(page, `09-later-compact-long-label-${width}`);
+
+        /* ---- sources more than one run takes: never a button that does nothing when pressed ---- */
+        const half = '进程是资源分配的单位，线程是调度的单位。'.repeat(17500); // 350 000 characters each, 700 000 together: over the one-run limit
+        for (const title of ['整本教材 上册', '整本教材 下册']) await previewCall(running.server, 'source.add', { title, text: half });
+        await until(async () => (await card.locator('[data-first-run="blocked"]').count()) > 0, 'the card says why 出第一组题 is off', { timeoutMs: 30000 });
+        await settleAnimations(page);
+        const go = card.locator('.sh-btn--primary');
+        assert.equal((await go.innerText()).trim(), '出第一组题');
+        assert.ok(await go.isDisabled(), `${width}px: 出第一组题 is disabled over sources that are too big`);
+        const said = await card.innerText();
+        assert.match(said, /超过一次出题的上限/);
+        assert.doesNotMatch(said, /将从|正在估算|预计/, `${width}px: no summary or estimate over a selection that cannot be sent`);
+        assert.equal(await card.locator('[data-first-run="tune"]').innerText(), '改题型和题数');
+        const ruled = await card.evaluate((element) => {
+          const top = element.getBoundingClientRect().top, at = (selector) => { const own = element.querySelector(selector).getBoundingClientRect();
+            return { top: Math.round(own.top - top), height: Math.round(own.height), right: Math.round(own.right) }; };
+          return { reason: at('[data-first-run="blocked"]'), tune: at('[data-first-run="tune"]'), card: Math.round(element.getBoundingClientRect().right) };
+        });
+        for (const part of ['reason', 'tune']) {
+          assert.equal((ruled[part].top - 52) % 32, 0, `${width}px: the ${part} sits on the ruling: ${JSON.stringify(ruled)}`);
+          assert.equal(ruled[part].height % 32, 0, `${width}px: the ${part} takes whole ruled lines: ${JSON.stringify(ruled)}`);
+        }
+        assert.ok(ruled.reason.right <= ruled.card, `${width}px: the reason stays inside the card`);
+        assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll`);
+        await shot(page, `10-later-compact-too-big-${width}`);
         assert.deepEqual(errors.filter((error) => !/favicon|Failed to load resource/.test(error)), [], `${width}px: no console or page errors`);
         await context.close();
       } finally {

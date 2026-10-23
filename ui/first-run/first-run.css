@@ -70,6 +70,8 @@
     /* What the first deck will be, said before anything is spent (3.6 D4): 创建题组's summary sentence and its estimate line, in ink, not a card. */
     .frl-plan { display: grid; gap: var(--space-1); min-width: 0; }
     .frl-plan__line { margin: 0; color: var(--text); font-size: var(--fs-md); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* The estimate's slot keeps one line's height (the ghost line's) whether the estimate is asked, there, or not coming: none of them moves the button. */
+    .frl-plan__estimate { min-height: 32px; }
     /* One height for every state of the third step (ready with its summary and estimate, a run's card, a draft): late content never moves the page, and
        the run's card that comes in after 出第一组题 does not pull the bottom links up. */
     .frl-body[data-body="deck"] { min-height: 176px; }
@@ -139,6 +141,10 @@
       text-overflow: ellipsis;
     }
     .frl-compact-plan__estimate { color: var(--paper-dim); font-variant-numeric: tabular-nums; }
+    /* Over a selection that cannot be sent: the reason, wrapped on the ruled lines, then the quiet way it names, on a ruled line of its own. */
+    .frl-compact-plan__reason { margin: 0; color: var(--paper-ink); font-size: var(--fs-sm); line-height: var(--frl-rule); overflow-wrap: anywhere; }
+    .first-run-card .frl-compact-plan__tune { height: var(--frl-rule); color: var(--paper-dim); }
+    .first-run-card .frl-compact-plan__tune:hover { color: var(--paper-ink); }
   }
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {

@@ -14,7 +14,9 @@ const m = await loadUi(`export * from './ui/first-run/line.js';
   export { startGeneration } from './ui/generate-start.js';
   export { estimateRequestOf, generationRequest, summaryLine, selectionStats } from './ui/generate-form.js';
   export { generationFormDefaults } from './ui/generation-status.js';
-  export { importForLine, importHandoff } from './ui/app/import-handoff.js';
+  export { importForFirstRun, importForLine, importHandoff } from './ui/app/import-handoff.js';
+  export { useUsageEstimate } from './ui/TokenUsage.jsx';
+  export { refreshUntil } from './ui/app/use-tour.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
 const noop = () => {};
@@ -317,6 +319,25 @@ test('出第一组题 is disabled with the reason while no model is usable or th
   const big = page(m.firstRunLine(library({ sources: [mine] })), { plan: { ...PLAN, block: 'too-big' } });
   assert.match(generateButton(big), /disabled/);
   assert.match(text(big), /超过一次出题的上限：点「改题型和题数」/);
+  // A selection that cannot be sent as it is promises nothing, as 创建题组 says no summary over a button that is off: no 将从…, no estimate.
+  assert.doesNotMatch(text(big), /将从|正在估算|预计/, 'no summary or estimate over a blocked selection');
+  assert.doesNotMatch(big, /data-first-run="plan"/);
+  // The folded card: the same button, disabled with the same reason and the way it names; never a button that does nothing when pressed.
+  const ready = m.firstRunLine(library({ sources: [mine] }));
+  for (const block of ['too-big', 'reference']) {
+    const card = compact(ready, { plan: { ...PLAN, block }, on: { ...on, tune: noop } });
+    assert.match(card.match(/<button[^>]*today-go[^>]*>/)[0], /disabled/, `${block}: 出第一组题 is disabled on the card`);
+    assert.match(card, /data-first-run="blocked"/);
+    assert.match(text(card), block === 'too-big' ? /超过一次出题的上限/ : /参考样题和这些资料对不上/);
+    assert.doesNotMatch(text(card), /将从|正在估算|预计/, `${block}: no summary or estimate on the card`);
+    assert.match(card, /data-first-run="tune"[^>]*>改题型和题数</, `${block}: the way the reason names is on the card`);
+    assert.equal(primaries(card), 1);
+    assert.equal(m.compactAction(ready, on, { block }).blocked, m.generateBlockReason(ready.steps[2], { block }));
+  }
+  const free = compact(ready, { plan: PLAN, on: { ...on, tune: noop } });
+  assert.doesNotMatch(free.match(/<button[^>]*today-go[^>]*>/)[0], /disabled/, 'a selection that can go: pressable');
+  assert.doesNotMatch(free, /data-first-run="(blocked|tune)"/, 'and no extra link on the card');
+  assert.equal(m.compactAction(ready, on, PLAN).blocked, '');
   assert.equal(m.generateBlockReason({ modelReady: true }, PLAN), '');
   assert.match(m.generateBlockReason({ modelReady: true }, { block: 'reference' }), /参考样题/);
   // The pure test behind it: a selection over the one-run limit is 'too-big'; sample questions that overlap the materials are 'reference'.
@@ -377,8 +398,16 @@ test('the first import comes back to the line: no hop to 创建题组, the plain
   assert.equal(handoff.notice.text, '已导入「L.md」', 'nothing about a ticked form the learner is not on');
   assert.equal(m.importHandoff(open, { done: 1, sourceIds: [], decks: [{ title: 'D', cards: [{}] }] }), null, 'a JSON deck still opens as a draft');
   const [tour, views] = await Promise.all(['ui/app/use-tour.js', 'ui/app/page-views.jsx'].map((file) => readFile(file, 'utf8')));
-  assert.match(tour, /const openFirstImport = \(\) => setModal\(importForLine\(/);
-  assert.doesNotMatch(tour, /importForQuestions/, 'the line never hands the first import to 创建题组');
+  assert.match(tour, /const openFirstImport = \(\) => setModal\(importForFirstRun\(firstRunLine\(data\)\.show,/);
+  // The tour's 添加资料 for a learner whose line is gone (a deck of their own, or the tour from Settings): the old import, on to 创建题组 with the file ticked.
+  const toForm = [];
+  const old = m.importForFirstRun(false, { back: noop, goGenerate: (args) => toForm.push(args) });
+  assert.equal(old.line, undefined, 'not the line\'s import');
+  old.onImported(['x']);
+  assert.deepEqual(toForm, [{ sourceIds: ['x'], remember: true }]);
+  assert.match(m.importHandoff(old, { done: 1, sourceIds: ['x'], documents: [{ title: 'L.md', format: 'md' }], decks: [] }).notice.text, /已勾选，可以直接生成题组/);
+  const lined = m.importForFirstRun(true, { back: (ids) => back.push(ids), goGenerate: noop });
+  assert.equal(lined.line, true, 'while the line is up: back to the line');
   assert.match(views, /importFirst: tour\.openFirstImport, importMore: tour\.openFirstImport,/, '再加一份 comes back to the line too');
   assert.match(views, /addSource: \(\) => \(lineShown \? tour\.openFirstImport\(\)/, 'any 添加资料 on the home while the line is up');
 });
@@ -396,6 +425,46 @@ test('the compact card holds two ruled lines for the summary and the estimate wh
     assert.doesNotMatch(compact(m.firstRunLine(other), { plan: PLAN }), /frl-compact-plan/, 'only while the first deck is ready to be made');
 });
 
+test('正在估算… never sticks: an estimate that is not coming leaves no waiting words', () => {
+  m.setUiLanguage('zh');
+  const ready = m.firstRunLine(library({ sources: [mine] }));
+  for (const status of ['idle', 'error']) {
+    const plan = { ...PLAN, estimate: { status } };
+    const markup = page(ready, { plan });
+    assert.doesNotMatch(text(markup), /正在估算/, `${status}: page`);
+    assert.doesNotMatch(markup, /token-estimate__ghost/, `${status}: no ghost line`);
+    assert.match(text(markup), /将从 1 份资料出 12 题/, 'the summary stays');
+    const card = compact(ready, { plan });
+    assert.doesNotMatch(text(card), /正在估算|预计/, `${status}: card`);
+    assert.equal((card.match(/frl-compact-plan__line/g) || []).length, 2, 'the second ruled line stays, blank, so nothing under the card moves');
+  }
+});
+
+test('the usage estimate says "loading" from the first paint of a request it will ask, and nothing when it will not ask', () => {
+  const seen = [];
+  const Probe = ({ enabled, call }) => { seen.push(m.useUsageEstimate(call, { feature: 'generate', sourceIds: ['s1'] }, { enabled }).status); return null; };
+  renderToStaticMarkup(h(Probe, { enabled: true, call: async () => ({}) }));
+  renderToStaticMarkup(h(Probe, { enabled: false, call: async () => ({}) }));
+  renderToStaticMarkup(h(Probe, { enabled: true }));
+  assert.deepEqual(seen, ['loading', 'idle', 'idle']);
+});
+
+test('载入示例并开始导览 starts the tour only once the snapshot on screen has the sample: the banner never comes in late above the tour\'s home', async () => {
+  // A poll that overtook the refresh after sample.load drops that refresh's answer (ui/app/use-library-connection.js); the tour must not start on the old snapshot.
+  let shown = { sample: { loaded: false } }, calls = 0;
+  const refresh = async () => { calls++; if (calls >= 2) shown = { sample: { loaded: true } }; return shown; };
+  assert.equal(await m.refreshUntil(refresh, () => shown.sample.loaded), true);
+  assert.equal(calls, 2, 'asked again until the sample is on screen');
+  calls = 0;
+  assert.equal(await m.refreshUntil(refresh, () => true), true);
+  assert.equal(calls, 0, 'nothing more to ask when it is already there');
+  let never = 0;
+  assert.equal(await m.refreshUntil(async () => { never++; }, () => false, 3), false);
+  assert.equal(never, 3, 'bounded');
+  const tour = await readFile('ui/app/use-tour.js', 'utf8');
+  assert.match(tour, /if \(await loadSample\(\)\) \{ await refreshUntil\(refresh, \(\) => !!refs\.dataRef\.current\?\.sample\?\.loaded\); startTour\(\{ restart: true \}\); \}/);
+});
+
 test('English: the third step\'s new words have no Chinese left', () => {
   m.setUiLanguage('en');
   try {
@@ -403,7 +472,8 @@ test('English: the third step\'s new words have no Chinese left', () => {
     const noModel = { ...ready, steps: [ready.steps[0], ready.steps[1], { ...ready.steps[2], modelReady: false }] };
     const plan = { ...PLAN, summary: 'x' };
     for (const markup of [page(ready, { plan, on: { ...on, tune: noop } }), page(noModel, { plan }), page(ready, { plan: { ...plan, block: 'too-big' } }),
-      page(ready, { plan: { ...plan, block: 'reference' } }), compact(ready, { plan, todayLabel: 'Thu 22 Oct' })])
+      page(ready, { plan: { ...plan, block: 'reference' } }), compact(ready, { plan, todayLabel: 'Thu 22 Oct' }),
+      compact(ready, { plan: { ...plan, block: 'too-big' }, todayLabel: 'Thu 22 Oct', on: { ...on, tune: noop } })])
       assert.doesNotMatch(text(markup), han, text(markup).slice(0, 300));
   } finally { m.setUiLanguage('zh'); }
 });

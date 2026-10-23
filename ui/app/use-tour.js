@@ -4,8 +4,17 @@ import { hasContext, pageAvailable } from '../capabilities.js';
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from '../tour/steps.js';
 import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from '../tour/progress.js';
 import { practiceArgs } from '../learning-navigation.js';
-import { importForLine } from './import-handoff.js';
+import { importForFirstRun } from './import-handoff.js';
 import { firstRunLine } from '../first-run/line.js';
+
+/**
+ * Refresh until `seen()` holds for the snapshot on screen, at most `tries` times. A poll that overtakes a refresh drops that refresh's answer (only the newest
+ * request sets the snapshot, ui/app/use-library-connection.js) and brings its own a moment later; whoever waits for a write to show asks again.
+ */
+export async function refreshUntil(refresh, seen, tries = 20) {
+  for (let left = tries; !seen() && left > 0; left--) await refresh();
+  return !!seen();
+}
 
 /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────────
    Whether the first-run line was put away (以后再说), the sample course (sample.* host actions, C6) and the feature tour that switches to
@@ -44,9 +53,11 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     dismissWelcome(data.root);
     setHiddenWelcome(data.root);
   }
-  // The first import comes back to the first-run line (ui/app/import-handoff.js, 3.6 D4): its third step makes the first deck, so neither 创建题组 nor 资料
-  // with a toast to press is in the way. From elsewhere (the tour's last step ended on another page) it lands on the library home.
-  const openFirstImport = () => setModal(importForLine(() => { if (latest.current.page !== 'library') nav.show.page('library'); }));
+  // While the first-run line is up, the first import comes back to it (ui/app/import-handoff.js, 3.6 D4): its third step makes the first deck, so neither
+  // 创建题组 nor 资料 with a toast to press is in the way; from elsewhere (the tour's last step ended on another page) it lands on the library home. Once the
+  // line is gone (a deck of the learner's own), the tour's 添加资料 keeps the old way: on to 创建题组 with the file ticked.
+  const openFirstImport = () => setModal(importForFirstRun(firstRunLine(data).show, {
+    back: () => { if (latest.current.page !== 'library') nav.show.page('library'); }, goGenerate: intents.goGenerate }));
   /** The tour switches pages at once: no leave animation, no stale context trail, each step starts at the top of its page. */
   const showPage = (id) => nav.navigate(id, { keepTrail: false, enter: 'tour', scroll: true });
 
@@ -173,9 +184,11 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     }
   }
   // The line's own 载入示例并开始导览: the flag is set before the sample is written (a poll may bring it back first) and cleared together with the tour's first step.
+  // The tour starts only once the snapshot on screen has the sample: started on the old one (a poll overtook the refresh), its home was drawn without the
+  // sample banner, which then came in above it and pushed the whole page down (CLS 0.12 at 420 px under load).
   async function loadSampleAndTour() {
     setSampleForTour(true);
-    try { if (await loadSample()) startTour({ restart: true }); } finally { setSampleForTour(false); }
+    try { if (await loadSample()) { await refreshUntil(refresh, () => !!refs.dataRef.current?.sample?.loaded); startTour({ restart: true }); } } finally { setSampleForTour(false); }
   }
   async function loadSampleInTour() { if (await loadSample()) moveTour(1); }
   async function loadSampleOnly() { if (await loadSample()) notify({ text: ui('示例课程已载入，在学习库里就能看到。'), tone: 'success' }); }

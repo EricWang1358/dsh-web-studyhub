@@ -49,9 +49,10 @@ export function useFirstDeck({ data, gen, setGen, deck, reasoningEffort = '', se
   const course = ready ? gen.course ?? courseForSources({ sources: data.sources }, sourceIds, data.focus?.course || '', courseNamesOf(data)) : '';
   const request = ready ? estimateRequestOf(gen, { course, sourceIds, reasoningEffort }) : null;
   const block = ready ? firstDeckBlock({ sources: data.sources, sourceIds, gen }) : '';
-  const estimate = useUsageEstimate(call, request, { enabled: ready && sourceIds.length > 0 && block !== 'reference' });
+  // A selection that cannot be sent as it is (block) is neither summed up nor estimated, as 创建题组 says no summary over a button that is off: the line says why.
+  const estimate = useUsageEstimate(call, request, { enabled: ready && sourceIds.length > 0 && !block });
   const goal = estimate.status === 'ready' ? estimate.estimate?.coverage?.goal ?? null : null;
-  const summary = ready ? firstDeckSummary({ data, gen, sourceIds, goal }) : '';
+  const summary = ready && !block ? firstDeckSummary({ data, gen, sourceIds, goal }) : '';
   const start = () => (ready && !block && sourceIds.length && act ? startGeneration({ act, notify, setGen, data, gen, course, sourceIds }) : undefined);
   return { summary, estimate, block, start, sourceIds };
 }
