@@ -6,6 +6,8 @@ import { joinMeta } from '../format.js';
 import { continueLine, coveragePathText, forecastMath, nextRoundText, repeatingLine, runLine, runPathText, shortfallLine, shortfallWhy, stopText } from '../coverage/copy.js';
 import { forecastOf } from './task-facts.js';
 import RepeatingExplain from '../coverage/RepeatingExplain.jsx';
+import { HandOff } from '../hand-off/HandOff.jsx';
+import { FAILED_HAND_OFF_WHAT, failedHandOffInput } from './failed-hand-off.js';
 
 /* The line of a coverage run under the facts of its task: 「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 2.0M tok、约 25 分钟」; under it, once the draft is known, what it holds and what the next round does
    (the draft's SHORTFALL, lib/shortfall.js: 「已出 174/251 题 · 还有 18 个小节没有题」 and 「下一轮补 15 个小节，还剩 3 个」, the same words as the home row and the draft page), and, when the run has stopped,
@@ -16,8 +18,19 @@ import RepeatingExplain from '../coverage/RepeatingExplain.jsx';
    whose 已用 is the job's count as the line and the usage panel say it.
    That second line is there, one line high, for as long as the run is going, empty when there is nothing to say, so nothing moves when the numbers arrive or change.
    The sections that keep failing are one line (ui/coverage/copy.js repeatingLine) and, under it, an explanation to open: what happened to each with its numbers, why, and what to do (RepeatingExplain);
-   `onOpenSource(sourceId, offset)` and `onOpenSettings(section)` are the host's, and a control is drawn only when the host gave it. */
-export default function RunLine({ task, shortfall, now = Date.now(), onOpenSource, onOpenSettings }) {
+   `onOpenSource(sourceId, offset)` and `onOpenSettings(section)` are the host's, and a control is drawn only when the host gave it.
+   Under it, for ANY task that failed, was interrupted or was stopped (a question run, a transcription, a conversion, a translation), one quiet line hands it
+   to the main chat (the hand-off plan N9, the same rule as the card's link: ui/tasks/failed-hand-off.js); the console's header keeps its own buttons. */
+export default function RunLine(props) {
+  const failed = failedHandOffInput(props.task);
+  const line = <PlanLine {...props} />;
+  if (!failed) return line;
+  return <>{line}<div className="tc-handoff" data-failed-hand-off>
+    <HandOff id="job.failed" input={failed} lead="查原因、换条路做完：" what={FAILED_HAND_OFF_WHAT} />
+  </div></>;
+}
+
+function PlanLine({ task, shortfall, now = Date.now(), onOpenSource, onOpenSettings }) {
   const contract = contractOf(task), run = contract.detail?.run;
   const continuing = shortfall?.action === 'continue' && (!!shortfall.ended || ['failed', 'cancelled'].includes(contract.status));
   if (!run?.total) {

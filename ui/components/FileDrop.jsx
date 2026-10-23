@@ -169,7 +169,7 @@ export default function FileDrop({ accept = [], multiple = false, maxBytes, labe
             onFiles?.(result.accepted, result.rejected);
           }} />
       </div>
-      {rejected.length > 0 && <InlineMessage tone="warning" boxed className="sh-drop__rejects" onDismiss={() => setRejected([])} secondary={rejectAction?.(rejected) || undefined}
+      {rejected.length > 0 && <InlineMessage tone="warning" boxed className="sh-drop__rejects" actionsBelow onDismiss={() => setRejected([])} secondary={rejectAction?.(rejected) || undefined}
         title={uiFormat('{0} 个文件没有添加', [rejected.length])}>
         <ul>{rejected.map((item, index) => <li key={`${item.name}:${index}`}><span className="sh-drop__reject-name">{item.name}</span>{item.message}</li>)}</ul>
       </InlineMessage>}

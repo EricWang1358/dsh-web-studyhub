@@ -4,7 +4,7 @@
    Chinese, it opens the book and saves, into BOOK_SHOTS, <fixture>-<width>-<theme>-<shot>.png: top (the top of the first point), end (the end of it), ai-row (the
    folded AI row), more (the bar's 更多 menu open), bar-mid (scrolled into the middle of the first point: the bar stuck, its reading line part way), toc (the
    目录 open: the column at 1280, the slide-over at 420), lookup (the 速查页 dialog), edit and flip (更多 › 编辑这个知识点… and 翻看, with 「完成 · 回到阅读」), chat
-   (整本书 · 发给主会话…), placed (the point with a short explain block, in its place), placed-block (that block in the middle of the window), open-here (a
+   (整本书 · 发给主会话: it sends at once, the receipt it leaves), placed (the point with a short explain block, in its place), placed-block (that block in the middle of the window), open-here (a
    whole-point block open), mine-tip (the 我的 row with the explanation of its label), full (the whole page), notice (over a page limit of one page: the line under
    the bar), course (a second course added: the title's switcher open), and 问 AI: ask-panel, selection-toolbar, writing-line, landed-folded, deleted-undo
    (lookAtAi below). It prints one JSON line per fixture and width:
@@ -110,7 +110,7 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
     await save('lookup');
     await page.keyboard.press('Escape');
     await page.locator('dialog.book-lookup-dialog').waitFor({ state: 'detached', timeout: 30000 });
-    // 更多 › 编辑这个知识点… and 翻看 take the page's place with 「完成 · 回到阅读」; 整本书 · 发给主会话… opens in a dialog.
+    // 更多 › 编辑这个知识点… and 翻看 take the page's place with 「完成 · 回到阅读」; 整本书 · 发给主会话 sends at once and leaves its receipt.
     for (const [item, ready, shot] of [[/^编辑这个知识点/, '.book-editor .cm-content', 'edit'], [/^翻看/, '.book-flip', 'flip']]) {
       await page.locator('.book-bar__more').click();
       await page.getByRole('menuitem', { name: item }).click();
@@ -122,12 +122,11 @@ async function lookAt(browser, running, { kind, width, theme, shots }) {
       await page.locator('.book-bar').waitFor({ timeout: 30000 });
     }
     await page.locator('.book-bar__more').click();
-    await page.getByRole('menuitem', { name: /^发给主会话…/ }).click();
-    await page.locator('dialog.book-chat-dialog').waitFor({ timeout: 30000 });
-    await page.waitForTimeout(250);
+    await page.getByRole('menuitem', { name: /^发给主会话/ }).click();
+    await page.locator('.sh-toast--receipt').first().waitFor({ timeout: 30000 });
+    await page.waitForTimeout(600);
     await save('chat');
-    await page.keyboard.press('Escape');
-    await page.locator('dialog.book-chat-dialog').waitFor({ state: 'detached', timeout: 30000 });
+    await page.locator('.sh-toast--receipt .sh-toast__close').first().click().catch(() => {});
     await toTop(page);
     // The 目录: the column at 1280 (open by default), the slide-over at 420 (closed with Esc).
     if (width < 900) {

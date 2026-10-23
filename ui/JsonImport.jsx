@@ -6,14 +6,20 @@ import CourseField from './CourseField.jsx';
 import { Button, Checkbox, FileDrop, InlineMessage, Select, useToast } from './components/index.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { useStudy } from './study-context.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { useHandOff } from './hand-off/use-hand-off.js';
+import { pastedJsonInput, rejectedFilesInput } from './import-hand-off.js';
 
 export default function JsonImport({ data, openDraft }) {
   const { busy, act, call } = useStudy();
+  const handOff = useHandOff();
   const toast = useToast();
   const [text, setText] = useState("");
   const [kind, setKind] = useState("mixed");
   const [reading, setReading] = useState(false);
   const [message, setMessage] = useState("");
+  // The pasted text that did not pass the check (the hand-off plan N5): the error line hands it over; a file that could not be read is said without it.
+  const [invalid, setInvalid] = useState(null);
   const promptCopy = useCopyFeedback(() => importPrompt(kind, kinds[kind], getUiLanguage()));
   const [proposal, setProposal] = useState(null);
   const [proposing, setProposing] = useState(false);
@@ -45,13 +51,15 @@ export default function JsonImport({ data, openDraft }) {
         if (!(await promptCopy.copy())) setMessage(ui("无法访问剪贴板，请在上方文本框中手动复制提示词"));
       }}>{promptCopy.copied ? ui("提示词已复制") : ui("复制提示词")}</Button>
       <details><summary>{ui("查看 JSON 格式示例")}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{importExample(kind, getUiLanguage())}</pre></details>
+      <HandOff id="import.file" input={{ purpose: 'questions', area: '导入 JSON 题组' }} lead="题目在 Word、PDF 或 Excel 里：" shape="quiet"
+        what="让主会话把文件里的题按章原样整理成题组，存成草稿给你检查；文件在输入框里用 @ 选" />
     </fieldset>
     <form onSubmit={async (e) => {
       e.preventDefault();
       if (!proposal) {
         setProposing(true);
-        try { setProposal(await call("draft.import.propose", { text })); }
-        catch (error) { setMessage(error.message); }
+        try { setProposal(await call("draft.import.propose", { text })); setInvalid(null); }
+        catch (error) { setMessage(error.message); setInvalid({ text, error: error.message }); }
         finally { setProposing(false); }
       } else act("draft.import", { text, title: proposal.title, course: proposal.course,
         ...(merge && proposal.mergeTargetId ? { mergeTargetId: proposal.mergeTargetId } : {}) }, (deck) => {
@@ -62,8 +70,10 @@ export default function JsonImport({ data, openDraft }) {
       <fieldset><legend>{ui("02 / 导入题组")}</legend>
         <FileDrop compact accept={[".json", ".txt"]} maxBytes={2_000_000} busy={reading} disabled={busy || proposing}
           label={ui("把 JSON 题组文件拖到这里")} hint={ui("JSON 或内容为 JSON 的 TXT · 最大 2 MB")} buttonLabel={ui("读取 JSON / TXT 文件")}
+          rejectAction={rejections => handOff.action('import.file', rejectedFilesInput(rejections, { purpose: 'questions', area: '导入 JSON 题组' }),
+            { what: '让主会话把这些文件里的题原样整理成题组，存成草稿给你检查；文件在输入框里用 @ 选' })}
           onFiles={accepted => void readFile(accepted)} />
-        <label>{ui("JSON 内容")}<textarea rows={14} required value={text} disabled={busy || reading || proposing} onChange={(e) => { setText(e.target.value); setProposal(null); setMerge(false); }} placeholder={ui("{\"title\":\"题组名称\",\"cards\":[...]}")} /></label>
+        <label>{ui("JSON 内容")}<textarea rows={14} required value={text} disabled={busy || reading || proposing} onChange={(e) => { setText(e.target.value); setProposal(null); setMerge(false); setInvalid(null); }} placeholder={ui("{\"title\":\"题组名称\",\"cards\":[...]}")} /></label>
         {proposal && <div className="import-proposal">
           <p className="muted">{uiFormat("{0} · 原标题：{1}", [proposal.method === "ai" ? ui("AI 建议，请确认或修改") : ui("初步整理建议，请确认或修改"), proposal.originalTitle])}</p>
           <label>{ui("短标题")}<input value={proposal.title} onChange={(e) => setProposal({ ...proposal, title: e.target.value })} /></label>
@@ -75,6 +85,7 @@ export default function JsonImport({ data, openDraft }) {
         <Button type="submit" variant="primary" busy={reading || proposing} busyLabel={reading ? ui("正在读取文件…") : ui("正在整理建议…")} disabled={busy || !text.trim()}>{proposal ? ui("确认并导入草稿 →") : ui("检查并建议归类 →")}</Button>
       </fieldset>
     </form>
-    {message && <InlineMessage tone="error">{message}</InlineMessage>}
+    {message && <InlineMessage tone="error" secondary={invalid?.error === message ? handOff.action('import.file', pastedJsonInput(invalid.text, invalid.error),
+      { what: '让主会话按这个错误改好这段 JSON，存成草稿给你检查' }) : undefined}>{message}</InlineMessage>}
   </div>;
 }

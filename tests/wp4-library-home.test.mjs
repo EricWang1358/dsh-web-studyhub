@@ -53,8 +53,13 @@ test("an empty library asks for a first material, with JSON import as the second
   assert.equal(primaryLabel(html), "添加资料");
   assert.match(html, /<button[^>]*class="sh-btn sh-btn--link[^"]*"[^>]*>已有题目？导入 JSON 题组<\/button>/);
   assert.doesNotMatch(html, /还没有卡片/);
-  assert.doesNotMatch(html, /在对话中用工作区文件出题/, "a chat-only start is not offered without a chat");
-  assert.match(render({}, { canChat: true }), /在对话中用工作区文件出题/);
+  // A workspace file through the main chat (the shared 「发给主会话」, hand-off S3): offered with or without a chat (without one the message is copied), never primary.
+  for (const shown of [html, render({}, { canChat: true })]) {
+    assert.match(shown, /用工作区里的文件出题：/);
+    assert.match(shown, /data-hand-off="import\.file"/);
+    assert.doesNotMatch(shown, /在对话中用工作区文件出题/);
+  }
+  assert.equal(primaries(html), 1, "still one primary button");
 });
 
 test("an empty library hides advanced blocks", () => {
@@ -72,9 +77,15 @@ test("an empty library hides advanced blocks", () => {
 
 test("with materials and no decks the home offers to generate from them, counted per document", () => {
   const generated = [];
-  const html = render({ model: MODEL, sources: [...pdfPages, { id: "m", title: "笔记.md", text: "y" }] }, { generateFromSources: (ids) => generated.push(ids) });
+  // 出第一组题 runs the app's generate request (the line's firstRun.on.generate, 3.6 D4); the compact card says what it makes and its estimate first.
+  const firstRun = { form: "compact", on: { generate: (ids) => generated.push(ids) }, plan: { summary: "将从 2 份资料出 12 题 · 混合难度", estimate: { status: "loading" } } };
+  const html = render({ model: MODEL, sources: [...pdfPages, { id: "m", title: "笔记.md", text: "y" }] }, { firstRun });
   assert.equal(primaries(html), 1);
   assert.equal(primaryLabel(html), "出第一组题", "the first-run line's compact card (以后再说): one name for the third step");
+  assert.match(html, /将从 2 份资料出 12 题 · 混合难度/, "what will be made, before anything is spent");
+  assert.match(html, /正在估算…/, "and the estimate's line, held while it is asked");
+  // Without the app's request the card does not offer 出第一组题 as a way to open the form: one name, one meaning.
+  assert.equal(primaryLabel(render({ model: MODEL, sources: pdfPages }, { generateFromSources: noop })), undefined);
   assert.match(html, /笔记\.md 等 2 份资料 · 已添加/, "a PDF is one material");
   assert.doesNotMatch(html, /还没有卡片/);
   assert.match(html, /已有题目？导入 JSON 题组/);

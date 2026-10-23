@@ -58,15 +58,9 @@ export const ALLOW = {
   dialogCalls: [],
   /* No exceptions: CSS-generated text cannot be translated (the follow-up fold label is rendered in JSX, #160). */
   cjkContent: [],
-  /* The home page's first-run hand-off (plan item 5: 首页空状态, library.workspaceFile -> import.file) is still the old one: its page is being rewritten on another
-     branch (codex/3.6-first-run-line), so it moves to the shared unit after that lands. StudyMap.jsx only passes askInChat on to it. Delete both entries then. */
-  chatHandOff: [
-    { file: 'ui/StudyMap.jsx', issue: 'hand-off S2b: home first-run hand-off (plan item 5)' },
-    { file: 'ui/study-map/home-plan.js', issue: 'hand-off S2b: home first-run hand-off (plan item 5)' },
-  ],
-  chatOldWording: [
-    { file: 'ui/study-map/home-plan.js', issue: 'hand-off S2b: home first-run hand-off (plan item 5)' },
-  ],
+  /* No exceptions (hand-off S3): the empty home's workspace-file link, the last one, is import.file of the shared unit since 3.6.1. */
+  chatHandOff: [],
+  chatOldWording: [],
   /* Custom properties that no ui CSS or JS defines because the host or the runtime provides them. */
   undefinedVars: [
     /* Provided by the DSH host shell, never by StudyHub CSS (each use has a fallback). */

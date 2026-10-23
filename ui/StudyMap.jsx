@@ -38,7 +38,7 @@ import { AppContext } from "./app/app-context.js";
    progress and drafts, and the catalogue of decks by course. Each part lives in
    ui/study-map; this component wires the data to them and owns the few
    switches (search, archived, other and parked courses).
-   The services (call, act, busy, askInChat, host) come from useStudy(); what is left to pass is the
+   The services (call, act, busy, host) come from useStudy(); what is left to pass is the
    library snapshot and the verbs only the app can do:
      actions        { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual,
                       importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph,
@@ -47,16 +47,16 @@ import { AppContext } from "./app/app-context.js";
      notebooks      the cross-workspace notebook directory (useNotebooks: notebooks, notebookError, publish, unpublish, open,
                     loadNotebooks, search)
      reveal / onRevealed   scroll the progress card into view after a generation starts
-     firstRun       until the learner's first own deck is published, the first-run line (ui/first-run): { form: 'page' | 'compact', on } where `on` adds the
+     firstRun       until the learner's first own deck is published, the first-run line (ui/first-run): { form: 'page' | 'compact', on, plan } where `on` adds the
                     line's own verbs to the ones taken from `actions` (see FirstRunLine). 'page' is the whole home (the line, with the runs of its third step);
-                    'compact' puts the line's card in the today slot. Left out, the line is the compact card. */
+                    'compact' puts the line's card in the today slot; `plan` is the third step's summary and estimate (useFirstDeck). Left out, the line is the
+                    compact card. */
 export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
-  const { call, act, busy, askInChat, host } = useStudy();
+  const { call, act, busy, host } = useStudy();
   const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const toast = useToast();
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
-  const canChat = host.capabilities?.chat ?? !!host.askInChat;
   const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
     generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph, onCourseSettings, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
@@ -98,22 +98,24 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const shown = visibleGenerationJobs(jobs);
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-  const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, canChat, revealActivity,
-    actions: { start, resume, openDraft, addSource, importLibrary, askInChat, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } });
+  const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity,
+    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } });
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
   const deckActions = { start, resume, manage, restoreDeck, removeDeck };
   const line = useFirstRunLine(data);
-  const lineOn = { importFirst: addSource, generate: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
+  // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
+  const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
   if (line.show && firstRun?.form === "page") {
     // The first screen is the line alone: its third step carries the runs of the first deck (their cards are not drawn anywhere else on it), running first;
     // the line chose them, so a run that stands over its draft is carried even when newer finished jobs push it out of the home's recent cards.
     const carried = new Set(line.steps[2].jobIds), deckJobs = [...jobs.filter((job) => carried.has(job.id) && isActiveJob(job)), ...jobs.filter((job) => carried.has(job.id) && !isActiveJob(job))];
+    // Its own element (key): the home that replaces it (a tour, 以后再说, the first publish) is new content, not this page moved down under a banner.
     return (
-      <section className="page library-page map-page first-run-page" ref={pageRef}>
+      <section key="first-run" className="page library-page map-page first-run-page" ref={pageRef}>
         {children}
-        <FirstRunLine line={line} form="page" sample={data.sample} on={lineOn}
+        <FirstRunLine line={line} form="page" sample={data.sample} on={lineOn} plan={firstRun?.plan}
           jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
             start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
             retryGeneration={retryGeneration} openModelSettings={openModelSettings} topUpDraft={topUpDraft} /> : null} />
@@ -132,7 +134,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
         <DeskIntro data={data} home={home} mastery={mastery} role={role} busy={busy} start={start} resume={resume} endRun={endRun}
           onFocus={onFocus} onCourseSettings={onCourseSettings} onShowOutline={onShowOutline} suggestRole={suggestRole} />
         {line.show
-          ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} /></div>
+          ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} />}
       </div>
       {/* 待发布 is folded and sits under the day's work, not above it. */}

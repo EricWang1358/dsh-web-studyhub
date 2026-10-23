@@ -230,6 +230,21 @@ test("loading and removing the sample never calls the model (no quota spent)", a
   assert.equal(calls, 0);
 });
 
+test("a snapshot taken while the sample is loading says which decks are the sample's: the learner's first-run line never mistakes them for their own", async (t) => {
+  const { call, libraryRoot } = await start(t);
+  // The middle of a load: the sample deck is published, the marker still says "loading" (sample.status has no ids yet). A deck of the learner's own beside it.
+  await new Store(libraryRoot).update((state) => {
+    state.sampleLibrary = { version: 1, status: "loading", language: "zh" };
+    const at = new Date().toISOString();
+    state.decks.push({ id: "sample-deck", title: "示例题组", sample: true, cards: [], createdAt: at }, { id: "user-graphs", title: "Graph basics", cards: [], createdAt: at });
+  });
+  const snapshot = await call("snapshot");
+  assert.equal(snapshot.sample.loaded, false);
+  assert.equal(snapshot.sample.deckId, null);
+  assert.equal(snapshot.decks.find((deck) => deck.id === "sample-deck").sample, true, "the deck says it is the sample's");
+  assert.equal(Object.hasOwn(snapshot.decks.find((deck) => deck.id === "user-graphs"), "sample"), false, "a deck of the learner's own carries no sample flag");
+});
+
 test("a load interrupted half-way is cleaned up by the next load", async (t) => {
   const { call, libraryRoot } = await start(t);
   const store = new Store(libraryRoot);

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { pathBrief, MATTER_WORDS } from '../ui/generation-path-flow.js';
+import { MATTER_WORDS } from '../ui/generation-path-flow.js';
+import { loadUi } from './helpers/ui-module.mjs';
 import { CALL_PAGES, CALL_QUESTIONS } from '../lib/generation-path.js';
 
 /* 2.5.8: the brief that opens the conversation about the path. It carries the book page range of every step (so "p.55-76" can be mapped without guessing), how to get
@@ -18,6 +19,9 @@ const steps = (zh = true) => [
   { id: 'step-3', order: 3, title: zh ? 'Index … Colophon · 第 406–422 页' : 'Index … Colophon · Pages 406–422', sourceIds: ids(406, 422), pages: 17, chars: 29_750, count: 6, focus: '',
     ranges: [{ document: book, from: 406, to: 422 }], included: false, optional: true, matter: 'index' },
 ];
+// The brief as the registry lays it out ('path.brief', ui/agent-prompts/path.js).
+const { handOffText } = await loadUi(`export { handOffText } from './ui/agent-prompts/index.js';`);
+const pathBrief = ({ language, ...input }) => handOffText('path.brief', input, language);
 const brief = (language, extra = {}) => pathBrief({ steps: steps(language === 'zh'), course: 'SWE', goal: '', indexed: true, language, ...extra });
 
 test('every step carries the book pages it covers, so the learner\'s "p.55–76" can be mapped to pages without guessing', () => {
@@ -63,16 +67,17 @@ test('it tells the agent to look at a job with job.status, to report what it see
 
 test('a step that is optional or switched off is listed as one to skip (no ids), with what it is; the steps in use keep their ids', () => {
   const zh = brief('zh'), en = brief('en');
-  assert.match(zh, /第 3 步[^\n]*建议跳过/);
+  assert.match(zh, /^3\. [^\n]*建议跳过/m);
   assert.match(zh, new RegExp(MATTER_WORDS.index.zh));
   assert.ok(!zh.includes('src-410'), 'no page ids for a step to skip');
   assert.ok(zh.includes('src-6,src-7'), 'the ids of the steps in use');
-  assert.match(en, /Step 3[^\n]*skip/i);
+  assert.match(en, /^3\. [^\n]*skip/im);
   assert.match(en, new RegExp(MATTER_WORDS.index.en, 'i'));
+  assert.ok(en.includes(`(${MATTER_WORDS.index.en.toLowerCase()})`), 'the English matter word is lowercased inside the sentence');
   assert.ok(!en.includes('src-410'));
   // a step the learner switched off (not optional by nature) is skipped too, in words that say so
   const off = pathBrief({ steps: steps().map(step => step.id === 'step-2' ? { ...step, included: false } : step), course: '', goal: '', indexed: false, language: 'zh' });
-  assert.match(off, /第 2 步[^\n]*跳过/);
+  assert.match(off, /^2\. [^\n]*跳过/m);
 });
 
 test('English and Chinese carry the same things; the English brief has no Han at all', () => {
@@ -80,7 +85,7 @@ test('English and Chinese carry the same things; the English brief has no Han at
   for (const token of ['source.list', 'job.status', 'generate', 'source.search', String(CALL_PAGES), String(CALL_QUESTIONS), book, 'step-1'.replace('step-1', 'src-6')])
     for (const [name, text] of [['zh', zh], ['en', en]]) assert.ok(text.includes(token), `${name} brief is missing ${token}`);
   assert.doesNotMatch(en, /[㐀-鿿]/);
-  assert.match(en, /Do not generate anything until I confirm/);
+  assert.match(en, /nothing until I confirm/);
   assert.match(zh, /确认之前不要生成/);
 });
 

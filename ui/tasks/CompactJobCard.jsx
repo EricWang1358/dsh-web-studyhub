@@ -13,6 +13,8 @@ import { progressHint } from './task-facts.js';
 import { runningCalls, callLabel } from './call-model.js';
 import { resultOpener } from './task-actions.js';
 import { keepsOf } from './task-control.js';
+import { FAILED_HAND_OFF_WHAT, failedHandOffInput } from './failed-hand-off.js';
+import { HandOff } from '../hand-off/HandOff.jsx';
 
 /* The compact job card that replaces the big per-feature cards on the pages (音频转写, the home's question runs, PDF conversions): a status dot, the
    title and its percent, a thin bar, ONE status line, a stop (or 知道了) slot of fixed width and a primary button of fixed width, so the cards line up.
@@ -73,6 +75,8 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
     : { label: ui('查看详情'), run: openConsole });
   if (title) summary.title = title;
   const stoppable = contract.actions.cancel.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
+  // A run that failed, was interrupted or was stopped: 「发给主会话」 is the last quiet way on (the hand-off plan N8; the console's line is N9).
+  const handOff = failedHandOffInput(job, { line: line || cardLine(job) });
   const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={<span aria-hidden="true">→</span>} onClick={go.run}>{go.label}</Button>;
   return (
     <article className={['cjc', job.leaving && 'is-leaving', className].filter(Boolean).join(' ')} data-job-id={job.id} data-state={tone} aria-label={summary.title} {...rest}
@@ -93,10 +97,10 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
           : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('知道了：{0}', [summary.title])} onClick={dismiss}>{ui('知道了')}</Button> : null}
       </div>
       {/* The other ways on, as quiet links under the card ([{ label, run (or onClick), disabled, tip }]; tip: on hover and focus): the card keeps ONE primary button. */}
-      {links?.length > 0 && <div className="cjc__links">{links.map((link) => {
+      {(links?.length > 0 || handOff) && <div className="cjc__links">{(links || []).map((link) => {
         const button = <Button key={link.label} variant="link" size="sm" disabled={link.disabled} onClick={link.run ?? link.onClick}>{link.label}</Button>;
         return link.tip ? <Tooltip key={link.label} layer content={link.tip} anchorClassName="cjc__link-anchor">{button}</Tooltip> : button;
-      })}</div>}
+      })}{handOff && <HandOff id="job.failed" input={handOff} what={FAILED_HAND_OFF_WHAT} aria-label={uiFormat('发给主会话：{0}', [summary.title])} />}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}
       {dismissFailure && <InlineMessage className="cjc__problem" tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
       {/* `primary.tip`: what the button does first, on hover and focus (never a title attribute). */}

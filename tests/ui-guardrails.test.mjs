@@ -60,12 +60,12 @@ test('every var(--x) used in ui CSS is defined (#96)', () => {
     'define the token (ui/tokens.css or ui/components/components.css) or fix the name; host-provided variables go in ALLOW.undefinedVars with a reason');
 });
 
-/* The hand-off plan (S2b): the main chat is written to by the shared unit alone, and it has one name. Both are hard rules with no baseline. What ALLOW lists is the home
-   page's first-run hand-off, which another branch is rewriting (plan item 5); the entries go when it moves to ui/hand-off/. */
+/* The hand-off plan (S2b, S3): the main chat is written to by the shared unit alone, and it has one name. Both are hard rules with no baseline and, since the empty
+   home's workspace-file link moved to ui/hand-off/ (S3, plan item 5), no exception either. */
 test('askInChat is named only by the files that wire the service and by ui/hand-off/ (hand-off S2b)', () => {
   assert.deepEqual(scan.metrics.chatHandOff, {}, 'hand it over with useHandOff() / <HandOff> (ui/hand-off/) and an id of ui/agent-prompts/index.js; a page never calls askInChat');
   assert.deepEqual(baseline.chatHandOff, {}, 'no baseline for this rule: fix the page instead of recording it');
-  assert.deepEqual(ALLOW.chatHandOff.map((entry) => entry.file), ['ui/StudyMap.jsx', 'ui/study-map/home-plan.js'], 'only the home first-run hand-off (plan item 5) is excepted');
+  assert.deepEqual(ALLOW.chatHandOff, [], 'no exception: the last one (the empty home, plan item 5) moved to ui/hand-off/');
   // The wiring itself: the services bag in App.jsx, the one writer, the host adapter and the services list name it, and each really does.
   for (const file of ['ui/App.jsx', 'ui/app/use-app-core.js', 'ui/host/workspace.jsx', 'ui/study-context.jsx', 'ui/hand-off/use-hand-off.js'])
     assert.match(readFileSync(join(ROOT, file), 'utf8'), /\baskInChat\b/, `${file} wires askInChat`);
@@ -74,7 +74,7 @@ test('askInChat is named only by the files that wire the service and by ui/hand-
 test('the main chat has one name in the Chinese UI: 主会话 (hand-off S2b)', () => {
   assert.deepEqual(scan.metrics.chatOldWording, {}, 'say 主会话 (the button is 发给主会话); English stays "the main chat"');
   assert.deepEqual(baseline.chatOldWording, {}, 'no baseline for this rule');
-  assert.deepEqual(ALLOW.chatOldWording.map((entry) => entry.file), ['ui/study-map/home-plan.js'], 'only the home first-run hand-off (plan item 5) is excepted');
+  assert.deepEqual(ALLOW.chatOldWording, [], 'no exception: the last one (the empty home, plan item 5) says 发给主会话 now');
 });
 
 test('allow-list entries that no longer match anything are removed', () => {

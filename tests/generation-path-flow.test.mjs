@@ -1,10 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { failureGroups, pathBrief, queueSteps, selectedItems } from '../ui/generation-path-flow.js';
+import { failureGroups, queueSteps, selectedItems } from '../ui/generation-path-flow.js';
+import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 
 /* The flow around a step plan: the brief that opens a conversation (so the learner can shape the chapters with the AI), queuing the steps as generation jobs
    in order, and the documents of the selection the plan is made from. Pure; the call is injected. */
+
+// The brief as the registry lays it out ('path.brief', ui/agent-prompts/path.js).
+const { handOffText } = await loadUi(`export { handOffText } from './ui/agent-prompts/index.js';`);
+const pathBrief = ({ language, ...input }) => handOffText('path.brief', input, language);
 
 const steps = [
   { id: 'step-1', order: 1, title: '第 1 章 引言', sourceIds: ['p1', 'p2'], pages: 2, chars: 40_000, count: 8, focus: '概念辨析' },

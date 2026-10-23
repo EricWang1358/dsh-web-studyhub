@@ -3,8 +3,10 @@ import { ui } from '../i18n.js';
 import { aiBlocks } from '../../lib/course-book-ai-text.js';
 import { foldsByDefault } from './point-parts.js';
 import { pointCode } from './model.js';
+import { useSendToChat } from './send-to-chat.js';
 
-/* What each item of 「⋯ 更多」 (ui/book/BookMore.jsx) does on the review book page, and the fold state its two AI items name (收起 or 展开). */
+/* What each item of 「⋯ 更多」 (ui/book/BookMore.jsx) does on the review book page, and the fold state its two AI items name (收起 or 展开). 整本书 › 发给主会话
+   hands the whole book over at once (the shared unit fills the chat's input box; the learner adds a request there). */
 
 const blocksOf = node => (node && node.hid !== 'unplaced' ? aiBlocks(node.mine) : []);
 const allBlocks = book => (book?.status === 'ok' ? (function walk(list) { return (list || []).flatMap(node => (node.leaf ? blocksOf(node) : walk(node.children))); })(book.nodes) : []);
@@ -19,6 +21,7 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
   const pointBlocks = useMemo(() => blocksOf(step?.node), [step]);
   const bookBlocks = useMemo(() => allBlocks(book), [book]);
   const isFolded = aiFold.folded;
+  const sendBook = useSendToChat(course);
   const pointFold = useMemo(() => (pointBlocks.length ? { folded: pointBlocks.every(block => isFolded(block.id, foldsByDefault(block))) } : null), [pointBlocks, isFolded]);
   const bookFold = useMemo(() => (bookBlocks.length ? { folded: bookBlocks.every(block => isFolded(block.id, foldsByDefault(block))) } : null), [bookBlocks, isFolded]);
   const select = useCallback(async id => {
@@ -32,7 +35,8 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
     else if (id === 'flip') openView('flip');
     else if (id === 'today') setTodayOpen(value => !value);
     else if (id === 'exam-date' || id === 'settings') onCourseSettings?.(courseRecord?.id);
+    else if (id === 'chat') await sendBook({ scope: 'book', language: book?.language });
     else setDialog(id);
-  }, [step, course, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord]);
+  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, sendBook]);
   return { select, pointFold, bookFold };
 }

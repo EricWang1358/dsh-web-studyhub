@@ -6,6 +6,8 @@ import { useStudy } from '../study-context.jsx';
 import { modelSetupCopy } from '../ModelSetupGate.jsx';
 import { useModelSettingsLabel } from '../ModelErrorNote.jsx';
 import { CORE_TOUR_LENGTH } from '../tour/steps.js';
+import { TokenEstimateView } from '../TokenUsage.jsx';
+import { rangeTok } from '../token-usage.js';
 import css from './first-run.css';
 
 /* The first-run line (3.6 D2): 配模型 → 加资料 → 做第一组, drawn from firstRunLine (ui/first-run/line.js). ONE component in two forms:
@@ -13,11 +15,14 @@ import css from './first-run.css';
      compact   the card in the home's today slot after 「以后再说」 (and while a tour shows the home): the three rows and the open step's button
    Each step is one row: its number or ✓ and one sentence. Only the open step has a body, and the body has at most ONE primary (cinnabar) button; the third
    step's body keeps one height through its states (ready, generating, a draft), so a run finishing does not move the page.
-   `on` holds what the buttons do: { recheck, openModelSettings, importFirst, importMore(ownIds), generate(sourceIds), publish(draft), openDraft(draft),
-   startSample, later }. A missing handler draws no button. `jobs` is the run card(s) of the third step (the home's compact job cards, moved here: they are
-   not drawn anywhere else on the first screen).
-   Seam (D4): step 3's 「出第一组题」 calls on.generate(sourceIds), which goes to 创建题组 with the material ticked; generating straight from the line replaces
-   that handler. Seam (发给主会话, #453): when an import fails, step 2 is where the shared hand-off unit (ui/hand-off/) goes, beside the import's own message. */
+   `on` holds what the buttons do: { recheck, openModelSettings, importFirst, importMore(ownIds), generate(sourceIds), tune(sourceIds), publish(draft),
+   openDraft(draft), startSample, later }. A missing handler draws no button. `jobs` is the run card(s) of the third step (the home's compact job cards, moved
+   here: they are not drawn anywhere else on the first screen).
+   Step 3 makes the first deck from the line (3.6 D4, option A): `plan` ({ summary, estimate, block }, ui/first-run/use-first-deck.js) says what will be made
+   and its usage estimate before anything is spent, both 创建题组's own; 「出第一组题」 (on.generate) runs that request and is only ever pressed by the learner
+   (disabled, with the reason, while no model is usable or the selection needs 创建题组); the quiet 「改题型和题数」 (on.tune) opens 创建题组 with the materials
+   ticked. 发给主会话 (#453): step 2's 添加资料 and 再加一份 open the one import dialog (ImportHub, importForLine); a file that does not import is said there,
+   and that dialog's summary and drop zone carry the shared hand-off unit (ui/hand-off/, ui/import-hand-off.js). The line draws no second one. */
 
 /** One sentence per step and state: what the row says. */
 export function stepSentence(step) {
@@ -45,13 +50,14 @@ export function stepSentence(step) {
  * The one action of the open step in the compact card (the page form says more in the step's body). null: nothing to press here. The button always belongs to
  * the step the card marks: while the model is that step its setup is in DSH (the row says so), so the card offers no other step's button; a run's card (on the
  * home, beside this one) carries a run that is going or that stands; a run that stands without its card leaves the draft as the way on.
+ * `plan` is the third step's (useFirstDeck): 出第一组题 carries `blocked`, the reason it cannot be pressed ('' when it can), as the page form's button does.
  */
-export function compactAction(line, on = {}) {
+export function compactAction(line, on = {}, plan = null) {
   const [, material, deck] = line.steps;
   if (line.step === 0) return null;
   if (deck.status === 'stopped') return !deck.jobIds.length && on.openDraft ? { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) } : null;
   if (material.status === 'todo' && on.importFirst) return { label: ui('添加资料'), run: on.importFirst };
-  if (deck.status === 'ready' && on.generate) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds) };
+  if (deck.status === 'ready' && on.generate && deck.modelReady) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds), blocked: generateBlockReason(deck, plan) };
   if (deck.status === 'draft-clean' && on.publish) return { label: ui('发布并开始练'), run: () => on.publish(deck.draft) };
   if (deck.status === 'draft-review' && on.openDraft) return { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) };
   return null;
@@ -107,7 +113,28 @@ function MaterialBody({ on }) {
   );
 }
 
-function DeckBody({ step, on, jobs }) {
+/** Why 出第一组题 cannot be pressed, or '': no usable model (step 1 says how), or a selection 创建题组 has to settle (more than one run takes, sample questions that do not fit). */
+export function generateBlockReason(step, plan) {
+  if (!step.modelReady) return ui('还没有可用的 AI 模型，先完成第 1 步。');
+  if (plan?.block === 'too-big') return ui('这些资料超过一次出题的上限：点「改题型和题数」，在创建题组里分步出题或按主题选页。');
+  if (plan?.block === 'reference') return ui('选好的参考样题和这些资料对不上：点「改题型和题数」，在创建题组里调整。');
+  return '';
+}
+
+/** What will be made and what it is expected to cost, said before anything is spent: 创建题组's summary sentence and its estimate line (the room of both is
+    held while the estimate is asked, so its arrival moves nothing). An estimate that is not coming (nothing to estimate, or it could not be made) leaves no
+    line, as on 创建题组; its slot keeps the line's height, so that moves nothing either. Not drawn over a selection that cannot be sent (the reason is said). */
+function DeckPlan({ plan }) {
+  const status = plan?.estimate?.status;
+  return (
+    <div className="frl-plan" data-first-run="plan">
+      <p className="frl-plan__line">{plan?.summary || '\u00a0'}</p>
+      <div className="frl-plan__estimate">{(status === 'loading' || status === 'ready') && <TokenEstimateView state={plan.estimate} tight />}</div>
+    </div>
+  );
+}
+
+function DeckBody({ step, on, jobs, plan }) {
   const { busy } = useStudy();
   const { status, draft } = step;
   // A run that stands over its draft: its card is the story and carries the one way on (接着做, 去配置模型, 为没覆盖的部分补题, or 检查草稿). Without the card
@@ -143,13 +170,46 @@ function DeckBody({ step, on, jobs }) {
       </div>}
     </>
   );
+  // Ready (or nothing to make it from yet, which no open step shows): what will be made, its estimate, then the one button the learner presses.
+  const blocked = generateBlockReason(step, plan);
   return (
     <>
-      <p className="frl-body__text">{ui('在「创建题组」里，这份资料已经勾好；确认题型和题数，AI 出题后会逐题检查，再交给你确认。')}</p>
-      {on.generate && <div className="frl-body__actions">
-        <Button variant="primary" iconEnd="arrow-right" disabled={busy} data-first-run="generate" onClick={() => on.generate(step.sourceIds)}>{ui('出第一组题')}</Button>
+      <p className="frl-body__text">{ui('出题时会逐题核对原文、审阅，出好的题先放进草稿。')}</p>
+      {plan && !blocked && <DeckPlan plan={plan} />}
+      {(on.generate || on.tune) && <div className="frl-body__actions">
+        {on.generate && <Button variant="primary" iconEnd="arrow-right" disabled={busy || !!blocked} data-first-run="generate" data-usage="first-run.generate"
+          onClick={() => on.generate(step.sourceIds)}>{ui('出第一组题')}</Button>}
+        {on.tune && <Button variant="link" className="first-run__link" disabled={busy} data-first-run="tune" onClick={() => on.tune(step.sourceIds)}>{ui('改题型和题数')}</Button>}
       </div>}
+      {blocked && on.generate && <Hint data-first-run="blocked">{blocked}</Hint>}
     </>
+  );
+}
+
+/** The compact card's two ruled lines under the rows while the first deck is ready to be made: what will be made, and the estimate's tokens (the first half of
+    创建题组's estimate line; the number of calls is in the page form and on 创建题组), held while it is asked; an estimate that is not coming leaves the second
+    ruled line blank (it stays, so nothing under the card moves). */
+function CompactPlan({ plan }) {
+  const status = plan?.estimate?.status, estimate = status === 'ready' ? plan.estimate.estimate : null;
+  return (
+    <div className="frl-compact-plan" data-first-run="plan">
+      <p className="frl-compact-plan__line">{plan?.summary || '\u00a0'}</p>
+      <p className="frl-compact-plan__line frl-compact-plan__estimate" aria-live="polite">{estimate ? `${ui('预计')} ${rangeTok(estimate.totalTokens)}`
+        : status === 'loading' ? ui('正在估算…') : '\u00a0'}</p>
+    </div>
+  );
+}
+
+/** The compact card over a selection that cannot be sent as it is: instead of the summary, the reason 出第一组题 is off (on the card's ruled lines), and the
+    quiet way that reason names (改题型和题数), as in the page form. */
+function CompactBlocked({ reason, sourceIds, on }) {
+  const { busy } = useStudy();
+  return (
+    <div className="frl-compact-plan frl-compact-plan--blocked">
+      <p className="frl-compact-plan__reason" data-first-run="blocked">{reason}</p>
+      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" disabled={busy} data-first-run="tune"
+        onClick={() => on.tune(sourceIds)}>{ui('改题型和题数')}</Button>}
+    </div>
   );
 }
 
@@ -161,13 +221,14 @@ function RowLink({ step, on }) {
   return null;
 }
 
-function Steps({ line, on, jobs, compact }) {
+function Steps({ line, on, jobs, compact, plan }) {
   return (
     <ol className="frl-steps" aria-label={ui('第一组题的三步')}>
       {line.steps.map((step, index) => {
         const open = !compact && index === line.step;
         return (
-          <li key={step.id} className="frl-step" data-step={step.id} data-status={step.status} data-open={open || undefined} aria-current={index === line.step ? 'step' : undefined}>
+          <li key={step.id} className="frl-step" data-step={step.id} data-status={step.status} data-open={open || undefined} aria-current={index === line.step ? 'step' : undefined}
+            {...(step.id === 'material' ? { 'data-tour': 'first-run-material' } : {})}>
             <div className="frl-step__row">
               <Mark index={index} done={step.status === 'done'} />
               <span className="frl-step__text">{stepSentence(step)}</span>
@@ -176,7 +237,7 @@ function Steps({ line, on, jobs, compact }) {
             {open && <div className="frl-body" data-body={step.id}>
               {step.id === 'model' ? <ModelBody step={step} on={on} />
                 : step.id === 'material' ? <MaterialBody on={on} />
-                  : <DeckBody step={step} on={on} jobs={jobs} />}
+                  : <DeckBody step={step} on={on} jobs={jobs} plan={plan} />}
             </div>}
           </li>
         );
@@ -187,14 +248,15 @@ function Steps({ line, on, jobs, compact }) {
 
 /**
  * line: firstRunLine's answer (nothing is drawn unless `show`); form: 'page' | 'compact'; sample: data.sample (the quiet link to the sample tour needs a host
- * that has one, not loaded yet); todayLabel: the compact card's date.
+ * that has one, not loaded yet); todayLabel: the compact card's date; plan: the third step's summary and estimate (useFirstDeck), drawn while it is ready.
  */
-export default function FirstRunLine({ line, form = 'page', sample, todayLabel, jobs = null, on = {} }) {
+export default function FirstRunLine({ line, form = 'page', sample, todayLabel, jobs = null, on = {}, plan = null }) {
   useInjectCss(css, 'study-first-run');
   const { busy } = useStudy();
   if (!line?.show) return null;
   if (form === 'compact') {
-    const action = compactAction(line, on);
+    const action = compactAction(line, on, plan), deck = line.steps[2];
+    const planned = plan && line.step === 2 && deck.status === 'ready' && deck.modelReady;
     return (
       <div className="today-card sh-paper-card first-run-card" data-first-run="compact">
         <div className="today-card-head frl-head">
@@ -202,7 +264,8 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
           {todayLabel && <time>{todayLabel}</time>}
         </div>
         <Steps line={line} on={on} compact />
-        {action && <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={busy} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
+        {planned && (action?.blocked ? <CompactBlocked reason={action.blocked} sourceIds={deck.sourceIds} on={on} /> : <CompactPlan plan={plan} />)}
+        {action && <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={busy || !!action.blocked} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
       </div>
     );
   }
@@ -215,7 +278,7 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
         <p className="first-run__lead">{ui('把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。')}</p>
         <p className="first-run__sub">{ui('开源免费，资料存在你电脑上；模型自己选，按用量付费。')}</p>
       </header>
-      <Steps line={line} on={on} jobs={jobs} />
+      <Steps line={line} on={on} jobs={jobs} plan={plan} />
       <footer className="first-run__footer">
         {offerSample && <span className="first-run__sample">
           <span>{ui('想先看看效果？')}</span>

@@ -8,6 +8,7 @@ import CourseHeading from './CourseHeading.jsx';
 import OutlineEntry from './OutlineEntry.jsx';
 import RoleSuggestion from './RoleSuggestion.jsx';
 import MasteryBar from './MasteryBar.jsx';
+import { HandOff } from '../hand-off/HandOff.jsx';
 import { META_DOT } from '../format.js';
 
 /** The mastery of the current course (and the whole library when it differs), with what the words mean on hover. */
@@ -73,7 +74,8 @@ export default function DeskIntro({ data, home, mastery, role, busy, start, resu
       </p>
       {plan.kind === 'empty' && plan.also.length > 0 && (
         <p className="desk-also">
-          {plan.also.map(([label, run]) => <Button key={label} variant="link" disabled={busy} onClick={run}>{label}</Button>)}
+          {plan.also.map((entry) => (Array.isArray(entry) ? <Button key={entry[0]} variant="link" disabled={busy} onClick={entry[1]}>{entry[0]}</Button>
+            : <HandOff key={entry.handOff.id} id={entry.handOff.id} input={entry.handOff.input} lead={entry.handOff.lead} what={entry.handOff.what} disabled={busy} />))}
         </p>
       )}
       {plan.kind !== 'empty' && alternatives.length > 0 && (

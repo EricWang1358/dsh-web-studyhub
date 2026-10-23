@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ui, uiMessage } from './i18n.js';
 import { ToastRegion } from './components/Feedback.jsx';
+import { Seal } from './hand-off/Receipt.jsx';
 
 // Keep the existing string/action-object protocol. Each submission gets its
 // own lifetime, including a repeated confirmation with identical text.
@@ -51,13 +52,15 @@ const toObject = value => typeof value === 'string' ? { text: value } : value ||
 const actionOf = (value, busy) => value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled };
 
 /** A notice as the toast the region draws. An undo offer (`undo`, with `timeout`) may leave by itself but is held while hovered or focused.
-    `title`: a heading line; `copy`: the text is something to copy as it is (the whole prompt of a 发给主会话 the clipboard refused), never translated. */
+    `title`: a heading line; `copy`: the text is something to copy as it is, never translated. `receipt`: the outcome of a 「发给主会话」 (ui/hand-off/):
+    its seal, its own timeout, and one fixed key, so a newer receipt takes the slip that is up in place (`stamp`, the notice's own key, presses it again). */
 export function noticeToToast(notice, busy) {
   const value = toObject(notice);
-  return { id: 'notice', key: `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
+  const receipt = value.receipt ? { receipt: value.receipt, seal: <Seal outcome={value.receipt} />, stamp: value.key } : {};
+  return { id: 'notice', key: value.receipt ? 'notice:hand-off' : `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
     ...(value.title ? { title: uiMessage(value.title) } : {}),
     message: value.copy ? String(value.text ?? '') : uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
-    ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), action: actionOf(value, busy) };
+    ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), ...receipt, action: actionOf(value, busy) };
 }
 
 export function errorToToast(error, busy) {

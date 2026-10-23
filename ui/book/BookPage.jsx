@@ -18,7 +18,7 @@ import BookChapter from './BookChapter.jsx';
 import BookStep from './BookStep.jsx';
 import BookAskLayer from './BookAskLayer.jsx';
 import BookExport from './BookExport.jsx';
-import { ChatDialog, EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
+import { EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
 import { useBookData } from './use-book-data.js';
@@ -127,7 +127,6 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} onClose={() => setDialog(null)} />}
     {dialog === 'lookup' && <LookupDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
-    {dialog === 'chat' && <ChatDialog course={course} onClose={() => setDialog(null)} />}
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
   </>;
   if (view === 'edit') return <section className="page book-page" ref={pageRef}>{header}

@@ -342,6 +342,8 @@ export const TOUR_STEPS = [
     await j.settle();
     await j.shot("home-banner");
     await j.nav("settings");
+    // The sample controls are in Settings › 学习画像与导览, not in the category Settings opens on.
+    await j.page.locator('.settings-nav__item[data-category="profile"]').first().click();
     await j.anchor("settings-sample").scrollIntoViewIfNeeded();
     await j.settle();
     await j.shot("settings");

@@ -247,6 +247,8 @@ export function apply(ctx, registerDocumentLearning) {
             }
           : undefined,
         openDocument: path => ctx.get('sidebarRight')?.openResource(sessionFileAddress(sessionId, path)),
+        // 发给主会话's 去主会话 (a kept receipt): the same switch askInChat makes after it fills the box; absent where this DSH cannot show the chat.
+        showChat: (placement === "page" ? typeof ctx.get("layout")?.selectPanel === "function" : typeof openView === "function") ? () => showChat() : undefined,
         // Cross-workspace jump: create a new conversation in the notebook's
         // own workspace and select it; the study tab there opens that library.
         // Throws at call time when the host lacks the sessions create face.

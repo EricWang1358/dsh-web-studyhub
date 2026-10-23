@@ -174,7 +174,7 @@
 | `draft.import {text, title?, course?, mergeTargetId?}` | 在同一事务中保存导入资料和新草稿 |
 | `draft.publish.quick {id, draftVersion, mergeTargetId?}` | 「发布并开始练」在保存草稿后调用；只做结构检查，发布全部题目 |
 | `draft.publish` / `draft.publish.start` | 逐题审核后发布，后者作为后台任务运行 |
-| `deck.import {path \| paths \| text, folder?, course?, into?}` | 从磁盘导入文件并直接发布，规则见上一节 |
+| `deck.import {path \| paths \| text, folder?, course?, into?, draft?}` | 从磁盘导入文件并直接发布，规则见上一节；`draft: true` 时不发布，每个文件存成草稿等你「检查草稿」，结果里给出 `draftId`；已在这个题组的草稿里等着的题会跳过 |
 
 各题型的完整示例在 `ui/json-prompts.js`。主对话如何调用这些操作，见[在主对话中查询资料与题组](main-session-queries.zh-CN.md)。
 

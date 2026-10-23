@@ -42,6 +42,7 @@ import { useSettingsEntry } from './app/use-settings-entry.js';
 import { useSourceImport } from './app/use-source-import.js';
 import { useSelectionNotices } from './app/use-selection-notices.js';
 import { useHostLinks } from './app/use-host-links.js';
+import HandOffSheet from './hand-off/HandOffSheet.jsx';
 import { useTour } from './app/use-tour.js';
 import { freshGeneration, initialGeneration, useLibraryConnection } from './app/use-library-connection.js';
 import { useReviewSession } from './review/useReviewSession.js';
@@ -151,6 +152,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                       onRemoveSample={data.sample?.loaded ? () => tour.endTour({ then: () => tour.setRemovingSample(true) }) : undefined} />
                   )}
                   <AppModalHost />
+                  {core.handOffSheet && <HandOffSheet key={core.handOffSheet.text} sheet={core.handOffSheet} onClose={core.closeHandOffSheet} />}
                 </div>
               </AppContext.Provider>
             </ModelSettingsContext.Provider>
