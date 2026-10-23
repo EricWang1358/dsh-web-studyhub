@@ -81,6 +81,18 @@ test('the figures are optional: no coverage, no version, no files', () => {
   assert.match(ui.handOffText('book.edit', { course: 'SA', hid: 'h1', coverage: { opened: 2, pages: 4, concepts: { covered: 3, total: 4 } }, scope: 'point' }, 'en'), /required concepts covered 3\/4/);
 });
 
+test('the marker for text beyond the materials: only the book\'s own when its language is known, both when it is not', () => {
+  const rules = (text) => text.split('\n').find(line => /^- (规则：|Rules:)/.test(line));
+  assert.match(rules(ui.handOffText('book.edit', { ...point, bookLanguage: 'zh' }, 'zh')), /资料以外的内容标（资料以外）；/);
+  assert.doesNotMatch(rules(ui.handOffText('book.edit', { ...point, bookLanguage: 'zh' }, 'zh')), /beyond the materials/);
+  const enBook = ui.handOffText('book.edit', { ...point, bookLanguage: 'en' }, 'en');
+  assert.match(rules(enBook), /mark what goes beyond the materials with \(beyond the materials\);/);
+  assert.equal(han.test(enBook), false, 'an English book: no Chinese marker in the English message');
+  // a Chinese book handed over from the English UI names the Chinese marker only; an unknown language names both
+  assert.match(rules(ui.handOffText('book.edit', { ...point, bookLanguage: 'zh' }, 'en')), /with （资料以外）;/);
+  assert.match(rules(ui.handOffText('book.edit', point, 'zh')), /（资料以外）或 \(beyond the materials\)/);
+});
+
 test('English: every sentence is English (the learner\'s words and the tool names stay as they are)', () => {
   const text = english(() => ui.handOffText('book.edit', { ...point, instruction: 'Explain it more slowly' }, 'en'));
   assert.ok(text.startsWith('Please change `Quality attributes` in my Review book as I ask below:\n```request My request\nExplain it more slowly\n```\n'), text);

@@ -73,6 +73,7 @@
   "资料页已读 {0}/{1}（哪几页见 book.coverage）": "material pages read {0}/{1} (book.coverage shows which)",
   "必讲概念讲到 {0}/{1}（缺的见 book.coverage 的 concepts.missing，补时用资料原名）": "required concepts covered {0}/{1} (book.coverage lists the missing ones in concepts.missing; use the materials’ own names)",
   "规则：先用 source.pages 读资料页再写；引文只用能核对的脚注；资料以外的内容按书的语言标（资料以外）或 (beyond the materials)；一次只写一个小节。": "Rules: read the material pages with source.pages before you write; quote only in footnotes that can be checked; mark what goes beyond the materials in the book’s language, (beyond the materials) or （资料以外）; write one section at a time.",
+  "规则：先用 source.pages 读资料页再写；引文只用能核对的脚注；资料以外的内容标{0}；一次只写一个小节。": "Rules: read the material pages with source.pages before you write; quote only in footnotes that can be checked; mark what goes beyond the materials with {0}; write one section at a time.",
   "做完：告诉我改了哪些知识点（编号和标题）；每次改动都留着上一版，可以用 course.book.revert 回退。": "When done: tell me which points changed (number and title); every change keeps the previous version, so course.book.revert can undo it.",
   "接下来我会在这里贴题目，帮我直接录进题组 {0}。": "From here on I will paste questions in this chat; please record them straight into the deck {0}.",
   "录入：用 study_workspace 的 ingest 直接录进学习库，不用再问我确认{0}。": "Record: add them to the library with study_workspace ingest, without asking me to confirm again{0}.",
@@ -209,13 +210,13 @@
   "范围：只动课程 {0} 的主题；其他课程的主题和主题组保持原样。": "Scope: only the course {0}; other courses’ topics and topic groups stay as they are.",
   "改做：如果我在最后说要把全部主题重新归并，就改做那个：用 skeleton.topics {0} 分页读全部主题（按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save {1} 保存。": "Instead: if I say at the end that I want all topics regrouped, do that instead: read all topics page by page with skeleton.topics {0} (following nextOffset), regroup them into 12–30 topic groups and save with topic.groups.save {1}.",
   "改做：如果我在最后说要把课程 {2} 的全部主题重新归并，就改做那个：用 skeleton.topics {0} 分页读这门课的全部主题（按 nextOffset 继续），重新归并成 12–30 个主题组，用 topic.groups.save {1} 保存；其他课程的主题和主题组保持原样。": "Instead: if I say at the end that I want all topics of the course {2} regrouped, do that instead: read all of that course’s topics page by page with skeleton.topics {0} (following nextOffset), regroup them into 12–30 topic groups and save with topic.groups.save {1}; other courses’ topics and topic groups stay as they are.",
-  "已填进主会话的输入框": "In the main chat’s input box",
-  "看一眼，再由你按发送": "Check it, then press send yourself",
-  "输入框里你写的字都留着": "Your text in the main chat is untouched",
-  "这段已复制，粘贴到合适的位置": "This is copied: paste it where it fits",
+  "已填进主会话的输入框": "In the main chat’s box",
+  "看一眼，再由你按发送": "Check it, then press send",
+  "输入框里你写的字都留着": "Your typed text is kept",
+  "这段已复制，粘贴到合适的位置": "Copied: paste it where it fits",
   "去主会话": "Go to the main chat",
   "已复制到剪贴板": "Copied to the clipboard",
-  "没找到主会话，粘贴到任意对话": "No main chat found: paste it into any chat",
+  "没找到主会话，粘贴到任意对话": "No main chat: paste it anywhere",
   "看看内容": "See it",
   "请手动复制": "Copy it by hand",
   "剪贴板不让用": "The clipboard was refused",
@@ -226,5 +227,5 @@
   "已全选，按 {0} 复制": "All selected: press {0} to copy",
   "点这里全选，再长按复制": "Tap here to select all, then long-press to copy",
   "复制不了？全选后按 {0}": "Can’t copy? Select all, then press {0}",
-  "给助手的定位信息 · {0} 行": "Notes for the assistant · {0} lines"
+  "StudyHub 附注（给助手）· {0} 行": "StudyHub notes (for the assistant) · {0} lines"
 }

@@ -77,7 +77,7 @@ export async function handOffStep(page, { lang = 'zh', model, shot = async () =>
   const receipt = page.locator('.sh-toast--receipt[data-receipt="kept"]').first();
   await receipt.waitFor({ timeout: 10000 });
   result.keptReceipt = { title: await receipt.locator('.sh-toast__title').innerText(), action: await receipt.locator('.sh-toast__action').allInnerTexts() };
-  if (result.keptReceipt.title !== (en ? 'Your text in the main chat is untouched' : '输入框里你写的字都留着')) throw new Error(`the kept receipt says ${result.keptReceipt.title}`);
+  if (result.keptReceipt.title !== (en ? 'Your typed text is kept' : '输入框里你写的字都留着')) throw new Error(`the kept receipt says ${result.keptReceipt.title}`);
   await sleep(800);
   await shot('13-hand-off-kept-notice');
   const clipboard = await page.evaluate(() => navigator.clipboard.readText().catch((error) => `!${error.message}`));

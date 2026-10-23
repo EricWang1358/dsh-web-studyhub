@@ -124,6 +124,7 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
       for (const part of ['skill study-book', 'book.read', 'book.coverage', 'course.book.revert', '课程 "' + COURSE + '"', '知识点 hid ', '.gen.md', '.mine.md', '当前版本 v', '资料以外'])
         assert.ok(first.includes(part), `${width}px: the message names ${part}: ${first}`);
       assert.match(first, /资料页已读 \d+\/\d+/, `${width}px: the coverage figure`);
+      assert.ok(first.includes('资料以外的内容标（资料以外）') && !first.includes('beyond the materials'), `${width}px: a Chinese book: only its own marker`);
       assert.match(first, /^帮我按下面的要求改复习全书的知识点 `What architects do`：\n````?request 我的要求\n润色成大白话，再慢一点\n````?\n/, `${width}px: the learner's sentence and words first`);
       assert.doesNotMatch(first, /writes each decision down/, `${width}px: no book text`);
       await toastSaid(page, '已复制到剪贴板');

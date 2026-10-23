@@ -27,7 +27,7 @@ export default function BookAskLayer({ ai, rows, book, course, model, pageRef })
   const toChat = async ({ heading, words = '', instruction = '' }) => {
     const node = rowOf(rows, heading)?.node;
     if (!node) return;
-    await send({ scope: words ? 'selection' : 'point', node, files: book.files, selection: words, instruction });
+    await send({ scope: words ? 'selection' : 'point', node, files: book.files, selection: words, instruction, language: book.language });
     ai.closeAsk();
     window.getSelection?.()?.removeAllRanges?.();
   };

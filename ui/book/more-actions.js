@@ -35,8 +35,8 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
     else if (id === 'flip') openView('flip');
     else if (id === 'today') setTodayOpen(value => !value);
     else if (id === 'exam-date' || id === 'settings') onCourseSettings?.(courseRecord?.id);
-    else if (id === 'chat') await sendBook({ scope: 'book' });
+    else if (id === 'chat') await sendBook({ scope: 'book', language: book?.language });
     else setDialog(id);
-  }, [step, course, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, sendBook]);
+  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, sendBook]);
   return { select, pointFold, bookFold };
 }

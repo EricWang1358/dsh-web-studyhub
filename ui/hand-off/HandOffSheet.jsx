@@ -9,9 +9,12 @@ import css from './hand-off.css';
 
 /* The full-text card of 「发给主会话」 (direction B; opened by ui/hand-off/use-hand-off.js deliverToChat): 'shown' when the clipboard was refused (it opens at
    once, no slip beside it), 'copied' from the receipt's 看看内容. The app's own <Dialog size="sm"> (on a phone it is the full-width card). Head: the seal,
-   the title, the reason. Body: the learner's own sentence and their typed words first, then the whole message in a calm box, its notes for the assistant
-   folded. Foot: one copy action (the card's one filled button when the learner has to act) that turns into 「已复制」 at the same width and leaves the card
-   open, and the select-all fallback (it opens the fold first; the selection is the ochre highlighter, not the system blue). */
+   the title, the reason. Body: the message once, in a calm box that can be selected: the learner's own sentence (its names drawn as names), their typed
+   words as a quote, the notes for the assistant folded under the message's own head (「StudyHub 附注（给助手）· N 行」), the line they type after. A copy of
+   the whole box (select-all, or a selection from the sentence's start into the notes) puts the message exactly as it is on the clipboard (backticks and
+   fences, the drawing is only for the eye); a text that is not laid out as a message is shown as it is. Foot: one copy action (the card's one filled
+   button when the learner has to act) that turns into 「已复制」 at the same width and leaves the card open, and the select-all fallback (it opens the
+   fold first; the selection is the ochre highlighter, not the system blue). */
 
 // a name span of nameData (ui/agent-prompts/say.js): a run of backticks, the name on one line (padded with a space when it starts or ends with one), the same run
 const NAME_SPAN = /(?<!`)(`+)(?!`)([^\n]*?)(?<!`)\1(?!`)/g;
@@ -41,9 +44,21 @@ export default function HandOffSheet({ sheet, onClose }) {
   const copyRef = useRef(null), boxRef = useRef(null), copiedRef = useRef(false);
   const shown = sheet.mode === 'shown', receipt = HAND_OFF_RECEIPTS[shown ? 'shown' : 'copied'];
   const touch = useMemo(isTouch, []), keys = isMac() ? '⌘C' : 'Ctrl+C';
-  const top = parts.notes.length ? sheet.text.slice(0, sheet.text.indexOf(`\n${parts.notes[0]}\n`)).trim() : sheet.text;
+  const laidOut = parts.notes.length > 0;
   const close = () => { onClose?.(); sheet.onClosed?.(copiedRef.current); };
-  const tookCopy = () => { copiedRef.current = true; setCopied(true); };
+  // A copy that takes the message (from the sentence's first character into the notes: what select-all makes) gets the text exactly as it is; a smaller
+  // piece is copied as the learner selected it.
+  const tookCopy = event => {
+    copiedRef.current = true;
+    setCopied(true);
+    const box = boxRef.current, range = globalThis.getSelection?.()?.rangeCount ? globalThis.getSelection().getRangeAt(0) : null;
+    const first = box && document.createTreeWalker(box, NodeFilter.SHOW_TEXT).nextNode(), fold = box?.querySelector('.sh-handoff-sheet__fold');
+    if (!laidOut || !range || !first || !fold || !event?.clipboardData) return;
+    if (range.isPointInRange(first, 0) && range.comparePoint(fold, 0) === 0) {
+      event.clipboardData.setData('text/plain', sheet.text);
+      event.preventDefault();
+    }
+  };
   // Select the whole message (the fold opened first, so the notes are in the selection; the fold's own label is not selectable).
   const selectAll = () => {
     setOpen(true);
@@ -75,14 +90,11 @@ export default function HandOffSheet({ sheet, onClose }) {
     <Dialog size="sm" className="sh-handoff-sheet" initialFocus={copyRef} onClose={close} footer={footer} bodyLabel={ui(receipt.title)}
       title={<span className="sh-handoff-sheet__title"><Seal outcome={shown ? 'shown' : 'copied'} size="lg" /><span>{ui(receipt.title)}</span></span>}
       description={shown ? joinSentences([sheet.lead, ui(receipt.line)]) : ui(receipt.line)}>
-      <div className="sh-handoff-sheet__summary">
-        <Sentence text={parts.ask} />
-        {parts.request && <blockquote className="sh-handoff-sheet__request"><span className="sh-handoff-sheet__label">{ui('我的要求')}</span>{parts.request}</blockquote>}
-      </div>
       <div ref={boxRef} className="sh-handoff-sheet__box" data-hand-off-text="" onCopy={tookCopy}>
-        <div className="sh-handoff-sheet__top">{top}</div>
-        {parts.notes.length > 0 && <details className="sh-handoff-sheet__fold" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
-          <summary>{uiFormat('给助手的定位信息 · {0} 行', [parts.notes.length])}</summary>
+        {laidOut ? <Sentence text={parts.ask} /> : <div className="sh-handoff-sheet__plain">{sheet.text}</div>}
+        {laidOut && parts.request && <blockquote className="sh-handoff-sheet__request"><span className="sh-handoff-sheet__label">{ui('我的要求')}</span>{parts.request}</blockquote>}
+        {laidOut && <details className="sh-handoff-sheet__fold" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+          <summary>{uiFormat('StudyHub 附注（给助手）· {0} 行', [parts.notes.length])}</summary>
           <div className="sh-handoff-sheet__notes">{parts.notes.join('\n')}</div>
         </details>}
         {parts.tail && <div className="sh-handoff-sheet__tail">{parts.tail}</div>}

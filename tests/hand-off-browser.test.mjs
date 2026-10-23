@@ -1,4 +1,4 @@
-/* global window document getComputedStyle */
+/* global window document getComputedStyle DataTransfer ClipboardEvent */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -18,8 +18,10 @@ import { seedBookFixture } from './helpers/book-fixtures.mjs';
      without a conversation it is copied (复, 看看内容 opens the card); a refused clipboard opens the full-text card at once (no slip; the notes folded,
      select-all in the ochre highlighter), and only closing it without copying leaves the 手 slip, which stays; 更多 › 整本书 › 发给主会话 sends at once.
    Then the small shared-component changes, in a page of their own: ConfirmDialog's errorAction, FileDrop's rejectAction, CompactJobCard's link onClick
-   and tip, and a receipt in review's in-flow action slot and under reduced motion. Screenshots (zh and en; 1280×800 and 390×844, light and dark) go to
-   HANDOFF_SHOTS when it is set; otherwise only Chinese 1280 light runs. */
+   and tip, a receipt in review's in-flow action slot and under reduced motion, and a receipt's time (held while pointed at, focused or the page hidden,
+   then the rest of it; a newer stamp starts it again). At 390 every receipt is one title line and one text line, at most 88px, all of one height.
+   Screenshots (zh and en; 1280×800 and 390×844, light and dark) go to HANDOFF_SHOTS when it is set; otherwise Chinese 1280 light and both languages at
+   390 light run. */
 
 const host = await build({ stdin: { contents: `
   import React from 'react';
@@ -91,22 +93,29 @@ const parts = await build({ stdin: { contents: `
         !open && React.createElement('div', { className: 'action-feedback-slot' },
           React.createElement(ActionFeedback, { notice: { ...handOffReceipt('kept', { action: { label: '去主会话', run: () => log.push('chat') } }), key: 1 } }))));
   }
-  createRoot(document.getElementById('main')).render(React.createElement(Parts));
+  // A receipt whose time the test sets (window.showReceipt(key, timeout)), in a slot of its own; it logs when it leaves.
+  function Timed() {
+    const [notice, setNotice] = useState(null);
+    window.showReceipt = (key, timeout) => setNotice({ ...handOffReceipt('kept', { action: { label: '去主会话', run: () => log.push('timed') } }), timeout, key });
+    return React.createElement('div', { className: 'timed-slot' },
+      React.createElement(ActionFeedback, { notice, placement: 'inline', onCloseNotice: () => { log.push('timed:gone'); setNotice(null); } }));
+  }
+  createRoot(document.getElementById('main')).render(React.createElement(React.Fragment, null, React.createElement(Parts), React.createElement(Timed)));
 `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
 
 const shots = process.env.HANDOFF_SHOTS;
 const views = shots
   ? ['zh', 'en'].flatMap((language) => [[1280, 800, 'light'], [1280, 800, 'dark'], [390, 844, 'light'], [390, 844, 'dark']].map((view) => [...view, language]))
-  : [[1280, 800, 'light', 'zh']];
+  : [[1280, 800, 'light', 'zh'], [390, 844, 'light', 'zh'], [390, 844, 'light', 'en']];
 /* What each language says (the receipts of ui/hand-off/use-hand-off.js HAND_OFF_RECEIPTS and the card's words). */
 const WORDS = {
   zh: { filled: '已填进主会话的输入框', kept: '输入框里你写的字都留着', copied: '已复制到剪贴板', shown: '请手动复制', chat: '去主会话', look: '看看内容', open: '打开全文',
     copy: '复制全文', done: '已复制', send: '发给主会话', ask: /^帮我按下面的要求改复习全书的知识点 `[^`]+`：\n```request 我的要求\n讲得再慢一点\n```\n\n—— StudyHub 附注（给助手）——\n/,
-    book: /^帮我看看整本复习全书：/, selected: /```data 我选中的话\n/, fold: /^给助手的定位信息 · \d+ 行$/, request: '讲得再慢一点', hint: /只填进输入框，不自动发送/ },
-  en: { filled: 'In the main chat’s input box', kept: 'Your text in the main chat is untouched', copied: 'Copied to the clipboard', shown: 'Copy it by hand', chat: 'Go to the main chat',
+    book: /^帮我看看整本复习全书：/, selected: /```data 我选中的话\n/, fold: /^StudyHub 附注（给助手）· \d+ 行$/, request: '讲得再慢一点', hint: /只填进输入框，不自动发送/ },
+  en: { filled: 'In the main chat’s box', kept: 'Your typed text is kept', copied: 'Copied to the clipboard', shown: 'Copy it by hand', chat: 'Go to the main chat',
     look: 'See it', open: 'Open the full text', copy: 'Copy all', done: 'Copied', send: 'Send to the main chat',
     ask: /^Please change `[^`]+` in my Review book as I ask below:\n```request My request\nExplain it more slowly\n```\n\n— StudyHub notes \(for the assistant\) —\n/,
-    book: /^Please look through my whole Review book:/, selected: /```data My selected words\n/, fold: /^Notes for the assistant · \d+ lines$/, request: 'Explain it more slowly', hint: /Only fills the input box/ },
+    book: /^Please look through my whole Review book:/, selected: /```data My selected words\n/, fold: /^StudyHub notes \(for the assistant\) · \d+ lines$/, request: 'Explain it more slowly', hint: /Only fills the input box/ },
 };
 
 test('发给主会话 from the book through the real host adapter: the four receipts, the full-text card, the whole book from 更多; submit is never reached', { timeout: 900000 }, async (t) => {
@@ -174,11 +183,22 @@ test('发给主会话 from the book through the real host adapter: the four rece
       await panel.waitFor({ state: 'detached', timeout: 10000 });
       await page.mouse.move(2, 2);
     };
+    // On a phone every receipt is one title line and one text line, at most 88px tall, and all of them one height (a newer one never grows the slip).
+    const phoneHeights = new Set();
     const receiptOf = async (outcome) => {
       await slip.and(page.locator(`[data-receipt="${outcome}"]`)).waitFor({ timeout: 10000 }).catch(async (error) => {
         console.log('DEBUG', outcome, await page.evaluate(() => ({ toasts: [...document.querySelectorAll('.sh-toasts')].map((e) => e.outerHTML.slice(0, 600)), dialogs: document.querySelectorAll('dialog[open]').length, copied: window.copied.length, log: window.dshLog })));
         throw error;
       });
+      if (width < 400) {
+        const fit = await slip.evaluate((element) => {
+          const lines = (node) => Math.round(node.offsetHeight / parseFloat(getComputedStyle(node).lineHeight));
+          return { height: element.offsetHeight, title: lines(element.querySelector('.sh-toast__title')), line: lines(element.querySelector('.sh-toast__message')) };
+        });
+        assert.ok(fit.height <= 88, `${tag} ${outcome}: the slip is ${fit.height}px tall`);
+        assert.deepEqual({ title: fit.title, line: fit.line }, { title: 1, line: 1 }, `${tag} ${outcome}: one title line and one text line`);
+        phoneHeights.add(fit.height);
+      }
       return { title: await slip.locator('.sh-toast__title').innerText(), line: await slip.locator('.sh-toast__message').innerText(),
         seal: await slip.locator(`.sh-seal[data-o="${outcome}"]`).count(), action: await slip.locator('.sh-toast__action').allInnerTexts() };
     };
@@ -187,7 +207,7 @@ test('发给主会话 from the book through the real host adapter: the four rece
     await reset({});
     await sendFromPanel();
     let receipt = await receiptOf('filled');
-    assert.deepEqual(receipt, { title: words.filled, line: language === 'zh' ? '看一眼，再由你按发送' : 'Check it, then press send yourself', seal: 1, action: [] }, tag);
+    assert.deepEqual(receipt, { title: words.filled, line: language === 'zh' ? '看一眼，再由你按发送' : 'Check it, then press send', seal: 1, action: [] }, tag);
     let state = await page.evaluate(() => ({ log: window.dshLog.slice(), text: window.composerText, copied: window.copied.slice() }));
     assert.deepEqual(state.log, ['setDraft', 'selectPanel:null'], `${tag}: setDraft and nothing else`);
     assert.match(state.text, words.ask, `${tag}: the learner's sentence, their words, then the notes`);
@@ -251,7 +271,18 @@ test('发给主会话 from the book through the real host adapter: the four rece
     assert.equal(await sheet.locator('.sh-handoff-sheet__fold[open]').count(), 0, `${tag}: the notes are folded`);
     assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('sh-handoff-sheet__copy')), true, `${tag}: the copy button has the focus`);
     assert.equal(await sheet.locator('.sh-handoff-sheet__copy.sh-btn--primary').count(), 1, `${tag}: the card's one filled button`);
+    const said = await sheet.innerText();
+    assert.equal(said.split(words.request).length - 1, 1, `${tag}: the learner's words once`);
+    assert.doesNotMatch(said, /```/, `${tag}: no raw fence on show`);
     await shot('card-shown');
+    // the fold's summary from the keyboard: the app's focus ring, not the browser's own
+    for (let step = 0; step < 6 && !(await page.evaluate(() => document.activeElement?.matches('.sh-handoff-sheet__fold > summary'))); step += 1) await page.keyboard.press('Shift+Tab');
+    const ring = await sheet.locator('.sh-handoff-sheet__fold > summary').evaluate(async (element) => {
+      await Promise.all(element.getAnimations().map((animation) => animation.finished)); // (the app's short transition into the ring)
+      const probe = document.createElement('i'); probe.style.color = 'var(--accent-soft)'; element.appendChild(probe); const soft = getComputedStyle(probe).color; probe.remove();
+      return { focused: element.matches(':focus-visible'), style: getComputedStyle(element).outlineStyle, color: getComputedStyle(element).outlineColor, soft };
+    });
+    assert.deepEqual(ring, { focused: true, style: 'solid', color: ring.soft, soft: ring.soft }, `${tag}: the fold's focus ring is the app's`);
     // the copy is refused again: the whole message is selected (the fold opened first) in the highlighter's ochre, not the system blue
     const copy = sheet.locator('.sh-handoff-sheet__copy'), wide = (await copy.boundingBox()).width;
     await copy.click();
@@ -260,7 +291,7 @@ test('发给主会话 from the book through the real host adapter: the four rece
     const picked = await page.evaluate(() => window.getSelection().toString());
     assert.ok(picked.includes(language === 'zh' ? '请用中文回复' : 'Please reply in English'), `${tag}: the selection holds the notes too`);
     assert.doesNotMatch(picked, words.fold, `${tag}: but not the fold's own label`);
-    const selection = await sheet.locator('.sh-handoff-sheet__top').evaluate((element) => getComputedStyle(element, '::selection').backgroundColor);
+    const selection = await sheet.locator('.sh-handoff-sheet__ask').evaluate((element) => getComputedStyle(element, '::selection').backgroundColor);
     const ochre = await page.evaluate(() => { const probe = document.createElement('i'); probe.style.color = 'var(--warn-mark)'; document.querySelector('.sh-handoff-sheet__box').appendChild(probe); const color = getComputedStyle(probe).color; probe.remove(); return color; });
     assert.equal(selection, ochre, `${tag}: the selection is the ochre highlighter`);
     await shot('card-selected');
@@ -276,6 +307,17 @@ test('发给主会话 from the book through the real host adapter: the four rece
     await page.evaluate(() => { window.refuseClipboard = false; });
     await slip.locator('.sh-toast__action').click();
     await sheet.waitFor({ timeout: 10000 });
+    // what the learner copies by hand from the whole box is the message exactly as it is (the names' backticks, the request fence, the notes)
+    await sheet.locator('.sh-handoff-sheet__select').click();
+    await page.waitForFunction(() => (window.getSelection()?.toString() || '').length > 200);
+    const byHand = await page.evaluate(() => {
+      const data = new DataTransfer(), event = new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true });
+      document.querySelector('.sh-handoff-sheet__box').dispatchEvent(event);
+      return { text: data.getData('text/plain'), taken: event.defaultPrevented };
+    });
+    assert.equal(byHand.taken, true, `${tag}: the card puts the message on the clipboard itself`);
+    assert.match(byHand.text, words.ask, `${tag}: the sentence with its name span and the request fence, as sent`);
+    assert.ok(byHand.text.endsWith(language === 'zh' ? '请用中文回复；已有的题目和引文保持原文，不要翻译。' : 'Please reply in English; keep existing questions and quotations as they are, do not translate them.'), `${tag}: down to the language sentence`);
     await copy.click();
     await sheet.locator('.sh-handoff-sheet__copy[data-copied]').waitFor({ timeout: 5000 });
     assert.equal(Math.round((await copy.boundingBox()).width), Math.round(wide), `${tag}: 「${words.done}」 at the same width`);
@@ -331,6 +373,7 @@ test('发给主会话 from the book through the real host adapter: the four rece
       await shot('workflows-receipt-kept');
     }
 
+    if (width < 400) assert.equal(phoneHeights.size, 1, `${tag}: every receipt is one height (${[...phoneHeights].join(', ')}px)`);
     assert.equal((await page.evaluate(() => window.dshLog)).some((entry) => /submit/.test(entry)), false, `${tag}: submit was never touched`);
     assert.deepEqual(errors, [], `${tag}: no page errors`);
     await context.close();
@@ -393,5 +436,55 @@ test('the shared parts: ConfirmDialog\'s errorAction on its error line, FileDrop
   assert.equal(await inline.locator('.sh-seal').evaluate((element) => getComputedStyle(element).animationName), 'sh-seal-press', 'the seal is pressed when motion is welcome');
   await inline.locator('.sh-toast__action').click();
   assert.equal((await page.evaluate(() => window.partsLog)).at(-1), 'chat');
+
+  // A receipt's time (1.5 s here): held while the pointer is on it, while its action has the focus and while the page is hidden; then it leaves after
+  // what was left of it, and the countdown line is held with it. A newer stamp on the slip starts the whole time again.
+  const timed = page.locator('.timed-slot .sh-toast--receipt');
+  const line = async () => timed.locator('.sh-toast__timer').evaluate((element) => element.getAnimations()[0]?.playState);
+  const goneWithin = async (ms) => {
+    const started = Date.now();
+    await timed.waitFor({ state: 'detached', timeout: ms });
+    return Date.now() - started;
+  };
+  const show = async (key) => { await page.mouse.move(2, 2); await page.evaluate((k) => window.showReceipt(k, 1500), key); await timed.waitFor({ timeout: 5000 }); };
+  // the pointer
+  await show(1);
+  await timed.hover();
+  await page.waitForTimeout(2200);
+  assert.equal(await timed.count(), 1, 'pointed at: it stays past its time');
+  assert.equal(await line(), 'paused', 'and its countdown line is held');
+  await page.mouse.move(2, 2);
+  await page.waitForTimeout(300);
+  assert.equal(await timed.count(), 1, 'let go: the rest of its time first');
+  assert.equal(await line(), 'running');
+  await goneWithin(2000);
+  // the keyboard focus on its action
+  await show(2);
+  await timed.locator('.sh-toast__action').focus();
+  await page.waitForTimeout(2200);
+  assert.equal(await timed.count(), 1, 'focused: it stays past its time');
+  assert.equal(await line(), 'paused');
+  await page.evaluate(() => document.activeElement.blur());
+  await page.waitForTimeout(300);
+  assert.equal(await timed.count(), 1, 'blurred: the rest of its time first');
+  await goneWithin(2000);
+  // a hidden page
+  await show(3);
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(2200);
+  assert.equal(await timed.count(), 1, 'hidden: it stays past its time');
+  assert.equal(await line(), 'paused');
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(300);
+  assert.equal(await timed.count(), 1, 'shown again: the rest of its time first');
+  await goneWithin(2000);
+  // a newer stamp on the slip that is up: the whole time again
+  await show(4);
+  await page.waitForTimeout(1000);
+  await page.evaluate(() => window.showReceipt(5, 1500));
+  await page.waitForTimeout(1000);
+  assert.equal(await timed.count(), 1, 'a newer stamp started the time again');
+  assert.ok(await goneWithin(1500) > 100, 'and it ends after the new time');
+  assert.equal((await page.evaluate(() => window.partsLog)).filter((entry) => entry === 'timed:gone').length, 4);
   assert.deepEqual(errors, []);
 });

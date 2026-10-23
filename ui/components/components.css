@@ -434,15 +434,33 @@
       .sh-toast__text { grid-column: 2; grid-row: 1; }
       .sh-toast__close { grid-column: 3; grid-row: 1; }
       .sh-toast__action { grid-column: 2 / -1; grid-row: 2; justify-self: start; min-width: 0; max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
-      /* A receipt on a phone: the action moves under the words, lined up with them; the slip keeps one height whatever the outcome (one more class
-         than the receipt's own rules below, which come later in this sheet). */
+      /* A receipt on a phone (one more class than the receipt's own rules below, which come later in this sheet): the seal, then the words, which take
+         the whole width up to the slip's edge; × sits in the top corner over the title's end only, so the line runs on under it; the action moves under
+         the words, lined up with them. One height for every outcome (88px at most): the action keeps a 36px hit area but takes less room in the row (its
+         label is centred in it), and the slip has a fixed minimum, so a newer receipt never grows the slip. */
       .sh-toasts__inner .sh-toast.sh-toast--receipt {
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        min-height: calc(var(--space-9) + var(--space-8));
-        padding-bottom: var(--space-2);
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+        row-gap: var(--space-1);
+        min-height: calc(var(--space-9) + var(--space-7));
+        padding: var(--space-2-5) var(--space-2) var(--space-2) var(--space-3);
       }
-      .sh-toasts__inner .sh-toast--receipt .sh-toast__action { grid-column: 2; grid-row: 2; justify-self: start; margin-left: calc(var(--space-2-5) * -1); }
-      .sh-toasts__inner .sh-toast--receipt .sh-toast__close { grid-column: 3; grid-row: 1; align-self: start; min-width: calc(var(--space-7) + var(--space-1)); min-height: calc(var(--space-7) + var(--space-1)); }
+      .sh-toasts__inner .sh-toast--receipt .sh-toast__title { padding-right: calc(var(--space-7) - var(--space-1)); }
+      .sh-toasts__inner .sh-toast--receipt .sh-toast__action {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: start;
+        min-height: calc(var(--space-7) + var(--space-1));
+        margin: calc(var(--space-1-5) * -1) 0 calc(var(--space-2) * -1) calc(var(--space-2-5) * -1);
+      }
+      .sh-toasts__inner .sh-toast--receipt .sh-toast__close {
+        position: absolute;
+        top: var(--space-half);
+        right: var(--space-half);
+        min-width: calc(var(--space-7) + var(--space-1));
+        min-height: calc(var(--space-7) + var(--space-1));
+        margin: 0;
+      }
     }
   }
   :is(.study-app, .study-seat) {

@@ -104,13 +104,10 @@
       align-items: center;
       gap: var(--space-3);
     }
-    .sh-handoff-sheet__summary {
-      display: grid;
-      gap: var(--space-2);
-      margin-bottom: var(--space-4);
-    }
+    /* The top of the box: the learner's sentence at the size of a heading line, their words as a quote (the box's own small text follows). */
     .sh-handoff-sheet__ask {
       margin: 0;
+      color: var(--text);
       font-size: var(--fs-lg);
       font-weight: var(--fw-medium);
       line-height: var(--lh-snug);
@@ -126,7 +123,7 @@
     .sh-handoff-sheet__request {
       display: grid;
       gap: var(--space-half);
-      margin: 0;
+      margin: var(--space-2) 0 0;
       padding: var(--space-2) var(--space-3);
       border-left: var(--space-half) solid var(--line-strong);
       color: var(--text-dim);
@@ -151,7 +148,7 @@
       user-select: text;
     }
     .sh-handoff-sheet__box ::selection { background: var(--warn-mark); color: inherit; }
-    .sh-handoff-sheet__top, .sh-handoff-sheet__notes, .sh-handoff-sheet__tail {
+    .sh-handoff-sheet__plain, .sh-handoff-sheet__notes, .sh-handoff-sheet__tail {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
@@ -161,11 +158,14 @@
       border-top: calc(var(--space-half) / 2) dashed var(--line);
     }
     .sh-handoff-sheet__fold > summary {
+      border-radius: var(--radius-sm);
       color: var(--text-muted);
       font-size: var(--fs-sm);
       cursor: pointer;
       user-select: none;
     }
+    /* The app's focus ring (the browser's own would be the system accent, a blue on macOS). */
+    .sh-handoff-sheet__fold > summary:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .sh-handoff-sheet__notes {
       margin-top: var(--space-2);
       color: var(--text-dim);

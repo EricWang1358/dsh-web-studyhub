@@ -73,6 +73,7 @@ test('a step that is optional or switched off is listed as one to skip (no ids),
   assert.ok(zh.includes('src-6,src-7'), 'the ids of the steps in use');
   assert.match(en, /^3\. [^\n]*skip/im);
   assert.match(en, new RegExp(MATTER_WORDS.index.en, 'i'));
+  assert.ok(en.includes(`(${MATTER_WORDS.index.en.toLowerCase()})`), 'the English matter word is lowercased inside the sentence');
   assert.ok(!en.includes('src-410'));
   // a step the learner switched off (not optional by nature) is skipped too, in words that say so
   const off = pathBrief({ steps: steps().map(step => step.id === 'step-2' ? { ...step, included: false } : step), course: '', goal: '', indexed: false, language: 'zh' });

@@ -41,7 +41,8 @@ export function pathBrief({ steps = [], course = '', goal = '', indexed = false 
     // a title made of its own page range ("第 55–76 页") is not followed by the range again
     const shown = range && !String(step.title).includes(range.replace(/^"[^"]*" |^《[^》]*》/, '')) ? ` · ${range}` : '';
     if (skipped(step)) {
-      const word = step.optional && MATTER_WORDS[step.matter] ? MATTER_WORDS[step.matter][english ? 'en' : 'zh'] : '';
+      // in an English sentence the matter word is lowercased ("suggest skipping it (front matter and contents)")
+      const word = step.optional && MATTER_WORDS[step.matter] ? (english ? MATTER_WORDS[step.matter].en.toLowerCase() : MATTER_WORDS[step.matter].zh) : '';
       const why = step.optional ? say(language, '建议跳过{0}；我需要时再说', [word ? say(language, '（{0}）', [word]) : '']) : say(language, '我没勾选这一步，先跳过');
       lines.push(say(language, STEP_SKIPPED, [step.order, step.title, shown, step.pages, why]));
       continue;

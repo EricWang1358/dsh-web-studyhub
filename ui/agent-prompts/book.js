@@ -24,15 +24,20 @@ const PROGRESS = '进度：{0}。';
 const PAGES = '资料页已读 {0}/{1}（哪几页见 book.coverage）';
 const CONCEPTS = '必讲概念讲到 {0}/{1}（缺的见 book.coverage 的 concepts.missing，补时用资料原名）';
 const RULES = '规则：先用 source.pages 读资料页再写；引文只用能核对的脚注；资料以外的内容按书的语言标（资料以外）或 (beyond the materials)；一次只写一个小节。';
+/* The book's language is known (course.book.open's `language`): only its own marker, as the book writes it (lib/course-book-files.js WORDS). */
+const RULES_MARKED = '规则：先用 source.pages 读资料页再写；引文只用能核对的脚注；资料以外的内容标{0}；一次只写一个小节。';
+// (the marker as the book writes it, keyed by the book's language: data for the assistant, not a sentence of the interface)
+const BEYOND = new Map([['zh', '（资料以外）'], ['en', '(beyond the materials)']]);
 const REPORT = '做完：告诉我改了哪些知识点（编号和标题）；每次改动都留着上一版，可以用 course.book.revert 回退。';
 const SELECTED = '我选中的话';
 
 /**
  * The parts of the message that hands a book edit to the main chat (the registry composes it).
  * input: { course, hid (the point; none for the whole book), title (the point's title), files: [file names of the point], version (the generated file's), coverage: { opened, pages, concepts?: { covered, total } } | null,
- *   selection (the words selected, for scope 'selection'), instruction (the learner's request, may be empty), scope: 'point' | 'selection' | 'book' }.
+ *   selection (the words selected, for scope 'selection'), instruction (the learner's request, may be empty), scope: 'point' | 'selection' | 'book',
+ *   bookLanguage (the book's own language, 'zh' | 'en': the rules name only its marker; unknown: both) }.
  */
-export function bookEditPrompt({ course = '', hid = '', title = '', files = [], version = null, coverage = null, selection = '', instruction = '', scope = 'point' }, language = getUiLanguage()) {
+export function bookEditPrompt({ course = '', hid = '', title = '', files = [], version = null, coverage = null, selection = '', instruction = '', scope = 'point', bookLanguage = '' }, language = getUiLanguage()) {
   const kind = scope === 'book' || !hid ? 'book' : scope === 'selection' && String(selection).trim() ? 'selection' : 'point';
   const asked = String(instruction ?? '').trim();
   const point = nameData(title) || say(language, THIS_POINT);
@@ -49,7 +54,7 @@ export function bookEditPrompt({ course = '', hid = '', title = '', files = [], 
     if (coverage?.concepts && Number.isFinite(coverage.concepts.total) && coverage.concepts.total > 0) progress.push(say(language, CONCEPTS, [coverage.concepts.covered ?? 0, coverage.concepts.total]));
     if (progress.length) notes.push(say(language, PROGRESS, [partsOf(language, progress)]));
   }
-  notes.push(say(language, RULES), say(language, REPORT));
+  notes.push(BEYOND.has(bookLanguage) ? say(language, RULES_MARKED, [BEYOND.get(bookLanguage)]) : say(language, RULES), say(language, REPORT));
   return {
     ask: say(language, ASK[kind][asked ? 1 : 0], [point]),
     request: asked,

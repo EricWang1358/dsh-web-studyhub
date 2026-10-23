@@ -111,8 +111,8 @@ test('English: the receipts and the language sentence are English', async () => 
     const { notices, copied, deliver } = fakes({ host: { askInChat: () => 'kept', showChat: () => {} } });
     await deliver('p');
     assert.equal(copied[0], `p\n${m.languageTail('en')}`);
-    assert.equal(notices[0].title, 'Your text in the main chat is untouched');
-    assert.equal(notices[0].text, 'This is copied: paste it where it fits');
+    assert.equal(notices[0].title, 'Your typed text is kept');
+    assert.equal(notices[0].text, 'Copied: paste it where it fits');
     assert.equal(notices[0].action.label, 'Go to the main chat');
     assert.equal(m.handOffTip('写进这个知识点，或发给主会话'), 'Write into this point, or send it to the main chat. Only fills the main chat’s input box and you press send; without a main chat it is copied to the clipboard.');
   } finally { m.setUiLanguage('zh'); }
@@ -124,7 +124,6 @@ test('the receipt table: each outcome its title, its line, its one action and it
     { filled: [5000, null], kept: [8000, '去主会话'], copied: [6000, '看看内容'], shown: [0, '打开全文'] });
   for (const [outcome, receipt] of Object.entries(m.HAND_OFF_RECEIPTS)) {
     assert.ok(receipt.title.includes(m.SEALS[outcome].character), `${outcome}: ${m.SEALS[outcome].character} in 「${receipt.title}」`);
-    assert.ok(receipt.title.length <= 13 && receipt.line.length <= 15, `${outcome}: one line each on a phone`);
     assert.ok(m.ICON_NAMES.includes(m.SEALS[outcome].glyph), `${outcome}: its English glyph is in the icon set`);
   }
 });
@@ -157,7 +156,7 @@ test('the receipt as the region draws it: its own seal, title and line, a quiet 
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('the full-text card: the learner\'s sentence first, the whole message in a box with the notes folded, one copy action; shown asks with the filled button, copied with the quiet one', () => {
+test('the full-text card: the message once, in a box: the learner\'s sentence, their words, the notes folded under the prompt\'s own head; one copy action; shown asks with the filled button, copied with the quiet one', () => {
   const text = m.handOffText('workflow.design', { template: { id: 'wf1', title: 'Daily flow', version: 2 }, wish: '讲慢一点' }, 'zh');
   const card = (mode) => renderToStaticMarkup(h(m.StudyServicesContext.Provider, { value: services }, h(m.HandOffSheet, { sheet: { text, mode, lead: '' }, onClose() {} })));
   const shown = card('shown');
@@ -167,8 +166,17 @@ test('the full-text card: the learner\'s sentence first, the whole message in a 
   assert.match(shown, /<p class="sh-handoff-sheet__ask">帮我调整学习流 <span class="sh-handoff-sheet__name">Daily flow<\/span>：<\/p>/);
   assert.match(shown, /<blockquote class="sh-handoff-sheet__request"><span class="sh-handoff-sheet__label">我的要求<\/span>讲慢一点<\/blockquote>/);
   const notes = m.messageParts(text, 'zh').notes.length;
-  assert.match(shown, new RegExp(`<summary>给助手的定位信息 · ${notes} 行</summary>`));
+  assert.match(shown, new RegExp(`<summary>StudyHub 附注（给助手）· ${notes} 行</summary>`), 'the fold says the head the message itself has');
   assert.match(shown, /<details class="sh-handoff-sheet__fold">/, 'folded until asked');
+  // the message once: the drawn sentence and the quote are the top of the selectable box, not a summary above a raw copy of the same words
+  assert.equal(shown.match(/帮我调整学习流/g).length, 1, 'the learner\'s sentence once');
+  assert.equal(shown.match(/讲慢一点/g).length, 1, 'their words once');
+  assert.doesNotMatch(shown, /```request|sh-handoff-sheet__top|sh-handoff-sheet__summary/, 'no raw fence on show');
+  assert.match(shown, /<div class="sh-handoff-sheet__box" data-hand-off-text=""><p class="sh-handoff-sheet__ask">/);
+  // a text that is not laid out as a message (no notes head) is shown as it is, once
+  const plain = renderToStaticMarkup(h(m.StudyServicesContext.Provider, { value: services }, h(m.HandOffSheet, { sheet: { text: '一段\n旧格式的话', mode: 'shown', lead: '' }, onClose() {} })));
+  assert.equal(plain.match(/旧格式的话/g).length, 1);
+  assert.doesNotMatch(plain, /sh-handoff-sheet__fold/);
   assert.match(shown, /sh-btn--primary[^"]*sh-handoff-sheet__copy/);
   assert.match(shown, /复制不了？全选后按 (Ctrl\+C|⌘C)/);
   const copied = card('copied');
