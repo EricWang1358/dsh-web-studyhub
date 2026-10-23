@@ -6,18 +6,24 @@
    tests/wp5-tour-steps checks the anchors against the UI source.
 
    There are two tours over the same list. The DEFAULT tour is the core chain
-   (add a material, make questions, practise, 任务, the model), a minute or two
-   of reading; the FULL tour is the explicit extra, offered at the end of the
-   short one and in Settings. A step says which it belongs to:
+   in the first-run line's order (3.6 D5: the model, add a material, make
+   questions, check the draft, practise; 任务 is only in the full tour), a
+   minute or two of reading; the FULL tour is the explicit extra, offered at
+   the end of the short one and in Settings, in the list's order. A step says
+   which it belongs to:
      core: true     in both tours, with one text;
      only: "core"   only in the short tour (a shorter text for a page the full
                     tour spends three steps on);
-     (neither)      only in the full tour. */
+     (neither)      only in the full tour.
+   The short tour runs in CORE_ORDER. Its last step depends on the library:
+   while the first-run line is up (`line: true`, the context's `line`), it
+   ends on the line's step 2 on the library home; otherwise (`line: false`) on
+   Settings, as the full tour does. */
 
 export const TOUR_STEPS = [
   { id: "welcome", core: true,
     title: "欢迎来到 StudyHub",
-    body: "导览用一门示例课程（设计模式）带你看一遍：先走主线（添加资料、出题、练习），再看任务和模型设置在哪里。示例内容都标着「示例」，看完可以一键移除。" },
+    body: "导览用一门示例课程（设计模式）带你看一遍主线：模型在哪里设置、添加资料、出题、检查草稿、练习。示例内容都标着「示例」，看完可以一键移除。" },
   { id: "nav", page: "library", anchor: "nav", placement: "right",
     title: "左侧是全部功能",
     body: "左侧按用到的频率分成三组：「每天」是每次学习都会用的（学习库、资料、创建题组、任务、错题与待巩固、学习流、学习笔记、待办，每周来新讲义时加资料、出题也在这里）；「阶段性」是隔一阵用一次的（模拟考试、备考补习、复习全书、统计；备考补习在 DSH 开启后才出现）；「课程准备与管理」是每门课开头做一次或按需用的（知识骨架、音频转写、课堂实录）。后两组可以点标题收起。底部可以切换语言和外观，按住条目拖动可以调整顺序。" },
@@ -43,7 +49,7 @@ export const TOUR_STEPS = [
   { id: "generate-quick", only: "core", page: "generate", prepare: "prepareGenerate", anchor: "generate-summary", placement: "top",
     title: "出题：选好资料就能生成",
     body: "勾选要出题的资料，题型、题数和难度保持默认就行，再点这里的生成按钮。AI 出的题先进入草稿，你检查过再发布。",
-    modelNote: "出题需要先配置 AI 模型，导览快结束时会告诉你在哪里设置。" },
+    modelNote: "出题需要先配置 AI 模型，在哪里设置见导览第 2 步。" },
   { id: "generate", page: "generate", prepare: "prepareGenerate", anchor: "generate-sources", placement: "right",
     title: "创建题组：选资料",
     body: "勾选要出题的资料；资料多时可以按名称筛选，转换过的大教材用「选择章节」只选这次要考的几章。已经有现成的题目，用页面上方的第二个入口直接导入。",
@@ -54,7 +60,7 @@ export const TOUR_STEPS = [
   { id: "generate-cost", page: "generate", prepare: "prepareGenerate", anchor: "generate-summary", placement: "top",
     title: "开始前先看一眼用量",
     body: "摘要行写明这次出什么题；「预计 … tok」是按真实提示词估算的 token 用量。出题完成后，任务详情的「实际用量」会列出真实消耗和缓存命中。" },
-  { id: "tasks", core: true, page: "tasks", anchor: "nav-tasks", placement: "right",
+  { id: "tasks", page: "tasks", anchor: "nav-tasks", placement: "right",
     title: "任务：后台工作的进度",
     body: "出题、音频转写这类要等一阵的工作在后台进行，可以边等边做别的；进度、暂停、停止和重试都在「任务」里。" },
   { id: "draft", core: true, page: "draft", prepare: "openSampleDraft", anchor: "draft-publish", needs: "draftId",
@@ -101,17 +107,23 @@ export const TOUR_STEPS = [
   { id: "settings-extensions", page: "settings", anchor: ["settings-extensions", "settings-update"],
     title: "设置：检索扩展",
     body: "上百页的大教材，建议先用转换工具变成带页码的文字再导入；整本书出题时，可以让 DSH 里的检索工具只挑出相关页面。在「设置 › 关于与更新」可以检查新版本，有更新时侧栏底部也会提示。" },
-  { id: "finish", core: true, page: "settings", anchor: "settings-sample", final: true,
+  { id: "finish-line", only: "core", line: true, page: "library", anchor: ["first-run-material", "home-today"], final: true,
+    title: "准备好了，换成你自己的资料",
+    body: "点「添加资料」，就从首页这条线的第 2 步开始：资料加好后，第 3 步先写明要出什么、预计用多少，再由你点「出第一组题」。示例数据随时可以移除，不影响你自己的资料和记录。" },
+  { id: "finish", core: true, line: false, page: "settings", anchor: "settings-sample", final: true,
     title: "准备好了，换成你自己的资料",
     body: "点「添加资料」就能开始。示例数据可以随时在这里移除，你自己的资料和记录不受影响。" },
 ];
+
+/** The short tour's order, the first-run line's (3.6 D5): 欢迎 → 设置·模型 → 资料 → 出题 → 草稿 → 练习 → 完成 (one of the two last steps). */
+export const CORE_ORDER = Object.freeze(["welcome", "settings-model", "sources", "generate-quick", "draft", "practice", "finish-line", "finish"]);
 
 /** Is the step in the short (core) tour, or in the full one? */
 export const inCoreTour = (step) => step.core === true || step.only === "core";
 export const inFullTour = (step) => step.only !== "core";
 
-/** How many steps the short tour has once the sample is loaded (the number the welcome page may say). */
-export const CORE_TOUR_LENGTH = TOUR_STEPS.filter(inCoreTour).length;
+/** How many steps the short tour has once the sample is loaded (the number the welcome page may say): one of its two last steps is shown. */
+export const CORE_TOUR_LENGTH = TOUR_STEPS.filter((step) => inCoreTour(step) && step.line !== true).length;
 
 /** Every Chinese source string a step can show (title, body, notes). */
 export const tourStepCopy = (step) => [step.title, step.body, step.modelNote, step.readyNote].filter(Boolean);
@@ -119,12 +131,16 @@ export const tourStepCopy = (step) => [step.title, step.body, step.modelNote, st
 /**
  * The steps this library can show: a step that needs the sample (its lecture,
  * draft or deck), a page or a component that is not there is left out.
- * ctx: { sample, pageAvailable(page), hasContext(id), full } — `full` picks the
- * full tour; the default is the short one.
+ * ctx: { sample, pageAvailable(page), hasContext(id), full, line } — `full` picks the
+ * full tour; the default is the short one, in CORE_ORDER; `line` says the
+ * first-run line is up (the short tour then ends on its step 2).
  */
-export function availableTourSteps(steps, { sample, pageAvailable = () => true, hasContext = () => true, full = false } = {}) {
-  return steps.filter((step) => (full ? inFullTour(step) : inCoreTour(step)) && (!step.needs || (sample?.loaded && sample[step.needs])) &&
-    (!step.page || step.page === "draft" || pageAvailable(step.page)) && (!step.context || hasContext(step.context)));
+export function availableTourSteps(steps, { sample, pageAvailable = () => true, hasContext = () => true, full = false, line = false } = {}) {
+  const shown = steps.filter((step) => (full ? inFullTour(step) : inCoreTour(step) && (step.line === undefined || step.line === !!line)) &&
+    (!step.needs || (sample?.loaded && sample[step.needs])) && (!step.page || step.page === "draft" || pageAvailable(step.page)) && (!step.context || hasContext(step.context)));
+  if (full) return shown;
+  const rank = (step) => { const at = CORE_ORDER.indexOf(step.id); return at < 0 ? CORE_ORDER.length : at; };
+  return shown.map((step, at) => ({ step, at })).sort((a, b) => rank(a.step) - rank(b.step) || a.at - b.at).map(({ step }) => step);
 }
 
 /** The id of the step before (-1) or after (+1) `id`; a vanished step restarts at the first. */

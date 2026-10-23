@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
-import { TOUR_STEPS, availableTourSteps, tourNeighbour, tourKeyAction, tourStepCopy, CORE_TOUR_LENGTH } from "../ui/tour/steps.js";
+import { TOUR_STEPS, availableTourSteps, tourNeighbour, tourKeyAction, tourStepCopy, CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
 import { NAV_DEFAULTS, mergeOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
@@ -69,12 +69,20 @@ test("navigation is grouped by when a page is used: every day, now and then, onc
 const ALL = { sample: { loaded: true, deckId: "d", sourceId: "s", draftId: "r" }, pageAvailable: () => true, hasContext: () => true };
 const idsOf = (ctx) => availableTourSteps(TOUR_STEPS, { ...ALL, ...ctx }).map((step) => step.id);
 
-test("the default tour is the core chain: add a source, make questions, 任务, check and practise, the model, then the way on", () => {
-  const core = idsOf({});
-  assert.deepEqual(core, ["welcome", "sources", "generate-quick", "tasks", "draft", "practice", "settings-model", "finish"]);
-  assert.equal(core.length, CORE_TOUR_LENGTH, "the number the welcome page says");
-  assert.ok(core.length <= 9, "about eight steps");
-  assert.ok(core.indexOf("settings-model") >= core.length - 3, "the model step is among the last, not in the middle of a long tour");
+test("the default tour is the first-run line's order in 7 steps: 欢迎, 设置·模型, 资料, 出题, 草稿, 练习, 完成; 任务 only in the full tour (3.6 D5)", () => {
+  // While the first-run line is up (an empty library, the sample never counts), the last step is the line's step 2 on the library home.
+  const core = idsOf({ line: true });
+  assert.deepEqual(core, ["welcome", "settings-model", "sources", "generate-quick", "draft", "practice", "finish-line"]);
+  assert.equal(core.length, CORE_TOUR_LENGTH, "the number the line's sample link says");
+  assert.equal(CORE_TOUR_LENGTH, 7, "8 → 7 steps");
+  assert.ok(!core.includes("tasks"), "任务 is in the full tour only: on the first run the run's card is in the line's step 3");
+  const last = TOUR_STEPS.find((step) => step.id === "finish-line");
+  assert.equal(last.page, "library");
+  assert.deepEqual(last.anchor, ["first-run-material", "home-today"], "it lights the line's step 2 (the compact card while the tour shows the home)");
+  assert.equal(last.final, true, "its card offers 添加资料, which comes back to the line");
+  // With a deck of the learner's own (no line), the same seven, ending on Settings as before.
+  assert.deepEqual(idsOf({}), ["welcome", "settings-model", "sources", "generate-quick", "draft", "practice", "finish"]);
+  assert.deepEqual(CORE_ORDER.filter((id) => !id.startsWith("finish")), core.slice(0, -1));
   assert.equal(TOUR_STEPS.at(-1).final, true);
 });
 
@@ -82,6 +90,7 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
   assert.deepEqual(idsOf({ full: true }), ["welcome", "nav", "home", "course", "sources", "document", "reader-practice", "translation", "generate", "generate-tune", "generate-cost",
     "tasks", "draft", "practice", "help", "wrongbook", "exam", "examprep", "dashboard", "notes", "skeleton", "workflows", "settings-model", "settings-audio", "settings-extensions", "finish"]);
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
+  assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
   assert.equal(TOUR_STEPS[0].anchor, undefined, "the welcome step is centred");
   const anchors = new Set(TOUR_STEPS.flatMap((step) => [step.anchor].flat()).filter(Boolean));
@@ -89,7 +98,7 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
   for (const step of TOUR_STEPS) {
     if (step.page) assert.ok(PAGES.has(step.page), `${step.id}: unknown page ${step.page}`);
     for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "source-tools-toggle", "draft-publish", "exam-case", "home-course",
-      "reader-practice", "translation-toggle", "nav-tasks", "nav-notes", "nav-examprep"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
+      "reader-practice", "translation-toggle", "nav-tasks", "nav-notes", "nav-examprep", "first-run-material"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
   }
 });
 
@@ -132,8 +141,8 @@ test("steps that need sample data, a page or a component are left out when it is
   assert.ok(!ids({ ...all, hasContext: (id) => id !== "audio" }).includes("settings-audio"));
   assert.ok(!ids({ ...all, pageAvailable: (page) => page !== "workflows" }).includes("workflows"));
   assert.ok(!ids({ ...all, pageAvailable: (page) => page !== "examprep" }).includes("examprep"), "备考补习 is toured only while the host has it on");
-  // Without the sample the short tour is still a tour: add, make, 任务, the model.
-  assert.deepEqual(ids({ ...ALL, sample: { loaded: false } }), ["welcome", "sources", "generate-quick", "tasks", "settings-model", "finish"]);
+  // Without the sample the short tour is still a tour: the model, add, make, then the line's step 2.
+  assert.deepEqual(ids({ ...ALL, sample: { loaded: false }, line: true }), ["welcome", "settings-model", "sources", "generate-quick", "finish-line"]);
 });
 
 test("the group hints and the tour's sidebar step name every page of the group (任务 and 备考补习 included)", async () => {

@@ -91,7 +91,16 @@ test("the tour popover is a labelled, non-modal dialog with progress and Back / 
   assert.match(last, /添加资料/);
   assert.match(last, /移除示例数据/);
   assert.match(last, /完成导览/);
+  // The short tour's last step while the first-run line is up (3.6 D5): on the line's step 2, with the same 添加资料 (which comes back to the line).
+  const onLine = html(React.createElement(ui.TourPopover, { step: ui.TOUR_STEPS.find((item) => item.id === "finish-line"), index: 6, total: 7, onNext: noop, onBack: noop,
+    onClose: noop, onSkip: noop, onImport: noop, onFullTour: noop, onRemoveSample: noop }));
+  assert.match(onLine, /7 \/ 7/);
+  assert.match(onLine, /<button[^>]*sh-btn--primary[^>]*>(?:(?!<\/button>).)*添加资料/s);
+  assert.match(text(onLine), /这条线的第 2 步/);
+  assert.match(text(onLine), /看完整导览/);
   ui.setUiLanguage("en");
+  assert.doesNotMatch(text(html(React.createElement(ui.TourPopover, { step: ui.TOUR_STEPS.find((item) => item.id === "finish-line"), index: 6, total: 7, onNext: noop,
+    onBack: noop, onClose: noop, onSkip: noop, onImport: noop }))), han);
   const en = html(React.createElement(ui.TourPopover, { step, index: 2, total: 17, onNext: noop, onBack: noop, onClose: noop, onSkip: noop }));
   assert.doesNotMatch(text(en), han);
   ui.setUiLanguage("zh");

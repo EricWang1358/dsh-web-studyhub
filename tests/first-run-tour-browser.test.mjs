@@ -10,6 +10,7 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { TOUR_STEPS, CORE_TOUR_LENGTH } from '../ui/tour/steps.js';
 
 /* The first run in the browser preview, on an empty temporary library with the host's 备考补习 switch on: the welcome page, the default tour
@@ -20,7 +21,10 @@ import { TOUR_STEPS, CORE_TOUR_LENGTH } from '../ui/tour/steps.js';
 const SHOTS = process.env.FIRST_RUN_SHOTS || '';
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 const overflow = page => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-const byTitle = new Map(TOUR_STEPS.map(step => [step.title, step]));
+// A step by what its card says: the title, and the body where two steps share a title (the short tour's two last steps).
+// The control a core step's body tells the learner to press, where it is smaller than the lit area (otherwise the lit area itself).
+const KEY_CONTROL = { 'generate-quick': 'generate-submit' };
+const stepOf = (title, body) => TOUR_STEPS.find(step => step.title === title && step.body === body) || TOUR_STEPS.find(step => step.title === title);
 
 async function start(distDir) {
   scrubProcessEnv();
@@ -33,11 +37,11 @@ async function start(distDir) {
 /** The card of the step on screen, once it is placed: { at, total, title, lit }. */
 async function card(page) {
   await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
-  const step = byTitle;
   const read = async () => {
     const [at, total] = (await page.locator('.tour-pop__count').first().innerText()).split('/').map(part => Number(part.trim()));
     const title = (await page.locator('.tour-pop__title').first().innerText()).trim();
-    return { at, total, title, step: step.get(title) };
+    const body = (await page.locator('.tour-pop__body').first().innerText()).trim();
+    return { at, total, title, step: stepOf(title, body) };
   };
   const first = await read();
   // The popover is placed when the anchor is found, or after the wait for it ends; the spotlight is the sign that it was found.
@@ -47,6 +51,70 @@ async function card(page) {
   await frames(page, 3);
   return { ...first, lit: (await page.locator('.tour-spot').count()) > 0 };
 }
+
+/* 载入示例并开始导览 when the library is slow: the app's own refresh after sample.load is overtaken by a poll (its answer comes back first and is dropped, the
+   poll's comes 2 s later), and the sample takes well over the 500 ms during which a shift still counts as the learner's own doing. The tour's home replaces the
+   line as a whole: it is not drawn on the old snapshot (the banner and the sample course coming in above and inside it later), and the line's page is not the
+   same element as the home's, so the banner inserted above the home moves nothing that was on screen. At 420 and 1440 px. */
+test('载入示例并开始导览 moves nothing when a poll overtakes the refresh after the sample is loaded', { timeout: 300000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-first-run-race-dist-'));
+  await buildPreview({ outdir: dist });
+  try {
+    for (const width of [420, 1440]) {
+      const running = await start(dist);
+      try {
+        const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: 'dark', width, height: 900 });
+        let phase = 'idle', releaseOurs = null;
+        await page.route('**/api/call', async (route) => {
+          let action = '';
+          try { action = JSON.parse(route.request().postData() || '{}').action; } catch { /* not JSON */ }
+          if (action === 'sample.load') {
+            const response = await route.fetch();
+            await new Promise((done) => setTimeout(done, 700));
+            phase = 'ours';
+            return route.fulfill({ response });
+          }
+          if (action === 'snapshot' && phase === 'ours') { // the app's own refresh: answered only once a poll has overtaken it
+            phase = 'poll';
+            const response = await route.fetch();
+            await new Promise((done) => { releaseOurs = done; setTimeout(done, 4000); });
+            return route.fulfill({ response });
+          }
+          if (action === 'snapshot' && phase === 'poll') { // the poll that overtook it, answered 2 s later
+            phase = 'done';
+            const response = await route.fetch();
+            releaseOurs?.();
+            await new Promise((done) => setTimeout(done, 2000));
+            return route.fulfill({ response });
+          }
+          return route.continue();
+        });
+        await page.goto(running.server.url);
+        await page.locator('.first-run').waitFor({ timeout: 30000 });
+        await settleAnimations(page);
+        await drainLayoutStability(page);
+        await page.getByRole('button', { name: '载入示例并开始导览' }).click();
+        await page.locator('.tour-layer:not(.is-measuring) .tour-pop').waitFor({ timeout: 30000 });
+        await until(async () => phase === 'done', 'the overtaking poll');
+        await page.waitForTimeout(2500);
+        await settleAnimations(page);
+        await frames(page, 3);
+        assert.equal(await page.locator('.sample-banner').count(), 1, `${width}px: the sample banner is there`);
+        const log = await drainLayoutStability(page);
+        log.shifts = log.shifts.filter((shift) => !shift.sources.length || !shift.sources.every((source) => /sh-toast|top-right|topbar/.test(source.element)));
+        const layout = judgeLayoutStability(log, { maxCls: 0.01 });
+        assert.ok(layout.ok, `${width}px: the tour's home came in by moving the page: ${layout.message}`);
+        assert.deepEqual(errors, [], 'no console or page errors');
+        await context.close();
+      } finally { await running.close(); }
+    }
+  } finally {
+    await browser.close().catch(() => {});
+    await rm(dist, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
+  }
+});
 
 test('the default tour is short and lit, the full tour is one button away, and Settings has one name', { timeout: 900000 }, async (t) => {
   let browser;
@@ -81,6 +149,21 @@ test('the default tour is short and lit, the full tour is one button away, and S
           const now = await card(page);
           seen.push(now);
           await shot(page, `tour-${String(now.at).padStart(2, '0')}-of-${now.total}-${width}`);
+          // On a narrow panel the card is docked along the bottom: the control a step names ends above the card, never underneath it.
+          if (width <= 560 && now.step?.anchor && now.lit) {
+            const key = KEY_CONTROL[now.step.id];
+            let control = null, pop = null;
+            // A lit area taller than the room above the card (a whole Settings section) starts at the top of the view instead. The scroll is smooth: give it time.
+            const above = async () => {
+              [control, pop] = await Promise.all([
+                key ? page.locator(`[data-tour="${key}"]`).first().boundingBox() : page.locator('.tour-spot').boundingBox(),
+                page.locator('.tour-pop').boundingBox()]);
+              const room = pop.y - 51 - 8;
+              return !!control && (control.height <= room ? control.y + control.height <= pop.y : control.y >= 51 && control.y <= 51 + 120);
+            };
+            await until(above, 'the control above the docked card', { timeoutMs: 4000 }).catch(() => {});
+            assert.ok(await above(), `${width}px: 「${now.title}」's ${key || 'spotlight'} ends above the docked card (control ${JSON.stringify(control)}, card ${JSON.stringify(pop)})`);
+          }
           if (now.step?.final) break;
           await page.locator('.tour-pop').getByRole('button', { name: '下一步', exact: true }).click();
           actions++;
@@ -88,7 +171,15 @@ test('the default tour is short and lit, the full tour is one button away, and S
         }
         assert.equal(seen.length, CORE_TOUR_LENGTH, `${width}px: the default tour has ${CORE_TOUR_LENGTH} steps`);
         assert.ok(seen.every(item => item.total === CORE_TOUR_LENGTH), 'the counter says the same total all the way');
-        assert.deepEqual(seen.map(item => item.step?.id), ['welcome', 'sources', 'generate-quick', 'tasks', 'draft', 'practice', 'settings-model', 'finish']);
+        // 3.6 D5: the first-run line's order, 任务 only in the full tour, and the last step on the line's step 2 (the sample never counts in the line).
+        assert.deepEqual(seen.map(item => item.step?.id), ['welcome', 'settings-model', 'sources', 'generate-quick', 'draft', 'practice', 'finish-line']);
+        assert.equal(CORE_TOUR_LENGTH, 7);
+        assert.ok(await page.locator('[data-first-run="compact"] [data-tour="first-run-material"]').isVisible(), `${width}px: the last step shows the line's step 2`);
+        assert.equal(await page.locator('[data-first-run="compact"] .frl-step[data-step="material"]').getAttribute('data-status'), 'todo', 'the sample material does not tick step 2');
+        assert.equal(await page.locator('.tour-spot').count() > 0, true, 'and lights it');
+        const [row, pop] = await Promise.all([page.locator('[data-first-run="compact"] [data-tour="first-run-material"]').boundingBox(), page.locator('.tour-pop').boundingBox()]);
+        assert.ok(row.y + row.height <= pop.y || row.y >= pop.y + pop.height || row.x + row.width <= pop.x || row.x >= pop.x + pop.width,
+          `${width}px: the card does not cover the line's step 2 (row ${JSON.stringify(row)}, card ${JSON.stringify(pop)})`);
         assert.deepEqual(seen.filter(item => item.step?.anchor && !item.lit).map(item => item.title), [], `${width}px: every anchored step finds its element`);
         assert.ok(actions <= CORE_TOUR_LENGTH + 1, `${actions} clicks to take the default tour (was 22)`);
         const last = page.locator('.tour-pop');

@@ -35,7 +35,8 @@ export function firstRunDraft(data) {
  * The line for a library snapshot: { show, step, steps }. `show` is false once the learner has published a deck of their own (and for no snapshot); then
  * `step` is -1 and `steps` is empty. Otherwise `step` is the index of the one step that is open, and `steps` are, in FIRST_RUN_STEPS order:
  *   model     { status: 'done' | 'todo', ready, reason, label, verified }: the readiness (modelReadiness); `verified` when DSH said the key is there too
- *   material  { status: 'done' | 'todo', count, title, sourceIds }: the learner's own materials (a PDF is one), the newest one's title, their ids
+ *   material  { status: 'done' | 'todo', count, title, sourceIds }: the learner's own materials (a PDF is one), the newest one's title, their ids (an archived
+ *             one left out, as 资料 and 创建题组 leave it out)
  *   deck      { status: one of DECK_STATES, draft, jobIds, sourceIds, modelReady }: `jobIds` are the runs the step carries (the running ones, the one
  *             that ended without a draft, or the draft's run that stands), `draft` the draft it publishes or opens
  * `publishAtOnce` is what canPublishAtOnce (ui/draft-publish.js) says of that draft: 'draft-clean' only then, else 'draft-review'.
@@ -53,7 +54,7 @@ export function firstRunLine(data, { publishAtOnce = false, shortfallAction = nu
   const model = { id: 'model', status: readiness.ready ? 'done' : 'todo', ready: readiness.ready, reason: readiness.reason, label: readiness.label, verified: readiness.ready && readiness.reason === 'ok' };
   // Materials as the learner counts them (a PDF is one, by its document's title, as 资料 shows it).
   const sources = (data.sources || []).filter(own), documents = groupSourcesByDocument(sources).filter((item) => !item.archived), count = documents.length;
-  const material = { id: 'material', status: count ? 'done' : 'todo', count, title: documents.at(-1)?.title || '', sourceIds: sources.map((source) => source.id) };
+  const material = { id: 'material', status: count ? 'done' : 'todo', count, title: documents.at(-1)?.title || '', sourceIds: documents.flatMap((item) => item.sourceIds) };
   const draft = firstRunDraft(data);
   const sampleDraft = (job) => !!job.draftId && (sample.has(job.draftId) || (data.drafts || []).some((item) => item.id === job.draftId && item.sample));
   const runs = (data.jobs || []).filter((job) => isFirstRunJob(job) && !sampleDraft(job));

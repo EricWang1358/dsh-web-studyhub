@@ -103,28 +103,34 @@ export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = fa
   </div>;
 }
 
+const ESTIMATE_IDLE = Object.freeze({ status: 'idle' }), ESTIMATE_LOADING = Object.freeze({ status: 'loading' });
+
 /**
  * Ask `usage.estimate` for `request` once it settles. A new request keeps the last answer on screen until the next one
- * arrives; nothing to estimate (or an estimate that cannot be made) stays quiet.
+ * arrives; nothing to estimate (or an estimate that cannot be made) stays quiet. What it says is right from the render that
+ * changes the request: 'loading' from the first paint of a request it will ask (the effect runs after that paint), 'idle' at
+ * once for one it will not ask, so a caller never shows a stale 'idle' as "not coming" nor holds "正在估算…" for nothing.
  */
 export function useUsageEstimate(call, request, { enabled = true, delay = 450 } = {}) {
   const key = JSON.stringify(request);
-  const [state, setState] = useState({ status: 'idle' });
+  const [state, setState] = useState(ESTIMATE_IDLE);
   const callRef = useRef(call);
   callRef.current = call;
+  const asks = enabled && typeof call === 'function';
   useEffect(() => {
-    if (!enabled || typeof callRef.current !== 'function') { setState({ status: 'idle' }); return undefined; }
+    if (!enabled || typeof callRef.current !== 'function') { setState(ESTIMATE_IDLE); return undefined; }
     let live = true;
-    setState((current) => (current.status === 'ready' ? current : { status: 'loading' }));
+    setState((current) => (current.status === 'ready' ? current : { status: 'loading', key }));
     const timer = setTimeout(() => {
       Promise.resolve().then(() => callRef.current(request.action || 'usage.estimate', request.args || request)).then(
-        (estimate) => { if (live) setState(estimate?.calls?.high > 0 ? { status: 'ready', estimate } : { status: 'idle' }); },
-        () => { if (live) setState({ status: 'error' }); },
+        (estimate) => { if (live) setState(estimate?.calls?.high > 0 ? { status: 'ready', estimate, key } : { status: 'idle', key }); },
+        () => { if (live) setState({ status: 'error', key }); },
       );
     }, delay);
     return () => { live = false; clearTimeout(timer); };
   }, [key, enabled, delay]); // eslint-disable-line react-hooks/exhaustive-deps
-  return state;
+  if (!asks) return ESTIMATE_IDLE;
+  return state.key === key || state.status === 'ready' ? state : ESTIMATE_LOADING;
 }
 
 /** The estimate line, connected: `request` is what `usage.estimate` takes (with `feature`); `action` overrides the action name. */

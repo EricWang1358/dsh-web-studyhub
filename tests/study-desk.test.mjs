@@ -17,7 +17,7 @@ const deck = { id: "d1", title: "行为型模式", folder: "CS3219", course: "CS
   available: 5, count: 5, quizCount: 3, createdAt: "2026-09-01T00:00:00Z" };
 const progress = { d1: { counts: { mastered: 1, familiar: 1, learning: 1, weak: 1, new: 1 }, total: 5,
   mastery: 60, due: 1, status: "active", topics: [] } };
-function render(patch = {}) {
+function render(patch = {}, firstRun) {
   const data = {
     root: "/tmp/lib", decks: [deck], progress, sources: [{ id: "s" }], drafts: [], jobs: [], runs: [],
     today: { due: 1, weak: 2, new: 0, size: 3 },
@@ -28,7 +28,7 @@ function render(patch = {}) {
   return renderToStaticMarkup(React.createElement(StudyMap, mapProps({
     data, busy: false, start: noop, resume: noop, endRun: noop, manage: noop, openDraft: noop,
     continueDraft: noop, retryGeneration: noop, addSource: noop, createManual: noop, importLibrary: noop, generateFromSources: noop,
-    askInChat: noop, notebooks: [], onFocus: noop,
+    askInChat: noop, notebooks: [], onFocus: noop, firstRun,
   })));
 }
 const primaries = (html) => (html.match(/class="[^"]*sh-btn--primary[^"]*"/g) || []).length;
@@ -41,7 +41,9 @@ test("the home card offers exactly one primary action in every state", () => {
     fresh: render({ focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: Array(14).fill({}) } }),
     clear: render({ today: { due: 0, weak: 0, new: 0, size: 0 } }),
     // A newcomer with a model set up (with none, the first-run card marks the model step and offers no other step's button).
-    empty: render({ decks: [], progress: {}, today: { due: 0, weak: 0, new: 0, size: 0 }, model: { ready: true, reason: "ok", label: "DeepSeek" } }),
+    // 出第一组题 is the app's own generate request (the line's firstRun.on.generate, 3.6 D4).
+    empty: render({ decks: [], progress: {}, today: { due: 0, weak: 0, new: 0, size: 0 }, model: { ready: true, reason: "ok", label: "DeepSeek" } },
+      { form: "compact", on: { generate: () => {} } }),
   };
   for (const [name, html] of Object.entries(states)) assert.equal(primaries(html), 1, name);
   assert.deepEqual(count(states.path), ["3", "题待学"]);

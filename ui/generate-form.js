@@ -120,6 +120,15 @@ export function generationRequest(gen, { course, sourceIds }) {
   return { ...rest, ...kindsPatch(kindsOfForm(gen)), course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
 }
 
+/** What `usage.estimate` is asked for the same form and materials: the plan of the chosen 覆盖强度 (or the typed number), priced from the real prompts. The
+    form's estimate line and the first-run line's third step ask with this one request, so both say the same before anything is spent. */
+export function estimateRequestOf(gen, { course, sourceIds, reasoningEffort = '' }) {
+  const custom = customCountOf(gen);
+  return { feature: 'generate', sourceIds, referenceSourceIds: gen.referenceSourceIds || [], referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat,
+    coverageLevel: levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen), difficulty: gen.difficulty,
+    language: gen.language, course, ...(reasoningEffort ? { reasoningEffort } : {}) };
+}
+
 /** Whether the run goes on by itself (「自动补到完整」): what the learner chose, else what the level's row of the table says (lib/coverage-strength.js: 精简 waits for the learner, 标准 and 完整 go on). */
 export const autoOf = (gen) => (typeof gen?.autoComplete === 'boolean' ? gen.autoComplete : autoCompleteOf(gen?.coverageLevel));
 

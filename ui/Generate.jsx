@@ -18,7 +18,8 @@ import { MODES, availableModes, effectiveMode, pathSummary, showsChoice } from '
 import { courseForSources } from '../lib/source-courses.js';
 import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
-import { documentCount, freshGeneration, generationFormDefaults, generationStartedNotice, modelReadiness } from './generation-status.js';
+import { freshGeneration, generationFormDefaults, modelReadiness } from './generation-status.js';
+import { startGeneration } from './generate-start.js';
 import GenerateAssist from './GenerateAssist.jsx';
 import { TokenEstimate, TokenEstimateView, useUsageEstimate } from './TokenUsage.jsx';
 import CoverageStrength, { MaterialsForecast } from './coverage/CoverageStrength.jsx';
@@ -30,7 +31,7 @@ import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
   DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, generationRequest, importDialog, kindNote, kindsOfForm, kindsPatch, moreValuesOf, notationNote, planLine, roleOpenByDefault, selectionStats, summaryLine,
+  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, moreValuesOf, notationNote, planLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -155,15 +156,9 @@ export default function Generate({
     event.preventDefault();
     if (pathMode) { if (model.ready && !busy && !path.queueing && path.included.length && !referenceState.reason) path.queue(); return; }
     if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason) return;
-    const materials = documentCount(data.sources.filter((source) => selectedSources.includes(source.id)));
-    act("generate", generationRequest(gen, { course: generationCourse, sourceIds: selectedSources }), (job) => {
-      // Confirm with the deck's name, start the next deck from a clean form (P27),
-      // and land where the progress card is (P26).
-      notify(generationStartedNotice(job, gen, materials));
-      setGen(current => freshGeneration(current, data.settings?.generation));
-      if (onStarted) onStarted(job);
-      else setPage("library");
-    });
+    // Land where the progress card is (P26).
+    startGeneration({ act, notify, setGen, data, gen, course: generationCourse, sourceIds: selectedSources,
+      then: (job) => (onStarted ? onStarted(job) : setPage("library")) });
   }
   // The case form opens with the materials ticked on this tab (its own selection when it comes from the reader): the learner already chose them, and the form says so.
   const carried = caseEvidence(data.sources, referenceSourceIds).filter((source) => selectedSources.includes(source.id)).map((source) => source.id);
@@ -171,8 +166,7 @@ export default function Generate({
   const caseExam = courseHasCaseExam((data.courses || []).find((course) => course?.name === generationCourse));
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
-  const estimateRequest = { feature: 'generate', sourceIds: selectedSources, referenceSourceIds, referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat, coverageLevel: level,
-    ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen), difficulty: gen.difficulty, language: gen.language, course: generationCourse, ...(reasoningEffort ? { reasoningEffort } : {}) };
+  const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: selectedSources, reasoningEffort });
   const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason && !pathMode });
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
