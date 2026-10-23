@@ -9,6 +9,8 @@ import { megabytes } from '../lib/office/limits.js';
 import { HISTORY_PAGE, groupHistoryByDay, historyRefreshKey, pageRange, isConvertJob } from './mineru-flow.js';
 import CompactJobCard from './tasks/CompactJobCard.jsx';
 import JobFollowUp from './JobFollowUp.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
 import css from './mineru.css';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
@@ -59,7 +61,7 @@ export function PdfDetail({ job, expandChunks }) {
       </>}
       {running && job.route === 'local' && job.phase === 'local' && job.local?.window && <LocalWindow job={job} now={now} />}
       {running && job.toolProgress && <small className="pdf-tool-progress" data-tool-progress>{uiFormat('{0} 正在：{1} {2}%（{3}/{4}）', [job.converter === 'marker' ? 'Marker' : 'MinerU', job.toolProgress.label, job.toolProgress.percent, job.toolProgress.done, job.toolProgress.total])}</small>}
-      {!running && job.failure && ['failed', 'interrupted'].includes(job.status) && <FailureDetail failure={job.failure} />}
+      {!running && job.failure && ['failed', 'interrupted'].includes(job.status) && <FailureDetail failure={job.failure} job={job} />}
       {job.note && running && <Hint as="small">{uiMessage(job.note)}</Hint>}
       {running && job.local?.halved > 0 && <Hint as="small">{uiFormat('有窗口没有成功，已自动拆成更小的段重试（{0} 次）', [job.local.halved])}</Hint>}
       {(adaptive ? job.chunks?.length > 0 : count > 1 && job.chunks?.length > 1) && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} adaptive={adaptive} next={adaptive && running ? job.local?.next : 0} />}
@@ -83,13 +85,15 @@ export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOp
 
 /**
  * The cause in full (the list row and the card can only show its start), the last lines the converter printed (plain: no folder, no token; selectable), and
- * 复制诊断信息, which copies both for a report. The same text is the error line of the 日志.
+ * 复制诊断信息, which copies both for a report. The same text is the error line of the 日志. Beside it, 「发给主会话」 hands the conversion with that
+ * diagnosis to the main chat (the hand-off plan N11, 'job.failed'; the same rule as the card and the console line).
  */
-function FailureDetail({ failure }) {
+function FailureDetail({ failure, job }) {
   const [copied, setCopied] = useState('');
   const lines = Array.isArray(failure.lines) ? failure.lines : [];
+  const handOff = failedHandOffInput(job);
   const copy = async () => {
-    try { await navigator.clipboard.writeText([failure.summary, ...(Number.isInteger(failure.exitCode) ? [`exit code ${failure.exitCode}`] : []), ...lines].filter(Boolean).join('\n')); setCopied('done'); }
+    try { await navigator.clipboard.writeText(failureText(failure)); setCopied('done'); }
     catch { setCopied('failed'); }
   };
   return (
@@ -103,6 +107,7 @@ function FailureDetail({ failure }) {
       <p className="pdf-failure__actions">
         {/* The card keeps no live region of its own (#98): the button itself says it copied. */}
         <Button size="sm" variant="quiet" icon="copy" onClick={copy}>{copied === 'done' ? ui('已复制') : ui('复制诊断信息')}</Button>
+        {handOff && <HandOff id="job.failed" input={handOff} what={FAILED_HAND_OFF_WHAT} />}
         {copied === 'failed' && <span className="pdf-failure__copied">{ui('没能复制，请直接选中上面的文字')}</span>}
       </p>
     </div>

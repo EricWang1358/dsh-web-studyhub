@@ -9,6 +9,7 @@ import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 import { INGEST_KINDS, INGEST_MISTAKES } from './agent-prompts/ingest.js';
 import { deckChoices, deckEntries } from './deck-picker-entries.js';
+import { HandOff } from './hand-off/HandOff.jsx';
 
 /** Setup for recording questions straight from the conversation. */
 export default function Ingest({ data, busy, start, onOpenSettings }) {
@@ -82,6 +83,11 @@ export default function Ingest({ data, busy, start, onOpenSettings }) {
       <Tooltip layer content={handOffTip('先进入录题模式')} anchorClassName="sh-handoff__block">
         <Button type="submit" variant="primary" block busy={busy} disabled={!data.modelReady || (newDeck ? !title.trim() : !selectedDeck)}>{ui("开始录题并发给主会话")}</Button>
       </Tooltip>
+      {/* A whole question book, or questions in a file (the hand-off plan N1): the chat splits it by chapter and enters it as drafts. Not held by the model
+          setup above: deck.import needs no model. The form's choices go with it as facts. */}
+      <HandOff id="import.file" shape="quiet" lead="整本题册或文件里的题：" className="ingest-file" what="让主会话把题册按章拆开，原样录成草稿，你检查后再发布；文件在输入框里用 @ 选"
+        input={{ purpose: 'questions', facts: { course: newDeck ? course : (selectedDeck?.course ?? selectedDeck?.folder ?? ''), deckTitle: newDeck ? title.trim() : selectedDeck?.title, folder: newDeck ? folder : undefined,
+          kind: kind === 'auto' ? undefined : kind, mistakes: mistakes === 'auto' ? undefined : mistakes } }} />
     </form>
   );
 }

@@ -14,7 +14,6 @@ const ui = await loadUi(`
   export { situationPrompt } from './ui/agent-prompts/situation.js';
   export { dataFence, requestFence, listText, messageParts, notesHead } from './ui/agent-prompts/message.js';
   export { nameData, languageTail, hasLanguageTail } from './ui/agent-prompts/say.js';
-  export { workspaceFilePrompt } from './ui/agent-prompts/library.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 ui.setUiLanguage('zh');
 const han = /[㐀-鿿]/;
@@ -29,6 +28,7 @@ const FIXTURES = {
   'deck.ask': { input: { deckTitle: 'Physics' }, fenced: ['deckTitle'] },
   'topics.group': { input: { mode: 'merge', ungrouped: 12, topicCount: 40, course: 'SA', alternative: true }, fenced: [] },
   'import.file': { input: { purpose: 'audio', error: 'unsupported', files: ['lecture1.mp4'] }, fenced: ['error', 'files'] },
+  'job.failed': { input: { jobId: 'j1', kind: 'audio-import', title: 'Week 3', status: 'failed', line: 'ffmpeg missing', error: 'ffmpeg missing', sourceIds: ['s1'] }, fenced: ['title', 'line', 'error'] },
   'skeleton.design': { input: { scope: [{ deckId: 'd1', topic: 'Entropy' }], lint: null, topics: ['Entropy', 'Heat'], update: { id: 'sk1', title: 'Physics map' } }, fenced: ['topics', 'scope'] },
   'skeleton.archify': { input: { skeleton: { id: 'sk1', title: 'Physics map' } }, fenced: [] },
   'skeleton.extend': { input: { skeleton: { id: 'sk1', title: 'Physics map' }, nodeId: 'n1', term: 'Entropy', intent: 'contrast', text: 'Enthalpy' }, fenced: ['term', 'text'] },
@@ -152,8 +152,9 @@ test('topics.group: the course is a name span in the sentences and a JSON string
   }
 });
 
-test('import.file (audio): StudyHub extracts nothing there, so the message does not send the chat to source.export', () => {
-  for (const language of ['zh', 'en']) assert.doesNotMatch(ui.handOffText('import.file', FIXTURES['import.file'].input, language), /source\.export/);
+test('import.file (audio): StudyHub extracts nothing from a recording, so the message does not send the chat to document.import; no message names an action that does not exist (source.export)', () => {
+  for (const language of ['zh', 'en']) assert.doesNotMatch(ui.handOffText('import.file', FIXTURES['import.file'].input, language), /document\.import|source\.export/);
+  assert.doesNotMatch(ui.situationPrompt({ area: 'a', goal: 'b' }, 'zh'), /source\.export/);
 });
 
 test('ingest.start: the pasted questions keep their own language; the question-book line is there in both languages', () => {
@@ -200,16 +201,13 @@ const KNOWN = `${studyToolDescription}\n${Object.values(libraryContracts).join('
 // File names, and the fields a message reads in a result (groups.groups, groups.ungroupedCount, concepts.missing): not actions.
 const NOT_ACTIONS = /\.(?:md|html|json|txt|pdf)$|^(?:e\.g|i\.e)$|^groups\.(?:groups|ungroupedCount)$|^concepts\.missing$/;
 const actionsOf = text => [...new Set((text.match(/(?<![\w./-])[a-z][a-zA-Z]*(?:\.[a-z][a-zA-Z]*)+(?![\w/-])/g) || []).filter(name => !NOT_ACTIONS.test(name)))];
-// situation.js names source.export unless an entry opts out (import.file does): the hand-off plan's S3 adds the action with the first entry that needs it.
-const PENDING = new Set(['source.export']);
 
 test('every action a message names exists in studyToolDescription or the library contracts', () => {
   const missing = new Set();
   const texts = Object.entries(FIXTURES).flatMap(([id, { input }]) => [ui.handOffText(id, input, 'zh'), ui.handOffText(id, input, 'en')]);
-  texts.push(ui.situationPrompt({ area: '添加资料', goal: '导入一本题册', facts: { deckId: 'd1' }, error: 'too big', files: ['a.pdf'] }, 'zh'), ui.workspaceFilePrompt('zh'));
-  for (const text of texts) for (const name of actionsOf(text)) if (!KNOWN.includes(name) && !PENDING.has(name)) missing.add(name);
+  texts.push(ui.situationPrompt({ area: '添加资料', goal: '导入一本题册', facts: { deckId: 'd1' }, error: 'too big', files: ['a.pdf'] }, 'zh'));
+  for (const text of texts) for (const name of actionsOf(text)) if (!KNOWN.includes(name)) missing.add(name);
   assert.deepEqual([...missing].sort(), []);
-  for (const name of PENDING) assert.equal(KNOWN.includes(name), false, `${name} exists now: take it out of PENDING`);
 });
 
 test('situation.js: where and what, the facts in fences, the fixed way of working, the report; the same in English', () => {

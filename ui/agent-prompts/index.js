@@ -3,6 +3,7 @@ import { composeMessage } from './message.js';
 import { bookEditPrompt } from './book.js';
 import { ingestPrompt } from './ingest.js';
 import { importFilePrompt } from './import.js';
+import { jobFailedPrompt } from './job.js';
 import { deckAnalysisPrompt, topicExplainPrompt, weakTopicsPrompt } from './library.js';
 import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } from './skeleton.js';
 import { workflowDesignPrompt, workflowSkeletonPrompt, workflowStepPrompt } from './workflow.js';
@@ -23,6 +24,7 @@ export const HAND_OFFS = Object.freeze({
   'deck.ask': { build: (input, language) => deckAnalysisPrompt(input, language) },
   'topics.group': { build: (input, language) => groupPrompt(input, language) },
   'import.file': { build: (input, language) => importFilePrompt(input, language), skill: 'study-import', tail: 'file' },
+  'job.failed': { build: (input, language) => jobFailedPrompt(input, language) },
   'skeleton.design': { build: (input, language) => designSkeletonPrompt(input, language) },
   'skeleton.archify': { build: (input, language) => archifySkeletonPrompt(input, language) },
   'skeleton.extend': { build: (input, language) => extendSkeletonPrompt(input, language) },

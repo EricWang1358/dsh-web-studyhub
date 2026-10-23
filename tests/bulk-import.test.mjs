@@ -68,3 +68,57 @@ test("bad input is reported per file without stopping the others", async (t) => 
   const inline = await service.call("deck.import", { text: JSON.stringify({ title: "粘贴", cards: [card(9)] }) });
   assert.equal(inline.added, 1);
 });
+
+/* The hand-off plan (section 3 item 7, S3): the main chat enters a question book chapter by chapter with deck.import {draft:true}, so the learner checks
+   the drafts before anything is published; only without draft (the learner said "import it directly") is it published at once. Nothing else changes. */
+test("draft:true stops before publication: the decks wait as drafts, nothing is published, and each draft id comes back to publish later", async (t) => {
+  const { service, files } = await setup(t);
+  await writeFile(join(files, "01 第一章.json"), JSON.stringify({ title: "01 第一章", cards: [1, 2].map((n) => card(n)) }));
+  await writeFile(join(files, "02 第二章.json"), JSON.stringify([3].map((n) => card(n))));
+  const result = await service.call("deck.import", { path: files, folder: "期末题册", draft: true });
+  assert.equal(result.imported, 2);
+  assert.equal(result.added, 0, "nothing is added to a deck");
+  assert.equal(result.drafted, 3);
+  const state = await service.store.read();
+  assert.equal(state.decks.length, 0, "not published");
+  assert.equal(state.drafts.length, 2);
+  assert.deepEqual(result.results.map((r) => [r.title, r.draft, r.drafted, r.added, r.deckId ?? null]), [["01 第一章", true, 2, 0, null], ["02 第二章", true, 1, 0, null]]);
+  for (const r of result.results) {
+    const draft = state.drafts.find((d) => d.id === r.draftId);
+    assert.ok(draft, "the draft id is returned");
+    assert.equal(r.draftVersion, draft.draftVersion, "with its version, for draft.publish later");
+    assert.equal(draft.folder, "期末题册");
+  }
+  // The learner publishes one after checking it: the ordinary publication.
+  const first = result.results[0];
+  const published = await service.call("draft.publish.quick", { id: first.draftId, draftVersion: first.draftVersion });
+  assert.equal((await service.store.read()).decks.find((d) => d.id === published.id).cards.length, 2);
+});
+
+test("draft:true into a deck that exists: the draft carries that deck as its target and only the questions it lacks; the deck is untouched until published", async (t) => {
+  const { service, files } = await setup(t);
+  const bank = join(files, "02.json");
+  await writeFile(bank, JSON.stringify({ title: "02 云迁移与 IaC", cards: [1, 2].map((n) => card(n)) }));
+  await service.call("deck.import", { path: bank });
+  await writeFile(bank, JSON.stringify({ title: "02 云迁移与 IaC", cards: [1, 2, 3].map((n) => card(n)) }));
+  const result = await service.call("deck.import", { path: bank, draft: true });
+  const [r] = result.results;
+  assert.deepEqual([r.draft, r.drafted, r.skipped, r.added], [true, 1, 2, 0]);
+  const state = await service.store.read();
+  assert.equal(state.decks[0].cards.length, 2, "the deck waits for the learner");
+  assert.equal(state.drafts.find((d) => d.id === r.draftId).mergeTargetId, state.decks[0].id);
+});
+
+test("draft is a boolean, and the limits are the same with it (50 files, one file at most 500,000 characters, absolute paths)", async (t) => {
+  const { service, files } = await setup(t);
+  await writeFile(join(files, "a.json"), JSON.stringify({ title: "A", cards: [card(1)] }));
+  await assert.rejects(service.call("deck.import", { path: files, draft: "yes" }), /draft/);
+  await assert.rejects(service.call("deck.import", { path: "relative/bank.json", draft: true }), /绝对路径/);
+  const many = Array.from({ length: 51 }, (_, n) => join(files, `m${n}.json`));
+  for (const file of many) await writeFile(file, JSON.stringify({ title: file, cards: [card(1)] }));
+  await assert.rejects(service.call("deck.import", { paths: many, draft: true }), /一次最多导入 50 个文件/);
+  await writeFile(join(files, "big.json"), "x".repeat(2_000_001));
+  const big = await service.call("deck.import", { path: join(files, "big.json"), draft: true });
+  assert.match(big.results[0].error, /文件过大/);
+  assert.equal((await service.store.read()).drafts.length, 0);
+});

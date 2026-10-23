@@ -136,12 +136,12 @@ test('library hand-offs', () => {
   assert.ok(explain.startsWith('给我讲讲题组 `OS` 里的 `死锁`：先讲核心概念，再出一两道小题考考我。\n'));
   assert.match(explain, /- 进度：掌握度 40% · 2 道题当前薄弱。/);
   assert.match(laid(m.topicExplainPrompt({ topic: '死锁', deckTitle: 'OS', mastery: 40, weak: 0 }, 'zh'), 'zh'), /- 进度：掌握度 40%。/);
-  assert.ok(m.workspaceFilePrompt('zh').endsWith('\n\n文件（不在工作区就粘贴完整路径）：@'), 'the learner picks the file with the @');
   assert.equal(laid(m.weakTopicsPrompt({ title: 'OS', topics: ['死锁', '调度'] }, 'zh'), 'zh').split('\n')[0], '我刚做完 `OS`，`死锁`、`调度` 还没掌握稳。帮我逐个讲清楚，每个出一道小题考考我。');
   const many = laid(m.weakTopicsPrompt({ title: 'OS', topics: ['a', 'b', 'c', 'd', 'e'] }, 'zh'), 'zh');
   assert.match(many, /下面这 5 个主题/);
   assert.match(many, /```data 主题列表\na\nb\nc\nd\ne\n```/);
-  for (const text of [laid(m.deckAnalysisPrompt({ deckTitle: 'OS' }, 'en'), 'en'), m.workspaceFilePrompt('en'), laid(m.weakTopicsPrompt({ title: 'OS', topics: ['a'] }, 'en'), 'en')])
+  // (the empty home's workspace-file message is the registry's import.file {purpose:'material', goal:'generate'} since 3.6.1: tests/hand-off-deadends.test.mjs)
+  for (const text of [laid(m.deckAnalysisPrompt({ deckTitle: 'OS' }, 'en'), 'en'), laid(m.weakTopicsPrompt({ title: 'OS', topics: ['a'] }, 'en'), 'en')])
     assert.doesNotMatch(text, /[㐀-鿿]/, text);
 });
 

@@ -148,7 +148,7 @@ export default function Generate({
     // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
     { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", attrs: { "data-tour": "generate-case" } },
     // Recording into the conversation needs a chat that can take it (plan C3).
-    ...(canChat ? [{ id: "chat", label: ui("在主会话里录题"), note: ui("刷题软件、错题或截图") }] : []),
+    ...(canChat ? [{ id: "chat", label: ui("在主会话里录题"), note: ui("题册、刷题软件、错题或截图") }] : []),
   ];
   const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
   function submit(event) {

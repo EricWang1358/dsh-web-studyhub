@@ -20,6 +20,8 @@ import { toBase64 } from './upload.js';
 import css from './import-hub.css';
 import { hasContext } from './capabilities.js';
 import { useStudy } from './study-context.jsx';
+import { useHandOff } from './hand-off/use-hand-off.js';
+import { failedImportInput, lastingFailures, rejectedFilesInput } from './import-hand-off.js';
 
 /* The one way to add material (O-3, O-4, P19–P21, P05). The course is one line
    (the current course, or what the learner chose, or the course a file name
@@ -402,6 +404,7 @@ export default function ImportHub({
   ...rest
 }) {
   const { call, busy } = useStudy();
+  const handOff = useHandOff();
   useInjectCss(css, 'study-import-hub');
   const audioOn = audio !== undefined && audio !== null && audio !== false;
   const convertible = hasContext(data, 'audio');
@@ -493,6 +496,8 @@ export default function ImportHub({
       : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => drop(item.id), disabled: running }
         : { label: ui('重试'), onClick: () => retry(item.id), disabled: running } }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
+  // 「发给主会话」 for the batch (the hand-off plan N3): one for every file that will fail again; an upload that broke off is retried on its row instead.
+  const lasting = lastingFailures(items).length > 0;
   const tabs = [{ value: 'files', label: ui('文件'), icon: 'upload' }, { value: 'paste', label: ui('粘贴文本'), icon: 'file' },
     ...(audioOn ? [{ value: 'audio', label: ui('音频 / 录音'), icon: 'audio' }] : [])];
   const strayText = tab === 'audio' ? ui('把音频放进虚线框里才会导入。') : ui('把文件放进虚线框里才会导入。');
@@ -505,7 +510,8 @@ export default function ImportHub({
       {tab === 'files' && <div className="import-hub__files">
         {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary"
           title={finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed])}
-          action={finished ? { label: ui('查看已导入的内容'), onClick: () => onComplete?.(importSummary(itemsRef.current)) } : undefined}>
+          action={finished ? { label: ui('查看已导入的内容'), onClick: () => onComplete?.(importSummary(itemsRef.current)) } : undefined}
+          secondary={lasting ? handOff.action('import.file', () => failedImportInput(itemsRef.current, { courses }), { what: '让主会话按每个文件的原因换个办法导入；文件在输入框里用 @ 选' }) : undefined}>
           {ui('原因写在每个文件旁边。修正后可以重新拖进来。')}
         </InlineMessage>}
         {(!conversionOpen || items.length > 0 || largeItem) && <FileDrop className={stray ? 'is-attention' : undefined} accept={importAccept({ audio: audioOn })} multiple compact
@@ -513,13 +519,14 @@ export default function ImportHub({
           hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组'),
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
+          rejectAction={rejections => handOff.action('import.file', rejectedFilesInput(rejections, { area: '添加资料' }), { what: '让主会话转换这些文件再导入；文件在输入框里用 @ 选' })}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />}
         {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={settingsFor}
           call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course}
           conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} onConversionStarted={conversionStarted} />}
         {/* A PDF with no text: the same staged converter, one press from started. Nothing runs before that press. */}
         {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain available={convertible} call={call} file={scannedItem.file} courses={coursesOf(scannedItem.file)}
-          onOpenSettings={settingsFor} onStarted={conversionStarted} /></div>}
+          onOpenSettings={settingsFor} onStarted={conversionStarted} why={scannedItem.error} /></div>}
         {staged && <>
           <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
           <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} call={call} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}

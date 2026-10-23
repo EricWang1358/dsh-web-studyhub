@@ -9,6 +9,7 @@ import { useCopyFeedback } from './use-copy-feedback.js';
 import { LARGE_DOCUMENT_LIMITS, TOOLS, VERIFIED_AT, mcpConfigSnippet } from '../lib/large-documents.js';
 import ExtensionPanel from './ExtensionPanel.jsx';
 import PdfConversion from './PdfConversion.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
 import css from './large-documents.css';
 
 /* 大教材建议 (WP28, WP28b). StudyHub does not index a 1000-page textbook itself, and
@@ -84,9 +85,10 @@ const byId = id => TOOLS.find(tool => tool.id === id);
 /**
  * The leading converter: StudyHub runs local MinerU or shows its setup. With `call` the whole flow is here;
  * without it the card explains local model setup. `file` is the PDF a too-large import was
- * refused for (without one the learner picks a PDF), `onStarted` hears that a conversion began.
+ * refused for (without one the learner picks a PDF), `onStarted` hears that a conversion began. `why`: the reason this PDF is here (a too-large or scanned
+ * import, a selection too big); given, the card also offers 「不想装转换工具：发给主会话」 (the hand-off plan N10), so Settings, which only explains, has none.
  */
-export function ConverterMain({ available = true, call, file = null, courses = [], onOpenSettings, onStarted }) {
+export function ConverterMain({ available = true, call, file = null, courses = [], onOpenSettings, onStarted, why = '' }) {
   const [picked, setPicked] = useState(null);
   return (
     <div className="large-doc__group" data-role="converter">
@@ -95,6 +97,8 @@ export function ConverterMain({ available = true, call, file = null, courses = [
         ? <PdfConversion available={available} compact file={file || picked} onFile={file ? undefined : setPicked} call={call} courses={courses} onOpenSettings={onOpenSettings} onStarted={onStarted} />
         : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /></div>}
       <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。')}</Hint>
+      {why && <HandOff id="import.file" input={{ purpose: 'material', area: '添加资料', error: why, files: [file?.name || picked?.name].filter(Boolean), facts: courses.length ? { courses } : null }}
+        lead="不想装转换工具：" shape="quiet" what="让主会话按页分段导入这份 PDF，不用装转换工具；文件在输入框里用 @ 选" />}
     </div>
   );
 }
@@ -187,11 +191,11 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
       </header>
       <ol className="large-doc__steps">{steps.map((step, index) => <li key={index} className="large-doc__step">{step()}</li>)}</ol>
       {converting ? <>
-        <ConverterMain available={conversionAvailable} call={call} file={detail.file} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} />
+        <ConverterMain available={conversionAvailable} call={call} file={detail.file} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} />
         <Disclosure summary={ui('需要整本检索时')} meta={ui('可选')} className="large-doc__more" defaultOpen={retrieval?.extension?.installed === true}>{search}</Disclosure>
       </> : <>
         {search}
-        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={conversionAvailable} call={call} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
+        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={conversionAvailable} call={call} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} /></Disclosure>
       </>}
       <AdvancedTools />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />

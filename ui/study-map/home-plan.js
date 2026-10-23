@@ -1,7 +1,6 @@
 import { ui, uiFormat } from '../i18n.js';
 import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
-import { workspaceFilePrompt } from '../agent-prompts/library.js';
 import { joinMeta, formatDateTime } from '../format.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
@@ -31,10 +30,11 @@ export const dailyPathArgs = (today) => practiceArgs(undefined, { fresh: false, 
  *
  * Returns { interview, route, starter, headline, plan, alternatives, shownRun,
  * otherRuns, otherCourse, todayLabel }. `plan` is { kind, eyebrow, count, unit,
- * detail, action: { label, run, disabled }, also: [[label, run]], depth }.
+ * detail, action: { label, run, disabled }, also: [[label, run] | { handOff: { id, input, lead, what } }], depth }. A handOff entry is drawn by the shared
+ * 「发给主会话」 unit (ui/hand-off/), never as a link of its own.
  */
-export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, canChat, revealActivity }) {
-  const { start, resume, openDraft, addSource, importLibrary, askInChat, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } = actions;
+export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity }) {
+  const { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } = actions;
   const todayRun = runFor(today.scope ?? []);
   /* No decks yet: the card walks a newcomer from materials to a first deck
      (D1): add a material → generate from it → check and publish the draft.
@@ -59,8 +59,10 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
           : { kind: 'empty', step: 0, eyebrow: ui('开始'), headline: ui('从一份资料开始'),
             title: ui('还没有资料'), next: ui('添加讲义、笔记或 PDF，AI 会据此出题；发布后这里会给出学习路径。'),
             action: { label: ui('添加资料'), run: addSource },
-            also: [jsonLink, ...(canChat ? [[ui('在对话中用工作区文件出题'), () => askInChat(
-              workspaceFilePrompt())]] : [])] };
+            // A file already in the workspace: the main chat adds it and makes a first set from it (the hand-off plan item 5; offered with or without a
+            // chat: without one the message is copied).
+            also: [jsonLink, { handOff: { id: 'import.file', input: { purpose: 'material', goal: 'generate' }, lead: '用工作区里的文件出题：',
+              what: '让主会话把工作区里的文件加为资料，再出 10 道题；文件在输入框里用 @ 选' } }] };
   const breakdown = [
     today.due && uiFormat('{0} 题到期', [today.due]),
     today.weak && uiFormat('{0} 题薄弱', [today.weak]),
@@ -120,13 +122,14 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
     ? { kind: 'resume', eyebrow: ui('接着上次'), count: lastOpen.total - lastOpen.index, unit: ui('题未完成'),
       detail: uiFormat('{0} · 已做到第 {1} / {2} 题', [[otherCourse(lastOpen), lastOpen.title].filter(Boolean).join(' › '), lastOpen.index + 1, lastOpen.total]),
       action: { label: ui('接着做'), run: () => resume(lastOpen.id) },
-      also: [...(baseLink ? [[baseLink, base.action.run]] : []), ...base.also.filter(([label]) => label !== baseLink)] }
+      also: [...(baseLink ? [[baseLink, base.action.run]] : []), ...base.also.filter(Array.isArray).filter(([label]) => label !== baseLink)] }
     : base;
   const shownRun = plan === base ? courseRun || todayRun : lastOpen;
   /* The other ways to start (new questions, due review, the flow, personalised questions, weak points) sit under one folded
      line: the card is the one thing to continue, the recommendation the one next step. */
   const alternatives = [
-    ...plan.also.map(([label, run]) => [label, run]),
+    // (a hand-off entry is drawn by the shared unit on the empty card only, never as a link of the fold)
+    ...plan.also.filter(Array.isArray).map(([label, run]) => [label, run]),
     ...(data.coach?.ready > 0 && onCoachPractice ? [[uiFormat('刷 {0} 道为你定制的题', [data.coach.ready]), onCoachPractice,
       ui('从你答错、标记太简单/太难和只练了概念的地方出发，换成具体场景再练一遍。')]] : []),
     ...(today.weak > 0 && onWeakPoints ? [[uiFormat('{0} 题薄弱 · 看错题与待巩固', [today.weak]), onWeakPoints, ui(TERMS.weak.hint)]] : []),

@@ -52,25 +52,29 @@ test('each migrated place hands over with its id (before: a prompt builder and a
   assert.deepEqual(at('workflow.skeleton'), ['ui/Workflows.jsx']);
   assert.deepEqual(at('workflow.step'), ['ui/WorkflowPortal.jsx']);
   assert.deepEqual(at('path.brief'), ['ui/GenerationPath.jsx']);
-  assert.deepEqual(at('import.file'), ['ui/AudioImport.jsx']);
+  // import.file and job.failed: the dead ends of adding files and of jobs (S3), and the empty home's link (plan item 5); tests/hand-off-deadends.test.mjs has them
+  assert.deepEqual(at('import.file'), ['ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/ImportHub.jsx', 'ui/ImportHub.jsx', 'ui/Ingest.jsx',
+    'ui/JsonImport.jsx', 'ui/JsonImport.jsx', 'ui/JsonImport.jsx', 'ui/LargeDocumentCard.jsx']);
+  assert.deepEqual(at('job.failed'), ['ui/PdfConvertJob.jsx', 'ui/tasks/CompactJobCard.jsx', 'ui/tasks/RunLine.jsx']);
   assert.deepEqual(at('book.edit'), ['ui/book/send-to-chat.js']);
 });
 
-test('no page names askInChat except the home first-run hand-off that another branch is rewriting (plan item 5)', () => {
+test('no page names askInChat: the empty home\'s link was the last (plan item 5, S3)', () => {
   const named = pageFiles().filter(({ text }) => /\baskInChat\b/.test(text)).map(({ file }) => file).filter(file => file !== 'ui/App.jsx' && file !== 'ui/study-context.jsx' && file !== 'ui/app/use-app-core.js' && file !== 'ui/host/workspace.jsx');
-  assert.deepEqual(named.sort(), ALLOW.chatHandOff.map(entry => entry.file).sort());
+  assert.deepEqual(named, []);
+  assert.deepEqual(ALLOW.chatHandOff, []);
   const scan = scanUi();
   assert.deepEqual(scan.metrics.chatHandOff, {});
   assert.deepEqual(scan.metrics.chatOldWording, {});
 });
 
-test('the Chinese catalogue has one name for the main chat: no old wording left in a key (the home first-run hand-off is the one that stays, plan item 5)', () => {
+test('the Chinese catalogue has one name for the main chat: no old wording left in a key', () => {
   const old = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并|对话里(?:的 AI|出题)/;
   const left = [];
   for (const name of readdirSync(join(ROOT, 'ui', 'locales')).filter(file => file.endsWith('.json'))) {
     for (const key of Object.keys(JSON.parse(readFileSync(join(ROOT, 'ui', 'locales', name), 'utf8')))) if (old.test(key)) left.push(key);
   }
-  assert.deepEqual(left, ['在对话中用工作区文件出题']);
+  assert.deepEqual(left, []);
 });
 
 test('the places keep no title attribute and no toast of their own for the hand-off', () => {
