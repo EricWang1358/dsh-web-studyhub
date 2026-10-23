@@ -161,9 +161,6 @@
       flex-wrap: wrap;
       gap: var(--space-2);
     }
-    .sk-note {
-      margin: 0;
-    }
   }
   :is(.study-app, .study-seat) {
     .sk-mini { flex: none; }
@@ -873,12 +870,6 @@
       flex-wrap: wrap;
     }
   }
-  :is(.study-app, .study-seat) {
-    & button.sk-ai {
-      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-      color: var(--accent-soft);
-    }
-  }
   :where(.study-app, .study-seat) {
     .sk-group-title {
       font-weight: var(--fw-strong);
@@ -944,31 +935,6 @@
       gap: var(--space-1-5);
       padding-top: var(--space-2);
       border-top: 1px solid var(--line-soft);
-    }
-    .skc-extend form,
-    .sk-extend-row {
-      display: flex;
-      gap: var(--space-1-5);
-    }
-  }
-  :is(.study-app, .study-seat) {
-    .skc-extend input,
-    .sk-extend-row input {
-      flex: 1;
-      min-width: 0;
-      padding: var(--space-2) var(--space-2-5);
-      font-size: var(--fs-md);
-    }
-    .skc-extend form button,
-    .sk-extend-row button {
-      flex: none;
-      padding: var(--space-1-5) var(--space-3);
-      font-size: var(--fs-md);
-    }
-  }
-  :where(.study-app, .study-seat) {
-    .skc-extend small {
-      font-size: var(--fs-xs);
     }
   }
   @media (prefers-reduced-motion: reduce) {

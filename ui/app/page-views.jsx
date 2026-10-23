@@ -9,7 +9,8 @@ import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } fr
 import { materialOpener, resultOpener } from '../tasks/task-actions.js';
 import StudyMap from '../StudyMap.jsx';
 import { hasOwnDeck } from '../study-map/home-plan.js';
-import Welcome, { SampleBanner } from '../Welcome.jsx';
+import { SampleBanner } from '../Welcome.jsx';
+import { firstRunLine } from '../first-run/line.js';
 import Dashboard from '../Dashboard.jsx';
 import Exam from '../Exam.jsx';
 import WrongBook from '../WrongBook.jsx';
@@ -65,15 +66,22 @@ function LibraryView() {
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const startMock = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
-  if (tour.showWelcome) return (
-    <Welcome model={tour.modelState} sample={data.sample} busy={busy || tour.sampleBusy} onStartSample={tour.loadSampleAndTour}
-      onStartTour={() => tour.startTour({ restart: true })} onImport={tour.openFirstImport} onSetupModel={settingsEntry.openModelSettings}
-      onRemoveSample={() => tour.setRemovingSample(true)} onLater={tour.hideWelcome} />
-  );
+  /* The first-run line (ui/first-run): the whole first screen until the first own deck is published, unless 以后再说 put it away or a tour shows the home;
+     then it is the compact card. Its 添加资料 goes on to 创建题组 with the file ticked; 再加一份 ticks the new file beside the ones already there. */
+  const lineShown = firstRunLine(data).show;
+  const linePage = lineShown && !tour.tourStep && !tour.lineLater;
+  const firstRun = lineShown ? { form: linePage ? 'page' : 'compact', on: {
+    importFirst: tour.openFirstImport,
+    importMore: (ownIds) => set.setModal(importForQuestions((args) => intents.goGenerate({ ...args, sourceIds: [...new Set([...ownIds, ...args.sourceIds])] }))),
+    // D4 seam: 出第一组题 goes to 创建题组 with the material ticked; generating from the line itself replaces this handler.
+    generate: (sourceIds) => intents.goGenerate({ sourceIds }),
+    recheck: core.refresh, openModelSettings: settingsEntry.openModelSettings,
+    startSample: tour.loadSampleAndTour, later: tour.hideWelcome } } : undefined;
   return (
     <>
-      {data.sample?.loaded && <SampleBanner sample={data.sample} busy={busy || tour.sampleBusy} onTour={() => tour.startTour({ restart: true })} onRemove={() => tour.setRemovingSample(true)} />}
-      <StudyMap data={data} setupHandlers={createSetupHandlers({ data, nav, set, intents, drafts, settingsEntry })} notebooks={notebooks}
+      {/* While 载入示例并开始导览 loads the sample, the banner waits: the tour's home replaces the line as a whole, nothing slides in above the line first. */}
+      {data.sample?.loaded && !(linePage && tour.sampleForTour) && <SampleBanner sample={data.sample} busy={busy || tour.sampleBusy} onTour={() => tour.startTour({ restart: true })} onRemove={() => tour.setRemovingSample(true)} />}
+      <StudyMap data={data} setupHandlers={createSetupHandlers({ data, nav, set, intents, drafts, settingsEntry })} notebooks={notebooks} firstRun={firstRun}
         reveal={intents.revealHome} onRevealed={() => intents.setRevealHome(0)}
         actions={{
           start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id) => set.setRemovingDeck({ id, root: data.root }),
@@ -93,9 +101,9 @@ function LibraryView() {
           onCourseSettings: settingsEntry.setCourseSettings,
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
         }}>
-        {pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
+        {!linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
-        {pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
+        {!linePage && pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
         <RecoveryBanner />
       </StudyMap>
     </>
@@ -194,7 +202,7 @@ export function AudioView() {
   return (
     <section className="page">
       <AudioHeader onSettings={openAudioSettings(() => nav.navigate('settings'))} onSources={() => nav.navigate('sources')} />
-      <AudioImport data={data} canAsk={!!host.askInChat}
+      <AudioImport data={data}
         openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onOpenSettings={() => nav.show.page('settings')} onGenerate={sources.generateFromSources}
         recoveryJobId={lib.legacyAudioJobId} onRecoveryChange={set.setLegacyAudioJobId} />
       <AudioDashboard />

@@ -536,7 +536,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
                 <Button size="sm" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
-              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主对话可继续。")}</p>}
+              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主会话可继续。")}</p>}
             </form>
           )}
           {runningTask && (

@@ -1,4 +1,4 @@
-/* The first-run words that have to be seen on the page, not read in the source: the welcome gate's third step names the real button, the 待发布 line says what it opens,
+/* The first-run words that have to be seen on the page, not read in the source: the first-run line's model step names the real button in its last step, the 待发布 line says what it opens,
    and 课程准备 / 今天先做什么 wait on the library home until the learner has published a deck of their own (a sample deck, a draft or a material never counts). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +10,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const require = createRequire(import.meta.url);
 const compiled = await build({
   stdin: { contents: `export * from './ui/i18n.js';
-    export { default as Welcome } from './ui/Welcome.jsx';
+    export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
+    export { firstRunLine } from './ui/first-run/line.js';
     export { PAGE_VIEWS } from './ui/app/page-views.jsx';
     export { AppContext } from './ui/app/app-context.js';
     export { HomeDrafts } from './ui/study-map/HomeActivity.jsx';`, resolveDir: process.cwd() },
@@ -23,11 +24,14 @@ const h = React.createElement;
 const noop = () => {};
 const text = (markup) => markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-test('the welcome page without a model says the real button in its third step, in both languages', () => {
-  for (const [lang, button] of [['zh', '回到这里，点「添加资料」'], ['en', 'Add source']]) {
+test('the first-run line without a model says the real button in its last step, in both languages', () => {
+  const line = m.firstRunLine({ root: '/l', model: { ready: false }, decks: [], sources: [], drafts: [], jobs: [] });
+  for (const [lang, step, button] of [['zh', '回到这里，这一步会自己打勾；没有变就点「重新检查」', '重新检查'], ['en', 'Check again', 'Check again']]) {
     m.setUiLanguage(lang);
-    const html = text(renderToStaticMarkup(h(m.Welcome, { model: { ready: false }, sample: { loaded: false }, onStartSample: noop, onImport: noop, onSetupModel: noop, onLater: noop, onStartTour: noop, onRemoveSample: noop })));
-    assert.ok(html.includes(button), `${lang}: ${button}`);
+    const markup = renderToStaticMarkup(h(m.FirstRunLine, { line, form: 'page', on: { recheck: noop, importFirst: noop, later: noop } }));
+    const html = text(markup);
+    assert.ok(html.includes(step), `${lang}: ${step}`);
+    assert.match(markup, new RegExp(`sh-btn--primary[^>]*>(<[^>]+>)*${button}<`), `${lang}: the button is there and is the one primary`);
     if (lang === 'zh') assert.doesNotMatch(html, /导入资料/);
   }
   m.setUiLanguage('zh');
@@ -48,7 +52,7 @@ function home(dataPatch = {}) {
     model: { ready: true }, focus: { mode: 'class', course: null, courses: [], fresh: [] }, ...dataPatch };
   const none = new Proxy({}, { get: (_target, key) => (key === 'then' ? undefined : noop) });
   const app = { data, core: { busy: false, notify: noop, act: noop, call: noop }, nav: { navigate: noop }, set: none, session: none, intents: none, drafts: none, notebooks: [],
-    tour: { showWelcome: false, modelState: { ready: true } }, dailyPlan: { date: '2026-10-22', state: { date: '2026-10-22', budgetMinutes: 60, spentMinutes: 0, tasks: [], profile: {}, proposal: { id: 'p', method: 'local', items: [], emptyReason: 'nothing-due', warnings: [] } },
+    tour: { lineLater: false, tourStep: null, modelState: { ready: true } }, dailyPlan: { date: '2026-10-22', state: { date: '2026-10-22', budgetMinutes: 60, spentMinutes: 0, tasks: [], profile: {}, proposal: { id: 'p', method: 'local', items: [], emptyReason: 'nothing-due', warnings: [] } },
       busy: '', error: '', suggest: noop, accept: noop, saveProfile: noop, start: noop, complete: noop, refresh: noop },
     settingsEntry: none, learn: none, lib: {} };
   return renderToStaticMarkup(h(m.AppContext.Provider, { value: app }, h(m.PAGE_VIEWS.library)));

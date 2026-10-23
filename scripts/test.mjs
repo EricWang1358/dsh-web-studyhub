@@ -1,6 +1,7 @@
 /* Every test run has a fresh machine-settings home and no inherited provider credentials.
    node scripts/test.mjs [--fast] [node --test options] [test files]
-   A plain full run starts the longest files first (scripts/qa/run-tests.mjs) and takes turns with other full runs on the machine
+   A plain full run starts the longest files first (scripts/qa/run-tests.mjs, which also limits how long one test or one file may take)
+   and takes turns with other full runs on the machine
    (scripts/qa/test-lock.mjs; STUDY_TEST_NO_LOCK=1 skips the queue). --fast leaves out the browser, ffmpeg and program-starting
    files of tests/slow-tests.json. With file arguments it is `node --test` on those files, as ever. */
 import { spawn } from 'node:child_process';
@@ -19,9 +20,19 @@ const { files, ordered } = parseTestArgs(args);
 const parent = resolve(tmpdir()), home = await mkdtemp(join(parent, 'study-tests-'));
 const report = process.env.STUDY_TEST_NETWORK_REPORT === '1';
 const reportFile = join(home, 'network-report.jsonl');
-let child, receivedSignal, status, lock;
+let child, receivedSignal, status, lock, stopTimer;
 const abort = new AbortController();
-const forward = signal => { receivedSignal ||= signal; abort.abort(); child?.kill(signal); };
+const forward = signal => {
+  const again = !!receivedSignal;
+  receivedSignal ||= signal;
+  abort.abort();
+  // The ordered runner is stopped by message, so it can still print which test files had not finished (on Windows a signal from here
+  // ends it at once); a second signal, or a runner still there after 15 s, ends it.
+  if (child?.connected && !again) {
+    child.send({ stop: signal });
+    stopTimer = setTimeout(() => child.kill(signal), 15_000);
+  } else child?.kill(signal);
+};
 const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 const handlers = new Map(signals.map(signal => [signal, () => forward(signal)]));
 for (const [signal, handler] of handlers) process.on(signal, handler);
@@ -44,8 +55,9 @@ try {
     // The ordered runner takes the whole suite; node's own runner (sorting by name) takes explicit files and any option the runner does not know.
     const command = ordered ? [fileURLToPath(new URL('./qa/run-tests.mjs', import.meta.url)), ...(fast ? ['--fast'] : []), ...concurrency, ...args]
       : ['--import', guard, '--test', ...concurrency, ...args, ...(files ? [] : fast ? await fastFiles() : ['tests/*.test.mjs'])];
-    child = spawn(process.execPath, command, { cwd: repoRoot, env, stdio: 'inherit', windowsHide: true });
+    child = spawn(process.execPath, command, { cwd: repoRoot, env, stdio: ordered ? ['inherit', 'inherit', 'inherit', 'ipc'] : 'inherit', windowsHide: true });
     status = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', (code, signal) => resolve({ code, signal })); });
+    clearTimeout(stopTimer);
     if (report) {
       const lines = (await readFile(reportFile, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean);
       const attempts = lines.reduce((sum, line) => sum + JSON.parse(line).attempts, 0);

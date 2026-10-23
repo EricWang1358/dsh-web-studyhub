@@ -7,9 +7,10 @@ import { nameData, say } from './say.js';
    goes through fenceData, see card.js).
    The tool names live here and nowhere else. The English of each sentence is in ui/locales/en.pages.json (or the file it was in). */
 
-/** "Tell me which topics of this deck are weakest and in what order to study." input: { deckTitle }. */
+/** "Tell me which topics of this deck are weakest and in what order to study" (what the chat does when the learner adds nothing after 我想：). input: { deckTitle }. */
 export function deckAnalysisPrompt({ deckTitle }, language = getUiLanguage()) {
-  return say(language, '请用 study_workspace 查看题组「{0}」的掌握情况（map），告诉我哪些主题最薄弱，并安排接下来的学习顺序。', [nameData(deckTitle)]);
+  return say(language, '请用 study_workspace 查看题组「{0}」的掌握情况（map），告诉我哪些主题最薄弱，并安排接下来的学习顺序。', [nameData(deckTitle)])
+    + '\n' + say(language, '如果我在最后写了别的要求，就按我写的办，不做这次分析。');
 }
 
 /** "Explain this topic, then check me with a question or two." input: { topic, deckTitle, mastery (percent), weak (count of weak questions) }. */

@@ -7,6 +7,7 @@ import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./ca
 import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
 import { usePolling } from './use-polling.js';
+import { HandOffForm } from './hand-off/HandOff.jsx';
 
 /* 知识骨架的两张可交互图：UML 类图（概念结构）+ UML 时序图（动态链路）。
    两张图都能拖动平移、Ctrl/⌘+滚轮或按钮缩放；类图里的概念框可以拖开摆位
@@ -87,38 +88,23 @@ const EXTEND_INTENTS = [
   ["cards", "为它补题", "想练到什么，例如计算题、场景判断…"],
 ];
 
-/** The ask-the-conversation box inside a concept's detail panel. */
-function ExtendBox({ node, onAsk }) {
-  const [intent, setIntent] = useState("contrast"),
-    [value, setValue] = useState(""),
-    [sent, setSent] = useState(false);
-  useEffect(() => {
-    setValue("");
-    setSent(false);
-  }, [node.id]);
-  const placeholder = ui(EXTEND_INTENTS.find(([id]) => id === intent)[2]);
+/** The extension box inside a concept's detail panel: the intent, the learner's words, and 发给主会话 (the shared notice says what happened). */
+function ExtendBox({ node, skeleton }) {
+  const [intent, setIntent] = useState("contrast");
+  const placeholder = EXTEND_INTENTS.find(([id]) => id === intent)[2];
   return (
     <div className="skc-extend">
-      <h5>{ui("在对话中扩展")}</h5>
-      <SegmentedControl size="sm" className="skc-extend-intents" label={ui("想做什么")} value={intent} onChange={setIntent}
-        options={EXTEND_INTENTS.map(([value, label]) => ({ value, label: ui(label) }))} />
-      <form
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          if (intent === "contrast" && !value.trim()) return;
-          onAsk({ nodeId: node.id, term: node.term, intent, text: value.trim() });
-          setSent(true);
-        }}
-      >
-        <input value={value} onChange={(ev) => setValue(ev.target.value)} placeholder={placeholder} aria-label={placeholder} />
-        <Button type="submit" size="sm" disabled={intent === "contrast" && !value.trim()}>{ui("发到对话")}</Button>
-      </form>
-      {sent && <small className="muted">{ui("已交给对话；改好后图会自动刷新并高亮变化。")}</small>}
+      <h5>{ui("让主会话扩展")}</h5>
+      <HandOffForm key={node.id} id="skeleton.extend" rows={2} needsText={intent === "contrast"} what="让主会话按你选的做法扩展这个概念；改好后图会自动刷新并高亮变化"
+        label={placeholder} placeholder={placeholder} input={(text) => ({ skeleton, nodeId: node.id, term: node.term, intent, text })}>
+        <SegmentedControl size="sm" className="skc-extend-intents" label={ui("想做什么")} value={intent} onChange={setIntent}
+          options={EXTEND_INTENTS.map(([value, label]) => ({ value, label: ui(label) }))} />
+      </HandOffForm>
     </div>
   );
 }
 
-export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, fresh }) {
+export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh }) {
   /* Focus view: a big skeleton gets unreadable, so selecting a concept shows
      only it and its direct neighbours, laid out around it. Clicking a
      neighbour walks on; 返回 retraces; 显示全图 (or Esc) goes back to the
@@ -467,7 +453,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, onAsk, f
                 <p className="small muted">{inSequences.join("、")}</p>
               </>
             )}
-            {onAsk && <ExtendBox node={node} onAsk={onAsk} />}
+            <ExtendBox node={node} skeleton={skeleton} />
             {onPractice && node.cards.length > 0 && (
               <Button variant="primary" className="skc-practice" onClick={() => onPractice(node.cards)}>{uiFormat("练关联的 {0} 题", [node.cards.length])}</Button>
             )}
@@ -631,7 +617,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
   );
 }
 
-export default function SkeletonCanvas({ skeleton, onPractice, onAsk }) {
+export default function SkeletonCanvas({ skeleton, onPractice }) {
   const [selected, setSelected] = useState(null),
     [tab, setTab] = useState(0),
     [dismissed, setDismissed] = useState("");
@@ -666,7 +652,7 @@ export default function SkeletonCanvas({ skeleton, onPractice, onAsk }) {
           <small className="muted">{uiFormat("{0} 个概念 · {1} 条关系", [skeleton.nodes.length, skeleton.relations.length + skeleton.nodes.filter((n) => n.parent).length])}</small>
         </div>
         <div ref={classRef}>
-          <ClassCanvas key={skeleton.id} skeleton={skeleton} onPractice={onPractice} selected={selected} onSelect={setSelected} onAsk={onAsk} fresh={fresh} />
+          <ClassCanvas key={skeleton.id} skeleton={skeleton} onPractice={onPractice} selected={selected} onSelect={setSelected} fresh={fresh} />
         </div>
         {skeleton.classNote && <Markdown text={skeleton.classNote} className="skc-note" />}
       </section>

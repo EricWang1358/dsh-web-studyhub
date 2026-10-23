@@ -1,7 +1,7 @@
 {
   "默认覆盖强度": "Default coverage strength",
-  "对话里出题的默认题数": "Default question count for requests in a conversation",
-  "只在让助手在对话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。": "Used only when an assistant makes questions in a conversation and no count is given; the Create question set page plans by coverage strength and does not use it. Separate from questions per batch.",
+  "主会话里出题的默认题数": "Default question count for requests in the main chat",
+  "只在让助手在主会话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。": "Used only when an assistant makes questions in the main chat and no count is given; the Create question set page plans by coverage strength and does not use it. Separate from questions per batch.",
   "分 {0} 轮；这次先出第 1 轮（约 {1} 题），其余 {2} 轮会自动接着做，可以在「任务」里暂停或停下。": "{0} rounds in all; this run makes the first (about {1} questions) and the other {2} continue by themselves. You can pause or stop them in Tasks.",
   "分 {0} 轮；这次只出第 1 轮（约 {1} 题），其余 {2} 轮要到草稿页点「为没覆盖的部分补题」，一次补一轮。": "{0} rounds in all; this run makes only the first (about {1} questions). For the other {2}, open the draft and press \"Add questions for the uncovered parts\", one round at a time.",
   "分 {0} 轮；这次先出第 1 轮（约 {1} 题）。": "{0} rounds in all; this run makes the first (about {1} questions).",

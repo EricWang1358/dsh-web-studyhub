@@ -1,0 +1,138 @@
+/* ui/first-run/first-run.css — the first-run line (3.6 D2): the library's first screen until the first own deck is published, and its compact card in the
+   home's today slot. Tokens only; both themes; one column under the study container's narrow widths. Quiet: the steps are rows between hairlines, not a
+   card; cinnabar is only on the one primary button (the open step's number is ink, a done step's mark a quiet tick). The third step's body keeps one
+   height through its states, so a run finishing moves nothing. Injected as <style data-study-first-run>. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .first-run { --frl-mark: 24px; max-width: 760px; padding-top: var(--space-8); }
+  }
+  :where(.study-app, .study-seat) {
+    .first-run__intro { max-width: 640px; margin-bottom: var(--space-6); }
+    .first-run__eyebrow {
+      margin: 0 0 var(--space-2-5);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+      letter-spacing: 0.06em;
+    }
+    .first-run__title {
+      margin: 0 0 var(--space-3);
+      font-family: var(--font-display);
+      font-size: var(--fs-3xl);
+      font-weight: var(--fw-strong);
+      line-height: var(--lh-tight);
+      letter-spacing: -0.02em;
+    }
+    .first-run__lead { margin: 0; color: var(--text-dim); font-size: var(--fs-lg); line-height: var(--lh-body); }
+    .first-run__sub { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--fs-md); line-height: var(--lh-body); }
+
+    /* ── The three steps: one row each, between hairlines ──────────────── */
+    /* One shrinkable track: a row's text never widens the list past its card (the compact rows cut it with an ellipsis). */
+    .frl-steps { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+    .frl-step { min-width: 0; }
+    .first-run .frl-steps { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .first-run .frl-step + .frl-step { border-top: 1px solid var(--line-soft); }
+    .frl-step__row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 56px;
+      padding: var(--space-2) 0;
+    }
+    .frl-step__text { flex: 1 1 auto; min-width: 0; font-size: var(--fs-md); line-height: var(--lh-snug); color: var(--text-dim); overflow-wrap: anywhere; }
+    .frl-step[aria-current="step"] .frl-step__text { color: var(--text); font-weight: var(--fw-strong); }
+    .frl-step[data-status="done"] .frl-step__text { color: var(--text-muted); }
+    .frl-row-link { flex: none; }
+    .frl-mark {
+      display: inline-grid;
+      place-items: center;
+      flex: none;
+      width: var(--frl-mark, 24px);
+      height: var(--frl-mark, 24px);
+      border: 1.5px solid var(--line-strong);
+      border-radius: 50%;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
+      font-variant-numeric: tabular-nums;
+    }
+    .frl-step[aria-current="step"] .frl-mark { border-color: var(--text); background: var(--text); color: var(--bg-surface); }
+    .frl-step[data-status="done"] .frl-mark { border-color: transparent; background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text-dim); }
+
+    /* The open step's body: under the sentence, lined up with it. */
+    .frl-body { display: grid; align-content: start; gap: var(--space-3); padding: 0 0 var(--space-5) calc(var(--frl-mark) + var(--space-3)); }
+    .frl-body__text { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-body); }
+    .frl-body__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .frl-body__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-1); }
+    /* One height for every state of the third step (ready, a run's card, a draft): late content never moves the page. */
+    .frl-body[data-body="deck"] { min-height: 152px; }
+    /* Step 1's setup, in the gate's words (ModelSetupGate is the one source). */
+    .frl-setup { display: grid; gap: var(--space-2-5); margin: 0; padding: 0; list-style: none; }
+    .frl-setup li { display: flex; align-items: baseline; gap: var(--space-2-5); line-height: var(--lh-snug); font-size: var(--fs-md); }
+    .frl-setup__num {
+      display: inline-grid;
+      place-items: center;
+      flex: none;
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-variant-numeric: tabular-nums;
+    }
+    .frl-setup__text { min-width: 0; overflow-wrap: anywhere; }
+    .frl-setup__hint { display: block; margin-top: var(--space-half); color: var(--text-muted); font-size: var(--fs-sm); }
+    .frl-setup__hint a { color: var(--text); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; }
+    .frl-setup__hint a > svg { margin-left: var(--space-1); vertical-align: -2px; }
+
+    /* ── The bottom: two quiet links ───────────────────────────────────── */
+    .first-run__footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-4);
+      margin-top: var(--space-4);
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+    }
+    .first-run__sample { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); }
+    /* Every link of the line is quiet ink: cinnabar is the one primary button's. */
+    .first-run__link { color: var(--text-dim); }
+    .first-run__footer .first-run__link { color: var(--text-muted); }
+    .first-run .first-run__link:hover { color: var(--text); }
+    .first-run__later { margin-left: auto; }
+
+    /* ── The compact card (after 以后再说): the home's today slot ──────── */
+    /* The rows sit on the today card's index-card ruling (ui/study-map/desk.css: a rule every 32px from 52px down the card's border box): the head ends
+       exactly there (the 1px border, the top padding, the head), whatever the font's line height; then one ruled line left blank, then one 32px line per row. --frl-rule is that
+       ruling's pitch, not a spacing token: it must not scale with the density setting. */
+    .first-run-card { --frl-rule: 32px; }
+    .first-run-card .frl-head { box-sizing: border-box; height: calc(51px - var(--paper-pad-top)); flex-wrap: nowrap; }
+    .first-run-card .frl-steps { margin: var(--frl-rule) 0 var(--space-5); }
+    .first-run-card .frl-step__row { height: var(--frl-rule); min-height: 0; padding: 0; gap: var(--space-2); }
+    .first-run-card .frl-step__text { color: var(--paper-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .first-run-card .frl-step[aria-current="step"] .frl-step__text { color: var(--paper-ink); }
+    .first-run-card .frl-step[data-status="done"] .frl-step__text { color: var(--paper-dim); }
+    .first-run-card .frl-mark { width: 20px; height: 20px; border-color: currentColor; color: var(--paper-dim); }
+    .first-run-card .frl-step[aria-current="step"] .frl-mark { border-color: var(--paper-ink); background: var(--paper-ink); color: var(--paper); }
+    .first-run-card .frl-step[data-status="done"] .frl-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); color: var(--paper-dim); }
+  }
+  @container study (max-width: 760px) {
+    :is(.study-app, .study-seat) {
+      .first-run { padding-top: var(--space-5); }
+    }
+    :where(.study-app, .study-seat) {
+      .first-run__intro { margin-bottom: var(--space-5); }
+      .first-run__title { font-size: var(--fs-2xl); }
+      .first-run__lead { font-size: var(--fs-md); }
+      .first-run__sub { font-size: var(--fs-sm); }
+      .frl-body[data-body="deck"] { min-height: 224px; }
+      .first-run__footer { justify-content: flex-start; }
+    }
+  }
+}

@@ -59,12 +59,16 @@ test('the default tour is short and lit, the full tour is one button away, and S
       try {
         const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: 'dark', width, height: 900 });
         await page.goto(running.server.url);
-        await page.locator('.welcome').waitFor({ timeout: 30000 });
+        // The first screen is the first-run line (3.6 D2): with the fake model, step 2 is open; the sample tour is a quiet link at the bottom.
+        await page.locator('.first-run').waitFor({ timeout: 30000 });
         await settleAnimations(page);
-        const welcome = await page.locator('.welcome').innerText();
-        assert.match(welcome, new RegExp(`导览 ${CORE_TOUR_LENGTH} 步、一两分钟`), 'the time and the step count are the default tour\'s');
+        const welcome = await page.locator('.first-run').innerText();
         assert.doesNotMatch(welcome, /三分钟|导入我的第一份资料/);
         assert.match(welcome, /网页文件（\.html）/);
+        assert.equal(await page.locator('.first-run [data-first-run="sample"]').count(), 1);
+        await page.locator('.first-run [data-first-run="sample"]').hover();
+        await until(async () => new RegExp(`导览 ${CORE_TOUR_LENGTH} 步、一两分钟`).test(await page.locator('body').innerText()), 'the sample link says the tour\'s steps and time on hover', { timeoutMs: 10000 });
+        await page.mouse.move(1, 1);
         assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll on the welcome page`);
         await shot(page, `welcome-${width}`);
 

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { uiFormat, getUiLanguage } from './i18n.js';
+import { uiFormat } from './i18n.js';
 import { useToast } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import { applyPathRefinement, planGenerationPath, STEP_CHARS } from '../lib/generation-path.js';
-import { failureGroups, pathBrief, queueSteps, selectedItems } from './generation-path-flow.js';
+import { failureGroups, queueSteps, selectedItems } from './generation-path-flow.js';
 import { stepTitle } from './generation-path-titles.js';
 
 /* The state and the actions of the 分步出题 path (ui/GenerationPath.jsx draws the steps; 创建题组 draws the one button that queues them): the plan the app cuts from the
@@ -12,10 +12,10 @@ import { stepTitle } from './generation-path-titles.js';
 
 /**
  * Props: sources, selectedIds, gen (the form: kind, difficulty, language, … for each step's request), course, goal, indexCoverage, onQueued(result).
- * Returns { available, total, steps, included, questions, indexed, ai, aiState, queueing, report, patch, refine, chat, queue, groups }.
+ * Returns { available, total, steps, included, questions, indexed, ai, aiState, queueing, report, patch, refine, brief (the input of 发给主会话 path.brief), queue, groups }.
  */
 export function useGenerationPath({ sources, selectedIds, gen, course = '', goal = '', indexCoverage = null, onQueued }) {
-  const { call, askInChat } = useStudy();
+  const { call } = useStudy();
   const toast = useToast();
   const items = useMemo(() => selectedItems(sources, selectedIds), [sources, selectedIds]);
   const total = items.reduce((sum, item) => sum + (item.chars || 0), 0);
@@ -45,8 +45,8 @@ export function useGenerationPath({ sources, selectedIds, gen, course = '', goal
     setQueueing(false); setReport(result);
     if (result.started.length) { toast.success(uiFormat('已按顺序排队 {0} 个出题任务。', [result.started.length])); onQueued?.(result); }
   }
-  // The conversation gets every step (in the language of the screen): the ones switched off are listed as steps to skip.
-  const chat = () => askInChat?.(pathBrief({ steps: steps.map(step => ({ ...step, title: stepTitle(step) })), course, goal, indexed, language: getUiLanguage() }));
+  // What 发给主会话 (path.brief) sends: every step, the ones switched off listed as steps to skip (the registry builds it in the language of the screen).
+  const brief = () => ({ steps: steps.map(step => ({ ...step, title: stepTitle(step) })), course, goal, indexed });
   const groups = report?.failed?.length ? failureGroups(report.failed, stepTitle) : [];
-  return { available, total, steps, included, indexed, ai, aiState, queueing, report, groups, patch, refine, chat, queue };
+  return { available, total, steps, included, indexed, ai, aiState, queueing, report, groups, patch, refine, brief, queue };
 }

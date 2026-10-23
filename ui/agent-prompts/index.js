@@ -2,6 +2,7 @@ import { getUiLanguage } from '../i18n.js';
 import { languageTail, say } from './say.js';
 import { bookEditPrompt } from './book.js';
 import { ingestPrompt } from './ingest.js';
+import { importFilePrompt } from './import.js';
 import { deckAnalysisPrompt, topicExplainPrompt, weakTopicsPrompt } from './library.js';
 import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } from './skeleton.js';
 import { workflowDesignPrompt, workflowSkeletonPrompt, workflowStepPrompt } from './workflow.js';
@@ -12,7 +13,8 @@ import { pathBrief } from '../generation-path-flow.js';
    ui/hand-off/ sends only ids from it. An entry builds the body from its input; handOffText adds what every message ends with, in this order: the skill
    line (when the entry names a skill), the one language sentence, and the last line the learner types after ('ask': 我想：, 'file': the @ that opens the
    chat's file picker). The builders stay in the files of their area (book.js, skeleton.js …); the tool names live there and nowhere else.
-   S2a holds the hand-offs that already existed; the new ones (built on situation.js) are added with their pages. */
+   S2a/S2b hold the hand-offs that already existed (every one is used by a page: the tests count them), and 'import.file' for the audio page; the new
+   ones (built on situation.js) are added with their pages. */
 
 /** id -> { build(input, language) -> text, skill?: 'study-book' | 'study-import', tail?: 'ask' | 'file' }. */
 export const HAND_OFFS = Object.freeze({
@@ -20,7 +22,8 @@ export const HAND_OFFS = Object.freeze({
   'ingest.start': { build: (input, language) => ingestPrompt(input, language) },
   'topic.explain': { build: (input, language) => topicExplainPrompt(input, language) },
   'deck.ask': { build: (input, language) => deckAnalysisPrompt(input, language), tail: 'ask' },
-  'topics.group': { build: (input, language) => groupPrompt(input, language) },
+  'topics.group': { build: (input, language) => groupPrompt(input, language), tail: 'ask' },
+  'import.file': { build: (input, language) => importFilePrompt(input, language), tail: 'file' },
   'skeleton.design': { build: (input, language) => designSkeletonPrompt(input, language) },
   'skeleton.archify': { build: (input, language) => archifySkeletonPrompt(input, language) },
   'skeleton.extend': { build: (input, language) => extendSkeletonPrompt(input, language) },

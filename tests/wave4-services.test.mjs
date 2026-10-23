@@ -12,10 +12,11 @@ const read = (file) => readFileSync(file, 'utf8');
 
 /* page file -> the services it takes from the context */
 const PAGES = {
-  'ui/Manage.jsx': ['call', 'busy', 'act'], 'ui/Draft.jsx': ['call', 'busy', 'act'], 'ui/Generate.jsx': ['call', 'busy', 'act', 'askInChat'],
-  'ui/Sources.jsx': ['call', 'busy', 'act'], 'ui/Workflows.jsx': ['call', 'askInChat'], 'ui/WorkflowPortal.jsx': ['call', 'askInChat'],
-  'ui/Skeleton.jsx': ['call', 'busy', 'askInChat'], 'ui/WrongBook.jsx': ['call', 'busy'], 'ui/Exam.jsx': ['call'], 'ui/OralExam.jsx': ['call'],
-  'ui/AudioImport.jsx': ['call', 'busy', 'act', 'askInChat'], 'ui/Dashboard.jsx': ['call', 'busy'], 'ui/AudioDashboard.jsx': ['call'],
+  // askInChat is read by no page (hand-off S2b): a page hands over with useHandOff() / <HandOff> (ui/hand-off/)
+  'ui/Manage.jsx': ['call', 'busy', 'act'], 'ui/Draft.jsx': ['call', 'busy', 'act'], 'ui/Generate.jsx': ['call', 'busy', 'act'],
+  'ui/Sources.jsx': ['call', 'busy', 'act'], 'ui/Workflows.jsx': ['call'], 'ui/WorkflowPortal.jsx': ['call'],
+  'ui/Skeleton.jsx': ['call', 'busy'], 'ui/WrongBook.jsx': ['call', 'busy'], 'ui/Exam.jsx': ['call'], 'ui/OralExam.jsx': ['call'],
+  'ui/AudioImport.jsx': ['call', 'busy', 'act'], 'ui/Dashboard.jsx': ['call', 'busy'], 'ui/AudioDashboard.jsx': ['call'],
   'ui/CaseCreate.jsx': ['busy', 'act'], 'ui/BlogNotes.jsx': ['call', 'busy', 'act'], 'ui/ImportHub.jsx': ['call', 'busy'],
 };
 

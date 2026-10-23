@@ -23,6 +23,7 @@ const progress = { d1: { counts: { mastered: 1, familiar: 1, learning: 1, weak: 
   mastery: 60, due: 1, status: "active", topics: [] } };
 const pdfPages = [{ id: "p1", title: "讲义 第 1 页", text: "x", document: { id: "pdf", page: 1 } },
   { id: "p2", title: "讲义 第 2 页", text: "x", document: { id: "pdf", page: 2 } }];
+const MODEL = { ready: true, reason: "ok", label: "DeepSeek · V4 Flash" };
 const empty = { decks: [], progress: {}, sources: [], drafts: [], jobs: [], runs: [],
   today: { due: 0, weak: 0, new: 0, size: 0 }, focus: { mode: "class", course: "", courses: [], fresh: [] } };
 /* The home reads its services from the app (chat ability, the model settings entry); the test supplies just those. */
@@ -46,7 +47,8 @@ const withoutTechDetails = (html) => html.replace(/<details class="sh-disclosure
 const visibleText = (html) => html.replace(/<[^>]+>/g, " ");
 
 test("an empty library asks for a first material, with JSON import as the second way in", () => {
-  const html = render();
+  // A model is set up (with none, the compact card marks the model step and offers no other step's button: tests/first-run-line.test.mjs).
+  const html = render({ model: MODEL });
   assert.equal(primaries(html), 1);
   assert.equal(primaryLabel(html), "添加资料");
   assert.match(html, /<button[^>]*class="sh-btn sh-btn--link[^"]*"[^>]*>已有题目？导入 JSON 题组<\/button>/);
@@ -69,20 +71,42 @@ test("an empty library hides advanced blocks", () => {
 });
 
 test("with materials and no decks the home offers to generate from them, counted per document", () => {
-  const html = render({ sources: [...pdfPages, { id: "m", title: "笔记.md", text: "y" }] });
+  const generated = [];
+  const html = render({ model: MODEL, sources: [...pdfPages, { id: "m", title: "笔记.md", text: "y" }] }, { generateFromSources: (ids) => generated.push(ids) });
   assert.equal(primaries(html), 1);
-  assert.equal(primaryLabel(html), "用这 2 份资料出题");
+  assert.equal(primaryLabel(html), "出第一组题", "the first-run line's compact card (以后再说): one name for the third step");
+  assert.match(html, /笔记\.md 等 2 份资料 · 已添加/, "a PDF is one material");
   assert.doesNotMatch(html, /还没有卡片/);
   assert.match(html, /已有题目？导入 JSON 题组/);
+  // No model yet: the card marks the model step, so it offers no 出第一组题 (that form could not generate).
+  assert.equal(primaryLabel(render({ sources: pdfPages })), undefined);
 });
 
 test("while the first deck is generating or waiting in drafts the home says so", () => {
   const generating = render({ sources: pdfPages, jobs: [{ id: "j", status: "running", stageCode: "authoring", deckTitle: "索引小测", steps: [] }] });
-  assert.equal(primaries(generating), 1);
-  assert.equal(primaryLabel(generating), "查看进度");
+  assert.equal(primaries(generating), 0, "a run has nothing to press but its own card (no 查看进度 beside it)");
+  assert.doesNotMatch(generating, /查看进度/);
+  assert.match(generating, /正在出第一组题/);
+  assert.equal((generating.match(/class="cjc"/g) || []).length, 1, "the run's card is drawn once");
   const drafted = render({ sources: pdfPages, drafts: [{ id: "dr", title: "索引小测", cards: [{ id: "c" }], editorial: {} }] });
   assert.equal(primaries(drafted), 1);
   assert.equal(primaryLabel(drafted), "检查草稿");
+});
+
+test("the first screen of an empty library is the line alone; its third step carries the run's card", () => {
+  const page = { form: "page", on: { importFirst: noop, later: noop } };
+  const running = { id: "j", status: "running", stageCode: "authoring", deckTitle: "索引小测", steps: [] };
+  const html = render({ sources: pdfPages, jobs: [running], drafts: [] }, { firstRun: page });
+  assert.match(html, /data-first-run="page"/);
+  assert.doesNotMatch(html, /class="desk|home-drafts|course-heading|map-empty|data-tour="home-today"/, "the desk, 待发布, the course heading and the catalogue wait for the first deck");
+  const deckBody = html.slice(html.indexOf('data-body="deck"'));
+  assert.equal((html.match(/class="cjc"/g) || []).length, 1, "one card");
+  assert.ok(deckBody.includes('class="cjc"'), "inside the third step");
+  assert.doesNotMatch(html, /查看进度/);
+  const published = render({ decks: [deck], progress, sources: pdfPages, today: { due: 1, weak: 2, new: 0, size: 3 },
+    focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: [] } }, { firstRun: page });
+  assert.doesNotMatch(published, /data-first-run/, "a deck of their own: the home is back, unchanged");
+  assert.match(published, /today-count/);
 });
 
 test("tour anchors mark the hero, today's card and the catalogue", () => {

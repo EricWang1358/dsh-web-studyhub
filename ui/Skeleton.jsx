@@ -1,4 +1,4 @@
-import { ui, uiFormat, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React, { useEffect, useMemo, useState } from "react";
 import Markdown from "./Markdown.jsx";
@@ -10,10 +10,10 @@ import { archifyPutOff, setArchifyPutOff } from "./archify.js";
 import css from "./skeleton.css";
 import companionCss from "./skeleton-companion.css";
 import { useInjectCss } from "./shared.js";
-import { groupPrompt } from "./topic-group-prompt.js";
-import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } from "./agent-prompts/skeleton.js";
+import { HandOff, HandOffForm } from "./hand-off/HandOff.jsx";
+import { handOffTip, useHandOff } from "./hand-off/use-hand-off.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, LoadingState, PageHeader, Panel, SegmentedControl, foldLabel } from "./components/index.js";
+import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, LoadingState, PageHeader, Panel, SegmentedControl, Tooltip, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 import { useStudy } from "./study-context.jsx";
 import { formatDateTime } from './format.js';
@@ -68,7 +68,8 @@ function NodeTree({ skeleton, onPractice }) {
 }
 
 export default function Skeleton({ data, onPractice, focusId, onFocus }) {
-  const { call, busy, askInChat } = useStudy();
+  const { call, busy } = useStudy();
+  const { send } = useHandOff();
   useInjectCss(css, "study-skeleton");
   useInjectCss(companionCss, "study-skeleton-companion");
   const [course, setCourse] = usePageScope(data?.root, 'skeleton', data?.focus?.course ?? '*');
@@ -82,10 +83,8 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
     [lint, setLint] = useState(null),
     [issueFilter, setIssueFilter] = useState(""),
     [pending, setPending] = useState(""),
-    [sent, setSent] = useState(false),
     [viewing, setViewing] = useState(null),
     [confirmDelete, setConfirmDelete] = useState(false),
-    [extendText, setExtendText] = useState(""),
     [skView, setSkView] = useState("spine"),
     [error, setError] = useState(""),
     // The skeleton the user had open was deleted or is not in this course: a muted note, never an error.
@@ -188,7 +187,6 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
       return next;
     });
     setLint(null);
-    setSent(false);
   };
 
   async function runLint() {
@@ -262,7 +260,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
 
   return (
     <section className="page skeleton-page">
-      <PageHeader title={ui("知识骨架")} description={ui("同一个主题常常散在好几个题组里。选好主题，先做质量检测，再交给对话把名词串成结构、修掉只能死记的题。")}
+      <PageHeader title={ui("知识骨架")} description={ui("同一个主题常常散在好几个题组里。选好主题，先做质量检测，再发给主会话把名词串成结构、修掉只能死记的题。")}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={chooseCourse} />} />
       {error && (
         <InlineMessage tone="error" boxed className="sk-msg" action={{ label: ui("重试"), onClick: () => { setError(""); setReload((n) => n + 1); } }}>{error}</InlineMessage>
@@ -283,29 +281,18 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               <SegmentedControl size="sm" label={ui("主题视图")} value={byGroup ? "group" : "all"} onChange={(next) => setByGroup(next === "group")}
                 options={[{ value: "group", label: ui("主题组") }, { value: "all", label: ui("全部主题") }]} />
             )}
-            {topics && !groups.length && !loadFailed && (
-              <button
-                type="button"
-                className="sk-mini sk-ai"
-                title={ui("主题太碎时，交给对话按知识域归并成主题组（不改题目）")}
-                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length, course }, getUiLanguage()))}
-              >{ui("✦ AI 归并主题")}</button>
-            )}
-            {groups.length > 0 && groupView.ungrouped.length > 0 && (
-              <button
-                type="button"
-                className="sk-mini sk-ai"
-                onClick={() => askInChat(groupPrompt({ mode: "merge", ungrouped: groupView.ungrouped.length, course }, getUiLanguage()))}
-              >{uiFormat("归并新增 {0} 个", [groupView.ungrouped.length])}</button>
-            )}
-            {groups.length > 0 && (
-              <button
-                type="button"
-                className="sk-mini"
-                title={course === "*" ? ui("让对话重新归并全部主题，替换现有主题组") : ui("让对话只重新归并这门课程的主题，其他课程的主题组保持不变")}
-                onClick={() => askInChat(groupPrompt({ mode: "replace", topicCount: topics.length, course }, getUiLanguage()))}
-              >{ui("重新归并")}</button>
-            )}
+            {/* One hand-off for the three states of the topic groups (topics.group): none yet -> group them all; new topics outside the groups ->
+                only those (the message says how to ask for all of them again); all grouped -> regroup them all. */}
+            {topics?.length > 0 && !loadFailed && (groups.length > 0 && groupView.ungrouped.length > 0 ? (
+              <HandOff id="topics.group" lead={uiFormat("{0} 个新主题还没归入主题组：", [groupView.ungrouped.length])}
+                what="让主会话把新增的主题归入主题组（不改题目）；要全部重新归并，在输入框里说一声"
+                input={{ mode: "merge", ungrouped: groupView.ungrouped.length, course, alternative: true }} />
+            ) : (
+              <HandOff id="topics.group" lead={groups.length ? ui("主题组不合适时：") : ui("主题太碎时：")}
+                what={!groups.length ? "让主会话按知识域把主题归并成主题组（不改题目）"
+                  : course === "*" ? "让主会话重新归并全部主题，替换现有主题组" : "让主会话只重新归并这门课程的主题，其他课程的主题组保持不变"}
+                input={{ mode: "replace", topicCount: topics.length, course }} />
+            ))}
           </div>
           <input
             className="sk-search"
@@ -393,20 +380,18 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
             <Button disabled={!picked.size || !!pending} busy={pending === "lint"} busyLabel={ui("检测中…")} onClick={runLint}>
               {ui("质量检测")}
             </Button>
-            <Button variant="primary"
-              disabled={!picked.size || pickedCards > 200}
-              title={pickedCards > 200 ? ui("一次最多 200 道题") : ui("在对话里设计骨架并修题")}
-              onClick={() => {
-                setStale(false);
-                askInChat(designSkeletonPrompt({ scope, lint, topics: pickedTopics }));
-                setSent(true);
-              }}
-            >{ui("在对话中生成骨架")}</Button>
+            {/* This page's main action IS the hand-off: its own primary button; the shared notice says what happened (no line of its own). */}
+            <Tooltip layer content={handOffTip("让主会话设计骨架并修题；保存后骨架会出现在下方，修过的题会进信箱")}>
+              <Button variant="primary"
+                disabled={!picked.size || pickedCards > 200}
+                onClick={() => {
+                  setStale(false);
+                  send("skeleton.design", { scope, lint, topics: pickedTopics });
+                }}
+              >{ui("在主会话里生成骨架")}</Button>
+            </Tooltip>
           </div>
           {pickedCards > 200 && <p className="sk-warn">{ui("一次最多 200 道题，请少选几个主题。")}</p>}
-          {sent && (
-            <p className="muted small sk-note">{ui("已交给对话。agent 保存后骨架会出现在下方，修过的题会进信箱。")}</p>
-          )}
 
           {lint && (
             <div className="sk-lint">
@@ -448,7 +433,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
         </h2>
       </div>
       {!listedSkeletons.length ? (
-        <p className="muted small" data-tour="skeleton-main">{ui("还没有骨架。选好主题后点「在对话中生成骨架」。")}<span className="sk-empty-note">{ui("有了骨架，还可以用开源插件 Archify 把它画成可交互的图。")}</span></p>
+        <p className="muted small" data-tour="skeleton-main">{ui("还没有骨架。选好主题后点「在主会话里生成骨架」。")}<span className="sk-empty-note">{ui("有了骨架，还可以用开源插件 Archify 把它画成可交互的图。")}</span></p>
       ) : (
         <div className="sk-saved" data-tour="skeleton-main">
           <ul className="sk-saved-list">
@@ -472,12 +457,9 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                     disabled={busy}
                     onClick={() => onPractice(viewing.nodes.flatMap((n) => n.cards))}
                   >{ui("练整个骨架")}</Button>
-                  <Button
-                    onClick={() =>
-                      askInChat(designSkeletonPrompt({ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }))
-                    }
-                  >{ui("在对话中更新")}</Button>
-                  <Button onClick={() => askInChat(archifySkeletonPrompt({ skeleton: viewing }))}>{ui("用 Archify 画这门课的知识骨架")}</Button>
+                  <HandOff id="skeleton.design" lead={ui("更新这份骨架：")} what="让主会话按现在的题目更新这份骨架"
+                    input={{ scope: viewing.scope, lint: null, topics: [...new Set(viewing.scope.map((x) => x.topic).filter(Boolean))], update: viewing }} />
+                  <HandOff id="skeleton.archify" lead={ui("用 Archify 画这份骨架：")} what="让主会话用 Archify 把这份骨架画成可交互的图" input={{ skeleton: viewing }} />
                   <button
                     type="button"
                     className="sk-danger"
@@ -502,34 +484,16 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                 }} />}
               {viewing.overview && <Markdown text={viewing.overview} className="sk-overview" />}
               <SkeletonDiagrams skeletonId={viewing.id} diagrams={viewing.diagrams} revision={viewing.updatedAt} />
-              <form
-                className="sk-extend-row"
-                onSubmit={(ev) => {
-                  ev.preventDefault();
-                  if (!extendText.trim()) return;
-                  askInChat(extendSkeletonPrompt({ skeleton: viewing, text: extendText.trim() }));
-                  setExtendText("");
-                }}
-              >
-                <input
-                  value={extendText}
-                  onChange={(ev) => setExtendText(ev.target.value)}
-                  placeholder={ui("告诉对话怎么扩展，例如：加上 CAP 定理，并和 BASE 对比；为 RPO/RTO 补两道计算题")}
-                  aria-label={ui("在对话中扩展这个骨架")}
-                />
-                <Button type="submit" disabled={!extendText.trim()}>{ui("✦ 发到对话")}</Button>
-              </form>
+              <HandOffForm key={viewing.id} id="skeleton.extend" rows={2} needsText what="让主会话按你写的要求扩展这个骨架"
+                label="怎么扩展这个骨架" placeholder="告诉主会话怎么扩展，例如：加上 CAP 定理，并和 BASE 对比；为 RPO/RTO 补两道计算题"
+                input={(text) => ({ skeleton: viewing, text })} />
               {/* 脉络 reads in learning order; 结构图 keeps every relation. */}
               <SegmentedControl size="sm" className="sk-view-switch" label={ui("骨架视图")} value={skView} onChange={setSkView}
                 options={[{ value: "spine", label: ui("脉络") }, { value: "canvas", label: ui("结构图") }]} />
               {skView === "spine" ? (
                 <SkeletonSpine skeleton={viewing} onPractice={onPractice} />
               ) : (
-                <SkeletonCanvas
-                  skeleton={viewing}
-                  onPractice={onPractice}
-                  onAsk={(ask) => askInChat(extendSkeletonPrompt({ skeleton: viewing, ...ask }))}
-                />
+                <SkeletonCanvas skeleton={viewing} onPractice={onPractice} />
               )}
               <details className="sk-text">
                 <summary>{ui("文字版：概念释义与关系")}</summary>

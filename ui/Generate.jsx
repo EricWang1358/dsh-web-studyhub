@@ -1,5 +1,5 @@
 import { ui, uiFormat } from "./i18n.js";
-import { ingestPrompt } from "./agent-prompts/ingest.js";
+import { useHandOff } from "./hand-off/use-hand-off.js";
 import { useStudy } from "./study-context.jsx";
 import React from "react";
 import Ingest from "./Ingest.jsx";
@@ -66,7 +66,8 @@ export default function Generate({
   initialGenerationMode = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
-  const { notify, call, busy, act, askInChat, openSettings: openSettingsSection } = useStudy();
+  const { notify, call, busy, act, openSettings: openSettingsSection } = useStudy();
+  const { send } = useHandOff();
   useInjectCss(formCss, "study-generate-form");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
@@ -147,7 +148,7 @@ export default function Generate({
     // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
     { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", attrs: { "data-tour": "generate-case" } },
     // Recording into the conversation needs a chat that can take it (plan C3).
-    ...(canChat ? [{ id: "chat", label: ui("在对话里录题"), note: ui("刷题软件、错题或截图") }] : []),
+    ...(canChat ? [{ id: "chat", label: ui("在主会话里录题"), note: ui("刷题软件、错题或截图") }] : []),
   ];
   const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
   function submit(event) {
@@ -195,9 +196,8 @@ export default function Generate({
           busy={busy}
           onOpenSettings={openSettings}
           start={(config) =>
-            act("ingest.start", config, (mode) => {
-              askInChat(ingestPrompt({ deckTitle: mode.deckTitle, folder: mode.folder, kind: mode.kind, mistakes: mode.mistakes }));
-            })
+            // Recording mode first (a write), then the hand-off says so and fills the chat's box (never sends).
+            act("ingest.start", config, (mode) => send("ingest.start", { deckTitle: mode.deckTitle, folder: mode.folder, kind: mode.kind, mistakes: mode.mistakes }, { said: "已进入录题模式。" }))
           }
         />
       ) : !data.sources.length ? (

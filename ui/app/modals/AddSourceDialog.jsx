@@ -41,7 +41,7 @@ export function SourceForm() {
       onOpenSettings={openSettings}
       onOpenSources={(ids) => { nav.navigate('sources'); learn.openAudioSources(ids); }}
       audio={hasContext(data, 'audio') ? <AudioImport data={data} defaultCourses={parseCourses(sources.formCourse)}
-        canAsk={!!host.askInChat} openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onStarted={sources.finishAudioStart}
+        openAgent={host.openAgent} onOpenSources={learn.openAudioSources} onStarted={sources.finishAudioStart}
         onOpenSettings={() => { set.setModal(null); nav.navigate('settings'); }} /> : undefined} />
   );
 }

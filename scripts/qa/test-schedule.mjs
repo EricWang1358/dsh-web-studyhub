@@ -15,9 +15,10 @@ export const weightsFile = () => process.env.STUDY_TEST_WEIGHTS_FILE || join(rep
 export const suiteDir = () => process.env.STUDY_TEST_SUITE_DIR || join(repoRoot, 'tests');
 
 // Options the ordered runner understands; their values are never file names. Anything else (or a file) stays with `node --test`.
-const ORDERED_OPTIONS = new Set(['--test-reporter', '--test-reporter-destination', '--test-concurrency', '--test-name-pattern', '--test-skip-pattern', '--shard']);
+// --test-timeout there is a limit per test (node --test applies it to each whole file when files run in their own processes).
+const ORDERED_OPTIONS = new Set(['--test-reporter', '--test-reporter-destination', '--test-concurrency', '--test-name-pattern', '--test-skip-pattern', '--shard', '--test-timeout']);
 // Every Node test option that takes a value, so that the value is not taken for a file.
-const VALUE_OPTIONS = new Set([...ORDERED_OPTIONS, '--test-timeout', '--test-shard', '--test-coverage-exclude', '--test-coverage-include',
+const VALUE_OPTIONS = new Set([...ORDERED_OPTIONS, '--test-shard', '--test-coverage-exclude', '--test-coverage-include',
   '--test-coverage-lines', '--test-coverage-branches', '--test-coverage-functions', '--experimental-test-isolation', '--import', '--require', '-r']);
 
 /** Whether the arguments name test files, and whether a plain full run with them can be scheduled by us. */

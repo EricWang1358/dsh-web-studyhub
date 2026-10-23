@@ -83,9 +83,9 @@ test('覆盖强度 is the default the page really uses, and the count the page i
   }
   const zh = html('zh', GENERATION_SETTINGS_DEFAULTS);
   assert.match(zh, /默认覆盖强度/);
-  assert.match(zh, /对话里出题的默认题数/, 'the count is named for where it applies');
+  assert.match(zh, /主会话里出题的默认题数/, 'the count is named for where it applies');
   assert.match(zh, /创建题组页按「覆盖强度」出题，不用它/, 'and the hint says the page does not use it');
-  assert.ok(zh.indexOf('默认覆盖强度') < zh.indexOf('对话里出题的默认题数'), 'the default the page uses comes before the one it does not');
+  assert.ok(zh.indexOf('默认覆盖强度') < zh.indexOf('主会话里出题的默认题数'), 'the default the page uses comes before the one it does not');
   assert.match(html('zh', { ...GENERATION_SETTINGS_DEFAULTS, coverageLevel: 'lean' }), /精简：只给最重要的小节出题/, 'the hint explains the chosen level');
   const calls = [];
   const view = editor({ act: async (action, args, after) => { calls.push({ action, args }); after({ generation: args.generation }); } });

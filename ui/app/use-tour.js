@@ -7,13 +7,15 @@ import { practiceArgs } from '../learning-navigation.js';
 import { importForQuestions } from './import-handoff.js';
 
 /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────────
-   The welcome page of an empty library, the sample course (sample.* host actions, C6) and the feature tour that switches to
+   Whether the first-run line was put away (以后再说), the sample course (sample.* host actions, C6) and the feature tour that switches to
    each key page. Hosts without sample support send no `sample` in the snapshot; then the tour still runs and the steps that
    need sample data are left out. */
 export function useTour({ core, lib, nav, session, drafts, intents, data, rootRef }) {
   const { call, act, setError, notify, refresh, refs } = core;
   const { setModal, setDraft, setSelectedSources, setSkeletonFocus } = lib.set;
   const [tourStep, setTourStep] = useState(null), [sampleBusy, setSampleBusy] = useState(false);
+  // 载入示例并开始导览 is loading the sample for a tour: until the tour starts (in the same render), the first-run line holds still (no banner above it).
+  const [sampleForTour, setSampleForTour] = useState(false);
   // Which tour is running: the short one (the core chain) or, when the learner asked for it, the full one.
   const [fullTour, setFullTour] = useState(false);
   const [removingSample, setRemovingSample] = useState(false), [hiddenWelcome, setHiddenWelcome] = useState('');
@@ -32,10 +34,9 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const tourSteps = useMemo(() => stepsFor(shownFull), [data, shownFull]); // eslint-disable-line react-hooks/exhaustive-deps
   const resumeAt = savedTour && !savedTour.done ? tourSteps.findIndex((step) => step.id === savedTour.stepId) : -1;
   const tourResume = resumeAt > 0 ? { index: resumeAt, total: tourSteps.length } : null;
-  const ownLibraryEmpty = !!data && !data.sources.some((source) => !source.sample) && !data.drafts.some((item) => !item.sample) &&
-    !data.decks.some((deck) => !deck.systemKind && !deck.sample);
-  const showWelcome = !!data?.sample && page === 'library' && !tourStep && hiddenWelcome !== data.root &&
-    !welcomeDismissed(data.root) && (ownLibraryEmpty || !!data.sample.loaded);
+  /* The first-run line (ui/first-run) is the library's whole first screen until 「以后再说」 puts it away for this library; then, and while a tour shows the
+     home, it is the compact card in the today slot. */
+  const lineLater = !!data?.root && (hiddenWelcome === data.root || welcomeDismissed(data.root));
   function hideWelcome() {
     if (!data?.root) return;
     dismissWelcome(data.root);
@@ -59,7 +60,6 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     const first = !restart && paused && !!paused.full === wantFull && steps.some((step) => step.id === paused.stepId) ? paused.stepId : steps[skipWelcome ? 1 : 0].id;
     if (!tourStep) tourOrigin.current = { page, runId: page === 'review' ? session.run?.id : null,
       opener: rootRef.current?.contains(document.activeElement) ? document.activeElement : null };
-    hideWelcome();
     setError('');
     setFullTour(wantFull);
     setTourStep(first);
@@ -169,7 +169,11 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
       setSampleBusy(false);
     }
   }
-  async function loadSampleAndTour() { if (await loadSample()) startTour({ restart: true }); }
+  // The line's own 载入示例并开始导览: the flag is set before the sample is written (a poll may bring it back first) and cleared together with the tour's first step.
+  async function loadSampleAndTour() {
+    setSampleForTour(true);
+    try { if (await loadSample()) startTour({ restart: true }); } finally { setSampleForTour(false); }
+  }
   async function loadSampleInTour() { if (await loadSample()) moveTour(1); }
   async function loadSampleOnly() { if (await loadSample()) notify({ text: ui('示例课程已载入，在学习库里就能看到。'), tone: 'success' }); }
   async function removeSampleData() {
@@ -195,6 +199,6 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
     }
   }
 
-  return { tourStep, fullTour, sampleBusy, removingSample, setRemovingSample, modelState, tourSteps, tourResume, showWelcome, hideWelcome, openFirstImport, startTour,
+  return { tourStep, fullTour, sampleBusy, sampleForTour, removingSample, setRemovingSample, modelState, tourSteps, tourResume, lineLater, hideWelcome, openFirstImport, startTour,
     startFullTour, moveTour, endTour, closeTour, finishTour, enterTourStep, loadSampleAndTour, loadSampleInTour, loadSampleOnly, removeSampleData };
 }

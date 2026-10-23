@@ -19,7 +19,8 @@ const m = await loadUi(`
   export { default as Generate } from './ui/Generate.jsx';
   export { default as Sources } from './ui/Sources.jsx';
   export { default as MergeSuggestions } from './ui/study-map/MergeSuggestions.jsx';
-  export { default as Welcome } from './ui/Welcome.jsx';
+  export { default as FirstRunLine } from './ui/first-run/FirstRunLine.jsx';
+  export { firstRunLine } from './ui/first-run/line.js';
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
@@ -216,19 +217,22 @@ test('学习流 and the daily plan use the compact gate where they had plain tex
   assert.doesNotMatch(portal, /连接模型后可以一键生成/);
   assert.doesNotMatch(plan, /配置模型后可以协商安排/);
   assert.match(portal, /useContext\(ModelSettingsContext\)/, 'the portal falls back to the app\'s context instead of masking it with null');
-  for (const [feature, line] of [['workflow', '讲解、复述反馈和后台骨架需要先配置模型；现在会按主题和题组名匹配材料。'], ['lesson', '生成讲解需要先配置模型；也可以在下方请主对话补充材料。'],
-    ['skeleton', '一键生成骨架需要先配置模型；也可以请主对话帮你设计骨架。'], ['plan', '协商安排需要先配置模型；已接受的行动可以继续。']])
+  for (const [feature, line] of [['workflow', '讲解、复述反馈和后台骨架需要先配置模型；现在会按主题和题组名匹配材料。'], ['lesson', '生成讲解需要先配置模型；也可以在下方请主会话补充材料。'],
+    ['skeleton', '一键生成骨架需要先配置模型；也可以请主会话帮你设计骨架。'], ['plan', '协商安排需要先配置模型；已接受的行动可以继续。']])
     assert.equal(m.gateMessage(feature), line, feature);
 });
 
 test('every page that said "no model" in its own words says it with the gate\'s words and the one link wording', () => {
-  const welcome = render(h(m.Welcome, { model: NO_KEY, sample: null, onSetupModel: noop }));
-  assert.match(welcome, /先配置一个 AI 模型/);
+  // The first screen (the first-run line, ui/first-run): step 1 lays out the gate's own words; it re-reads the state instead of bouncing to the settings.
+  const firstRun = (model, options) => render(h(m.FirstRunLine, { line: m.firstRunLine({ root: '/l', model, decks: [], sources: [], drafts: [], jobs: [] }), form: 'page',
+    on: { recheck: noop, openModelSettings: noop, importFirst: noop } }), options);
+  const welcome = firstRun(NO_KEY);
   assert.match(text(welcome), /在 DSH 打开「设置 › 模型」，在「DeepSeek」卡片填入 API Key 并保存/);
   assert.doesNotMatch(welcome, /连接一个 AI 模型|打开模型设置，选择一个服务商和模型/);
-  assert.equal(render(h(m.Welcome, { model: READY, sample: null, onSetupModel: noop })).includes('sh-setup'), false);
-  assert.equal(labelOf(welcome, 'primary'), '添加资料', 'the first screen leads with its own button');
-  assert.equal(labelOf(welcome, 'secondary'), '前往设置', 'the model button is a secondary one');
+  assert.doesNotMatch(firstRun(READY), /data-body="model"/, 'a usable model is a ticked row');
+  assert.equal(labelOf(welcome, 'primary'), '重新检查', 'the open step re-reads the state');
+  assert.doesNotMatch(text(welcome), /前往设置/, 'a missing key has no model to pick: no settings link at all');
+  assert.match(firstRun(NO_ROUTE, { host: { openModelSettings: noop } }), />打开模型设置<\/button>/, 'the one quiet link is named for where it goes');
   const note = render(h(m.ModelErrorNote, { error: 'NO_ADAPTER: Configure a model provider', onSettings: noop }));
   assert.match(note, />前往设置<\/button>/);
   assert.match(render(h(m.ModelErrorNote, { error: 'NO_ADAPTER: Configure a model provider', onSettings: noop }), { host: { openModelSettings: noop } }), />打开模型设置<\/button>/);

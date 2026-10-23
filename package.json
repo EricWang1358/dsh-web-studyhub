@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "3.5.7",
+  "version": "3.6.0",
   "description": "StudyHub: turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.",
   "repository": {
     "type": "git",
@@ -162,6 +162,10 @@
     "qa:dsh-runtime": "node scripts/qa/dsh-runtime-smoke.mjs",
     "verify": "npm run lint && npm test && npm run build",
     "release:pack": "node scripts/release-alpha.mjs",
+    "changelog:check": "node scripts/changelog.mjs --check",
+    "changelog:preview": "node scripts/changelog.mjs --preview",
+    "changelog:release": "node scripts/changelog.mjs --release",
+    "changelog:seal": "node scripts/changelog.mjs --seal",
     "sync:main": "node scripts/sync-main.mjs",
     "release:check": "node scripts/qa/release-artifacts.mjs",
     "site:build": "node scripts/site-build.mjs",

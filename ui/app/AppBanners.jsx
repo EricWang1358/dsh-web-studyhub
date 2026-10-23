@@ -16,7 +16,7 @@ export function IngestBanner() {
     <Banner role="status" tone="info" title={ui('录题中')} className="app-banner"
       action={{ label: ui('停止录题'), disabled: core.busy, onClick: () => core.act('ingest.stop', {}, (result) => core.notify(uiFormat('已停止录题，本次录入 {0} 题。', [result.added]))) }}>
       <p>{uiFormat('题组「{0}」· 已录入 {1} 题', [deckTitle, added])}</p>
-      <p className="app-banner__hint">{ui('在对话里直接贴题目或截图即可')}</p>
+      <p className="app-banner__hint">{ui('在主会话里直接贴题目或截图即可')}</p>
     </Banner>
   );
 }
