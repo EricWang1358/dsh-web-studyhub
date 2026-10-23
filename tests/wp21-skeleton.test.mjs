@@ -10,17 +10,19 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { StudyService } from '../lib/service.js';
 import { createHostHandler } from '../lib/host.js';
-import { groupPrompt } from '../ui/topic-group-prompt.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export * from './ui/skeleton-groups.js';
+  export { handOffText } from './ui/agent-prompts/index.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { courseGroupRows, countGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse, setUiLanguage } = module.exports;
+const { courseGroupRows, countGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse, setUiLanguage, handOffText } = module.exports;
+// The topic-group message as the registry lays it out (ui/topic-group-prompt.js builds its parts).
+const groupPrompt = (input, language) => handOffText('topics.group', input, language);
 const han = /[㐀-鿿]/;
 
 const quote = 'Retries amplify load and replicas absorb failures when properly isolated.';
@@ -180,12 +182,12 @@ test('switching course keeps the open skeleton only when the new course lists it
 
 test('the regroup prompts are scoped to the course they run in', () => {
   const zh = groupPrompt({ mode: 'replace', topicCount: 33, course: 'Architecture' }, 'zh');
-  assert.match(zh, /"course": "Architecture"/);
-  assert.match(zh, /只归并课程「Architecture」/);
+  assert.match(zh, /"course":"Architecture"/);
+  assert.match(zh, /只动课程 `Architecture` 的主题/);
   const en = groupPrompt({ mode: 'replace', topicCount: 33, course: 'Architecture' }, 'en');
   assert.match(en, /"course":"Architecture"/);
-  assert.match(en, /only the course "Architecture"/i);
-  assert.match(groupPrompt({ mode: 'merge', ungrouped: 4, course: 'Architecture' }, 'zh'), /"course": "Architecture"/);
+  assert.match(en, /only the course `Architecture`/i);
+  assert.match(groupPrompt({ mode: 'merge', ungrouped: 4, course: 'Architecture' }, 'zh'), /"course":"Architecture"/);
   assert.match(groupPrompt({ mode: 'merge', ungrouped: 4, course: 'Architecture' }, 'en'), /"course":"Architecture"/);
   for (const course of [undefined, '*']) {
     const prompt = groupPrompt({ mode: 'replace', topicCount: 5, course }, 'zh');
@@ -212,7 +214,7 @@ test('the topic-read example in both prompt languages has exactly the keys skele
       const expected = shape(example);
       if (!result.nextOffset) expected.top = expected.top.filter(name => name !== 'nextOffset');
       assert.deepEqual(shape(result), expected, `${language} ${mode}: the example names the fields the operation returns`);
-      assert.match(text, language === 'zh' ? /字段名完全一致/ : /field names are exact/);
+      assert.match(text, language === 'zh' ? /字段名完全一致/ : /exact field names/);
     }
   for (const language of ['zh', 'en']) {
     assert.match(groupPrompt({ mode: 'merge', ungrouped: 70 }, language), /"limit": ?60\b/);

@@ -38,7 +38,7 @@ import { AppContext } from "./app/app-context.js";
    progress and drafts, and the catalogue of decks by course. Each part lives in
    ui/study-map; this component wires the data to them and owns the few
    switches (search, archived, other and parked courses).
-   The services (call, act, busy, askInChat, host) come from useStudy(); what is left to pass is the
+   The services (call, act, busy, host) come from useStudy(); what is left to pass is the
    library snapshot and the verbs only the app can do:
      actions        { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual,
                       importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph,
@@ -51,12 +51,11 @@ import { AppContext } from "./app/app-context.js";
                     line's own verbs to the ones taken from `actions` (see FirstRunLine). 'page' is the whole home (the line, with the runs of its third step);
                     'compact' puts the line's card in the today slot. Left out, the line is the compact card. */
 export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
-  const { call, act, busy, askInChat, host } = useStudy();
+  const { call, act, busy, host } = useStudy();
   const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const toast = useToast();
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
-  const canChat = host.capabilities?.chat ?? !!host.askInChat;
   const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
     generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph, onCourseSettings, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
@@ -98,8 +97,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const shown = visibleGenerationJobs(jobs);
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-  const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, canChat, revealActivity,
-    actions: { start, resume, openDraft, addSource, importLibrary, askInChat, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } });
+  const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity,
+    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } });
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;

@@ -13,15 +13,16 @@ import css from './hand-off.css';
 const VARIANT = { link: 'link', quiet: 'quiet', icon: 'quiet', secondary: 'secondary' };
 
 /**
- * The button alone, for a place that builds its own message (the book's 问 AI form): onClick, busy, disabled; what: this place's first Tooltip
- * sentence; label: only 「发给主会话…」 where it opens a form first. Extra props (data-*) go on the button.
+ * The button alone, for a place that builds its own message (the book's 问 AI form): onClick, busy (the same label at the same width, quieter: no spinner
+ * is added, so the line it stands in never moves), disabled; what: this place's first Tooltip
+ * sentence; label: the place's own words where a write comes first (保存并发给主会话). Extra props (data-*) go on the button.
  */
 export function HandOffButton({ shape = 'link', size = 'sm', what = '', label = HAND_OFF_LABEL, busy = false, disabled = false, onClick, anchorClassName = 'sh-handoff__tip', ...rest }) {
   useInjectCss(css, 'study-hand-off');
   const variant = VARIANT[shape] || 'link', text = ui(label);
   const button = shape === 'icon'
-    ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon" aria-label={text} busy={busy} disabled={disabled} onClick={onClick} {...rest} />
-    : <Button variant={variant} size={size} busy={busy} disabled={disabled} onClick={onClick} {...rest}>{text}</Button>;
+    ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon sh-handoff__btn" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
+    : <Button variant={variant} size={size} className="sh-handoff__btn" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
   return <Tooltip layer content={handOffTip(what)} anchorClassName={anchorClassName}>{button}</Tooltip>;
 }
 
@@ -52,7 +53,7 @@ export function HandOff({ id, input, what = '', lead = '', shape = 'link', said 
 /**
  * <HandOffForm id input prepare chips placeholder label what said submitLabel needsText disabled rows onSent>: only for the migrated places that already had
  * a box of their own (knowledge skeleton extension, learning flows). New places have no box: the chat's input box is the box. chips: catalogue keys, a tap
- * fills the box; input(text, prepared): the entry's input made from what was typed (the entry's builder puts it in a fenceRequest fence) and what prepare returned;
+ * fills the box; input(text, prepared): the entry's input made from what was typed (the entry's builder puts it in a request fence) and what prepare returned;
  * prepare(text): the write before the hand-off (a flow saved, notes saved), resolving to what input needs, or `false` to stop (the place said why itself);
  * submitLabel: 「保存并发给主会话」 when a write comes first; needsText: the button waits for a word; disabled: the place's own reasons; rows: the box's height;
  * children: a control above the box (the extension's intent). The box empties once it was handed over.

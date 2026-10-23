@@ -17,8 +17,8 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 /* 「发给主会话」 in the real page at 1280 and 420 px (docs/review-book-agent.md "Sending it from the book page"), one destination of 问 AI: at a point's title the
    panel with the five presets and a box: a preset fills the box, 发给主会话 hands the message to the chat (the preview has no chat, so it is copied: the clipboard is
    the test's stand-in for askInChat) and closes the panel; an empty box is allowed; the keyboard opens it and Escape gives the focus back. Selected words: the
-   toolbar's 发给主会话 sends them in a fence at once, 写一段… opens the panel with them; 更多 › 整本书 › 发给主会话… sends the whole-book message. The messages
-   carry no book text; nothing scrolls sideways. Screenshots go to BOOK_SEND_SHOTS when set. */
+   toolbar's 发给主会话 sends them in a fence at once, 写一段… opens the panel with them; 更多 › 整本书 › 发给主会话 sends the whole-book message at once (no form).
+   The messages open with the learner's sentence and carry no book text; nothing scrolls sideways. Screenshots go to BOOK_SEND_SHOTS when set. */
 
 async function seed(root) {
   await mkdir(root, { recursive: true });
@@ -121,20 +121,20 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
       await panel.locator('[data-book-ask="chat"]').click();
       const first = await nextSent(page, before);
       await panel.waitFor({ state: 'detached', timeout: 5000 });
-      for (const part of ['study-book', 'book.read', 'book.coverage', 'course.book.revert', '课程："' + COURSE + '"', '知识点 id（hid）：', '.gen.md', '.mine.md', '当前版本：v', '资料以外'])
+      for (const part of ['skill study-book', 'book.read', 'book.coverage', 'course.book.revert', '课程 "' + COURSE + '"', '知识点 hid ', '.gen.md', '.mine.md', '当前版本 v', '资料以外'])
         assert.ok(first.includes(part), `${width}px: the message names ${part}: ${first}`);
-      assert.match(first, /已读 \d+\/\d+ 页/, `${width}px: the coverage figure`);
-      assert.match(first, /````?request 我的要求\n润色成大白话，再慢一点\n````?/);
-      assert.match(first, /data 知识点标题\nWhat architects do\n/);
+      assert.match(first, /资料页已读 \d+\/\d+/, `${width}px: the coverage figure`);
+      assert.ok(first.includes('资料以外的内容标（资料以外）') && !first.includes('beyond the materials'), `${width}px: a Chinese book: only its own marker`);
+      assert.match(first, /^帮我按下面的要求改复习全书的知识点 `What architects do`：\n````?request 我的要求\n润色成大白话，再慢一点\n````?\n/, `${width}px: the learner's sentence and words first`);
       assert.doesNotMatch(first, /writes each decision down/, `${width}px: no book text`);
-      await toastSaid(page, '没有主会话：提示词已复制，粘贴到对话里再发送。');
+      await toastSaid(page, '已复制到剪贴板');
       // An empty box is allowed.
       await trigger.click();
       await panel.waitFor();
       assert.equal(await panel.locator('textarea').inputValue(), '', `${width}px: a new panel starts empty`);
       before = await sentCount(page);
       await panel.locator('[data-book-ask="chat"]').click();
-      assert.match(await nextSent(page, before), /我没有写具体要求：先读这一节/);
+      assert.match(await nextSent(page, before), /^帮我把复习全书的知识点 `What architects do` 改得更清楚易懂/);
 
       // Selected words: the toolbar's 发给主会话 sends them at once, in a data fence.
       const words = 'writes each decision down';
@@ -145,9 +145,8 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
       before = await sentCount(page);
       await bar.locator('[data-book-select="chat"]').click();
       const selected = await nextSent(page, before);
-      assert.match(selected, /选中的那几句话/);
+      assert.match(selected, /^帮我把复习全书 `What architects do` 里我选中的那几句改得更清楚/);
       assert.match(selected, /```data 我选中的话\nwrites each decision down\n```/);
-      assert.match(selected, /我没有写具体要求/);
       await bar.waitFor({ state: 'detached', timeout: 5000 });
       // 写一段… opens the panel with the words on top; its own box goes with them.
       await selectWords(page, words);
@@ -164,26 +163,19 @@ test('发给主会话: one destination of 问 AI at the title, the selection too
       assert.match(asked, /request 我的要求\n讲得更直白\n/);
       await panel.waitFor({ state: 'detached', timeout: 5000 });
 
-      // 更多 › 整本书 › 发给主会话…: the whole book, the same form in a dialog with this one destination; the message starts at book.toc and has no point.
+      // 更多 › 整本书 › 发给主会话: the whole book at once (no form: the learner adds a request in the chat's input box); the message starts at book.toc and has no point.
       await page.locator('.book-bar__more').click();
-      const book = page.getByRole('menuitem', { name: /^发给主会话…/ });
+      const book = page.getByRole('menuitem', { name: /^发给主会话/ });
       assert.match(await book.innerText(), /只填进输入框，不自动发送/, `${width}px: the item says it only fills the box`);
-      await book.click();
-      const whole_ = page.locator('dialog.book-chat-dialog');
-      await whole_.waitFor();
-      assert.equal(await whole_.locator('[data-book-ask="write"]').count(), 0);
-      await inside(page, 'dialog.book-chat-dialog', width, 'the dialog');
-      await flat(page, width, 'the dialog');
-      await whole_.locator('textarea').fill('全书统一成大白话');
+      assert.doesNotMatch(await book.innerText(), /…/, `${width}px: it opens nothing first, so no ellipsis`);
       if (shots) { await settleAnimations(page); await page.screenshot({ path: join(shots, `send-book-${width}.png`) }); }
       before = await sentCount(page);
-      await whole_.locator('textarea').press('Control+Enter');
+      await book.click();
       const whole = await nextSent(page, before);
-      assert.match(whole, /改整本复习全书/);
-      assert.match(whole, /先用 book\.toc 看目录/);
-      assert.match(whole, /request 我的要求\n全书统一成大白话\n/);
-      assert.doesNotMatch(whole, /知识点 id（hid）|这一节的文件/);
-      await whole_.waitFor({ state: 'detached', timeout: 5000 });
+      assert.match(whole, /^帮我看看整本复习全书：/);
+      assert.match(whole, /- 先读：skill study-book，再用 book\.toc 看目录。/);
+      assert.doesNotMatch(whole, /知识点 hid|文件：/);
+      assert.equal(await page.locator('dialog[open]').count(), 0, `${width}px: no dialog in between`);
 
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();

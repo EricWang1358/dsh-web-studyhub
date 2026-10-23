@@ -174,7 +174,7 @@ In the main chat, you can ask StudyHub to import JSON deck files from your compu
 | `draft.import {text, title?, course?, mergeTargetId?}` | Saves the import source and the new draft in one transaction. |
 | `draft.publish.quick {id, draftVersion, mergeTargetId?}` | What **Publish and practise** calls after saving the draft. Publishes all questions with structural checks only. |
 | `draft.publish` / `draft.publish.start` | Reviewed publication, now or as a background task. |
-| `deck.import {path \| paths \| text, folder?, course?, into?}` | Imports files from disk and publishes them, as described above. |
+| `deck.import {path \| paths \| text, folder?, course?, into?, draft?}` | Imports files from disk and publishes them, as described above. With `draft: true` nothing is published: each file waits as a draft for **Check the draft**, and the report gives its `draftId`; questions already waiting in a draft of that deck are skipped. |
 
 Complete examples for every question type are in `ui/json-prompts.js`. For how the main chat calls these actions, see [Query sources and decks from the main chat](main-session-queries.md).
 

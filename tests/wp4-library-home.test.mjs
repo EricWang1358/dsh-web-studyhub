@@ -53,8 +53,13 @@ test("an empty library asks for a first material, with JSON import as the second
   assert.equal(primaryLabel(html), "添加资料");
   assert.match(html, /<button[^>]*class="sh-btn sh-btn--link[^"]*"[^>]*>已有题目？导入 JSON 题组<\/button>/);
   assert.doesNotMatch(html, /还没有卡片/);
-  assert.doesNotMatch(html, /在对话中用工作区文件出题/, "a chat-only start is not offered without a chat");
-  assert.match(render({}, { canChat: true }), /在对话中用工作区文件出题/);
+  // A workspace file through the main chat (the shared 「发给主会话」, hand-off S3): offered with or without a chat (without one the message is copied), never primary.
+  for (const shown of [html, render({}, { canChat: true })]) {
+    assert.match(shown, /用工作区里的文件出题：/);
+    assert.match(shown, /data-hand-off="import\.file"/);
+    assert.doesNotMatch(shown, /在对话中用工作区文件出题/);
+  }
+  assert.equal(primaries(html), 1, "still one primary button");
 });
 
 test("an empty library hides advanced blocks", () => {

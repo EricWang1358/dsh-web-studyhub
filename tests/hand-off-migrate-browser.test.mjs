@@ -12,8 +12,8 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 
 /* 「发给主会话」 on every place that handed over before the shared unit existed (the hand-off plan, S2b), in Chromium through the REAL host adapter
    (ui/host/workspace.jsx) and the REAL App on a real library; only DSH is faked and its conversation is wrapped in a Proxy whose submit throws.
-   Each place: the shared control (one label, its rule in a layered Tooltip, never a title attribute), the shared notice after it (no line of the page's
-   own), the prompt in the composer by setDraft alone, the learner's own words in the composer kept. Places: 创建题组 › 录题, the library home (a deck's ⋯,
+   Each place: the shared control (one label, its rule in a layered Tooltip, never a title attribute), the shared receipt after it (no line of the page's
+   own), the message in the composer by setDraft alone (the learner's sentence first), the learner's own words in the composer kept. Places: 创建题组 › 录题, the library home (a deck's ⋯,
    a topic's icon, the topic-group reminder), 知识骨架 (the groups, the primary button, an open skeleton's two links, its extension box, a concept's),
    the result page, 学习流 (the list, the editor, the start page, a step; for the editor and the step also the save that is refused, which hands nothing over), 分步出题, 音频.
    MIGRATE_SHOTS=<dir> writes screenshots (zh; 1280×800 and 390×844, light and dark); otherwise only 1280 light runs. */
@@ -124,7 +124,9 @@ test('发给主会话 on the places that handed over before: the shared control,
     await page.evaluate(() => { window.dshReady = true; });
     const tag = `${width}-${theme}`;
     const shot = async (name) => { if (shots) { await page.waitForTimeout(500); await page.screenshot({ path: join(shots, `${name}-${tag}.png`) }); } };
-    const notice = page.locator('.sh-toasts .sh-toast').first();
+    /** The receipt of `outcome` (ui/hand-off/use-hand-off.js), its line matching `line` (what a write before it did comes first). */
+    const receipt = (outcome, line) => page.locator(`.sh-toasts .sh-toast--receipt[data-receipt="${outcome}"]`).filter({ hasText: line });
+    const FILLED = '看一眼，再由你按发送', KEPT = '输入框里你写的字都留着';
     const go = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click({ timeout: 60000, force: true }); };
     const state = () => page.evaluate(() => ({ log: window.dshLog.slice(), text: window.composerText, copied: window.copied.slice() }));
     const reset = async (extra = {}) => {
@@ -143,7 +145,7 @@ test('发给主会话 on the places that handed over before: the shared control,
       assert.equal(await control.getAttribute('title'), null, `${tag}: no title attribute on the control`);
       if (shotName && shots) { await control.scrollIntoViewIfNeeded(); await rule(control).catch(() => {}); await shot(`${shotName}-tip`); }
       await control.click();
-      await notice.getByText(new RegExp(`${saved}已填进主会话的输入框，确认后按发送。`)).waitFor({ timeout: 15000 }).catch(async (error) => {
+      await receipt('filled', new RegExp(`${saved}${FILLED}`)).waitFor({ timeout: 15000 }).catch(async (error) => {
         if (process.env.MIGRATE_DEBUG) await page.screenshot({ path: 'output/hand-off-migrate-fail.png' });
         throw new Error(`${error.message}\npage errors: ${JSON.stringify(errors)}\nnotices: ${JSON.stringify(await page.locator('.sh-toasts').allInnerTexts())}\nstate: ${JSON.stringify(await state()).slice(0, 400)}`);
       });
@@ -162,7 +164,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     await page.locator('.map-deck').first().waitFor({ timeout: 60000 });
     const reminder = page.locator('.group-reminder [data-hand-off="topics.group"]');
     await reminder.waitFor({ timeout: 30000 });
-    let text = await handOver(reminder, { tail: '我想：', shotName: 'home-reminder' });
+    let text = await handOver(reminder, { shotName: 'home-reminder' });
     assert.match(text, /skeleton\.topics/);
     assert.match(text, /replace/);
     if (!(await page.locator('.topic-row').count())) await page.locator('.map-deck .map-name').first().click();
@@ -171,7 +173,7 @@ test('发给主会话 on the places that handed over before: the shared control,
       await topicIcon.waitFor({ timeout: 15000 });
       assert.equal(await topicIcon.getAttribute('aria-label'), '发给主会话', `${tag}: the icon is named by the label`);
       text = await handOver(topicIcon, { shotName: 'home-topic-icon' });
-      assert.match(text, /给我讲解「`主题1`」/);
+      assert.match(text, /^给我讲讲题组 `[^`]+` 里的 `主题1`：/);
     }
     await reset();
     const deckMenu = async () => {
@@ -187,16 +189,15 @@ test('发给主会话 on the places that handed over before: the shared control,
     assert.equal(await item.getAttribute('title'), null, `${tag}: the menu item shows its rule inline and carries no title attribute`);
     await shot('home-deck-menu');
     await item.click();
-    await notice.getByText('已填进主会话的输入框，确认后按发送。').waitFor({ timeout: 15000 });
+    await receipt('filled', FILLED).waitFor({ timeout: 15000 });
     text = (await state()).text;
-    assert.match(text, /请用 study_workspace 查看题组「`操作系统`」的掌握情况/);
-    assert.ok(text.endsWith('我想：'), 'the learner may add words after 我想：');
-    assert.match(text, /如果我在最后写了别的要求，就按我写的办/);
+    assert.match(text, /^帮我看看题组 `操作系统`：哪些主题最薄弱/);
+    assert.ok(text.endsWith('请用中文回复；已有的题目和引文保持原文，不要翻译。'), 'the learner\'s sentence already asks: no bare 我想： after it');
     // The learner's own words in the box stay: the prompt is copied instead.
     await reset({ composerText: '我自己先打的字' });
     await deckMenu();
     await page.getByRole('menuitem', { name: /^发给主会话/ }).click();
-    await notice.getByText('输入框里已有文字，没有覆盖：提示词已复制，粘贴到合适的位置再发送。').waitFor({ timeout: 15000 });
+    await receipt('kept', KEPT).waitFor({ timeout: 15000 });
     assert.equal((await state()).text, '我自己先打的字');
     assert.equal((await state()).copied.length, 1);
 
@@ -212,9 +213,10 @@ test('发给主会话 on the places that handed over before: the shared control,
     await reset();
     if (await start.isEnabled()) {
       await start.click();
-      await notice.getByText(/已进入录题模式。已填进主会话的输入框，确认后按发送。/).waitFor({ timeout: 20000 });
+      await receipt('filled', `已进入录题模式。${FILLED}`).waitFor({ timeout: 20000 });
       text = (await state()).text;
-      assert.match(text, /开始录题：/);
+      assert.match(text, /^接下来我会在这里贴题目，帮我直接录进题组/);
+      assert.ok(text.endsWith('\n\n第一批题目：'), 'the pasted questions follow 第一批题目： at the very end');
       assert.match(text, /我给的是整本题册文件时，按 skill study-import 按章录入/);
       assert.deepEqual((await state()).log.filter((entry) => entry !== 'selectPanel:null'), ['setDraft']);
       await shot('ingest-notice');
@@ -226,7 +228,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     await page.locator('.skeleton-page').waitFor({ timeout: 30000 });
     const group = page.locator('.sk-group-bar [data-hand-off="topics.group"]');
     await group.waitFor({ timeout: 30000 });
-    text = await handOver(group, { tail: '我想：', shotName: 'skeleton-groups' });
+    text = await handOver(group, { shotName: 'skeleton-groups' });
     assert.match(text, /skeleton\.topics/);
     await page.locator('.sk-picker input[type="checkbox"]').first().check().catch(() => {});
     const design = page.getByRole('button', { name: '在主会话里生成骨架' });
@@ -236,7 +238,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     if (await design.isEnabled()) {
       await reset();
       await design.click();
-      await notice.getByText('已填进主会话的输入框，确认后按发送。').waitFor({ timeout: 15000 });
+      await receipt('filled', FILLED).waitFor({ timeout: 15000 });
       assert.match((await state()).text, /skeleton\.context/);
       assert.equal(await page.locator('.sk-note').count(), 0, `${tag}: no line of the page's own about it`);
       await shot('skeleton-primary');
@@ -245,7 +247,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     const update = page.locator('.sk-view-head [data-hand-off="skeleton.design"]');
     await update.waitFor({ timeout: 30000 });
     text = await handOver(update, { shotName: 'skeleton-update' });
-    assert.match(text, /请更新知识骨架「`进程与线程`」/);
+    assert.match(text, /^帮我更新知识骨架 `进程与线程`：/);
     text = await handOver(page.locator('.sk-view-head [data-hand-off="skeleton.archify"]'));
     assert.match(text, /archify/);
     assert.equal(await page.locator('.sk-view-head').getByText('这门课').count(), 0, `${tag}: the link says 这份骨架`);
@@ -256,7 +258,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     await reset();
     await shot('skeleton-extend');
     await extend.getByRole('button', { name: '发给主会话' }).click();
-    await notice.getByText('已填进主会话的输入框，确认后按发送。').waitFor({ timeout: 15000 });
+    await receipt('filled', FILLED).waitFor({ timeout: 15000 });
     text = (await state()).text;
     assert.match(text, /```request 我的要求\n加上 CAP 定理，并和 BASE 对比\n```/);
     assert.equal(await extend.locator('textarea').inputValue(), '', `${tag}: the box is empty once handed over`);
@@ -268,8 +270,8 @@ test('发给主会话 on the places that handed over before: the shared control,
     await reset();
     await shot('skeleton-concept');
     await concept.getByRole('button', { name: '发给主会话' }).click();
-    await notice.getByText('已填进主会话的输入框，确认后按发送。').waitFor({ timeout: 15000 });
-    assert.match((await state()).text, /把概念「`进程`」和「`Paxos`」做对比/);
+    await receipt('filled', FILLED).waitFor({ timeout: 15000 });
+    assert.match((await state()).text, /把 `进程` 和 `Paxos` 对比清楚/);
 
     // ---------------- the result page: the weak topics of the round ----------------
     await reset();
@@ -288,7 +290,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     await details.locator('summary').click();
     const weak = details.locator('[data-hand-off="review.weakTopics"]');
     text = await handOver(weak, { shotName: 'result-weak' });
-    assert.match(text, /这些主题还没掌握稳：`主题\d+`, `主题\d+`/);
+    assert.match(text, /(`主题\d+`、)+`主题\d+` 还没掌握稳|下面这 \d+ 个主题还没掌握稳/);
 
     // ---------------- 学习流: the list, the editor, the start page, a step ----------------
     await go('workflows');
@@ -300,13 +302,13 @@ test('发给主会话 on the places that handed over before: the shared control,
     await reset();
     await shot('workflows-list');
     await listForm.getByRole('button', { name: '发给主会话' }).click();
-    await notice.getByText('已填进主会话的输入框，确认后按发送。').waitFor({ timeout: 15000 });
+    await receipt('filled', FILLED).waitFor({ timeout: 15000 });
     assert.match((await state()).text, /先讲例子/);
     // With words already in the box: kept, copied, and the notice is the last word.
     await listForm.locator('textarea').fill('先讲例子');
     await reset({ composerText: '我自己先打的字' });
     await listForm.getByRole('button', { name: '发给主会话' }).click();
-    await notice.getByText('输入框里已有文字，没有覆盖：提示词已复制，粘贴到合适的位置再发送。').waitFor({ timeout: 15000 });
+    await receipt('kept', KEPT).waitFor({ timeout: 15000 });
     assert.equal((await state()).text, '我自己先打的字');
     await page.waitForTimeout(600);
     assert.equal(await page.locator('.sh-toasts').getByText(/请求已准备好/).count(), 0, `${tag}: no toast of the page's own`);
@@ -333,9 +335,9 @@ test('发给主会话 on the places that handed over before: the shared control,
     await reset();
     await shot('workflows-editor');
     await editorForm.getByRole('button', { name: '保存并发给主会话' }).click();
-    await notice.getByText('学习流已保存；正在进行的学习保持原来的步骤。已填进主会话的输入框，确认后按发送。').waitFor({ timeout: 20000 });
+    await receipt('filled', `学习流已保存；正在进行的学习保持原来的步骤。${FILLED}`).waitFor({ timeout: 20000 });
     text = (await state()).text;
-    assert.match(text, /调整学习流「`/);
+    assert.match(text, /^帮我调整学习流 `/);
     assert.match(text, /不用选择题/);
     await page.getByRole('button', { name: /学习流工作台/ }).first().click();
     // The start page (使用): 生成知识骨架 is a hand-off with a lead; it needs topics ticked.
@@ -374,10 +376,10 @@ test('发给主会话 on the places that handed over before: the shared control,
     await reset();
     await shot('workflows-step');
     await stepForm.getByRole('button', { name: '保存笔记并发给主会话' }).click();
-    await notice.getByText('笔记已保存。已填进主会话的输入框，确认后按发送。').waitFor({ timeout: 20000 });
+    await receipt('filled', `笔记已保存。${FILLED}`).waitFor({ timeout: 20000 });
     after = await state();
     assert.deepEqual(after.log.filter((entry) => entry !== 'selectPanel:null'), ['setDraft'], `${tag}: setDraft and nothing else`);
-    assert.ok(after.text.includes(`「\`${stepTitle}\``), `${tag}: the prompt names the step ${stepTitle}: ${after.text.slice(0, 120)}`);
+    assert.ok(after.text.includes(`的 \`${stepTitle}\` 这一步`), `${tag}: the message names the step ${stepTitle}: ${after.text.slice(0, 120)}`);
     assert.match(after.text, /```request 我的要求\n多举一个例子\n```/, `${tag}: the wish sits in a request fence`);
     assert.equal(await stepForm.locator('textarea').inputValue(), '', `${tag}: the box empties once handed over`);
     const sessionId = after.text.match(/"sessionId":"([^"]+)"/)?.[1];
@@ -393,14 +395,14 @@ test('发给主会话 on the places that handed over before: the shared control,
     const brief = page.locator('.gen-path [data-hand-off="path.brief"]');
     await brief.waitFor({ timeout: 30000 }).catch(async (error) => { if (process.env.MIGRATE_DEBUG) await page.screenshot({ path: 'output/hand-off-migrate-fail.png', fullPage: true }); throw error; });
     text = await handOver(brief, { shotName: 'path-brief' });
-    assert.match(text, /我想按步骤学完一本大书/);
+    assert.match(text, /^我想按步骤学完 `/);
     assert.equal(await page.locator('.gen-path').getByText('和 AI 聊聊怎么学').count(), 0);
     await go('audio');
     const audio = page.locator('[data-hand-off="import.file"]').first();
     await audio.waitFor({ timeout: 30000 }).catch(async (error) => { if (process.env.MIGRATE_DEBUG) await page.screenshot({ path: 'output/hand-off-migrate-fail.png', fullPage: true }); throw error; });
     text = await handOver(audio, { tail: '文件（不在工作区就粘贴完整路径）：@', shotName: 'audio' });
     assert.match(text, /audio\.import/);
-    assert.match(text, /先读 skill study-import，再用 study_workspace 读 library\.context/);
+    assert.match(text, /- 先读：skill study-import，再用 study_workspace 读 library\.context/);
 
     assert.equal((await page.evaluate(() => window.dshLog)).some((entry) => /submit/.test(entry)), false, `${tag}: submit was never touched`);
     assert.deepEqual(errors, [], `${tag}: no page errors`);

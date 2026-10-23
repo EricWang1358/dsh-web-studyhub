@@ -345,6 +345,8 @@
     /* 要求并行 (ui/tasks/ParallelParts.jsx): why a queued task waits, or that a model error sent it back, in the same quiet register as the strip above; the second sentence of an explainer sits under the first. */
     .tc-queue { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
     .tc-queue__anchor { min-width: 0; }
+    /* 查原因、换条路做完：发给主会话 under a task that did not finish (ui/tasks/RunLine.jsx): the same quiet strip. */
+    .tc-handoff { display: flex; flex: none; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); }
     .tc-queue__line { min-width: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); overflow-wrap: anywhere; }
     .tc-queue[data-queue-state='requeued'] .tc-queue__line { color: var(--warn-ink, var(--text)); }
     .tc-queue__blocked { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }

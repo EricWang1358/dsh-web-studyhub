@@ -17,15 +17,16 @@ async function coverageOf(call, course, hid) {
 
 /**
  * send({ scope: 'point' | 'selection' | 'book', node (the point: { hid, title, files: { gen, mine, qa? } }), files (course.book.open's `files`, for the version),
- * selection, instruction }) -> the outcome of the hand-off ('filled' | 'kept' | 'copied' | 'shown' | 'failed').
+ * selection, instruction, language (course.book.open's `language`: the message names only that language's marker for text beyond the materials) })
+ * -> the outcome of the hand-off ('filled' | 'kept' | 'copied' | 'shown' | 'failed').
  */
 export function useSendToChat(course) {
   const { call } = useStudy();
   const { send } = useHandOff();
-  return useCallback(({ scope, node = null, files = null, selection = '', instruction = '' }) => send('book.edit', async () => {
+  return useCallback(({ scope, node = null, files = null, selection = '', instruction = '', language = '' }) => send('book.edit', async () => {
     const point = scope !== 'book' && node ? node : null;
     const coverage = point ? await coverageOf(call, course, point.hid) : null;
     return { course, scope, hid: point?.hid ?? '', title: point?.title ?? '', files: point ? Object.values(point.files ?? {}).filter(Boolean) : [],
-      version: point ? files?.[point.files?.gen]?.version ?? null : null, coverage, selection, instruction };
+      version: point ? files?.[point.files?.gen]?.version ?? null : null, coverage, selection, instruction, bookLanguage: language };
   }), [call, send, course]);
 }

@@ -261,6 +261,8 @@ test('the assets are separate chunks loaded on demand: nothing of pdf.js or its 
   const peekOwn = [...reachedStatically].reduce((sum, name) => sum + sizeOf(name), 0);
   const assetBytes = assetChunks.reduce((sum, name) => sum + sizeOf(name), 0);
   assert.ok(assetBytes > 1_000_000, `the assets are real data (${assetBytes} bytes)`);
-  assert.ok(peekOwn < 3_000_000, `the peek's own static chunks stay about pdf.js's size, without the assets (${peekOwn} bytes)`);
+  // (the static closure holds the app's shared chunk too, which grows with the interface: 2,997,334 bytes at 3.6.0, 3,006,323 with the hand-off dead ends of 3.6.1;
+  // the bound only has to catch pdf.js's assets, about 1.4 MB, slipping in)
+  assert.ok(peekOwn < 3_100_000,`the peek's own static chunks stay about pdf.js's size, without the assets (${peekOwn} bytes)`);
   console.log(`# start closure ${startBytes} bytes; peek chunks ${peekOwn} bytes; asset chunks ${assetBytes} bytes in ${assetChunks.length} files`);
 });

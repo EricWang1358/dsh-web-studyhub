@@ -23,6 +23,8 @@ import { useAudioUpload } from './audio/useAudioUpload.js';
 import { useHostQuery } from './host-query.js';
 import { useStudy } from './study-context.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { useHandOff } from './hand-off/use-hand-off.js';
+import { rejectedFilesInput } from './import-hand-off.js';
 
 /* 音频导入：录音 → 转写 → 校对识别错误的词 → 中英对照逐字稿，存为一份资料。
    这里只管导入表单；出题仍走「资料 → 生成」。转写在后台进行，进度来自快照里的
@@ -37,6 +39,8 @@ import { HandOff } from './hand-off/HandOff.jsx';
    或在对话输入框里用 @ 选。手输路径留在「高级」里。 */
 
 const subtitleAlone = () => ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。");
+/* 「发给主会话」 where a recording cannot go on (the hand-off plan N2, N6, N7): the chat extracts or converts the audio, or splits it, and imports it. */
+const AUDIO_WHAT = '让主会话抽出或转换音频再导入；文件在输入框里用 @ 选';
 
 export default function AudioImport({
   data,
@@ -57,11 +61,15 @@ export default function AudioImport({
   initialChecks,
 }) {
   const { busy, act, call } = useStudy();
+  const handOff = useHandOff();
   useInjectCss(settingsCss, 'study-audio-settings');
   useInjectCss(audioCss, 'study-audio-import');
   const language = useUiLanguage(), toast = useToast();
   const [files, setFiles] = useState(() => (initialFiles || (initialFile ? [initialFile] : [])).map((file, index) => ({ ...file, key: file.key || `initial-${index}` })));
-  const [pathText, setPathText] = useState(""), [problem, setProblem] = useState("");
+  // The problem line, and the file it is about when the file itself is the problem (its format, size or length: N6 hands that one over).
+  const [pathText, setPathText] = useState(""), [problemState, setProblemState] = useState({ text: "", files: [] });
+  const problem = problemState.text, setProblem = (text, files = []) => setProblemState({ text, files });
+  const rejectAction = rejections => handOff.action('import.file', rejectedFilesInput(rejections, { purpose: 'audio' }), { what: AUDIO_WHAT });
   // 更多设置: this recording's name, what it covers, its terms, and the paid-key choice (which starts from the default in Settings).
   const [more, setMore] = useState({}), [moreOpen, setMoreOpen] = useState(!!recoveryJobId);
   const [submitError, setSubmitError] = useState(''), [starting, setStarting] = useState(false);
@@ -87,11 +95,11 @@ export default function AudioImport({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incoming?.nonce]);
 
-  const reject = (message) => { setProblem(message); return false; };
+  const reject = (message, files) => { setProblem(message, files); return false; };
   function check(name, size) {
     setProblem("");
     const message = audioFileProblem(name, size);
-    return message ? reject(message) : true;
+    return message ? reject(message, [name]) : true;
   }
   /** Send browser files to the host in chunks (the import then uses their upload ids); a subtitle file is read as text instead. */
   async function send(chosenFiles) {
@@ -243,16 +251,17 @@ export default function AudioImport({
         {readiness.text !== false && <div className="audio-subtitle-only">
           <p>{ui("字幕文件不需要转写服务，现在就可以导入：")}</p>
           <FileDrop compact accept={SUBTITLE_EXTENSIONS} label={ui("把字幕文件拖到这里")} hint={subtitleFormatNames().join(' · ')} buttonLabel={ui("选择字幕文件")}
-            disabled={busy} onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
+            disabled={busy} rejectAction={rejectAction} onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
         </div>}
       </>}
       {!gated && !files.length && !upload && <div className="audio-drop-zone" onDragOver={event => { if (!Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); }} onDrop={dropText}>
         <FileDrop multiple accept={AUDIO_ACCEPT} disabled={busy}
-          label={ui("把音频文件拖到这里，或点击选择")} hint={`${audioFormatNames().join(' · ')} · ${audioLimitLabel()}`}
+          label={ui("把音频文件拖到这里，或点击选择")} hint={`${audioFormatNames().join(' · ')} · ${audioLimitLabel()}`} rejectAction={rejectAction}
           onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
         <Hint as="small">{uiFormat("也可以放 B 站等网站下载的带时间戳字幕（{0}）：跳过转写，直接校对和翻译，时间戳会保留。", [subtitleFormatNames().join(' · ')])}</Hint>
       </div>}
-      {problem && <InlineMessage tone="warning">{problem}</InlineMessage>}
+      {problem && <InlineMessage tone="warning" secondary={problemState.files.length ? handOff.action('import.file', { purpose: 'audio', files: problemState.files, error: problem }, { what: AUDIO_WHAT })
+        : undefined}>{problem}</InlineMessage>}
       {!upload && !gated && <>
         {files.length > 0 && <div className="audio-add" onDragOver={event => event.preventDefault()} onDrop={drop}>
           <Button size="sm" disabled={busy} onClick={() => picker.current?.click()}>{ui('添加音频')}</Button>
@@ -293,6 +302,7 @@ export default function AudioImport({
                 {note.kind === 'blocked' && <>
                   {files.length > 1 && <Button size="sm" disabled={busy || starting} onClick={() => skipAndContinue(index)}>{ui('跳过此文件继续')}</Button>}
                   <Button size="sm" variant="quiet" disabled={busy || starting} onClick={() => replaceFile(index)}>{ui('换一个文件')}</Button>
+                  <HandOff id="import.file" input={{ purpose: 'audio', files: [file.path || file.name], error: note.text }} disabled={busy || starting} what={AUDIO_WHAT} />
                 </>}
               </span>}
             </div>

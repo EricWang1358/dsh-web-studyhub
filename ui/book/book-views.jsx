@@ -4,15 +4,13 @@ import { Button, Dialog, InlineConfirm, LoadingState } from '../components/index
 import BookEditor from './BookEditor.jsx';
 import BookFlip from './BookFlip.jsx';
 import BookLookup from './BookLookup.jsx';
-import { AskForm } from './BookAsk.jsx';
 import CrunchDay from './CrunchDay.jsx';
 import MockPaper from './MockPaper.jsx';
 import { AiFoldContext } from './ai-fold.js';
-import { useSendToChat } from './send-to-chat.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
 
 /* The review book's views that are not the reading surface (docs/review-book.md "More"), each reached from 「⋯ 更多」: the editor of one point and 翻看 take
-   the page's place with 「完成 · 回到阅读」 (back at the same point); 速查页, 整本书 · 发给主会话 and the mock paper open in a dialog over the book. Each wraps
+   the page's place with 「完成 · 回到阅读」 (back at the same point); 速查页 and the mock paper open in a dialog over the book (整本书 › 发给主会话 opens nothing: ui/book/more-actions.js). Each wraps
    today's component unchanged (S4 replaces the editor, S5 翻看 and the mock paper). */
 
 /** The row on top of a view that took the page's place: what it is, and the way back to reading. */
@@ -80,16 +78,6 @@ export function LookupDialog({ book, onGo, onClose }) {
   return (
     <Dialog title={ui('速查页')} size="lg" className="book-lookup-dialog" onClose={onClose}>
       {lookup && <BookLookup lookup={lookup} toc={false} onGo={hid => { onClose(); onGo(hid); }} />}
-    </Dialog>
-  );
-}
-
-/** 整本书 · 发给主会话: the 问 AI form (ui/book/BookAsk.jsx) with its one destination for the whole book, in a dialog. */
-export function ChatDialog({ course, onClose }) {
-  const send = useSendToChat(course);
-  return (
-    <Dialog title={ui('整本书 · 发给主会话')} size="sm" className="book-chat-dialog" onClose={onClose}>
-      <AskForm scope="book" autoFocus onSend={async ({ instruction }) => { await send({ scope: 'book', instruction }); onClose(); }} />
     </Dialog>
   );
 }

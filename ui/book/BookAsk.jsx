@@ -10,8 +10,8 @@ import { HandOffButton } from '../hand-off/HandOff.jsx';
    「写一段…」 of the selection toolbar (about the selected words, shown on top). One tap on a preset fills the box. 「写进这个知识点」 writes with the app's model
    (about a minute; generation.courseBook.explain: 弄懂 when the box is empty over selected words, else the instruction) and closes the panel at once, a line
    standing where the answer will go; 「发给主会话」 fills the main chat's input box (never sends; without a chat it copies) through ui/book/send-to-chat.js and the shared unit (ui/hand-off/).
-   Without a model the shared gate stands under 写进这个知识点 only; 发给主会话 still works. Ctrl+Enter writes, Escape closes. The same form, with 发给主会话 only,
-   is 更多 › 整本书 · 发给主会话… (ui/book/book-views.jsx). */
+   Without a model the shared gate stands under 写进这个知识点 only; 发给主会话 still works. Ctrl+Enter writes, Escape closes. The whole book has no form:
+   更多 › 整本书 › 发给主会话 hands it over at once (ui/book/more-actions.js). */
 
 export const PRESETS = ['讲细点', '加个例子', '润色成大白话', '加过渡', '还漏了哪些小知识点、要不要补进来'];
 
@@ -30,7 +30,7 @@ export function AskRow({ children, onAsk }) {
   return <div className="book-ask-row">{children}{onAsk && <AskButton onAsk={onAsk} />}</div>;
 }
 
-/** scope: 'point' (the title's 问 AI), 'selection' (words selected) or 'book' (the whole book, 发给主会话 only); model: modelReadiness; onWrite({ instruction })
+/** scope: 'point' (the title's 问 AI) or 'selection' (words selected); model: modelReadiness; onWrite({ instruction })
     (absent: no 写进这个知识点); onSend({ instruction }) -> a promise. */
 export function AskForm({ scope, model, onWrite, onSend, autoFocus = false }) {
   const [text, setText] = useState(''), [sending, setSending] = useState(false);
@@ -46,7 +46,7 @@ export function AskForm({ scope, model, onWrite, onSend, autoFocus = false }) {
           onClick={() => setText(ui(preset))}>{ui(preset)}</Button>)}
       </div>
       <TextArea className="book-ask__input" rows={3} maxLength={600} autoFocus={autoFocus} value={text} onChange={event => setText(event.target.value)}
-        aria-label={ui('你想让 AI 做什么')} placeholder={scope === 'selection' ? ui('想让它怎么讲？留空就是弄懂这几句') : scope === 'book' ? ui('想让主会话怎么改整本书？（可以留空）') : ui('想在这个知识点里加点什么？')}
+        aria-label={ui('你想让 AI 做什么')} placeholder={scope === 'selection' ? ui('想让它怎么讲？留空就是弄懂这几句') : ui('想在这个知识点里加点什么？')}
         onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (onWrite) write(); else send(); } }} />
       <div className="book-ask__send">
         {onWrite && <Tooltip layer content={ui('用你设置的模型写，约 1 分钟；写好后收成一行，放在它针对的那段后面。')} anchorClassName="book-ask__tip">
@@ -55,7 +55,6 @@ export function AskForm({ scope, model, onWrite, onSend, autoFocus = false }) {
         <HandOffButton shape={onWrite ? 'quiet' : 'secondary'} anchorClassName="book-ask__tip" busy={sending} data-book-ask="chat" onClick={send} />
       </div>
       {off && <ModelSetupGate variant="compact" feature="bookAi" model={model} />}
-      {scope === 'book' && <p className="book-ask__hint">{ui('也可以直接在主会话里说你想怎么改，主会话会按 study-book 改书，每次改动都能回退')}</p>}
     </form>
   );
 }

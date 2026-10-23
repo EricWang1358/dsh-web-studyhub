@@ -1,6 +1,7 @@
-/* 「发给主会话」, the shared unit (ui/hand-off/, the hand-off plan sections 1.1-1.2 and 5 S2a), without a browser:
-   - the delivery behind askInChat (deliverToChat): into an empty composer, never over the learner's draft (copied instead), copied without a chat, shown in a
-     notice that stays when the clipboard refuses; one wording per outcome, a write said first; a prompt without the language sentence gets it once;
+/* 「发给主会话」, the shared unit (ui/hand-off/, the hand-off plan sections 1.1-1.2 and 5 S2a; direction B 「盖章回执」), without a browser:
+   - the delivery behind askInChat (deliverToChat): into an empty composer, never over the learner's own text (copied instead), copied without a chat, the
+     full-text card when the clipboard refuses (a slip only when it was closed without copying); one receipt per outcome (seal, title, line, at most one
+     action, its own time), a write said first; a prompt without the language sentence gets it once; the receipts as the region draws them; the card;
    - the host side (ui/host/composer-draft.js) against a conversation wrapped in a Proxy whose submit throws: empty -> setDraft only, text / a chip /
      an attachment -> nothing written, unreadable -> taken as empty, no conversation or a throwing host -> not filled;
    - useHandOff: send (an async input, a failing input, an unknown id), action and item; <HandOff>: one label, its rule in a layered Tooltip, never primary,
@@ -12,7 +13,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
-  export { deliverToChat, useHandOff, handOffTip, withLanguageTail, HAND_OFF_NOTICES, HAND_OFF_RULE } from './ui/hand-off/use-hand-off.js';
+  export { deliverToChat, useHandOff, handOffTip, withLanguageTail, handOffReceipt, HAND_OFF_RECEIPTS, HAND_OFF_RULE } from './ui/hand-off/use-hand-off.js';
+  export { SEALS } from './ui/hand-off/Receipt.jsx';
+  export { default as HandOffSheet } from './ui/hand-off/HandOffSheet.jsx';
+  export { handOffText } from './ui/agent-prompts/index.js';
+  export { messageParts } from './ui/agent-prompts/message.js';
+  export { ToastRegion, shouldAutoDismiss } from './ui/components/Feedback.jsx';
   export { HandOff, HandOffButton, HandOffForm } from './ui/hand-off/HandOff.jsx';
   export { fillComposer, composerHasContent } from './ui/host/composer-draft.js';
   export { languageTail } from './ui/agent-prompts/say.js';
@@ -26,68 +32,159 @@ const h = React.createElement;
 const TAIL = '请用中文回复；已有的题目和引文保持原文，不要翻译。';
 
 /** A fake app: what askInChat's host does, a clipboard that takes or refuses, and the notices said. */
-function fakes({ host = null, refuse = false } = {}) {
+function fakes({ host = null, refuse = false, openSheet = () => {} } = {}) {
   const notices = [], copied = [];
   const clipboard = { writeText: async (text) => { if (refuse) throw new Error('denied'); copied.push(text); } };
-  return { notices, copied, deliver: (prompt, said) => m.deliverToChat({ host, prompt, said, notify: (value) => notices.push(value), clipboard }) };
+  return { notices, copied, deliver: (prompt, said) => m.deliverToChat({ host, prompt, said, notify: (value) => notices.push(value), openSheet, clipboard }) };
 }
 
-test('filled: the host took it into an empty box; the notice says to check and press send; the language sentence is added once', async () => {
+test('filled: the host took it into an empty box; the receipt 填 says to check and press send, with no action (the host already shows the chat); the language sentence is added once', async () => {
   const seen = [];
-  const { notices, copied, deliver } = fakes({ host: { askInChat: (text) => { seen.push(text); return 'filled'; } } });
+  const { notices, copied, deliver } = fakes({ host: { askInChat: (text) => { seen.push(text); return 'filled'; }, showChat: () => {} } });
   assert.equal(await deliver('请改这一节。'), 'filled');
   assert.deepEqual(seen, [`请改这一节。\n${TAIL}`]);
   assert.deepEqual(copied, []);
-  assert.deepEqual(notices, ['已填进主会话的输入框，确认后按发送。']);
+  assert.deepEqual(notices, [{ receipt: 'filled', title: '已填进主会话的输入框', text: '看一眼，再由你按发送', timeout: 5000 }]);
   // An older host answers true; a prompt that already carries the sentence is not given a second one.
   const again = fakes({ host: { askInChat: () => true } });
   assert.equal(await again.deliver(`x\n${TAIL}`), 'filled');
   assert.equal(m.withLanguageTail(`x\n${TAIL}`), `x\n${TAIL}`);
 });
 
-test('kept: the learner\'s words stay; the prompt is copied and the notice says why; a write before it is said first', async () => {
-  const { notices, copied, deliver } = fakes({ host: { askInChat: () => 'kept' } });
+test('kept: the learner\'s own text stays; the prompt is copied; 去主会话 only where the host can show the chat; a write before it is said before the line', async () => {
+  let shown = 0;
+  const { notices, copied, deliver } = fakes({ host: { askInChat: () => 'kept', showChat: () => { shown += 1; } } });
   assert.equal(await deliver('p', '已保存。'), 'kept');
   assert.deepEqual(copied, [`p\n${TAIL}`]);
-  assert.deepEqual(notices, ['已保存。输入框里已有文字，没有覆盖：提示词已复制，粘贴到合适的位置再发送。']);
+  const [receipt] = notices;
+  assert.deepEqual({ ...receipt, action: receipt.action.label }, { receipt: 'kept', title: '输入框里你写的字都留着', text: '已保存。这段已复制，粘贴到合适的位置', timeout: 8000, action: '去主会话' });
+  receipt.action.run();
+  assert.equal(shown, 1, '去主会话 shows the chat');
+  const bare = fakes({ host: { askInChat: () => 'kept' } });
+  await bare.deliver('p');
+  assert.equal(bare.notices[0].action, undefined, 'a host that cannot show the chat gets no button that would do nothing');
+  for (const notice of [receipt, bare.notices[0]]) assert.doesNotMatch(`${notice.title}${notice.text}`, /草稿/, 'the learner\'s typed text is never called 草稿 (a draft deck)');
 });
 
-test('copied: no chat (no host, a host without askInChat, a host that says false or throws)', async () => {
+test('copied: no chat (no host, a host without askInChat, a host that says false or throws); 看看内容 opens the card with what was copied', async () => {
   for (const host of [null, {}, { askInChat: () => false }, { askInChat: () => { throw new Error('gone'); } }, { askInChat: async () => { throw new Error('gone'); } }]) {
-    const { notices, copied, deliver } = fakes({ host });
+    const sheets = [];
+    const { notices, copied, deliver } = fakes({ host, openSheet: (sheet) => sheets.push(sheet) });
     assert.equal(await deliver('p'), 'copied');
     assert.equal(copied.length, 1);
-    assert.deepEqual(notices, ['没有主会话：提示词已复制，粘贴到对话里再发送。']);
+    const [receipt] = notices;
+    assert.deepEqual({ ...receipt, action: receipt.action.label }, { receipt: 'copied', title: '已复制到剪贴板', text: '没找到主会话，粘贴到任意对话', timeout: 6000, action: '看看内容' });
+    receipt.action.run();
+    assert.equal(notices.at(-1), '', 'the slip leaves before the card opens (no second copy of it inside the card)');
+    assert.deepEqual(sheets.map(({ text, mode }) => ({ text, mode })), [{ text: `p\n${TAIL}`, mode: 'copied' }]);
   }
 });
 
-test('shown: a refused clipboard puts the whole prompt in a notice that stays, under its title; the notice is drawn untranslated', async () => {
-  const { notices, deliver } = fakes({ refuse: true });
-  assert.equal(await deliver('第一行\n第二行'), 'shown');
-  assert.deepEqual(notices, [{ title: '复制这段提示词，粘贴到对话里', text: `第一行\n第二行\n${TAIL}`, copy: true, persistent: true }]);
-  const kept = fakes({ host: { askInChat: () => 'kept' }, refuse: true });
-  assert.equal(await kept.deliver('p'), 'shown');
-  assert.equal(kept.notices[0].title, '输入框里已有文字，没有覆盖。复制这段提示词，粘贴到对话里');
-  const toast = m.noticeToToast(notices[0]);
-  assert.equal(toast.title, '复制这段提示词，粘贴到对话里');
-  assert.equal(toast.message, `第一行\n第二行\n${TAIL}`);
-  assert.equal(toast.persistent, true);
-  // A clipboard that is missing altogether (an old webview) is a refusal too.
+test('shown: a refused clipboard opens the full-text card at once, with no slip; closed without copying it leaves 「请手动复制 · 打开全文」, which stays', async () => {
+  const sheets = [];
+  const { notices, deliver } = fakes({ refuse: true, openSheet: (sheet) => sheets.push(sheet) });
+  assert.equal(await deliver('第一行\n第二行', '已保存。'), 'shown');
+  assert.deepEqual(notices, [''], 'no slip while the card is open');
+  assert.equal(sheets.length, 1);
+  assert.deepEqual({ text: sheets[0].text, mode: sheets[0].mode, lead: sheets[0].lead }, { text: `第一行\n第二行\n${TAIL}`, mode: 'shown', lead: '已保存。' });
+  sheets[0].onClosed(true);
+  assert.deepEqual(notices, [''], 'copied in the card: nothing is left behind');
+  sheets[0].onClosed(false);
+  const slip = notices.at(-1);
+  assert.deepEqual({ ...slip, action: slip.action.label }, { receipt: 'shown', title: '请手动复制', text: '已保存。剪贴板不让用', persistent: true, action: '打开全文' });
+  slip.action.run();
+  assert.equal(sheets.length, 2, '打开全文 opens the card again');
+  // the learner's text in the box was kept and the clipboard refused: the card says both
+  const both = [];
+  await fakes({ host: { askInChat: () => 'kept' }, refuse: true, openSheet: (sheet) => both.push(sheet) }).deliver('p');
+  assert.equal(both[0].lead, '输入框里你写的字都留着');
+  // Without the app around it (no card to open) the slip carries the whole text; a clipboard that is missing altogether (an old webview) is a refusal too.
   const none = [];
   assert.equal(await m.deliverToChat({ host: null, prompt: 'p', notify: (value) => none.push(value), clipboard: undefined }), 'shown');
+  assert.equal(none[0].receipt, 'shown');
+  assert.ok(none[0].text.endsWith(`p\n${TAIL}`) && none[0].copy, 'the text to copy by hand is in it');
 });
 
-test('English: the notices and the language sentence are English', async () => {
+test('English: the receipts and the language sentence are English', async () => {
   m.setUiLanguage('en');
   try {
-    const { notices, copied, deliver } = fakes({ host: { askInChat: () => 'kept' } });
+    const { notices, copied, deliver } = fakes({ host: { askInChat: () => 'kept', showChat: () => {} } });
     await deliver('p');
     assert.equal(copied[0], `p\n${m.languageTail('en')}`);
-    assert.match(notices[0], /^The input box already has your text, so it was left as it is: the prompt is copied/);
+    assert.equal(notices[0].title, 'Your typed text is kept');
+    assert.equal(notices[0].text, 'Copied: paste it where it fits');
+    assert.equal(notices[0].action.label, 'Go to the main chat');
     assert.equal(m.handOffTip('写进这个知识点，或发给主会话'), 'Write into this point, or send it to the main chat. Only fills the main chat’s input box and you press send; without a main chat it is copied to the clipboard.');
   } finally { m.setUiLanguage('zh'); }
 });
 
+test('the receipt table: each outcome its title, its line, its one action and its time; each title carries its seal\'s character', () => {
+  assert.deepEqual(Object.keys(m.HAND_OFF_RECEIPTS), ['filled', 'kept', 'copied', 'shown']);
+  assert.deepEqual(Object.fromEntries(Object.entries(m.HAND_OFF_RECEIPTS).map(([outcome, receipt]) => [outcome, [receipt.timeout, receipt.action ?? null]])),
+    { filled: [5000, null], kept: [8000, '去主会话'], copied: [6000, '看看内容'], shown: [0, '打开全文'] });
+  for (const [outcome, receipt] of Object.entries(m.HAND_OFF_RECEIPTS)) {
+    assert.ok(receipt.title.includes(m.SEALS[outcome].character), `${outcome}: ${m.SEALS[outcome].character} in 「${receipt.title}」`);
+    assert.ok(m.ICON_NAMES.includes(m.SEALS[outcome].glyph), `${outcome}: its English glyph is in the icon set`);
+  }
+});
+
+test('the receipt as the region draws it: its own seal, title and line, a quiet action, a countdown line when it leaves by itself; one fixed key', () => {
+  const draw = (notice) => { const toast = m.noticeToToast(notice); return [toast, renderToStaticMarkup(h(m.ToastRegion, { toasts: [toast], placement: 'page' }))]; };
+  for (const outcome of ['filled', 'kept', 'copied', 'shown']) {
+    const receipt = m.HAND_OFF_RECEIPTS[outcome];
+    const [toast, html] = draw({ ...m.handOffReceipt(outcome, { action: receipt.action ? { label: receipt.action, run() {} } : null }), key: 7 });
+    assert.equal(toast.key, 'notice:hand-off', `${outcome}: a newer receipt takes the slip that is up`);
+    assert.equal(toast.stamp, 7);
+    assert.match(html, new RegExp(`class="sh-toast sh-toast--info sh-toast--receipt" data-receipt="${outcome}"`));
+    assert.match(html, new RegExp(`<span class="sh-seal sh-seal--md" data-o="${outcome}" aria-hidden="true"><span class="sh-seal__char">${m.SEALS[outcome].character}</span></span>`));
+    assert.doesNotMatch(html, /sh-toast__icon/, `${outcome}: no tone icon`);
+    assert.match(html, new RegExp(`<strong class="sh-toast__title">${receipt.title}</strong><span class="sh-toast__message">${receipt.line}</span>`));
+    if (receipt.action) assert.match(html, new RegExp(`sh-btn--quiet[^"]*sh-toast__action[^>]*>${receipt.action}<`), `${outcome}: a quiet action`);
+    else assert.doesNotMatch(html, /sh-toast__action/, `${outcome}: no action`);
+    assert.equal(/sh-toast__timer/.test(html), outcome !== 'shown', `${outcome}: a countdown line only when it leaves by itself`);
+    assert.equal(m.shouldAutoDismiss(toast), outcome !== 'shown', `${outcome}: ${outcome === 'shown' ? 'stays until closed' : 'leaves by itself, action or not'}`);
+    // (the close button is the shared IconButton, named by its label)
+    assert.doesNotMatch(html.replace(/<button[^>]*sh-toast__close[^>]*>/, ''), /\stitle="/);
+  }
+  // an ordinary info toast with an action still stays (only undo offers and receipts leave with one)
+  assert.equal(m.shouldAutoDismiss({ tone: 'info', action: { label: 'x' } }), false);
+  // English: the glyph in the seal's frame, not a letter
+  m.setUiLanguage('en');
+  try {
+    const [, html] = draw(m.handOffReceipt('kept'));
+    assert.match(html, /<span class="sh-seal sh-seal--md" data-o="kept" aria-hidden="true"><svg class="sh-icon sh-seal__glyph"/);
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('the full-text card: the message once, in a box: the learner\'s sentence, their words, the notes folded under the prompt\'s own head; one copy action; shown asks with the filled button, copied with the quiet one', () => {
+  const text = m.handOffText('workflow.design', { template: { id: 'wf1', title: 'Daily flow', version: 2 }, wish: '讲慢一点' }, 'zh');
+  const card = (mode) => renderToStaticMarkup(h(m.StudyServicesContext.Provider, { value: services }, h(m.HandOffSheet, { sheet: { text, mode, lead: '' }, onClose() {} })));
+  const shown = card('shown');
+  assert.match(shown, /<span class="sh-seal sh-seal--lg" data-o="shown"/);
+  assert.match(shown, /请手动复制/);
+  assert.match(shown, /剪贴板不让用/);
+  assert.match(shown, /<p class="sh-handoff-sheet__ask">帮我调整学习流 <span class="sh-handoff-sheet__name">Daily flow<\/span>：<\/p>/);
+  assert.match(shown, /<blockquote class="sh-handoff-sheet__request"><span class="sh-handoff-sheet__label">我的要求<\/span>讲慢一点<\/blockquote>/);
+  const notes = m.messageParts(text, 'zh').notes.length;
+  assert.match(shown, new RegExp(`<summary>StudyHub 附注（给助手）· ${notes} 行</summary>`), 'the fold says the head the message itself has');
+  assert.match(shown, /<details class="sh-handoff-sheet__fold">/, 'folded until asked');
+  // the message once: the drawn sentence and the quote are the top of the selectable box, not a summary above a raw copy of the same words
+  assert.equal(shown.match(/帮我调整学习流/g).length, 1, 'the learner\'s sentence once');
+  assert.equal(shown.match(/讲慢一点/g).length, 1, 'their words once');
+  assert.doesNotMatch(shown, /```request|sh-handoff-sheet__top|sh-handoff-sheet__summary/, 'no raw fence on show');
+  assert.match(shown, /<div class="sh-handoff-sheet__box" data-hand-off-text=""><p class="sh-handoff-sheet__ask">/);
+  // a text that is not laid out as a message (no notes head) is shown as it is, once
+  const plain = renderToStaticMarkup(h(m.StudyServicesContext.Provider, { value: services }, h(m.HandOffSheet, { sheet: { text: '一段\n旧格式的话', mode: 'shown', lead: '' }, onClose() {} })));
+  assert.equal(plain.match(/旧格式的话/g).length, 1);
+  assert.doesNotMatch(plain, /sh-handoff-sheet__fold/);
+  assert.match(shown, /sh-btn--primary[^"]*sh-handoff-sheet__copy/);
+  assert.match(shown, /复制不了？全选后按 (Ctrl\+C|⌘C)/);
+  const copied = card('copied');
+  assert.match(copied, /sh-btn--secondary[^"]*sh-handoff-sheet__copy/);
+  assert.match(copied, /再复制一次/);
+  assert.doesNotMatch(copied, /sh-btn--primary/);
+  for (const html of [shown, copied]) assert.doesNotMatch(html.replace(/<button[^>]*sh-dialog__close[^>]*>/, ''), /\stitle="/);
+});
 test('the Tooltip: a place\'s `what` without a sentence end gets one before the fixed rule; one that has it is left alone', () => {
   m.setUiLanguage('zh');
   assert.equal(m.handOffTip('写进这个知识点，或发给主会话'), `写进这个知识点，或发给主会话。${m.HAND_OFF_RULE}`);
@@ -148,8 +245,8 @@ test('useHandOff().send: the registry builds the message (an async input is awai
   const asked = [], notices = [];
   const api = handOffApi({ askInChat: async (text, options) => { asked.push([text, options]); return 'kept'; }, notify: (value) => notices.push(value) });
   assert.equal(await api.send('deck.ask', async () => ({ deckTitle: 'Physics' }), { said: '已保存。' }), 'kept');
-  assert.match(asked[0][0], /题组「`Physics`」/);
-  assert.ok(asked[0][0].endsWith(`${TAIL}\n我想：`));
+  assert.match(asked[0][0], /^帮我看看题组 `Physics`：/);
+  assert.ok(asked[0][0].endsWith(TAIL), 'a sentence that already asks needs no 我想： after it');
   assert.deepEqual(asked[0][1], { said: '已保存。' });
   assert.equal(await api.send('deck.ask', async () => { throw new Error('book.coverage refused'); }), 'failed');
   assert.deepEqual(notices, [{ text: '没能发给主会话：book.coverage refused', tone: 'error' }]);

@@ -1,50 +1,65 @@
 import { getUiLanguage } from '../i18n.js';
-import { fenceData, fenceRequest, say } from './say.js';
+import { nameData, say } from './say.js';
+import { listText, partsOf } from './message.js';
 
-/* The prompt of 「发给主会话」 on the 复习全书 page (ui/book/BookAsk.jsx, ui/book/send-to-chat.js; docs/review-book-agent.md). It is the contract with the main
-   chat: the skill (study-book) and the tools (book.toc, book.read, book.coverage, source.pages, book.write, course.book.revert) are named here and nowhere
-   else on the page. It carries NO book text: the chat reads the point itself with book.read. What the prompt does carry from the library (a point's
-   title, the words the learner selected) sits in a data fence; the learner's own request sits in a fence too, but one that says it is theirs. */
+/* The message of 「发给主会话」 on the 复习全书 page (ui/book/BookAsk.jsx, ui/book/send-to-chat.js; docs/review-book-agent.md). It is the contract with the main
+   chat: the tools (book.toc, book.read, book.coverage, source.pages, course.book.revert) are named here and nowhere else on the page, and the registry
+   entry opens the notes with the skill (study-book). It carries NO book text: the chat reads the point itself with book.read. The point's title is a name
+   span in the learner's sentence, the words they selected sit in a data fence, and their own request in a request fence (ui/agent-prompts/message.js). */
 
-const HEAD = {
-  point: '请用 study-book 技能和 book.* 工具，帮我改复习全书里的这一个知识点。\n',
-  selection: '请用 study-book 技能和 book.* 工具，帮我改复习全书里这一个知识点中我选中的那几句话。\n',
-  book: '请用 study-book 技能和 book.* 工具，帮我改整本复习全书。\n',
+/** The learner's sentence: [nothing typed, typed (their words follow in a request fence)]. */
+const ASK = {
+  point: ['帮我把复习全书的知识点 {0} 改得更清楚易懂：大白话，讲清为什么。', '帮我按下面的要求改复习全书的知识点 {0}：'],
+  selection: ['帮我把复习全书 {0} 里我选中的那几句改得更清楚（大白话），其余不动。', '帮我按下面的要求改复习全书 {0} 里我选中的那几句，其余不动：'],
+  book: ['帮我看看整本复习全书：哪些知识点最值得改、为什么？等我挑好再动手。', '帮我按下面的要求改整本复习全书：'],
 };
-const WHERE_POINT = '课程：{0}（调用 book.* 时 course 用这个值）；知识点 id（hid）：{1}。这条消息里没有书的正文，先用 book.read 读它。\n';
-const WHERE_BOOK = '课程：{0}（调用 book.* 时 course 用这个值）。先用 book.toc 看目录，然后一个知识点一个知识点地来，不要一次写整本书。\n';
-const FILES = '这一节的文件：{0}；当前版本：v{1}（整份写入时带上这个 version）。\n';
-const FILES_ONLY = '这一节的文件：{0}。\n';
-const COVERAGE = '这一节的资料页已读 {0}/{1} 页（book.coverage 可以看是哪几页）。\n';
-const CONCEPTS = '这一节清单里必须讲到的概念讲到了 {0}/{1} 个（book.coverage 的 concepts.missing 列出还缺的；补上时用资料里的原名）。\n';
-const SELECTION_ONLY = '只动与这几句话有关的地方，这一节的其余部分保持原样。\n';
-const NO_REQUEST = {
-  point: '我没有写具体要求：先读这一节，把它改得更清楚易读（大白话、讲清为什么），改完告诉我改了什么。\n',
-  selection: '我没有写具体要求：把选中的那几句话改得更清楚（大白话），其余不动，改完告诉我改了什么。\n',
-  book: '我没有写具体要求：先用 book.toc 看一遍，告诉我你觉得哪些知识点最值得改、为什么，等我挑好再动手写。\n',
-};
-const RULES = '规则：书要尊重资料，先用 source.pages 读资料页再写，引文用能被核对的脚注，资料以外的内容标（资料以外）；调用要小，一次只写一个知识点的一个小节。\n';
-const REPORT = '做完告诉我改了哪些知识点（编号和标题）；每次改动都保留了上一版，可以用 course.book.revert 回退。';
+const THIS_POINT = '这个知识点';
+const FIRST = { book: '用 book.toc 看目录', point: '用 book.read 读这一节（这条消息里没有书的正文）' };
+const WHERE_BOOK = '位置：课程 {0}（调用 book.* 时 course 用它）。';
+const ONE_AT_A_TIME = '做法：一个知识点一个知识点地来，不要一次写整本。';
+const WHERE_POINT = '位置：课程 {0}（调用 book.* 时 course 用它）· 知识点 hid {1}。';
+const FILES = '文件：{0}；当前版本 v{1}（整份写入时带上这个 version）。';
+const FILES_ONLY = '文件：{0}。';
+const PROGRESS = '进度：{0}。';
+const PAGES = '资料页已读 {0}/{1}（哪几页见 book.coverage）';
+const CONCEPTS = '必讲概念讲到 {0}/{1}（缺的见 book.coverage 的 concepts.missing，补时用资料原名）';
+const RULES = '规则：先用 source.pages 读资料页再写；引文只用能核对的脚注；资料以外的内容按书的语言标（资料以外）或 (beyond the materials)；一次只写一个小节。';
+/* The book's language is known (course.book.open's `language`): only its own marker, as the book writes it (lib/course-book-files.js WORDS). */
+const RULES_MARKED = '规则：先用 source.pages 读资料页再写；引文只用能核对的脚注；资料以外的内容标{0}；一次只写一个小节。';
+// (the marker as the book writes it, keyed by the book's language: data for the assistant, not a sentence of the interface)
+const BEYOND = new Map([['zh', '（资料以外）'], ['en', '(beyond the materials)']]);
+const REPORT = '做完：告诉我改了哪些知识点（编号和标题）；每次改动都留着上一版，可以用 course.book.revert 回退。';
+const SELECTED = '我选中的话';
 
 /**
- * The message that hands a book edit to the main chat.
+ * The parts of the message that hands a book edit to the main chat (the registry composes it).
  * input: { course, hid (the point; none for the whole book), title (the point's title), files: [file names of the point], version (the generated file's), coverage: { opened, pages, concepts?: { covered, total } } | null,
- *   selection (the words selected, for scope 'selection'), instruction (the learner's request, may be empty), scope: 'point' | 'selection' | 'book' }.
+ *   selection (the words selected, for scope 'selection'), instruction (the learner's request, may be empty), scope: 'point' | 'selection' | 'book',
+ *   bookLanguage (the book's own language, 'zh' | 'en': the rules name only its marker; unknown: both) }.
  */
-export function bookEditPrompt({ course = '', hid = '', title = '', files = [], version = null, coverage = null, selection = '', instruction = '', scope = 'point' }, language = getUiLanguage()) {
+export function bookEditPrompt({ course = '', hid = '', title = '', files = [], version = null, coverage = null, selection = '', instruction = '', scope = 'point', bookLanguage = '' }, language = getUiLanguage()) {
   const kind = scope === 'book' || !hid ? 'book' : scope === 'selection' && String(selection).trim() ? 'selection' : 'point';
-  const names = (files || []).filter(Boolean).join('、');
-  const lines = [say(language, HEAD[kind]), say(language, kind === 'book' ? WHERE_BOOK : WHERE_POINT, [JSON.stringify(String(course ?? '')), hid])];
-  if (kind !== 'book') {
-    if (names) lines.push(Number.isInteger(version) ? say(language, FILES, [names, version]) : say(language, FILES_ONLY, [names]));
-    if (coverage && Number.isFinite(coverage.pages) && coverage.pages > 0) lines.push(say(language, COVERAGE, [coverage.opened ?? 0, coverage.pages]));
+  const asked = String(instruction ?? '').trim();
+  const point = nameData(title) || say(language, THIS_POINT);
+  const courseValue = JSON.stringify(String(course ?? ''));
+  const notes = [];
+  if (kind === 'book') notes.push(say(language, WHERE_BOOK, [courseValue]), say(language, ONE_AT_A_TIME));
+  else {
+    notes.push(say(language, WHERE_POINT, [courseValue, hid]));
+    const names = listText(language, files || []);
+    if (names) notes.push(Number.isInteger(version) ? say(language, FILES, [names, version]) : say(language, FILES_ONLY, [names]));
+    const progress = [];
+    if (coverage && Number.isFinite(coverage.pages) && coverage.pages > 0) progress.push(say(language, PAGES, [coverage.opened ?? 0, coverage.pages]));
     // The concept coverage the build measured (a book of the quality workflow): the figure only, the chat reads the missing names with book.coverage.
-    if (coverage?.concepts && Number.isFinite(coverage.concepts.total) && coverage.concepts.total > 0) lines.push(say(language, CONCEPTS, [coverage.concepts.covered ?? 0, coverage.concepts.total]));
-    const fenced = fenceData('知识点标题', title, language);
-    if (fenced) lines.push(`${fenced}\n`);
+    if (coverage?.concepts && Number.isFinite(coverage.concepts.total) && coverage.concepts.total > 0) progress.push(say(language, CONCEPTS, [coverage.concepts.covered ?? 0, coverage.concepts.total]));
+    if (progress.length) notes.push(say(language, PROGRESS, [partsOf(language, progress)]));
   }
-  if (kind === 'selection') lines.push(`${fenceData('我选中的话', selection, language)}\n`, say(language, SELECTION_ONLY));
-  lines.push(String(instruction ?? '').trim() ? fenceRequest(instruction, language) : say(language, NO_REQUEST[kind]));
-  lines.push(say(language, RULES), say(language, REPORT));
-  return lines.join('');
+  notes.push(BEYOND.has(bookLanguage) ? say(language, RULES_MARKED, [BEYOND.get(bookLanguage)]) : say(language, RULES), say(language, REPORT));
+  return {
+    ask: say(language, ASK[kind][asked ? 1 : 0], [point]),
+    request: asked,
+    first: say(language, kind === 'book' ? FIRST.book : FIRST.point),
+    notes,
+    data: kind === 'selection' ? [[SELECTED, selection]] : [],
+  };
 }
