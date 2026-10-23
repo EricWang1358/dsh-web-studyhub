@@ -24,6 +24,13 @@
       scroll-margin-bottom: 16px;
     }
   }
+  /* While the card is docked (Tour.jsx sets the room to its height), the page can scroll past its end by that much: the last control of a short page
+     comes up above the card. Only after the end of the page, so nothing on screen moves. */
+  .study-app[data-tour-docked] > main::after {
+    content: "";
+    display: block;
+    height: var(--tour-dock-room, 0px);
+  }
   /* On a narrow panel the card is docked along the bottom, so an anchor scrolled to sits lower under the top bar, with room to spare if what is above it settles. */
   @container study (max-width: 560px) {
     :is(.study-app, .study-seat) [data-tour] { scroll-margin-top: 96px; }

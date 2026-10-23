@@ -69,6 +69,21 @@ function findAnchor(root, anchors) {
   return null;
 }
 
+/* While the card is docked along the bottom of a narrow panel, the page gets that much room after its end (tour.css), so a control at the
+   very end of a short page (创建题组's 生成 button) can still be scrolled above the card instead of staying underneath it. */
+const DOCK_GAP = 24;
+function setDockRoom(root, height) {
+  if (!root) return;
+  if (height > 0) {
+    const room = `${Math.ceil(height + DOCK_GAP)}px`;
+    if (root.style.getPropertyValue("--tour-dock-room") !== room) root.style.setProperty("--tour-dock-room", room);
+    if (!root.hasAttribute("data-tour-docked")) root.setAttribute("data-tour-docked", "");
+  } else if (root.hasAttribute("data-tour-docked")) {
+    root.style.removeProperty("--tour-dock-room");
+    root.removeAttribute("data-tour-docked");
+  }
+}
+
 const sameBox = (a, b) => !a === !b && (!a || ["left", "top", "width", "height"].every((key) => Math.abs(a[key] - b[key]) < 0.5));
 
 /**
@@ -118,6 +133,8 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
         // On a narrow panel the card is docked along the bottom and covers the lower half: there an anchor counts as seen only in the upper part.
         const floor = view && (view.width <= NARROW_WIDTH ? view.top + view.height * 0.45 : view.bottom - 8);
         const visible = view && box.top >= view.top + 8 && box.bottom <= floor;
+        // The room after the page's end is there before the scroll that needs it.
+        if (!visible && view && view.width <= NARROW_WIDTH) setDockRoom(rootRef.current, popoverRef.current?.offsetHeight || view.height * 0.45);
         if (!visible) found.scrollIntoView({ block: box.height > (view?.height || 800) * 0.6 || (view?.width || 1000) <= 560 ? "start" : "center",
           inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
         setTarget(found);
@@ -145,6 +162,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     const spot = spotlightBox(relative, bounds);
     const size = { width: popover.offsetWidth, height: popover.offsetHeight };
     const place = placePopover({ target: spot, popover: size, bounds, prefer: step?.placement });
+    setDockRoom(rootRef.current, place.docked ? size.height : 0);
     // The caret points at the middle of the spotlight's visible edge.
     const along = (start, length, offset, extent) => Math.round(Math.min(Math.max(start + length / 2 - offset, 22), extent - 22));
     const caret = !spot ? null : place.side === "bottom" || place.side === "top" ? along(spot.left, spot.width, place.left, size.width)
@@ -154,6 +172,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
   }, [anchorKey, step?.placement]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => { measure(); }, [measure, target, step?.id, top, entered]);
+  useEffect(() => () => setDockRoom(rootRef.current, 0), [rootRef]);
   useEffect(() => {
     let frame = 0;
     const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };

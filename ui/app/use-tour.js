@@ -16,6 +16,21 @@ export async function refreshUntil(refresh, seen, tries = 20) {
   return !!seen();
 }
 
+/**
+ * 载入示例并开始导览 once the sample is written: wait for the snapshot that has it (refreshUntil), then start the tour. A snapshot that cannot be read while
+ * waiting is said with setError and the tour does not start; the click never ends in a silent rejection.
+ */
+export async function tourAfterSample({ refresh, seen, start, setError }) {
+  try {
+    await refreshUntil(refresh, seen);
+  } catch (failure) {
+    setError(errorMessage(failure));
+    return false;
+  }
+  start();
+  return true;
+}
+
 /* ── Onboarding (plan §5 WP5) ───────────────────────────────────────────────
    Whether the first-run line was put away (以后再说), the sample course (sample.* host actions, C6) and the feature tour that switches to
    each key page. Hosts without sample support send no `sample` in the snapshot; then the tour still runs and the steps that
@@ -188,7 +203,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   // sample banner, which then came in above it and pushed the whole page down (CLS 0.12 at 420 px under load).
   async function loadSampleAndTour() {
     setSampleForTour(true);
-    try { if (await loadSample()) { await refreshUntil(refresh, () => !!refs.dataRef.current?.sample?.loaded); startTour({ restart: true }); } } finally { setSampleForTour(false); }
+    try { if (await loadSample()) await tourAfterSample({ refresh, seen: () => !!refs.dataRef.current?.sample?.loaded, start: () => startTour({ restart: true }), setError }); } finally { setSampleForTour(false); }
   }
   async function loadSampleInTour() { if (await loadSample()) moveTour(1); }
   async function loadSampleOnly() { if (await loadSample()) notify({ text: ui('示例课程已载入，在学习库里就能看到。'), tone: 'success' }); }

@@ -21,6 +21,8 @@ import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-
    Every state has at most one primary button on the page. At 1280 and 390 px, light. FIRST_RUN_LINE_SHOTS=<dir> keeps a screenshot of each state. */
 
 const SHOTS = process.env.FIRST_RUN_LINE_SHOTS || '';
+// FIRST_RUN_LINE_THEME=dark takes the same walk (and its screenshots) in the dark theme.
+const THEME = process.env.FIRST_RUN_LINE_THEME === 'dark' ? 'dark' : 'light';
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const primaries = (page) => page.locator('main .sh-btn--primary:visible, .first-run .sh-btn--primary:visible').count();
@@ -32,7 +34,7 @@ async function server(root, home, model) {
 }
 
 async function open(browser, running, width) {
-  const opened = await openPage(browser, running, { lang: 'zh', theme: 'light', width, height: width < 700 ? 844 : 800 });
+  const opened = await openPage(browser, running, { lang: 'zh', theme: THEME, width, height: width < 700 ? 844 : 800 });
   await opened.page.goto(running.server.url);
   await opened.page.locator('.first-run').waitFor({ timeout: 30000 });
   await settleAnimations(opened.page);
@@ -223,7 +225,7 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
       let running = null;
       try {
         running = { server: await server(root, home, createFakeModel({ latencyMs: 0 })) };
-        const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: 'light', width, height: width < 700 ? 844 : 800 });
+        const { page, errors, context } = await openPage(browser, running, { lang: 'zh', theme: THEME, width, height: width < 700 ? 844 : 800 });
         // The provider's label as DSH reports it for a real model (the fake model's is short).
         await page.route('**/api/call', async (route) => {
           let action = '';

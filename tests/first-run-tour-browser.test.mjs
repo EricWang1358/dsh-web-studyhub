@@ -22,6 +22,8 @@ const SHOTS = process.env.FIRST_RUN_SHOTS || '';
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 const overflow = page => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 // A step by what its card says: the title, and the body where two steps share a title (the short tour's two last steps).
+// The control a core step's body tells the learner to press, where it is smaller than the lit area (otherwise the lit area itself).
+const KEY_CONTROL = { 'generate-quick': 'generate-submit' };
 const stepOf = (title, body) => TOUR_STEPS.find(step => step.title === title && step.body === body) || TOUR_STEPS.find(step => step.title === title);
 
 async function start(distDir) {
@@ -147,6 +149,21 @@ test('the default tour is short and lit, the full tour is one button away, and S
           const now = await card(page);
           seen.push(now);
           await shot(page, `tour-${String(now.at).padStart(2, '0')}-of-${now.total}-${width}`);
+          // On a narrow panel the card is docked along the bottom: the control a step names ends above the card, never underneath it.
+          if (width <= 560 && now.step?.anchor && now.lit) {
+            const key = KEY_CONTROL[now.step.id];
+            let control = null, pop = null;
+            // A lit area taller than the room above the card (a whole Settings section) starts at the top of the view instead. The scroll is smooth: give it time.
+            const above = async () => {
+              [control, pop] = await Promise.all([
+                key ? page.locator(`[data-tour="${key}"]`).first().boundingBox() : page.locator('.tour-spot').boundingBox(),
+                page.locator('.tour-pop').boundingBox()]);
+              const room = pop.y - 51 - 8;
+              return !!control && (control.height <= room ? control.y + control.height <= pop.y : control.y >= 51 && control.y <= 51 + 120);
+            };
+            await until(above, 'the control above the docked card', { timeoutMs: 4000 }).catch(() => {});
+            assert.ok(await above(), `${width}px: 「${now.title}」's ${key || 'spotlight'} ends above the docked card (control ${JSON.stringify(control)}, card ${JSON.stringify(pop)})`);
+          }
           if (now.step?.final) break;
           await page.locator('.tour-pop').getByRole('button', { name: '下一步', exact: true }).click();
           actions++;

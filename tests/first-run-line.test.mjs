@@ -16,7 +16,7 @@ const m = await loadUi(`export * from './ui/first-run/line.js';
   export { generationFormDefaults } from './ui/generation-status.js';
   export { importForFirstRun, importForLine, importHandoff } from './ui/app/import-handoff.js';
   export { useUsageEstimate } from './ui/TokenUsage.jsx';
-  export { refreshUntil } from './ui/app/use-tour.js';
+  export { refreshUntil, tourAfterSample } from './ui/app/use-tour.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
 const noop = () => {};
@@ -462,7 +462,20 @@ test('载入示例并开始导览 starts the tour only once the snapshot on scre
   assert.equal(await m.refreshUntil(async () => { never++; }, () => false, 3), false);
   assert.equal(never, 3, 'bounded');
   const tour = await readFile('ui/app/use-tour.js', 'utf8');
-  assert.match(tour, /if \(await loadSample\(\)\) \{ await refreshUntil\(refresh, \(\) => !!refs\.dataRef\.current\?\.sample\?\.loaded\); startTour\(\{ restart: true \}\); \}/);
+  assert.match(tour, /if \(await loadSample\(\)\) await tourAfterSample\(\{ refresh, seen: \(\) => !!refs\.dataRef\.current\?\.sample\?\.loaded, start: \(\) => startTour\(\{ restart: true \}\), setError \}\);/);
+});
+
+test('载入示例并开始导览: a snapshot that cannot be read while waiting for the sample is said, never an unhandled rejection with no tour and no word', async () => {
+  const errors = [];
+  let started = 0;
+  const failing = async () => { throw new Error('学习库没有回应'); };
+  assert.equal(await m.tourAfterSample({ refresh: failing, seen: () => false, start: () => { started++; }, setError: (text) => errors.push(text) }), false);
+  assert.equal(started, 0, 'no tour on a snapshot that never came');
+  assert.deepEqual(errors, ['学习库没有回应']);
+  let shown = false;
+  assert.equal(await m.tourAfterSample({ refresh: async () => { shown = true; }, seen: () => shown, start: () => { started++; }, setError: (text) => errors.push(text) }), true);
+  assert.equal(started, 1, 'the tour starts once the sample is on screen');
+  assert.equal(errors.length, 1);
 });
 
 test('English: the third step\'s new words have no Chinese left', () => {
