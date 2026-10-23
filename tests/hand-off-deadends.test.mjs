@@ -26,7 +26,8 @@ const m = await loadUi(`
   export { default as RunLine } from './ui/tasks/RunLine.jsx';
   export { default as Ingest } from './ui/Ingest.jsx';
   export { default as JsonImport } from './ui/JsonImport.jsx';
-  export { ConverterMain } from './ui/LargeDocumentCard.jsx';
+  export { ConverterMain, default as LargeDocumentCard, converterHandOffWhat } from './ui/LargeDocumentCard.jsx';
+  export { InlineMessage } from './ui/components/Feedback.jsx';
   export { default as DeskIntro } from './ui/study-map/DeskIntro.jsx';
   export { buildHomePlan } from './ui/study-map/home-plan.js';
   export { AppContext } from './ui/app/app-context.js';
@@ -50,7 +51,7 @@ const PURPOSES = {
   questions: { input: { purpose: 'questions', facts: { course: 'OS', deckTitle: 'Mistakes', kind: 'quiz' } }, zh: '我在 StudyHub 的「在主会话里录题」想把文件里已有的题目原样录进题组',
     en: 'In StudyHub’s “Record questions in the main chat” I want to enter the questions already in a file into a deck as they are', has: [/deck\.import/, /draft:true/] },
   material: { input: { purpose: 'material', error: 'too big', files: ['book.pdf'] }, zh: '我在 StudyHub 的「添加资料」想把这份文件导入成学习资料',
-    en: 'In StudyHub’s “Add source” I want to import this file as study material', has: [/pages/, /mineru\.import/] },
+    en: 'In StudyHub’s “Add source” I want to import this file as study material', has: [/pages/, /mineru\.import/, /study-import/] },
   generate: { input: { purpose: 'material', goal: 'generate' }, zh: '我在 StudyHub 的「添加资料」想用工作区里的一个文件出第一组题',
     en: 'In StudyHub’s “Add source” I want to make a first set of questions from a file in my workspace', has: [/generate/, /10/] },
   audio: { input: { purpose: 'audio', files: ['a.mp4'], error: 'video' }, zh: '我在 StudyHub 的「音频导入」想把这些音频按我指定的顺序合成一份逐字稿',
@@ -88,6 +89,19 @@ test('import.file: questions already in a file are entered as they are, as draft
   assert.doesNotMatch(home, /<文件路径>|在对话中/);
   assert.throws(() => m.handOffText('import.file', { purpose: 'video' }, 'zh'), /Unknown import purpose: video/);
   assert.throws(() => m.handOffText('import.file', { purpose: 'material', goal: 'publish' }, 'zh'), /Unknown import goal: publish/);
+});
+
+test('import.file (material): what it says about a long PDF is what StudyHub does: over the page limit split it into files (pages cannot help), pages only under the character limit', () => {
+  const zh = m.handOffText('import.file', { purpose: 'material', error: '「Book.pdf」超过 200 页', files: ['Book.pdf'] }, 'zh');
+  assert.match(zh, /- 拆分：PDF 超过页数上限时，不管 pages 怎么写都会被拒绝：先按章拆成几个文件再导入，每个文件的标题写明章节和原书起始页（不然引用的页码对不上）；已经装好的 MinerU 也可以用 mineru\.import 导入整本。/);
+  assert.match(zh, /- 字数：pages 只用来在页数上限之内少选几页，让提取的文字不超过字符上限。/);
+  assert.doesNotMatch(zh, /用 pages 分段导入/, 'the old hint the import refuses');
+  const en = m.handOffText('import.file', { purpose: 'material', files: ['Book.pdf'] }, 'en');
+  assert.match(en, /- Split: a PDF over the page limit is refused whatever pages says: split it into files by chapter first/);
+  assert.match(en, /- Length: pages only narrows a PDF within the page limit/);
+  // the skill and the contract the message sends the chat to say the same
+  assert.match(libraryContracts.imports, /a longer PDF is refused whatever pages says: split it into files first or use MinerU/);
+  assert.match(readFileSync('skills/study-import/SKILL.md', 'utf8'), /refused whatever `pages` says: split it into files first \(by chapter\)/);
 });
 
 test('import.file: file names, errors, facts and the start of a text stay in their fences, whatever they hold', () => {
@@ -232,13 +246,41 @@ test('N10: the converter card offers 「不想装转换工具」 only where a PD
   assert.equal(handOffs(renderToStaticMarkup(inApp(m, h(m.ConverterMain, {}), { data: {} })), 'import.file'), 0);
 });
 
+test('N10 only at an import that was refused: the 大教材建议 card of a refused PDF has it; the same card for a selection too big or a long book already imported has none', () => {
+  const draw = (reason, detail = { name: 'Book.pdf', pages: 640 }) => renderToStaticMarkup(inApp(m, h(m.LargeDocumentCard, { reason, detail, retrieval: null }), { data: {} }));
+  for (const reason of ['pdf-pages', 'pdf-size', 'text-chars']) assert.equal(handOffs(draw(reason), 'import.file'), 1, reason);
+  for (const reason of ['selection', 'long-document']) assert.equal(handOffs(draw(reason), 'import.file'), 0, `${reason}: the material is already in the library`);
+});
+
+test('N10: its Tooltip says what the chat will do for this PDF: a too large or too long one is split (no converter to install); a scanned one needs text recognition, asked first', () => {
+  const large = m.converterHandOffWhat(false), scanned = m.converterHandOffWhat(true);
+  assert.match(large, /拆/);
+  assert.doesNotMatch(large, /按页分段/, 'a PDF over the page limit is refused whatever pages says');
+  assert.match(scanned, /扫描件/);
+  assert.match(scanned, /先问你/);
+  assert.doesNotMatch(scanned, /不用装/, 'a scan needs text recognition: never promise no tool');
+  assert.match(readFileSync('ui/ImportHub.jsx', 'utf8'), /why=\{scannedItem\.error\} scanned \/>/, 'the scanned PDF says so');
+});
+
+test('the refused files box: 发给主会话 sits under the list, in the text column, so a phone never squeezes the list beside it (N2, N3)', () => {
+  const html = renderToStaticMarkup(h(m.InlineMessage, { tone: 'warning', boxed: true, actionsBelow: true, title: '1 个文件没有添加', onDismiss: noop,
+    action: { label: '查看', onClick: noop }, secondary: { label: '发给主会话', onClick: noop } }, h('ul', null, h('li', null, 'a.xlsx'))));
+  assert.match(html, /<div class="sh-inline__text"><strong[^>]*>1 个文件没有添加<\/strong><ul><li>a\.xlsx<\/li><\/ul><div class="sh-inline__actions">[\s\S]*查看[\s\S]*sh-inline__secondary[^>]*>发给主会话<\/button><\/div><\/div>/);
+  const beside = renderToStaticMarkup(h(m.InlineMessage, { tone: 'warning', secondary: { label: '发给主会话', onClick: noop } }, 'x'));
+  assert.doesNotMatch(beside, /sh-inline__actions/, 'without actionsBelow nothing moves');
+  assert.match(readFileSync('ui/components/FileDrop.jsx', 'utf8'), /className="sh-drop__rejects" actionsBelow/);
+  assert.match(readFileSync('ui/ImportHub.jsx', 'utf8'), /className="import-hub__summary" actionsBelow/);
+});
+
 test('the empty home: the workspace-file link is the shared unit (import.file, material, goal generate), offered with or without a chat, in the new words', () => {
   const data = { decks: [], sources: [], drafts: [], focus: {} };
   const actions = Object.fromEntries(['start', 'resume', 'openDraft', 'addSource', 'importLibrary', 'generateFromSources', 'startCourseFlow', 'onCoachPractice', 'onWeakPoints'].map(name => [name, noop]));
   const home = m.buildHomePlan({ data, today: { due: 0, weak: 0, new: 0, size: 0 }, runs: [], runFor: () => null, activeJobs: [], inFocus: () => true, actions, revealActivity: noop });
   const entry = home.plan.also.find(item => !Array.isArray(item));
   assert.deepEqual(entry.handOff.id, 'import.file');
-  assert.deepEqual(entry.handOff.input, { purpose: 'material', goal: 'generate' });
+  assert.deepEqual(entry.handOff.input, { purpose: 'material', goal: 'generate', area: '学习库' }, 'the learner is on the home, not in 添加资料');
+  assert.ok(m.handOffText('import.file', entry.handOff.input, 'zh').startsWith('我在 StudyHub 的「学习库」想用工作区里的一个文件出第一组题'));
+  assert.ok(m.handOffText('import.file', entry.handOff.input, 'en').startsWith('In StudyHub’s “Study library” I want to make a first set of questions'));
   assert.equal(entry.handOff.lead, '用工作区里的文件出题：');
   const html = renderToStaticMarkup(inApp(m, h(m.DeskIntro, { data: { ...data, next: null }, home, mastery: {}, role: {}, busy: false, start: noop, resume: noop, endRun: noop }), { data }));
   assert.match(html, /用工作区里的文件出题：/);

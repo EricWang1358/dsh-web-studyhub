@@ -83,6 +83,7 @@ test("draft:true stops before publication: the decks wait as drafts, nothing is 
   assert.equal(state.decks.length, 0, "not published");
   assert.equal(state.drafts.length, 2);
   assert.deepEqual(result.results.map((r) => [r.title, r.draft, r.drafted, r.added, r.deckId ?? null]), [["01 第一章", true, 2, 0, null], ["02 第二章", true, 1, 0, null]]);
+  assert.deepEqual(result.results.map((r) => r.created), [false, false], "nothing was created yet: a draft is not a 题组");
   for (const r of result.results) {
     const draft = state.drafts.find((d) => d.id === r.draftId);
     assert.ok(draft, "the draft id is returned");
@@ -93,6 +94,25 @@ test("draft:true stops before publication: the decks wait as drafts, nothing is 
   const first = result.results[0];
   const published = await service.call("draft.publish.quick", { id: first.draftId, draftVersion: first.draftVersion });
   assert.equal((await service.store.read()).decks.find((d) => d.id === published.id).cards.length, 2);
+});
+
+test("draft:true twice: the questions already waiting in a draft of that deck are skipped, as a published deck's are; only new ones make a draft", async (t) => {
+  const { service, files } = await setup(t);
+  const bank = join(files, "01.json");
+  await writeFile(bank, JSON.stringify({ title: "01 第一章", cards: [1, 2].map((n) => card(n)) }));
+  await service.call("deck.import", { path: bank, folder: "期末题册", draft: true });
+  const again = await service.call("deck.import", { path: bank, folder: "期末题册", draft: true });
+  assert.deepEqual([again.drafted, again.skipped, again.results[0].created], [0, 2, false]);
+  assert.equal((await service.store.read()).drafts.length, 1, "no second draft of the same questions");
+  await writeFile(bank, JSON.stringify({ title: "01 第一章", cards: [1, 2, 3].map((n) => card(n)) }));
+  const more = await service.call("deck.import", { path: bank, folder: "期末题册", draft: true });
+  assert.deepEqual([more.drafted, more.skipped], [1, 2]);
+  const state = await service.store.read();
+  assert.equal(state.drafts.length, 2);
+  assert.deepEqual(state.drafts[1].cards.map((c) => c.prompt), [card(3).prompt]);
+  // another folder is another deck: its questions are its own
+  const other = await service.call("deck.import", { path: bank, folder: "另一门", draft: true });
+  assert.equal(other.drafted, 3);
 });
 
 test("draft:true into a deck that exists: the draft carries that deck as its target and only the questions it lacks; the deck is untouched until published", async (t) => {

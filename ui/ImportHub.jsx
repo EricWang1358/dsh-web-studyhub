@@ -508,7 +508,7 @@ export default function ImportHub({
       <SegmentedControl className="import-hub__tabs" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
       {stray && <p className="import-hub__stray" role="status"><Icon name="info" size={16} />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
-        {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary"
+        {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary" actionsBelow
           title={finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed])}
           action={finished ? { label: ui('查看已导入的内容'), onClick: () => onComplete?.(importSummary(itemsRef.current)) } : undefined}
           secondary={lasting ? handOff.action('import.file', () => failedImportInput(itemsRef.current, { courses }), { what: '让主会话按每个文件的原因换个办法导入；文件在输入框里用 @ 选' }) : undefined}>
@@ -526,7 +526,7 @@ export default function ImportHub({
           conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} onConversionStarted={conversionStarted} />}
         {/* A PDF with no text: the same staged converter, one press from started. Nothing runs before that press. */}
         {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain available={convertible} call={call} file={scannedItem.file} courses={coursesOf(scannedItem.file)}
-          onOpenSettings={settingsFor} onStarted={conversionStarted} why={scannedItem.error} /></div>}
+          onOpenSettings={settingsFor} onStarted={conversionStarted} why={scannedItem.error} scanned /></div>}
         {staged && <>
           <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
           <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} call={call} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}

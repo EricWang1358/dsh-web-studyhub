@@ -61,7 +61,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
             action: { label: ui('添加资料'), run: addSource },
             // A file already in the workspace: the main chat adds it and makes a first set from it (the hand-off plan item 5; offered with or without a
             // chat: without one the message is copied).
-            also: [jsonLink, { handOff: { id: 'import.file', input: { purpose: 'material', goal: 'generate' }, lead: '用工作区里的文件出题：',
+            also: [jsonLink, { handOff: { id: 'import.file', input: { purpose: 'material', goal: 'generate', area: '学习库' }, lead: '用工作区里的文件出题：',
               what: '让主会话把工作区里的文件加为资料，再出 10 道题；文件在输入框里用 @ 选' } }] };
   const breakdown = [
     today.due && uiFormat('{0} 题到期', [today.due]),

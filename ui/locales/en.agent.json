@@ -231,7 +231,8 @@
   "录入：题干、选项、答案和解析保持原文，不出新题；推断出来的答案要标出来。": "Entry: keep stems, options, answers and explanations as written, and add no new questions; mark every answer you inferred.",
   "导入：整本题册按章拆开，每章写成一个题组 JSON（格式见 library.context 的 decks），用 deck.import 的 draft:true 存成草稿，由我检查后再发布；我说直接导入时才去掉 draft。": "Import: split a whole question book by chapter and write each chapter as one question-deck JSON (the format is in library.context area decks); import them with deck.import and draft:true, so each waits as a draft that I check and publish; leave out draft only when I say to import directly.",
   "汇报：每章的题数、跳过的重复题和推断了答案的题。": "Report: the number of questions in each chapter, the duplicates skipped and the questions whose answer you inferred.",
-  "分段：PDF 太长时用 pages 分段导入；文件太大才拆成分卷，每卷标题写明章节和原书起始页（不然引用的页码对不上）。": "Parts: import a long PDF in page ranges with pages; split the file into volumes only when it is too large, and give each volume a title with its chapters and the page it starts on in the original (otherwise the cited page numbers do not match).",
+  "拆分：PDF 超过页数上限时，不管 pages 怎么写都会被拒绝：先按章拆成几个文件再导入，每个文件的标题写明章节和原书起始页（不然引用的页码对不上）；已经装好的 MinerU 也可以用 mineru.import 导入整本。": "Split: a PDF over the page limit is refused whatever pages says: split it into files by chapter first, then import them, and give each file a title with its chapters and the page it starts on in the original (otherwise the cited page numbers do not match); if MinerU is already installed, mineru.import can also import the whole book.",
+  "字数：pages 只用来在页数上限之内少选几页，让提取的文字不超过字符上限。": "Length: pages only narrows a PDF within the page limit, to keep the extracted text under the character limit.",
   "扫描件：读不出文字时，已经装好的 MinerU 可以用 mineru.import；没有就先问我，再做文字识别。": "Scans: when no text can be read, use mineru.import if MinerU is already installed; otherwise ask me before running text recognition.",
   "判断：先看每个文件是资料、已有的题目还是录音：表格把各列对应成题目，截图逐字转写，电子书和压缩包转换或解压后作为资料，视频先抽出音频。": "Decide: first see whether each file is material, questions I already have or a recording; map a spreadsheet’s columns to questions, transcribe a screenshot word for word, convert or unpack an e-book or an archive into material, and extract the audio of a video.",
   "录音：用 audio.import 导入。": "Recordings: import them with audio.import.",
@@ -259,7 +260,8 @@
   "查原因、换条路做完：": "Find out why and finish it another way:",
   "发给主会话：{0}": "Send to the main chat: {0}",
   "不想装转换工具：": "Rather not install a converter:",
-  "让主会话按页分段导入这份 PDF，不用装转换工具；文件在输入框里用 @ 选": "Ask the main chat to import this PDF in page ranges, with no converter to install; pick the file with @ in the input box",
+  "让主会话把这份 PDF 按章拆成几个文件再导入，不用装转换工具；文件在输入框里用 @ 选": "Ask the main chat to split this PDF into files by chapter, then import them, with no converter to install; pick the file with @ in the input box",
+  "让主会话看这份扫描件怎么转成文字再导入，要装文字识别工具时先问你；文件在输入框里用 @ 选": "Ask the main chat how to turn this scan into text, then import it; it asks you before installing a text recognition tool; pick the file with @ in the input box",
   "用工作区里的文件出题：": "Questions from a workspace file:",
   "让主会话把工作区里的文件加为资料，再出 10 道题；文件在输入框里用 @ 选": "Ask the main chat to add a workspace file as material, then make 10 questions from it; pick the file with @ in the input box"
 }

@@ -18,7 +18,8 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
    N1 录题 · N4 JSON 导入 · N2 the refused files of JSON 导入, 音频 and 添加资料 · N5 a pasted JSON that did not pass · N6 a recording the form does not take ·
    N7 a recording the pre-check stopped · N8 a failed job's card (音频, the home) · N9 the 任务 console's line · N10 the converter card of a refused PDF ·
    N11 a failed conversion's diagnosis · N3 the batch summary of 添加资料 · the empty home.
-   DEADENDS_SHOTS=<dir> writes screenshots (zh; 1280×800 and 390×844, light); otherwise only 1280 runs. */
+   At 390 px (a phone) the refused files and the batch summary keep their text readable: 发给主会话 goes under a list, never beside it.
+   DEADENDS_SHOTS=<dir> writes screenshots (zh; 1280×800 and 390×844, light). */
 
 const host = await build({ stdin: { contents: `
   import React from 'react';
@@ -58,7 +59,7 @@ const host = await build({ stdin: { contents: `
 `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
 
 const shots = process.env.DEADENDS_SHOTS;
-const views = shots ? [[1280, 800], [390, 844]] : [[1280, 800]];
+const views = [[1280, 800], [390, 844]];
 const RULE = '只填进主会话的输入框';
 const FILLED = '看一眼，再由你按发送';
 const TAIL = '文件（不在工作区就粘贴完整路径）：@';
@@ -141,6 +142,12 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
         await page.evaluate(() => { window.composerText = ''; window.copied = []; window.dshLog.length = 0; });
         for (const close of await page.locator('.sh-toast__close').all()) await close.click().catch(() => {});
       };
+      /** The message's text column is about as wide as the message (the old squeeze: 发给主会话 beside the list left it 1–3 characters wide on a phone). */
+      const roomy = async (message, name) => {
+        const [text, box] = await message.evaluate((element) => [element.querySelector(':scope > .sh-inline__text').getBoundingClientRect().width, element.getBoundingClientRect().width]);
+        assert.ok(text >= box - 90 && text >= box * 0.6, `${tag} ${name}: the text column is ${Math.round(text)} px of a ${Math.round(box)} px message`);
+        assert.equal(await message.locator(':scope > .sh-feedback__tip, :scope > .sh-inline__action').count(), 0, `${tag} ${name}: no action beside the text`);
+      };
       const go = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click({ timeout: 60000, force: true }); };
       /** The control is the shared one; its Tooltip shows on hover (screenshot), a press fills the empty box by setDraft alone. Returns the prompt. */
       const handOver = async (control, { name, first, tail = TAIL } = {}) => {
@@ -180,7 +187,7 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
         await page.mouse.move(2, 2);
         return after.text;
       };
-      return { shot, go, handOver, reset };
+      return { shot, go, handOver, reset, roomy };
     };
 
     // ---------------- the empty home: the workspace-file link, in the shared unit ----------------
@@ -191,7 +198,7 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
       // Since 3.6 an empty library opens on the first-run line; 以后再说 puts it away and the home's desk (with its quiet other ways) is there.
       await page.getByRole('button', { name: '以后再说' }).first().click({ timeout: 30000 });
       const link = page.locator('.desk-also [data-hand-off="import.file"]');
-      const text = await handOver(link, { name: 'home-empty', first: '我在 StudyHub 的「添加资料」想用工作区里的一个文件出第一组题' });
+      const text = await handOver(link, { name: 'home-empty', first: '我在 StudyHub 的「学习库」想用工作区里的一个文件出第一组题' });
       assert.match(text, /- 出题：导入后用 generate 出 10 道题，存成草稿给我检查。/);
       assert.equal(await page.getByText('在对话中用工作区文件出题').count(), 0);
       assert.equal(await page.locator('.desk-also').getByText('用工作区里的文件出题：').count(), 1);
@@ -200,7 +207,7 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
     }
 
     const { context, page, errors } = await open(server, { jobs: JOBS });
-    const { go, handOver, shot } = tools(page, errors);
+    const { go, handOver, roomy } = tools(page, errors);
 
     // ---------------- N1 录题: under the page's own button ----------------
     await go('generate');
@@ -218,6 +225,8 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
     assert.equal(before, 1, `${tag}: before anything failed, only the line under the prompts`);
     text = await handOver(panel.locator('fieldset').first().locator('[data-hand-off="import.file"]'), { name: 'n4-json-word', first: '我在 StudyHub 的「导入 JSON 题组」想把文件里已有的题目原样录进题组' });
     await panel.locator('input[type=file]').first().setInputFiles({ name: '错题本.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('x') });
+    await roomy(panel.locator('.sh-drop__rejects'), 'n2-json-reject');
+    assert.equal(await panel.locator('.sh-drop__rejects .sh-inline__text .sh-inline__actions .sh-inline__secondary').count(), 1, `${tag}: under the list`);
     text = await handOver(panel.locator('.sh-drop__rejects [data-hand-off], .sh-drop__rejects .sh-inline__secondary').first(), { name: 'n2-json-reject', first: '我在 StudyHub 的「导入 JSON 题组」' });
     assert.match(text, /```data 文件\n错题本\.xlsx\n```/);
     await panel.locator('textarea').last().fill('{"title":"错题","cards":[{"kind":1}');
@@ -234,6 +243,7 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
     assert.match(text, /ffmpeg 不可用/);
     assert.equal(await page.locator('.audio-jobs .cjc').count(), 1);
     await page.locator('.audio-drop-zone input[type=file]').setInputFiles({ name: '讲座录像.mkv', mimeType: 'video/x-matroska', buffer: Buffer.from('x') });
+    await roomy(page.locator('.audio-drop-zone .sh-drop__rejects'), 'n2-audio-reject');
     text = await handOver(page.locator('.audio-drop-zone .sh-drop__rejects .sh-inline__secondary'), { name: 'n2-audio-reject', first: '我在 StudyHub 的「音频导入」' });
     assert.match(text, /讲座录像\.mkv/);
     await page.locator('details.audio-path > summary').click();
@@ -245,15 +255,11 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
     assert.match(text, /第4周讲座\.mp4/);
     await page.locator('.audio-path-row input').fill(broken);
     await page.locator('.audio-path-row').getByRole('button', { name: '选用' }).click();
+    // the pre-check cannot read the broken recording, so it is blocked: the place is only drawn there (a pre-check that let it through fails here)
     const blocked = page.locator('.audio-check--blocked [data-hand-off="import.file"]');
-    if (await blocked.waitFor({ timeout: 20000 }).then(() => true, () => false)) {
-      text = await handOver(blocked, { name: 'n7-audio-precheck', first: '我在 StudyHub 的「音频导入」' });
-      assert.ok(text.includes('坏掉的录音.mp3'), `${tag}: the file is named`);
-    } else {
-      // the preview's pre-check took the file: say so, the place is only drawn on a blocked file
-      await shot('n7-audio-precheck-not-blocked');
-      console.error(`${tag}: N7 not reached: the pre-check did not block the broken recording`);
-    }
+    await blocked.waitFor({ timeout: 30000 }).catch((error) => { throw new Error(`${tag}: N7 not reached: the pre-check did not block the broken recording: ${error.message}`); });
+    text = await handOver(blocked, { name: 'n7-audio-precheck', first: '我在 StudyHub 的「音频导入」' });
+    assert.ok(text.includes('坏掉的录音.mp3'), `${tag}: the file is named`);
 
     // ---------------- N8 on the home: a question run that failed ----------------
     await go('library');
@@ -281,18 +287,21 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
     await hub.waitFor({ timeout: 30000 });
     const hubInput = hub.locator('.sh-filedrop input[type=file]').first();
     await hubInput.setInputFiles({ name: '教材.epub', mimeType: 'application/epub+zip', buffer: Buffer.from('x') });
+    await roomy(hub.locator('.sh-drop__rejects'), 'n2-hub-reject');
     text = await handOver(hub.locator('.sh-drop__rejects .sh-inline__secondary'), { name: 'n2-hub-reject', first: '我在 StudyHub 的「添加资料」想把这些 StudyHub 不收的文件导入进来' });
     assert.match(text, /教材\.epub/);
     await hubInput.setInputFiles({ name: '旧讲义.doc', mimeType: 'application/msword', buffer: Buffer.from('x') });
     const summary = hub.locator('.import-hub__summary');
     await summary.waitFor({ timeout: 30000 });
+    await roomy(summary, 'n3-hub-summary');
     text = await handOver(summary.locator('.sh-inline__secondary'), { name: 'n3-hub-summary', first: '我在 StudyHub 的「添加资料」想把这些 StudyHub 不收的文件导入进来' });
     assert.match(text, /旧讲义\.doc: 暂不支持旧版 \.doc/);
     await hubInput.setInputFiles({ name: '整本教材.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(9 * 1024 * 1024, 32) });
     const large = hub.locator('.large-doc [data-hand-off="import.file"]').first();
     text = await handOver(large, { name: 'n10-large-pdf', first: '我在 StudyHub 的「添加资料」想把这份文件导入成学习资料' });
     assert.match(text, /整本教材\.pdf/);
-    assert.match(text, /- 分段：PDF 太长时用 pages 分段导入/);
+    assert.match(text, /- 拆分：PDF 超过页数上限时，不管 pages 怎么写都会被拒绝：先按章拆成几个文件再导入/);
+    assert.doesNotMatch(text, /用 pages 分段导入/);
     // one hand-off for the batch, not one per row: the summary has one, the rows keep 移除 / 重试
     assert.equal(await summary.locator('[data-hand-off], .sh-inline__secondary').count(), 1);
 

@@ -169,19 +169,25 @@ function withTip(tip, button) {
  * gate that failed). Errors are announced assertively. `boxed` gives it a
  * tinted background for multi-line content. Give it an `id` and point the
  * control's aria-describedby at it. action / secondary: { label, onClick, disabled?, tip? } (the same shape as Banner's).
+ * actionsBelow: the actions go on a row of their own under the text (a list of files, a batch summary), so a narrow box never squeezes the text beside them.
  */
-export function InlineMessage({ tone = 'error', title, children, action, secondary, onDismiss, dismissText, boxed = false, className, ...rest }) {
+export function InlineMessage({ tone = 'error', title, children, action, secondary, onDismiss, dismissText, boxed = false, actionsBelow = false, className, ...rest }) {
   useComponentCss(css);
   const kind = toneOf(tone);
+  const actions = <>
+    {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
+    {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
+  </>;
+  const below = actionsBelow && (action || secondary);
   return (
     <div className={cx('sh-inline', `sh-inline--${kind}`, boxed && 'sh-inline--boxed', className)} role={kind === 'error' ? 'alert' : 'status'} {...rest}>
       <Icon name={kind} size={18} className="sh-inline__icon" />
       <div className="sh-inline__text">
         {title && <strong className="sh-inline__title">{title}</strong>}
         {children}
+        {below && <div className="sh-inline__actions">{actions}</div>}
       </div>
-      {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
-      {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
+      {!below && actions}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-inline__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
     </div>
   );

@@ -33,7 +33,7 @@ whenToUse: The learner asks in chat to import, add, convert, split or enter a fi
 
 - Keep their wording, options, answers and keys exactly. Add no questions. When an answer or explanation is missing, mark what you inferred as inferred.
 - Pasted or short text: `ingest {"text": "…"}` keeps the stems and flags inferred answers itself.
-- A file or many questions: write question-deck JSON in the `decks` format as new files under `studyhub-work/` (one file per chapter for a book), then `deck.import {"paths": ["…"], "draft": true}`: each file waits as a draft that the learner checks and publishes (检查草稿); leave `draft` out only when they asked to import directly. Read its report: `draftId` and `drafted` (or `added` without `draft`), `skipped` (already in that 题组) and `errors`.
+- A file or many questions: write question-deck JSON in the `decks` format as new files under `studyhub-work/` (one file per chapter for a book), then `deck.import {"paths": ["…"], "draft": true}`: each file waits as a draft that the learner checks and publishes (检查草稿); leave `draft` out only when they asked to import directly. Read its report: `draftId` and `drafted` (or `added` without `draft`), `skipped` (already in that 题组, or with `draft` already waiting in its draft) and `errors`.
 - `study_bank` `append` only adds to a 题组 that exists and checks citations; a new 题组 always goes through `deck.import`.
 - A citation only when its quote is copied word for word from a material already imported; otherwise leave `citations` out.
 

@@ -82,13 +82,20 @@ export function ToolCard({ tool }) {
 
 const byId = id => TOOLS.find(tool => tool.id === id);
 
+/** N10's Tooltip, honest for the PDF it is about: a too large or too long one is split into files (StudyHub refuses it whatever `pages` says), a scanned one
+ *  needs text recognition, which the chat asks about first. */
+export const converterHandOffWhat = scanned => scanned
+  ? '让主会话看这份扫描件怎么转成文字再导入，要装文字识别工具时先问你；文件在输入框里用 @ 选'
+  : '让主会话把这份 PDF 按章拆成几个文件再导入，不用装转换工具；文件在输入框里用 @ 选';
+
 /**
  * The leading converter: StudyHub runs local MinerU or shows its setup. With `call` the whole flow is here;
  * without it the card explains local model setup. `file` is the PDF a too-large import was
- * refused for (without one the learner picks a PDF), `onStarted` hears that a conversion began. `why`: the reason this PDF is here (a too-large or scanned
- * import, a selection too big); given, the card also offers 「不想装转换工具：发给主会话」 (the hand-off plan N10), so Settings, which only explains, has none.
+ * refused for (without one the learner picks a PDF), `onStarted` hears that a conversion began. `why`: the reason an import refused this PDF (too large, too
+ * many pages or too much text; `scanned`: no text in it); given, the card also offers 「不想装转换工具：发给主会话」 (the hand-off plan N10), so Settings, which
+ * only explains, and the advice for material already imported (a selection too big, a long book) have none.
  */
-export function ConverterMain({ available = true, call, file = null, courses = [], onOpenSettings, onStarted, why = '' }) {
+export function ConverterMain({ available = true, call, file = null, courses = [], onOpenSettings, onStarted, why = '', scanned = false }) {
   const [picked, setPicked] = useState(null);
   return (
     <div className="large-doc__group" data-role="converter">
@@ -98,7 +105,7 @@ export function ConverterMain({ available = true, call, file = null, courses = [
         : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /></div>}
       <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。')}</Hint>
       {why && <HandOff id="import.file" input={{ purpose: 'material', area: '添加资料', error: why, files: [file?.name || picked?.name].filter(Boolean), facts: courses.length ? { courses } : null }}
-        lead="不想装转换工具：" shape="quiet" what="让主会话按页分段导入这份 PDF，不用装转换工具；文件在输入框里用 @ 选" />}
+        lead="不想装转换工具：" shape="quiet" what={converterHandOffWhat(scanned)} />}
     </div>
   );
 }
@@ -195,7 +202,7 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
         <Disclosure summary={ui('需要整本检索时')} meta={ui('可选')} className="large-doc__more" defaultOpen={retrieval?.extension?.installed === true}>{search}</Disclosure>
       </> : <>
         {search}
-        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={conversionAvailable} call={call} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} /></Disclosure>
+        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={conversionAvailable} call={call} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
       </>}
       <AdvancedTools />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />
