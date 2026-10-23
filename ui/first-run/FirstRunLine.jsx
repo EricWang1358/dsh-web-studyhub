@@ -21,7 +21,8 @@ import css from './first-run.css';
    Step 3 makes the first deck from the line (3.6 D4, option A): `plan` ({ summary, estimate, block }, ui/first-run/use-first-deck.js) says what will be made
    and its usage estimate before anything is spent, both 创建题组's own; 「出第一组题」 (on.generate) runs that request and is only ever pressed by the learner
    (disabled, with the reason, while no model is usable or the selection needs 创建题组); the quiet 「改题型和题数」 (on.tune) opens 创建题组 with the materials
-   ticked. Seam (发给主会话, #453): when an import fails, step 2 is where the shared hand-off unit (ui/hand-off/) goes, beside the import's own message. */
+   ticked. 发给主会话 (#453): step 2's 添加资料 and 再加一份 open the one import dialog (ImportHub, importForLine); a file that does not import is said there,
+   and that dialog's summary and drop zone carry the shared hand-off unit (ui/hand-off/, ui/import-hand-off.js). The line draws no second one. */
 
 /** One sentence per step and state: what the row says. */
 export function stepSentence(step) {
