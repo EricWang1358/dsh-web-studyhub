@@ -1,0 +1,53 @@
+/* #467: a quote copied out of the 复习全书 often ends in Chinese quotation marks with a footnote mark glued on (「……」[^12]). The mark is the book's, not
+   the material's words: the comparison key ignores it (the citation check, the quote locator, book.write's footnotes), so a quote that is really in the
+   material is found; Chinese and ASCII quotation marks compare alike; and the mark in the book's own text stays where it was. No model, no network. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { citationCheck, quoteFound } from '../lib/quote-match.js';
+import { locateQuote } from '../lib/quote-locate.js';
+import { writeBookPoint } from '../lib/book-agent-write.js';
+import { parseFootnote } from '../lib/book-footnotes.js';
+import { openCourseBook } from '../lib/course-book-files.js';
+import { bookLibrary } from './helpers/book-agent-library.mjs';
+
+const PAGE = '老师在第一讲里强调：“架构师要把每个决定和背后的理由都写下来”，这样以后的人才知道系统为什么是现在这个样子。';
+const WORDS = '架构师要把每个决定和背后的理由都写下来';
+
+test('the citation check finds a real quote that carries a footnote mark after its Chinese quotation marks', () => {
+  const pages = [{ id: 'p1', text: PAGE }];
+  for (const quote of [`「${WORDS}」[^12]`, `“${WORDS}”[^3]`, `"${WORDS}"[^3]`, `${WORDS}[^1-2]`, `「${WORDS}[^7]」`])
+    assert.deepEqual(citationCheck(pages, { sourceId: 'p1', quote }), { ok: true, span: 'page' }, quote);
+  assert.equal(quoteFound(PAGE, `「${WORDS}」[^12]`), true);
+  // Digits that are the material's own still count: a changed number is still not found.
+  assert.equal(citationCheck([{ id: 'p1', text: 'The p99 latency target is 200 ms for every request.' }], { sourceId: 'p1', quote: 'The p99 latency target is 300 ms for every request.' }).ok, false);
+  // A material that has a mark of its own (a converted book) is found by the quote without it.
+  assert.equal(citationCheck([{ id: 'p1', text: PAGE.replace('理由', '理由[^4]') }], { sourceId: 'p1', quote: `「${WORDS}」` }).ok, true);
+});
+
+test('the quote locator ignores footnote marks on either side and points at the material\'s own words', () => {
+  const at = locateQuote(PAGE, `「${WORDS}」[^12]`);
+  assert.ok(at, 'found');
+  assert.equal(PAGE.slice(at.start, at.end), WORDS);
+  const marked = PAGE.replace('理由', '理由[^4]'), inside = locateQuote(marked, WORDS);
+  assert.ok(inside, 'found across the material\'s own mark');
+  assert.equal(marked.slice(inside.start, inside.end), WORDS.replace('理由', '理由[^4]'));
+});
+
+test('a footnote\'s quote is read to its own closing mark: inner quotation marks and a trailing [^n] are not the end of it', () => {
+  assert.deepEqual(parseFootnote(`「“${WORDS}”」 (p1)`), { quote: `“${WORDS}”`, sourceId: 'p1' });
+  assert.deepEqual(parseFootnote(`「什么是「架构」的决定」 (p1)`), { quote: '什么是「架构」的决定', sourceId: 'p1' });
+  assert.deepEqual(parseFootnote(`「${WORDS}」[^12] (p1)`), { quote: WORDS, sourceId: 'p1' });
+  assert.deepEqual(parseFootnote(`「${WORDS}[^12]」（p1）`), { quote: WORDS, sourceId: 'p1' });
+  assert.deepEqual(parseFootnote(`[「${WORDS}」](studyhub://source/p1) · 讲义`), { quote: WORDS, sourceId: 'p1' });
+});
+
+test('book.write: 「quote」[^12] in the text keeps its mark, and the footnote whose words are in the material is found', () => {
+  const { state } = bookLibrary();
+  state.sources.find(source => source.id === 'document-l1-p1').text += ` ${PAGE}`;
+  const what = openCourseBook(state, {}).nodes[0].children[0];
+  const file = () => state.sources.find(source => source.provenance === 'course-book-doc').bookDoc.files[what.files.gen].text;
+  const done = writeBookPoint(state, { hid: what.hid, markdown: `讲义说「${WORDS}」[^12]，这是第一讲的重点。\n\n[^12]: 「“${WORDS}”」[^12] (document-l1-p1)` });
+  assert.deepEqual(done.dropped, []);
+  assert.match(file(), new RegExp(`讲义说「${WORDS}」\\[\\^1\\]，这是第一讲的重点。`), 'the mark stays right after the closing quotation mark');
+  assert.match(file(), new RegExp(`^\\[\\^1\\]: \\[「“${WORDS}”」\\]\\(studyhub://source/document-l1-p1\\)`, 'm'), 'the material\'s own words and quotation marks');
+});
