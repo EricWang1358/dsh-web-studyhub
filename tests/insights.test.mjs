@@ -68,6 +68,50 @@ test('an old snapshot outcome never overrides an earlier valid outcome', () => {
   }
 });
 
+test('the wrong book keeps the mistakes already put right apart from the weak list', () => {
+  const state = emptyState();
+  state.decks = [{ id: 'd', title: 'Deck', course: 'C', cards: [
+    card('still-wrong', 'quiz'), card('fixed', 'quiz'), card('first-try', 'quiz'), card('fixed-later', 'quiz')] }];
+  state.attempts = [
+    { deckId: 'd', quiz_id: 'still-wrong', grade: 1, timestamp: '2026-10-01T01:00:00Z' },
+    { deckId: 'd', quiz_id: 'fixed', grade: 1, timestamp: '2026-10-01T02:00:00Z' },
+    { deckId: 'd', quiz_id: 'fixed', grade: 2, timestamp: '2026-10-02T02:00:00Z' },
+    { deckId: 'd', quiz_id: 'fixed', grade: 4, timestamp: '2026-10-03T02:00:00Z' },
+    { deckId: 'd', quiz_id: 'first-try', grade: 4, timestamp: '2026-10-02T03:00:00Z' },
+    { deckId: 'd', quiz_id: 'fixed-later', grade: 1, timestamp: '2026-10-01T04:00:00Z' },
+    { deckId: 'd', quiz_id: 'fixed-later', grade: 4, timestamp: '2026-10-04T04:00:00Z' },
+  ];
+  const weak = wrongBook(state);
+  assert.equal(weak.view, 'weak');
+  assert.deepEqual(weak.items.map((item) => item.cardId), ['still-wrong']);
+  assert.deepEqual(weak.counts, { weak: 1, history: 2 });
+  const history = wrongBook(state, { view: 'history' });
+  assert.equal(history.view, 'history');
+  assert.equal(history.total, 2);
+  assert.deepEqual(history.items.map((item) => item.cardId), ['fixed-later', 'fixed'], 'newest correction first');
+  assert.deepEqual(history.items.map((item) => [item.wrongCount, item.lastGrade, item.assessment]),
+    [[1, 4, 'graded'], [2, 4, 'graded']]);
+  assert.equal(history.items[1].firstWrongAt, '2026-10-01T02:00:00Z');
+  assert.equal(history.items[1].lastWrongAt, '2026-10-02T02:00:00Z');
+  assert.equal(history.items[1].recoveredAt, '2026-10-03T02:00:00Z');
+  assert.equal(history.items[1].lastAt, '2026-10-03T02:00:00Z');
+  assert.deepEqual(wrongBook(state, { view: 'history', offset: 1, limit: 1 }).items.map((item) => item.cardId), ['fixed']);
+  assert.throws(() => wrongBook(state, { view: 'gone' }), /weak or history/);
+});
+
+test('a wrong answer after a right one is weak again, not history', () => {
+  const state = emptyState();
+  state.decks = [{ id: 'd', title: 'Deck', cards: [card('q', 'quiz')] }];
+  state.attempts = [
+    { deckId: 'd', quiz_id: 'q', grade: 4, timestamp: '2026-10-01T01:00:00Z' },
+    { deckId: 'd', quiz_id: 'q', grade: 1, timestamp: '2026-10-02T01:00:00Z' },
+  ];
+  const book = wrongBook(state);
+  assert.deepEqual(book.items.map((item) => item.cardId), ['q']);
+  assert.deepEqual(book.counts, { weak: 1, history: 0 });
+  assert.equal(wrongBook(state, { view: 'history' }).total, 0);
+});
+
 test('one course drives statistics, wrong-book evidence, graph and skeleton projections', async t => {
   const service = await fixture(t);
   const stats = await service.call('stats', { course: 'A' });

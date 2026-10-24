@@ -431,6 +431,34 @@ test("wrongbook aggregates latest wrong answers across decks", async () => {
   }
 });
 
+test("wrongbook keeps a fixed mistake in history after the weak list drops it", async () => {
+  const { root, service } = await library();
+  try {
+    const first = await service.call("review.start", { mode: "path", scope: [{ deckId: "d1", cardId: "q1" }], fresh: true });
+    await service.call("review.answer", { runId: first.id, cardId: "q1", selected: ["b"] });
+    assert.equal((await service.call("wrongbook")).total, 1);
+    const fixed = await service.call("review.start", { mode: "path", scope: [{ deckId: "d1", cardId: "q1" }], fresh: true });
+    await service.call("review.answer", { runId: fixed.id, cardId: "q1", selected: ["a"] });
+    const weak = await service.call("wrongbook");
+    assert.equal(weak.total, 0, "the weak list only holds what is still unanswered right");
+    assert.deepEqual(weak.counts, { weak: 0, history: 1 });
+    const history = await service.call("wrongbook", { view: "history" });
+    assert.equal(history.view, "history");
+    assert.equal(history.total, 1);
+    const [row] = history.items;
+    assert.equal(row.cardId, "q1");
+    assert.equal(row.wrongCount, 1);
+    assert.equal(row.lastGrade, 4);
+    assert.equal(row.assessment, "graded");
+    assert.equal(row.recoveredAt, row.lastAt);
+    assert.ok(row.lastWrongAt < row.recoveredAt);
+    const detail = await service.call("wrongbook.detail", { deckId: "d1", cardId: "q1", view: "history" });
+    assert.equal(detail.lastGrade, 4, "the detail says the card is answered right now");
+    assert.equal(detail.missedGrade, 1, "and opens on the answer that was wrong");
+    assert.equal((await service.call("wrongbook.detail", { deckId: "d1", cardId: "q1" })).missedGrade, undefined);
+  } finally { await close(root); }
+});
+
 test("wrongbook labels low self-ratings separately from objectively wrong answers", async () => {
   const { root, service } = await library();
   try {

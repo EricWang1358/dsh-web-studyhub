@@ -7,12 +7,13 @@ import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Banner, Button, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip } from './components/index.js';
+import { Badge, Banner, Button, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { NO_FILTER, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, readGroupBy, readOpenGroups, reasonText, retrainOptions,
   sameVariantState, saveGroupBy, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { setQueryData, useHostQuery } from './host-query.js';
+import { formatDateTime, joinMeta, META_DOT } from "./format.js";
 
 // One page of this view holds ten pages of the service (which gives at most 100), so a filter sees every mistake of a normal library.
 const FETCH_LIMIT = 100;
@@ -40,20 +41,22 @@ const generateTip = () => tip(uiFormat('为错题改写新的变式题：每道�
 /** What each kind of low outcome means: the chips and the row marks say it in the same words. */
 function statusTip(kind) {
   switch (kind) {
-    case 'graded': return tip(ui('答错：单选、多选、填空由系统判分，最近一次得分低于 3 分。'), ui('再答对一次，它就会移出错题本。'));
+    case 'graded': return tip(ui('答错：单选、多选、填空由系统判分，最近一次得分低于 3 分。'), ui('再答对一次，它会移到「已订正」，记录仍保留。'));
     case 'oral': return tip(ui('最近一次口头 AI 评估：需要巩固'));
     case 'rubric': return tip(ui('最近一次按评分标准批改：得分不足六成'));
-    default: return tip(ui('未掌握：闪卡和开放题由你自评，最近一次自评低于 3 分。'), ui('自评到 3 分以上，它就会移出错题本。'));
+    default: return tip(ui('未掌握：闪卡和开放题由你自评，最近一次自评低于 3 分。'), ui('自评到 3 分以上，它会移到「已订正」，记录仍保留。'));
   }
 }
+/** The same mark in 已订正: it says how the question was last missed, not how it stands now. */
+const historyTip = () => tip(ui('这是这道题最近一次答错时的类型；现在已答对，记录保留。'));
 
 /** The one fold control of the page (a group header, a question row, a recommendation): a whole row is the target. */
 function FoldButton({ className, open, controls, onClick, children }) {
   return <button type="button" className={className} aria-expanded={open} aria-controls={controls} onClick={onClick}>{children}</button>;
 }
 
-function StatusMark({ kind }) {
-  return <Tooltip layer content={statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}>{statusLabel(kind)}</span></Tooltip>;
+function StatusMark({ kind, history = false }) {
+  return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}>{statusLabel(kind)}</span></Tooltip>;
 }
 
 function VariantControl({ state, onGenerate, onPractice, disabled }) {
@@ -113,6 +116,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
         : detail?.error ? <InlineMessage tone="error">{ui("读取详情失败，稍后再试")}</InlineMessage>
           : (
             <dl className="wb-facts">
+              <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
               <DetailLine label={ui("你的答案")}>{detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer}</DetailLine>
               <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
               <DetailLine label={ui("解析")}>{detail.explanation}</DetailLine>
@@ -149,7 +153,7 @@ const sameRow = (a, b) => Object.keys(a).every((key) => (key === 'state' ? sameV
 
 /* One question. Memoised, so opening a group, typing in the search box or a status poll redraws only the rows whose own props changed (the
    `handlers` are stable). */
-const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers }) {
+const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, history = false, mistake = "" }) {
   const detailId = `wb-detail-${it.cardId}`;
   const recs = useMemo(() => (isOpen ? relatedTo(recItems, it.cardId) : []), [isOpen, recItems, it.cardId]);
   return (
@@ -160,7 +164,13 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
           <span className="wb-meta" title={metaText}>{metaText}</span>
           <span className="wb-prompt" title={plainPrompt(it.prompt)}>{plainPrompt(it.prompt)}</span>
         </FoldButton>
-        <StatusMark kind={statusOf(it)} />
+        <StatusMark kind={statusOf(it)} history={history} />
+        {history && (
+          <span className="wb-fixed">
+            <Badge tone="success" size="sm" icon="success" className="wb-fixed-mark">{ui("已订正")}</Badge>
+            <span className="wb-fixed-meta">{mistake}</span>
+          </span>
+        )}
         {(canGenerate || state.kind === "ready") && (
           <VariantControl state={state} disabled={variantDisabled}
             onGenerate={canGenerate ? () => handlers.generate(it) : undefined}
@@ -181,12 +191,18 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
 }, sameRow);
 
 export function WrongBookView({
-  data, course, onCourse, showInactive, onShowInactive, items, counts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
+  data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings, busy,
   onLibrary, onCreate, onSources, openKey, initial = {},
 }) {
   useInjectCss(css, "study-views");
   useInjectCss(wrongCss, "study-wrongbook");
+  // 待巩固 is the page; 已订正 is its history. The switch shows both counts and is only offered once there is a history; while the history is open it
+  // stays (even at 0) so the learner can always come back.
+  const isHistory = view === "history";
+  const historyCount = viewCounts?.history ?? 0;
+  const weakCount = viewCounts?.weak ?? counts.total;
+  const showViews = typeof onView === "function" && (historyCount > 0 || isHistory);
   const [groupBy, setGroupBy] = useState(() => initial.groupBy || readGroupBy());
   const chooseGroupBy = (value) => { setGroupBy(value); saveGroupBy(value); };
   const [expanded, setExpanded] = useState(() => new Set(initial.expanded || []));
@@ -301,7 +317,7 @@ export function WrongBookView({
   };
   const recsShown = recsAll ? recItems : recItems.slice(0, RECS_PREVIEW);
   // One folded line from the first paint, so the answer never inserts a block above the list (#206).
-  const showRecs = total > 0 && (!!recs || recsLoading);
+  const showRecs = !isHistory && total > 0 && (!!recs || recsLoading);
   const practiceRec = (rec) => onPractice([refOf(rec)]);
   const groupsId = useId();
   // The handlers every row shares; the row itself is memoised, so these must keep their identity from render to render.
@@ -319,23 +335,37 @@ export function WrongBookView({
     <section className="page wb">
       <PageHeader title={ui("错题与待巩固")}
         description={<>
-          {counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral]) : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
+          {isHistory
+            ? counts.total ? uiFormat('已订正的错题：答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估 {2} 题。', [counts.graded, counts.self, counts.oral])
+              : ui('答对一次后，错题会移到这里，作为历史保留，随时可以再练。')
+            : counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral])
+              : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
+          {/* The switch already says 已订正 N; the weak page's header says the history is kept so a cleared page is not read as an empty one. */}
+          {!isHistory && historyCount > 0 && <>{META_DOT}{uiFormat('已订正 {0} 题，记录保留', [historyCount])}</>}
           {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
         </>}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />}
         actions={<Button variant="secondary" icon="refresh" onClick={() => onReload(page)} disabled={busy || loading}>{ui("刷新")}</Button>} />
 
       {err && <ErrorState error={items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
-      {loading && !items && <LoadingState label={ui("正在读取待巩固题…")} />}
+      {loading && !items && <LoadingState label={ui(isHistory ? "正在读取已订正的错题…" : "正在读取待巩固题…")} />}
 
-      {hasCoach && onPracticePrepared && coach.ready > 0 && (
+      {/* 待巩固 / 已订正 first: a cleared 待巩固 page must not read as "no mistakes ever" (the field report). */}
+      {showViews && (
+        <div className="wb-views">
+          <SegmentedControl label={ui("错题视图")} value={view} size="sm" onChange={onView}
+            options={[{ value: "weak", label: uiFormat("待巩固 {0}", [weakCount]) }, { value: "history", label: uiFormat("已订正 {0}", [historyCount]) }]} />
+        </div>
+      )}
+
+      {!isHistory && hasCoach && onPracticePrepared && coach.ready > 0 && (
         <Banner tone="success" icon="sparkle" title={uiFormat("已为你备好 {0} 道变式题", [coach.ready])}
           action={{ label: ui("去练 →"), onClick: () => onPracticePrepared({}), disabled: busy }}>
           {ui("它们由你的错题改写而来，练完会放进「为你定制」。")}
         </Banner>
       )}
 
-      {total > 0 && (
+      {!isHistory && total > 0 && (
         <div className="wb-retrain">
           <div className="wb-retrain-copy">
             <strong>{ui("重练")}</strong>
@@ -355,19 +385,9 @@ export function WrongBookView({
       )}
 
       {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
-      <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
+      {!isHistory && <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
         onPractice={data?.decks?.some((deck) => deck.format === "case-study" && !deck.archived)
-          ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />
-
-      {items && !counts.total && (
-        <EmptyState data-tour="wrongbook-list" icon="success" title={data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}
-          description={data?.attempts?.length
-            ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
-            : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}>
-          <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
-            onCreate={onCreate} onSources={onSources} />
-        </EmptyState>
-      )}
+          ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />}
 
       {showRecs && (
         <section className={"wb-recs" + (recsOpen && recItems.length ? " is-open" : "")} aria-labelledby="wb-recs-title" data-tour="wrongbook-recs">
@@ -403,6 +423,19 @@ export function WrongBookView({
         </section>
       )}
 
+      {items && !counts.total && (isHistory ? (
+        <EmptyState data-tour="wrongbook-list" icon="success" title={ui("还没有已订正的错题")}
+          description={ui("答对一次后，错题会移到这里，作为历史保留，随时可以再练。")} />
+      ) : (
+        <EmptyState data-tour="wrongbook-list" icon="success" title={data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}
+          description={data?.attempts?.length
+            ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
+            : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}>
+          <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
+            onCreate={onCreate} onSources={onSources} />
+        </EmptyState>
+      ))}
+
       {total > 0 && (
         <div className="wb-controls">
           <div className="wb-view">
@@ -415,7 +448,7 @@ export function WrongBookView({
               <Button variant="quiet" size="sm" disabled={!anyOpen} onClick={() => setOpenGroups(new Set())}>{ui("全部收起")}</Button>
             </span>
           </div>
-          {canGenerate && (!filtering || shown.length > 0) && (
+          {!isHistory && canGenerate && (!filtering || shown.length > 0) && (
             <div className="wb-batch">
               <Tooltip layer content={generateTip()}>
                 <Button variant="secondary" size="sm" icon="sparkle" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
@@ -447,7 +480,7 @@ export function WrongBookView({
           </div>
           <div className="wb-filter-status">
             <div className="wb-status-group" role="group" aria-label={ui("按状态筛选")}>
-              <Tooltip layer content={tip(ui('显示所有待巩固的题。'))}>
+              <Tooltip layer content={tip(ui(isHistory ? '显示所有已订正的题。' : '显示所有待巩固的题。'))}>
                 <Chip size="sm" selected={filter.status === 'all'} onClick={() => patchFilter({ status: 'all' })}>
                   {ui("全部")} <span className="wb-num">{STATUS_KINDS.reduce((sum, kind) => sum + kindsShown[kind], 0)}</span>
                 </Chip>
@@ -472,7 +505,7 @@ export function WrongBookView({
         </div>
       )}
 
-      {gated && total > 0 && (
+      {!isHistory && gated && total > 0 && (
         <ModelSetupGate feature="variants" model={{ ready: false }} onOpenSettings={onOpenSettings} />
       )}
 
@@ -520,7 +553,7 @@ export function WrongBookView({
                     <Button variant="quiet" size="sm" icon="filter" onClick={() => onlyThisDeck(group)}>{ui("只看这个题组")}</Button>
                   </Tooltip>
                 )}
-                {canGenerate && todo.length > 0 && (
+                {!isHistory && canGenerate && todo.length > 0 && (
                   <Tooltip layer content={generateTip()}>
                     <Button variant="quiet" size="sm" icon="sparkle" disabled={busy || working} onClick={() => generate(todo)}>
                       {uiFormat("为本组生成变式 ({0})", [todo.length])}
@@ -534,14 +567,15 @@ export function WrongBookView({
                 {group.rows.map((it) => (
                   <Row key={it.cardId} it={it} metaText={group.mode === "topic" ? shortName(it.deckTitle) : it.topic || ui("未分类")}
                     isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]} recItems={recItems} shortName={shortName}
-                    canGenerate={canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} />
+                    canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers}
+                    history={isHistory} mistake={isHistory ? joinMeta([uiFormat("答错 {0} 次", [it.wrongCount ?? 0]), uiFormat("最近答错 {0}", [formatDateTime(it.lastWrongAt, "stamp")])]) : ""} />
                 ))}
               </ul>
             )}
           </div>
         );
       })}
-      {items && hasMore && <nav className="wb-pages" aria-label={ui("待巩固题分页")}>
+      {items && hasMore && <nav className="wb-pages" aria-label={ui(isHistory ? "已订正题分页" : "待巩固题分页")}>
         <span>{uiFormat("第 {0}–{1} 题 / 共 {2} 题", [page * pageSize + 1, page * pageSize + total, counts.total])}</span>
         <Button disabled={busy || loading || page === 0} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
         <Button disabled={busy || loading || (page + 1) * pageSize >= counts.total}
@@ -555,9 +589,13 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const { call, busy, openSettings } = useStudy();
   const [course, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
-  const key = JSON.stringify(scopeArgs(course, showInactive));
+  // 待巩固 is the page and 已订正 the mistakes it kept: the service reads the chosen view, so neither list is filtered apart here.
+  const [view, setView] = useState('weak');
+  const scopeKey = JSON.stringify(scopeArgs(course, showInactive));
+  const key = JSON.stringify([scopeKey, view]);
   const [page, setPage] = useState(0);
   const [result, setResult] = useState(null),
+    [viewCounts, setViewCounts] = useState({ scope: '', weak: 0, history: 0 }),
     [loading, setLoading] = useState(true),
     [err, setErr] = useState(""),
     [recs, setRecs] = useState(null),
@@ -570,6 +608,8 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const current = result?.key === key ? result : null;
   const items = current?.items;
   const counts = current?.counts || { total: 0, graded: 0, self: 0, oral: 0 };
+  // Both views' counts, as last read in this scope: the switch keeps its numbers while the other view loads, and the header stops at the scope edge.
+  const knownViewCounts = viewCounts.scope === scopeKey ? viewCounts : null;
   const coach = coachLive || data?.coach || null;
 
   const load = useCallback(async (requestedPage = 0) => {
@@ -581,11 +621,11 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       const scope = scopeArgs(course, showInactive);
       // A page of this view is up to ten service pages, read one after the other (so a filter sees all of them, and the first draw waits for one).
       const readPage = async (at) => {
-        const first = await call("wrongbook", { ...scope, offset: at * PAGE_SIZE, limit: FETCH_LIMIT });
+        const first = await call("wrongbook", { ...scope, view, offset: at * PAGE_SIZE, limit: FETCH_LIMIT });
         const found = [...(first?.items || [])];
         const wanted = Math.min(PAGE_SIZE, Math.max(0, (first?.total || 0) - at * PAGE_SIZE));
         while (found.length < wanted && request === seq.current) {
-          const more = await call("wrongbook", { ...scope, offset: at * PAGE_SIZE + found.length, limit: FETCH_LIMIT });
+          const more = await call("wrongbook", { ...scope, view, offset: at * PAGE_SIZE + found.length, limit: FETCH_LIMIT });
           if (!more?.items?.length) break;
           found.push(...more.items);
         }
@@ -597,26 +637,36 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
         res = await readPage(targetPage);
       }
       if (request !== seq.current) return;
-      setResult({ key, counts: { total: res?.total ?? res?.items?.length ?? 0,
-        graded: res?.gradedTotal ?? res?.items?.filter((item) => item.assessment === "graded").length ?? 0,
-        self: res?.selfTotal ?? res?.items?.filter((item) => item.assessment === "self").length ?? 0,
-        oral: res?.oralTotal ?? 0, rubric: res?.rubricTotal ?? 0 },
+      // An older service returns no view: read its answer as the weak list, with no history to offer.
+      const answerView = res?.view === "history" || res?.view === "weak" ? res.view : "weak";
+      const viewTotal = res?.total ?? res?.items?.length ?? 0;
+      const numberOf = (value, fallback) => (Number.isFinite(value) ? value : fallback);
+      const both = res?.view === "weak" || res?.view === "history"
+        ? { weak: numberOf(res?.counts?.weak, answerView === "weak" ? viewTotal : 0), history: numberOf(res?.counts?.history, 0) }
+        : { weak: viewTotal, history: 0 };
+      const storedKey = JSON.stringify([scopeKey, answerView]);
+      setViewCounts({ scope: scopeKey, ...both });
+      setResult({ key: storedKey, view: answerView, viewCounts: both,
+        counts: { total: viewTotal,
+          graded: res?.gradedTotal ?? res?.items?.filter((item) => item.assessment === "graded").length ?? 0,
+          self: res?.selfTotal ?? res?.items?.filter((item) => item.assessment === "self").length ?? 0,
+          oral: res?.oralTotal ?? 0, rubric: res?.rubricTotal ?? 0 },
       // Keep this guard for older service versions that still return suspended cards.
         items: (res?.items || []).filter((it) => it && it.deckId && it.cardId && !it.suspended) });
       setPage(targetPage);
       asked.current = new Set();
       setDetails({});
-      // Similar questions are a bonus: a library without the read just shows none.
-      if (res?.total) call("wrongbook.recommend", { ...scope, limit: 10 })
-        .then((found) => request === seq.current && setRecs({ key, items: found?.items || [] }))
-        .catch(() => request === seq.current && setRecs({ key, items: [] }));
+      // Similar questions are a bonus of the weak list: a library without the read just shows none.
+      if (viewTotal && answerView === "weak") call("wrongbook.recommend", { ...scope, limit: 10 })
+        .then((found) => request === seq.current && setRecs({ key: storedKey, items: found?.items || [] }))
+        .catch(() => request === seq.current && setRecs({ key: storedKey, items: [] }));
       else setRecs(null);
     } catch (e) {
       if (request === seq.current) setErr(errorMessage(e));
     } finally {
       if (request === seq.current) setLoading(false);
     }
-  }, [call, course, showInactive, key]);
+  }, [call, course, showInactive, scopeKey, view]);
   useEffect(() => {
     load(0);
   }, [load]);
@@ -635,14 +685,17 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     if (asked.current.has(ref.cardId)) return;
     asked.current.add(ref.cardId);
     setDetails((known) => ({ ...known, [ref.cardId]: "loading" }));
-    call("wrongbook.detail", ref).then((detail) => setDetails((now) => ({ ...now, [ref.cardId]: detail })))
+    // A history row opens on the answer that was wrong, so the detail is asked in the same view as the list.
+    call("wrongbook.detail", { ...ref, ...(view === "history" ? { view: "history" } : {}) })
+      .then((detail) => setDetails((now) => ({ ...now, [ref.cardId]: detail })))
       .catch((e) => setDetails((now) => ({ ...now, [ref.cardId]: { error: e.message || true } })));
-  }, [call]);
+  }, [call, view]);
 
   return (
-    <WrongBookView data={data} course={course} onCourse={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} items={items} counts={counts} loading={loading} err={err}
+    <WrongBookView data={data} course={course} onCourse={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} items={items} counts={counts}
+      view={view} onView={setView} viewCounts={current?.viewCounts || knownViewCounts} loading={loading} err={err}
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
-      recs={recs?.key === key ? recs : null} recsLoading={!!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
+      recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
       busy={busy} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
