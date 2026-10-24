@@ -30,6 +30,10 @@ What happened is said by a receipt at the bottom of the page, a small stamped sl
 
 The chat's calls are small on purpose: the host cuts long tool answers, and in Auto permission mode it reviews every call with all the earlier ones, so a conversation that writes whole files would overflow. When a conversation gets long, the chat finishes the point it is on, says where it stopped and suggests a new conversation; in Auto mode one conversation per chapter works best. Write "go on from 3.2" in the new conversation.
 
+### If the permission review itself fails
+
+The permission review ("auto-review") is part of DSH, not of StudyHub: StudyHub does not run it, and it declares nothing that switches it on or off. If the host's review service is down or rejects its own request (the chat sees `INVALID_REQUEST` / 400, on reads such as `book.toc` as well as on writes), nothing in the book has been changed by that call. Wait a few minutes and ask again, start a new conversation (a long one makes the review's request larger), or approve the call by hand in a permission mode that asks you. The chat is told to stop and say so rather than retry in a loop or turn to a heavier call such as `course.book.save`. An outage like this is for the DSH project to fix; StudyHub cannot repair it.
+
 ## Making the skill available
 
 When the plugin starts in a DSH that has the skill registry, it registers `study-book` itself, and the chat's skill list shows it in every session that has the skill tool (the study preset has it). If your chat does not show `study-book`, copy the folder `skills/study-book` of the installed plugin to `~/.dsh/skills/study-book` (so that the file is `~/.dsh/skills/study-book/SKILL.md`); DSH reads skills from there too. The plugin itself never writes outside its own folder and the library.
