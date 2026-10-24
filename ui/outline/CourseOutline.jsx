@@ -75,7 +75,8 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
     try {
       // The interface language goes with every request (uiLanguage), so the task speaks it without being told here.
       // `papers`: null leaves the choice to the build (the outline's, else the papers recognised by name); a list is the learner's (empty: none).
-      await act('generation.courseOutline.build', { course, ...(Array.isArray(papers) ? { papers } : {}) },
+      // The click is the learner's go-ahead (`confirm`): a rebuild moves the review book's own text by pages, and what matches no new point waits in 未归位 (#461).
+      await act('generation.courseOutline.build', { course, confirm: true, ...(Array.isArray(papers) ? { papers } : {}) },
         result => notify({ text: startedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, notify]);

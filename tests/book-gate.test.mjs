@@ -273,7 +273,7 @@ test('gate 2.7: a moved point says where its notes came from, once on the book p
   state.sources.push(outlineOf([{ id: 'c2', title: 'Introduction', children: [{ id: 'what', title: 'What architects do', anchors: [lecture] }] }], '2026-10-12T00:00:00.000Z'));
   state.revision = 2;
   const opened = openCourseBook(state, {});
-  assert.deepEqual(opened.moves.list, [{ from: 'Lecture one', to: 'What architects do', folded: false }]);
+  assert.deepEqual(opened.moves.list, [{ from: 'Lecture one', to: 'What architects do', folded: false, share: 1 }]);
   assert.equal(opened.nodes[0].children[0].movedFrom, 'Lecture one');
 });
 
