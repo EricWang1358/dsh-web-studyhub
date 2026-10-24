@@ -41,6 +41,7 @@ Write for a beginner revising alone: long-form, plain language, the why before t
 
 - Small calls only: at most 4 pages read, and one point or one section written per call. Never `course.book.open` or `course.book.save` for this work (they carry the whole book or a whole file).
 - Call `study_workspace` directly, never inside `run_code`.
+- If a call is refused with `INVALID_REQUEST` or a 400 from the permission review (the host's, not StudyHub's; it can hit reads like `book.toc` too), do not retry in a loop and do not turn to `course.book.open` or `course.book.save` instead. Nothing was changed by that call: tell the learner it is the host's review service, and suggest waiting a few minutes, a new conversation, or a permission mode that asks them.
 - When the conversation gets long, finish the point you are on, say where you stopped (number and title) and suggest a new conversation to go on. In Auto permission mode prefer a fresh conversation per chapter.
 
 ## Report to the learner
