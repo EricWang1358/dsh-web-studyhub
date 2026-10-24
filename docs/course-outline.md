@@ -106,7 +106,7 @@ The round comes back to the outline: **Back to the outline** in the round and on
 
 - The quality of the organised outline depends on the model; it has been checked with a fake model on a synthetic library shaped like a real one, not yet with a real model on a real course.
 - The order of new questions in **Continue course**, on the home page and in the **Study map** is still the deck order (step 3 will prefer the outline).
-- An outline is never edited by hand; **Reorganise** makes a new one.
+- An outline is never edited by hand; **Reorganise** makes a new one. The review book made from it can be: its chapters and points can be renamed, moved and deleted without touching the outline ([review book](review-book.md#edit-it)).
 - A question cannot be moved to another row by hand.
 - Recordings keep their parts as chapters only when the material has chapters; there is no jump to a time in the recording.
 - The quality of the review book's explanations depends on the model; the flow, the call counts and the quote checks have been verified with a fake model, the content not yet with a real model on a real textbook.
