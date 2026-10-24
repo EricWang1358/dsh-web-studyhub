@@ -5,7 +5,7 @@
    first. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MOVE_MIN_SHARE, remapManifest } from '../lib/course-book-remap.js';
+import { MOVE_MIN_SHARE, MOVE_PART_SHARE, remapManifest } from '../lib/course-book-remap.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
@@ -25,7 +25,7 @@ test('a point of another title takes the old point\'s text only when it holds mo
   const old = { nodes: [leaf('A', 'h1', 'Cloud native', ['a']), leaf('C', 'h2', 'Layers', ['c'])] };
   const { nodes, moved, held, lost } = remapManifest(old, [{ id: 'B', title: 'Databases state failure conditions', anchors: ['b'] },
     { id: 'D', title: 'Layered style', anchors: ['d'] }], 3, { sourcesOf });
-  assert.ok(MOVE_MIN_SHARE > 0.1 && MOVE_MIN_SHARE <= 0.7);
+  assert.ok(MOVE_MIN_SHARE > 0.1 && MOVE_MIN_SHARE <= 0.7 && MOVE_PART_SHARE < MOVE_MIN_SHARE);
   assert.equal(moved.has('A'), false, 'one tenth of "Cloud native" is in the new point: its text does not go under that title');
   assert.deepEqual(held.map(item => [item.node.id, item.likely, item.share]), [['A', 'B', 0.1]]);
   assert.equal(nodes[0].hid, 'h3', 'the new point gets a new heading id, not the old one');
@@ -35,6 +35,10 @@ test('a point of another title takes the old point\'s text only when it holds mo
   const part = remapManifest({ nodes: [leaf('W', 'h1', 'Whole lecture', ['w'])] }, [{ id: 'P', title: 'Its first section', anchors: ['p1'] }, { id: 'Q', title: 'Its second', anchors: ['p2'] },
     { id: 'R', title: 'Its third', anchors: ['p3'] }], 3, { sourcesOf: anchor => ({ w: [span('s9', 0, 300)], p1: [span('s9', 0, 100)], p2: [span('s9', 100, 200)], p3: [span('s9', 200, 300)] })[anchor] });
   assert.deepEqual([part.moved.get('W'), part.held.length, part.nodes[0].moveShare], ['P', 0, 0.33]);
+  // A sliver of a long point (a tenth of its pages) does not take the whole point's text, even when it is all from that point.
+  const sliver = remapManifest({ nodes: [leaf('W', 'h1', 'Cloud native', ['w'])] }, [{ id: 'S', title: 'Databases state failure conditions', anchors: ['s'] }], 3,
+    { sourcesOf: anchor => ({ w: [span('s9', 0, 1000)], s: [span('s9', 0, 100)] })[anchor] });
+  assert.deepEqual([sliver.moved.size, sliver.held.map(item => [item.node.id, item.likely, item.share])], [0, [['W', 'S', 0.1]]]);
   // The same title moves whatever the share; an old point held back may still be matched by its title.
   const titled = remapManifest(old, [{ id: 'B', title: 'Cloud native', anchors: ['b'] }], 3, { sourcesOf });
   assert.deepEqual([titled.moved.get('A'), titled.held.length, titled.nodes[0].hid], ['B', 0, 'h1']);
