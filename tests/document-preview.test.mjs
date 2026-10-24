@@ -81,3 +81,33 @@ test('card selections expose a source entry', () => {
   const copied = renderToStaticMarkup(React.createElement(CitationDisclosure, { card: { selections: [selection], citations: [{ sourceId: 's1', quote: 'passage', selection: structuredClone(selection) }] }, sources: [], onOpenSource: () => {} }));
   assert.match(copied, /1.*条/);
 });
+
+/* #456: the page a question in 原始 PDF is about comes from the page the reader's own controls show. */
+test('the page scope names the page source, a page without saved text, and the page selection without a quote', async () => {
+  const { pageScopeOf, pageSelection, pageCount, clampPage, pageKey } = await import('../ui/document-preview/page-scope.js');
+  const sources = [{ id: 'p1', text: 'One', document: { page: 1, totalPages: 4 } }, { id: 'p2', text: '  \n', document: { page: 2, totalPages: 4 } },
+    { id: 'p4', text: 'Four', document: { page: 4, totalPages: 4 } }];
+  assert.deepEqual(pageScopeOf(sources, 1), { kind: 'page', page: 1, sourceId: 'p1', empty: false });
+  assert.equal(pageScopeOf(sources, 2).empty, true, 'a page of blanks has nothing to answer from');
+  assert.deepEqual(pageScopeOf(sources, 3), { kind: 'page', page: 3, sourceId: '', empty: true }, 'a page skipped on import');
+  assert.equal(pageScopeOf([{ id: 'c', chars: 40, document: { page: 1 } }], 1).empty, false, 'a converted page without its text still counts its characters');
+  assert.equal(pageCount(sources), 4); assert.equal(pageCount([{ id: 'a' }, { id: 'b' }]), 2);
+  const document = { documentId: 'doc', revision: 'r1' };
+  assert.deepEqual(pageSelection(document, pageScopeOf(sources, 4)), { documentId: 'doc', revision: 'r1', sourceId: 'p4', page: 4 });
+  assert.equal(pageSelection(document, pageScopeOf(sources, 3)), null);
+  assert.equal(pageSelection(document, null), null);
+  assert.equal(clampPage('3', 4), 3); assert.equal(clampPage(9, 4), 4); assert.equal(clampPage(0, 4), 1); assert.equal(clampPage('2.6', 4), 3);
+  assert.equal(clampPage('', 4), null); assert.equal(clampPage('abc', 4), null);
+  assert.notEqual(pageKey({ documentId: 'doc', revision: 'r1', sourceId: 'p1', page: 1 }), pageKey({ documentId: 'doc', revision: 'r1', sourceId: 'p4', page: 4 }));
+});
+
+test('原始 PDF: a selection is never captured or kept there, and the frame follows the page controls', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const viewer = await readFile(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
+  assert.match(viewer, /if \(localMode \|\| view === 'original'\) return;/, 'select() ignores the PDF view');
+  assert.match(viewer, /useEffect\(\(\) => \{ if \(view === 'original'\) setCapture\(null\); \}, \[view\]\);/, 'switching to the PDF view drops the old selection');
+  assert.match(viewer, /capture=\{view === 'original' \? null : capture\} scope=\{pageScope\}/);
+  assert.match(viewer, /\{view !== 'original' && <Button className="study-document-wide" icon="plus"[^\n]*使用当前选区/, '使用当前选区 is not offered there');
+  assert.match(viewer, /<PdfPageBar page=\{pdfPage\} total=\{totalPages\} onPage=\{goToPage\} \/>[\s\S]{0,240}<iframe key=\{pdfPage\} src=\{`\$\{fileUrl\}#page=\$\{pdfPage\}`\}/, 'a new frame per page: a changed #page= alone is ignored by the PDF viewer');
+  assert.doesNotMatch(viewer, /要选中文字提问或补题，请切换到「阅读」。'\)\}<\/p>/, 'the old dead-end hint is gone');
+});

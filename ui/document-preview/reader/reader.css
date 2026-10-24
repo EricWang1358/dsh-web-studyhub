@@ -399,7 +399,12 @@
     .reader-scroll[data-mode='original'] .reader-page { height: 100%; max-width: none; margin: 0; padding: 0; }
     .reader-scroll[data-mode='original'] .study-document-body { height: 100%; max-width: none; }
     .reader-original, .reader-original iframe { width: 100%; height: 100%; }
-    .reader-original iframe { display: block; border: 0; border-radius: 0; background: var(--bg-sunken); }
+    .reader-original { display: flex; flex-direction: column; }
+    .reader-original iframe { display: block; flex: 1 1 auto; min-height: 0; border: 0; border-radius: 0; background: var(--bg-sunken); }
+    /* The page controls of 原始 PDF (PdfPageBar.jsx): the page they name is the page the learning panel asks about. */
+    .reader-pdf-bar { display: flex; flex: none; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-1-5) var(--space-3); border-bottom: 1px solid var(--line); background: var(--bg-raised); }
+    .reader-pdf-bar__input { width: 5.5em; text-align: center; font-variant-numeric: tabular-nums; }
+    .reader-pdf-bar__total { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     /* Previous / next section */
     .reader-pager {
       display: flex;

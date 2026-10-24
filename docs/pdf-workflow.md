@@ -67,6 +67,16 @@ The full pipeline is in [Question generation and quality checks](assessment-qual
 - To write more questions from the sources that got none, click **Use the uncovered 2 sources for more questions** (the number varies).
 - Publishing checks each question again. Default quick publication and reviewed publication differ; see [Question generation and quality checks](assessment-quality.md).
 
+## Ask about a page of the original PDF
+
+In the reader, **Original PDF** shows the file itself. Text cannot be selected there, so **Study tools** asks about the current page instead of a passage.
+
+- Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. Scrolling inside the PDF does not change the page that is asked about.
+- Type or paste a question and click **Answer from this page**. The answer uses the saved text of that page only. A very long page is cut, and the panel says how much was used.
+- The saved text has no pictures, so the model cannot read a figure. To see the page image, use **Original page** in **Read**.
+- A page without saved text (a scan, a picture, or a page skipped on import) says so and cannot be asked about.
+- To ask about one passage, keep an answer as an annotation or add questions to a deck, switch to **Read** and select the passage.
+
 ## How text is extracted
 
 StudyHub reads the text layer of each page. It does not run OCR and does not interpret pictures, diagrams or formulas.

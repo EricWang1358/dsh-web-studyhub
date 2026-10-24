@@ -19,7 +19,8 @@ const compiled = await build({ stdin: { contents: `
   export { OutlineAssistView } from './ui/document-preview/reader/OutlineAssist.jsx';
   export { default as TranslationBlock } from './ui/document-preview/translation/TranslationBlock.jsx';
   export { TranslationMenu } from './ui/document-preview/translation/TranslationMenu.jsx';
-  export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';`, resolveDir: process.cwd() },
+  export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';
+  export { default as PdfPageBar } from './ui/document-preview/reader/PdfPageBar.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -117,5 +118,65 @@ test('English: the fold, the gate and the reasons are English', () => {
     assert.doesNotMatch(block, han);
     const answered = answerNode(addNode(emptyThread(), { id: 'n1', parentId: null, question: 'q' }), 'n1', 'a');
     assert.doesNotMatch(render(React.createElement(lib.LearningPanel, panel({ thread: answered, annotateReady: true, onMode() {}, onKeep() {} }))), han);
+  } finally { lib.setUiLanguage('zh'); }
+});
+
+/* #456: in 原始 PDF the panel asks about the current page. It says which page, never shows an old selection, offers a free question box
+   and the thread, and leaves what needs a passage (chips, 批注, 补充到现有题组) to 阅读. */
+const pageScope = (extra = {}) => ({ kind: 'page', page: 3, sourceId: 'p3', empty: false, ...extra });
+const pagePanel = (extra = {}) => panel({ capture: { quote: 'An old selection from 阅读' }, scope: pageScope(),
+  resolution: { status: 'resolved', scope: 'page', selection: { documentId: 'doc', revision: 'r1', sourceId: 'p3', page: 3 } }, ...extra });
+
+test('原始 PDF: the panel names the page, has a free question box, and shows no old selection', () => {
+  lib.setUiLanguage('zh');
+  const out = render(React.createElement(lib.LearningPanel, pagePanel({ question: '这一页讲了什么？', onQuick() {} })));
+  assert.match(text(out), /正在问：第 3 页/);
+  assert.doesNotMatch(out, /An old selection/, 'the stale quote is not shown');
+  assert.doesNotMatch(out, /study-passage__quote/);
+  assert.match(text(out), /针对这一页提问/);
+  assert.match(out, /<textarea[^>]*placeholder="输入或粘贴问题/);
+  assert.match(out, /<button[^>]*type="submit"[^>]*>(?:<[^>]+>)*依据这一页回答/);
+  assert.doesNotMatch(out, /disabled=""[^>]*>(?:<[^>]+>)*依据这一页回答/, 'a typed question can be sent');
+  assert.doesNotMatch(out, /aria-label="快捷提问"|<label>补充到现有题组|>存为批注</, 'what needs a passage stays in 阅读');
+  assert.match(text(out), /看原页/, 'figures are pointed to 看原页');
+});
+
+test('原始 PDF: an empty box, a missing model, a page without text and a cut page each say so', () => {
+  lib.setUiLanguage('zh');
+  assert.match(render(React.createElement(lib.LearningPanel, pagePanel())), /disabled=""[^>]*>(?:<[^>]+>)*依据这一页回答/);
+  const gate = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', modelReady: false, askReady: false })), gone);
+  assert.match(gate, /<button[^>]*>(?:<[^>]+>)*前往设置|设置/);
+  const blank = render(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true, sourceId: '' }), resolution: null })));
+  assert.match(text(blank), /第 3 页没有保存的文字/);
+  assert.doesNotMatch(blank, /<textarea/, 'nothing to ask from a page without text');
+  const cut = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: { page: 3, chars: 9000, used: 8000, truncated: true } })));
+  assert.match(text(cut), /回答只依据了前 8000 字（共 9000 字）/);
+  const stale = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', resolution: { status: 'stale' } })));
+  assert.match(text(stale), /资料已更新，请重新打开这份资料再问这一页/);
+});
+
+test('原始 PDF: the page controls step, take a typed number and say the total', () => {
+  lib.setUiLanguage('zh');
+  const out = render(React.createElement(lib.PdfPageBar, { page: 1, total: 12, onPage() {} }));
+  assert.match(out, /aria-label="原始 PDF 翻页"/);
+  assert.match(out, /<button[^>]*disabled=""[^>]*aria-label="上一页"|<button[^>]*aria-label="上一页"[^>]*disabled=""/, 'no page before the first');
+  assert.match(out, /<input[^>]*type="number"[^>]*aria-label="页码"|<input[^>]*aria-label="页码"[^>]*type="number"/);
+  assert.match(text(out), /\/ 12 页/);
+  const inPanel = render(React.createElement(lib.LearningPanel, pagePanel({ pageTotal: 3, onPage() {} })));
+  assert.match(inPanel, /class="study-page-ask__step"/, 'the panel turns pages too (a narrow panel covers the controls)');
+  assert.match(inPanel, /<button[^>]*disabled=""[^>]*aria-label="下一页"|<button[^>]*aria-label="下一页"[^>]*disabled=""/, 'page 3 of 3 has no next page');
+  const last = render(React.createElement(lib.PdfPageBar, { page: 12, total: 12, onPage() {} }));
+  assert.match(last, /<button[^>]*disabled=""[^>]*aria-label="下一页"|<button[^>]*aria-label="下一页"[^>]*disabled=""/, 'no page after the last');
+});
+
+test('English: the page panel and the page controls are English', () => {
+  lib.setUiLanguage('en');
+  try {
+    for (const extra of [{ question: 'q' }, { scope: pageScope({ empty: true }) }, { pageCut: { chars: 9000, used: 8000, truncated: true } }, { resolution: { status: 'missing' } }]) {
+      const out = render(React.createElement(lib.LearningPanel, pagePanel(extra)), gone);
+      assert.doesNotMatch(out.replace(/An old selection from 阅读/g, ''), han, JSON.stringify(extra));
+    }
+    assert.match(text(render(React.createElement(lib.LearningPanel, pagePanel()))), /Asking about page 3/);
+    assert.doesNotMatch(render(React.createElement(lib.PdfPageBar, { page: 2, total: 5, onPage() {} })), han);
   } finally { lib.setUiLanguage('zh'); }
 });
