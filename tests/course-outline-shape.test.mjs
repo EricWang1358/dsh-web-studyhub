@@ -83,14 +83,46 @@ test('a build with maxPoints holds at most that many points, remembered on the o
   const all = leavesOf(free.nodes).length;
   assert.ok(all > 6, `${all} points without a cap`);
   assert.equal(free.shape, undefined, 'nothing asked, nothing remembered');
-  const capped = await build({ maxPoints: 6 });
-  assert.ok(leavesOf(capped.nodes).length <= 6);
-  assert.deepEqual(capped.shape, { maxPoints: 6 });
+  // A cap the chapters allow (one point a chapter at the least: chapters are never merged for it) holds.
+  const cap = free.nodes.length;
+  assert.ok(cap < all);
+  const capped = await build({ maxPoints: cap });
+  assert.ok(leavesOf(capped.nodes).length <= cap);
+  assert.deepEqual([capped.shape, capped.counts.overCap], [{ maxPoints: cap }, undefined]);
+  assert.deepEqual(capped.nodes.map(chapter => chapter.title), free.nodes.map(chapter => chapter.title), 'every chapter kept, with its title');
   const anchors = outline => [...leavesOf(outline.nodes).flatMap(leaf => leaf.anchors), ...outline.other.anchors].sort();
   assert.deepEqual(anchors(capped), anchors(free), 'every row is still held once');
-  assert.match(fake.of('reduce').at(-1).prompt, /at most 6 knowledge points/);
+  assert.match(fake.of('reduce').at(-1).prompt, new RegExp(`at most ${cap} knowledge points`));
   const again = await build({});
-  assert.deepEqual([leavesOf(again.nodes).length <= 6, again.shape], [true, { maxPoints: 6 }], 'a rebuild keeps the cut');
+  assert.deepEqual([leavesOf(again.nodes).length <= cap, again.shape], [true, { maxPoints: cap }], 'a rebuild keeps the cut');
+  // One the chapters do not allow is said, not forced.
+  const tight = await build({ maxPoints: 1 });
+  assert.equal(tight.counts.overCap, leavesOf(tight.nodes).length - 1);
+  const job = [...service.runtime.work.jobs.values()].filter(item => item.type === 'course-outline-build').at(-1);
+  assert.match(job.contract.stage.text, new RegExp(`比 maxPoints 多 ${tight.counts.overCap} 个`));
   const wider = await build({ maxPoints: 12, granularity: 'fine' });
   assert.deepEqual(wider.shape, { granularity: 'fine', maxPoints: 12 });
+  // Through the contract: null removes a kept value; a value out of range is refused by the build itself, naming the field.
+  assert.deepEqual((await build({ maxPoints: null })).shape, { granularity: 'fine' });
+  assert.equal((await build({ granularity: null })).shape, undefined);
+  await build({ maxPoints: 6, granularity: 'coarse' });
+  assert.deepEqual((await build({ maxPoints: null, granularity: null })).shape, undefined);
+  const refused = (extra, pattern) => assert.rejects(service.call('generation.courseOutline.build', { course: COURSE, language: 'zh', ...extra }),
+    error => error.code === 'course-outline-shape-invalid' && pattern.test(error.message));
+  await refused({ granularity: 'huge' }, /granularity 只能是 coarse、medium 或 fine/);
+  await refused({ maxPoints: 2.5 }, /maxPoints 要是 1 到 800 之间的整数/);
+  await refused({ maxPoints: 0 }, /maxPoints/);
+});
+
+test('the fit never merges the Other / not placed chapter or its leaf of loose items, never merges chapters for a cap on points, and says what is left over', () => {
+  const chapters = [{ title: 'One', intro: '', children: [leafOf('A', ['i1']), leafOf('B', ['i2'])] }, { title: 'Two', intro: '', children: [leafOf('C', ['i3'])] },
+    { title: 'Other / not placed', intro: '', fixed: true, children: [leafOf('Left point', ['i4']), { ...leafOf('Concepts not placed', ['i5']), fixed: true }] }];
+  const report = {};
+  fitOutline(chapters, { leaves: 1, report });
+  assert.deepEqual(chapters.map(chapter => [chapter.title, chapter.children.map(leaf => leaf.title)]),
+    [['One', ['A / B']], ['Two', ['C']], ['Other / not placed', ['Left point', 'Concepts not placed']]], 'chapters keep their titles; the protected leaf stands alone');
+  assert.equal(report.over, 3, 'four points where one was asked: said, not forced');
+  const fine = {};
+  fitOutline([{ title: 'One', intro: '', children: [leafOf('A', ['i1']), leafOf('B', ['i2'])] }], { leaves: 1, report: fine });
+  assert.equal(fine.over, 0);
 });

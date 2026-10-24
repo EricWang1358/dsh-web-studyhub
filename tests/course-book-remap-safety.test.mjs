@@ -5,7 +5,7 @@
    first. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MOVE_MIN_SHARE, MOVE_PART_SHARE, remapManifest } from '../lib/course-book-remap.js';
+import { MOVE_MIN_SHARE, remapManifest } from '../lib/course-book-remap.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
@@ -25,7 +25,7 @@ test('a point of another title takes the old point\'s text only when it holds mo
   const old = { nodes: [leaf('A', 'h1', 'Cloud native', ['a']), leaf('C', 'h2', 'Layers', ['c'])] };
   const { nodes, moved, held, lost } = remapManifest(old, [{ id: 'B', title: 'Databases state failure conditions', anchors: ['b'] },
     { id: 'D', title: 'Layered style', anchors: ['d'] }], 3, { sourcesOf });
-  assert.ok(MOVE_MIN_SHARE > 0.1 && MOVE_MIN_SHARE <= 0.7 && MOVE_PART_SHARE < MOVE_MIN_SHARE);
+  assert.ok(MOVE_MIN_SHARE > 0.1 && MOVE_MIN_SHARE <= 0.7);
   assert.equal(moved.has('A'), false, 'one tenth of "Cloud native" is in the new point: its text does not go under that title');
   assert.deepEqual(held.map(item => [item.node.id, item.likely, item.share]), [['A', 'B', 0.1]]);
   assert.equal(nodes[0].hid, 'h3', 'the new point gets a new heading id, not the old one');
@@ -35,10 +35,13 @@ test('a point of another title takes the old point\'s text only when it holds mo
   const part = remapManifest({ nodes: [leaf('W', 'h1', 'Whole lecture', ['w'])] }, [{ id: 'P', title: 'Its first section', anchors: ['p1'] }, { id: 'Q', title: 'Its second', anchors: ['p2'] },
     { id: 'R', title: 'Its third', anchors: ['p3'] }], 3, { sourcesOf: anchor => ({ w: [span('s9', 0, 300)], p1: [span('s9', 0, 100)], p2: [span('s9', 100, 200)], p3: [span('s9', 200, 300)] })[anchor] });
   assert.deepEqual([part.moved.get('W'), part.held.length, part.nodes[0].moveShare], ['P', 0, 0.33]);
-  // A sliver of a long point (a tenth of its pages) does not take the whole point's text, even when it is all from that point.
-  const sliver = remapManifest({ nodes: [leaf('W', 'h1', 'Cloud native', ['w'])] }, [{ id: 'S', title: 'Databases state failure conditions', anchors: ['s'] }], 3,
-    { sourcesOf: anchor => ({ w: [span('s9', 0, 1000)], s: [span('s9', 0, 100)] })[anchor] });
-  assert.deepEqual([sliver.moved.size, sliver.held.map(item => [item.node.id, item.likely, item.share])], [0, [['W', 'S', 0.1]]]);
+  // However many parts: a lecture cut into 6 or 12 points follows into its first part, nothing held, nothing lost.
+  for (const count of [6, 12]) {
+    const parts = Array.from({ length: count }, (_, at) => ({ id: `P${at}`, title: `Section ${at + 1}`, anchors: [`p${at}`] }));
+    const sourcesOf = anchor => (anchor === 'w' ? [span('s9', 0, count * 100)] : [span('s9', Number(anchor.slice(1)) * 100, Number(anchor.slice(1)) * 100 + 100)]);
+    const cut = remapManifest({ nodes: [leaf('W', 'h1', 'Whole lecture', ['w'])] }, parts, 3, { sourcesOf });
+    assert.deepEqual([cut.moved.get('W'), cut.held.length, cut.lost.length, cut.nodes[0].hid], ['P0', 0, 0, 'h1'], `${count} parts`);
+  }
   // The same title moves whatever the share; an old point held back may still be matched by its title.
   const titled = remapManifest(old, [{ id: 'B', title: 'Cloud native', anchors: ['b'] }], 3, { sourcesOf });
   assert.deepEqual([titled.moved.get('A'), titled.held.length, titled.nodes[0].hid], ['B', 0, 'h1']);
@@ -77,13 +80,31 @@ test('the book: a learner\'s note whose pages went mostly elsewhere waits in 未
   assert.equal(databases.mine, '', 'the note on stakeholders is not put under a point on databases');
   assert.notEqual(databases.hid, who.hid);
   assert.match(book.unplaced.text, /### Stakeholders and views（总纲重新整理后对不上新的知识点，先放在这里；最接近的是「Databases state failure conditions」，只有 \d+% 的页在那里）\n\nA long note on stakeholders and views\./);
-  const byFrom = new Map(book.moves.list.map(move => [move.from, move]));
-  assert.deepEqual([byFrom.get('What architects do').to, byFrom.get('What architects do').share, byFrom.get('What architects do').held ?? false], ['The architect\'s job', 1, false]);
-  const kept = byFrom.get('Stakeholders and views');
-  assert.deepEqual([kept.to, kept.held], ['Databases state failure conditions', true]);
-  assert.ok(kept.share > 0 && kept.share < MOVE_MIN_SHARE);
+  // The moves list only what moved; what was held back is listed apart (it is in 未归位, not under the closest point).
+  assert.deepEqual(book.moves.list, [{ from: 'What architects do', to: 'The architect\'s job', folded: false, share: 1 }]);
   assert.equal(book.moves.total, book.moves.list.length, 'how many moves there were, so a cut list says so');
   assert.equal(book.moves.held, 1);
+  const [kept] = book.moves.heldList;
+  assert.deepEqual([kept.from, kept.closest], ['Stakeholders and views', 'Databases state failure conditions']);
+  assert.ok(kept.share > 0 && kept.share < MOVE_MIN_SHARE);
+});
+
+test('the book: a 3.4 point of a whole lecture cut into six points follows to the first of them; nothing waits in 未归位', () => {
+  const { sources, decks } = outlineLibrary();
+  const state = { revision: 1, sources, documents: [], decks, drafts: [], attempts: [], runs: [], courses: [], focus: { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] } };
+  const lecture = lectureKey(sources);
+  const first = outlineOf(state, [{ id: 'c1', title: 'Materials', children: [{ id: 'lec', title: '01. Introduction to Solution Architecture v2.1', anchors: [lecture] }] }],
+    '2026-10-09T00:00:00.000Z');
+  state.sources.push(first);
+  openCourseBook(state, {});
+  bookOf(state).bookDoc.files['lec.mine.md'].text = 'My own note on the lecture.';
+  const six = Array.from({ length: 6 }, (_, at) => ({ id: `s${at}`, title: `Page ${at + 1} topic`, anchors: [`${lecture}@s${at}-${at}`] }));
+  state.sources = state.sources.map(source => (source.id === first.id ? { ...source, archived: true } : source))
+    .concat(outlineOf(state, [{ id: 'c2', title: 'Introduction', children: six }], '2026-10-10T00:00:00.000Z'));
+  const book = openCourseBook(state, {});
+  assert.equal(book.unplaced.text.trim(), '');
+  assert.equal(leaves(book.nodes).filter(point => point.mine === 'My own note on the lecture.').length, 1, 'the note is in the part it shares most with');
+  assert.equal(book.moves.held, 0);
 });
 
 test('organising the outline again when the book holds the learner\'s own text asks for confirm first, saying what will happen; an empty book does not', async t => {
@@ -106,5 +127,10 @@ test('organising the outline again when the book holds the learner\'s own text a
   });
   await assert.rejects(build({ language: 'en' }), error => error.code === 'course-outline-book-confirm' && /confirm: true/.test(error.message) && /1 knowledge point/.test(error.message));
   assert.equal(fake.calls.length, calls, 'refused before any model call');
+  // The review book asked to organise it again (rebuildOutline, here over an outline of an older version) asks the same.
+  await service.store.update(state => { for (const source of state.sources) if (source.provenance === 'course-outline' && !source.archived) delete source.courseOutline.from; });
+  await assert.rejects(service.call('generation.courseBook.build', { course: COURSE, language: 'zh', rebuildOutline: true }),
+    error => error.code === 'course-outline-book-confirm' && /confirm: true/.test(error.message));
+  assert.equal(fake.calls.length, calls);
   await settle({ confirm: true });
 });
