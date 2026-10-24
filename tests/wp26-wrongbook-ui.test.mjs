@@ -9,11 +9,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // variants per topic/row, and splits "重练" into three scopes.
 const compiled = await build({ stdin: { contents: `export {WrongBookView} from './ui/WrongBook.jsx';
   export {groupRows, retrainOptions, variantState, variantFailureText, reasonText} from './ui/wrongbook-model.js';
+  export {formatDateTime} from './ui/format.js';
   export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { WrongBookView, groupRows, retrainOptions, variantState, variantFailureText, reasonText, setUiLanguage } = module.exports;
+const { WrongBookView, groupRows, retrainOptions, variantState, variantFailureText, reasonText, formatDateTime, setUiLanguage } = module.exports;
 const noop = () => {};
 const han = /\p{Script=Han}/u;
 
@@ -191,5 +192,115 @@ test('English: every UI string is translated while question content stays as wri
     assert.match(text(consent), /Agree and generate/);
     const failed = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, coach: { ...english.coach, failedCards: [{ cardId: 'c4', message: '模型服务暂时不可用，稍后重试' }], preparingCards: [] } }));
     assert.doesNotMatch(failed, han);
+  } finally { setUiLanguage('zh'); }
+});
+
+
+/* ---- 已订正: the history view beside 待巩固 (v0.4) ---- */
+
+const escapeRe = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** A corrected mistake: the weak row's fields plus how often, when and how it was missed, as the service sends it. */
+const fixed = (cardId, deckId, topic, prompt, assessment = 'graded', { wrongCount = 2,
+  lastWrongAt = '2026-10-03T10:30:00Z', recoveredAt = '2026-10-05T09:00:00Z' } = {}) => ({
+  deckId, deckTitle: decks.find((deck) => deck.id === deckId).title, cardId, topic, prompt, assessment, kind: 'quiz',
+  lastGrade: 4, lastAt: recoveredAt, wrongCount, firstWrongAt: '2026-10-01T08:00:00Z', lastWrongAt, recoveredAt });
+const historyItems = [
+  fixed('h1', 'd4', '保护状态', '熔断器修好了吗？', 'graded', { wrongCount: 3, lastWrongAt: '2026-10-03T10:30:00Z', recoveredAt: '2026-10-05T09:00:00Z' }),
+  fixed('h2', 'd2', '集成收益', '集成收益记住了吗？', 'self', { wrongCount: 1, lastWrongAt: '2026-10-02T09:15:00Z', recoveredAt: '2026-10-04T09:00:00Z' })];
+const historyBase = { ...base, view: 'history', onView: noop, viewCounts: { weak: 5, history: 2 }, items: historyItems,
+  counts: { total: 2, graded: 1, self: 1, oral: 0, rubric: 0 } };
+
+test('待巩固 / 已订正 is one switch with both counts, opening on 待巩固', () => {
+  setUiLanguage('zh');
+  const html = render({ viewCounts: { weak: 5, history: 2 }, onView: noop });
+  assert.match(html, /aria-label="错题视图"/);
+  assert.match(html, /aria-pressed="true"[^>]*>待巩固 5</);
+  assert.match(html, /aria-pressed="false"[^>]*>已订正 2</);
+  const history = render(historyBase);
+  assert.match(history, /aria-pressed="false"[^>]*>待巩固 5</);
+  assert.match(history, /aria-pressed="true"[^>]*>已订正 2</);
+});
+
+test('no 已订正 switch while there is no history to show', () => {
+  setUiLanguage('zh');
+  assert.doesNotMatch(render({ viewCounts: { weak: 5, history: 0 }, onView: noop }), /aria-label="错题视图"/);
+  assert.doesNotMatch(render({ viewCounts: { weak: 5, history: 0 }, onView: noop }), />已订正 0</);
+  assert.doesNotMatch(render({ onView: noop }), /aria-label="错题视图"/, 'a host that sends no viewCounts offers no history');
+});
+
+test('the header counts the open view and points at the kept history only from 待巩固', () => {
+  setUiLanguage('zh');
+  const weak = text(render({ viewCounts: { weak: 5, history: 2 }, onView: noop }));
+  assert.match(weak, /客观答错 3 题 · 自评未掌握 1 题 · 口头评估待巩固 0 题。 · 已订正 2 题，记录保留/);
+  const cleared = text(render({ items: [], counts: { total: 0, graded: 0, self: 0, oral: 0, rubric: 0 }, viewCounts: { weak: 0, history: 2 }, onView: noop }));
+  assert.match(cleared, /客观答错、自评未掌握或口头评估待巩固的题会收在这里。 · 已订正 2 题，记录保留/);
+  const history = text(render(historyBase));
+  assert.match(history, /已订正的错题：答错 1 题 · 自评未掌握 1 题 · 口头评估 0 题。/);
+  assert.doesNotMatch(history, /题，记录保留/, 'the history page does not repeat its own count');
+});
+
+test('a history row keeps its 答错 / 未掌握 mark and adds 已订正 with how often and when it was missed', () => {
+  setUiLanguage('zh');
+  const html = render({ ...historyBase, initial: { groups: 'all' } });
+  const t = text(html);
+  assert.match(t, new RegExp('已订正 答错 3 次 · 最近答错 ' + escapeRe(formatDateTime('2026-10-03T10:30:00Z', 'stamp'))));
+  assert.match(t, new RegExp('已订正 答错 1 次 · 最近答错 ' + escapeRe(formatDateTime('2026-10-02T09:15:00Z', 'stamp'))));
+  const rowText = html.split('<li class="wb-row">').slice(1).map((row) => text(row).trim());
+  assert.match(rowText[0], /^保护状态 熔断器修好了吗？ 答错 .*已订正 答错 3 次 · 最近答错 /, 'the miss kind stays next to the 已订正 mark');
+  assert.match(rowText[1], /^集成收益 集成收益记住了吗？ 未掌握 .*已订正 答错 1 次 · 最近答错 /);
+  assert.equal((html.match(/class="[^"]*wb-fixed-mark/g) || []).length, 2, 'one mark per corrected row');
+  assert.equal((html.match(/>练<\/button>/g) || []).length, 2, '练 still practises that card');
+  const details = { h1: { yourAnswer: 'A', correctAnswer: 'B', explanation: '', misconception: '', selfGrade: null, lastGrade: 4, missedGrade: 1, missedAt: '2026-10-03T10:30:00Z' } };
+  const opened = text(render({ ...historyBase, details, initial: { groups: 'all', expanded: ['h1'] } }));
+  assert.match(opened, new RegExp('上次答错 ' + escapeRe(formatDateTime('2026-10-03T10:30:00Z', 'stamp'))));
+  assert.match(opened, /你的答案 A/, 'the detail opens on the answer that was wrong');
+});
+
+test('an empty 已订正 view says there is no history yet and keeps the way back', () => {
+  setUiLanguage('zh');
+  const html = render({ ...historyBase, items: [], counts: { total: 0, graded: 0, self: 0, oral: 0, rubric: 0 }, viewCounts: { weak: 5, history: 0 } });
+  const t = text(html);
+  assert.match(t, /还没有已订正的错题/);
+  assert.match(t, /答对一次后，错题会移到这里，作为历史保留，随时可以再练。/);
+  assert.doesNotMatch(t, /目前没有待巩固的题|还没有练习记录/);
+  assert.match(html, /aria-pressed="true"[^>]*>已订正 0</, 'the open view keeps its switch, so 待巩固 is always one click away');
+});
+
+test('the history view keeps the grouping, the filter and the paging, and leaves the weak-only work out', () => {
+  setUiLanguage('zh');
+  const weakData = { ...base.data, attempts: [{ assessment: 'rubric', timestamp: '2026-10-01T10:00:00Z',
+    rubric: { criteria: [{ label: '案例联系', score: 2, max: 5 }, { label: '假设说明', score: 4, max: 5 }] } }] };
+  const weak = text(render({ data: weakData, initial: { groups: 'all' } }));
+  for (const block of ['案例分析能力', '重练', '为你推荐', '生成变式']) assert.ok(weak.includes(block), `the 待巩固 page has ${block}`);
+  const html = render({ ...historyBase, data: weakData, initial: { groups: 'all' } });
+  const t = text(html);
+  for (const block of ['案例分析能力', '重练', '为你推荐', '生成变式', '不消耗模型']) assert.ok(!t.includes(block), `the 已订正 page still shows ${block}`);
+  assert.match(html, /aria-pressed="true"[^>]*>按题组/, 'grouping stays');
+  assert.match(html, /role="search"/, 'the deck / status / text filter stays');
+  assert.match(t, /显示 2 \/ 共 2 题/);
+  assert.match(t, /练这一组/, 'a group of corrected mistakes is still practised together');
+  const gated = { coach: { enabled: false, consent: null, ready: 0, readyCards: [], preparingCards: [], failedCards: [], tasks: [] } };
+  assert.match(text(render(gated)), /先配置一个 AI 模型/);
+  assert.doesNotMatch(text(render({ ...historyBase, ...gated })), /先配置一个 AI 模型/, 'no variant gate where there is no variant work');
+});
+
+test('English: the history view is translated while the question text stays as written', () => {
+  try {
+    setUiLanguage('en');
+    const englishDecks = [{ id: 'd4', course: 'PE', title: 'Final 04' }, { id: 'd2', course: 'PE', title: 'Final 02' }];
+    const items = [
+      { ...fixed('h1', 'd4', 'Circuit breaker', 'Which state rejects every request?', 'graded', { wrongCount: 3, lastWrongAt: '2026-10-03T10:30:00Z' }), deckTitle: 'Final 04' },
+      { ...fixed('h2', 'd2', 'Integration gains', 'What is the main gain?', 'self', { wrongCount: 1, lastWrongAt: '2026-10-02T09:15:00Z' }), deckTitle: 'Final 02' }];
+    const html = render({ ...historyBase, data: { ...base.data, decks: englishDecks }, items, initial: { groups: 'all' } });
+    assert.doesNotMatch(html.replace(/aria-label="[^"]*"/g, '$&'), han, 'no Chinese UI left');
+    const t = text(html);
+    assert.match(t, /To review 5/);
+    assert.match(t, /Corrected 2/);
+    assert.match(t, /Corrected mistakes: incorrect 1 · low self-ratings 1 · oral assessments 0\./);
+    assert.match(t, new RegExp('Corrected Missed 3 time\\(s\\) · Last missed ' + escapeRe(formatDateTime('2026-10-03T10:30:00Z', 'stamp'))));
+    const empty = render({ ...historyBase, data: { ...base.data, decks: englishDecks }, items: [],
+      counts: { total: 0, graded: 0, self: 0, oral: 0, rubric: 0 }, viewCounts: { weak: 5, history: 0 } });
+    assert.doesNotMatch(empty, han);
+    assert.match(text(empty), /No corrected mistakes yet/);
   } finally { setUiLanguage('zh'); }
 });

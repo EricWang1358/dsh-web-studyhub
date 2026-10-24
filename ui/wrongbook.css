@@ -73,6 +73,10 @@
     .wb-controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
     .wb-view { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
     .wb-fold-all { display: inline-flex; align-items: center; gap: var(--space-1); }
+    /* 待巩固 / 已订正: which list the page shows, both counts on the switch. */
+    .wb-views { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+    .wb-views .sh-seg { max-width: 100%; flex-wrap: wrap; }
+    .wb-views .sh-seg__item { font-variant-numeric: tabular-nums; }
     /* The filter bar is one wrapping line: deck, text, status, result. On a narrow page the deck and the text share the first row, the chips take the second, the count the third. */
     .wb-filter {
       display: flex;
@@ -190,6 +194,9 @@
     .wb-grade::before { content: "× "; }
     .wb-grade.self { color: var(--warn); }
     .wb-grade.self::before { content: "○ "; }
+    /* A corrected mistake: the 已订正 mark and how often, when and how it was missed. */
+    .wb-fixed { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); flex: none; }
+    .wb-fixed-meta { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .wb-why {
       flex: 0 1 15em;
       min-width: 0;
@@ -247,6 +254,7 @@
       .wb-row-toggle { flex-wrap: wrap; align-items: flex-start; }
       .wb-row-toggle .wb-prompt { flex: 1 1 100%; padding-left: var(--space-6); }
       .wb-row-toggle .wb-meta { flex: 1 1 auto; }
+      .wb-fixed { flex: 1 1 100%; padding-left: var(--space-6); }
       .wb-rec-toggle .wb-prompt { flex: 1 1 0; }
       .wb-why { flex: 1 1 100%; white-space: normal; padding-left: var(--space-6); }
       .wb-detail { margin-left: var(--space-2); }
