@@ -45,6 +45,9 @@ test('legacy citations infer courses without rewriting evidence; manual bulk cha
   await assert.rejects(service.call('source.courses.set', { assignments: [{ id: 'a', courses: [], expectedCourses: ['Databases'] }] }), /归属已变化/);
   await assert.rejects(service.call('source.courses.set', { assignments: [{ id: 'a', courses: [] }, { id: 'missing', courses: [] }] }));
   assert.deepEqual((await service.call('source.get', { id: 'a' })).courses, ['Systems']);
+  // A wrong key or a document-level id is told as what it is, not as 'choose sources' / 'missing source'.
+  await assert.rejects(service.call('source.courses.set', { sourceIds: ['a'], courses: [] }), /需要 assignments 数组/);
+  await assert.rejects(service.call('source.courses.set', { assignments: [{ id: 'document-' + 'a'.repeat(64) + '-pdf', courses: [] }] }), /文档级 id/);
   await service.call('source.courses.set', { assignments: [{ id: 'a', courses: [] }] });
   const result = (await service.call('snapshot')).sources[0];
   assert.deepEqual(result.courses, []);

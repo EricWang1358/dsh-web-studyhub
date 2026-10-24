@@ -78,6 +78,26 @@ test('book.read: one point, its files, headings, neighbours and pages; a long fi
   assert.equal(rest.files.mine.from, cut.more.offset);
   assert.ok(rest.files.mine.text.length <= 5500);
   assert.ok(sizeOf(rest) < LIMIT);
+  // A cut file says so and where to go on; reading on by nextOffset rebuilds the file exactly; an offset without a file is refused, not ignored.
+  assert.equal(cut.files.mine.truncated, true);
+  assert.equal(cut.files.mine.nextOffset, cut.more.offset);
+  await assert.rejects(study.call('book.read', { hid: what.hid, offset: 100 }), error => error.code === 'book-offset-needs-file' || /offset needs file/.test(error.message));
+  let rebuilt = '', at = 0;
+  for (let step = 0; step < 100; step += 1) {
+    const page = (await study.call('book.read', { hid: what.hid, file: 'mine', offset: at })).files.mine;
+    rebuilt += page.text;
+    if (!page.truncated) break;
+    at = page.nextOffset;
+  }
+  assert.equal(rebuilt.length, cut.files.mine.chars, 'pages by nextOffset neither overlap nor skip');
+  assert.equal((rebuilt.match(/^## Part \d+ /gm) || []).length, 300, 'every part once');
+
+  // course.book.save names what is wrong: no text, no version, a text too long are three different refusals.
+  const codeOf = async args => (await study.call('course.book.save', args).then(() => ({}), error => error)).code;
+  assert.equal(await codeOf({ file, nodes: [] }), 'course-book-text-missing');
+  await assert.rejects(study.call('course.book.save', { file, nodes: [] }), /got keys: file, nodes; expected \{ file, text, version \}/);
+  assert.equal(await codeOf({ file, text: 'x' }), 'course-book-version-required');
+  assert.equal(await codeOf({ file, text: 'x'.repeat(400_001), version: opened.files[file].version }), 'course-book-text-too-long');
   await assert.rejects(study.call('book.read', { hid: toc.toc[0].hid }), error => error.code === 'book-point-not-leaf');
   await assert.rejects(study.call('book.read', { hid: 'h999' }), error => error.code === 'book-point-missing');
   await assert.rejects(study.call('book.read', { hid: what.hid, file: 'qa' }), error => error.code === 'book-file-invalid');
