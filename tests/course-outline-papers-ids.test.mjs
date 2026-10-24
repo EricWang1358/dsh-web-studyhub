@@ -70,6 +70,50 @@ test('an id that names no material of the course is refused with the field, the 
   refusedWith(() => planOutline(state, { course: COURSE, papers: many, language: 'en' }), new RegExp(`at most ${MAX_PAPERS}.*${MAX_PAPERS + 1}`));
 });
 
+test('the limit counts only materials of the course: ids that name none are refused first, for what they are, and pages of one material are one', () => {
+  // A paper of 25 pages filed under no course; a material filed (the old way, `course`) under another course; an archived one; one with no title.
+  const outside = Array.from({ length: 25 }, (_, at) => ({ id: `ext-p${at + 1}`, title: `External paper · p. ${at + 1}`, text: `Q${at + 1} a question.`, courses: [],
+    document: { materialId: 'document-ext', format: 'pdf', page: at + 1, totalPages: 25, filename: 'External paper.pdf' } }));
+  const legacy = { id: 'legacy-1', title: 'Legacy handout', text: 'Something.', course: 'Other course', document: { materialId: 'document-legacy', format: 'md' } };
+  const archived = { id: 'old-1', title: 'Old paper', text: 'Q1 old.', courses: [COURSE], archived: true, document: { materialId: 'document-old', format: 'md' } };
+  const untitled = { id: 'blank-1', title: '', text: 'Q1 blank.', courses: ['Other course'], document: { materialId: 'document-blank', format: 'md' } };
+  const state = library([...outside, legacy, archived, untitled]);
+  refusedWith(() => planOutline(state, { course: COURSE, papers: outside.map(source => source.id) }),
+    /「ext-p1」是《External paper[^》]*》，它没有归到这门课「SA」（现在归在：未分类）/);
+  const documents = buildOutlineIndex(state, { course: COURSE }).allDocuments.filter(item => item.sourceIds.length);
+  const twenty = documents.slice(0, MAX_PAPERS).map(item => item.sourceIds[0]);
+  refusedWith(() => planOutline(state, { course: COURSE, papers: [...twenty, 'typo-p1'] }), /「typo-p1」在资料库里找不到/);
+  refusedWith(() => planOutline(state, { course: COURSE, papers: ['legacy-1'] }), /《Legacy handout》，它没有归到这门课「SA」（现在归在：Other course）/);
+  refusedWith(() => planOutline(state, { course: COURSE, papers: ['old-1'] }), /「old-1」是《Old paper》，它已归档/);
+  refusedWith(() => planOutline(state, { course: COURSE, papers: ['old-1'], language: 'en' }), /"old-1" is "Old paper", which is archived/);
+  refusedWith(() => planOutline(state, { course: COURSE, papers: ['blank-1'] }), /「blank-1」.*没有归到这门课「SA」（现在归在：Other course）/);
+  refusedWith(() => planOutline(state, { course: COURSE, papers: [42], language: 'en' }), /Each item of papers must be the id of a material \(text\); got 42/);
+  // Thousands of ids are matched at once, not one by one.
+  const started = Date.now();
+  refusedWith(() => planOutline(state, { course: COURSE, papers: [...Array.from({ length: 20000 }, (_, at) => `nowhere-${at}`)] }), /「nowhere-0」在资料库里找不到/);
+  assert.ok(Date.now() - started < 3000, `${Date.now() - started} ms`);
+});
+
+test('a papers-only build with no papers re-reads the outline\'s own; one of them that left the course is named as the saved paper, not as the papers field', () => {
+  const state = library();
+  const outline = planOutline(state, { course: COURSE });
+  const current = { id: 'outline-1', title: 'outline', provenance: 'course-outline', text: 'x', courses: [COURSE],
+    courseOutline: { version: COURSE_OUTLINE_VERSION, course: COURSE, nodes: [], other: { anchors: [] }, orderBasis: { codes: [] }, counts: {}, fingerprint: outline.fingerprint,
+      papers: [{ key: 'doc:document-gone', title: 'Gone paper', sourceIds: ['gone-p1'] }], papersBy: 'learner' } };
+  const withOutline = { ...state, sources: [...state.sources, current] };
+  refusedWith(() => planPapersOnly(withOutline, { course: COURSE }), /总纲原来用作样卷的「doc:document-gone」在资料库里找不到/);
+  refusedWith(() => planPapersOnly(withOutline, { course: COURSE, language: 'en' }), /sample paper the outline was marked with, "doc:document-gone", names no material/);
+});
+
+test('a chosen paper with no readable text is named in the refusal', () => {
+  const blank = { id: 'scan-p1', title: 'Scanned paper', text: '   ', courses: [COURSE], document: { materialId: 'document-scan', format: 'md' } };
+  const state = library([blank]);
+  assert.throws(() => planOutline(state, { course: COURSE, papers: ['scan-p1'] }),
+    error => error.code === 'course-outline-no-readable-text' && /《Scanned paper》（doc:document-scan）里没有可读的文字/.test(error.message));
+  assert.throws(() => planOutline(state, { course: COURSE, papers: ['scan-p1'], language: 'en' }),
+    error => error.code === 'course-outline-no-readable-text' && /"Scanned paper" \(doc:document-scan\) has no readable text/.test(error.message));
+});
+
 test('the issue as reported: a paper filed under the course with source.courses.set (its page id) is then accepted by a build that names that id', async t => {
   const fake = outlineModel({ inventory: 'none' }), root = await privateRoot(t, 'course-outline-papers-ids-');
   const service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
