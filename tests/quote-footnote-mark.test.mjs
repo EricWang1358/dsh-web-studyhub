@@ -15,11 +15,15 @@ const WORDS = '架构师要把每个决定和背后的理由都写下来';
 
 test('the citation check finds a real quote that carries a footnote mark after its Chinese quotation marks', () => {
   const pages = [{ id: 'p1', text: PAGE }];
-  for (const quote of [`「${WORDS}」[^12]`, `“${WORDS}”[^3]`, `"${WORDS}"[^3]`, `${WORDS}[^1-2]`, `「${WORDS}[^7]」`])
+  for (const quote of [`「${WORDS}」[^12]`, `“${WORDS}”[^3]`, `"${WORDS}"[^3]`, `${WORDS}[^n-2]`, `${WORDS}[^h4g-3]`, `「${WORDS}[^7]」`])
     assert.deepEqual(citationCheck(pages, { sourceId: 'p1', quote }), { ok: true, span: 'page' }, quote);
   assert.equal(quoteFound(PAGE, `「${WORDS}」[^12]`), true);
   // Digits that are the material's own still count: a changed number is still not found.
   assert.equal(citationCheck([{ id: 'p1', text: 'The p99 latency target is 200 ms for every request.' }], { sourceId: 'p1', quote: 'The p99 latency target is 300 ms for every request.' }).ok, false);
+  // A negated character class of a lecture is wording, not a footnote mark: a changed class still differs.
+  const regex = [{ id: 'p1', text: 'The pattern [^0-9]+ matches every run of characters that are not digits.' }];
+  assert.equal(citationCheck(regex, { sourceId: 'p1', quote: 'The pattern [^0-9]+ matches every run of characters' }).ok, true);
+  assert.equal(citationCheck(regex, { sourceId: 'p1', quote: 'The pattern [^a-z]+ matches every run of characters' }).ok, false);
   // A material that has a mark of its own (a converted book) is found by the quote without it.
   assert.equal(citationCheck([{ id: 'p1', text: PAGE.replace('理由', '理由[^4]') }], { sourceId: 'p1', quote: `「${WORDS}」` }).ok, true);
 });
@@ -39,6 +43,25 @@ test('a footnote\'s quote is read to its own closing mark: inner quotation marks
   assert.deepEqual(parseFootnote(`「${WORDS}」[^12] (p1)`), { quote: WORDS, sourceId: 'p1' });
   assert.deepEqual(parseFootnote(`「${WORDS}[^12]」（p1）`), { quote: WORDS, sourceId: 'p1' });
   assert.deepEqual(parseFootnote(`[「${WORDS}」](studyhub://source/p1) · 讲义`), { quote: WORDS, sourceId: 'p1' });
+});
+
+test('a quote of a material that holds its own mark is stored without it, found again on every later write, and survives a whole-file rewrite', () => {
+  const { state } = bookLibrary();
+  state.sources.find(source => source.id === 'document-l1-p1').text += ` ${PAGE.replace('理由', '理由[^4]')}`;
+  const what = openCourseBook(state, {}).nodes[0].children[0];
+  const file = () => state.sources.find(source => source.provenance === 'course-book-doc').bookDoc.files[what.files.gen].text;
+  const stored = writeBookPoint(state, { hid: what.hid, markdown: `讲义说要写下理由[^1]。\n\n[^1]: 「${WORDS}」 (document-l1-p1)` });
+  assert.deepEqual(stored.dropped, []);
+  const definition = file().split('\n').find(line => line.startsWith('[^1]:'));
+  assert.match(definition, new RegExp(`^\\[\\^1\\]: \\[「${WORDS}」\\]`), 'stored without the material\'s mark');
+  const edited = writeBookPoint(state, { hid: what.hid, edits: [{ find: '讲义说', replace: '讲义里说' }] });
+  assert.deepEqual([edited.dropped, edited.warnings.filter(warning => /footnote/.test(warning))], [[], []], 'found again, not merely kept as written');
+  // The chat reads the file and writes it back whole: the stored footnote is a new footnote of the write, checked and found.
+  const rewritten = writeBookPoint(state, { hid: what.hid, markdown: `讲义里说要写下理由[^1]，这一点很重要。\n\n${definition}` });
+  assert.deepEqual([rewritten.dropped, rewritten.warnings.filter(warning => /footnote/.test(warning))], [[], []]);
+  assert.match(file(), /这一点很重要/);
+  assert.match(file(), /写下理由\[\^1\]，/);
+  assert.equal(file().split('\n').find(line => line.startsWith('[^1]:')), definition);
 });
 
 test('book.write: 「quote」[^12] in the text keeps its mark, and the footnote whose words are in the material is found', () => {

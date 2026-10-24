@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { writeBookPoint } from '../lib/book-agent-write.js';
 import { DEFINITION, footnoteProblems, parseFootnote, takeFootnotes } from '../lib/book-footnotes.js';
 import { openCourseBook } from '../lib/course-book-files.js';
+import { citedSources } from '../lib/book-agent-view.js';
 import { bookLibrary, pageLine } from './helpers/book-agent-library.mjs';
 
 const words = (id, from, to) => pageLine(id, 0).slice(from, to);
@@ -92,6 +93,35 @@ test('a mark whose last mark is taken out takes its definition with it (named in
   assert.match(text(), /句甲\[\^1\]，句乙，句丙\[\^2\]。/, 'the hand-written footnote\'s mark stays (renumbered)');
   assert.match(text(), /^\[\^2\]: 见讲义第三章的图（手写的说明）$/m);
   assert.deepEqual(footnoteProblems(text().split('\n').filter(line => !/^\[练/.test(line)).join('\n')), []);
+});
+
+test('a footnote an edit adds or whose words it changes is always checked: made-up words are dropped with their mark, never kept as written', () => {
+  const FAKE = 'the architect never writes anything down and nobody agrees';
+  const { state, what, text } = setup();
+  writeBookPoint(state, { hid: what.hid, markdown: `句甲[^1]。\n\n[^1]: 「${A}」 (document-l1-p1)` });
+  const added = writeBookPoint(state, { hid: what.hid, edits: [{ find: '句甲[^1]。', replace: `句甲[^1]。句乙[^2]。\n\n[^2]: 「${FAKE}」 (document-l1-p1)` }] });
+  assert.deepEqual(added.dropped, [{ n: '2', quote: FAKE, reason: 'not-found' }]);
+  assert.match(text(), /句甲\[\^1\]。句乙。/, 'the made-up footnote\'s mark is taken out');
+  assert.doesNotMatch(text(), /never writes anything down/);
+  assert.equal(added.warnings.some(warning => /kept as they were written/.test(warning)), false);
+  // The words of a checked footnote changed by an edit are checked again: made-up words are not kept as a source.
+  const definition = text().split('\n').find(line => line.startsWith('[^1]:'));
+  const changed = writeBookPoint(state, { hid: what.hid, edits: [{ find: definition, replace: `[^1]: 「${FAKE}」 (document-l1-p1)` }] });
+  assert.deepEqual(changed.dropped, [{ n: '1', quote: FAKE, reason: 'not-found' }]);
+  assert.doesNotMatch(text(), /never writes anything down/);
+  assert.doesNotMatch(text(), /\[\^1\]/, 'its mark went with it');
+});
+
+test('a section mark with no footnote of its own cites the file\'s footnote of that number, and the answer says so', () => {
+  const { state, what, text } = setup();
+  writeBookPoint(state, { hid: what.hid, markdown: `#### 甲\n\n句甲[^1]。\n\n#### 乙\n\n旧的。\n\n[^1]: 「${A}」 (document-l1-p1)` });
+  const done = writeBookPoint(state, { hid: what.hid, section: { heading: '乙', markdown: '句乙[^1]。' } });
+  assert.ok(done.warnings.some(warning => /\[\^1\] have no footnote in the new text/.test(warning)), done.warnings.join(' | '));
+  assert.deepEqual(citedBy(text()), { 句甲: A, 句乙: A });
+});
+
+test('the cited-sources view reads a full-width-colon definition like the writer does', () => {
+  assert.deepEqual([...citedSources('句[^1]。\n\n[^1]：「words of the page」（document-l1-p1）')], ['document-l1-p1']);
 });
 
 test('a definition written with a full-width colon is a definition, not a mark', () => {
