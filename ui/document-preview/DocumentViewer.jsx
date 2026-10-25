@@ -29,6 +29,8 @@ import OutlinePanel from './reader/OutlinePanel.jsx';
 import OutlineAssist from './reader/OutlineAssist.jsx';
 import FindBar from './reader/FindBar.jsx';
 import DisplaySettings from './reader/DisplaySettings.jsx';
+import PdfPageBar from './reader/PdfPageBar.jsx';
+import { clampPage, pageCount, pageScopeOf } from './page-scope.js';
 import ReadingSections from './reader/ReadingSections.jsx';
 import { renderReaderMarkdown } from './reader/markdown.js';
 import { copyText, pickFormula } from './reader/formula.js';
@@ -198,6 +200,17 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
+  // 原始 PDF: the learning panel asks about the page our own controls show (page-scope.js). It is a panel of its own, mounted the first time the
+  // view is opened and then kept: the reading panel (its selection, its thread, a question still being answered and kept as 批注) is only hidden
+  // meanwhile, so it is never shown with an old quote in 原始 PDF and is all there again on the way back to 阅读.
+  const totalPages = pageCount(sources);
+  const pageScope = useMemo(() => format === 'pdf' && fileUrl ? pageScopeOf(sources, pdfPage) : null, [format, fileUrl, sources, pdfPage]);
+  const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
+  const [pagePanel, setPagePanel] = useState(false);
+  if (view === 'original' && pageScope && !pagePanel) setPagePanel(true);
+  // In 原始 PDF the reading panel shows only its 补题 job cards (it holds and polls them, once), above the page panel; the rest of it waits for 阅读.
+  const learningPanels = [{ scope: 'selection', hidden: false, props: { capture, annotation, jobsOnly: view === 'original' } },
+    ...(pagePanel && pageScope ? [{ scope: 'page', hidden: view !== 'original', props: { capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage } }] : [])];
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
   const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],
@@ -245,7 +258,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     : panel === 'outline' && outline.length === 0 ? setEmptyOpen(open => !open) : updateSettings({ [panel]: !settings[panel] });
 
   const select = () => {
-    if (localMode) return;
+    // 原始 PDF draws the page in a frame whose selection never reaches here: the panel asks about the page (pageScope), not a selection.
+    if (localMode || view === 'original') return;
     const value = captureSelection(body.current);
     if (!value) return;
     setCapture(value);
@@ -271,6 +285,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // A kept thread is opened in the learning panel: its passage becomes the selection there, and the panel brings its answers back.
   const openAnnotation = link => {
     const at = link.selection;
+    if (view === 'original') setMode('read'); // a kept passage is shown where it can be selected
     setCapture(previous => previous?.sourceId === at.sourceId && previous?.start === at.start && previous?.end === at.end ? previous
       : { quote: at.quote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
     if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
@@ -375,7 +390,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const notices = [
     loading && <LoadingState key="loading" label={ui('正在打开资料…')} />,
     !localMode && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
-    view === 'original' && <p key="pdf">{ui('原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。')}</p>,
+    view === 'original' && !localMode && <p key="pdf" className="reader-pdf-note">{ui('原始 PDF 用于核对排版与图表。可以在「学习工具」里针对当前页提问，用上方的翻页按钮换页；要选中一段提问或补题，请切换到「阅读」。')}
+      {!toolsOn && <> <Button variant="link" size="sm" onClick={() => toggle('tools')}>{ui('问这一页')}</Button></>}</p>,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,
     (quoteState?.status === 'ambiguous' || (reading && placed === 'ambiguous')) && <InlineMessage key="ambiguous" tone="warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</InlineMessage>,
     quoteState?.status === 'stale' && <InlineMessage key="stale" tone="warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</InlineMessage>,
@@ -446,7 +462,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         <div className="reader-page">
           <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select} onClick={pick} onCopy={copy}>
             {view === 'original'
-              ? <div className="reader-original"><iframe src={`${fileUrl}#page=${pdfPage}`} title={source.title || ui('原始 PDF')} /></div>
+              ? <div className="reader-original">
+                <PdfPageBar page={pdfPage} total={totalPages} onPage={goToPage} />
+                {/* A new frame per page: the browser's PDF viewer ignores a later change of #page= (seen in Chromium), so the page asked about and the page shown would differ. */}
+                <iframe key={pdfPage} src={`${fileUrl}#page=${pdfPage}`} title={source.title || ui('原始 PDF')} />
+              </div>
               : reading
                 ? html ? <div className="reader-html source-md" data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
                   : <ReadingSections sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} />
@@ -469,11 +489,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       {!localMode && <aside className="study-document-side reader-tools" data-tour="source-tools" id={toolsId} aria-label={ui('学习工具')} hidden={!toolsOn}>
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
-          <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>
-          <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} annotation={annotation} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
-            onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
+          {view !== 'original' && <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>}
+          {learningPanels.map(panel => <div key={panel.scope} className="reader-learning" data-scope={panel.scope} hidden={panel.hidden}>
+            <DocumentLearning call={call} document={learningDocument} {...panel.props} data={data} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
+              onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
+          </div>)}
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
-          {onCaseFromPassage && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
+          {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} onAnnotation={openAnnotation} />

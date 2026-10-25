@@ -624,6 +624,10 @@ const HANDLERS = [
       const quote = input.selection?.quote || "", marked = system.includes("[[term]]");
       const word = marked ? (quote.match(/[A-Za-z][A-Za-z-]{3,}/) || quote.match(/[\u4e00-\u9fff]{2,4}/) || [""])[0] : "";
       const mark = (value) => (value ? `[[${value}]]` : "");
+      // A question about a whole page (原始 PDF, scope 'page'): the page's saved text is the evidence, there is no selected quote.
+      if (input.scope === 'page' && !input.term) return english
+        ? `Preview answer (no real model was called): the saved text of page ${input.page} is the evidence${input.truncated ? ' (only its beginning was sent)' : ''}. It begins: “${String(input.context || '').slice(0, 60)}”.`
+        : `预览示例回答（未调用真实模型）：依据第 ${input.page} 页保存的文字${input.truncated ? '（只送了这一页的开头）' : ''}。这一页开头是：「${String(input.context || '').slice(0, 60)}」。`;
       if (input.term) return english
         ? `Preview answer about ${input.term}: the passage does not define it. General knowledge, not from the source: a short generic explanation. See also ${mark(word)}.`
         : `预览示例回答，关于「${input.term}」：原文没有解释它。以下是通用知识，不是原文内容：一句简短的通用说明。另见 ${mark(word)}。`;

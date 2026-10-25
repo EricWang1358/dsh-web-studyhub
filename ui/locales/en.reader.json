@@ -3,7 +3,6 @@
   "录音 {0}": "Recording {0}",
   "接上一卷": "Continued from the previous volume",
   "阅读": "Read",
-  "原始 PDF 可核对排版与图表；要选中文字提问或补题，请切换到「阅读」。": "The original PDF shows the layout and figures. To select text and ask or add questions, switch to “Read”.",
   "目录": "Contents",
   "在文中查找": "Find in text",
   "学习工具": "Study tools",
@@ -124,5 +123,10 @@
   "字体名只能含文字、数字、空格和连字符。": "A font name can only have letters, digits, spaces and hyphens.",
   "填已安装的字体名，找不到会用系统字体。": "Type an installed font name; if it is missing, the system font is used.",
   "AI 章节 · {0} 项": "AI chapters · {0}",
-  "没能精确定位这段引文，已显示所在资料。": "The citation could not be located exactly. The material it comes from is shown."
+  "没能精确定位这段引文，已显示所在资料。": "The citation could not be located exactly. The material it comes from is shown.",
+  "原始 PDF 用于核对排版与图表。可以在「学习工具」里针对当前页提问，用上方的翻页按钮换页；要选中一段提问或补题，请切换到「阅读」。": "The original PDF shows the layout and figures. You can ask about the current page in “Study tools” and turn pages with the controls above; to select a passage and ask or add questions, switch to “Read”.",
+  "问这一页": "Ask about this page",
+  "原始 PDF 翻页": "Original PDF pages",
+  "页码": "Page number",
+  "/ {0} 页": "of {0}"
 }
