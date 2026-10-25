@@ -14,6 +14,7 @@
     "tests/course-book-page-browser.test.mjs",
     "tests/course-book-qa-browser.test.mjs",
     "tests/course-book-reading-browser.test.mjs",
+    "tests/course-book-structure-browser.test.mjs",
     "tests/course-outline-book-browser.test.mjs",
     "tests/course-outline-browser.test.mjs",
     "tests/daily-plan-interactions.test.mjs",

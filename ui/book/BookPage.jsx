@@ -18,6 +18,7 @@ import BookChapter from './BookChapter.jsx';
 import BookStep from './BookStep.jsx';
 import BookAskLayer from './BookAskLayer.jsx';
 import BookExport from './BookExport.jsx';
+import BookStructureDialog from './BookStructure.jsx';
 import { EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
@@ -46,7 +47,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const pageRef = useRef(null), tocRef = useRef(null), narrow = useNarrow(pageRef);
   // The view: the reading surface, or the editor / 翻看 that take its place until 「完成 · 回到阅读」. Never remembered, except the old 翻看 mode once (below).
   const [view, setView] = useState('read');
-  const [dialog, setDialog] = useState(null), [todayOpen, setTodayOpen] = useState(false);
+  const [dialog, setDialog] = useState(null), [todayOpen, setTodayOpen] = useState(false), [structure, setStructure] = useState(null);
   const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(null);
   const place = useRef(null);
   const { book, error, setBook, reload } = useBookData({ call, course, paused: view === 'edit', onReplaced: () => place.current?.hold() });
@@ -97,7 +98,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask}
     onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
-  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord });
+  // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.
+  const structureAt = where.current;
+  const openStructure = useCallback(entry => {
+    const next = steps[structureAt + 1]?.hid ?? steps[structureAt - 1]?.hid ?? null;
+    setStructure({ ...entry, next });
+  }, [steps, structureAt]);
+  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure: openStructure });
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('复习全书读取失败')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
@@ -158,6 +165,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       </div>
       {askPanel}
       {dialogs}
+      {structure && <BookStructureDialog kind={structure.kind} book={book} node={structure.node} onRun={handlers.structure} onClose={() => setStructure(null)}
+        onDeleted={() => { const next = structure.next; setStructure(null); if (next) where.goTo(next); }} />}
     </section>
   );
 }
