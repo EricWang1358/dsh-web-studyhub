@@ -114,12 +114,16 @@ export async function runPageAskQa(options) {
       const pageLabel = t("不再提示：问的是哪一页", "Don’t show again: which page is asked");
       const presetsLabel = t("不再提示：预设和发给主会话", "Don’t show again: presets and the main chat");
       if (pageLabel === presetsLabel) throw new Error("the two hints share one accessible name");
-      await paging.locator('[data-reader-hint="pdf-page"]').getByRole("button", { name: pageLabel }).click();
+      await paging.locator('[data-reader-hint="pdf-page"]').getByRole("button", { name: pageLabel, exact: true }).click();
       await paging.locator('[data-reader-hint="pdf-page"]').waitFor({ state: "detached" });
-      const afterPage = await paging.evaluate(() => ({ tag: document.activeElement?.tagName || "", inPanel: !!document.activeElement?.closest(".study-page-ask") }));
-      if (afterPage.tag !== "TEXTAREA" || !afterPage.inPanel) throw new Error(`closing the page hint lost the keyboard: ${JSON.stringify(afterPage)}`);
+      // The contract is «the keyboard stays in the panel, on the next control»; with a usable question box that next control is the box.
+      const afterPage = await paging.evaluate(() => {
+        const box = document.querySelector(".study-page-ask textarea");
+        return { tag: document.activeElement?.tagName || "", inPanel: !!document.activeElement?.closest(".study-page-ask"), boxReady: !!box && !box.disabled && box.getClientRects().length > 0 };
+      });
+      if (!afterPage.inPanel || (afterPage.boxReady && afterPage.tag !== "TEXTAREA")) throw new Error(`closing the page hint lost the keyboard: ${JSON.stringify(afterPage)}`);
       if (!await paging.locator('[data-reader-hint="page-presets"]').isVisible()) throw new Error("closing one hint closed the other");
-      await paging.locator('[data-reader-hint="page-presets"]').getByRole("button", { name: presetsLabel }).click();
+      await paging.locator('[data-reader-hint="page-presets"]').getByRole("button", { name: presetsLabel, exact: true }).click();
       await paging.locator('[data-reader-hint="page-presets"]').waitFor({ state: "detached" });
       const afterPresets = await paging.evaluate(() => ({ inPanel: !!document.activeElement?.closest(".study-page-ask"), body: document.activeElement === document.body }));
       if (!afterPresets.inPanel || afterPresets.body) throw new Error(`closing the presets hint lost the keyboard: ${JSON.stringify(afterPresets)}`);

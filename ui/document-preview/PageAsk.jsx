@@ -22,8 +22,12 @@ export const PAGE_REFUSED = '这一页暂时问不了：稍后再试一次。';
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 function nextFocusable(panel, hint) {
   const candidates = [...panel.querySelectorAll(FOCUSABLE)].filter(el => !hint.contains(el) && (el.getClientRects?.().length ?? 1));
-  return candidates.find(el => hint.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)
-    ?? candidates.filter(el => hint.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING).pop() ?? null;
+  const after = candidates.find(el => hint.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+  if (after) return after;
+  // Nothing after the hint: the box before it is where a learner who just read the hint would type, not a preset chip that sends on Enter.
+  const field = panel.querySelector('textarea:not([disabled]), input:not([disabled]):not([type="hidden"])');
+  if (field?.getClientRects?.().length) return field;
+  return candidates.filter(el => hint.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING).pop() ?? null;
 }
 
 /** A first-visit hint: one sentence, closed for good with its own explicitly named button (reader/hints.js); closing keeps the keyboard in the panel. */

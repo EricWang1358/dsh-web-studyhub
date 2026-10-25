@@ -120,6 +120,8 @@
   .study-page-ask .ask-quick .sh-btn { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: var(--lh-snug); text-align: center; text-wrap: balance; }
   /* A first-visit hint keeps its × on the line of its text (the shared inline message would wrap it under a full-width text). */
   .study-page-ask__hint { flex-wrap: nowrap; margin: 0 0 var(--space-2); }
+  /* The panel itself takes focus when a hint closes and no control follows it (tabIndex -1): ring it like every other control. */
+  .study-page-ask:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
   .study-page-ask__handoff { display: block; margin-top: var(--space-3); }
   .study-page-ask__forward { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-2); }
   .study-page-ask__forward p { margin: 0; }

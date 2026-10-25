@@ -12,7 +12,7 @@ const HINTS_KEY = 'study-reader-hints';
 /** The hints there are: the page bar (which page is asked), and the presets with the way to the main chat. */
 export const READER_HINTS = Object.freeze({ page: 'pdf-page', presets: 'page-presets' });
 
-/** Closed during this visit even when the browser has no storage: closing 学习工具 and opening it again remounts the panel. */
+/** Closed during this visit even when the browser has no storage: closing the reader and opening it again mounts a new panel. */
 const closedThisVisit = new Set();
 
 const closedIds = storage => { const stored = readJSON(HINTS_KEY, [], storage); return Array.isArray(stored) ? stored.filter(id => typeof id === 'string') : []; };

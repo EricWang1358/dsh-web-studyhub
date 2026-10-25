@@ -334,6 +334,7 @@ test('first visit: the page hint and the presets hint are there, each closable; 
   lib.closeHint(lib.READER_HINTS.page, storage);
   assert.deepEqual(JSON.parse(store.get('study-reader-hints')), ['pdf-page'], 'remembered once');
   lib.forgetClosedHints();
+  assert.equal(lib.hintClosed(lib.READER_HINTS.page, storage), true, 'a stored closing survives a new visit');
   assert.equal(lib.hintClosed('pdf-page', null), false, 'no storage: a new visit shows it again, never an error');
   // the presets hint only where there are presets (not on a page without saved text)
   const blank = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true }), resolution: null, pageHandOff }))));
