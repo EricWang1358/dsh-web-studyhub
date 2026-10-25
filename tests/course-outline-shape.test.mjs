@@ -66,6 +66,10 @@ test('maxPoints is said to the order and reduce calls only when given (their key
     assert.throws(() => planOutline(state, { course: COURSE, ...request }), error => error.code === 'course-outline-shape-invalid' && pattern.test(error.message));
   assert.deepEqual(planOutline(state, { course: COURSE, maxPoints: 80, granularity: 'coarse' }).shape, { granularity: 'coarse', maxPoints: 80 });
   assert.deepEqual(planOutline(state, { course: COURSE }).shape, {});
+  // A map call whose prompt is the default one keeps its key ('fine' asks the map calls exactly as 'medium'); 'coarse' asks differently.
+  const keys = extra => planOutline(state, { course: COURSE, ...extra }).batches.map(batch => batch.key);
+  assert.deepEqual(keys({ granularity: 'fine' }), keys({}));
+  assert.notDeepEqual(keys({ granularity: 'coarse' }), keys({}));
 });
 
 test('a build with maxPoints holds at most that many points, remembered on the outline; a rebuild without it keeps it, one with a new value changes it', async t => {

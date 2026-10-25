@@ -51,6 +51,59 @@ test('a point of another title takes the old point\'s text only when it holds mo
   assert.deepEqual([[...fold.moved], [...fold.folded], fold.held.map(item => item.node.id)], [[['E', 'B']], [], ['A']]);
 });
 
+test('the text goes to the new point that holds most of the old one\'s pages: a small part is never paired first (17% / 83%); the issue\'s h25 case is held', () => {
+  // An old point of 600 characters: a new point holds its first 100 (all of it inside the old one), another holds the other 500 plus a long other text.
+  const split = remapManifest({ nodes: [leaf('O', 'h1', 'Cloud native', ['o'])] }, [{ id: 'A', title: 'Databases state failure conditions', anchors: ['a'] },
+    { id: 'B', title: 'Cloud-native architecture', anchors: ['b'] }], 3,
+    { sourcesOf: anchor => ({ o: [span('s1', 0, 600)], a: [span('s1', 0, 100)], b: [span('s1', 100, 600), span('s2', 0, 3000)] })[anchor] });
+  assert.deepEqual([split.moved.get('O'), split.held.length, split.nodes[1].hid, split.nodes[1].moveShare], ['B', 0, 'h1', 0.83], 'the 83% point, not the 17% one');
+  // h25 (#461): a long note on cloud native (21 sections) whose pages went to two points that are mostly other lectures, and one section to a point on
+  // databases that lies wholly inside it: no new point is mostly it, and the databases point is not the closest one, so the note is held.
+  const h25 = remapManifest({ nodes: [leaf('O', 'h25', '云原生架构', ['o'])] }, [{ id: 'D', title: '数据库题须写失败条件', anchors: ['d'] },
+    { id: 'M', title: 'Microservices', anchors: ['m'] }, { id: 'K', title: 'Kubernetes', anchors: ['k'] }], 30,
+    { sourcesOf: anchor => ({ o: [span('cn', 0, 2100)], d: [span('cn', 0, 100)], m: [span('cn', 100, 1100), span('x', 0, 2000)], k: [span('cn', 1100, 2100), span('y', 0, 2000)] })[anchor] });
+  assert.deepEqual([h25.moved.size, h25.folded.size, h25.held.map(item => [item.node.id, item.likely, item.share])], [0, 0, [['O', 'M', 0.48]]]);
+  assert.ok(h25.nodes.every(node => node.hid !== 'h25'), 'no new point takes the old heading');
+});
+
+test('property: over random cuts, a moved or folded point always goes to a new point holding the biggest share of its pages (ties: the first)', () => {
+  let seed = 7;
+  const random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  for (let round = 0; round < 300; round++) {
+    const olds = Array.from({ length: 1 + Math.floor(random() * 3) }, (_, at) => ({ id: `O${at}`, size: 100 * (1 + Math.floor(random() * 10)) }));
+    const pages = {}, fresh = [];
+    olds.forEach(old => { pages[old.id] = [span(old.id, 0, old.size)]; });
+    // Cut every old point into random pieces; a new point takes one or two neighbouring pieces (possibly of two old points) and maybe some other text.
+    const pieces = olds.flatMap(old => { const cuts = [0, ...Array.from({ length: Math.floor(random() * 4) }, () => Math.floor(random() * old.size)), old.size].sort((a, b) => a - b);
+      return cuts.slice(1).map((end, at) => span(old.id, cuts[at], end)).filter(piece => piece.end > piece.start); });
+    for (let at = 0; at < pieces.length;) {
+      const take = 1 + Math.floor(random() * 2), id = `N${fresh.length}`;
+      pages[id] = [...pieces.slice(at, at + take), ...(random() < 0.5 ? [span(`x${id}`, 0, Math.floor(random() * 2000))] : [])].filter(piece => piece.end > piece.start);
+      fresh.push({ id, title: `New ${fresh.length}`, anchors: [id] });
+      at += take;
+    }
+    const result = remapManifest({ nodes: olds.map((old, at) => leaf(old.id, `h${at + 1}`, `Old ${at}`, [old.id])) }, fresh, 10, { sourcesOf: anchor => pages[anchor] });
+    const shareOf = (old, id) => { const own = pages[old.id][0]; let common = 0;
+      for (const piece of pages[id]) if (piece.sourceId === old.id) common += Math.max(0, Math.min(piece.end, own.end) - Math.max(piece.start, own.start));
+      return Math.round((common / old.size) * 100) / 100; };
+    for (const old of olds) {
+      const to = result.moved.get(old.id) ?? result.folded.get(old.id);
+      if (!to) continue;
+      const top = Math.max(...fresh.map(item => shareOf(old, item.id)));
+      assert.equal(shareOf(old, to), top, `round ${round}: ${old.id} went to ${to} holding ${shareOf(old, to)} where one holds ${top}`);
+    }
+  }
+});
+
+test('a held point is not put back by its title onto a new point it shares nothing with; one that shares nothing at all still is (as before)', () => {
+  const pages = { a: [span('s1', 0, 100)], b: [span('s1', 0, 10), span('s2', 0, 1000)], c: [span('s9', 0, 50)], z: [span('s3', 0, 100)] };
+  const result = remapManifest({ nodes: [leaf('A', 'h1', 'Cloud native', ['a']), leaf('Z', 'h2', 'Glossary', ['z'])] },
+    [{ id: 'B', title: 'Databases', anchors: ['b'] }, { id: 'C', title: 'Cloud native', anchors: ['c'] }, { id: 'G', title: 'Glossary', anchors: ['g'] }], 3,
+    { sourcesOf: anchor => pages[anchor] ?? [span('s8', 0, 10)] });
+  assert.deepEqual([result.moved.has('A'), result.held.map(item => item.node.id)], [false, ['A']], 'held, not moved to the namesake that holds none of its pages');
+  assert.equal(result.moved.get('Z'), 'G', 'an old point sharing nothing with any new point still goes to its namesake');
+});
+
 const lectureKey = sources => groupSourcesByDocument(sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
 function outlineOf(state, nodes, createdAt) {
   return { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: COURSE }).allDocuments),
@@ -84,6 +137,7 @@ test('the book: a learner\'s note whose pages went mostly elsewhere waits in 未
   assert.deepEqual(book.moves.list, [{ from: 'What architects do', to: 'The architect\'s job', folded: false, share: 1 }]);
   assert.equal(book.moves.total, book.moves.list.length, 'how many moves there were, so a cut list says so');
   assert.equal(book.moves.held, 1);
+  assert.equal(book.moves.heldList.length, 1, 'only the held point whose text was parked: "What architects do" had text and moved; nothing else was held');
   const [kept] = book.moves.heldList;
   assert.deepEqual([kept.from, kept.closest], ['Stakeholders and views', 'Databases state failure conditions']);
   assert.ok(kept.share > 0 && kept.share < MOVE_MIN_SHARE);

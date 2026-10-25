@@ -22,6 +22,10 @@ test('moves and held points: the moves listed as moves, the held ones in one lin
   assert.match(heldOnly, /1 个知识点的笔记对不上新标题/);
   assert.doesNotMatch(heldOnly, /被移到了新位置/);
   assert.equal(draw({ at: 'x', list: [], held: 0 }), '');
+  // A list cut at 200 counts all the moves (`total`).
+  const many = draw({ at: 'z', total: 250, list: Array.from({ length: 200 }, (_, at) => ({ from: `Old ${at}`, to: `New ${at}`, folded: false })), held: 0 });
+  assert.match(many, /250 个知识点的笔记被移到了新位置/);
+  assert.match(many, /还有 238 个/);
   ui.setUiLanguage('en');
   try {
     assert.match(draw({ at: 'y', list: [], held: 3 }), /The notes of 3 knowledge point\(s\) match no new title; they wait in Not placed/);
