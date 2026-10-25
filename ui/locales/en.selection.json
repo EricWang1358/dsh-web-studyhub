@@ -106,5 +106,18 @@
   "输入或粘贴问题，例如：这一页的主要结论是什么？": "Type or paste a question, e.g. What is the main conclusion of this page?",
   "依据这一页回答": "Answer from this page",
   "这一页文字较长，回答只依据了前 {0} 字（共 {1} 字）。": "This page is long: the answer used only its first {0} of {1} characters.",
-  "在 PDF 里选中的文字不会自动带到这里，可以复制后粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要针对选中的一段提问、存为批注或补题，请切换到「阅读」。": "Text selected inside the PDF does not reach this panel; copy it and paste it into the question box. The model reads only the saved text of this page and cannot see figures; to see the page image, use “Original page” in “Read”. To ask about a selected passage, keep an annotation or add questions, switch to “Read”."
+  "在 PDF 里选中的文字不会自动带到这里，可以复制后粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要针对选中的一段提问、存为批注或补题，请切换到「阅读」。": "Text selected inside the PDF does not reach this panel; copy it and paste it into the question box. The model reads only the saved text of this page and cannot see figures; to see the page image, use “Original page” in “Read”. To ask about a selected passage, keep an annotation or add questions, switch to “Read”.",
+  "讲解这一页": "Explain this page",
+  "请按原文顺序讲解这一页。": "Please explain this page in the order of the source.",
+  "翻译这一页": "Translate this page",
+  "请把这一页完整翻译过来，保持原来的顺序。": "Please translate this whole page, keeping its order.",
+  "按知识点拆分这一页": "Split this page into points",
+  "请把这一页按知识点拆开，每个知识点用一两句话说清。": "Please split this page into knowledge points, each said in a sentence or two.",
+  "提取这一页的公式与代码": "Formulas and code of this page",
+  "请把这一页的公式和代码原样提取出来，并说明各自的用途。": "Please copy out the formulas and code of this page exactly, and say what each is for.",
+  "把这一页的文字和你在上面写的问题发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用": "Sends the text of this page and the question you typed above to the main chat. Press this first, then take the screenshot: without a main chat this message goes onto the clipboard. A screenshot only helps if your main chat takes pictures",
+  "可以发给主会话接着问：先点下面的按钮，再截这一页的图；如果你的主会话能看图片，把截图粘贴到消息最后。": "You can ask the main chat instead: press the button below first, then take a screenshot of the page; if your main chat takes pictures, paste it at the end of the message.",
+  "想让主会话接着讲（可附截图）：": "To have the main chat go on (a screenshot can be added):",
+  "把资料名和页码发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用": "Sends the name of the material and the page number to the main chat. Press this first, then take the screenshot: without a main chat this message goes onto the clipboard. A screenshot only helps if your main chat takes pictures",
+  "这是对这一页保存文字的一次回答，不会保存；整份资料的对照翻译在「阅读」工具栏的「翻译」里。": "A one-off answer about the saved text of this page, not kept; the side-by-side translation of the whole material is Translate in the Read toolbar."
 }

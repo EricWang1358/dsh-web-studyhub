@@ -7,7 +7,7 @@
    page without saved text says so; back in 阅读 the selection and its answers are still there; a kept annotation opened from the links panel
    in 原始 PDF goes back to 阅读; a page question refused by the server (the document changed) keeps the page wording on 重试. The PDF itself
    is drawn by the browser's own viewer (it does draw in Chromium here); the screenshots show it with our controls and the panel. */
-/* global document, getSelection, NodeFilter, MouseEvent -- page.evaluate callbacks run in the browser */
+/* global navigator, document, getSelection, NodeFilter, MouseEvent -- page.evaluate callbacks run in the browser */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
@@ -49,7 +49,7 @@ const selectWords = (page, words) => page.evaluate((phrase) => {
 
 export async function runPageAskQa(options) {
   return runQa({ name: "page-ask", options, seed, latencyMs: 1500, localStorageSeed: { "study-reader-annotation": JSON.stringify({ mode: "annotate" }) },
-    async run({ page, server, t, step, check }) {
+    async run({ page, browserContext, server, t, step, check }) {
     const viewer = page.locator(".study-document-viewer"), tools = viewer.locator(".reader-tools"), bar = viewer.locator(".reader-pdf-bar");
     const reading = tools.locator('.reader-learning[data-scope="selection"]'), paging = tools.locator('.reader-learning[data-scope="page"]');
     const scopeLine = tools.locator(".study-page-ask__scope"), narrow = options.width < 900;
@@ -67,6 +67,12 @@ export async function runPageAskQa(options) {
       return { scope: await scopeLine.innerText(), frame: src.replace(/^blob:[^#]*/, "blob:…") };
     };
 
+    // The preview has no main chat: 发给主会话 copies the message to the clipboard (the shared unit's fill / keep of DSH's input box is
+    // tests/hand-off-browser.test.mjs). The clipboard is what is read back here.
+    await browserContext.grantPermissions(["clipboard-read", "clipboard-write"], { origin: server.url });
+    const copied = async (before) => { await page.waitForFunction((old) => navigator.clipboard.readText().then((text) => text && text !== old), before, { timeout: 10000 });
+      return page.evaluate(() => navigator.clipboard.readText()); };
+    const clearClipboard = () => page.evaluate(() => navigator.clipboard.writeText(""));
     await page.locator('[data-tour="nav-sources"]').first().click().catch(() => page.getByRole("button", { name: t("资料", "Sources") }).first().click());
     await sleep(800);
     await page.getByRole("button", { name: /^(全部展开|Expand all)$/ }).click().catch(() => {});
@@ -141,12 +147,48 @@ export async function runPageAskQa(options) {
       await page.waitForFunction(() => /Page 2 line 1/.test(document.querySelector('.reader-learning[data-scope="page"] [data-ask-node]')?.textContent || ""), null, { timeout: 15000 });
       return { answer: (await paging.locator("[data-ask-node]").first().innerText()).slice(0, 160) };
     });
+    await step("page-chip-asks-at-once", async () => {
+      const before = await paging.locator("[data-ask-node]").count();
+      await paging.getByRole("button", { name: t("翻译这一页", "Translate this page"), exact: true }).click();
+      await page.waitForFunction((count) => { const nodes = document.querySelectorAll('.reader-learning[data-scope="page"] [data-ask-node]');
+        return nodes.length > count && nodes[nodes.length - 1].dataset.status === "answered"; }, before, { timeout: 15000 });
+      const answer = await paging.locator("[data-ask-node]").last().innerText();
+      if (!answer.includes(t("翻译这一页", "Translate this page"))) throw new Error(`the chip's name is not the thread's heading: ${answer.slice(0, 120)}`);
+      if (!/Page 2 line 1/.test(answer)) throw new Error(`the answer does not quote the page: ${answer.slice(0, 160)}`);
+      return { answer: answer.slice(0, 160) };
+    });
+    await step("page-hand-off-carries-the-page", async () => {
+      await paging.locator("textarea").first().fill(t("图 2 说明了什么？", "What does figure 2 show?"));
+      await clearClipboard();
+      await paging.locator('[data-hand-off="reader.page"]').click();
+      const message = await copied("");
+      for (const part of [t("第 2 页", "page 2"), "Page 2 line 1", t("图 2 说明了什么？", "What does figure 2 show?"), t("这一页的截图（主会话能看图片时，粘贴在这里）：", "Screenshot of the page (paste it here if this chat takes pictures):")])
+        if (!message.includes(part)) throw new Error(`the message lacks ${part}: ${message.slice(0, 200)}`);
+      await page.getByText(t("已复制到剪贴板", "Copied to the clipboard")).first().waitFor({ timeout: 5000 });
+      return { first: message.split("\n")[0], last: message.split("\n").at(-1) };
+    });
     await step("page-4-without-text", async () => {
       await typePage(4);
       await expectPage(4);
       const text = await paging.innerText();
       if (!(options.lang === "zh" ? /第 4 页没有保存的文字/ : /Page 4 has no saved text/).test(text)) throw new Error(`no empty-page message: ${text.slice(0, 200)}`);
       if (await paging.locator("textarea").count()) throw new Error("a question box for a page without text");
+      // A page that is only a picture: 发给主会话 is the way forward there (the screenshot is pasted into the chat).
+      const forward = paging.locator('.study-page-ask__forward [data-hand-off="reader.page"]');
+      if (!await forward.isVisible()) throw new Error("no way forward on a page without text");
+      await clearClipboard();
+      await forward.click();
+      const message = await copied("");
+      if (!message.includes(t("没有保存的文字", "no saved text"))) throw new Error(`the message does not say the page has no text: ${message.slice(0, 200)}`);
+      // The question typed on page 2 stays with page 2: a page without a box sends no words of the learner.
+      if (/request /.test(message) || message.includes(t("图 2 说明了什么？", "What does figure 2 show?"))) throw new Error(`page 4 carried the question typed on page 2: ${message.slice(0, 300)}`);
+      // ...and it is there again on page 2.
+      await typePage(2);
+      await expectPage(2);
+      const kept = await paging.locator("textarea").first().inputValue();
+      if (kept !== t("图 2 说明了什么？", "What does figure 2 show?")) throw new Error(`the question of page 2 was not kept for page 2: ${JSON.stringify(kept)}`);
+      await typePage(4);
+      await expectPage(4);
     });
     await check("no-horizontal-overflow", async () => {
       const probe = await page.evaluate(overflowProbe);

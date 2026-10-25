@@ -9,6 +9,7 @@ import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } fro
 import { workflowDesignPrompt, workflowSkeletonPrompt, workflowStepPrompt } from './workflow.js';
 import { groupPrompt } from '../topic-group-prompt.js';
 import { pathBrief } from './path.js';
+import { pageQuestionPrompt } from './reader.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
    ui/hand-off/ sends only ids from it. An entry's builder returns the parts of one message (ui/agent-prompts/message.js: the learner's sentence, the notes
@@ -16,7 +17,7 @@ import { pathBrief } from './path.js';
    closed by the one language sentence), and the line the learner types after ('paste': 第一批题目：, 'file': the @ that opens the chat's file picker).
    The builders stay in the files of their area (book.js, skeleton.js …); the tool names live there and nowhere else. */
 
-/** id -> { build(input, language) -> message parts, skill?: 'study-book' | 'study-import', tail?: 'ask' | 'paste' | 'file' (a message may set its own) }. */
+/** id -> { build(input, language) -> message parts, skill?: 'study-book' | 'study-import', tail?: 'ask' | 'paste' | 'file' | 'image' (a message may set its own) }. */
 export const HAND_OFFS = Object.freeze({
   'book.edit': { build: (input, language) => bookEditPrompt(input, language), skill: 'study-book' },
   'ingest.start': { build: (input, language) => ingestPrompt(input, language), tail: 'paste' },
@@ -33,6 +34,7 @@ export const HAND_OFFS = Object.freeze({
   'workflow.skeleton': { build: (input, language) => workflowSkeletonPrompt(input, language) },
   'workflow.step': { build: (input, language) => workflowStepPrompt(input, language) },
   'path.brief': { build: (input, language) => pathBrief(input, language) },
+  'reader.page': { build: (input, language) => pageQuestionPrompt(input, language), tail: 'image' },
 });
 
 /** Whether `id` names a registered hand-off. */
