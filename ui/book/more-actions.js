@@ -17,7 +17,7 @@ async function copy(text) {
 }
 
 /** -> { select(id), pointFold: { folded } | null, bookFold: { folded } | null }. step: the point being read (ui/book/reading.js bookSteps). */
-export function useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord }) {
+export function useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure }) {
   const pointBlocks = useMemo(() => blocksOf(step?.node), [step]);
   const bookBlocks = useMemo(() => allBlocks(book), [book]);
   const isFolded = aiFold.folded;
@@ -26,6 +26,8 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
   const bookFold = useMemo(() => (bookBlocks.length ? { folded: bookBlocks.every(block => isFolded(block.id, foldsByDefault(block))) } : null), [bookBlocks, isFolded]);
   const select = useCallback(async id => {
     if (id === 'edit') openView('edit');
+    // 改名 / 移动到… / 删除这个知识点… open their dialogs on the point being read (ui/book/BookStructure.jsx).
+    else if (id === 'rename' || id === 'move' || id === 'delete') { if (step) onStructure?.({ kind: id, node: step.node }); }
     else if (id === 'create') onCreate?.();
     // 未归位 has no code the book tools match (BookMore leaves the item out there).
     else if (id === 'code' && step && step.hid !== 'unplaced') notify(await copy(pointCode(step.node, course)) ? ui('已复制') : { text: ui('没能复制：浏览器不让写剪贴板'), tone: 'error' });
@@ -37,6 +39,6 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
     else if (id === 'exam-date' || id === 'settings') onCourseSettings?.(courseRecord?.id);
     else if (id === 'chat') await sendBook({ scope: 'book', language: book?.language });
     else setDialog(id);
-  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, sendBook]);
+  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure, sendBook]);
   return { select, pointFold, bookFold };
 }

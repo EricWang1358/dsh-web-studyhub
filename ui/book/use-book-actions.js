@@ -4,11 +4,13 @@ import { ui, errorMessage } from '../i18n.js';
 import { useLiveEffect } from '../use-async.js';
 import { localDate } from '../../lib/board-model.js';
 import { goneSet, rowOf } from './model.js';
+import { STRUCTURE_DONE, structureFailureText } from './book-structure.js';
 import { showBlock, showWords } from './ai-anchors.js';
 import { bookStartedText } from '../outline/words.js';
 
-/* What the review book page does besides placing the reader (ui/book/BookPage.jsx): the 期末一周 plan, the export's page estimate and the handlers every point
-   reads (the AI tasks and deletions they start are ui/book/use-book-ai.js). */
+/* What the review book page does besides placing the reader (ui/book/BookPage.jsx): the 期末一周 plan, the export's page estimate, the handlers every
+   point reads, and the book's structure (改名 / 移动到… / 删除这个知识点…, one compare-and-set write each; ui/book/BookStructure.jsx). The AI tasks and
+   deletions they start are ui/book/use-book-ai.js. */
 
 /** 生成复习全书 on a course without a book: act() asked to rethrow says nothing itself (ui/act-runner.js), so a refused start is said here. */
 export async function startBookBuild({ act, course, notify }) {
@@ -78,6 +80,19 @@ export function useBookHandlers({ call, course, notify, book, setBook, rows, rel
       setChoosing(true);
       try { setBook(await call('course.book.suggestion', { course, file: name, action, id, version: book.files[name].version })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
       finally { setChoosing(false); }
+    },
+    // 改名 / 移动到… / 删除这个知识点… (ui/book/BookStructure.jsx): course.book.rename / move / delete, compare-and-set on the structureVersion the book has
+    // now, the whole book back in one round trip. A stale version is said and the book read again, so the dialog keeps what was typed (never lost silently).
+    structure: async (action, args) => {
+      try {
+        const next = await call(action, { course, ...args, version: book.structureVersion, answer: 'book' });
+        setBook(next);
+        notify({ text: ui(STRUCTURE_DONE[action]), tone: 'success' });
+        return { ok: true, book: next };
+      } catch (failure) {
+        if (failure?.code === 'course-book-conflict') { notify({ text: structureFailureText(failure), tone: 'error' }); reload(); }
+        return { ok: false, failure };
+      }
     },
     // 问 AI at a point's title (ui/book/BookAsk.jsx); 保留 / 重新生成 / 复制 / 删除 / 接着问 of an AI block; the lines tasks and deletions leave (ui/book/use-book-ai.js).
     ask: (node, element) => ai.openAsk({ heading: node.hid, anchor: element }),

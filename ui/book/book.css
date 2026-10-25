@@ -44,6 +44,24 @@
       border-radius: var(--radius-sm);
       overflow: hidden;
     }
+    /* 改名 / 移动到… / 删除这个知识点… in their dialogs (ui/book/BookStructure.jsx): one column of small blocks, the point named first, its buttons
+       in one left-aligned row that wraps on a narrow page. */
+    .book-structure {
+      display: grid;
+      gap: var(--space-3);
+    }
+    .book-structure p {
+      margin: 0;
+    }
+    .book-structure__what {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-structure__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
     /* A knowledge point in reading order (ui/book/PointBody.jsx): one row of actions, the takeaway (type only), the story with the AI blocks right after
        their paragraphs, 要点清单 and 补充 folded, the learner's layer under a hairline, the questions, 出处 behind a chip. The reading text follows the Aa setting
        (the reading block of ui/reading-settings: size, line width, typeface, paper); the parts that are not the story are a size smaller. Inside the reading area the links, the
