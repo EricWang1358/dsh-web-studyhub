@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { saveBookFile, bookSuggestion, takenIds } from '../lib/course-book-edit.js';
-import { capHistory, HISTORY_KEPT } from '../lib/course-book-history.js';
+import { capHistory, HISTORY_CHARS, HISTORY_KEPT } from '../lib/course-book-history.js';
 import { aiBlock, aiBlocks } from '../lib/course-book-ai-text.js';
 import { assignHeadingIds, bookIndex, stitchBook } from '../lib/course-book-links.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
@@ -296,7 +296,7 @@ test('versions: kept outside the sources, at most 20, 回退到上一版 per fil
   assert.equal(there.history[mine], book.history[mine]);
   assert.equal(leaves((await restored.call('course.book.revert', { file: mine })).nodes)[0].mine, 'Version 22.');
   await assert.rejects(new StudyService(target).call('restore', { state: { ...backup, portableBookHistory: { format: 'nope', files: [] } } }), /unreadable review book history/);
-  const big = Array.from({ length: 30 }, (_, i) => ({ file: 'x', version: i, text: 'y'.repeat(300000) }));
+  const big = Array.from({ length: 30 }, (_, i) => ({ file: 'x', version: i, text: 'y'.repeat(HISTORY_CHARS / 10) }));
   const capped = capHistory(big);
-  assert.ok(capped.length < HISTORY_KEPT && capped.reduce((sum, entry) => sum + entry.text.length, 0) <= 4_000_000, 'fewer versions when they are large');
+  assert.ok(capped.length < HISTORY_KEPT && capped.reduce((sum, entry) => sum + entry.text.length, 0) <= HISTORY_CHARS, 'fewer versions when they are large');
 });

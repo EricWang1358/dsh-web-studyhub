@@ -41,6 +41,11 @@ test('insert: at the place named, never the end unless asked; a same-named headi
   assert.match(now.text, /收尾\[\^2\]。/, 'a new footnote is numbered with the file\'s');
   // A second heading of a title the file has is refused (no 十一、性能测试 ×3), whatever the spacing or case.
   assert.equal(await codeOf(study.call('book.write', { hid: what.hid, op: 'insert', position: 'end', section: { heading: ' 三、误区 ', markdown: 'x' } })), 'book-section-exists');
+  // The same title is the same whatever the spaces, the case or the width of its punctuation (#459's 十一、性能测试 ×3); numbering still counts.
+  await study.call('book.write', { hid: what.hid, op: 'insert', position: 'end', section: { heading: '十一、性能测试', markdown: '正文。' } });
+  for (const heading of ['十一，性能测试', '十一 、 性能测试', '十一,性能测试', '十一、　性能测试', '十一、性能测试 ']) assert.equal(await codeOf(study.call('book.write', { hid: what.hid, op: 'insert', position: 'end', section: { heading, markdown: 'x' } })), 'book-section-exists', heading);
+  for (const heading of ['十二、性能测试', '11、性能测试', 'Ten, Testing']) assert.equal((await study.call('book.write', { hid: what.hid, op: 'insert', position: 'end', section: { heading, markdown: 'y' } })).status, 'saved', heading);
+  assert.equal(await codeOf(study.call('book.write', { hid: what.hid, op: 'insert', position: 'end', section: { heading: 'TEN，TESTING', markdown: 'y' } })), 'book-section-exists');
   // A section that starts with its own heading line takes it as its heading (as section writes do).
   const own = await study.call('book.write', { hid: what.hid, op: 'insert', position: 'start', section: { heading: '序', markdown: '#### 序\n\n最前面。' } });
   assert.equal(outline(await read(study, what.hid))[0], '#### 序');

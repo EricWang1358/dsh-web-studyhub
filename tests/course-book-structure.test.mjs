@@ -20,6 +20,20 @@ const rowsOf = toc => toc.toc.map(row => `${row.n} ${row.title}`);
 const byTitle = (toc, title) => toc.toc.find(row => row.title === title);
 const codeOf = promise => promise.then(() => null, error => error.code ?? error.message);
 
+const leafOf = (book, hid) => { const walk = list => list.flatMap(node => [node, ...walk(node.children || [])]); return walk(book.nodes).find(node => node.hid === hid); };
+/** The outline made again (a new record, as 重新整理 does), each point's title through `retitle`; `keep` picks the points that stay. */
+async function rebuild(study, retitle, keep = () => true) {
+  await study.store.update(state => {
+    const outline = state.sources.find(source => source.provenance === 'course-outline' && !source.archived), again = structuredClone(outline);
+    again.id = `${outline.id}-again`;
+    again.createdAt = '2026-10-10T00:00:00.000Z';
+    for (const chapter of again.courseOutline.nodes) chapter.children = chapter.children.filter(keep).map(point => ({ ...point, title: retitle(point.title) }));
+    outline.archived = true;
+    state.sources.push(again);
+    state.sources.find(source => source.provenance === 'course-outline-notes').courseNotes.outlineId = again.id;
+  });
+}
+
 async function fourteen(t) {
   const made = await bookService(t, { chapters: FOURTEEN });
   const toc = await made.study.call('book.toc', { limit: 40 });
@@ -85,8 +99,8 @@ test('#470 acceptance: in a 14-point book rename one point and move one point to
 test('delete: a shell point leaves nothing behind; a chapter promotes its points or sends what the learner wrote to 未归位; undo brings it all back', async t => {
   const { study, toc } = await fourteen(t);
   let version = toc.structureVersion;
+  // A shell: only the generated text, nothing of the learner's.
   const shell = byTitle(toc, '知识点 7');
-  await study.call('book.write', { hid: shell.hid, file: 'mine', markdown: '（待补）' });
   const gone = await study.call('course.book.delete', { hid: shell.hid, version });
   assert.equal(gone.write, 'deleted');
   assert.deepEqual(gone.removed.points, 1);
@@ -132,7 +146,98 @@ test('delete: a shell point leaves nothing behind; a chapter promotes its points
   now = await study.call('book.toc', { limit: 40 });
   assert.equal(now.points, 14);
   assert.deepEqual(['第 3 章', '第 4 章', '知识点 7'].map(title => !!byTitle(now, title)), [true, true, true]);
-  assert.equal((await study.call('book.read', { hid: shell.hid, file: 'mine' })).files.mine.text, '（待补）');
+  assert.match((await study.call('book.read', { hid: shell.hid, file: 'gen' })).files.gen.text, /练 5 道：知识点 7/);
+});
+
+test('a deleted point with the learner\'s notes: the notes wait in 未归位 by default (never only in the history); undo still works after 20 small writes', async t => {
+  const { study, toc } = await fourteen(t);
+  const five = byTitle(toc, '知识点 5'), six = byTitle(toc, '知识点 6');
+  const mine = (await study.call('book.read', { hid: five.hid, file: 'mine' })).files.mine;
+  await study.call('course.book.save', { file: mine.name, text: '#### 五的小结\n\n五的笔记，只有这一份。', version: mine.version });
+  const gone = await study.call('course.book.delete', { hid: five.hid, version: toc.structureVersion });
+  assert.equal(gone.removed.toUnplaced, 1);
+  let book = await study.call('course.book.open');
+  assert.match(book.unplaced.text, /### 知识点 5\n\n#### 五的小结 <!-- sh:id h\d+ -->\n\n五的笔记，只有这一份。/);
+  // 20 small writes of another file: the files' history allowance rolls over, the structure's is its own.
+  const other = (await study.call('book.read', { hid: six.hid, file: 'mine' })).files.mine;
+  for (let i = 1, version = other.version; i <= 20; i += 1, version += 1) await study.call('course.book.save', { file: other.name, text: `第 ${i} 版。`, version });
+  book = await study.call('course.book.revert', { file: STRUCTURE_FILE });
+  assert.equal(book.write, 'reverted');
+  assert.equal(book.unplaced.text, '');
+  assert.match((await study.call('book.read', { hid: five.hid, file: 'mine' })).files.mine.text, /五的笔记，只有这一份。/);
+});
+
+test('every file a structure change rewrites keeps its own previous version: the file\'s 回退到上一版 steps back exactly that write', async t => {
+  const { study, toc } = await fourteen(t);
+  const one = byTitle(toc, '知识点 1'), two = byTitle(toc, '知识点 2');
+  // Probe 1: mine T1, T2, then a move that shifts its headings; the file's revert gives T2 back (shifted back), then T1.
+  let mine = (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine;
+  await study.call('course.book.save', { file: mine.name, text: '#### 甲\n\nT1', version: mine.version });
+  await study.call('course.book.save', { file: mine.name, text: '#### 甲\n\nT2', version: mine.version + 1 });
+  const moved = await study.call('course.book.move', { hid: one.hid, toParent: 'book', version: toc.structureVersion });
+  mine = (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine;
+  assert.match(mine.text, /^### 甲 <!-- sh:id h\d+ -->\n\nT2$/);
+  let back = await study.call('course.book.revert', { file: mine.name });
+  assert.match(leafOf(back, one.hid).mine, /^#### 甲 <!-- sh:id h\d+ -->\n\nT2$/, 'one step back: the text before the move');
+  back = await study.call('course.book.revert', { file: mine.name });
+  assert.match(leafOf(back, one.hid).mine, /T1$/, 'then the save before');
+  // The structure undo refuses now (the file holds another text than the move left) and says so.
+  assert.equal(await codeOf(study.call('course.book.revert', { file: STRUCTURE_FILE })), 'course-book-conflict');
+  // Probe 2: 未归位 U0, then a delete that sends notes there; 未归位's revert gives U0 back.
+  const unplaced = (await study.call('course.book.open')).files['unplaced.md'];
+  await study.call('course.book.save', { file: 'unplaced.md', text: 'U0', version: unplaced.version });
+  const own = (await study.call('book.read', { hid: two.hid, file: 'mine' })).files.mine;
+  await study.call('course.book.save', { file: own.name, text: '二的笔记。', version: own.version });
+  await study.call('course.book.delete', { hid: two.hid, children: 'toUnplaced', version: moved.structureVersion });
+  assert.match((await study.call('course.book.open')).unplaced.text, /^U0\n\n### 知识点 2\n\n二的笔记。$/);
+  back = await study.call('course.book.revert', { file: 'unplaced.md' });
+  assert.equal(back.unplaced.text, 'U0');
+});
+
+test('a delete is refused when 未归位 cannot take the learner\'s text; a section sent there likewise; nothing changes', async t => {
+  const { study, toc } = await fourteen(t);
+  const one = byTitle(toc, '知识点 1'), mine = (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine;
+  await study.call('course.book.save', { file: mine.name, text: '#### 节\n\n一的笔记。', version: mine.version });
+  const unplaced = (await study.call('course.book.open')).files['unplaced.md'];
+  await study.call('course.book.save', { file: 'unplaced.md', text: 'u'.repeat(FILE_TEXT_MAX - 5), version: unplaced.version });
+  assert.equal(await codeOf(study.call('course.book.delete', { hid: one.hid, version: toc.structureVersion })), 'course-book-unplaced-full');
+  const heading = (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine.headings[0].id;
+  assert.equal(await codeOf(study.call('book.write', { hid: one.hid, file: 'mine', op: 'delete', heading, children: 'toUnplaced' })), 'course-book-unplaced-full');
+  const after = await study.call('book.toc', { limit: 40 });
+  assert.equal(after.points, 14);
+  assert.equal(after.structureVersion, toc.structureVersion);
+  assert.match((await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine.text, /一的笔记/);
+});
+
+test('a version read before the outline was rebuilt is refused, and nothing changes', async t => {
+  const { study } = await bookService(t);
+  const toc = await study.call('book.toc'), what = toc.toc[1];
+  const mine = (await study.call('book.read', { hid: what.hid, file: 'mine' })).files.mine;
+  await study.call('course.book.save', { file: mine.name, text: '我的笔记。', version: mine.version });
+  await rebuild(study, title => title);
+  for (const args of [{ hid: what.hid, version: toc.structureVersion }])
+    assert.equal(await codeOf(study.call('course.book.delete', args)), 'course-book-conflict');
+  assert.equal(await codeOf(study.call('course.book.move', { hid: what.hid, toParent: 'book', version: toc.structureVersion })), 'course-book-conflict');
+  const now = await study.call('book.toc');
+  assert.equal(now.toc[1].hid, what.hid);
+  assert.equal(now.points, 2);
+  assert.equal((await study.call('book.read', { hid: what.hid, file: 'mine' })).files.mine.text, '我的笔记。');
+  assert.ok(now.structureVersion > toc.structureVersion);
+});
+
+test('a heading is never pushed past level 6: such a move is refused, not flattened', async t => {
+  const { study } = await bookService(t, { chapters: lecture => [{ id: 'c1', title: '一', children: [{ id: 's1', title: '小节', children: [{ id: 'p1', title: '深的点', anchors: [`${lecture}#0`] }] }, { id: 'p2', title: '浅的点', anchors: [`${lecture}#1`] }] }] });
+  const toc = await study.call('book.toc'), shallow = toc.toc.find(row => row.title === '浅的点'), section = toc.toc.find(row => row.title === '小节');
+  await study.call('book.write', { hid: shallow.hid, file: 'mine', markdown: '#### 甲\n\n##### 乙\n\n###### 丙\n\n最深。' });
+  assert.equal(await codeOf(study.call('course.book.move', { hid: shallow.hid, toParent: section.hid, version: toc.structureVersion })), 'course-book-move-invalid');
+  const file = (await study.call('book.read', { hid: shallow.hid, file: 'mine' })).files.mine;
+  assert.deepEqual(file.headings.map(heading => heading.level), [4, 5, 6]);
+  // Inside one file: a section within the level-6 heading, or 甲 (levels 4-6) moved inside another level-4 section, is refused too.
+  const [a, , c] = file.headings.map(heading => heading.id);
+  assert.equal(await codeOf(study.call('book.write', { hid: shallow.hid, file: 'mine', op: 'insert', within: c, section: { heading: '丁', markdown: 'x' } })), 'book-section-move-invalid');
+  const added = await study.call('book.write', { hid: shallow.hid, file: 'mine', op: 'insert', position: 'end', section: { heading: '戊', markdown: '另一节。' } });
+  assert.equal(await codeOf(study.call('book.write', { hid: shallow.hid, file: 'mine', op: 'move', heading: a, within: added.section.id })), 'book-section-move-invalid');
+  assert.deepEqual((await study.call('book.read', { hid: shallow.hid, file: 'mine' })).files.mine.headings.map(heading => heading.level), [4, 5, 6, 4]);
 });
 
 test('moving a point deeper or shallower moves the headings of its files with it; the files are kept as one structure change', async t => {
@@ -214,6 +319,21 @@ test('two structure changes at the same moment from the same version: one queue,
   assert.equal((await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine.text, '同时写的笔记。');
 });
 
+test('a rebuild keeps a point\'s title by its id; a renamed chapter only while the outline titles it the same; a point that is gone waits in 未归位 under the title the book showed', async t => {
+  const { study } = await bookService(t);
+  const toc = await study.call('book.toc'), [chapter, what] = toc.toc;
+  let version = (await study.call('course.book.rename', { hid: chapter.hid, title: '导论', version: toc.structureVersion })).structureVersion;
+  await study.call('course.book.rename', { hid: what.hid, title: '架构师做什么', version });
+  const mine = (await study.call('book.read', { hid: what.hid, file: 'mine' })).files.mine;
+  await study.call('course.book.save', { file: mine.name, text: '我的笔记。', version: mine.version });
+  // The new outline titles the chapter differently and no longer has the point.
+  await rebuild(study, title => title, point => point.id !== 'what');
+  await study.store.update(state => { state.sources.find(source => source.provenance === 'course-outline' && !source.archived).courseOutline.nodes[0].title = 'Intro (rebuilt)'; });
+  const book = await study.call('course.book.open');
+  assert.equal(book.nodes[0].title, 'Intro (rebuilt)', 'a chapter is matched by the outline\'s title: renamed by the outline, the learner\'s title goes');
+  assert.match(book.unplaced.text, /### 架构师做什么（已无对应知识点）\n\n我的笔记。/);
+});
+
 test('a renamed title stays when the outline is rebuilt (matched by its id); the structure version moves with the rebuild', async t => {
   const { study } = await bookService(t);
   const toc = await study.call('book.toc'), what = toc.toc[1];
@@ -253,6 +373,19 @@ test('the actions are registered with input schemas, write the sources, and are 
     if (operation !== 'book.write') assert.deepEqual(writesFor('library', operation), ['sources']);
   }
   assert.match(filterCapabilities(capabilities, { operation: 'course.book.save' }).contexts[0].operations[0].description, new RegExp(String(FILE_TEXT_MAX)));
+  // course.book.save and book.write only describe their keys: every mistake still gets the action's own coded refusal, not a schema error.
+  for (const operation of ['course.book.save', 'book.write']) assert.equal(filterCapabilities(capabilities, { operation }).contexts[0].operations[0].input.required, undefined, operation);
+  const toc = await study.call('book.toc'), point = toc.toc[1], file = (await study.call('book.read', { hid: point.hid, file: 'mine' })).files.mine;
+  for (const [action, args, code] of [
+    ['course.book.save', { file: file.name, version: file.version }, 'course-book-text-missing'],
+    ['course.book.save', { file: file.name, text: 42, version: file.version }, 'course-book-text-missing'],
+    ['course.book.save', { file: file.name, text: 'x' }, 'course-book-version-required'],
+    ['course.book.save', { file: file.name, text: 'x', version: '1' }, 'course-book-version-required'],
+    ['book.write', { markdown: 'x' }, 'book-point-missing'],
+    ['book.write', { hid: point.hid, section: 'x' }, 'book-write-mode'],
+    ['book.write', { hid: point.hid, edits: 'x' }, 'book-write-mode'],
+    ['book.write', { hid: point.hid, op: 7, heading: 'h1' }, 'book-write-op'],
+  ]) assert.equal(await codeOf(study.call(action, args)), code, `${action} ${JSON.stringify(args)}`);
   for (const text of ['course.book.rename {course?,hid,title,version}', 'course.book.move {course?,hid,toParent?,afterHid?,beforeHid?,version}', 'course.book.delete {course?,hid,children?:promote|toUnplaced,version}', "book.write {course?,hid,file?,op:insert"])
     assert.ok(libraryContracts.book.includes(text), text);
   assert.ok(libraryContracts.book.length < 6000);
