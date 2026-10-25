@@ -14,15 +14,17 @@ import { COURSE, outlineLibrary } from './course-outline-library.mjs';
 export { COURSE };
 export const pageLine = (id, i) => `${id} line ${i}: the architect writes down why each decision was taken, and who agreed to it.`;
 
-export function bookLibrary({ long = false, language = 'zh', points = null } = {}) {
+/** `chapters` ([{ id, title, children }], or a function (lecture 1's document key, n -> lecture n's) giving them) lays out a bigger book (several chapters) in place of the one chapter of `points`. */
+export function bookLibrary({ long = false, language = 'zh', points = null, chapters = null } = {}) {
   const { sources, decks } = outlineLibrary();
   // Each page its own text (the fixture's two pages of a chapter are copies, which a point counts once).
   for (const source of sources) if (/^document-l1-p[1-4]$/.test(source.id)) source.text = long ? Array.from({ length: 32 }, (_, i) => pageLine(source.id, i)).join('\n') : `${source.text} ${pageLine(source.id, 0)}`;
   const state = { sources, decks, documents: [], drafts: [], attempts: [], focus: { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] } };
   const lecture = groupSourcesByDocument(sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
-  const children = points ?? [{ id: 'what', title: 'What architects do', anchors: [`${lecture}#0`] }, { id: 'who', title: 'Stakeholders', anchors: [`${lecture}#1`] }];
+  const nodes = (typeof chapters === 'function' ? chapters(lecture, n => groupSourcesByDocument(sources).find(item => item.sourceIds.includes(`document-l${n}-p1`)).key) : chapters) ?? [{ id: 'c1', title: 'Introduction', children: points ?? [{ id: 'what', title: 'What architects do', anchors: [`${lecture}#0`] }, { id: 'who', title: 'Stakeholders', anchors: [`${lecture}#1`] }] }];
+  const children = nodes.flatMap(node => node.children);
   const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: COURSE }).allDocuments),
-    nodes: [{ id: 'c1', title: 'Introduction', children }], other: { anchors: [] }, counts: { units: children.length, leftover: 0, invalid: 0, repeated: 0 } }), createdAt: '2026-10-09T00:00:00.000Z' };
+    nodes, other: { anchors: [] }, counts: { units: children.length, leftover: 0, invalid: 0, repeated: 0 } }), createdAt: '2026-10-09T00:00:00.000Z' };
   sources.push(outline);
   const page = sources.find(source => source.id === 'document-l1-p1');
   sources.push({ ...courseNotesMaterial({ title: '复习全书 · SA', course: COURSE, outlineId: outline.id, language, papers: [], counts: {}, leaves: children.map(leaf => ({ id: leaf.id, title: leaf.title, anchors: leaf.anchors,

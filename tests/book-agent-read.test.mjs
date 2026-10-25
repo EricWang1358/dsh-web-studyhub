@@ -11,6 +11,7 @@ import { pageRanges, wordCount, citedSources } from '../lib/book-agent-view.js';
 import { summaryOf } from '../lib/book-agent-read.js';
 import { libraryContracts, studyToolDescription } from '../lib/study-contracts.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
+import { FILE_TEXT_MAX } from '../lib/course-book-edit.js';
 import { bookService, sizeOf, COURSE } from './helpers/book-agent-library.mjs';
 
 const LIMIT = 8000;
@@ -97,7 +98,7 @@ test('book.read: one point, its files, headings, neighbours and pages; a long fi
   assert.equal(await codeOf({ file, nodes: [] }), 'course-book-text-missing');
   await assert.rejects(study.call('course.book.save', { file, nodes: [] }), /got keys: file, nodes; expected \{ file, text, version \}/);
   assert.equal(await codeOf({ file, text: 'x' }), 'course-book-version-required');
-  assert.equal(await codeOf({ file, text: 'x'.repeat(400_001), version: opened.files[file].version }), 'course-book-text-too-long');
+  assert.equal(await codeOf({ file, text: 'x'.repeat(FILE_TEXT_MAX + 1), version: opened.files[file].version }), 'course-book-text-too-long');
   await assert.rejects(study.call('book.read', { hid: toc.toc[0].hid }), error => error.code === 'book-point-not-leaf');
   await assert.rejects(study.call('book.read', { hid: 'h999' }), error => error.code === 'book-point-missing');
   await assert.rejects(study.call('book.read', { hid: what.hid, file: 'qa' }), error => error.code === 'book-file-invalid');
