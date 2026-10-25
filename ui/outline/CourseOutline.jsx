@@ -54,6 +54,11 @@ function usePicked({ call, course, deckId, pick }) {
 /** data: the library snapshot; onBack(); onCreate() (创建题组); onOpenSources() (the 资料 page, where a material is filed under a course); onPractice(scope, { resume }) starts the round and keeps the way back here;
     onOpenTask(jobId) shows a task in the 任务 console; onOpenSource(sourceId, quote) opens the original at a quote (a 角标 of the 复习全书); onOpenBook(key?) opens the
     复习全书 page (at a knowledge point). */
+/** What the page's buttons send. The click is the learner's go-ahead (`confirm`, #461): a rebuild moves the review book's own text by pages, and what
+    matches no new point waits in 未归位. `papers`: null leaves the choice to the build; a list is the learner's (empty: none). */
+export const organiseArgs = (course, papers) => ({ course, confirm: true, ...(Array.isArray(papers) ? { papers } : {}) });
+export const REBUILD_OUTLINE = Object.freeze({ rebuildOutline: true, confirm: true });
+
 export default function CourseOutline({ data, onBack, onCreate, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
@@ -75,7 +80,7 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
     try {
       // The interface language goes with every request (uiLanguage), so the task speaks it without being told here.
       // `papers`: null leaves the choice to the build (the outline's, else the papers recognised by name); a list is the learner's (empty: none).
-      await act('generation.courseOutline.build', { course, ...(Array.isArray(papers) ? { papers } : {}) },
+      await act('generation.courseOutline.build', organiseArgs(course, papers),
         result => notify({ text: startedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, notify]);
@@ -222,8 +227,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
         {book.from === null && actions.writeBook && <p className="outline-book-line__stale" data-old-outline="">
           <span>{ui('这份总纲是旧版本按资料名整理的，复习全书照旧按它写。')}</span>{' '}
-          <Button size="sm" variant="secondary" icon="refresh" disabled={busy || !model.ready} onClick={() => actions.writeBook(null, { rebuildOutline: true })}>{ui('用清点结果重新整理总纲')}</Button>{' '}
-          <span>{ui('你的笔记会按位置对应过去。')}</span>
+          <Button size="sm" variant="secondary" icon="refresh" disabled={busy || !model.ready} onClick={() => actions.writeBook(null, REBUILD_OUTLINE)}>{ui('用清点结果重新整理总纲')}</Button>{' '}
+          <span>{ui('你的笔记会按位置对应过去；没有新知识点占到足够多页的，放进「未归位」。')}</span>
         </p>}
         {book.notes?.levels ? <p className="outline-book-line__coverage" data-book-levels="">{levelsText(book.notes.levels)}</p>
           : book.notes?.coverage?.total > 0 && <p className="outline-book-line__coverage">{bookCoverageText(book.notes.coverage)}</p>}
