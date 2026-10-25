@@ -122,3 +122,15 @@ test('a point brought back by an undo is no longer "deleted": after a rebuild a 
   assert.equal(refused.code, 'course-book-file-missing');
   assert.equal(refused.message, '书里没有这份文件 / The book has no such file');
 });
+
+test('a heading that carries a footnote mark: renaming another to its title is refused, and a move answers its title without any internal mark tag', async t => {
+  const s = await setup(t);
+  const file = await s.save('#### 甲[^1]\n\n甲文。\n\n#### 乙\n\n乙文。\n\n**出处**\n\n[^1]: 甲注'), id = s.ids(file);
+  for (const title of ['甲[^1]', ' 甲 [^1] ', '甲']) assert.equal((await s.run({ op: 'rename', heading: id['乙'], title })).refused, 'book-section-exists', title);
+  assert.equal((await s.run({ op: 'insert', position: 'end', section: { heading: '甲[^1]', markdown: '新。' } })).refused, 'book-section-exists');
+  const moved = await s.run({ op: 'move', heading: id['甲[^1]'], position: 'end' });
+  assert.equal(moved.status, 'saved');
+  assert.equal(moved.section.title, '甲[^1]');
+  assert.doesNotMatch(JSON.stringify(moved), /\\u0001/);
+  assert.doesNotMatch((await s.read()).text, /\u0001/);
+});
