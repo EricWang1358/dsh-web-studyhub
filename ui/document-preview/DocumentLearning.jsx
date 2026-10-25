@@ -10,7 +10,7 @@ import { usePolling } from '../use-polling.js';
 import { selectionRequest } from './selection.js';
 import { SelectionJobList } from './SelectionJobs.jsx';
 import QuickIntents from './QuickIntents.jsx';
-import PageAsk, { pageReasons } from './PageAsk.jsx';
+import PageAsk, { PAGE_REFUSED, pageReasons } from './PageAsk.jsx';
 import { pageKey, pageSelection } from './page-scope.js';
 import { askRequest, pageDraftKey, retryOf } from './ask-request.js';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
@@ -276,7 +276,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
       ensureCurrent();
       if (value.status !== 'answered') {
         if (nodeOf(threadRef.current, id)) { if (page) setPageRefusal(value); else setResolution(value); }
-        settle(current => failNode(current, id, ui((page ? pageReasons : statusLabels)[value.status] || (page ? '这一页暂时无法提问。' : '这段文字暂时无法提问。'))));
+        settle(current => failNode(current, id, ui((page ? pageReasons : statusLabels)[value.status] || (page ? PAGE_REFUSED : '这段文字暂时无法提问。'))));
       } else {
         settle(current => answerNode(current, id, value.answer));
         // A page cut at the evidence cap is said under the box (the answer only read its beginning).

@@ -71,6 +71,15 @@ The full pipeline is in [Question generation and quality checks](assessment-qual
 
 In the reader, **Original PDF** shows the file itself, in the browser's own PDF viewer. Text you select there does not reach **Study tools** (you can copy it and paste it into the question box), so the panel asks about the current page instead of a passage.
 
+A typical round:
+
+1. Open the material and choose **Original PDF**. Open **Study tools** if it is closed (the line under the toolbar has an **Ask about this page** link).
+2. Go to the page with the page controls above the PDF; the panel says **Asking about page N**.
+3. Tap a preset, or type your own question and click **Answer from this page**.
+4. For a figure or a scanned page, click **Send to the main chat**, then take a screenshot and paste it at the end of the message.
+
+The first time, two short hints explain the page controls and the presets; each closes for good with its own ×.
+
 - Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. Scrolling inside the PDF does not change the page that is asked about, and each page turn reloads the PDF (its own zoom is not kept).
 - Type or paste a question and click **Answer from this page**. The answer uses the saved text of that page only. A very long page is cut, and the panel says how much was used.
 - Or press one of the four presets under the box; each asks at once: **Explain this page**, **Translate this page** (into the language of the interface), **Split this page into points** and **Formulas and code of this page**. Hovering a preset shows the exact question it sends. **Translate this page** is a one-off answer about the page's saved text and is not kept; the side-by-side translation of the whole material, kept per version with its glossary, is **Translate** in the **Read** toolbar.

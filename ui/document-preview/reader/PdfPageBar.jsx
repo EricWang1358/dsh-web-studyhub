@@ -23,7 +23,7 @@ export default function PdfPageBar({ page, total, onPage }) {
     const next = clampPage(draft, total);
     if (next === null || next === page) setDraft(String(page)); else onPage(next);
   };
-  return <nav className="reader-pdf-bar" aria-label={ui('原始 PDF 翻页')}>
+  return <nav className="reader-pdf-bar" data-tour="reader-pdf-bar" aria-label={ui('原始 PDF 翻页')}>
     <IconButton size="sm" icon="chevron-left" label={ui('上一页')} disabled={page <= 1} onClick={() => onPage(page - 1)} />
     <NumberInput inputMode="numeric" min={1} max={total || undefined} step={1} value={draft} className="reader-pdf-bar__input" aria-label={ui('页码')}
       onChange={event => setDraft(event.target.value)} onBlur={apply}

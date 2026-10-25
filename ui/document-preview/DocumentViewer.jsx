@@ -390,7 +390,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const notices = [
     loading && <LoadingState key="loading" label={ui('正在打开资料…')} />,
     !localMode && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
-    view === 'original' && !localMode && <p key="pdf" className="reader-pdf-note">{ui('原始 PDF 用于核对排版与图表。可以在「学习工具」里针对当前页提问，用上方的翻页按钮换页；要选中一段提问或补题，请切换到「阅读」。')}
+    view === 'original' && !localMode && <p key="pdf" className="reader-pdf-note">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}
       {!toolsOn && <> <Button variant="link" size="sm" onClick={() => toggle('tools')}>{ui('问这一页')}</Button></>}</p>,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,
     (quoteState?.status === 'ambiguous' || (reading && placed === 'ambiguous')) && <InlineMessage key="ambiguous" tone="warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</InlineMessage>,

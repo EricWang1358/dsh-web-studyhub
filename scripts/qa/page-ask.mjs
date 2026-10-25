@@ -104,6 +104,19 @@ export async function runPageAskQa(options) {
       if (await tools.getByRole("button", { name: t("围绕这段出案例题", "Write a case around this passage") }).count()) throw new Error("the case button is offered in the PDF view");
       return at;
     });
+    await step("first-visit-hints-close-for-good", async () => {
+      // Two first-visit hints in the page panel: which page is asked, and the presets / the main chat. Each closes with its own button, for good.
+      const hints = paging.locator("[data-reader-hint]");
+      if (await hints.count() !== 2) throw new Error(`expected two first-visit hints, saw ${await hints.count()}`);
+      const page = await paging.locator('[data-reader-hint="pdf-page"]').innerText();
+      if (!page.includes(t("这里问的是第 1 页", "This asks about page 1"))) throw new Error(`the page hint does not name the page: ${page}`);
+      await paging.locator('[data-reader-hint="pdf-page"]').getByRole("button", { name: t("不再提示这一条", "Don’t show this again") }).click();
+      await paging.locator('[data-reader-hint="pdf-page"]').waitFor({ state: "detached" });
+      const stored = await paging.evaluate(() => globalThis.localStorage.getItem("study-reader-hints"));
+      if (!stored?.includes("pdf-page")) throw new Error(`the closed hint was not remembered: ${stored}`);
+      if (!await paging.locator('[data-reader-hint="page-presets"]').isVisible()) throw new Error("closing one hint closed the other");
+      return { stored };
+    });
     await check("escape-in-page-box-keeps-the-reader", async () => {
       await closeOverlay();
       await pageBox().fill("3");
@@ -171,7 +184,7 @@ export async function runPageAskQa(options) {
       await typePage(4);
       await expectPage(4);
       const text = await paging.innerText();
-      if (!(options.lang === "zh" ? /第 4 页没有保存的文字/ : /Page 4 has no saved text/).test(text)) throw new Error(`no empty-page message: ${text.slice(0, 200)}`);
+      if (!(options.lang === "zh" ? /第 4 页没有保存文字/ : /Page 4 has no saved text/).test(text)) throw new Error(`no empty-page message: ${text.slice(0, 200)}`);
       if (await paging.locator("textarea").count()) throw new Error("a question box for a page without text");
       // A page that is only a picture: 发给主会话 is the way forward there (the screenshot is pasted into the chat).
       const forward = paging.locator('.study-page-ask__forward [data-hand-off="reader.page"]');
@@ -255,7 +268,7 @@ export async function runPageAskQa(options) {
       await paging.getByRole("button", { name: t("依据这一页回答", "Answer from this page") }).click();
       const failed = paging.locator('[data-ask-node][data-status="failed"]').first();
       await failed.waitFor({ timeout: 15000 });
-      const pageWords = t("资料已更新，请重新打开这份资料再问这一页", "Open it again to ask about this page"), passageWords = t("这段引用", "this citation");
+      const pageWords = t("这份资料刚更新过：关掉阅读器再打开，就能接着问这一页", "close the reader and open it again"), passageWords = t("这段引用", "this citation");
       const first = await failed.innerText();
       if (!first.includes(pageWords)) throw new Error(`not the page wording: ${first}`);
       await failed.getByRole("button", { name: t("重试", "Retry") }).click();

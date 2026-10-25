@@ -114,6 +114,16 @@
   .study-page-ask__step { display: inline-flex; gap: var(--space-1); }
   .study-page-ask form { margin-bottom: var(--space-2); }
   .reader-learning:empty { display: none; }
+  /* The page presets: an even two-column grid, every chip as wide as its column, so a narrow panel shows two tidy rows instead of ragged ones; a long label wraps inside its chip. */
+  .study-page-ask .ask-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .study-page-ask .ask-quick > .sh-popover-anchor { display: flex; min-width: 0; }
+  .study-page-ask .ask-quick .sh-btn { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: var(--lh-snug); text-align: center; text-wrap: balance; }
+  /* A first-visit hint keeps its × on the line of its text (the shared inline message wraps it under a full-width text). */
+  .study-page-ask__hint { flex-wrap: nowrap; margin: 0 0 var(--space-2); }
+  .study-page-ask__hint .sh-inline__text { flex: 1 1 0; max-width: none; }
+  .study-page-ask__handoff { display: block; margin-top: var(--space-3); }
+  .study-page-ask__forward { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-2); }
+  .study-page-ask__forward p { margin: 0; }
   .study-document-learning blockquote {
     border-left: 3px solid var(--accent);
     padding: .5rem;
