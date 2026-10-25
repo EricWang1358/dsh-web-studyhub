@@ -147,3 +147,17 @@ test('a thread that is too long or malformed is refused before any model call', 
   await assert.rejects(ask({ question: 'x', term: 7 }), /Term/);
   assert.equal(seen.length, 0);
 });
+
+test('a preset intent reaches the instructions on a page and on a selection; an unknown one is refused before any model call', async t => {
+  const page = await pageFixture(t);
+  const result = await page.ask({ scope: 'page', selection: page.page(2), question: '请把这一页翻译过来', intent: 'translate' });
+  assert.equal(result.status, 'answered');
+  assert.match(page.seen[0].system, /translation/i);
+  assert.equal(page.seen[0].input.intent, undefined, 'the intent is an instruction, not a field of the untrusted input');
+  const passage = await fixture(t);
+  await passage.ask({ question: 'q', intent: 'points' });
+  assert.match(passage.seen[0].system, /knowledge points/);
+  await assert.rejects(passage.ask({ question: 'q', intent: 'poem' }), /intent/);
+  assert.equal(passage.seen.length, 1);
+  assert.deepEqual(materialsSchemas['materials.selection.ask'].input.properties.intent.enum, ['explain', 'translate', 'points', 'extract']);
+});

@@ -73,8 +73,9 @@ In the reader, **Original PDF** shows the file itself, in the browser's own PDF 
 
 - Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. Scrolling inside the PDF does not change the page that is asked about, and each page turn reloads the PDF (its own zoom is not kept).
 - Type or paste a question and click **Answer from this page**. The answer uses the saved text of that page only. A very long page is cut, and the panel says how much was used.
-- The saved text has no pictures, so the model cannot read a figure. To see the page image, use **Original page** in **Read**.
-- A page without saved text (a scan, a picture, or a page skipped on import) says so and cannot be asked about.
+- Or press one of the four presets under the box; each asks at once: **Explain this page**, **Translate this page** (into the language of the interface), **Split this page into points** and **Formulas and code of this page**. Hovering a preset shows the exact question it sends.
+- The saved text has no pictures, so the model cannot read a figure. To see the page image, use **Original page** in **Read**. To have a figure explained, use **Send to the main chat** under the answers: it puts the material's name, the page number, the page's saved text (cut at the same length as the answer, and it says so) and your question into the main chat's input box, ending with a line where you paste the screenshot of the page. You press send yourself; text you already typed in the chat box is never written over.
+- A page without saved text (a scan, a picture, or a page skipped on import) says so and has no question box; **Send to the main chat** is the way forward there: paste the screenshot into the chat.
 - To ask about one passage, keep an answer as an annotation or add questions to a deck, switch to **Read** and select the passage.
 
 ## How text is extracted

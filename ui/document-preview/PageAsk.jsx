@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Hint, IconButton, InlineMessage, TextArea } from '../components/index.js';
+import { HandOff } from '../hand-off/HandOff.jsx';
+import { StudyServicesContext } from '../study-context.jsx';
 import AskThread from './AskThread.jsx';
+import QuickIntents, { PAGE_INTENTS } from './QuickIntents.jsx';
 import ReaderModelGate from './ReaderModelGate.jsx';
 
 const noop = () => {};
@@ -18,10 +21,16 @@ export const pageReasons = {
  * old selection. One box and the thread of answers; keeping answers as annotations, saving them as cards and topping up a deck need a
  * selected passage and stay in 阅读. The model reads only the page's saved text, so figures are pointed to 看原页.
  */
-export default function PageAsk({ scope, resolution, refusal = null, question = '', thread, notice = '', noticeWhy = '', cut = null, error = '', askReady = false, modelReady = false,
+/** 发给主会话 of a page (registry id reader.page): the page's name, number and saved text, and what the learner typed; the screenshot is pasted by the learner. */
+const HAND_OFF_WHAT = '把这一页的文字和你写的问题发给主会话，截图由你粘贴进去，主会话能看图';
+
+export default function PageAsk({ scope, handOff = null, onQuick, resolution, refusal = null, question = '', thread, notice = '', noticeWhy = '', cut = null, error = '', askReady = false, modelReady = false,
   list = null, sectionRef, total = 0, onPage, onQuestion, onAsk, onAskInside, onRetryNode, onToggleNode }) {
   const asking = thread.nodes.some(node => node.parentId === null && node.status === 'asking');
   const refused = refusal || (resolution && resolution.status !== 'resolved' ? resolution : null);
+  // Only where an app can take it (the reader also runs as a bare preview of the host, which has no chat and no notices).
+  const canHandOff = !!useContext(StudyServicesContext) && !!handOff;
+  const handOffInput = () => ({ ...handOff, question });
   return <section className="study-document-learning study-page-ask" aria-label={ui('按页提问')} ref={sectionRef} data-scope="page">
     {list}
     {/* The page can be turned from here too: on a narrow reader the panel covers the page controls. */}
@@ -32,17 +41,27 @@ export default function PageAsk({ scope, resolution, refusal = null, question = 
         <IconButton size="sm" icon="chevron" label={ui('下一页')} disabled={!!total && scope.page >= total} onClick={() => onPage(scope.page + 1)} />
       </span>}
     </div>
-    {scope.empty ? <InlineMessage tone="info">{uiFormat('第 {0} 页没有保存的文字（可能是扫描页、图片页，或导入时跳过了），无法依据原文回答。', [scope.page])}</InlineMessage> : <>
+    {scope.empty ? <>
+      <InlineMessage tone="info">{uiFormat('第 {0} 页没有保存的文字（可能是扫描页、图片页，或导入时跳过了），无法依据原文回答。', [scope.page])}</InlineMessage>
+      {/* The page is only a picture: the main chat can read the screenshot the learner pastes; here it is the way forward, not a side link. */}
+      {canHandOff && <div className="study-page-ask__forward">
+        <p className="muted">{ui('可以把这一页的截图发给主会话：点下面的按钮，再把截图粘贴进主会话的输入框。')}</p>
+        <HandOff id="reader.page" shape="secondary" what={HAND_OFF_WHAT} input={handOffInput} />
+      </div>}
+    </> : <>
       {refused && <InlineMessage tone="warning">{ui(pageReasons[refused.status] || '这一页暂时无法提问。')}</InlineMessage>}
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       {!modelReady && <ReaderModelGate feature="passage" />}
       <form onSubmit={onAsk}>
         <label>{ui('针对这一页提问')}<TextArea value={question} required rows={3} disabled={asking}
           onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('输入或粘贴问题，例如：这一页的主要结论是什么？')} /></label>
+        <QuickIntents chips={PAGE_INTENTS} disabled={!askReady || asking || !!refused} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} />
         <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim() || !!refused}>{ui('依据这一页回答')}</Button>
       </form>
       {cut?.truncated && <InlineMessage tone="info">{uiFormat('这一页文字较长，回答只依据了前 {0} 字（共 {1} 字）。', [cut.used, cut.chars])}</InlineMessage>}
       <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />
+      {/* A quiet way out where the built-in answer cannot help: a figure, a formula drawn as a picture. */}
+      {canHandOff && <HandOff id="reader.page" shape="quiet" lead="要让主会话看截图：" what={HAND_OFF_WHAT} input={handOffInput} className="study-page-ask__handoff" />}
     </>}
     <Hint>{ui('在 PDF 里选中的文字不会自动带到这里，可以复制后粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要针对选中的一段提问、存为批注或补题，请切换到「阅读」。')}</Hint>
   </section>;

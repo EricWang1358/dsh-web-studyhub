@@ -38,6 +38,7 @@ const FIXTURES = {
   'workflow.step': { input: { session: { id: 's1', version: 3, topic: 'Entropy' }, step: { title: 'Recall', kind: 'recall' }, wish: 'one more example' }, fenced: ['wish'] },
   'path.brief': { input: { steps: [{ order: 1, title: 'Chapter 1', pages: 10, chars: 5000, count: 5, sourceIds: ['a', 'b'], ranges: [{ document: 'Physics book', from: 1, to: 10 }] }], course: 'SA', goal: 'pass', indexed: false },
     fenced: ['course', 'goal'] },
+  'reader.page': { input: { title: 'Scheduling', page: 3, text: 'Page 3 explains round robin.', question: 'What does figure 2 show?' }, fenced: ['title', 'text', 'question'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.
 const KEPT_CHINESE = /（资料以外）/g;
@@ -170,6 +171,23 @@ test('skeleton.design keeps the diagram promise and the details under a point', 
   assert.match(zh, /会画成可交互的 UML 类图 \+ 时序图/);
   assert.match(zh, /要点下可以再挂细节/);
   assert.match(ui.handOffText('skeleton.design', FIXTURES['skeleton.design'].input, 'en'), /interactive UML class diagram plus sequence diagrams/);
+});
+
+test('reader.page: the page, its saved text (cut at the cap of the built-in answer, and said), the typed question, and the screenshot line at the very end', async () => {
+  const { PAGE_EVIDENCE_MAX } = await import('../lib/ask-prompt.js');
+  for (const language of ['zh', 'en']) {
+    const text = ui.handOffText('reader.page', FIXTURES['reader.page'].input, language);
+    assert.ok(text.endsWith(`${ui.languageTail(language)}\n\n${language === 'zh' ? '这一页的截图（粘贴在这里）：' : 'Screenshot of the page (paste it here):'}`), text);
+    assert.match(text.split('\n')[0], language === 'zh' ? /第 3 页/ : /page 3/);
+    assert.ok(text.includes('Page 3 explains round robin.') && text.includes('What does figure 2 show?'));
+    assert.doesNotMatch(text, /Cut:|截断：/, `${language}: nothing cut, nothing said`);
+    const long = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, text: 'y'.repeat(PAGE_EVIDENCE_MAX + 7) }, language);
+    assert.match(long, language === 'zh' ? new RegExp(`只附了前 ${PAGE_EVIDENCE_MAX} 字（共 ${PAGE_EVIDENCE_MAX + 7} 字）`) : new RegExp(`first ${PAGE_EVIDENCE_MAX} of ${PAGE_EVIDENCE_MAX + 7} characters`));
+    assert.ok(!long.includes('y'.repeat(PAGE_EVIDENCE_MAX + 1)), `${language}: the text is cut`);
+    const blank = ui.handOffText('reader.page', { title: 'Scheduling', page: 4, text: '' }, language);
+    assert.match(blank, language === 'zh' ? /没有保存的文字/ : /no saved text/);
+    assert.doesNotMatch(blank, /data |request /, `${language}: no empty fence`);
+  }
 });
 
 test('the fences: a request and a library text each in a fence longer than any backtick run inside; the list words of each language', () => {

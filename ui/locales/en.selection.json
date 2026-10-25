@@ -106,5 +106,16 @@
   "输入或粘贴问题，例如：这一页的主要结论是什么？": "Type or paste a question, e.g. What is the main conclusion of this page?",
   "依据这一页回答": "Answer from this page",
   "这一页文字较长，回答只依据了前 {0} 字（共 {1} 字）。": "This page is long: the answer used only its first {0} of {1} characters.",
-  "在 PDF 里选中的文字不会自动带到这里，可以复制后粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要针对选中的一段提问、存为批注或补题，请切换到「阅读」。": "Text selected inside the PDF does not reach this panel; copy it and paste it into the question box. The model reads only the saved text of this page and cannot see figures; to see the page image, use “Original page” in “Read”. To ask about a selected passage, keep an annotation or add questions, switch to “Read”."
+  "在 PDF 里选中的文字不会自动带到这里，可以复制后粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要针对选中的一段提问、存为批注或补题，请切换到「阅读」。": "Text selected inside the PDF does not reach this panel; copy it and paste it into the question box. The model reads only the saved text of this page and cannot see figures; to see the page image, use “Original page” in “Read”. To ask about a selected passage, keep an annotation or add questions, switch to “Read”.",
+  "讲解这一页": "Explain this page",
+  "请按原文顺序讲解这一页。": "Please explain this page in the order of the source.",
+  "翻译这一页": "Translate this page",
+  "请把这一页完整翻译过来，保持原来的顺序。": "Please translate this whole page, keeping its order.",
+  "按知识点拆分这一页": "Split this page into points",
+  "请把这一页按知识点拆开，每个知识点用一两句话说清。": "Please split this page into knowledge points, each said in a sentence or two.",
+  "提取这一页的公式与代码": "Formulas and code of this page",
+  "请把这一页的公式和代码原样提取出来，并说明各自的用途。": "Please copy out the formulas and code of this page exactly, and say what each is for.",
+  "把这一页的文字和你写的问题发给主会话，截图由你粘贴进去，主会话能看图": "Sends the text of this page and your question to the main chat; you paste the screenshot, and the main chat can read pictures",
+  "可以把这一页的截图发给主会话：点下面的按钮，再把截图粘贴进主会话的输入框。": "You can send a screenshot of this page to the main chat: press the button below, then paste the screenshot into the main chat's input box.",
+  "要让主会话看截图：": "To have the main chat read a screenshot:"
 }
