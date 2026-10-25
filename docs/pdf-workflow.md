@@ -76,7 +76,7 @@ A typical round:
 1. Open the material and choose **Original PDF**. Open **Study tools** if it is closed (the line under the toolbar has an **Ask about this page** link).
 2. Go to the page with the page controls above the PDF; the panel says **Asking about page N**.
 3. Tap a preset, or type your own question and click **Answer from this page**.
-4. For a figure or a scanned page, click **Send to the main chat**, then take a screenshot and paste it at the end of the message.
+4. For a figure or a scanned page, click **Send to the main chat**, then take a screenshot and paste it at the end of the message; a screenshot only helps when your main chat can see pictures.
 
 The first time, two short hints explain the page controls and the presets; each closes for good with its own ×.
 

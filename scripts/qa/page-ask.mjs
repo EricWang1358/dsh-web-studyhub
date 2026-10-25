@@ -105,16 +105,26 @@ export async function runPageAskQa(options) {
       return at;
     });
     await step("first-visit-hints-close-for-good", async () => {
-      // Two first-visit hints in the page panel: which page is asked, and the presets / the main chat. Each closes with its own button, for good.
+      // Two first-visit hints in the page panel: which page is asked, and the presets / the main chat. Each closes with its own named button, for good, and
+      // closing one keeps the keyboard in the panel (on the next control), never on the page body.
       const hints = paging.locator("[data-reader-hint]");
       if (await hints.count() !== 2) throw new Error(`expected two first-visit hints, saw ${await hints.count()}`);
       const page = await paging.locator('[data-reader-hint="pdf-page"]').innerText();
       if (!page.includes(t("这里问的是第 1 页", "This asks about page 1"))) throw new Error(`the page hint does not name the page: ${page}`);
-      await paging.locator('[data-reader-hint="pdf-page"]').getByRole("button", { name: t("不再提示这一条", "Don’t show this again") }).click();
+      const pageLabel = t("不再提示：问的是哪一页", "Don’t show again: which page is asked");
+      const presetsLabel = t("不再提示：预设和发给主会话", "Don’t show again: presets and the main chat");
+      if (pageLabel === presetsLabel) throw new Error("the two hints share one accessible name");
+      await paging.locator('[data-reader-hint="pdf-page"]').getByRole("button", { name: pageLabel }).click();
       await paging.locator('[data-reader-hint="pdf-page"]').waitFor({ state: "detached" });
-      const stored = await paging.evaluate(() => globalThis.localStorage.getItem("study-reader-hints"));
-      if (!stored?.includes("pdf-page")) throw new Error(`the closed hint was not remembered: ${stored}`);
+      const afterPage = await paging.evaluate(() => ({ tag: document.activeElement?.tagName || "", inPanel: !!document.activeElement?.closest(".study-page-ask") }));
+      if (afterPage.tag !== "TEXTAREA" || !afterPage.inPanel) throw new Error(`closing the page hint lost the keyboard: ${JSON.stringify(afterPage)}`);
       if (!await paging.locator('[data-reader-hint="page-presets"]').isVisible()) throw new Error("closing one hint closed the other");
+      await paging.locator('[data-reader-hint="page-presets"]').getByRole("button", { name: presetsLabel }).click();
+      await paging.locator('[data-reader-hint="page-presets"]').waitFor({ state: "detached" });
+      const afterPresets = await paging.evaluate(() => ({ inPanel: !!document.activeElement?.closest(".study-page-ask"), body: document.activeElement === document.body }));
+      if (!afterPresets.inPanel || afterPresets.body) throw new Error(`closing the presets hint lost the keyboard: ${JSON.stringify(afterPresets)}`);
+      const stored = await paging.evaluate(() => globalThis.localStorage.getItem("study-reader-hints"));
+      if (!stored?.includes("pdf-page") || !stored.includes("page-presets")) throw new Error(`the closed hints were not remembered: ${stored}`);
       return { stored };
     });
     await check("escape-in-page-box-keeps-the-reader", async () => {

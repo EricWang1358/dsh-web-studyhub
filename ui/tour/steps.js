@@ -38,7 +38,7 @@ export const TOUR_STEPS = [
     body: "点「添加资料」：PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）和文本都可以，原文件会完整保留；也可以直接粘贴文字。一份文档就是一项资料，多页 PDF 也不会被拆散；上百页的大教材会提示先转换成带页码的文字。" },
   { id: "document", page: "sources", prepare: "openSampleDocument", anchor: ["source-tools", "source-tools-toggle"], placement: "left", needs: "sourceId",
     title: "在原文里提问、出题",
-    body: "这是示例讲义的原文。标出的段落已经关联了题目和解析；选中任意一段文字，就能就这段提问，或者用它出几道题。右上角的「从这份资料出题」会用整份资料出题。PDF 资料在「原始 PDF」里按页提问：用翻页键换页，点预设直接问；图表或扫描页可以发给主会话，再附上截图。" },
+    body: "这是示例讲义的原文。标出的段落已经关联了题目和解析；选中任意一段文字，就能就这段提问，或者用它出几道题。右上角的「从这份资料出题」会用整份资料出题。PDF 资料在「原始 PDF」里按页提问：用翻页按钮换页，点预设直接问；图表或扫描页可以发给主会话，截图只在主会话能看图片时有用。" },
   { id: "reader-practice", page: "sources", prepare: "openSampleDocument", anchor: "reader-practice", needs: "sourceId",
     title: "读完就练：做这几页的题",
     body: "阅读器工具栏里的「做这几页的题」会数出这几页关联了多少道题、几道到期，点一下就开始练；这几页还没有题时，同一个按钮可以为它们出题。" },

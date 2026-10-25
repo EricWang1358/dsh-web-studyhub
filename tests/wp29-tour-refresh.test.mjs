@@ -56,7 +56,7 @@ test("copy matches 2.1.x: Word and PowerPoint, one exam page with three formats,
   assert.match(step("document").body, /从这份资料出题/);
   // #456: the reader's 原始 PDF asks by page; the step says so in one sentence (the sample lecture is not a PDF with an original, so the page bar is
   // never on screen during the tour and the step keeps its panel anchors; the bar and the page panel carry data-tour for the hints and later steps).
-  assert.match(step("document").body, /PDF 资料在「原始 PDF」里按页提问：用翻页键换页，点预设直接问；图表或扫描页可以发给主会话，再附上截图。/);
+  assert.match(step("document").body, /PDF 资料在「原始 PDF」里按页提问：用翻页按钮换页，点预设直接问；图表或扫描页可以发给主会话，截图只在主会话能看图片时有用。/);
   assert.deepEqual(anchorsOf(step("document")), ["source-tools", "source-tools-toggle"]);
   assert.match(step("wrongbook").body, /为你推荐/);
   assert.match(step("wrongbook").body, /变式/);

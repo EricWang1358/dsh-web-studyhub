@@ -23,7 +23,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as PdfPageBar, pageBoxKey } from './ui/document-preview/reader/PdfPageBar.jsx';
   export { default as QuickIntents, PAGE_INTENTS, PASSAGE_INTENTS } from './ui/document-preview/QuickIntents.jsx';
   export { pageHandOffInput } from './ui/document-preview/PageAsk.jsx';
-  export { hintClosed, closeHint, READER_HINTS } from './ui/document-preview/reader/hints.js';
+  export { hintClosed, closeHint, forgetClosedHints, READER_HINTS } from './ui/document-preview/reader/hints.js';
   export { askRequest, retryOf, pageDraftKey } from './ui/document-preview/ask-request.js';
   export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
@@ -319,11 +319,13 @@ test('翻译这一页 says on hover that it is a one-off answer, not the reader\
 /* #456 PR 3: first-visit hints (once, closed for good), friendlier refusals that say what to do next, chips in an even grid. */
 test('first visit: the page hint and the presets hint are there, each closable; a closed hint stays closed in this browser', async () => {
   lib.setUiLanguage('zh');
+  lib.forgetClosedHints();
   const out = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, pageHandOff }))));
-  assert.match(text(out), /这里问的是第 3 页：用翻页键换页，在 PDF 里滚动不会换页。/);
-  assert.match(text(out), /点一个预设就直接提问；图表或扫描页，可以「发给主会话」再附上截图。/);
+  assert.match(text(out), /这里问的是第 3 页：用翻页按钮换页，在 PDF 里滚动不会改变要问的页。/);
+  assert.match(text(out), /点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。/);
   assert.equal((out.match(/data-reader-hint="/g) || []).length, 2);
-  assert.equal((out.match(/aria-label="不再提示这一条"/g) || []).length, 2, 'each closes with its own button');
+  assert.equal((out.match(/aria-label="不再提示：问的是哪一页"/g) || []).length, 1, 'the page hint closes with its own name');
+  assert.equal((out.match(/aria-label="不再提示：预设和发给主会话"/g) || []).length, 1, 'the presets hint closes with its own name');
   const store = new Map(), storage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)), removeItem: key => store.delete(key) };
   assert.equal(lib.hintClosed(lib.READER_HINTS.page, storage), false);
   assert.equal(lib.closeHint(lib.READER_HINTS.page, storage), true);
@@ -331,17 +333,33 @@ test('first visit: the page hint and the presets hint are there, each closable; 
   assert.equal(lib.hintClosed(lib.READER_HINTS.presets, storage), false, 'one hint at a time');
   lib.closeHint(lib.READER_HINTS.page, storage);
   assert.deepEqual(JSON.parse(store.get('study-reader-hints')), ['pdf-page'], 'remembered once');
-  assert.equal(lib.hintClosed('pdf-page', null), false, 'no storage: shown again next visit, never an error');
+  lib.forgetClosedHints();
+  assert.equal(lib.hintClosed('pdf-page', null), false, 'no storage: a new visit shows it again, never an error');
   // the presets hint only where there are presets (not on a page without saved text)
   const blank = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true }), resolution: null, pageHandOff }))));
   assert.doesNotMatch(text(blank), /点一个预设就直接提问/);
   assert.doesNotMatch(text(blank), /粘贴进问题框/, 'no word about a box that is not there');
 });
 
+test('a hint closed without browser storage stays closed when the panel is opened again in this visit', () => {
+  lib.setUiLanguage('zh');
+  lib.forgetClosedHints();
+  const shown = () => render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, pageHandOff }))));
+  assert.match(text(shown()), /这里问的是第 3 页/);
+  assert.equal(lib.closeHint(lib.READER_HINTS.page, null), false, 'a blocked browser cannot store it');
+  assert.equal(lib.hintClosed(lib.READER_HINTS.page, null), true, 'this visit still remembers the closing');
+  const again = text(shown());
+  assert.doesNotMatch(again, /这里问的是第 3 页/, 'closing and opening the panel must not bring the hint back');
+  assert.match(again, /点一个预设就直接提问/, 'the other hint is untouched');
+  lib.forgetClosedHints();
+  assert.match(text(shown()), /这里问的是第 3 页/, 'a new visit shows it again');
+  lib.forgetClosedHints();
+});
+
 test('refusals and empty states say what to do next, in one sentence each', () => {
   lib.setUiLanguage('zh');
   const said = status => text(render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageRefusal: { status } }))));
-  assert.match(said('missing'), /这一页没有能核对的文字：换一页再问，或用「发给主会话」附上截图。/);
+  assert.match(said('missing'), /这一页没有能核对的文字：换一页再问，或用「发给主会话」，截图只在主会话能看图片时有用。/);
   assert.match(said('ambiguous'), /这一页对应了好几段文字：切换到「阅读」，选中要问的那一段。/);
   assert.match(said('unavailable'), /现在没有可用的模型：先在设置里连上模型，再回来问。/);
   assert.match(said('other'), /这一页暂时问不了：稍后再试一次。/);
