@@ -8,6 +8,7 @@ import { locateQuote } from '../lib/quote-locate.js';
 import { writeBookPoint } from '../lib/book-agent-write.js';
 import { parseFootnote } from '../lib/book-footnotes.js';
 import { openCourseBook } from '../lib/course-book-files.js';
+import { resolveQuote } from '../ui/document-preview/selection.js';
 import { bookLibrary } from './helpers/book-agent-library.mjs';
 
 const PAGE = '老师在第一讲里强调：“架构师要把每个决定和背后的理由都写下来”，这样以后的人才知道系统为什么是现在这个样子。';
@@ -15,7 +16,7 @@ const WORDS = '架构师要把每个决定和背后的理由都写下来';
 
 test('the citation check finds a real quote that carries a footnote mark after its Chinese quotation marks', () => {
   const pages = [{ id: 'p1', text: PAGE }];
-  for (const quote of [`「${WORDS}」[^12]`, `“${WORDS}”[^3]`, `"${WORDS}"[^3]`, `${WORDS}[^n-2]`, `${WORDS}[^h4g-3]`, `「${WORDS}[^7]」`])
+  for (const quote of [`「${WORDS}」[^12]`, `“${WORDS}”[^3]`, `"${WORDS}"[^3]`, `${WORDS}[^n-2]`, `${WORDS}[^h4g-3]`, `${WORDS}[^e3]`, `「${WORDS}[^7]」`])
     assert.deepEqual(citationCheck(pages, { sourceId: 'p1', quote }), { ok: true, span: 'page' }, quote);
   assert.equal(quoteFound(PAGE, `「${WORDS}」[^12]`), true);
   // Digits that are the material's own still count: a changed number is still not found.
@@ -24,6 +25,10 @@ test('the citation check finds a real quote that carries a footnote mark after i
   const regex = [{ id: 'p1', text: 'The pattern [^0-9]+ matches every run of characters that are not digits.' }];
   assert.equal(citationCheck(regex, { sourceId: 'p1', quote: 'The pattern [^0-9]+ matches every run of characters' }).ok, true);
   assert.equal(citationCheck(regex, { sourceId: 'p1', quote: 'The pattern [^a-z]+ matches every run of characters' }).ok, false);
+  // A digits-only class written as regex code (inside a group, before a quantifier) is wording too.
+  const digits = [{ id: 'p1', text: 'Use the group ([^01]+) to find every run of the other digits in the input.' }];
+  assert.equal(citationCheck(digits, { sourceId: 'p1', quote: 'Use the group ([^01]+) to find every run' }).ok, true);
+  assert.equal(citationCheck(digits, { sourceId: 'p1', quote: 'Use the group ([^23]+) to find every run' }).ok, false);
   // A material that has a mark of its own (a converted book) is found by the quote without it.
   assert.equal(citationCheck([{ id: 'p1', text: PAGE.replace('理由', '理由[^4]') }], { sourceId: 'p1', quote: `「${WORDS}」` }).ok, true);
 });
@@ -62,6 +67,25 @@ test('a quote of a material that holds its own mark is stored without it, found 
   assert.match(file(), /这一点很重要/);
   assert.match(file(), /写下理由\[\^1\]，/);
   assert.equal(file().split('\n').find(line => line.startsWith('[^1]:')), definition);
+});
+
+test('a footnote an older release stored with the material\'s mark as " ^4 " is still found: verified on an unrelated edit, stored anew, and placed by the reader', () => {
+  const { state } = bookLibrary();
+  const material = PAGE.replace('理由', '理由[^4]');
+  state.sources.find(source => source.id === 'document-l1-p1').text += ` ${material}`;
+  const what = openCourseBook(state, {}).nodes[0].children[0];
+  const record = state.sources.find(source => source.provenance === 'course-book-doc'), file = () => record.bookDoc.files[what.files.gen];
+  // The base rendering: the found words with their brackets made spaces.
+  const legacy = WORDS.replace('理由', '理由 ^4 ');
+  file().text = `讲义说要写下理由[^1]。\n\n**出处**\n\n[^1]: [「${legacy}」](studyhub://source/document-l1-p1) · 01. Introduction`;
+  assert.equal(resolveQuote(material, legacy).status, 'fuzzy', 'the reader still places the old quote');
+  const done = writeBookPoint(state, { hid: what.hid, edits: [{ find: '讲义说', replace: '讲义里说' }] });
+  assert.deepEqual([done.dropped, done.warnings.filter(warning => /footnote/.test(warning))], [[], []], 'found, not merely kept as written');
+  assert.match(file().text, new RegExp(`^\\[\\^1\\]: \\[「${WORDS}」\\]\\(studyhub://source/document-l1-p1\\)`, 'm'), 'stored anew without the mark');
+  // A quote that really holds " ^2 " is still compared with it first.
+  const power = 'In the slides the power is written as 2 ^4 and means sixteen, and 2 ^5 means thirty-two.';
+  const at = locateQuote(power, 'the power is written as 2  ^4 and means sixteen');
+  assert.equal(power.slice(at.start, at.end), 'the power is written as 2 ^4 and means sixteen');
 });
 
 test('book.write: 「quote」[^12] in the text keeps its mark, and the footnote whose words are in the material is found', () => {

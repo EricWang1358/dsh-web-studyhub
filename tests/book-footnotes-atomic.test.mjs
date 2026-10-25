@@ -89,7 +89,7 @@ test('a mark whose last mark is taken out takes its definition with it (named in
   assert.equal(done.status, 'saved');
   assert.deepEqual(done.dropped, []);
   assert.ok(done.warnings.some(warning => /2 found but marked nowhere/.test(warning)));
-  assert.ok(done.warnings.some(warning => /3.*kept as (?:they were )?written/.test(warning)), done.warnings.join(' | '));
+  assert.ok(done.warnings.some(warning => /\[\^2\] \(written \[\^3\]\) of the saved file.*kept as they were written/.test(warning)), done.warnings.join(' | '));
   assert.match(text(), /句甲\[\^1\]，句乙，句丙\[\^2\]。/, 'the hand-written footnote\'s mark stays (renumbered)');
   assert.match(text(), /^\[\^2\]: 见讲义第三章的图（手写的说明）$/m);
   assert.deepEqual(footnoteProblems(text().split('\n').filter(line => !/^\[练/.test(line)).join('\n')), []);
