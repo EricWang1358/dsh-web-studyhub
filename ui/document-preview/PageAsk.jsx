@@ -1,11 +1,13 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Hint, IconButton, InlineMessage, TextArea } from '../components/index.js';
 import { READER_HINTS, useReaderHint } from './reader/hints.js';
+import { usePagePresets, visiblePagePresets } from './reader/page-presets.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { StudyServicesContext } from '../study-context.jsx';
 import AskThread from './AskThread.jsx';
 import QuickIntents, { PAGE_INTENTS } from './QuickIntents.jsx';
+import PagePresets from './PagePresets.jsx';
 import ReaderModelGate from './ReaderModelGate.jsx';
 
 const noop = () => {};
@@ -46,7 +48,8 @@ function FirstHint({ id, dismiss, children }) {
 /**
  * The learning panel in the 原始 PDF view (issue #456): the question is about the current page, which the panel names, never about an
  * old selection. One box and the thread of answers; keeping answers as annotations, saving them as cards and topping up a deck need a
- * selected passage and stay in 阅读. The model reads only the page's saved text, so figures are pointed to 看原页.
+ * selected passage and stay in 阅读. The model reads only the page's saved text, so figures are pointed to 看原页. The presets are the
+ * four built-ins and the learner's own (#485, reader/page-presets.js); them being hidden or not is kept in this browser.
  */
 /*
  * 发给主会话 of a page (registry id reader.page): the material's name, the page and its saved text, and the question typed on THIS page; the screenshot
@@ -65,44 +68,51 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
   const refused = refusal || (resolution && resolution.status !== 'resolved' ? resolution : null);
   // Only where an app can take it (the reader also runs as a bare preview of the host, which has no chat and no notices).
   const canHandOff = !!useContext(StudyServicesContext) && !!handOff;
+  // The presets of this browser (#485): visiblePagePresets puts the built-ins not hidden before the learner's own; the dialog that adds and
+  // changes them is outside the section, so it never nests a form inside the question form.
+  const [presets, updatePresets] = usePagePresets(), [managing, setManaging] = useState(false);
+  const locked = !askReady || asking || !!refused;
   const handOffInput = () => pageHandOffInput(handOff, question, false);
   const handOffEmptyInput = () => pageHandOffInput(handOff, question, true);
-  return <section className="study-document-learning study-page-ask" aria-label={ui('按页提问')} ref={sectionRef} data-scope="page" data-tour="reader-page-ask" tabIndex={-1}>
-    {list}
-    {/* The page can be turned from here too: on a narrow reader the panel covers the page controls. */}
-    <div className="study-page-ask__scope">
-      <strong role="status" aria-live="polite">{uiFormat('正在问：第 {0} 页', [scope.page])}</strong>
-      {onPage && <span className="study-page-ask__step">
-        <IconButton size="sm" icon="chevron-left" label={ui('上一页')} disabled={scope.page <= 1} onClick={() => onPage(scope.page - 1)} />
-        <IconButton size="sm" icon="chevron" label={ui('下一页')} disabled={!!total && scope.page >= total} onClick={() => onPage(scope.page + 1)} />
-      </span>}
-    </div>
-    <FirstHint id={READER_HINTS.page} dismiss="不再提示：问的是哪一页">{uiFormat('这里问的是第 {0} 页：用翻页按钮换页，在 PDF 里滚动不会改变要问的页。', [scope.page])}</FirstHint>
-    {scope.empty ? <>
-      <InlineMessage tone="info">{canHandOff ? uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或发给主会话，截图只在主会话能看图片时有用。', [scope.page])
-        : uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或在「阅读」里点「看原页」看这一页的图。', [scope.page])}</InlineMessage>
-      {/* The page is only a picture: the main chat can read the screenshot the learner pastes; here it is the way forward, not a side link. */}
-      {canHandOff && <div className="study-page-ask__forward">
-        <p className="muted">{ui('先点按钮，再截这一页的图；主会话能看图片时，把截图粘贴到消息最后。')}</p>
-        <HandOff id="reader.page" shape="secondary" what={HAND_OFF_WHAT_EMPTY} input={handOffEmptyInput} />
-      </div>}
-    </> : <>
-      {refused && <InlineMessage tone="warning">{ui(pageReasons[refused.status] || PAGE_REFUSED)}</InlineMessage>}
-      {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      {!modelReady && <ReaderModelGate feature="passage" />}
-      <form onSubmit={onAsk}>
-        <label>{ui('针对这一页提问')}<TextArea value={question} required rows={3} disabled={asking}
-          onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('输入或粘贴问题，例如：这一页的主要结论是什么？')} /></label>
-        <QuickIntents chips={PAGE_INTENTS} disabled={!askReady || asking || !!refused} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} />
-        <FirstHint id={READER_HINTS.presets} dismiss="不再提示：预设和发给主会话">{ui('点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。')}</FirstHint>
-        <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim() || !!refused}>{ui('依据这一页回答')}</Button>
-      </form>
-      {cut?.truncated && <InlineMessage tone="info">{uiFormat('这一页很长，回答只读了前 {0} 字（共 {1} 字）；后面的内容请在「阅读」里选中再问。', [cut.used, cut.chars])}</InlineMessage>}
-      <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />
-      {/* A quiet way out where the built-in answer cannot help: a figure, a formula drawn as a picture. */}
-      {canHandOff && <HandOff id="reader.page" shape="quiet" lead="想让主会话接着讲（主会话能看图片时可附截图）：" what={HAND_OFF_WHAT} input={handOffInput} className="study-page-ask__handoff" />}
-    </>}
-    {/* A page without saved text has no question box to paste into. */}
-    {!scope.empty && <Hint>{ui('在 PDF 里选中的文字可以复制，粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页的图，请在「阅读」里点「看原页」查看。')}</Hint>}
-  </section>;
+  return <>
+    <section className="study-document-learning study-page-ask" aria-label={ui('按页提问')} ref={sectionRef} data-scope="page" data-tour="reader-page-ask" tabIndex={-1}>
+      {list}
+      {/* The page can be turned from here too: on a narrow reader the panel covers the page controls. */}
+      <div className="study-page-ask__scope">
+        <strong role="status" aria-live="polite">{uiFormat('正在问：第 {0} 页', [scope.page])}</strong>
+        {onPage && <span className="study-page-ask__step">
+          <IconButton size="sm" icon="chevron-left" label={ui('上一页')} disabled={scope.page <= 1} onClick={() => onPage(scope.page - 1)} />
+          <IconButton size="sm" icon="chevron" label={ui('下一页')} disabled={!!total && scope.page >= total} onClick={() => onPage(scope.page + 1)} />
+        </span>}
+      </div>
+      <FirstHint id={READER_HINTS.page} dismiss="不再提示：问的是哪一页">{uiFormat('这里问的是第 {0} 页：用翻页按钮换页，在 PDF 里滚动不会改变要问的页。', [scope.page])}</FirstHint>
+      {scope.empty ? <>
+        <InlineMessage tone="info">{canHandOff ? uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或发给主会话，截图只在主会话能看图片时有用。', [scope.page])
+          : uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或在「阅读」里点「看原页」看这一页的图。', [scope.page])}</InlineMessage>
+        {/* The page is only a picture: the main chat can read the screenshot the learner pastes; here it is the way forward, not a side link. */}
+        {canHandOff && <div className="study-page-ask__forward">
+          <p className="muted">{ui('先点按钮，再截这一页的图；主会话能看图片时，把截图粘贴到消息最后。')}</p>
+          <HandOff id="reader.page" shape="secondary" what={HAND_OFF_WHAT_EMPTY} input={handOffEmptyInput} />
+        </div>}
+      </> : <>
+        {refused && <InlineMessage tone="warning">{ui(pageReasons[refused.status] || PAGE_REFUSED)}</InlineMessage>}
+        {error && <InlineMessage tone="error">{error}</InlineMessage>}
+        {!modelReady && <ReaderModelGate feature="passage" />}
+        <form onSubmit={onAsk}>
+          <label>{ui('针对这一页提问')}<TextArea value={question} required rows={3} disabled={asking}
+            onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('输入或粘贴问题，例如：这一页的主要结论是什么？')} /></label>
+          <QuickIntents chips={visiblePagePresets(presets, PAGE_INTENTS)} disabled={locked} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} onCustom={() => setManaging(true)} />
+          <FirstHint id={READER_HINTS.presets} dismiss="不再提示：预设和发给主会话">{ui('点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。')}</FirstHint>
+          <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim() || !!refused}>{ui('依据这一页回答')}</Button>
+        </form>
+        {cut?.truncated && <InlineMessage tone="info">{uiFormat('这一页很长，回答只读了前 {0} 字（共 {1} 字）；后面的内容请在「阅读」里选中再问。', [cut.used, cut.chars])}</InlineMessage>}
+        <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />
+        {/* A quiet way out where the built-in answer cannot help: a figure, a formula drawn as a picture. */}
+        {canHandOff && <HandOff id="reader.page" shape="quiet" lead="想让主会话接着讲（主会话能看图片时可附截图）：" what={HAND_OFF_WHAT} input={handOffInput} className="study-page-ask__handoff" />}
+      </>}
+      {/* A page without saved text has no question box to paste into. */}
+      {!scope.empty && <Hint>{ui('在 PDF 里选中的文字可以复制，粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页的图，请在「阅读」里点「看原页」查看。')}</Hint>}
+    </section>
+    {managing && <PagePresets presets={presets} onChange={updatePresets} onClose={() => setManaging(false)} />}
+  </>;
 }
