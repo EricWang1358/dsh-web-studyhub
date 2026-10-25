@@ -1,0 +1,1 @@
+- **A Marker or MinerU install state written by a newer release is refused first, even when the disk is nearly full.** The install checks the state file before it looks at free space, so the message about the newer release is the one you see and nothing is started over it. Not verified: a real nearly-full disk (the check order is tested with the state file only).
