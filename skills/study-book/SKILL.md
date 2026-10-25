@@ -32,10 +32,17 @@ Write for a beginner revising alone: long-form, plain language, the why before t
 1. `book.toc {}` (pages with `offset`): the points, their `hid`, what is written, `read` = pages opened / pages the point stands on.
 2. `book.read {"hid": …}`: the point's files, headings with ids, the previous and next point, and `materials` (documentId and pages). Long files: `more {file, offset}` → `book.read {"hid", "file", "offset"}`.
 3. `source.pages {"documentId": …, "from": p, "to": p+3, "hid": …}`: 2–4 pages a call; follow `next` until the point's pages are read. Always pass the `hid`.
-4. `book.write {"hid": …, "section": {"heading": "…", "markdown": "…"}}`: write heading by heading (a new heading title is added at the end of the file). A first draft of a short point may be one `markdown`; small fixes are `edits [{find, replace}]` with words copied from `book.read`.
+4. `book.write {"hid": …, "section": {"heading": "…", "markdown": "…"}}`: write heading by heading (an existing heading by its id; a title the file does not have is added at the end of the file). To put a NEW section in its place use `"op": "insert"` with `"after"`, `"before"` or `"within"` a heading id (or `"position": "start" | "end"`). A first draft of a short point may be one `markdown`; small fixes are `edits [{find, replace}]` with words copied from `book.read`.
 5. `book.read` the point again and check the result; read `dropped` and `warnings` of every write and fix what they name.
 6. `book.coverage {"hid": …}`: pages not opened yet are named in `readNext`; read them if the point needs them.
 7. Next point.
+
+## Restructuring
+
+Only when the learner asks for it (rename, reorder, remove, tidy up the structure). Nothing here rebuilds the outline or sends the book's text.
+
+- Sections inside one point's file, by the heading ids `book.read` lists: `book.write {"hid", "op": "rename", "heading": id, "title"}`, `{"op": "move", "heading": id, "after" | "before" | "within": id}` (or `"position"`), `{"op": "delete", "heading": id}` (its sub-sections move up; `"children": "delete"` removes them too, `"toUnplaced"` keeps them in 未归位; to put such a section back, revert the point's file, never `unplaced.md`: its copy may be the only one). A heading of the same title twice is refused (spaces, case and full-width or half-width punctuation do not count): never write placeholder text or a second copy to work around it; delete or rename instead.
+- Chapters and knowledge points of the book, by the `hid` of `book.toc` and its `structureVersion`: `course.book.rename {"hid", "title", "version"}`, `course.book.move {"hid", "toParent" | "afterHid" | "beforeHid", "version"}`, `course.book.delete {"hid", "children": "promote" | "toUnplaced", "version"}` (what the learner wrote in a deleted point goes to 未归位; a chapter left empty stays, named in `emptied`). Each answer gives the next `structureVersion`; a `course-book-conflict` means the book changed: read `book.toc` again. `course.book.revert {"file": "book.structure"}` undoes the latest change, until the outline is made again; a file edited since is left as it is (`kept`): tell the learner, never revert that file to make the undo pass. `course.book.revert {"file", "redo": true}` brings back what a file's revert replaced.
 
 ## Limits
 
