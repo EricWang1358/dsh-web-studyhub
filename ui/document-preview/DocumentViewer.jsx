@@ -205,9 +205,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // meanwhile, so it is never shown with an old quote in 原始 PDF and is all there again on the way back to 阅读.
   const totalPages = pageCount(sources);
   const pageScope = useMemo(() => format === 'pdf' && fileUrl ? pageScopeOf(sources, pdfPage) : null, [format, fileUrl, sources, pdfPage]);
+  const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
   const [pagePanel, setPagePanel] = useState(false);
   if (view === 'original' && pageScope && !pagePanel) setPagePanel(true);
-  const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
+  const learningPanels = [{ scope: 'selection', hidden: view === 'original', props: { capture, annotation } },
+    ...(pagePanel && pageScope ? [{ scope: 'page', hidden: view !== 'original', props: { capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage } }] : [])];
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
   const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],
@@ -487,14 +489,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           {view !== 'original' && <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>}
-          <div className="reader-learning" data-scope="selection" hidden={view === 'original'}>
-            <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} annotation={annotation} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
+          {learningPanels.map(panel => <div key={panel.scope} className="reader-learning" data-scope={panel.scope} hidden={panel.hidden}>
+            <DocumentLearning call={call} document={learningDocument} {...panel.props} data={data} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
               onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
-          </div>
-          {pagePanel && pageScope && <div className="reader-learning" data-scope="page" hidden={view !== 'original'}>
-            <DocumentLearning call={call} document={learningDocument} capture={null} scope={pageScope} pageTotal={totalPages} onPage={goToPage} data={data} usedBy={source.usedBy}
-              onPublished={refreshLinks} onOpenCard={onOpenCard} onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
-          </div>}
+          </div>)}
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
           {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}

@@ -108,8 +108,9 @@ test('原始 PDF: a selection is never captured or shown there, the reading pane
   assert.doesNotMatch(viewer, /setCapture\(null\); \}, \[view\]/, 'the selection of 阅读 is not dropped by a visit to 原始 PDF (it comes back with its thread)');
   // Two panels: the reading one keeps its selection, its thread and a question still being answered (kept as 批注), only hidden in 原始 PDF;
   // the page one is its own, so a page turn never resets the reading thread.
-  assert.match(viewer, /<div className="reader-learning" data-scope="selection" hidden=\{view === 'original'\}>\s*<DocumentLearning call=\{call\} document=\{learningDocument\} capture=\{capture\} data=\{data\} annotation=\{annotation\}/);
-  assert.match(viewer, /<div className="reader-learning" data-scope="page" hidden=\{view !== 'original'\}>\s*<DocumentLearning call=\{call\} document=\{learningDocument\} capture=\{null\} scope=\{pageScope\}/);
+  assert.match(viewer, /\{ scope: 'selection', hidden: view === 'original', props: \{ capture, annotation \} \}/);
+  assert.match(viewer, /\{ scope: 'page', hidden: view !== 'original', props: \{ capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage \} \}/);
+  assert.match(viewer, /learningPanels\.map\(panel => <div key=\{panel\.scope\} className="reader-learning" data-scope=\{panel\.scope\} hidden=\{panel\.hidden\}>\s*<DocumentLearning call=\{call\} document=\{learningDocument\} \{\.\.\.panel\.props\}/);
   assert.match(viewer, /\{view !== 'original' && <Button className="study-document-wide" icon="plus"[^\n]*使用当前选区/, '使用当前选区 is not offered there');
   assert.match(viewer, /\{onCaseFromPassage && view !== 'original' && <Button/, '围绕这段出案例题 is not offered there');
   assert.match(viewer, /if \(view === 'original'\) setMode\('read'\); \/\/ a kept passage is shown where it can be selected/, 'a kept annotation opened from the links goes back to 阅读');
