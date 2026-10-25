@@ -20,7 +20,11 @@ const compiled = await build({ stdin: { contents: `
   export { default as TranslationBlock } from './ui/document-preview/translation/TranslationBlock.jsx';
   export { TranslationMenu } from './ui/document-preview/translation/TranslationMenu.jsx';
   export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';
-  export { default as PdfPageBar, pageBoxKey } from './ui/document-preview/reader/PdfPageBar.jsx';`, resolveDir: process.cwd() },
+  export { default as PdfPageBar, pageBoxKey } from './ui/document-preview/reader/PdfPageBar.jsx';
+  export { default as QuickIntents, PAGE_INTENTS, PASSAGE_INTENTS } from './ui/document-preview/QuickIntents.jsx';
+  export { pageHandOffInput } from './ui/document-preview/PageAsk.jsx';
+  export { askRequest, retryOf, pageDraftKey } from './ui/document-preview/ask-request.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -137,7 +141,7 @@ test('原始 PDF: the panel names the page, has a free question box, and shows n
   assert.match(out, /<textarea[^>]*placeholder="输入或粘贴问题/);
   assert.match(out, /<button[^>]*type="submit"[^>]*>(?:<[^>]+>)*依据这一页回答/);
   assert.doesNotMatch(out, /disabled=""[^>]*>(?:<[^>]+>)*依据这一页回答/, 'a typed question can be sent');
-  assert.doesNotMatch(out, /aria-label="快捷提问"|<label>补充到现有题组|>存为批注</, 'what needs a passage stays in 阅读');
+  assert.doesNotMatch(out, />没听懂<|>出题考我<|<label>补充到现有题组|>存为批注</, 'what needs a passage stays in 阅读 (a page has chips of its own)');
   assert.match(text(out), /看原页/, 'figures are pointed to 看原页');
 });
 
@@ -211,4 +215,102 @@ test('English: the page panel and the page controls are English', () => {
     assert.match(text(render(React.createElement(lib.LearningPanel, pagePanel()))), /Asking about page 3/);
     assert.doesNotMatch(render(React.createElement(lib.PdfPageBar, { page: 2, total: 5, onPage() {} })), han);
   } finally { lib.setUiLanguage('zh'); }
+});
+
+/* #456 PR 2: preset questions for a page, and 发给主会话 where the built-in answer cannot help (a figure, a scanned page). */
+const services = { askInChat: async () => 'filled', notify() {}, call: async () => ({}), act: async () => undefined, busy: false, host: {}, openSettings() {}, navigate() {}, openModal() {} };
+const withStudy = element => React.createElement(lib.StudyServicesContext.Provider, { value: services }, element);
+const pageHandOff = { title: 'Scheduling', page: 3, text: 'Page 3 line 1 explains part 3.' };
+
+test('原始 PDF: four preset chips say 这一页 and ask at once with their own intent; the chips of a passage are unchanged', () => {
+  lib.setUiLanguage('zh');
+  const out = render(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {} })));
+  assert.match(out, /role="group"[^>]*aria-label="快捷提问"/);
+  for (const chip of ['讲解这一页', '翻译这一页', '按知识点拆分这一页', '提取这一页的公式与代码']) assert.match(text(out), new RegExp(chip), chip);
+  assert.match(out, /点击即发送：「请按原文顺序讲解这一页。」/, 'the hover says the exact question that is sent');
+  assert.doesNotMatch(out, /没听懂|出题考我|这段原文/, 'no chip of a passage on a page');
+  assert.deepEqual(lib.PAGE_INTENTS.map(chip => chip.intent), ['explain', 'translate', 'points', 'extract']);
+  assert.deepEqual(lib.PASSAGE_INTENTS.map(chip => chip.label), ['没听懂', '举个例子', '为什么', '和什么有区别']);
+  assert.ok(lib.PASSAGE_INTENTS.every(chip => !chip.intent), 'the passage chips send what they sent before');
+  const asking = addNode(emptyThread(), { id: 'n1', parentId: null, question: 'q' });
+  assert.match(/<button[^>]*>(?:<[^>]+>)*讲解这一页/.exec(render(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, thread: asking }))))[0], /disabled/, 'they wait while an answer is coming');
+});
+
+test('原始 PDF: 发给主会话 is a quiet link under the answers on a page with text, and the way forward on a page without text', () => {
+  lib.setUiLanguage('zh');
+  const out = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ question: '图 2 说明了什么？', pageHandOff }))));
+  assert.match(out, /data-hand-off="reader\.page"/);
+  assert.match(out, /sh-handoff--quiet/, 'a quiet line, never a button of the main path');
+  assert.ok(out.indexOf('data-hand-off="reader.page"') > out.indexOf('依据这一页回答'), 'under the box and the answers');
+  assert.match(text(out), /想让主会话接着讲（可附截图）：/);
+  assert.doesNotMatch(text(out), /主会话能看图(?!片时)/, 'never a promise that the chat reads pictures');
+  const blank = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true, sourceId: '' }), resolution: null, pageHandOff: { ...pageHandOff, text: '' } }))));
+  assert.match(blank, /data-hand-off="reader\.page"[^>]*>|sh-btn--secondary[^>]*data-hand-off="reader\.page"/);
+  assert.match(blank, /sh-btn--secondary/, 'the one action of a page without text');
+  assert.match(text(blank), /先点下面的按钮，再截这一页的图；如果你的主会话能看图片/);
+  assert.doesNotMatch(render(React.createElement(lib.LearningPanel, pagePanel({ pageHandOff }))), /data-hand-off/, 'not offered where nothing can take it (no app around the reader)');
+});
+
+test('English: the page chips and the page hand-off are English', () => {
+  lib.setUiLanguage('en');
+  try {
+    const out = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, pageHandOff }))));
+    assert.doesNotMatch(out.replace(/An old selection from 阅读/g, ''), han);
+    const blank = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true }), resolution: null, pageHandOff }))));
+    assert.doesNotMatch(blank, han);
+  } finally { lib.setUiLanguage('zh'); }
+});
+
+/* #482 review: what a chip click and a 重试 send, the question of a page stays on its page, and 翻译这一页 says what it is. */
+const buttonsOf = element => {
+  const found = [];
+  const walk = node => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (node.props?.onClick && typeof node.props.children === 'string') found.push(node);
+    walk(node.props?.children);
+  };
+  walk(element);
+  return found;
+};
+
+test('a page chip sends its question, its name and its intent; the request carries the intent and the page scope', () => {
+  lib.setUiLanguage('zh');
+  const asked = [];
+  const chips = buttonsOf(lib.QuickIntents({ chips: lib.PAGE_INTENTS, onAsk: (...args) => asked.push(args) }));
+  assert.equal(chips.length, 4);
+  chips[1].props.onClick();
+  assert.deepEqual(asked[0], ['请把这一页完整翻译过来，保持原来的顺序。', '翻译这一页', 'translate']);
+  assert.deepEqual(lib.askRequest({ selection: { page: 2 }, page: true, question: asked[0][0], intent: asked[0][2], language: '中文' }),
+    { selection: { page: 2 }, scope: 'page', question: '请把这一页完整翻译过来，保持原来的顺序。', intent: 'translate', language: '中文', terms: true });
+  // a passage chip sends what it sent before: no intent, no scope
+  const passage = [];
+  buttonsOf(lib.QuickIntents({ chips: lib.PASSAGE_INTENTS, onAsk: (...args) => passage.push(args), onQuiz() {} }))[0].props.onClick();
+  assert.equal(passage[0][2], undefined);
+  assert.deepEqual(Object.keys(lib.askRequest({ selection: {}, question: 'q', language: '中文' })).sort(), ['language', 'question', 'selection', 'terms']);
+});
+
+test('重试 asks the same preset again; a follow-up carries its term and thread', () => {
+  const node = { id: 'n1', question: '请把这一页按知识点拆开', term: '', intent: 'points', status: 'failed' };
+  assert.deepEqual(lib.retryOf(node), { question: '请把这一页按知识点拆开', term: '', intent: 'points' });
+  assert.equal(lib.askRequest({ selection: {}, page: true, ...lib.retryOf(node), language: '中文' }).intent, 'points');
+  assert.deepEqual(lib.retryOf({ question: 'q' }), { question: 'q', term: '', intent: '' });
+  const inside = lib.askRequest({ selection: {}, question: 'q', term: 'ELK', context: [{ question: 'a', answer: 'b' }], language: 'English' });
+  assert.equal(inside.term, 'ELK'); assert.deepEqual(inside.thread, [{ question: 'a', answer: 'b' }]);
+});
+
+test('a question typed on one page is never sent from another, nor from a page without saved text', () => {
+  assert.notEqual(lib.pageDraftKey({ kind: 'page', page: 2, sourceId: 'p2' }), lib.pageDraftKey({ kind: 'page', page: 4, sourceId: 'p4' }));
+  assert.equal(lib.pageDraftKey(null), '');
+  const handOff = { title: 'Scheduling', page: 4, text: '' };
+  assert.deepEqual(lib.pageHandOffInput(handOff, '图 2 说明了什么？', true), { ...handOff, question: '' });
+  assert.equal(lib.pageHandOffInput({ ...handOff, page: 2, text: 't' }, 'q', false).question, 'q');
+});
+
+test('翻译这一页 says on hover that it is a one-off answer, not the reader\'s own translation', () => {
+  lib.setUiLanguage('zh');
+  const chip = lib.PAGE_INTENTS.find(item => item.intent === 'translate');
+  assert.match(chip.note, /不会保存；整份资料的对照翻译在「阅读」工具栏的「翻译」里/);
+  lib.setUiLanguage('en');
+  try { assert.doesNotMatch(render(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {} }))), han); } finally { lib.setUiLanguage('zh'); }
 });
