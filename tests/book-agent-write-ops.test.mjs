@@ -94,6 +94,24 @@ test('rename keeps the id and the text; move carries the sub-sections and follow
   assert.match((await read(study, what.hid)).text, /架构师做决定\[\^1\]/);
 });
 
+test('rename, move and delete of a heading never touch the file\'s own footnotes; a whole-file write that leaves one title twice says so', async t => {
+  const { study, what, file } = await setup(t);
+  // The learner's own note (not a quote): a section write would check it; a structural op never does.
+  const own = `${file.text.replace('以为不用写。', '以为不用写[^9]。')}\n[^9]: 我自己的说明，不是引文`;
+  await study.call('course.book.save', { file: file.name, text: own, version: file.version });
+  const two = idOf(file, '二、做法'), three = idOf(file, '三、误区'), one = idOf(file, '一、概念');
+  for (const args of [{ op: 'rename', heading: two, title: '二、怎么做' }, { op: 'move', heading: three, before: one }, { op: 'delete', heading: two }]) {
+    const done = await study.call('book.write', { hid: what.hid, ...args });
+    assert.deepEqual(done.dropped, [], JSON.stringify(args));
+    const now = await read(study, what.hid);
+    assert.match(now.text, /以为不用写\[\^9\]。/, JSON.stringify(args));
+    assert.match(now.text, /\[\^9\]: 我自己的说明，不是引文/, JSON.stringify(args));
+    assert.match(now.text, /架构师做决定\[\^1\]。/);
+  }
+  const twice = await study.call('book.write', { hid: what.hid, markdown: '#### 甲\n\n一。\n\n#### 甲\n\n二。' });
+  assert.ok(twice.warnings.some(warning => /heading "甲" twice/.test(warning)), JSON.stringify(twice.warnings));
+});
+
 test('delete to 未归位: the section and its sub-sections leave the point and wait in 未归位 with their footnotes', async t => {
   const { study, what, file } = await setup(t);
   const done = await study.call('book.write', { hid: what.hid, op: 'delete', heading: idOf(file, '一、概念'), children: 'toUnplaced' });
