@@ -9,11 +9,9 @@ import "./accent.css";
 import './audio-dashboard.css';
 import App from "./App.jsx";
 // Plan contract C3: the preview has no chat, agent tasks or landing shell. It has no model catalog either, unless a QA script puts one on the
-// page (window.STUDY_MODEL_GROUPS, shaped as DSH's catalog groups: [{ id, name, models: [{ id, name }] }]). A QA script may also put a stand-in for the
-// chat's input box on the page (window.STUDY_QA_CHAT(text) -> 'filled' | 'kept', the answers of DSH's composer) to see what 发给主会话 hands over.
+// page (window.STUDY_MODEL_GROUPS, shaped as DSH's catalog groups: [{ id, name, models: [{ id, name }] }]).
 const host = { capabilities: { edition: "preview", chat: false, agentTasks: false, landing: false },
-  ...(Array.isArray(window.STUDY_MODEL_GROUPS) ? { modelGroups: window.STUDY_MODEL_GROUPS } : {}),
-  ...(typeof window.STUDY_QA_CHAT === "function" ? { askInChat: (text) => window.STUDY_QA_CHAT(text) } : {}) };
+  ...(Array.isArray(window.STUDY_MODEL_GROUPS) ? { modelGroups: window.STUDY_MODEL_GROUPS } : {}) };
 document.title = "StudyHub";
 const call = async (action, args = {}) => {
   const response = await fetch("/api/call", {

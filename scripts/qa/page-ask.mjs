@@ -7,7 +7,7 @@
    page without saved text says so; back in 阅读 the selection and its answers are still there; a kept annotation opened from the links panel
    in 原始 PDF goes back to 阅读; a page question refused by the server (the document changed) keeps the page wording on 重试. The PDF itself
    is drawn by the browser's own viewer (it does draw in Chromium here); the screenshots show it with our controls and the panel. */
-/* global window, document, getSelection, NodeFilter, MouseEvent -- page.evaluate callbacks run in the browser */
+/* global navigator, document, getSelection, NodeFilter, MouseEvent -- page.evaluate callbacks run in the browser */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
@@ -67,14 +67,12 @@ export async function runPageAskQa(options) {
       return { scope: await scopeLine.innerText(), frame: src.replace(/^blob:[^#]*/, "blob:…") };
     };
 
-    // A stand-in for the main chat's input box (ui/dev.jsx STUDY_QA_CHAT): it takes a message only while it is empty, like DSH's composer, and never sends.
-    await browserContext.addInitScript(() => {
-      window.__qaComposer = "";
-      window.STUDY_QA_CHAT = (text) => { if (window.__qaComposer.trim()) return "kept"; window.__qaComposer = text; return "filled"; };
-    });
-    await page.reload();
-    await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
-    await sleep(800);
+    // The preview has no main chat: 发给主会话 copies the message to the clipboard (the shared unit's fill / keep of DSH's input box is
+    // tests/hand-off-browser.test.mjs). The clipboard is what is read back here.
+    await browserContext.grantPermissions(["clipboard-read", "clipboard-write"], { origin: server.url });
+    const copied = async (before) => { await page.waitForFunction((old) => navigator.clipboard.readText().then((text) => text && text !== old), before, { timeout: 10000 });
+      return page.evaluate(() => navigator.clipboard.readText()); };
+    const clearClipboard = () => page.evaluate(() => navigator.clipboard.writeText(""));
     await page.locator('[data-tour="nav-sources"]').first().click().catch(() => page.getByRole("button", { name: t("资料", "Sources") }).first().click());
     await sleep(800);
     await page.getByRole("button", { name: /^(全部展开|Expand all)$/ }).click().catch(() => {});
@@ -159,21 +157,15 @@ export async function runPageAskQa(options) {
       if (!/Page 2 line 1/.test(answer)) throw new Error(`the answer does not quote the page: ${answer.slice(0, 160)}`);
       return { answer: answer.slice(0, 160) };
     });
-    await step("page-hand-off-fills-the-chat-box", async () => {
+    await step("page-hand-off-carries-the-page", async () => {
       await paging.locator("textarea").first().fill(t("图 2 说明了什么？", "What does figure 2 show?"));
+      await clearClipboard();
       await paging.locator('[data-hand-off="reader.page"]').click();
-      await page.waitForFunction(() => window.__qaComposer.length > 0, null, { timeout: 10000 });
-      const message = await page.evaluate(() => window.__qaComposer);
+      const message = await copied("");
       for (const part of [t("第 2 页", "page 2"), "Page 2 line 1", t("图 2 说明了什么？", "What does figure 2 show?"), t("这一页的截图（粘贴在这里）：", "Screenshot of the page (paste it here):")])
         if (!message.includes(part)) throw new Error(`the message lacks ${part}: ${message.slice(0, 200)}`);
-      await page.getByText(t("已填进主会话的输入框", "In the main chat’s box")).first().waitFor({ timeout: 5000 });
-      // The learner's own words in the box are never written over.
-      await page.evaluate(() => { window.__qaComposer = "my own words"; });
-      await paging.locator('[data-hand-off="reader.page"]').click();
-      await sleep(800);
-      if (await page.evaluate(() => window.__qaComposer) !== "my own words") throw new Error("the learner's own words were written over");
-      await page.keyboard.press("Escape").catch(() => {});
-      return { first: message.split("\n")[0] };
+      await page.getByText(t("已复制到剪贴板", "Copied to the clipboard")).first().waitFor({ timeout: 5000 });
+      return { first: message.split("\n")[0], last: message.split("\n").at(-1) };
     });
     await step("page-4-without-text", async () => {
       await typePage(4);
@@ -184,10 +176,9 @@ export async function runPageAskQa(options) {
       // A page that is only a picture: 发给主会话 is the way forward there (the screenshot is pasted into the chat).
       const forward = paging.locator('.study-page-ask__forward [data-hand-off="reader.page"]');
       if (!await forward.isVisible()) throw new Error("no way forward on a page without text");
-      await page.evaluate(() => { window.__qaComposer = ""; });
+      await clearClipboard();
       await forward.click();
-      await page.waitForFunction(() => window.__qaComposer.length > 0, null, { timeout: 10000 });
-      const message = await page.evaluate(() => window.__qaComposer);
+      const message = await copied("");
       if (!message.includes(t("没有保存的文字", "no saved text"))) throw new Error(`the message does not say the page has no text: ${message.slice(0, 200)}`);
     });
     await check("no-horizontal-overflow", async () => {
