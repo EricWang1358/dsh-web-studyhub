@@ -20,7 +20,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as TranslationBlock } from './ui/document-preview/translation/TranslationBlock.jsx';
   export { TranslationMenu } from './ui/document-preview/translation/TranslationMenu.jsx';
   export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';
-  export { default as PdfPageBar } from './ui/document-preview/reader/PdfPageBar.jsx';`, resolveDir: process.cwd() },
+  export { default as PdfPageBar, pageBoxKey } from './ui/document-preview/reader/PdfPageBar.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
@@ -167,6 +167,28 @@ test('原始 PDF: the page controls step, take a typed number and say the total'
   assert.match(inPanel, /<button[^>]*disabled=""[^>]*aria-label="下一页"|<button[^>]*aria-label="下一页"[^>]*disabled=""/, 'page 3 of 3 has no next page');
   const last = render(React.createElement(lib.PdfPageBar, { page: 12, total: 12, onPage() {} }));
   assert.match(last, /<button[^>]*disabled=""[^>]*aria-label="下一页"|<button[^>]*aria-label="下一页"[^>]*disabled=""/, 'no page after the last');
+});
+
+test('原始 PDF: Escape in the page box puts the page back and stays in the reader; Enter applies it', () => {
+  const event = key => { const seen = { key, prevented: false, stopped: false }; return Object.assign(seen, { preventDefault() { seen.prevented = true; }, stopPropagation() { seen.stopped = true; } }); };
+  const calls = [];
+  const escape = event('Escape');
+  assert.equal(lib.pageBoxKey(escape, { apply: () => calls.push('apply'), reset: () => calls.push('reset') }), true);
+  assert.deepEqual(calls, ['reset']); assert.ok(escape.prevented && escape.stopped, 'like FindBar: the reader dialog never sees this Escape');
+  const enter = event('Enter');
+  lib.pageBoxKey(enter, { apply: () => calls.push('apply'), reset: () => calls.push('reset') });
+  assert.deepEqual(calls, ['reset', 'apply']); assert.ok(enter.prevented && !enter.stopped);
+  const other = event('5');
+  assert.equal(lib.pageBoxKey(other, { apply() {}, reset() {} }), false); assert.ok(!other.prevented && !other.stopped);
+});
+
+test('原始 PDF: a refused page question is said beside the page, which stays the page asked about (重试 asks about it again)', () => {
+  lib.setUiLanguage('zh');
+  const out = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageRefusal: { status: 'stale' } })));
+  assert.match(text(out), /正在问：第 3 页/);
+  assert.match(text(out), /资料已更新，请重新打开这份资料再问这一页/);
+  assert.doesNotMatch(text(out), /这段引用需要在当前原文中重新选择/, 'never the wording of a selection');
+  assert.match(text(out), /复制后粘贴进问题框/, 'a selection made inside the PDF can be pasted in');
 });
 
 test('English: the page panel and the page controls are English', () => {

@@ -18,10 +18,10 @@ export const pageReasons = {
  * old selection. One box and the thread of answers; keeping answers as annotations, saving them as cards and topping up a deck need a
  * selected passage and stay in 阅读. The model reads only the page's saved text, so figures are pointed to 看原页.
  */
-export default function PageAsk({ scope, resolution, question = '', thread, notice = '', noticeWhy = '', cut = null, error = '', askReady = false, modelReady = false,
+export default function PageAsk({ scope, resolution, refusal = null, question = '', thread, notice = '', noticeWhy = '', cut = null, error = '', askReady = false, modelReady = false,
   list = null, sectionRef, total = 0, onPage, onQuestion, onAsk, onAskInside, onRetryNode, onToggleNode }) {
   const asking = thread.nodes.some(node => node.parentId === null && node.status === 'asking');
-  const refused = resolution && resolution.status !== 'resolved' ? resolution : null;
+  const refused = refusal || (resolution && resolution.status !== 'resolved' ? resolution : null);
   return <section className="study-document-learning study-page-ask" aria-label={ui('按页提问')} ref={sectionRef} data-scope="page">
     {list}
     {/* The page can be turned from here too: on a narrow reader the panel covers the page controls. */}
@@ -44,6 +44,6 @@ export default function PageAsk({ scope, resolution, question = '', thread, noti
       {cut?.truncated && <InlineMessage tone="info">{uiFormat('这一页文字较长，回答只依据了前 {0} 字（共 {1} 字）。', [cut.used, cut.chars])}</InlineMessage>}
       <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />
     </>}
-    <Hint>{ui('模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要选中一段提问、存为批注或补题，请切换到「阅读」。')}</Hint>
+    <Hint>{ui('在 PDF 里选中的文字不会自动带到这里，可以复制后粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要针对选中的一段提问、存为批注或补题，请切换到「阅读」。')}</Hint>
   </section>;
 }

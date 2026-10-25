@@ -69,9 +69,9 @@ The full pipeline is in [Question generation and quality checks](assessment-qual
 
 ## Ask about a page of the original PDF
 
-In the reader, **Original PDF** shows the file itself. Text cannot be selected there, so **Study tools** asks about the current page instead of a passage.
+In the reader, **Original PDF** shows the file itself, in the browser's own PDF viewer. Text you select there does not reach **Study tools** (you can copy it and paste it into the question box), so the panel asks about the current page instead of a passage.
 
-- Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. Scrolling inside the PDF does not change the page that is asked about.
+- Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. Scrolling inside the PDF does not change the page that is asked about, and each page turn reloads the PDF (its own zoom is not kept).
 - Type or paste a question and click **Answer from this page**. The answer uses the saved text of that page only. A very long page is cut, and the panel says how much was used.
 - The saved text has no pictures, so the model cannot read a figure. To see the page image, use **Original page** in **Read**.
 - A page without saved text (a scan, a picture, or a page skipped on import) says so and cannot be asked about.

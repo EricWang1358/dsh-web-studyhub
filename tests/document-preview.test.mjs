@@ -101,13 +101,29 @@ test('the page scope names the page source, a page without saved text, and the p
   assert.notEqual(pageKey({ documentId: 'doc', revision: 'r1', sourceId: 'p1', page: 1 }), pageKey({ documentId: 'doc', revision: 'r1', sourceId: 'p4', page: 4 }));
 });
 
-test('原始 PDF: a selection is never captured or kept there, and the frame follows the page controls', async () => {
+test('原始 PDF: a selection is never captured or shown there, the reading panel is kept for the way back, and the frame follows the page controls', async () => {
   const { readFile } = await import('node:fs/promises');
   const viewer = await readFile(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
   assert.match(viewer, /if \(localMode \|\| view === 'original'\) return;/, 'select() ignores the PDF view');
-  assert.match(viewer, /useEffect\(\(\) => \{ if \(view === 'original'\) setCapture\(null\); \}, \[view\]\);/, 'switching to the PDF view drops the old selection');
-  assert.match(viewer, /capture=\{view === 'original' \? null : capture\} scope=\{pageScope\}/);
+  assert.doesNotMatch(viewer, /setCapture\(null\); \}, \[view\]/, 'the selection of 阅读 is not dropped by a visit to 原始 PDF (it comes back with its thread)');
+  // Two panels: the reading one keeps its selection, its thread and a question still being answered (kept as 批注), only hidden in 原始 PDF;
+  // the page one is its own, so a page turn never resets the reading thread.
+  assert.match(viewer, /<div className="reader-learning" data-scope="selection" hidden=\{view === 'original'\}>\s*<DocumentLearning call=\{call\} document=\{learningDocument\} capture=\{capture\} data=\{data\} annotation=\{annotation\}/);
+  assert.match(viewer, /<div className="reader-learning" data-scope="page" hidden=\{view !== 'original'\}>\s*<DocumentLearning call=\{call\} document=\{learningDocument\} capture=\{null\} scope=\{pageScope\}/);
   assert.match(viewer, /\{view !== 'original' && <Button className="study-document-wide" icon="plus"[^\n]*使用当前选区/, '使用当前选区 is not offered there');
+  assert.match(viewer, /\{onCaseFromPassage && view !== 'original' && <Button/, '围绕这段出案例题 is not offered there');
+  assert.match(viewer, /if \(view === 'original'\) setMode\('read'\); \/\/ a kept passage is shown where it can be selected/, 'a kept annotation opened from the links goes back to 阅读');
+  assert.match(viewer, /\{!toolsOn && <> <Button variant="link" size="sm" onClick=\{\(\) => toggle\('tools'\)\}>\{ui\('问这一页'\)\}<\/Button><\/>\}/, '「问这一页」 opens a closed panel');
   assert.match(viewer, /<PdfPageBar page=\{pdfPage\} total=\{totalPages\} onPage=\{goToPage\} \/>[\s\S]{0,240}<iframe key=\{pdfPage\} src=\{`\$\{fileUrl\}#page=\$\{pdfPage\}`\}/, 'a new frame per page: a changed #page= alone is ignored by the PDF viewer');
   assert.doesNotMatch(viewer, /要选中文字提问或补题，请切换到「阅读」。'\)\}<\/p>/, 'the old dead-end hint is gone');
+});
+
+test('原始 PDF: a page answer keeps its page scope on 重试 and its cut note when the page comes back', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const learning = await readFile(new URL('../ui/document-preview/DocumentLearning.jsx', import.meta.url), 'utf8');
+  // The scope of a run is the panel's own, never read from a resolution the server may have replaced.
+  assert.match(learning, /held = threadKey\(resolution\), page = pageMode;/);
+  assert.match(learning, /if \(page\) setPageRefusal\(value\); else setResolution\(value\);/, 'a refusal is held beside the page, the page resolution stays');
+  assert.match(learning, /setPageCut\(cuts\.current\.get\(pageKey\(selection\)\) \|\| null\)/, 'the cut note returns with the held thread of its page');
+  assert.match(learning, /const listed = !pageMode && available\('generation', 'selection\.jobs'\);/, 'the page panel does not follow the jobs a second time');
 });

@@ -88,7 +88,7 @@ export function ModeSwitch({ mode, onMode }) {
  * this material. Nothing here waits: asking is only blocked while it is itself answering, and the supplement form stays
  * editable while a job runs (the same passage and deck is refused, another one is fine).
  */
-export function LearningPanel({ capture, scope = null, pageCut = null, pageTotal = 0, onPage, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 10, kind = 'quiz',
+export function LearningPanel({ capture, scope = null, pageCut = null, pageRefusal = null, pageTotal = 0, onPage, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 10, kind = 'quiz',
   decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, jobs = [], now = Date.now(), call, sectionRef,
   onQuestion, onAsk, onQuick, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
@@ -99,7 +99,7 @@ export function LearningPanel({ capture, scope = null, pageCut = null, pageTotal
   const list = <SelectionJobList jobs={jobs} now={now} {...jobHandlers} />;
   // The jobs come first: progress is what the learner looks for after pressing the button, and it must not scroll away below the forms.
   // 原始 PDF: the question is about the page the reader shows (PageAsk.jsx), never about a selection made before.
-  if (scope?.kind === 'page') return <PageAsk scope={scope} resolution={resolution} question={question} thread={thread} notice={notice} noticeWhy={noticeWhy} cut={pageCut} error={error}
+  if (scope?.kind === 'page') return <PageAsk scope={scope} resolution={resolution} refusal={pageRefusal} question={question} thread={thread} notice={notice} noticeWhy={noticeWhy} cut={pageCut} error={error}
     askReady={askReady} modelReady={modelReady} list={list} sectionRef={sectionRef} total={pageTotal} onPage={onPage} onQuestion={onQuestion} onAsk={onAsk} onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} />;
   const modeSwitch = annotateReady && onMode ? <ModeSwitch mode={mode} onMode={onMode} /> : null;
   if (!capture?.quote) return <section className="study-document-learning" aria-label={ui('选段学习')} ref={sectionRef}>
@@ -190,14 +190,16 @@ export default function DocumentLearning({ call, document, capture, scope = null
     });
     return () => { current = false; };
   }, [call, data]);
-  // The page a question in 原始 PDF is about: known from the page itself, no resolve call (the ask checks it again).
-  const [pageCut, setPageCut] = useState(null);
+  // The page a question in 原始 PDF is about: known from the page itself, no resolve call (the ask checks it again). A refusal of the server is held
+  // beside it (never in place of it, so 重试 asks about the page again), and a page that was cut is remembered per page with its held thread.
+  const pageMode = scope?.kind === 'page';
+  const [pageCut, setPageCut] = useState(null), [pageRefusal, setPageRefusal] = useState(null), cuts = useRef(new Map());
   useEffect(() => {
     let current = true;
-    setResolution(null); setError(''); commit(emptyThread()); say(); setSavedLocal(new Set()); setKeepError(''); setPageCut(null);
+    setResolution(null); setError(''); commit(emptyThread()); say(); setSavedLocal(new Set()); setKeepError(''); setPageCut(null); setPageRefusal(null);
     if (scope?.kind === 'page') {
       const selection = pageSelection(document, scope);
-      if (selection) setResolution({ status: 'resolved', scope: 'page', selection });
+      if (selection) { setResolution({ status: 'resolved', scope: 'page', selection }); setPageCut(cuts.current.get(pageKey(selection)) || null); }
       return undefined;
     }
     const request = selectionRequest(document, capture);
@@ -214,7 +216,8 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const available = (domain, operation) => (capabilities || []).find(item => item.id === domain)?.operations
     ?.some(item => item.name === operation && item.available !== false) === true;
   const askReady = available('materials', 'selection.ask'), generateReady = available('generation', 'selection.start'), modelReady = askReady || generateReady;
-  const listed = available('generation', 'selection.jobs');
+  // The page panel lists no jobs: the reading panel beside it (hidden in 原始 PDF) already follows them, once.
+  const listed = !pageMode && available('generation', 'selection.jobs');
   // 阅读 / 批注 (the translation's pattern: the mode is the reader's, the keeping is the materials context's).
   const annotateReady = !!annotation && available('materials', 'annotation.save');
   const mode = annotateReady && annotation.mode === 'annotate' ? 'annotate' : 'read';
@@ -272,7 +275,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
 
   /** Ask the model for one node of the thread; a thread that was dropped meanwhile (another selection) is left alone. */
   async function run(id, { question: asked, term = '', context = [] }) {
-    const selection = resolution.selection, held = threadKey(resolution), page = resolution.scope === 'page';
+    const selection = resolution.selection, held = threadKey(resolution), page = pageMode;
     // The answer lands in the thread on screen; when the learner has moved to another passage meanwhile, in the thread held for this one.
     const settle = change => { if (nodeOf(threadRef.current, id)) commit(change(threadRef.current)); else memory.current.settle(held, id, change); };
     try {
@@ -281,12 +284,16 @@ export default function DocumentLearning({ call, document, capture, scope = null
         ...(term ? { term } : {}), ...(context.length ? { thread: context } : {}) });
       ensureCurrent();
       if (value.status !== 'answered') {
-        if (nodeOf(threadRef.current, id)) setResolution(value);
+        if (nodeOf(threadRef.current, id)) { if (page) setPageRefusal(value); else setResolution(value); }
         settle(current => failNode(current, id, ui((page ? pageReasons : statusLabels)[value.status] || (page ? '这一页暂时无法提问。' : '这段文字暂时无法提问。'))));
       } else {
         settle(current => answerNode(current, id, value.answer));
         // A page cut at the evidence cap is said under the box (the answer only read its beginning).
-        if (page && nodeOf(threadRef.current, id)) setPageCut(value.evidence?.truncated ? value.evidence : null);
+        if (page) {
+          const cut = value.evidence?.truncated ? value.evidence : null;
+          if (cut) cuts.current.set(held, cut); else cuts.current.delete(held);
+          if (nodeOf(threadRef.current, id)) { setPageCut(cut); setPageRefusal(null); }
+        }
         // In 批注 mode an answer is kept as it arrives, with the answers above it.
         if (!page && modeRef.current === 'annotate' && nodeOf(threadRef.current, id)) latest.current.keep(id);
       }
@@ -402,7 +409,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     } catch (e) { setError(e.message); }
   }
   const shown = jobs.filter(job => !dismissed.has(job.operationId));
-  return <LearningPanel capture={capture} scope={scope} pageCut={pageCut} pageTotal={pageTotal} onPage={onPage} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={refused} noticeWhy={refusedWhy}
+  return <LearningPanel capture={capture} scope={scope} pageCut={pageCut} pageRefusal={pageRefusal} pageTotal={pageTotal} onPage={onPage} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={refused} noticeWhy={refusedWhy}
     mode={mode} onMode={annotation?.onMode} annotateReady={annotateReady} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError} onKeep={keep} onDeleteThread={deleteThread}
     onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} onQuick={askFirst}
     deckId={deckId} deckNote={deckNote} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}

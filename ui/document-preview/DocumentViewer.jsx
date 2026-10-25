@@ -200,10 +200,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
-  // 原始 PDF: the learning panel asks about the page our own controls show (page-scope.js); a selection made in 阅读 is dropped, never reused.
+  // 原始 PDF: the learning panel asks about the page our own controls show (page-scope.js). It is a panel of its own, mounted the first time the
+  // view is opened and then kept: the reading panel (its selection, its thread, a question still being answered and kept as 批注) is only hidden
+  // meanwhile, so it is never shown with an old quote in 原始 PDF and is all there again on the way back to 阅读.
   const totalPages = pageCount(sources);
-  const pageScope = useMemo(() => view === 'original' ? pageScopeOf(sources, pdfPage) : null, [view, sources, pdfPage]);
-  useEffect(() => { if (view === 'original') setCapture(null); }, [view]);
+  const pageScope = useMemo(() => format === 'pdf' && fileUrl ? pageScopeOf(sources, pdfPage) : null, [format, fileUrl, sources, pdfPage]);
+  const [pagePanel, setPagePanel] = useState(false);
+  if (view === 'original' && pageScope && !pagePanel) setPagePanel(true);
   const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
@@ -484,8 +487,14 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           {view !== 'original' && <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>}
-          <DocumentLearning call={call} document={learningDocument} capture={view === 'original' ? null : capture} scope={pageScope} pageTotal={totalPages} onPage={goToPage} data={data} annotation={annotation} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
-            onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
+          <div className="reader-learning" data-scope="selection" hidden={view === 'original'}>
+            <DocumentLearning call={call} document={learningDocument} capture={capture} data={data} annotation={annotation} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
+              onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
+          </div>
+          {pagePanel && pageScope && <div className="reader-learning" data-scope="page" hidden={view !== 'original'}>
+            <DocumentLearning call={call} document={learningDocument} capture={null} scope={pageScope} pageTotal={totalPages} onPage={goToPage} data={data} usedBy={source.usedBy}
+              onPublished={refreshLinks} onOpenCard={onOpenCard} onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
+          </div>}
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
           {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
