@@ -109,6 +109,11 @@
     padding: 1rem;
     border-radius: var(--radius);
   }
+  /* 原始 PDF (PageAsk.jsx): which page is asked stands where a selected passage would. */
+  .study-page-ask__scope { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: 0 0 var(--space-2); }
+  .study-page-ask__step { display: inline-flex; gap: var(--space-1); }
+  .study-page-ask form { margin-bottom: var(--space-2); }
+  .reader-learning:empty { display: none; }
   .study-document-learning blockquote {
     border-left: 3px solid var(--accent);
     padding: .5rem;

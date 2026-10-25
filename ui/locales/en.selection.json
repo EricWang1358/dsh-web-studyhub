@@ -94,5 +94,17 @@
   "阅读：回答只在阅读器打开期间保留，关闭阅读器就会丢失。": "Read: answers are kept only while the reader is open; closing the reader loses them.",
   "已选这份资料唯一的题组。": "Selected the only deck this material is used by.",
   "已选你上次补题用的题组。": "Selected the deck you last added questions to.",
-  "题型和题数取自设置里的出题偏好；在这里改，不会改动设置。": "Kind and number come from the question preferences in Settings; changing them here does not change the settings."
+  "题型和题数取自设置里的出题偏好；在这里改，不会改动设置。": "Kind and number come from the question preferences in Settings; changing them here does not change the settings.",
+  "按页提问": "Ask about a page",
+  "正在问：第 {0} 页": "Asking about page {0}",
+  "第 {0} 页没有保存的文字（可能是扫描页、图片页，或导入时跳过了），无法依据原文回答。": "Page {0} has no saved text (it may be a scan or a picture, or it was skipped on import), so it cannot be answered from the source.",
+  "这一页没有可核实的已保存文字，无法依据原文回答。": "This page has no saved text to check, so it cannot be answered from the source.",
+  "资料已更新，请重新打开这份资料再问这一页。": "The material was updated. Open it again to ask about this page.",
+  "这一页对应了多段保存的文字，请切换到「阅读」选中一段再问。": "This page matches more than one saved text. Switch to “Read” and select a passage to ask about.",
+  "这一页暂时无法提问。": "This page cannot be asked about right now.",
+  "针对这一页提问": "Ask about this page",
+  "输入或粘贴问题，例如：这一页的主要结论是什么？": "Type or paste a question, e.g. What is the main conclusion of this page?",
+  "依据这一页回答": "Answer from this page",
+  "这一页文字较长，回答只依据了前 {0} 字（共 {1} 字）。": "This page is long: the answer used only its first {0} of {1} characters.",
+  "在 PDF 里选中的文字不会自动带到这里，可以复制后粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页图片，可在「阅读」里点「看原页」。要针对选中的一段提问、存为批注或补题，请切换到「阅读」。": "Text selected inside the PDF does not reach this panel; copy it and paste it into the question box. The model reads only the saved text of this page and cannot see figures; to see the page image, use “Original page” in “Read”. To ask about a selected passage, keep an annotation or add questions, switch to “Read”."
 }
