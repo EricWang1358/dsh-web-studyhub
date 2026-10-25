@@ -52,7 +52,8 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
         <ExtensionPanel call={call} status={status} onStatus={accept} courses={courses} defaultCourse={defaultCourse} initialPlan={initialPlan} initialRun={initialRun} />
       </div>
       <DetectionLine retrieval={current} />
-      {current.missing && <InlineMessage tone="warning" boxed title={uiFormat('之前选择的检索工具「{0}」现在找不到', [stripTool(current.missing)])}>
+      {/* A provider that is really gone; the search extension whose service did not start says so in its own panel above. */}
+      {current.missing && !(current.companion?.notStarted && current.missing === current.companion.id) && <InlineMessage tone="warning" boxed title={uiFormat('之前选择的检索工具「{0}」现在找不到', [stripTool(current.missing)])}>
         {ui('已暂时改为不使用检索。请确认它在 DSH 里已启用，或在下面重新选择。')}
       </InlineMessage>}
       <Disclosure summary={ui('高级')} meta={ui('其他检索工具 · 模型下载地址 · 手动配置')} defaultOpen={!!current.missing}>

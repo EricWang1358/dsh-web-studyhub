@@ -8,6 +8,7 @@ import { courseScopeLine, indexAction } from './index-scope.js';
 import css from './large-documents.css';
 import { refreshRetrievalStatus, setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useLiveEffect } from './use-async.js';
+import ExtensionNotStarted, { resetLine } from './ExtensionNotStarted.jsx';
 
 /* The one-click path to searching a large textbook (WP28b): install the search
    extension, then build the index of a course. No file is edited and no command is
@@ -174,7 +175,7 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
  */
 export default function ExtensionPanel({ call, status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
-  const { busy, error, approval, restart, boot, install, setApproval } = useExtensionInstall({ call, onStatus, initialApproval });
+  const { busy, error, approval, restart, done, boot, install, setApproval } = useExtensionInstall({ call, onStatus, initialApproval });
   const [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
   if (!status || !extension) return null;
@@ -187,15 +188,20 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
     if (result.status) { setRetrievalStatus(result.status); onStatus?.(result.status); }
   }
   const running = status.companion?.running === true;
+  // Installed, DSH has been up a while and the service is still not there (retrieval.status companion.notStarted); right after an install it is only starting.
+  const stopped = !running && status.companion?.notStarted === true && !done;
+  const reset = status.companion?.reset;
   return (
-    <div className="extension-panel" data-state={!extension.canInstall ? 'unsupported' : !extension.installed ? 'available' : running ? 'running' : 'starting'}>
+    <div className="extension-panel" data-state={!extension.canInstall ? 'unsupported' : !extension.installed ? 'available' : running ? 'running' : stopped ? 'not-started' : 'starting'}>
       {!extension.canInstall && <InlineMessage tone="info" boxed>{ui('当前 DSH 不能在应用内安装插件，所以没有一键安装。可以展开「高级：手动配置」自己连接检索工具。')}</InlineMessage>}
       {extension.canInstall && !extension.installed && <>
         <p className="extension-panel__lead">{ui('一次点击：下载检索扩展，由 DSH 自己安装并运行。不需要命令行，也不需要另装其他软件；会下载一些组件，通常几分钟。')}</p>
         <div><Button variant="primary" icon="download" busy={busy} onClick={() => install()}>{ui('安装检索扩展')}</Button></div>
       </>}
       {extension.canInstall && extension.installed && <>
-        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : extension.outdated ? null : <StartupWait refresh={refresh} />}
+        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : extension.outdated ? null
+          : stopped ? <ExtensionNotStarted status={status} refresh={refresh} repair={() => call('retrieval.index.repair', {})} /> : <StartupWait refresh={refresh} />}
+        {running && reset?.pages > 0 && <InlineMessage tone="warning">{resetLine(reset)}</InlineMessage>}
         {restart && !restartDone(boot, status.boot) && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
         <ExtensionUpdateNotice call={call} status={status} onStatus={onStatus} />
       </>}
