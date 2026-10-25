@@ -16,10 +16,10 @@ test('moves and held points: the moves listed as moves, the held ones in one lin
     heldList: [{ from: 'Cloud native', closest: 'Databases', share: 0.1 }, { from: 'Edge', closest: 'Databases', share: 0.05 }] });
   assert.match(both, /1 个知识点的笔记被移到了新位置/);
   assert.match(both, /「Lecture one」→「What architects do」/);
-  assert.match(both, /data-book-held="">2 个知识点的笔记对不上新标题，放在「未归位」里/);
+  assert.match(both, /data-book-held="">2 个知识点的笔记对不上新的知识点，放在「未归位」里/);
   assert.doesNotMatch(both, /Cloud native|Databases/, 'a held point is not drawn as a move to the closest point');
   const heldOnly = draw({ at: '2026-10-25T00:00:00.000Z', list: [], held: 1, heldList: [{ from: 'Cloud native', closest: 'Databases', share: 0.1 }] });
-  assert.match(heldOnly, /1 个知识点的笔记对不上新标题/);
+  assert.match(heldOnly, /1 个知识点的笔记对不上新的知识点/);
   assert.doesNotMatch(heldOnly, /被移到了新位置/);
   assert.equal(draw({ at: 'x', list: [], held: 0 }), '');
   // A list cut at 200 counts all the moves (`total`).
@@ -28,6 +28,6 @@ test('moves and held points: the moves listed as moves, the held ones in one lin
   assert.match(many, /还有 238 个/);
   ui.setUiLanguage('en');
   try {
-    assert.match(draw({ at: 'y', list: [], held: 3 }), /The notes of 3 knowledge point\(s\) match no new title; they wait in Not placed/);
+    assert.match(draw({ at: 'y', list: [], held: 3 }), /The notes of 3 knowledge point\(s\) match no new point; they wait in Not placed/);
   } finally { ui.setUiLanguage('zh'); }
 });

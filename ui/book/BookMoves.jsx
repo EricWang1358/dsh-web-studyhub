@@ -22,7 +22,7 @@ export default function BookMoves({ course, moves }) {
       {list.length > 0 && <p>{uiFormat('{0} 个知识点的笔记被移到了新位置（总纲重新整理过）：', [total])}</p>}
       {list.length > 0 && <ul>{list.slice(0, 12).map(move => <li key={`${move.from}|${move.to}`}>{uiFormat(move.folded ? '「{0}」并入「{1}」' : '「{0}」→「{1}」', [move.from, move.to])}</li>)}</ul>}
       {total > 12 && <p>{uiFormat('还有 {0} 个', [total - Math.min(12, list.length)])}</p>}
-      {held > 0 && <p data-book-held="">{uiFormat('{0} 个知识点的笔记对不上新标题，放在「未归位」里', [held])}</p>}
+      {held > 0 && <p data-book-held="">{uiFormat('{0} 个知识点的笔记对不上新的知识点，放在「未归位」里', [held])}</p>}
       <Button size="sm" variant="secondary" onClick={done}>{ui('知道了')}</Button>
     </section>
   );

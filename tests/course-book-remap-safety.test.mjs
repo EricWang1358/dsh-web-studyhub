@@ -51,19 +51,36 @@ test('a point of another title takes the old point\'s text only when it holds mo
   assert.deepEqual([[...fold.moved], [...fold.folded], fold.held.map(item => item.node.id)], [[['E', 'B']], [], ['A']]);
 });
 
-test('the text goes to the new point that holds most of the old one\'s pages: a small part is never paired first (17% / 83%); the issue\'s h25 case is held', () => {
+test('the text goes to the new point that holds most of the old one\'s pages: a small part is never paired first (17% / 83%); a sliver that is not the closest takes nothing', () => {
   // An old point of 600 characters: a new point holds its first 100 (all of it inside the old one), another holds the other 500 plus a long other text.
   const split = remapManifest({ nodes: [leaf('O', 'h1', 'Cloud native', ['o'])] }, [{ id: 'A', title: 'Databases state failure conditions', anchors: ['a'] },
     { id: 'B', title: 'Cloud-native architecture', anchors: ['b'] }], 3,
     { sourcesOf: anchor => ({ o: [span('s1', 0, 600)], a: [span('s1', 0, 100)], b: [span('s1', 100, 600), span('s2', 0, 3000)] })[anchor] });
   assert.deepEqual([split.moved.get('O'), split.held.length, split.nodes[1].hid, split.nodes[1].moveShare], ['B', 0, 'h1', 0.83], 'the 83% point, not the 17% one');
-  // h25 (#461): a long note on cloud native (21 sections) whose pages went to two points that are mostly other lectures, and one section to a point on
-  // databases that lies wholly inside it: no new point is mostly it, and the databases point is not the closest one, so the note is held.
+  // The round-2 regression (not the mapping the issue recorded): a long note (21 sections) whose pages went to two points that are mostly other lectures, and
+  // one section to a point on databases wholly inside it: no new point is mostly it and the databases point is not the closest one, so the note is held.
   const h25 = remapManifest({ nodes: [leaf('O', 'h25', '云原生架构', ['o'])] }, [{ id: 'D', title: '数据库题须写失败条件', anchors: ['d'] },
     { id: 'M', title: 'Microservices', anchors: ['m'] }, { id: 'K', title: 'Kubernetes', anchors: ['k'] }], 30,
     { sourcesOf: anchor => ({ o: [span('cn', 0, 2100)], d: [span('cn', 0, 100)], m: [span('cn', 100, 1100), span('x', 0, 2000)], k: [span('cn', 1100, 2100), span('y', 0, 2000)] })[anchor] });
   assert.deepEqual([h25.moved.size, h25.folded.size, h25.held.map(item => [item.node.id, item.likely, item.share])], [0, 0, [['O', 'M', 0.48]]]);
   assert.ok(h25.nodes.every(node => node.hid !== 'h25'), 'no new point takes the old heading');
+});
+
+test('the mechanism behind the issue\'s mapping on main: one-to-one pairing handed the big piece to another old point and the note fell to a sliver; now it folds into the big piece', () => {
+  // Old "云原生架构" (1000 chars) and old "Microservices" (5000 chars elsewhere). New M holds 900 of the first and all of the second; new D holds the other 100.
+  // On main the pair scores were shared / the bigger side: Microservices-M 0.85 won M, so 云原生架构 was paired to D (0.1) and its note sat under D's title.
+  const pages = { a: [span('cn', 0, 1000)], b: [span('ms', 0, 5000)], m: [span('cn', 100, 1000), span('ms', 0, 5000)], d: [span('cn', 0, 100)] };
+  const result = remapManifest({ nodes: [leaf('A', 'h25', '云原生架构', ['a']), leaf('B', 'h2', 'Microservices', ['b'])] },
+    [{ id: 'D', title: '数据库题须写失败条件', anchors: ['d'] }, { id: 'M', title: 'Microservices', anchors: ['m'] }], 30, { sourcesOf: anchor => pages[anchor] });
+  assert.deepEqual([result.moved.get('B'), result.moved.has('A'), result.folded.get('A')], ['M', false, 'M'], 'folded (under its own heading) into the point holding 90% of it');
+  assert.notEqual(result.nodes.find(node => node.id === 'D').hid, 'h25');
+});
+
+test('MOVE_MIN_SHARE is compared unrounded: 49.5% is not half', () => {
+  const at = end => remapManifest({ nodes: [leaf('O', 'h1', 'Old', ['o'])] }, [{ id: 'N', title: 'Other', anchors: ['n'] }], 3,
+    { sourcesOf: anchor => ({ o: [span('s', 0, 1000)], n: [span('s', 0, end), span('t', 0, 5000)] })[anchor] });
+  assert.deepEqual([at(495).moved.size, at(495).held.map(item => item.share)], [0, [0.5]], 'held, though it shows as 0.5');
+  assert.equal(at(500).moved.get('O'), 'N');
 });
 
 test('property: over random cuts, a moved or folded point always goes to a new point holding the biggest share of its pages (ties: the first)', () => {
@@ -159,6 +176,28 @@ test('the book: a 3.4 point of a whole lecture cut into six points follows to th
   assert.equal(book.unplaced.text.trim(), '');
   assert.equal(leaves(book.nodes).filter(point => point.mine === 'My own note on the lecture.').length, 1, 'the note is in the part it shares most with');
   assert.equal(book.moves.held, 0);
+});
+
+test('two held points that both use [^1] are parked with their own footnote labels, without the links of their gone headings', () => {
+  const { sources, decks } = outlineLibrary();
+  const state = { revision: 1, sources, documents: [], decks, drafts: [], attempts: [], runs: [], courses: [], focus: { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] } };
+  const lecture = lectureKey(sources), keyOf = id => groupSourcesByDocument(sources).find(item => item.sourceIds.includes(id)).key;
+  const first = outlineOf(state, [{ id: 'c1', title: 'Introduction', children: [{ id: 'one', title: 'Point one', anchors: [`${lecture}#0`, `${lecture}#1`] },
+    { id: 'two', title: 'Point two', anchors: [`${lecture}#2`, keyOf('document-l2-p1')] }] }], '2026-10-09T00:00:00.000Z');
+  state.sources.push(first);
+  openCourseBook(state, {});
+  const record = bookOf(state), [one, two] = leaves(record.bookDoc.manifest.nodes);
+  record.bookDoc.files[`${one.id}.mine.md`].text = `First note [^1].\n\n[^1]: one\n\n[练 5 道：x](studyhub://practice?heading=${one.hid}&n=5)`;
+  record.bookDoc.files[`${two.id}.mine.md`].text = 'Second note [^1].\n\n[^1]: two';
+  // Each old point keeps one page, in a point that is mostly another lecture: both held.
+  const rebuilt = outlineOf(state, [{ id: 'k1', title: 'Other', children: [{ id: 'x', title: 'Databases', anchors: [`${lecture}@s0-0`, keyOf('document-l3-p1')] },
+    { id: 'y', title: 'Networks', anchors: [`${lecture}@s4-4`, keyOf('document-l4-p1')] }] }], '2026-10-10T00:00:00.000Z');
+  state.sources = state.sources.map(source => (source.id === first.id ? { ...source, archived: true } : source)).concat(rebuilt);
+  const book = openCourseBook(state, {}), text = book.unplaced.text;
+  assert.equal(book.moves.held, 2);
+  const labels = [...text.matchAll(/^\[\^([^\]]+)\]:/gm)].map(match => match[1]);
+  assert.deepEqual([labels.length, new Set(labels).size], [2, 2], text);
+  assert.doesNotMatch(text, new RegExp(`heading=${one.hid}`), 'the 练 link of a gone heading is left out');
 });
 
 test('organising the outline again when the book holds the learner\'s own text asks for confirm first, saying what will happen; an empty book does not', async t => {
