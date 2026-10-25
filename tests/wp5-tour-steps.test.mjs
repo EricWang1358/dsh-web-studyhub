@@ -102,6 +102,11 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
   }
 });
 
+test("the reader's 原始 PDF page bar and page panel carry their tour anchors (#456)", async () => {
+  const anchors = await anchorsInSource();
+  for (const anchor of ["reader-pdf-bar", "reader-page-ask"]) assert.ok(anchors.has(anchor), anchor);
+});
+
 test("every anchor the tour uses exists in the UI source", async (t) => {
   const anchors = await anchorsInSource();
   const used = [...new Set([...TOUR_STEPS.flatMap((step) => [step.anchor].flat()).filter(Boolean), ...PLAN_ANCHORS.filter((id) => !PARALLEL[id])])];

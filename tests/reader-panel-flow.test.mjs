@@ -23,6 +23,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as PdfPageBar, pageBoxKey } from './ui/document-preview/reader/PdfPageBar.jsx';
   export { default as QuickIntents, PAGE_INTENTS, PASSAGE_INTENTS } from './ui/document-preview/QuickIntents.jsx';
   export { pageHandOffInput } from './ui/document-preview/PageAsk.jsx';
+  export { hintClosed, closeHint, forgetClosedHints, READER_HINTS } from './ui/document-preview/reader/hints.js';
   export { askRequest, retryOf, pageDraftKey } from './ui/document-preview/ask-request.js';
   export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
@@ -151,12 +152,12 @@ test('原始 PDF: an empty box, a missing model, a page without text and a cut p
   const gate = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', modelReady: false, askReady: false })), gone);
   assert.match(gate, /<button[^>]*>(?:<[^>]+>)*前往设置|设置/);
   const blank = render(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true, sourceId: '' }), resolution: null })));
-  assert.match(text(blank), /第 3 页没有保存的文字/);
+  assert.match(text(blank), /第 3 页没有保存文字（多半是扫描页或图片页）：换一页再问/);
   assert.doesNotMatch(blank, /<textarea/, 'nothing to ask from a page without text');
   const cut = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: { page: 3, chars: 9000, used: 8000, truncated: true } })));
-  assert.match(text(cut), /回答只依据了前 8000 字（共 9000 字）/);
+  assert.match(text(cut), /回答只读了前 8000 字（共 9000 字）；后面的内容请在「阅读」里选中再问/);
   const stale = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', resolution: { status: 'stale' } })));
-  assert.match(text(stale), /资料已更新，请重新打开这份资料再问这一页/);
+  assert.match(text(stale), /这份资料刚更新过：关掉阅读器再打开，就能接着问这一页/);
 });
 
 test('原始 PDF: the page controls step, take a typed number and say the total', () => {
@@ -200,9 +201,9 @@ test('原始 PDF: a refused page question is said beside the page, which stays t
   lib.setUiLanguage('zh');
   const out = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageRefusal: { status: 'stale' } })));
   assert.match(text(out), /正在问：第 3 页/);
-  assert.match(text(out), /资料已更新，请重新打开这份资料再问这一页/);
+  assert.match(text(out), /这份资料刚更新过：关掉阅读器再打开，就能接着问这一页/);
   assert.doesNotMatch(text(out), /这段引用需要在当前原文中重新选择/, 'never the wording of a selection');
-  assert.match(text(out), /复制后粘贴进问题框/, 'a selection made inside the PDF can be pasted in');
+  assert.match(text(out), /可以复制，粘贴进问题框/, 'a selection made inside the PDF can be pasted in');
 });
 
 test('English: the page panel and the page controls are English', () => {
@@ -242,12 +243,12 @@ test('原始 PDF: 发给主会话 is a quiet link under the answers on a page wi
   assert.match(out, /data-hand-off="reader\.page"/);
   assert.match(out, /sh-handoff--quiet/, 'a quiet line, never a button of the main path');
   assert.ok(out.indexOf('data-hand-off="reader.page"') > out.indexOf('依据这一页回答'), 'under the box and the answers');
-  assert.match(text(out), /想让主会话接着讲（可附截图）：/);
+  assert.match(text(out), /想让主会话接着讲（主会话能看图片时可附截图）：/);
   assert.doesNotMatch(text(out), /主会话能看图(?!片时)/, 'never a promise that the chat reads pictures');
   const blank = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true, sourceId: '' }), resolution: null, pageHandOff: { ...pageHandOff, text: '' } }))));
   assert.match(blank, /data-hand-off="reader\.page"[^>]*>|sh-btn--secondary[^>]*data-hand-off="reader\.page"/);
   assert.match(blank, /sh-btn--secondary/, 'the one action of a page without text');
-  assert.match(text(blank), /先点下面的按钮，再截这一页的图；如果你的主会话能看图片/);
+  assert.match(text(blank), /先点按钮，再截这一页的图；主会话能看图片时/);
   assert.doesNotMatch(render(React.createElement(lib.LearningPanel, pagePanel({ pageHandOff }))), /data-hand-off/, 'not offered where nothing can take it (no app around the reader)');
 });
 
@@ -313,4 +314,79 @@ test('翻译这一页 says on hover that it is a one-off answer, not the reader\
   assert.match(chip.note, /不会保存；整份资料的对照翻译在「阅读」工具栏的「翻译」里/);
   lib.setUiLanguage('en');
   try { assert.doesNotMatch(render(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {} }))), han); } finally { lib.setUiLanguage('zh'); }
+});
+
+/* #456 PR 3: first-visit hints (once, closed for good), friendlier refusals that say what to do next, chips in an even grid. */
+test('first visit: the page hint and the presets hint are there, each closable; a closed hint stays closed in this browser', async () => {
+  lib.setUiLanguage('zh');
+  lib.forgetClosedHints();
+  const out = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, pageHandOff }))));
+  assert.match(text(out), /这里问的是第 3 页：用翻页按钮换页，在 PDF 里滚动不会改变要问的页。/);
+  assert.match(text(out), /点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。/);
+  assert.equal((out.match(/data-reader-hint="/g) || []).length, 2);
+  assert.equal((out.match(/aria-label="不再提示：问的是哪一页"/g) || []).length, 1, 'the page hint closes with its own name');
+  assert.equal((out.match(/aria-label="不再提示：预设和发给主会话"/g) || []).length, 1, 'the presets hint closes with its own name');
+  const store = new Map(), storage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)), removeItem: key => store.delete(key) };
+  assert.equal(lib.hintClosed(lib.READER_HINTS.page, storage), false);
+  assert.equal(lib.closeHint(lib.READER_HINTS.page, storage), true);
+  assert.equal(lib.hintClosed(lib.READER_HINTS.page, storage), true);
+  assert.equal(lib.hintClosed(lib.READER_HINTS.presets, storage), false, 'one hint at a time');
+  lib.closeHint(lib.READER_HINTS.page, storage);
+  assert.deepEqual(JSON.parse(store.get('study-reader-hints')), ['pdf-page'], 'remembered once');
+  lib.forgetClosedHints();
+  assert.equal(lib.hintClosed(lib.READER_HINTS.page, storage), true, 'a stored closing survives a new visit');
+  assert.equal(lib.hintClosed('pdf-page', null), false, 'no storage: a new visit shows it again, never an error');
+  // the presets hint only where there are presets (not on a page without saved text)
+  const blank = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true }), resolution: null, pageHandOff }))));
+  assert.doesNotMatch(text(blank), /点一个预设就直接提问/);
+  assert.doesNotMatch(text(blank), /粘贴进问题框/, 'no word about a box that is not there');
+});
+
+test('a hint closed without browser storage stays closed when the panel is opened again in this visit', () => {
+  lib.setUiLanguage('zh');
+  lib.forgetClosedHints();
+  const shown = () => render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, pageHandOff }))));
+  assert.match(text(shown()), /这里问的是第 3 页/);
+  assert.equal(lib.closeHint(lib.READER_HINTS.page, null), false, 'a blocked browser cannot store it');
+  assert.equal(lib.hintClosed(lib.READER_HINTS.page, null), true, 'this visit still remembers the closing');
+  const again = text(shown());
+  assert.doesNotMatch(again, /这里问的是第 3 页/, 'closing and opening the panel must not bring the hint back');
+  assert.match(again, /点一个预设就直接提问/, 'the other hint is untouched');
+  lib.forgetClosedHints();
+  assert.match(text(shown()), /这里问的是第 3 页/, 'a new visit shows it again');
+  lib.forgetClosedHints();
+});
+
+test('refusals and empty states say what to do next, in one sentence each', () => {
+  lib.setUiLanguage('zh');
+  const said = status => text(render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageRefusal: { status } }))));
+  assert.match(said('missing'), /这一页没有能核对的文字：换一页再问，或用「发给主会话」，截图只在主会话能看图片时有用。/);
+  assert.match(said('ambiguous'), /这一页对应了好几段文字：切换到「阅读」，选中要问的那一段。/);
+  assert.match(said('unavailable'), /现在没有可用的模型：先在设置里连上模型，再回来问。/);
+  assert.match(said('other'), /这一页暂时问不了：稍后再试一次。/);
+  // without an app around the reader there is no hand-off, so the empty page does not point to one
+  const bare = text(render(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true }), resolution: null }))));
+  assert.match(bare, /第 3 页没有保存文字（多半是扫描页或图片页）：换一页再问，或在「阅读」里点「看原页」看这一页的图。/);
+  assert.doesNotMatch(bare, /发给主会话/);
+});
+
+test('the page chips sit in an even two-column grid; the original-PDF notice is one short sentence', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../ui/document-preview/document-preview.css', import.meta.url), 'utf8');
+  assert.match(css, /\.study-page-ask \.ask-quick \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  const viewer = await readFile(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
+  const notice = viewer.match(/view === 'original' && !localMode && <p key="pdf" className="reader-pdf-note">\{ui\('([^']+)'\)\}/)?.[1];
+  assert.equal(notice, '在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。');
+  assert.ok(notice.length <= 40, 'one line on a phone-width reader, two at most');
+});
+
+test('English: the hints and the new sentences are English', () => {
+  lib.setUiLanguage('en');
+  try {
+    for (const extra of [{ onQuick() {}, pageHandOff }, { pageRefusal: { status: 'missing' } }, { pageRefusal: { status: 'unavailable' } }, { scope: pageScope({ empty: true }), resolution: null },
+      { pageCut: { chars: 9000, used: 8000, truncated: true } }]) {
+      const out = render(withStudy(React.createElement(lib.LearningPanel, pagePanel(extra))));
+      assert.doesNotMatch(out.replace(/An old selection from 阅读/g, ''), han, JSON.stringify(Object.keys(extra)));
+    }
+  } finally { lib.setUiLanguage('zh'); }
 });

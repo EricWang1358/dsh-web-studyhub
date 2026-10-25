@@ -104,6 +104,33 @@ export async function runPageAskQa(options) {
       if (await tools.getByRole("button", { name: t("围绕这段出案例题", "Write a case around this passage") }).count()) throw new Error("the case button is offered in the PDF view");
       return at;
     });
+    await step("first-visit-hints-close-for-good", async () => {
+      // Two first-visit hints in the page panel: which page is asked, and the presets / the main chat. Each closes with its own named button, for good, and
+      // closing one keeps the keyboard in the panel (on the next control), never on the page body.
+      const hints = paging.locator("[data-reader-hint]");
+      if (await hints.count() !== 2) throw new Error(`expected two first-visit hints, saw ${await hints.count()}`);
+      const page = await paging.locator('[data-reader-hint="pdf-page"]').innerText();
+      if (!page.includes(t("这里问的是第 1 页", "This asks about page 1"))) throw new Error(`the page hint does not name the page: ${page}`);
+      const pageLabel = t("不再提示：问的是哪一页", "Don’t show again: which page is asked");
+      const presetsLabel = t("不再提示：预设和发给主会话", "Don’t show again: presets and the main chat");
+      if (pageLabel === presetsLabel) throw new Error("the two hints share one accessible name");
+      await paging.locator('[data-reader-hint="pdf-page"]').getByRole("button", { name: pageLabel, exact: true }).click();
+      await paging.locator('[data-reader-hint="pdf-page"]').waitFor({ state: "detached" });
+      // The contract is «the keyboard stays in the panel, on the next control»; with a usable question box that next control is the box.
+      const afterPage = await paging.evaluate(() => {
+        const box = document.querySelector(".study-page-ask textarea");
+        return { tag: document.activeElement?.tagName || "", inPanel: !!document.activeElement?.closest(".study-page-ask"), boxReady: !!box && !box.disabled && box.getClientRects().length > 0 };
+      });
+      if (!afterPage.inPanel || (afterPage.boxReady && afterPage.tag !== "TEXTAREA")) throw new Error(`closing the page hint lost the keyboard: ${JSON.stringify(afterPage)}`);
+      if (!await paging.locator('[data-reader-hint="page-presets"]').isVisible()) throw new Error("closing one hint closed the other");
+      await paging.locator('[data-reader-hint="page-presets"]').getByRole("button", { name: presetsLabel, exact: true }).click();
+      await paging.locator('[data-reader-hint="page-presets"]').waitFor({ state: "detached" });
+      const afterPresets = await paging.evaluate(() => ({ inPanel: !!document.activeElement?.closest(".study-page-ask"), body: document.activeElement === document.body }));
+      if (!afterPresets.inPanel || afterPresets.body) throw new Error(`closing the presets hint lost the keyboard: ${JSON.stringify(afterPresets)}`);
+      const stored = await paging.evaluate(() => globalThis.localStorage.getItem("study-reader-hints"));
+      if (!stored?.includes("pdf-page") || !stored.includes("page-presets")) throw new Error(`the closed hints were not remembered: ${stored}`);
+      return { stored };
+    });
     await check("escape-in-page-box-keeps-the-reader", async () => {
       await closeOverlay();
       await pageBox().fill("3");
@@ -171,7 +198,7 @@ export async function runPageAskQa(options) {
       await typePage(4);
       await expectPage(4);
       const text = await paging.innerText();
-      if (!(options.lang === "zh" ? /第 4 页没有保存的文字/ : /Page 4 has no saved text/).test(text)) throw new Error(`no empty-page message: ${text.slice(0, 200)}`);
+      if (!(options.lang === "zh" ? /第 4 页没有保存文字/ : /Page 4 has no saved text/).test(text)) throw new Error(`no empty-page message: ${text.slice(0, 200)}`);
       if (await paging.locator("textarea").count()) throw new Error("a question box for a page without text");
       // A page that is only a picture: 发给主会话 is the way forward there (the screenshot is pasted into the chat).
       const forward = paging.locator('.study-page-ask__forward [data-hand-off="reader.page"]');
@@ -255,7 +282,7 @@ export async function runPageAskQa(options) {
       await paging.getByRole("button", { name: t("依据这一页回答", "Answer from this page") }).click();
       const failed = paging.locator('[data-ask-node][data-status="failed"]').first();
       await failed.waitFor({ timeout: 15000 });
-      const pageWords = t("资料已更新，请重新打开这份资料再问这一页", "Open it again to ask about this page"), passageWords = t("这段引用", "this citation");
+      const pageWords = t("这份资料刚更新过：关掉阅读器再打开，就能接着问这一页", "close the reader and open it again"), passageWords = t("这段引用", "this citation");
       const first = await failed.innerText();
       if (!first.includes(pageWords)) throw new Error(`not the page wording: ${first}`);
       await failed.getByRole("button", { name: t("重试", "Retry") }).click();
