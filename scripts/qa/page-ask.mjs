@@ -15,6 +15,7 @@ import { Store } from "../../lib/store.js";
 import { previewCall } from "../preview-server.mjs";
 import { makeTextPdf } from "../../tests/helpers/text-pdf.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
+import { pickNth } from "./pick.mjs";
 
 const PAGE_LINES = (page, word = "explains") => Array.from({ length: 10 }, (_, line) => `Page ${page} line ${line + 1} ${word} part ${page} of the scheduling lecture in plain words.`);
 export const PAGES = [1, 2, 3, 4].map((page) => PAGE_LINES(page));
@@ -25,8 +26,11 @@ async function seed(root) {
   const pdf = await runtime.call("materials.document.import", { filename: "scheduling.pdf", dataBase64: (await makeTextPdf(PAGES)).toString("base64"), courses: ["QA"] });
   runtime.dispose();
   SEEDED.documentId = pdf.documentId;
-  // Page 4 as a scanned page would be: no saved text (the panel must say so instead of asking).
-  await new Store(root).update((state) => { state.sources.find((source) => source.id === pdf.sourceIds[3]).text = ""; });
+  // Page 4 as a scanned page would be: no saved text (the panel must say so instead of asking). A deck to add questions to (补题).
+  await new Store(root).update((state) => {
+    state.sources.find((source) => source.id === pdf.sourceIds[3]).text = "";
+    state.decks.push({ id: "qa-deck", title: "QA deck", course: "QA", contentVersion: 1, cards: [] });
+  });
 }
 
 /** Select `words` in the reading view's own text, as a drag would, and tell the reader. */
@@ -161,13 +165,38 @@ export async function runPageAskQa(options) {
       if (answers < 1) throw new Error("the answered thread of the passage is gone");
       return { quote, answers };
     });
+    await step("supplement-job-card-stays-visible-in-pdf", async () => {
+      // A 补题 job started from the passage in 阅读 is still on screen (progress, 停止) after switching to 原始 PDF to look at the page.
+      await pickNth(page, reading.locator('[role="combobox"]').first(), 0);
+      await reading.getByRole("button", { name: t("生成、审核并补充题目", "Generate, review and add questions") }).click();
+      await reading.locator(".selection-job").first().waitFor({ timeout: 10000 });
+      await closeOverlay();
+      await mode("原始 PDF", "Original PDF").click();
+      await bar.waitFor();
+      await openTools();
+      const card = tools.locator(".selection-job").first();
+      const state = () => page.evaluate(() => ({ view: document.querySelector(".study-document-viewer")?.dataset.mode,
+        panels: [...document.querySelectorAll(".reader-tools .reader-learning")].map((node) => `${node.dataset.scope}:${node.hidden ? "hidden" : "shown"}:${node.querySelectorAll(".selection-job").length}`).join(" "),
+        jobs: [...document.querySelectorAll(".reader-tools .selection-job")].map((node) => node.dataset.phase).join(",") }));
+      try { await card.waitFor({ state: "visible", timeout: 8000 }); } catch { throw new Error(`no visible job card in 原始 PDF: ${JSON.stringify(await state())}`); }
+      const phase = (await state()).jobs;
+      if (await tools.locator(".study-passage__quote:visible").count()) throw new Error("the old selection is shown with the job card");
+      const order = await page.evaluate(() => { const job = document.querySelector(".reader-tools .selection-job"), scope = document.querySelector(".reader-tools .study-page-ask__scope");
+        return job && scope ? !!(job.compareDocumentPosition(scope) & 4) : null; });
+      if (!order) throw new Error("the job card is not above the page panel");
+      return { phase };
+    });
     await step("kept-annotation-opened-from-pdf-goes-to-read", async () => {
       await closeOverlay();
       await mode("原始 PDF", "Original PDF").click();
       await bar.waitFor();
       await openTools();
-      await tools.locator(".reader-link-group summary").first().click(); // the kept passage, folded in the links list
-      await tools.getByRole("button", { name: t("打开问答", "Open the thread") }).first().click();
+      // The kept passage is folded in the links list (with the questions the 补题 job added, when it is done): unfold them all.
+      const folded = tools.locator(".reader-link-group:not([open]) > summary");
+      for (let guard = 0; guard < 6 && await folded.count(); guard += 1) await folded.first().evaluate((node) => node.click()); // a toast may sit over the bottom of a narrow panel
+      const open = tools.getByRole("button", { name: t("打开问答", "Open the thread") }).first();
+      await open.scrollIntoViewIfNeeded();
+      await open.evaluate((node) => node.click());
       await viewer.locator(".reader-pdf-bar").waitFor({ state: "detached", timeout: 10000 });
       await reading.locator(".study-passage__quote").waitFor();
     });

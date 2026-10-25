@@ -208,7 +208,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
   const [pagePanel, setPagePanel] = useState(false);
   if (view === 'original' && pageScope && !pagePanel) setPagePanel(true);
-  const learningPanels = [{ scope: 'selection', hidden: view === 'original', props: { capture, annotation } },
+  // In 原始 PDF the reading panel shows only its 补题 job cards (it holds and polls them, once), above the page panel; the rest of it waits for 阅读.
+  const learningPanels = [{ scope: 'selection', hidden: false, props: { capture, annotation, jobsOnly: view === 'original' } },
     ...(pagePanel && pageScope ? [{ scope: 'page', hidden: view !== 'original', props: { capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage } }] : [])];
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);

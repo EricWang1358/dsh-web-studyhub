@@ -88,7 +88,7 @@ export function ModeSwitch({ mode, onMode }) {
  * this material. Nothing here waits: asking is only blocked while it is itself answering, and the supplement form stays
  * editable while a job runs (the same passage and deck is refused, another one is fine).
  */
-export function LearningPanel({ capture, scope = null, pageCut = null, pageRefusal = null, pageTotal = 0, onPage, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 10, kind = 'quiz',
+export function LearningPanel({ capture, scope = null, jobsOnly = false, pageCut = null, pageRefusal = null, pageTotal = 0, onPage, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 10, kind = 'quiz',
   decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, jobs = [], now = Date.now(), call, sectionRef,
   onQuestion, onAsk, onQuick, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
@@ -98,6 +98,8 @@ export function LearningPanel({ capture, scope = null, pageCut = null, pageRefus
   const blocking = resolved && deckId ? blockingJob(jobs, resolution.selection, deckId) : null;
   const list = <SelectionJobList jobs={jobs} now={now} {...jobHandlers} />;
   // The jobs come first: progress is what the learner looks for after pressing the button, and it must not scroll away below the forms.
+  // 原始 PDF: the reading panel keeps only its job cards on screen (progress, 停止 / 重试, the way to the deck); its passage and thread wait for 阅读.
+  if (jobsOnly) return jobs.length ? <section className="study-document-learning" data-jobs-only="true" ref={sectionRef}>{list}</section> : null;
   // 原始 PDF: the question is about the page the reader shows (PageAsk.jsx), never about a selection made before.
   if (scope?.kind === 'page') return <PageAsk scope={scope} resolution={resolution} refusal={pageRefusal} question={question} thread={thread} notice={notice} noticeWhy={noticeWhy} cut={pageCut} error={error}
     askReady={askReady} modelReady={modelReady} list={list} sectionRef={sectionRef} total={pageTotal} onPage={onPage} onQuestion={onQuestion} onAsk={onAsk} onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} />;
@@ -157,7 +159,7 @@ export function LearningPanel({ capture, scope = null, pageCut = null, pageRefus
 }
 
 /** One resolved selection feeds both grounded questions and reviewed, incremental publication (a background job). */
-export default function DocumentLearning({ call, document, capture, scope = null, pageTotal = 0, onPage, data, annotation, usedBy, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
+export default function DocumentLearning({ call, document, capture, scope = null, jobsOnly = false, pageTotal = 0, onPage, data, annotation, usedBy, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
   const toast = useToast();
   const [resolution, setResolution] = useState(null), [resolving, setResolving] = useState(false);
   const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [refused, setRefused] = useState(''), [refusedWhy, setRefusedWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
@@ -409,7 +411,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     } catch (e) { setError(e.message); }
   }
   const shown = jobs.filter(job => !dismissed.has(job.operationId));
-  return <LearningPanel capture={capture} scope={scope} pageCut={pageCut} pageRefusal={pageRefusal} pageTotal={pageTotal} onPage={onPage} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={refused} noticeWhy={refusedWhy}
+  return <LearningPanel capture={capture} scope={scope} jobsOnly={jobsOnly} pageCut={pageCut} pageRefusal={pageRefusal} pageTotal={pageTotal} onPage={onPage} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={refused} noticeWhy={refusedWhy}
     mode={mode} onMode={annotation?.onMode} annotateReady={annotateReady} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError} onKeep={keep} onDeleteThread={deleteThread}
     onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} onQuick={askFirst}
     deckId={deckId} deckNote={deckNote} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}

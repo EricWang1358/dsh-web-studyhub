@@ -169,6 +169,16 @@ test('原始 PDF: the page controls step, take a typed number and say the total'
   assert.match(last, /<button[^>]*disabled=""[^>]*aria-label="下一页"|<button[^>]*aria-label="下一页"[^>]*disabled=""/, 'no page after the last');
 });
 
+test('原始 PDF: the reading panel keeps its 补题 job cards on screen and nothing else; without jobs it draws nothing', () => {
+  lib.setUiLanguage('zh');
+  const job = { operationId: 'op1', id: 'j1', status: 'running', stageCode: 'writing', deckId: 'd', selection, count: 2, startedAt: new Date(0).toISOString() };
+  const out = render(React.createElement(lib.LearningPanel, panel({ jobsOnly: true, jobs: [job], onCancel() {}, onRetry() {}, onDismiss() {} })));
+  assert.match(out, /data-jobs-only="true"/);
+  assert.match(out, /class="selection-jobs"/, 'the job card is there');
+  assert.doesNotMatch(out, /study-passage__quote|<textarea|补充到现有题组/, 'the passage and the forms wait for 阅读');
+  assert.equal(render(React.createElement(lib.LearningPanel, panel({ jobsOnly: true, jobs: [] }))), '');
+});
+
 test('原始 PDF: Escape in the page box puts the page back and stays in the reader; Enter applies it', () => {
   const event = key => { const seen = { key, prevented: false, stopped: false }; return Object.assign(seen, { preventDefault() { seen.prevented = true; }, stopPropagation() { seen.stopped = true; } }); };
   const calls = [];
