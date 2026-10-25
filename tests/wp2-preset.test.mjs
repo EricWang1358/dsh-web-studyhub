@@ -125,6 +125,24 @@ test('rows the DSH 0.2.0-rc.2 host does not ship are never enabled there', async
   assert.deepEqual(added, [['time-context', 'enabled'], [SCHEDULE, 'guarded'], ['tool-plugin-market', 'disabled']]);
 });
 
+/* DSH registers only `provider` and `model` (packages/core/agent-loop/src/index.ts) and interpolates strictly:
+   any other `{{name}}` fails prompt assembly before the model request, so every turn reports 本轮运行失败
+   while the install itself looks fine. v0.2.1-alpha.2 removed the old built-in `cwd`, which this preset used
+   to reference — this test is the cheap guard against the next one (#441). */
+const PROMPT_VARIABLES = new Set(['provider', 'model']);
+test('every prompt variable in the study preset is one DSH actually registers', async () => {
+  const strings = [];
+  const walk = value => {
+    if (typeof value === 'string') strings.push(value);
+    else if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === 'object') Object.values(value).forEach(walk);
+  };
+  walk((await preset()).config.plugins);
+  const referenced = [...new Set(strings.flatMap(text => [...text.matchAll(/\{\{([^{}]*)\}\}/g)].map(match => match[1].trim())))];
+  assert.deepEqual(referenced.filter(name => !PROMPT_VARIABLES.has(name)), [],
+    'unknown prompt variables fail every turn of this preset, before any model request');
+  assert.ok(referenced.length > 0, 'the persona names the model, so at least one variable is expected');
+});
 test('the study persona makes the library the default meaning and asks once when ambiguous', async () => {
   const text = (await persona()).prefix;
   for (const word of ['资料', '我的笔记', '这节课', '课件', '讲义', '题库', '题组', '错题'])
