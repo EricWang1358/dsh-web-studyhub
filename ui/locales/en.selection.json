@@ -117,7 +117,7 @@
   "请把这一页的公式和代码原样提取出来，并说明各自的用途。": "Please copy out the formulas and code of this page exactly, and say what each is for.",
   "把这一页的文字和你在上面写的问题发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用": "Sends the text of this page and the question you typed above to the main chat. Press this first, then take the screenshot: without a main chat this message goes onto the clipboard. A screenshot only helps if your main chat takes pictures",
   "先点按钮，再截这一页的图；主会话能看图片时，把截图粘贴到消息最后。": "Press the button first, then take a screenshot of the page; if your main chat takes pictures, paste it at the end of the message.",
-  "想让主会话接着讲（可附截图）：": "To have the main chat go on (a screenshot can be added):",
+  "想让主会话接着讲（主会话能看图片时可附截图）：": "To have the main chat go on (add a screenshot if your main chat can see pictures):",
   "把资料名和页码发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用": "Sends the name of the material and the page number to the main chat. Press this first, then take the screenshot: without a main chat this message goes onto the clipboard. A screenshot only helps if your main chat takes pictures",
   "这是对这一页保存文字的一次回答，不会保存；整份资料的对照翻译在「阅读」工具栏的「翻译」里。": "A one-off answer about the saved text of this page, not kept; the side-by-side translation of the whole material is Translate in the Read toolbar.",
   "现在没有可用的模型：先在设置里连上模型，再回来问。": "No model is available right now: connect one in Settings, then come back and ask.",

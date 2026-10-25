@@ -78,7 +78,7 @@ A typical round:
 3. Tap a preset, or type your own question and click **Answer from this page**.
 4. For a figure or a scanned page, click **Send to the main chat**, then take a screenshot and paste it at the end of the message; a screenshot only helps when your main chat can see pictures.
 
-The first time, two short hints explain the page controls and the presets; each closes for good with its own ×.
+The first time, two short hints explain the page controls and the presets; each closes for good with its own × (remembered in this browser; when the browser blocks storage, for this visit only).
 
 - Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. Scrolling inside the PDF does not change the page that is asked about, and each page turn reloads the PDF (its own zoom is not kept).
 - Type or paste a question and click **Answer from this page**. The answer uses the saved text of that page only. A very long page is cut, and the panel says how much was used.

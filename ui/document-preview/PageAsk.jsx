@@ -100,7 +100,7 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
       {cut?.truncated && <InlineMessage tone="info">{uiFormat('这一页很长，回答只读了前 {0} 字（共 {1} 字）；后面的内容请在「阅读」里选中再问。', [cut.used, cut.chars])}</InlineMessage>}
       <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />
       {/* A quiet way out where the built-in answer cannot help: a figure, a formula drawn as a picture. */}
-      {canHandOff && <HandOff id="reader.page" shape="quiet" lead="想让主会话接着讲（可附截图）：" what={HAND_OFF_WHAT} input={handOffInput} className="study-page-ask__handoff" />}
+      {canHandOff && <HandOff id="reader.page" shape="quiet" lead="想让主会话接着讲（主会话能看图片时可附截图）：" what={HAND_OFF_WHAT} input={handOffInput} className="study-page-ask__handoff" />}
     </>}
     {/* A page without saved text has no question box to paste into. */}
     {!scope.empty && <Hint>{ui('在 PDF 里选中的文字可以复制，粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页的图，请在「阅读」里点「看原页」查看。')}</Hint>}

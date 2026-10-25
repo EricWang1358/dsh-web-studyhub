@@ -243,7 +243,7 @@ test('原始 PDF: 发给主会话 is a quiet link under the answers on a page wi
   assert.match(out, /data-hand-off="reader\.page"/);
   assert.match(out, /sh-handoff--quiet/, 'a quiet line, never a button of the main path');
   assert.ok(out.indexOf('data-hand-off="reader.page"') > out.indexOf('依据这一页回答'), 'under the box and the answers');
-  assert.match(text(out), /想让主会话接着讲（可附截图）：/);
+  assert.match(text(out), /想让主会话接着讲（主会话能看图片时可附截图）：/);
   assert.doesNotMatch(text(out), /主会话能看图(?!片时)/, 'never a promise that the chat reads pictures');
   const blank = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true, sourceId: '' }), resolution: null, pageHandOff: { ...pageHandOff, text: '' } }))));
   assert.match(blank, /data-hand-off="reader\.page"[^>]*>|sh-btn--secondary[^>]*data-hand-off="reader\.page"/);
