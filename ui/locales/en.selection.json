@@ -125,5 +125,22 @@
   "这里问的是第 {0} 页：用翻页按钮换页，在 PDF 里滚动不会改变要问的页。": "This asks about page {0}: turn pages with the page buttons; scrolling inside the PDF does not change the page that is asked about.",
   "点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。": "A preset asks at once; for a figure or a scanned page, use “Send to the main chat” — a screenshot only helps when your main chat can see pictures.",
   "不再提示：问的是哪一页": "Don’t show again: which page is asked",
-  "不再提示：预设和发给主会话": "Don’t show again: presets and the main chat"
+  "不再提示：预设和发给主会话": "Don’t show again: presets and the main chat",
+  "自定义预设…": "Custom presets…",
+  "添加自己的预设，或隐藏内置的预设；只保存在这个浏览器里。": "Add your own presets, or hide the built-in ones; they stay in this browser only.",
+  "按页提问的预设": "Presets for asking about a page",
+  "勾选的预设出现在问题框下面，点一下就直接发出它的提示词。内置的四个不能改、不能删，只能隐藏；你自己的预设只保存在这个浏览器里。": "A checked preset appears under the question box and sends its prompt at once. The four built-in ones cannot be changed or deleted, only hidden; your own presets stay in this browser only.",
+  "内置预设": "Built-in presets",
+  "我的预设": "My presets",
+  "还没有自己的预设。": "You have no presets of your own yet.",
+  "添加预设": "Add a preset",
+  "编辑「{0}」": "Edit “{0}”",
+  "最多 {0} 个字。": "At most {0} characters.",
+  "提示词": "Prompt",
+  "点这个预设时原样发出，最多 {0} 个字。": "Sent exactly as written when the preset is pressed; at most {0} characters.",
+  "请给这个预设起个名字。": "Give this preset a name.",
+  "名称最多 {0} 个字。": "A name takes at most {0} characters.",
+  "已经有一个叫「{0}」的预设：换个名字，或者先改那一个。": "You already have a preset called “{0}”: use another name, or change that one first.",
+  "提示词不能为空。": "The prompt cannot be empty.",
+  "提示词最多 {0} 个字。": "A prompt takes at most {0} characters."
 }

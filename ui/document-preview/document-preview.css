@@ -125,6 +125,16 @@
   .study-page-ask__handoff { display: block; margin-top: var(--space-3); }
   .study-page-ask__forward { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-2); }
   .study-page-ask__forward p { margin: 0; }
+  /* The presets of 按页提问 (PagePresets.jsx): a checkbox row per preset with the question it sends under the name; the built-ins can only be
+     hidden, so only the learner's own rows carry 编辑 and 删除 beside them. */
+  .study-page-presets { display: grid; gap: var(--space-4); }
+  .study-page-presets__group { display: grid; gap: var(--space-2); }
+  .study-page-presets__title { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+  .study-page-presets__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+  .study-page-presets__row { display: flex; align-items: start; gap: var(--space-2); }
+  .study-page-presets__choice { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  .study-page-presets__actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-1); }
+  .study-page-presets__form { display: grid; gap: var(--space-3); }
   .study-document-learning blockquote {
     border-left: 3px solid var(--accent);
     padding: .5rem;
