@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, Dialog, Field, Hint, InlineMessage, Select, TextInput } from '../components/index.js';
+import { Button, ConfirmDialog, Dialog, Field, Hint, InlineMessage, Select, TextInput } from '../components/index.js';
 import { MAX_TITLE_CHARS } from '../../lib/document-title.js';
 import { moveTargets, nodeAt, shiftPlace, structureFailureText } from './book-structure.js';
 
@@ -90,26 +90,24 @@ export function MoveDialog({ book, node, onRun, onClose }) {
   );
 }
 
-/** 删除这个知识点…: one confirmation, saying that nothing takes its place and where what the learner wrote goes. A point holds no chapter or
-    section below it, so there is no children choice here (a chapter's is the main chat's). */
+/** 删除这个知识点…: the shared ConfirmDialog says it once — nothing takes its place, and what the learner wrote goes to 未归位. A point holds no
+    chapter or section below it, so there is no children choice here (a chapter's is the main chat's), and no hand-written danger footer (#68). */
 export function DeleteDialog({ book, node, onRun, onClose, onDeleted }) {
   const current = nodeAt(book?.nodes, node.hid)?.node ?? node;
-  const { busy, failure, run } = useStructureRun(onRun);
-  const remove = async () => { if (await run('course.book.delete', { hid: node.hid, children: 'promote' })) onDeleted(); };
+  const remove = async () => {
+    const answer = await onRun('course.book.delete', { hid: node.hid, children: 'promote' });
+    if (!answer.ok) throw new Error(structureFailureText(answer.failure) ?? ui('没有完成，请再试一次。'));
+  };
   return (
-    <Dialog title={ui('删除这个知识点')} size="sm" className="book-structure-dialog" onClose={onClose} busy={busy}
-      footer={<>
-        <Button variant="quiet" autoFocus onClick={() => onClose()} disabled={busy}>{ui('取消')}</Button>
-        <Button variant="danger" busy={busy} onClick={remove}>{ui('删除')}</Button>
-      </>}>
+    <ConfirmDialog title={ui('删除这个知识点')} confirmLabel={ui('删除')} size="sm" className="book-structure-dialog"
+      onConfirm={remove} onDone={onDeleted} onClose={onClose}>
       <div className="book-structure">
         <p className="book-structure__what">{label(current)}</p>
         <p>{uiFormat('「{0}」会从书里删掉，不留空标题，也不留占位文字。', [current.title])}</p>
         <p>{ui('你在这个知识点里写的内容（笔记、问答、改过的讲解）会放进「未归位」，不会丢。')}</p>
         <p>{ui('它下面没有别的章或节；要删的只有它自己。')}</p>
-        <Refusal failure={failure} />
       </div>
-    </Dialog>
+    </ConfirmDialog>
   );
 }
 
