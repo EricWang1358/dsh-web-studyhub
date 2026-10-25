@@ -118,3 +118,13 @@ test('a preset adds its one fixed sentence after the base (and after the page se
   assert.equal(normalizeIntent('points'), 'points');
   assert.throws(() => normalizeIntent('poem'), /intent/);
 });
+
+test('an explicit preset wins over the words of the question; without a preset the words still decide', () => {
+  for (const intent of ['translate', 'points', 'extract']) {
+    const prompt = askSystemPrompt({ question: '没听懂，请解释一下', language: '中文', scope: 'page', intent, terms: true });
+    assert.ok(!prompt.includes('这段在讲什么'), `${intent}: no explanation skeleton`);
+    assert.ok(!prompt.includes('[[term]]'), `${intent}: no term markers (they belong to explanations)`);
+  }
+  assert.match(askSystemPrompt({ question: '没听懂', language: '中文', intent: 'translate' }), /translation/i);
+  assert.match(askSystemPrompt({ question: '没听懂', language: '中文' }), /这段在讲什么/, 'no preset: the words make it an explanation');
+});

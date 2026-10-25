@@ -20,14 +20,15 @@ export const PASSAGE_INTENTS = Object.freeze([
 /** The chips of a page (built in; no learner-made presets yet). */
 export const PAGE_INTENTS = Object.freeze([
   { label: '讲解这一页', question: '请按原文顺序讲解这一页。', intent: 'explain' },
-  { label: '翻译这一页', question: '请把这一页完整翻译过来，保持原来的顺序。', intent: 'translate' },
+  // A quick answer about this page's saved text; the reader's own 翻译 (toolbar, kept per version, with a glossary) is the whole-document translation.
+  { label: '翻译这一页', question: '请把这一页完整翻译过来，保持原来的顺序。', intent: 'translate', note: '这是对这一页保存文字的一次回答，不会保存；整份资料的对照翻译在「阅读」工具栏的「翻译」里。' },
   { label: '按知识点拆分这一页', question: '请把这一页按知识点拆开，每个知识点用一两句话说清。', intent: 'points' },
   { label: '提取这一页的公式与代码', question: '请把这一页的公式和代码原样提取出来，并说明各自的用途。', intent: 'extract' },
 ]);
 
 /** chips: one of the lists above; onAsk(question, label, intent); onQuiz: the 出题考我 jump (a passage only). */
 export default function QuickIntents({ chips = PASSAGE_INTENTS, onAsk, onQuiz, disabled = false }) {
-  const chip = ({ label, question, intent }) => <Tooltip key={label} layer group="ask-help" content={<span className="ask-tip"><span>{uiFormat('点击即发送：「{0}」', [ui(question)])}</span></span>}>
+  const chip = ({ label, question, intent, note }) => <Tooltip key={label} layer group="ask-help" content={<span className="ask-tip"><span>{uiFormat('点击即发送：「{0}」', [ui(question)])}</span>{note && <span>{ui(note)}</span>}</span>}>
     <Button size="sm" disabled={disabled} onClick={() => onAsk(ui(question), ui(label), intent)}>{ui(label)}</Button>
   </Tooltip>;
   return <div className="ask-quick" role="group" aria-label={ui('快捷提问')}>

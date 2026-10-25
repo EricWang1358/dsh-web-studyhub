@@ -177,7 +177,9 @@ test('reader.page: the page, its saved text (cut at the cap of the built-in answ
   const { PAGE_EVIDENCE_MAX } = await import('../lib/ask-prompt.js');
   for (const language of ['zh', 'en']) {
     const text = ui.handOffText('reader.page', FIXTURES['reader.page'].input, language);
-    assert.ok(text.endsWith(`${ui.languageTail(language)}\n\n${language === 'zh' ? '这一页的截图（粘贴在这里）：' : 'Screenshot of the page (paste it here):'}`), text);
+    assert.ok(text.endsWith(`${ui.languageTail(language)}\n\n${language === 'zh' ? '这一页的截图（主会话能看图片时，粘贴在这里）：' : 'Screenshot of the page (paste it here if this chat takes pictures):'}`), text);
+    // the screenshot is conditional: nothing promises the chat can read it
+    assert.match(text.split('\n')[0], language === 'zh' ? /能看图片的话/ : /if you can read pictures/);
     assert.match(text.split('\n')[0], language === 'zh' ? /第 3 页/ : /page 3/);
     assert.ok(text.includes('Page 3 explains round robin.') && text.includes('What does figure 2 show?'));
     assert.doesNotMatch(text, /Cut:|截断：/, `${language}: nothing cut, nothing said`);

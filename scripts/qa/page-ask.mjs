@@ -162,7 +162,7 @@ export async function runPageAskQa(options) {
       await clearClipboard();
       await paging.locator('[data-hand-off="reader.page"]').click();
       const message = await copied("");
-      for (const part of [t("第 2 页", "page 2"), "Page 2 line 1", t("图 2 说明了什么？", "What does figure 2 show?"), t("这一页的截图（粘贴在这里）：", "Screenshot of the page (paste it here):")])
+      for (const part of [t("第 2 页", "page 2"), "Page 2 line 1", t("图 2 说明了什么？", "What does figure 2 show?"), t("这一页的截图（主会话能看图片时，粘贴在这里）：", "Screenshot of the page (paste it here if this chat takes pictures):")])
         if (!message.includes(part)) throw new Error(`the message lacks ${part}: ${message.slice(0, 200)}`);
       await page.getByText(t("已复制到剪贴板", "Copied to the clipboard")).first().waitFor({ timeout: 5000 });
       return { first: message.split("\n")[0], last: message.split("\n").at(-1) };
@@ -180,6 +180,15 @@ export async function runPageAskQa(options) {
       await forward.click();
       const message = await copied("");
       if (!message.includes(t("没有保存的文字", "no saved text"))) throw new Error(`the message does not say the page has no text: ${message.slice(0, 200)}`);
+      // The question typed on page 2 stays with page 2: a page without a box sends no words of the learner.
+      if (/request /.test(message) || message.includes(t("图 2 说明了什么？", "What does figure 2 show?"))) throw new Error(`page 4 carried the question typed on page 2: ${message.slice(0, 300)}`);
+      // ...and it is there again on page 2.
+      await typePage(2);
+      await expectPage(2);
+      const kept = await paging.locator("textarea").first().inputValue();
+      if (kept !== t("图 2 说明了什么？", "What does figure 2 show?")) throw new Error(`the question of page 2 was not kept for page 2: ${JSON.stringify(kept)}`);
+      await typePage(4);
+      await expectPage(4);
     });
     await check("no-horizontal-overflow", async () => {
       const probe = await page.evaluate(overflowProbe);

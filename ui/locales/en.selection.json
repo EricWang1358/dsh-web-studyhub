@@ -115,7 +115,9 @@
   "请把这一页按知识点拆开，每个知识点用一两句话说清。": "Please split this page into knowledge points, each said in a sentence or two.",
   "提取这一页的公式与代码": "Formulas and code of this page",
   "请把这一页的公式和代码原样提取出来，并说明各自的用途。": "Please copy out the formulas and code of this page exactly, and say what each is for.",
-  "把这一页的文字和你写的问题发给主会话，截图由你粘贴进去，主会话能看图": "Sends the text of this page and your question to the main chat; you paste the screenshot, and the main chat can read pictures",
-  "可以把这一页的截图发给主会话：点下面的按钮，再把截图粘贴进主会话的输入框。": "You can send a screenshot of this page to the main chat: press the button below, then paste the screenshot into the main chat's input box.",
-  "要让主会话看截图：": "To have the main chat read a screenshot:"
+  "把这一页的文字和你在上面写的问题发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用": "Sends the text of this page and the question you typed above to the main chat. Press this first, then take the screenshot: without a main chat this message goes onto the clipboard. A screenshot only helps if your main chat takes pictures",
+  "可以发给主会话接着问：先点下面的按钮，再截这一页的图；如果你的主会话能看图片，把截图粘贴到消息最后。": "You can ask the main chat instead: press the button below first, then take a screenshot of the page; if your main chat takes pictures, paste it at the end of the message.",
+  "想让主会话接着讲（可附截图）：": "To have the main chat go on (a screenshot can be added):",
+  "把资料名和页码发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用": "Sends the name of the material and the page number to the main chat. Press this first, then take the screenshot: without a main chat this message goes onto the clipboard. A screenshot only helps if your main chat takes pictures",
+  "这是对这一页保存文字的一次回答，不会保存；整份资料的对照翻译在「阅读」工具栏的「翻译」里。": "A one-off answer about the saved text of this page, not kept; the side-by-side translation of the whole material is Translate in the Read toolbar."
 }

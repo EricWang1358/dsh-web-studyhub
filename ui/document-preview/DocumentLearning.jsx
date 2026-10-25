@@ -12,6 +12,7 @@ import { SelectionJobList } from './SelectionJobs.jsx';
 import QuickIntents from './QuickIntents.jsx';
 import PageAsk, { pageReasons } from './PageAsk.jsx';
 import { pageKey, pageSelection } from './page-scope.js';
+import { askRequest, pageDraftKey, retryOf } from './ask-request.js';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
 import AskThread, { refusal } from './AskThread.jsx';
 import { itemsOfPassage, keyOfSelection, nodesToKeep, threadFromItems } from './annotation/model.js';
@@ -182,10 +183,13 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const pageHandOff = useMemo(() => pageMode ? { title: document?.title || document?.filename || '', page: scope.page, text: pageText } : null,
     [pageMode, document?.title, document?.filename, scope?.page, pageText]);
   const [pageCut, setPageCut] = useState(null), [pageRefusal, setPageRefusal] = useState(null), cuts = useRef(new Map());
+  // A question typed on one page stays with that page (it comes back there), never follows to the next one.
+  const drafts = useRef(new Map()), draftKey = pageDraftKey(scope);
   useEffect(() => {
     let current = true;
     setResolution(null); setError(''); commit(emptyThread()); say(); setSavedLocal(new Set()); setKeepError(''); setPageCut(null); setPageRefusal(null);
     if (scope?.kind === 'page') {
+      setQuestion(drafts.current.get(pageDraftKey(scope)) || ''); setQuestionLabel('');
       const selection = pageSelection(document, scope);
       if (selection) { setResolution({ status: 'resolved', scope: 'page', selection }); setPageCut(cuts.current.get(pageKey(selection)) || null); }
       return undefined;
@@ -268,8 +272,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     const settle = change => { if (nodeOf(threadRef.current, id)) commit(change(threadRef.current)); else memory.current.settle(held, id, change); };
     try {
       ensureCurrent();
-      const value = await call('materials.selection.ask', { selection, ...(page ? { scope: 'page' } : {}), question: asked, ...(intent ? { intent } : {}), language: uiLanguageName(), terms: true,
-        ...(term ? { term } : {}), ...(context.length ? { thread: context } : {}) });
+      const value = await call('materials.selection.ask', askRequest({ selection, page, question: asked, intent, term, context, language: uiLanguageName() }));
       ensureCurrent();
       if (value.status !== 'answered') {
         if (nodeOf(threadRef.current, id)) { if (page) setPageRefusal(value); else setResolution(value); }
@@ -346,7 +349,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     const current = threadRef.current, node = nodeOf(current, id);
     if (!node || node.status !== 'failed') return;
     commit(retryNode(current, id)); say();
-    run(id, { question: node.question, term: node.term, context: threadFor(current, node.parentId), intent: node.intent || '' });
+    run(id, { ...retryOf(node), context: threadFor(current, node.parentId) });
   }
   // The handlers the markers call must keep one identity, or every render would parse the answers again.
   const latest = useRef({}); latest.current = { askInside, retryNodeAsk, keep };
@@ -403,7 +406,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     deckId={deckId} deckNote={deckNote} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}
     starting={starting} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
     saveReady={available('generation', 'selection.saveAnswer')} onSaved={onPublished} isCurrent={isCurrent}
-    onQuestion={(text, label = '') => { setQuestion(text); setQuestionLabel(label); }} onAsk={ask} onDeck={setPickedDeck} onCount={setPickedCount} onKind={setPickedKind} onStart={start}
+    onQuestion={(text, label = '') => { setQuestion(text); setQuestionLabel(label); if (draftKey) drafts.current.set(draftKey, text); }} onAsk={ask} onDeck={setPickedDeck} onCount={setPickedCount} onKind={setPickedKind} onStart={start}
     onCancel={cancel} onRetry={retry} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}
     onPractice={onPractice} onOpenDeck={onOpenDeck} onOpenCard={onOpenCard} />;
 }
