@@ -139,6 +139,10 @@
       "ui/study-map/DeckRow.jsx": 2,
       "ui/study-map/DeckTree.jsx": 1
     },
+    "handSwitch": {
+      "ui/CourseActive.jsx": 1
+    },
+    "legacySwitchClass": {},
     "elementSelector": {
       "ui/DailyRecap.css": 7,
       "ui/appearance-themes.css": 4,

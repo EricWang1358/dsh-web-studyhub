@@ -61,6 +61,23 @@
       z-index: var(--z-tooltip);
     }
     .sh-tooltip[hidden] { display: none; }
+    /* A tooltip anchored to a point rather than to a control (a chart's data point): centred over it and above it, one line per
+       fact, never wrapped. The caller writes left/top; is-below puts it under the point when the top of the chart has no room.
+       Only the layout lives here: the raised surface is the .sh-popover one and the words are the caller's. */
+    .sh-tooltip--point {
+      right: auto;
+      max-width: none;
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-half);
+      padding: var(--space-2) var(--space-3);
+      color: var(--text-dim);
+      white-space: nowrap;
+      transform: translate(-50%, -100%);
+    }
+    .sh-tooltip--point.is-below { transform: translate(-50%, 14px); }
+    .sh-tooltip--point strong { color: var(--text); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
     /* ── Menu ──────────────────────────────────────────────────────────── */
     .sh-menu-anchor { display: inline-flex; }
     .sh-menu {
