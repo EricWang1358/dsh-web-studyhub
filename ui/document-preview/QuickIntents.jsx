@@ -28,7 +28,7 @@ export const PAGE_INTENTS = Object.freeze([
 
 /** chips: one of the lists above; onAsk(question, label, intent); onQuiz: the 出题考我 jump (a passage only). */
 export default function QuickIntents({ chips = PASSAGE_INTENTS, onAsk, onQuiz, disabled = false }) {
-  const chip = ({ label, question, intent, note }) => <Tooltip key={label} layer group="ask-help" content={<span className="ask-tip"><span>{uiFormat('点击即发送：「{0}」', [ui(question)])}</span>{note && <span>{ui(note)}</span>}</span>}>
+  const chip = ({ label, question, intent, note }) => <Tooltip key={label} layer group="ask-help" anchorClassName="ask-quick__chip" content={<span className="ask-tip"><span>{uiFormat('点击即发送：「{0}」', [ui(question)])}</span>{note && <span>{ui(note)}</span>}</span>}>
     <Button size="sm" disabled={disabled} onClick={() => onAsk(ui(question), ui(label), intent)}>{ui(label)}</Button>
   </Tooltip>;
   return <div className="ask-quick" role="group" aria-label={ui('快捷提问')}>
