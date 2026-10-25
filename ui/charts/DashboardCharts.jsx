@@ -33,12 +33,13 @@ function useChartWidth(fallback = 640) {
   return [ref, width];
 }
 
-/** Floating tooltip over the chart; aria-hidden because the same facts are in aria-labels and the data table. */
+/** Floating tooltip over the chart: the shared tooltip surface, laid out over the point it belongs to (components/overlays.css);
+    aria-hidden because the same facts are in the aria-labels and the data table. */
 function Tip({ tip, width }) {
   if (!tip) return null;
   const left = Math.min(Math.max(tip.x, 78), Math.max(78, width - 78));
   return (
-    <div className={`sh-popover sh-tooltip dash-tip${tip.y < 64 ? ' below' : ''}`} aria-hidden="true" style={{ left, top: tip.y }}>
+    <div className={`sh-popover sh-tooltip sh-tooltip--point${tip.y < 64 ? ' is-below' : ''}`} aria-hidden="true" style={{ left, top: tip.y }}>
       <strong>{tip.title}</strong>
       {tip.lines.map((line, i) => <span key={i}>{line}</span>)}
     </div>

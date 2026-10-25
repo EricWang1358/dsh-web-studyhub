@@ -148,6 +148,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       '.k { font: 600 12px/1 ui-monospace, monospace; } .l { font: var(--fw-strong) var(--fs-xs)/1 ui-monospace; } .m { font: inherit; }',
       '.i { border-radius: var(--radius-card); } .j { border-radius: 0 0 var(--radius-card) var(--radius-card); }',
       '.e button, .e > label small { position: relative; }', '.f .sh-btn, .g [type="checkbox"], .h:not(button) { position: relative; }',
+      '.inline-check { color: inherit; }',
       '@keyframes spin { to { opacity: 1 } }', '',
     ].join('\r\n'));
     writeFileSync(join(root, 'ui', 'other.css'), '@keyframes spin { to { opacity: 0 } }\n@media (prefers-reduced-motion: reduce) { .x { animation: none !important } }\n');
@@ -155,6 +156,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       'export const A = () => <div><button className={`row ${on ? "primary" : ""}`}>x</button><span className="pill">y</span>',
       '<button className="link-btn">×</button><i>  ▸ </i><b>text</b></div>;',
       'const pick = () => <label><input type="checkbox" checked /><input type="radio" /><input type="range" /></label>;',
+      'const choice = () => <div><span className="inline-check" /><span role="switch" aria-checked="false">x</span></div>;',
       'const save = () => <div><Button onClick={go}>{saving ? ui("保存中…") : ui("保存")}</Button><Button busy={saving} busyLabel={ui("保存中…")}>{ui("保存")}</Button></div>;',
       'const tip = () => <div><span title="what this means">12</span><Button title="Open">x</Button><input title="t" /></div>;',
       'const go = () => window.confirm("sure?");',
@@ -173,6 +175,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
       rawButton: 2, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 2, fontWeightNumeric: 2, radiusPx: 1, radius999: 1,
       zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1, hostTitle: 1, chatHandOff: 1, chatOldWording: 2,
+      handSwitch: 1, legacySwitchClass: 2,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);
     assert.equal(found.cjkContent.length, 1);
@@ -181,6 +184,18 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+/* #140: the choice rows (checkbox / switch / radio card) are primitives. rawChoiceInput and handSwitch are per-file ratchets,
+   so a new hand-written checkbox, radio or switch outside ui/components already fails the rule above; a settings page has no
+   exception at all, and the switch-row classes the primitives replaced may not come back to a stylesheet or a className. */
+test('settings pages take their choice rows from Checkbox / Switch / RadioCard (#140)', () => {
+  const settings = Object.keys(scan.metrics.rawChoiceInput).filter((file) => file.startsWith('ui/settings/') || /Settings\.jsx$/.test(file));
+  assert.deepEqual(settings, [], 'a settings page writes its own <input type="checkbox|radio">: use <Checkbox>, <Switch> or <RadioCard>');
+  assert.deepEqual(scan.metrics.legacySwitchClass, {}, 'a retired switch-row class (.inline-check, .experimental-switch, .jev-switch, .usage-switch, .mineru-privacy__check) is back: use <Checkbox> / <Switch>');
+  // The one hand-written switch left is the course switch of the settings › courses list. Moving it to <Switch> is a layout
+  // refactor of the compact course rows (ui/course-settings.css), still open in #140: delete this entry together with it.
+  assert.deepEqual(Object.keys(scan.metrics.handSwitch), ['ui/CourseActive.jsx'], 'a hand-written switch appeared outside ui/components: use <Switch>');
 });
 
 // ── Semantic tokens (tokens.css, on the app root and the seat so every theme derives them) ──

@@ -28,9 +28,12 @@ test('the due chip explains its date in a Tooltip: focusable, described by it, n
   assert.match(html, new RegExp(`<span id="${described.replace(/:/g, '\\:')}" role="tooltip"[^>]*>2026-10-19 · 17 天后</span>`));
 });
 
-test('the chart tip takes the shared tooltip surface and keeps only its own layout', () => {
-  assert.match(read('ui/charts/DashboardCharts.jsx'), /className=\{`sh-popover sh-tooltip dash-tip/);
-  const css = read('ui/charts/charts.css').replace(/\/\*[\s\S]*?\*\//g, '');
-  const rule = /\.dash-tip\s*\{([^}]*)\}/.exec(css)[1];
+test('the chart tip is the shared tooltip surface: the charts stylesheet styles no tooltip of its own', () => {
+  assert.match(read('ui/charts/DashboardCharts.jsx'), /sh-popover sh-tooltip sh-tooltip--point/);
+  const charts = read('ui/charts/charts.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(charts, /dash-tip|\.sh-tooltip/, 'the chart tip keeps no rule of its own: the surface and its layout live in ui/components/overlays.css');
+  const css = read('ui/components/overlays.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = /\.sh-tooltip--point\s*\{([^}]*)\}/.exec(css)[1];
   for (const property of ['border', 'border-radius', 'background', 'box-shadow', 'z-index']) assert.doesNotMatch(rule, new RegExp(`(?:^|[;\\s])${property}\\s*:`), property);
+  assert.match(css, /\.sh-tooltip--point\.is-below/, 'near the top of the chart the tip opens under the point');
 });

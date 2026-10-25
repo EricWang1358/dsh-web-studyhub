@@ -115,7 +115,7 @@ export async function runShots(options) {
         await page.locator(".dash-bar").first().hover();
         await sleep(300);
         const probe = await page.evaluate(() => {
-          const tip = document.querySelector(".dash-tip");
+          const tip = document.querySelector(".sh-tooltip--point");
           if (!tip) return null;
           const style = getComputedStyle(tip);
           return { text: tip.textContent, radius: style.borderTopLeftRadius, shadow: style.boxShadow !== "none", scroll: tip.scrollWidth > tip.clientWidth + 1, z: style.zIndex };

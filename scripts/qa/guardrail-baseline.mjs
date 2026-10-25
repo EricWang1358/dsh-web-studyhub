@@ -29,6 +29,8 @@ export const RULES = {
   busyLabelSwap: { issue: '#153', why: '<Button> whose label swaps to a working text without the busy prop (no spinner, no aria-busy, no held width)', fix: '<Button busy={working} busyLabel={ui(\'正在…\')}>' },
   radiusCard: { issue: '#143', why: 'border-radius: var(--radius-card) in a feature sheet (it is the physical paper card\'s corner, spelled once as --paper-radius in ui/paper.css)', fix: 'use var(--radius) for a desk panel, or the paper card: class="sh-paper-card" / <Panel tone="paper">' },
   rawChoiceInput: { issue: '#140', why: 'hand-written <input type="checkbox|radio"> outside ui/components', fix: 'use <Checkbox>, <Switch> or <RadioCard> from ui/components' },
+  handSwitch: { issue: '#140', why: 'a hand-written switch (role="switch" on an element) outside ui/components', fix: 'use <Switch> from ui/components: a labelled row with a track' },
+  legacySwitchClass: { issue: '#140', why: 'a retired switch-row class (inline-check, experimental-switch, jev-switch, usage-switch, mineru-privacy__check) is back in a stylesheet or a className', fix: 'use <Checkbox> / <Switch> from ui/components; the class was deleted with the rows that copied it' },
   elementSelector: { issue: '#137', why: 'rule that targets a bare button / input / select / textarea / label element outside base.css and ui/components', fix: 'give the element a class (or use <Button>, <Field>, <Checkbox>) and style that class' },
   serviceHandoff: { issue: '#113', why: 'call / act / askInChat / busy handed to a child component as a prop (busy on Button, Dialog and the like is a display prop and not counted)',
     fix: 'read it with useStudy() (ui/study-context.jsx) in the component that uses it' },
@@ -86,6 +88,10 @@ export const ALLOW = {
 
 const ICON_GLYPHS = '×✕−＋↑↓▸▾▶‹›✓♫✧♧◌';
 const LEGACY_BUTTON = /(?<![\w-])(primary|link-btn|ghost-btn|pill|danger-text|wf-danger)(?![\w-])/g;
+/* The switch rows #140 replaced with <Checkbox> / <Switch>: the class names are deleted, so one of them is always a copy of an old
+   row coming back. `jev-switches` (the fieldset around the switches) is a live class and must not match. */
+const LEGACY_SWITCH = /(?<![\w-])(?:inline-check|experimental-switch|jev-switch|usage-switch|mineru-privacy__check)(?![\w-])/;
+const LEGACY_SWITCH_ALL = new RegExp(LEGACY_SWITCH.source, 'g');
 const CJK = /[　-鿿＀-￯]/;
 
 const toRel = (file) => relative(ROOT, file).split(sep).join('/');
@@ -177,7 +183,7 @@ export const targetsFormElement = (selector) => selector.split(',').some((part) 
 function scanCssFile(file, source, metrics, found) {
   const bump = (name, n = 1) => { if (n) (metrics[name][file] = (metrics[name][file] || 0) + n); };
   const { declarations, blocks } = parseCss(source);
-  const ruleSeen = new Set();
+  const ruleSeen = new Set(), legacySeen = new Set();
   for (const decl of declarations) {
     const { prop, value } = decl;
     const rule = decl.ctx.join('|'), selector = decl.ctx[decl.ctx.length - 1] || '';
@@ -185,6 +191,7 @@ function scanCssFile(file, source, metrics, found) {
       ruleSeen.add(rule);
       if (targetsFormElement(selector)) bump('elementSelector');
     }
+    if (selector && !selector.startsWith('@') && !legacySeen.has(selector) && LEGACY_SWITCH.test(selector)) { legacySeen.add(selector); bump('legacySwitchClass'); }
     if (prop.startsWith('--')) {
       (found.defined ||= new Set()).add(prop);
     }
@@ -272,9 +279,11 @@ function scanJsxFile(file, source, metrics, found) {
   const text = stripJsComments(source);
   if (!file.startsWith('ui/components/')) {
     bump('rawButton', (text.match(/<button(?![\w-])/g) || []).length);
-    let legacy = 0;
-    for (const body of classNameStrings(text)) legacy += (body.match(LEGACY_BUTTON) || []).length;
+    bump('handSwitch', (text.match(/\brole=(?:"switch"|'switch'|\{\s*['"]switch['"]\s*\})/g) || []).length);
+    let legacy = 0, switchRows = 0;
+    for (const body of classNameStrings(text)) { legacy += (body.match(LEGACY_BUTTON) || []).length; switchRows += (body.match(LEGACY_SWITCH_ALL) || []).length; }
     bump('legacyButtonClass', legacy);
+    bump('legacySwitchClass', switchRows);
     let swaps = 0;
     for (const el of buttonElements(text)) if (!/\bbusy=/.test(el.open) && LABEL_SWAP.test(el.body)) swaps++;
     bump('busyLabelSwap', swaps);
