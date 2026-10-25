@@ -6,11 +6,14 @@
    DSH Desktop that is Electron in Node mode) and its entry file is found next to
    this package, so no config file is edited and no system Node, Python or Docker
    is needed. Its tools appear as mcp__studyhub__<tool>; StudyHub finds them through
-   DSH's tool registry. Data lives under <DSH home>/study/retrieval. */
+   DSH's tool registry. Data lives under <DSH home>/study/retrieval. Before the server starts, its index is
+   checked, and an index it could not open is moved aside (./heal.js). */
 import { createRequire } from 'node:module';
 import { mkdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { healIndex } from './heal.js';
 
 export const name = 'studyhub-retrieval';
 export const inject = [];
@@ -51,12 +54,19 @@ export function serverConfig({ home, entry, execPath = process.execPath, electro
   };
 }
 
-/** Mount the server. Resolves { mounted: true } or { mounted: false, reason: 'node' | 'client' | 'server' }; never throws. */
+/** LanceDB as the server itself loads it (a dependency of mcp-local-rag), as a file URL for the index check. */
+const lanceOf = entry => pathToFileURL(createRequire(entry).resolve('@lancedb/lancedb')).href;
+
+/**
+ * Mount the server. Resolves { mounted: true, reset? } or { mounted: false, reason: 'node' | 'client' | 'server' }; never throws.
+ * `reset` ({ at, reason, movedTo }) says the index could not be used and was moved aside before the server started.
+ */
 export async function mount(ctx, {
   home = dshHome(), execPath = process.execPath, node = process.versions.node, electron = !!process.versions.electron,
   resolveEntry = () => createRequire(import.meta.url).resolve('mcp-local-rag'),
   loadClient = () => import('@deepseek-ai/dsh-mcp-client'),
   warn = message => console.warn(`[studyhub-retrieval] ${message}`),
+  heal = healIndex,
 } = {}) {
   if (Number(String(node).split('.')[0]) < MIN_NODE_MAJOR) {
     warn(`DSH runs on Node ${node}; the search server needs Node ${MIN_NODE_MAJOR} or newer, so it was not started.`);
@@ -69,8 +79,9 @@ export async function mount(ctx, {
   try { entry = resolveEntry(); }
   catch { warn('The search server package (mcp-local-rag) is not installed next to this extension.'); return { mounted: false, reason: 'server' }; }
   await mkdir(join(home, 'study', 'retrieval', 'documents'), { recursive: true }).catch(() => {});
+  const { reset } = await Promise.resolve(heal({ home, execPath, electron, lancedb: () => lanceOf(entry), warn })).catch(() => ({})) ?? {};
   ctx.plugin(client, serverConfig({ home, entry, execPath, electron, hfEndpoint: await readEndpoint(home) }));
-  return { mounted: true };
+  return { mounted: true, ...(reset ? { reset } : {}) };
 }
 
 export async function apply(ctx) { await mount(ctx); }

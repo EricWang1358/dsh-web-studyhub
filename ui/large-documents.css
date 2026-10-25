@@ -61,6 +61,8 @@
     .extension-panel__plan--waiting { min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); }
     .extension-panel__plan--note { color: var(--text-dim); }
     .extension-panel__action { display: inline-flex; }
+    .extension-panel__reason { margin: 0; }
+    .extension-panel__reason + .extension-panel__reason { margin-top: var(--space-1); }
     .extension-panel__progress { display: grid; gap: var(--space-2); justify-items: start; }
     .extension-panel__progress .sh-progress { width: 100%; }
     .extension-panel__progress p { margin: 0; font-size: var(--fs-sm); }

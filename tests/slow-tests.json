@@ -130,6 +130,7 @@
     "tests/original-attach.test.mjs",
     "tests/pdf-console-browser.test.mjs",
     "tests/perf-budget.test.mjs",
+    "tests/retrieval-self-heal.test.mjs",
     "tests/store.test.mjs",
     "tests/test-runner-lock.test.mjs",
     "tests/test-runner-schedule.test.mjs",

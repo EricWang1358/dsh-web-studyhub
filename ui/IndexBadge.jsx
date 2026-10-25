@@ -16,6 +16,7 @@ export function indexLabel(info, coverage = {}) {
     case 'partial': return uiFormat('索引建了一部分 · 这份资料 {0}/{1} 页', [pages(info.indexed), pages(info.total)]);
     case 'stale': return uiFormat('索引需要更新 · 这份资料有 {0} 页改过', [pages(info.stale)]);
     case 'building': return ui('正在建立索引…');
+    case 'reset': return ui('需要重新建立索引');
     case 'missing': return coverage?.canIndex === false ? ui('还没建索引（需要先安装检索扩展）') : ui('还没建索引');
     default: return '';
   }
@@ -33,7 +34,7 @@ export function indexShortLabel(info, coverage = {}) {
 }
 
 /** Tone and mark per state: the words always say it, the icon and colour back them up. */
-const LOOK = { indexed: ['success', 'check'], partial: ['warning', 'warning'], stale: ['warning', 'refresh'], building: ['info', null], missing: ['neutral', null] };
+const LOOK = { indexed: ['success', 'check'], partial: ['warning', 'warning'], stale: ['warning', 'refresh'], reset: ['warning', 'refresh'], building: ['info', null], missing: ['neutral', null] };
 
 /** The quiet text button after the badge. A row puts the badge inside a button or a label, so this is a role="button" span that takes its own click and keys and lets neither reach the row. */
 function GoAction({ label, onGo }) {

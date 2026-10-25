@@ -573,6 +573,7 @@
   "索引建了一部分 · 这份资料 {0}/{1} 页": "Index partly built · this material {0}/{1} pages",
   "索引需要更新 · 这份资料有 {0} 页改过": "Index needs an update · {0} pages of this material edited",
   "还没建索引": "Not indexed yet",
+  "需要重新建立索引": "Index needs rebuilding",
   "还没建索引（需要先安装检索扩展）": "Not indexed yet (install the search extension first)",
   "点这里去建立索引": "Click to go and build the index",
   "点这里去安装检索扩展": "Click to go and install the search extension",

@@ -12,6 +12,8 @@
   "icon": "./icon.svg",
   "files": [
     "index.js",
+    "heal.js",
+    "check-index.mjs",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",

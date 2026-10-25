@@ -49,6 +49,7 @@ export function indexTip(info) {
     : info.state === 'partial' ? uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，其余还没编。', [n(indexed), n(total)])
       : info.state === 'stale' ? uiFormat('这份资料有 {0} 页在编目录之后改过，目录里还是旧内容。', [n(stale)])
         : info.state === 'building' ? uiFormat('正在编检索目录；这份资料现在已编 {0}/{1} 页。', [n(indexed), n(total)])
+          : info.state === 'reset' ? ui('索引已经重置，需要重新建立索引。')
           : ui('这份资料还没有检索目录；建好后，对整本书提问或出题时只把相关页面发给 AI。');
   return [first, ui('这里只数这份资料自己的页，不含课程里的其他资料。')];
 }
@@ -81,7 +82,7 @@ export function indexTarget(document, course, names = []) {
 }
 
 /** The states that still have something to build; a building or finished document has nothing to ask for. */
-export const NEEDS_INDEX = new Set(['partial', 'stale', 'missing']);
+export const NEEDS_INDEX = new Set(['partial', 'stale', 'missing', 'reset']);
 
 /** The hover line of the badge's action: where the click goes. */
 export const indexGoTip = (canIndex) => (canIndex === false ? ui('点这里去安装检索扩展') : ui('点这里去建立索引'));
