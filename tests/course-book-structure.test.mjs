@@ -161,7 +161,7 @@ test('a deleted point with the learner\'s notes: the notes wait in 未归位 by 
   // 20 small writes of another file: the files' history allowance rolls over (未归位's entry of the delete with it), the structure's is its own.
   const other = (await study.call('book.read', { hid: six.hid, file: 'mine' })).files.mine;
   for (let i = 1, version = other.version; i <= 20; i += 1, version += 1) await study.call('course.book.save', { file: other.name, text: `第 ${i} 版。`, version });
-  book = await study.call('course.book.revert', { file: STRUCTURE_FILE });
+  book = await study.call('course.book.revert', { file: STRUCTURE_FILE, answer: 'book' });
   assert.equal(book.write, 'reverted');
   assert.match((await study.call('book.read', { hid: five.hid, file: 'mine' })).files.mine.text, /五的笔记，只有这一份。/, 'the point is back with its notes');
   assert.deepEqual(book.kept, ['unplaced.md'], '未归位 is left as it is (its text from before is no longer kept): the notes are in both, never in neither');
@@ -183,7 +183,7 @@ test('every file a structure change rewrites keeps its own previous version: the
   back = await study.call('course.book.revert', { file: mine.name });
   assert.match(leafOf(back, one.hid).mine, /T1$/, 'then the save before');
   // The structure undo still works: the file written since is left as it is and named.
-  back = await study.call('course.book.revert', { file: STRUCTURE_FILE });
+  back = await study.call('course.book.revert', { file: STRUCTURE_FILE, answer: 'book' });
   assert.deepEqual(back.kept, [mine.name]);
   assert.equal(byTitle(await study.call('book.toc', { limit: 40 }), '知识点 1').n, '1.1');
   assert.match(leafOf(back, one.hid).mine, /T1$/);
@@ -201,7 +201,7 @@ test('T1: notes sent to 未归位 by a delete, then 未归位\'s 回退到上一
   let book = await study.call('course.book.revert', { file: 'unplaced.md' });
   assert.equal(book.unplaced.text, '');
   // The revert kept what it replaced: redo would bring the notes back to 未归位 ...
-  book = await study.call('course.book.revert', { file: STRUCTURE_FILE });
+  book = await study.call('course.book.revert', { file: STRUCTURE_FILE, answer: 'book' });
   assert.equal(book.write, 'reverted');
   assert.equal(book.kept, undefined, '未归位 already holds its text from before: nothing to leave');
   assert.equal(book.unplaced.text, '');
@@ -224,8 +224,15 @@ test('T7: an edit after a move, then the structure undo: the edit stays where it
   let back = await study.call('course.book.revert', { file: STRUCTURE_FILE });
   assert.equal(byTitle(await study.call('book.toc', { limit: 40 }), '知识点 3').hid, three.hid);
   back = await study.call('course.book.revert', { file: STRUCTURE_FILE });
+  // The undo answers small (the chat sees `kept` whole, under the host's cut), with what to tell the learner.
+  assert.ok(JSON.stringify(back).length < 1500, `${JSON.stringify(back).length} characters`);
+  assert.equal(back.write, 'reverted');
   assert.deepEqual(back.kept, [mine.name]);
+  assert.match(back.note, /tell the learner; never revert them/);
+  back = await study.call('course.book.open');
   assert.match(leafOf(back, one.hid).mine, /old notes\n\n新的一段。$/, 'the new paragraph is still in the book');
+  // There is no redo of a structure undo: refused, not taken as another undo.
+  assert.equal(await codeOf(study.call('course.book.revert', { file: STRUCTURE_FILE, redo: true })), 'course-book-no-redo');
   assert.equal(byTitle(await study.call('book.toc', { limit: 40 }), '知识点 1').n, '1.1');
   // The file's own revert takes the edit out, and redo brings it back: it is never in neither the book nor the history.
   back = await study.call('course.book.revert', { file: mine.name });
@@ -270,9 +277,78 @@ test('a save on a file whose point was deleted says so and where its text is', a
   await study.call('course.book.delete', { hid: one.hid, version: toc.structureVersion });
   const refused = await study.call('course.book.save', { file: mine.name, text: '编辑器里的新字。', version: mine.version + 1 }).then(() => null, error => error);
   assert.equal(refused.code, 'course-book-file-missing');
-  assert.match(refused.message, /不在书里了.*未归位/);
+  assert.match(refused.message, /已被删除；里面你写的内容在「未归位」里/);
   const english = await study.call('course.book.save', { file: mine.name, text: 'x', version: 1, uiLanguage: 'en' }).then(() => null, error => error);
-  assert.match(english.message, /^This point is no longer in the book/);
+  assert.match(english.message, /^This point was deleted; what was written in it is in 未归位/);
+  // A point deleted with nothing of the learner's says that; a file missing for any other reason keeps the plain sentence.
+  const two = byTitle(toc, '知识点 2'), gen = (await study.call('book.read', { hid: two.hid, file: 'gen' })).files.gen;
+  await study.call('course.book.delete', { hid: two.hid, version: toc.structureVersion + 1 });
+  assert.match((await study.call('course.book.save', { file: gen.name, text: 'x', version: 1 }).then(() => null, error => error)).message, /已被删除（里面没有你写的内容）/);
+  const other = await study.call('course.book.save', { file: 'p999.mine.md', text: 'x', version: 1 }).then(() => null, error => error);
+  assert.equal(other.code, 'course-book-file-missing');
+  assert.equal(other.message, '书里没有这份文件 / The book has no such file');
+});
+
+test('two 出处 lists that share [^1]: rename, move, delete and insert keep every mark on its own list, and a later section write keeps both notes', async t => {
+  const { study, toc } = await fourteen(t);
+  const one = byTitle(toc, '知识点 1');
+  const text = '#### 甲\n\n甲文[^1]。\n\n**出处**\n\n[^1]: 甲的注\n\n#### 乙\n\n乙文[^1]。\n\n**出处**\n\n[^1]: 乙的注';
+  const fresh = async () => {
+    const book = await study.call('course.book.open'), name = leafOf(book, one.hid).files.mine;
+    await study.call('course.book.save', { file: name, text, version: book.files[name].version });
+    return (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine;
+  };
+  const both = async label => {
+    const now = (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine;
+    assert.match(now.text, /甲的注/, `${label}: 甲's note`);
+    assert.match(now.text, /乙的注/, `${label}: 乙's note`);
+    return now;
+  };
+  // Each op, then an ordinary section write (the footnote pipeline): both notes survive, each mark on its own.
+  const ops = [['rename', (a, b) => ({ op: 'rename', heading: a, title: 'A2' })], ['move', (a, b) => ({ op: 'move', heading: b, before: a })],
+    ['move within', (a, b) => ({ op: 'move', heading: b, within: a })], ['delete promote', a => ({ op: 'delete', heading: a })],
+    ['insert', a => ({ op: 'insert', after: a, section: { heading: 'C', markdown: 'C text.' } })]];
+  for (const [label, make] of ops) {
+    const file = await fresh(), [a, b] = file.headings.map(heading => heading.id);
+    const done = await study.call('book.write', { hid: one.hid, file: 'mine', ...make(a, b) });
+    assert.deepEqual(done.dropped, [], label);
+    const now = label === 'delete promote' ? (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine : await both(label);
+    if (label === 'delete promote') { assert.doesNotMatch(now.text, /甲的注|甲文/, 'the deleted section took its own note'); assert.match(now.text, /乙文\[\^1\]。[\s\S]*\[\^1\]: 乙的注/); continue; }
+    if (label !== 'insert') {
+      // The bytes of every mark and note are as they were.
+      for (const line of ['甲文[^1]。', '乙文[^1]。', '[^1]: 甲的注', '[^1]: 乙的注']) assert.ok(now.text.includes(line), `${label}: ${line}`);
+    }
+    // An ordinary section write afterwards (a section that holds no other one, with its own note): one list, each mark still on its own note.
+    const [who, id] = label === 'move within' ? ['乙', b] : ['甲', a];
+    await study.call('book.write', { hid: one.hid, file: 'mine', section: { heading: id, markdown: `${who}文[^1]，补一句。\n\n[^1]: ${who}的注` } });
+    const after = await both(`${label} + section write`);
+    const marks = [...after.text.matchAll(/甲文\[\^(\d+)\]|乙文\[\^(\d+)\]/g)].map(match => match[1] ? ['甲', match[1]] : ['乙', match[2]]);
+    for (const [who, n] of marks) assert.match(after.text, new RegExp(`\\[\\^${n}\\]: ${who}的注`), `${label}: ${who}'s mark cites ${who}'s note`);
+  }
+  // Delete to 未归位: 甲 goes there with its own note under a label of its own; 乙 keeps its note.
+  const file = await fresh();
+  await study.call('book.write', { hid: one.hid, file: 'mine', op: 'delete', heading: file.headings[0].id, children: 'toUnplaced' });
+  const now = (await study.call('book.read', { hid: one.hid, file: 'mine' })).files.mine;
+  assert.ok(now.text.includes('乙文[^1]。') && now.text.includes('[^1]: 乙的注') && !now.text.includes('甲的注'));
+  const unplaced = (await study.call('course.book.open')).unplaced.text, label = /甲文\[\^([^\]]+)\]。/.exec(unplaced)?.[1];
+  assert.ok(label && label !== '1' && unplaced.includes(`[^${label}]: 甲的注`), unplaced);
+});
+
+test('a rebuild parks a gone point\'s text as written: another point\'s link and the learner\'s words on its line, code and a CJK footnote all intact', async t => {
+  const points = lecture => Array.from({ length: 15 }, (_, i) => ({ id: `q${i}`, title: `知识点 ${i}`, anchors: [`${lecture(Math.floor(i / 3) + 1)}#${i % 3}`] }));
+  const { study } = await bookService(t, { chapters: (lecture, lectureKey) => [{ id: 'c1', title: '一', children: points(lectureKey) }] });
+  const toc = await study.call('book.toc', { limit: 40 }), zero = byTitle(toc, '知识点 0'), fourteen14 = byTitle(toc, '知识点 14');
+  const mine = (await study.call('book.read', { hid: zero.hid, file: 'mine' })).files.mine;
+  const line = `这一点和知识点 14 一起复习：[练 5 道：知识点 14](studyhub://practice?heading=${fourteen14.hid}&n=5)，重点是边界条件，只写在这里。`;
+  const own = `回到本点：[练 5 道：知识点 0](studyhub://practice?heading=${zero.hid}&n=5)，下次再看。`;
+  await study.call('course.book.save', { file: mine.name, text: `${line}\n\n正则 \`[^abc]\` 匹配非 abc。\n\n${own}\n\n注一句[^注]。\n\n[^注]: 我自己的注`, version: mine.version });
+  await rebuild(study, title => title, point => point.id !== 'q0');
+  const parked = (await study.call('course.book.open')).unplaced.text;
+  assert.ok(parked.includes(line), 'another point\'s link and the words around it stay');
+  assert.ok(parked.includes('正则 `[^abc]` 匹配非 abc。'), 'inline code untouched');
+  assert.ok(parked.includes('回到本点：练 5 道：知识点 0，下次再看。'), 'the gone point\'s own link is cut, the learner\'s words on its line stay');
+  assert.match(parked, /注一句\[\^注-u\d+\]。/);
+  assert.match(parked, /\[\^注-u\d+\]: 我自己的注/);
 });
 
 test('a delete is refused when 未归位 cannot take the learner\'s text; a section sent there likewise; nothing changes', async t => {
