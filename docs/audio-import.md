@@ -15,7 +15,7 @@ Turn a lecture recording into an English–Chinese transcript that you can read,
   | Google Gemini (AI Studio), free key | See current provider terms | Transcription, proofreading and translation; the only provider for **Live class** | 45 minutes per request ([why](#length-of-one-request)); longer recordings are split |
   | Google Gemini, paid key (optional) | Billed by your provider | Last in line, or the only one used with **Use the paid key only** | 45 minutes per request |
 
-- **A model for proofreading and translation.** By default this is your DSH session's model. SiliconFlow cannot do these steps, so with only a SiliconFlow key you need a conversation model, or a Gemini or Groq key as well.
+- **A model for proofreading and translation.** This is **StudyHub's generation model**, which follows the main chat unless you pick another. SiliconFlow cannot do these steps, so with only a SiliconFlow key you need that model, or a Gemini or Groq key as well.
 - **ffmpeg (optional).** Needed only for FLAC, WebM, AAC and AIFF recordings longer than one request (45 minutes), and for SiliconFlow and Groq when they must cut or convert OGG, Opus, FLAC, WebM, AAC or AIFF files. MP3, WAV, plain M4A and Ogg (Opus or Vorbis) recordings are split without it. See [Length of one request](#length-of-one-request) and [Cutting audio for SiliconFlow and Groq](#cutting-audio-for-siliconflow-and-groq).
 
 ## Set up transcription
@@ -189,7 +189,7 @@ Transcription tries the providers that have a key, in this order:
 3. Groq
 4. Gemini paid key
 
-Proofreading, translation and titles use the DSH conversation model by default (see [Which model proofreads and translates](#which-model-proofreads-and-translates)). When they run on Gemini instead, they try Gemini free → Groq → Gemini paid. SiliconFlow is never used for text.
+Proofreading, translation and titles use **StudyHub's generation model**, which follows the main chat unless you pick another (see [Which model proofreads and translates](#which-model-proofreads-and-translates)). When they run on Gemini instead, they try Gemini free → Groq → Gemini paid. SiliconFlow is never used for text.
 
 How a request moves on:
 

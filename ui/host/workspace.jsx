@@ -235,7 +235,7 @@ export function apply(ctx, registerDocumentLearning) {
         openAgent: canOpenBackgroundAgent(ctx) ? Object.assign((id, options) => openBackgroundAgent(ctx, id,
           { ...options, reveal: placement === "page" ? () => {
             const layout = ctx.get("layout");
-            if (typeof layout?.selectPanel !== "function") throw new Error(ui("请从会话列表打开助手。"));
+            if (typeof layout?.selectPanel !== "function") throw new Error(ui("从会话列表打开它。"));
             return layout.selectPanel(null);
           } : undefined }), { canOpen: (id, options) => canOpenBackgroundAgent(ctx, id, options) }) : undefined,
         // WP15: DSH's plugin manager page, scrolled to StudyHub when the host offers that.

@@ -62,6 +62,10 @@ export function variantState(coach, cardId, pending) {
   return { kind: 'none' };
 }
 
+/** The open rows whose detail nobody has asked for yet (after 刷新 dropped what was read): the page asks again, once per card, and never for one that is loading or failed. */
+export const rowsAwaitingDetail = (items = [], expanded = new Set(), details = {}) =>
+  items.filter((item) => expanded.has(item.cardId) && details[item.cardId] === undefined).map(({ deckId, cardId }) => ({ deckId, cardId }));
+
 /** A backend failure sentence mapped to words the learner can act on. */
 export function variantFailureText(message = '') {
   const text = String(message);

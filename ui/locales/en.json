@@ -1014,7 +1014,7 @@
   "正在发布…": "Publishing…",
   "后台处理中": "In background",
   "连接中断，正在重试…": "Connection interrupted; retrying…",
-  "学习库已连接": "Library connected",
+  "已连接": "Connected",
   "没有连上学习库": "Library offline",
   "还没配模型": "No model yet",
   "添加资料": "Add source",
@@ -1978,8 +1978,10 @@
   "有后台任务在进行（转换、转写、出题等）": "Background tasks are running (conversion, transcription, question generation…)",
   "后台服务这次没有回应": "The background service did not respond this time",
   "后台服务这次没有回应。等一两分钟再试一次。": "The background service did not respond this time. Wait a minute or two and try again.",
+  "等一两分钟再试一次。": "Wait a minute or two and try again.",
   "重新连接中…": "Reconnecting…",
   "上一个操作还没结束，这次没有开始。等它结束后再点一次。": "The previous action has not finished, so this one did not start. Click again once it finishes.",
   "上一个操作还没结束，已处理 {0} 个，剩下的没有开始。等它结束后再点一次。": "The previous action has not finished: {0} done, the rest did not start. Click again once it finishes.",
-  "StudyHub 只对这台电脑上的 DSH 主人开放；通过远程访问打开的浏览器不能使用它。StudyHub is only available to the owner of this DSH, not to remote-access browsers.": "StudyHub is only available to the owner of this DSH, not to remote-access browsers."
+  "StudyHub 只对这台电脑上的 DSH 主人开放；通过远程访问打开的浏览器不能使用它。StudyHub is only available to the owner of this DSH, not to remote-access browsers.": "StudyHub is only available to the owner of this DSH, not to remote-access browsers.",
+  "学习库读不出来，正在重试": "Cannot read the library, retrying"
 }

@@ -142,12 +142,13 @@ test('a failed, stopped or conflicting job says why in plain words and offers th
   assert.match(queued, /停止/);
 });
 
-test('a failure hint never names a button the card does not have (the shared hints are button-neutral)', () => {
+test('no failure hint of the reader supplement card (stages: unknown, plan short, review protocol, no questions, quality gate, editorial review, model unavailable, background service, timeout) names a button the card does not have', () => {
   const { SelectionJobCard, setUiLanguage } = lib;
   const quoted = (hint) => [...hint.matchAll(/「([^」]+)」/g)].map((match) => match[1]);
   const buttons = (markup) => [...markup.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').trim());
   // An unrecognised cause, a plan that came up short and the model's own failures: every sentence the card draws.
-  for (const stage of ['Something odd happened', 'q1: Planned 6 exam points but the model gave 3', 'Reviewer unavailable: fetch failed', '后台执行器暂时不可用，请稍后再试', 'Request timed out']) {
+  for (const stage of ['Something odd happened', 'q1: Planned 6 exam points but the model gave 3', 'Reviewer unavailable: fetch failed', '后台执行器暂时不可用，请稍后再试', 'Request timed out',
+    'Review protocol failed after 3 attempts: missing complete per-card checks', 'Author returned no questions', 'Quality gate failed: q1 answerLeak; q2 selfContained', 'Editorial review still found issues']) {
     setUiLanguage('zh');
     const markup = render(SelectionJobCard, { job: { ...base, status: 'failed', outcome: 'review-failed', stage, stageCode: 'failed' }, now: at(5), onRetry() {}, onDismiss() {} });
     const hint = /<div class="sh-inline__text">([\s\S]*?)<\/div>/.exec(markup)?.[1].replace(/<[^>]+>/g, '') || '';
@@ -157,7 +158,7 @@ test('a failure hint never names a button the card does not have (the shared hin
   }
   setUiLanguage('zh');
   const executor = text(render(SelectionJobCard, { job: { ...base, status: 'failed', outcome: 'review-failed', stage: '后台执行器暂时不可用，请稍后再试', stageCode: 'failed' }, now: at(5), onRetry() {} }));
-  assert.match(executor, /后台服务这次没有回应。等一两分钟再试一次。/);
+  assert.match(executor, /后台服务这次没有回应 等一两分钟再试一次。/);
   assert.doesNotMatch(executor, /模型服务那边|换一个模型/, 'StudyHub\'s own service is not blamed on the model');
 });
 

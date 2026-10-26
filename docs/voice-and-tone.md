@@ -52,7 +52,7 @@ A button says what it does. An action that loses something or cannot be undone s
 - Before: 请手动复制 / 剪贴板不让用 (Please copy manually / The clipboard refused.)
 - After: 需要手动复制 / 浏览器没让复制，点「打开全文」 (Copy it by hand / The browser blocked copying; press "Open the full text".)
 - Before: 请先归档这份资料，再永久删除。 (Please archive this material first, then delete it permanently.)
-- After: 这份资料需要先归档，才能永久删除。 (This has to be archived before it can be deleted permanently.) The delete dialog itself already says 无法撤销 (cannot be undone).
+- After: 这份资料需要先归档，才能永久删除。 (This has to be archived before it can be deleted permanently.) The permanent-delete dialog itself says 这份资料会永久删除，不能撤销。 (This material will be deleted permanently and cannot be undone.)
 
 ### 5. "你", never "您"; no commands, no blame
 
@@ -97,9 +97,11 @@ Each of these words means one thing across the whole interface. Reuse it; do not
 | 学习库 (library) | A folder on your computer that holds your materials, question bank and review records. |
 | 题组 (deck) | A set of questions. |
 | 草稿 (draft) | Only a deck waiting to be published. Text you typed into an input box, and variants prepared for you to practise, are not drafts. |
-| 归档 (archive) | Put a material or deck away so it stays out of practice. It can be restored. A permanent delete needs an archive first. |
+| 归档 (archive) | Hidden, and it can be restored. A material or deck is archived before it can be deleted permanently. |
 | 斩 (Retire) | Move a question into the 斩题组 (the retired deck): it leaves review, its answer history and progress are kept, and it can go back to its deck at any time. |
-| 删除 (delete) | Permanent deletion that cannot be undone. Archive first, then delete. |
+| 删除 (delete) | Goes at once, and an 撤销 (undo) stays for a few seconds. |
+| 永久删除 (delete permanently) | Irreversible: there is no 撤销. For a material or deck it is offered only after 归档. |
+| 移除 (remove) | Take something out of a container (a group, a list); nothing is deleted. |
 | 为你定制 (Personalised) | The deck the system builds for you, holding custom questions rewritten from your mistakes and feedback. |
 
 Names that stay as they are: 创建题组, 错题与待巩固, 发给主会话, 复习全书, 斩, 归档, 为你定制.

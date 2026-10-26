@@ -153,7 +153,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
         </div>
       </form>
       {confirming && <DeleteCardDialog card={card} onClose={() => setConfirming(false)}
-        onConfirm={async () => { if (!(await onDelete(card))) throw new Error(ui('没能删除这张卡片，原因见看板上方的提示。')); }} />}
+        onConfirm={async () => { if (!(await onDelete(card))) throw new Error(board.cards[card.id] || board.archived?.some((entry) => entry.id === card.id) ? ui('没能删除这张卡片，原因见上方的提示。') : ui('这张卡片已经不在看板上了。')); }} />}
     </Dialog>
   );
 }

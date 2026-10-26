@@ -26,13 +26,13 @@ const bar = ({ data = { root: '/lib', inbox: [] }, connection = {}, busy = false
     return renderToStaticMarkup(inApp(m, React.createElement(m.AppTopbar, { title: '学习库' }), { data: data || {}, app: { ...app, data } }));
   } finally { m.setUiLanguage('zh'); }
 };
-const label = (html) => /top-status-label">([^<]*)</.exec(html)?.[1]?.replaceAll('&#x27;', "'");
+const label = (html) => /top-status-label"[^>]*>([^<]*)</.exec(html)?.[1]?.replaceAll('&#x27;', "'");
 
-test('with no usable model the top bar says 还没配模型, not 学习库已连接; with a model nothing changes', () => {
+test('with no usable model the top bar says 还没配模型, not 已连接; with a model nothing changes', () => {
   assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: false, reason: 'no-route' } } })), '还没配模型');
   assert.equal(label(bar({ data: { root: '/lib', inbox: [], modelReady: false } })), '还没配模型', 'the older flag says the same');
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: true, label: 'DeepSeek' } } })), '学习库已连接');
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [] } })), '学习库已连接', 'a host that does not report the model is not accused');
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: true, label: 'DeepSeek' } } })), '已连接');
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [] } })), '已连接', 'a host that does not report the model is not accused');
   assert.equal(label(bar({ data: null })), '没有连上学习库');
 });
 
@@ -108,6 +108,30 @@ test('English: a failed read is not called offline, a running job is not the bus
     assert.match(words, /^Cannot read the library, retrying: /);
     assert.doesNotMatch(words, han, message);
   }
+});
+
+test('a host that is not up yet (the poll says so by the error\'s code) reads 重新连接中…, and its Tooltip never asks for a click', () => {
+  const data = { root: '/lib', inbox: [], model: { ready: true } };
+  const restart = 'StudyHub 还没有启动好（DSH 可能刚重启）。等几秒再点一次。';
+  const coded = bar({ data, connection: { syncIssue: restart, syncTransient: true } });
+  assert.equal(label(coded), '重新连接中…');
+  assert.equal(tip(coded), '连接中断，正在重试…');
+  assert.doesNotMatch(tip(coded), /点一次/);
+  assert.equal(label(bar({ data, connection: { syncIssue: restart, syncTransient: false } })), '读不出学习库', 'the code decides, not the words');
+  assert.equal(label(bar({ data, connection: { syncIssue: restart, syncTransient: true }, language: 'en' })), 'Reconnecting…');
+  assert.equal(tip(bar({ data, connection: { syncIssue: restart, syncTransient: true }, language: 'en' })), 'Connection interrupted; retrying…');
+});
+
+test('the focusable status has an accessible name (its label), and an English Tooltip drops a Chinese host error it cannot translate', () => {
+  const data = { root: '/lib', inbox: [], model: { ready: true } };
+  const failed = bar({ data, connection: { syncIssue: '读取失败' } });
+  const labelled = /aria-labelledby="([^"]+)"/.exec(anchor(failed))?.[1];
+  assert.ok(labelled, 'aria-labelledby on the focusable status');
+  assert.match(failed, new RegExp(`id="${labelled.replace(/:/g, '\\:')}"[^>]*>读不出学习库<`), 'it points at the label');
+  assert.doesNotMatch(anchor(bar({ data })), /aria-labelledby/, 'a steady status has nothing to name');
+  const words = tip(bar({ data, connection: { syncIssue: '读取失败' }, language: 'en' }));
+  assert.equal(words, 'Cannot read the library, retrying');
+  assert.doesNotMatch(words, han);
 });
 
 test('in English the top bar has no Chinese', () => {

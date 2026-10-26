@@ -1,5 +1,5 @@
 import React from 'react';
-import { ui, uiFormat, uiMessage } from '../i18n.js';
+import { ui, uiFormat, uiIsEnglish, uiMessage } from '../i18n.js';
 import { isTransientStudyError } from '../transport.js';
 import { markInboxRead } from '../quick-actions.js';
 import Inbox from '../Inbox.jsx';
@@ -25,30 +25,39 @@ export function LibraryChip({ root, onOpen }) {
   );
 }
 
-function statusText({ busy, running, publishing, syncIssue, data, noModel }) {
+/** Is the failing read one that retries by itself (the host is not up yet)? The poll says so by the error's code (`syncTransient`); a caller that only has the text falls back on its words. */
+const isTransient = ({ syncIssue, syncTransient }) => (syncTransient ?? isTransientStudyError({ message: syncIssue }));
+
+const HAN = /[㐀-鿿]/;
+
+export function statusText({ busy, running, publishing, syncIssue, syncTransient, data, noModel }) {
   if (busy) return ui('正在处理…');
   if (running) return publishing ? ui('正在发布…') : ui('后台处理中');
-  if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('重新连接中…') : ui('读不出学习库');
-  return data ? noModel ? ui('还没配模型') : ui('学习库已连接') : ui('没有连上学习库');
+  if (syncIssue) return isTransient({ syncIssue, syncTransient }) ? ui('重新连接中…') : ui('读不出学习库');
+  return data ? noModel ? ui('还没配模型') : ui('已连接') : ui('没有连上学习库');
 }
 
 /** The words of a short label that cannot say it all, for the Tooltip (hover or keyboard focus): what kinds of task run, or the whole sentence of a failing read
-    with the host's own error after it, in the page's language (uiMessage). The steady states and 正在处理… have none. */
-export function statusHint({ busy, running, publishing, syncIssue }) {
+    with DSH's own error after it, in the page's language (uiMessage; an English page drops a Chinese error that has no English line). A sentence that asks for a
+    click is never added: nothing in the bar can be clicked. The steady states and 正在处理… have none. */
+export function statusHint({ busy, running, publishing, syncIssue, syncTransient }) {
   if (busy || (running && publishing)) return undefined;
   if (running) return ui('有后台任务在进行（转换、转写、出题等）');
   if (!syncIssue) return undefined;
-  return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : uiFormat('学习库读不出来，正在重试：{0}', [uiMessage(syncIssue)]);
+  if (isTransient({ syncIssue, syncTransient })) return ui('连接中断，正在重试…');
+  const reason = uiMessage(syncIssue);
+  return uiIsEnglish() && HAN.test(reason) ? ui('学习库读不出来，正在重试') : uiFormat('学习库读不出来，正在重试：{0}', [reason]);
 }
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
 export default function AppTopbar({ title }) {
   const { data, core, nav, connection, inbox, settingsEntry } = useApp();
   const { busy, act, quick, quickApi } = core;
-  const { binding, running, publishing, syncIssue } = connection;
-  // 学习库已连接 is about the library; with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
+  const { binding, running, publishing, syncIssue, syncTransient } = connection;
+  const labelId = React.useId();
+  // 已连接 is about the library (the chip beside it names the folder); with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
   const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
-  const hint = statusHint({ busy, running, publishing, syncIssue });
+  const hint = statusHint({ busy, running, publishing, syncIssue, syncTransient });
   const idle = !busy && !running && !syncIssue && data && !noModel;
   return (
     <header className="topbar">
@@ -60,9 +69,9 @@ export default function AppTopbar({ title }) {
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={() => { settingsEntry.setSettingsFocus('settings-model'); nav.navigate('settings', { animate: true, keepTrail: false }); }} />
         <Tooltip layer content={hint} anchorClassName={'top-status-anchor' + (idle ? ' is-idle' : '')}>
-          <span className={'top-status' + (idle ? ' idle' : '')} role="status" tabIndex={hint ? 0 : undefined}>
+          <span className={'top-status' + (idle ? ' idle' : '')} role="status" tabIndex={hint ? 0 : undefined} aria-labelledby={hint ? labelId : undefined}>
             <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />
-            <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data, noModel })}</span>
+            <span className="top-status-label" id={labelId}>{statusText({ busy, running, publishing, syncIssue, syncTransient, data, noModel })}</span>
           </span>
         </Tooltip>
         {data && (

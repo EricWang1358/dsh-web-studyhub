@@ -234,7 +234,7 @@
   "清空样题选择": "Clear reference selection",
   "审阅回复的格式不对，没能完成审阅": "The review reply was malformed, so the batch could not be reviewed",
   "审阅回复的格式不对": "The review reply was malformed",
-  "点「为没覆盖的部分补题」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。": "Press \"Add questions for the uncovered parts\" to fill this batch in; if it keeps happening, switch to a model with steadier output in Settings.",
+  "可以再试一次；经常出现的话，可以在设置里换一个输出更稳定的模型。": "You can try again; if it keeps happening, pick a model with steadier output in Settings.",
   "模型没有返回内容": "The model returned nothing",
   "可能是模型服务一时没有回应。可以再试一次。": "The model service may not have responded this time. You can try again.",
   "已被停止": "Stopped",

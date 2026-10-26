@@ -8,7 +8,7 @@
       align-items: center;
       gap: var(--space-1-5);
       min-width: 0;
-      max-width: min(30ch, 34cqi);
+      max-width: min(22ch, 28cqi);
       padding: var(--space-1) var(--space-2-5);
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
@@ -32,13 +32,38 @@
       background: var(--bg-hover);
     }
   }
+}
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .library-location {
+          min-width: 0;
+          max-width: min(22ch, 28cqi);
+          min-height: 0;
+          padding: var(--space-1) var(--space-2);
+          border: 1px solid var(--line);
+          border-radius: var(--radius-sm);
+          background: transparent;
+          color: var(--text-muted);
+          font-size: var(--fs-sm);
+          font-weight: var(--fw-regular);
+          line-height: 1.4;
+          white-space: nowrap;
+        }
+    .library-location:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); background: var(--bg-hover); }
+  }
+}
+
+/* The narrow-pane rules come AFTER the block above and use the same selector weight (:is), so they win by order; before they sat above a heavier selector
+   and never applied. */
+@layer study.features {
   @container study (max-width: 640px) {
-    :where(.study-app, .study-seat) {
-      /* The ~420px DSH sidebar: keep the folder visible, drop the icon. */
+    :is(.study-app, .study-seat) {
+      /* The ~420px DSH sidebar: keep a readable part of the folder's name, drop the icon. */
       .library-location {
-        min-width: 7em;
+        min-width: 5.5em;
         max-width: 16ch;
-        padding: var(--space-1) var(--space-2);
+        flex-shrink: 5;
       }
       .library-location svg {
         display: none;
@@ -69,25 +94,5 @@
         display: none;
       }
     }
-  }
-}
-
-@layer study.features {
-  :is(.study-app, .study-seat) {
-    .library-location {
-          min-width: 0;
-          max-width: min(30ch, 34cqi);
-          min-height: 0;
-          padding: var(--space-1) var(--space-2);
-          border: 1px solid var(--line);
-          border-radius: var(--radius-sm);
-          background: transparent;
-          color: var(--text-muted);
-          font-size: var(--fs-sm);
-          font-weight: var(--fw-regular);
-          line-height: 1.4;
-          white-space: nowrap;
-        }
-    .library-location:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); background: var(--bg-hover); }
   }
 }

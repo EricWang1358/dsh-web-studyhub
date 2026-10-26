@@ -12,7 +12,7 @@ import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } fr
 import { Badge, Banner, Button, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { NO_FILTER, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, readGroupBy, readOpenGroups, reasonText, retrainOptions,
-  sameVariantState, saveGroupBy, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
+  sameVariantState, saveGroupBy, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { setQueryData, useHostQuery } from './host-query.js';
 import { formatDateTime, joinMeta, META_DOT } from "./format.js";
@@ -213,7 +213,7 @@ export function WrongBookView({
   const [expanded, setExpanded] = useState(() => new Set(initial.expanded || []));
   // A row that stays open across a reload (刷新 drops what was read) asks for its detail again; the page asks each card once per list load, so this never loops.
   useEffect(() => {
-    for (const item of items || []) if (expanded.has(item.cardId) && details[item.cardId] === undefined) onLoadDetail?.(refOf(item));
+    for (const ref of rowsAwaitingDetail(items || [], expanded, details)) onLoadDetail?.(ref);
   }, [items, details, expanded, onLoadDetail]);
   // The filter is part of the page: refreshes keep it, another course scope starts clean (scopedFilter).
   const scopeKey = JSON.stringify([course, !!showInactive]);

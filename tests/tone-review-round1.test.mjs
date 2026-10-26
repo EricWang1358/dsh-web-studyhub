@@ -11,6 +11,9 @@ const m = await loadUi(`
   export { batchRun } from './ui/tasks/task-batch.js';
   export { runRecheck, recheckSentence } from './ui/first-run/recheck.js';
   export { deleteFailureText } from './ui/book/book-structure.js';
+  export { createSnapshotPoll } from './ui/app/snapshot-poll.js';
+  export { createStudyCall } from './ui/transport.js';
+  export { rowsAwaitingDetail } from './ui/wrongbook-model.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const han = /[㐀-鿿]/;
 const EXECUTOR = '后台执行器暂时不可用，请稍后再试';
@@ -18,8 +21,12 @@ const EXECUTOR = '后台执行器暂时不可用，请稍后再试';
 test('StudyHub\'s own background service failing is not blamed on the model service, and no model is offered as the cure', () => {
   const found = m.describeFailure(EXECUTOR);
   assert.equal(found.kind, 'executor');
-  assert.match(found.hint, /后台服务这次没有回应。等一两分钟再试一次。/);
+  assert.equal(found.title, '后台服务这次没有回应');
+  assert.equal(found.hint, '等一两分钟再试一次。', 'the hint does not repeat the title');
   assert.doesNotMatch(`${found.title}${found.hint}`, /模型/);
+  for (const english of ['The background executor is unavailable; try again later', 'Background task service is not available', 'executor unavailable']) assert.equal(m.describeFailure(english).kind, 'executor', english);
+  // A removed source or deck is not the model service.
+  for (const stage of ['Selection source is unavailable', 'Destination deck is unavailable']) assert.equal(m.describeFailure(stage).kind, 'sources', stage);
   const note = m.describeModelError(EXECUTOR);
   assert.equal(note.kind, 'executor');
   assert.equal(note.action, 'retry');
@@ -71,4 +78,29 @@ test('the transport says what is true: a button action is not retried by itself,
   const source = await readFile(new URL('../ui/transport.js', import.meta.url), 'utf8');
   assert.match(source, /StudyHub 还没有启动好（DSH 可能刚重启）。等几秒再点一次。/);
   assert.doesNotMatch(source, /正在重试/);
+});
+
+test('the poll tells the bar by the error code that a restarting DSH is transient (the 404/404 of createStudyCall), and a real failure is not', async () => {
+  const seen = [];
+  const run = async (rpc) => {
+    const call = m.createStudyCall({ rpc: { call: rpc } }, 's');
+    await m.createSnapshotPoll({ refresh: () => call('snapshot'), readData: () => null, readToken: () => 1, setSyncIssue: (text, transient) => seen.push([text, transient]),
+      same: () => false, isWorking: () => false }).run();
+    return seen.at(-1);
+  };
+  const [text, transient] = await run(async () => { throw new Error('transport failure: HTTP 404'); });
+  assert.equal(text, 'StudyHub 还没有启动好（DSH 可能刚重启）。等几秒再点一次。');
+  assert.equal(transient, true, 'by STUDY_UNAVAILABLE, not by the Chinese words');
+  assert.equal((await run(async () => { throw new Error('HTTP 500'); }))[1], false);
+  assert.deepEqual(await run(async () => ({ ok: true, value: {} })), ['', undefined]);
+});
+
+test('a wrong-book row that stays open across 刷新 asks for its detail again, once, and never while it loads or after it failed', () => {
+  const items = [{ deckId: 'd1', cardId: 'a', extra: 1 }, { deckId: 'd1', cardId: 'b' }];
+  const open = new Set(['a']);
+  assert.deepEqual(m.rowsAwaitingDetail(items, open, {}), [{ deckId: 'd1', cardId: 'a' }], '刷新 emptied details: the open row asks');
+  assert.deepEqual(m.rowsAwaitingDetail(items, open, { a: 'loading' }), [], 'not a second time while it loads');
+  assert.deepEqual(m.rowsAwaitingDetail(items, open, { a: { error: 'x' } }), [], 'and not in a loop after it failed');
+  assert.deepEqual(m.rowsAwaitingDetail(items, open, { a: { prompt: 'p' } }), []);
+  assert.deepEqual(m.rowsAwaitingDetail(items, new Set(), {}), [], 'closed rows ask nothing');
 });
