@@ -103,7 +103,6 @@
       "ui/WorkflowScope.jsx": 2,
       "ui/Workflows.jsx": 2,
       "ui/WrongBook.jsx": 5,
-      "ui/app/AppTopbar.jsx": 1,
       "ui/board/Card.jsx": 3,
       "ui/board/Composer.jsx": 1,
       "ui/document-preview/DocumentViewer.jsx": 1,

@@ -119,6 +119,8 @@ test('CrashFallback tells the learner what to do and keeps the raw error behind 
   assert.match(out, /role="alert"/);
   assert.doesNotMatch(out, emoji, 'no emoji');
   assert.match(out, /这部分没能显示/);
+  assert.match(out, /先点「重试」；还不行就刷新页面（已保存的内容不会因此丢失）/);
+  assert.doesNotMatch(html(m.CrashFallback, { error }), /先点「/, 'with no button the sentence does not point at one');
   assert.match(out, /<details[^>]*sh-disclosure/);
   const main = out.slice(0, out.indexOf('<details'));
   assert.doesNotMatch(main, /Cannot read properties/, 'the raw message is not the main text');

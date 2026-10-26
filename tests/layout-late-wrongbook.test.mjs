@@ -47,7 +47,7 @@ test('the bar is one folded line when recommendations are in; the list is behind
   assert.match(open, /aria-expanded="true"/);
   assert.match(open, /id="wb-recs-body"/);
   const none = text(render({ recs: { items: [] } }));
-  assert.match(none, /暂时没有合适的同类题/, 'the bar stays, so an empty answer changes nothing either');
+  assert.match(none, /题库里没有找到合适的同类题/, 'the bar stays, so an empty answer changes nothing either');
   assert.doesNotMatch(none, /练这 \d+ 道/);
 });
 

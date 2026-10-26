@@ -251,7 +251,7 @@ test('a host without audio offers external guidance and never calls unavailable 
   const pdf = mountPdf({ call, available: false, file: new Blob(['PDF']) }); pdf.render(); await flush();
   assert.deepEqual(calls, []);
   const html = renderToStaticMarkup(React.createElement(components.ImportHub, { data: { contexts: ['materials'], focus: {} }, call, onOpenSettings: () => {} }));
-  assert.match(html, /PDF 解析随音频组件一起提供/);
+  assert.match(html, /PDF 解析是音频组件的一部分/);
   assert.match(html, /<button[^>]*disabled[^>]*>(?:(?!<\/button>).)*选择 PDF 解析…/s);
   assert.doesNotMatch(html, /前往设置/, 'nothing to set up while the component is off');
   settings.close(); pdf.close();

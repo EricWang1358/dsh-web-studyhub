@@ -69,7 +69,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
     today.new && uiFormat('{0} 题未学', [today.new]),
   ].filter(Boolean);
   const later = today.more > 0 ? uiFormat('另有 {0} 题留到下一轮', [today.more]) : '';
-  const headline = starter ? starter.headline : today.ahead ? ui('今天的任务都完成了') : breakdown.join(' · ') || ui('暂无可学习的题目');
+  const headline = starter ? starter.headline : today.ahead ? ui('今天的任务都完成了') : breakdown.join(' · ') || ui('这个范围里还没有可学习的题');
   const interview = data.focus?.mode === 'interview';
   const freshCount = Math.min(10, data.focus?.fresh?.length || 0);
   const todayLabel = formatDateTime(new Date(), 'longDay');
@@ -100,7 +100,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
           action: { label: ui('继续学习'), run: startPath }, also: otherStarts }
         : { kind: today.size ? 'path' : 'clear', eyebrow: today.ahead ? ui('提前巩固') : ui('今日学习'),
           count: today.size, unit: ui('题待学'),
-          detail: today.ahead ? ui('今天的任务都完成了') : today.size ? joinMeta([breakdown.join(' · '), later]) : ui('今天已经清空'),
+          detail: today.ahead ? ui('今天的任务都完成了') : today.size ? joinMeta([breakdown.join(' · '), later]) : ui('这里还没有可以学的题'),
           action: { label: today.ahead ? ui('提前巩固') : ui('开始今日学习'), run: startPath, disabled: !today.size },
           also: otherStarts };
   /* The run the learner was last inside (the rail's 回到题目) outranks a new

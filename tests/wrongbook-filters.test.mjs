@@ -270,7 +270,7 @@ test('hover words: 答错 vs 未掌握, 生成变式, 只看这个题组, the gr
   assert.ok(said(/答错：/).length >= 2, 'the chip and the row badge explain 答错');
   assert.ok(said(/未掌握：/).length >= 2, 'the chip and the row badge explain 未掌握');
   assert.ok(said(/轻量模型调用[\s\S]*最多 8 题|最多 8 题[\s\S]*轻量模型调用/).length >= 1, '生成变式 says it uses a light model call and the cap');
-  assert.ok(said(/草稿/).length >= 1, 'and that the variants are saved as a draft');
+  assert.ok(said(/先备好等你/).length >= 1, 'and that the variants are kept ready, not called a draft (草稿 is a deck waiting to be published)');
   assert.ok(said(/只显示这个题组/).length >= 1);
   assert.ok(said(/按题组[\s\S]*按主题|按主题[\s\S]*按题组/).length >= 1, 'the grouping toggle says what each shows');
   // Every tooltip is tied to something a keyboard can reach: a button, or a span with tabindex.

@@ -91,7 +91,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
   /* 归档 puts the task in 已归档 (nothing is deleted) and offers 撤销 (ui/undoable.js restoreWith); 取消归档 puts it back. Both go the light way. */
   const settle = async (run, then) => {
     const done = await run();
-    if (done?.ok === false) { core.setError?.(done.message || ui('没有完成，请再试一次。')); return false; }
+    if (done?.ok === false) { core.setError?.(done.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。')); return false; }
     then(); Promise.resolve(core.refresh?.()).catch(() => {});
     return true;
   };
@@ -218,7 +218,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   const summary = selectionSummary(shown, selection);
   const everything = useMemo(() => new Map([...tasks, ...archived].map((item) => [taskId(item), item])), [tasks, archived]);
   const report = (action, result) => {
-    if (result.ok === false) { core.setError?.(result.message || ui('没有完成，请再试一次。')); return false; }
+    if (result.ok === false) { core.setError?.(result.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。')); return false; }
     core.notify?.(batchMessage(action, result));
     Promise.resolve(core.refresh?.()).catch(() => {});
     return true;

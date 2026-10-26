@@ -22,7 +22,7 @@ export default function BookQa({ course, nodeKey, onCard, onSource, onBookChange
     call('course.outline.qa', { course, keys: [nodeKey] }).then(answer => { if (isLive()) setState(current => ({ ...current, items: answer.items, error: null })); },
       error => { if (isLive()) setState(current => ({ ...current, error })); });
   }, [call, course, nodeKey, state.ticket]);
-  if (state.error) return <ErrorState error={state.error} title={ui('本节问答读取失败')} onRetry={() => setState(current => ({ ...current, error: null, ticket: current.ticket + 1 }))} />;
+  if (state.error) return <ErrorState error={state.error} title={ui('没能读取这一节的问答')} onRetry={() => setState(current => ({ ...current, error: null, ticket: current.ticket + 1 }))} />;
   if (!state.items) return <LoadingState inline label={ui('正在读取本节问答…')} />;
   if (!state.items.length) return <p className="book-qa__none">{ui('这一节还没有问答。')}</p>;
   return (

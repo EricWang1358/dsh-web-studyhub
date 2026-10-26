@@ -86,7 +86,7 @@ function groupByDay(items) {
 export async function removeDocument(item, { act }) {
   try {
     const result = await act('source.remove', { sourceIds: item.sourceIds, confirm: true }, undefined, { rethrow: true });
-    if (result === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
+    if (result === undefined) throw new Error(ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。'));
     return { removed: item.sourceIds, failed: [] };
   } catch (error) {
     return { removed: [], failed: item.sourceIds.map(id => ({ id, error: errorMessage(error) })) };
@@ -294,7 +294,7 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
     <PermanentDeleteDialog title={displayTitle(item.title)} busy={busy} blocked={blocked}
       onConfirm={confirm} onDeleted={() => onRemoved(item)} onClose={onClose}>
       <p>{item.format === 'pdf' && pages > 1 ? uiFormat("这份 PDF 的 {0} 页文字都会永久删除，不能撤销。", [pages]) : ui("这份资料会永久删除，不能撤销。")}</p>
-      {!item.archived && <InlineMessage>{ui('请先归档这份资料，再永久删除。')}</InlineMessage>}
+      {!item.archived && <InlineMessage>{ui('这份资料需要先归档，才能永久删除。')}</InlineMessage>}
       {item.usedBy.length > 0 && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能永久删除")}>
         {uiFormat("引用它的题组：{0}。先删除或改写这些题，再永久删除资料。", [item.usedBy.map(deck => deck.title).join(" · ")])}
       </InlineMessage>}
@@ -415,7 +415,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       const view = await act('materials.pages.cards', { documentId: item.documentId || item.key, sourceId: item.sourceIds[0], chapter: chapter.index }, undefined, { refreshAfter: false });
       if (!view) return;
       const refs = (view.cards || []).map(({ deckId, cardId }) => ({ deckId, cardId }));
-      if (refs.length) start?.(refs); else say.info(ui('这一章现在没有可练习的题。'));
+      if (refs.length) start?.(refs); else say.info(ui('这一章现在没有可练的题（已斩或已归档的不算）。可以先用这份资料出题。'));
     },
     archive: async item => {
       const done = await latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived });

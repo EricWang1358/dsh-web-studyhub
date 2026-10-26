@@ -77,7 +77,7 @@ test('a day with nothing to do, and an ahead-of-time round', () => {
   m.setUiLanguage('zh');
   const clear = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 0 } }).home;
   assert.equal(clear.plan.kind, 'clear');
-  assert.equal(clear.plan.detail, '今天已经清空');
+  assert.equal(clear.plan.detail, '这里还没有可以学的题');
   assert.equal(clear.plan.action.disabled, true);
   const ahead = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 20, ahead: true } }).home;
   assert.equal(ahead.plan.eyebrow, '提前巩固');

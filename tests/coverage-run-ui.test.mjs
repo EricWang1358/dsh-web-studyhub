@@ -174,7 +174,7 @@ test('the log: one line per round boundary and one for the reason a run stops, i
   const contract = m.jobContract({ id: 'x', status: 'complete', startedAt: at(0), events });
   const zh = text(render(React.createElement(m.LogPanel, { contract })));
   for (const line of ['第 1/3 轮开始 · 4 个小节，8 题', '第 1/3 轮完成：保留 8 题，新覆盖 4 个小节 · 覆盖 33%', '暂停于第 1 轮之后：不再开始新的一轮', '继续：开始第 2 轮', '第 2/3 轮没做成：保留 0 题，新覆盖 0 个小节 · 原因：这一轮用时到限',
-    '第 2 轮重试后仍没有补到新的小节，为免一直重复，已经停下。', '第 1 轮完成，还有 2 轮：点「为没覆盖的部分补题」继续']) assert.ok(zh.includes(line), line);
+    '第 2 轮重试后仍没有补到新的小节，所以停下了，免得白白重复花费。', '第 1 轮完成，还有 2 轮：点「为没覆盖的部分补题」继续']) assert.ok(zh.includes(line), line);
   const en = text(render(React.createElement(m.LogPanel, { contract }), { language: 'en' }));
   for (const line of ['Round 1/3 started · 4 sections, 8 questions', 'Round 1/3 done: kept 8 questions, 4 sections newly covered · Covered 33%', 'Paused after round 1: no new round starts', 'Resumed: round 2 starts',
     'Round 2/3 did not work: kept 0 questions, 0 sections newly covered · Reason: This round reached its time limit']) assert.ok(en.includes(line), line);

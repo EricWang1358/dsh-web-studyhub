@@ -62,15 +62,20 @@ export function variantState(coach, cardId, pending) {
   return { kind: 'none' };
 }
 
+/** The open rows whose detail nobody has asked for yet (after 刷新 dropped what was read): the page asks again, once per card, and never for one that is loading or failed. */
+export const rowsAwaitingDetail = (items = [], expanded = new Set(), details = {}) =>
+  items.filter((item) => expanded.has(item.cardId) && details[item.cardId] === undefined).map(({ deckId, cardId }) => ({ deckId, cardId }));
+
 /** A backend failure sentence mapped to words the learner can act on. */
 export function variantFailureText(message = '') {
   const text = String(message);
-  if (/校验/.test(text)) return ui('这批变式没有通过质量校验，重试一次通常就好');
+  if (/校验/.test(text)) return ui('这批变式没有通过质量检查。可以再试一次。');
   if (/备满|攒满/.test(text)) return ui('已备好的变式题已满，先去练掉一些');
-  if (/超时|没有响应/.test(text)) return ui('模型长时间没有响应，可以稍后重试');
-  if (/限流|太频繁/.test(text)) return ui('模型请求太频繁，稍等一会儿再试');
-  if (/暂时不可用|没有返回内容/.test(text)) return ui('模型服务暂时不可用，稍后重试');
-  return ui('这次没有生成成功，可以重试');
+  if (/超时|没有响应/.test(text)) return ui('模型这次没有响应。等一两分钟再试一次。');
+  if (/限流|太频繁/.test(text)) return ui('模型请求太频繁。等一两分钟再试一次。');
+  if (/后台执行器/.test(text)) return ui('后台服务这次没有回应。等一两分钟再试一次。');
+  if (/暂时不可用|没有返回内容/.test(text)) return ui('服务这次不可用。等一两分钟再试一次。');
+  return ui('这次没有生成成功。可以再试一次。');
 }
 
 /** Why a similar question is recommended, as one short phrase. */
@@ -95,7 +100,7 @@ export function retrainOptions({ mistakes, similar, variants, paged }) {
       label: uiFormat(paged ? '只练本页错题 ({0})' : '只练错题 ({0})', [mistakes]) },
     { value: 'similar', count: mistakes + similar, extra: similar,
       label: uiFormat(paged ? '本页错题 + 同类题 ({0}+{1})' : '错题 + 同类题 ({0}+{1})', [mistakes, similar]),
-      ...(similar ? {} : { disabled: true, title: ui('题库里暂时没有合适的同类题') }) },
+      ...(similar ? {} : { disabled: true, title: ui('题库里没有找到合适的同类题') }) },
     { value: 'variants', count: mistakes + variants, extra: variants,
       label: uiFormat(paged ? '本页错题 + 变式 ({0}+{1})' : '错题 + 变式 ({0}+{1})', [mistakes, variants]),
       ...(variants ? {} : { disabled: true, title: ui('还没有备好的变式，先点「生成变式」') }) },

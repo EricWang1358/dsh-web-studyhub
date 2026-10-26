@@ -33,7 +33,7 @@ export default function DeleteDraftDialog({ draft, data, onClose, onDeleted }) {
   const facts = draftDeleteFacts(draft, data);
   async function confirm() {
     const done = await act('draft.delete', { id: draft.id, draftVersion: draft.draftVersion }, undefined, { rethrow: true });
-    if (done === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
+    if (done === undefined) throw new Error(ui('上一个操作还没结束，这次没有开始。等它结束后再点一次。'));
   }
   const goes = facts.retained ? uiFormat('会删除：对「{0}」还没发布的修改，删除后不能撤销。', [facts.deckTitle])
     : facts.count === 1 ? ui('会删除：这份草稿里还没发布的 1 道题，删除后不能撤销。') : uiFormat('会删除：这份草稿里还没发布的 {0} 道题，删除后不能撤销。', [facts.count]);

@@ -34,7 +34,7 @@ function Explanation({ modes }) {
 /** What 「这次想练什么？」 does in each way, under the box (hidden until asked). A button of its own, not part of the label (a label may not hold another control). */
 const FOCUS = {
   [MODES.path]: () => [ui('这一步没有自己的重点时，用这里写的作为默认重点。'), ui('留空就只按各步的页面出题。')],
-  [MODES.retrieval]: () => [ui('StudyHub 用它去检索，挑出和主题相关的页面。'), ui('必须填写，才能生成。')],
+  [MODES.retrieval]: () => [ui('StudyHub 用它去检索，挑出和主题相关的页面。'), ui('填写主题后才能生成。')],
 };
 export function FocusHelp({ mode }) {
   const words = FOCUS[mode]?.();

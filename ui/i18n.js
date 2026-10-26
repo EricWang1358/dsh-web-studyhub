@@ -14,6 +14,7 @@ import agent from './locales/en.agent.json';
 import host from './locales/en.host.json';
 import shell from './locales/en.shell.json';
 import onboarding from './locales/en.onboarding.json';
+import guidance from './locales/en.guidance.json';
 import copy from './locales/en.copy.json';
 import caseCopy from './locales/en.case.json';
 import course from './locales/en.course.json';
@@ -83,6 +84,7 @@ export const ENGLISH_SOURCES = {
   'en.host.json': host,
   'en.shell.json': shell,
   'en.onboarding.json': onboarding,
+  'en.guidance.json': guidance,
   'en.copy.json': copy,
   'en.case.json': caseCopy,
   'en.course.json': course,

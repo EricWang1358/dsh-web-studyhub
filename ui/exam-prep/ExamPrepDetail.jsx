@@ -16,7 +16,7 @@ import { basisLine, countsLine, staleNote, tierName } from './words.js';
 /** Delete = archive, then remove with the confirmation the dialog just took (the library's own two steps). */
 export async function deleteList(act, id) {
   const archived = await act('source.archive', { sourceIds: [id], archived: true }, undefined, { rethrow: true, refreshAfter: false });
-  if (archived === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
+  if (archived === undefined) throw new Error(ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。'));
   await act('source.remove', { sourceIds: [id], confirm: true }, undefined, { rethrow: true });
 }
 

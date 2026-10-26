@@ -25,7 +25,9 @@ export function installCommand(profile = 'web') {
 
 /* "以后再说": per viewer and per library, in the browser's storage (a convenience: the page works without it, and a blocked storage
    only means the card shows again). */
-const key = (root) => `study-archify-card:${root || 'local'}`;
+/** The key prefix of 以后再说, one key per library; 设置 › 引导 reads it (ui/guidance/registry.js). */
+export const ARCHIFY_CARD_PREFIX = 'study-archify-card:';
+const key = (root) => `${ARCHIFY_CARD_PREFIX}${root || 'local'}`;
 export const archifyPutOff = (root, storage) => (storage === undefined ? readJSON(key(root)) : readJSON(key(root), null, storage)) === 'later';
 export function setArchifyPutOff(root, on, storage) {
   if (on) return storage === undefined ? writeJSON(key(root), 'later') : writeJSON(key(root), 'later', storage);

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Hint, InlineMessage } from '../components/index.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
+import { recheckSentence, runRecheck } from '../first-run/recheck.js';
 import { modelReadiness } from '../generation-status.js';
 
 /**
@@ -15,12 +16,13 @@ import { modelReadiness } from '../generation-status.js';
  */
 export default function ModelStatus({ data, host, refresh }) {
   const model = modelReadiness(data);
-  const [checking, setChecking] = useState(false), [checked, setChecked] = useState(false);
+  const [checking, setChecking] = useState(false), [outcome, setOutcome] = useState('');
   const live = useRef(true);
   useEffect(() => () => { live.current = false; }, []);
   const recheck = refresh && (async () => {
     setChecking(true);
-    try { await refresh(); if (live.current) setChecked(true); } catch { if (live.current) setChecked(false); } finally { if (live.current) setChecking(false); }
+    const result = await runRecheck(refresh);
+    if (live.current) { setOutcome(result); setChecking(false); }
   });
   if (model.ready && model.reason === 'ok')
     return <InlineMessage tone="success" boxed data-model-status="connected" title={model.label ? uiFormat('模型已连接：{0}', [model.label]) : ui('模型已连接')}>
@@ -31,7 +33,7 @@ export default function ModelStatus({ data, host, refresh }) {
   return (
     <ModelSetupGate variant="block" feature="settings" model={model} data-model-status="missing" onRecheck={recheck} checking={checking}
       onOpenSettings={host?.openModelSettings ? () => host.openModelSettings() : false}>
-      {checked && !checking && <Hint role="status" className="model-status-note">{ui('已重新检查，目前还没有连上。')}</Hint>}
+      {outcome && !checking && <Hint role="status" className="model-status-note">{recheckSentence(outcome)}</Hint>}
     </ModelSetupGate>
   );
 }

@@ -30,7 +30,7 @@ export const UNDO_TIMEOUT = 8000;
 export const COMMITTED_HOLD = 10000;
 
 const failedOf = (result) => result === false || (result && typeof result === 'object' && result.ok === false);
-const NO_REASON = () => ui('出了点问题，请重试。');
+const NO_REASON = () => ui('这次没有成功，也没有拿到具体原因。可以再试一次。');
 const defaultLater = (work, ms) => { const timer = setTimeout(work, ms); timer?.unref?.(); return timer; };
 
 export function createUndoable({ toast, onChange = () => {}, timeout = UNDO_TIMEOUT, holdMs = COMMITTED_HOLD, keyboard = () => false, scope = () => '', later = defaultLater } = {}) {
@@ -129,7 +129,7 @@ export function createUndoable({ toast, onChange = () => {}, timeout = UNDO_TIME
           const result = await restore();
           ok = !!result && !failedOf(result);
           // act() resolves undefined when another write held the lock: say so, the offer stays usable for a second try.
-          if (result === undefined) say().error?.(ui('另一个操作还在进行，请稍后重试。'));
+          if (result === undefined) say().error?.(ui('上一个操作还没结束，这次没有开始。等它结束后再点一次。'));
         } catch (error) { say().error?.(error); }
         entry.state = ok ? 'restored' : 'done';
         if (ok) { say().show?.({ tone: 'info', message: restored || ui('已撤销') }); refocus(focus); }

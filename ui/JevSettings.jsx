@@ -2,11 +2,10 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Checkbox, Field, Hint, InlineMessage, LoadingState, ProviderCard, SecretKeyForm, SettingsSection, Select, Switch, TextInput, useToast } from './components/index.js';
-import { readJSON, writeJSON } from './storage.js';
 import { useAsyncAction } from './use-async.js';
 import { TokenUsage } from './TokenUsage.jsx';
 import JevLevelCheck from './JevLevelCheck.jsx';
-import { JEV_FEATURE_META, JEV_PROVIDER_META, JEV_REPLACE_META, dshUsage, failureCode, keySourceText, percentText, privacyPoints, providerChoices, providerOf, setupStep, thresholdChoices } from './jev-flow.js';
+import { jevGuideSeen, rememberJevGuide, JEV_FEATURE_META,JEV_PROVIDER_META, JEV_REPLACE_META, dshUsage, failureCode, keySourceText, percentText, privacyPoints, providerChoices, providerOf, setupStep, thresholdChoices } from './jev-flow.js';
 import css from './jev.css';
 
 /* 设置 › 高级 › 实验性功能 › Jev. EXPERIMENTAL, hidden until "Show experimental features" is on (ui/ExperimentalSettings.jsx), and off by default
@@ -22,9 +21,7 @@ import css from './jev.css';
    characters; a key from an environment variable is never stored and only its variable's NAME is shown. */
 
 const TEST_STATE = { valid: () => ui('可用：密钥有效，Jev 连得上') };
-const GUIDE_KEY = 'study-jev-guide-seen';
-const guideSeen = () => readJSON(GUIDE_KEY, 0) === 1;
-const rememberGuide = () => writeJSON(GUIDE_KEY, 1); // a private window just asks again next time
+const guideSeen = jevGuideSeen, rememberGuide = rememberJevGuide; // ui/jev-flow.js: a private window just asks again next time
 
 const ExperimentalBadge = () => <Badge size="sm" tone="accent" className="jev-experimental">{ui('实验性')}</Badge>;
 

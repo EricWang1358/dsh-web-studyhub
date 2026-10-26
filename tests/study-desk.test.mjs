@@ -53,7 +53,7 @@ test("the home card offers exactly one primary action in every state", () => {
   assert.deepEqual(count(states.fresh), ["3", "题待学"], "unlearned cards no longer take the card from the day's path");
   assert.match(states.fresh, /只学当前课程新题 · 10 题/, "the other start stays reachable as a link");
   assert.doesNotMatch(states.fresh, /到期复习与巩固/);
-  assert.match(states.clear, /今天已经清空/);
+  assert.match(states.clear, /这里还没有可以学的题/);
   assert.match(states.clear, /class="sh-btn sh-btn--primary sh-btn--md today-go" disabled/);
   assert.match(states.empty, /导入 JSON 题组/);
   assert.doesNotMatch(states.empty, /today-count/);

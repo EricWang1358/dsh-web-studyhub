@@ -2,7 +2,7 @@ import React, { useId, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, ConfirmDialog, Dialog, Field, Hint, InlineMessage, Select, TextInput } from '../components/index.js';
 import { MAX_TITLE_CHARS } from '../../lib/document-title.js';
-import { moveTargets, nodeAt, shiftPlace, structureFailureText } from './book-structure.js';
+import { deleteFailureText, moveTargets, nodeAt, shiftPlace, structureFailureText } from './book-structure.js';
 
 /* 复习全书 structure from the page (#470, docs/review-book.md "Structure"): 更多 › 改名… / 移动到… / 删除这个知识点…, beside 编辑这个知识点….
    What changes here is the point being read (its chapter and section stay the main chat's): rename keeps its id, files and questions; move takes
@@ -96,7 +96,7 @@ export function DeleteDialog({ book, node, onRun, onClose, onDeleted }) {
   const current = nodeAt(book?.nodes, node.hid)?.node ?? node;
   const remove = async () => {
     const answer = await onRun('course.book.delete', { hid: node.hid, children: 'promote' });
-    if (!answer.ok) throw new Error(structureFailureText(answer.failure) ?? ui('没有完成，请再试一次。'));
+    if (!answer.ok) throw new Error(deleteFailureText(answer.failure));
   };
   return (
     <ConfirmDialog title={ui('删除这个知识点')} confirmLabel={ui('删除')} size="sm" className="book-structure-dialog"

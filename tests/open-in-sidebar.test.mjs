@@ -154,7 +154,7 @@ test('a page whose sidebar never opens is brought back with what to do, and the 
   const { page } = opened;
   await sidebarButton(page).click();
   await reasonOf(page).waitFor({ timeout: 15000 });
-  assert.match(await reasonOf(page).textContent(), /请先回到对话并打开右栏/);
+  assert.match(await reasonOf(page).textContent(), /先回到主会话并打开右栏/);
   const log = await page.evaluate(() => window.dshLog);
   assert.equal(log[0], 'selectPanel:null');
   assert.equal(log.at(-1), 'selectPanel:studyhub', 'the learner is put back on the StudyHub page');
@@ -216,6 +216,6 @@ test('the button explains itself on hover or focus through the project Tooltip, 
   await button.focus();
   await tip.waitFor({ state: 'visible', timeout: 5000 });
   const words = await tip.textContent();
-  assert.match(words, /主区域回到对话/);
+  assert.match(words, /主区域回到主会话/);
   assert.match(words, /接着/);
 });

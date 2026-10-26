@@ -31,7 +31,7 @@
   "例如：数据结构 / 第 3 章": "e.g. Data structures / Chapter 3",
   "上次没有生成成功。": "The last attempt did not succeed.",
   "请求太频繁，被模型服务限流了。等一两分钟再试，或在设置里换一个模型。": "Too many requests; the model service has rate-limited them. Wait a minute or two and try again, or switch models in the settings.",
-  "可能是网络或服务繁忙，稍后再试。": "The network or the service may be busy. Try again in a little while.",
+  "可能是网络不稳，或模型服务正忙。等一两分钟再试一次。": "The network may be unstable, or the model service may be busy. Wait a minute or two and try again.",
   "{0}。{1}。": "{0}. {1}.",
   "没能保存「稍后提醒」，请再试一次。": "Could not save “Remind me later”. Please try again.",
   "没能检查更新": "Could not check for updates",

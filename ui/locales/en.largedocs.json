@@ -160,7 +160,7 @@
   "已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。": "The installed search extension is {0}, older than this StudyHub ({1}), so it may never start. Restart DSH after updating.",
   "更新检索扩展": "Update the search extension",
   "练这一章": "Practise this chapter",
-  "这一章现在没有可练习的题。": "This chapter has no questions to practise right now.",
+  "这一章现在没有可练的题（已斩或已归档的不算）。可以先用这份资料出题。": "This chapter has no questions to practise right now (retired or archived ones do not count). You can make some from this material first.",
   "检索扩展装好了，但检索服务没有启动": "The search extension is installed, but its search service did not start",
   "索引坏了，已经重置，需要重新建立索引。": "The index was damaged and has been reset; build the index again.",
   "索引已经重置，需要重新建立索引。": "The index has been reset; build the index again.",

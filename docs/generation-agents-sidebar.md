@@ -106,8 +106,8 @@ When DSH runs the assistant as a local subagent, repeated **Help me understand**
 **Live class** can correct earlier transcript sentences in the background. It uses the model chosen in **Settings › Audio transcription › Advanced › Expert options › Model for proofreading and translation**:
 
 - **Gemini (free first, then paid)**: Gemini makes the correction. Its availability, quota and billing depend on the provider and your account.
-- **The model the conversation uses**: a DSH subagent runs it when DSH supports one; otherwise StudyHub calls the same model directly.
-- **Automatic (the conversation model when there is one, otherwise Gemini)**: one of the two above.
+- **StudyHub's generation model (follows the main chat by default)**: a DSH subagent runs it when DSH supports one; otherwise StudyHub calls the same model directly.
+- **Automatic (StudyHub's generation model when there is one, otherwise Gemini)**: one of the two above.
 
 Each correction stops after 60 seconds. If the sentences it covers changed in the meantime, the result is not merged; retry it.
 

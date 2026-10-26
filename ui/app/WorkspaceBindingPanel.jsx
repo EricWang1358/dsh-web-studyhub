@@ -39,8 +39,8 @@ function Binding({ app }) {
   }
   const where = binding.rootSource === 'workspace' ? ui('当前工作区') : binding.rootSource === 'config' ? ui('插件配置指定') : ui('自定义目录');
   const modelNote = binding.modelSource === 'session'
-    ? ui('与对话输入框选择的模型一致，切换后自动生效。生成时所选资料会发送给该模型；复习不调用模型。')
-    : ui('只用于出题与讲解，不改变对话模型。生成时所选资料会发送给该模型；复习不调用模型。');
+    ? ui('与主会话输入框里选的模型一致，切换后自动生效。生成时所选资料会发送给该模型；复习不调用模型。')
+    : ui('只用于出题与讲解，不改变主会话的模型。生成时所选资料会发送给该模型；复习不调用模型。');
   return (
     <div className="binding-panel">
       <div className="binding-row">

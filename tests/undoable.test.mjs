@@ -224,7 +224,7 @@ test('restoreWith offers the inverse, keeps the notice up while it runs, says it
   unit.restoreWith({ message: 'm', restore: async () => (++tries === 1 ? undefined : true) });
   const second = toast.log.current;
   assert.equal(await second.action.onClick(), false, 'an inverse that resolves undefined (act() while another write held the lock) did not run');
-  assert.match(toast.log.errors.at(-1), /另一个操作还在进行，请稍后重试。/, 'and says so');
+  assert.match(toast.log.errors.at(-1), /上一个操作还没结束，这次没有开始。等它结束后再点一次。/, 'and says so');
   assert.equal(toast.log.current, second, 'the offer is still on screen');
   assert.equal(await second.action.onClick(), true, 'and a second try works');
 });

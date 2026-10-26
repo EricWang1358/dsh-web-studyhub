@@ -54,7 +54,7 @@ export async function openBackgroundAgent(ctx, id, { reveal, parentId } = {}) {
   }
   try { await reveal?.(); }
   catch (error) {
-    throw new Error(uiFormat('后台助手已打开，但未能切换到对话区：{0}',
-      [error?.message || ui('请从会话列表打开助手。')]));
+    throw new Error(uiFormat('后台助手已打开，但没能把它自己的对话窗口切到前面：{0}',
+      [error?.message || ui('从会话列表打开它。')]));
   }
 }

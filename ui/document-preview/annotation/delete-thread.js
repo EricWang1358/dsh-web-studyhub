@@ -23,7 +23,7 @@ const refusalText = (message = '', status = '') => {
 export async function restoreKeptThread({ call, documentId, revision, removed }) {
   let back;
   try { back = await call('materials.annotation.save', { documentId, revision, restore: removed }); }
-  catch (error) { throw new Error(refusalText(error?.message) || error?.message || ui('出了点问题，请重试。')); }
-  if (back?.status !== 'saved') throw new Error(refusalText(back?.message, back?.status) || back?.message || ui('出了点问题，请重试。'));
+  catch (error) { throw new Error(refusalText(error?.message) || error?.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。')); }
+  if (back?.status !== 'saved') throw new Error(refusalText(back?.message, back?.status) || back?.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。'));
   return true;
 }

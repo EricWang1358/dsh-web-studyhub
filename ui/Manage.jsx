@@ -184,7 +184,7 @@ export default function Manage({
           const result = await act("deck.merge", { sourceIds: [managedDeck.id], targetId }, (moved) => {
             setPage("library"); toast.success(uiFormat("已合并 {0} 道题，全部保留", [moved.moved]));
           }, { rethrow: true });
-          if (result === undefined) throw new Error(ui("另一个操作还在进行，请稍后重试。"));
+          if (result === undefined) throw new Error(ui("上一个操作还没结束，这次点击没有生效。等它结束后再点一次。"));
         }} />}
       {!managedDeck.cards.length && <p className="muted">{slainView ? ui("斩题组为空。练习时点击“斩”，题目会收纳到这里。") : ui("当前题组没有题目。已斩的题可从斩题组恢复。")}</p>}
       {parts.length > 1 && <SegmentedControl size="sm" className="manage-part-filter" label={ui("按部分查看")} value={showing} onChange={setShownPart} data-part-filter

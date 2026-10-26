@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ui, uiFormat } from "../i18n.js";
-import { Button, Hint, InlineMessage } from "../components/index.js";
+import { Button, Hint, InlineMessage, Tooltip } from "../components/index.js";
 
 /** What proofreading changed in an audio source, so the learner can check it; unsure items can be given a second look. */
 export function AudioCorrections({ audio, onReview }) {
@@ -31,9 +31,10 @@ export function AudioCorrections({ audio, onReview }) {
       {unsure.length > 0 && <>
         <Hint>{ui("下面这些把握不大，没有改动，需要时请对照录音核对：")}</Hint>
         {onReview && pending > 0 && <><p>
-          <Button size="sm" busy={review.status === "running"} disabled={review.status !== "idle"} onClick={start}
-            title={ui("用对话模型结合上下文再判一次：能确定的直接改进正稿（译文里的同一处一起改），仍拿不准的留在这里")}>
-            {uiFormat("让模型复核这 {0} 处", [pending])}</Button>
+          <Tooltip layer content={ui("用「校对与翻译用哪个模型」选的模型结合上下文再判一次：能确定的直接改进正稿（译文里的同一处一起改），仍拿不准的留在这里")}>
+            <Button size="sm" busy={review.status === "running"} disabled={review.status !== "idle"} onClick={start}>
+              {uiFormat("让模型复核这 {0} 处", [pending])}</Button>
+          </Tooltip>
           {review.status === "started" && <Hint as="small"> {ui("已开始复核，进度见音频任务卡片")}</Hint>}
         </p>
         {review.error && <InlineMessage tone="error">{review.error}</InlineMessage>}</>}

@@ -332,9 +332,9 @@ export function stopText(stop) {
     target: () => ui('已达到这档覆盖强度的目标，剩下的轮次不用再做了。'),
     learner: () => uiFormat('你在第 {0} 轮停了下来；已通过的题都保留。', [round]),
     budget: () => uiFormat('用到了你设的花费上限，在第 {0} 轮之后停下；已通过的题都保留。', [round]),
-    'no-progress': () => (stop.uncredited > 0 ? uiFormat('第 {0} 轮保留了 {1} 道题，但它们没有对上任何还没有题的小节，没有新的进展，为免一直重复，已经停下；还有 {2} 个小节没有题，可以点「为没覆盖的部分补题」再试。', [round, stop.uncredited, left])
-      : left > 0 ? uiFormat('第 {0} 轮重试后仍没有补到新的小节，为免一直重复，已经停下；还有 {1} 个小节没有题，可以点「为没覆盖的部分补题」再试。', [round, left])
-      : uiFormat('第 {0} 轮重试后仍没有补到新的小节，为免一直重复，已经停下。', [round])),
+    'no-progress': () => (stop.uncredited > 0 ? uiFormat('第 {0} 轮保留了 {1} 道题，但它们没有对上任何还没有题的小节，没有新的进展，所以停下了，免得白白重复花费。还有 {2} 个小节没有题，可以点「为没覆盖的部分补题」再试。', [round, stop.uncredited, left])
+      : left > 0 ? uiFormat('第 {0} 轮重试后仍没有补到新的小节，所以停下了，免得白白重复花费。还有 {1} 个小节没有题，可以点「为没覆盖的部分补题」再试。', [round, left])
+      : uiFormat('第 {0} 轮重试后仍没有补到新的小节，所以停下了，免得白白重复花费。', [round])),
     'sections-left': () => sectionsLeftStop(stop),
     // The key was refused: said once, in plain words, whatever the provider printed for each part.
     refused: () => (stop.code === 'quota' ? ui('模型账户的余额或额度不足，已经停下；已通过的题都保留。') : ui('模型服务拒绝了请求（密钥无效或没有权限），已经停下；已通过的题都保留。')),

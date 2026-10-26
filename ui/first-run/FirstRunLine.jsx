@@ -4,6 +4,7 @@ import { Button, Hint, Icon, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
 import { modelSetupCopy } from '../ModelSetupGate.jsx';
+import { recheckSentence, runRecheck } from './recheck.js';
 import { useModelSettingsLabel } from '../ModelErrorNote.jsx';
 import { CORE_TOUR_LENGTH } from '../tour/steps.js';
 import { TokenEstimateView } from '../TokenUsage.jsx';
@@ -70,13 +71,14 @@ function Mark({ index, done }) {
 /** Step 1, open: the gate's own words (ModelSetupGate is the one source), the key line, and 重新检查; the only way to the settings is the quiet link in the step that picks a model. */
 function ModelBody({ step, on }) {
   const { busy } = useStudy();
-  const [checking, setChecking] = useState(false), [checked, setChecked] = useState(false);
+  const [checking, setChecking] = useState(false), [outcome, setOutcome] = useState('');
   const live = useRef(true), settingsLabel = useModelSettingsLabel();
   useEffect(() => () => { live.current = false; }, []);
   const copy = modelSetupCopy(step, 'welcome', { recheck: !!on.recheck });
   const recheck = on.recheck && (async () => {
     setChecking(true);
-    try { await on.recheck(); if (live.current) setChecked(true); } catch { if (live.current) setChecked(false); } finally { if (live.current) setChecking(false); }
+    const result = await runRecheck(on.recheck);
+    if (live.current) { setOutcome(result); setChecking(false); }
   });
   const steps = copy.steps.length ? [...copy.steps, { text: copy.then }] : [];
   return (
@@ -93,7 +95,7 @@ function ModelBody({ step, on }) {
           </li>
         ))}
       </ol>}
-      {checked && !checking && <Hint role="status">{ui('已重新检查，目前还没有连上。')}</Hint>}
+      {outcome && !checking && <Hint role="status">{recheckSentence(outcome)}</Hint>}
       {recheck && <div className="frl-body__actions">
         <Button variant="primary" icon="refresh" busy={checking} busyLabel={ui('正在检查…')} disabled={busy} data-first-run="recheck" onClick={recheck}>{ui('重新检查')}</Button>
       </div>}

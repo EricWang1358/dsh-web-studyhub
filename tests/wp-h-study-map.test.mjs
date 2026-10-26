@@ -181,7 +181,7 @@ test('the notebook directory read error is an InlineMessage alert, not a status 
   m.setUiLanguage('zh');
   const failed = html(m.NotebookDirectory, { notebooks: null, error: '连接超时', busy: false, refresh: noop });
   assert.match(failed, /role="alert"/);
-  assert.match(failed, /目录读取失败：连接超时/);
+  assert.match(failed, /没能读取目录：连接超时/);
   assert.doesNotMatch(failed, /class="warning"/);
   const waiting = html(m.NotebookDirectory, { notebooks: null, error: '', busy: false, refresh: noop });
   assert.match(waiting, /role="status"/);
@@ -191,7 +191,7 @@ test('the notebook directory read error is an InlineMessage alert, not a status 
   assert.doesNotMatch(open, /map-caret|[▾▸]/);
   const stale = html(m.NotebookDirectory, { notebooks: { notebooks: [] }, error: '连接超时', busy: false, refresh: noop });
   assert.match(stale, /role="alert"/);
-  assert.match(stale, /目录读取失败，仍显示上次结果：连接超时/);
+  assert.match(stale, /没能刷新目录，下面仍是上次读到的内容：连接超时/);
 });
 
 test('the study map no longer carries hand-built menus, glyph carets or raw warnings', () => {
