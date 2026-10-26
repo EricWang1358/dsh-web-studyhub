@@ -1,24 +1,10 @@
 import { unescapeModelText } from '../lib/model-text.js';
 import { safeRasterDataUri } from '../lib/study-image-policy.js';
+import { formulaAt } from '../lib/math-scan.js';
 
 export const STUDY_IMAGE_PATTERN = /!\[([^\]\n]*)\]\((?:<([^>\n]+)>|([^\s)]+))(?:\s+"[^"\n]*")?\)/;
 
 const MARKER = /[\uE000\uE001]/g;
-const escaped = (text, at) => {
-  let count = 0;
-  while (at > 0 && text[--at] === '\\') count++;
-  return count % 2 === 1;
-};
-
-function mathOpener(text, at) {
-  if (escaped(text, at)) return null;
-  for (const delimiter of ['$$', '\\[', '\\(']) {
-    if (text.startsWith(delimiter, at)) return delimiter;
-  }
-  const wordBefore = /\w/.test(text[at - 1] || '');
-  const modelNewlineBefore = text.slice(at - 2, at) === '\\n';
-  return text[at] === '$' && (!wordBefore || modelNewlineBefore) ? '$' : null;
-}
 
 /** Code spans, fences, image/link addresses and bare URLs at `i`: literal text, never math. */
 function literalAt(text, i) {
@@ -40,23 +26,6 @@ function literalAt(text, i) {
   const literal = (image?.index === 0 && image) ||
     rest.match(/^\]\([^\n]*?\)/) || rest.match(/^https?:\/\/[^\s<>]+/);
   return literal ? i + literal[0].length : -1;
-}
-
-/** The formula opening at `i`: { end, formula: { source, display, raw } }, or null. */
-function formulaAt(text, i) {
-  const opener = mathOpener(text, i);
-  if (!opener) return null;
-  const closer = opener === '\\[' ? '\\]' : opener === '\\(' ? '\\)' : opener;
-  const display = opener === '$$' || opener === '\\[';
-  const start = i + opener.length;
-  let end = text.indexOf(closer, start);
-  while (end >= 0 && escaped(text, end)) end = text.indexOf(closer, end + closer.length);
-  const body = end >= 0 ? text.slice(start, end) : '';
-  // Dollar delimiters follow normal prose boundaries: "$5 and $10" is currency.
-  const currency = /^\d[\d,.]*(?:[.,;:!?]\s|\s+[A-Za-z]{2,})/.test(body);
-  const validDollar = opener !== '$' || (!/^\s|\s$/.test(body) && !/\d/.test(text[end + 1] || '') && !currency);
-  if (!body.trim() || !(display || (!body.includes('\n') && !body.includes('`'))) || !validDollar) return null;
-  return { end: end + closer.length, formula: { source: body, display, raw: text.slice(i, end + closer.length) } };
 }
 
 /** Shield formulas before Markdown/HTML normalization, including model newline repair.

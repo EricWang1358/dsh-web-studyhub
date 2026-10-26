@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { autofixDeck } from '../lib/card-autofix.js';
+import { autofixDeck, wrapBareMath } from '../lib/card-autofix.js';
 import { generateDeck, authorPrompts } from '../lib/generation.js';
 import { blueprintPrompts, blueprintAssessment, formulaIssues, answerLeakIssues } from '../lib/assessment-quality.js';
 import { validateDeck } from '../lib/domain.js';
@@ -230,4 +230,10 @@ test('generateDeck keeps a card with a missing hint and a bare formula without a
   assert.match(result.cards[0].explanation, /\$a\^\{2\}\+b\^\{2\}=c\^\{2\}\$/);
   assert.equal(result.editorial.autofixed, 2);
   assert.equal(result.editorial.dropped, undefined);
+});
+
+test('the autofix never stacks or escapes a delimiter: what it writes is read back as exactly the span it wrote', () => {
+  // A dollar sign or an escaped one right before a bare formula is left for the gate; it must not become "$$…$" or "\$$…\$$".
+  for (const text of ['单价 $3\times 2 元。', 'Price $5\nu and more.', '答案是 \$x\neq 1\$ 。']) assert.equal(wrapBareMath(text), text, text);
+  assert.equal(wrapBareMath('速度是 v^{2} 米'), '速度是 $v^{2}$ 米', 'an ordinary bare formula is still wrapped');
 });
