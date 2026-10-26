@@ -8,8 +8,9 @@ import { browserStorage, writeJSON } from '../storage.js';
  *   off              the master switch of Settings › 引导 is off (default: on, i.e. the key is missing or `off` is not true);
  *   muted            ids of registered items (ui/guidance/registry.js) the learner switched off one by one.
  *
- * The rule a proactive tip asks before it shows (allowProactiveTip): at most ONE a local day, never during a practice or review run, never when the
- * master switch is off, and never when the storage cannot be read (then nothing proactive is shown at all: no budget can be kept, so none is spent).
+ * The rule a proactive tip claims before it shows (claimProactiveTip, one atomic call): at most ONE a local day, never during a practice or review
+ * run, never when the master switch or the item's own switch is off, and never when the storage cannot be read or written (then nothing proactive is
+ * shown at all: no budget can be kept, so none is spent). proactiveTipDecision / allowProactiveTip are the same rule without spending, for tests.
  * Nothing here throws. The master switch never hides the first-run line, the model-setup gate or the help of an error or an empty page: those are
  * not proactive and do not ask.
  */
@@ -61,16 +62,37 @@ export function proactiveTipDecision({ now = Date.now(), seen, inPractice = fals
   return { allow: true, reason: 'ok' };
 }
 
-/** The decision as a yes or no. */
+/** The decision as a yes or no, without spending anything (for tests and previews; a tip that is about to show claims instead). */
 export const allowProactiveTip = input => proactiveTipDecision(input).allow;
 
-/** Count one proactive tip as shown today; true when it was stored. A tip must not show when this answers false (the budget could not be kept). */
-export function recordProactiveTip({ now = Date.now(), storage = browserStorage() } = {}) {
-  const state = readGuidanceState(storage);
-  if (!state) return false;
+/* The day this visit already gave its one tip away: a second tip in the same render (or a second component of the same visit) loses at once, before
+   the storage is even read. */
+let claimedDay = '';
+
+/**
+ * Claim today's one proactive tip for item `id`, in ONE call: read, decide, write. True only when the claim was stored; then, and only then, the tip
+ * shows. False when the day is spent (in this visit or in the stored count), the learner is in practice, the master switch or the item's own switch is
+ * off, or the storage cannot be read or written. Call it from an effect behind a ref (never during render, so StrictMode's second render cannot
+ * spend the day without showing anything):
+ *
+ *   const asked = useRef(false); const [show, setShow] = useState(false);
+ *   useEffect(() => { if (!asked.current && wanted) { asked.current = true; setShow(claimProactiveTip({ id, inPractice })); } }, [wanted]);
+ *
+ * Two tabs: the read and the write happen in one synchronous call, so another tab can only slip in between if it claims in that same moment.
+ */
+export function claimProactiveTip({ id, now = Date.now(), inPractice = false, storage = browserStorage() } = {}) {
   const day = localDay(now);
-  return write({ ...state, day, shownToday: state.day === day ? state.shownToday + 1 : 1 }, storage);
+  if (claimedDay === day) return false;
+  const seen = readGuidanceState(storage);
+  if (!proactiveTipDecision({ now, seen, inPractice, today: day }).allow) return false;
+  if (id && seen.muted.includes(id)) return false;
+  if (!write({ ...seen, day, shownToday: seen.day === day ? seen.shownToday + 1 : 1 }, storage)) return false;
+  claimedDay = day;
+  return true;
 }
+
+/** Start a new visit (tests): the claim of this visit is forgotten, the stored count stays. */
+export const forgetVisitClaim = () => { claimedDay = ''; };
 
 /** Is the master switch on? It is when nothing says otherwise, including a browser without storage (the default stays). */
 export const guidanceOn = (storage = browserStorage()) => readGuidanceState(storage)?.off !== true;

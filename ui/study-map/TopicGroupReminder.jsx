@@ -8,8 +8,12 @@ import { HandOff } from '../hand-off/HandOff.jsx';
 /* After an import the new topics sit outside the topic groups until someone
    remembers to fold them in. Say so in the library until it is done; "稍后"
    holds until the next import changes what is ungrouped. */
+/** The key prefix of 稍后, one key per library (it holds the grouping it was put off at); 设置 › 引导 reads it (ui/guidance/registry.js). */
+export const TOPIC_GROUP_LATER_PREFIX = 'study-topic-group-later:';
+export const topicGroupLaterKey = root => `${TOPIC_GROUP_LATER_PREFIX}${root || 'local'}`;
+
 export default function TopicGroupReminder({ grouping, root }) {
-  const key = `study-topic-group-later:${root || 'local'}`;
+  const key = topicGroupLaterKey(root);
   const [later, setLater] = usePersistentState(key, '', { parse: String, serialize: String }); // per-device only
   if (!grouping?.ungrouped) return null;
   if (!guidanceAllows('library.topic-groups')) return null; // 设置 › 引导 switched reminders like this off (ui/guidance/registry.js)

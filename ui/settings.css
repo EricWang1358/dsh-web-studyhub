@@ -102,6 +102,7 @@
     .guidance-item__text { display: grid; gap: var(--space-half); min-width: 0; }
     .guidance-item__text strong { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .guidance-item__actions { display: flex; justify-content: flex-end; }
+    .guidance-item__note { grid-column: 1 / -1; margin: 0; }
     .settings-page .appearance-backup { display: grid; gap: var(--space-2); }
     /* The retrieval tool picker and its test button share a row; the button lines up with the select, not the label. */
     .settings-page .extensions-settings__choice { align-items: flex-end; }

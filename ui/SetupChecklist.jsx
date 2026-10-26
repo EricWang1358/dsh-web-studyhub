@@ -17,7 +17,9 @@ import { useLiveEffect } from './use-async.js';
    has one action that reuses an existing page or dialog, and a "稍后" that puts it off (kept per viewer in localStorage, a
    convenience, never in the library). */
 
-const key = (kind, root, course) => `study-setup-${kind}:${root || "local"}:${course ?? ""}`;
+/** The key prefixes of 稍后 (steps put off) and of the "all done" note, one key per library and course; 设置 › 引导 reads them (ui/guidance/registry.js). */
+export const SETUP_LATER_PREFIX = "study-setup-later:", SETUP_DONE_PREFIX = "study-setup-done:";
+const key = (kind, root, course) => `${kind === "later" ? SETUP_LATER_PREFIX : SETUP_DONE_PREFIX}${root || "local"}:${course ?? ""}`;
 /** The steps the learner put off for a course: ids, per library and course. */
 export function readSetupLater(root, course) {
   const value = readJSON(key("later", root, course));

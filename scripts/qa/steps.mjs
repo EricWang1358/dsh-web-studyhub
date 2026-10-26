@@ -8,10 +8,13 @@
                       Its milestones include the old first-question count (to the first generation job).
      course-practice  a library in daily use; the learner adds a material for a NEW course (typed in the import dialog) and gets to that
                       course's first practice question: import → make questions from it → generate → check the draft → publish → practise.
-     daily-continue   a course in daily use, opened on another day → the first practice question.
-     first-question   (older, kept for comparisons) a brand-new library to a first generation job.
-     new-course       (older) a second course already seeded with a material → a generation job.
-   Default: first-deck, course-practice, daily-continue (the guidance baseline). Run it against two builds (--dist) to compare before and after;
+     daily-continue   a course in daily use with a round left open → the next practice question. Measured on the day the round was left
+                      open; the clock is not moved.
+     first-question   (older) a brand-new library to a first generation job. It follows the 3.6 first-run line (the first import comes back
+                      to the line), so it runs against builds from 3.6 on only.
+     new-course       (older) a second course already seeded with a material → a generation job (2 clicks; not the course-practice journey).
+   Default: first-deck, course-practice, daily-continue (the guidance baseline, docs/qa/click-baseline.md); before the guidance work the default
+   was first-question, new-course, daily-continue. --journeys=a,b picks others. Run it against two builds (--dist) to compare before and after;
    it writes <label>-steps.json and prints a table. Each row carries `milestones`: the click count when each stage was reached. */
 import { rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -80,11 +83,20 @@ export async function runJourney({ browser, running, name, lang, width = 1440 })
   const publishDraft = async () => {
     const decks = (await snapshot()).decks.length;
     const linePublish = page.locator('.first-run [data-first-run="publish"]');
-    if (await linePublish.count()) await click(linePublish, "first-run line: publish and practise");
+    const review = page.locator('.first-run [data-first-run="review"]').or(page.getByRole("button", { name: new RegExp(`^${escapeRe(t.checkDraft)}`) }));
+    const publish = page.getByRole("button", { name: new RegExp(`^${escapeRe(t.publish)}`) });
+    // The finished run reaches the page with the next poll, and its card settles a poll later (检查草稿 first, then 发布并开始练 once the draft is known
+    // to be clean; ui/study-map/JobCard.jsx): wait for a way on, then one more poll, and take the shortest way the screen then offers.
+    try { await linePublish.or(review).or(publish).first().waitFor({ timeout: 30000 }); } catch (error) {
+      await failShot();
+      throw new Error(`${name}: neither a publish button nor 检查草稿 appeared (${String(error.message).split(/\r?\n/)[0]})`);
+    }
+    await sleep(3000);
+    if (await linePublish.first().isVisible()) await click(linePublish, "first-run line: publish and practise");
+    else if (await publish.first().isVisible()) await click(publish, "run card: publish and practise");
     else {
-      const review = page.locator('.first-run [data-first-run="review"]').or(page.getByRole("button", { name: new RegExp(`^${escapeRe(t.checkDraft)}`) }));
-      await click(review, "home: check the draft");
-      await click(page.getByRole("button", { name: new RegExp(`^${escapeRe(t.publish)}`) }), "draft: publish and practise");
+      await click(review, "run card: check the draft");
+      await click(publish, "draft: publish and practise");
     }
     for (let i = 0; i < 60; i++) { if ((await snapshot()).decks.length > decks) return true; await sleep(250); }
     return false;

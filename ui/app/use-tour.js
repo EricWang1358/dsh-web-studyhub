@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, getUiLanguage, errorMessage } from '../i18n.js';
 import { hasContext, pageAvailable } from '../capabilities.js';
 import { TOUR_STEPS, availableTourSteps, tourNeighbour } from '../tour/steps.js';
-import { readTourProgress, writeTourProgress, welcomeDismissed, dismissWelcome } from '../tour/progress.js';
+import { readTourProgress, writeTourProgress, hideWelcomeFor, welcomeLater } from '../tour/progress.js';
 import { practiceArgs } from '../learning-navigation.js';
 import { importForFirstRun } from './import-handoff.js';
 import { firstRunLine } from '../first-run/line.js';
@@ -43,7 +43,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const [sampleForTour, setSampleForTour] = useState(false);
   // Which tour is running: the short one (the core chain) or, when the learner asked for it, the full one.
   const [fullTour, setFullTour] = useState(false);
-  const [removingSample, setRemovingSample] = useState(false), [hiddenWelcome, setHiddenWelcome] = useState('');
+  const [removingSample, setRemovingSample] = useState(false), [hiddenWelcome, setHiddenWelcome] = useState(null);
   const tourOrigin = useRef(null), tourRound = useRef(null);
   const latest = useRef(null);
   latest.current = { page: nav.page, run: session.run };
@@ -62,13 +62,11 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const tourResume = resumeAt > 0 ? { index: resumeAt, total: tourSteps.length } : null;
   /* The first-run line (ui/first-run) is the library's whole first screen until 「以后再说」 puts it away for this library; then, and while a tour shows the
      home, it is the compact card in the today slot. */
-  const lineLater = !!data?.root && (hiddenWelcome === data.root || welcomeDismissed(data.root));
+  // Stored and held for the visit; 设置 › 引导's 再显示一次 in this tab undoes both (ui/tour/progress.js welcomeLater).
+  const lineLater = welcomeLater(data?.root, hiddenWelcome);
   function hideWelcome() {
     if (!data?.root) return;
-    // Held in memory only when the browser refused to store it: a stored choice is read back each render, so 设置 › 引导's 再显示一次 brings the line back
-    // without a reload (ui/guidance/registry.js clears study-welcome:<root>).
-    const stored = dismissWelcome(data.root);
-    setHiddenWelcome(stored ? `stored:${data.root}` : data.root);
+    setHiddenWelcome(hideWelcomeFor(data.root));
   }
   // While the first-run line is up, the first import comes back to it (ui/app/import-handoff.js, 3.6 D4): its third step makes the first deck, so neither
   // 创建题组 nor 资料 with a toast to press is in the way; from elsewhere (the tour's last step ended on another page) it lands on the library home. Once the
