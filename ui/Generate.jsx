@@ -195,8 +195,8 @@ export default function Generate({
           }
         />
       ) : !data.sources.length ? (
-        <EmptyState icon="file" title={ui("先添加一份资料")}
-          description={ui("讲义、笔记、PDF 或网页都可以。AI 只根据你添加的资料出题，并标出每道题的出处。")}
+        <EmptyState icon="file" title={ui("还没有资料")}
+          description={ui("导入讲义、笔记、PDF 或网页，它们会列在这里；AI 只根据你选中的资料出题，并标出每道题的出处。")}
           primary={{ label: ui("添加资料"), icon: "upload", onClick: openImport }}
           secondary={{ label: ui("已有题目？导入 JSON 题组"), onClick: () => setGenSource("json") }} />
       ) : (

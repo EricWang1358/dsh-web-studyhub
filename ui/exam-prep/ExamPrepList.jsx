@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { formatDateTime, joinMeta } from '../format.js';
 import { Badge, Button, EmptyState, PageHeader, ProgressBar } from '../components/index.js';
+import { EMPTY_REASONS, emptyReason } from '../empty-reasons.js';
 import PageScope from '../PageScope.jsx';
 import Explain from './Explain.jsx';
 import { basisLine, countsLine, staleNote } from './words.js';
@@ -56,11 +57,15 @@ function BuildingRow({ build, onOpenTask }) {
   );
 }
 
-function Empty({ onCreate, otherCount, scoped }) {
+/* 从没有过 says how the first one is made; 筛选后没有 (lists exist, just not in this course) also offers the one click back to all of
+   them, beside the sentence that points at the scope control above. */
+function Empty({ onCreate, otherCount, scoped, onScope }) {
+  const reason = emptyReason({ filtered: scoped && otherCount > 0 });
   return (
     <EmptyState icon="file" title={scoped ? ui('这门课还没有考点清单') : ui('还没有考点清单')}
       description={ui('备考补习把课件和样卷整理成一份考点清单：哪些样卷考过，哪些是补充，每个考点出自课件的哪一页。')}
-      primary={{ label: ui('新建考点清单'), icon: 'plus', onClick: onCreate }}>
+      primary={{ label: ui('新建考点清单'), icon: 'plus', onClick: onCreate }}
+      secondary={reason === EMPTY_REASONS.filtered && onScope ? { label: ui('看全部课程'), onClick: () => onScope('*') } : undefined}>
       <ul className="exam-prep-inputs">
         <li><strong>{ui('课件')}</strong>{ui('：必选。考点从这里列出来。')}</li>
         <li><strong>{ui('样卷')}</strong>{ui('：可选。由它定出哪些考点样卷考过；不选时所有考点都是补充。')}</li>
@@ -94,7 +99,7 @@ export default function ExamPrepList({ data, scope, onScope, rows, history = [],
           {fresh.map(build => <BuildingRow key={build.jobId} build={build} onOpenTask={onOpenTask} />)}
           {rows.map(row => <ListRow key={row.id} row={row} onOpen={onOpen} onOpenTask={onOpenTask} />)}
         </ul>
-      ) : <Empty onCreate={onCreate} otherCount={otherCount} scoped={scope !== '*'} />}
+      ) : <Empty onCreate={onCreate} otherCount={otherCount} scoped={scope !== '*'} onScope={onScope} />}
       {history.length > 0 && (
         <div className="exam-prep-history">
           <Button variant="link" size="sm" aria-expanded={older} onClick={() => setOlder(value => !value)}>

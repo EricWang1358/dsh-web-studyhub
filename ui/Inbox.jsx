@@ -16,10 +16,13 @@ import previewCss from "./inbox-preview.css";
 const NO_ITEMS = [];
 const PANEL_ROWS = { "--sh-scroll-max": "min(360px, 55vh)" };
 
-function EmptyMailbox() {
+/* 从没有过: the first letter arrives when the main chat or a background job does something for you. The one way on is 任务, where a
+   background result exists before its letter does — so a learner who expected one can look there instead of waiting. */
+function EmptyMailbox({ onOpenTasks }) {
   const topics = new Intl.ListFormat(uiLocale(), { style: "long", type: "conjunction" }).format(inboxTopics().map((topic) => ui(topic)));
   return <EmptyState size="sm" icon="mail" className="mailbox__empty" title={ui("信箱是空的")}
-    description={uiFormat("{0}的结果会放在这里，点一下就能回到对应的地方。", [topics])} />;
+    description={uiFormat("{0}的结果会放在这里，点一下就能回到对应的地方。", [topics])}
+    secondary={onOpenTasks && { label: ui("看后台任务"), onClick: onOpenTasks }} />;
 }
 
 /** The card beside an entry: everything the list truncates, then what a click does. */
@@ -63,7 +66,7 @@ function Letter({ m, busy, now, onOpen, onUndo, close }) {
   );
 }
 
-export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readError = "", defaultOpen = false }) {
+export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readError = "", defaultOpen = false, onOpenTasks }) {
   useInjectCss(css, "study-inbox");
   useInjectCss(previewCss, "study-inbox-preview");
   const [open, setOpen] = React.useState(defaultOpen);
@@ -113,7 +116,7 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readErro
             <ScrollWindow className="mailbox__scroll" label={ui("信箱消息")} items={items} itemKey={(m) => m.id}
               listClassName="mailbox__list" itemClassName="mailbox__row" style={PANEL_ROWS}
               renderItem={(m) => <Letter m={m} busy={busy} now={now} onOpen={onOpen} onUndo={onUndo} close={() => setOpen(false)} />} />
-          ) : <EmptyMailbox />}
+          ) : <EmptyMailbox onOpenTasks={onOpenTasks ? () => { setOpen(false); onOpenTasks(); } : undefined} />}
         </div>
       )}
     </div>

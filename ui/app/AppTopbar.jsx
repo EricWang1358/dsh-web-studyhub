@@ -4,7 +4,9 @@ import { isTransientStudyError } from '../transport.js';
 import { markInboxRead } from '../quick-actions.js';
 import Inbox from '../Inbox.jsx';
 import { Button, Icon, Tooltip } from '../components/index.js';
+import { useInjectCss } from '../shared.js';
 import { useApp } from './app-context.js';
+import css from './app-shell.css';
 
 /** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
 export function libraryFolderName(root) {
@@ -12,6 +14,12 @@ export function libraryFolderName(root) {
   const parts = text.split(/[\\/]+/).filter(Boolean);
   const last = parts.at(-1) || text;
   return last === '.dsh-study' && parts.length > 1 ? parts.at(-2) : last;
+}
+
+/** Settings › 学习库与模型, with the model card in focus: the one way there from the bar (the library chip, and the status while no model is set up). */
+export function openLibrarySettings(settingsEntry, nav) {
+  settingsEntry.setSettingsFocus('settings-model');
+  nav.navigate('settings', { animate: true, keepTrail: false });
 }
 
 /** Top-bar "学习库：<folder>" (P03): where the library lives, one click from the folder control in Settings (学习库与模型). */
@@ -39,7 +47,7 @@ export function statusText({ busy, running, publishing, syncIssue, syncTransient
 
 /** The words of a short label that cannot say it all, for the Tooltip (hover or keyboard focus): what kinds of task run, or the whole sentence of a failing read
     with DSH's own error after it, in the page's language (uiMessage; an English page drops a Chinese error that has no English line). A sentence that asks for a
-    click is never added: nothing in the bar can be clicked. The steady states and 正在处理… have none. */
+    click is never added: the clickable state (no model) says its action in its own accessible name. The steady states and 正在处理… have none. */
 export function statusHint({ busy, running, publishing, syncIssue, syncTransient }) {
   if (busy || (running && publishing)) return undefined;
   if (running) return ui('有后台任务在进行（转换、转写、出题等）');
@@ -51,6 +59,7 @@ export function statusHint({ busy, running, publishing, syncIssue, syncTransient
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
 export default function AppTopbar({ title }) {
+  useInjectCss(css, 'study-app-shell');
   const { data, core, nav, connection, inbox, settingsEntry } = useApp();
   const { busy, act, quick, quickApi } = core;
   const { binding, running, publishing, syncIssue, syncTransient } = connection;
@@ -59,6 +68,13 @@ export default function AppTopbar({ title }) {
   const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
   const hint = statusHint({ busy, running, publishing, syncIssue, syncTransient });
   const idle = !busy && !running && !syncIssue && data && !noModel;
+  // With no model the words are the way to Settings › 学习库与模型 (the library chip's way): the whole area becomes one button that
+  // looks exactly like the words it replaced, so the bar does not move. A failing read or a running action keeps its own words and is not a button.
+  const fixModel = noModel && !busy && !running && !syncIssue;
+  const words = statusText({ busy, running, publishing, syncIssue, syncTransient, data, noModel });
+  const openLibrary = () => openLibrarySettings(settingsEntry, nav);
+  const dot = <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />;
+  const label = <span className="top-status-label" id={labelId}>{words}</span>;
   return (
     <header className="topbar">
       <nav className="crumbs" aria-label={ui('位置')}>
@@ -67,15 +83,17 @@ export default function AppTopbar({ title }) {
         <span className="crumb" aria-current="page">{title}</span>
       </nav>
       <div className="top-right">
-        <LibraryChip root={binding.root} onOpen={() => { settingsEntry.setSettingsFocus('settings-model'); nav.navigate('settings', { animate: true, keepTrail: false }); }} />
+        <LibraryChip root={binding.root} onOpen={openLibrary} />
         <Tooltip layer content={hint} anchorClassName={'top-status-anchor' + (idle ? ' is-idle' : '')}>
           <span className={'top-status' + (idle ? ' idle' : '')} role="status" tabIndex={hint ? 0 : undefined} aria-labelledby={hint ? labelId : undefined}>
-            <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />
-            <span className="top-status-label" id={labelId}>{statusText({ busy, running, publishing, syncIssue, syncTransient, data, noModel })}</span>
+            {fixModel
+              ? <Button variant="quiet" size="sm" className="top-status__fix" aria-label={uiFormat('{0}。打开「学习库与模型」设置', [words])} onClick={openLibrary}>{dot}{label}</Button>
+              : <>{dot}{label}</>}
           </span>
         </Tooltip>
         {data && (
           <Inbox inbox={data.inbox} busy={busy} onOpen={inbox.openInboxItem} onReadAll={() => markInboxRead(quick)} readError={quickApi.failures['inbox:read']}
+            onOpenTasks={() => nav.navigate('tasks', { animate: true, keepTrail: false })}
             onUndo={(letter) => act(letter.kind === 'rewrite' ? 'coach.revert' : 'card.revert', { deckId: letter.deckId, cardId: letter.cardId })} />
         )}
       </div>

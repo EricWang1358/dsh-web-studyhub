@@ -44,6 +44,8 @@ test('the app shell names the product StudyHub', async () => {
   assert.doesNotMatch(source, /Daily Flashcard/);
   assert.match(source, /className="brand"[\s\S]{0,400}\{ui\(['"]StudyHub['"]\)\}<small>/);
   assert.match(source, /<span className="crumb">\{ui\(['"]StudyHub['"]\)\}<\/span>/);
-  // The chip lands on the folder control (学习库与模型), not on whichever Settings category was used last.
-  assert.match(source, /<LibraryChip root=\{binding\.root\} onOpen=\{\(\) => \{ settingsEntry\.setSettingsFocus\('settings-model'\); nav\.navigate\('settings', \{ animate: true, keepTrail: false \}\); \}\} \/>/);
+  // The chip lands on the folder control (学习库与模型), not on whichever Settings category was used last. Both it and the status area (with
+  // no model) share openLibrarySettings, so the destination is written once.
+  assert.match(source, /<LibraryChip root=\{binding\.root\} onOpen=\{openLibrary\} \/>/);
+  assert.match(source, /settingsEntry\.setSettingsFocus\('settings-model'\)[\s\S]{0,120}nav\.navigate\('settings', \{ animate: true, keepTrail: false \}\)/);
 });
