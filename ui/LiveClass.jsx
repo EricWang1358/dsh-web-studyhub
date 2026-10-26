@@ -261,6 +261,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       })}
       onDelete={item => undoable.commitLater({ keys: [`live:${item.id}`], message: uiFormat('已删除「{0}」的实录、译文和课堂笔记；另存的学习资料还在。', [item.title]),
         commit: async () => { await call('live.delete', { id: item.id }); client.close(item.id); setSelected(new Set()); await refresh(); return true; },
-        failed: reason => uiFormat('没能删除「{0}」，已放回原处：{1}', [item.title, reason]) })} />
+        failed: reason => uiFormat('没能删除「{0}」，已放回原处：{1}', [item.title, reason]),
+        focus: () => document.querySelector(`[data-live="${CSS.escape(item.id)}"] .live-actions button:last-child`) })} />
   </section>;
 }

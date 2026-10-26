@@ -1,9 +1,10 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { useStudy } from "./study-context.jsx";
+import { AppContext } from "./app/app-context.js";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
 import { Badge, Banner, Button, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
@@ -37,6 +38,7 @@ export default function Manage({
 }) {
   useInjectCss(css, "study-manage");
   const { call, busy, act } = useStudy();
+  const refreshLibrary = useContext(AppContext)?.core?.refresh;
   const toast = useToast();
   const [targetId, setTargetId] = useState("");
   const [merging, setMerging] = useState(false);
@@ -74,7 +76,8 @@ export default function Manage({
     offerRestore(toast, {
       message: ended ? uiFormat("已归档「{0}」，结束了 {1} 轮进行中的练习；撤销只恢复题组，结束的练习不会重新打开。", [deck.title, ended]) : uiFormat("已归档「{0}」", [deck.title]),
       restored: ended ? uiFormat("已恢复「{0}」；结束的练习不会重新打开。", [deck.title]) : uiFormat("已恢复「{0}」", [deck.title]),
-      restore: () => act("deck.archive", { id: deck.id, archived: false }, reload(deck.id)),
+      // A plain call (not the single-flight act(): 撤销 stays usable while another write runs, and must not be dropped by it), then the page and the library read again.
+      restore: async () => { await call("deck.archive", { id: deck.id, archived: false }); await reload(deck.id)(); Promise.resolve(refreshLibrary?.()).catch(() => {}); return true; },
       // The keyboard focus after 撤销 is this page's archive button again; after 永久删除… is closed it comes back to it too (ui/app/AppModalHost.jsx).
       focus: () => document.querySelector(".manage-page [data-manage-archive]"),
       secondary: { label: ui("永久删除…"), onClick: () => onRemoveDeck(deck.id, { returnFocus: ".manage-page [data-manage-archive]" }) } });

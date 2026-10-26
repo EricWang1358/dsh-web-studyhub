@@ -140,7 +140,7 @@ The conversion is one job in the same list as audio imports, with its card on th
 - **Buttons.**
   - **Stop (pieces already converted are kept)**.
   - **Resume (finished pieces are not redone)**. When the service had stopped, Resume starts it first.
-  - **Archive** puts the card away: the task goes under Jobs › Archived (nothing is deleted, **Undo** in the notice brings it back); deleting it there removes the record and its temporary files.
+  - **Archive** puts the card away: the task goes under Jobs › Archived (nothing is deleted, **Undo** in the notice brings it back); deleting it there removes the record only: the temporary pieces of the conversion stay until the 7-day sweep clears them, and until then a restart can list the conversion again (as failed, ready to continue).
 - **Progress.** The piece in hand (its pages, how long it has run and how long it should take), the finished pieces with their times, and the size of the next piece. A piece shows no finer progress while it runs; that does not mean it is stuck.
 - **Time left.** It is hidden until a piece has finished, then says "about". It is one figure when the pieces agree, and a range ("About 15 min to 40 min left") while the speed is not steady.
 - **Many pieces.** A card with more than eight pieces shows a summary, such as "Piece 13 · 12 done", and a **Show all windows** toggle. The list wraps inside the card.

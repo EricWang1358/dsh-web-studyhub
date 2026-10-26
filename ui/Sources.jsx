@@ -1,6 +1,6 @@
 import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
 import { formatNumber, formatDay } from "./format.js";
-import React, { memo, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { memo, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
@@ -35,6 +35,7 @@ import css from "./sources.css";
 import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 import { offerRestore } from './undoable.js';
 import { useStudy } from './study-context.jsx';
+import { AppContext } from './app/app-context.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
@@ -311,6 +312,7 @@ function GroupHead({ expanded, onToggle, children }) {
 
 export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onPractice, onOpenSources, onLegacyRetry, onOpenSettings, onBuildIndex, highlight }) {
   const { busy, act, call } = useStudy();
+  const refresh = useContext(AppContext)?.core?.refresh;
   useInjectCss(css, "study-sources");
   const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
@@ -395,7 +397,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // The keyboard focus after 撤销 is the row's 更多 again; after 永久删除… is closed it is that row, or the 已归档 button when the row is in the archive.
   const rowMenu = key => () => document.querySelector(`[data-document-key="${CSS.escape(key)}"] .source-row-actions > summary`);
   const offerArchived = item => offerRestore(toast, { message: uiFormat('已归档「{0}」：在「已归档」里，可以恢复或永久删除。', [displayTitle(item.title)]),
-    restored: uiFormat('已恢复「{0}」', [displayTitle(item.title)]), restore: () => act('source.archive', { sourceIds: item.sourceIds, archived: false }), focus: rowMenu(item.key),
+    restored: uiFormat('已恢复「{0}」', [displayTitle(item.title)]), restore: async () => { await call('source.archive', { sourceIds: item.sourceIds, archived: false }); Promise.resolve(refresh?.()).catch(() => {}); return true; }, focus: rowMenu(item.key),
     secondary: { label: ui('永久删除…'), onClick: () => setRemoving({ ...item, archived: true, fromNotice: true }) } });
   const closeRemoving = () => {
     const was = removing;

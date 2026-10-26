@@ -327,7 +327,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     if (latest.current.passageKey === key) { commit(emptyThread()); setSavedLocal(new Set()); }
     await annotation.onChanged?.();
     if (!removed.length) return;
-    undoable.restoreWith({ message: ui('已删除这组批注'), restored: ui('已恢复这组批注'),
+    undoable.restoreWith({ message: ui('已删除这组批注'), restored: ui('已恢复这组批注'), focus: () => document.querySelector('.ask-thread .ask-node__keep button'),
       restore: async () => {
         await restoreKeptThread({ call, documentId, revision, removed });
         await annotation.onChanged?.();

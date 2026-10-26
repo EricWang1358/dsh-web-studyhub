@@ -299,7 +299,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
   const busy = working === row.id;
   const known = Object.hasOwn(STATUS_TEXT, status) ? status : 'failed';
   return (
-    <li className="pdf-history__item">
+    <li className="pdf-history__item" data-record={row.id}>
       <JobRow className="pdf-history__row" status={known} title={row.filename} data-route={row.route || 'cloud'} data-status={status}
         failure={stage || row.failure?.reason ? { title: stage || undefined, hint: row.failure?.reason ? uiMessage(row.failure.reason) : undefined } : undefined}>
         <span className="pdf-history__chips">
@@ -373,7 +373,8 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   const toHeading = () => setTimeout(() => heading.current?.focus?.(), 0);
   const forget = async (request) => { await request(); if (alive.current) await load(); return true; };
   const remove = row => { toHeading(); undoable.commitLater({ keys: [row.id], message: uiFormat('已删除「{0}」的记录', [row.filename]),
-    commit: () => forget(() => call('mineru.history.remove', { id: row.id })), failed: reason => uiFormat('没能删除「{0}」的记录，已放回原处：{1}', [row.filename, reason]) }); };
+    commit: () => forget(() => call('mineru.history.remove', { id: row.id })), failed: reason => uiFormat('没能删除「{0}」的记录，已放回原处：{1}', [row.filename, reason]),
+    focus: () => document.querySelector(`[data-record="${CSS.escape(row.id)}"] .pdf-history__actions button:last-child`) }); };
   // 清空历史: the rows shown (none running) leave at once; when the notice leaves, exactly THOSE records are forgotten, one by one (a conversion that finished
   // during the 撤销 time is not swept away with them, as the unscoped mineru.history.clear would). A record that started running again stays and comes back.
   const clear = () => { const ids = deletable.map(row => row.id); toHeading(); undoable.commitLater({ keys: ids, message: uiFormat('已清空 {0} 条解析记录', [ids.length]),
@@ -381,7 +382,8 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
       try { return { ok: true, kept: (await forgetRecords(call, ids)).kept }; } finally { if (alive.current) await load(); }
     },
     kept: count => uiFormat('{0} 条记录又在运行，没有删除', [count]),
-    failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]) }); };
+    failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]),
+    focus: () => document.querySelector('.pdf-history__bar button') }); };
   const retry = row => work(row.id, async () => {
     // A stopped local service is started by the run itself.
     await send('mineru.retry', { jobId: row.id });

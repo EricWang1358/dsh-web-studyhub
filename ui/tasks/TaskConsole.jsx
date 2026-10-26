@@ -7,11 +7,12 @@ import { useQuickActions, dismissJobs } from '../quick-actions.js';
 import { formatDateTime, joinMeta } from '../format.js';
 import denseCss from '../dense-surface.css';
 import css from './task-console.css';
-import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf, taskKindOf } from './task-model.js';
+import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf } from './task-model.js';
 import { isSelectableTask, reconcileSelection, selectionSummary, toggleAll, toggleSelection } from './task-selection.js';
 import { batchMessage, batchRun } from './task-batch.js';
 import SelectBar from './SelectBar.jsx';
 import { useUndoable } from '../use-undoable.js';
+import { deleteNoticeText } from './delete-notice.js';
 import { taskSummary } from './task-summary.js';
 import { usageLine } from './task-facts.js';
 import Metrics from './Metrics.jsx';
@@ -38,8 +39,6 @@ import { modelReadiness } from '../generation-status.js';
 const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败/中断', archived: '已归档' };
 /** The row of a task in the list: where the keyboard focus goes back to after 撤销. */
 const rowOf = (id) => () => document.querySelector(`.tc-row[data-task-id="${CSS.escape(id)}"]`);
-/* A task whose working files go with its record (an audio batch's folder, a conversion's pieces, anything 接着做 would resume from): after 删除 it cannot be continued. */
-const losesWorkingFiles = (task) => ['audio', 'pdf-convert'].includes(taskKindOf(task)) || !!contractOf(task).actions?.retry?.available;
 
 function percentWord(summary) {
   if (summary.state === 'fail') return ui('失败');
@@ -238,12 +237,8 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
     const gone = ids.filter((id) => !running.includes(id));
     setSelection((before) => new Set([...before].filter((id) => !ids.includes(id))));
     if (!gone.length) { core.notify?.(uiFormat('跳过 {0} 个进行中的任务', [running.length])); return; }
-    const one = gone.length === 1 ? everything.get(gone[0]) : null;
-    const files = gone.filter((id) => { const item = everything.get(id); return item && losesWorkingFiles(item); }).length;
-    let message = one ? uiFormat('已删除「{0}」', [taskSummary(one).title]) : uiFormat('已删除 {0} 个任务', [gone.length]);
-    if (running.length) message = uiFormat('{0}；跳过 {1} 个进行中的任务', [message, running.length]);
-    if (files) message = uiFormat('{0}；其中 {1} 个任务的中间文件也会删除，之后不能接着做', [message, files]);
-    message = uiFormat('{0}；资料、草稿和题组不会删除', [message]);
+    // The words follow what job.delete really removes (ui/tasks/delete-notice.js): working files only for audio and a live PDF conversion; a question run's draft stays.
+    const message = deleteNoticeText(gone.map((id) => everything.get(id)).filter(Boolean), running.length);
     undoable.commitLater({ keys: gone, message, focus: rowOf(gone[0]),
       commit: async () => {
         const result = await batchRun('delete', gone, { quick, core });

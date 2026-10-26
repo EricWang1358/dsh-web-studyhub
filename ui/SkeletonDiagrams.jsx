@@ -64,14 +64,15 @@ export default function SkeletonDiagrams({ skeletonId, diagrams, revision }) {
   const remove = (row) => undoable.commitLater({ keys: [`diagram:${row.id}`],
     message: uiFormat('已删除图「{0}」在学习库里的副本；骨架和你工作目录里的原文件都还在。', [row.title]),
     commit: async () => { await call('skeleton.diagram.remove', { id: skeletonId, diagramId: row.id }); Promise.resolve(refresh?.()).catch(() => {}); return true; },
-    failed: (reason) => uiFormat('没能删除图「{0}」，已放回原处：{1}', [row.title, reason]) });
+    failed: (reason) => uiFormat('没能删除图「{0}」，已放回原处：{1}', [row.title, reason]),
+    focus: () => document.querySelector(`[data-diagram="${CSS.escape(row.id)}"] .sk-diagrams__actions button:last-child`) });
   if (!rows.length) return null;
   return (
     <section className="sk-diagrams" aria-label={ui('交互图')}>
       <h4 className="sk-diagrams__title">{ui('交互图')} <span className="muted">{rows.length}</span></h4>
       <ul className="sk-diagrams__list">
         {rows.map((row) => (
-          <li key={row.id} className="sk-diagrams__row">
+          <li key={row.id} className="sk-diagrams__row" data-diagram={row.id}>
             <div className="sk-diagrams__main">
               <strong className="sk-diagrams__name">{row.title}</strong>
               <small className="muted">{[row.date, row.size].filter(Boolean).join(' · ')}</small>

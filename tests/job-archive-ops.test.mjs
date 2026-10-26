@@ -143,6 +143,27 @@ test('job.unarchive takes a record back: an audio batch is restored from its fol
   assert.deepEqual(await handlers['job.unarchive']({ jobIds: ['gen-1'] }), { unarchived: [], missing: ['gen-1'] }, 'not archived any more');
 });
 
+test('归档 then 撤销 of a question run: the card comes back as it was (its deck name, its draft, what it was made from), and an older record without those fields still restores', async (t) => {
+  const run = gen(7, { status: 'complete', draftId: 'draft-7', deckTitle: '复制与共识', sourceIds: ['s1', 's2'], kind: 'quiz', requestedTotal: 4, savedCount: 4, count: 4, origin: 'generate' });
+  const { handlers, map, archive } = await setup(t, { jobs: [run] });
+  const before = snapshotJob(map.get('gen-7'));
+  await handlers['job.archive']({ jobIds: ['gen-7'] });
+  assert.deepEqual((await archive.find('gen-7')).job.fields, { draftId: 'draft-7', deckTitle: '复制与共识', kind: 'quiz', count: 4, requestedTotal: 4, savedCount: 4, origin: 'generate', sourceIds: ['s1', 's2'] });
+  await handlers['job.unarchive']({ jobIds: ['gen-7'] });
+  const after = snapshotJob(map.get('gen-7'));
+  for (const key of ['draftId', 'deckTitle', 'sourceIds', 'kind', 'requestedTotal', 'savedCount', 'count', 'origin', 'status']) assert.deepEqual(after[key], before[key], key);
+  assert.equal(after.contract.title, before.contract.title);
+  // a record written before the fields were kept
+  const old = await setup(t, { jobs: [gen(8)] });
+  await old.handlers['job.archive']({ jobIds: ['gen-8'] });
+  const record = await old.archive.find('gen-8');
+  delete record.job.fields;
+  await old.archive.remove(['gen-8']);
+  await old.archive.add([record]);
+  await old.handlers['job.unarchive']({ jobIds: ['gen-8'] });
+  assert.equal(snapshotJob(old.map.get('gen-8')).contract.title, 'Deck 8');
+});
+
 test('job.delete removes records for good: finished jobs and archived records go, the audio working copy is cleaned, a running job is skipped and counted', async (t) => {
   const { root, map, handlers, events, archive } = await setup(t, { jobs: [audio(1), audio(2), gen(1), gen(2, { status: 'running' })] });
   await folder(root, batch(2));

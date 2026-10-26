@@ -69,7 +69,8 @@ export function noticeToToast(notice, busy) {
     ...(value.title ? { title: uiMessage(value.title) } : {}),
     message: value.copy ? String(value.text ?? '') : uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
     ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), ...receipt,
-    // An undo offer's 撤销 and 永久删除… stay usable while another write runs: they are the learner's only way back, and run outside the single-flight act().
+    // An undo offer's 撤销 and 永久删除… stay usable while another write runs: they are the learner's only way back. Their inverses are plain calls (never the
+    // single-flight act(), which would drop them while busy); an inverse that still resolves undefined says 「另一个操作还在进行」 (ui/undoable.js).
     action: actionOf(value, value.undo ? false : busy),
     ...(value.secondary ? { secondary: actionOf({ action: value.secondary }, value.undo ? false : busy) } : {}) };
 }

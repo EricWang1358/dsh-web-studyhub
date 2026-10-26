@@ -70,12 +70,14 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
   const cancel = onStop || (() => app.core?.act?.('job.control', { jobId: contract.jobId, action: 'cancel' }));
   // 归档 puts the task in 已归档 (nothing is deleted); the notice says so and offers 撤销 (job.unarchive), from whichever page the card is on. A card that folds older
   // runs of the same draft archives them too (the caller's onDismiss answers { ok, ids }), and 撤销 brings every one of them back.
+  // The notice names the task plainly (its own title, as the 任务 console does), never the card's headline (「「X」草稿已生成」 in brackets again).
+  const taskName = taskSummary(job).title;
   const dismiss = () => {
     const done = onDismiss ? onDismiss() : quick ? dismissJobs(quick, job.id) : app.core?.act?.('job.archive', { jobId: job.id });
     void Promise.resolve(done).then((result) => {
       if (result === undefined && !onDismiss && !quick) return;
       if (result?.ok === false) return;
-      offerRestore(toast, { message: uiFormat('已归档「{0}」：在「任务」的「已归档」里。', [summary.title]), restored: uiFormat('已取消归档「{0}」', [summary.title]),
+      offerRestore(toast, { message: uiFormat('已归档「{0}」：在「任务」的「已归档」里。', [taskName]), restored: uiFormat('已取消归档「{0}」', [taskName]),
         restore: async () => {
           const ids = Array.isArray(result?.ids) && result.ids.length ? [...new Set(result.ids)] : [contract.jobId];
           const back = await batchRun('unarchive', ids, { quick, core: app.core });

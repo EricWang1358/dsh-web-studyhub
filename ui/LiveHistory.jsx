@@ -7,7 +7,7 @@ import { Button } from './components/index.js';
    source or a question): the caller hides the row and offers 撤销 in the notice (ui/undoable.js), and the host deletes it when that notice leaves. */
 export default function LiveHistory({ sessions, disabled, capturing, onOpen, onArchive, onDelete }) {
   const recent = sessions.filter(item => !item.archivedAt), archived = sessions.filter(item => item.archivedAt);
-  const row = item => <div className="live-history-item" key={item.id}>
+  const row = item => <div className="live-history-item" key={item.id} data-live={item.id}>
     <div className="live-history-row"><div><strong>{item.title}</strong><small>{formatClock(item.elapsedMs)} · {uiFormat('{0} 句', [item.segments])}{item.active ? ` · ${ui('实录中')}` : ''}</small></div>
       <div className="live-actions"><Button disabled={disabled || capturing} onClick={() => onOpen(item.id)}>{ui('打开')}</Button>
         <Button disabled={disabled || item.active} onClick={() => onArchive(item.id, !item.archivedAt)}>{item.archivedAt ? ui('恢复') : ui('归档')}</Button>

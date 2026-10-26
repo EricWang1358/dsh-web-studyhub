@@ -56,7 +56,7 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
   assert.deepEqual(await calls(), []);
   assert.notEqual(await page.evaluate(() => document.activeElement?.textContent), '撤销', 'the notice does not take the focus');
   // started from the keyboard: no time in its words, and it waits (well past 8 s) for the learner to Tab to 撤销
-  assert.doesNotMatch(await notice.innerText(), /秒内可撤销/);
+  assert.doesNotMatch(await notice.innerText(), /秒内/);
   await page.waitForTimeout(9000);
   assert.equal(await notice.filter({ hasText: '已删除 A' }).count(), 1, 'a keyboard-started notice does not run out');
   assert.deepEqual(await calls(), []);
@@ -76,7 +76,7 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
   // 删除 A again with the mouse: the notice says its window; close it: sent once
   await page.locator('button[data-item="A"]').click();
   await notice.filter({ hasText: '已删除 A' }).waitFor();
-  assert.match(await notice.innerText(), /8 秒内可撤销/);
+  assert.match(await notice.innerText(), /8 秒内、下一次删除前可撤销/);
   await notice.getByRole('button', { name: '关闭提示' }).click();
   await page.waitForFunction(() => window.calls.length === 1);
   assert.deepEqual(await calls(), ['A']);
@@ -122,4 +122,41 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
   assert.match(await page.locator('[role="alert"] .sh-toast').innerText(), /学习库已更换/);
   assert.deepEqual(await calls(), ['A', 'B', 'D', 'E', 'F'], 'nothing reached the other library');
   assert.deepEqual(errors, []);
+});
+
+/* A page that only offers restoreWith (a home job card's 归档, 全部归档, a deck archive) and mounts no useUndoable: the keyboard is still known (ui/undoable.js tracks
+   the input from the moment it loads), so an archive started with Enter keeps its notice until the learner gets to 撤销. Review of #506, round 3. */
+test('an archive started from the keyboard on a page with no useUndoable: the notice waits for the learner', { timeout: 60000 }, async (t) => {
+  const bundle = await build({ stdin: { contents: `
+    import React, { useMemo, useState } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import ActionFeedback, { useNotice } from './ui/ActionFeedback.jsx';
+    import { ToastContext, createToastApi } from './ui/components/Feedback.jsx';
+    import { offerRestore } from './ui/undoable.js';
+    function Harness() {
+      const [notice, setNotice] = useNotice('scope');
+      const [error, setError] = useState(''), [archived, setArchived] = useState(false);
+      const toast = useMemo(() => createToastApi({ setNotice, setError }), [setNotice]);
+      const archive = () => { setArchived(true); offerRestore(toast, { message: '已归档「复制与共识」', restore: async () => { setArchived(false); return true; } }); };
+      return <ToastContext.Provider value={toast}><div className="study-app">{archived ? <p>gone</p> : <button data-card onClick={archive}>归档</button>}
+        <ActionFeedback notice={notice} error={error} placement="inline" onCloseNotice={() => setNotice('')} onCloseError={() => setError('')} /></div></ToastContext.Provider>;
+    }
+    createRoot(document.getElementById('root')).render(<Harness />);
+  `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium: ${String(error.message).split('\n')[0]}`); return; }
+  t.after(() => browser.close());
+  const page = await browser.newPage({ locale: 'zh-CN' });
+  await page.setContent('<main id="root"></main>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await page.locator('button[data-card]').focus();
+  await page.keyboard.press('Enter');
+  const notice = page.locator('[role="status"] .sh-toast', { hasText: '已归档' });
+  await notice.waitFor();
+  assert.doesNotMatch(await notice.innerText(), /秒内/, 'no time is promised to a keyboard user');
+  await page.waitForTimeout(9000);
+  assert.equal(await notice.count(), 1, 'still there after 8 s');
+  await notice.getByRole('button', { name: '撤销' }).focus();
+  await page.keyboard.press('Enter');
+  await page.locator('button[data-card]').waitFor();
 });

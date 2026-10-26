@@ -41,7 +41,7 @@
   "还没有归档的任务。已结束的任务点「归档」，会放在这里。": "Nothing archived yet. Finished jobs you archive are kept here.",
   "已删除学习流「{0}」；已开始的学习记录还在。": "Deleted learning flow “{0}”; study records already started stay.",
   "已删除学习记录「{0}」的笔记和进度；闪卡练习历史还在。": "Deleted the notes and progress of study record “{0}”; your flashcard history stays.",
-  "{0}（{1} 秒内可撤销）": "{0} (undo within {1} s)",
+  "{0}（{1} 秒内、下一次删除前可撤销）": "{0} (undo within {1} s, before the next delete)",
   "学习库已更换，这次删除没有执行。": "The library changed, so this deletion was not made.",
   "学习库已更换：刚才的 {0} 项删除没有执行，它们还在原来的学习库里。": "The library changed: the {0} deletion(s) you just made were not carried out; those items are still in the other library.",
   "会保留：题组「{0}」和它已发布的 {1} 道题，以及出题用的资料。": "Stays: the deck “{0}” with its {1} published questions, and the materials.",
@@ -60,5 +60,7 @@
   "{0}；资料、草稿和题组不会删除": "{0}; sources, drafts and decks are not deleted",
   "{0}；跳过 {1} 个进行中的任务": "{0}; skipped {1} running",
   "这份资料的批注已经存满（最多 {0} 条），原来那组批注没能放回。": "This document already keeps the most annotations it can ({0}), so these annotations could not be put back.",
-  "这段原文上的问答已经到了上限（最多 {0} 条），原来那组批注没能放回。": "This passage already has the most questions and answers it can keep ({0}), so these annotations could not be put back."
+  "这段原文上的问答已经到了上限（最多 {0} 条），原来那组批注没能放回。": "This passage already has the most questions and answers it can keep ({0}), so these annotations could not be put back.",
+  "{0}；草稿还在，可以从草稿接着出题": "{0}; the draft stays, so you can add questions from it",
+  "{0}；资料和题组也不会删除": "{0}; sources and decks are not deleted either"
 }

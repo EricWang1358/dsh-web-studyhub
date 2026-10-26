@@ -16,7 +16,8 @@ import { failureText } from './failure.js';
      restore, annotation restore). The notice says `message` with 撤销, which runs `restore()` (it resolves truthy when it worked; the notice stays up while it
      runs, and stays usable when it failed); `secondary` is a second quiet action ({ label, onClick }), e.g. 永久删除… after an archive.
 
-   The words: a notice started with the mouse says how long 撤销 lasts (「…（8 秒内可撤销）」) and leaves after UNDO_TIMEOUT unless hovered or focused. One started from
+   The words: a notice started with the mouse says how long 撤销 lasts and what ends it sooner (「…（8 秒内、下一次删除前可撤销）」: the app has one notice, so
+   the next deletion's notice sends this one) and leaves after UNDO_TIMEOUT unless hovered or focused. One started from
    the keyboard (`keyboard()` is true: Enter or Space was the last input) stays until it is closed or replaced, and says no time: the learner may need many
    Tab presses to reach 撤销 (ui/use-undoable.js tracks the input).
    `scope()` names the library an entry was made in; a commit whose library is no longer the current one is not sent (its items show again, with an error).
@@ -47,7 +48,7 @@ export function createUndoable({ toast, onChange = () => {}, timeout = UNDO_TIME
     later(attempt, 30);
   };
   // What the notice says and how long it lasts: the time is said for a mouse, and a notice started from the keyboard waits for the learner.
-  const notice = (message, byKeyboard) => (byKeyboard ? { message, persistent: true } : { message: uiFormat('{0}（{1} 秒内可撤销）', [message, Math.round(timeout / 1000)]), timeout });
+  const notice = (message, byKeyboard) => (byKeyboard ? { message, persistent: true } : { message: uiFormat('{0}（{1} 秒内、下一次删除前可撤销）', [message, Math.round(timeout / 1000)]), timeout });
 
   function hidden(key) { return entries.some((entry) => hides(entry) && entry.keys.includes(key)); }
 
@@ -124,7 +125,12 @@ export function createUndoable({ toast, onChange = () => {}, timeout = UNDO_TIME
         if (entry.state !== 'done') return false;
         entry.state = 'restoring';
         let ok = false;
-        try { const result = await restore(); ok = !!result && !failedOf(result); } catch (error) { say().error?.(error); }
+        try {
+          const result = await restore();
+          ok = !!result && !failedOf(result);
+          // act() resolves undefined when another write held the lock: say so, the offer stays usable for a second try.
+          if (result === undefined) say().error?.(ui('另一个操作还在进行，请稍后重试。'));
+        } catch (error) { say().error?.(error); }
         entry.state = ok ? 'restored' : 'done';
         if (ok) { say().show?.({ tone: 'info', message: restored || ui('已撤销') }); refocus(focus); }
         return ok;
@@ -166,7 +172,8 @@ export function flushUndoable() { return Promise.all([...units].map((unit) => un
 /** The library already changed: nothing waiting may reach the new one. Returns how many items were not deleted. */
 export function abandonUndoable() { return [...units].reduce((total, unit) => total + unit.abandon(), 0); }
 
-/* The input the learner used last: a notice started by Enter or Space must not run out while they Tab to 撤销 (installed once, by ui/use-undoable.js). */
+/* The input the learner used last: a notice started by Enter or Space must not run out while they Tab to 撤销. Installed once, when this module loads in a page, so
+   a page that only offers restoreWith (a job card's 归档, 全部归档, a deck archive) knows it too, whatever else is mounted. */
 let lastInput = 'pointer';
 export function trackInput(target) {
   if (!target?.addEventListener || target.__undoInput) return;
@@ -175,3 +182,4 @@ export function trackInput(target) {
   target.addEventListener('pointerdown', () => { lastInput = 'pointer'; }, true);
 }
 export const startedByKeyboard = () => lastInput === 'keyboard';
+if (typeof document !== 'undefined') trackInput(document);

@@ -26,13 +26,21 @@ function visit(node, enter, parent = null) {
   }
 }
 
-/* An operation that deletes: a host action named *.delete / *.remove / *.clear / *.dismiss, or a function whose name says remove / delete / clear. */
+/* An operation that deletes: a host action named *.delete / *.remove / *.clear / *.dismiss (a literal or the end of a template), or a function whose name says
+   remove / delete / clear. */
 const DELETE_ACTION = /\.(delete|remove|clear|dismiss)$/;
 const DELETE_NAME = /^(remove|delete|clear|wipe|purge|drop)/i;
+const DELETE_WORD = /删除|清空|移除|永久删除|[Dd]elete|[Cc]lear|[Rr]emove/;
+/* A second press asked for: the words of a confirmation, or a flag named like one. */
+const CONFIRM_WORD = /确认|再点|再按|again|sure|无法撤销|不能撤销|[Cc]onfirm/;
+const CONFIRM_FLAG = /armed|again|twice|confirm|sure|second|pending|asked?/i;
+const HELPER_DEPTH = 3;
 /* Reviewed InlineConfirm uses that delete nothing for good: { file: [handler names] }. Each needs a reason. */
 const REVERSIBLE = {
   // 移除这一步: takes a step out of the flow being edited (unsaved form state); nothing is stored until 保存.
-  'ui/Workflows.jsx': ['removeStep'],
+  'ui/Workflows.jsx': ['removeStep',
+    // 载入最新版本: replaces the unsaved input of the form with the stored flow (and drops the browser's copy of that input); nothing stored is deleted.
+    'reloadLatest'],
 };
 
 /** The deletions an InlineConfirm in `code` would confirm, and the "tap twice" label swaps: [{ kind, line, what }]. `file` picks the allow-list. */
@@ -40,71 +48,103 @@ export function deletionFindings(code, file = '') {
   const ast = parse(code), findings = [];
   const line = (node) => code.slice(0, node.range[0]).split('\n').length;
   const inlineNames = new Set(['InlineConfirm']), functions = new Map();
-  visit(ast, (node) => {
+  visit(ast, (node, parent) => {
     if (node.type === 'ImportSpecifier' && node.imported.name === 'InlineConfirm') inlineNames.add(node.local.name);
+    if (node.type === 'ImportDefaultSpecifier' && /InlineConfirm(\.jsx?)?$/.test(parent?.source?.value || '')) inlineNames.add(node.local.name);
     if (node.type === 'FunctionDeclaration' && node.id) functions.set(node.id.name, node);
     if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier' && /Function/.test(node.init?.type || '')) functions.set(node.id.name, node.init);
+    // an object's methods (`actions = { remove: (item) => … }`), found by their property name
+    if (node.type === 'Property' && !node.computed && node.key.type === 'Identifier' && /Function/.test(node.value?.type || '')) functions.set(node.key.name, node.value);
   });
-  // What a handler does: the host actions it names and the functions it calls, following functions of this file one level deep.
-  const effects = (expression, depth = 0) => {
+  const nameOf = (callee) => (callee?.type === 'Identifier' ? callee.name : callee?.type === 'MemberExpression' && !callee.computed ? callee.property.name : '');
+  const actionText = (arg) => (arg?.type === 'Literal' && typeof arg.value === 'string' ? arg.value
+    : arg?.type === 'TemplateLiteral' ? arg.quasis.map((quasi) => quasi.value.cooked).join('*') : '');
+  // What a handler does: the host actions it names and the functions it calls, following functions of this file up to HELPER_DEPTH deep.
+  const effects = (expression, depth = 0, seen = new Set()) => {
     const out = { actions: [], calls: [] };
+    const follow = (name) => {
+      if ((REVERSIBLE[file] || []).includes(name)) return; // a reviewed handler is not looked into
+      if (depth >= HELPER_DEPTH || !functions.has(name) || seen.has(name)) return;
+      const inner = effects(functions.get(name), depth + 1, new Set([...seen, name]));
+      out.actions.push(...inner.actions);
+      out.calls.push(...inner.calls);
+    };
     visit(expression, (node) => {
       if (node.type !== 'CallExpression') return;
-      const callee = node.callee.type === 'Identifier' ? node.callee.name : node.callee.type === 'MemberExpression' && !node.callee.computed ? node.callee.property.name : '';
-      if (callee) out.calls.push(callee);
-      const first = node.arguments[0];
-      if (first?.type === 'Literal' && typeof first.value === 'string' && DELETE_ACTION.test(first.value)) out.actions.push(first.value);
-      if (depth < 1 && node.callee.type === 'Identifier' && functions.has(node.callee.name)) {
-        const inner = effects(functions.get(node.callee.name), depth + 1);
-        out.actions.push(...inner.actions);
-      }
+      const callee = nameOf(node.callee);
+      if (callee) { out.calls.push(callee); follow(callee); }
+      const text = actionText(node.arguments[0]);
+      if (DELETE_ACTION.test(text)) out.actions.push(text);
     });
-    if (depth < 1 && expression?.type === 'Identifier' && functions.has(expression.name)) out.actions.push(...effects(functions.get(expression.name), depth + 1).actions);
-    if (expression?.type === 'Identifier') out.calls.push(expression.name);
+    const direct = nameOf(expression);
+    if (direct) { out.calls.push(direct); follow(direct); }
     return out;
   };
+  const isInlineConfirm = (name) => (name.type === 'JSXIdentifier' && inlineNames.has(name.name))
+    || (name.type === 'JSXMemberExpression' && name.property.name === 'InlineConfirm'); // <C.InlineConfirm> of `import * as C`
   visit(ast, (node) => {
-    if (node.type !== 'JSXOpeningElement' || node.name.type !== 'JSXIdentifier') return;
-    if (inlineNames.has(node.name.name)) {
-      const confirm = node.attributes.find((attr) => attr.type === 'JSXAttribute' && attr.name.name === 'onConfirm');
-      const expression = confirm?.value?.expression;
-      if (!expression) return;
-      const { actions, calls } = effects(expression);
-      const allowed = REVERSIBLE[file] || [];
-      const named = calls.filter((name) => DELETE_NAME.test(name) && !allowed.includes(name));
-      if (actions.length || named.length) findings.push({ kind: 'inline-confirm', line: line(node), what: [...actions, ...named].join(', ') });
-    }
+    if (node.type !== 'JSXOpeningElement' || !isInlineConfirm(node.name)) return;
+    const confirm = node.attributes.find((attr) => attr.type === 'JSXAttribute' && attr.name.name === 'onConfirm');
+    const expression = confirm?.value?.expression;
+    if (!expression) return;
+    const { actions, calls } = effects(expression);
+    const allowed = REVERSIBLE[file] || [];
+    const named = calls.filter((name) => DELETE_NAME.test(name) && !allowed.includes(name));
+    if (actions.length || named.length) findings.push({ kind: 'inline-confirm', line: line(node), what: [...new Set([...actions, ...named])].join(', ') });
   });
-  // A label swap: a button whose text is a condition between two words, one of them a deletion, on a flag that remembers a first press.
+  // A label swap: any condition between two words (literals, ui()/uiFormat() of literals, or a condition that IS the first argument of ui()/uiFormat()), one of them
+  // a deletion, that asks for a second press: the words of a confirmation, or a flag named like one. Wherever it sits: a button's child, a variable, ui()'s argument.
+  const words = (branch) => (branch?.type === 'Literal' && typeof branch.value === 'string' ? branch.value
+    : branch?.type === 'TemplateLiteral' ? branch.quasis.map((quasi) => quasi.value.cooked).join('')
+      : branch?.type === 'CallExpression' && ['ui', 'uiFormat'].includes(nameOf(branch.callee)) ? words(branch.arguments[0])
+        // a nested condition (armed ? (busy ? A : B) : (busy ? C : D)) stands for both of its words
+        : branch?.type === 'ConditionalExpression' && words(branch.consequent) !== null && words(branch.alternate) !== null ? `${words(branch.consequent)}|${words(branch.alternate)}` : null);
   visit(ast, (node) => {
-    if (node.type !== 'JSXElement') return;
-    for (const child of node.children) {
-      if (child.type !== 'JSXExpressionContainer' || child.expression.type !== 'ConditionalExpression') continue;
-      const text = code.slice(child.expression.consequent.range[0], child.expression.alternate.range[1]);
-      const test = code.slice(child.expression.test.range[0], child.expression.test.range[1]);
-      if (/删除|清空|移除|永久删除|[Dd]elete|[Cc]lear|[Rr]emove/.test(text) && /armed|again|twice|confirm|sure|second/i.test(test)) findings.push({ kind: 'label-swap', line: line(child), what: test });
-    }
+    if (node.type !== 'ConditionalExpression') return;
+    const yes = words(node.consequent), no = words(node.alternate);
+    if (yes === null || no === null || yes === no) return;
+    if (!DELETE_WORD.test(yes) && !DELETE_WORD.test(no)) return;
+    const test = code.slice(node.test.range[0], node.test.range[1]);
+    if (CONFIRM_WORD.test(yes) !== CONFIRM_WORD.test(no) || (CONFIRM_FLAG.test(test) && DELETE_WORD.test(yes) && DELETE_WORD.test(no)))
+      findings.push({ kind: 'label-swap', line: line(node), what: test });
   });
   return findings;
 }
 
-test('the guard itself: it finds what the literal form missed, and leaves a reversible InlineConfirm alone', () => {
+test('the guard itself: it finds every shape the reviews named, and leaves reversible uses alone', () => {
   const kinds = (code, file) => deletionFindings(code, file).map((finding) => finding.kind);
   // an aliased import, a nested `/>` in an icon prop, the title in a variable
   assert.deepEqual(kinds(`import { InlineConfirm as Ask } from './components/index.js';
     const title = ui('清掉？');
     export default () => <Ask icon={<Icon name="trash" />} title={title} onConfirm={() => call('note.delete', { id })} />;`), ['inline-confirm']);
-  // the deletion behind a function of the file
+  // a namespace import and a default import of the component file
+  assert.deepEqual(kinds(`import * as C from './components/index.js';
+    export default () => <C.InlineConfirm title={t} onConfirm={() => call('note.delete', { id })} />;`), ['inline-confirm']);
+  assert.deepEqual(kinds(`import Ask from './components/InlineConfirm.jsx';
+    export default () => <Ask title={t} onConfirm={() => act('workflow.delete', { id })} />;`), ['inline-confirm']);
+  // the deletion behind a function of the file, a member handler, an action in a template, helpers three levels deep
   assert.deepEqual(kinds(`function wipe() { return act('mineru.history.clear', { confirm: true }); }
     export default () => <InlineConfirm title={t} onConfirm={wipe} />;`), ['inline-confirm']);
   assert.deepEqual(kinds(`export default () => <InlineConfirm title={t} onConfirm={() => removeEverything()} />;`), ['inline-confirm']);
-  // a label swap that does not start with 确认
+  assert.deepEqual(kinds(`const actions = { forget: (item) => call('live.delete', { id: item.id }) };
+    export default () => <InlineConfirm title={t} onConfirm={actions.forget} />;`), ['inline-confirm']);
+  assert.deepEqual(kinds(`export default () => <InlineConfirm title={t} onConfirm={() => call(\`\${kind}.delete\`, { id })} />;`), ['inline-confirm']);
+  assert.deepEqual(kinds(`function a() { return b(); } function b() { return c(); } function c() { return call('note.delete', {}); }
+    export default () => <InlineConfirm title={t} onConfirm={a} />;`), ['inline-confirm']);
+  // label swaps: not starting with 确认, inside ui(), with a flag not named like one, kept in a variable
   assert.deepEqual(kinds(`export default () => <Button onClick={press}>{armed ? ui('再点一次就删除') : ui('删除')}</Button>;`), ['label-swap']);
-  // reversible: clearing a group of fields in a form, merging courses, reloading over unsaved input
+  assert.deepEqual(kinds(`export default () => <Button onClick={press}>{ui(armed ? '确认删除（无法撤销）' : '删除')}</Button>;`), ['label-swap']);
+  assert.deepEqual(kinds(`export default () => <Button onClick={press}>{ui(primed ? '确认删除' : '删除')}</Button>;`), ['label-swap']);
+  assert.deepEqual(kinds(`export default () => <Button>{armed ? busy ? ui('确认删除并停止任务') : ui('确认删除') : busy ? ui('删除并停止任务') : ui('删除')}</Button>;`), ['label-swap'], 'nested');
+  assert.deepEqual(kinds(`const label = asked ? ui('再按一次清空') : ui('清空'); export default () => <Button onClick={press}>{label}</Button>;`), ['label-swap']);
+  // reversible / harmless: clearing a group of fields in a form, reloading over unsaved input, the reviewed allow-list, a plain toggle, two labels of a delete
+  // button that say what else it does
   assert.deepEqual(kinds(`export default () => <InlineConfirm title={ui('清空这组字段？')} onConfirm={() => setFields({})} />;`), []);
   assert.deepEqual(kinds(`export default () => <InlineConfirm title={t} onConfirm={reloadLatest} />;`), []);
   assert.deepEqual(kinds(`export default () => <InlineConfirm title={t} onConfirm={() => removeStep(id)} />;`, 'ui/Workflows.jsx'), [], 'the reviewed allow-list');
   assert.deepEqual(kinds(`export default () => <Button>{open ? ui('收起') : ui('展开')}</Button>;`), []);
+  assert.deepEqual(kinds(`export default () => <Button>{ui(daily ? '保存合集' : '保存草稿')}</Button>;`), []);
+  assert.deepEqual(kinds(`export default () => <Button>{many ? ui('删除所选') : ui('删除')}</Button>;`), [], 'not a second press');
 });
 
 test('no InlineConfirm confirms a deletion and no button swaps its label to ask twice, anywhere in ui/', () => {
@@ -164,6 +204,9 @@ test('tier 1 is not loosened: sources and decks are deleted for good only from t
   assert.match(manage, /returnFocus:/);
   assert.match(read('ui/app/AppModalHost.jsx'), /removingDeck\?\.returnFocus/);
   assert.match(sources, /closeRemoving/);
+  // 撤销 of an archive is a plain call, never the single-flight act() (which drops it while another write runs, and 撤销 stays enabled then)
+  assert.match(sources, /restore: async \(\) => \{ await call\('source\.archive'/);
+  assert.match(manage, /restore: async \(\) => \{ await call\("deck\.archive"/);
 });
 
 test('the words: 永久删除 is irreversible, 移除 takes out of a container; the source dialog no longer mixes them', () => {

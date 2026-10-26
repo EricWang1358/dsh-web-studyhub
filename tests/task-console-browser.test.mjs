@@ -199,7 +199,11 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         await until(async () => (await folders()).length === 0, 'the audio batch folder cleaned in the background');
         assert.ok(after.sources.length >= 12, 'the imported sources are untouched');
         assert.deepEqual(await bar(), idle, 'the bar never moved');
-        const verdict = judgeLayoutStability(await drainLayoutStability(page), { maxCls: 0.05 });
+        // The notice is replaced in its own floating region (the tall 「已删除…」 by the short 「已撤销」, bottom-anchored over the page): its own lines may move
+        // there; nothing of the page may. Only shifts whose every source is a toast are left out (anything else still counts).
+        const log = await drainLayoutStability(page);
+        const pageOnly = { ...log, shifts: log.shifts.filter((shift) => !shift.sources.length || !shift.sources.every((source) => /\.sh-toast/.test(source.element))) };
+        const verdict = judgeLayoutStability(pageOnly, { maxCls: 0.05 });
         assert.ok(verdict.ok, `${width}px: ${verdict.message}`);
         assert.deepEqual(errors, []);
         await context.close();

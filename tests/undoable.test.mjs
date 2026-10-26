@@ -39,7 +39,7 @@ test('commitLater hides at once, shows 撤销 with the time it lasts, and sends 
   assert.ok(entry);
   assert.equal(unit.hidden('n1'), true);
   assert.equal(unit.hidden('n2'), false);
-  assert.equal(toast.log.current.message, '已删除「笔记」（8 秒内可撤销）', 'a mouse-started notice names its window');
+  assert.equal(toast.log.current.message, '已删除「笔记」（8 秒内、下一次删除前可撤销）', 'a mouse-started notice names its window');
   assert.equal(toast.log.current.undo, true);
   assert.equal(toast.log.current.timeout, m.UNDO_TIMEOUT);
   assert.notEqual(toast.log.current.persistent, true);
@@ -223,7 +223,8 @@ test('restoreWith offers the inverse, keeps the notice up while it runs, says it
   let tries = 0;
   unit.restoreWith({ message: 'm', restore: async () => (++tries === 1 ? undefined : true) });
   const second = toast.log.current;
-  assert.equal(await second.action.onClick(), false, 'act() resolves undefined when it failed (it shows the error itself)');
+  assert.equal(await second.action.onClick(), false, 'an inverse that resolves undefined (act() while another write held the lock) did not run');
+  assert.match(toast.log.errors.at(-1), /另一个操作还在进行，请稍后重试。/, 'and says so');
   assert.equal(toast.log.current, second, 'the offer is still on screen');
   assert.equal(await second.action.onClick(), true, 'and a second try works');
 });
@@ -243,7 +244,7 @@ test('English: the undo action is "Undo" and the window is said', () => {
   try {
     const { toast, unit } = setup();
     unit.commitLater({ keys: ['e'], message: 'Deleted', commit: async () => true });
-    assert.equal(toast.log.current.message, 'Deleted (undo within 8 s)');
+    assert.equal(toast.log.current.message, 'Deleted (undo within 8 s, before the next delete)');
     assert.equal(toast.log.current.action.label, 'Undo');
     toast.log.current.action.onClick();
     assert.equal(toast.log.current.message, 'Undone');
