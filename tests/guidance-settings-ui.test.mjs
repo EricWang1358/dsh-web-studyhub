@@ -87,7 +87,7 @@ test('seen items: the state says so, 再显示一次 and the reset are on, the c
   ssr.setUiLanguage('zh');
   const html = pane(storagesOf(SEEN));
   assert.equal((html.match(/data-guidance-state="seen"/g) || []).length, 3);
-  assert.match(words(html), /有 3 项已经看过/);
+  assert.match(words(html), /有 3 项可以重新显示/);
   assert.doesNotMatch(html.match(/<button[^>]*sh-btn--primary[^>]*>/)[0], /disabled/);
   assert.match(rowOf(html, 'first-run.later'), /aria-label="再显示一次：首页的入门三步"/, 'the button says which item');
   assert.equal((html.match(/aria-label="再显示一次：/g) || []).length, 3, 'a button only where something was seen');
@@ -100,7 +100,18 @@ test('a library with its own deck: 入门三步 cannot come back, so it is not c
   assert.match(row, /data-guidance-state="seen"/);
   assert.doesNotMatch(row, /再显示一次/);
   assert.match(words(row), /这个学习库已经有自己的题组，入门三步不会再出现/);
-  assert.match(words(html), /有 2 项已经看过/);
+  assert.match(words(html), /有 2 项可以重新显示/);
+});
+
+test('own deck, 入门三步 and one other item seen: the summary counts what can be brought back, and says so', () => {
+  const stored = { 'study-welcome:/lib': 'dismissed', 'study-reader-hints': JSON.stringify(['pdf-page']) };
+  ssr.setUiLanguage('zh');
+  const html = pane(storagesOf(stored), { data: OWN_DECK });
+  assert.equal((html.match(/data-guidance-state="seen"/g) || []).length, 2, 'two rows carry 已看过');
+  assert.match(words(html), /有 1 项可以重新显示。/, 'the number is what the sentence says it counts');
+  assert.equal((html.match(/aria-label="再显示一次：/g) || []).length, 1, 'one button, for the one that can come back');
+  ssr.setUiLanguage('en');
+  try { assert.match(words(pane(storagesOf(stored), { data: OWN_DECK })), /1 can be brought back\./); } finally { ssr.setUiLanguage('zh'); }
 });
 
 test('experiments: the Jev walk-through only with the experiments switch AND the system component; hidden, it is not counted', () => {
@@ -182,7 +193,6 @@ const find = (tree, predicate) => {
   return null;
 };
 const lastToast = () => toasts.at(-1)?.[1] ?? '';
-const nested = text => /「[^」]*「/.test(text);
 
 test('重新显示全部提示 clears the seen items only, says honestly when they appear, and opens nothing', () => {
   live.setUiLanguage('zh');
@@ -194,8 +204,7 @@ test('重新显示全部提示 clears the seen items only, says honestly when th
   assert.equal(storages.local.getItem('study-ui-language'), 'zh');
   assert.equal(storages.local.getItem('study-tour:/lib'), '{"stepId":"practice"}', 'a paused tour keeps its resume point');
   assert.equal(toasts.length, 1);
-  assert.equal(lastToast(), '已重新显示 3 项：首页的入门三步、课程准备「全部完成」、提问的是哪一页。它们不会马上弹出来，而是在各自该出现的时候再出现。');
-  assert.ok(!nested(lastToast()));
+  assert.equal(lastToast(), '已重新显示 3 项：「首页的入门三步」、「课程准备「全部完成」」、「提问的是哪一页」。它们不会马上弹出来，而是在各自该出现的时候再出现。');
   assert.equal(find(render(), node => node.props?.['data-guidance'] === 'reset-all').props.disabled, true, 'nothing left to bring back');
 });
 
@@ -204,7 +213,7 @@ test('master switch off: the reset says which items stay hidden until it is on (
   toasts.length = 0;
   const render = view({ storages: storagesOf({ ...SEEN, ...OFF }) });
   find(render(), node => node.props?.['data-guidance'] === 'reset-all').props.onClick();
-  assert.match(lastToast(), /其中提问的是哪一页要等「显示引导提示」打开后才会出现。$/);
+  assert.match(lastToast(), /其中「提问的是哪一页」要等「显示引导提示」打开后才会出现。$/);
   toasts.length = 0;
   const quiet = view({ storages: storagesOf({ 'study-welcome:/lib': 'dismissed', ...OFF }) });
   find(quiet(), node => node.props?.['data-guidance'] === 'reset-all').props.onClick();
@@ -212,7 +221,7 @@ test('master switch off: the reset says which items stay hidden until it is on (
   toasts.length = 0;
   const one = view({ storages: storagesOf({ 'study-reader-hints': JSON.stringify(['pdf-page']), ...OFF }) });
   find(one(), node => node.props?.['aria-label'] === '再显示一次：提问的是哪一页').props.onClick();
-  assert.equal(lastToast(), '提问的是哪一页已重置，但现在被「显示引导提示」关着；打开后，下次在原始 PDF 旁提问时会再出现。');
+  assert.equal(lastToast(), '「提问的是哪一页」已重置，但「显示引导提示」现在关着；打开后，下次在原始 PDF 旁提问时会再出现。');
 });
 
 test('an item switched off: 再显示一次 and the reset say its own switch keeps it hidden', () => {
@@ -221,11 +230,11 @@ test('an item switched off: 再显示一次 and the reset say its own switch kee
   const stored = { 'study-original-notice': JSON.stringify(['doc-1']), [ssr.GUIDANCE_KEY]: JSON.stringify({ muted: ['reader.original-notice'] }) };
   const render = view({ storages: storagesOf(stored) });
   find(render(), node => node.props?.['aria-label'] === '再显示一次：「补全原文件」的说明').props.onClick();
-  assert.equal(lastToast(), '「补全原文件」的说明已重置，但现在被它自己的开关关着；打开后，下次打开只保存了文字的资料时会再出现。');
+  assert.equal(lastToast(), '「「补全原文件」的说明」已重置，但它自己的开关现在关着；打开后，下次打开只保存了文字的资料时会再出现。');
   toasts.length = 0;
   const all = view({ storages: storagesOf(stored) });
   find(all(), node => node.props?.['data-guidance'] === 'reset-all').props.onClick();
-  assert.match(lastToast(), /「补全原文件」的说明自己的开关关着，打开后才会出现。$/);
+  assert.match(lastToast(), /「「补全原文件」的说明」自己的开关关着，打开后才会出现。$/);
 });
 
 test('a library with its own deck: the reset leaves 入门三步 alone and does not promise it', () => {
@@ -237,6 +246,24 @@ test('a library with its own deck: the reset leaves 入门三步 alone and does 
   assert.equal(storages.local.getItem('study-welcome:/lib'), 'dismissed', 'kept: it cannot come back here anyway');
   assert.doesNotMatch(lastToast(), /入门三步/);
   assert.match(lastToast(), /已重新显示 2 项/);
+});
+
+test('English toasts quote the titles and agree in number', () => {
+  live.setUiLanguage('en');
+  try {
+    toasts.length = 0;
+    const one = view({ storages: storagesOf({ 'study-reader-hints': JSON.stringify(['pdf-page']), ...OFF }) });
+    find(one(), node => node.props?.['data-guidance'] === 'reset-all').props.onClick();
+    assert.equal(lastToast(), 'Brought back: “Which page you are asking about”. It does not pop up now; it appears again at its own moment. “Which page you are asking about” waits until “Show guidance tips” is on.');
+    toasts.length = 0;
+    const two = view({ storages: storagesOf({ 'study-reader-hints': JSON.stringify(['pdf-page', 'page-presets']), ...OFF }) });
+    find(two(), node => node.props?.['data-guidance'] === 'reset-all').props.onClick();
+    assert.match(lastToast(), /^2 brought back: “Which page you are asking about”, “Preset questions and Send to the main chat”\. .* wait until “Show guidance tips” is on\.$/);
+    toasts.length = 0;
+    const both = view({ storages: storagesOf({ 'study-reader-hints': JSON.stringify(['pdf-page']), [ssr.GUIDANCE_KEY]: JSON.stringify({ off: true, muted: ['reader.pdf-page'] }) }) });
+    find(both(), node => node.props?.['aria-label'] === 'Show again: Which page you are asking about').props.onClick();
+    assert.equal(lastToast(), '“Which page you are asking about” is reset, but “Show guidance tips” and its own switch are both off; once both are on, it appears again the next time you ask beside the original PDF.');
+  } finally { live.setUiLanguage('zh'); }
 });
 
 test('the master switch and an item switch write the one guidance key; 再显示一次 clears one item; a refused write says nothing changed', () => {
@@ -255,7 +282,7 @@ test('the master switch and an item switch write the one guidance key; 再显示
   find(render(), node => node.props?.['aria-label'] === '再显示一次：首页的入门三步').props.onClick();
   assert.equal(storages.local.getItem('study-welcome:/lib'), null);
   assert.equal(storages.local.getItem('study-setup-done:/lib:Cloud'), '1', 'only that item');
-  assert.equal(lastToast(), '首页的入门三步：还没有自己的题组时，下次打开学习库首页时会再出现。');
+  assert.equal(lastToast(), '「首页的入门三步」：还没有自己的题组时，下次打开学习库首页时会再出现。');
   const full = storagesOf(SEEN); full.local.setItem = () => { throw new Error('full'); };
   const refused = view({ storages: full });
   find(refused(), node => node.props?.name === 'guidanceOn').props.onChange(false);

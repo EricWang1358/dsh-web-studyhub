@@ -15,9 +15,10 @@ in Chinese and in English, and again on the step 0 branch (it adds a Settings pa
 | **Daily continue** (`daily-continue`): a course in daily use with a round left open → the next question | 1 | 0 | practice question 1 | 接着做 |
 
 `course-practice` types the new course name into the import dialog's course field after 更改 and checks that the published deck belongs to that
-course. It is not the older `new-course` journey (a course already seeded with a material, 2 clicks to a generation job). A learner who opens the
-draft first (检查草稿 → 发布并开始练) takes 9 clicks; the first count in PR #505 (9) caught the run's card a moment before it offered 发布并开始练,
-so the script now waits one more poll for the card to settle and takes the shortest way the screen offers.
+course. It is not the older `new-course` journey (a course already seeded with a material, 2 clicks to a generation job). A newcomer who opens the
+draft first (检查草稿 → 发布并开始练) takes 9 clicks. The first count in PR #505 said 9 because that version of the script only looked for the
+first-run line's publish button and otherwise always clicked 检查草稿 and published from the draft page; it never tried the run card's own
+one-press 发布并开始练, which appears together with 检查草稿 on the card. The script now takes the shortest way the screen offers.
 
 ## Not measured
 

@@ -7,7 +7,8 @@
                       import the first material (pasted text) → save → 出第一组题 → (the run finishes) → publish → practise.
                       Its milestones include the old first-question count (to the first generation job).
      course-practice  a library in daily use; the learner adds a material for a NEW course (typed in the import dialog) and gets to that
-                      course's first practice question: import → make questions from it → generate → check the draft → publish → practise.
+                      course's first practice question: import → make questions from it → generate → publish from the finished run's
+                      card (发布并开始练) → practise. Opening the draft first (检查草稿 → publish) is one click more.
      daily-continue   a course in daily use with a round left open → the next practice question. Measured on the day the round was left
                       open; the clock is not moved.
      first-question   (older) a brand-new library to a first generation job. It follows the 3.6 first-run line (the first import comes back
@@ -85,8 +86,9 @@ export async function runJourney({ browser, running, name, lang, width = 1440 })
     const linePublish = page.locator('.first-run [data-first-run="publish"]');
     const review = page.locator('.first-run [data-first-run="review"]').or(page.getByRole("button", { name: new RegExp(`^${escapeRe(t.checkDraft)}`) }));
     const publish = page.getByRole("button", { name: new RegExp(`^${escapeRe(t.publish)}`) });
-    // The finished run reaches the page with the next poll, and its card settles a poll later (检查草稿 first, then 发布并开始练 once the draft is known
-    // to be clean; ui/study-map/JobCard.jsx): wait for a way on, then one more poll, and take the shortest way the screen then offers.
+    // The finished run reaches the page with the next poll: wait for a way on, then (a precaution) one more poll, and take the shortest way the
+    // screen offers: the first-run line's publish, else the run card's own one-press 发布并开始练 (it shows together with 检查草稿,
+    // ui/study-map/JobCard.jsx), else 检查草稿 and the draft page's publish.
     try { await linePublish.or(review).or(publish).first().waitFor({ timeout: 30000 }); } catch (error) {
       await failShot();
       throw new Error(`${name}: neither a publish button nor 检查草稿 appeared (${String(error.message).split(/\r?\n/)[0]})`);

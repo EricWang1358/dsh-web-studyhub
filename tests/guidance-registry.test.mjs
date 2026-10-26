@@ -181,6 +181,10 @@ test('claimProactiveTip reads, decides and writes in one call: one claim a day, 
     const storage = setup();
     assert.deepEqual(claims.map(claim => claimProactiveTip({ ...claim, storage })), expected, name);
   }
+  // The per-visit claim on its own: a second claim the same day loses even where the stored count says nothing was shown (a fresh storage B).
+  forgetVisitClaim();
+  assert.equal(claimProactiveTip({ id: 'a.one', now: at(2026, 10, 26, 9), storage: memoryStorage() }), true, 'A');
+  assert.equal(claimProactiveTip({ id: 'a.two', now: at(2026, 10, 26, 10), storage: memoryStorage() }), false, 'B: this visit already gave today\'s tip away');
   forgetVisitClaim();
   const storage = memoryStorage();
   assert.equal(claimProactiveTip({ id: 'a.one', now: at(2026, 10, 26, 9), storage }), true);

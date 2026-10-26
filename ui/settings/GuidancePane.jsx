@@ -35,7 +35,8 @@ export default function GuidancePane({ data, capabilities, storages }) {
   const returnable = seen.filter((item) => canComeBack(item, context));
   const muted = (item) => itemMuted(item.id, local);
   const refused = () => setError(ui('没能保存：这个浏览器现在不让保存设置，这次的改动没有生效。'));
-  const names = (list) => list.map((item) => ui(item.title)).join(ui('、'));
+  const quoted = (item) => uiFormat('「{0}」', [ui(item.title)]);
+  const names = (list) => list.map(quoted).join(ui('、'));
 
   const setMaster = (on) => {
     setError('');
@@ -51,10 +52,10 @@ export default function GuidancePane({ data, capabilities, storages }) {
   const again = (item) => {
     setError('');
     if (!clearItem(item, where)) refused();
-    else if (item.proactive && (!masterOn || muted(item))) {
-      const switches = !masterOn && muted(item) ? ui('「显示引导提示」和它自己的开关') : !masterOn ? ui('「显示引导提示」') : ui('它自己的开关');
-      toast.success(uiFormat('{0}已重置，但现在被{1}关着；打开后，{2}会再出现。', [ui(item.title), switches, ui(item.again)]));
-    } else toast.success(uiFormat('{0}：{1}会再出现。', [ui(item.title), ui(item.again)]));
+    else if (item.proactive && !masterOn && muted(item)) toast.success(uiFormat('{0}已重置，但「显示引导提示」和它自己的开关现在都关着；都打开后，{1}会再出现。', [quoted(item), ui(item.again)]));
+    else if (item.proactive && !masterOn) toast.success(uiFormat('{0}已重置，但「显示引导提示」现在关着；打开后，{1}会再出现。', [quoted(item), ui(item.again)]));
+    else if (item.proactive && muted(item)) toast.success(uiFormat('{0}已重置，但它自己的开关现在关着；打开后，{1}会再出现。', [quoted(item), ui(item.again)]));
+    else toast.success(uiFormat('{0}：{1}会再出现。', [quoted(item), ui(item.again)]));
     refresh();
   };
   const resetAll = () => {
@@ -63,11 +64,13 @@ export default function GuidancePane({ data, capabilities, storages }) {
     if (clearedIds.length < returnable.length) refused();
     const cleared = returnable.filter((item) => clearedIds.includes(item.id));
     if (cleared.length) {
-      const parts = [uiFormat('已重新显示 {0} 项：{1}。它们不会马上弹出来，而是在各自该出现的时候再出现。', [cleared.length, names(cleared)])];
+      const parts = [cleared.length === 1
+        ? uiFormat('已重新显示 1 项：{0}。它不会马上弹出来，而是在该出现的时候再出现。', [names(cleared)])
+        : uiFormat('已重新显示 {0} 项：{1}。它们不会马上弹出来，而是在各自该出现的时候再出现。', [cleared.length, names(cleared)])];
       const proactive = cleared.filter((item) => item.proactive);
-      if (!masterOn && proactive.length) parts.push(uiFormat('其中{0}要等「显示引导提示」打开后才会出现。', [names(proactive)]));
+      if (!masterOn && proactive.length) parts.push(uiFormat(proactive.length === 1 ? '其中{0}要等「显示引导提示」打开后才会出现。' : '其中{0}这几项要等「显示引导提示」打开后才会出现。', [names(proactive)]));
       const own = proactive.filter(muted);
-      if (own.length) parts.push(uiFormat('{0}自己的开关关着，打开后才会出现。', [names(own)]));
+      if (own.length) parts.push(uiFormat(own.length === 1 ? '{0}自己的开关关着，打开后才会出现。' : '{0}这几项自己的开关关着，打开后才会出现。', [names(own)]));
       toast.success(parts.join(''));
     }
     refresh();
@@ -83,7 +86,7 @@ export default function GuidancePane({ data, capabilities, storages }) {
           <Button variant="primary" disabled={!returnable.length} onClick={resetAll} data-guidance="reset-all">{ui('重新显示全部提示')}</Button>
         </div>
         <Hint>{returnable.length
-          ? uiFormat('有 {0} 项已经看过。重新显示后，它们会在各自该出现的时候再出现，不会马上弹出来。', [returnable.length])
+          ? uiFormat('有 {0} 项可以重新显示。重新显示后，不会马上弹出来，而是在各自该出现的时候再出现。', [returnable.length])
           : ui('现在没有可以重新显示的提示。')}</Hint>
         {!stored && <Hint tone="warning" data-guidance="no-storage">{ui('这个浏览器现在不能保存设置（比如无痕窗口），这一页的改动记不住。')}</Hint>}
         {error && <Hint tone="error" role="alert">{error}</Hint>}
