@@ -1,36 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ALL_SWITCHES, KINDS, cardOf, consoleLibrary } from './helpers/audio-console.mjs';
-import { isAudioJob } from '../lib/job-status.js';
-import { ENDED, plain, readActions, readCard as readCardOf, refuse as refuseTo, ui } from './helpers/console-card.mjs';
+import { ENDED, plain, readActions, ui } from './helpers/console-card.mjs';
+import { live, readCard, refuse, startAll } from './helpers/audio-console-matrix.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
 
-/* S6-5, the audio side: every kind of audio job (single recording, batch, subtitles, review, class save, class correction) seen through the public operations of the 任务 console
-   (snapshot, job.status, job.wait, job.control, job.output, job.archive / unarchive / dismiss / delete) and the code the console draws it with (ui/tasks/*, read without a DOM),
-   with the kind's switch off, on, and both kinds of job in one service. Fakes only. What is not as it should be is recorded as a finding (FINDINGS below, written up in
-   docs/plans/unified-job-runtime/s6-5-audio-console.md) and asserted as it is today, so the document and the code cannot drift apart and a fix turns a finding into a test to update. */
+/* S6-5, the audio side, with the switch of every audio path on: every kind of audio job (single recording, batch, subtitles, review, class save, class correction) seen through the public
+   operations of the 任务 console (snapshot, job.status, job.wait, job.control, job.output, job.archive / unarchive / dismiss / delete) and the code the console draws it with
+   (ui/tasks/*, read without a DOM). Fakes only. What is not as it should be is recorded as a finding (written up in docs/plans/unified-job-runtime/s6-5-audio-console.md)
+   and asserted as it is today, so the document and the code cannot drift apart and a fix turns a finding into a test to update.
+   This is the 'on' third of unified-runtime-audio-console.test.mjs, moved here as it was (same names, same assertions, the setup of helpers/audio-console.mjs), so that
+   the runner can put the three modes on three workers: the other two modes are the files beside it. */
 
-const MODES = ['off', 'on', 'mixed'];
-const INDEX = { single: { off: 1, on: 2 }, batch: { off: 3, on: 5 }, subtitles: { off: 1, on: 2 }, review: { off: 1, on: 2 }, save: { off: 1, on: 2 }, correction: { off: 3, on: 4 } };
-const refuse = (lib, args, action = 'job.control') => refuseTo(lib.service, args, action);
+/** This file's mode, the one every test here is named after: the switch of every audio path on, so the matrix starts each kind on the runtime only. */
+const mode = 'on';
 
-/** Start every kind the mode asks for: the switch of the side set, the n-th work of that kind started. Returns [{ name, side, started }]. */
-async function startAll(lib, mode) {
-  const cards = [];
-  for (const [name, kind] of Object.entries(KINDS)) for (const side of mode === 'mixed' ? ['off', 'on'] : [mode]) {
-    lib.set(side === 'on', kind.switchKey);
-    cards.push({ name, side, kind, started: await kind.start(lib, INDEX[name][side]) });
-  }
-  return cards;
-}
-const live = async (lib, id, what = id) => {
-  await until(async () => ['queued', 'running'].includes((await cardOf(lib, id))?.status), `job ${what} to be listed as live (it is ${(await cardOf(lib, id))?.status}: ${(await cardOf(lib, id))?.stage})`, { timeoutMs: 10_000 });
-  return cardOf(lib, id);
-};
-
-const readCard = (row, card) => readCardOf(row, card);
-
-for (const mode of MODES) test(`${mode}: every kind of audio job, while it runs, is a card the console can draw, offers what it declares and refuses the rest in words`, async t => {
+test(`${mode}: every kind of audio job, while it runs, is a card the console can draw, offers what it declares and refuses the rest in words`, async t => {
   const lib = await consoleLibrary(t), cards = await startAll(lib, mode);
   assert.deepEqual(cards.filter(card => !card.started).map(card => `${card.name}/${card.side}`), mode === 'on' ? [] : ['correction/off'], 'the class correction has a card only on the runtime (D-12)');
   const rows = [];
@@ -115,7 +100,7 @@ for (const mode of MODES) test(`${mode}: every kind of audio job, while it runs,
   }
 });
 
-for (const mode of MODES) test(`${mode}: stopping a job of every kind: the card ends cancelled in words, what was kept is not lost, dismissing it removes the card`, async t => {
+test(`${mode}: stopping a job of every kind: the card ends cancelled in words, what was kept is not lost, dismissing it removes the card`, async t => {
   const lib = await consoleLibrary(t), cards = (await startAll(lib, mode)).filter(card => card.started), ids = [];
   for (const card of [...cards].reverse()) {
     const row = await live(lib, card.started.jobId, `${card.name}/${card.side}`), c = ui.model.contractOf(row);
@@ -135,7 +120,9 @@ for (const mode of MODES) test(`${mode}: stopping a job of every kind: the card 
   }
 });
 
-test('the id of a card and the id of its contract: which operations take which (findings)', async t => {
+/* ---- The findings of the first run of this matrix, each with its own test ---------------------------------------------------------------------------------- */
+
+test(`${mode}: the id of a card and the id of its contract: which operations take which (findings)`, async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, ...ALL_SWITCHES);
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId), contractId = ui.model.contractOf(row).jobId;
@@ -151,15 +138,9 @@ test('the id of a card and the id of its contract: which operations take which (
   assert.equal((await settleJob(lib.service, row.id)).status, 'cancelled', 'and it stopped the job');
 });
 
-/* ---- The findings of the first run of this matrix, each with its own test ---------------------------------------------------------------------------------- */
-
-test('every kind of audio job the runtime has is in the audio family of the console, so the console draws it as an audio job (the class correction was missing)', () => {
-  for (const [name, kind] of Object.entries(KINDS)) assert.equal(isAudioJob({ type: kind.kind }), true, `${name} (${kind.kind}) is an audio job`);
-});
-
-for (const side of ['off', 'on']) test(`${side}: a message to a running audio job is refused in the learner's words, not with an internal error`, async t => {
+test(`${mode}: a message to a running audio job is refused in the learner's words, not with an internal error`, async t => {
   const lib = await consoleLibrary(t);
-  lib.set(side === 'on', 'audioSubtitles');
+  lib.set(mode === 'on', 'audioSubtitles');
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId);
   const { reply, error } = await refuse(lib, { jobId: row.id, message: 'please mind the terms' }, 'job.message');
   assert.equal(reply, undefined);
@@ -168,7 +149,7 @@ for (const side of ['off', 'on']) test(`${side}: a message to a running audio jo
   await lib.service.call('job.control', { jobId: row.id, action: 'cancel' }); await settleJob(lib.service, row.id);
 });
 
-test('retrying a running job on the runtime says it is still running, with the code the card carries', async t => {
+test(`${mode}: retrying a running job on the runtime says it is still running, with the code the card carries`, async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, 'audioSubtitles');
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId), c = ui.model.contractOf(row);
@@ -180,7 +161,7 @@ test('retrying a running job on the runtime says it is still running, with the c
   await lib.service.call('job.control', { jobId: row.id, action: 'cancel' }); await settleJob(lib.service, row.id);
 });
 
-test('stopping a job that has ended is refused as its card says (cancel is not available), not answered as done', async t => {
+test(`${mode}: stopping a job that has ended is refused as its card says (cancel is not available), not answered as done`, async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, 'audioSubtitles');
   const started = await KINDS.subtitles.start(lib, 1), row = await live(lib, started.jobId);
@@ -194,7 +175,7 @@ test('stopping a job that has ended is refused as its card says (cancel is not a
   assert.equal((await cardOf(lib, row.id)).status, 'complete', 'and the finished job is left as it was');
 });
 
-test('the settings of a batch: what the card offers and what job.control accepts agree at every moment from the start', async t => {
+test(`${mode}: the settings of a batch: what the card offers and what job.control accepts agree at every moment from the start`, async t => {
   const lib = await consoleLibrary(t);
   lib.set(true, 'audioBatch');
   const started = await KINDS.batch.start(lib, 3), disagreements = [];
@@ -207,21 +188,4 @@ test('the settings of a batch: what the card offers and what job.control accepts
   }
   assert.deepEqual(disagreements, [], 'accepted while offered neither before nor after, or refused while offered both before and after');
   await lib.service.call('job.control', { jobId: started.jobId, action: 'cancel' }); await settleJob(lib.service, started.jobId);
-});
-
-test('job.cancel, the lenient door, answers the same for an ended job whichever side the switch is on: nothing to stop, no refusal', async t => {
-  const replies = {};
-  for (const side of ['off', 'on']) {
-    const lib = await consoleLibrary(t);
-    lib.set(side === 'on', 'audioSubtitles');
-    const started = await KINDS.subtitles.start(lib, 1);
-    await live(lib, started.jobId);
-    lib.release();
-    assert.equal((await settleJob(lib.service, started.jobId)).status, 'complete');
-    const { reply, error } = await refuse(lib, { jobId: started.jobId }, 'job.cancel');
-    assert.equal(error, undefined, `${side}: job.cancel on an ended job is not refused (${error?.message})`);
-    replies[side] = { jobs: reply.jobs.map(job => job.status), note: typeof reply.note };
-    assert.equal((await cardOf(lib, started.jobId)).status, 'complete', `${side}: and the finished job is left as it was`);
-  }
-  assert.deepEqual(replies.on, replies.off, 'the same answer on both sides');
 });
