@@ -380,7 +380,8 @@
         flex-shrink: 0;
         max-width: 50%;
       }
-      .top-right {
+      /* .topbar in front: the base .top-right further down sets flex-shrink: 0 at the same weight and would win, so a longer label could never shrink. */
+      .topbar .top-right {
         flex-shrink: 1;
         min-width: 0;
       }

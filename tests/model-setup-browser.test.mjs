@@ -53,7 +53,7 @@ async function patched(page, state) {
   await page.route('**/api/call', async route => {
     let request = {};
     try { request = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }
-    if (request.action === 'snapshot' && state.fail) return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'boom' }) });
+    if (request.action === 'snapshot' && state.fail) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'boom' }) });
     if (request.action !== 'snapshot' || !state.patch) return route.continue();
     const response = await route.fetch({ postData: JSON.stringify({ ...request, args: { ...request.args, since: undefined } }) });
     const body = await response.json();
