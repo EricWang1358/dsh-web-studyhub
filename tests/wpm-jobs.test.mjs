@@ -53,7 +53,7 @@ test('a failed conversion shows its reason as an alert and keeps its way on (#98
   assert.match(out, /data-state="fail"/);
   assert.match(out, /role="alert"[^>]*>连不上 MinerU/);
   assert.match(out, />接着做</);
-  assert.match(out, /知道了/);
+  assert.match(out, />归档</);
   assert.doesNotMatch(out, /className="warning"|class="warning"/);
   const stopped = render(jobs([job({ status: 'failed', retryable: true, route: 'local', errorCode: 'server-stopped', stage: '服务停了' })]));
   assert.match(stopped, />接着做</, 'a stopped service is started by the run itself: one 接着做');
@@ -65,7 +65,7 @@ test('a finished conversion is jade, with the open button and a dismiss (#98)', 
   const out = render(jobs([job({ status: 'complete', phase: 'done', sourceIds: ['a', 'b'], finishedAt: new Date().toISOString() })]));
   assert.match(out, /data-state="done"/);
   assert.match(out, /打开资料：Book\.pdf/);
-  assert.match(out, /aria-label="知道了：Book\.pdf"/);
+  assert.match(out, /aria-label="归档：Book\.pdf"/);
   assert.match(out, /已存为 2 份资料/);
   const cancelled = render(jobs([job({ status: 'cancelled', stage: '已取消，已解析的段落保留。' })]));
   assert.match(cancelled, /data-state="stopped"/);
@@ -90,7 +90,7 @@ test('the done windows carry an icon, not a text check mark (#98)', () => {
 test('the job card keeps no private timer, glyph, duration or progress bar (#98 #101 #125 #126 #128)', () => {
   lacks('ui/PdfConvertJob.jsx', /setInterval|clearInterval/, /const spent =/, /const active =/, /export function historyDuration/, /export function historyAgo/,
     /audio-bar|audio-progress|audio-chip|audio-steps/, /['"`](?:◌|✓|×)|\{'!'\}|\? '!'/, /role="status"/, /\['running', 'queued'\]\.includes/, /\['queued', 'running', 'cancelling'\]/);
-  has('ui/PdfConvertJob.jsx', /CompactJobCard/, /JobRow/, /useNow/, /usePolling/, /isActiveJob/, /formatDuration/, /formatAgo/, /Badge/, /InlineConfirm/);
+  has('ui/PdfConvertJob.jsx', /CompactJobCard/, /JobRow/, /useNow/, /usePolling/, /isActiveJob/, /formatDuration/, /formatAgo/, /Badge/, /useUndoable/);
   has('ui/PdfConversion.jsx', /ProgressBar/, /Badge/);
   lacks('ui/PdfConversion.jsx', /audio-bar|audio-chip/);
 });
@@ -110,14 +110,11 @@ test('the history keeps its wording and shows status and route as badges (#95)',
   assert.match(out, /<button[^>]*aria-label="打开「Databases」"/);
 });
 
-test('clearing the history is an InlineConfirm that gives focus back to its button (#69 #71)', () => {
-  const out = render(history([record(), record({ id: 'job-2' })], { initialConfirmClear: true }));
-  assert.match(out, /role="group"[^>]*aria-labelledby/);
-  assert.doesNotMatch(out, /alertdialog|pdf-history__confirm/);
-  assert.match(out, /清空这 2 条解析记录？/);
-  assert.match(out, /已导入的资料不会被删除/);
-  assert.ok(out.indexOf('>取消<') < out.indexOf('>确认清空<'), 'cancel before confirm');
-  has('ui/PdfConvertJob.jsx', /returnFocusRef/);
+test('clearing the history is one click with 撤销 (D1), never an alertdialog or a hand-built confirm (#69 #71)', () => {
+  const out = render(history([record(), record({ id: 'job-2' })]));
+  assert.doesNotMatch(out, /alertdialog|pdf-history__confirm|确认清空/);
+  assert.match(out, />清空历史</);
+  has('ui/PdfConvertJob.jsx', /useUndoable/);
   lacks('ui/mineru.css', /pdf-history__confirm|audio-chip--bad|audio-chip--warn/);
 });
 

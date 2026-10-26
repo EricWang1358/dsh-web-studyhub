@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useStudy } from './study-context.jsx';
 import { useInjectCss } from './shared.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { formatBytes, formatDateTime } from './format.js';
 import { DiagramFrame } from './diagram-frame.js';
-import { Badge, Button, ConfirmDialog, Dialog, InlineMessage, LoadingState } from './components/index.js';
+import { Badge, Button, Dialog, InlineMessage, LoadingState } from './components/index.js';
+import { useUndoable } from './use-undoable.js';
+import { AppContext } from './app/app-context.js';
 import css from './skeleton-companion.css';
 
 /* 交互图: the diagrams a skeleton carries (docs/companions.md). The learner's agent drew each one with an outside tool (Archify) and
    registered it with skeleton.diagram.attach; the library keeps a copy. Here they are listed (title, date, size, and whether the skeleton
-   changed since), opened in the isolated frame of ui/diagram-frame.js, and deleted. StudyHub never runs, edits or sends the file. */
+   changed since), opened in the isolated frame of ui/diagram-frame.js, and deleted (one click, then 撤销 in the notice: only the library's copy goes, ui/undoable.js).
+   StudyHub never runs, edits or sends the file. */
 
 /** The rows the list shows, from the skeleton's records: a plain size and date, and whether the skeleton changed since. */
 export function diagramRows(diagrams, revision) {
@@ -51,18 +54,25 @@ function DiagramViewer({ skeletonId, row, onClose }) {
 }
 
 export default function SkeletonDiagrams({ skeletonId, diagrams, revision }) {
-  const { act } = useStudy();
+  const { call } = useStudy();
+  // The deletion is a plain call (not the single-flight act(): a second and third quick 删除 must not be dropped as "another operation"), then the library is read again.
+  const refresh = useContext(AppContext)?.core?.refresh;
   useInjectCss(css, 'study-skeleton-companion');
   const [opened, setOpened] = useState(null);
-  const [removing, setRemoving] = useState(null);
-  const rows = diagramRows(diagrams, revision);
+  const undoable = useUndoable();
+  const rows = diagramRows(diagrams, revision).filter((row) => !undoable.hidden(`diagram:${row.id}`));
+  const remove = (row) => undoable.commitLater({ keys: [`diagram:${row.id}`],
+    message: uiFormat('已删除图「{0}」在学习库里的副本；骨架和你工作目录里的原文件都还在。', [row.title]),
+    commit: async () => { await call('skeleton.diagram.remove', { id: skeletonId, diagramId: row.id }); Promise.resolve(refresh?.()).catch(() => {}); return true; },
+    failed: (reason) => uiFormat('没能删除图「{0}」，已放回原处：{1}', [row.title, reason]),
+    focus: () => document.querySelector(`[data-diagram="${CSS.escape(row.id)}"] .sk-diagrams__actions button:last-child`) });
   if (!rows.length) return null;
   return (
     <section className="sk-diagrams" aria-label={ui('交互图')}>
       <h4 className="sk-diagrams__title">{ui('交互图')} <span className="muted">{rows.length}</span></h4>
       <ul className="sk-diagrams__list">
         {rows.map((row) => (
-          <li key={row.id} className="sk-diagrams__row">
+          <li key={row.id} className="sk-diagrams__row" data-diagram={row.id}>
             <div className="sk-diagrams__main">
               <strong className="sk-diagrams__name">{row.title}</strong>
               <small className="muted">{[row.date, row.size].filter(Boolean).join(' · ')}</small>
@@ -70,17 +80,12 @@ export default function SkeletonDiagrams({ skeletonId, diagrams, revision }) {
             </div>
             <div className="sk-diagrams__actions">
               <Button size="sm" onClick={() => setOpened(row)}>{ui('打开')}</Button>
-              <Button size="sm" variant="quiet" onClick={() => setRemoving(row)}>{ui('删除')}</Button>
+              <Button size="sm" variant="quiet" aria-label={uiFormat('删除图「{0}」', [row.title])} onClick={() => remove(row)}>{ui('删除')}</Button>
             </div>
           </li>
         ))}
       </ul>
       {opened && <DiagramViewer skeletonId={skeletonId} row={opened} onClose={() => setOpened(null)} />}
-      {removing && (
-        <ConfirmDialog title={uiFormat('删除图「{0}」？', [removing.title])} description={ui('只删这张图在学习库里的副本，不影响骨架，也不影响你工作目录里的原文件。')}
-          confirmLabel={ui('删除')} onClose={() => setRemoving(null)}
-          onConfirm={() => act('skeleton.diagram.remove', { id: skeletonId, diagramId: removing.id }, undefined, { rethrow: true })} />
-      )}
     </section>
   );
 }

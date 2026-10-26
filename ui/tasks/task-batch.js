@@ -3,16 +3,18 @@ import { archiveJobs, deleteJobs, unarchiveJobs } from '../quick-actions.js';
 import { chunk } from './task-selection.js';
 
 /* 归档, 取消归档 and 删除 of several tasks at once, from the console. The light path (ui/quick-actions.js: the view changes at once, one call per 100 tasks) when the app
-   offers it; otherwise the same calls through the app's own act(). One result shape either way: { ok, archived, unarchived, deleted, skipped, message? }. */
+   offers it; otherwise the same calls through the app's own act(). One result shape either way: { ok, archived, unarchived, deleted, skipped, skippedIds, message? }
+   (skippedIds: the tasks the host left alone because they run). */
 
 const RUNNERS = { archive: archiveJobs, unarchive: unarchiveJobs, delete: deleteJobs };
 const COUNT = { archive: 'archived', unarchive: 'unarchived', delete: 'deleted' };
 const size = (value) => (Array.isArray(value) ? value.length : 0);
+const skippedIdsOf = (reply) => (Array.isArray(reply?.skipped) ? reply.skipped.map((item) => (typeof item === 'string' ? item : item?.id)).filter(Boolean) : []);
 
 /** Send `action` (archive | unarchive | delete) for task ids. Never rejects. */
 export async function batchRun(action, ids, { quick, core } = {}) {
   if (quick) return RUNNERS[action](quick, ids);
-  const total = { ok: true, archived: 0, unarchived: 0, deleted: 0, skipped: 0 };
+  const total = { ok: true, archived: 0, unarchived: 0, deleted: 0, skipped: 0, skippedIds: [] };
   for (const part of chunk(ids)) {
     let reply;
     try { reply = await core.act(`job.${action}`, { jobIds: part }, undefined, { rethrow: true }); } catch (error) { return { ...total, ok: false, message: String(error?.message || error) }; }
@@ -23,6 +25,7 @@ export async function batchRun(action, ids, { quick, core } = {}) {
     }
     total[COUNT[action]] += size(reply.archived) + size(reply.alreadyArchived) + size(reply.unarchived) + size(reply.deleted);
     total.skipped += size(reply.skipped);
+    total.skippedIds.push(...skippedIdsOf(reply));
   }
   return total;
 }

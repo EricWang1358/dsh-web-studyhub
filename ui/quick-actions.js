@@ -51,10 +51,10 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
       emit();
     },
     /** Run `action` in the background. Resolves {ok, result|error}; never rejects, never sets a busy flag. */
-    run(action, args, { key = action, patch = (data) => data, confirmed, treatAsDone } = {}) {
+    run(action, args, { key = action, patch = (data) => data, confirmed, treatAsDone, groups } = {}) {
       const known = entries.get(key);
       if (known) return known.promise;
-      const entry = { patch, confirmed, settledAt: null, promise: null };
+      const entry = { action, patch, confirmed, groups, settledAt: null, promise: null };
       entries.set(key, entry);
       if (key in failures) { const { [key]: dropped, ...rest } = failures; void dropped; failures = rest; failureTokens.delete(key); }
       emit();
@@ -98,7 +98,16 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     version: () => stamp,
     /** What components receive through context. */
-    snapshot: () => ({ failures, run: controller.run, current: controller.current, clearFailure: controller.clearFailure }),
+    snapshot: () => ({ failures, run: controller.run, current: controller.current, clearFailure: controller.clearFailure, release: controller.release }),
+    /** The patch of a finished action is dropped at once when its inverse has just succeeded for EVERY job it covers (`groups` of run(): one list of names per job):
+        撤销 of an 归档 lets that 归档 go, an 归档 lets an earlier 撤销 go (`action`: the one whose patches go). A patch that also covers jobs the inverse did not name stays. */
+    release(ids, action) {
+      const wanted = new Set(ids);
+      let changed = false;
+      for (const [key, entry] of entries)
+        if (entry.settledAt !== null && entry.action === action && entry.groups?.length && entry.groups.every((names) => names.some((name) => wanted.has(name)))) { entries.delete(key); changed = true; }
+      if (changed) emit();
+    },
   };
   return controller;
 }
@@ -117,8 +126,13 @@ const count = (value) => (Array.isArray(value) ? value.length : 0);
 /** One call of job.archive: the finished jobs it names are marked leaving AND already listed under the archived ones (the host's own record replaces ours with the next snapshot). */
 function archiveRun(quick, args, ids, key) {
   const at = new Date().toISOString(), is = named(ids);
+  // One list of names per job it archives (its own id and what survives a retry), so 撤销 (job.unarchive by either) can release this patch once every one is back.
+  const found = (quick.current?.()?.jobs || []).filter(is).map(namesOf);
+  const groups = found.length ? found : [...ids].map((id) => [id]);
+  // A 撤销 of these jobs still held on screen lets go first: this 归档 is newer, and a later 撤销 must reach the host again.
+  quick.release?.(groups.flat(), "job.unarchive");
   return quick.run("job.archive", args, {
-    key,
+    key, groups,
     patch: (data) => {
       const hit = (data.jobs || []).filter((job) => is(job) && !isActiveJob(job) && !isDay(job));
       if (!hit.length) return data;
@@ -141,7 +155,8 @@ export function dismissJobs(quick, jobId, alsoIds = []) {
   return archiveRun(quick, jobId ? alsoIds.length ? { jobIds: [jobId, ...alsoIds] } : { jobId } : { all: true }, ids, jobId || "jobs:all");
 }
 
-const none = () => ({ ok: true, archived: 0, unarchived: 0, deleted: 0, skipped: 0 });
+const none = () => ({ ok: true, archived: 0, unarchived: 0, deleted: 0, skipped: 0, skippedIds: [] });
+const skippedIdsOf = (reply) => (Array.isArray(reply?.skipped) ? reply.skipped.map((item) => (typeof item === "string" ? item : item?.id)).filter(Boolean) : []);
 /** Send `ids` in calls of at most 100, one after the other; stops at the first failure. `each(part)` is one call's promise, `add(reply)` what it says. */
 async function inParts(ids, each, add) {
   const total = none();
@@ -155,15 +170,23 @@ async function inParts(ids, each, add) {
 
 /** 归档 for the console's selection (task ids: a job's own id or what survives a retry). Resolves { ok, archived, skipped } (message when it failed). */
 export const archiveJobs = (quick, ids) => inParts(ids, (part) => archiveRun(quick, { jobIds: part }, new Set(part), `jobs:archive:${part[0]}:${part.length}`),
-  (total, reply) => { total.archived += count(reply.archived) + count(reply.alreadyArchived); total.skipped += count(reply.skipped); });
+  (total, reply) => { total.archived += count(reply.archived) + count(reply.alreadyArchived); total.skipped += count(reply.skipped); total.skippedIds.push(...skippedIdsOf(reply)); });
 
-/** 取消归档: the records leave the archived list at once; the tasks are back in the list with the next snapshot. */
-export const unarchiveJobs = (quick, ids) => inParts(ids, (part) => {
-  const is = named(new Set(part));
-  return quick.run("job.unarchive", { jobIds: part }, { key: `jobs:unarchive:${part[0]}:${part.length}`,
-    patch: (data) => (data.archivedJobs?.some(is) ? { ...data, archivedJobs: data.archivedJobs.filter((job) => !is(job)) } : data),
-    confirmed: (data) => !(data.archivedJobs || []).some(is), treatAsDone: notFound });
-}, (total, reply) => { total.unarchived += count(reply.unarchived); });
+/** 取消归档: the records leave the archived list at once; the tasks are back in the list with the next snapshot. Every call is its own (a key of its own): a second
+    撤销 after a second 归档 is never taken for the first one still held. When it worked, an 归档 still held on screen for exactly these jobs lets go, so they are back at
+    once and a second 归档 is really sent. */
+let unarchiveSequence = 0;
+export const unarchiveJobs = async (quick, ids) => {
+  const total = await inParts(ids, (part) => {
+    const is = named(new Set(part));
+    const found = (quick.current?.()?.archivedJobs || []).filter(is).map(namesOf);
+    return quick.run("job.unarchive", { jobIds: part }, { key: `jobs:unarchive:${++unarchiveSequence}`, groups: found.length ? found : part.map((id) => [id]),
+      patch: (data) => (data.archivedJobs?.some(is) ? { ...data, archivedJobs: data.archivedJobs.filter((job) => !is(job)) } : data),
+      confirmed: (data) => !(data.archivedJobs || []).some(is), treatAsDone: notFound });
+  }, (sum, reply) => { sum.unarchived += count(reply.unarchived); });
+  if (total.ok !== false) quick.release?.(ids, "job.archive");
+  return total;
+};
 
 /** 删除 (for good): finished tasks and archived records leave the view at once; a task that is running never does. Resolves { ok, deleted, skipped }. */
 export const deleteJobs = (quick, ids) => inParts(ids, (part) => {
@@ -171,7 +194,7 @@ export const deleteJobs = (quick, ids) => inParts(ids, (part) => {
   return quick.run("job.delete", { jobIds: part }, { key: `jobs:delete:${part[0]}:${part.length}`,
     patch: (data) => ({ ...data, jobs: (data.jobs || []).filter((job) => !(is(job) && !isActiveJob(job))), archivedJobs: (data.archivedJobs || []).filter((job) => !is(job)) }),
     confirmed: (data) => ![...(data.jobs || []), ...(data.archivedJobs || [])].some((job) => is(job) && !isActiveJob(job)), treatAsDone: notFound });
-}, (total, reply) => { total.deleted += count(reply.deleted); total.skipped += count(reply.skipped); });
+}, (total, reply) => { total.deleted += count(reply.deleted); total.skipped += count(reply.skipped); total.skippedIds.push(...skippedIdsOf(reply)); });
 
 /** 全部已读: the badge clears at once. With `ids`: those letters were seen on screen, so they read at once and the others stay unread. */
 export function markInboxRead(quick, { ids } = {}) {

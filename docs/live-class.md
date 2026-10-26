@@ -159,7 +159,7 @@ A translation that fails 3 times shows as unavailable. Click **Retry failed tran
 
 - **Open** shows a class. It is unavailable while you are recording.
 - **Archive** moves a class to **Archived classes**. End an active recording first.
-- In **Archived classes**, use **Open**, **Restore** or **Delete**. Delete asks you to confirm with **Delete permanently**.
+- In **Archived classes**, use **Open**, **Restore** or **Delete**. Delete asks nothing: the class leaves the list and a notice offers **Undo** for about 8 seconds; the transcript, translation and class notes are deleted when that notice leaves (sources you saved from the class stay).
 - To continue an archived class, restore it first.
 - Permanent deletion removes the class's transcript, translations and class notes, and cannot be undone. Sources you saved from the class stay in the library.
 

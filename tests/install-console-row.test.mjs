@@ -58,7 +58,7 @@ test('an install that was stopped is 已暂停, offers 继续安装 in its own f
   assert.doesNotMatch(textOf(html), /已停止/);
   assert.match(detail, /data-install-resume[^>]*>继续安装</);
   assert.doesNotMatch(detail, /tc-head__delete/, 'no 删除 beside 继续安装');
-  assert.match(textOf(detail), /知道了/, 'it can still be put away');
+  assert.match(detail, />归档</, 'it can still be put away');
 });
 
 test('继续安装 starts the install of its tool again, in the folder and the tier it used; a running or finished install has none', () => {

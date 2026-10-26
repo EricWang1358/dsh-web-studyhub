@@ -36,12 +36,12 @@ test('audio jobs are compact cards: no live card, no text glyphs, a named progre
   assert.match(out, /cjc__line" role="alert">转写服务没有响应/, 'the failure is the one status line');
 });
 
-test('audio card actions keep their meaning: stop while running, the way on after a failure, 知道了 once finished', () => {
+test('audio card actions keep their meaning: stop while running, the way on after a failure, 归档 once finished', () => {
   setUiLanguage('zh');
   const out = render([job(), job({ id: 'f', status: 'failed', stage: 'boom', retryable: true })], { busy: true });
   assert.match(out, /aria-label="停止：lecture\.mp3"/);
   assert.match(out, />看原因并继续</);
-  const dismissals = out.match(/<button[^>]*aria-label="知道了：[^"]*"[^>]*>/g) || [];
+  const dismissals = out.match(/<button[^>]*aria-label="归档：[^"]*"[^>]*>/g) || [];
   assert.equal(dismissals.length, 1, 'only the finished job can be dismissed');
   assert.doesNotMatch(dismissals[0], /disabled/, 'dismissing is never blocked by another action');
   const leaving = render([job({ id: 'f', status: 'failed', stage: 'boom', leaving: true })]);

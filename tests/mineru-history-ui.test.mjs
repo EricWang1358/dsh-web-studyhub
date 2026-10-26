@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -177,12 +178,15 @@ test('more than ten rows: ten are shown, the rest behind "显示更多"', () => 
   assert.doesNotMatch(all, /显示更多/);
 });
 
-test('clearing asks first, and says the imported material stays', () => {
-  const html = render(view([record(), failed()], { initialConfirmClear: true }));
-  assert.match(html, /清空这 2 条解析记录？/);
-  assert.match(html, /已导入的资料不会被删除/);
-  assert.match(html, />确认清空</);
-  assert.match(html, />取消</);
+test('清空历史 asks nothing (D1: a record is not a source or a question): one click, the rows leave and the notice offers 撤销; the bar still says the imported material stays', () => {
+  const html = render(view([record(), failed()]));
+  assert.match(html, />清空历史</);
+  assert.match(html, /删除记录不会删除已导入的资料/);
+  assert.doesNotMatch(html, /确认清空|清空这 2 条解析记录？/);
+  const source = readFileSync('ui/PdfConvertJob.jsx', 'utf8');
+  assert.doesNotMatch(source, /InlineConfirm/);
+  assert.match(source, /commitLater\(\{ keys: ids/);
+  assert.match(source, /commitLater\(\{ keys: \[row\.id\]/);
 });
 
 test('every action is a real button with a name that says which file it is for (keyboard and screen readers)', () => {
@@ -220,7 +224,7 @@ test('English: no Chinese outside file names and titles, in any state of the his
     view([record({ status: 'interrupted', finishedAt: undefined, elapsedMs: 0, documentId: undefined, document: undefined, canRetry: false })]),
     view([failed({ canRetry: false })]), view([record({ status: 'cancelled', documentId: undefined, document: undefined })]),
     view([record({ status: 'running', phase: 'parse', finishedAt: undefined, live: true, documentId: undefined, document: undefined })]),
-    view([record({ document: { exists: false, sourceIds: [] } })]), view([record()], { initialConfirmClear: true }),
+    view([record({ document: { exists: false, sourceIds: [] } })]), view([record()]),
     view(Array.from({ length: 14 }, (_, index) => record({ startedAt: at(index * 700) }))),
     h(MineruRoute, { call, onFile() {}, initialLocal: { state: 'ready', tier: 'basic' }, initialHistory: [record(), failed()], historyNow: NOW })];
   for (const element of states) {

@@ -111,8 +111,6 @@
     .live-history-row > div:first-child { min-width: 0; overflow-wrap: anywhere; }
     .live-history-row .live-actions { flex-shrink: 0; }
     .live-archive { margin-top: var(--space-4); }
-    .live-history-confirm { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
-    .live-history-confirm p { overflow-wrap: anywhere; }
   }
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {

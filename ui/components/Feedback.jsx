@@ -34,7 +34,7 @@ const dismissLabel = tone => tone === 'error' ? ui('关闭错误') : ui('关闭�
  * itself, a countdown line (`timerRef`); `stamp` changes with every new receipt, so its seal and words are pressed again in place.
  * Prefer ToastRegion (or App's setNotice) over placing Toasts by hand.
  */
-export function Toast({ tone, title, children, action, onDismiss, dismissText, receipt, seal, stamp, timerRef, className, ...rest }) {
+export function Toast({ tone, title, children, action, secondary, onDismiss, dismissText, receipt, seal, stamp, timerRef, className, ...rest }) {
   useComponentCss(css);
   const kind = toneOf(tone);
   return (
@@ -45,6 +45,7 @@ export function Toast({ tone, title, children, action, onDismiss, dismissText, r
         <span className="sh-toast__message">{children}</span>
       </div>
       {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
+      {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-toast__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
       {timerRef && <span ref={timerRef} className="sh-toast__timer" aria-hidden="true" />}
     </div>
@@ -95,7 +96,7 @@ function ToastItem({ toast, onDismiss }) {
   }, [receipt, auto, held, toast.timeout]);
   useReceiptTime({ active: receipt && auto, held: held || hidden, timeout: Number(toast.timeout) || TOAST_TIMEOUT, stamp: toast.stamp, timerRef, onEnd: dismiss });
   return (
-    <Toast tone={toast.tone} title={toast.title} action={toast.action} dismissText={toast.dismissLabel}
+    <Toast tone={toast.tone} title={toast.title} action={toast.action} secondary={toast.secondary} dismissText={toast.dismissLabel}
       receipt={toast.receipt} seal={toast.seal} stamp={toast.stamp} timerRef={receipt && auto ? timerRef : undefined}
       onDismiss={toast.dismissible === false ? undefined : () => dismiss.current?.()}
       onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}
@@ -236,15 +237,18 @@ const failureText = error => {
 };
 
 /**
- * The api over the app's two feedback slots. show({ tone, message, action: { label, onClick }, persistent, undo, timeout, scope })
+ * The api over the app's two feedback slots. show({ tone, message, action: { label, onClick }, secondary, persistent, undo, timeout, scope, onLeave })
  * fills the notice slot (a newer one replaces it); error(error, { retry }) fills the error slot; dismiss() clears the notice.
- * An undo offer (`undo: true`) leaves after `timeout` but is held while hovered or focused (see shouldAutoDismiss).
+ * An undo offer (`undo: true`) leaves after `timeout` but is held while hovered or focused (see shouldAutoDismiss). `secondary`: a second quiet action
+ * (永久删除… after an archive). `onLeave()` is called once when the notice leaves for any reason (time, close, a newer notice, another page): ui/undoable.js commits then.
  */
 export function createToastApi({ setNotice, setError }) {
-  const show = ({ tone = 'info', message, action, persistent, undo, timeout, scope }) => setNotice({
+  const show = ({ tone = 'info', message, action, secondary, persistent, undo, timeout, scope, onLeave }) => setNotice({
     text: message, tone,
     ...(persistent ? { persistent } : {}), ...(undo ? { undo } : {}), ...(timeout ? { timeout } : {}), ...(scope !== undefined ? { scope } : {}),
     ...(action ? { action: { label: action.label, run: action.run ?? action.onClick } } : {}),
+    ...(secondary ? { secondary: { label: secondary.label, run: secondary.run ?? secondary.onClick } } : {}),
+    ...(onLeave ? { onLeave } : {}),
   });
   const withTone = kind => (message, options = {}) => show({ tone: kind, message, ...options });
   return {

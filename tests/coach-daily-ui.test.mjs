@@ -81,7 +81,7 @@ test('the facts of the day: kept over written, practised and accuracy, the token
   assert.equal(facts['跳过 · 过期'], '2');
 });
 
-test('the detail has the batches as its section, the three live settings, pause today, and no 知道了 for today', () => {
+test('the detail has the batches as its section, the three live settings, pause today, and no 归档 for today', () => {
   const [today] = rows();
   const out = consoleOf([today]);
   assert.match(out, />批次 2</);
@@ -90,7 +90,7 @@ test('the detail has the batches as its section, the three live settings, pause 
   assert.match(out, /备题推理/);
   assert.match(out, />暂停</, 'pause today is the checkpoint action');
   assert.doesNotMatch(out, />停止</, 'a day is a record, not a run: there is nothing to stop');
-  assert.doesNotMatch(out, />知道了</, 'today\'s row is not dismissed');
+  assert.doesNotMatch(out, />归档</, 'today\'s row is not dismissed');
   assert.doesNotMatch(out, />存为默认</, 'these settings are already the saved ones');
 });
 

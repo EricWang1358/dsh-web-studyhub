@@ -39,7 +39,7 @@ test('active menus only archive; archived menus restore or request confirmed per
   const dialog = renderToStaticMarkup(React.createElement(RemoveDialog, { item: { ...item, archived: true }, onClose() {} }));
   assert.match(dialog, /确认永久删除/);
   assert.match(dialog, /取消/);
-  assert.match(dialog, /无法撤销/);
+  assert.match(dialog, /不能撤销/);
 });
 
 test('archived sources leave the active library and generation picker', () => {

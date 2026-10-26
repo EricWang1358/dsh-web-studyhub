@@ -121,7 +121,7 @@ test('a failed conversion offers to continue without redoing finished pieces; a 
   const failed = render(jobs([job({ status: 'failed', retryable: true, stage: '本地解析没有完成（已完成的段落会保留）。', errorCode: 'window-failed' })]));
   assert.match(failed, /本地解析没有完成/);
   assert.match(failed, />接着做</);
-  assert.match(failed, /知道了/);
+  assert.match(failed, />归档</);
   const stopped = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'server-stopped', stage: '本机 MinerU 服务没有在运行，或解析到一半停了。点「接着做」会先启动服务，再从停下的那一段接着解析（已完成的段落会保留）。' })]));
   assert.match(stopped, />接着做</);
   assert.doesNotMatch(stopped, /重新启动本地服务并接着做/);

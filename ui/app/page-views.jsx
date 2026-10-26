@@ -173,7 +173,7 @@ function ManageView() {
   return (
     <Manage openDraft={drafts.openDraft} setPage={nav.navigate} managedDeck={lib.managedDeck}
       decks={data.decks} focus={data.focus} sources={data.sources} modelReady={data.modelReady} setManagedDeck={set.setManagedDeck} folderDraft={lib.folderDraft}
-      setFolderDraft={set.setFolderDraft} onRemoveDeck={(id) => set.setRemovingDeck({ id, root: data.root })} />
+      setFolderDraft={set.setFolderDraft} onRemoveDeck={(id, options) => set.setRemovingDeck({ id, root: data.root, ...options })} runs={data.runs} />
   );
 }
 

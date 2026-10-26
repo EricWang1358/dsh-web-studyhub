@@ -82,6 +82,15 @@
       padding: var(--space-2) 0;
       text-align: left;
     }
+    /* 删除 (it opens the one draft-delete dialog) sits at the end of the first line, after 打开 →; everything under the title keeps the whole width. */
+    .draft-row:has(> .draft-delete) { grid-template-columns: minmax(0, 1fr) auto; }
+    .draft-row:has(> .draft-delete) > :not(.draft-open, .draft-delete) { grid-column: 1 / -1; }
+    .draft-delete { grid-row: 1; grid-column: 2; color: var(--text-muted); }
+    /* A narrow list (a phone, a narrow side panel; the container is the 待发布 fold, ui/generate-home.css): 删除 goes on a line of its own under the title, so a long title keeps the whole width. */
+    @container home-drafts (max-width: 480px) {
+      .draft-row:has(> .draft-delete) { grid-template-columns: minmax(0, 1fr); }
+      .draft-row > .draft-delete { grid-row: auto; grid-column: 1; justify-self: start; margin-top: calc(var(--space-1) * -1); }
+    }
     .draft-open > span:first-child { min-width: 0; overflow-wrap: anywhere; }
     .draft-row small.draft-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
     .draft-row small {

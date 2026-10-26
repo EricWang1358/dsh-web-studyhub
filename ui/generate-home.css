@@ -14,7 +14,8 @@
     .home-activity .sh-job .generation-trace > summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
     .home-activity .sh-job .generation-trace > summary:hover { color: var(--text); }
     .home-activity .sh-job .tech-details { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); }
-    .home-drafts { margin: var(--space-4) 0 var(--space-2); }
+    /* A container, so a narrow list puts a row's 删除 on its own line (ui/study-map/desk.css, @container home-drafts). */
+    .home-drafts { margin: var(--space-4) 0 var(--space-2); container: home-drafts / inline-size; }
     /* ── 创建题组 ─────────────────────────────────────────────────────────── */
     .generate-page .source-mode { margin-top: var(--space-5); }
     .generate-page .source-tab strong { display: flex; align-items: center; gap: var(--space-2); }

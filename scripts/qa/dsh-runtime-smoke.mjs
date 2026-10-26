@@ -188,7 +188,10 @@ export async function runSmoke(options) {
       await shot("tasks-ui-after-stop-1280");
       await page.getByRole("checkbox", { name: /选择任务：smoke-4\.txt/ }).check({ force: true });
       await page.getByRole("button", { name: "删除", exact: true }).first().click();
-      await page.getByRole("button", { name: "确认删除" }).click();
+      // 删除 asks nothing (3.7.0 D1): the 撤销 notice is up; closing it sends the deletion.
+      const notice = page.locator(".sh-toast", { hasText: "已删除" }).first();
+      await notice.waitFor();
+      await notice.getByRole("button", { name: "关闭提示" }).click();
       const gone = await until("the record to be deleted", async () => !(await row(started.jobId)));
       return { endedStatus: ended.status, cardGoneAfterDelete: gone };
     });

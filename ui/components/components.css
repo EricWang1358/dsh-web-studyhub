@@ -434,6 +434,8 @@
       .sh-toast__text { grid-column: 2; grid-row: 1; }
       .sh-toast__close { grid-column: 3; grid-row: 1; }
       .sh-toast__action { grid-column: 2 / -1; grid-row: 2; justify-self: start; min-width: 0; max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+      /* A second action (永久删除… after an archive) goes on a line of its own under 撤销, never on top of it. */
+      .sh-toast__secondary { grid-row: 3; }
       /* A receipt on a phone (one more class than the receipt's own rules below, which come later in this sheet): the seal, then the words, which take
          the whole width up to the slip's edge; × sits in the top corner over the title's end only, so the line runs on under it; the action moves under
          the words, lined up with them. One height for every outcome (88px at most): the action keeps a 36px hit area but takes less room in the row (its

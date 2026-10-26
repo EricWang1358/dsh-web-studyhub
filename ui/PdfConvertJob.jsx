@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Disclosure, Icon, InlineConfirm, InlineMessage, JobRow, Hint, LoadingState, Tooltip, useNow } from './components/index.js';
+import { Badge, Button, Disclosure, Icon, InlineMessage, JobRow, Hint, LoadingState, Tooltip, useNow } from './components/index.js';
+import { useUndoable } from './use-undoable.js';
 import { formatBytes, formatDuration, formatAgo, formatDay } from './format.js';
 import { usePolling } from './use-polling.js';
 import { isActiveJob } from './job-visibility.js';
@@ -22,12 +23,30 @@ import css from './mineru.css';
 const SERVICE_STOPPED = ['server-stopped', 'server-start-failed'];
 const retryTip = job => (job.converter !== 'marker' && SERVICE_STOPPED.includes(job.errorCode || job.failure?.code) ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : undefined);
 
+/** What a card action came to. The app's act() resolves undefined when it did NOT run (another write held the lock) or failed (it shows the error itself), and
+    { ok: false } is a refusal: only anything else is done, so the card never says 「已归档 · 撤销」 for an archive that did not happen. */
+/** The host's refusal of mineru.history.remove for a record that is running (lib: 「…进行…」); only that one is "kept", never a transport failure. */
+const RUNNING_AGAIN = /进行|running/i;
+
+/** 清空历史's commit: forget exactly `ids`, one by one. A record the host refuses because it runs again is kept (and said); any other failure (the bridge, the disk)
+    stops there and throws with its own words, so the rows come back with the real reason. → { kept } */
+export async function forgetRecords(call, ids) {
+  const kept = [];
+  for (const id of ids) {
+    try { await call('mineru.history.remove', { id }); }
+    catch (error) { if (RUNNING_AGAIN.test(error?.message || '')) kept.push(id); else throw error; }
+  }
+  return { kept };
+}
+
+export const cardOutcome = (value) => (value === undefined || value === null || value?.ok === false ? { ok: false } : { ok: true });
+
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
   const [working, setWorking] = useState('');
   const run = async (name, work) => {
-    if (working) return;
+    if (working) return { ok: false };
     setWorking(name);
-    try { await work(); onChanged?.(); } catch { /* the console shows what went wrong; the card stays as it was */ } finally { setWorking(''); }
+    try { const outcome = cardOutcome(await work()); if (outcome.ok) onChanged?.(); return outcome; } catch { /* the console shows what went wrong; the card stays as it was */ return { ok: false }; } finally { setWorking(''); }
   };
   // A stopped local service is started by the run itself (lib/contexts/audio/pdf/convert-run.js): 接着做 is all it takes.
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
@@ -39,7 +58,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
     <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
-      onDismiss={() => void run('dismiss', () => send('job.archive', { jobId: job.id }))} />
+      onDismiss={() => run('dismiss', () => send('job.archive', { jobId: job.id }))} />
   </JobFollowUp>;
 }
 
@@ -280,7 +299,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
   const busy = working === row.id;
   const known = Object.hasOwn(STATUS_TEXT, status) ? status : 'failed';
   return (
-    <li className="pdf-history__item">
+    <li className="pdf-history__item" data-record={row.id}>
       <JobRow className="pdf-history__row" status={known} title={row.filename} data-route={row.route || 'cloud'} data-status={status}
         failure={stage || row.failure?.reason ? { title: stage || undefined, hint: row.failure?.reason ? uiMessage(row.failure.reason) : undefined } : undefined}>
         <span className="pdf-history__chips">
@@ -319,14 +338,16 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
  * the history never deletes an imported document.
  * Props: call, act (single-flight, for resuming), data / jobs, onOpenSources(sourceIds), onOpenJob(row) (when the live card is not on this page),
  * onOpenSettings, onChanged, collapsible + defaultOpen, hideWhenEmpty (the Sources page shows it only once there is something), and initialRecords /
- * initialShown / initialConfirmClear / now (previews and tests).
+ * initialShown / now (previews and tests). 删除记录 and 清空历史 ask nothing: the rows leave at once and the notice offers 撤销 (ui/undoable.js); the host
+ * forgets them when that notice leaves.
  */
 export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
-  initialRecords = null, initialShown, initialConfirmClear = false, now: fixedNow, className, ...rest }) {
+  initialRecords = null, initialShown, now: fixedNow, className, ...rest }) {
   useInjectCss(css, 'study-mineru');
   const [records, setRecords] = useState(initialRecords), [readError, setReadError] = useState(''), [problem, setProblem] = useState('');
-  const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [confirming, setConfirming] = useState(initialConfirmClear), [working, setWorking] = useState('');
-  const alive = useRef(true), heading = useRef(null), clearButton = useRef(null);
+  const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [working, setWorking] = useState('');
+  const alive = useRef(true), heading = useRef(null);
+  const undoable = useUndoable();
   const key = historyRefreshKey(jobs ?? data?.jobs);
   const send = (action, args) => (act ? act(action, args) : call(action, args));
   const load = useCallback(async () => {
@@ -350,8 +371,19 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
     try { await task(); } catch (error) { setProblem(errorMessage(error)); } finally { if (alive.current) setWorking(''); }
   };
   const toHeading = () => setTimeout(() => heading.current?.focus?.(), 0);
-  const remove = row => work(row.id, async () => { await call('mineru.history.remove', { id: row.id }); await load(); toHeading(); });
-  const clear = () => work('clear', async () => { await call('mineru.history.clear', { confirm: true }); setConfirming(false); await load(); toHeading(); });
+  const forget = async (request) => { await request(); if (alive.current) await load(); return true; };
+  const remove = row => { toHeading(); undoable.commitLater({ keys: [row.id], message: uiFormat('已删除「{0}」的记录', [row.filename]),
+    commit: () => forget(() => call('mineru.history.remove', { id: row.id })), failed: reason => uiFormat('没能删除「{0}」的记录，已放回原处：{1}', [row.filename, reason]),
+    focus: () => document.querySelector(`[data-record="${CSS.escape(row.id)}"] .pdf-history__actions button:last-child`) }); };
+  // 清空历史: the rows shown (none running) leave at once; when the notice leaves, exactly THOSE records are forgotten, one by one (a conversion that finished
+  // during the 撤销 time is not swept away with them, as the unscoped mineru.history.clear would). A record that started running again stays and comes back.
+  const clear = () => { const ids = deletable.map(row => row.id); toHeading(); undoable.commitLater({ keys: ids, message: uiFormat('已清空 {0} 条解析记录', [ids.length]),
+    commit: async () => {
+      try { return { ok: true, kept: (await forgetRecords(call, ids)).kept }; } finally { if (alive.current) await load(); }
+    },
+    kept: count => uiFormat('{0} 条记录又在运行，没有删除', [count]),
+    failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]),
+    focus: () => document.querySelector('.pdf-history__bar button') }); };
   const retry = row => work(row.id, async () => {
     // A stopped local service is started by the run itself.
     await send('mineru.retry', { jobId: row.id });
@@ -363,7 +395,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   };
 
   if (hideWhenEmpty && (!records || !records.length)) return null;
-  const list = records || [], deletable = list.filter(row => row.status !== 'running');
+  const list = (records || []).filter(row => !undoable.hidden(row.id)), deletable = list.filter(row => row.status !== 'running');
   const groups = groupHistoryByDay(list.slice().sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0)).slice(0, shown), clock);
   const more = list.length - shown;
   const body = <>
@@ -375,12 +407,8 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
     </div>}
     {list.length > 0 && <div className="pdf-history__bar">
       <small>{uiFormat('{0} 条记录 · 保留最近 50 条，以及 90 天内的所有记录。删除记录不会删除已导入的资料。', [list.length])}</small>
-      {deletable.length > 0 && !confirming && <Button ref={clearButton} variant="quiet" size="sm" disabled={!!working} onClick={() => setConfirming(true)}>{ui('清空历史')}</Button>}
+      {deletable.length > 0 && <Button variant="quiet" size="sm" disabled={!!working} onClick={clear}>{ui('清空历史')}</Button>}
     </div>}
-    {confirming && deletable.length > 0 && <InlineConfirm title={uiFormat('清空这 {0} 条解析记录？', [deletable.length])} confirmLabel={ui('确认清空')}
-      busy={working === 'clear'} returnFocusRef={clearButton} onConfirm={clear} onCancel={() => setConfirming(false)}>
-      {ui('已导入的资料不会被删除。')}
-    </InlineConfirm>}
     {problem && <InlineMessage tone="error">{uiFormat('没能完成：{0}', [problem])}</InlineMessage>}
     {groups.map(group => <div className="pdf-history__group" key={group.key}>
       <h5 className="pdf-history__day">{dayHeading(group)}</h5>

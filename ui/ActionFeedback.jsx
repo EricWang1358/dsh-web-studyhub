@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiMessage } from './i18n.js';
 import { ToastRegion } from './components/Feedback.jsx';
 import { Seal } from './hand-off/Receipt.jsx';
@@ -39,6 +39,14 @@ export function useNotice(scope) {
   useEffect(() => {
     if (entry && !noticeVisible(entry, scope)) setEntry(current => current === entry ? null : current);
   }, [entry, scope]);
+  // A notice with `onLeave` (an undo offer of ui/undoable.js) is told once when it leaves: replaced, closed, timed out, hidden by another page, or the app goes away.
+  const shown = useRef(null);
+  useEffect(() => {
+    const before = shown.current;
+    shown.current = entry;
+    if (before && before.id !== entry?.id) before.value?.onLeave?.();
+  }, [entry]);
+  useEffect(() => () => { shown.current?.value?.onLeave?.(); shown.current = null; }, []);
   const visible = noticeVisible(entry, scope);
   const notice = useMemo(() => {
     if (!visible) return '';
@@ -60,7 +68,11 @@ export function noticeToToast(notice, busy) {
   return { id: 'notice', key: value.receipt ? 'notice:hand-off' : `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
     ...(value.title ? { title: uiMessage(value.title) } : {}),
     message: value.copy ? String(value.text ?? '') : uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
-    ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), ...receipt, action: actionOf(value, busy) };
+    ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), ...receipt,
+    // An undo offer's 撤销 and 永久删除… stay usable while another write runs: they are the learner's only way back. Their inverses are plain calls (never the
+    // single-flight act(), which would drop them while busy); an inverse that still resolves undefined says 「另一个操作还在进行」 (ui/undoable.js).
+    action: actionOf(value, value.undo ? false : busy),
+    ...(value.secondary ? { secondary: actionOf({ action: value.secondary }, value.undo ? false : busy) } : {}) };
 }
 
 export function errorToToast(error, busy) {

@@ -38,19 +38,19 @@ const map = (jobs, { busy = false, quick, dismissJob = noop } = {}) => {
   return renderToStaticMarkup(quick ? React.createElement(QuickActionsContext.Provider, { value: quick }, tree) : tree);
 };
 
-test("知道了 stays clickable while another action is busy: it is not part of the single-flight act", () => {
+test("归档 stays clickable while another action is busy: it is not part of the single-flight act", () => {
   const html = map([generation("a", "failed"), generation("b", "complete")], { busy: true });
-  const buttons = html.match(/<button[^>]*aria-label="知道了：[^"]*"[^>]*>/g) || [];
+  const buttons = html.match(/<button[^>]*aria-label="归档：[^"]*"[^>]*>/g) || [];
   assert.equal(buttons.length, 2);
   for (const button of buttons) assert.doesNotMatch(button, /disabled/);
   assert.match(html, /class="[^"]*jobs-dismiss-all"(?![^>]*disabled)/);
 });
 
-test("a card that is leaving is animated out and no longer counted for 全部知道了", () => {
+test("a card that is leaving is animated out and no longer counted for 全部归档", () => {
   const html = map([generation("a", "failed", { leaving: true }), generation("b", "complete")]);
   assert.match(html, /<article[^>]*class="cjc is-leaving[^"]*"[^>]*data-job-id="a"/);
   assert.doesNotMatch(html, /is-leaving[^>]*data-job-id="b"/);
-  assert.doesNotMatch(html, /全部知道了/, "only one visible finished card is left, so the bulk action goes away");
+  assert.doesNotMatch(html, /全部归档/, "only one visible finished card is left, so the bulk action goes away");
   const leavingButton = html.match(/data-job-id="a"[\s\S]*?<\/article>/)[0];
   assert.match(leavingButton, /aria-hidden="true"/, "a card on its way out is hidden from assistive tech");
 });
@@ -58,7 +58,7 @@ test("a card that is leaving is animated out and no longer counted for 全部知
 test("the dismiss-all button hands the whole decision to the light path", () => {
   const calls = [];
   const html = map([generation("a", "failed"), generation("b", "complete")], { dismissJob: (id) => calls.push(id) });
-  assert.match(html, /全部知道了/);
+  assert.match(html, /全部归档/);
   assert.deepEqual(calls, []);
 });
 
@@ -74,14 +74,14 @@ test("a failed dismiss-all puts its error beside the bulk button", () => {
   assert.match(actions, /网络中断/);
 });
 
-test("audio cards: 知道了 is never disabled, leaving cards animate out, errors appear inside the card", () => {
+test("audio cards: 归档 is never disabled, leaving cards animate out, errors appear inside the card", () => {
   const jobs = [audio("one", "complete", { sourceIds: ["s"] }), audio("two", "failed", { retryable: true, leaving: true })];
   const render = (quick) => {
     const tree = React.createElement(AudioJobs, { data: { jobs }, busy: true, act: noop, openAgent: noop });
     return renderToStaticMarkup(quick ? React.createElement(QuickActionsContext.Provider, { value: quick }, tree) : tree);
   };
   const html = render();
-  const buttons = html.match(/<button[^>]*aria-label="知道了：[^"]*"[^>]*>/g) || [];
+  const buttons = html.match(/<button[^>]*aria-label="归档：[^"]*"[^>]*>/g) || [];
   assert.equal(buttons.length, 2);
   for (const button of buttons) assert.doesNotMatch(button, /disabled/);
   assert.match(html, /class="cjc"[^>]*data-job-id="one"/);

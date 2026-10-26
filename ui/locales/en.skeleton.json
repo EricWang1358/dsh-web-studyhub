@@ -24,8 +24,6 @@
   "骨架已更新，图可能过期": "The outline changed; this diagram may be out of date",
   "在浏览器中打开": "Open in browser",
   "复制文件路径": "Copy file path",
-  "删除图「{0}」？": "Delete diagram “{0}”?",
-  "只删这张图在学习库里的副本，不影响骨架，也不影响你工作目录里的原文件。": "This only deletes the diagram's copy in the library. The outline and the original file in your workspace stay as they are.",
   "这是外部生成的图，在隔离窗口里显示": "This diagram was made outside StudyHub and is shown in an isolated window",
   "里面的链接不会在这里打开。": "Links inside it do not open here.",
   "外部生成的交互图": "Externally made interactive diagram",

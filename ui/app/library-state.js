@@ -48,11 +48,13 @@ export function useLibraryState(initial) {
  * The one reset entry. reason is 'switch' (another library arrived), 'restore' (a backup replaced this one) or 'binding'
  * (the learner moved the binding); all three do the same, because anything less leaves old-library references on new data.
  * deps: { refs: { epoch, navigation, leaveTimer, examLocation, actRunner }, quick, resetLibrary(initial), session, clearTimer,
- *   setPageTarget, setBusy, setNotice, setError, setPage }. options: { gen, settings }.
+ *   setPageTarget, setBusy, setNotice, setError, setPage, abandonPending() (deletions still waiting for their 撤销 time, dropped: how many), unsentText(count) }. options: { gen, settings }.
  */
 export function createLibraryReset(deps) {
   return function resetLibraryState(reason, { gen, settings } = {}) {
     const { refs } = deps;
+    // A 删除 still in its 撤销 time belongs to the library that is gone: it is not sent to this one (ui/undoable.js abandonUndoable), and the learner is told.
+    const unsent = deps.abandonPending?.() || 0;
     refs.epoch.current++;
     deps.quick.reset();
     refs.navigation.current++;
@@ -61,7 +63,7 @@ export function createLibraryReset(deps) {
     deps.setPageTarget(null);
     deps.setBusy(false);
     deps.setNotice('');
-    deps.setError('');
+    deps.setError(unsent ? deps.unsentText(unsent) : '');
     deps.session.reset();
     // What the host reported about the old library (search, MinerU...) is not the new library's.
     resetHostQueries();
@@ -76,9 +78,9 @@ export function createLibraryReset(deps) {
 }
 
 /** resetLibraryState(reason, { gen, settings }) over the app's hooks; one stable function, always acting on the latest hooks. */
-export function useLibraryReset({ core, libApi, nav, session, defaultGen }) {
+export function useLibraryReset({ core, libApi, nav, session, defaultGen, abandonPending, unsentText }) {
   const latest = useRef(null);
-  latest.current = { libApi, nav, session, defaultGen };
+  latest.current = { libApi, nav, session, defaultGen, abandonPending, unsentText };
   return useMemo(() => createLibraryReset({
     refs: core.refs, quick: core.quick, defaultGen: () => latest.current.defaultGen?.(),
     resetLibrary: (initial) => latest.current.libApi.reset(initial),
@@ -87,5 +89,6 @@ export function useLibraryReset({ core, libApi, nav, session, defaultGen }) {
     setPageTarget: (value) => latest.current.nav.setPageTarget(value),
     setBusy: core.setBusy, setNotice: core.notify, setError: core.setError,
     setPage: (value) => latest.current.nav.setPage(value),
+    abandonPending: () => latest.current.abandonPending?.() || 0, unsentText: (count) => latest.current.unsentText?.(count) || '',
   }), [core.refs, core.quick, core.setBusy, core.notify, core.setError]);
 }

@@ -4,15 +4,15 @@ import { Button, Checkbox, Tooltip, useNow } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from '../app/app-context.js';
 import { useQuickActions, dismissJobs } from '../quick-actions.js';
-import { failureText } from '../failure.js';
 import { formatDateTime, joinMeta } from '../format.js';
 import denseCss from '../dense-surface.css';
 import css from './task-console.css';
-import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf, taskKindOf } from './task-model.js';
+import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf } from './task-model.js';
 import { isSelectableTask, reconcileSelection, selectionSummary, toggleAll, toggleSelection } from './task-selection.js';
 import { batchMessage, batchRun } from './task-batch.js';
 import SelectBar from './SelectBar.jsx';
-import DeleteTasksDialog from './DeleteTasksDialog.jsx';
+import { useUndoable } from '../use-undoable.js';
+import { deleteNoticeText } from './delete-notice.js';
 import { taskSummary } from './task-summary.js';
 import { usageLine } from './task-facts.js';
 import Metrics from './Metrics.jsx';
@@ -37,6 +37,8 @@ import { modelReadiness } from '../generation-status.js';
    the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
 
 const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败/中断', archived: '已归档' };
+/** The row of a task in the list: where the keyboard focus goes back to after 撤销. */
+const rowOf = (id) => () => document.querySelector(`.tc-row[data-task-id="${CSS.escape(id)}"]`);
 
 function percentWord(summary) {
   if (summary.state === 'fail') return ui('失败');
@@ -80,19 +82,27 @@ function ArchivedNote({ task }) {
   );
 }
 
-function Detail({ task, data, openers, full, onFull, onDelete }) {
+function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
   const { core, settingsEntry, learn } = useApp();
   const quick = useQuickActions();
   const contract = contractOf(task), summary = taskSummary(task), actions = headerActions(task), archived = isArchivedTask(task);
   const live = isRunningTask(task), now = useNow(1000, { enabled: live });
   const key = contract.jobId, day = contract.kind === 'coach-daily';
-  /* 知道了 puts the task in 已归档 (nothing is deleted); 取消归档 puts it back. Both go the light way and say where the task went. */
-  const settle = async (run, text) => {
+  /* 归档 puts the task in 已归档 (nothing is deleted) and offers 撤销 (ui/undoable.js restoreWith); 取消归档 puts it back. Both go the light way. */
+  const settle = async (run, then) => {
     const done = await run();
-    if (done?.ok === false) core.setError?.(done.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。')); else { core.notify?.(text); Promise.resolve(core.refresh?.()).catch(() => {}); }
+    if (done?.ok === false) { core.setError?.(done.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。')); return false; }
+    then(); Promise.resolve(core.refresh?.()).catch(() => {});
+    return true;
   };
-  const archive = () => settle(() => (quick ? dismissJobs(quick, task.id) : core.act('job.archive', { jobId: task.id })), ui('已放进「已归档」，之后可以取消归档或删除。'));
-  const unarchive = () => settle(() => batchRun('unarchive', [key], { quick, core }), ui('已取消归档'));
+  const unarchiveNow = () => settle(() => batchRun('unarchive', [key], { quick, core }), () => {});
+  const archive = () => settle(() => (quick ? dismissJobs(quick, task.id) : core.act('job.archive', { jobId: task.id })), () => undoable.restoreWith({
+    message: uiFormat('已归档「{0}」：在「已归档」里。', [summary.title]), restored: uiFormat('已取消归档「{0}」', [summary.title]), restore: unarchiveNow, focus: rowOf(key) }));
+  const unarchive = () => settle(() => batchRun('unarchive', [key], { quick, core }), () => core.notify?.(ui('已取消归档')));
+  // A past day of 为你定制: 删除这一天 hides it at once; the record goes when the 撤销 time is over (job.dismiss has no way back).
+  const removeDay = () => undoable.commitLater({ keys: [key], message: uiFormat('已删除「{0}」的记录', [summary.title]),
+    commit: async () => { await core.call('job.dismiss', { jobId: task.id }); Promise.resolve(core.refresh?.()).catch(() => {}); return true; },
+    failed: (reason) => uiFormat('没能删除「{0}」，已放回原处：{1}', [summary.title, reason]), focus: rowOf(key) });
   // 打开资料: only when the task concerns ONE material of the library; it is the same way in as the result button of a conversion or transcript (which it then stands in for).
   const material = openers.materialOf?.(task, data) || null, found = openers.resultOf(task, data), result = material && found?.kind === 'source' ? null : found, usage = usageLine(task);
   // The time limit and the steps that took the time (ui/tasks/time-limit.js): drawn by the strip under the facts and marked on the timeline, from the same steps. Only a task whose record knows a limit has them
@@ -149,10 +159,10 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
           {!live && !archived && !contract.detail.today && (day
             // A past day of 为你定制 is a record its own file ages out (fourteen days): this button removes it, so it says so (知道了 archives everywhere else).
             ? <Tooltip content={ui('删除这一天的记录；为你定制只保留最近 14 天。')} layer placement="bottom-end">
-              <Button size="sm" variant="quiet" disabled={core.busy} onClick={() => core.act('job.dismiss', { jobId: task.id })}>{ui('删除这一天')}</Button>
+              <Button size="sm" variant="quiet" onClick={removeDay}>{ui('删除这一天')}</Button>
             </Tooltip>
             : <Tooltip content={ui('放进「已归档」，不会删除任何东西；之后可以取消归档或删除。')} layer placement="bottom-end">
-              <Button size="sm" variant="quiet" disabled={core.busy} onClick={archive}>{ui('知道了')}</Button>
+              <Button size="sm" variant="quiet" disabled={core.busy} onClick={archive}>{ui('归档')}</Button>
             </Tooltip>)}
           {resume && <Button size="sm" variant="primary" data-install-resume disabled={core.busy} onClick={() => core.act(resume.action, resume.args, () => core.notify?.(ui('已开始安装：进度在这里和「任务」里。')))}>{ui('继续安装')}</Button>}
           {!live && !day && !resume && <Button size="sm" variant="danger" className="tc-head__delete" disabled={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
@@ -176,11 +186,13 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   const { lib, core } = useApp();
   const quick = useQuickActions();
   const focus = lib.taskFocus;
-  // A task that is being archived is already out of the list (it is listed under 已归档 at once; the host's snapshot confirms it a moment later).
-  const tasks = useMemo(() => tasksOf(data).filter((task) => !task.leaving), [data]);
-  const archived = useMemo(() => archivedTasksOf(data), [data]);
+  // A task that is being archived is already out of the list (it is listed under 已归档 at once; the host's snapshot confirms it a moment later). A task being deleted
+  // (删除, with its 撤销 time: ui/undoable.js) is out of both lists at once.
+  const undoable = useUndoable();
+  const tasks = useMemo(() => tasksOf(data).filter((task) => !task.leaving && !undoable.hidden(taskId(task))), [data, undoable, undoable.version()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const archived = useMemo(() => archivedTasksOf(data).filter((task) => !undoable.hidden(taskId(task))), [data, undoable, undoable.version()]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filter, setFilter] = useState(initialFilter), [current, setCurrent] = useState(null), seen = useRef(null), listRef = useRef(null);
-  const [selection, setSelection] = useState(() => new Set()), [working, setWorking] = useState(false), [deleting, setDeleting] = useState(null);
+  const [selection, setSelection] = useState(() => new Set()), [working, setWorking] = useState(false);
   // 全屏 folds the list away so the detail has the whole width; it is remembered for this viewer (and never needed for anything to work).
   const [full, setFull] = useState(() => readJSON('study-task-console-full', false) === true);
   const toggleFull = useCallback(() => setFull((value) => { writeJSON('study-task-console-full', !value); return !value; }), []);
@@ -216,14 +228,27 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
     setWorking(true);
     try { if (report(action, await batchRun(action, ids, { quick, core }))) setSelection(new Set()); } finally { setWorking(false); }
   };
-  // 删除 asks first. The dialog names what goes and what stays; it deletes through the same calls and reports the same way.
-  const confirmDelete = async () => {
-    const ids = deleting.ids, result = await batchRun('delete', ids, { quick, core });
-    if (result.ok === false) throw new Error(result.message || failureText(''));
-    report('delete', result);
+  // 删除 (a task record is not a source or a question): the records leave the list at once and the notice offers 撤销 for a few seconds; the host deletes them
+  // when that time is over (job.delete has no way back). The notice keeps what the old dialog said: which records lose their working files (and cannot be
+  // continued), and that sources, drafts and decks stay. A task that is running is never deleted: it stays, and the notice says how many were skipped; one the
+  // host skipped because it started meanwhile comes back with its own line.
+  const askDelete = (ids) => {
+    const running = ids.filter((id) => { const item = everything.get(id); return item && isRunningTask(item); });
+    const gone = ids.filter((id) => !running.includes(id));
     setSelection((before) => new Set([...before].filter((id) => !ids.includes(id))));
+    if (!gone.length) { core.notify?.(uiFormat('跳过 {0} 个进行中的任务', [running.length])); return; }
+    // The words follow what job.delete really removes (ui/tasks/delete-notice.js): working files only for audio and a live PDF conversion; a question run's draft stays.
+    const message = deleteNoticeText(gone.map((id) => everything.get(id)).filter(Boolean), running.length);
+    undoable.commitLater({ keys: gone, message, focus: rowOf(gone[0]),
+      commit: async () => {
+        const result = await batchRun('delete', gone, { quick, core });
+        if (result.ok === false) return result;
+        Promise.resolve(core.refresh?.()).catch(() => {});
+        return { ok: true, kept: result.skippedIds || [] };
+      },
+      kept: (count) => uiFormat('{0} 个任务正在运行，没有删除', [count]),
+      failed: (reason) => uiFormat('没能删除，已放回原处：{0}', [reason]) });
   };
-  const askDelete = useCallback((ids) => setDeleting({ ids }), []);
   // Esc ends the selection while the focus is in the list (a box, a row, the bar) or nowhere. It listens on the window, before the tooltip of the box (open while it has the focus) takes the
   // key at the document: one press ends the selection and closes the tooltip, instead of the first press only closing the tooltip. An open dialog has the focus, so its Esc is its own.
   const selecting = selection.size > 0;
@@ -237,7 +262,6 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
     window.addEventListener('keydown', end, true);
     return () => window.removeEventListener('keydown', end, true);
   }, [selecting]);
-  const kind = (id) => { const item = everything.get(id); return item ? taskKindOf(item) : null; };
   return (
     <div className="tc" data-surface="dense" data-usage-area="tasks" data-full={full ? 'true' : 'false'}>
       <section className="tc-list" aria-label={ui('任务列表')} ref={listRef}>
@@ -254,14 +278,12 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
         <SelectBar filter={filter} summary={summary} busy={working || core.busy} onToggleAll={() => setSelection((before) => toggleAll(shown, before))}
           onArchive={() => run('archive')} onUnarchive={() => run('unarchive')} onDelete={() => askDelete([...selection])} onClear={() => setSelection(new Set())} />
         <div className="tc-scroll">
-          {shown.length === 0 && <p className="tc-empty">{filter === 'archived' ? ui('还没有归档的任务。已结束的任务点「知道了」或选中后点「归档」，会放在这里。') : ui('现在没有任务。生成题目、导入录音或转换 PDF 后，会在这里看到它们。')}</p>}
+          {shown.length === 0 && <p className="tc-empty">{filter === 'archived' ? ui('还没有归档的任务。已结束的任务点「归档」，会放在这里。') : ui('现在没有任务。生成题目、导入录音或转换 PDF 后，会在这里看到它们。')}</p>}
           {shown.map((item) => <TaskItem key={taskId(item)} task={item} summary={taskSummary(item)} picked={taskId(item) === picked} checked={selection.has(taskId(item))} onPick={pick} onCheck={check} />)}
         </div>
       </section>
-      {task ? <Detail key={taskId(task)} task={task} data={data} openers={openers} full={full} onFull={toggleFull} onDelete={askDelete} />
+      {task ? <Detail key={taskId(task)} task={task} data={data} openers={openers} full={full} onFull={toggleFull} onDelete={askDelete} undoable={undoable} />
         : <section className="tc-detail" aria-label={ui('任务详情')}><p className="tc-empty">{ui('选择左边的一个任务查看详情。')}</p></section>}
-      {deleting && <DeleteTasksDialog count={deleting.ids.length} archived={deleting.ids.filter((id) => archived.some((item) => taskId(item) === id)).length}
-        audio={deleting.ids.filter((id) => kind(id) === 'audio').length} onConfirm={confirmDelete} onClose={() => setDeleting(null)} />}
     </div>
   );
 }
