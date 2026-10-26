@@ -28,7 +28,7 @@ test('notes as people write them: spaced dollars, a unit after a number, bare La
   assert.deepEqual(prepareStudyMath('矩阵 \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} 如上').formulas.map((formula) => formula.display), [false]);
   // Prose, currency and look-alikes are not formulas.
   for (const prose of ['价格$5和$10', 'costs $ 5 and $ 10 each', '5$ and 6$ total', '$x $ 和 $ y$', 'a$b$c', '`\\begin{equation}`', '\\begin{foo} x \\end{foo}', '$ 和 $', '(5$)',
-    '%1$s and %2$s', 'Revenue = $ 500 + $ 300 = $ 800','$ 5 * 3 = $ 15', 'save $ 100 / month and $ 200 / year', 'cost $ 5 > $ 3', '收入 $ 100 + $ 200，合计', '$ 1,000 + $ 2,000', '| A | $ 5 | $ 1 |'])
+    '%1$s and %2$s', 'Budget: 5$k for ads and 10$k for staff.', 'It costs 5$USD now, was 3$USD.', 'Revenue grew from 2$M to 7$M in a year', '单价 5$M 元，总价 7$M','Revenue = $ 500 + $ 300 = $ 800','$ 5 * 3 = $ 15', 'save $ 100 / month and $ 200 / year', 'cost $ 5 > $ 3', '收入 $ 100 + $ 200，合计', '$ 1,000 + $ 2,000', '| A | $ 5 | $ 1 |'])
     assert.deepEqual(raws(prose), [], prose);
   // Money with a space after the sign must not swallow the real formula after it.
   assert.deepEqual(raws('price $ 5 + tax, then solve $x^2=4$.'), ['$x^2=4$']);
@@ -43,6 +43,9 @@ test('physics and siunitx commands KaTeX does not know are written out, so the n
   assert.equal(renderStudyFormula('\\qty(\\frac{a}{b})', false), null, 'a command with no stand-in is shown as written');
   // A stand-in that cannot be sure of its arguments shows the source instead of drawing something else.
   for (const source of ['\\dv{x}', '\\dv[2]{x}{t}', '\\pdv{f}{x}{y}', '\\dv{x} = 2', '\\SI[round=1]{3}{m/s}', '\\abs*{x}']) assert.equal(renderStudyFormula(source, false), null, source);
+  // siunitx numbers and units: only plain ones are drawn as they stand; 1.6e-19 is a power of ten, 3+-0.1 a ±, a dot in a unit a product.
+  for (const source of ['\\SI{3}{m/s}', '\\SI{9.8}{m/s^2}', '\\SI{-3.5}{kg}', '\\si{N m}', '\\unit{kg}']) assert.match(renderStudyFormula(source, false), /<math/, source);
+  for (const source of ['\\SI{1.6e-19}{C}', '\\SI{3e8}{m/s}', '\\SI{9.8+-0.1}{m/s^2}', '\\SI{1,5}{kg}', '\\SI{3x4}{m}', '\\unit{m.s^{-1}}', '\\si{kg.m/s^2}', '\\SI{3}{\\meter\\per\\second}']) assert.equal(renderStudyFormula(source, false), null, source);
   // Commands whose package meaning is not the plain text they would give are left out: the source shows, nothing else is drawn.
   for (const source of ['\\ev{x}', '\\ev{A}{\\psi}', '\\va{a}', '\\vu{x}', '\\ang{30;15;10}', '\\num{3e8}']) assert.equal(renderStudyFormula(source, false), null, source);
   // The space the lexer drops after a control word stays: an argument is not glued into another command.

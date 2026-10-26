@@ -12,12 +12,19 @@ const textOf = (tokens) => tokens.slice().reverse().map((token) => (/^\\[A-Za-z@
 const refuse = (what) => { throw new Error(`${what} is not drawn`); };
 const refuseOptional = (context, name) => { if (['[', '*'].includes(context.future().text)) refuse(`${name} with an optional or starred form`); };
 
-/** A command of `count` arguments, replaced by `template` (#1, #2 … stand for the arguments). */
-const fixed = (name, count, template) => (context) => {
+/** A command of `count` arguments, replaced by `template` (#1, #2 … stand for the arguments). `only[n]` is the pattern argument n must match, or the command is not drawn. */
+const fixed = (name, count, template, only = []) => (context) => {
   refuseOptional(context, name);
   const args = context.consumeArgs(count).map(textOf);
+  args.forEach((text, at) => { if (only[at]) plainOnly(name, only[at], text); });
   return template.replace(/#(\d)/g, (_, n) => args[n - 1]);
 };
+/** siunitx writes a number as `1.6e-19`, `3+-0.1` or `1,5` and draws a power of ten or a ± for it: only a plain number is drawn as it stands. */
+const PLAIN_NUMBER = /^[-+]?\d+(?:\.\d+)?$/;
+/** A unit as plain text: letters, digits, "/", "^", braces, minus and spaces. A dot, a tilde or a unit macro (\per, \meter) is drawn differently by the package. */
+const PLAIN_UNIT = /^[A-Za-z0-9/^{}\- ]+$/;
+const plainOnly = (name, pattern, text) => { if (!pattern.test(text.trim())) refuse(`${name} with an argument the package draws differently`); return text; };
+
 /** A command that takes `count` arguments and draws nothing. */
 const gobble = (name, count) => (context) => { refuseOptional(context, name); context.consumeArgs(count); return ''; };
 /** \dv{f}{x} and \pdv{f}{x}: exactly two groups. One group (the operator form), a third group or an optional order is another formula. */
@@ -35,9 +42,9 @@ const MACROS = {
   '\\mathbbm': fixed('\\mathbbm', 1, '\\mathbb{#1}'),
   '\\upmu': '\\mathrm{\\mu}',
   '\\micro': '\\mathrm{\\mu}',
-  '\\unit': fixed('\\unit', 1, '\\mathrm{#1}'),
-  '\\si': fixed('\\si', 1, '\\mathrm{#1}'),
-  '\\SI': fixed('\\SI', 2, '#1\\,\\mathrm{#2}'),
+  '\\unit': (context) => fixed('\\unit', 1, '\\mathrm{#1}', [PLAIN_UNIT])(context),
+  '\\si': (context) => fixed('\\si', 1, '\\mathrm{#1}', [PLAIN_UNIT])(context),
+  '\\SI': (context) => fixed('\\SI', 2, '#1\\,\\mathrm{#2}', [PLAIN_NUMBER, PLAIN_UNIT])(context),
   '\\dv': derivative('\\dv', '\\mathrm{d}'),
   '\\pdv': derivative('\\pdv', '\\partial '),
   '\\vb': fixed('\\vb', 1, '\\mathbf{#1}'),
