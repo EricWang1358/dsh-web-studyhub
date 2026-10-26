@@ -103,6 +103,7 @@
   "大纲、推荐教材": "Syllabus, recommended textbook",
   "：可选。大纲和课件一样用来列考点；推荐教材只记一条备注。": ": optional. A syllabus is used like slides to list points; a recommended textbook is only a note.",
   "其它课程里有 {0} 份考点清单，可在上面切换课程范围查看。": "Other courses have {0} exam-point lists; change the course scope above to see them.",
+  "看全部课程": "See all courses",
   "备考补习": "Exam prep",
   "把课件和样卷整理成考点清单：哪些样卷考过，哪些是补充，每个考点出自哪一页。": "Turn slides and sample papers into an exam-point list: what was tested in sample papers, what is extra, and which page each point is on.",
   "「{0}」没有生成完。": "\"{0}\" did not finish building.",

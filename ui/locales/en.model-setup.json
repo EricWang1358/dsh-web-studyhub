@@ -23,6 +23,7 @@
   "模型未连接": "Model not connected",
   "模型已连接：{0}": "Model connected: {0}",
   "模型已连接": "Model connected",
+  "{0}。打开「学习库与模型」设置": "{0}. Open Library & model settings",
   "还没有选择 AI 模型。": "No AI model is chosen yet.",
   "出题、讲解和批改要用到它；已有的题组不用模型也能练。": "Generating questions, explanations and grading use it; decks you already have can be practised without a model.",
   "在下面的「生成模型」里选一个模型，或用主会话输入框里的模型选择器选": "Choose a model under Generation model below, or use the model picker in the main chat input",

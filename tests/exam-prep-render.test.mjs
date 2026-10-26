@@ -92,9 +92,12 @@ test('another course\'s list is not shown; the same course\'s is; a parent cours
   const text = drawn(render(h(ui.ExamPrep, { data: dataWith([mine, other]), onOpenSource: noop, onOpenTask: noop })));
   assert.match(text, /网络 · 传输层 考点清单/);
   assert.doesNotMatch(text, /数据库 · 考点清单/);
-  const nothing = drawn(render(h(ui.ExamPrep, { data: dataWith([other]), onOpenSource: noop, onOpenTask: noop })));
+  const nothingHtml = render(h(ui.ExamPrep, { data: dataWith([other]), onOpenSource: noop, onOpenTask: noop }));
+  const nothing = drawn(nothingHtml);
   assert.match(nothing, /这门课还没有考点清单/);
   assert.match(nothing, /其它课程里有 1 份考点清单/, 'it says where the others are');
+  assert.match(nothingHtml, /sh-btn--quiet[^"]*"[^>]*>看全部课程</, 'and offers the one click back to all of them');
+  assert.match(drawn(english(() => render(h(ui.ExamPrep, { data: dataWith([other]), onOpenSource: noop, onOpenTask: noop })))), /See all courses/);
 });
 
 test('with no list the page says what it is for and the three inputs, and offers 新建考点清单', () => {
@@ -104,6 +107,7 @@ test('with no list the page says what it is for and the three inputs, and offers
   assert.match(text, /必选/);
   assert.match(text, /不选时所有考点都是补充/);
   assert.ok((html.match(/新建考点清单/g) || []).length >= 2, 'the header button and the empty state button');
+  assert.doesNotMatch(html, /看全部课程/, 'nothing exists in any course, so widening the scope would show nothing new');
   english(() => {
     const en = drawn(render(h(ui.ExamPrep, { data: dataWith([]), onOpenSource: noop, onOpenTask: noop })));
     assert.match(en, /Exam prep/);

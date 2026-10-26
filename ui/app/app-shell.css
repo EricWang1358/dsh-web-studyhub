@@ -40,5 +40,26 @@
       text-align: left;
     }
     .sh-btn.nav-reset:hover:not(:disabled) { color: var(--text-dim); background: none; }
+    /* Top bar: with no model the status area is the way to Settings › 学习库与模型 (AppTopbar.jsx). It is a Button drawn as the plain words it
+       replaces — no box, no padding, the same gap — so the bar does not move by a pixel when it becomes clickable; hover and keyboard focus
+       underline the words, and the focus ring of a Button adds no size. */
+    .sh-btn.top-status__fix {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      line-height: inherit;
+      transition: none;
+    }
+    .sh-btn.top-status__fix:hover:not(:disabled) { background: none; border: 0; color: inherit; }
+    .sh-btn.top-status__fix:hover, .sh-btn.top-status__fix:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
   }
 }

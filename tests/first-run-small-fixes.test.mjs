@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
+import { readFile } from 'node:fs/promises';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
@@ -10,7 +11,7 @@ import { inApp } from './helpers/fake-app.mjs';
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { default as AppTopbar } from './ui/app/AppTopbar.jsx';
+  export { default as AppTopbar, openLibrarySettings } from './ui/app/AppTopbar.jsx';
   export { withoutSelfReturn } from './ui/learning-navigation.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -150,3 +151,46 @@ test('a way back to the page the learner is on is dropped; any other stays, and 
   assert.equal(m.withoutSelfReturn(trail, 'library'), trail, 'nothing to drop: the same list, so nothing re-renders');
   assert.deepEqual(m.withoutSelfReturn([], 'library'), []);
 });
+
+/* Step 2 of the guidance plan: with no model the status area is the way to Settings › 学习库与模型. It is a real button, it is still the live
+   region it was, and it is drawn as the plain words it replaces (no box, no padding, the same gap), so the bar does not move by a pixel. */
+const fixButton = (html) => /<button[^>]*class="[^"]*top-status__fix"[^>]*>/.exec(html)?.[0] || '';
+const ready = { root: '/lib', inbox: [], model: { ready: true } };
+const withoutModel = { root: '/lib', inbox: [], model: { ready: false } };
+
+test('with no model the status area is a button to Settings › 学习库与模型; with a model, a failing read or running work it is not', () => {
+  const none = bar({ data: withoutModel });
+  assert.match(none, /<span[^>]*class="top-status"[^>]*role="status"/, 'still a live region');
+  const button = fixButton(none);
+  assert.match(button, /type="button"/);
+  assert.match(button, /aria-label="还没配模型。打开「学习库与模型」设置"/, 'the accessible name says what the click does');
+  assert.doesNotMatch(none, /top-status[^>]*\stitle=/, 'no title attribute');
+  assert.equal(fixButton(bar({ data: ready })), '', 'a connected bar is plain words');
+  assert.equal(fixButton(bar({ data: withoutModel, connection: { syncIssue: '读取失败' } })), '', 'the words are about the library, and the click would not fix it');
+  assert.equal(fixButton(bar({ data: withoutModel, busy: true })), '');
+  assert.equal(fixButton(bar({ data: withoutModel, connection: { running: true } })), '');
+});
+
+test('the button is the words it replaces: same label and dot inside, same span outside, and a CSS reset so nothing moves', async () => {
+  const none = bar({ data: withoutModel });
+  assert.match(none, /top-status-label"[^>]*>还没配模型</, 'the label keeps its own element and words');
+  assert.match(none, /<i class="dot[^"]*" aria-hidden="true"><\/i>/, 'the dot is unchanged');
+  const css = await readFile('ui/app/app-shell.css', 'utf8');
+  const rule = /\.sh-btn\.top-status__fix \{([^}]*)\}/.exec(css)?.[1] || '';
+  for (const decl of ['display: inline-flex', 'gap: var(--space-2)', 'margin: 0', 'padding: 0', 'border: 0', 'background: none', 'font: inherit', 'color: inherit', 'min-height: 0']) {
+    assert.ok(rule.includes(decl), `no layout shift: .sh-btn.top-status__fix needs ${decl}`);
+  }
+});
+
+test('the status and the library chip share one way to Settings › 学习库与模型', () => {
+  const calls = [];
+  m.openLibrarySettings({ setSettingsFocus: (id) => calls.push(id) }, { navigate: (page, how) => calls.push([page, how]) });
+  assert.deepEqual(calls, ['settings-model', ['settings', { animate: true, keepTrail: false }]]);
+});
+
+test('in English the button names its destination in English', () => {
+  const button = fixButton(bar({ data: withoutModel, language: 'en' }));
+  assert.match(button, /aria-label="No model yet\. Open Library &amp; model settings"/);
+  assert.doesNotMatch(button, han);
+});
+

@@ -69,7 +69,7 @@ test("conversation recording is offered only where a chat can take it", () => {
 test("with no materials the tab says what to do first and opens the import dialog", () => {
   const html = render({ sources: [] }, { selectedSources: [] });
   assert.match(html, /sh-empty/);
-  assert.match(html, /先添加一份资料/);
+  assert.match(html, /sh-empty__title[^>]*>还没有资料</);
   assert.match(html, /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?添加资料/);
   assert.doesNotMatch(html, /type="submit"/, "nothing to generate from yet");
 });
