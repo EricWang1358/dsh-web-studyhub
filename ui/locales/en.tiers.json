@@ -92,5 +92,7 @@
   "添加讲义、课件、PDF 或笔记，原文件会保留；之后用它出题。": "Add lecture notes, slides, PDFs or your own notes. The original files are kept, and you make questions from them next.",
   "先添加资料，再出题。": "Add a source first, then make questions.",
   "去知识骨架页": "Open the knowledge outline page",
-  "一门示例课程（设计模式）：一份讲义、九道带出处的题和三周练习记录，导览 {0} 步、一两分钟；示例数据随时一键移除。": "A sample course (design patterns): one lecture handout, nine cited questions and three weeks of practice. The tour is {0} steps, a minute or two. Remove the sample with one click, any time."
+  "一门示例课程（设计模式）：一份讲义、九道带出处的题和三周练习记录，导览 {0} 步、一两分钟；示例数据随时一键移除。": "A sample course (design patterns): one lecture handout, nine cited questions and three weeks of practice. The tour is {0} steps, a minute or two. Remove the sample with one click, any time.",
+  "不知道从哪开始？": "Not sure where to start?",
+  "让主会话看一眼你的学习库，再说两三条能马上开始的路。": "Have the main chat look at your library and suggest two or three ways to begin."
 }
