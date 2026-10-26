@@ -7,6 +7,7 @@ import SkeletonSpine from "./SkeletonSpine.jsx";
 import ArchifyCard from "./ArchifyCard.jsx";
 import SkeletonDiagrams from "./SkeletonDiagrams.jsx";
 import { archifyPutOff, setArchifyPutOff } from "./archify.js";
+import { guidanceAllows } from "./guidance/budget.js";
 import css from "./skeleton.css";
 import companionCss from "./skeleton-companion.css";
 import { useInjectCss } from "./shared.js";
@@ -518,7 +519,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
           )}
         </div>
       )}
-      {!archifyLater && <ArchifyCard onLater={() => { setArchifyPutOff(data?.root, true); setArchifyLater(true); }} />}
+      {!archifyLater && guidanceAllows("skeleton.archify") && <ArchifyCard onLater={() => { setArchifyPutOff(data?.root, true); setArchifyLater(true); }} />}
     </section>
   );
 }

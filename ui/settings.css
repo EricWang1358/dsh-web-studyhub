@@ -92,6 +92,16 @@
     }
   }
   :is(.study-app, .study-seat) {
+    /* 引导 (ui/settings/GuidancePane.jsx): one row per registered tip, card, tour or nudge; the state and 再显示一次 at the right, under it on a phone. */
+    .guidance-list { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-soft); }
+    .guidance-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line-soft); }
+    .guidance-item__head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+    .guidance-item__meta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+    .guidance-item__tipped { display: inline-flex; border-radius: var(--radius-pill); }
+    .guidance-item__text { display: grid; gap: var(--space-half); min-width: 0; }
+    .guidance-item__text strong { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
+    .guidance-item__actions { display: flex; justify-content: flex-end; }
     .settings-page .appearance-backup { display: grid; gap: var(--space-2); }
     /* The retrieval tool picker and its test button share a row; the button lines up with the select, not the label. */
     .settings-page .extensions-settings__choice { align-items: flex-end; }
@@ -101,6 +111,8 @@
       /* The library row stacks: path and usage get the full width, 更换目录… goes below. */
       .backup-block { padding: var(--space-4); }
       .coach-stats__ready { margin-left: 0; }
+      .guidance-item { grid-template-columns: minmax(0, 1fr); }
+      .guidance-item__actions { justify-content: flex-start; }
     }
   }
   :where(.study-app, .study-seat) {

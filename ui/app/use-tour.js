@@ -65,8 +65,10 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const lineLater = !!data?.root && (hiddenWelcome === data.root || welcomeDismissed(data.root));
   function hideWelcome() {
     if (!data?.root) return;
-    dismissWelcome(data.root);
-    setHiddenWelcome(data.root);
+    // Held in memory only when the browser refused to store it: a stored choice is read back each render, so 设置 › 引导's 再显示一次 brings the line back
+    // without a reload (ui/guidance/registry.js clears study-welcome:<root>).
+    const stored = dismissWelcome(data.root);
+    setHiddenWelcome(stored ? `stored:${data.root}` : data.root);
   }
   // While the first-run line is up, the first import comes back to it (ui/app/import-handoff.js, 3.6 D4): its third step makes the first deck, so neither
   // 创建题组 nor 资料 with a toast to press is in the way; from elsewhere (the tour's last step ended on another page) it lands on the library home. Once the

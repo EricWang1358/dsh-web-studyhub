@@ -1,6 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { usePersistentState } from '../storage.js';
+import { guidanceAllows } from '../guidance/budget.js';
 import { Button } from '../components/index.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
 
@@ -11,6 +12,7 @@ export default function TopicGroupReminder({ grouping, root }) {
   const key = `study-topic-group-later:${root || 'local'}`;
   const [later, setLater] = usePersistentState(key, '', { parse: String, serialize: String }); // per-device only
   if (!grouping?.ungrouped) return null;
+  if (!guidanceAllows('library.topic-groups')) return null; // 设置 › 引导 switched reminders like this off (ui/guidance/registry.js)
   // A handful of topics needs no grouping; once groups exist, new topics should join them.
   if (!grouping.groups && grouping.topics < 12) return null;
   const signature = `${grouping.groups}:${grouping.ungrouped}`;
