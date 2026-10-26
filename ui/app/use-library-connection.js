@@ -94,7 +94,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
         } catch (failure) {
           if (!live) return;
           if (isTransientStudyError(failure) && attempt < 20) {
-            setConnecting(uiFormat('正在连接学习插件…（第 {0} 次重试）', [attempt + 1]));
+            setConnecting(uiFormat('正在连接 StudyHub…（第 {0} 次重试）', [attempt + 1]));
             await new Promise((done) => setTimeout(done, Math.min(1000 * (attempt + 1), 5000)));
             continue;
           }

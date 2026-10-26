@@ -55,7 +55,7 @@
   "折叠": "Collapse column",
   "展开列": "Expand column",
   "只能删除空列": "Only empty columns can be deleted",
-  "暂无卡片": "No cards yet",
+  "这一列没有卡片": "No cards in this column",
   "把卡片拖到这里，或点下面添加。": "Drop a card here, or add one below.",
   "没有符合筛选的卡片": "No cards match the filters",
   "清除筛选": "Clear filters",

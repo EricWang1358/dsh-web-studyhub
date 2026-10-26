@@ -6,7 +6,7 @@ import { jobContract, archivedContract } from '../lib/job-contract.js';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 
-/* The time limit of a task, said on the task's page (the owner's complaint of 2026-10-06: 「生成用时太长，已自动停止」 with no number, no way to change it, and no
+/* The time limit of a task, said on the task's page (the owner's complaint of 2026-10-06: 「生成用时到了上限，已自动停止」 with no number, no way to change it, and no
    word on which step took the time). One fact, one place: the contract says the limit (detail.timeLimit, docs/job-contract.md), ui/tasks/time-limit.js says
    which steps ran long, and the strip (ui/tasks/TimeLimit.jsx) and the timeline's marks read those two and nothing else. */
 
@@ -78,14 +78,14 @@ test('an older record, a kind without a limit, and an archived task: no limit is
   assert.equal(m.limitFacts(restored, { now: T0 }), null);
 });
 
-test('hitTimeLimit is the classifier of the list row: the same words that make 「生成用时太长，已自动停止」 make a task "ended by the limit"', () => {
+test('hitTimeLimit is the classifier of the list row: the same words that make 「生成用时到了上限，已自动停止」 make a task "ended by the limit"', () => {
   for (const text of [BUDGET, 'Generation reached its 20-minute budget for this round; approved questions were retained', 'Translation reached its time budget; translated paragraphs are kept', '已达到 20 分钟执行时限；已验收题目已保留']) {
     assert.equal(m.hitTimeLimit(text), true, text);
-    assert.equal(m.describeFailure(text).title, '生成用时太长，已自动停止', 'the row says the same thing');
+    assert.equal(m.describeFailure(text).title, '生成用时到了上限，已自动停止', 'the row says the same thing');
   }
   for (const text of ['Study generation timed out after 10 minutes; this is not an editorial rejection', 'Quality gate failed', '', undefined, '401 Unauthorized: Invalid API key']) {
     assert.equal(m.hitTimeLimit(text), false, String(text));
-    assert.notEqual(m.describeFailure(text).title, '生成用时太长，已自动停止');
+    assert.notEqual(m.describeFailure(text).title, '生成用时到了上限，已自动停止');
   }
 });
 

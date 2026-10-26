@@ -16,7 +16,7 @@ export async function batchRun(action, ids, { quick, core } = {}) {
   for (const part of chunk(ids)) {
     let reply;
     try { reply = await core.act(`job.${action}`, { jobIds: part }, undefined, { rethrow: true }); } catch (error) { return { ...total, ok: false, message: String(error?.message || error) }; }
-    if (reply === undefined) return { ...total, ok: false, message: ui('另一个操作还在进行，请稍后重试。') };
+    if (reply === undefined) return { ...total, ok: false, message: ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。') };
     total[COUNT[action]] += size(reply.archived) + size(reply.alreadyArchived) + size(reply.unarchived) + size(reply.deleted);
     total.skipped += size(reply.skipped);
   }

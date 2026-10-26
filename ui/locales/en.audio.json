@@ -36,7 +36,7 @@
   "音频转写": "Audio transcription",
   "录音要先转成文字。配一个服务就能用；配了几个时，按 Gemini 免费 → 硅基流动 → Groq → Gemini 付费 的顺序尝试，前一个不行自动换下一个。": "A recording is turned into text first. One service is enough; with several, they are tried in the order Gemini free → SiliconFlow → Groq → Gemini paid, moving on automatically when one cannot help.",
   "还没有配置任何转写服务：从下面任选一个，约 2 分钟。": "No transcription service is set up yet: pick any one below, about 2 minutes.",
-  "密钥只保存在这台电脑：{0}。不会进入学习库、备份或对话；请不要把密钥贴到对话里。": "Keys are stored only on this computer: {0}. They never enter the library, backups or the conversation; never paste keys into chat.",
+  "密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。": "Keys are stored only on this computer: {0}. They do not go into the library, backups or the main chat. What you paste into the main chat is seen by the model, so enter keys only here.",
   "校对与翻译": "Proofreading and translation",
   "更快": "Faster",
   "均衡": "Balanced",

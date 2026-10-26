@@ -26,10 +26,10 @@ export function LibraryChip({ root, onOpen }) {
 }
 
 function statusText({ busy, running, publishing, syncIssue, data, noModel }) {
-  if (busy) return ui('正在保存…');
-  if (running) return publishing ? ui('正在发布…') : ui('正在生成…');
-  if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : ui('学习库读取失败');
-  return data ? noModel ? ui('未配置模型') : ui('已连接') : ui('待连接');
+  if (busy) return ui('正在处理…');
+  if (running) return publishing ? ui('正在发布…') : ui('后台任务进行中');
+  if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : ui('学习库读不出来，正在重试');
+  return data ? noModel ? ui('还没有配置模型') : ui('学习库已连接') : ui('没有连上学习库');
 }
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
@@ -37,7 +37,7 @@ export default function AppTopbar({ title }) {
   const { data, core, nav, connection, inbox, settingsEntry } = useApp();
   const { busy, act, quick, quickApi } = core;
   const { binding, running, publishing, syncIssue } = connection;
-  // 已连接 is about the library; with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
+  // 学习库已连接 is about the library; with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
   const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
   const idle = !busy && !running && !syncIssue && data && !noModel;
   return (

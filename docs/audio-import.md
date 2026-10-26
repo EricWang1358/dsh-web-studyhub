@@ -280,9 +280,9 @@ If Google transcription keeps timing out, lower **Longest per request**. Segment
 
 Choose under **Settings › Audio transcription › Advanced › Expert options › Model for proofreading and translation**:
 
-- **Automatic** (default): the conversation model when DSH has one, otherwise Gemini.
+- **Automatic** (default): the main chat's model when DSH has one, otherwise Gemini.
 - **Gemini (free first, then paid)**: Gemini free → Groq → Gemini paid.
-- **The model the conversation uses**.
+- **The model the main chat is using**.
 
 When the DSH model does this work, each request runs as a one-shot DSH subagent with no tools: no shell, no file writes and no further delegation. StudyHub collects, checks and saves the output itself, so these results do not come back into the main chat. **View subagent** opens the real session. If the host cannot start subagents, the request runs as a direct model call and the task history says so. DSH model work is not included in the Gemini counts, and the card says so. **Live class** translation follows the same setting.
 
@@ -351,9 +351,9 @@ Everything below is in **Settings › Audio transcription**.
 | **Gemini paid key (optional)** | **Advanced** | None | Separate, billed Google project |
 | **Model for proofreading and translation** | **Advanced › Expert options** | **Automatic** | See [Which model proofreads and translates](#which-model-proofreads-and-translates) |
 | **Transcription model** | **Expert options** | `gemini-3.5-transcribe` | Gemini |
-| **Gemini text model** | **Expert options** | `gemini-3.8-flash` | Hidden when **The model the conversation uses** is chosen |
+| **Gemini text model** | **Expert options** | `gemini-3.8-flash` | Hidden when **The model the main chat is using** is chosen |
 | **SiliconFlow transcription model** | **Expert options** | `FunAudioLLM/SenseVoiceSmall` | |
-| **Groq transcription model** / **Groq text model** | **Expert options** | `whisper-large-v3` / `openai/gpt-oss-120b` | The text model is hidden when **The model the conversation uses** is chosen |
+| **Groq transcription model** / **Groq text model** | **Expert options** | `whisper-large-v3` / `openai/gpt-oss-120b` | The text model is hidden when **The model the main chat is using** is chosen |
 | **Proofreading and translation in parallel** | **Expert options** | 3 | 1 to 6 |
 | **Transcriptions in parallel** | **Expert options** | 1 | 1 to 3 |
 | **Longest per request** | **Expert options** | 45 minutes | 45, 30, 20 or 10 minutes |

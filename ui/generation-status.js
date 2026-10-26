@@ -298,7 +298,7 @@ const FAILURES = [
 
 /** The kind a failure text is, by the table above ('unknown' when nothing matches). The one lookup describeFailure, describeModelError and hitTimeLimit all read. */
 const kindOfText = (text) => FAILURES.find(([, pattern]) => pattern.test(String(text ?? '')))?.[0] || 'unknown';
-/** Did the run's OWN time limit end it? The row's 「生成用时太长，已自动停止」 and the 任务 page's time-limit strip both ask this and nothing else (the 'budget' row of the table). */
+/** Did the run's OWN time limit end it? The row's 「生成用时到了上限，已自动停止」 and the 任务 page's time-limit strip both ask this and nothing else (the 'budget' row of the table). */
 export const hitTimeLimit = (text) => kindOfText(text) === 'budget';
 /** Is a failed call's own error the model not answering in time (the 'timeout' row of the table)? With how long it ran, that is a call that hit the limit of ONE call. */
 export const hitCallTimeout = (text) => kindOfText(text) === 'timeout';
@@ -310,13 +310,13 @@ export const hitCallTimeout = (text) => kindOfText(text) === 'timeout';
  */
 export const FAILURE_COPY = Object.freeze({
   credential: { action: 'settings', title: '还没有可用的模型密钥', hint: '在模型设置里填好 API Key 后再试。' },
-  rejected: { action: 'settings', title: '模型服务拒绝了请求', cause: '模型服务拒绝了请求（密钥无效或没有权限）', hint: '密钥失效，或这个模型已停用 / 不再支持。请在模型设置里检查密钥，或换一个模型。' },
+  rejected: { action: 'settings', title: '模型服务拒绝了请求', cause: '模型服务拒绝了请求（密钥无效或没有权限）', hint: '密钥可能已失效，或这个模型已停用、不再支持。到模型设置里检查密钥，或换一个模型。' },
   'model-retired': { action: 'settings', title: '这个模型已经不能用了', hint: '模型服务不再提供所选的模型。请在模型设置里换一个模型再试。' },
   quota: { action: 'settings', title: '模型账户的余额或额度不足', hint: '充值，或在设置里换一个模型后再试。' },
   'rate-limit': { action: 'retry', title: '模型服务太忙了', hint: '请求太频繁，被模型服务限流了。等一两分钟再试，或在设置里换一个模型。' },
-  timeout: { action: 'retry', title: '模型长时间没有回应', hint: '可能是网络或服务繁忙，稍后再试。' },
+  timeout: { action: 'retry', title: '模型长时间没有回应', hint: '可能是网络不稳，或模型服务正忙。等一两分钟再试一次。' },
   network: { action: 'retry', title: '连不上模型服务', hint: '检查网络后重试。' },
-  unavailable: { action: 'retry', title: '模型服务暂时不可用', hint: '稍后再试。' },
+  unavailable: { action: 'retry', title: '模型服务暂时不可用', hint: '这是模型服务那边的问题。等一两分钟再试一次，或在设置里换一个模型。' },
 });
 const copyOf = (kind) => { const entry = FAILURE_COPY[kind]; return { kind, action: entry.action, title: ui(entry.title), ...(entry.cause ? { cause: ui(entry.cause) } : {}), hint: ui(entry.hint) }; };
 
@@ -365,10 +365,10 @@ export function failureRowLabel(row) {
 /* Causes only the generation pipeline has, named by lib/generation-failure.js: the learner's wording of each (title, the cause in one clause, what to do). */
 const OWN_FAILURES = Object.freeze({
   'plan-short': { action: 'retry', title: '模型给出的考点比计划的少', cause: '模型给出的考点比计划的少',
-    hint: '模型这一次给出的考点比计划的少，补问一次后仍然不足；这不等于这一节没有可考的内容，再试一次可能就够了。可以点「为没覆盖的部分补题」再试，或换成「精简」强度。' },
+    hint: '模型这次给出的考点比计划的少，补问一次后仍然不够。这不代表这一节没有可考的内容；点「为没覆盖的部分补题」再试一次。' },
   'review-protocol': { action: 'retry', title: '审阅回复的格式不对，没能完成审阅', cause: '审阅回复的格式不对',
     hint: '点「为没覆盖的部分补题」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。' },
-  'no-reply': { action: 'retry', title: '模型没有返回内容', cause: '模型没有返回内容', hint: '可能是服务暂时的问题，稍后再试。' },
+  'no-reply': { action: 'retry', title: '模型没有返回内容', cause: '模型没有返回内容', hint: '可能是模型服务一时没有回应。可以再试一次。' },
   cancelled: { action: 'retry', title: '已被停止', cause: '已被停止', hint: '已通过检查的题保存在草稿里。' },
 });
 /** The code a legacy kind of this table has in the pipeline's vocabulary (the part report, the planned targets of a draft). */
@@ -417,7 +417,7 @@ function failureKind(text = '', { hasDraft = false } = {}) {
   if (Object.hasOwn(FAILURE_COPY, kind)) return copyOf(kind);
   switch (kind) {
     // The limit itself is on the 任务 page (ui/tasks/TimeLimit.jsx, with the way to change it): the hint only points there, in the same sentence as what to do next.
-    case 'budget': return { kind: 'timeout', action: hasDraft ? 'open-draft' : 'retry', title: ui('生成用时太长，已自动停止'),
+    case 'budget': return { kind: 'timeout', action: hasDraft ? 'open-draft' : 'retry', title: ui('生成用时到了上限，已自动停止'),
       hint: hasDraft ? ui('已通过检查的题保存在草稿里，可以打开草稿继续；时限和调整入口在「任务」页的详情里。') : ui('可以减少题数或资料后重新生成；时限和调整入口在「任务」页的详情里。') };
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
     case 'grounding': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('引用的原文在资料里找不到'),
@@ -441,7 +441,7 @@ function failureKind(text = '', { hasDraft = false } = {}) {
       return { kind, action: hasDraft ? 'open-draft' : 'retry', title: top.length ? ui('出的题都没通过质量审阅') : ui('没有题目通过检查'),
         hint: top.length ? uiFormat('主要原因：{0}。{1}', [formatClauses(top), next]) : uiFormat('具体原因见技术详情。{0}', [next]) };
     }
-    default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('可以按原资料重新设置后再试。') };
+    default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('没认出具体原因。点「按原资料重新设置」，把这次的设置带回表单再试。') };
   }
 }
 

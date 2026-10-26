@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { installTransport } from "../lib/host.js";
@@ -122,4 +122,16 @@ test("a remote-access browser that DSH 0.2.1 answers with 403 reads that StudyHu
   const call = createStudyCall({ rpc: { call: async () => { count++; throw new Error("transport failure for /api: HTTP 403"); } } }, "s");
   await assert.rejects(() => call("snapshot"), (e) => e.code === "STUDY_OWNER_ONLY" && /owner/.test(e.message) && /HTTP 403/.test(e.cause.message));
   assert.equal(count, 1, "no fallback to the legacy route for a refusal");
+});
+
+test("a failed answer without a message says so in Chinese, and the English catalogue carries it", async () => {
+  const call = createStudyCall({ rpc: { call: async () => ({ ok: false, error: { code: "X" } }) } }, "s");
+  const failure = await call("snapshot").then(() => null, (e) => e);
+  assert.equal(failure.code, "X");
+  assert.equal(failure.message, "StudyHub 的请求没有成功，也没有返回具体原因。可以再试一次。");
+  const english = JSON.parse(await readFile(new URL("../ui/locales/en.json", import.meta.url), "utf8"));
+  assert.match(english[failure.message], /no reason came back/, "the English page shows English for it");
+  assert.doesNotMatch(english[failure.message], /[㐀-鿿]/);
+  const named = createStudyCall({ rpc: { call: async () => ({ ok: false, error: { message: "原因在这里" } }) } }, "s");
+  await assert.rejects(() => named("snapshot"), /原因在这里/);
 });

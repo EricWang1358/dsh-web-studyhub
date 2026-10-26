@@ -130,7 +130,7 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
         {providerOrder(language).map((tier, index) => <KeyCard key={tier} provider={PROVIDERS[tier]} state={view[PROVIDERS[tier].field]}
           call={call} busy={busy} onSaved={saved} recommended={index === 0} />)}
       </ProviderGrid>
-      <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}。不会进入学习库、备份或对话；请不要把密钥贴到对话里。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
+      <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
       <Disclosure className="audio-advanced settings-disclosure" summary={ui('高级')} meta={ui('校对与翻译的推理强度、付费密钥、模型')}>
         <AudioReasoning settings={view} busy={busy} onSave={save} efforts={model.options} modelName={model.model} />
         <div className="audio-paid">
@@ -145,9 +145,9 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
         <Disclosure className="audio-expert settings-disclosure" summary={ui('专家选项')} meta={ui('模型、并发')}>
           <Field label={ui('校对与翻译用哪个模型')}>
             <Select value={view.textProvider} disabled={busy} onChange={(value) => save({ textProvider: value })} options={[
-              { value: 'auto', label: ui('自动（有对话模型就用它，否则用 Gemini）') },
+              { value: 'auto', label: ui('自动（有主会话的模型就用它，否则用 Gemini）') },
               { value: 'gemini', label: ui('Gemini（同样先免费后付费）') },
-              { value: 'host', label: ui('对话当前使用的模型') }]} />
+              { value: 'host', label: ui('主会话当前使用的模型') }]} />
           </Field>
           {modelField('transcribeModel', '转写模型')}
           {view.textProvider !== 'host' && modelField('textModel', 'Gemini 文本模型')}

@@ -58,7 +58,7 @@ test('the fixture is the owner\'s: 13 of the 15 questions asked for, sections wi
 
 test('the home banner: why (the time limit), what 接着做 does (13 of 15 kept, 2 more), ONE primary action, and no sections it never promised', () => {
   const html = home([failed()]), said = text(banner(html));
-  assert.ok(said.includes('生成用时太长，已自动停止'), `the reason: ${said}`);
+  assert.ok(said.includes('生成用时到了上限，已自动停止'), `the reason: ${said}`);
   assert.ok(said.includes(`已出 ${KEPT}/${ASKED} 题保留，接着补 ${ASKED - KEPT} 题`), `what 接着做 does: ${said}`);
   assert.doesNotMatch(said, /个小节没有题|小节没有题/, `a plain run promised questions, not sections: ${said}`);
   const buttons = buttonsOf(banner(html));
@@ -145,6 +145,6 @@ test('an older record that never knew about continuing (no retryable mark) still
 
 test('the banner of an older failed record (no retryable mark) still says why and what 接着做 does', () => {
   const said = text(banner(home([failed({ retryable: undefined })])));
-  assert.ok(said.includes('生成用时太长，已自动停止') && said.includes(`已出 ${KEPT}/${ASKED} 题保留，接着补 ${ASKED - KEPT} 题`), said);
+  assert.ok(said.includes('生成用时到了上限，已自动停止') && said.includes(`已出 ${KEPT}/${ASKED} 题保留，接着补 ${ASKED - KEPT} 题`), said);
   assert.ok(buttonsOf(banner(home([failed({ retryable: undefined })]))).includes('接着做'));
 });

@@ -304,7 +304,7 @@ export function apply(ctx, registerDocumentLearning) {
                 try { await taken; }
                 catch (failure) {
                   if (!onPage) throw failure;
-                  const reason = ui("右栏没有打开。请先回到对话并打开右栏，再回来点「在右栏打开」。");
+                  const reason = ui("右栏没有打开。先回到主会话并打开右栏，再回来点「在右栏打开」。");
                   handoffNotes.set(sessionId, uiFormat("没能放进右栏：{0}", [reason]));
                   try { ctx.get("layout")?.selectPanel(STUDYHUB_PANEL); } catch { /* the page may still be showing */ }
                   throw new Error(reason);

@@ -203,7 +203,7 @@ export default function UsageSettings({ call, busy = false, initial = null }) {
   useEffect(() => { callRef.current = call; });
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   const ask = useCallback((action, args) => Promise.resolve(callRef.current(action, args)), []);
-  const failure = useCallback(reason => { if (live.current) setError(reason?.message || ui('没有完成，请再试一次。')); }, []);
+  const failure = useCallback(reason => { if (live.current) setError(reason?.message || ui('这次没有成功，也没有返回具体原因。可以再试一次。')); }, []);
 
   useEffect(() => {
     if (initial || typeof call !== 'function') return undefined;

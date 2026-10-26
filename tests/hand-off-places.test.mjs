@@ -71,7 +71,7 @@ test('no page names askInChat: the empty home\'s link was the last (plan item 5,
 });
 
 test('the Chinese catalogue has one name for the main chat: no old wording left in a key', () => {
-  const old = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并|对话里(?:的 AI|出题)/;
+  const old = /主对话|(?<!新)对话中|在对话里|发到对话|让对话|AI ?归并|对话里(?:的 AI|出题)|对话输入框|对话模型|对话区|回到对话/;
   const left = [];
   for (const name of readdirSync(join(ROOT, 'ui', 'locales')).filter(file => file.endsWith('.json'))) {
     for (const key of Object.keys(JSON.parse(readFileSync(join(ROOT, 'ui', 'locales', name), 'utf8')))) if (old.test(key)) left.push(key);

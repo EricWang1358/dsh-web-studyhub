@@ -36,7 +36,7 @@ export default function OutlineDialog({ item, onClose }) {
   const refreshing = useMemo(() => async (action, args = {}) => {
     if (!act || !changesLibrary(action, args)) return call(action, args);
     const result = await act(action, args, undefined, { rethrow: true });
-    if (result === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
+    if (result === undefined) throw new Error(ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。'));
     return result;
   }, [act, call]);
   return <Dialog title={uiFormat('AI 重新分段：{0}', [displayTitle(item.title)])} size="lg" onClose={onClose}

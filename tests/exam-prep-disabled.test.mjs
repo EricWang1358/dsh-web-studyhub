@@ -42,7 +42,7 @@ test('with the switch off, 备考补习 says so in its own words and does not bl
   assert.match(words, /在设置里被关掉了/);
   assert.doesNotMatch(words, /由 DSH 开启/);
   assert.match(words, /已保存的考点清单仍可阅读/);
-  assert.doesNotMatch(words, /启用所需组件|此功能已停用/);
+  assert.doesNotMatch(words, /启用所需组件|此功能已停用|需要的组件没有启用|插件管理器里启用它们/);
   assert.doesNotMatch(words, /蓝图|blueprint/i);
   assert.match(html, /role="status"/);
 });
@@ -76,8 +76,8 @@ test('the off state is in English too, with no Chinese left over', () => {
 test('every other page keeps the generic message, and so does 备考补习 when the switch is on but a component is missing', () => {
   for (const [page, features] of [['sources', {}], ['review', { examBlueprint: false }], ['examprep', { examBlueprint: true }]]) {
     const { html, tree, calls } = render(page, { features, host: { openPluginManager: true } });
-    assert.match(text(html), /此功能已停用/, page);
-    assert.match(text(html), /启用所需组件/, page);
+    assert.match(text(html), /这个页面需要的组件没有启用/, page);
+    assert.match(text(html), /插件管理器里启用它们/, page);
     assert.doesNotMatch(text(html), /备考补习还没有开启/, page);
     findAll(tree, node => typeof node.props.onClick === 'function').forEach(node => node.props.onClick());
     assert.deepEqual(calls.settings, [], page);

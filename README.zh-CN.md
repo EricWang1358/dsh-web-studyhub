@@ -255,7 +255,7 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 - **对话与任务**：[在主对话里查询资料与题组](docs/main-session-queries.zh-CN.md) · [后台任务与侧栏](docs/generation-agents-sidebar.zh-CN.md)
 - **搭配工具**：[Archify 与其他搭配工具](docs/companions.zh-CN.md)
 - **可选功能**：[使用频率记录](docs/usage-frequency.zh-CN.md) · [Jev 决策层（实验性，英文）](docs/jev-experimental.md)
-- **开发者**：[架构与扩展](docs/architecture.md) · [开发验证记录（英文）](docs/verification.md) · [SM-2 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
+- **开发者**：[架构与扩展](docs/architecture.md) · [开发验证记录（英文）](docs/verification.md) · [界面文字的说话方式](docs/voice-and-tone.zh-CN.md) · [SM-2 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
 
 ## 参与项目
 

@@ -96,7 +96,7 @@ export function DeleteDialog({ book, node, onRun, onClose, onDeleted }) {
   const current = nodeAt(book?.nodes, node.hid)?.node ?? node;
   const remove = async () => {
     const answer = await onRun('course.book.delete', { hid: node.hid, children: 'promote' });
-    if (!answer.ok) throw new Error(structureFailureText(answer.failure) ?? ui('没有完成，请再试一次。'));
+    if (!answer.ok) throw new Error(structureFailureText(answer.failure) ?? ui('这次没有成功，也没有返回具体原因。可以再试一次。'));
   };
   return (
     <ConfirmDialog title={ui('删除这个知识点')} confirmLabel={ui('删除')} size="sm" className="book-structure-dialog"

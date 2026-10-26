@@ -70,7 +70,7 @@ test('from the finished card: no save (nothing was edited), the same publish and
 test('with no new question to start the deck is published all the same, and the page says so', async () => {
   const h = harness({ reviewFails: true });
   await m.publishAndPractice({ ...h.parts, draft: cleanDraft(), save: false });
-  assert.deepEqual(h.effects, [['clearRecovery'], ['setPage', 'library'], ['toast', '题组已发布；当前没有可开始的新题。']]);
+  assert.deepEqual(h.effects, [['clearRecovery'], ['setPage', 'library'], ['toast', '题组已发布。这次没能自动开始练习，可以在学习库里开始。']]);
 });
 
 test('a page the learner has left gets no UI effect from the late answer (the publication itself still happens)', async () => {

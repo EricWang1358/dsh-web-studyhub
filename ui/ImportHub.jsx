@@ -536,7 +536,7 @@ export default function ImportHub({
         {/* Rarely needed, so folded: the converters are suggested above for a PDF that fails, and here for one the learner already knows is hard. */}
         {!conversionOpen && <Disclosure className="import-hub__conversion" summary={ui('PDF 解析')} meta={ui('扫描件、公式多或大文件')}>
           <p className="import-hub__routes">{ui('文字读不出来、公式多，或超过 8 MB 的 PDF，可以先在本机解析成带页码的文字，再存为资料。')}</p>
-          {!convertible && <InlineMessage tone="info">{ui('PDF 解析随音频组件一起提供，这个安装没有启用它。请在 DSH 插件管理器中启用音频组件。')}</InlineMessage>}
+          {!convertible && <InlineMessage tone="info">{ui('PDF 解析是音频组件的一部分，而音频组件没有启用。在 DSH 插件管理器里启用它，这里就能用。')}</InlineMessage>}
           <input ref={pdfPicker} type="file" accept=".pdf,application/pdf" className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
             onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) { setConversionFile(chosen); setConversionOpen(true); } }} />
           <div className="import-hub__converter-actions">

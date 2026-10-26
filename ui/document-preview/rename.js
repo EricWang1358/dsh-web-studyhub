@@ -53,6 +53,6 @@ export async function renameDocument({ act, call }, item, options) {
   const args = renameArgs(item, options);
   if (!act) return call('materials.document.rename', args);
   const result = await act('materials.document.rename', args, undefined, { rethrow: true });
-  if (result === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。'));
+  if (result === undefined) throw new Error(ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。'));
   return result;
 }

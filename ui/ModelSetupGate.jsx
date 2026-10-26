@@ -15,7 +15,7 @@ import { ModelSettingsContext, useModelSettingsLabel } from './ModelErrorNote.js
    学习库与模型, which shows the same state and the same steps (ui/settings/ModelStatus.jsx). The button's name says which (modelSettingsLabel). */
 
 /** The gate's headline: the block names the first step, the smaller shapes state the fact. */
-export const gateTitle = (variant = 'block') => (variant === 'block' ? ui('先配置一个 AI 模型') : ui('还没有可用的 AI 模型'));
+export const gateTitle = (variant = 'block') => (variant === 'block' ? ui('需要先配置一个 AI 模型') : ui('还没有可用的 AI 模型'));
 
 /** Sentences joined the way the language joins them. */
 const say = (...parts) => parts.filter(Boolean).join(uiIsEnglish() ? ' ' : '');
@@ -27,7 +27,7 @@ const say = (...parts) => parts.filter(Boolean).join(uiIsEnglish() ? ' ' : '');
 export function modelFact({ reason, label } = {}) {
   if (reason === 'no-credential') return label ? uiFormat('已选择「{0}」，但 DSH 里还没有它的 API Key。', [label]) : ui('已选择模型，但 DSH 里还没有它的 API Key。');
   if (!label) return '';
-  if (reason === 'unknown') return uiFormat('已选择「{0}」，但这个 DSH 没有让 StudyHub 调用模型。', [label]);
+  if (reason === 'unknown') return uiFormat('已选择「{0}」，但这个 DSH 没有开放模型调用给 StudyHub，所以现在用不了它。可以先对照安装说明，确认 DSH 的版本符合要求。', [label]);
   if (reason === 'no-route') return uiFormat('已选择「{0}」，但 DSH 里没有这个服务商。', [label]);
   return '';
 }
@@ -48,7 +48,7 @@ const keyHint = () => <>{ui('去哪拿 Key、要不要充值：看')}<a href={ke
  * `pick` is how this page lets the learner choose a model (the pane of Settings has the choice right there).
  */
 function setupSteps({ reason, label } = {}, pick) {
-  const choose = { text: pick || ui('选一个模型：在对话输入框的模型选择器里选，或在 StudyHub「设置 › 学习库与模型」的「生成模型」里选'), choose: true };
+  const choose = { text: pick || ui('选一个模型：用主会话输入框里的模型选择器，或到 StudyHub「设置 › 学习库与模型」的「生成模型」里选'), choose: true };
   if (reason === 'no-credential') {
     const provider = providerOf(label);
     return [{ text: provider ? uiFormat('在 DSH 打开「设置 › 模型」，在「{0}」卡片填入 API Key 并保存', [provider]) : ui('在 DSH 打开「设置 › 模型」，给所选服务商填入 API Key 并保存'), hint: keyHint() }];
@@ -136,7 +136,7 @@ const FEATURES = {
   settings: ({ reason, label }, { recheck } = {}) => ({
     badge: ui('模型未连接'),
     why: say(reason === 'no-route' && !label ? ui('还没有选择 AI 模型。') : '', ui('出题、讲解和批改要用到它；已有的题组不用模型也能练。')),
-    pick: ui('在下面的「生成模型」里选一个模型，或在对话输入框的模型选择器里选'),
+    pick: ui('在下面的「生成模型」里选一个模型，或用主会话输入框里的模型选择器选'),
     then: recheck ? ui('回到这里，状态会变成「模型已连接」；没有变就点「重新检查」') : ui('回到这里，状态会变成「模型已连接」'),
     line: ui('模型还没有连接。'),
     note: ui('模型还没有连接；按下面的步骤配置。'),

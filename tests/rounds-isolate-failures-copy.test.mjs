@@ -61,7 +61,7 @@ test('the part report says who stopped the batches in the job card, the draft pa
 
 test('a run that stops because a round kept questions and credited none says so, with what to do next', () => {
   const stop = { reason: 'no-progress', round: 7, left: 26, uncredited: 5 };
-  assert.equal(inLanguage('zh', () => m.copy.stopText(stop)), '第 7 轮保留了 5 道题，但它们没有对上任何还没有题的小节，没有新的进展，为免一直重复，已经停下；还有 26 个小节没有题，可以点「为没覆盖的部分补题」再试。');
+  assert.equal(inLanguage('zh', () => m.copy.stopText(stop)), '第 7 轮保留了 5 道题，但它们没有对上任何还没有题的小节，没有新的进展，所以停下了，免得白白重复花费。还有 26 个小节没有题，可以点「为没覆盖的部分补题」再试。');
   const en = inLanguage('en', () => m.copy.stopText(stop));
   assert.match(en, /Round 7 kept 5 question\(s\), but none of them was credited to a section that had no question/);
   assert.doesNotMatch(en, han);

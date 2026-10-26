@@ -108,7 +108,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
         actions={<>
           {host.openInSidebar && !run.complete && (
-            <Tooltip layer content={ui("题目放到右栏，主区域回到对话。在右栏里接着刚才做到的这一题继续。")}>
+            <Tooltip layer content={ui("题目放到右栏，主区域回到主会话。在右栏里接着刚才做到的这一题继续。")}>
               <Button variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
             </Tooltip>
           )}
@@ -143,7 +143,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <div className="result-headline">
               <strong>{run.correct}</strong>
               <span>{uiFormat(scoreWording(run), [run.questions ?? run.total])}</span>
-              {run.retries > 0 && <small>{uiFormat("另有 {0} 次队尾重练", [run.retries])}</small>}
+              {run.retries > 0 && <small>{uiFormat("另外重练了 {0} 次", [run.retries])}</small>}
             </div>
             <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
           </div>

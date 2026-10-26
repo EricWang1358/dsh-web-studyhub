@@ -67,7 +67,7 @@ export function useBookHandlers({ call, course, notify, book, setBook, rows, rel
       try {
         const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
         const scope = practice?.scope.slice(0, n) || [];
-        if (!scope.length) { notify(ui('还没出题')); return; }
+        if (!scope.length) { notify(ui('这个知识点还没有题。先到「创建题组」从资料出题。')); return; }
         onPractice(scope, { resume: true, place: remember(from, element) });
       } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     },

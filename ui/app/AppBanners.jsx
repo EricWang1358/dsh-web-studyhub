@@ -26,7 +26,7 @@ export function StorageIssuesBanner() {
   const { data } = useApp();
   if (!data?.storageIssues?.length) return null;
   return (
-    <Banner tone="error" title={ui('部分文件无法读取，其他内容仍可查看。修复前暂停保存，原文件保留。')} className="app-banner">
+    <Banner tone="error" title={ui('这些文件读不出来，学习库的其他内容仍可查看。修好或移走它们之前不会保存新的改动，原文件保持原样。')} className="app-banner">
       <ul>{data.storageIssues.map((issue) => <li key={issue.file}>{issue.file}</li>)}</ul>
     </Banner>
   );

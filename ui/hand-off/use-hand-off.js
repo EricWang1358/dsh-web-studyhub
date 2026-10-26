@@ -27,7 +27,7 @@ export const HAND_OFF_RECEIPTS = Object.freeze({
   filled: { title: '已填进主会话的输入框', line: '看一眼，再由你按发送', timeout: 5000 },
   kept: { title: '输入框里你写的字都留着', line: '这段已复制，粘贴到合适的位置', timeout: 8000, action: '去主会话' },
   copied: { title: '已复制到剪贴板', line: '没找到主会话，粘贴到任意对话', timeout: 6000, action: '看看内容' },
-  shown: { title: '请手动复制', line: '剪贴板不让用', timeout: 0, action: '打开全文' },
+  shown: { title: '需要手动复制', line: '浏览器没有允许复制。点「打开全文」，选中后自己复制', timeout: 0, action: '打开全文' },
 });
 /** The input of a hand-off could not be read: the app's error toast, no seal. */
 export const HAND_OFF_FAILED = '没能发给主会话：{0}';
@@ -60,7 +60,7 @@ export function handOffReceipt(outcome, { lead = '', action = null } = {}) {
 /**
  * The delivery behind askInChat (ui/app/use-app-core.js): host.askInChat(text) fills the composer ('filled' or true), keeps the learner's own text ('kept')
  * or has no chat (anything else). Not filled: the prompt goes onto the clipboard. A refused clipboard opens the full-text card (`openSheet({ text, mode:
- * 'shown', lead, onClosed(copied) })`), and only a card closed without copying leaves the 「请手动复制」 slip, whose action opens the card again; without a
+ * 'shown', lead, onClosed(copied) })`), and only a card closed without copying leaves the 「需要手动复制」 slip, whose action opens the card again; without a
  * card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did (「已保存。」), said first.
  * Resolves to 'filled' | 'kept' | 'copied' | 'shown'.
  */

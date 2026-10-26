@@ -130,7 +130,7 @@ test('the output: no call, a call that cannot write on the way, and one that can
   assert.match(streaming, /data-mode="stream"/);
   assert.match(streaming, /role="log"/);
   assert.match(streaming, /等待模型开始输出/);
-  assert.match(streaming, /缓存最后约 8 KB/);
+  assert.match(streaming, /只保留最近约 8 KB/);
   assert.match(streaming, /结束后仍可回看/);
   assert.doesNotMatch(streaming, /输出不保留/);
 });

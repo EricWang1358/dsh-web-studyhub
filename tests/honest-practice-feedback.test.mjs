@@ -51,7 +51,7 @@ test('the feedback line follows the level: 答对了 after one correct answer, �
   assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^✓ 已掌握 · 下次复习 /);
   assert.match(line({ correct: false, level: 'weak', nextDue: due }), /^↻ 将继续巩固 · 下次复习 /);
   assert.match(line({ correct: true, nextDue: due }), /^答对了/, 'a feedback from an older host has no level: it says only what it knows');
-  assert.match(line({ correct: false, retryQueued: true, level: 'weak', nextDue: due }), /已追加到本轮队尾/);
+  assert.match(line({ correct: false, retryQueued: true, level: 'weak', nextDue: due }), /这道题放到了本轮最后，会再出现一次/);
   m.setUiLanguage('en');
   try {
     const english = line({ correct: true, level: 'learning', nextDue: due });

@@ -28,12 +28,12 @@ const bar = ({ data = { root: '/lib', inbox: [] }, connection = {}, busy = false
 };
 const label = (html) => /top-status-label">([^<]*)</.exec(html)?.[1];
 
-test('with no usable model the top bar says 未配置模型, not 已连接; with a model nothing changes', () => {
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: false, reason: 'no-route' } } })), '未配置模型');
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [], modelReady: false } })), '未配置模型', 'the older flag says the same');
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: true, label: 'DeepSeek' } } })), '已连接');
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [] } })), '已连接', 'a host that does not report the model is not accused');
-  assert.equal(label(bar({ data: null })), '待连接');
+test('with no usable model the top bar says 还没有配置模型, not 学习库已连接; with a model nothing changes', () => {
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: false, reason: 'no-route' } } })), '还没有配置模型');
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [], modelReady: false } })), '还没有配置模型', 'the older flag says the same');
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: true, label: 'DeepSeek' } } })), '学习库已连接');
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [] } })), '学习库已连接', 'a host that does not report the model is not accused');
+  assert.equal(label(bar({ data: null })), '没有连上学习库');
 });
 
 test('the words keep their place in a narrow pane (not the steady state) and the dot is not the green one', () => {
@@ -46,13 +46,23 @@ test('the words keep their place in a narrow pane (not the steady state) and the
 
 test('a failing library keeps its own words before the model is mentioned, busy work too', () => {
   const data = { root: '/lib', inbox: [], model: { ready: false } };
-  assert.equal(label(bar({ data, connection: { syncIssue: '读取失败' } })), '学习库读取失败');
-  assert.equal(label(bar({ data, busy: true })), '正在保存…');
+  assert.equal(label(bar({ data, connection: { syncIssue: '读取失败' } })), '学习库读不出来，正在重试');
+  assert.equal(label(bar({ data, busy: true })), '正在处理…');
+});
+
+test('any running job (PDF, audio, index, translation, not only questions) is a background task; only publishing is named', () => {
+  const data = { root: '/lib', inbox: [], model: { ready: true } };
+  assert.equal(label(bar({ data, connection: { running: true } })), '后台任务进行中');
+  assert.equal(label(bar({ data, connection: { running: true, publishing: true } })), '正在发布…');
+  assert.doesNotMatch(label(bar({ data, connection: { running: true } })), /生成/, 'not every job generates questions');
+  assert.equal(label(bar({ data, connection: { running: true }, language: 'en' })), 'Background tasks running');
+  assert.equal(label(bar({ data, busy: true, language: 'en' })), 'Working…');
+  assert.doesNotMatch(label(bar({ data, busy: true })), /保存/, 'every action takes the bar, not only a save');
 });
 
 test('in English the top bar has no Chinese', () => {
   const html = bar({ data: { root: '/lib', inbox: [], model: { ready: false } }, language: 'en' });
-  assert.equal(label(html), 'No model set up');
+  assert.equal(label(html), 'No model set up yet');
   assert.doesNotMatch(label(html), han);
 });
 

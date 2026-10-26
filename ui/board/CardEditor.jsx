@@ -153,7 +153,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
         </div>
       </form>
       {confirming && <DeleteCardDialog card={card} onClose={() => setConfirming(false)}
-        onConfirm={async () => { if (!(await onDelete(card))) throw new Error(ui('没有完成，请再试一次。')); }} />}
+        onConfirm={async () => { if (!(await onDelete(card))) throw new Error(ui('这次没有成功，也没有返回具体原因。可以再试一次。')); }} />}
     </Dialog>
   );
 }
