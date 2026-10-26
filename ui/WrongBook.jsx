@@ -3,6 +3,8 @@ import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, 
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
+import Markdown from "./Markdown.jsx";
+import StudyInline from "./StudyInline.jsx";
 import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
@@ -88,7 +90,7 @@ function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
       <div className="wb-rec-line">
         <FoldButton className="wb-rec-toggle" open={open} controls={id} onClick={onToggle}>
           <Icon name="chevron" size={16} className="wb-chevron" />
-          <span className="wb-prompt" title={plainPrompt(rec.prompt)}>{plainPrompt(rec.prompt)}</span>
+          <span className="wb-prompt" title={plainPrompt(rec.prompt)}><StudyInline text={rec.prompt} /></span>
         </FoldButton>
         <span className="wb-why" title={rec.reasons.map(reasonText).join(" · ")}>{reasonText(rec.reasons[0])}</span>
         <Button variant="quiet" size="sm" disabled={disabled} onClick={onPractice}
@@ -96,7 +98,7 @@ function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
       </div>
       {open && (
         <div className="wb-detail" id={id}>
-          <p className="wb-full-prompt">{plainPrompt(rec.prompt)}</p>
+          <div className="wb-full-prompt"><Markdown text={plainPrompt(rec.prompt)} links={false} /></div>
           <ul className="wb-why-list">{rec.reasons.map((reason, index) => <li key={index}>{reasonText(reason)}</li>)}</ul>
           <small className="muted">{uiFormat("来自 {0}", [shortName(rec.deckTitle)])}</small>
         </div>
@@ -105,8 +107,11 @@ function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
   );
 }
 
-function DetailLine({ label, children }) {
-  return children ? <div className="wb-fact"><dt>{label}</dt><dd>{children}</dd></div> : null;
+/** One fact of an opened mistake. The correct answer, the explanation and the pitfall are study text: drawn as Markdown, so formulas are formulas. What the
+ * learner typed (`plain`) is theirs: only its formulas are drawn, no Markdown marks change it. */
+function DetailLine({ label, children, plain = false }) {
+  const shown = typeof children !== "string" ? children : plain ? <StudyInline text={children} /> : <Markdown text={children} links={false} />;
+  return children ? <div className="wb-fact"><dt>{label}</dt><dd>{shown}</dd></div> : null;
 }
 
 function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, disabled }) {
@@ -117,7 +122,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
           : (
             <dl className="wb-facts">
               <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
-              <DetailLine label={ui("你的答案")}>{detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer}</DetailLine>
+              <DetailLine label={ui("你的答案")} plain>{detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer}</DetailLine>
               <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
               <DetailLine label={ui("解析")}>{detail.explanation}</DetailLine>
               <DetailLine label={ui("易错点")}>{detail.misconception}</DetailLine>
@@ -126,7 +131,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
       {variants.length > 0 && (
         <div className="wb-sub">
           <h4>{ui("这道题的变式")}</h4>
-          <ul>{variants.map((prompt, index) => <li key={index}>{plainPrompt(prompt)}</li>)}</ul>
+          <ul>{variants.map((prompt, index) => <li key={index}><StudyInline text={prompt} /></li>)}</ul>
         </div>
       )}
       {recs.length > 0 && (
@@ -135,7 +140,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
           <ul>
             {recs.map((rec) => (
               <li key={rec.cardId} className="wb-sub-rec">
-                <span className="wb-prompt" title={plainPrompt(rec.prompt)}>{plainPrompt(rec.prompt)}</span>
+                <span className="wb-prompt" title={plainPrompt(rec.prompt)}><StudyInline text={rec.prompt} /></span>
                 <span className="wb-why">{reasonText(rec.reasons[0])}</span>
                 <Button variant="quiet" size="sm" disabled={disabled} onClick={() => onPractice(rec)}>{ui("练")}</Button>
               </li>
@@ -162,7 +167,7 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
         <FoldButton className="wb-row-toggle" open={isOpen} controls={detailId} onClick={() => handlers.open(it)}>
           <Icon name="chevron" size={16} className="wb-chevron" />
           <span className="wb-meta" title={metaText}>{metaText}</span>
-          <span className="wb-prompt" title={plainPrompt(it.prompt)}>{plainPrompt(it.prompt)}</span>
+          <span className="wb-prompt" title={plainPrompt(it.prompt)}><StudyInline text={it.prompt} /></span>
         </FoldButton>
         <StatusMark kind={statusOf(it)} history={history} />
         {history && (

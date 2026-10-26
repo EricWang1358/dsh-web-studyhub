@@ -130,6 +130,21 @@ test('an opened row shows your answer, the correct answer, the explanation and i
   assert.match(self, /自评 2 分/);
 });
 
+test('formulas in an opened row, its prompt line and its variants are formulas, and the facts cannot push the panel wider', async () => {
+  const math = String.raw`逐年转存：$20220\times1.1\%=222.42$元，$ F = ma $，质量为5$kg$。`;
+  const hard = { ...row('c1', 'd4', '保护状态', String.raw`年利率为$1.1\%$，存$20000$元`) };
+  const html = render({ items: [hard], initial: { expanded: ['c1'], groups: 'all' },
+    details: { c1: { yourAnswer: math, correctAnswer: math, explanation: math, misconception: math, selfGrade: null } } });
+  const drawn = (html.match(/class="md-math"/g) || []).length;
+  assert.equal(drawn >= 10, true, `the prompt line and every fact draw their formulas through the one formula unit (${drawn})`);
+  assert.match(html, /<span class="wb-prompt"[^>]*>[^<]*<span class="md-math"/, 'the prompt line keeps one line, its formulas inline');
+  // An auto grid track takes the longest unbroken line as its minimum width: the panel must use minmax(0, 1fr).
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../ui/wrongbook.css', import.meta.url), 'utf8');
+  assert.match(css, /\.wb-detail \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(css, /\.wb-facts \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+});
+
 test('an opened row lists similar questions with the reason that fits that row', () => {
   const rec = { deckId: 'd2', deckTitle: decks[1].title, cardId: 'x1', topic: '其它', kind: 'quiz', prompt: '同页的另一题', score: 6, forCardIds: ['c1', 'c2'],
     reasons: [{ type: 'topic', topic: '集成收益' }],
