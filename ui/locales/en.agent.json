@@ -216,7 +216,7 @@
   "没找到主会话，粘贴到任意对话": "No main chat: paste it anywhere",
   "看看内容": "See it",
   "需要手动复制": "Copy it by hand",
-  "浏览器没有允许复制。点「打开全文」，选中后自己复制": "The browser did not allow copying. Press \"Open full text\", select it and copy it yourself",
+  "浏览器没让复制，点「打开全文」": "The browser blocked copying",
   "打开全文": "Open the full text",
   "复制全文": "Copy all",
   "再复制一次": "Copy again",

@@ -28,9 +28,9 @@ const bar = ({ data = { root: '/lib', inbox: [] }, connection = {}, busy = false
 };
 const label = (html) => /top-status-label">([^<]*)</.exec(html)?.[1];
 
-test('with no usable model the top bar says 还没有配置模型, not 学习库已连接; with a model nothing changes', () => {
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: false, reason: 'no-route' } } })), '还没有配置模型');
-  assert.equal(label(bar({ data: { root: '/lib', inbox: [], modelReady: false } })), '还没有配置模型', 'the older flag says the same');
+test('with no usable model the top bar says 还没配模型, not 学习库已连接; with a model nothing changes', () => {
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: false, reason: 'no-route' } } })), '还没配模型');
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [], modelReady: false } })), '还没配模型', 'the older flag says the same');
   assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: true, label: 'DeepSeek' } } })), '学习库已连接');
   assert.equal(label(bar({ data: { root: '/lib', inbox: [] } })), '学习库已连接', 'a host that does not report the model is not accused');
   assert.equal(label(bar({ data: null })), '没有连上学习库');
@@ -46,23 +46,37 @@ test('the words keep their place in a narrow pane (not the steady state) and the
 
 test('a failing library keeps its own words before the model is mentioned, busy work too', () => {
   const data = { root: '/lib', inbox: [], model: { ready: false } };
-  assert.equal(label(bar({ data, connection: { syncIssue: '读取失败' } })), '学习库读不出来，正在重试');
+  assert.equal(label(bar({ data, connection: { syncIssue: '读取失败' } })), '读不出学习库');
   assert.equal(label(bar({ data, busy: true })), '正在处理…');
 });
 
 test('any running job (PDF, audio, index, translation, not only questions) is a background task; only publishing is named', () => {
   const data = { root: '/lib', inbox: [], model: { ready: true } };
-  assert.equal(label(bar({ data, connection: { running: true } })), '后台任务进行中');
+  assert.equal(label(bar({ data, connection: { running: true } })), '后台处理中');
   assert.equal(label(bar({ data, connection: { running: true, publishing: true } })), '正在发布…');
   assert.doesNotMatch(label(bar({ data, connection: { running: true } })), /生成/, 'not every job generates questions');
-  assert.equal(label(bar({ data, connection: { running: true }, language: 'en' })), 'Background tasks running');
+  assert.equal(label(bar({ data, connection: { running: true }, language: 'en' })), 'Working…');
   assert.equal(label(bar({ data, busy: true, language: 'en' })), 'Working…');
   assert.doesNotMatch(label(bar({ data, busy: true })), /保存/, 'every action takes the bar, not only a save');
 });
 
+const hover = (html) => /class="top-status[^"]*"[^>]*title="([^"]*)"/.exec(html)?.[1] || /title="([^"]*)"[^>]*class="top-status/.exec(html)?.[1];
+
+test('the labels are short enough to fit a narrow pane; the long sentence is the hover text', () => {
+  const data = { root: '/lib', inbox: [], model: { ready: true } };
+  const failed = bar({ data, connection: { syncIssue: '读取失败' } }), running = bar({ data, connection: { running: true } });
+  assert.match(hover(failed), /^学习库读不出来，正在重试：读取失败$/);
+  assert.match(hover(running), /^有后台任务在进行（转换、转写、出题等）$/);
+  assert.equal(hover(bar({ data })), undefined, 'a steady bar has no hover');
+  assert.match(hover(bar({ data, connection: { syncIssue: '读取失败' }, language: 'en' })), /^Cannot read the library, retrying: 读取失败$/, 'the host\'s own error follows, whatever the language');
+  assert.match(hover(bar({ data, connection: { running: true }, language: 'en' })), /^Background tasks are running$/);
+  assert.equal(label(bar({ data, connection: { syncIssue: '读取失败' }, language: 'en' })), 'Library offline');
+  for (const html of [failed, running, bar({ data: { ...data, model: { ready: false } } })]) assert.ok([...label(html)].length <= 7, `${label(html)} stays short`);
+});
+
 test('in English the top bar has no Chinese', () => {
   const html = bar({ data: { root: '/lib', inbox: [], model: { ready: false } }, language: 'en' });
-  assert.equal(label(html), 'No model set up yet');
+  assert.equal(label(html), 'No model yet');
   assert.doesNotMatch(label(html), han);
 });
 

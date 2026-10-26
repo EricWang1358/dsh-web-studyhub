@@ -27,7 +27,7 @@ export const HAND_OFF_RECEIPTS = Object.freeze({
   filled: { title: '已填进主会话的输入框', line: '看一眼，再由你按发送', timeout: 5000 },
   kept: { title: '输入框里你写的字都留着', line: '这段已复制，粘贴到合适的位置', timeout: 8000, action: '去主会话' },
   copied: { title: '已复制到剪贴板', line: '没找到主会话，粘贴到任意对话', timeout: 6000, action: '看看内容' },
-  shown: { title: '需要手动复制', line: '浏览器没有允许复制。点「打开全文」，选中后自己复制', timeout: 0, action: '打开全文' },
+  shown: { title: '需要手动复制', line: '浏览器没让复制，点「打开全文」', timeout: 0, action: '打开全文' },
 });
 /** The input of a hand-off could not be read: the app's error toast, no seal. */
 export const HAND_OFF_FAILED = '没能发给主会话：{0}';

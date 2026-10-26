@@ -27,9 +27,17 @@ export function LibraryChip({ root, onOpen }) {
 
 function statusText({ busy, running, publishing, syncIssue, data, noModel }) {
   if (busy) return ui('正在处理…');
-  if (running) return publishing ? ui('正在发布…') : ui('后台任务进行中');
-  if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : ui('学习库读不出来，正在重试');
-  return data ? noModel ? ui('还没有配置模型') : ui('学习库已连接') : ui('没有连上学习库');
+  if (running) return publishing ? ui('正在发布…') : ui('后台处理中');
+  if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : ui('读不出学习库');
+  return data ? noModel ? ui('还没配模型') : ui('学习库已连接') : ui('没有连上学习库');
+}
+
+/** The hover text of a short label that cannot say it all (the failed read keeps the host's own error after it). */
+function statusHint({ busy, running, publishing, syncIssue }) {
+  if (busy || (running && publishing)) return syncIssue || undefined;
+  if (running) return ui('有后台任务在进行（转换、转写、出题等）');
+  if (syncIssue && !isTransientStudyError({ message: syncIssue })) return uiFormat('学习库读不出来，正在重试：{0}', [syncIssue]);
+  return syncIssue || undefined;
 }
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
@@ -49,7 +57,7 @@ export default function AppTopbar({ title }) {
       </nav>
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={() => { settingsEntry.setSettingsFocus('settings-model'); nav.navigate('settings', { animate: true, keepTrail: false }); }} />
-        <span className={'top-status' + (idle ? ' idle' : '')} role="status" title={syncIssue || undefined}>
+        <span className={'top-status' + (idle ? ' idle' : '')} role="status" title={statusHint({ busy, running, publishing, syncIssue })}>
           <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />
           <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data, noModel })}</span>
         </span>

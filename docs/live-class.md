@@ -129,7 +129,7 @@ Click a sentence reference, such as **Sentence 12**, to jump to that sentence in
 Sometimes a later sentence shows that an older one, outside the current window, was misheard. The batch check then queues a separate request that names 1–20 specific older sentences and the reason.
 
 - Requests run in the background, one at a time. Each uses the batch that raised it as evidence. Recording and batch correction do not wait for it.
-- Each request shows **Queued**, **Working in background**, **Completed** or **Retry needed**. Click **Retry historical correction** to run the failed ones again.
+- Each request shows **Queued**, **Working…**, **Completed** or **Retry needed**. Click **Retry historical correction** to run the failed ones again.
 - Before merging a result, StudyHub checks that the sentences have not changed since the request. Stale, timed-out (after 60 seconds) and failed results are not merged and stay available for retry. They are never reported as done.
 
 The model that runs it follows **Model for proofreading and translation** (see [Settings](#settings)):

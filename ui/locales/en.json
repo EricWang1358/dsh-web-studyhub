@@ -1012,11 +1012,11 @@
   "正在保存…": "Saving…",
   "正在处理…": "Working…",
   "正在发布…": "Publishing…",
-  "后台任务进行中": "Background tasks running",
+  "后台处理中": "Working…",
   "连接中断，正在重试…": "Connection interrupted; retrying…",
   "学习库已连接": "Library connected",
   "没有连上学习库": "Library not connected",
-  "还没有配置模型": "No model set up yet",
+  "还没配模型": "No model yet",
   "添加资料": "Add source",
   "查看详情": "View details",
   "学习资料": "Study material",
@@ -1815,7 +1815,7 @@
   "学习库已切换，请在当前学习库重试": "The library changed. Try again in the current library.",
   "找不到这场笔试": "This written exam could not be found",
   "已保存版本有更新，展开核对；你的输入已保留": "The saved version has changed. Expand to compare; your writing is preserved.",
-  "学习库读不出来，正在重试": "Cannot read the library, retrying",
+  "学习库读不出来，正在重试：{0}": "Cannot read the library, retrying: {0}",
   "这些文件读不出来，学习库的其他内容仍可查看。修好或移走它们之前不会保存新的改动，原文件保持原样。": "These files cannot be read. The rest of the library can still be viewed. Nothing new is saved until you fix or move them, and the original files stay as they are.",
   "回到之前的第 {0} 题": "Return to previous question ({0})",
   "关联课程已不存在": "The linked course no longer exists",
@@ -1973,5 +1973,7 @@
   "同日同课程合成一篇。累计作答 10 道不同题目后生成，重练只计一次。自动生成可在设置里开启。": "One recap per course per day. Answer 10 distinct questions to unlock it; retries count once. You can enable automatic recaps in Settings.",
   "有未保存的修改": "Unsaved changes",
   "保存并返回阅读": "Save and return to reading",
-  "StudyHub 的请求没有成功，也没有返回具体原因。可以再试一次。": "The StudyHub request did not work, and no reason came back. You can try again."
+  "StudyHub 的请求没有成功，也没有返回具体原因。可以再试一次。": "The StudyHub request did not work, and no reason came back. You can try again.",
+  "读不出学习库": "Library offline",
+  "有后台任务在进行（转换、转写、出题等）": "Background tasks are running"
 }
