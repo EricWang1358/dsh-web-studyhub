@@ -6,6 +6,7 @@ import { Button, Checkbox, Dialog, FileDrop, Hint, Icon, InlineMessage, LoadingS
 import css from './original-file.css';
 import { ORIGINAL_MAX_BYTES, canAttach, collapseNotice, defaultMode, explainFailure, issueOf, modeOptions, noticeCollapsed, originalLine, reportHeadline, reportLines } from './original-file.js';
 import { formatBytes } from '../format.js';
+import { guidanceAllows } from '../guidance/budget.js';
 import { toBase64 } from '../upload.js';
 import { isAbsolutePath, unquotePath } from '../paths.js';
 import { baseName } from '../file-names.js';
@@ -30,7 +31,8 @@ export function OriginalNotice({ document, onAction, collapsed, onCollapse }) {
   const issue = issueOf(document.original);
   if (!issue) return null;
   const id = String(document.documentId || document.id || '');
-  const closed = collapsed ?? (closedHere.has(id) || noticeCollapsed(id));
+  // 设置 › 引导 can switch the full notice off (master switch or its own): it is then the quiet line, which keeps 补全原文件….
+  const closed = collapsed ?? (closedHere.has(id) || noticeCollapsed(id) || !guidanceAllows('reader.original-notice'));
   const close = () => { collapseNotice(id); setClosedHere(previous => new Set(previous).add(id)); onCollapse?.(id); };
   if (issue.kind === 'none' && closed) return <p className="original-quiet" data-kind="none" data-collapsed="true">
     <Icon name="info" size={16} />

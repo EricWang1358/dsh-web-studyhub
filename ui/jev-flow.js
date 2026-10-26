@@ -1,8 +1,14 @@
 import { ui, uiFormat } from './i18n.js';
+import { readJSON, writeJSON } from './storage.js';
 import { jevMessage } from '../lib/jev-messages.js';
 import { DEFAULT_JEV_PROVIDER, JEV_PROVIDER_IDS, jevProvider } from '../lib/jev-providers.js';
 
 /* EXPERIMENTAL Jev layer: the copy and the small pure helpers the settings page and the organizer share. */
+
+/** The walk-through was seen (kept in this browser; a private window just asks again next time); 设置 › 引导 reads it (ui/guidance/registry.js). */
+export const JEV_GUIDE_KEY = 'study-jev-guide-seen';
+export const jevGuideSeen = () => readJSON(JEV_GUIDE_KEY, 0) === 1;
+export const rememberJevGuide = () => writeJSON(JEV_GUIDE_KEY, 1);
 
 /** The model calls a learner can choose to have Jev answer instead (lib/jev-sites.js), for the walk-through and the switches. */
 export const JEV_REPLACE_META = [

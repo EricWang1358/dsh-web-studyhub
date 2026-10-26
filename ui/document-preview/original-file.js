@@ -13,7 +13,9 @@ export { unquotePath, isAbsolutePath } from '../paths.js';
 
 /* The notice for a document that only kept its text can be closed (it is a hint, not a fault). Closing remembers the document in this browser (never anywhere else) and folds the notice
    into one quiet line that keeps the action; nothing is lost by closing it. At most NOTICE_KEEP documents are remembered, the oldest forgotten first. */
-const NOTICE_KEY = 'study-original-notice', NOTICE_KEEP = 200;
+/** The stored list of documents whose notice was closed; 设置 › 引导 reads and clears it (ui/guidance/registry.js, item reader.original-notice). */
+export const NOTICE_KEY = 'study-original-notice';
+const NOTICE_KEEP = 200;
 const closedIds = storage => { const stored = readJSON(NOTICE_KEY, [], storage); return Array.isArray(stored) ? stored.filter(id => typeof id === 'string') : []; };
 /** Has the learner closed the full notice of this document in this browser? */
 export const noticeCollapsed = (id, storage = browserStorage()) => !!id && closedIds(storage).includes(String(id));
