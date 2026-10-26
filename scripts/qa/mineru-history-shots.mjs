@@ -256,16 +256,14 @@ try {
       must((await tab.locator('.pdf-history__row', { hasText: 'Machine Learning.pdf' }).count()) === 0, 'the deleted record is gone');
       must((await call('snapshot')).sources.length === pagesBefore, 'deleting a record deleted no imported page');
 
-      // Clear the history with its confirm, by keyboard: Tab to the button, Enter, Tab to the confirm.
+      // Clear the history by keyboard: Tab to the button, Enter. It asks nothing (D1): the rows leave and the notice offers 撤销; closing the notice lets the host forget them.
       const clearButton = tab.getByRole('button', { name: T(/清空历史/, /Clear history/) }).first();
       await clearButton.scrollIntoViewIfNeeded();
       await clearButton.focus(); await tab.keyboard.press('Enter'); await settle(300);
-      // The confirm is inline (InlineConfirm: a labelled group under the bar), not a dialog.
-      must(await tab.locator('.pdf-history [role="group"]', { hasText: T(/确认清空/, /Yes, clear them/) }).count() === 1, 'clearing asks first');
-      await shot('4-clear-confirm');
-      await audit(tab, `${label}/confirm`, { scopes: ['.pdf-history', '.pdf-history__confirm'] });
-      const confirm = tab.getByRole('button', { name: T(/确认清空/, /Yes, clear them/) }).first();
-      await confirm.focus(); await tab.keyboard.press('Enter'); await settle(900);
+      const notice = tab.locator('.sh-toast', { hasText: T(/已清空/, /Cleared/) }).first();
+      must(await notice.count() === 1, 'clearing offers 撤销');
+      await shot('4-clear-undo');
+      await notice.getByRole('button', { name: T(/关闭提示/, /Dismiss notice/) }).click(); await settle(900);
       const after = await call('mineru.history.list');
       must(after.records.every(record => record.live), `the history is cleared (${after.records.length} left)`);
       must((await call('snapshot')).sources.length === pagesBefore, 'clearing the history deleted no imported page');

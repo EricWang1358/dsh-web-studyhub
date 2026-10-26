@@ -13,6 +13,7 @@ import { useStudy } from "./study-context.jsx";
 import { readDraft as readSavedDraft, writeDraft as writeSavedDraft, clearDraft as clearSavedDraft } from "./writing-drafts.js";
 import { usePersistentState } from "./storage.js";
 import { formatDateTime, formatIndex } from './format.js';
+import { useUndoable } from './use-undoable.js';
 
 /* The move buttons' arrows: the caret-chevron turned a quarter either way (the icon set has no up and down arrows). */
 const turned = (degrees) => <span className="wf-turn" style={{ display: "inline-flex", transform: `rotate(${degrees}deg)` }}><Icon name="chevron" size={16} /></span>;
@@ -222,14 +223,12 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   useInjectCss(css, "study-workflows");
   const [listing, setListing] = useState(initialListing), [screen, setScreen] = useState(() => openSession ? { kind: "portal", id: openSession } : { kind: "list" });
   const [error, setError] = useState(""), [pending, setPending] = useState("");
-  const [confirm, setConfirm] = useState("");
   // What the learner typed; until they type (or clear the box) the recommended topic is in it, so starting is one click.
   const [typedGoal, setTypedGoal] = useState(null), quickRequest = useRef(null);
   const suggestions = [data?.next?.topic && `${data.next.deckTitle} · ${data.next.topic}`, data?.focus?.course && uiFormat("{0} 的核心概念", [data.focus.course])].filter(Boolean);
   const goal = typedGoal ?? suggestions[0] ?? "", prefilled = typedGoal === null && !!suggestions[0];
   const [autoSkeleton, setAutoSkeleton] = usePersistentState("study-workflow-auto-skeleton", true, { parse: (raw) => raw !== "0", serialize: (value) => (value ? "1" : "0") });
-  const lock = useRef(false), request = useRef(0), reading = useRef(null), live = useRef(true), confirmTrigger = useRef(null);
-  const askConfirm = (value) => (event) => { confirmTrigger.current = event.currentTarget; setConfirm(value); };
+  const lock = useRef(false), request = useRef(0), reading = useRef(null), live = useRef(true);
   const root = data?.root || "local";
   const invalidateReads = useCallback(() => { ++request.current; reading.current = null; }, []);
   const refresh = useCallback(async ({ automatic = false } = {}) => {
@@ -246,14 +245,18 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     return invalidateReads;
   }, [refresh, data?.revision, screen.kind, invalidateReads, language]);
   usePolling(() => refresh({ automatic: true }), { intervalMs: 10000, enabled: screen.kind !== "portal" });
-  const back = () => { setScreen({ kind: "list" }); setConfirm(""); void refresh(); };
-  async function remove(type, item) {
-    if (lock.current) return;
-    lock.current = true; ++request.current; setPending(item.id); setError("");
-    try { await call(type === "template" ? "workflow.delete" : "workflow.session.delete", { id: item.id, version: item.version }); setConfirm(""); await refresh(); }
-    catch (err) { setError(err.message); }
-    finally { lock.current = false; setPending(""); }
+  const back = () => { setScreen({ kind: "list" }); void refresh(); };
+  // 删除 of a template or a session asks nothing (a flow and its notes are not a source or a question): the row leaves at once and the notice offers 撤销
+  // (ui/undoable.js); the host deletes it when that notice leaves. Flashcard history is kept either way.
+  const undoable = useUndoable();
+  function remove(type, item) {
+    const name = type === "template" ? item.title : item.topic;
+    undoable.commitLater({ keys: [`${type}:${item.id}`], message: type === "template" ? uiFormat("已删除学习流「{0}」；已开始的学习记录还在。", [name]) : uiFormat("已删除学习记录「{0}」的笔记和进度；闪卡练习历史还在。", [name]),
+      commit: async () => { await call(type === "template" ? "workflow.delete" : "workflow.session.delete", { id: item.id, version: item.version }); if (live.current) await refresh(); return true; },
+      failed: (reason) => uiFormat("没能删除「{0}」，已放回原处：{1}", [name, reason]) });
   }
+  const sessions = (listing?.sessions || []).filter((s) => !undoable.hidden(`session:${s.id}`));
+  const templates = (listing?.templates || []).filter((t) => !undoable.hidden(`template:${t.id}`));
   const edit = (template, key = template.id) => setScreen({ kind: "edit", template: clone(template), key });
   // One sentence in, a running session out: AI picks the material and order.
   async function quickStart(event) {
@@ -271,7 +274,7 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   }
   const modelReady = data?.modelReady !== false;
   // The most recent unfinished session, so coming back is one click.
-  const unfinished = listing?.sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const unfinished = sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
   if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <LoadingState label={ui("正在读取学习流…")} />}</section>;
   if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
@@ -296,17 +299,14 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     </form>
     {error && <ErrorState error={error} />}
     <div className="wf-section-head"><h2>{ui("学习记录")}</h2></div>
-    {!listing.sessions.length ? <p className="muted wf-empty">{ui("还没有学习记录。在上面说一句想学什么，学到一半离开也会留在这里，随时接着学。")}</p> : <ul className="wf-session-list">{[...listing.sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? ui("本次学习已结束") : s.stepTitle}</p><small className="muted">{s.status === "completed" ? "" : `${ui(STATUS[s.status])} · `}{when(s.updatedAt)}</small></div><div className="wf-actions"><Button disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? ui("查看记录") : ui("继续学习")}</Button><Button disabled={!!pending} aria-label={uiFormat("删除学习记录 {0}", [s.topic])} onClick={askConfirm(`session:${s.id}`)}>{ui("删除")}</Button></div>{confirm === `session:${s.id}` && <InlineConfirm title={ui("删除这次学习的笔记和进度？闪卡练习历史会保留。")} confirmLabel={ui("确认删除")}
-        busy={!!pending} returnFocusRef={confirmTrigger} onConfirm={() => remove("session", s)} onCancel={() => setConfirm("")} />}</li>)}</ul>}
+    {!sessions.length ? <p className="muted wf-empty">{ui("还没有学习记录。在上面说一句想学什么，学到一半离开也会留在这里，随时接着学。")}</p> : <ul className="wf-session-list">{[...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? ui("本次学习已结束") : s.stepTitle}</p><small className="muted">{s.status === "completed" ? "" : `${ui(STATUS[s.status])} · `}{when(s.updatedAt)}</small></div><div className="wf-actions"><Button disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? ui("查看记录") : ui("继续学习")}</Button><Button disabled={!!pending} aria-label={uiFormat("删除学习记录 {0}", [s.topic])} onClick={() => remove("session", s)}>{ui("删除")}</Button></div></li>)}</ul>}
     <details className="wf-advanced"><summary>{ui("高级：自定义学习步骤")}</summary>
       <p className="muted small">{ui("想按自己的顺序学时再用。自定义的学习流用「使用」开始，需要自己选主题与范围。")}</p>
     <div className="wf-section-head"><h2>{ui("我的学习流")}{" "}<span className="muted">{listing.templates.length} / {listing.limit}</span></h2><Button icon="plus" size="sm" disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit({ title: "", description: "", steps: [newStep(listing.components[0])] }, "new")}>{ui("自己拼一条")}</Button></div>
     {listing.templates.length >= listing.limit && <p className="muted small">{ui("已保存五条。可以修改现有流程，或删除一条后再创建。")}</p>}
-    <div className="wf-template-list">{listing.templates.map((template, index) => <article className="wf-template-row" key={template.id}>
+    <div className="wf-template-list">{templates.map((template, index) => <article className="wf-template-row" key={template.id}>
       <span className="wf-row-number" aria-hidden="true">{formatIndex(index + 1)}</span><div className="wf-template-copy"><h3>{template.title}</h3><p>{template.description || uiFormat("{0} 个学习步骤", [template.steps.length])}</p><div className="wf-route-preview">{template.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div>
-      <div className="wf-actions"><Button onClick={() => setScreen({ kind: "start", template })} disabled={!!pending}>{ui("使用")}</Button><Button onClick={() => edit(template)} disabled={!!pending}>{ui("编辑")}</Button><Button aria-label={uiFormat("删除学习流 {0}", [template.title])} onClick={askConfirm(`template:${template.id}`)} disabled={!!pending}>{ui("删除")}</Button></div>
-      {confirm === `template:${template.id}` && <InlineConfirm title={uiFormat("删除「{0}」？已开始的学习记录会保留。", [template.title])} confirmLabel={ui("确认删除")}
-        busy={!!pending} returnFocusRef={confirmTrigger} onConfirm={() => remove("template", template)} onCancel={() => setConfirm("")} />}
+      <div className="wf-actions"><Button onClick={() => setScreen({ kind: "start", template })} disabled={!!pending}>{ui("使用")}</Button><Button onClick={() => edit(template)} disabled={!!pending}>{ui("编辑")}</Button><Button aria-label={uiFormat("删除学习流 {0}", [template.title])} onClick={() => remove("template", template)} disabled={!!pending}>{ui("删除")}</Button></div>
     </article>)}</div>
     <article className="wf-suggested"><div><p className="wf-eyebrow">{ui("从一条建议开始")}</p><h3>{listing.suggested.title}</h3><p className="muted">{listing.suggested.description}</p><div className="wf-route-preview">{listing.suggested.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div><Button disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit(listing.suggested, "suggested")}>{ui("编辑并保存这条流程")}</Button></article>
     <details className="wf-chat"><summary>{ui("和主会话一起拼")}</summary>

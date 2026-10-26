@@ -11,6 +11,7 @@ import { isActiveJob, isCancellable } from '../job-visibility.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { uiFormat } from '../i18n.js';
 import { attachWake, createSnapshotPoll } from './snapshot-poll.js';
+import { flushUndoable } from '../undoable.js';
 
 /* The connection to the library: the binding (which folder, which model), the snapshot the whole app reads, how it is kept
    fresh (the first handshake, then the shared polling loop) and what happens when the library underneath changes. */
@@ -128,6 +129,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
     ...patch,
   });
   async function updateBinding(patch) {
+    if (Object.hasOwn(patch, 'root')) await flushUndoable(); // a 删除 still in its 撤销 time goes to the library it was made in, before the move
     ++refs.requestSequence.current;
     if (Object.hasOwn(patch, 'root')) {
       refs.epoch.current++;

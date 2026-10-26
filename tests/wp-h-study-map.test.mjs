@@ -153,11 +153,11 @@ test('generation jobs render as compact cards with a real progress bar and one d
   assert.match(running, /<article[^>]*class="cjc"[^>]*data-job-id="a"/);
   assert.match(running, /role="progressbar"[^>]*aria-valuenow="40"[^>]*|aria-valuemax="100"[^>]*aria-valuenow="40"/);
   assert.match(running, /停止/);
-  assert.doesNotMatch(running, /知道了/, 'a running job cannot be dismissed');
+  assert.doesNotMatch(running, />归档</, 'a running job cannot be dismissed');
   assert.doesNotMatch(running, /style="width:/, 'the fill moves with transform, never width');
   const failed = html(m.JobCard, { job: job('b', 'failed', { stage: 'rate limit exceeded' }), jobs: [], drafts: [], busy: false, dismissJob: noop });
   assert.match(failed, /data-state="fail"/);
-  assert.match(failed, /知道了/);
+  assert.match(failed, />归档</);
   assert.match(failed, /role="alert"/);
   const done = html(m.JobCard, { job: job('c', 'complete'), jobs: [], drafts: [], busy: false, dismissJob: noop });
   assert.match(done, /data-state="done"/);

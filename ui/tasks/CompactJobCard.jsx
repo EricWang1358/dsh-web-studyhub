@@ -15,6 +15,9 @@ import { resultOpener } from './task-actions.js';
 import { keepsOf } from './task-control.js';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput } from './failed-hand-off.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
+import { useToast } from '../components/Feedback.jsx';
+import { offerRestore } from '../undoable.js';
+import { batchRun } from './task-batch.js';
 
 /* The compact job card that replaces the big per-feature cards on the pages (音频转写, the home's question runs, PDF conversions): a status dot, the
    title and its percent, a thin bar, ONE status line, a stop (or 知道了) slot of fixed width and a primary button of fixed width, so the cards line up.
@@ -61,15 +64,20 @@ export function cardLine(job) {
 
 export default function CompactJobCard({ job, onStop, onDismiss, primary, links, title, line, onOpenConsole, className, ...rest }) {
   useInjectCss(css, 'study-compact-card');
-  const app = useContext(AppContext) || {}, quick = useQuickActions();
+  const app = useContext(AppContext) || {}, quick = useQuickActions(), toast = useToast();
   const contract = contractOf(job), summary = { ...taskSummary(job) }, percentHint = progressHint(job).percent, live = isRunningTask(job), unknown = summary.percent === null && live;
   const openConsole = onOpenConsole || (() => app.nav?.show?.task?.(contract.jobId));
   const cancel = onStop || (() => app.core?.act?.('job.control', { jobId: contract.jobId, action: 'cancel' }));
-  // 知道了 puts the task in 已归档 (nothing is deleted); the notice says where it went.
-  const dismiss = onDismiss || (() => {
-    const done = quick ? dismissJobs(quick, job.id) : app.core?.act?.('job.archive', { jobId: job.id });
-    void Promise.resolve(done).then((result) => { if (result?.ok !== false) app.core?.notify?.(ui('已放进「已归档」，可以在「任务」里取消归档或删除。')); });
-  });
+  // 归档 puts the task in 已归档 (nothing is deleted); the notice says so and offers 撤销 (job.unarchive), from whichever page the card is on.
+  const dismiss = () => {
+    const done = onDismiss ? onDismiss() : quick ? dismissJobs(quick, job.id) : app.core?.act?.('job.archive', { jobId: job.id });
+    void Promise.resolve(done).then((result) => {
+      if (result === undefined && !onDismiss && !quick) return;
+      if (result?.ok === false) return;
+      offerRestore(toast, { message: uiFormat('已归档「{0}」：在「任务」的「已归档」里。', [summary.title]), restored: uiFormat('已取消归档「{0}」', [summary.title]),
+        restore: async () => { const back = await batchRun('unarchive', [contract.jobId], { quick, core: app.core }); if (back.ok === false) { toast.error(back.message); return false; } Promise.resolve(app.core?.refresh?.()).catch(() => {}); return true; } });
+    });
+  };
   const result = !live && contract.status === 'complete' ? resultOpener(job, app) : null;
   const go = primary || result || (!live && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? { label: ui('看原因并继续'), run: openConsole }
     : { label: ui('查看详情'), run: openConsole });
@@ -94,7 +102,7 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
       </div>
       <div className="cjc__slot">
         {stoppable ? <Button variant="quiet" size="sm" aria-label={uiFormat('停止：{0}', [summary.title])} onClick={cancel}>{ui('停止')}</Button>
-          : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('知道了：{0}', [summary.title])} onClick={dismiss}>{ui('知道了')}</Button> : null}
+          : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('归档：{0}', [summary.title])} onClick={dismiss}>{ui('归档')}</Button> : null}
       </div>
       {/* The other ways on, as quiet links under the card ([{ label, run (or onClick), disabled, tip }]; tip: on hover and focus): the card keeps ONE primary button. */}
       {(links?.length > 0 || handOff) && <div className="cjc__links">{(links || []).map((link) => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Disclosure, InlineMessage } from '../components/index.js';
 import { CoverageTopUp } from '../coverage/CoverageTopUp.jsx';
@@ -13,8 +13,11 @@ import JobCard from './JobCard.jsx';
 import { useStudy } from '../study-context.jsx';
 import { joinMeta } from '../format.js';
 import { draftPartTitle, partTargets } from '../DraftPart.jsx';
+import DeleteDraftDialog from '../DeleteDraftDialog.jsx';
 
 function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
+  const { busy } = useStudy();
+  const [deleting, setDeleting] = useState(false);
   // 覆盖: how much of its material the draft has questions for, said in the words of the draft page. The counts, the tag and the one action are the draft's SHORTFALL (lib/shortfall.js):
   // the same numbers and the same sentences as the banner above, the 任务 console and the draft page.
   const { view, shortfall } = useDraftShortfall(d, data);
@@ -46,7 +49,10 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
         </span>
         <span>{ui('打开 →')}</span>
       </button>
+      {/* 删除 opens the same question as the draft page's 删除草稿 (ui/DeleteDraftDialog.jsx): the unpublished questions go for good, the materials stay. */}
+      <Button variant="quiet" size="sm" className="draft-delete" disabled={busy} aria-label={uiFormat('删除草稿「{0}」', [d.title || ui('未命名草稿')])} onClick={() => setDeleting(true)}>{ui('删除')}</Button>
       <CoverageTopUp variant="compact" draft={d} view={view} jobs={data.jobs} modelReady={modelReady} onTopUp={topUpDraft} />
+      {deleting && <DeleteDraftDialog draft={d} running={!!work} onClose={() => setDeleting(false)} onDeleted={() => setDeleting(false)} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { existsSync, readFileSync } from 'node:fs';
 import React from 'react';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
@@ -12,7 +13,6 @@ const m = await loadUi(`
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { default as SelectBar } from './ui/tasks/SelectBar.jsx';
-  export { default as DeleteTasksDialog } from './ui/tasks/DeleteTasksDialog.jsx';
   export { jobContract, archivedContract } from './lib/job-contract.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -82,18 +82,18 @@ test('the bar of the selection has one fixed place: 全选当前筛选 with noth
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('a finished task keeps 知道了, which now says where the task goes, and offers 删除; a running one offers neither', () => {
+test('a finished task has 归档 (it was 知道了), which now says where the task goes, and offers 删除; a running one offers neither', () => {
   const finished = render({ data: { jobs: [live()[2]] } });
   const detail = finished.slice(finished.indexOf('class="tc-detail"'));
-  assert.match(detail, />知道了</);
+  assert.match(detail, />归档</);
   assert.match(detail, /已归档/, 'the words next to the button say it goes to 已归档, it is not deleted');
   assert.match(detail, />删除</);
   const running = render({ data: { jobs: [live()[0]] } });
   const runningDetail = running.slice(running.indexOf('class="tc-detail"'));
-  assert.doesNotMatch(runningDetail, />知道了</);
+  assert.doesNotMatch(runningDetail, />归档</);
   assert.doesNotMatch(runningDetail, />删除</);
   const en = render({ data: { jobs: [live()[2]] }, language: 'en' });
-  assert.match(en.slice(en.indexOf('class="tc-detail"')), />Got it</);
+  assert.match(en.slice(en.indexOf('class="tc-detail"')), />Archive</);
   assert.match(en, /Archived/);
 });
 
@@ -109,7 +109,7 @@ test('the archived list shows archived tasks read-only: 取消归档 and 删除,
   assert.match(detail, /data-archived="true"/);
   assert.match(detail, />取消归档</);
   assert.match(detail, />删除</);
-  for (const gone of ['>暂停<', '>继续<', '>接着做<', '>停止<', '>知道了<']) assert.ok(!detail.includes(gone), gone);
+  for (const gone of ['>暂停<', '>继续<', '>接着做<', '>停止<', '>归档<']) assert.ok(!detail.includes(gone), gone);
   assert.match(detail, /只读/);
   const en = render({ data, props: { initialFilter: 'archived' }, language: 'en' });
   assert.match(en.slice(en.indexOf('class="tc-detail"')), />Unarchive</);
@@ -124,35 +124,13 @@ test('an archived task renders like a finished one: its title, kind, state and p
   assert.match(html, /data-status="complete"/);
 });
 
-test('the confirmation says what is removed (the task record; for audio the working copy) and what is NOT (sources, drafts, decks)', () => {
-  m.setUiLanguage('zh');
-  const out = renderToStaticMarkup(React.createElement(m.DeleteTasksDialog, { count: 3, archived: 1, audio: 2, onConfirm() {}, onClose() {} }));
-  assert.match(out, /删除 3 个任务？/);
-  assert.match(out, /任务记录/);
-  assert.match(out, /其中 1 个在「已归档」里/);
-  assert.match(out, /2 个音频任务/);
-  assert.match(out, /工作副本/);
-  assert.match(out, /不会删除/);
-  for (const kept of ['已导入的资料', '草稿', '题组']) assert.match(out, new RegExp(kept), kept);
-  assert.match(out, /不能撤销|无法恢复/);
-  const footer = out.match(/<footer[^>]*>(.*)<\/footer>/s)[1];
-  const buttons = [...footer.matchAll(/<button[^>]*>/g)].map((match) => match[0]);
-  assert.equal(buttons.length, 2);
-  assert.match(buttons[0], /sh-btn--quiet/);
-  assert.match(buttons[1], /sh-btn--danger/);
-  assert.ok(footer.indexOf('取消') < footer.indexOf('确认删除'));
-  const plain = renderToStaticMarkup(React.createElement(m.DeleteTasksDialog, { count: 1, archived: 0, audio: 0, onConfirm() {}, onClose() {} }));
-  assert.doesNotMatch(plain, /工作副本/, 'no audio, no working copy to talk about');
-  assert.doesNotMatch(plain, /在「已归档」里/);
-  m.setUiLanguage('en');
-  try {
-    const en = renderToStaticMarkup(React.createElement(m.DeleteTasksDialog, { count: 3, archived: 1, audio: 2, onConfirm() {}, onClose() {} }));
-    assert.match(en, /Delete 3 jobs\?/);
-    assert.match(en, /working copy/);
-    assert.match(en, /Not deleted/i);
-    assert.doesNotMatch(en, /[一-鿿]/);
-    assert.match(renderToStaticMarkup(React.createElement(m.DeleteTasksDialog, { count: 1, archived: 0, audio: 0, onConfirm() {}, onClose() {} })), /Delete this job\?/);
-  } finally { m.setUiLanguage('zh'); }
+test('删除 of task records asks nothing: the shared 撤销 notice (ui/undoable.js) stands in for the old dialog, and a running task is never deleted', () => {
+  const source = readFileSync('ui/tasks/TaskConsole.jsx', 'utf8');
+  assert.match(source, /useUndoable\(\)/);
+  assert.match(source, /commitLater\(\{ keys: gone/);
+  assert.match(source, /isRunningTask\(item\)/, 'running tasks are left out and counted');
+  assert.doesNotMatch(source, /ConfirmDialog|DeleteTasksDialog|确认删除/);
+  assert.equal(existsSync('ui/tasks/DeleteTasksDialog.jsx'), false, 'the dialog is gone');
 });
 
 test('a past day of 为你定制 has no box and no 删除: its one button says it deletes the day (its file keeps fourteen days), it is not archived', () => {
@@ -162,7 +140,7 @@ test('a past day of 为你定制 has no box and no 删除: its one button says i
   assert.equal([...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].filter((match) => /选择任务/.test(match[0])).length, 0, 'no box on a day');
   const detail = html.slice(html.indexOf('class="tc-detail"'));
   assert.match(detail, />删除这一天</);
-  assert.doesNotMatch(detail, />知道了</, '知道了 archives, and a day is not archived');
+  assert.doesNotMatch(detail, />归档</, '归档 archives, and a day is not archived');
   assert.match(detail, /只保留最近 14 天/);
   assert.doesNotMatch(detail, />删除</);
 });

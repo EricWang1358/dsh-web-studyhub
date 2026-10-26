@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import Markdown from '../Markdown.jsx';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, ConfirmDialog, DisclosureToggle, InlineMessage, Tooltip, foldLabel } from '../components/index.js';
+import { Button, DisclosureToggle, InlineMessage, Tooltip, foldLabel } from '../components/index.js';
 import SaveAnswerAsCard from './links/SaveAnswerAsCard.jsx';
 import { MAX_DEPTH, MAX_NODES, childrenOf, pathLabel } from './ask-thread.js';
 import { stripTermMarkers } from '../term-marker.js';
@@ -39,21 +39,18 @@ function FollowUp({ node, onAsk, quick }) {
   </div>;
 }
 
-/** What the thread says about being kept: a button to keep it (阅读), that it is kept, and the way to delete it (批注). */
+/** What the thread says about being kept: a button to keep it (阅读), that it is kept, and the way to delete it (批注): one click, then 撤销 in the notice (the reader's owner, ui/undoable.js). */
 function KeepRow({ answered, saved, mode, busy, error, onKeep, onDelete }) {
-  const [confirm, setConfirm] = useState(false);
   if (!answered.length || !onKeep) return null;
   const all = answered.every(node => saved.has(node.id));
   return <div className="ask-node__keep">
     {all ? <>
       <span className="ask-node__kept" role="status">{ui('已存为批注')}</span>
-      {mode === 'annotate' && onDelete && <Button size="sm" variant="quiet" onClick={() => setConfirm(true)}>{ui('删除这组批注')}</Button>}
+      {mode === 'annotate' && onDelete && <Button size="sm" variant="quiet" onClick={() => onDelete()}>{ui('删除这组批注')}</Button>}
     </> : <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{ui('把这组问答和这段原文一起存下来。')}</span><span>{ui('之后在批注模式下再次选中这段，它们会回来，原文里也会标出这段。')}</span></span>}>
       <Button size="sm" busy={busy} busyLabel={ui('正在保存…')} onClick={() => onKeep()}>{ui('存为批注')}</Button>
     </Tooltip>}
     {error && <InlineMessage tone="error" className="ask-node__keep-error">{error}</InlineMessage>}
-    {confirm && <ConfirmDialog title={ui('删除这组批注？')} description={ui('这段原文上的问答会从批注中删除，不会影响原文和题目。')} confirmLabel={ui('删除')}
-      onConfirm={onDelete} onClose={() => setConfirm(false)} />}
   </div>;
 }
 

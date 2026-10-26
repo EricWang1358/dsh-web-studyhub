@@ -11,6 +11,7 @@ import { partOf, partsOf } from "../lib/deck-parts.js";
 import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
 import { deckChoices, deckEntries } from './deck-picker-entries.js';
+import { offerRestore } from './undoable.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -32,6 +33,7 @@ export default function Manage({
   folderDraft,
   setFolderDraft,
   onRemoveDeck,
+  runs = [],
 }) {
   useInjectCss(css, "study-manage");
   const { call, busy, act } = useStudy();
@@ -60,6 +62,20 @@ export default function Manage({
   const marks = managedDeck.editorial?.reviewedCards;
   const slainView = managedDeck.systemKind === "slain";
   const splitReady = !!splitTitle.trim() && splitTopics.length > 0 && splitTopics.length < topics.length;
+  /* 归档题组并结束练习: the host also ends the open practice runs on the deck (study/operations.js deck.archive); the notice says how many, offers 撤销 (the deck
+     comes back; an ended run stays ended) and the second step of archive-first, 永久删除…, which opens the same dialog as the button on this page. */
+  const reload = (id) => async () => setManagedDeck(await call("deck.get", { id }));
+  async function archiveDeck() {
+    const deck = managedDeck, archiving = !deck.archived;
+    const ended = archiving ? runs.filter((run) => run.deckId === deck.id || run.deckIds?.includes(deck.id)).length : 0;
+    const done = await act("deck.archive", { id: deck.id, archived: archiving }, reload(deck.id));
+    if (!done || !archiving) return;
+    offerRestore(toast, {
+      message: ended ? uiFormat("已归档「{0}」，结束了 {1} 轮进行中的练习。", [deck.title, ended]) : uiFormat("已归档「{0}」", [deck.title]),
+      restored: ended ? uiFormat("已恢复「{0}」；结束的练习不会重新打开。", [deck.title]) : uiFormat("已恢复「{0}」", [deck.title]),
+      restore: () => act("deck.archive", { id: deck.id, archived: false }, reload(deck.id)),
+      secondary: { label: ui("永久删除…"), onClick: () => onRemoveDeck(deck.id) } });
+  }
   return (
     <section className="page manage-page">
       <PageHeader className="manage-head" back={{ label: ui("返回学习库"), onClick: () => setPage("library") }} title={managedDeck.title}
@@ -67,9 +83,7 @@ export default function Manage({
           : ui("编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。")}
         actions={<>
           <Button variant="primary" disabled={busy || slainView} onClick={() => act("deck.edit", { id: managedDeck.id }, openDraft)}>{ui("编辑题组")}</Button>
-          <Button disabled={busy || slainView}
-            onClick={() => act("deck.archive", { id: managedDeck.id, archived: !managedDeck.archived },
-              async () => setManagedDeck(await call("deck.get", { id: managedDeck.id })))}>
+          <Button disabled={busy || slainView} onClick={archiveDeck}>
             {managedDeck.archived ? ui("恢复题组") : ui("归档题组并结束练习")}
           </Button>
           {managedDeck.archived && !managedDeck.systemKind && <Button variant="danger" disabled={busy}

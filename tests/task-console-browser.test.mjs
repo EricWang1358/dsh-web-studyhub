@@ -97,9 +97,9 @@ test('the compact cards on the audio page and the library line up, and 查看详
 });
 
 /* 任务 归档 and 批量删除, with real clicks: two finished tasks (the audio batch and a question run) and one still running, besides the days of 为你定制. Select the two
-   → 归档: they leave the default list and appear under 已归档, read-only; → 取消归档: they are back; → 删除 asks first (the dialog names what goes and what stays), 取消 deletes
-   nothing, 确认 deletes the records and the audio batch's working folder. At 1280 and 420 the bar of the selection keeps its height and nothing makes the page wider or taller. */
-test('select two finished tasks → 归档 → 已归档 → 取消归档, then 批量删除 with its confirmation, at 1280 and 420', { timeout: 900000 }, async (t) => {
+   → 归档: they leave the default list and appear under 已归档, read-only; → 取消归档: they are back; → 删除 asks nothing: the rows leave at once and the notice offers 撤销
+   (D1: a task record is not a source or a question); 撤销 brings them back and nothing is deleted; without it the records and the audio batch's working folder go when the notice leaves. At 1280 and 420 the bar of the selection keeps its height and nothing makes the page wider or taller. */
+test('select two finished tasks → 归档 → 已归档 → 取消归档, then 批量删除 with its 撤销, at 1280 and 420', { timeout: 900000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-console-dist-'));
@@ -139,7 +139,7 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         });
         assert.ok(actionBox.right <= actionBox.parentRight + 1 && actionBox.bottom <= actionBox.parentBottom + 1, `the actions fit in the bar: ${JSON.stringify(actionBox)}`);
         // 归档
-        await page.getByRole('button', { name: '归档', exact: true }).dispatchEvent('click');
+        await page.locator('.tc-pickbar__actions').getByRole('button', { name: '归档', exact: true }).dispatchEvent('click');
         await until(async () => (await filterText('已归档')) === '已归档 2', 'the two tasks under 已归档');
         await until(async () => (await page.locator('.tc-item__check input').count()) === 0, 'the two finished tasks out of the default list');
         for (const id of ids) assert.equal(await page.locator(`.tc-row[data-task-id="${id}"]`).count(), 0, 'gone from the default list');
@@ -158,7 +158,7 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         const text = await detail.innerText();
         assert.match(text, /取消归档/);
         assert.match(text, /只读/);
-        for (const gone of ['暂停', '继续', '接着做', '停止', '知道了']) assert.equal(await detail.locator('button', { hasText: new RegExp(`^${gone}$`) }).count(), 0, `no ${gone} on an archived task`);
+        for (const gone of ['暂停', '继续', '接着做', '停止', '归档']) assert.equal(await detail.locator('button', { hasText: new RegExp(`^${gone}$`) }).count(), 0, `no ${gone} on an archived task`);
         const archivedMeasure = await measure(page);
         assert.equal(archivedMeasure.scrollWidth <= width, true);
         if (width === 1280) { assert.equal(archivedMeasure.appScrolls, false); assert.deepEqual(archivedMeasure.console, first.console); }
@@ -170,26 +170,27 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         await until(async () => (await page.locator('.tc-item__check input').count()) === 2, 'both tasks back in the list');
         for (const id of ids) assert.equal(await page.locator(`.tc-row[data-task-id="${id}"]`).count(), 1, 'back in the default list');
         assert.deepEqual((await running.api('snapshot')).archivedJobs, []);
-        // 批量删除 asks first
-        await page.locator('.tc-pickbar__all input').dispatchEvent('click');
-        await page.locator('.tc-pickbar__actions').getByRole('button', { name: '删除', exact: true }).dispatchEvent('click');
-        const dialog = page.locator('dialog.sh-dialog[open]');
-        await dialog.waitFor({ state: 'attached' });
-        const words = await dialog.innerText();
-        assert.match(words, /删除 2 个任务/);
-        assert.match(words, /任务记录/);
-        assert.match(words, /1 个音频任务/);
-        assert.match(words, /工作副本/);
-        assert.match(words, /不会删除：已导入的资料/);
+        // 批量删除 asks nothing: the rows go at once and the notice offers 撤销 (no dialog); 撤销 brings them back and the host deleted nothing
         const folders = () => readdir(join(running.root, 'audio-batches')).catch(() => []);
         assert.equal((await folders()).filter((name) => !name.includes('.retired')).length, 1, 'the audio batch has its working folder');
-        await dialog.getByRole('button', { name: '取消', exact: true }).dispatchEvent('click');
-        await dialog.waitFor({ state: 'detached' });
-        assert.equal((await running.api('snapshot')).jobs.filter((job) => ids.includes(job.contract.jobId)).length, 2, '取消 deleted nothing');
+        const notice = page.locator('.sh-toast', { hasText: '已删除 2 个任务' });
+        await page.locator('.tc-pickbar__all input').dispatchEvent('click');
         await page.locator('.tc-pickbar__actions').getByRole('button', { name: '删除', exact: true }).dispatchEvent('click');
-        await dialog.waitFor({ state: 'attached' });
-        await dialog.getByRole('button', { name: '确认删除' }).dispatchEvent('click');
-        await dialog.waitFor({ state: 'detached', timeout: 30000 });
+        assert.equal(await page.locator('dialog.sh-dialog[open]').count(), 0, 'no confirmation dialog');
+        await notice.waitFor({ state: 'attached' });
+        assert.equal(await notice.locator('xpath=ancestor::*[@role="status"]').count(), 1, 'announced politely');
+        await until(async () => (await page.locator('.tc-item__check input').count()) === 0, 'the two rows leave at once');
+        assert.equal((await running.api('snapshot')).jobs.filter((job) => ids.includes(job.contract.jobId)).length, 2, 'nothing deleted while 撤销 is offered');
+        await notice.getByRole('button', { name: '撤销', exact: true }).dispatchEvent('click');
+        await until(async () => (await page.locator('.tc-item__check input').count()) === 2, '撤销 brings both rows back');
+        await frames(page, 30);
+        assert.equal((await running.api('snapshot')).jobs.filter((job) => ids.includes(job.contract.jobId)).length, 2, '撤销 deleted nothing');
+        // 删除 again; closing the notice ends its 撤销 time and the host deletes
+        await page.locator('.tc-pickbar__all input').dispatchEvent('click');
+        await page.locator('.tc-pickbar__actions').getByRole('button', { name: '删除', exact: true }).dispatchEvent('click');
+        await notice.waitFor({ state: 'attached' });
+        await notice.getByRole('button', { name: '关闭提示' }).dispatchEvent('click');
+        await until(async () => (await running.api('snapshot')).jobs.filter((job) => ids.includes(job.contract.jobId)).length === 0, 'the host deleted the two records');
         await until(async () => (await page.locator('.tc-item__check input').count()) === 0, 'the two tasks deleted');
         for (const id of ids) assert.equal(await page.locator(`.tc-row[data-task-id="${id}"]`).count(), 0, 'deleted');
         const after = await running.api('snapshot');
@@ -207,8 +208,8 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
 
-/* 知道了 on a card of the audio page no longer deletes: the task is archived (nothing is lost, its working folder stays), and the 任务 console lists it under 已归档. */
-test('知道了 on a card of the audio page archives the task: the card goes, the folder stays, and the console lists it under 已归档', { timeout: 600000 }, async (t) => {
+/* 归档 (it was 知道了) on a card of the audio page does not delete: the task is archived (nothing is lost, its working folder stays), and the 任务 console lists it under 已归档. */
+test('归档 on a card of the audio page archives the task: the card goes, the folder stays, and the console lists it under 已归档', { timeout: 600000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-console-dist-'));
@@ -226,7 +227,7 @@ test('知道了 on a card of the audio page archives the task: the card goes, th
     const card = page.locator('.cjc[data-state="done"]').first();
     await card.waitFor({ state: 'attached' });
     const id = await card.getAttribute('data-job-id');
-    await card.getByRole('button', { name: /^知道了/ }).dispatchEvent('click');
+    await card.getByRole('button', { name: /^归档/ }).dispatchEvent('click');
     await until(async () => (await page.locator(`.cjc[data-job-id="${id}"]`).count()) === 0, 'the card to leave the page');
     const snapshot = await running.api('snapshot');
     assert.deepEqual(snapshot.jobs.filter((job) => job.id === id), [], 'out of the live list');

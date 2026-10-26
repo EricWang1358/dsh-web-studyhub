@@ -30,6 +30,7 @@ import { publishAndPractice } from './app/use-drafts.js';
 import { canStopWork, holdLine, stopLabel } from './draft-publish.js';
 import { topUpArgs, topUpNotice } from './coverage/top-up.js';
 import MaterialsReport from './coverage/MaterialsReport.jsx';
+import DeleteDraftDialog from './DeleteDraftDialog.jsx';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -58,14 +59,15 @@ export default function Draft({
 }) {
   const { call, busy, act } = useStudy();
   const toast = useToast();
-  const [deleteArmedId, setDeleteArmedId] = React.useState(null);
+  // 删除草稿 asks once, in the shared dialog (ui/DeleteDraftDialog.jsx; the 待发布 row opens the same one): the draft's unpublished questions cost tokens.
+  const [deletingId, setDeletingId] = React.useState(null);
   // A draft made as the next part of a published deck (lib/deck-parts.js): where it goes is chosen here, when it is published; nothing touches the deck before.
   const targets = partTargets(draft, data), [partTarget, setPartTarget] = React.useState(undefined);
   const intoDeck = !targets ? null : partTarget === NEW_DECK ? NEW_DECK : targets.candidates.some((item) => item.id === partTarget) ? partTarget : defaultPartTarget(targets);
   const science = useSciencePreferences();
   const appendImage = (cardId, key, markdown) => setDraft(current => current.id !== draft.id ? current : ({ ...current, cards: current.cards.map(card =>
     card.id === cardId ? { ...card, [key]: (card[key] || '') + '\n\n' + markdown } : card) }));
-  const deleteArmed = deleteArmedId === draft.id;
+  const deleting = deletingId === draft.id;
   const rawAudits = draft.editorial?.audits ?? [draft.editorial?.audit];
   const audits = (Array.isArray(rawAudits) ? rawAudits : []).filter((audit) =>
     audit && Array.isArray(audit.targets) && Array.isArray(audit.changes) && Array.isArray(audit.checks));
@@ -214,30 +216,12 @@ export default function Draft({
         >
           {publicationLabel}
         </Button>
-        <Button variant="danger"
-          disabled={busy || missingDraft}
-          onBlur={() => setDeleteArmedId(null)}
-          onClick={() => {
-            if (!deleteArmed) {
-              setDeleteArmedId(draft.id);
-              return;
-            }
-            setDeleteArmedId(null);
-            act(
-              "draft.delete",
-              { id: draft.id, draftVersion: draft.draftVersion },
-              () => {
-                clearRecovery();
-                setPage("library");
-              },
-            );
-          }}
-        >
-          {deleteArmed
-            ? updatingDraft ? ui("确认删除并停止任务（无法撤销）") : ui("确认删除草稿（无法撤销）")
-            : updatingDraft ? ui("删除草稿并停止任务") : ui("删除草稿")}
+        <Button variant="danger" disabled={busy || missingDraft} onClick={() => setDeletingId(draft.id)}>
+          {updatingDraft ? ui("删除草稿并停止任务") : ui("删除草稿")}
         </Button>
       </div>
+      {deleting && <DeleteDraftDialog draft={draft} running={updatingDraft} onClose={() => setDeletingId(null)}
+        onDeleted={() => { setDeletingId(null); clearRecovery(); setPage("library"); }} />}
       {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
         action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}
       {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}

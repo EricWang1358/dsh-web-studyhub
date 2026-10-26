@@ -124,10 +124,10 @@ test("finished job cards can be acknowledged and removed, running ones cannot", 
     notebooks: [], onFocus: noop, cancelJob: noop, dismissJob: noop,
   })));
   const mixed = html([job("a", "failed"), job("b", "running")]);
-  assert.equal((mixed.match(/aria-label="知道了：[^"]*"/g) || []).length, 1, "only the finished job offers 知道了");
+  assert.equal((mixed.match(/aria-label="归档：[^"]*"/g) || []).length, 1, "only the finished job offers 归档");
   assert.doesNotMatch(mixed, /全部知道了/, "one finished card needs no bulk action");
   const done = html([job("a", "failed"), job("b", "partial"), job("c", "complete")]);
-  assert.equal((done.match(/aria-label="知道了：[^"]*"/g) || []).length, 3);
+  assert.equal((done.match(/aria-label="归档：[^"]*"/g) || []).length, 3);
   assert.match(done, /全部知道了/);
 });
 

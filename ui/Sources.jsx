@@ -33,6 +33,7 @@ import { RenameField } from './document-preview/RenameTitle.jsx';
 import { originalNote, renameDocument, startsEditing } from './document-preview/rename.js';
 import css from "./sources.css";
 import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
+import { offerRestore } from './undoable.js';
 import { useStudy } from './study-context.jsx';
 import { useRetrievalStatus } from './retrieval-status.js';
 
@@ -291,10 +292,10 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
   return (
     <PermanentDeleteDialog title={displayTitle(item.title)} busy={busy} blocked={blocked}
       onConfirm={confirm} onDeleted={() => onRemoved(item)} onClose={onClose}>
-      <p>{item.format === 'pdf' && pages > 1 ? uiFormat("这份 PDF 的 {0} 页文字都会从资料列表移除，无法撤销。", [pages]) : ui("这份资料会从资料列表移除，无法撤销。")}</p>
+      <p>{item.format === 'pdf' && pages > 1 ? uiFormat("这份 PDF 的 {0} 页文字都会永久删除，不能撤销。", [pages]) : ui("这份资料会永久删除，不能撤销。")}</p>
       {!item.archived && <InlineMessage>{ui('请先归档这份资料，再永久删除。')}</InlineMessage>}
-      {item.usedBy.length > 0 && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能移除")}>
-        {uiFormat("引用它的题组：{0}。先删除或改写这些题，再移除资料。", [item.usedBy.map(deck => deck.title).join(" · ")])}
+      {item.usedBy.length > 0 && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能永久删除")}>
+        {uiFormat("引用它的题组：{0}。先删除或改写这些题，再永久删除资料。", [item.usedBy.map(deck => deck.title).join(" · ")])}
       </InlineMessage>}
     </PermanentDeleteDialog>
   );
@@ -390,7 +391,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [drag, setDrag] = useState(null);
   // The handlers the rows call: one object that never changes and reads the latest state itself, so a row is drawn again only for its own data (#229).
   const latest = useRef(null);
-  latest.current = { setModal, byId, act, onGenerate, onPractice, toast, onOpenSettings, onBuildIndex, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
+  // 归档 says so and offers 撤销 (source.archive back) and the second step of archive-first, 永久删除…, which opens the same dialog as the archive's own button.
+  const offerArchived = item => offerRestore(toast, { message: uiFormat('已归档「{0}」：在「已归档」里，可以恢复或永久删除。', [displayTitle(item.title)]),
+    restored: uiFormat('已恢复「{0}」', [displayTitle(item.title)]), restore: () => act('source.archive', { sourceIds: item.sourceIds, archived: false }),
+    secondary: { label: ui('永久删除…'), onClick: () => setRemoving({ ...item, archived: true }) } });
+  latest.current = { offerArchived, setModal, byId, act, onGenerate, onPractice, toast, onOpenSettings, onBuildIndex, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
   const actions = useMemo(() => ({
     open: id => latest.current.setModal({ type: "source", source: latest.current.byId.get(id) }),
     select: (key, on) => { setSelected(current => on ? [...current, key] : current.filter(entry => entry !== key)); setProposals(null); },
@@ -403,7 +408,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       const refs = (view.cards || []).map(({ deckId, cardId }) => ({ deckId, cardId }));
       if (refs.length) start?.(refs); else say.info(ui('这一章现在没有可练习的题。'));
     },
-    archive: item => latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived }),
+    archive: async item => {
+      const done = await latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived });
+      if (done && !item.archived) latest.current.offerArchived(item);
+    },
     remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), segment: item => setSegmenting(item),
     rename: item => latest.current.renameFor(item),
     pin: item => latest.current.act('source.pin', { key: item.key, pinned: !latest.current.pinKeys.includes(item.key) }),
@@ -546,7 +554,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         onClose={() => setEditingCourse(null)} />}
       {segmenting && <OutlineDialog item={segmenting} onClose={() => setSegmenting(null)} />}
       {removing && <RemoveDialog item={removing} onClose={() => setRemoving(null)}
-        onRemoved={item => { setRemoving(null); toast.success(uiFormat("已移除「{0}」", [displayTitle(item.title)])); }} />}
+        onRemoved={item => { setRemoving(null); toast.success(uiFormat("已永久删除「{0}」", [displayTitle(item.title)])); }} />}
     </section>
   );
 }

@@ -22,6 +22,7 @@ import { recallDeck, rememberDeck, suggestDeck, supplementDefaults } from './sup
 import ReaderModelGate, { useReaderServices } from './ReaderModelGate.jsx';
 import { deckChoices, deckEntries } from '../deck-picker-entries.js';
 import { JOB_STATUS } from '../../lib/job-status.js';
+import { useUndoable } from '../use-undoable.js';
 
 const noop = () => {};
 /** The key a passage's unsaved thread is held under: where it is and what it says (a text that changed under the same offsets is another passage). */
@@ -142,12 +143,16 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
 }
 
 /** One resolved selection feeds both grounded questions and reviewed, incremental publication (a background job). */
+/** The key a thread of kept annotations is hidden under while its 删除 can still be taken back. */
+const annotationKey = (passage) => `annotation:${passage}`;
+
 export default function DocumentLearning({ call, document, capture, scope = null, jobsOnly = false, pageTotal = 0, onPage, data, annotation, usedBy, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
   const toast = useToast();
   const [resolution, setResolution] = useState(null), [resolving, setResolving] = useState(false);
   const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [refused, setRefused] = useState(''), [refusedWhy, setRefusedWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
   // The thread of this selection lives here only: planning a click reads the latest one, even before React has rendered the last change.
   const threadRef = useRef(thread);
+  const undoable = useUndoable();
   const commit = next => { threadRef.current = next; setThread(next); };
   // What 阅读 mode did not keep, held per passage while the reader is open (thread-memory.js).
   const memory = useRef(null);
@@ -304,18 +309,23 @@ export default function DocumentLearning({ call, document, capture, scope = null
     } catch (e) { setKeepError(e.message); }
     finally { setKeepBusy(false); }
   }
-  async function deleteThread() {
-    await call('materials.annotation.delete', { documentId, revision: document.revision, selection: resolution.selection });
-    memory.current.forget(passageKey);
+  /* 删除这组批注 asks nothing (an annotation is not a source or a question): the thread leaves at once and the notice offers 撤销 (ui/undoable.js); the host deletes it
+     when that notice leaves. 撤销 (or a delete that failed) puts the thread back when the same passage is still on screen; otherwise it comes back with the passage. */
+  function deleteThread() {
+    const selection = resolution.selection, revision = document.revision, key = passageKey, kept = threadRef.current, keptSaved = savedLocal;
+    memory.current.forget(key);
     commit(emptyThread()); setSavedLocal(new Set());
-    await annotation.onChanged?.();
+    undoable.commitLater({ keys: [annotationKey(key)], message: ui('已删除这组批注'),
+      commit: async () => { await call('materials.annotation.delete', { documentId, revision, selection }); await annotation.onChanged?.(); return true; },
+      failed: (reason) => uiFormat('没能删除这组批注，已放回原处：{0}', [reason]),
+      onRestore: () => { if (latest.current.passageKey === key && !threadRef.current.nodes.length) { commit(kept); setSavedLocal(keptSaved); } } });
   }
   // Selecting a passage that was kept (批注 mode) brings its thread back, and a term asked before is found, not asked again.
   useEffect(() => {
-    if (mode !== 'annotate' || resolution?.status !== 'resolved' || resolution.scope === 'page' || threadRef.current.nodes.length) return;
+    if (mode !== 'annotate' || resolution?.status !== 'resolved' || resolution.scope === 'page' || threadRef.current.nodes.length || undoable.hidden(annotationKey(threadKey(resolution)))) return;
     const kept = itemsOfPassage(annotation?.items, resolution.selection);
     if (kept.length) commit(threadFromItems(kept));
-  }, [mode, resolution, annotation?.items]);
+  }, [mode, resolution, annotation?.items, undoable]);
   /**
    * A new first-level question: the box's own, or a chip's (which asks at once, and does not touch what the learner typed). It joins the answers already on this passage, so a
    * second chip does not make the first answer (paid for) disappear; only a thread that has reached its limit is started again.
@@ -352,7 +362,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     run(id, { ...retryOf(node), context: threadFor(current, node.parentId) });
   }
   // The handlers the markers call must keep one identity, or every render would parse the answers again.
-  const latest = useRef({}); latest.current = { askInside, retryNodeAsk, keep };
+  const latest = useRef({}); latest.current = { askInside, retryNodeAsk, keep, passageKey };
   const onAskInside = useCallback(args => latest.current.askInside(args), []), onRetryNode = useCallback(id => latest.current.retryNodeAsk(id), []);
   const onToggleNode = useCallback(id => commit(toggleNode(threadRef.current, id)), []);
   // A jump to an answer that already exists: scroll to it and put the focus there.

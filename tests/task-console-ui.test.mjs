@@ -52,13 +52,13 @@ test('the detail opens on the running job: header, overall progress with stage s
   assert.equal((detail.match(/class="tc-segment"/g) || []).length, 4, 'transcribe, proofread, translate, save');
   assert.match(detail, /aria-label="转写 2\/2，校对 12\/18，翻译 5\/5，保存 0\/1"/);
   assert.match(detail, /停止/, 'a running job can be stopped');
-  assert.doesNotMatch(detail, /知道了/, 'a running job cannot be dismissed');
+  assert.doesNotMatch(detail, />归档</, 'a running job cannot be dismissed');
 });
 
 test('a finished or failed job can be dismissed, not stopped, and says why it failed', () => {
   const html = render({ jobs: [jobs()[2]] });
   const detail = html.slice(html.indexOf('class="tc-detail"'));
-  assert.match(detail, /知道了/);
+  assert.match(detail, />归档</);
   assert.doesNotMatch(detail, />停止</);
   assert.match(html, /密钥被拒（403）/);
 });

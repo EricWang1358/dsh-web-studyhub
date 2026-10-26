@@ -15,6 +15,7 @@ import css from './live-class.css';
 import CourseField from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
 import { useLiveEffect } from './use-async.js';
+import { useUndoable } from './use-undoable.js';
 
 // What the host's generator is told to write in, by interface language.
 const GENERATION_LANGUAGE = { en: 'English', zh: '中文' };
@@ -92,6 +93,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const [terms, setTerms] = useState(''), [kind, setKind] = useState('microphone'), [paidOnly, setPaidOnly] = useState(false);
   const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [working, setWorking] = useState(false);
   const toast = useToast();
+  // 删除 of an archived class asks nothing (a recording is not a source or a question): the row leaves and the notice offers 撤销 (ui/undoable.js).
+  const undoable = useUndoable();
   const [follow, setFollow] = useState(true);
   // Read once, in the first render: the policy of a frame does not change, and a note that arrived later would push the form down.
   const [tabAllowed] = useState(() => tabSharingAllowed());
@@ -249,15 +252,15 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
           await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
         })}>{ui('校对后保存')}</Button><Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}
-    <LiveHistory sessions={sessions} disabled={disabled} capturing={capturing}
+    <LiveHistory sessions={sessions.filter(item => !undoable.hidden(`live:${item.id}`))} disabled={disabled} capturing={capturing}
       onOpen={id => void perform(async () => { setSelected(new Set()); await client.open(id); })}
       onArchive={(id, archived) => void perform(async () => {
         const result = await call('live.archive', { id, archived });
         if (client.getSnapshot().session?.id === id) client.accept(result);
         await refresh();
       })}
-      onDelete={id => void perform(async () => {
-        await call('live.delete', { id }); client.close(id); setSelected(new Set()); await refresh();
-      })} />
+      onDelete={item => undoable.commitLater({ keys: [`live:${item.id}`], message: uiFormat('已删除「{0}」的实录、译文和课堂笔记；另存的学习资料还在。', [item.title]),
+        commit: async () => { await call('live.delete', { id: item.id }); client.close(item.id); setSelected(new Set()); await refresh(); return true; },
+        failed: reason => uiFormat('没能删除「{0}」，已放回原处：{1}', [item.title, reason]) })} />
   </section>;
 }

@@ -92,7 +92,6 @@ function Scene() {
   if (scene === 'history') return <main><div className="page gallery">
     <Section title="Many rows, every state (10 shown, the rest behind 显示更多)"><PdfConvertHistory call={noFetch} initialRecords={historyRows()} now={NOW} onOpenSources={noop} onOpenSettings={noop} /></Section>
     <Section title="All shown"><PdfConvertHistory call={noFetch} initialRecords={historyRows()} initialShown={40} now={NOW} onOpenSources={noop} /></Section>
-    <Section title="Asking before clearing"><PdfConvertHistory call={noFetch} initialRecords={historyRows().slice(1, 5)} initialConfirmClear now={NOW} onOpenSources={noop} /></Section>
     <Section title="Empty"><PdfConvertHistory call={noFetch} initialRecords={[]} now={NOW} /></Section>
     <Section title="Inside the MinerU panel (opened from 用 MinerU 解析), MinerU not installed"><MineruRoute call={call} onFile={noop} initialLocal={local.missing} initialHistory={historyRows().slice(0, 4)} historyNow={NOW} historyOpen onOpenSources={noop} /></Section>
     <Section title="Inside the MinerU panel, a PDF chosen, local ready"><MineruRoute file={file} call={call} initialLocal={local.ready} initialPlan={plan} initialHistory={historyRows().slice(1, 3)} historyNow={NOW} historyOpen onOpenSources={noop} /></Section>

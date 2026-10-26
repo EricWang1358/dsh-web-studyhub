@@ -64,8 +64,8 @@ test('the primary button follows the contract: the result opens, a failure that 
 });
 
 test('finished cards can be dismissed, running ones cannot; a dismissal that failed says so inside the card', () => {
-  assert.doesNotMatch(card(audio()), /知道了/);
-  assert.match(card(audio({ status: 'complete', phase: 'done' })), /aria-label="知道了：Week 3\.wav"/);
+  assert.doesNotMatch(card(audio()), /aria-label="归档：/);
+  assert.match(card(audio({ status: 'complete', phase: 'done' })), /aria-label="归档：Week 3\.wav"/);
   const out = renderToStaticMarkup(inApp(m, React.createElement(m.CompactJobCard, { job: audio({ status: 'failed', stage: 'boom' }) }), { data: {} }));
   assert.doesNotMatch(out, /sh-inline--error/);
 });
