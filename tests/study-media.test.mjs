@@ -27,7 +27,11 @@ test('notes as people write them: spaced dollars, a unit after a number, bare La
   assert.equal(renderStudyFormula(align, true).includes('<math'), true);
   assert.deepEqual(prepareStudyMath('矩阵 \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} 如上').formulas.map((formula) => formula.display), [false]);
   // Prose, currency and look-alikes are not formulas.
-  for (const prose of ['价格$5和$10', 'costs $ 5 and $ 10 each', '5$ and 6$ total', '$x $ 和 $ y$', 'a$b$c', '`\\begin{equation}`', '\\begin{foo} x \\end{foo}', '$ 和 $', '(5$)']) assert.deepEqual(raws(prose), [], prose);
+  for (const prose of ['价格$5和$10', 'costs $ 5 and $ 10 each', '5$ and 6$ total', '$x $ 和 $ y$', 'a$b$c', '`\\begin{equation}`', '\\begin{foo} x \\end{foo}', '$ 和 $', '(5$)',
+    'Revenue = $ 500 + $ 300 = $ 800', '$ 5 * 3 = $ 15', 'save $ 100 / month and $ 200 / year', 'cost $ 5 > $ 3', '收入 $ 100 + $ 200，合计', '$ 1,000 + $ 2,000', '| A | $ 5 | $ 1 |'])
+    assert.deepEqual(raws(prose), [], prose);
+  // Money with a space after the sign must not swallow the real formula after it.
+  assert.deepEqual(raws('price $ 5 + tax, then solve $x^2=4$.'), ['$x^2=4$']);
   // Reading and writing agree: the pieces of a text join back to the text.
   const mixed = '力 $ F = ma $，5$kg$，\\begin{equation}a=b\\end{equation}尾';
   assert.equal(splitStudyMath(mixed).map((piece) => (typeof piece === 'string' ? piece : piece.raw)).join(''), mixed);
@@ -37,6 +41,13 @@ test('physics and siunitx commands KaTeX does not know are written out, so the n
   for (const source of ['\\dv{x}{t}', '\\pdv{f}{x}', '\\SI{3}{m/s}', '\\unit{m/s}', '\\upmu\\mathrm{m}', '\\mbox{m}', '\\vb{F}', '\\ev{x}', '\\ang{30}', '\\num{3e8}', 'a\\label{x}', '\\abs{x}', '\\mathbbm{1}'])
     assert.match(renderStudyFormula(source, false), /<math/, source);
   assert.equal(renderStudyFormula('\\qty(\\frac{a}{b})', false), null, 'a command with no stand-in is shown as written');
+  // A stand-in that cannot be sure of its arguments shows the source instead of drawing something else.
+  for (const source of ['\\dv{x}', '\\dv[2]{x}{t}', '\\pdv{f}{x}{y}', '\\dv{x} = 2', '\\SI[round=1]{3}{m/s}', '\\abs*{x}']) assert.equal(renderStudyFormula(source, false), null, source);
+  // A command that draws nothing takes its argument with it.
+  const plain = (html) => html.replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
+  assert.equal(plain(renderStudyFormula('\\label{eq:newton}F = ma', false)), 'F=ma');
+  assert.equal(plain(renderStudyFormula('\\require{physics}\\vb{F}=m\\vb{a}', false)), 'F=ma');
+  assert.equal(plain(renderStudyFormula('\\dv{x}{t}', false)), 'dxdt');
   // Where there is a document and no MathML (an old Chromium) the source is shown instead of a garbled drawing.
   const saved = { document: globalThis.document, unknown: globalThis.HTMLUnknownElement, mathml: globalThis.MathMLElement };
   globalThis.HTMLUnknownElement = class {};

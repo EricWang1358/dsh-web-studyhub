@@ -59,6 +59,11 @@ function environmentAt(text, i) {
   return { end: i + raw.length, formula: { source: raw, display: ENVIRONMENTS[open[1]], raw } };
 }
 
+/** What may stand between "$ " and " $" for the pair to be a formula and not two prices: no Chinese, no plain word of three letters or more (commands such as
+ * \frac do not count), and either one letter ("$ x $") or a sign of math (= ^ _ { } \). Starting with a digit needs more than "=": "$ 5 = $ 3" is money. */
+const spacedFormula = (inner) => !/[　-鿿＀-￯]/.test(inner) && !/(?<![\\A-Za-z])[A-Za-z]{3,}/.test(inner)
+  && (/^[A-Za-z]\d?$/.test(inner) || (/[\\^_{}=]/.test(inner) && !(/^\d/.test(inner) && !/[\\^_{}]/.test(inner))));
+
 /** The formula opening at `i`: { end, formula: { source, display, raw } }, or null. */
 function formulaAt(text, i) {
   const environment = environmentAt(text, i);
@@ -75,7 +80,7 @@ function formulaAt(text, i) {
   // is inside looks like math and holds no Chinese: "$x $ 和 $ y$" must not take " 和 " between its formulas. A space on one side only is prose.
   const inner = body.trim(), spaced = /^\s/.test(body), spacedEnd = /\s$/.test(body);
   const currency = /^\d[\d,.]*(?:[.,;:!?]\s|\s+[A-Za-z]{2,})/.test(inner);
-  const dollarShape = !spaced && !spacedEnd ? true : spaced && spacedEnd && !/[　-鿿＀-￯]/.test(inner) && /[\\^_={}+*/<>|]|^[A-Za-z]\d?$/.test(inner);
+  const dollarShape = !spaced && !spacedEnd ? true : spaced && spacedEnd && spacedFormula(inner);
   const validDollar = opener !== '$' || (dollarShape && !/\d/.test(text[end + 1] || '') && !currency);
   if (!body.trim() || !(display || (!body.includes('\n') && !body.includes('`'))) || !validDollar) return null;
   return { end: end + closer.length, formula: { source: body, display, raw: text.slice(i, end + closer.length) } };

@@ -1,37 +1,63 @@
 import katex from 'katex/dist/katex.js';
 import 'katex/dist/contrib/mhchem.js';
 
-/** Commands notes copy from the `physics` and `siunitx` packages and from older LaTeX that KaTeX does not know: each one is written out in
- * what KaTeX does know, so a physics note draws instead of falling back to its source. Anything not listed still falls back. */
-const MACROS = {
-  '\\mbox': '\\text{#1}',
-  '\\mathbbm': '\\mathbb{#1}',
-  '\\upmu': '\\mathrm{\\mu}',
-  '\\micro': '\\mathrm{\\mu}',
-  '\\ang': '#1^{\\circ}',
-  '\\num': '#1',
-  '\\unit': '\\mathrm{#1}',
-  '\\si': '\\mathrm{#1}',
-  '\\SI': '#1\\,\\mathrm{#2}',
-  '\\dv': '\\frac{\\mathrm{d}#1}{\\mathrm{d}#2}',
-  '\\pdv': '\\frac{\\partial #1}{\\partial #2}',
-  '\\vb': '\\mathbf{#1}',
-  '\\va': '\\boldsymbol{#1}',
-  '\\vu': '\\hat{\\mathbf{#1}}',
-  '\\ev': '\\left\\langle #1\\right\\rangle',
-  '\\abs': '\\left|#1\\right|',
-  '\\norm': '\\left\\|#1\\right\\|',
-  '\\eqref': '\\text{(#1)}',
-  '\\label': '',
-  '\\require': '',
+/* Commands notes copy from the `physics` and `siunitx` packages and from older LaTeX that KaTeX does not know. Each is written out in what KaTeX
+   does know, so a physics note draws instead of falling back to its source. A macro that cannot be sure of its arguments refuses (the formula then
+   shows its source, as before) rather than draw something else: a leading `[` or `*` (the optional-argument and starred forms), and a derivative
+   written with one argument or with three. Anything not listed still falls back. */
+
+const textOf = (tokens) => tokens.slice().reverse().map((token) => token.text).join('');
+const refuse = (what) => { throw new Error(`${what} is not drawn`); };
+const refuseOptional = (context, name) => { if (['[', '*'].includes(context.future().text)) refuse(`${name} with an optional or starred form`); };
+
+/** A command of `count` arguments, replaced by `template` (#1, #2 … stand for the arguments). */
+const fixed = (name, count, template) => (context) => {
+  refuseOptional(context, name);
+  const args = context.consumeArgs(count).map(textOf);
+  return template.replace(/#(\d)/g, (_, n) => args[n - 1]);
+};
+/** A command that takes `count` arguments and draws nothing. */
+const gobble = (name, count) => (context) => { refuseOptional(context, name); context.consumeArgs(count); return ''; };
+/** \dv{f}{x} and \pdv{f}{x}: exactly two groups. One group (the operator form), a third group or an optional order is another formula. */
+const derivative = (name, top) => (context) => {
+  refuseOptional(context, name);
+  const [first] = context.consumeArgs(1);
+  if (context.future().text !== '{') refuse(`${name} with one argument`);
+  const [second] = context.consumeArgs(1);
+  if (context.future().text === '{') refuse(`${name} with three arguments`);
+  return `\\frac{${top}${textOf(first)}}{${top}${textOf(second)}}`;
 };
 
-/** Native MathML needs a browser that draws it (Chromium 109 and later, Firefox, Safari). An older Chromium makes a <math> element an unknown one and
- * prints its tokens run together: there the source is shown as written instead. Only a positive finding counts; outside a browser (tests, a stub) the drawing stays. */
+const MACROS = {
+  '\\mbox': fixed('\\mbox', 1, '\\text{#1}'),
+  '\\mathbbm': fixed('\\mathbbm', 1, '\\mathbb{#1}'),
+  '\\upmu': '\\mathrm{\\mu}',
+  '\\micro': '\\mathrm{\\mu}',
+  '\\ang': fixed('\\ang', 1, '#1^{\\circ}'),
+  '\\num': fixed('\\num', 1, '#1'),
+  '\\unit': fixed('\\unit', 1, '\\mathrm{#1}'),
+  '\\si': fixed('\\si', 1, '\\mathrm{#1}'),
+  '\\SI': fixed('\\SI', 2, '#1\\,\\mathrm{#2}'),
+  '\\dv': derivative('\\dv', '\\mathrm{d}'),
+  '\\pdv': derivative('\\pdv', '\\partial '),
+  '\\vb': fixed('\\vb', 1, '\\mathbf{#1}'),
+  '\\va': fixed('\\va', 1, '\\boldsymbol{#1}'),
+  '\\vu': fixed('\\vu', 1, '\\hat{\\mathbf{#1}}'),
+  '\\ev': fixed('\\ev', 1, '\\left\\langle #1\\right\\rangle'),
+  '\\abs': fixed('\\abs', 1, '\\left|#1\\right|'),
+  '\\norm': fixed('\\norm', 1, '\\left\\|#1\\right\\|'),
+  '\\eqref': fixed('\\eqref', 1, '\\text{(#1)}'),
+  '\\label': gobble('\\label', 1),
+  '\\require': gobble('\\require', 1),
+};
+
+/** Native MathML needs a browser that draws it (Chromium 109 and later, Firefox, Safari: all expose MathMLElement). A browser that has the DOM and its
+ * unknown-element class but no MathMLElement is an older Chromium, which prints a <math> element's tokens run together: there the source is shown as
+ * written. Only that positive finding counts; outside a browser (tests, a stub) the drawing stays. */
 function drawsMathML() {
   try {
-    if (typeof document?.createElement !== 'function' || typeof globalThis.HTMLUnknownElement !== 'function') return true;
-    return typeof globalThis.MathMLElement === 'function' || !(document.createElement('math') instanceof globalThis.HTMLUnknownElement);
+    const inOldBrowser = typeof document?.createElement === 'function' && typeof globalThis.HTMLUnknownElement === 'function' && typeof globalThis.MathMLElement !== 'function';
+    return !inOldBrowser;
   } catch { return true; }
 }
 

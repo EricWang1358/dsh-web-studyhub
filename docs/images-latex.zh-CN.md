@@ -16,7 +16,7 @@
 
 行内代码和代码块保留原文。`$5 and $10` 这样的价格不会变成公式。公式容易与价格混淆时，使用 `\(...\)`。无效或不支持的 LaTeX 会保留可见原文。
 
-从别处粘贴来的笔记也能识别：`$ F = ma $`（两侧各有一个空格）、数字后紧跟单位（`5$kg$`），以及不带美元符号的 `\begin{equation}…\end{equation}`、`\begin{align}…\end{align}` 等数学环境。`physics` 和 `siunitx` 宏包里常用的命令（`\dv`、`\pdv`、`\vb`、`\ev`、`\abs`、`\SI`、`\unit`、`\ang`、`\num`）以及 `\mbox`、`\upmu`、`\mathbbm`、`\label`、`\eqref` 会改写成渲染器认识的写法；`\qty` 和 siunitx 的其余命令不支持，仍显示原文。浏览器不支持原生 MathML（Chromium 109 之前）时，公式显示为它的源码。
+题卡、复习全书、错题与待巩固，以及阅读器里的文本、PDF 文字资料，也能识别从别处粘贴来的写法：`$ F = ma $`（两侧各有一个空格，且里面像公式）、数字后紧跟单位（`5$kg$`），以及不带美元符号的 `\begin{equation}…\end{equation}`、`\begin{align}…\end{align}` 等数学环境。美元符号后带空格的价格（`$ 5 + $ 3`）仍是价格。「学习笔记」页和阅读器里导入的 Markdown、粘贴的资料沿用各自的美元符号规则。所有画公式的地方，`physics` 和 `siunitx` 宏包里常用的命令（`\dv{x}{t}`、`\pdv{f}{x}`、`\vb`、`\ev`、`\abs`、`\SI{…}{…}`、`\unit`、`\ang`、`\num`）以及 `\mbox`、`\upmu`、`\mathbbm`、`\label`、`\eqref` 会改写成渲染器认识的写法；拿不准的写法（`\dv[2]{x}{t}`、只带一个参数的 `\dv{x}`、`\pdv{f}{x}{y}`、带可选参数或星号的）以及 `\qty` 和 siunitx 的其余命令不支持，仍显示原文。浏览器不支持原生 MathML（Chromium 109 之前）时，公式显示为它的源码。
 
 ## 输入化学方程式
 

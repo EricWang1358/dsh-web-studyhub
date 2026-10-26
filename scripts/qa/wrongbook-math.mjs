@@ -34,9 +34,10 @@ async function seed(root) {
 const measure = (page) => page.evaluate(() => {
   const box = document.querySelector('.wb-detail');
   const root = document.documentElement;
-  // A long formula scrolls inside its own box (.md-math): what it holds past the edge is not the page overflowing.
+  // What a box clips or scrolls (a long formula in its .md-math, a one-line prompt cut with an ellipsis) is not the page overflowing.
+  const clipped = (el) => { for (let up = el.parentElement; up && up !== box?.parentElement; up = up.parentElement) { if (getComputedStyle(up).overflowX !== 'visible' && el.getBoundingClientRect().right > up.getBoundingClientRect().right + 1) return true; } return false; };
   const wide = [...document.querySelectorAll('.wb-detail, .wb-detail *')].filter((el) => el.getBoundingClientRect().right > root.clientWidth + 1
-    && getComputedStyle(el).position !== 'fixed' && !el.parentElement?.closest('.md-math'));
+    && getComputedStyle(el).position !== 'fixed' && !clipped(el));
   return {
     formulas: box ? box.querySelectorAll('math').length : 0,
     rawDollars: box ? (box.textContent.match(/\$[^$]*\$/g) || []).length : -1,

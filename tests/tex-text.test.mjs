@@ -103,6 +103,13 @@ test('formula checks ignore image and link destinations but still inspect visibl
 
 /* ---------- formulas without delimiters ---------- */
 
+test('the gate reads the same delimiters the renderer draws: spaced dollars, a unit after a number and bare environments are not bare math', () => {
+  for (const fine of ['力 $ F = \\frac{a}{b} $ 。', '质量为5$kg$，速度为5$\\mathrm{m/s}$', '\\begin{equation}\nE=\\frac{1}{2}mv^2\n\\end{equation}', '\\begin{align*}\na&=b^{2}\\\\ c&=d_{i}\n\\end{align*}'])
+    assert.deepEqual(bareMath(fine), [], JSON.stringify(fine));
+  // Beside a delimited one, a formula that is still bare is still found.
+  assert.deepEqual(bareMath('$ F = ma $ 与 x_{i}'), ['x_{i}']);
+});
+
 test('bareMath finds unmistakable TeX outside delimiters and code, and nothing else', () => {
   assert.deepEqual(bareMath('先算 z^l = W^l a^{l-1} + b^l，再算 a^l = σ(z^l)'), ['a^{l-1}']);
   assert.deepEqual(bareMath('x_{i} 与 \\frac{a}{b} 与 2\\pi r 与 x\\leq y'), ['x_{i}', '\\frac', '\\pi', '\\leq']);
