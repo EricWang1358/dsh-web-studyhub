@@ -142,12 +142,14 @@ test('a failed, stopped or conflicting job says why in plain words and offers th
   assert.match(queued, /停止/);
 });
 
-test('no failure hint of the reader supplement card (stages: unknown, plan short, review protocol, no questions, quality gate, editorial review, model unavailable, background service, timeout) names a button the card does not have', () => {
+test('no failure hint of the reader supplement card (stages: unknown, plan short, review protocol, no questions, quality gate, editorial review, model unavailable, background service, timeout) names a button the card does not have, and each stage really reaches its own sentence', () => {
   const { SelectionJobCard, setUiLanguage } = lib;
   const quoted = (hint) => [...hint.matchAll(/「([^」]+)」/g)].map((match) => match[1]);
   const buttons = (markup) => [...markup.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').trim());
-  // An unrecognised cause, a plan that came up short and the model's own failures: every sentence the card draws.
-  for (const stage of ['Something odd happened', 'q1: Planned 6 exam points but the model gave 3', 'Reviewer unavailable: fetch failed', '后台执行器暂时不可用，请稍后再试', 'Request timed out',
+  // An unrecognised cause, a plan that came up short and the model's own failures: every sentence the card draws. The stage strings are the ones the pipeline
+  // really writes (lib/batch.js, lib/assigned-plan.js): a stage that classifies as something else would test a sentence the card never draws for it.
+  for (const stage of ['Something odd happened', 'The plan came back short (plan-short): 3 of 6 knowledge points for 2 section(s) the plan could not fill after asking again',
+    'Reviewer unavailable: fetch failed', '后台执行器暂时不可用，请稍后再试', 'Request timed out',
     'Review protocol failed after 3 attempts: missing complete per-card checks', 'Author returned no questions', 'Quality gate failed: q1 answerLeak; q2 selfContained', 'Editorial review still found issues']) {
     setUiLanguage('zh');
     const markup = render(SelectionJobCard, { job: { ...base, status: 'failed', outcome: 'review-failed', stage, stageCode: 'failed' }, now: at(5), onRetry() {}, onDismiss() {} });
@@ -155,6 +157,7 @@ test('no failure hint of the reader supplement card (stages: unknown, plan short
     assert.ok(hint, `a hint for ${stage}`);
     for (const name of quoted(hint)) assert.ok(buttons(markup).includes(name), `${stage}: the hint names 「${name}」, the card has ${JSON.stringify(buttons(markup))}`);
     if (stage === 'Something odd happened') assert.match(hint.trim(), /没认出具体原因。可以再试一次。$/);
+    if (stage.startsWith('The plan came back short')) assert.match(hint.trim(), /考点比计划的少/, 'the plan-short stage reaches the plan-short sentence');
   }
   setUiLanguage('zh');
   const executor = text(render(SelectionJobCard, { job: { ...base, status: 'failed', outcome: 'review-failed', stage: '后台执行器暂时不可用，请稍后再试', stageCode: 'failed' }, now: at(5), onRetry() {} }));

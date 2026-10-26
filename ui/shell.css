@@ -370,13 +370,8 @@
   }
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
-      /* A narrow pane gives the page title the room: the decorative "Study ›"
-         goes, and the steady "已连接" shrinks to its dot (busy, failing and
-         还没配模型 keep their words). */
-      .crumbs > .crumb:first-child,
-      .crumbs > .breadcrumb {
-        display: none;
-      }
+      /* The decorative "Study ›" is already gone below 800 px (above); here the steady "已连接" shrinks to its dot
+         (busy, failing and 还没配模型 keep their words). */
       .top-status.idle .top-status-label {
         position: absolute;
         width: 1px;
