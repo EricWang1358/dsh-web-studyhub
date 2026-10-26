@@ -26,7 +26,7 @@ const bar = ({ data = { root: '/lib', inbox: [] }, connection = {}, busy = false
     return renderToStaticMarkup(inApp(m, React.createElement(m.AppTopbar, { title: '学习库' }), { data: data || {}, app: { ...app, data } }));
   } finally { m.setUiLanguage('zh'); }
 };
-const label = (html) => /top-status-label">([^<]*)</.exec(html)?.[1];
+const label = (html) => /top-status-label">([^<]*)</.exec(html)?.[1]?.replaceAll('&#x27;', "'");
 
 test('with no usable model the top bar says 还没配模型, not 学习库已连接; with a model nothing changes', () => {
   assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: false, reason: 'no-route' } } })), '还没配模型');
@@ -55,23 +55,59 @@ test('any running job (PDF, audio, index, translation, not only questions) is a 
   assert.equal(label(bar({ data, connection: { running: true } })), '后台处理中');
   assert.equal(label(bar({ data, connection: { running: true, publishing: true } })), '正在发布…');
   assert.doesNotMatch(label(bar({ data, connection: { running: true } })), /生成/, 'not every job generates questions');
-  assert.equal(label(bar({ data, connection: { running: true }, language: 'en' })), 'Working…');
+  assert.equal(label(bar({ data, connection: { running: true }, language: 'en' })), 'In background');
   assert.equal(label(bar({ data, busy: true, language: 'en' })), 'Working…');
   assert.doesNotMatch(label(bar({ data, busy: true })), /保存/, 'every action takes the bar, not only a save');
 });
 
-const hover = (html) => /class="top-status[^"]*"[^>]*title="([^"]*)"/.exec(html)?.[1] || /title="([^"]*)"[^>]*class="top-status/.exec(html)?.[1];
+/* The long sentence is the project Tooltip's (the status is its focusable anchor), never a title attribute: the words reach keyboard and touch too. */
+const tip = (html) => /<span[^>]*role="tooltip"[^>]*>([^<]*)<\/span>/.exec(html)?.[1];
+const anchor = (html) => /<span[^>]*class="top-status[^"]*"[^>]*>/.exec(html)?.[0] || '';
+const TRANSIENT = 'Failed to fetch';
 
-test('the labels are short enough to fit a narrow pane; the long sentence is the hover text', () => {
+test('the labels are short enough to fit a narrow pane; the long sentence is the Tooltip', () => {
   const data = { root: '/lib', inbox: [], model: { ready: true } };
   const failed = bar({ data, connection: { syncIssue: '读取失败' } }), running = bar({ data, connection: { running: true } });
-  assert.match(hover(failed), /^学习库读不出来，正在重试：读取失败$/);
-  assert.match(hover(running), /^有后台任务在进行（转换、转写、出题等）$/);
-  assert.equal(hover(bar({ data })), undefined, 'a steady bar has no hover');
-  assert.match(hover(bar({ data, connection: { syncIssue: '读取失败' }, language: 'en' })), /^Cannot read the library, retrying: 读取失败$/, 'the host\'s own error follows, whatever the language');
-  assert.match(hover(bar({ data, connection: { running: true }, language: 'en' })), /^Background tasks are running$/);
-  assert.equal(label(bar({ data, connection: { syncIssue: '读取失败' }, language: 'en' })), 'Library offline');
-  for (const html of [failed, running, bar({ data: { ...data, model: { ready: false } } })]) assert.ok([...label(html)].length <= 7, `${label(html)} stays short`);
+  assert.equal(tip(failed), '学习库读不出来，正在重试：读取失败');
+  assert.equal(tip(running), '有后台任务在进行（转换、转写、出题等）');
+  assert.ok(!tip(bar({ data })), 'a steady bar has no Tooltip words');
+  assert.doesNotMatch(anchor(bar({ data })), /tabindex/, 'and nothing to focus');
+  for (const html of [failed, running]) {
+    assert.match(anchor(html), /tabindex="0"/, 'the status with words is focusable');
+    assert.match(anchor(html), /aria-describedby=/);
+    assert.doesNotMatch(html, /top-status[^>]*\stitle=/, 'no title attribute on the status');
+  }
+  assert.equal(tip(bar({ data, connection: { syncIssue: TRANSIENT } })), '连接中断，正在重试…');
+  assert.ok(!tip(bar({ data, busy: true })), '正在处理… says it all');
+});
+
+test('every status label stays at seven characters or fewer in Chinese and at most 18 in English, the transient one included', () => {
+  const data = { root: '/lib', inbox: [], model: { ready: true } }, noModel = { ...data, model: { ready: false } };
+  const states = [{ data }, { data: noModel }, { data: null }, { data, busy: true }, { data, connection: { running: true } }, { data, connection: { running: true, publishing: true } },
+    { data, connection: { syncIssue: '读取失败' } }, { data, connection: { syncIssue: TRANSIENT } }];
+  for (const state of states) {
+    const zh = label(bar(state)), en = label(bar({ ...state, language: 'en' }));
+    assert.ok([...zh].length <= 7, `zh「${zh}」`);
+    assert.ok([...en].length <= 18, `en "${en}"`);
+    assert.doesNotMatch(en, han, `en "${en}" has no Chinese`);
+  }
+  assert.equal(label(bar({ data, connection: { syncIssue: TRANSIENT } })), '重新连接中…');
+  assert.equal(label(bar({ data, connection: { syncIssue: TRANSIENT }, language: 'en' })), 'Reconnecting…');
+});
+
+test('English: a failed read is not called offline, a running job is not the busy word, and the Tooltip words are English with the transport\'s own messages', () => {
+  const data = { root: '/lib', inbox: [], model: { ready: true } };
+  const en = (state) => bar({ data, ...state, language: 'en' });
+  assert.equal(label(en({ connection: { syncIssue: '读取失败' } })), "Library error");
+  assert.equal(label(en({ connection: { running: true } })), 'In background');
+  assert.equal(label(en({ busy: true })), 'Working…');
+  assert.equal(tip(en({ connection: { running: true } })), 'Background tasks are running (conversion, transcription, question generation…)');
+  for (const message of ['StudyHub 还没有启动好（DSH 可能刚重启）。等几秒再点一次。', 'StudyHub 的请求没有成功，也没有拿到具体原因。可以再试一次。',
+    'StudyHub 只对这台电脑上的 DSH 主人开放；通过远程访问打开的浏览器不能使用它。StudyHub is only available to the owner of this DSH, not to remote-access browsers.']) {
+    const words = tip(en({ connection: { syncIssue: message } }));
+    assert.match(words, /^Cannot read the library, retrying: /);
+    assert.doesNotMatch(words, han, message);
+  }
 });
 
 test('in English the top bar has no Chinese', () => {

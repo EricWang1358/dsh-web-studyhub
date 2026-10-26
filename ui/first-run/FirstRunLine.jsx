@@ -4,6 +4,7 @@ import { Button, Hint, Icon, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
 import { modelSetupCopy } from '../ModelSetupGate.jsx';
+import { recheckSentence, runRecheck } from './recheck.js';
 import { useModelSettingsLabel } from '../ModelErrorNote.jsx';
 import { CORE_TOUR_LENGTH } from '../tour/steps.js';
 import { TokenEstimateView } from '../TokenUsage.jsx';
@@ -76,7 +77,8 @@ function ModelBody({ step, on }) {
   const copy = modelSetupCopy(step, 'welcome', { recheck: !!on.recheck });
   const recheck = on.recheck && (async () => {
     setChecking(true);
-    try { await on.recheck(); if (live.current) setOutcome('still'); } catch { if (live.current) setOutcome('failed'); } finally { if (live.current) setChecking(false); }
+    const result = await runRecheck(on.recheck);
+    if (live.current) { setOutcome(result); setChecking(false); }
   });
   const steps = copy.steps.length ? [...copy.steps, { text: copy.then }] : [];
   return (
@@ -93,7 +95,7 @@ function ModelBody({ step, on }) {
           </li>
         ))}
       </ol>}
-      {outcome && !checking && <Hint role="status">{outcome === 'failed' ? ui('没能重新检查。再点一次「重新检查」试试。') : ui('已重新检查，还没有读到可用的模型。在 DSH 里配好后，再点一次「重新检查」。')}</Hint>}
+      {outcome && !checking && <Hint role="status">{recheckSentence(outcome)}</Hint>}
       {recheck && <div className="frl-body__actions">
         <Button variant="primary" icon="refresh" busy={checking} busyLabel={ui('正在检查…')} disabled={busy} data-first-run="recheck" onClick={recheck}>{ui('重新检查')}</Button>
       </div>}
@@ -115,7 +117,7 @@ function MaterialBody({ on }) {
 
 /** Why 出第一组题 cannot be pressed, or '': no usable model (step 1 says how), or a selection 创建题组 has to settle (more than one run takes, sample questions that do not fit). */
 export function generateBlockReason(step, plan) {
-  if (!step.modelReady) return ui('还没有可用的 AI 模型。完成第 1 步后，这个按钮就能点了。');
+  if (!step.modelReady) return ui('还没有可用的 AI 模型，先完成第 1 步。');
   if (plan?.block === 'too-big') return ui('这些资料超过一次出题的上限：点「改题型和题数」，在创建题组里分步出题或按主题选页。');
   if (plan?.block === 'reference') return ui('选好的参考样题和这些资料对不上：点「改题型和题数」，在创建题组里调整。');
   return '';

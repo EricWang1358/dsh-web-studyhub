@@ -179,7 +179,7 @@
   "少了 {0} 题": "{0} questions short",
   "一次补一轮": "Adds one round at a time",
   "{0} 个批次里模型给出的考点比计划的少，补问一次后仍然不足": "{0} batch(es) in which the model gave too few knowledge points, even after asking again",
-  "模型这次给出的考点比计划的少，补问一次后仍然不够。这不代表这一节没有可考的内容；点「为没覆盖的部分补题」再试一次。": "The model gave fewer exam points than planned, and still too few after asking again. That does not mean this section has nothing to ask; press \"Add questions for the uncovered parts\" and try once more.",
+  "模型这次给出的考点比计划的少，补问一次后仍然不够。这不代表这一节没有可考的内容。可以再试一次。": "The model gave fewer exam points than planned, and still too few after asking again. That does not mean this section has nothing to ask. You can try again.",
   "待补齐": "Needs more",
   "等你补下一轮": "Waiting for you to add the next round",
   "你停下了": "you stopped it",

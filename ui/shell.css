@@ -377,7 +377,8 @@
       }
       /* A label that stays (busy, failing, 还没配模型) gives way before the page title does: the crumb keeps its own width and the library chip shrinks first. */
       .crumbs {
-        flex-shrink: 0;
+        flex-shrink: 1;
+        min-width: 5em;
         max-width: 50%;
       }
       /* .topbar in front: the base .top-right further down sets flex-shrink: 0 at the same weight and would win, so a longer label could never shrink. */
@@ -386,7 +387,7 @@
         min-width: 0;
       }
       /* The label is short on purpose (a long sentence is its hover text) and keeps its width; the library chip beside it, which has a title of its own, is what ends in an ellipsis. */
-      .top-status:not(.idle) {
+      .top-status-anchor:not(.is-idle) {
         flex-shrink: 0;
       }
     }

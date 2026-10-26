@@ -1,7 +1,7 @@
 {
   "已选择「{0}」，但 DSH 里还没有它的 API Key。": "\"{0}\" is selected, but DSH has no API key for it yet.",
   "已选择模型，但 DSH 里还没有它的 API Key。": "A model is selected, but DSH has no API key for it yet.",
-  "已选择「{0}」，但这个 DSH 没有开放模型调用给 StudyHub，所以现在用不了它。可以先对照安装说明，确认 DSH 的版本符合要求。": "\"{0}\" is selected, but this DSH does not open model calls to StudyHub, so it cannot be used right now. Check the install guide to make sure your DSH version meets the requirements.",
+  "已选择「{0}」，但这个 DSH 没有开放模型调用给 StudyHub，所以现在用不了它。可以先对照安装说明，确认 DSH 的版本符合要求。": "\"{0}\" is selected, but this DSH does not let StudyHub call models, so it can't be used right now. Check the install guide to make sure your DSH version meets the requirements.",
   "已选择「{0}」，但 DSH 里没有这个服务商。": "\"{0}\" is selected, but DSH does not have that provider.",
   "在 DSH 打开「设置 › 模型」，在「{0}」卡片填入 API Key 并保存": "In DSH, open Settings › Models, enter the API key on the \"{0}\" card and save it",
   "在 DSH 打开「设置 › 模型」，给所选服务商填入 API Key 并保存": "In DSH, open Settings › Models, enter the API key for the selected provider and save it",

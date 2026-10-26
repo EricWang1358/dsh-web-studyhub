@@ -118,7 +118,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
   return (
     <div className="wb-detail" id={id}>
       {detail === "loading" || detail === undefined ? <LoadingState label={ui("正在读取详情…")} />
-        : detail?.error ? <InlineMessage tone="error">{ui("没能读取这道题的详情。点页面上的「刷新」后再展开一次。")}</InlineMessage>
+        : detail?.error ? <InlineMessage tone="error">{ui("没能读取这道题的详情。点页面上的「刷新」再试一次。")}</InlineMessage>
           : (
             <dl className="wb-facts">
               <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
@@ -211,6 +211,10 @@ export function WrongBookView({
   const [groupBy, setGroupBy] = useState(() => initial.groupBy || readGroupBy());
   const chooseGroupBy = (value) => { setGroupBy(value); saveGroupBy(value); };
   const [expanded, setExpanded] = useState(() => new Set(initial.expanded || []));
+  // A row that stays open across a reload (刷新 drops what was read) asks for its detail again; the page asks each card once per list load, so this never loops.
+  useEffect(() => {
+    for (const item of items || []) if (expanded.has(item.cardId) && details[item.cardId] === undefined) onLoadDetail?.(refOf(item));
+  }, [items, details, expanded, onLoadDetail]);
   // The filter is part of the page: refreshes keep it, another course scope starts clean (scopedFilter).
   const scopeKey = JSON.stringify([course, !!showInactive]);
   const [filterState, setFilterState] = useState(() => ({ scope: scopeKey, filter: { ...NO_FILTER, ...initial.filter } }));

@@ -287,6 +287,8 @@ const FAILURES = [
   ['budget', /total budget|time budget|minute budget|执行时限/i],
   ['timeout', /timed? ?out|timeout|超时|did not respond|没有回应/i],
   ['network', /fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|connection (error|reset|refused|closed|terminated)|network|连不上|网络/i],
+  // StudyHub's own background service ("后台执行器暂时不可用"), before the model service's "暂时不可用": whose problem it is is not the model's.
+  ['executor', /后台执行器|executor[ -]unavailable|background task service/i],
   ['unavailable', /overloaded|\b5\d\d\b|unavailable|暂时不可用/i],
   ['sources', /资料[^；;。]*(删除|缺失)|Select at least one source/i],
   ['grounding', /is not in source|quote must match|unknown source|not one of the provided sources|引用的原文/i],
@@ -316,7 +318,8 @@ export const FAILURE_COPY = Object.freeze({
   'rate-limit': { action: 'retry', title: '模型服务太忙了', hint: '请求太频繁，被模型服务限流了。等一两分钟再试，或在设置里换一个模型。' },
   timeout: { action: 'retry', title: '模型长时间没有回应', hint: '可能是网络不稳，或模型服务正忙。等一两分钟再试一次。' },
   network: { action: 'retry', title: '连不上模型服务', hint: '检查网络后重试。' },
-  unavailable: { action: 'retry', title: '模型服务暂时不可用', hint: '这是模型服务那边的问题。等一两分钟再试一次，或在设置里换一个模型。' },
+  executor: { action: 'retry', title: '后台服务这次没有回应', hint: '后台服务这次没有回应。等一两分钟再试一次。' },
+  unavailable: { action: 'retry', title: '模型服务暂时不可用', hint: '服务这次不可用。等一两分钟再试一次，或在设置里换一个模型。' },
 });
 const copyOf = (kind) => { const entry = FAILURE_COPY[kind]; return { kind, action: entry.action, title: ui(entry.title), ...(entry.cause ? { cause: ui(entry.cause) } : {}), hint: ui(entry.hint) }; };
 
@@ -365,7 +368,7 @@ export function failureRowLabel(row) {
 /* Causes only the generation pipeline has, named by lib/generation-failure.js: the learner's wording of each (title, the cause in one clause, what to do). */
 const OWN_FAILURES = Object.freeze({
   'plan-short': { action: 'retry', title: '模型给出的考点比计划的少', cause: '模型给出的考点比计划的少',
-    hint: '模型这次给出的考点比计划的少，补问一次后仍然不够。这不代表这一节没有可考的内容；点「为没覆盖的部分补题」再试一次。' },
+    hint: '模型这次给出的考点比计划的少，补问一次后仍然不够。这不代表这一节没有可考的内容。可以再试一次。' },
   'review-protocol': { action: 'retry', title: '审阅回复的格式不对，没能完成审阅', cause: '审阅回复的格式不对',
     hint: '点「为没覆盖的部分补题」补上这一批；经常出现的话，可以在设置里换一个输出更稳定的模型。' },
   'no-reply': { action: 'retry', title: '模型没有返回内容', cause: '模型没有返回内容', hint: '可能是模型服务一时没有回应。可以再试一次。' },
@@ -441,7 +444,7 @@ function failureKind(text = '', { hasDraft = false } = {}) {
       return { kind, action: hasDraft ? 'open-draft' : 'retry', title: top.length ? ui('出的题都没通过质量审阅') : ui('没有题目通过检查'),
         hint: top.length ? uiFormat('主要原因：{0}。{1}', [formatClauses(top), next]) : uiFormat('具体原因见技术详情。{0}', [next]) };
     }
-    default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('没认出具体原因。点「按原资料重新设置」，把这次的设置带回表单再试。') };
+    default: return { kind, action: 'retry', title: ui('生成没有完成'), hint: ui('没认出具体原因。可以再试一次。') };
   }
 }
 

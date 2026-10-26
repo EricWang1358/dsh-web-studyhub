@@ -171,9 +171,9 @@ Live class uses the Gemini keys and models in **Settings › Audio transcription
 
 | Setting | Options and effect |
 | --- | --- |
-| **Model for proofreading and translation** | **Automatic (the conversation model when there is one, otherwise Gemini)** is the default. The other options are **Gemini (free first, then paid)** and **The model the conversation uses**. Live translation, context correction and historical correction follow this choice. |
+| **Model for proofreading and translation** | **Automatic (StudyHub's generation model when there is one, otherwise Gemini)** is the default. The other options are **Gemini (free first, then paid)** and **StudyHub's generation model (follows the main chat by default)**. Live translation, context correction and historical correction follow this choice. |
 | **Live transcription model** | The Gemini live model. Default `gemini-3.5-transcribe-live`. |
-| **Live translation model** | The Gemini model for live translation and context correction. Default `gemini-3.5-flash-lite`. Hidden when **The model the conversation uses** is selected. |
+| **Live translation model** | The Gemini model for live translation and context correction. Default `gemini-3.5-flash-lite`. Hidden when **StudyHub's generation model (follows the main chat by default)** is selected. |
 | **Reasoning strength of live class context correction** | The current model's own levels or **Model default**; **Low** by default. A strength the model does not offer maps to the nearest level and the list says so. Applies to context correction and historical correction. |
 | **Gemini paid key (optional)** | Directly under **Advanced**. Used when the free allowance runs out, or always with **Use paid key only**. |
 

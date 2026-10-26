@@ -235,7 +235,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       core.refresh().catch(() => {});
       return true;
     } catch (failure) {
-      setError(failure.message || ui('这次没有提交成功，也没有返回具体原因。可以再提交一次。'));
+      setError(failure.message || ui('这次没有提交成功，也没有拿到具体原因。可以再提交一次。'));
       return false;
     }
   }, [call, notify, setError, core]);

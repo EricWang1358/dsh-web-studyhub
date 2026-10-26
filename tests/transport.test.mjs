@@ -128,7 +128,7 @@ test("a failed answer without a message says so in Chinese, and the English cata
   const call = createStudyCall({ rpc: { call: async () => ({ ok: false, error: { code: "X" } }) } }, "s");
   const failure = await call("snapshot").then(() => null, (e) => e);
   assert.equal(failure.code, "X");
-  assert.equal(failure.message, "StudyHub 的请求没有成功，也没有返回具体原因。可以再试一次。");
+  assert.equal(failure.message, "StudyHub 的请求没有成功，也没有拿到具体原因。可以再试一次。");
   const english = JSON.parse(await readFile(new URL("../ui/locales/en.json", import.meta.url), "utf8"));
   assert.match(english[failure.message], /no reason came back/, "the English page shows English for it");
   assert.doesNotMatch(english[failure.message], /[㐀-鿿]/);

@@ -125,7 +125,7 @@
   "点「添加资料」，就从首页这条线的第 2 步开始：资料加好后，第 3 步先写明要出什么、预计用多少，再由你点「出第一组题」。示例数据随时可以移除，不影响你自己的资料和记录。": "Choose “Add source” to start at step 2 of the line on the home page: once your source is in, step 3 says what will be made and the expected usage first, and you press “Make my first deck” yourself. You can remove the sample data at any time; your own sources and records are not affected.",
   "出题时会逐题核对原文、审阅，出好的题先放进草稿。": "While the questions are made, each one is checked against the source and reviewed; they go into a draft first.",
   "改题型和题数": "Change question types and count",
-  "还没有可用的 AI 模型。完成第 1 步后，这个按钮就能点了。": "No AI model is available yet. Once step 1 is done, this button will work.",
+  "还没有可用的 AI 模型，先完成第 1 步。": "No AI model is available yet: finish step 1 first.",
   "这些资料超过一次出题的上限：点「改题型和题数」，在创建题组里分步出题或按主题选页。": "These sources are more than one run can take: press “Change question types and count” to make the questions in steps, or pick pages by topic, on Create deck.",
   "选好的参考样题和这些资料对不上：点「改题型和题数」，在创建题组里调整。": "The sample questions you chose do not fit these sources: press “Change question types and count” to adjust them on Create deck."
 }

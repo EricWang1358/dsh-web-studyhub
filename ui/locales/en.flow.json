@@ -3,7 +3,7 @@
   "在模型设置里填好 API Key 后再试。": "Add an API key in the model settings, then try again.",
   "稍后再试一次。": "Try again in a little while.",
   "检查网络后重试。": "Check the network and try again.",
-  "这是模型服务那边的问题。等一两分钟再试一次，或在设置里换一个模型。": "This is a problem on the model service's side. Wait a minute or two and try again, or pick another model in Settings.",
+  "服务这次不可用。等一两分钟再试一次，或在设置里换一个模型。": "The service was unavailable this time. Wait a minute or two and try again, or pick another model in Settings.",
   "「{0}」里没找到与「{1}」直接相关的主题，先学这门课的内容": "Nothing in “{0}” matches “{1}” directly; studying this course’s content first",
   "在「{0}」课程里按名称匹配了 {1} 个主题": "Matched {1} topics by name in the “{0}” course",
   "在「{0}」课程里为你选了 {1} 个主题": "Picked {1} topics from the “{0}” course",

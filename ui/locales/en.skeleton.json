@@ -1,6 +1,6 @@
 {
   "StudyHub 暂时没有连上。点「重试」再试一次。": "StudyHub is not connected right now. Press Retry to try again.",
-  "这一步没有成功，也没有返回具体原因。可以再试一次。": "That step did not work, and no reason came back. You can try again.",
+  "这一步没有成功，没有拿到能显示的原因。可以再试一次。": "That step did not work, and there is no reason to show. You can try again.",
   "之前打开的骨架已删除或不在这门课程中。": "The outline you had open was deleted or is not in this course.",
   "这门课程里还没有题目。先用资料出题，有了题目才能整理成知识骨架。": "This course has no questions yet. Generate questions from your materials first; an outline is built from questions.",
   "主题暂时读不出来，点上面的「重试」再试一次。": "Topics could not be read right now. Select Retry above to try again.",

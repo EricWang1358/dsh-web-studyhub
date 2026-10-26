@@ -323,7 +323,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     {confirm && <DeleteCardDialog card={confirm.card} purge={confirm.kind === "purge"} onClose={() => setConfirm(null)}
       onConfirm={async () => {
         const { card, kind } = confirm;
-        if (!(await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)))) throw new Error(ui("这次没有成功，也没有返回具体原因。可以再试一次。"));
+        if (!(await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)))) throw new Error(ui("没能删除这张卡片，原因见看板上方的提示。"));
       }} />}
     <div className="sh-visually-hidden" role="status" aria-live="polite">{announcement}</div>
   </section>;

@@ -27,8 +27,7 @@
   "已备好的变式题已满，先去练掉一些": "The ready variants are full. Practise some first",
   "模型这次没有响应。等一两分钟再试一次。": "The model did not respond this time. Wait a minute or two and try again.",
   "模型请求太频繁。等一两分钟再试一次。": "Too many requests to the model. Wait a minute or two and try again.",
-  "模型服务这次不可用。等一两分钟再试一次。": "The model service was unavailable this time. Wait a minute or two and try again.",
-  "这次没有生成成功。可以再试一次。": "This did not generate. You can try again.",
+  "这次没有生成成功。可以再试一次。": "The variants could not be generated this time. You can try again.",
   "已为你备好 {0} 道变式题": "{0} variant questions are ready for you",
   "去练 →": "Practise →",
   "它们由你的错题改写而来，开练后会放进「为你定制」。": "They are rewritten from your mistakes and move into \"Personalised\" when you start practising them.",
@@ -53,7 +52,7 @@
   "一次最多 {0} 题，另有 {1} 题等这批写好后再点一次。": "Up to {0} per batch; {1} more can be started once this batch is done.",
   "这些题已经有变式，或正在生成。": "These questions already have variants or are being generated.",
   "正在读取详情…": "Loading details…",
-  "没能读取这道题的详情。点页面上的「刷新」后再展开一次。": "Could not read this question's details. Press Refresh on the page, then expand it again.",
+  "没能读取这道题的详情。点页面上的「刷新」再试一次。": "Could not read this question's details. Press Refresh on the page to try again.",
   "你的答案": "Your answer",
   "自评 {0} 分": "Self-rated {0}",
   "解析": "Explanation",
@@ -97,5 +96,6 @@
   "答对一次后，错题会移到这里，作为历史保留，随时可以再练。": "Once you answer one correctly, the mistake moves here and is kept as history, ready to practise whenever you like.",
   "正在读取已订正的错题…": "Loading corrected mistakes…",
   "显示所有已订正的题。": "Shows every corrected question.",
-  "已订正题分页": "Corrected-mistake pagination"
+  "已订正题分页": "Corrected-mistake pagination",
+  "服务这次不可用。等一两分钟再试一次。": "The service was unavailable this time. Wait a minute or two and try again."
 }

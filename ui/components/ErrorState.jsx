@@ -40,7 +40,7 @@ export function CrashFallback({ error, onRetry, retryLabel, title, hint, classNa
       <Icon name="error" size={24} className="sh-crash__icon" />
       <div className="sh-crash__body">
         <strong className="sh-crash__title">{title || ui('这部分没能显示')}</strong>
-        <p className="sh-crash__hint">{hint || (onRetry ? uiFormat('页面显示出了错。先点「{0}」；还不行就刷新页面（已保存的内容不会因此丢失）。', [retryLabel || ui('重试')]) : ui('页面显示出了错。刷新页面再试（已保存的内容不会因此丢失）。'))}</p>
+        <p className="sh-crash__hint">{hint || (onRetry ? uiFormat('这部分显示出了错。先点「{0}」；还不行就刷新页面（已保存的内容不会因此丢失）。', [retryLabel || ui('重试')]) : ui('这部分显示出了错。刷新页面再试（已保存的内容不会因此丢失）。'))}</p>
         {onRetry && <div className="sh-crash__actions"><Button size="sm" icon="refresh" onClick={onRetry}>{retryLabel || ui('重试')}</Button></div>}
         {detail && <Disclosure className="sh-crash__detail" summary={ui('技术详情')}><code className="sh-crash__raw">{String(detail)}</code></Disclosure>}
       </div>

@@ -143,7 +143,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <div className="result-headline">
               <strong>{run.correct}</strong>
               <span>{uiFormat(scoreWording(run), [run.questions ?? run.total])}</span>
-              {run.retries > 0 && <small>{uiFormat("另外重练了 {0} 次", [run.retries])}</small>}
+              {run.retries > 0 && <small>{run.retries === 1 ? ui("另外重练了 1 次") : uiFormat("另外重练了 {0} 次", [run.retries])}</small>}
             </div>
             <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
           </div>

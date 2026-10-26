@@ -1,9 +1,9 @@
 import React from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat, uiMessage } from '../i18n.js';
 import { isTransientStudyError } from '../transport.js';
 import { markInboxRead } from '../quick-actions.js';
 import Inbox from '../Inbox.jsx';
-import { Button, Icon } from '../components/index.js';
+import { Button, Icon, Tooltip } from '../components/index.js';
 import { useApp } from './app-context.js';
 
 /** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
@@ -28,16 +28,17 @@ export function LibraryChip({ root, onOpen }) {
 function statusText({ busy, running, publishing, syncIssue, data, noModel }) {
   if (busy) return ui('正在处理…');
   if (running) return publishing ? ui('正在发布…') : ui('后台处理中');
-  if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : ui('读不出学习库');
+  if (syncIssue) return isTransientStudyError({ message: syncIssue }) ? ui('重新连接中…') : ui('读不出学习库');
   return data ? noModel ? ui('还没配模型') : ui('学习库已连接') : ui('没有连上学习库');
 }
 
-/** The hover text of a short label that cannot say it all (the failed read keeps the host's own error after it). */
-function statusHint({ busy, running, publishing, syncIssue }) {
-  if (busy || (running && publishing)) return syncIssue || undefined;
+/** The words of a short label that cannot say it all, for the Tooltip (hover or keyboard focus): what kinds of task run, or the whole sentence of a failing read
+    with the host's own error after it, in the page's language (uiMessage). The steady states and 正在处理… have none. */
+export function statusHint({ busy, running, publishing, syncIssue }) {
+  if (busy || (running && publishing)) return undefined;
   if (running) return ui('有后台任务在进行（转换、转写、出题等）');
-  if (syncIssue && !isTransientStudyError({ message: syncIssue })) return uiFormat('学习库读不出来，正在重试：{0}', [syncIssue]);
-  return syncIssue || undefined;
+  if (!syncIssue) return undefined;
+  return isTransientStudyError({ message: syncIssue }) ? ui('连接中断，正在重试…') : uiFormat('学习库读不出来，正在重试：{0}', [uiMessage(syncIssue)]);
 }
 
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
@@ -47,6 +48,7 @@ export default function AppTopbar({ title }) {
   const { binding, running, publishing, syncIssue } = connection;
   // 学习库已连接 is about the library; with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
   const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
+  const hint = statusHint({ busy, running, publishing, syncIssue });
   const idle = !busy && !running && !syncIssue && data && !noModel;
   return (
     <header className="topbar">
@@ -57,10 +59,12 @@ export default function AppTopbar({ title }) {
       </nav>
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={() => { settingsEntry.setSettingsFocus('settings-model'); nav.navigate('settings', { animate: true, keepTrail: false }); }} />
-        <span className={'top-status' + (idle ? ' idle' : '')} role="status" title={statusHint({ busy, running, publishing, syncIssue })}>
-          <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />
-          <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data, noModel })}</span>
-        </span>
+        <Tooltip layer content={hint} anchorClassName={'top-status-anchor' + (idle ? ' is-idle' : '')}>
+          <span className={'top-status' + (idle ? ' idle' : '')} role="status" tabIndex={hint ? 0 : undefined}>
+            <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />
+            <span className="top-status-label">{statusText({ busy, running, publishing, syncIssue, data, noModel })}</span>
+          </span>
+        </Tooltip>
         {data && (
           <Inbox inbox={data.inbox} busy={busy} onOpen={inbox.openInboxItem} onReadAll={() => markInboxRead(quick)} readError={quickApi.failures['inbox:read']}
             onUndo={(letter) => act(letter.kind === 'rewrite' ? 'coach.revert' : 'card.revert', { deckId: letter.deckId, cardId: letter.cardId })} />

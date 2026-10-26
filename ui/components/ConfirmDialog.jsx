@@ -31,7 +31,7 @@ export default function ConfirmDialog({ title, description, children, tone = 'da
       await onConfirm?.();
       (onDone || onClose)?.('confirm');
     } catch (failure) {
-      if (alive.current) setError(uiMessage(failure?.message) || ui('这次没有成功，也没有返回具体原因。可以再试一次。'));
+      if (alive.current) setError(uiMessage(failure?.message) || ui('这次没有成功，也没有拿到具体原因。可以再试一次。'));
     } finally {
       flight.current = false;
       if (alive.current) setWorking(false);

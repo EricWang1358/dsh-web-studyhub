@@ -105,7 +105,7 @@
   "没有题目通过检查": "No question passed the checks",
   "资料可能太短，或缺少可以考的内容。换几份内容更完整的资料，或减少题数再试。": "The sources may be too short or have little to test. Choose fuller sources or fewer questions and try again.",
   "生成没有完成": "Generation did not finish",
-  "没认出具体原因。点「按原资料重新设置」，把这次的设置带回表单再试。": "The exact cause was not recognised. Press \"Set up again from original sources\" to bring these settings back into the form and try again.",
+  "没认出具体原因。可以再试一次。": "The exact cause was not recognised. You can try again.",
   "「{0}」已加入队列，前面还有 {1} 个任务。": "\"{0}\" is queued; tasks ahead: {1}.",
   "已加入队列，前面还有 {0} 个任务。": "Queued; tasks ahead: {0}.",
   "已开始生成「{0}」…完成后在这里检查草稿。": "Started generating \"{0}\"… Check the draft here when it is ready.",

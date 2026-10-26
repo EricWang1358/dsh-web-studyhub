@@ -69,7 +69,8 @@ export function variantFailureText(message = '') {
   if (/备满|攒满/.test(text)) return ui('已备好的变式题已满，先去练掉一些');
   if (/超时|没有响应/.test(text)) return ui('模型这次没有响应。等一两分钟再试一次。');
   if (/限流|太频繁/.test(text)) return ui('模型请求太频繁。等一两分钟再试一次。');
-  if (/暂时不可用|没有返回内容/.test(text)) return ui('模型服务这次不可用。等一两分钟再试一次。');
+  if (/后台执行器/.test(text)) return ui('后台服务这次没有回应。等一两分钟再试一次。');
+  if (/暂时不可用|没有返回内容/.test(text)) return ui('服务这次不可用。等一两分钟再试一次。');
   return ui('这次没有生成成功。可以再试一次。');
 }
 

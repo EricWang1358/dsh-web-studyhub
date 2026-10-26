@@ -145,9 +145,9 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
         <Disclosure className="audio-expert settings-disclosure" summary={ui('专家选项')} meta={ui('模型、并发')}>
           <Field label={ui('校对与翻译用哪个模型')}>
             <Select value={view.textProvider} disabled={busy} onChange={(value) => save({ textProvider: value })} options={[
-              { value: 'auto', label: ui('自动（有主会话的模型就用它，否则用 Gemini）') },
+              { value: 'auto', label: ui('自动（有生成模型就用它，否则用 Gemini）') },
               { value: 'gemini', label: ui('Gemini（同样先免费后付费）') },
-              { value: 'host', label: ui('主会话当前使用的模型') }]} />
+              { value: 'host', label: ui('StudyHub 的生成模型（默认跟随主会话）') }]} />
           </Field>
           {modelField('transcribeModel', '转写模型')}
           {view.textProvider !== 'host' && modelField('textModel', 'Gemini 文本模型')}

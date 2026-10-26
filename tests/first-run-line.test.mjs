@@ -314,7 +314,7 @@ test('出第一组题 is disabled with the reason while no model is usable or th
   const line = m.firstRunLine(library({ model: NO_KEY, sources: [mine] }));
   const markup = page({ ...line, step: 2 }, { plan: PLAN });
   assert.match(generateButton(markup), /disabled/);
-  assert.match(markup, /data-first-run="blocked"[^>]*>还没有可用的 AI 模型。完成第 1 步后，这个按钮就能点了。</);
+  assert.match(markup, /data-first-run="blocked"[^>]*>还没有可用的 AI 模型，先完成第 1 步。</);
   assert.equal(m.compactAction(line, on), null, 'the compact card offers nothing over a missing model');
   const big = page(m.firstRunLine(library({ sources: [mine] })), { plan: { ...PLAN, block: 'too-big' } });
   assert.match(generateButton(big), /disabled/);

@@ -16,7 +16,11 @@ export async function batchRun(action, ids, { quick, core } = {}) {
   for (const part of chunk(ids)) {
     let reply;
     try { reply = await core.act(`job.${action}`, { jobIds: part }, undefined, { rethrow: true }); } catch (error) { return { ...total, ok: false, message: String(error?.message || error) }; }
-    if (reply === undefined) return { ...total, ok: false, message: ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。') };
+    // act() answers nothing when another action holds the lock (or the library changed under it): this chunk did not start, the ones before it did.
+    if (reply === undefined) {
+      const done = total.archived + total.unarchived + total.deleted + total.skipped;
+      return { ...total, ok: false, message: done > 0 ? uiFormat('上一个操作还没结束，已处理 {0} 个，剩下的没有开始。等它结束后再点一次。', [done]) : ui('上一个操作还没结束，这次没有开始。等它结束后再点一次。') };
+    }
     total[COUNT[action]] += size(reply.archived) + size(reply.alreadyArchived) + size(reply.unarchived) + size(reply.deleted);
     total.skipped += size(reply.skipped);
   }

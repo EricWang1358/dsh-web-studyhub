@@ -401,7 +401,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       const view = await act('materials.pages.cards', { documentId: item.documentId || item.key, sourceId: item.sourceIds[0], chapter: chapter.index }, undefined, { refreshAfter: false });
       if (!view) return;
       const refs = (view.cards || []).map(({ deckId, cardId }) => ({ deckId, cardId }));
-      if (refs.length) start?.(refs); else say.info(ui('这一章还没有题。可以先用这份资料出题。'));
+      if (refs.length) start?.(refs); else say.info(ui('这一章现在没有可练的题（已斩或已归档的不算）。可以先用这份资料出题。'));
     },
     archive: item => latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived }),
     remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), segment: item => setSegmenting(item),

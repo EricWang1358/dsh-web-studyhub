@@ -91,6 +91,6 @@ export function refusalWords(error) {
     case 'capability-unverified': return ui('共享的模型额度还没有验证，暂时不能建考点清单');
     case 'executor-unavailable': return ui('后台执行器暂时不可用，请稍后再试');
     case 'scope-unloaded': return ui('学习插件正在关闭，没有开始');
-    default: return ui('这次没有成功，也没有返回具体原因。可以再试一次。');
+    default: return ui('这次没有成功，也没有拿到具体原因。可以再试一次。');
   }
 }

@@ -46,7 +46,7 @@ export function classifySkeletonError(error) {
     return { kind: 'error', text: ui('StudyHub 暂时没有连上。点「重试」再试一次。') };
   const message = String(error?.message || '').trim();
   const readable = message && (uiIsEnglish() ? !HAN.test(message) && !/Study request failed|STUDY_ERROR/.test(message) : HAN.test(message));
-  return { kind: 'error', text: readable ? message : ui('这一步没有成功，也没有返回具体原因。可以再试一次。') };
+  return { kind: 'error', text: readable ? message : ui('这一步没有成功，没有拿到能显示的原因。可以再试一次。') };
 }
 
 /** Open one skeleton. A missing one resolves to { stale: true } instead of rejecting. */
