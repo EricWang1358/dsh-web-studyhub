@@ -36,6 +36,20 @@ test('deck removal requires archive and explicit confirmation, preserving source
   await assert.rejects(service.call('deck.get', { id: 'd' }), /not found/i);
 });
 
+test('deck.archive says how many open practice runs it ended (closedRuns), and restoring reopens none', async t => {
+  const service = await fixture(t);
+  await service.call('review.start', { deckId: 'd', mode: 'flashcard' });
+  await service.call('review.start', { mode: 'path', scope: [{ deckId: 'd' }], fresh: true });
+  const open = (await service.call('export')).runs.filter(run => !run.closedAt).length;
+  assert.ok(open >= 1);
+  const archived = await service.call('deck.archive', { id: 'd', archived: true });
+  assert.equal(archived.ok, true);
+  assert.equal(archived.closedRuns, open, 'every open run on the deck, counted');
+  assert.equal((await service.call('export')).runs.filter(run => !run.closedAt).length, 0);
+  assert.deepEqual(await service.call('deck.archive', { id: 'd', archived: false }), { ok: true, closedRuns: 0 });
+  assert.equal((await service.call('export')).runs.filter(run => !run.closedAt).length, 0, 'the ended runs stay ended');
+});
+
 test('restoring a deck invalidates a pending permanent delete', async t => {
   const service = await fixture(t);
   await service.call('deck.archive', { id: 'd', archived: true });

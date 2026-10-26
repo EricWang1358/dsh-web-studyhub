@@ -140,7 +140,7 @@ The conversion is one job in the same list as audio imports, with its card on th
 - **Buttons.**
   - **Stop (pieces already converted are kept)**.
   - **Resume (finished pieces are not redone)**. When the service had stopped, Resume starts it first.
-  - **Got it** removes the card and its temporary files.
+  - **Archive** puts the card away: the task goes under Jobs › Archived (nothing is deleted, **Undo** in the notice brings it back); deleting it there removes the record and its temporary files.
 - **Progress.** The piece in hand (its pages, how long it has run and how long it should take), the finished pieces with their times, and the size of the next piece. A piece shows no finer progress while it runs; that does not mean it is stuck.
 - **Time left.** It is hidden until a piece has finished, then says "about". It is one figure when the pieces agree, and a range ("About 15 min to 40 min left") while the speed is not steady.
 - **Many pieces.** A card with more than eight pieces shows a summary, such as "Piece 13 · 12 done", and a **Show all windows** toggle. The list wraps inside the card.
@@ -195,7 +195,7 @@ Every conversion leaves a record that survives dismissing the card and restartin
   - open the imported material;
   - **Resume** a failed or interrupted conversion: only unfinished pieces are redone while their cached results exist, and the row stays the same record and counts its attempts (an old cloud row cannot be resumed);
   - see the progress of a running one;
-  - **Delete record**, or **Clear history** (it asks first).
+  - **Delete record**, or **Clear history**: neither asks; the rows leave at once and a notice offers **Undo** for about 8 seconds, and the records are forgotten when that notice leaves.
 
   Deleting a record or clearing the history **never deletes an imported document**.
 - **Where it is kept:**

@@ -19,7 +19,8 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
       const undoable = useUndoable();
       const items = ['A', 'B', 'C', 'D', 'E', 'F'].filter((item) => !undoable.hidden(item));
       return <ul>{items.map((item) => <li key={item}><button data-item={item} onClick={() => undoable.commitLater({ keys: [item], message: '已删除 ' + item,
-        commit: async () => { window.calls.push(item); if (item === 'E') throw new Error('磁盘已满'); return true; } })}>删除 {item}</button></li>)}</ul>;
+        commit: async () => { window.calls.push(item); if (item === 'E') throw new Error('磁盘已满'); return true; },
+        focus: () => document.querySelector('button[data-item="' + item + '"]') })}>删除 {item}</button></li>)}</ul>;
     }
     function Harness() {
       const [notice, setNotice] = useNotice('scope');
@@ -50,16 +51,28 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
   assert.match(await notice.innerText(), /已删除 A/);
   assert.deepEqual(await calls(), []);
   assert.notEqual(await page.evaluate(() => document.activeElement?.textContent), '撤销', 'the notice does not take the focus');
-  // 撤销 by keyboard
-  await notice.getByRole('button', { name: '撤销' }).focus();
+  // started from the keyboard: no time in its words, and it waits (well past 8 s) for the learner to Tab to 撤销
+  assert.doesNotMatch(await notice.innerText(), /秒内可撤销/);
+  await page.waitForTimeout(9000);
+  assert.equal(await notice.filter({ hasText: '已删除 A' }).count(), 1, 'a keyboard-started notice does not run out');
+  assert.deepEqual(await calls(), []);
+  // reach 撤销 with Tab only, press Enter: A is back and has the focus
+  let reached = false;
+  for (let presses = 0; presses < 20 && !reached; presses++) {
+    await page.keyboard.press('Tab');
+    reached = await page.evaluate(() => document.activeElement?.textContent === '撤销');
+  }
+  assert.equal(reached, true, '撤销 is reachable with Tab');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !!document.querySelector('button[data-item="A"]'));
   assert.match(await notice.innerText(), /已撤销/);
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-item') === 'A');
   assert.deepEqual(await calls(), [], '撤销 sends nothing');
 
-  // 删除 A again and close the notice: sent once
+  // 删除 A again with the mouse: the notice says its window; close it: sent once
   await page.locator('button[data-item="A"]').click();
   await notice.filter({ hasText: '已删除 A' }).waitFor();
+  assert.match(await notice.innerText(), /8 秒内可撤销/);
   await notice.getByRole('button', { name: '关闭提示' }).click();
   await page.waitForFunction(() => window.calls.length === 1);
   assert.deepEqual(await calls(), ['A']);

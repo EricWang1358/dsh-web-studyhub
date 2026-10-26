@@ -40,7 +40,7 @@ export async function publishAndPractice({ call, act, toast, draft, intoDeck, sa
 
 export function useDrafts({ core, lib, nav, data, session }) {
   const { act, notify } = core;
-  const { draft, draftLoaded, draftText, jsonMode } = lib.state;
+  const { draft, draftLoaded, draftText, jsonMode, recovery } = lib.state;
   const { setDraft, setDraftLoaded, setDraftText, setJsonMode, setRecovery } = lib.set;
   const root = data?.root;
   useEffect(() => {
@@ -81,6 +81,8 @@ export function useDrafts({ core, lib, nav, data, session }) {
     setRecovery(null);
     setDraft(null);
   }, [root, setRecovery, setDraft]);
+  /** A draft deleted from elsewhere (a 待发布 row): the page's copy and the browser stash go when they are that draft's. */
+  const forgetDraft = useCallback((id) => { if (draft?.id === id || recovery?.draft?.id === id) clearRecovery(); }, [draft, recovery, clearRecovery]);
   /** 发布并开始练 from the finished card of a run: the quick publication of the draft as it is (nothing to save), then the new questions. The stash of the page is dropped only when it is this draft's. */
   const publishDraft = useCallback((target, { intoDeck } = {}) => publishAndPractice({ call: core.call, act: core.act, toast: core.toast, draft: target, intoDeck, save: false,
     clearRecovery: () => { if (draft?.id === target.id) clearRecovery(); }, enterRun: session?.enterRun, setPage: nav.navigate }), [core, session, nav, draft, clearRecovery]);
@@ -94,5 +96,5 @@ export function useDrafts({ core, lib, nav, data, session }) {
   }, [core.refs, nav, setDraft, setDraftLoaded, setDraftText, setJsonMode]);
   /** A new, empty flashcard deck to write by hand. */
   const createManual = useCallback(() => openDraft({ id: crypto.randomUUID(), title: ui('新建闪卡题组'), cards: [blankCard()] }, { navigation: true }), [openDraft, blankCard]);
-  return { openDraft, topUpDraft, publishAndPractice: publishDraft, blankCard, patchCard, clearRecovery, restoreRecovery, createManual };
+  return { openDraft, topUpDraft, publishAndPractice: publishDraft, blankCard, patchCard, clearRecovery, forgetDraft, restoreRecovery, createManual };
 }

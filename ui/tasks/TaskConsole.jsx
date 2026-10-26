@@ -7,7 +7,7 @@ import { useQuickActions, dismissJobs } from '../quick-actions.js';
 import { formatDateTime, joinMeta } from '../format.js';
 import denseCss from '../dense-surface.css';
 import css from './task-console.css';
-import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf } from './task-model.js';
+import { contractOf, tasksOf, taskId, taskFilters, filterTasks, pickTask, isRunningTask, isArchivedTask, archivedTasksOf, taskKindOf } from './task-model.js';
 import { isSelectableTask, reconcileSelection, selectionSummary, toggleAll, toggleSelection } from './task-selection.js';
 import { batchMessage, batchRun } from './task-batch.js';
 import SelectBar from './SelectBar.jsx';
@@ -36,6 +36,10 @@ import { modelReadiness } from '../generation-status.js';
    the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
 
 const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败/中断', archived: '已归档' };
+/** The row of a task in the list: where the keyboard focus goes back to after 撤销. */
+const rowOf = (id) => () => document.querySelector(`.tc-row[data-task-id="${CSS.escape(id)}"]`);
+/* A task whose working files go with its record (an audio batch's folder, a conversion's pieces, anything 接着做 would resume from): after 删除 it cannot be continued. */
+const losesWorkingFiles = (task) => ['audio', 'pdf-convert'].includes(taskKindOf(task)) || !!contractOf(task).actions?.retry?.available;
 
 function percentWord(summary) {
   if (summary.state === 'fail') return ui('失败');
@@ -94,12 +98,12 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
   };
   const unarchiveNow = () => settle(() => batchRun('unarchive', [key], { quick, core }), () => {});
   const archive = () => settle(() => (quick ? dismissJobs(quick, task.id) : core.act('job.archive', { jobId: task.id })), () => undoable.restoreWith({
-    message: uiFormat('已归档「{0}」：在「已归档」里。', [summary.title]), restored: uiFormat('已取消归档「{0}」', [summary.title]), restore: unarchiveNow }));
+    message: uiFormat('已归档「{0}」：在「已归档」里。', [summary.title]), restored: uiFormat('已取消归档「{0}」', [summary.title]), restore: unarchiveNow, focus: rowOf(key) }));
   const unarchive = () => settle(() => batchRun('unarchive', [key], { quick, core }), () => core.notify?.(ui('已取消归档')));
   // A past day of 为你定制: 删除这一天 hides it at once; the record goes when the 撤销 time is over (job.dismiss has no way back).
   const removeDay = () => undoable.commitLater({ keys: [key], message: uiFormat('已删除「{0}」的记录', [summary.title]),
     commit: async () => { await core.call('job.dismiss', { jobId: task.id }); Promise.resolve(core.refresh?.()).catch(() => {}); return true; },
-    failed: (reason) => uiFormat('没能删除「{0}」，已放回原处：{1}', [summary.title, reason]) });
+    failed: (reason) => uiFormat('没能删除「{0}」，已放回原处：{1}', [summary.title, reason]), focus: rowOf(key) });
   // 打开资料: only when the task concerns ONE material of the library; it is the same way in as the result button of a conversion or transcript (which it then stands in for).
   const material = openers.materialOf?.(task, data) || null, found = openers.resultOf(task, data), result = material && found?.kind === 'source' ? null : found, usage = usageLine(task);
   // The time limit and the steps that took the time (ui/tasks/time-limit.js): drawn by the strip under the facts and marked on the timeline, from the same steps. Only a task whose record knows a limit has them
@@ -226,16 +230,28 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
     try { if (report(action, await batchRun(action, ids, { quick, core }))) setSelection(new Set()); } finally { setWorking(false); }
   };
   // 删除 (a task record is not a source or a question): the records leave the list at once and the notice offers 撤销 for a few seconds; the host deletes them
-  // when that time is over (job.delete has no way back). A task that is running is never deleted: it stays, and the notice says how many were skipped.
+  // when that time is over (job.delete has no way back). The notice keeps what the old dialog said: which records lose their working files (and cannot be
+  // continued), and that sources, drafts and decks stay. A task that is running is never deleted: it stays, and the notice says how many were skipped; one the
+  // host skipped because it started meanwhile comes back with its own line.
   const askDelete = (ids) => {
     const running = ids.filter((id) => { const item = everything.get(id); return item && isRunningTask(item); });
     const gone = ids.filter((id) => !running.includes(id));
     setSelection((before) => new Set([...before].filter((id) => !ids.includes(id))));
     if (!gone.length) { core.notify?.(uiFormat('跳过 {0} 个进行中的任务', [running.length])); return; }
     const one = gone.length === 1 ? everything.get(gone[0]) : null;
-    const head = one ? uiFormat('已删除「{0}」', [taskSummary(one).title]) : uiFormat('已删除 {0} 个任务', [gone.length]);
-    undoable.commitLater({ keys: gone, message: running.length ? `${head}；${uiFormat('跳过 {0} 个进行中的任务', [running.length])}` : head,
-      commit: async () => { const result = await batchRun('delete', gone, { quick, core }); if (result.ok !== false) Promise.resolve(core.refresh?.()).catch(() => {}); return result; },
+    const files = gone.filter((id) => { const item = everything.get(id); return item && losesWorkingFiles(item); }).length;
+    let message = one ? uiFormat('已删除「{0}」', [taskSummary(one).title]) : uiFormat('已删除 {0} 个任务', [gone.length]);
+    if (running.length) message = uiFormat('{0}；跳过 {1} 个进行中的任务', [message, running.length]);
+    if (files) message = uiFormat('{0}；其中 {1} 个任务的中间文件也会删除，之后不能接着做', [message, files]);
+    message = uiFormat('{0}；资料、草稿和题组不会删除', [message]);
+    undoable.commitLater({ keys: gone, message, focus: rowOf(gone[0]),
+      commit: async () => {
+        const result = await batchRun('delete', gone, { quick, core });
+        if (result.ok === false) return result;
+        Promise.resolve(core.refresh?.()).catch(() => {});
+        return { ok: true, kept: result.skippedIds || [] };
+      },
+      kept: (count) => uiFormat('{0} 个任务正在运行，没有删除', [count]),
       failed: (reason) => uiFormat('没能删除，已放回原处：{0}', [reason]) });
   };
   // Esc ends the selection while the focus is in the list (a box, a row, the bar) or nowhere. It listens on the window, before the tooltip of the box (open while it has the focus) takes the

@@ -46,11 +46,11 @@ test("归档 stays clickable while another action is busy: it is not part of the
   assert.match(html, /class="[^"]*jobs-dismiss-all"(?![^>]*disabled)/);
 });
 
-test("a card that is leaving is animated out and no longer counted for 全部知道了", () => {
+test("a card that is leaving is animated out and no longer counted for 全部归档", () => {
   const html = map([generation("a", "failed", { leaving: true }), generation("b", "complete")]);
   assert.match(html, /<article[^>]*class="cjc is-leaving[^"]*"[^>]*data-job-id="a"/);
   assert.doesNotMatch(html, /is-leaving[^>]*data-job-id="b"/);
-  assert.doesNotMatch(html, /全部知道了/, "only one visible finished card is left, so the bulk action goes away");
+  assert.doesNotMatch(html, /全部归档/, "only one visible finished card is left, so the bulk action goes away");
   const leavingButton = html.match(/data-job-id="a"[\s\S]*?<\/article>/)[0];
   assert.match(leavingButton, /aria-hidden="true"/, "a card on its way out is hidden from assistive tech");
 });
@@ -58,7 +58,7 @@ test("a card that is leaving is animated out and no longer counted for 全部知
 test("the dismiss-all button hands the whole decision to the light path", () => {
   const calls = [];
   const html = map([generation("a", "failed"), generation("b", "complete")], { dismissJob: (id) => calls.push(id) });
-  assert.match(html, /全部知道了/);
+  assert.match(html, /全部归档/);
   assert.deepEqual(calls, []);
 });
 

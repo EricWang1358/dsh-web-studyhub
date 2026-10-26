@@ -67,11 +67,12 @@ export default function Manage({
   const reload = (id) => async () => setManagedDeck(await call("deck.get", { id }));
   async function archiveDeck() {
     const deck = managedDeck, archiving = !deck.archived;
-    const ended = archiving ? runs.filter((run) => run.deckId === deck.id || run.deckIds?.includes(deck.id)).length : 0;
     const done = await act("deck.archive", { id: deck.id, archived: archiving }, reload(deck.id));
     if (!done || !archiving) return;
+    // The host counts what it ended (every open run on the deck, 学习流 rounds too); a host without the count falls back to the open runs the snapshot lists.
+    const ended = Number.isInteger(done.closedRuns) ? done.closedRuns : runs.filter((run) => run.deckId === deck.id || run.deckIds?.includes(deck.id)).length;
     offerRestore(toast, {
-      message: ended ? uiFormat("已归档「{0}」，结束了 {1} 轮进行中的练习。", [deck.title, ended]) : uiFormat("已归档「{0}」", [deck.title]),
+      message: ended ? uiFormat("已归档「{0}」，结束了 {1} 轮进行中的练习；撤销只恢复题组，结束的练习不会重新打开。", [deck.title, ended]) : uiFormat("已归档「{0}」", [deck.title]),
       restored: ended ? uiFormat("已恢复「{0}」；结束的练习不会重新打开。", [deck.title]) : uiFormat("已恢复「{0}」", [deck.title]),
       restore: () => act("deck.archive", { id: deck.id, archived: false }, reload(deck.id)),
       secondary: { label: ui("永久删除…"), onClick: () => onRemoveDeck(deck.id) } });

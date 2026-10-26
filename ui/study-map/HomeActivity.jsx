@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Badge, Button, Disclosure, InlineMessage } from '../components/index.js';
 import { CoverageTopUp } from '../coverage/CoverageTopUp.jsx';
@@ -7,6 +7,9 @@ import { runSummary } from '../coverage/RunPanel.jsx';
 import { useDraftShortfall } from '../coverage/use-shortfall.js';
 import { foldJobsByDraft, isActiveJob } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
+import { useToast } from '../components/Feedback.jsx';
+import { offerRestore } from '../undoable.js';
+import { batchRun } from '../tasks/task-batch.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
 import { draftWork } from '../draft-shortfall.js';
 import JobCard from './JobCard.jsx';
@@ -14,10 +17,20 @@ import { useStudy } from '../study-context.jsx';
 import { joinMeta } from '../format.js';
 import { draftPartTitle, partTargets } from '../DraftPart.jsx';
 import DeleteDraftDialog from '../DeleteDraftDialog.jsx';
+import { AppContext } from '../app/app-context.js';
 
 function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
   const { busy } = useStudy();
-  const [deleting, setDeleting] = useState(false);
+  const app = useContext(AppContext);
+  const [deleting, setDeleting] = useState(false), rowRef = useRef(null);
+  // After the deletion: the page's copy of this draft and its browser stash go too, and the keyboard focus moves to the next row (or the 待发布 line), not to the page.
+  const deleted = () => {
+    setDeleting(false);
+    app?.drafts?.forgetDraft?.(d.id);
+    const row = rowRef.current, next = row?.nextElementSibling?.querySelector?.('.draft-open') || row?.previousElementSibling?.querySelector?.('.draft-open');
+    const home = row?.closest?.('.home-drafts')?.querySelector?.('summary, [aria-expanded]');
+    setTimeout(() => { (next?.isConnected ? next : home)?.focus?.(); }, 60);
+  };
   // 覆盖: how much of its material the draft has questions for, said in the words of the draft page. The counts, the tag and the one action are the draft's SHORTFALL (lib/shortfall.js):
   // the same numbers and the same sentences as the banner above, the 任务 console and the draft page.
   const { view, shortfall } = useDraftShortfall(d, data);
@@ -34,7 +47,7 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
   const tag = shortfallTag(shortfall, { reviewed: reviewed?.unchanged === d.cards.length }), pending = rejectedCount ? uiFormat('{0} 题待处理', [rejectedCount]) : '';
   const clean = shortfall.ready || (shortfall.state === 'done' && shortfall.questionsMissing === 0), status = clean ? pending || tag : joinMeta([tag, pending]);
   return (
-    <div className="draft-row">
+    <div className="draft-row" ref={rowRef}>
       <button type="button" className="draft-open" onClick={() => openDraft(d)}>
         <span>
           {/* A draft that will be the next part of a deck says so: 「期中复习 · 第二部分」 (ui/DraftPart.jsx). */}
@@ -52,7 +65,7 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
       {/* 删除 opens the same question as the draft page's 删除草稿 (ui/DeleteDraftDialog.jsx): the unpublished questions go for good, the materials stay. */}
       <Button variant="quiet" size="sm" className="draft-delete" disabled={busy} aria-label={uiFormat('删除草稿「{0}」', [d.title || ui('未命名草稿')])} onClick={() => setDeleting(true)}>{ui('删除')}</Button>
       <CoverageTopUp variant="compact" draft={d} view={view} jobs={data.jobs} modelReady={modelReady} onTopUp={topUpDraft} />
-      {deleting && <DeleteDraftDialog draft={d} running={!!work} onClose={() => setDeleting(false)} onDeleted={() => setDeleting(false)} />}
+      {deleting && <DeleteDraftDialog draft={d} data={data} onClose={() => setDeleting(false)} onDeleted={deleted} />}
     </div>
   );
 }
@@ -63,22 +76,36 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
    ones to show, running first. */
 export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, topUpDraft }) {
   const { busy } = useStudy();
-  const quick = useQuickActions();
+  const quick = useQuickActions(), toast = useToast();
   if (!jobs.length) return null;
   // One card per deck: the older jobs of a draft fold into its newest job's card.
   const cards = foldJobsByDraft(jobs);
   const finishedCount = cards.filter(({ job }) => !isActiveJob(job) && !job.leaving).length;
+  // 全部归档 (it was 全部知道了): every finished card goes under 已归档 in one go, and the notice offers 撤销 for all of them.
+  const archiveAll = async () => {
+    const done = cards.flatMap(({ job, earlier }) => [job, ...earlier]).filter((item) => !isActiveJob(item) && !item.leaving);
+    const ids = [...new Set(done.flatMap((item) => [item.id, item.contract?.jobId]).filter(Boolean))];
+    const result = await dismissJob();
+    if (result?.ok === false || !done.length) return;
+    offerRestore(toast, { message: uiFormat('已归档 {0} 个任务：在「任务」的「已归档」里。', [done.length]), restored: uiFormat('已取消归档 {0} 个任务', [done.length]),
+      restore: async () => { const back = await batchRun('unarchive', ids, { quick }); if (back.ok === false) { toast.error(back.message); return false; } return true; } });
+  };
   return (
     <section className="home-activity" ref={sectionRef} aria-label={ui('出题进度与待发布草稿')}>
       {jobs.length > 0 && <div className="jobs generation-jobs cjc-list">
         {cards.map(({ job, earlier }) => <JobCard key={job.id} job={job} jobs={jobs} drafts={drafts} data={data} modelReady={modelReady} topUpDraft={topUpDraft} busy={busy} openDraft={openDraft}
-          cancelJob={cancelJob} dismissJob={dismissJob && ((jobId) => dismissJob(jobId, earlier.filter((old) => !isActiveJob(old)).map((old) => old.id)))} retryGeneration={retryGeneration}
+          cancelJob={cancelJob} dismissJob={dismissJob && ((jobId) => {
+            const older = earlier.filter((old) => !isActiveJob(old));
+            // Every run the card stands for goes under 已归档 together; their names travel back so the card's 撤销 brings all of them back.
+            return Promise.resolve(dismissJob(jobId, older.map((old) => old.id))).then((result) => ({ ...(result || {}),
+              ids: [job, ...older].flatMap((item) => [item.id, item.contract?.jobId]).filter(Boolean) }));
+          })} retryGeneration={retryGeneration}
           openModelSettings={openModelSettings} openDeck={manage}
           practiceCards={(deckId, cardIds) => start({ mode: 'path', scope: cardIds.map((cardId) => ({ deckId, cardId })), fresh: true })} />)}
         {dismissJob && finishedCount > 1 && <div className="jobs-actions">
           {quick?.failures['jobs:all'] && <InlineMessage tone="error">{uiFormat('没能全部移除：{0}', [quick.failures['jobs:all']])}</InlineMessage>}
           {/* Not part of the single-flight act: it must stay clickable whatever else is running. */}
-          <Button variant="link" size="sm" className="jobs-dismiss-all" onClick={() => dismissJob()}>{ui('全部知道了')}</Button>
+          <Button variant="link" size="sm" className="jobs-dismiss-all" onClick={archiveAll}>{ui('全部归档')}</Button>
         </div>}
       </div>}
     </section>

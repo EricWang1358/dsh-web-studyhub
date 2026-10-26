@@ -68,8 +68,10 @@ export function noticeToToast(notice, busy) {
   return { id: 'notice', key: value.receipt ? 'notice:hand-off' : `notice:${value.key ?? value.text}`, tone: value.tone || 'info',
     ...(value.title ? { title: uiMessage(value.title) } : {}),
     message: value.copy ? String(value.text ?? '') : uiMessage(value.text ?? ''), persistent: !!value.persistent, dismissLabel: ui('关闭提示'),
-    ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), ...receipt, action: actionOf(value, busy),
-    ...(value.secondary ? { secondary: actionOf({ action: value.secondary }, busy) } : {}) };
+    ...(value.undo ? { undo: true } : {}), ...(value.timeout ? { timeout: value.timeout } : {}), ...receipt,
+    // An undo offer's 撤销 and 永久删除… stay usable while another write runs: they are the learner's only way back, and run outside the single-flight act().
+    action: actionOf(value, value.undo ? false : busy),
+    ...(value.secondary ? { secondary: actionOf({ action: value.secondary }, value.undo ? false : busy) } : {}) };
 }
 
 export function errorToToast(error, busy) {

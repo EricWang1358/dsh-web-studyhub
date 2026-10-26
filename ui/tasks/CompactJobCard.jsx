@@ -68,14 +68,22 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
   const contract = contractOf(job), summary = { ...taskSummary(job) }, percentHint = progressHint(job).percent, live = isRunningTask(job), unknown = summary.percent === null && live;
   const openConsole = onOpenConsole || (() => app.nav?.show?.task?.(contract.jobId));
   const cancel = onStop || (() => app.core?.act?.('job.control', { jobId: contract.jobId, action: 'cancel' }));
-  // 归档 puts the task in 已归档 (nothing is deleted); the notice says so and offers 撤销 (job.unarchive), from whichever page the card is on.
+  // 归档 puts the task in 已归档 (nothing is deleted); the notice says so and offers 撤销 (job.unarchive), from whichever page the card is on. A card that folds older
+  // runs of the same draft archives them too (the caller's onDismiss answers { ok, ids }), and 撤销 brings every one of them back.
   const dismiss = () => {
     const done = onDismiss ? onDismiss() : quick ? dismissJobs(quick, job.id) : app.core?.act?.('job.archive', { jobId: job.id });
     void Promise.resolve(done).then((result) => {
       if (result === undefined && !onDismiss && !quick) return;
       if (result?.ok === false) return;
       offerRestore(toast, { message: uiFormat('已归档「{0}」：在「任务」的「已归档」里。', [summary.title]), restored: uiFormat('已取消归档「{0}」', [summary.title]),
-        restore: async () => { const back = await batchRun('unarchive', [contract.jobId], { quick, core: app.core }); if (back.ok === false) { toast.error(back.message); return false; } Promise.resolve(app.core?.refresh?.()).catch(() => {}); return true; } });
+        restore: async () => {
+          const ids = Array.isArray(result?.ids) && result.ids.length ? [...new Set(result.ids)] : [contract.jobId];
+          const back = await batchRun('unarchive', ids, { quick, core: app.core });
+          if (back.ok === false) { toast.error(back.message); return false; }
+          Promise.resolve(app.core?.refresh?.()).catch(() => {});
+          return true;
+        },
+        focus: () => document.querySelector(`.cjc[data-job-id="${CSS.escape(job.id)}"] .cjc__go`) });
     });
   };
   const result = !live && contract.status === 'complete' ? resultOpener(job, app) : null;

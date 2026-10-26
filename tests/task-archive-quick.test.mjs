@@ -91,7 +91,7 @@ test('a failed call brings everything back and keeps the message under the actio
 
 test('nothing selected is nothing sent', async () => {
   const { quick, calls } = setup();
-  for (const run of [archiveJobs, unarchiveJobs, deleteJobs]) assert.deepEqual(await run(quick, []), { ok: true, archived: 0, unarchived: 0, deleted: 0, skipped: 0 });
+  for (const run of [archiveJobs, unarchiveJobs, deleteJobs]) assert.deepEqual(await run(quick, []), { ok: true, archived: 0, unarchived: 0, deleted: 0, skipped: 0, skippedIds: [] });
   assert.deepEqual(calls, []);
 });
 

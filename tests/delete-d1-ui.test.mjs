@@ -22,6 +22,7 @@ const draft = (extra = {}) => ({ id: 'd1', title: '架构思维', draftVersion: 
 const inLanguage = (language, render) => { m.setUiLanguage(language); try { return render(); } finally { m.setUiLanguage('zh'); } };
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const noop = () => {};
+const writing = { id: 'gen-1', draftId: 'd1', status: 'running' };
 
 test('the draft dialog names the draft, what goes for good, what stays, and (only when something works on it) what stops; 保留 comes first', () => {
   const html = renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft(), onClose: noop }));
@@ -33,12 +34,32 @@ test('the draft dialog names the draft, what goes for good, what stays, and (onl
   assert.ok(footer.indexOf('>保留<') < footer.indexOf('>永久删除草稿<'), 'cancel (保留) first');
   assert.match(footer, /sh-btn--quiet[^>]*>保留</);
   assert.match(footer, /sh-btn--danger[^>]*>永久删除草稿</);
-  assert.match(renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft(), running: true, onClose: noop })), /正在为这份草稿工作的任务会停止。/);
+  assert.match(renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft(), data: { jobs: [writing] }, onClose: noop })), /正在为这份草稿工作的任务会停止。/);
   assert.match(renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft({ cards: [card('c1')] }), onClose: noop })), /还没发布的 1 道题/);
-  const en = inLanguage('en', () => renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft({ title: 'Week 3' }), running: true, onClose: noop })));
+  const en = inLanguage('en', () => renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft({ title: 'Week 3' }), data: { jobs: [writing] }, onClose: noop })));
   assert.match(en, /Permanently delete draft “Week 3”\?/);
   assert.match(en, />Keep</);
   assert.doesNotMatch(text(en), han);
+});
+
+test('an edit of a published deck says only the unpublished changes go and the deck with its published questions stays; the draft is named as its row names it', () => {
+  const data = { decks: [{ id: 'deck-1', title: '期中复习', count: 12 }], jobs: [] };
+  for (const extra of [{ editingDeckId: 'deck-1' }, { editorial: { repairOfDeckId: 'deck-1' } }, { mergeTargetId: 'deck-1' }]) {
+    const html = text(renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft({ title: '期中复习', ...extra }), data, onClose: noop })));
+    assert.match(html, /会删除：对「期中复习」还没发布的修改，删除后不能撤销。/, JSON.stringify(extra));
+    assert.match(html, /会保留：题组「期中复习」和它已发布的 12 道题，以及出题用的资料。/);
+    assert.doesNotMatch(html, /还没发布的 3 道题/, 'not the false line');
+  }
+  const en = inLanguage('en', () => text(renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft({ title: 'Midterm', editingDeckId: 'deck-1' }), data: { decks: [{ id: 'deck-1', title: 'Midterm', count: 12 }] }, onClose: noop }))));
+  assert.doesNotMatch(en, han);
+});
+
+test('a draft whose publication check is running cannot be deleted yet: the confirm waits and says why, and nothing claims a job stops', () => {
+  const html = renderToStaticMarkup(React.createElement(m.DeleteDraftDialog, { draft: draft(), data: { jobs: [{ id: 'pub-1', type: 'draft-publish', draftId: 'd1', status: 'running' }] }, onClose: noop }));
+  assert.match(text(html), /这份草稿正在后台做发布检查，检查结束后才能删除。/);
+  assert.doesNotMatch(html, /任务会停止/);
+  const footer = html.match(/<footer[^>]*>(.*)<\/footer>/s)[1];
+  assert.match(footer, /<button[^>]*disabled=""[^>]*>永久删除草稿</, 'the confirm is disabled');
 });
 
 test('a 待发布 row has a quiet 删除 named by its draft (it opens the same dialog), in both languages', () => {

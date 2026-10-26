@@ -79,7 +79,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const nav = useNavigation({ core, lib: handle, motion: shell.motion, rootRef: shell.rootRef });
   const session = useReviewSession({ core, nav, modalOpen: !!lib.modal, host, rootRef: shell.rootRef, late });
   const resetLibraryState = useLibraryReset({ core, libApi: set, nav, session, defaultGen: () => freshGeneration(core.refs.dataRef.current?.settings),
-    abandonPending: abandonUndoable, unsentText: (count) => uiFormat('学习库已更换：刚才删除的 {0} 项没有删除。', [count]) });
+    abandonPending: abandonUndoable, unsentText: (count) => uiFormat('学习库已更换：刚才的 {0} 项删除没有执行，它们还在原来的学习库里。', [count]) });
   const connection = useLibraryConnection({ core, libApi: set, resetLibraryState, session, nav, host, language });
   const { data } = connection;
   const [notice, setNotice] = useNotice(reviewNoticeScope(connection.binding.root, nav.page, session.run));

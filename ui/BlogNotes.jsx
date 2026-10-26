@@ -14,7 +14,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
-import { Button, InlineMessage, PageHeader, useToast } from './components/index.js';
+import { Button, InlineMessage, Menu, PageHeader, useToast } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -188,7 +188,8 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
     undoable.commitLater({ keys: [gone.id], message: drafting ? uiFormat('已删除笔记「{0}」；正在起草的任务会停止。', [title]) : uiFormat('已删除笔记「{0}」', [title]),
       commit: async () => { await call('note.delete', { id: gone.id }); clearDraft(draftKey(data.root, 'note', gone.id)); return true; },
       failed: (reason) => uiFormat('没能删除笔记「{0}」，已放回原处：{1}', [title, reason]),
-      onRestore: () => { if (!openId.current) setId(gone.id); } });
+      onRestore: () => { if (!openId.current) setId(gone.id); },
+      focus: () => document.querySelector('.note-heading [data-context-heading]') });
   }
   async function saveMaterial() {
     return perform(async live => {
@@ -220,8 +221,9 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
           onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
         {editing && writable && <Button variant="primary" disabled={saving || !dirty || note.generation?.status === 'running'} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
         <Button onClick={onBack}>{backLabel || ui('返回学习库')}</Button>
-        {/* Last and quiet, as 删除 is at the end of the 任务 header: one click, then 撤销 in the notice. */}
-        {note && <Button variant="quiet" className="note-delete" disabled={saving || publishing} onClick={removeNote}>{ui('删除这篇笔记')}</Button>}
+        {/* Behind the note's ⋯ (更多操作), never beside 返回: a slip on the way back must not delete. One choice there, then 撤销 in the notice. */}
+        {note && <Menu className="note-more" label={ui('更多操作')} items={[{ id: 'delete', label: ui('删除这篇笔记'), danger: true, disabled: saving || publishing, attrs: { 'data-note-delete': '' } }]}
+          onSelect={(id) => { if (id === 'delete') removeNote(); }} />}
       </>}>
       {dirty && <span className="note-unsaved">{ui('有未保存的修改')}</span>}
       {editing && storageWarning && <InlineMessage tone="warning">{ui('浏览器暂存不可用，请及时保存草稿。')}</InlineMessage>}

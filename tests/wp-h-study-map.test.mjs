@@ -171,9 +171,9 @@ test('HomeActivity lists jobs and drafts, with a bulk dismiss only past one fini
     call: noop, continueDraft: noop, modelReady: true, data: baseData() };
   const one = html(m.HomeActivity, { ...base, jobs: [job('a', 'failed'), job('b', 'running')] });
   assert.match(one, /class="home-activity"|class="home-activity /);
-  assert.doesNotMatch(one, /全部知道了/);
+  assert.doesNotMatch(one, /全部归档/);
   const many = html(m.HomeActivity, { ...base, jobs: [job('a', 'failed'), job('b', 'partial'), job('c', 'complete')] });
-  assert.match(many, /全部知道了/);
+  assert.match(many, /全部归档/);
   assert.equal(html(m.HomeActivity, { ...base, jobs: [] }), '');
 });
 

@@ -217,10 +217,10 @@ export default function Draft({
           {publicationLabel}
         </Button>
         <Button variant="danger" disabled={busy || missingDraft} onClick={() => setDeletingId(draft.id)}>
-          {updatingDraft ? ui("删除草稿并停止任务") : ui("删除草稿")}
+          {ui("删除草稿")}
         </Button>
       </div>
-      {deleting && <DeleteDraftDialog draft={draft} running={updatingDraft} onClose={() => setDeletingId(null)}
+      {deleting && <DeleteDraftDialog draft={draft} data={data} onClose={() => setDeletingId(null)}
         onDeleted={() => { setDeletingId(null); clearRecovery(); setPage("library"); }} />}
       {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
         action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}

@@ -471,8 +471,8 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   </button>
                 </div>
               </header>
-              {confirmDelete && <ConfirmDialog title={uiFormat("删除骨架「{0}」？", [viewing.title])} description={ui("只删骨架，题目不受影响。")}
-                confirmLabel={ui("删除")} onClose={() => setConfirmDelete(false)}
+              {confirmDelete && <ConfirmDialog title={uiFormat("永久删除骨架「{0}」？", [viewing.title])} description={ui("只删骨架，题目不受影响。")}
+                confirmLabel={ui("永久删除")} onClose={() => setConfirmDelete(false)}
                 onConfirm={async () => {
                   setPending("delete");
                   try {

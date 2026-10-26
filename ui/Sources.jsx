@@ -392,9 +392,16 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // The handlers the rows call: one object that never changes and reads the latest state itself, so a row is drawn again only for its own data (#229).
   const latest = useRef(null);
   // 归档 says so and offers 撤销 (source.archive back) and the second step of archive-first, 永久删除…, which opens the same dialog as the archive's own button.
+  // The keyboard focus after 撤销 is the row's 更多 again; after 永久删除… is closed it is that row, or the 已归档 button when the row is in the archive.
+  const rowMenu = key => () => document.querySelector(`[data-document-key="${CSS.escape(key)}"] .source-row-actions > summary`);
   const offerArchived = item => offerRestore(toast, { message: uiFormat('已归档「{0}」：在「已归档」里，可以恢复或永久删除。', [displayTitle(item.title)]),
-    restored: uiFormat('已恢复「{0}」', [displayTitle(item.title)]), restore: () => act('source.archive', { sourceIds: item.sourceIds, archived: false }),
-    secondary: { label: ui('永久删除…'), onClick: () => setRemoving({ ...item, archived: true }) } });
+    restored: uiFormat('已恢复「{0}」', [displayTitle(item.title)]), restore: () => act('source.archive', { sourceIds: item.sourceIds, archived: false }), focus: rowMenu(item.key),
+    secondary: { label: ui('永久删除…'), onClick: () => setRemoving({ ...item, archived: true, fromNotice: true }) } });
+  const closeRemoving = () => {
+    const was = removing;
+    setRemoving(null);
+    if (was?.fromNotice) setTimeout(() => { (rowMenu(was.key)() || document.querySelector('[data-archive-toggle]'))?.focus?.(); }, 30);
+  };
   latest.current = { offerArchived, setModal, byId, act, onGenerate, onPractice, toast, onOpenSettings, onBuildIndex, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
   const actions = useMemo(() => ({
     open: id => latest.current.setModal({ type: "source", source: latest.current.byId.get(id) }),
@@ -454,7 +461,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           (pinned.length ? (rest.length ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [filtered.length, pinned.length, groups.length]) : uiFormat(" 共 {0} 份资料，全部置顶。", [filtered.length]))
             : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length]))}</>}
         actions={<>
-          <Button variant="quiet" aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
+          <Button variant="quiet" data-archive-toggle aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
           {groups.length > 1 && <Button variant="quiet" onClick={() => {
             if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
             else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
@@ -553,7 +560,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses}
         onClose={() => setEditingCourse(null)} />}
       {segmenting && <OutlineDialog item={segmenting} onClose={() => setSegmenting(null)} />}
-      {removing && <RemoveDialog item={removing} onClose={() => setRemoving(null)}
+      {removing && <RemoveDialog item={removing} onClose={closeRemoving}
         onRemoved={item => { setRemoving(null); toast.success(uiFormat("已永久删除「{0}」", [displayTitle(item.title)])); }} />}
     </section>
   );

@@ -23,12 +23,16 @@ import css from './mineru.css';
 const SERVICE_STOPPED = ['server-stopped', 'server-start-failed'];
 const retryTip = job => (job.converter !== 'marker' && SERVICE_STOPPED.includes(job.errorCode || job.failure?.code) ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : undefined);
 
+/** What a card action came to. The app's act() resolves undefined when it did NOT run (another write held the lock) or failed (it shows the error itself), and
+    { ok: false } is a refusal: only anything else is done, so the card never says 「已归档 · 撤销」 for an archive that did not happen. */
+export const cardOutcome = (value) => (value === undefined || value === null || value?.ok === false ? { ok: false } : { ok: true });
+
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
   const [working, setWorking] = useState('');
   const run = async (name, work) => {
     if (working) return { ok: false };
     setWorking(name);
-    try { await work(); onChanged?.(); return { ok: true }; } catch { /* the console shows what went wrong; the card stays as it was */ return { ok: false }; } finally { setWorking(''); }
+    try { const outcome = cardOutcome(await work()); if (outcome.ok) onChanged?.(); return outcome; } catch { /* the console shows what went wrong; the card stays as it was */ return { ok: false }; } finally { setWorking(''); }
   };
   // A stopped local service is started by the run itself (lib/contexts/audio/pdf/convert-run.js): 接着做 is all it takes.
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
@@ -356,9 +360,17 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   const forget = async (request) => { await request(); if (alive.current) await load(); return true; };
   const remove = row => { toHeading(); undoable.commitLater({ keys: [row.id], message: uiFormat('已删除「{0}」的记录', [row.filename]),
     commit: () => forget(() => call('mineru.history.remove', { id: row.id })), failed: reason => uiFormat('没能删除「{0}」的记录，已放回原处：{1}', [row.filename, reason]) }); };
-  // 清空历史 forgets every row that is not running (the host's own rule); the rows shown leave at once.
+  // 清空历史: the rows shown (none running) leave at once; when the notice leaves, exactly THOSE records are forgotten, one by one (a conversion that finished
+  // during the 撤销 time is not swept away with them, as the unscoped mineru.history.clear would). A record that started running again stays and comes back.
   const clear = () => { const ids = deletable.map(row => row.id); toHeading(); undoable.commitLater({ keys: ids, message: uiFormat('已清空 {0} 条解析记录', [ids.length]),
-    commit: () => forget(() => call('mineru.history.clear', { confirm: true })), failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]) }); };
+    commit: async () => {
+      const kept = [];
+      for (const id of ids) { try { await call('mineru.history.remove', { id }); } catch { kept.push(id); } }
+      if (alive.current) await load();
+      return { ok: true, kept };
+    },
+    kept: count => uiFormat('{0} 条记录又在运行，没有删除', [count]),
+    failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]) }); };
   const retry = row => work(row.id, async () => {
     // A stopped local service is started by the run itself.
     await send('mineru.retry', { jobId: row.id });

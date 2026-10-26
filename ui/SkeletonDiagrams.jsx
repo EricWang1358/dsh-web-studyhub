@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useStudy } from './study-context.jsx';
 import { useInjectCss } from './shared.js';
@@ -7,6 +7,7 @@ import { formatBytes, formatDateTime } from './format.js';
 import { DiagramFrame } from './diagram-frame.js';
 import { Badge, Button, Dialog, InlineMessage, LoadingState } from './components/index.js';
 import { useUndoable } from './use-undoable.js';
+import { AppContext } from './app/app-context.js';
 import css from './skeleton-companion.css';
 
 /* 交互图: the diagrams a skeleton carries (docs/companions.md). The learner's agent drew each one with an outside tool (Archify) and
@@ -53,14 +54,16 @@ function DiagramViewer({ skeletonId, row, onClose }) {
 }
 
 export default function SkeletonDiagrams({ skeletonId, diagrams, revision }) {
-  const { act } = useStudy();
+  const { call } = useStudy();
+  // The deletion is a plain call (not the single-flight act(): a second and third quick 删除 must not be dropped as "another operation"), then the library is read again.
+  const refresh = useContext(AppContext)?.core?.refresh;
   useInjectCss(css, 'study-skeleton-companion');
   const [opened, setOpened] = useState(null);
   const undoable = useUndoable();
   const rows = diagramRows(diagrams, revision).filter((row) => !undoable.hidden(`diagram:${row.id}`));
   const remove = (row) => undoable.commitLater({ keys: [`diagram:${row.id}`],
     message: uiFormat('已删除图「{0}」在学习库里的副本；骨架和你工作目录里的原文件都还在。', [row.title]),
-    commit: async () => { const done = await act('skeleton.diagram.remove', { id: skeletonId, diagramId: row.id }, undefined, { rethrow: true }); if (done === undefined) throw new Error(ui('另一个操作还在进行，请稍后重试。')); return true; },
+    commit: async () => { await call('skeleton.diagram.remove', { id: skeletonId, diagramId: row.id }); Promise.resolve(refresh?.()).catch(() => {}); return true; },
     failed: (reason) => uiFormat('没能删除图「{0}」，已放回原处：{1}', [row.title, reason]) });
   if (!rows.length) return null;
   return (

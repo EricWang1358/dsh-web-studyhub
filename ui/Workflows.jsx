@@ -253,7 +253,9 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     const name = type === "template" ? item.title : item.topic;
     undoable.commitLater({ keys: [`${type}:${item.id}`], message: type === "template" ? uiFormat("已删除学习流「{0}」；已开始的学习记录还在。", [name]) : uiFormat("已删除学习记录「{0}」的笔记和进度；闪卡练习历史还在。", [name]),
       commit: async () => { await call(type === "template" ? "workflow.delete" : "workflow.session.delete", { id: item.id, version: item.version }); if (live.current) await refresh(); return true; },
-      failed: (reason) => uiFormat("没能删除「{0}」，已放回原处：{1}", [name, reason]) });
+      failed: (reason) => uiFormat("没能删除「{0}」，已放回原处：{1}", [name, reason]),
+      // 撤销 puts the keyboard focus back on the row's own 删除.
+      focus: () => document.querySelector(type === "template" ? `[data-template="${CSS.escape(item.id)}"] .wf-actions button:last-child` : `[data-session="${CSS.escape(item.id)}"] .wf-actions button:last-child`) });
   }
   const sessions = (listing?.sessions || []).filter((s) => !undoable.hidden(`session:${s.id}`));
   const templates = (listing?.templates || []).filter((t) => !undoable.hidden(`template:${t.id}`));
@@ -299,19 +301,19 @@ export default function Workflows({ data, openSession, openRun, initialListing =
     </form>
     {error && <ErrorState error={error} />}
     <div className="wf-section-head"><h2>{ui("学习记录")}</h2></div>
-    {!sessions.length ? <p className="muted wf-empty">{ui("还没有学习记录。在上面说一句想学什么，学到一半离开也会留在这里，随时接着学。")}</p> : <ul className="wf-session-list">{[...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? ui("本次学习已结束") : s.stepTitle}</p><small className="muted">{s.status === "completed" ? "" : `${ui(STATUS[s.status])} · `}{when(s.updatedAt)}</small></div><div className="wf-actions"><Button disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? ui("查看记录") : ui("继续学习")}</Button><Button disabled={!!pending} aria-label={uiFormat("删除学习记录 {0}", [s.topic])} onClick={() => remove("session", s)}>{ui("删除")}</Button></div></li>)}</ul>}
+    {!sessions.length ? <p className="muted wf-empty">{ui("还没有学习记录。在上面说一句想学什么，学到一半离开也会留在这里，随时接着学。")}</p> : <ul className="wf-session-list">{[...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id} data-session={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? ui("本次学习已结束") : s.stepTitle}</p><small className="muted">{s.status === "completed" ? "" : `${ui(STATUS[s.status])} · `}{when(s.updatedAt)}</small></div><div className="wf-actions"><Button disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? ui("查看记录") : ui("继续学习")}</Button><Button disabled={!!pending} aria-label={uiFormat("删除学习记录 {0}", [s.topic])} onClick={() => remove("session", s)}>{ui("删除")}</Button></div></li>)}</ul>}
     <details className="wf-advanced"><summary>{ui("高级：自定义学习步骤")}</summary>
       <p className="muted small">{ui("想按自己的顺序学时再用。自定义的学习流用「使用」开始，需要自己选主题与范围。")}</p>
-    <div className="wf-section-head"><h2>{ui("我的学习流")}{" "}<span className="muted">{listing.templates.length} / {listing.limit}</span></h2><Button icon="plus" size="sm" disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit({ title: "", description: "", steps: [newStep(listing.components[0])] }, "new")}>{ui("自己拼一条")}</Button></div>
-    {listing.templates.length >= listing.limit && <p className="muted small">{ui("已保存五条。可以修改现有流程，或删除一条后再创建。")}</p>}
-    <div className="wf-template-list">{templates.map((template, index) => <article className="wf-template-row" key={template.id}>
+    <div className="wf-section-head"><h2>{ui("我的学习流")}{" "}<span className="muted">{templates.length} / {listing.limit}</span></h2><Button icon="plus" size="sm" disabled={!!pending || templates.length >= listing.limit} onClick={() => { void undoable.flush(); edit({ title: "", description: "", steps: [newStep(listing.components[0])] }, "new"); }}>{ui("自己拼一条")}</Button></div>
+    {templates.length >= listing.limit && <p className="muted small">{ui("已保存五条。可以修改现有流程，或删除一条后再创建。")}</p>}
+    <div className="wf-template-list">{templates.map((template, index) => <article className="wf-template-row" key={template.id} data-template={template.id}>
       <span className="wf-row-number" aria-hidden="true">{formatIndex(index + 1)}</span><div className="wf-template-copy"><h3>{template.title}</h3><p>{template.description || uiFormat("{0} 个学习步骤", [template.steps.length])}</p><div className="wf-route-preview">{template.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div>
       <div className="wf-actions"><Button onClick={() => setScreen({ kind: "start", template })} disabled={!!pending}>{ui("使用")}</Button><Button onClick={() => edit(template)} disabled={!!pending}>{ui("编辑")}</Button><Button aria-label={uiFormat("删除学习流 {0}", [template.title])} onClick={() => remove("template", template)} disabled={!!pending}>{ui("删除")}</Button></div>
     </article>)}</div>
-    <article className="wf-suggested"><div><p className="wf-eyebrow">{ui("从一条建议开始")}</p><h3>{listing.suggested.title}</h3><p className="muted">{listing.suggested.description}</p><div className="wf-route-preview">{listing.suggested.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div><Button disabled={!!pending || listing.templates.length >= listing.limit} onClick={() => edit(listing.suggested, "suggested")}>{ui("编辑并保存这条流程")}</Button></article>
+    <article className="wf-suggested"><div><p className="wf-eyebrow">{ui("从一条建议开始")}</p><h3>{listing.suggested.title}</h3><p className="muted">{listing.suggested.description}</p><div className="wf-route-preview">{listing.suggested.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div><Button disabled={!!pending || templates.length >= listing.limit} onClick={() => { void undoable.flush(); edit(listing.suggested, "suggested"); }}>{ui("编辑并保存这条流程")}</Button></article>
     <details className="wf-chat"><summary>{ui("和主会话一起拼")}</summary>
       <HandOffForm id="workflow.design" className="wf-chat__form" label="告诉主会话你的学习习惯" placeholder="例如：我只想轻松刷卡，最后记一下容易忘的点；或先讲例子，再让我口述。" maxLength={2000}
-        what="让主会话按你写的学习习惯设计一条学习流" disabled={!!pending || listing.templates.length >= listing.limit} input={(text) => ({ wish: text })} />
+        what="让主会话按你写的学习习惯设计一条学习流" disabled={!!pending || templates.length >= listing.limit} input={(text) => ({ wish: text })} />
       <p className="muted small">{ui("主会话与这里编辑同一份流程；你可以随时再手动调整。")}</p>
     </details>
     </details>
