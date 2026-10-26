@@ -335,7 +335,10 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     setResponse: (response) => patch({ response }),
     setClozeValue: (id, value) => patch((current) => ({ clozeValues: { ...current.clozeValues, [id]: value } })),
     setTeachAnswer: (teachAnswer) => patch({ teachAnswer }),
-    closeShortcutHelp: () => setShortcutHelp(false), toggleAutopilot,
+    closeShortcutHelp: () => setShortcutHelp(false),
+    // The sidebar's 快捷键 entry opens the same sheet as the ? key (ui/ShortcutHelp.jsx): one sheet, two ways in.
+    openShortcutHelp: () => setShortcutHelp(true),
+    toggleAutopilot,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
     shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions };

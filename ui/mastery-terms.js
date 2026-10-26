@@ -19,6 +19,23 @@ export const TERMS = Object.freeze({
 /** The hint of each mastery level, for the legend. */
 export const LEVEL_HINT = Object.freeze({ mastered: TERMS.mastered.hint, familiar: TERMS.familiar.hint, learning: TERMS.learning.hint, weak: TERMS.weak.hint, new: TERMS.new.hint });
 
+/* ── The other words the interface assumes ─────────────────────────────────────────────────────────────────────────────────
+   Not numbers but names: 主会话, 总纲, 覆盖强度, 前置题 and the two places everything lives in. The interface uses them as if
+   everyone knew them; this table says what each one is, in the same shape as TERMS above (label + one-line hint) and in the one
+   place whose job is naming things. The sidebar's 名词解释 entry shows the table on hover and on focus (ui/app/AppSidebar.jsx),
+   so the words are explained where a learner meets them without hunting through Settings.
+
+   The labels are the interface's own words (the same strings the buttons and headings use); the hints are Chinese source text,
+   read through ui() like every other sentence. */
+export const GLOSSARY = Object.freeze({
+  mainChat: { label: '主会话', hint: 'DSH 里和你对话的那个窗口。练习、导入和出题，都可以回到那里说一声。' },
+  outline: { label: '总纲', hint: '一门课的资料按章节排成的树，题放在它们指向的位置；复习全书按总纲来排。' },
+  coverage: { label: '覆盖强度', hint: '出题时资料要覆盖到什么程度：精简、标准、完整。选得越完整，题越多，也花得越多。' },
+  prerequisite: { label: '前置题', hint: '先补基础的题：按这道题用到的知识出一道更基础的题，练完可以回到原题。' },
+  library: { label: '学习库', hint: '你电脑上的一个文件夹，资料、题组和复习记录都保存在里面。' },
+  deck: { label: '题组', hint: '一组题。发布后可以反复练，复习进度和错题都按题组记。' },
+});
+
 /* ── Every "how well" number has its own name ────────────────────────────────────────────────────────────────────────────
    A learner meets five of them: the state of the questions (Home, 资料, the reader), the 30-day rates on the dashboard (three of
    them), and the counts of one round (the result page, the coach card). They measure different things, so they carry different

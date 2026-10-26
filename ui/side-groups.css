@@ -72,8 +72,12 @@
     .nav-group-label[aria-expanded="false"] .nav-group-chevron {
       transform: translateX(-2px) rotate(-45deg);
     }
-    /* The row's Tooltip wrapper adds no box of its own (its panel is in the top layer). */
-    .side-nav .nav-tip { display: block; }
+    /* The row's Tooltip wrapper adds no box of its own (its panel is in the top layer). The footer's rows get the same: an inline
+       wrapper would shrink the row to its text and set 外观 and 设置 side by side, so the rail could scroll sideways in a narrow window. */
+    .side-nav .nav-tip,
+    .sidebar-bottom .nav-tip { display: block; }
+    /* A group label's Tooltip wrapper keeps the label one fixed-height line. */
+    .side-nav .nav-group-tip { display: block; }
     /* Every row, wherever it sits, floats above the one gliding highlight; a lifted row above its neighbours. */
     .side-nav .nav {
       z-index: 1;
