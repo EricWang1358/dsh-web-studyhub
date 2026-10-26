@@ -187,7 +187,9 @@ test("the old JSON-centric guide is gone", async () => {
   await assert.rejects(access("ui/Guide.jsx"));
   for (const file of await sourceFiles("ui")) {
     const text = await readFile(file, "utf8");
-    assert.doesNotMatch(text, /from ["']\.\/Guide\.jsx["']|<Guide\b|study-guide/, file);
+    // The retired guide was a component (ui/Guide.jsx) and a chat-only prompt; the name 「study-guide」 is no longer banned:
+    // 3.7.0 ships a real skill under that name (skills/study-guide/SKILL.md, lib/study-skills.js), which is not a page and hands nothing off.
+    assert.doesNotMatch(text, /from ["']\.\/Guide\.jsx["']|<Guide\b/, file);
   }
   // Onboarding copy never sends a new learner to JSON imports or chat-only prompts.
   for (const file of ["ui/Welcome.jsx", ...(await sourceFiles("ui/tour"))]) {
