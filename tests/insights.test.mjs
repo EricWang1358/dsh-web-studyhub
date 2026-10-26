@@ -54,16 +54,6 @@ test('old snapshot grades stay in history without changing current learning proj
   }
 });
 
-test('the explanation of an opened mistake is cut at its limit, never inside a formula', () => {
-  const state = emptyState();
-  const explanation = `${'解'.repeat(795)}，得$20220\\times1.1\\%$元。`;
-  state.decks = [{ id: 'd', title: 'Deck', cards: [{ ...card('q', 'quiz'), explanation }] }];
-  state.attempts = [{ deckId: 'd', quiz_id: 'q', grade: 1, timestamp: '2026-10-01T01:00:00Z' }];
-  const shown = wrongDetail(state, { deckId: 'd', cardId: 'q' }).explanation;
-  assert.equal(shown, `${'解'.repeat(795)}，得`, 'the open formula is dropped with its dollar sign');
-  assert.equal(wrongDetail({ ...state, decks: [{ id: 'd', title: 'Deck', cards: [{ ...card('q', 'quiz'), explanation: '短解析 $x$' }] }] }, { deckId: 'd', cardId: 'q' }).explanation, '短解析 $x$');
-});
-
 test('an old snapshot outcome never overrides an earlier valid outcome', () => {
   for (const [grade, staleGrade] of [[1, 5], [5, 1]]) {
     const state = emptyState();

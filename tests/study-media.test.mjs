@@ -28,7 +28,7 @@ test('notes as people write them: spaced dollars, a unit after a number, bare La
   assert.deepEqual(prepareStudyMath('矩阵 \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} 如上').formulas.map((formula) => formula.display), [false]);
   // Prose, currency and look-alikes are not formulas.
   for (const prose of ['价格$5和$10', 'costs $ 5 and $ 10 each', '5$ and 6$ total', '$x $ 和 $ y$', 'a$b$c', '`\\begin{equation}`', '\\begin{foo} x \\end{foo}', '$ 和 $', '(5$)',
-    'Revenue = $ 500 + $ 300 = $ 800', '$ 5 * 3 = $ 15', 'save $ 100 / month and $ 200 / year', 'cost $ 5 > $ 3', '收入 $ 100 + $ 200，合计', '$ 1,000 + $ 2,000', '| A | $ 5 | $ 1 |'])
+    '%1$s and %2$s', 'Revenue = $ 500 + $ 300 = $ 800','$ 5 * 3 = $ 15', 'save $ 100 / month and $ 200 / year', 'cost $ 5 > $ 3', '收入 $ 100 + $ 200，合计', '$ 1,000 + $ 2,000', '| A | $ 5 | $ 1 |'])
     assert.deepEqual(raws(prose), [], prose);
   // Money with a space after the sign must not swallow the real formula after it.
   assert.deepEqual(raws('price $ 5 + tax, then solve $x^2=4$.'), ['$x^2=4$']);
@@ -38,11 +38,18 @@ test('notes as people write them: spaced dollars, a unit after a number, bare La
 });
 
 test('physics and siunitx commands KaTeX does not know are written out, so the note draws; the rest still falls back to its source', () => {
-  for (const source of ['\\dv{x}{t}', '\\pdv{f}{x}', '\\SI{3}{m/s}', '\\unit{m/s}', '\\upmu\\mathrm{m}', '\\mbox{m}', '\\vb{F}', '\\ev{x}', '\\ang{30}', '\\num{3e8}', 'a\\label{x}', '\\abs{x}', '\\mathbbm{1}'])
+  for (const source of ['\\dv{x}{t}', '\\pdv{f}{x}', '\\SI{3}{m/s}', '\\unit{m/s}', '\\upmu\\mathrm{m}', '\\mbox{m}', '\\vb{F}', 'a\\label{x}', '\\abs{x}', '\\norm{x}', '\\eqref{x}', '\\mathbbm{1}'])
     assert.match(renderStudyFormula(source, false), /<math/, source);
   assert.equal(renderStudyFormula('\\qty(\\frac{a}{b})', false), null, 'a command with no stand-in is shown as written');
   // A stand-in that cannot be sure of its arguments shows the source instead of drawing something else.
   for (const source of ['\\dv{x}', '\\dv[2]{x}{t}', '\\pdv{f}{x}{y}', '\\dv{x} = 2', '\\SI[round=1]{3}{m/s}', '\\abs*{x}']) assert.equal(renderStudyFormula(source, false), null, source);
+  // Commands whose package meaning is not the plain text they would give are left out: the source shows, nothing else is drawn.
+  for (const source of ['\\ev{x}', '\\ev{A}{\\psi}', '\\va{a}', '\\vu{x}', '\\ang{30;15;10}', '\\num{3e8}']) assert.equal(renderStudyFormula(source, false), null, source);
+  // The space the lexer drops after a control word stays: an argument is not glued into another command.
+  const flat = (html) => html.replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
+  assert.equal(flat(renderStudyFormula('\\abs{F \\cdot s}', false)), '∣F⋅s∣');
+  assert.match(renderStudyFormula('\\abs{\\sin h}', false), /<mi>sin<\/mi>[\s\S]*<mi>h<\/mi>/, '\\sin h keeps its h');
+  assert.doesNotMatch(renderStudyFormula('\\abs{x \\in t}', false), /∫/, '\\in t is not \\int');
   // A command that draws nothing takes its argument with it.
   const plain = (html) => html.replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
   assert.equal(plain(renderStudyFormula('\\label{eq:newton}F = ma', false)), 'F=ma');

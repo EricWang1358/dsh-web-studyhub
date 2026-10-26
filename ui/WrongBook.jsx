@@ -107,9 +107,11 @@ function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
   );
 }
 
-/** One fact of an opened mistake. What the learner answered, the answer and the explanation are study text: drawn as Markdown, so formulas are formulas. */
-function DetailLine({ label, children }) {
-  return children ? <div className="wb-fact"><dt>{label}</dt><dd>{typeof children === "string" ? <Markdown text={children} links={false} /> : children}</dd></div> : null;
+/** One fact of an opened mistake. The correct answer, the explanation and the pitfall are study text: drawn as Markdown, so formulas are formulas. What the
+ * learner typed (`plain`) is theirs: only its formulas are drawn, no Markdown marks change it. */
+function DetailLine({ label, children, plain = false }) {
+  const shown = typeof children !== "string" ? children : plain ? <StudyInline text={children} /> : <Markdown text={children} links={false} />;
+  return children ? <div className="wb-fact"><dt>{label}</dt><dd>{shown}</dd></div> : null;
 }
 
 function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, disabled }) {
@@ -120,7 +122,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
           : (
             <dl className="wb-facts">
               <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
-              <DetailLine label={ui("你的答案")}>{detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer}</DetailLine>
+              <DetailLine label={ui("你的答案")} plain>{detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer}</DetailLine>
               <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
               <DetailLine label={ui("解析")}>{detail.explanation}</DetailLine>
               <DetailLine label={ui("易错点")}>{detail.misconception}</DetailLine>

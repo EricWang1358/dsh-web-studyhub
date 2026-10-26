@@ -108,6 +108,8 @@ test('the gate reads the same delimiters the renderer draws: spaced dollars, a u
     assert.deepEqual(bareMath(fine), [], JSON.stringify(fine));
   // Beside a delimited one, a formula that is still bare is still found.
   assert.deepEqual(bareMath('$ F = ma $ 与 x_{i}'), ['x_{i}']);
+  // The gate counts exactly what the renderer draws (one scanner, lib/math-scan.js): a spaced pair the renderer reads as money does not hide the TeX between.
+  assert.deepEqual(bareMath('先付 $ 5 + $ 3，再算 \\frac{1}{2}，最后 $ 8'), ['\\frac']);
 });
 
 test('bareMath finds unmistakable TeX outside delimiters and code, and nothing else', () => {

@@ -135,7 +135,8 @@ test('formulas in an opened row, its prompt line and its variants are formulas, 
   const hard = { ...row('c1', 'd4', '保护状态', String.raw`年利率为$1.1\%$，存$20000$元`) };
   const html = render({ items: [hard], initial: { expanded: ['c1'], groups: 'all' },
     details: { c1: { yourAnswer: math, correctAnswer: math, explanation: math, misconception: math, selfGrade: null } } });
-  assert.equal((html.match(/class="md-math"/g) || []).length >= 10, true, 'the prompt line and every fact draw their formulas through the one formula unit');
+  const drawn = (html.match(/class="md-math"/g) || []).length;
+  assert.equal(drawn >= 10, true, `the prompt line and every fact draw their formulas through the one formula unit (${drawn})`);
   assert.match(html, /<span class="wb-prompt"[^>]*>[^<]*<span class="md-math"/, 'the prompt line keeps one line, its formulas inline');
   // An auto grid track takes the longest unbroken line as its minimum width: the panel must use minmax(0, 1fr).
   const { readFile } = await import('node:fs/promises');

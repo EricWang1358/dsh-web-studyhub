@@ -2,11 +2,13 @@ import katex from 'katex/dist/katex.js';
 import 'katex/dist/contrib/mhchem.js';
 
 /* Commands notes copy from the `physics` and `siunitx` packages and from older LaTeX that KaTeX does not know. Each is written out in what KaTeX
-   does know, so a physics note draws instead of falling back to its source. A macro that cannot be sure of its arguments refuses (the formula then
-   shows its source, as before) rather than draw something else: a leading `[` or `*` (the optional-argument and starred forms), and a derivative
-   written with one argument or with three. Anything not listed still falls back. */
+   does know, so a physics note draws instead of falling back to its source. Only the commands whose meaning is certain are here, and a macro that
+   cannot be sure of its arguments refuses (the formula then shows its source, as before) rather than draw something else: a leading `[` or `*`
+   (the optional-argument and starred forms), a derivative written with one argument or with three. Left out on purpose, because the package draws
+   something else than the plain text they would give: \qty, \ev, \va, \vu, \ang, \num. Anything not listed still falls back to its source. */
 
-const textOf = (tokens) => tokens.slice().reverse().map((token) => token.text).join('');
+/** The source text of the tokens `consumeArgs` returns (they come last-first, and the lexer has dropped the space after a control word: put it back). */
+const textOf = (tokens) => tokens.slice().reverse().map((token) => (/^\\[A-Za-z@]+$/.test(token.text) ? `${token.text} ` : token.text)).join('');
 const refuse = (what) => { throw new Error(`${what} is not drawn`); };
 const refuseOptional = (context, name) => { if (['[', '*'].includes(context.future().text)) refuse(`${name} with an optional or starred form`); };
 
@@ -33,17 +35,12 @@ const MACROS = {
   '\\mathbbm': fixed('\\mathbbm', 1, '\\mathbb{#1}'),
   '\\upmu': '\\mathrm{\\mu}',
   '\\micro': '\\mathrm{\\mu}',
-  '\\ang': fixed('\\ang', 1, '#1^{\\circ}'),
-  '\\num': fixed('\\num', 1, '#1'),
   '\\unit': fixed('\\unit', 1, '\\mathrm{#1}'),
   '\\si': fixed('\\si', 1, '\\mathrm{#1}'),
   '\\SI': fixed('\\SI', 2, '#1\\,\\mathrm{#2}'),
   '\\dv': derivative('\\dv', '\\mathrm{d}'),
   '\\pdv': derivative('\\pdv', '\\partial '),
   '\\vb': fixed('\\vb', 1, '\\mathbf{#1}'),
-  '\\va': fixed('\\va', 1, '\\boldsymbol{#1}'),
-  '\\vu': fixed('\\vu', 1, '\\hat{\\mathbf{#1}}'),
-  '\\ev': fixed('\\ev', 1, '\\left\\langle #1\\right\\rangle'),
   '\\abs': fixed('\\abs', 1, '\\left|#1\\right|'),
   '\\norm': fixed('\\norm', 1, '\\left\\|#1\\right\\|'),
   '\\eqref': fixed('\\eqref', 1, '\\text{(#1)}'),
