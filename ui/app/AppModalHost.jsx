@@ -44,7 +44,12 @@ export default function AppModalHost() {
       )}
       {tour.removingSample && <RemoveSampleDialog busy={tour.sampleBusy} onConfirm={tour.removeSampleData} onClose={() => tour.setRemovingSample(false)} />}
       {removing && (
-        <RemoveDeckDialog key={`${data.root}:${removing.id}`} deck={removing} busy={core.busy} act={core.act} onClose={() => set.setRemovingDeck(null)}
+        <RemoveDeckDialog key={`${data.root}:${removing.id}`} deck={removing} busy={core.busy} act={core.act} onClose={() => {
+          // Opened from an archive notice (its button is gone): the focus goes back to the control the caller names, not to the page.
+          const back = lib.removingDeck?.returnFocus;
+          set.setRemovingDeck(null);
+          if (back) setTimeout(() => document.querySelector(back)?.focus?.(), 30);
+        }}
           onRemoved={(deck) => {
             set.setRemovingDeck(null);
             if (lib.managedDeck?.id === deck.id) set.setManagedDeck(null);

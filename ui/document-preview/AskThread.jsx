@@ -46,7 +46,7 @@ function KeepRow({ answered, saved, mode, busy, error, onKeep, onDelete }) {
   return <div className="ask-node__keep">
     {all ? <>
       <span className="ask-node__kept" role="status">{ui('已存为批注')}</span>
-      {mode === 'annotate' && onDelete && <Button size="sm" variant="quiet" onClick={() => onDelete()}>{ui('删除这组批注')}</Button>}
+      {mode === 'annotate' && onDelete && <Button size="sm" variant="quiet" disabled={busy} onClick={() => onDelete()}>{ui('删除这组批注')}</Button>}
     </> : <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{ui('把这组问答和这段原文一起存下来。')}</span><span>{ui('之后在批注模式下再次选中这段，它们会回来，原文里也会标出这段。')}</span></span>}>
       <Button size="sm" busy={busy} busyLabel={ui('正在保存…')} onClick={() => onKeep()}>{ui('存为批注')}</Button>
     </Tooltip>}

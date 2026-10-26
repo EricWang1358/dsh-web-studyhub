@@ -159,6 +159,11 @@ test('tier 1 is not loosened: sources and decks are deleted for good only from t
   }
   assert.match(manage, /结束了 \{1\} 轮进行中的练习；撤销只恢复题组/, 'the deck archive says how many practice runs it ended, and that 撤销 does not reopen them');
   assert.match(manage, /closedRuns/, 'counted by the host');
+  // the keyboard way back: 撤销 focuses the archive button again; 永久删除… returns there when its dialog is closed (as Sources does)
+  assert.match(manage, /focus: \(\) => document\.querySelector\("\.manage-page \[data-manage-archive\]"\)/);
+  assert.match(manage, /returnFocus:/);
+  assert.match(read('ui/app/AppModalHost.jsx'), /removingDeck\?\.returnFocus/);
+  assert.match(sources, /closeRemoving/);
 });
 
 test('the words: 永久删除 is irreversible, 移除 takes out of a container; the source dialog no longer mixes them', () => {

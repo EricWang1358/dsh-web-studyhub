@@ -25,6 +25,20 @@ const retryTip = job => (job.converter !== 'marker' && SERVICE_STOPPED.includes(
 
 /** What a card action came to. The app's act() resolves undefined when it did NOT run (another write held the lock) or failed (it shows the error itself), and
     { ok: false } is a refusal: only anything else is done, so the card never says 「已归档 · 撤销」 for an archive that did not happen. */
+/** The host's refusal of mineru.history.remove for a record that is running (lib: 「…进行…」); only that one is "kept", never a transport failure. */
+const RUNNING_AGAIN = /进行|running/i;
+
+/** 清空历史's commit: forget exactly `ids`, one by one. A record the host refuses because it runs again is kept (and said); any other failure (the bridge, the disk)
+    stops there and throws with its own words, so the rows come back with the real reason. → { kept } */
+export async function forgetRecords(call, ids) {
+  const kept = [];
+  for (const id of ids) {
+    try { await call('mineru.history.remove', { id }); }
+    catch (error) { if (RUNNING_AGAIN.test(error?.message || '')) kept.push(id); else throw error; }
+  }
+  return { kept };
+}
+
 export const cardOutcome = (value) => (value === undefined || value === null || value?.ok === false ? { ok: false } : { ok: true });
 
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
@@ -364,10 +378,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   // during the 撤销 time is not swept away with them, as the unscoped mineru.history.clear would). A record that started running again stays and comes back.
   const clear = () => { const ids = deletable.map(row => row.id); toHeading(); undoable.commitLater({ keys: ids, message: uiFormat('已清空 {0} 条解析记录', [ids.length]),
     commit: async () => {
-      const kept = [];
-      for (const id of ids) { try { await call('mineru.history.remove', { id }); } catch { kept.push(id); } }
-      if (alive.current) await load();
-      return { ok: true, kept };
+      try { return { ok: true, kept: (await forgetRecords(call, ids)).kept }; } finally { if (alive.current) await load(); }
     },
     kept: count => uiFormat('{0} 条记录又在运行，没有删除', [count]),
     failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]) }); };

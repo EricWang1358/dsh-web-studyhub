@@ -75,7 +75,9 @@ export default function Manage({
       message: ended ? uiFormat("已归档「{0}」，结束了 {1} 轮进行中的练习；撤销只恢复题组，结束的练习不会重新打开。", [deck.title, ended]) : uiFormat("已归档「{0}」", [deck.title]),
       restored: ended ? uiFormat("已恢复「{0}」；结束的练习不会重新打开。", [deck.title]) : uiFormat("已恢复「{0}」", [deck.title]),
       restore: () => act("deck.archive", { id: deck.id, archived: false }, reload(deck.id)),
-      secondary: { label: ui("永久删除…"), onClick: () => onRemoveDeck(deck.id) } });
+      // The keyboard focus after 撤销 is this page's archive button again; after 永久删除… is closed it comes back to it too (ui/app/AppModalHost.jsx).
+      focus: () => document.querySelector(".manage-page [data-manage-archive]"),
+      secondary: { label: ui("永久删除…"), onClick: () => onRemoveDeck(deck.id, { returnFocus: ".manage-page [data-manage-archive]" }) } });
   }
   return (
     <section className="page manage-page">
@@ -84,7 +86,7 @@ export default function Manage({
           : ui("编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。")}
         actions={<>
           <Button variant="primary" disabled={busy || slainView} onClick={() => act("deck.edit", { id: managedDeck.id }, openDraft)}>{ui("编辑题组")}</Button>
-          <Button disabled={busy || slainView} onClick={archiveDeck}>
+          <Button data-manage-archive disabled={busy || slainView} onClick={archiveDeck}>
             {managedDeck.archived ? ui("恢复题组") : ui("归档题组并结束练习")}
           </Button>
           {managedDeck.archived && !managedDeck.systemKind && <Button variant="danger" disabled={busy}

@@ -8,8 +8,7 @@ import { useDraftShortfall } from '../coverage/use-shortfall.js';
 import { foldJobsByDraft, isActiveJob } from '../job-visibility.js';
 import { useQuickActions } from '../quick-actions.js';
 import { useToast } from '../components/Feedback.jsx';
-import { offerRestore } from '../undoable.js';
-import { batchRun } from '../tasks/task-batch.js';
+import { archiveAllWithUndo } from '../tasks/archive-all.js';
 import { reviewedCardStatus } from '../../lib/review-integrity.js';
 import { draftWork } from '../draft-shortfall.js';
 import JobCard from './JobCard.jsx';
@@ -81,15 +80,9 @@ export default function HomeActivity({ sectionRef, jobs, drafts, data, modelRead
   // One card per deck: the older jobs of a draft fold into its newest job's card.
   const cards = foldJobsByDraft(jobs);
   const finishedCount = cards.filter(({ job }) => !isActiveJob(job) && !job.leaving).length;
-  // 全部归档 (it was 全部知道了): every finished card goes under 已归档 in one go, and the notice offers 撤销 for all of them.
-  const archiveAll = async () => {
-    const done = cards.flatMap(({ job, earlier }) => [job, ...earlier]).filter((item) => !isActiveJob(item) && !item.leaving);
-    const ids = [...new Set(done.flatMap((item) => [item.id, item.contract?.jobId]).filter(Boolean))];
-    const result = await dismissJob();
-    if (result?.ok === false || !done.length) return;
-    offerRestore(toast, { message: uiFormat('已归档 {0} 个任务：在「任务」的「已归档」里。', [done.length]), restored: uiFormat('已取消归档 {0} 个任务', [done.length]),
-      restore: async () => { const back = await batchRun('unarchive', ids, { quick }); if (back.ok === false) { toast.error(back.message); return false; } return true; } });
-  };
+  // 全部归档 (it was 全部知道了): every finished job of the library goes under 已归档 in one go (job.archive { all: true }); the notice counts, and 撤销 brings back, exactly
+  // what the host says it archived (ui/tasks/archive-all.js), not just the cards on this page.
+  const archiveAll = () => archiveAllWithUndo({ archive: () => dismissJob(), quick, toast });
   return (
     <section className="home-activity" ref={sectionRef} aria-label={ui('出题进度与待发布草稿')}>
       {jobs.length > 0 && <div className="jobs generation-jobs cjc-list">

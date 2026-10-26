@@ -150,7 +150,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [refused, setRefused] = useState(''), [refusedWhy, setRefusedWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
   // The thread of this selection lives here only: planning a click reads the latest one, even before React has rendered the last change.
   const threadRef = useRef(thread);
-  const undoable = useUndoable();
+  const undoable = useUndoable(), deleting = useRef(null);
   const commit = next => { threadRef.current = next; setThread(next); };
   // What 阅读 mode did not keep, held per passage while the reader is open (thread-memory.js).
   const memory = useRef(null);
@@ -295,6 +295,8 @@ export default function DocumentLearning({ call, document, capture, scope = null
   }
   /** Keep the answered nodes (the whole thread, or one with the nodes above it) as annotations of this passage. */
   async function keep(id = '') {
+    // A 删除 of this thread in flight goes first: keeping now would send the deleted answers back (nodesToKeep sends the answers above a node).
+    await deleting.current;
     const nodes = nodesToKeep(threadRef.current, id);
     if (!nodes.length || !resolution?.selection || !annotateReady) return;
     setKeepBusy(true); setKeepError('');
@@ -310,13 +312,17 @@ export default function DocumentLearning({ call, document, capture, scope = null
   /* 删除这组批注 asks nothing (an annotation is not a source or a question). The thread is deleted at once, by the ids of the answers kept when 删除 was pressed
      (ui/document-preview/annotation/delete-thread.js), so an answer kept on the same passage a moment later is never caught; the notice offers 撤销, which puts
      the very items the host removed back (restoreWith) and, when the same passage is still on screen, the thread with them. */
+  // While the thread is written (a keep or this delete), 删除这组批注 is disabled (keepBusy); a keep that arrives meanwhile waits for the delete (`deleting`).
   async function deleteThread() {
+    if (keepBusy || deleting.current) return;
     const selection = resolution.selection, revision = document.revision, key = passageKey, kept = threadRef.current, keptSaved = savedLocal;
     const ids = [...new Set([...itemsOfPassage(annotation?.items, selection).map(item => item.id), ...keptSaved])];
-    let removed;
-    setKeepError('');
+    let removed, finish;
+    deleting.current = new Promise((done) => { finish = done; });
+    setKeepBusy(true); setKeepError('');
     try { ({ removed } = await deleteKeptThread({ call, documentId, revision, ids, selection })); }
     catch (e) { setKeepError(uiFormat('没能删除这组批注：{0}', [e.message])); return; }
+    finally { setKeepBusy(false); deleting.current = null; finish(); }
     memory.current.forget(key);
     if (latest.current.passageKey === key) { commit(emptyThread()); setSavedLocal(new Set()); }
     await annotation.onChanged?.();

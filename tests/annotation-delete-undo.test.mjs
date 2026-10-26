@@ -10,7 +10,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 // 删除这组批注 against the real annotation operations: the thread goes at once, by the ids kept when 删除 was pressed (ui/document-preview/annotation/delete-thread.js),
 // so an answer kept on the same passage during the 撤销 time survives the notice leaving; 撤销 puts back exactly what was removed. (Review of #506: the first
 // version sent "everything on this passage" 8 s later and took the new answer with it.)
-const m = await loadUi(`export { deleteKeptThread, restoreKeptThread } from './ui/document-preview/annotation/delete-thread.js'; export { createUndoable } from './ui/undoable.js';`);
+const m = await loadUi(`export { deleteKeptThread, restoreKeptThread } from './ui/document-preview/annotation/delete-thread.js'; export { createUndoable } from './ui/undoable.js'; export { setUiLanguage } from './ui/i18n.js';`);
 
 function fakeToast() {
   const log = { errors: [], current: null };
@@ -58,4 +58,22 @@ test('撤销 puts back exactly what was removed, beside an answer kept meanwhile
   assert.equal(await toast.log.current.action.onClick(), true);
   assert.deepEqual(await ids(lib), ['new-1', 'old-1']);
   assert.deepEqual(toast.log.errors, []);
+});
+
+test('撤销 that no longer fits (the passage filled up with new answers meanwhile) says why, in the learner\'s language', async (t) => {
+  const lib = await library(t);
+  const { call, documentId, revision, selection } = lib;
+  await call('materials.annotation.save', { documentId, revision, selection, nodes: [node('old-1')] });
+  const toast = fakeToast(), unit = m.createUndoable({ toast });
+  const { removed } = await m.deleteKeptThread({ call, documentId, revision, ids: ['old-1'], selection });
+  unit.restoreWith({ message: '已删除这组批注', restore: () => m.restoreKeptThread({ call, documentId, revision, removed }) });
+  for (let n = 1; n <= 8; n++) await call('materials.annotation.save', { documentId, revision, selection, nodes: [node('new-' + n)] });
+  assert.equal(await toast.log.current.action.onClick(), false);
+  assert.match(toast.log.errors[0], /这段原文上的问答已经到了上限（最多 8 条），原来那组批注没能放回。/);
+  m.setUiLanguage('en');
+  try {
+    await toast.log.current.action.onClick();
+    assert.doesNotMatch(toast.log.errors[1], /does not fit its thread/);
+    assert.doesNotMatch(toast.log.errors[1], /[一-鿿]/);
+  } finally { m.setUiLanguage('zh'); }
 });

@@ -14,6 +14,7 @@ const m = await loadUi(`
   export { HomeDrafts } from './ui/study-map/HomeActivity.jsx';
   export { Toast } from './ui/components/Feedback.jsx';
   export { noticeToToast } from './ui/ActionFeedback.jsx';
+  export { forgetRecords, cardOutcome } from './ui/PdfConvertJob.jsx';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 const han = /[㐀-鿿]/;
@@ -79,4 +80,15 @@ test('a notice can carry a second quiet action (永久删除… after an archive
   assert.ok(html.indexOf('>撤销<') < html.indexOf('>永久删除…<'), '撤销 first');
   assert.match(html, /sh-toast__secondary/);
   assert.equal((html.match(/<button/g) || []).length, 2);
+});
+
+test('清空历史 forgets exactly the shown ids; only a record that runs again is kept, any other failure throws with its own words', async () => {
+  const sent = [];
+  const call = async (action, { id }) => { sent.push(id); if (id === 'r') throw new Error('This conversion is still running, so its record cannot be deleted; stop it first'); if (id === 'x') throw new Error('桥接断开'); return { removed: true }; };
+  assert.deepEqual(await m.forgetRecords(call, ['a', 'r', 'b']), { kept: ['r'] });
+  assert.deepEqual(sent, ['a', 'r', 'b']);
+  await assert.rejects(m.forgetRecords(call, ['a', 'x', 'b']), /桥接断开/);
+  assert.deepEqual(m.cardOutcome(undefined), { ok: false }, 'act() that did not run');
+  assert.deepEqual(m.cardOutcome({ ok: false }), { ok: false });
+  assert.deepEqual(m.cardOutcome({ archived: ['j'] }), { ok: true });
 });

@@ -58,5 +58,7 @@
   "{0} 个任务正在运行，没有删除": "{0} job(s) are running and were not deleted",
   "{0}；其中 {1} 个任务的中间文件也会删除，之后不能接着做": "{0}; the working files of {1} of them go too, so they can’t be continued",
   "{0}；资料、草稿和题组不会删除": "{0}; sources, drafts and decks are not deleted",
-  "{0}；跳过 {1} 个进行中的任务": "{0}; skipped {1} running"
+  "{0}；跳过 {1} 个进行中的任务": "{0}; skipped {1} running",
+  "这份资料的批注已经存满（最多 {0} 条），原来那组批注没能放回。": "This document already keeps the most annotations it can ({0}), so these annotations could not be put back.",
+  "这段原文上的问答已经到了上限（最多 {0} 条），原来那组批注没能放回。": "This passage already has the most questions and answers it can keep ({0}), so these annotations could not be put back."
 }

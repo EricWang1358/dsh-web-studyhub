@@ -14,10 +14,11 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
     import ActionFeedback, { useNotice } from './ui/ActionFeedback.jsx';
     import { ToastContext, createToastApi } from './ui/components/Feedback.jsx';
     import { useUndoable } from './ui/use-undoable.js';
+    import { AppContext } from './ui/app/app-context.js';
     window.calls = [];
     function List() {
       const undoable = useUndoable();
-      const items = ['A', 'B', 'C', 'D', 'E', 'F'].filter((item) => !undoable.hidden(item));
+      const items = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].filter((item) => !undoable.hidden(item));
       return <ul>{items.map((item) => <li key={item}><button data-item={item} onClick={() => undoable.commitLater({ keys: [item], message: '已删除 ' + item,
         commit: async () => { window.calls.push(item); if (item === 'E') throw new Error('磁盘已满'); return true; },
         focus: () => document.querySelector('button[data-item="' + item + '"]') })}>删除 {item}</button></li>)}</ul>;
@@ -26,8 +27,11 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
       const [notice, setNotice] = useNotice('scope');
       const [error, setError] = useState('');
       const toast = useMemo(() => createToastApi({ setNotice, setError }), [setNotice]);
-      return <ToastContext.Provider value={toast}><div className="study-app"><List />
-        <ActionFeedback notice={notice} error={error} placement="inline" onCloseNotice={() => setNotice('')} onCloseError={() => setError('')} /></div></ToastContext.Provider>;
+      // The library the page is in: a deletion is tied to it (ui/use-undoable.js reads connection.binding.root).
+      const [root, setRoot] = useState('/library-a');
+      window.setRoot = setRoot;
+      return <AppContext.Provider value={{ connection: { binding: { root } } }}><ToastContext.Provider value={toast}><div className="study-app"><List />
+        <ActionFeedback notice={notice} error={error} placement="inline" onCloseNotice={() => setNotice('')} onCloseError={() => setError('')} /></div></ToastContext.Provider></AppContext.Provider>;
     }
     createRoot(document.getElementById('root')).render(<Harness />);
   `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
@@ -108,5 +112,14 @@ test('删除 with 撤销 in the page: hide, keyboard 撤销, commit on close / t
   await page.mouse.move(0, 0);
   await page.waitForFunction(() => window.calls.includes('F'), null, { timeout: 15000 });
   assert.deepEqual(await calls(), ['A', 'B', 'D', 'E', 'F']);
+
+  // tied to its library: the library changes while 撤销 is still offered; when the notice leaves, nothing is sent and G is shown again with the reason
+  await page.locator('button[data-item="G"]').click();
+  await notice.filter({ hasText: '已删除 G' }).waitFor();
+  await page.evaluate(() => window.setRoot('/library-b'));
+  await notice.filter({ hasText: '已删除 G' }).getByRole('button', { name: '关闭提示' }).click();
+  await page.waitForFunction(() => !!document.querySelector('button[data-item="G"]'));
+  assert.match(await page.locator('[role="alert"] .sh-toast').innerText(), /学习库已更换/);
+  assert.deepEqual(await calls(), ['A', 'B', 'D', 'E', 'F'], 'nothing reached the other library');
   assert.deepEqual(errors, []);
 });

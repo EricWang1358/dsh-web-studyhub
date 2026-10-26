@@ -78,6 +78,9 @@ test('a thread can be kept with one click, and says where it will come back', ()
   const kept = render(lib.LearningPanel, panel({ thread: answered(), savedIds: new Set(['n1']) }));
   assert.match(text(kept), /已存为批注/); assert.doesNotMatch(text(kept), /删除这组批注/);
   assert.match(text(render(lib.LearningPanel, panel({ thread: answered(), savedIds: new Set(['n1']), mode: 'annotate' }))), /删除这组批注/);
+  // While the thread is being written (a keep in flight, or the delete itself), 删除这组批注 waits: a late keep would bring the deleted answers back.
+  assert.match(render(lib.LearningPanel, panel({ thread: answered(), savedIds: new Set(['n1']), mode: 'annotate', keepBusy: true })), /<button[^>]*disabled=""[^>]*>删除这组批注</);
+  assert.doesNotMatch(render(lib.LearningPanel, panel({ thread: answered(), savedIds: new Set(['n1']), mode: 'annotate' })), /<button[^>]*disabled=""[^>]*>删除这组批注</);
   assert.match(text(render(lib.LearningPanel, panel({ thread: answered(), keepError: '暂时无法保存为批注。' }))), /暂时无法保存为批注/);
 });
 
