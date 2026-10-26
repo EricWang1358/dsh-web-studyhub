@@ -58,7 +58,7 @@ test('a failed open does not switch the page, and a failing page switch explains
   setUiLanguage('en');
   try {
     await rejects(() => openBackgroundAgent(host({ sessions: { open: async () => {} } }), 'child-1',
-      { reveal: () => Promise.reject(null) }), /The assistant opened.*Open the assistant from the session list/);
+      { reveal: () => Promise.reject(null) }), /The assistant opened.*Open it from the session list/);
   } finally { setUiLanguage('zh'); }
 });
 
