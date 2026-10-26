@@ -28,7 +28,7 @@ test('notes as people write them: spaced dollars, a unit after a number, bare La
   assert.deepEqual(prepareStudyMath('矩阵 \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} 如上').formulas.map((formula) => formula.display), [false]);
   // Prose, currency and look-alikes are not formulas.
   for (const prose of ['价格$5和$10', 'costs $ 5 and $ 10 each', '5$ and 6$ total', '$x $ 和 $ y$', 'a$b$c', '`\\begin{equation}`', '\\begin{foo} x \\end{foo}', '$ 和 $', '(5$)',
-    '预算：广告5$k，人员10$k。', '汇率1$USD=7.1$CNY', 'Budget:5$k/10$k', '%1$s and %2$s', 'Budget: 5$k for ads and 10$k for staff.', 'It costs 5$USD now, was 3$USD.', 'Revenue grew from 2$M to 7$M in a year', '单价 5$M 元，总价 7$M','Revenue = $ 500 + $ 300 = $ 800','$ 5 * 3 = $ 15', 'save $ 100 / month and $ 200 / year', 'cost $ 5 > $ 3', '收入 $ 100 + $ 200，合计', '$ 1,000 + $ 2,000', '| A | $ 5 | $ 1 |'])
+    '5 $ + 3 $ = 8 $', '1 $ = 0.92 €, 1 $ = 150 ¥', '10 $ = 9 €, 20 $ = 18 €', '3 $ x 4 = 12 $', '5 $ = 5 $', '1 $ = 7.1 元, 1 $ = 8 $', '预算：广告5$k，人员10$k。','汇率1$USD=7.1$CNY', 'Budget:5$k/10$k', '%1$s and %2$s', 'Budget: 5$k for ads and 10$k for staff.', 'It costs 5$USD now, was 3$USD.', 'Revenue grew from 2$M to 7$M in a year', '单价 5$M 元，总价 7$M','Revenue = $ 500 + $ 300 = $ 800','$ 5 * 3 = $ 15', 'save $ 100 / month and $ 200 / year', 'cost $ 5 > $ 3', '收入 $ 100 + $ 200，合计', '$ 1,000 + $ 2,000', '| A | $ 5 | $ 1 |'])
     assert.deepEqual(raws(prose), [], prose);
   // Money glued to its number (no space, as Chinese is written) must not swallow the real formula after it.
   assert.deepEqual(raws('投资5$M的项目，速度$v$'), ['$v$']);
