@@ -54,7 +54,7 @@ code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;background:var(
 .dk-table td:last-child{background:var(--dk-accent-bg)}
 @media (max-width:640px){
   .dk-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-  .dk-table,.dk-table tbody,.dk-table tr,.dk-table td{display:block;width:100%}
+  .dk-table,.dk-table caption,.dk-table tbody,.dk-table tr,.dk-table td{display:block;width:100%}
   .dk-table tr{border:1px solid var(--dk-line);border-radius:10px;margin:.6rem 0;overflow:hidden}
   .dk-table td{border:0;border-bottom:1px solid var(--dk-line)}
   .dk-table td::before{content:attr(data-label);display:block;font-size:.8em;color:var(--dk-muted)}

@@ -9,6 +9,7 @@ export const LABELS = {
   en: { same: "Unchanged", added: "Added", changed: "Adjusted", removed: "Removed" },
 };
 export const FONT = 14, LINE = 20, SMALL = 13, SMALL_LINE = 18;
+const SEMIBOLD = 1.07, SELF_ROOM = 230;
 const MARGIN = 16, PAD = 10, BADGE_W = 22, MIN_COL = 110, GUTTER = 190;
 
 const fail = (message) => { throw new Error(`renderSequence: ${message}`); };
@@ -82,8 +83,14 @@ export function layout(input, options = {}) {
   const lifeTop = 10 + headH;
 
   // rows: steps and the notes that sit between them, top to bottom
-  const startsAt = (index) => spec.groups.filter((g) => g.from === index);
+  const startsAt = (index) => spec.groups.filter((g) => g.from === index).sort((a, b) => b.to - a.to);
   const endsAt = (index) => spec.groups.filter((g) => g.to === index);
+  // a group's label sits in a tab on the frame's top edge; a long label wraps inside the frame and the tab grows
+  for (const group of spec.groups) {
+    const text = wrapText(group.label, right - 60, SMALL, SEMIBOLD);
+    group.tab = { lines: text.lines, width: text.width + 16, height: text.lines.length * 16 + 6 };
+  }
+  const tabRoom = (list) => list.reduce((sum, g) => sum + g.tab.height + 4, 0);
   const rows = [];
   const noteRows = [];
   let cursor = lifeTop + 14;
@@ -101,21 +108,22 @@ export function layout(input, options = {}) {
   };
   addNotes(-1);
   for (const step of steps) {
-    const outer = startsAt(step.index).length;
-    const top = cursor, y0 = top + outer * 22;
+    const top = cursor, y0 = top + tabRoom(startsAt(step.index));
     const ax = centre.get(step.from), bx = centre.get(step.to);
     const badge = step.kind === "same" ? 0 : BADGE_W;
+    const bold = step.kind === "added" || step.kind === "changed" ? SEMIBOLD : 1;
     const row = { index: step.index, id: step.id, kind: step.kind, reply: step.reply, self: step.self, from: step.from, to: step.to, top, ax, bx };
     if (step.self) {
-      const room = step.from === last ? right - ax - 44 : col - 44;
-      const text = wrapText(step.text, room - badge, FONT);
+      // a self-message has a row to itself, so its text may run on past the next lifeline (it is drawn over a clear pad)
+      const room = step.from === last ? right - ax - 44 : Math.max(col - 44, Math.min(right - ax - 44, SELF_ROOM));
+      const text = wrapText(step.text, room - badge, FONT, bold);
       const blockW = badge + text.width;
       const loopTop = y0 + 8;
       Object.assign(row, { y: loopTop + 20, loopTop, box: { x: ax + 36, y: y0 + 6, width: blockW, height: text.lines.length * LINE }, lines: text.lines, badge: badge ? { x: ax + 36, y: y0 + 7 } : null, textX: ax + 36 + badge });
       row.contentBottom = Math.max(loopTop + 20 + 8, y0 + 6 + text.lines.length * LINE + 4);
     } else {
       const left = Math.min(ax, bx), rightX = Math.max(ax, bx);
-      const text = wrapText(step.text, rightX - left - 2 * PAD - badge, FONT);
+      const text = wrapText(step.text, rightX - left - 2 * PAD - badge, FONT, bold);
       const blockW = badge + text.width;
       const x = (left + rightX) / 2 - blockW / 2;
       const h = text.lines.length * LINE;
@@ -139,11 +147,10 @@ export function layout(input, options = {}) {
   const frames = spec.groups.map((group) => {
     const first = rows[group.from], lastRow = rows[group.to];
     const containing = spec.groups.filter((o) => o !== group && o.from <= group.from && o.to >= group.to && (o.from < group.from || o.to > group.to)).length;
-    const sameStart = startsAt(group.from).sort((a, b) => b.to - a.to), sameEnd = endsAt(group.to).sort((a, b) => (b.from - a.from));
-    const y = first.top + sameStart.indexOf(group) * 22;
+    const sameStart = startsAt(group.from), sameEnd = endsAt(group.to).sort((a, b) => (b.from - a.from));
+    const y = first.top + tabRoom(sameStart.slice(0, sameStart.indexOf(group)));
     const bottom = lastRow.contentBottom + 4 + sameEnd.indexOf(group) * 8;
-    const tab = textWidth(group.label) * FONT + 16;
-    return { label: group.label, depth: containing, box: { x: 6 + containing * 6, y, width: right - 12 - containing * 12, height: bottom - y }, tab: { width: Math.min(tab, right - 24), height: 18 } };
+    return { label: group.label, depth: containing, box: { x: 6 + containing * 6, y, width: right - 12 - containing * 12, height: bottom - y }, tab: group.tab };
   });
 
   // legend: only the kinds that are in the diagram, and only when there is something to tell apart from "same"

@@ -1,6 +1,7 @@
 /* Text helpers shared by the report kit: XML/HTML escaping, a width measure that knows CJK, and line wrapping.
-   Widths are in em (1 em = the font size). CJK and full-width forms count 1 em, narrow ASCII less, capitals and m/w more:
-   the measure errs on the wide side, so a box sized from it is never too small for the real font. */
+   Widths are in em (1 em = the font size). CJK and full-width forms count 1 em; ASCII uses the width of common sans fonts, rounded UP
+   (lower case 0.58 against about 0.5, capitals 0.78 against 0.67-0.72, m/w/M/W 0.95 against 0.72-0.94), so a box sized from it is
+   not too small for the real font. Semibold text (added/changed steps) is wider still: wrapText takes a factor for that. */
 
 /** Escape for XML and HTML text and attributes; characters XML cannot hold at all are dropped. */
 export function esc(value) {
@@ -18,7 +19,8 @@ export function charWidth(ch) {
   if (WIDE.test(ch)) return 1;
   if (ch === " ") return 0.3;
   if (NARROW.has(ch)) return 0.32;
-  if (BROAD.has(ch) || (ch >= "A" && ch <= "Z")) return 0.78;
+  if (BROAD.has(ch)) return 0.95;
+  if (ch >= "A" && ch <= "Z") return 0.78;
   const code = ch.codePointAt(0);
   return code < 0x250 ? 0.58 : 1;
 }
@@ -60,11 +62,11 @@ function pieces(unit, limit) {
   return out;
 }
 
-/** Wrap text to a width. Returns { lines: string[], widths: number[] (px), width: widest line (px) }.
+/** Wrap text to a width (factor > 1 measures every character wider, for bold text). Returns { lines: string[], widths: number[] (px), width: widest line (px) }.
  *  A line never gets wider than maxWidth (unless one character alone is wider); closing punctuation is kept off the start of a line
  *  and opening brackets off the end; a "\n" in the text starts a new line. */
-export function wrapText(text, maxWidth, fontSize) {
-  const limit = Math.max(maxWidth / fontSize, 1);
+export function wrapText(text, maxWidth, fontSize, factor = 1) {
+  const limit = Math.max(maxWidth / fontSize / factor, 1);
   const lines = [];
   for (const paragraph of String(text ?? "").replace(/\r\n?/g, "\n").split("\n")) {
     const queue = units(paragraph).flatMap((unit) => textWidth(unit) > limit ? pieces(unit, limit) : [unit]);
@@ -85,7 +87,7 @@ export function wrapText(text, maxWidth, fontSize) {
     }
     flush();
   }
-  const widths = lines.map((line) => textWidth(line) * fontSize);
+  const widths = lines.map((line) => textWidth(line) * fontSize * factor);
   return { lines, widths, width: Math.max(0, ...widths) };
 }
 

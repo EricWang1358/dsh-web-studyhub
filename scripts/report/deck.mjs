@@ -6,15 +6,17 @@
                  table { title, columns: [text], rows: [[text]], caption? }
                  images { title, items: [{ src, alt, caption?, label? }] }    (src is a file next to the deck json, or a data: URI)
                  stats { title, items: [{ label, before, after, unit?, better? ("lower" | "higher"), note? }] }
-   Text may use **bold** and `code`. Everything is escaped; no <script> or link from the author can reach the page. */
-import { readFile } from "node:fs/promises";
-import { extname, isAbsolute, resolve } from "node:path";
+   An image file must be inside the deck json's folder and really be a png, jpeg, gif or webp (images.mjs); the page is checked for
+   anything that would fetch from outside before it is returned (selfcheck.mjs).
+   Text may use **bold** and `code`. Text and attribute values are escaped; no <script> or link from the author can reach the page. */
 import { renderCompare } from "./compare.mjs";
 import { deckCss } from "./deck-style.mjs";
 import { DECK_SCRIPT, THEME_SNIPPET } from "./deck-script.mjs";
+import { readDeckImage } from "./images.mjs";
+import { assertSelfContained } from "./selfcheck.mjs";
 import { esc, inline, withBreaks } from "./text.mjs";
 
-const MIME = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml" };
+export { assertSelfContained };
 export const SLIDE_TYPES = ["title", "section", "bullets", "text", "compare", "table", "images", "stats"];
 
 const WORDS = {
@@ -44,12 +46,7 @@ async function loadImages(deck, baseDir) {
       if (!item?.src || typeof item.src !== "string") bad(i, slide, `items[${k}].src is missing`);
       if (!item.alt || typeof item.alt !== "string" || !item.alt.trim()) bad(i, slide, `items[${k}].alt is missing (every image needs a description for screen readers)`);
       if (found.has(item.src)) continue;
-      if (item.src.startsWith("data:image/")) { found.set(item.src, item.src); continue; }
-      const mime = MIME[extname(item.src).toLowerCase()];
-      if (!mime) bad(i, slide, `items[${k}].src "${item.src}" is not a png, jpg, gif, webp or svg image`);
-      let bytes;
-      try { bytes = await readFile(isAbsolute(item.src) ? item.src : resolve(baseDir, item.src)); } catch { bad(i, slide, `items[${k}].src "${item.src}" cannot be read next to the deck file`); }
-      found.set(item.src, `data:${mime};base64,${bytes.toString("base64")}`);
+      try { found.set(item.src, await readDeckImage(item.src, baseDir)); } catch (error) { bad(i, slide, `items[${k}].src ${error.message}`); }
     }
   }
   return found;
@@ -79,13 +76,15 @@ function slideBody(slide, i, ctx) {
     case "section": return `<h2>${inline(slide.title)}</h2>${slide.subtitle ? `<p class="dk-sub">${inline(slide.subtitle)}</p>` : ""}`;
     case "bullets": return `${heading}${bulletList(list(i, slide, "items"))}`;
     case "text": return `${heading}${list(i, slide, "paragraphs").map((p) => `<p>${withBreaks(p)}</p>`).join("")}`;
-    case "compare": return `${heading}${renderCompare({ ...slide, lang })}`;
+    case "compare":
+      try { return `${heading}${renderCompare({ ...slide, lang })}`; } catch (error) { bad(i, slide, error.message.replace(/^renderCompare: /, "")); }
+      return heading;
     case "table": {
       const columns = list(i, slide, "columns"), rows = list(i, slide, "rows");
       rows.forEach((row, r) => { if (!Array.isArray(row) || row.length !== columns.length) bad(i, slide, `rows[${r}] must have ${columns.length} cells`); });
       return `${heading}<div class="dk-tablebox"><table class="dk-table">${slide.caption ? `<caption>${inline(slide.caption)}</caption>` : ""}<thead><tr>${columns.map((c) => `<th scope="col">${inline(c)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell, c) => `<td data-label="${esc(columns[c])}">${withBreaks(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
     }
-    case "images": return `${heading}<div class="dk-figs">${list(i, slide, "items").map((item) => `<figure class="dk-fig"><img src="${images.get(item.src)}" alt="${esc(item.alt)}" loading="lazy">${item.caption || item.label ? `<figcaption>${item.label ? `<span class="dk-tag">${esc(item.label)}</span>` : ""}${inline(item.caption ?? "")}</figcaption>` : ""}</figure>`).join("")}</div>`;
+    case "images": return `${heading}<div class="dk-figs">${list(i, slide, "items").map((item) => `<figure class="dk-fig"><img src="${esc(images.get(item.src))}" alt="${esc(item.alt)}">${item.caption || item.label ? `<figcaption>${item.label ? `<span class="dk-tag">${esc(item.label)}</span>` : ""}${inline(item.caption ?? "")}</figcaption>` : ""}</figure>`).join("")}</div>`;
     case "stats": return `${heading}<div class="dk-stats">${list(i, slide, "items").map((item) => statCard(item, words)).join("")}</div>`;
     default: return heading;
   }
@@ -112,7 +111,8 @@ function tocSlide(entries, words) {
 /** Build the whole page. baseDir is where relative image paths start (the folder of the deck json). */
 export async function renderDeck(deck, { baseDir = process.cwd() } = {}) {
   validate(deck);
-  const lang = typeof deck.lang === "string" && deck.lang ? deck.lang : "zh-CN";
+  if (deck.lang != null && !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(String(deck.lang))) throw new Error(`deck: lang "${deck.lang}" is not a language code like zh-CN or en`);
+  const lang = deck.lang ? String(deck.lang) : "zh-CN";
   const words = WORDS[lang.startsWith("zh") ? "zh" : "en"];
   const images = await loadImages(deck, baseDir);
   const withToc = deck.toc !== false && deck.slides.length > 2;
@@ -148,11 +148,4 @@ ${html}
 `;
   assertSelfContained(page);
   return page;
-}
-
-/** The finished page must not fetch anything: no src/href/url()/@import to another host. Text the author wrote is escaped, so it cannot match. */
-export function assertSelfContained(html) {
-  const loads = /(?:\b(?:src|href|action|poster)\s*=\s*["']?\s*(?:https?:)?\/\/|url\(\s*["']?\s*(?:https?:)?\/\/|@import)/i;
-  const hit = loads.exec(html);
-  if (hit) throw new Error(`deck: the page would load something from outside (${hit[0]}...)`);
 }

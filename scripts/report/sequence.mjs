@@ -21,9 +21,10 @@ export function sequenceCss() {
     `@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rk-seq{${vars(DARK)}}}`,
     `:root[data-theme="dark"] .rk-seq{${vars(DARK)}}`,
     `.rk-seq text{fill:var(--rk-ink)}`,
-    `.rk-seq .rk-t{paint-order:stroke;stroke:var(--rk-bg);stroke-width:4px;stroke-linejoin:round}`,
+    `.rk-seq .rk-pad{fill:var(--rk-bg)}`,
+    `.rk-seq .rk-tab-t{font-weight:600}`,
     `.rk-seq .rk-k-added .rk-t,.rk-seq .rk-k-changed .rk-t{font-weight:600}`,
-    `.rk-seq .rk-k-removed .rk-t{fill:var(--rk-removed);stroke:none;text-decoration:line-through;text-decoration-thickness:1px}`,
+    `.rk-seq .rk-k-removed .rk-t{fill:var(--rk-removed);text-decoration:line-through;text-decoration-thickness:1px}`,
     `.rk-seq .rk-k-same{--rk-c:var(--rk-muted);--rk-cbg:var(--rk-soft)}`,
     `.rk-seq .rk-k-added{--rk-c:var(--rk-added);--rk-cbg:var(--rk-added-bg)}`,
     `.rk-seq .rk-k-changed{--rk-c:var(--rk-changed);--rk-cbg:var(--rk-changed-bg)}`,
@@ -75,6 +76,8 @@ function stepMarkup(row) {
     arrow = `<path class="rk-line${dashed ? " rk-dash" : ""}" d="M${n(row.ax)},${n(row.y)} H${n(row.bx - dir * (row.reply ? 9 : 8))}"/>${head(row.bx, row.y, dir, row.reply)}`;
   }
   let out = `<g class="rk-step rk-k-${row.kind}"${attrs}>${arrow}`;
+  // a clear pad under the text, so a lifeline running behind it does not strike through the words
+  out += `<rect class="rk-pad" x="${n(row.box.x - 4)}" y="${n(row.box.y)}" width="${n(row.box.width + 8)}" height="${n(row.box.height + 2)}" rx="3"/>`;
   if (row.badge) out += badge(row.kind, row.badge.x, row.badge.y);
   out += lines(row.lines, row.textX, row.box.y, LINE, FONT, ' class="rk-t"');
   if (row.callout) {
@@ -125,7 +128,7 @@ export function renderSequence(spec, options = {}) {
   parts.push(`<svg class="rk-seq"${options.standalone ? ' xmlns="http://www.w3.org/2000/svg"' : ""} role="img" aria-labelledby="${id}-t ${id}-d" viewBox="0 0 ${n(width)} ${n(height)}" width="${n(width)}" height="${n(height)}" style="width:100%;max-width:${n(width)}px;min-width:${Math.round(width * 0.72)}px;height:auto" font-family="system-ui,sans-serif">`);
   parts.push(`<title id="${id}-t">${esc(title)}</title><desc id="${id}-d">${esc(describe(plan, lang))}</desc>`);
   if (options.embedStyle !== false) parts.push(`<style>${sequenceCss()}</style>`);
-  parts.push(`<g class="rk-groups">${plan.frames.map((frame) => `<g><rect class="rk-frame" x="${n(frame.box.x)}" y="${n(frame.box.y)}" width="${n(frame.box.width)}" height="${n(frame.box.height)}" rx="6"/><rect class="rk-tab" x="${n(frame.box.x)}" y="${n(frame.box.y)}" width="${n(frame.tab.width)}" height="${frame.tab.height}" rx="4"/><text class="rk-small" font-size="${SMALL}" font-weight="600" x="${n(frame.box.x + 8)}" y="${n(frame.box.y + 13)}">${esc(frame.label)}</text></g>`).join("")}</g>`);
+  parts.push(`<g class="rk-groups">${plan.frames.map((frame) => `<g><rect class="rk-frame" x="${n(frame.box.x)}" y="${n(frame.box.y)}" width="${n(frame.box.width)}" height="${n(frame.box.height)}" rx="6"/><rect class="rk-tab" x="${n(frame.box.x)}" y="${n(frame.box.y)}" width="${n(frame.tab.width)}" height="${frame.tab.height}" rx="4"/>${lines(frame.tab.lines, frame.box.x + 8, frame.box.y + 1, 16, SMALL, ' class="rk-small rk-tab-t"')}</g>`).join("")}</g>`);
   parts.push(`<g class="rk-lifelines">${plan.actors.map((a) => `<line class="rk-life" x1="${n(a.x)}" y1="${n(plan.lifeTop)}" x2="${n(a.x)}" y2="${n(plan.lifeBottom)}"/>`).join("")}</g>`);
   parts.push(`<g class="rk-actors">${plan.actors.map((a) => `<rect class="rk-actor" x="${n(a.box.x)}" y="${n(a.box.y)}" width="${n(a.box.width)}" height="${n(a.box.height)}" rx="6" data-actor="${esc(a.id)}"/>${lines(a.lines, a.x, a.box.y + 6, LINE, FONT, ' class="rk-actor-t"')}`).join("")}</g>`);
   parts.push(`<g class="rk-notes">${plan.noteRows.map((note) => `<g class="rk-note rk-k-${note.kind}" data-kind="${note.kind}"><rect class="rk-box" x="${n(note.box.x)}" y="${n(note.box.y)}" width="${n(note.box.width)}" height="${n(note.box.height)}" rx="6"/>${lines(note.lines, note.box.x + 8, note.box.y + 3, SMALL_LINE, SMALL, ' class="rk-small"')}</g>`).join("")}</g>`);

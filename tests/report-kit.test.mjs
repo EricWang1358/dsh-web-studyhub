@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +8,7 @@ import { layout, renderSequence } from '../scripts/report/sequence.mjs';
 import { diffSequences, renderCompare } from '../scripts/report/compare.mjs';
 import { renderDeck } from '../scripts/report/deck.mjs';
 import { buildDeck } from '../scripts/report/build.mjs';
+import { assertSelfContained } from '../scripts/report/selfcheck.mjs';
 import { textWidth, wrapText } from '../scripts/report/text.mjs';
 
 /* The report kit (scripts/report): sequence diagrams as SVG, before/after comparisons, and one self-contained HTML deck.
@@ -189,4 +190,94 @@ test('deck text is escaped, languages follow the deck, and a bad slide is refuse
   await assert.rejects(renderDeck({ title: 'd', slides: [{ type: 'images', title: 'b', items: [{ src: 'row-before.png' }] }] }, { baseDir: examples }), /items\[0\]\.alt is missing/);
   await assert.rejects(renderDeck({ title: 'd', slides: [{ type: 'images', title: 'b', items: [{ src: 'nope.png', alt: 'x' }] }] }, { baseDir: examples }), /nope\.png" cannot be read/);
   await assert.rejects(renderDeck({ title: 'd', slides: [] }), /slides must be a non-empty list/);
+  await assert.rejects(renderDeck({ title: 'd', lang: 'en"><script>', slides: [{ type: 'title', title: 'a' }] }), /lang .* is not a language code/);
+});
+
+const ONE_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const imageDeck = (item) => ({ title: 'd', slides: [{ type: 'images', title: 'pictures', items: [{ alt: 'a picture', ...item }] }] });
+
+test('an image address cannot break out of its attribute or reach another host', async () => {
+  await assert.rejects(renderDeck(imageDeck({ src: 'data:image/png;base64,AAAA" onerror="alert(1)' })), /slides\[0\] \(images\): items\[0\]\.src is a data: address that is not plain base64/);
+  await assert.rejects(renderDeck(imageDeck({ src: 'data:image/png;base64,AAAA"><script>fetch("//x")</script>' })), /items\[0\]\.src is a data: address/);
+  await assert.rejects(renderDeck(imageDeck({ src: 'data:text/html;base64,AAAA' })), /items\[0\]\.src is a data: address/);
+  await assert.rejects(renderDeck(imageDeck({ src: 'https://example.com/a.png' })), /items\[0\]\.src "https:\/\/example\.com\/a\.png" (cannot be read|is outside)/);
+  const html = await renderDeck(imageDeck({ src: ONE_PIXEL, alt: 'say "hi" <b>', label: '<i>x</i>', caption: '<script>1</script>' }));
+  assert.ok(html.includes(`<img src="${ONE_PIXEL}" alt="say &quot;hi&quot; &lt;b&gt;">`));
+  assert.ok(!html.includes('<script>1') && !html.includes('<i>x') && !html.includes('<b>'));
+  assert.ok(!html.includes('loading="lazy"'), 'inlined images are not lazy, or a printout would be blank');
+});
+
+test('an image is read only from inside the deck folder, and only when its bytes are an image', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'report-kit-paths-'));
+  try {
+    const folder = join(root, 'deck'), outside = join(root, 'secret.png');
+    await mkdir(join(folder, 'pics'), { recursive: true });
+    const png = await readFile(join(examples, 'row-before.png'));
+    await writeFile(outside, png);
+    await writeFile(join(folder, 'pics', 'ok.png'), png);
+    await writeFile(join(folder, 'notes.png'), 'this is a text file named like a picture');
+    await writeFile(join(folder, 'real.dat'), png);
+    const build = (src) => renderDeck(imageDeck({ src }), { baseDir: folder });
+    assert.match(await build('pics/ok.png'), /<img src="data:image\/png;base64,/);
+    assert.match(await build('real.dat'), /<img src="data:image\/png;base64,/, 'the first bytes decide, not the name');
+    await assert.rejects(build('../secret.png'), /items\[0\]\.src "\.\.\/secret\.png" is outside the deck folder/);
+    await assert.rejects(build('pics/../../secret.png'), /is outside the deck folder/);
+    await assert.rejects(build(outside), /is not a path inside the deck folder/);
+    await assert.rejects(build('\\\\server\\share\\a.png'), /is not a path inside the deck folder/);
+    await assert.rejects(build('notes.png'), /is not a png, jpeg, gif or webp image/);
+    await assert.rejects(build('missing.png'), /cannot be read in the deck folder/);
+    await assert.rejects(build('..hidden.png'), /cannot be read in the deck folder/, 'a name that merely starts with two dots is looked for inside, not refused as outside');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the page check reads markup, so loaders fail and sentences that only mention them pass', async () => {
+  const page = (body) => `<!doctype html><html><head><style>p{color:red}</style></head><body>${body}</body></html>`;
+  for (const [body, what] of [
+    ['<img src="https://example.com/a.png" alt="x">', 'remote image'], ['<img src="//example.com/a.png" alt="x">', 'protocol-relative image'],
+    ['<a href="http://example.com">x</a>', 'link'], ['<script src="app.js"></script>', 'script src'], ['<link rel="stylesheet" href="a.css">', 'link tag'],
+    ['<div onclick="go()">x</div>', 'handler'], ['<img src=data:image/png;base64,AA onerror=x>', 'unquoted handler'], ['<p style="background:url(http://x/y)">x</p>', 'style url'],
+    ['<img srcset="a.png 2x" alt="x">', 'srcset'], ['<iframe src="#"></iframe>', 'iframe'], ['<meta http-equiv="refresh" content="0;url=x">', 'meta refresh'],
+    ['<style>@import "x.css";</style>', 'import'], ['<style>a{background:url(https://x/y.png)}</style>', 'css url'], ['<img src="javascript:alert(1)" alt="x">', 'javascript address'],
+  ]) assert.throws(() => assertSelfContained(page(body)), /would reach outside itself/, what);
+  assert.doesNotThrow(() => assertSelfContained(page(`<a href="#s2">x</a><img src="${ONE_PIXEL}" alt="x"><p>write @import url(//x) or https://example.com or &lt;script src=x&gt; in a sentence</p>`)));
+  const html = await renderDeck({ title: 't', slides: [{ type: 'text', title: 'about "@import url(//evil)"', paragraphs: ['url(//evil) and <img src=x onerror=1> and https://example.com'] }] });
+  assert.ok(html.includes('&lt;img src=x onerror=1&gt;'));
+});
+
+test('marks need ids on every step, and a moved step or a changed arrow kind counts as changed', async () => {
+  const a = { id: 'a', from: 'x', to: 'y', text: 'a' }, b = { id: 'b', from: 'y', to: 'x', text: 'b' }, c = { id: 'c', from: 'x', to: 'x', text: 'c' };
+  assert.deepEqual(diffSequences([a, b, c], [a, b, c]).after.map((s) => s.kind), ['same', 'same', 'same']);
+  const moved = diffSequences([a, b, c], [b, c, a]);
+  assert.deepEqual(moved.after.map((s) => s.kind), ['same', 'same', 'changed']);
+  assert.deepEqual(moved.before.map((s) => s.kind), ['changed', 'same', 'same']);
+  assert.deepEqual(diffSequences([a, b], [a, { ...b, reply: true }]).after.map((s) => s.kind), ['same', 'changed'], 'a call that became a reply');
+  assert.equal(diffSequences([a, c], [a, { ...c, self: false, to: 'y' }]).after[1].kind, 'changed');
+  assert.equal(diffSequences([a, b, c], [c, b, a]).after.filter((s) => s.kind === 'same').length, 1, 'only the longest run in order stays');
+
+  const half = { ...flow, after: { steps: [flow.after.steps[0], { from: 'page', to: 'unit', text: 'no id here' }] } };
+  assert.throws(() => renderCompare(half), /after step 2 has no id/);
+  assert.throws(() => renderCompare({ ...flow, diff: true, before: { steps: [{ from: 'you', to: 'page', text: 'x' }] } }), /before step 1 has no id/);
+  assert.doesNotThrow(() => renderCompare({ ...half, diff: false }));
+  const byHand = renderCompare({ ...flow, before: { steps: [{ from: 'you', to: 'page', text: 'x', kind: 'removed' }] }, after: { steps: [{ from: 'you', to: 'page', text: 'y', kind: 'added' }] } });
+  assert.ok(byHand.includes('data-kind="removed"') && byHand.includes('data-kind="added"'), 'no ids anywhere: kinds are by hand');
+  await assert.rejects(renderDeck({ title: 'd', slides: [{ type: 'title', title: 't' }, { ...half, type: 'compare', title: 'c' }] }), /deck: slides\[1\] \(compare\): after step 2 has no id/);
+  await assert.rejects(renderDeck({ title: 'd', slides: [{ ...flow, type: 'compare', title: 'c', after: { steps: [{ id: 'x', from: 'you', to: 'nobody', text: 't' }] } }] }), /slides\[0\] \(compare\): after step 1\.to refers to the unknown actor "nobody"/);
+  await assert.rejects(renderDeck({ title: 'd', slides: [{ ...flow, type: 'compare', title: 'c', plain: { ...flow.plain, 现在: '' } }] }), /slides\[0\] \(compare\): plain\.现在 is missing or empty/);
+});
+
+test('long labels and self-messages get room of their own and bold text is measured wider', () => {
+  assert.ok(textWidth('M') >= 0.9 && textWidth('i') < 0.4 && textWidth('中') === 1);
+  assert.ok(wrapText('一二三四五六七八九十', 14 * 5, 14, 1.1).lines.length > wrapText('一二三四五六七八九十', 14 * 5, 14).lines.length);
+  const label = '每次打开这一页都会走一遍，包括重新打开和刷新之后，还有从别的页面跳过来的时候';
+  const plan = layout({ actors: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }, { id: 'c', label: 'C' }], steps: [
+    { from: 'a', to: 'b', text: '一' }, { from: 'a', to: 'a', text: '这是一条自己对自己的长消息，要有一整行的位置，不能挤成四个字一行', self: true }, { from: 'b', to: 'c', text: '二' }],
+  groups: [{ label, from: 0, to: 2 }] }, { colWidth: 110 });
+  const [frame] = plan.frames, first = plan.rows[0];
+  assert.ok(frame.tab.lines.length > 1, 'the label wraps');
+  assert.ok(frame.tab.width <= frame.box.width, 'the tab stays inside the frame');
+  assert.ok(first.box.y >= frame.box.y + frame.tab.height, 'the first step starts below the tab');
+  assert.ok(plan.rows[1].lines.length <= 3, `the self-message is not a sliver (${plan.rows[1].lines.length} lines)`);
+  assert.ok(plan.rows[1].box.x + plan.rows[1].box.width <= plan.right);
 });
