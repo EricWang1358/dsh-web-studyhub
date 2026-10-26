@@ -43,6 +43,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   category({ id: 'mineru', group: 'once', title: 'PDF 转换（MinerU / Marker）', anchors: ['settings-mineru', 'settings-marker'], partNeeds: { routes: 'audio' } }, () => import('./settings/MineruPane.jsx')),
   category({ id: 'retrieval', group: 'once', title: '检索扩展', anchors: ['settings-extensions'], needs: 'generation' }, () => import('./settings/RetrievalPane.jsx')),
   category({ id: 'profile', group: 'once', title: '学习画像与导览', anchors: ['settings-profile', 'settings-sample'] }, () => import('./settings/ProfilePane.jsx')),
+  category({ id: 'guidance', group: 'once', title: '引导', anchors: ['settings-guidance'] }, () => import('./settings/GuidancePane.jsx')),
   category({ id: 'data', group: 'once', title: '导入、计划与备份', anchors: ['settings-data'] }, () => import('./settings/DataPane.jsx')),
   category({ id: 'update', group: 'once', title: '关于与更新', anchors: ['settings-update'] }, () => import('./settings/UpdatePane.jsx')),
   category({ id: 'usage', group: 'advanced', title: '使用频率记录', anchors: ['settings-usage'], needs: 'system' }, () => import('./settings/UsagePane.jsx')),
