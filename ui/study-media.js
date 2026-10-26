@@ -15,7 +15,9 @@ function mathOpener(text, at) {
   for (const delimiter of ['$$', '\\[', '\\(']) {
     if (text.startsWith(delimiter, at)) return delimiter;
   }
-  const wordBefore = /\w/.test(text[at - 1] || '');
+  // A letter or underscore right before a "$" makes it prose ("a$b"); a digit does too, except in "5$kg$", where a unit follows the number.
+  const before = text[at - 1] || '', after = text[at + 1] || '';
+  const wordBefore = /[A-Za-z_]/.test(before) || (/\d/.test(before) && !/[A-Za-z\\]/.test(after));
   const modelNewlineBefore = text.slice(at - 2, at) === '\\n';
   return text[at] === '$' && (!wordBefore || modelNewlineBefore) ? '$' : null;
 }
@@ -42,8 +44,25 @@ function literalAt(text, i) {
   return literal ? i + literal[0].length : -1;
 }
 
+/** Math environments written without a $ around them, as pasted from a LaTeX file: whether each one is a display equation. */
+const ENVIRONMENTS = { equation: true, 'equation*': true, align: true, 'align*': true, alignat: true, 'alignat*': true, gather: true, 'gather*': true,
+  aligned: false, gathered: false, cases: false, array: false, matrix: false, pmatrix: false, bmatrix: false, Bmatrix: false, vmatrix: false, Vmatrix: false };
+
+/** "\begin{align} … \end{align}" at `i`, the whole environment being the formula's source. */
+function environmentAt(text, i) {
+  if (text[i] !== '\\' || escaped(text, i)) return null;
+  const open = /^\\begin\{([A-Za-z]+\*?)\}/.exec(text.slice(i, i + 32));
+  if (!open || !Object.hasOwn(ENVIRONMENTS, open[1])) return null;
+  const closer = `\\end{${open[1]}}`, end = text.indexOf(closer, i + open[0].length);
+  if (end < 0) return null;
+  const raw = text.slice(i, end + closer.length);
+  return { end: i + raw.length, formula: { source: raw, display: ENVIRONMENTS[open[1]], raw } };
+}
+
 /** The formula opening at `i`: { end, formula: { source, display, raw } }, or null. */
 function formulaAt(text, i) {
+  const environment = environmentAt(text, i);
+  if (environment) return environment;
   const opener = mathOpener(text, i);
   if (!opener) return null;
   const closer = opener === '\\[' ? '\\]' : opener === '\\(' ? '\\)' : opener;
@@ -52,9 +71,12 @@ function formulaAt(text, i) {
   let end = text.indexOf(closer, start);
   while (end >= 0 && escaped(text, end)) end = text.indexOf(closer, end + closer.length);
   const body = end >= 0 ? text.slice(start, end) : '';
-  // Dollar delimiters follow normal prose boundaries: "$5 and $10" is currency.
-  const currency = /^\d[\d,.]*(?:[.,;:!?]\s|\s+[A-Za-z]{2,})/.test(body);
-  const validDollar = opener !== '$' || (!/^\s|\s$/.test(body) && !/\d/.test(text[end + 1] || '') && !currency);
+  // Dollar delimiters follow normal prose boundaries: "$5 and $10" is currency. "$ F = ma $" (a space inside on both sides) is a formula too, when what
+  // is inside looks like math and holds no Chinese: "$x $ 和 $ y$" must not take " 和 " between its formulas. A space on one side only is prose.
+  const inner = body.trim(), spaced = /^\s/.test(body), spacedEnd = /\s$/.test(body);
+  const currency = /^\d[\d,.]*(?:[.,;:!?]\s|\s+[A-Za-z]{2,})/.test(inner);
+  const dollarShape = !spaced && !spacedEnd ? true : spaced && spacedEnd && !/[　-鿿＀-￯]/.test(inner) && /[\\^_={}+*/<>|]|^[A-Za-z]\d?$/.test(inner);
+  const validDollar = opener !== '$' || (dollarShape && !/\d/.test(text[end + 1] || '') && !currency);
   if (!body.trim() || !(display || (!body.includes('\n') && !body.includes('`'))) || !validDollar) return null;
   return { end: end + closer.length, formula: { source: body, display, raw: text.slice(i, end + closer.length) } };
 }

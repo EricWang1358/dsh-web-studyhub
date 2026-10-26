@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareStudyMath, safeStudyImage } from '../ui/study-media.js';
+import { prepareStudyMath, safeStudyImage, splitStudyMath } from '../ui/study-media.js';
 import { renderStudyFormula } from '../ui/study-math-render.js';
 
 test('formulas survive model newline repair, HTML-looking TeX and code unchanged', () => {
@@ -14,6 +14,40 @@ test('formulas survive model newline repair, HTML-looking TeX and code unchanged
   assert.equal(prepareStudyMath('```tex\n$x$\n```').formulas.length, 0);
   assert.equal(prepareStudyMath('$$unclosed').formulas.length, 0);
   assert.equal(prepareStudyMath('$2 x + 1$').formulas[0].source, '2 x + 1');
+});
+
+test('notes as people write them: spaced dollars, a unit after a number, bare LaTeX environments; prose and currency stay prose', () => {
+  const raws = (text) => prepareStudyMath(text).formulas.map((formula) => formula.raw);
+  assert.deepEqual(raws('力 $ F = ma $，加速度 $ a=\\frac{F}{m} $。'), ['$ F = ma $', '$ a=\\frac{F}{m} $']);
+  assert.deepEqual(raws('质量为5$kg$的物体，速度$v$和5$m/s$'), ['$kg$', '$v$', '$m/s$']);
+  assert.deepEqual(raws('令 $ x $ 为位移'), ['$ x $']);
+  const equation = '\\begin{equation}\nF=ma\n\\end{equation}';
+  assert.deepEqual(prepareStudyMath(`前文\n${equation}\n后文`).formulas.map((formula) => [formula.raw, formula.display]), [[equation, true]]);
+  const align = '\\begin{align}\nF&=ma\\\\ E&=mc^2\n\\end{align}';
+  assert.equal(renderStudyFormula(align, true).includes('<math'), true);
+  assert.deepEqual(prepareStudyMath('矩阵 \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} 如上').formulas.map((formula) => formula.display), [false]);
+  // Prose, currency and look-alikes are not formulas.
+  for (const prose of ['价格$5和$10', 'costs $ 5 and $ 10 each', '5$ and 6$ total', '$x $ 和 $ y$', 'a$b$c', '`\\begin{equation}`', '\\begin{foo} x \\end{foo}', '$ 和 $', '(5$)']) assert.deepEqual(raws(prose), [], prose);
+  // Reading and writing agree: the pieces of a text join back to the text.
+  const mixed = '力 $ F = ma $，5$kg$，\\begin{equation}a=b\\end{equation}尾';
+  assert.equal(splitStudyMath(mixed).map((piece) => (typeof piece === 'string' ? piece : piece.raw)).join(''), mixed);
+});
+
+test('physics and siunitx commands KaTeX does not know are written out, so the note draws; the rest still falls back to its source', () => {
+  for (const source of ['\\dv{x}{t}', '\\pdv{f}{x}', '\\SI{3}{m/s}', '\\unit{m/s}', '\\upmu\\mathrm{m}', '\\mbox{m}', '\\vb{F}', '\\ev{x}', '\\ang{30}', '\\num{3e8}', 'a\\label{x}', '\\abs{x}', '\\mathbbm{1}'])
+    assert.match(renderStudyFormula(source, false), /<math/, source);
+  assert.equal(renderStudyFormula('\\qty(\\frac{a}{b})', false), null, 'a command with no stand-in is shown as written');
+  // Where there is a document and no MathML (an old Chromium) the source is shown instead of a garbled drawing.
+  const saved = { document: globalThis.document, unknown: globalThis.HTMLUnknownElement, mathml: globalThis.MathMLElement };
+  globalThis.HTMLUnknownElement = class {};
+  globalThis.document = { createElement: () => new globalThis.HTMLUnknownElement() };
+  try {
+    assert.equal(renderStudyFormula('x^2', false), null);
+    globalThis.MathMLElement = class {};
+    assert.match(renderStudyFormula('x^2', false), /<math/, 'a browser that has MathML keeps the drawing');
+  } finally {
+    for (const [key, value] of [['document', saved.document], ['HTMLUnknownElement', saved.unknown], ['MathMLElement', saved.mathml]]) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; }
+  }
 });
 
 test('local native MathML supports fractions, alignment and chemistry without fonts or executable markup', () => {

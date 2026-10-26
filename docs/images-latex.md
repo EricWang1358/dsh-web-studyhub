@@ -16,6 +16,8 @@ Find $x$ when $2 x + 1 = 5$.
 
 Code spans and fenced code blocks keep their literal text. Ordinary prices such as `$5 and $10` remain text. For expressions that resemble a price, use `\(...\)` to avoid an ambiguous dollar delimiter. Invalid or unsupported LaTeX stays visible as its original text.
 
+Notes pasted from other places are read too: `$ F = ma $` (a space inside on both sides), a unit right after a number (`5$kg$`) and `\begin{equation}…\end{equation}`, `\begin{align}…\end{align}` and the other math environments written without a dollar sign. The common commands of the `physics` and `siunitx` packages (`\dv`, `\pdv`, `\vb`, `\ev`, `\abs`, `\SI`, `\unit`, `\ang`, `\num`) and `\mbox`, `\upmu`, `\mathbbm`, `\label`, `\eqref` are written out in what the renderer knows; `\qty` and the rest of siunitx are not, and stay as text. In a browser without native MathML (Chromium before 109) a formula is shown as its source.
+
 ## Write a chemical equation
 
 Put `\ce{...}` inside math delimiters. Coefficients, subscripts, charges, states of matter and reaction arrows use the locally installed mhchem notation. `\pu{...}` formats physical units. The note preview supports these chemistry commands too; its existing math delimiters are `$...$` and `$$...$$`.
