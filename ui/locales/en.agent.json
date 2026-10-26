@@ -252,6 +252,7 @@
   "题目在 Word、PDF 或 Excel 里：": "Questions in Word, PDF or Excel:",
   "让主会话把文件里的题按章原样整理成题组，存成草稿给你检查；文件在输入框里用 @ 选": "Ask the main chat to turn the questions in your files into decks by chapter, as written, saved as drafts for you to check; pick the files with @ in the input box",
   "让主会话把这些文件里的题原样整理成题组，存成草稿给你检查；文件在输入框里用 @ 选": "Ask the main chat to turn the questions in these files into decks as written, saved as drafts for you to check; pick the files with @ in the input box",
+  "我刚打开 StudyHub，还不太清楚自己现在有什么、能做什么。先看一眼我的学习库，用几句话告诉我现在的情况，再给我两三个可以马上开始的方向。": "I have just opened StudyHub and I am not sure what I have here or what I can do yet. Look at my library first, tell me in a few sentences where I stand, then give me two or three directions I can start with right away.",
   "让主会话按这个错误改好这段 JSON，存成草稿给你检查": "Ask the main chat to fix this JSON by the error and save it as a draft for you to check",
   "让主会话转换这些文件再导入；文件在输入框里用 @ 选": "Ask the main chat to convert these files, then import them; pick the files with @ in the input box",
   "让主会话按每个文件的原因换个办法导入；文件在输入框里用 @ 选": "Ask the main chat to import each file another way, by its reason; pick the files with @ in the input box",

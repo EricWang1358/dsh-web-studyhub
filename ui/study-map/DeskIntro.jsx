@@ -78,6 +78,7 @@ export default function DeskIntro({ data, home, mastery, role, busy, start, resu
             : <HandOff key={entry.handOff.id} id={entry.handOff.id} input={entry.handOff.input} lead={entry.handOff.lead} what={entry.handOff.what} disabled={busy} />))}
         </p>
       )}
+      {plan.kind === 'empty' && <p className="desk-also"><HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} /></p>}
       {plan.kind !== 'empty' && alternatives.length > 0 && (
         <details className="desk-more">
           <summary>{ui('其他开始方式')}</summary>

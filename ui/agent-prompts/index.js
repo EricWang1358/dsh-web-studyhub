@@ -9,6 +9,7 @@ import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } fro
 import { workflowDesignPrompt, workflowSkeletonPrompt, workflowStepPrompt } from './workflow.js';
 import { groupPrompt } from '../topic-group-prompt.js';
 import { pathBrief } from './path.js';
+import { guideStartPrompt } from './guide.js';
 import { pageQuestionPrompt } from './reader.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
@@ -35,6 +36,7 @@ export const HAND_OFFS = Object.freeze({
   'workflow.step': { build: (input, language) => workflowStepPrompt(input, language) },
   'path.brief': { build: (input, language) => pathBrief(input, language) },
   'reader.page': { build: (input, language) => pageQuestionPrompt(input, language), tail: 'image' },
+  'guide.start': { build: (input, language) => guideStartPrompt(input, language), skill: 'study-guide', tail: 'ask' },
 });
 
 /** Whether `id` names a registered hand-off. */

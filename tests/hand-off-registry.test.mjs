@@ -38,6 +38,8 @@ const FIXTURES = {
   'workflow.step': { input: { session: { id: 's1', version: 3, topic: 'Entropy' }, step: { title: 'Recall', kind: 'recall' }, wish: 'one more example' }, fenced: ['wish'] },
   'path.brief': { input: { steps: [{ order: 1, title: 'Chapter 1', pages: 10, chars: 5000, count: 5, sourceIds: ['a', 'b'], ranges: [{ document: 'Physics book', from: 1, to: 10 }] }], course: 'SA', goal: 'pass', indexed: false },
     fenced: ['course', 'goal'] },
+  // the main chat's front door (skills/study-guide): no learner data, so nothing is fenced
+  'guide.start': { input: {}, fenced: [] },
   'reader.page': { input: { title: 'Scheduling', page: 3, text: 'Page 3 explains round robin.', question: 'What does figure 2 show?' }, fenced: ['title', 'text', 'question'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.
