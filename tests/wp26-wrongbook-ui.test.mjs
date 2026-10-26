@@ -73,7 +73,7 @@ test('为你推荐 lists similar bank questions with why, a cap and a practise-t
   assert.doesNotMatch(html, /推荐题 3/, 'only the first three show until expanded');
   assert.match(html, /再显示 5 道/);
   assert.match(text(render({ initial: { recsAll: true } })), /推荐题 7/);
-  assert.match(text(render({ recs: { items: [] } })), /暂时没有合适的同类题/, 'an empty answer keeps the bar (#206)');
+  assert.match(text(render({ recs: { items: [] } })), /题库里没有找到合适的同类题/, 'an empty answer keeps the bar (#206)');
   assert.doesNotMatch(render({ recs: null }), /为你推荐/);
 });
 
@@ -85,12 +85,12 @@ test('variant states per row: none, generating, ready with a way to practise, fa
   const html = text(render({ initial: { groups: 'all' } }));
   assert.match(html, /已备好 2 道/);
   assert.match(html, /生成中…/);
-  assert.match(html, /这批变式没有通过质量校验/);
+  assert.match(html, /这批变式没有通过质量检查/);
   assert.match(html, /重试/);
   assert.match(html, /生成变式/);
   assert.doesNotMatch(html, /已跳过/, 'raw backend wording is mapped to plain words');
-  assert.match(variantFailureText('模型长时间没有响应（请求超时），可以稍后重试'), /长时间没有响应/);
-  assert.match(variantFailureText('connect ECONNREFUSED'), /可以重试/);
+  assert.match(variantFailureText('模型长时间没有响应（请求超时），可以稍后重试'), /模型这次没有响应/);
+  assert.match(variantFailureText('connect ECONNREFUSED'), /可以再试一次/);
 });
 
 test('a banner offers the prepared variants and reuses the coach practice', () => {

@@ -120,7 +120,7 @@ export async function runContinueQa(options) {
           await step("draft-page", async () => { await goto("library"); page2 = await draftPageOf(); facts.draft = page2; await noOverflow("the draft page"); });
           await step("draft-page-actions", async () => { await page.locator("[data-continue-line]").first().scrollIntoViewIfNeeded(); await sleep(400); });
           await check("one story after the time limit: why, what 接着做 does, ONE primary action, no sections it never promised, the same N / 15 everywhere", async () => {
-            const why = t("生成用时太长，已自动停止", "Generation took too long and stopped"), doing = t(`已出 ${KEPT}/${ASKED} 题保留，接着补 ${ASKED - KEPT} 题`, `${KEPT}/${ASKED} questions made and kept; Continue makes the ${ASKED - KEPT} still missing`);
+            const why = t("生成用时到了上限，已自动停止", "Generation hit its time limit and was stopped automatically"), doing = t(`已出 ${KEPT}/${ASKED} 题保留，接着补 ${ASKED - KEPT} 题`, `${KEPT}/${ASKED} questions made and kept; Continue makes the ${ASKED - KEPT} still missing`);
             assert.ok(home.banner.includes(why), `the banner says why: ${home.banner}`);
             assert.ok(home.banner.includes(doing), `the banner says what ${continueWord} does: ${home.banner}`);
             assert.ok(!/个小节没有题|still without a question/.test(`${home.banner} ${home.row}`), `a plain run promised questions, not sections: ${home.banner} | ${home.row}`);

@@ -73,7 +73,7 @@ test('the wrong book empty state and its errors use the shared components', () =
   assert.match(failed, /sh-inline--error/);
   assert.doesNotMatch(failed, /wb-error/);
   const stale = html(m.WrongBookView, { ...base, err: '网络断了' });
-  assert.match(stale, /读取失败，仍显示上次结果：网络断了/);
+  assert.match(stale, /没能刷新，下面仍是上次读到的内容：网络断了/);
   const loading = html(m.WrongBookView, { ...base, items: null, loading: true });
   assert.match(loading, /role="status"[^>]*>(?:<span[^>]*sh-spinner[^>]*><\/span>)?<span class="sh-loading__label">正在读取待巩固题…/);
 });
@@ -99,7 +99,9 @@ test('error boundaries share one CrashFallback: no emoji, no raw message as the 
   assert.match(out, /sh-crash/);
   assert.match(out, /role="alert"/);
   assert.doesNotMatch(out, emoji);
-  assert.match(out, /学习工作台渲染出错/);
+  assert.match(out, /学习工作台没能显示/);
+  assert.doesNotMatch(out, /渲染/, 'no developer word');
+  assert.match(out, /先点「重新加载」；还不行就刷新页面/, 'the sentence names the button that is really there');
   const main = out.slice(0, out.indexOf('<details'));
   assert.doesNotMatch(main, /x is undefined/);
   assert.match(out.slice(out.indexOf('<details')), /x is undefined/);

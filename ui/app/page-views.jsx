@@ -61,7 +61,7 @@ function LibraryView() {
     try {
       const { practice } = await core.call('course.outline', { course, pick: { keys: [point.key] } });
       const scope = practice?.scope.slice(0, 5) || [];
-      if (!scope.length) { notify(ui('还没出题')); return; }
+      if (!scope.length) { notify(ui('这个知识点还没有题。先到「创建题组」从资料出题。')); return; }
       const origin = learn.captureContext();
       intents.practice(scope, { fresh: false, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
@@ -407,7 +407,7 @@ export function DisabledPage({ page }) {
   const pluginManager = !!host?.openPluginManager;
   return (
     <section className="page" role="status">
-      <PageHeader title={ui('此功能已停用')} description={ui('在 DSH 插件管理器中启用所需组件后即可继续，已保存的学习资料仍会保留。')}
+      <PageHeader title={ui('这个页面需要的组件没有启用')} description={ui('在 DSH 插件管理器里启用它们就能继续；你已保存的学习资料都还在。')}
         actions={<>
           {pluginManager && <Button variant="primary" icon="external" onClick={() => host.openPluginManager()}>{ui('打开 DSH 插件管理器')}</Button>}
           <Button variant={pluginManager ? 'secondary' : 'primary'} onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('前往设置')}</Button>
@@ -423,7 +423,7 @@ export function StartPage() {
     <section className="onboarding">
       <div className="eyebrow">{ui('你的学习空间')}</div>
       <h1>{ui('把资料变成真正会的知识。')}</h1>
-      <p className="intro">{ui('学习库默认在当前工作区，出题模型跟随当前会话。无法打开时，可以换一个目录后重试。')}</p>
+      <p className="intro">{ui('学习库还没有打开。它默认放在当前工作区；打不开的话，换一个目录再点「重试」。')}</p>
       <WorkspaceBindingPanel />
       <Button variant="primary" disabled={core.busy} onClick={() => core.refresh().then(() => core.setError(''), (failure) => core.setError(failure.message))}>{ui('重试')}</Button>
     </section>

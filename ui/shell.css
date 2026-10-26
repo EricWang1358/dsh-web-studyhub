@@ -317,7 +317,8 @@
     .crumbs {
       display: flex;
       align-items: center;
-      min-width: 0;
+      /* The page title never goes to nothing: a long status or folder name beside it gives way first. */
+      min-width: 4em;
     }
     .crumb {
       color: var(--text-muted);
@@ -358,15 +359,19 @@
       animation: dot-pulse 1.4s var(--ease) infinite;
     }
   }
-  @container study (max-width: 640px) {
+  /* Beside a long folder name and a status word the decorative "Study ›" would take the room of the page title (measured at 768 px): it goes below 800 px. */
+  @container study (max-width: 800px) {
     :where(.study-app, .study-seat) {
-      /* A narrow pane gives the page title the room: the decorative "Study ›"
-         goes, and the steady "已连接" shrinks to its dot (busy, failing and
-         未配置模型 keep their words). */
       .crumbs > .crumb:first-child,
       .crumbs > .breadcrumb {
         display: none;
       }
+    }
+  }
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
+      /* The decorative "Study ›" is already gone below 800 px (above); here the steady "已连接" shrinks to its dot
+         (busy, failing and 还没配模型 keep their words). */
       .top-status.idle .top-status-label {
         position: absolute;
         width: 1px;
@@ -375,23 +380,59 @@
         clip-path: inset(50%);
         white-space: nowrap;
       }
-      /* A label that stays (busy, failing, 未配置模型) gives way before the page title does: the crumb keeps its own width, the right side shrinks, the label ends in an ellipsis. */
+      /* A label that stays (busy, failing, 还没配模型) gives way before the page title does: the crumb keeps its own width and the library chip shrinks first. */
       .crumbs {
         flex-shrink: 0;
+        min-width: 5em;
         max-width: 50%;
       }
-      .top-right {
+      /* .topbar in front: the base .top-right further down sets flex-shrink: 0 at the same weight and would win, so a longer label could never shrink. */
+      .topbar .top-right {
+        flex-shrink: 1;
+        min-width: 0;
+      }
+      /* The label is short on purpose (a long sentence is its hover text) and keeps its width; the library chip beside it, which has a title of its own, is what ends in an ellipsis. */
+      .top-status-anchor:not(.is-idle) {
+        flex-shrink: 0;
+      }
+    }
+  }
+  /* At 320 px the words do not fit beside the page title and the mailbox. An English label folds into its dot here, the way the steady state does at 640 px: the
+     whole sentence is the Tooltip and the dot keeps its colour. The Chinese labels run five to seven characters and keep their words; should one still not fit, it
+     ends in an ellipsis rather than push the mailbox out of the bar. */
+  @container study (max-width: 340px) {
+    :where(.study-app, .study-seat) {
+      /* A pane this narrow (a 320 px window is 248 px of bar) cannot hold 24 px of side padding, a 5em title and a 90 px label at once: the bar's padding
+         and the title's floor come down, so a Chinese label is still drawn whole beside the page title and the mailbox. */
+      .topbar {
+        padding: 0 var(--space-3);
+      }
+      .crumbs {
+        flex-shrink: 1;
+        min-width: 3.5em;
+      }
+      .top-status-anchor:not(.is-idle) {
         flex-shrink: 1;
         min-width: 0;
       }
       .top-status:not(.idle) {
         min-width: 0;
+        overflow: hidden;
       }
       .top-status:not(.idle) .top-status-label {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
       }
+    }
+    /* English words are longer than the Chinese ones, so they fold into the dot; the label stays in the page for screen readers. */
+    .study-app[lang="en"] .top-status:not(.idle) .top-status-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
   }
   :where(.study-app, .study-seat) {

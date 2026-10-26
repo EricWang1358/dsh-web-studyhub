@@ -9,8 +9,8 @@ Record a class as it happens and follow it sentence by sentence: the original tr
 You need:
 
 - **A Gemini key.** Live transcription works only with Google Gemini's live interface. Check Gemini’s current account, region and quota requirements. Paste the key into the Google Gemini card in **Settings › Audio transcription** and click **Save and verify**. Until a key is saved, the page shows **Live class needs a Gemini key**, with setup steps and an **Open audio settings** button.
-- **A model for translation and correction.** By default StudyHub uses the DSH conversation model when there is one, and Gemini otherwise. See [Settings](#settings).
-- **A DSH conversation model**, if you want to create questions during class.
+- **A model for translation and correction.** By default StudyHub uses its generation model (it follows the main chat by default) when there is one, and Gemini otherwise. See [Settings](#settings).
+- **StudyHub's generation model** (it follows the main chat by default), if you want to create questions during class.
 - **A browser that can capture audio:** a current Chrome or Edge, with the page opened over HTTPS or localhost. Allow the microphone, or share the tab when the browser asks.
 
 SiliconFlow SenseVoice and Groq handle recorded files only. If you cannot use Gemini, record the class another way and import the file on the **Audio transcription** page afterwards. See [audio import](audio-import.md).
@@ -129,13 +129,13 @@ Click a sentence reference, such as **Sentence 12**, to jump to that sentence in
 Sometimes a later sentence shows that an older one, outside the current window, was misheard. The batch check then queues a separate request that names 1–20 specific older sentences and the reason.
 
 - Requests run in the background, one at a time. Each uses the batch that raised it as evidence. Recording and batch correction do not wait for it.
-- Each request shows **Queued**, **Working in background**, **Completed** or **Retry needed**. Click **Retry historical correction** to run the failed ones again.
+- Each request shows **Queued**, **Working**, **Completed** or **Retry available**. Click **Retry historical correction** to run the failed ones again.
 - Before merging a result, StudyHub checks that the sentences have not changed since the request. Stale, timed-out (after 60 seconds) and failed results are not merged and stay available for retry. They are never reported as done.
 
 The model that runs it follows **Model for proofreading and translation** (see [Settings](#settings)):
 
 - **Gemini:** a direct Gemini call. No DSH subagent is involved.
-- **The DSH conversation model:** a DSH subagent that has no tools and cannot delegate further. If DSH cannot run subagents, StudyHub calls the same model directly. Once a subagent has started, a failure does not switch to another route; the request is kept for retry.
+- **StudyHub's generation model:** a DSH subagent that has no tools and cannot delegate further. If DSH cannot run subagents, StudyHub calls the same model directly. Once a subagent has started, a failure does not switch to another route; the request is kept for retry.
 
 ## Save the class
 
@@ -171,15 +171,15 @@ Live class uses the Gemini keys and models in **Settings › Audio transcription
 
 | Setting | Options and effect |
 | --- | --- |
-| **Model for proofreading and translation** | **Automatic (the conversation model when there is one, otherwise Gemini)** is the default. The other options are **Gemini (free first, then paid)** and **The model the conversation uses**. Live translation, context correction and historical correction follow this choice. |
+| **Model for proofreading and translation** | **Automatic (StudyHub's generation model when there is one, otherwise Gemini)** is the default. The other options are **Gemini (free first, then paid)** and **StudyHub's generation model (follows the main chat by default)**. Live translation, context correction and historical correction follow this choice. |
 | **Live transcription model** | The Gemini live model. Default `gemini-3.5-transcribe-live`. |
-| **Live translation model** | The Gemini model for live translation and context correction. Default `gemini-3.5-flash-lite`. Hidden when **The model the conversation uses** is selected. |
+| **Live translation model** | The Gemini model for live translation and context correction. Default `gemini-3.5-flash-lite`. Hidden when **StudyHub's generation model (follows the main chat by default)** is selected. |
 | **Reasoning strength of live class context correction** | The current model's own levels or **Model default**; **Low** by default. A strength the model does not offer maps to the nearest level and the list says so. Applies to context correction and historical correction. |
 | **Gemini paid key (optional)** | Directly under **Advanced**. Used when the free allowance runs out, or always with **Use paid key only**. |
 
 How the reasoning setting is applied:
 
-- On the conversation model, correction never inherits a higher reasoning level from the main chat. If the model has no low level, it uses its default.
+- On StudyHub's generation model, correction never inherits a higher reasoning level from the main chat. If the model has no low level, it uses its default.
 - On Gemini, Gemini 3 models get a low thinking level and Gemini 2.5 models a small thinking budget. Other models use their defaults.
 
 ## Costs, keys and privacy
@@ -187,7 +187,7 @@ How the reasoning setting is applied:
 - Live class uses the free Gemini key first. It switches to the paid key when the free allowance runs out or is rate-limited, and tries the other key if one is rejected. These switches appear under **Connection and quota notices**.
 - **Use paid key only** skips the free key for transcription, translation and correction.
 - **Estimated paid transcription**, at the bottom of the page, covers paid transcription only. It excludes translation and correction.
-- Correction on the conversation model is billed by your provider through DSH. It is not counted in the Gemini figures.
+- Correction on StudyHub's generation model is billed by your provider through DSH. It is not counted in the Gemini figures.
 - Correction requests share a fixed prompt prefix, so the provider can reuse its cache, and StudyHub records the cached input tokens the provider reports. A local cache also reuses up to 8 identical results. Cache hits and discounts are not guaranteed, and StudyHub creates no separately billed explicit cache.
 - Keys stay in the audio settings file on this computer. They never travel in the browser's audio messages and are never written into a class file. Do not paste keys into the main chat.
 
@@ -197,7 +197,7 @@ How the reasoning setting is applied:
 - StudyHub saves about 3 seconds after each change, one save at a time. If a save fails, the page says so and the text stays in memory.
 - A crash or power loss can lose the last few unsaved seconds. Because the audio is not kept, those seconds cannot be recovered.
 - After you close the page, unfinished translation and correction keep running in StudyHub's backend.
-- After DSH restarts, unfinished translations show as failed and interrupted historical requests show **Retry needed**; retry them from the page. Notes, the correction position, historical requests and the archive status are kept.
+- After DSH restarts, unfinished translations show as failed and interrupted historical requests show **Retry available**; retry them from the page. Notes, the correction position, historical requests and the archive status are kept.
 - **Continue recording** and deletion first wait for pending processing and saves. This stops an old copy from overwriting a resumed class or bringing back a deleted one.
 - Class files are kept apart from the library's main data, so they are not sources and are not in library backups. Click **Save as source** to turn a class into ordinary sources.
 

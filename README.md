@@ -255,7 +255,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
 - **Works well with:** [Archify and other companion tools](docs/companions.md)
 - **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
-- **Developers:** [architecture](docs/architecture.md) · [verification records](docs/verification.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
+- **Developers:** [architecture](docs/architecture.md) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
 
 ## Join the project
 

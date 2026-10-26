@@ -12,7 +12,7 @@ import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } fr
 import { Badge, Banner, Button, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { NO_FILTER, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, readGroupBy, readOpenGroups, reasonText, retrainOptions,
-  sameVariantState, saveGroupBy, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
+  sameVariantState, saveGroupBy, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { setQueryData, useHostQuery } from './host-query.js';
 import { formatDateTime, joinMeta, META_DOT } from "./format.js";
@@ -39,7 +39,7 @@ const relatedTo = (recs, cardId) => recs
 /** A tooltip body: one sentence, and at most one line on what follows from it. */
 const tip = (sentence, consequence) => <>{sentence}{consequence && <><br />{consequence}</>}</>;
 /** What 生成变式 does, said wherever a button starts it. */
-const generateTip = () => tip(uiFormat('为错题改写新的变式题：每道题约 1 次轻量模型调用，一次最多 {0} 题。', [VARIANT_BATCH_CAP]), ui('写好的变式会存为草稿，可在「为你定制」里练。'));
+const generateTip = () => tip(uiFormat('为错题改写新的变式题：每道题约 1 次轻量模型调用，一次最多 {0} 题。', [VARIANT_BATCH_CAP]), ui('写好的变式会先备好等你，点「去练」或从侧栏「为你定制」开练。'));
 /** What each kind of low outcome means: the chips and the row marks say it in the same words. */
 function statusTip(kind) {
   switch (kind) {
@@ -118,7 +118,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
   return (
     <div className="wb-detail" id={id}>
       {detail === "loading" || detail === undefined ? <LoadingState label={ui("正在读取详情…")} />
-        : detail?.error ? <InlineMessage tone="error">{ui("读取详情失败，稍后再试")}</InlineMessage>
+        : detail?.error ? <InlineMessage tone="error">{ui("没能读取这道题的详情。点页面上的「刷新」再试一次。")}</InlineMessage>
           : (
             <dl className="wb-facts">
               <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
@@ -211,6 +211,10 @@ export function WrongBookView({
   const [groupBy, setGroupBy] = useState(() => initial.groupBy || readGroupBy());
   const chooseGroupBy = (value) => { setGroupBy(value); saveGroupBy(value); };
   const [expanded, setExpanded] = useState(() => new Set(initial.expanded || []));
+  // A row that stays open across a reload (刷新 drops what was read) asks for its detail again; the page asks each card once per list load, so this never loops.
+  useEffect(() => {
+    for (const ref of rowsAwaitingDetail(items || [], expanded, details)) onLoadDetail?.(ref);
+  }, [items, details, expanded, onLoadDetail]);
   // The filter is part of the page: refreshes keep it, another course scope starts clean (scopedFilter).
   const scopeKey = JSON.stringify([course, !!showInactive]);
   const [filterState, setFilterState] = useState(() => ({ scope: scopeKey, filter: { ...NO_FILTER, ...initial.filter } }));
@@ -352,7 +356,7 @@ export function WrongBookView({
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />}
         actions={<Button variant="secondary" icon="refresh" onClick={() => onReload(page)} disabled={busy || loading}>{ui("刷新")}</Button>} />
 
-      {err && <ErrorState error={items ? uiFormat("读取失败，仍显示上次结果：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
+      {err && <ErrorState error={items ? uiFormat("没能刷新，下面仍是上次读到的内容：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
       {loading && !items && <LoadingState label={ui(isHistory ? "正在读取已订正的错题…" : "正在读取待巩固题…")} />}
 
       {/* 待巩固 / 已订正 first: a cleared 待巩固 page must not read as "no mistakes ever" (the field report). */}
@@ -366,7 +370,7 @@ export function WrongBookView({
       {!isHistory && hasCoach && onPracticePrepared && coach.ready > 0 && (
         <Banner tone="success" icon="sparkle" title={uiFormat("已为你备好 {0} 道变式题", [coach.ready])}
           action={{ label: ui("去练 →"), onClick: () => onPracticePrepared({}), disabled: busy }}>
-          {ui("它们由你的错题改写而来，练完会放进「为你定制」。")}
+          {ui("它们由你的错题改写而来，开练后会放进「为你定制」。")}
         </Banner>
       )}
 
@@ -402,7 +406,7 @@ export function WrongBookView({
               ? <DisclosureToggle open={recsOpen} onToggle={setRecsOpen} controls="wb-recs-body" label={foldLabel(recsOpen, ui("为你推荐"))} />
               : <span className="wb-recs-spacer" aria-hidden="true" />}
             <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
-            {recItems.length === 0 && <span className="muted wb-recs-status" role="status">{recsLoading ? ui("正在查找同类题…") : ui("暂时没有合适的同类题")}</span>}
+            {recItems.length === 0 && <span className="muted wb-recs-status" role="status">{recsLoading ? ui("正在查找同类题…") : ui("题库里没有找到合适的同类题")}</span>}
             {recItems.length > 0 && (
               <Button variant="secondary" size="sm" icon="arrow-right" disabled={busy} onClick={() => onPractice(recItems.map(refOf))}>
                 {uiFormat("练这 {0} 道", [recItems.length])}

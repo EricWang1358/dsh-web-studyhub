@@ -33,7 +33,7 @@ test('the deck removal dialog keeps its look: quiet cancel first, a danger confi
   assert.match(out, /永久删除「操作系统」？/);
   assert.match(out, /12 道题/);
   const blocked = renderToStaticMarkup(React.createElement(RemoveDeckDialog, { deck: { id: 'd', title: '操作系统', count: 12, archived: false }, busy: false, act() {}, onClose() {}, onRemoved() {} }));
-  assert.match(blocked, /请先归档题组/);
+  assert.match(blocked, /这个题组需要先归档/);
   assert.match(blocked.match(/<footer[^>]*>(.*)<\/footer>/s)[1].match(/<button[^>]*sh-btn--danger[^>]*>/)[0], /disabled=""/);
 });
 

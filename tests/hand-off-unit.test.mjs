@@ -80,7 +80,7 @@ test('copied: no chat (no host, a host without askInChat, a host that says false
   }
 });
 
-test('shown: a refused clipboard opens the full-text card at once, with no slip; closed without copying it leaves 「请手动复制 · 打开全文」, which stays', async () => {
+test('shown: a refused clipboard opens the full-text card at once, with no slip; closed without copying it leaves 「需要手动复制 · 打开全文」, which stays', async () => {
   const sheets = [];
   const { notices, deliver } = fakes({ refuse: true, openSheet: (sheet) => sheets.push(sheet) });
   assert.equal(await deliver('第一行\n第二行', '已保存。'), 'shown');
@@ -91,7 +91,7 @@ test('shown: a refused clipboard opens the full-text card at once, with no slip;
   assert.deepEqual(notices, [''], 'copied in the card: nothing is left behind');
   sheets[0].onClosed(false);
   const slip = notices.at(-1);
-  assert.deepEqual({ ...slip, action: slip.action.label }, { receipt: 'shown', title: '请手动复制', text: '已保存。剪贴板不让用', persistent: true, action: '打开全文' });
+  assert.deepEqual({ ...slip, action: slip.action.label }, { receipt: 'shown', title: '需要手动复制', text: '已保存。浏览器没让复制，点「打开全文」', persistent: true, action: '打开全文' });
   slip.action.run();
   assert.equal(sheets.length, 2, '打开全文 opens the card again');
   // the learner's text in the box was kept and the clipboard refused: the card says both
@@ -161,8 +161,8 @@ test('the full-text card: the message once, in a box: the learner\'s sentence, t
   const card = (mode) => renderToStaticMarkup(h(m.StudyServicesContext.Provider, { value: services }, h(m.HandOffSheet, { sheet: { text, mode, lead: '' }, onClose() {} })));
   const shown = card('shown');
   assert.match(shown, /<span class="sh-seal sh-seal--lg" data-o="shown"/);
-  assert.match(shown, /请手动复制/);
-  assert.match(shown, /剪贴板不让用/);
+  assert.match(shown, /需要手动复制/);
+  assert.match(shown, /浏览器没让复制/);
   assert.match(shown, /<p class="sh-handoff-sheet__ask">帮我调整学习流 <span class="sh-handoff-sheet__name">Daily flow<\/span>：<\/p>/);
   assert.match(shown, /<blockquote class="sh-handoff-sheet__request"><span class="sh-handoff-sheet__label">我的要求<\/span>讲慢一点<\/blockquote>/);
   const notes = m.messageParts(text, 'zh').notes.length;

@@ -27,7 +27,7 @@ export async function publishAndPractice({ call, act, toast, draft, intoDeck, sa
     } catch {
       if (isCurrent()) {
         setPage?.('library');
-        toast?.success(ui('题组已发布；当前没有可开始的新题。'));
+        toast?.success(ui('题组已发布。这次没能自动开始练习，可以在学习库里开始。'));
       }
     }
   };

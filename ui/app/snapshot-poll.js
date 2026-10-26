@@ -1,4 +1,5 @@
 import { failureText } from '../failure.js';
+import { isTransientStudyError } from '../transport.js';
 /* What one tick of the library poll does (ui-consistency #125). The loop itself, its hidden-tab silence, its immediate
    catch-up and its backoff table are ui/use-polling.js; this is the part that is the library's own:
      - a snapshot that comes back unchanged slows the rhythm (the loop counts the `unchanged` answers);
@@ -7,7 +8,7 @@ import { failureText } from '../failure.js';
 
 /**
  * deps: { refresh(): the library snapshot, readData(): the snapshot the panel holds, readToken(): names the library and loop this
- * request belongs to (it changes when either goes), setSyncIssue(text), same(before, after): nothing visible changed,
+ * request belongs to (it changes when either goes), setSyncIssue(text, transient: the plugin route or host connection is not up yet, by the error's own code), same(before, after): nothing visible changed,
  * isWorking(): a job or coach task is moving (the rhythm stays quick) }.
  */
 export function createSnapshotPoll({ refresh, readData, readToken, setSyncIssue, same, isWorking }) {
@@ -24,7 +25,7 @@ export function createSnapshotPoll({ refresh, readData, readToken, setSyncIssue,
         if (token === readToken()) setSyncIssue('');
         unchanged = !woke && same(before, next);
       } catch (error) {
-        if (token === readToken()) setSyncIssue(failureText(error));
+        if (token === readToken()) setSyncIssue(failureText(error), isTransientStudyError(error));
       }
       woke = false;
       return { unchanged, running: !!isWorking() };

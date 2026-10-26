@@ -62,7 +62,7 @@ test('error reads the message of whatever was thrown and offers a retry', () => 
   assert.deepEqual(log[1], ['error', { text: 'plain text' }]);
   assert.deepEqual(log[2], ['error', { text: 'nope', action: { label: '重试', run: retry } }]);
   api.error(undefined);
-  assert.equal(log[3][1].text, '出了点问题，请重试。');
+  assert.equal(log[3][1].text, '这次没有成功，也没有拿到具体原因。可以再试一次。');
 });
 
 test('the region shows an undo notice as a toast that may leave by itself but is held while hovered', () => {

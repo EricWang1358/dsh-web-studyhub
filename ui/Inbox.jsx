@@ -18,8 +18,8 @@ const PANEL_ROWS = { "--sh-scroll-max": "min(360px, 55vh)" };
 
 function EmptyMailbox() {
   const topics = new Intl.ListFormat(uiLocale(), { style: "long", type: "conjunction" }).format(inboxTopics().map((topic) => ui(topic)));
-  return <EmptyState size="sm" icon="mail" className="mailbox__empty" title={ui("暂无消息")}
-    description={uiFormat("{0}的结果会投递到这里，点一下就能跳回对应的地方。", [topics])} />;
+  return <EmptyState size="sm" icon="mail" className="mailbox__empty" title={ui("信箱是空的")}
+    description={uiFormat("{0}的结果会放在这里，点一下就能回到对应的地方。", [topics])} />;
 }
 
 /** The card beside an entry: everything the list truncates, then what a click does. */

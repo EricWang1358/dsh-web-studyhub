@@ -89,7 +89,7 @@ function Detail({ task, data, openers, full, onFull, onDelete }) {
   /* 知道了 puts the task in 已归档 (nothing is deleted); 取消归档 puts it back. Both go the light way and say where the task went. */
   const settle = async (run, text) => {
     const done = await run();
-    if (done?.ok === false) core.setError?.(done.message || ui('没有完成，请再试一次。')); else { core.notify?.(text); Promise.resolve(core.refresh?.()).catch(() => {}); }
+    if (done?.ok === false) core.setError?.(done.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。')); else { core.notify?.(text); Promise.resolve(core.refresh?.()).catch(() => {}); }
   };
   const archive = () => settle(() => (quick ? dismissJobs(quick, task.id) : core.act('job.archive', { jobId: task.id })), ui('已放进「已归档」，之后可以取消归档或删除。'));
   const unarchive = () => settle(() => batchRun('unarchive', [key], { quick, core }), ui('已取消归档'));
@@ -206,7 +206,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   const summary = selectionSummary(shown, selection);
   const everything = useMemo(() => new Map([...tasks, ...archived].map((item) => [taskId(item), item])), [tasks, archived]);
   const report = (action, result) => {
-    if (result.ok === false) { core.setError?.(result.message || ui('没有完成，请再试一次。')); return false; }
+    if (result.ok === false) { core.setError?.(result.message || ui('这次没有成功，也没有拿到具体原因。可以再试一次。')); return false; }
     core.notify?.(batchMessage(action, result));
     Promise.resolve(core.refresh?.()).catch(() => {});
     return true;

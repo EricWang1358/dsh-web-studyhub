@@ -139,10 +139,10 @@ test('without the audio component the converter says which component it is, and 
   setUiLanguage('zh');
   const off = { ...data, contexts: ['materials'] };
   const html = text(render({ data: off }));
-  assert.match(html, /PDF 解析随音频组件一起提供/);
+  assert.match(html, /PDF 解析是音频组件的一部分/);
   assert.doesNotMatch(html, /PDF 解析组件/);
   const panel = text(renderToStaticMarkup(h(PdfConversion, { available: false, call: async () => ({}) })));
-  assert.match(panel, /PDF 解析随音频组件一起提供，这个安装没有启用它/);
+  assert.match(panel, /PDF 解析是音频组件的一部分，而音频组件没有启用/);
 });
 
 /* ---------- where an import goes ---------- */

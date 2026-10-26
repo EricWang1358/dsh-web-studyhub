@@ -54,11 +54,11 @@ test('a failed open does not switch the page, and a failing page switch explains
   assert.equal(revealed, 0);
   for (const reveal of [() => { throw new Error('layout gone'); }, () => Promise.reject(new Error('layout gone'))])
     await rejects(() => openBackgroundAgent(host({ sessions: { open: async () => {} } }), 'child-1', { reveal }),
-      /后台助手已打开，但未能切换到对话区：layout gone/);
+      /后台助手已打开，但没能把它自己的对话窗口切到前面：layout gone/);
   setUiLanguage('en');
   try {
     await rejects(() => openBackgroundAgent(host({ sessions: { open: async () => {} } }), 'child-1',
-      { reveal: () => Promise.reject(null) }), /The assistant opened.*Open the assistant from the session list/);
+      { reveal: () => Promise.reject(null) }), /The assistant opened.*Open it from the session list/);
   } finally { setUiLanguage('zh'); }
 });
 

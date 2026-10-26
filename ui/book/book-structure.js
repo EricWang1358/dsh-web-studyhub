@@ -1,7 +1,7 @@
 /* 复习全书 structure on the page (#470, docs/review-book.md "Structure"): where the point being read sits in course.book.open's tree, the places it
    can move to, and the two places a `course.book.move` asks for. Pure (no React), so the dialogs and their tests read the same rules. Every change is
    compare-and-set on the book's structureVersion (lib/course-book-structure.js). */
-import { ui } from '../i18n.js';
+import { ui, errorMessage } from '../i18n.js';
 
 /** The node of `hid` in `nodes` with where it sits: { node, parent, siblings, index } (parent null at the top), or null. */
 export function nodeAt(nodes, hid, parent = null) {
@@ -46,6 +46,10 @@ export function shiftPlace(book, hid, delta) {
     as the action said it. */
 export const structureFailureText = failure => (failure?.code === 'course-book-conflict'
   ? ui('这本书的结构刚被改过，已经重新读了一遍；再按一次就好。') : null);
+
+/** What the delete dialog says when the change fails: the stale-version line, else the reason the action gave, and only when none came back the generic line. */
+export const deleteFailureText = failure => structureFailureText(failure)
+  ?? ((failure?.message || typeof failure === 'string') && errorMessage(failure) || ui('这次没有成功，也没有拿到具体原因。可以再试一次。'));
 
 /** The one success line of each change (the page's feedback region). */
 export const STRUCTURE_DONE = Object.freeze({ 'course.book.rename': '已改名', 'course.book.move': '已移动', 'course.book.delete': '已删除这个知识点' });

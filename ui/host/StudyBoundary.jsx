@@ -20,7 +20,7 @@ export default class StudyBoundary extends React.Component {
     if (!error) return <React.Fragment key={nonce}>{this.props.children}</React.Fragment>;
     return (
       <div className="study-app">
-        <CrashFallback error={error} title={ui("学习工作台渲染出错")} retryLabel={ui("重新加载")}
+        <CrashFallback error={error} title={ui("学习工作台没能显示")} retryLabel={ui("重新加载")}
           onRetry={() => this.setState((s) => ({ error: null, nonce: s.nonce + 1 }))} />
       </div>
     );

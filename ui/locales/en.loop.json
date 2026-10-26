@@ -1,5 +1,6 @@
 {
   "还没出题": "No questions yet",
+  "这个知识点还没有题。先到「创建题组」从资料出题。": "This knowledge point has no questions yet. Go to \"Create deck\" to make some from your material.",
   "1 道题": "1 question",
   "{0} 道题": "{0} questions",
   "按这几页关联的题的复习状态计算；答对并拉长复习间隔才会上升": "Based on the review state of the questions linked to these pages: it rises only when they are answered correctly and their review intervals grow.",

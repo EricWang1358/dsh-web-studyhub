@@ -107,7 +107,7 @@ test('ModelSetupGate: one copy table, three shapes (#104)', () => {
   assert.equal(html(h(m.ModelSetupGate, { variant: 'block', feature: 'generate', model: { ready: true }, onOpenSettings: noop })), '', 'nothing to gate when a model is ready');
   assert.doesNotMatch(html(h(m.ModelSetupGate, { variant: 'block', feature: 'generate', model: { ready: false }, onOpenSettings: noop }), 'en'), han);
   assert.doesNotMatch(html(h(m.ModelSetupGate, { variant: 'inline', feature: 'ingest', model: { ready: false } }), 'zh'), /<button/, 'no button without a handler');
-  assert.equal(m.gateTitle('block'), '先配置一个 AI 模型');
+  assert.equal(m.gateTitle('block'), '需要先配置一个 AI 模型');
   assert.equal(m.gateTitle('inline'), '还没有可用的 AI 模型');
 });
 
@@ -123,7 +123,7 @@ test('the generate page without a model shows one gate, on top as a banner (#104
   assert.equal((out.match(/<section[^>]*class="sh-setup /g) || []).length, 0);
   assert.match(out, /data-tour="generate-submit"/);
   for (const file of ['ui/Generate.jsx', 'ui/Ingest.jsx', 'ui/DraftShortfall.jsx', 'ui/AiHelperNote.jsx'])
-    lacks(file, /["'`]先配置一个 AI 模型["'`]|["'`]还没有可用的 AI 模型["'`]|["'`]没有可用模型/);
+    lacks(file, /["'`]需要先配置一个 AI 模型["'`]|["'`]先配置一个 AI 模型["'`]|["'`]还没有可用的 AI 模型["'`]|["'`]没有可用模型/);
   has('ui/Generate.jsx', /ModelSetupGate/);
   has('ui/Ingest.jsx', /ModelSetupGate/);
 });

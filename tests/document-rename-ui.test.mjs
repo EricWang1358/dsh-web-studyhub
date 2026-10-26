@@ -82,7 +82,7 @@ test('the call carries what the person saw, names the document by its identity, 
   assert.deepEqual(await lib.renameDocument({ act }, pasted, { title: 'Week 1' }), { status: 'renamed', title: 'Week 1' });
   assert.equal(calls[0].action, 'materials.document.rename');
   assert.equal(calls[0].options.rethrow, true, 'a failure reaches the editor, not a banner somewhere else');
-  await assert.rejects(lib.renameDocument({ act: async () => undefined }, pasted, { title: 'x' }), /另一个操作还在进行/, 'a dropped (busy) action is said, not silent');
+  await assert.rejects(lib.renameDocument({ act: async () => undefined }, pasted, { title: 'x' }), /上一个操作还没结束/, 'a dropped (busy) action is said, not silent');
   assert.equal(lib.originalNote(item), '原名：lecture5.pdf');
   assert.equal(lib.originalNote(pasted), '');
 });

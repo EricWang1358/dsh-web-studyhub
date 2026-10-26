@@ -24,7 +24,9 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
   const { call, quick, quickStamp, setError, setBusy, notify, refs } = core;
   const [serverData, setData] = useState(null);
   const [binding, setBinding] = useState({ root: '', provider: '', model: '' });
-  const [loading, setLoading] = useState(true), [connecting, setConnecting] = useState(''), [syncIssue, setSyncIssue] = useState('');
+  const [loading, setLoading] = useState(true), [connecting, setConnecting] = useState(''), [syncIssue, setSyncIssueText] = useState(''), [syncTransient, setSyncTransient] = useState(false);
+  // The bar says 重新连接中… for a host that is not up yet; the code of the error says so, the text alone cannot (the host's words are Chinese).
+  const setSyncIssue = useCallback((text, transient = false) => { setSyncIssueText(text); setSyncTransient(!!text && !!transient); }, []);
   /* Light actions (知道了, 全部已读) patch what is on screen at once and run in the background; see ui/quick-actions.js.
      `data` is the server snapshot with those pending patches applied. */
   const data = useMemo(() => quick.view(serverData), [quick, serverData, quickStamp]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -94,7 +96,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
         } catch (failure) {
           if (!live) return;
           if (isTransientStudyError(failure) && attempt < 20) {
-            setConnecting(uiFormat('正在连接学习插件…（第 {0} 次重试）', [attempt + 1]));
+            setConnecting(uiFormat('正在连接 StudyHub…（第 {0} 次重试）', [attempt + 1]));
             await new Promise((done) => setTimeout(done, Math.min(1000 * (attempt + 1), 5000)));
             continue;
           }
@@ -115,7 +117,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
   workingRef.current = working;
   useEffect(() => { pollToken.current = {}; return () => { pollToken.current = {}; }; }, [binding.root]);
   const poll = useMemo(() => createSnapshotPoll({ refresh: () => refs.refreshRef.current(), readData: () => refs.dataRef.current, readToken: () => pollToken.current,
-    setSyncIssue, same: sameExceptFingerprint, isWorking: () => workingRef.current }), [refs]);
+    setSyncIssue, same: sameExceptFingerprint, isWorking: () => workingRef.current }), [refs, setSyncIssue]);
   usePolling(poll.run, { intervalMs: POLL_FAST_MS, enabled: !!binding.root, backoff: true });
   useEffect(() => (binding.root ? attachWake(poll) : undefined), [binding.root, poll]);
 
@@ -155,5 +157,5 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
       setBusy(false);
     }
   }
-  return { data, loaded: !!data, binding, setBinding, loading, connecting, syncIssue, refresh, running, publishing, updateBinding };
+  return { data, loaded: !!data, binding, setBinding, loading, connecting, syncIssue, syncTransient, refresh, running, publishing, updateBinding };
 }

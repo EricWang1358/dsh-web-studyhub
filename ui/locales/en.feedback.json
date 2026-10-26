@@ -2,14 +2,13 @@
   "进度": "Progress",
   "分布": "Breakdown",
   "正在载入…": "Loading…",
-  "出了点问题，请重试。": "Something went wrong. Please try again.",
+  "这次没有成功，也没有拿到具体原因。可以再试一次。": "That did not work, and no reason came back. You can try again.",
   "这部分没能显示": "This part could not be shown",
-  "学习记录没有受到影响。重试一次；如果还是不行，刷新页面。": "Your study records are not affected. Try again; if it still fails, reload the page.",
   "部分完成": "Partly done",
   "{0}：{1}": "{0}: {1}",
   "信箱消息": "Mailbox messages",
-  "暂无消息": "No messages yet",
-  "{0}的结果会投递到这里，点一下就能跳回对应的地方。": "Results for {0} land here. Select one to jump back to it.",
+  "信箱是空的": "The inbox is empty",
+  "{0}的结果会放在这里，点一下就能回到对应的地方。": "Results from {0} will appear here. Click one to go back to where it came from.",
   "未读": "Unread",
   "题目修改": "question edits",
   "关联的前置题": "linked prerequisite questions",
@@ -24,5 +23,7 @@
   "页面翻译": "page translations",
   "上传 {0}": "Uploading {0}",
   "图谱加载失败": "The graph could not be loaded",
-  "这个页面没能打开": "This page could not be opened"
+  "这个页面没能打开": "This page could not be opened",
+  "这部分显示出了错。先点「{0}」；还不行就刷新页面（已保存的内容不会因此丢失）。": "This part ran into an error. Press \"{0}\" first; if that does not help, refresh the page (what you saved is not lost).",
+  "这部分显示出了错。刷新页面再试（已保存的内容不会因此丢失）。": "This part ran into an error. Refresh the page and try again (what you saved is not lost)."
 }

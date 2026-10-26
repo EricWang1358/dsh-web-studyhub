@@ -55,7 +55,7 @@
   "折叠": "Collapse column",
   "展开列": "Expand column",
   "只能删除空列": "Only empty columns can be deleted",
-  "暂无卡片": "No cards yet",
+  "这一列没有卡片": "No cards in this column",
   "把卡片拖到这里，或点下面添加。": "Drop a card here, or add one below.",
   "没有符合筛选的卡片": "No cards match the filters",
   "清除筛选": "Clear filters",
@@ -123,5 +123,6 @@
   "已恢复：{0}": "Restored: {0}",
   "已撤销": "Undone",
   "看板已在其他位置更新，已载入最新内容，请再试一次。": "The board was updated somewhere else. The latest version is loaded; please try again.",
-  "{0} 项已逾期 · {1} 项今天截止": "{0} overdue · {1} due today"
+  "{0} 项已逾期 · {1} 项今天截止": "{0} overdue · {1} due today",
+  "这张卡片已经不在看板上了。": "This card is no longer on the board."
 }

@@ -105,7 +105,7 @@ export function OutputView({ jobId, record: call, active, view, now }) {
   const quietText = ended ? (view.phase === 'error' ? ui('没能读取这一步的输出。') : ui('已结束；这一步没有留下可读的输出'))
     : call.runner === 'saved' ? reuseWhy() + ' ' + ui('没有向转写服务发请求。')
     : call.runner === 'gemini' ? ui('这一步由转写服务直接处理，不提供中间输出；完成后会在日志里记一条，并显示用时。') : ui('这一步不提供中间输出。');
-  const foot = ended ? endedNote(view) : mode === 'stream' && !quiet ? ui('缓存最后约 8 KB · 面板关闭时不再拉取 · 结束后仍可回看') : '';
+  const foot = ended ? endedNote(view) : mode === 'stream' && !quiet ? ui('只保留最近约 8 KB · 关掉这个面板就不再更新 · 任务结束后仍可回看') : '';
   return (
     <div className="tc-output" data-mode={quiet ? 'none' : mode}>
       <div className="tc-output__head">

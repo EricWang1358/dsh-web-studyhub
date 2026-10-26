@@ -34,7 +34,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
         <h2>{ui('全局笔记本')}</h2>
         <Button size="sm" onClick={refresh} disabled={busy}>{ui('刷新')}</Button>
       </div>
-      {error ? <InlineMessage tone="error">{uiFormat('目录读取失败：{0}', [error])}</InlineMessage> : <LoadingState label={ui('正在读取全局笔记本目录…')} />}
+      {error ? <InlineMessage tone="error">{uiFormat('没能读取目录：{0}', [error])}</InlineMessage> : <LoadingState label={ui('正在读取全局笔记本目录…')} />}
     </section>
   );
   const current = list.find((n) => n.current), others = list.filter((n) => !n.current), published = list.filter((n) => n.publishedAt).length;
@@ -74,7 +74,7 @@ export default function NotebookDirectory({ notebooks, error, busy, onPublish, o
             : <Button size="sm" onClick={onPublish} disabled={busy} title={ui('把本工作区的学习笔记本登记到 ~/.dsh 全局目录，其他工作区可一键跳转到这里')}>{ui('发布到全局目录')}</Button>)}
         </div>
       </div>
-      {error && <InlineMessage tone="error">{ui('目录读取失败，仍显示上次结果：')}{error}</InlineMessage>}
+      {error && <InlineMessage tone="error">{ui('没能刷新目录，下面仍是上次读到的内容：')}{error}</InlineMessage>}
       {open && (
         <>
           {dueRows.length > 0 && (

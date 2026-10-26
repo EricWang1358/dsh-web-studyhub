@@ -55,7 +55,7 @@ const CALCULATION_STAGE_LABELS = {
    (sending the same request again cannot work, so there is no 重新提交), a busy or slow service keeps 重新提交. Anything else is about the
    content: the plain line, 重新提交, and 改一改再提交 when there is a question to edit. */
 function AssistFailure({ task, busy, onSettings, onResubmit, onEdit }) {
-  const text = plainAssistFailure(task.message) || ui("任务失败");
+  const text = plainAssistFailure(task.message) || ui("没有拿到具体原因");
   const info = describeModelError(text);
   const resubmit = <Button variant="primary" size="sm" disabled={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
   if (info.kind !== "unknown") {
@@ -197,7 +197,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         }
         style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
       >
-        {run.contentUpdated && <InlineMessage tone="warning" className="review-updated">{ui("题目已更新，请按新版重新作答。之前的作答历史已保留。")}</InlineMessage>}
+        {run.contentUpdated && <InlineMessage tone="warning" className="review-updated">{ui("这道题已更新，现在显示的是新版，可以按新版重新作答。之前的作答历史都保留着。")}</InlineMessage>}
         {caseSource && <ScenarioPanel className="case-review-scenario" title={caseSource.title} text={caseSource.text}
           highlights={caseHighlights} onChange={saveHighlights} />}
         {/* The card: header, stem and answers on paper stock. Toolbar,

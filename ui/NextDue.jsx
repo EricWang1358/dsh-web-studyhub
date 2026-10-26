@@ -19,7 +19,7 @@ export function NextDue({ feedback }) {
   return (
     <p className={`next-due${feedback.correct ? '' : ' retry'}`} data-level={feedback.level || undefined}>
       {uiFormat('{0} · 下次复习 {1}', [nextDueWord(feedback), date(feedback.nextDue)])}
-      {feedback.retryQueued && <span>{' · '}{ui('已追加到本轮队尾，稍后再练一次')}</span>}
+      {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}
     </p>
   );
 }

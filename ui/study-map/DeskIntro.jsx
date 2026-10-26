@@ -70,7 +70,7 @@ export default function DeskIntro({ data, home, mastery, role, busy, start, resu
               <Tooltip layer content={ui('按课程里题组和主题的顺序，这是第一个还没掌握的主题。')}><small tabIndex={0}>{META_DOT}{uiFormat('课程里下一个没掌握的主题 · 掌握 {0}%', [data.next.mastery])}</small></Tooltip></span>
             <Button variant="link" disabled={busy} onClick={() => start({ mode: 'path', scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui('只学这个主题 →')}</Button>
           </>
-        ) : starter ? starter.next : ui('所有主题都已掌握，可以提前巩固。')}
+        ) : starter ? starter.next : ui('现在没有未掌握的主题，可以提前巩固。')}
       </p>
       {plan.kind === 'empty' && plan.also.length > 0 && (
         <p className="desk-also">

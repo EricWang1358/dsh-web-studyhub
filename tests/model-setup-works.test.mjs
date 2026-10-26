@@ -50,7 +50,7 @@ test('the block gate says where the key is set in DSH, for each reason, and neve
   const none = gate({ variant: 'block', feature: 'generate', model: NO_ROUTE, onOpenSettings: noop });
   assert.deepEqual(steps(none), [
     '在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存' + KEY_LINE,
-    '选一个模型：在对话输入框的模型选择器里选，或在 StudyHub「设置 › 学习库与模型」的「生成模型」里选',
+    '选一个模型：用主会话输入框里的模型选择器，或到 StudyHub「设置 › 学习库与模型」的「生成模型」里选',
     '回到这里，点「生成并检查题组」']);
   assert.doesNotMatch(none, /打开模型设置，选择一个服务商|填入这个服务商的 API Key/, 'the old steps promised a button that led nowhere');
 
@@ -63,7 +63,7 @@ test('the block gate says where the key is set in DSH, for each reason, and neve
   assert.equal(steps(provider).length, 2, 'choose another model, then come back');
 
   const noCall = gate({ variant: 'block', feature: 'generate', model: NO_CALL, onOpenSettings: noop });
-  assert.match(text(noCall), /已选择「DeepSeek · V4 Flash」，但这个 DSH 没有让 StudyHub 调用模型/);
+  assert.match(text(noCall), /已选择「DeepSeek · V4 Flash」，但这个 DSH 没有开放模型调用给 StudyHub，所以现在用不了它。可以先对照安装说明/);
   assert.deepEqual(steps(noCall), [], 'no key step for a host that did not give StudyHub the model');
 
   // A reason the host did not give (a bare "not ready") makes no claim about the cause.
@@ -139,7 +139,7 @@ test('Settings › 学习库与模型: not connected shows the reason and the ga
   assert.match(text(none), /还没有选择 AI 模型。/);
   assert.deepEqual(steps(none), [
     '在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存' + KEY_LINE,
-    '在下面的「生成模型」里选一个模型，或在对话输入框的模型选择器里选',
+    '在下面的「生成模型」里选一个模型，或用主会话输入框里的模型选择器选',
     '回到这里，状态会变成「模型已连接」；没有变就点「重新检查」']);
   assert.equal(labelOf(none, 'quiet'), '重新检查', 'one click to read the state again');
   assert.equal(buttons(none).filter(button => /前往设置|打开模型设置/.test(button.text)).length, 0, 'this host cannot open DSH\'s panel: no button that would only land here');

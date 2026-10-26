@@ -189,7 +189,7 @@ test('the page form: only the open step has a body, with at most one primary but
   assert.equal((none.match(/data-body=/g) || []).length, 1, 'one open step');
   assert.match(text(none), /在 DSH 打开「设置 › 模型」，选一个服务商，填入它的 API Key 并保存/);
   assert.match(text(none), /去哪拿 Key、要不要充值：看/, 'where to get a key, said once');
-  assert.match(text(none), /选一个模型：在对话输入框的模型选择器里选.*前往设置/, 'the quiet settings link sits inside the step that picks a model');
+  assert.match(text(none), /选一个模型：用主会话输入框里的模型选择器.*前往设置/, 'the quiet settings link sits inside the step that picks a model');
   assert.equal((text(none).match(/前往设置/g) || []).length, 1, 'and nowhere else');
   assert.match(none, />重新检查</);
   assert.match(text(none), /回到这里，这一步会自己打勾；没有变就点「重新检查」/);

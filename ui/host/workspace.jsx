@@ -235,7 +235,7 @@ export function apply(ctx, registerDocumentLearning) {
         openAgent: canOpenBackgroundAgent(ctx) ? Object.assign((id, options) => openBackgroundAgent(ctx, id,
           { ...options, reveal: placement === "page" ? () => {
             const layout = ctx.get("layout");
-            if (typeof layout?.selectPanel !== "function") throw new Error(ui("请从会话列表打开助手。"));
+            if (typeof layout?.selectPanel !== "function") throw new Error(ui("从会话列表打开它。"));
             return layout.selectPanel(null);
           } : undefined }), { canOpen: (id, options) => canOpenBackgroundAgent(ctx, id, options) }) : undefined,
         // WP15: DSH's plugin manager page, scrolled to StudyHub when the host offers that.
@@ -304,7 +304,7 @@ export function apply(ctx, registerDocumentLearning) {
                 try { await taken; }
                 catch (failure) {
                   if (!onPage) throw failure;
-                  const reason = ui("右栏没有打开。请先回到对话并打开右栏，再回来点「在右栏打开」。");
+                  const reason = ui("右栏没有打开。先回到主会话并打开右栏，再回来点「在右栏打开」。");
                   handoffNotes.set(sessionId, uiFormat("没能放进右栏：{0}", [reason]));
                   try { ctx.get("layout")?.selectPanel(STUDYHUB_PANEL); } catch { /* the page may still be showing */ }
                   throw new Error(reason);

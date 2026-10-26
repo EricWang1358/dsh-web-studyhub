@@ -232,7 +232,7 @@ export const useToast = () => useContext(ToastContext) || silentToast;
 
 const failureText = error => {
   const raw = typeof error === 'string' ? error : error?.message;
-  return raw ? String(raw) : ui('出了点问题，请重试。');
+  return raw ? String(raw) : ui('这次没有成功，也没有拿到具体原因。可以再试一次。');
 };
 
 /**

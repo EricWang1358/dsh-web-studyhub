@@ -109,7 +109,7 @@ const views = shots
   : [[1280, 800, 'light', 'zh'], [390, 844, 'light', 'zh'], [390, 844, 'light', 'en']];
 /* What each language says (the receipts of ui/hand-off/use-hand-off.js HAND_OFF_RECEIPTS and the card's words). */
 const WORDS = {
-  zh: { filled: '已填进主会话的输入框', kept: '输入框里你写的字都留着', copied: '已复制到剪贴板', shown: '请手动复制', chat: '去主会话', look: '看看内容', open: '打开全文',
+  zh: { filled: '已填进主会话的输入框', kept: '输入框里你写的字都留着', copied: '已复制到剪贴板', shown: '需要手动复制', chat: '去主会话', look: '看看内容', open: '打开全文',
     copy: '复制全文', done: '已复制', send: '发给主会话', ask: /^帮我按下面的要求改复习全书的知识点 `[^`]+`：\n```request 我的要求\n讲得再慢一点\n```\n\n—— StudyHub 附注（给助手）——\n/,
     book: /^帮我看看整本复习全书：/, selected: /```data 我选中的话\n/, fold: /^StudyHub 附注（给助手）· \d+ 行$/, request: '讲得再慢一点', hint: /只填进输入框，不自动发送/ },
   en: { filled: 'In the main chat’s box', kept: 'Your typed text is kept', copied: 'Copied to the clipboard', shown: 'Copy it by hand', chat: 'Go to the main chat',

@@ -21,7 +21,7 @@ export default function LiveNotes({ correction, onSentence, onRetry, disabled })
     <h3>{ui('历史歧义校正')}</h3>
     <p className="muted">{ui('使用音频设置中选择的文字模型在后台处理，实录与逐批校正继续进行。未完成的请求会保留，方便重试。')}</p>
     <p role="status">{uiFormat('待处理 {0} · 未完成 {1}', [background.pending || 0, background.failed || 0])}</p>
-    {(background.tasks || []).map(task => <details key={task.id} className="live-note-task"><summary>{({ queued: ui('排队中'), running: ui('后台处理中'), done: ui('已完成'), failed: ui('待重试') })[task.status]} · {task.reason}</summary>
+    {(background.tasks || []).map(task => <details key={task.id} className="live-note-task"><summary>{({ queued: ui('排队中'), running: ui('处理中'), done: ui('已完成'), failed: ui('待重试') })[task.status]} · {task.reason}</summary>
       {references(task.ids)}{task.error && <p>{task.error}</p>}
     </details>)}
     {background.failed > 0 && <Button disabled={disabled || background.running} onClick={onRetry}>{ui('重试历史歧义校正')}</Button>}

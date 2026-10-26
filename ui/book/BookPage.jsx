@@ -105,7 +105,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     setStructure({ ...entry, next });
   }, [steps, structureAt]);
   const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure: openStructure });
-  if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('复习全书读取失败')} onRetry={reload} /></section>;
+  if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('没能打开复习全书')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
     description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), onClick: onBack }} /></section>;

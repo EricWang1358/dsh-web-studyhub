@@ -53,6 +53,7 @@ async function patched(page, state) {
   await page.route('**/api/call', async route => {
     let request = {};
     try { request = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }
+    if (request.action === 'snapshot' && state.fail) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'boom' }) });
     if (request.action !== 'snapshot' || !state.patch) return route.continue();
     const response = await route.fetch({ postData: JSON.stringify({ ...request, args: { ...request.args, since: undefined } }) });
     const body = await response.json();
@@ -98,8 +99,14 @@ test('Settings › 学习库与模型: not connected with the steps, a re-check 
 
     // Nothing changed: the click says so.
     await status.getByRole('button', { name: '重新检查' }).click();
-    await until(async () => /已重新检查，目前还没有连上。/.test(await status.innerText()), 'the re-check says nothing changed');
+    await until(async () => /已重新检查，还没有读到可用的模型。/.test(await status.innerText()), 'the re-check says nothing changed');
     await shot(page, `pane-checked-${width}`);
+
+    // The library cannot be read at all: the click says so, instead of just stopping its spinner.
+    state.fail = true;
+    await status.getByRole('button', { name: '重新检查' }).click();
+    await until(async () => /没能重新检查/.test(await status.innerText()), 'a re-check that fails says so');
+    state.fail = false;
 
     // DSH has the key now: the next snapshot says so; the re-check shows it in place.
     state.patch = CONNECTED;

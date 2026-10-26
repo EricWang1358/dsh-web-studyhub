@@ -34,14 +34,14 @@ export function createStudyCall(connection, sessionId) {
         route = "native";
         if (ownerOnly(fallback)) throw ownerOnlyError(fallback);
         if (!missingRoute(fallback)) throw fallback;
-        throw Object.assign(new Error("学习插件还没有就绪（宿主可能刚重启），正在重试…"), {
+        throw Object.assign(new Error("StudyHub 还没有启动好（DSH 可能刚重启）。等几秒再点一次。"), {
           code: "STUDY_UNAVAILABLE",
           cause: e,
         });
       }
     }
     if (!result?.ok)
-      throw Object.assign(new Error(result?.error?.message || "Study request failed"), { code: result?.error?.code, details: result?.error?.details });
+      throw Object.assign(new Error(result?.error?.message || "StudyHub 的请求没有成功，也没有拿到具体原因。可以再试一次。"), { code: result?.error?.code, details: result?.error?.details });
     return result.value;
   };
 }

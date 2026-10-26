@@ -50,7 +50,7 @@ export function DailyRecapPanel(props) {
     <p className="daily-recap-lead">{ui('把今天各章的练习串起来，收好错因、思路和下一步。')}</p>
     {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), onClick: onModelSettings } : undefined}>
       {ui('整理合集需要先配置模型；已经写好的合集仍可阅读。')}</InlineMessage>}
-    {error && <div className="daily-recap-error" role="alert"><p>{ui('暂时没能完成这一步，请重试。')}
+    {error && <div className="daily-recap-error" role="alert"><p>{ui('这一步没有成功。可以再试一次。')}
       <Button size="sm" variant="link" disabled={!!working} onClick={recap.refresh}>{ui('重新加载状态')}</Button></p>
       <details><summary>{ui('查看原因')}</summary><p>{error}</p></details>
       {/模型|model|provider/i.test(error) && onModelSettings && <Button size="sm" onClick={onModelSettings}>{ui('检查 AI 模型设置')}</Button>}
@@ -73,7 +73,7 @@ export function DailyRecapPanel(props) {
             <small>{progress?.phase === 'explaining' && progress.total > 1 ? uiFormat('已整理 {0}/{1} 组讲解 · 你可以继续学习', [progress.completed, progress.total]) : ui('整理好后会出现在这里，你可以继续学习。')}</small></div></div>}
         {protectedEdit && <p className="daily-recap-hint">{ui('已保留你的手动修改，后续练习不会覆盖这份内容。')}</p>}
         {retry && <div className="daily-recap-hint" role={phase === 'failed' ? 'alert' : 'status'}>
-          <p>{ui(phase === 'failed' ? '这次没能整理完成，可以稍后重试。' : '生成已停止，可以从已完成的讲解继续整理。')}{group.hasContent && ui('上一版仍然可以阅读。')}</p>
+          <p>{ui(phase === 'failed' ? '这次没能整理完成。可以再试一次。' : '生成已停止，可以从已完成的讲解继续整理。')}{group.hasContent && ui('上一版仍然可以阅读。')}</p>
           {group.generation?.message && <details><summary>{ui('查看原因')}</summary><p>{group.generation.message}</p></details>}
           {/模型|model|provider/i.test(group.generation?.message || '') && onModelSettings && <Button size="sm" onClick={onModelSettings}>{ui('检查 AI 模型设置')}</Button>}
         </div>}

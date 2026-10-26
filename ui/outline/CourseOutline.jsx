@@ -116,7 +116,7 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   const practise = useCallback(async (args, { resume = false } = {}) => {
     try {
       const { practice } = await call('course.outline', { course, ...(deckId ? { deckId } : {}), pick: args });
-      if (!practice?.scope.length) { notify(ui('这里现在没有可练习的题。')); return; }
+      if (!practice?.scope.length) { notify(ui('这里还没有题。可以先在「创建题组」里出题。')); return; }
       if (practice.capped) notify({ text: cappedText(practice.total, practice.limit), tone: 'info' });
       onPractice(practice.scope, { resume });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
@@ -205,7 +205,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       </p>}
     </PageHeader>
   );
-  if (error && !outline) return <section className="page outline-page">{header}<ErrorState error={error} title={ui('总纲读取失败')} onRetry={actions.retry} /></section>;
+  if (error && !outline) return <section className="page outline-page">{header}<ErrorState error={error} title={ui('没能打开总纲')} onRetry={actions.retry} /></section>;
   if (!outline) return <section className="page outline-page">{header}<LoadingState label={ui('正在读取总纲…')} /></section>;
   const nothing = outline.status === 'empty' || outline.total === 0, book = outline.book;
   // The one main button: none while questions are picked (the bar's is), and without an outline none while the course has no question (创建题组 is).

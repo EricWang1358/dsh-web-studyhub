@@ -132,7 +132,7 @@ test('the empty states: no question yet points to 创建题组; loading and fail
   assert.match(none, /创建题组/);
   const loading = textOf(render(h(ui.CourseOutline, { data: { root: 'r', revision: 1, focus: { course: 'Databases' } }, onBack: noop, onCreate: noop, onPractice: noop })));
   assert.match(loading, /正在读取总纲…/);
-  assert.match(textOf(render(h(ui.CourseOutlineView, { course: 'Databases', outline: null, error: new Error('boom'), open: new Set(), pick: ui.emptyPick(), actions }))), /总纲读取失败/);
+  assert.match(textOf(render(h(ui.CourseOutlineView, { course: 'Databases', outline: null, error: new Error('boom'), open: new Set(), pick: ui.emptyPick(), actions }))), /没能打开总纲/);
 });
 
 test('in English the page has no Chinese of its own', () => {

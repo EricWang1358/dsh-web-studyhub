@@ -112,7 +112,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
         {showLine(shown.length) && <div className="board-drop-line" aria-hidden="true" />}
         {!shown.length && !composer && (filtering && column.cardIds.length
           ? <p className="board-column__none">{ui("没有符合筛选的卡片")}</p>
-          : <EmptyState size="sm" title={ui("暂无卡片")} description={ui("把卡片拖到这里，或点下面添加。")} />)}
+          : <EmptyState size="sm" title={ui("这一列没有卡片")} description={ui("把卡片拖到这里，或点下面添加。")} />)}
       </div>
       {!readOnly && (composer
         ? <Composer columnTitle={label} studyRef={studyRef} library={library} labelSuggestions={labelSuggestions} onSubmit={(fields) => onAdd(column, fields)}
@@ -323,7 +323,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     {confirm && <DeleteCardDialog card={confirm.card} purge={confirm.kind === "purge"} onClose={() => setConfirm(null)}
       onConfirm={async () => {
         const { card, kind } = confirm;
-        if (!(await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)))) throw new Error(ui("没有完成，请再试一次。"));
+        if (!(await (kind === "purge" ? run("board.card.remove", { id: card.id }) : deleteCard(card)))) throw new Error(boardRef.current.cards[card.id] || boardRef.current.archived.some((entry) => entry.id === card.id) ? ui("没能删除这张卡片，原因见上方的提示。") : ui("这张卡片已经不在看板上了。"));
       }} />}
     <div className="sh-visually-hidden" role="status" aria-live="polite">{announcement}</div>
   </section>;

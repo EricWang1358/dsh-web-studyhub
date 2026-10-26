@@ -36,7 +36,7 @@ import { rejectedFilesInput } from './import-hand-off.js';
    名称、讲什么、术语、付费密钥在「更多设置」里；几个录音总是合成一份逐字稿，开始按钮上写明。
 
    选文件不用输路径：拖进来或点击选择（浏览器把文件分块传给插件，ui/audio/useAudioUpload.js），从工作区里搜，
-   或在对话输入框里用 @ 选。手输路径留在「高级」里。 */
+   或在主会话输入框里用 @ 选。手输路径留在「高级」里。 */
 
 const subtitleAlone = () => ui("字幕文件请单独导入：一次选一个字幕文件，不和音频混在一起。");
 /* 「发给主会话」 where a recording cannot go on (the hand-off plan N2, N6, N7): the chat extracts or converts the audio, or splits it, and imports it. */
