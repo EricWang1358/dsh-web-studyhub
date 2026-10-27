@@ -15,7 +15,7 @@ export class LiveClient {
     this.call = call;
     this.capture = capture;
     this.listeners = new Set();
-    this.state = { session: null, capturing: false, busy: false, error: '' };
+    this.state = { session: null, capturing: false, busy: false, error: '', errorKind: '', errorFacts: null };
     this.queue = Promise.resolve();
     this.queuedBytes = 0;
     this.epoch = 0;
@@ -37,7 +37,7 @@ export class LiveClient {
     const epoch = ++this.epoch;
     const captureId = ++this.captureId;
     this.health.reset(kind, 'requesting');
-    this.update({ busy: true, error: '' });
+    this.update({ busy: true, error: '', errorKind: '', errorFacts: null });
     let capture, session;
     try {
       capture = await this.capture(kind, (bytes) => { if (captureId === this.captureId) this.enqueue(bytes); },
@@ -55,7 +55,7 @@ export class LiveClient {
       await capture?.stop();
       this.audio = null;
       this.health.phase('stopped');
-      this.update({ error: String(error.message || error) });
+      this.update({ error: String(error.message || error), errorKind: error?.tabRefusal || '', errorFacts: error?.captureFacts || null });
       throw error;
     } finally { this.update({ busy: false }); }
   }
@@ -81,7 +81,7 @@ export class LiveClient {
       void this.stop().catch((failure) => this.fail(failure));
     }).finally(() => { this.queuedBytes -= bytes.byteLength; this.health.update({ queuedBytes: this.queuedBytes }); });
   }
-  fail(error) { this.update({ error: String(error.message || error) }); }
+  fail(error) { this.update({ error: String(error.message || error), errorKind: error?.tabRefusal || '', errorFacts: error?.captureFacts || null }); }
   async poll() {
     const session = this.state.session;
     const epoch = this.epoch;

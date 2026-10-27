@@ -35,6 +35,21 @@ As the teacher speaks, the transcript fills in:
 - The translation is always Simplified Chinese, even when the interface is in English.
 - **Following latest** keeps the newest sentence in view. When you scroll up, it changes to **Jump to latest**.
 
+### If the browser refuses to share a tab
+
+If you choose **Tab / system audio** and the browser refuses, the red message says which of these happened, and the buttons under it take the next step:
+
+- **The sharing window opened and you closed it.** Click **Start recording** again, pick the tab and turn on **Share tab audio**.
+- **No window opened at all (the refusal came within a fraction of a second).**
+  - **In an app's built-in window** (an app that embeds a browser view): the app does not allow sharing, so trying again will not help. Click **Switch to microphone and start**, or open StudyHub in a separate Chrome or Edge window.
+  - **Inside another page** whose permissions policy does not allow screen sharing: the same remedy.
+  - **In a regular window on Windows or Linux:** sharing a tab normally needs no system permission. The usual cause is a work or school policy: type `chrome://policy` or `edge://policy` in the address bar and look for screen-capture entries. Click **Try sharing again** after it is changed, or use the microphone.
+  - **On macOS:** open System Settings › Privacy & Security › Screen & System Audio Recording, turn on the switch for your browser, quit the browser completely, open it again, then click **Try sharing again**.
+
+**What the browser reported**, under the message, lists what StudyHub observed: the browser, the system, whether this is a standalone page, an embedded one or an app's window, whether the permissions policy allows sharing, and how many milliseconds after your click the refusal came. Include it if you ask for help.
+
+The microphone source needs no sharing permission: play the class through the speakers and the microphone picks it up (headphones will not work).
+
 ### Controls
 
 | Control | What it does |
