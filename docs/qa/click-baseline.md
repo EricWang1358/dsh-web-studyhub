@@ -20,6 +20,20 @@ draft first (检查草稿 → 发布并开始练) takes 9 clicks. The first coun
 first-run line's publish button and otherwise always clicked 检查草稿 and published from the draft page; it never tried the run card's own
 one-press 发布并开始练, which appears together with 检查草稿 on the card. The script now takes the shortest way the screen offers.
 
+## After guidance step 3 (the 下一步 card on the home)
+
+App build of the step 3 branch, measured on 2026-10-28 with `scripts/qa/steps.mjs` against a build of `83805fab` (before) and of the branch (after), Chinese and
+English alike: **no journey got longer or shorter**.
+
+| Journey | Before | After |
+|---|---|---|
+| First deck (`first-deck`) | 5 | 5 |
+| New course (`course-practice`) | 8 | 8 |
+| Daily continue (`daily-continue`) | 1 | 1 |
+
+The first-run line is the card's first three states and was not touched. `daily-continue` clicks the day's card (`.today-go`), which is a secondary button
+while the 下一步 card has a button of its own; pressing the card's own 接着做 is the same one click.
+
 ## Not measured
 
 - A model that still has to be connected: the fake model is ready from the start, so the model setup steps are not in these counts.

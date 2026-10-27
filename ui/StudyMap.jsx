@@ -138,7 +138,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   }
   return (
     <section className="page library-page map-page" ref={pageRef}>
-      {showNext && <NextStepCard view={nextView} busy={busy} onDismiss={dismissNext} />}
+      {showNext && <NextStepCard view={nextView} onDismiss={dismissNext} />}
       {children}
       <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
         start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}

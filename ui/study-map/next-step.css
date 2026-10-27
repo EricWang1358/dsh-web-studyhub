@@ -26,7 +26,7 @@
     .next-card__detail { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); min-height: calc(var(--fs-md) * var(--lh-snug)); overflow-wrap: anywhere; }
     .next-card__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2) var(--space-3); min-width: 0; }
     /* A long label (a material's title, English) wraps inside the card instead of running out of it. */
-    .next-card__actions > .sh-btn { max-width: 100%; }
+    .next-card__go { max-width: 100%; }
     .next-card__help { grid-column: 1 / -1; margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
 
     @container study (max-width: 720px) {
