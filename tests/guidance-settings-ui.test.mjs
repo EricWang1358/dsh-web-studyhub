@@ -64,7 +64,7 @@ test('nothing seen: the master switch is on and says exactly what it hides and l
   for (const phrase of ['阅读页的两条提示', '「补全原文件」的说明', '主题组提醒', 'Archify 推荐卡', '「笔记换了位置」']) assert.ok(hint.includes(phrase), phrase);
   assert.deepEqual(ssr.GUIDANCE_ITEMS.filter(item => item.proactive).map(item => item.id).sort(),
     ['book.moves', 'library.topic-groups', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'], 'the hint lists exactly these');
-  for (const phrase of ['首页的入门三步', '模型设置的引导', '出错和空页面的说明', '课程准备「全部完成」那句']) assert.ok(hint.includes(phrase), `${phrase} stays`);
+  for (const phrase of ['首页的入门三步', '首页顶部的「下一步」卡', '模型设置的引导', '出错和空页面的说明', '课程准备「全部完成」那句']) assert.ok(hint.includes(phrase), `${phrase} stays`);
   const primaries = html.match(/<button[^>]*sh-btn--primary[^>]*>/g) || [];
   assert.equal(primaries.length, 1, 'one primary button on the page');
   assert.match(primaries[0], /disabled/);

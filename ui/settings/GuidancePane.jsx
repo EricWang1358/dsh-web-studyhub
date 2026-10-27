@@ -14,7 +14,7 @@ import { hasOwnDeck } from '../study-map/home-plan.js';
 const KIND = { tip: '一句提示', card: '卡片', tour: '导览', nudge: '小提醒' };
 const PROACTIVE_TIP = '没有点它也会出现。总开关和它自己的开关都能让它不再出现；以后新加的这类提示，每天最多出现一条，做题时不出现。';
 /* What the master switch hides and what it leaves, said in full (tests/guidance-settings-ui.test.mjs keeps this list equal to the proactive entries). */
-const MASTER_HINT = '关掉后，阅读页的两条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」都不再出现；首页的入门三步、模型设置的引导、出错和空页面的说明，以及课程准备「全部完成」那句照常显示。';
+const MASTER_HINT = '关掉后，阅读页的两条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」都不再出现；首页的入门三步、首页顶部的「下一步」卡、模型设置的引导、出错和空页面的说明，以及课程准备「全部完成」那句照常显示。';
 const MASTER_OFF_TOAST = '引导提示已关闭：阅读页的两条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」不再出现。';
 
 /** Of the shared settings services the pane reads `data` (an experiment's entry, and whether 入门三步 can still appear) and `capabilities`; the
