@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
@@ -67,6 +67,35 @@ test("the resume row is the same single line with or without a run; progress is 
   assert.doesNotMatch(open, /<button[^>]*\btitle=/, "no native title: the Tooltip also shows on keyboard focus (#86)");
 });
 
+test("a row says what it is for, and the starting marker takes no room from the label", () => {
+  setUiLanguage("zh");
+  const purpose = "把做过的题写成笔记，也可以发布出去";
+  const tail = "长按并拖动可调整顺序（键盘：Alt+↑/↓）";
+  const marked = html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", title: "学习笔记", purpose, tail, start: true }));
+  const tooltipAt = marked.indexOf('role="tooltip"'), startAt = marked.indexOf("从这里开始", tooltipAt), labelAt = marked.indexOf("学习笔记", startAt), purposeAt = marked.indexOf(purpose, labelAt), tailAt = marked.indexOf(tail, purposeAt);
+  assert.ok(tooltipAt > 0 && startAt > tooltipAt && labelAt > startAt && purposeAt > labelAt && tailAt > purposeAt, "that it is a starting point, the label, what it is for, then how to reorder it");
+  assert.match(marked, /class="nav is-start"/, "the row says it is a starting point");
+  assert.match(marked, /<span class="nav-start" aria-hidden="true"><\/span>/, "the dot is the marker; its words are in the tooltip, so no label loses room to it");
+  assert.doesNotMatch(marked, /<button[^>]*\btitle=/, "no native title: the Tooltip also shows on keyboard focus and on a long press");
+  assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose })), /nav-start/, "only the starting five carry the marker");
+  assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记" })), /role="tooltip"/, "a row with nothing to add has no tooltip");
+});
+
+test("every sidebar page has one short sentence saying what it is for, with an English line", async () => {
+  const { PAGES } = await import("../ui/pages.js");
+  const { NAV_DEFAULTS } = await import("../ui/nav-order.js");
+  const dir = new URL("../ui/locales/", import.meta.url);
+  const names = (await readdir(dir)).filter((name) => /^en(?:\..+)?\.json$/.test(name));
+  const catalogue = Object.assign({}, ...await Promise.all(names.map(async (name) => JSON.parse(await readFile(new URL(name, dir), "utf8")))));
+  for (const ids of Object.values(NAV_DEFAULTS)) for (const id of ids) {
+    const purpose = PAGES[id].purpose;
+    assert.ok(typeof purpose === "string" && purpose.trim().length > 8, `${id}: says what it is for`);
+    assert.ok(purpose.length <= 40, `${id}: one short sentence, not a paragraph`);
+    assert.ok(catalogue[purpose], `${id}: no English line for 「${purpose}」`);
+    assert.doesNotMatch(catalogue[purpose], han, `${id}: the English line has no Han`);
+  }
+});
+
 test("an empty library does not dim the resume row: dimmed means disabled, and this row still works", () => {
   setUiLanguage("zh");
   const empty = html(React.createElement(ResumeNavItem, { lastRun: null, hasDecks: false, active: false }));
@@ -128,6 +157,16 @@ test("stylesheet contract: one row height, labels clamped to the row, no second-
   assert.doesNotMatch(language.replace(/\r/g, ""), /\.nav\{[^}]*white-space:\s*normal/, "English labels truncate like Chinese ones; the tooltip has the full text");
   assert.doesNotMatch(rule(all, ".coach-nav .nav-label"), /font-weight:\s*600/, "bold means the active page, nothing else");
   assert.match(all, /\.sidebar-bottom\s+\.nav\[aria-current="page"\]/, "Settings gets the same highlight and bar as the rows above it");
+});
+
+test("the rail's foot shows 快捷键 and 名词解释, and 快捷键 opens the one ? sheet", async () => {
+  const source = (await readAppSource()).replace(/\r/g, "");
+  assert.match(source, /data-usage="nav\.shortcut"/, "a visible entry, and a marked control");
+  assert.match(source, /session\.actions\.openShortcutHelp\(\)/, "it opens the sheet the ? key opens");
+  assert.match(source, /名词解释/, "the glossary has a visible entry too");
+  assert.match(source, /content=\{glossaryText\(\)\}/, "the glossary is the Tooltip's words, not a second panel");
+  const session = await readFile(new URL("../ui/review/useReviewSession.js", import.meta.url), "utf8");
+  assert.match(session, /openShortcutHelp: \(\) => setShortcutHelp\(true\)/, "one sheet, two ways in");
 });
 
 test("App uses the shared row for every sidebar entry", async () => {

@@ -94,5 +94,11 @@
   "去知识骨架页": "Open the knowledge outline page",
   "一门示例课程（设计模式）：一份讲义、九道带出处的题和三周练习记录，导览 {0} 步、一两分钟；示例数据随时一键移除。": "A sample course (design patterns): one lecture handout, nine cited questions and three weeks of practice. The tour is {0} steps, a minute or two. Remove the sample with one click, any time.",
   "不知道从哪开始？": "Not sure where to start?",
-  "让主会话看一眼你的学习库，再说两三条能马上开始的路。": "Have the main chat look at your library and suggest two or three ways to begin."
+  "让主会话看一眼你的学习库，再说两三条能马上开始的路。": "Have the main chat look at your library and suggest two or three ways to begin.",
+  "DSH 里和你对话的那个窗口。练习、导入和出题，都可以回到那里说一声。": "The window in DSH where you talk to StudyHub. Practising, importing and making questions can all be asked for there.",
+  "一门课的资料按章节排成的树，题放在它们指向的位置；复习全书按总纲来排。": "A course's materials arranged by chapter, with questions placed where they point; the review book is laid out by it.",
+  "出题时资料要覆盖到什么程度：精简、标准、完整。选得越完整，题越多，也花得越多。": "How completely the chosen sources are covered when making questions: Lean, Standard or Full. The fuller the choice, the more questions, and the more it costs.",
+  "先补基础的题：按这道题用到的知识出一道更基础的题，练完可以回到原题。": "A more basic question made from what this one uses, so you can fill a gap and then come back.",
+  "你电脑上的一个文件夹，资料、题组和复习记录都保存在里面。": "A folder on your computer that holds your sources, decks and review history.",
+  "一组题。发布后可以反复练，复习进度和错题都按题组记。": "A set of questions. Once published it can be practised again and again, and progress and mistakes are kept by deck."
 }

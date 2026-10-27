@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readdir, readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -155,6 +156,27 @@ test("mastery-terms names every measure once; 掌握度 belongs to the level-wei
   for (const [id, measure] of Object.entries(MEASURES)) if (id !== "mastery") assert.doesNotMatch(measure.label + (measure.hint ?? ""), /掌握度/, `${id} is not a mastery number`);
   assert.deepEqual(Object.keys(MEASURES).sort(), ["gradedRate", "mastery", "passRate", "roundGraded", "roundSelf", "selfRate"]);
   assert.equal(MIN_ANSWERS, 3, "the same threshold the server uses for 数据不足");
+});
+
+/* The words that are not numbers (ui/mastery-terms.js GLOSSARY): what the interface assumes a learner already knows, said once in one place,
+   and read by the sidebar's 名词解释 entry on hover and on focus. Same shape as TERMS, same rule: one label, one line. */
+test("the glossary explains the words the interface assumes, once each, in both languages", async () => {
+  const { GLOSSARY } = await import("../ui/mastery-terms.js");
+  const terms = Object.values(GLOSSARY);
+  const labels = terms.map((term) => term.label);
+  for (const word of ["主会话", "总纲", "覆盖强度", "前置题"]) assert.ok(labels.includes(word), `${word} is explained`);
+  assert.equal(new Set(labels).size, labels.length, "no two terms share a name");
+  for (const term of terms) {
+    assert.ok(term.hint.trim().length > 12 && term.hint.length <= 70, `${term.label}: one line (not a paragraph), in plain words`);
+    assert.doesNotMatch(term.hint, /缓存|插件|渲染|拉取|宿主/, `${term.label}: no developer words (docs/voice-and-tone.md)`);
+  }
+  const dir = new URL("../ui/locales/", import.meta.url);
+  const names = (await readdir(dir)).filter((name) => /^en(?:\..+)?\.json$/.test(name));
+  const catalogue = Object.assign({}, ...await Promise.all(names.map(async (name) => JSON.parse(await readFile(new URL(name, dir), "utf8")))));
+  for (const term of terms) for (const text of [term.label, term.hint]) {
+    assert.ok(catalogue[text], `no English line for 「${text}」`);
+    assert.doesNotMatch(catalogue[text], han, `${term.label}: the English line has no Han`);
+  }
 });
 
 test("the dashboard no longer calls its 30-day rate 掌握度: it is 达标率, and the word is not on the page at all", () => {

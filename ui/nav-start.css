@@ -1,0 +1,64 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The rail's own furniture for guidance step 5 (ui/nav-start.js, ui/app/AppSidebar.jsx): the 「从这里开始」 marker of an entry not
+       opened yet, and the two quiet words at the foot of the rail (快捷键, 名词解释). Its own sheet, so ui/shell.css stays the frame:
+       tokens only, both themes, and nothing here takes room from a row (the marker lives inside the one row height, the links make one
+       short line and the 62px rail has no words at all). */
+    /* A dot in the gap between the icon and the label: the words 「从这里开始」 are the first line of the row's tooltip, so the marker
+       costs the label no room and a long English label keeps its two lines. The icon takes the accent with it, which is what makes the
+       five rows read as a group at a glance. */
+    .nav-start {
+      position: absolute;
+      left: 36px;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      transform: translateY(-50%);
+      border-radius: 50%;
+      background: var(--accent-soft);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft) 18%, transparent);
+      pointer-events: none;
+    }
+    .sidebar.is-narrow .nav-start {
+      display: none;
+    }
+    .sidebar-links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      margin: var(--space-1) 0 0;
+      padding: 0 var(--space-3);
+      font-size: var(--fs-xs);
+    }
+    .sidebar-links .sidebar-link-tip {
+      display: inline-flex;
+    }
+    .sidebar-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--text-faint);
+      font: inherit;
+      line-height: 1.4;
+      cursor: pointer;
+      transition: color var(--dur-fast) var(--ease);
+    }
+    .sidebar-link:hover,
+    .sidebar-link:focus-visible {
+      color: var(--text-dim);
+    }
+    /* The glossary is a word to hover, not a control that does something when pressed. */
+    .sidebar-link--term {
+      cursor: help;
+    }
+    .sidebar.is-narrow .sidebar-links {
+      display: none;
+    }
+  }
+}

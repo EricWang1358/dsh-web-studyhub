@@ -1,22 +1,29 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ui, uiFormat, setUiLanguage } from '../i18n.js';
 import { PAGES } from '../pages.js';
 import { pageAvailable } from '../capabilities.js';
 import { countDocuments } from '../../lib/source-groups.js';
 import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from '../SideNav.jsx';
+import Tooltip from '../components/Tooltip.jsx';
 import { useTaskBadge } from '../tasks/use-task-badge.js';
 import { bookEntryPage } from '../book/model.js';
 import { NAV_DEFAULTS, NAV_GROUPS, groupIsOpen, useNavGroups, useNavOrder } from '../nav-order.js';
+import { isStartPage, markStart, readStarts, startHere } from '../nav-start.js';
+import { GLOSSARY } from '../mastery-terms.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
 import UpdateCenter from '../UpdateCenter.jsx';
 import { Button, Icon } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import css from './app-shell.css';
+import navStartCss from '../nav-start.css';
 import { useApp } from './app-context.js';
 
 /* The sidebar cycles auto, dark, light only; OLED black and paper are chosen in 设置 › 界面 (and show on the toggle with their base mode's glyph). */
 const THEMES = THEME_CYCLE.map((id) => [id, APPEARANCE_LABELS.theme[id]]);
+
+/** The one line the glossary entry shows on hover/focus: every word the interface assumes, with what it means (ui/mastery-terms.js). */
+const glossaryText = () => [ui('界面里这些词的意思：'), ...Object.values(GLOSSARY).map((term) => `${ui(term.label)} — ${ui(term.hint)}`)].join('\n');
 
 function ThemeCycle() {
   const { shell } = useApp();
@@ -39,6 +46,7 @@ const gotoPage = (nav, id) => nav.navigate(id, { animate: true, keepTrail: false
 
 export default function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
+  useInjectCss(navStartCss, 'study-nav-start');
   const { data, language, host, core, shell, nav, session, intents, tour, board } = useApp();
   const { busy } = core;
   const { sidebarNarrow } = shell;
@@ -46,6 +54,16 @@ export default function AppSidebar() {
   const navRef = useRef(null), [navMark, setNavMark] = useState(null);
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
   const navGroups = useNavGroups();
+  /* 「从这里开始」: the ids opened so far (ui/nav-start.js). A page that was already open when the app started keeps its marker: the visit the
+     learner lands on was not a choice, and the home is where the markers are meant to be read. Every other way into a page counts. */
+  const [starts, setStarts] = useState(readStarts);
+  const landed = useRef(true), opened = useRef(starts);
+  opened.current = starts;
+  useEffect(() => {
+    if (landed.current) { landed.current = false; return; }
+    if (!isStartPage(navPage) || opened.current.includes(navPage)) return;
+    setStarts(markStart(navPage));
+  }, [navPage]);
   const tasks = useTaskBadge({ root: data?.root, data, viewing: navPage === 'tasks' });
   const lastRun = data?.lastRun && page === 'review' && session.run?.id === data.lastRun.id
     ? { ...data.lastRun, index: session.run.index, total: session.run.total } : data?.lastRun;
@@ -94,7 +112,7 @@ export default function AppSidebar() {
               open={groupIsOpen(group.id, navGroups.folded, navPage)} onToggle={() => navGroups.toggle(group.id)}>
               {group.id === 'daily' && (
                 <ResumeNavItem lastRun={lastRun} hasDecks={!!data?.decks.length} ready={!!data} active={navPage === 'review'}
-                  disabled={!data || busy || !pageAvailable(data, 'review')} onClick={intents.resumeOrStart} />
+                  start={startHere('review', starts)} disabled={!data || busy || !pageAvailable(data, 'review')} onClick={intents.resumeOrStart} />
               )}
               {group.id === 'daily' && data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
                 <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={session.onCoachPractice} />
@@ -106,7 +124,8 @@ export default function AppSidebar() {
                 return (
                   <NavItem key={id} {...navOrder.bind(id)} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
                     className={navOrder.lifted === id ? 'is-dragging' : ''} upkeep={group.id === 'setup'} active={navPage === id}
-                    glyph={PAGES[id].glyph} label={label} title={`${label}\n${ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）')}`}
+                    glyph={PAGES[id].glyph} label={label} purpose={ui(PAGES[id].purpose)} title={label}
+                    tail={ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）')} start={startHere(id, starts)}
                     onClick={() => (id === 'book' ? openBookEntry() : gotoPage(nav, id))} disabled={!data && id !== 'board'}
                     hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : news?.total > 0 ? news.total : undefined}
                     hintClass={due || news?.failed > 0 ? 'nav-count is-due' : news?.total > 0 ? 'nav-count is-live' : 'nav-count'}
@@ -129,11 +148,20 @@ export default function AppSidebar() {
             title={[ui('功能导览：切到每个关键功能，看看怎么用'), tour.tourResume && uiFormat('继续 {0}/{1}', [tour.tourResume.index + 1, tour.tourResume.total])].filter(Boolean).join('\n')}
             onClick={() => { if (!tour.tourStep) tour.startTour(); }} />
         )}
+        {/* Two quiet entries of the rail: the keys of this page (? opens the same sheet), and the words the interface assumes. */}
+        <div className="sidebar-links">
+          <Tooltip layer placement="top-start" anchorClassName="sidebar-link-tip" content={ui('看这一页能用的键；按 ? 也能打开')}>
+            <Button variant="link" size="sm" className="sidebar-link" icon="key" data-usage="nav.shortcut" onClick={() => session.actions.openShortcutHelp()}>{ui('快捷键')}</Button>
+          </Tooltip>
+          <Tooltip layer placement="top-start" anchorClassName="sidebar-term-tip" content={glossaryText()}>
+            <span className="sidebar-link sidebar-link--term" tabIndex={0}>{ui('名词解释')}</span>
+          </Tooltip>
+        </div>
         <div className="local-status"><span />{ui('本地学习工作区')}</div>
         {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
         <ThemeCycle />
         <UpdateCenter call={core.call} host={host} compact={sidebarNarrow} />
-        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} title={ui('设置')} data-tour="nav-settings" data-usage="nav.settings"
+        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} title={ui('设置')} purpose={ui('语言、外观、模型连接和引导提示都在这页调')} data-tour="nav-settings" data-usage="nav.settings"
           onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
       </div>
     </aside>
