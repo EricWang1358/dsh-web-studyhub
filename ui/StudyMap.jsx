@@ -1,8 +1,8 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Icon, useToast } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
-import { ModelSettingsContext } from "./ModelErrorNote.jsx";
+import { ModelSettingsContext, useModelSettingsLabel } from "./ModelErrorNote.jsx";
 import { dismissJobs, useQuickActions } from "./quick-actions.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import { modelReadiness } from "./generation-status.js";
@@ -21,6 +21,10 @@ import { buildHomePlan, hasOwnDeck } from "./study-map/home-plan.js";
 import HomeActivity, { HomeDrafts } from "./study-map/HomeActivity.jsx";
 import DeskIntro from "./study-map/DeskIntro.jsx";
 import TodayCard from "./study-map/TodayCard.jsx";
+import NextStepCard from "./study-map/NextStepCard.jsx";
+import { nextCardView } from "./study-map/next-card-view.js";
+import { nextStep, nextStepFacts } from "./study-map/next-step.js";
+import { useNextCardDismissal } from "./study-map/next-dismiss.js";
 import { useRoleDraft } from "./study-map/RoleSuggestion.jsx";
 import CatalogHeading from "./study-map/CatalogHeading.jsx";
 import CatalogToolbar from "./study-map/CatalogToolbar.jsx";
@@ -58,7 +62,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
   const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
-    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onShowGraph, onCourseSettings, onShowOutline } = actions;
+    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onCourseSettings, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
   const cancelJob = (jobId) => act("job.cancel", jobId ? { jobId } : { all: true });
@@ -105,6 +109,16 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
   const deckActions = { start, resume, manage, restoreDeck, removeDeck };
   const line = useFirstRunLine(data);
+  /* The one 下一步 card (ui/study-map/next-step.js): worked out from the snapshot alone. Before a first deck of the learner's own its three states are the first-run line
+     (drawn below, as the whole first screen or as the compact card), so this draws only the states after it; 「今天先不」 hides it for the local day. */
+  const settingsLabel = useModelSettingsLabel(), [nextDismissed, dismissNext] = useNextCardDismissal(data.root);
+  const resumeOpen = home.plan.kind === "resume", canWrong = !!onWeakPoints, canExam = !!onOpenExamBook;
+  const nextFacts = useMemo(() => nextStepFacts(data, { line, resumeOpen, canWrong, canExam }), [data, line.show, line.step, resumeOpen, canWrong, canExam]); // eslint-disable-line react-hooks/exhaustive-deps
+  const next = nextStep(nextFacts);
+  const nextView = next.surface === "card" && hasOwnDeck(data)
+    ? nextCardView(next.id, nextFacts, { plan: home.plan, generate: generateFromSources, wrong: onWeakPoints, exam: onOpenExamBook, modelSettings: openModelSettings, settingsLabel })
+    : null;
+  const showNext = !!nextView && !nextDismissed, nextHasButton = showNext && !!nextView.action;
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
   const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
   if (line.show && firstRun?.form === "page") {
@@ -124,6 +138,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   }
   return (
     <section className="page library-page map-page" ref={pageRef}>
+      {showNext && <NextStepCard view={nextView} busy={busy} onDismiss={dismissNext} />}
       {children}
       <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
         start={start} manage={manage} openDraft={openDraft} openAgent={host.openAgent} cancelJob={cancelJob} dismissJob={dismissJob}
@@ -135,7 +150,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
           onFocus={onFocus} onCourseSettings={onCourseSettings} onShowOutline={onShowOutline} suggestRole={suggestRole} />
         {line.show
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
-          : <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} />}
+          : <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} quiet={nextHasButton} />}
       </div>
       {/* 待发布 is folded and sits under the day's work, not above it. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} />

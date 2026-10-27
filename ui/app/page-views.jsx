@@ -99,6 +99,7 @@ function LibraryView() {
           generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }), startCourseFlow: intents.startCourseFlow,
           onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
+          onOpenExamBook: pageAvailable(data, 'book') ? (course) => openCrunchBook(course, { view: 'today' }) : undefined,
           onShowGraph: (scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); nav.navigate('graph'); },
           onCourseSettings: settingsEntry.setCourseSettings,
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
