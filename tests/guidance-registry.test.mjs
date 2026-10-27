@@ -46,6 +46,7 @@ const SEEN = {
   'study-archify-card:/lib': JSON.stringify('later'),
   'study-book-moves-seen:Cloud': '2026-10-01T00:00:00.000Z',
   'study-jev-guide-seen': '1',
+  'study-nav-start:v1': JSON.stringify(['library', 'sources']),
 };
 /* Keys that look alike but are NOT registered guidance: a reset must leave them alone (the tour's resume point included: it is not in the registry). */
 const UNRELATED = {
@@ -55,7 +56,7 @@ const UNRELATED = {
 };
 
 test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge, and the tour resume point is not an entry', () => {
-  assert.equal(GUIDANCE_ITEMS.length, 10);
+  assert.equal(GUIDANCE_ITEMS.length, 11);
   for (const item of GUIDANCE_ITEMS) assert.deepEqual(entryProblems(item), [], item.id);
   const ids = GUIDANCE_ITEMS.map(item => item.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
@@ -66,6 +67,20 @@ test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge,
   assert.deepEqual(GUIDANCE_ITEMS.filter(item => item.proactive).map(item => item.id).sort(),
     ['book.moves', 'library.topic-groups', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'],
     'what appears by itself (the master switch hint names exactly these; the setup "all done" note is a status, not a tip)');
+});
+
+test('设置 › 引导 owns the same key the sidebar writes, so 再显示一次 brings the step-5 dots back', async () => {
+  const { NAV_START_KEY, readStarts, startHere } = await import('../ui/nav-start.js');
+  const local = memoryStorage(SEEN), storages = both(local);
+  const item = guidanceItem('nav.start');
+  assert.ok(item, 'the step-5 marker is registered guidance');
+  assert.equal(itemSeen(item, storages), true);
+  assert.deepEqual(readStarts(local), ['library', 'sources']);
+  assert.equal(clearItem(item, storages), true);
+  assert.deepEqual(readStarts(local), [], '再显示一次 forgets which pages were opened');
+  assert.equal(startHere('sources', readStarts(local)), true, 'so its dot is back');
+  assert.equal(itemSeen(item, storages), false);
+  assert.equal(local.getItem(NAV_START_KEY), null, 'the emptied list is removed, not left as []');
 });
 
 test('the experiment entry needs both the experiments switch and the system component; 入门三步 cannot come back once there is an own deck', () => {

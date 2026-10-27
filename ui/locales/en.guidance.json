@@ -66,5 +66,9 @@
   "一句提示": "Tip",
   "导览": "Tour",
   "小提醒": "Reminder",
+  "侧栏": "Sidebar",
+  "从这里开始的小圆点": "The “start here” dot",
+  "还没有打开过某一页时，侧栏这一项旁边有一个小圆点；打开过就消失。": "A page you have not opened yet carries a small dot beside it in the sidebar; the dot goes once you open the page.",
+  "下次打开侧栏时": "the next time you open the sidebar",
   "没有点它也会出现。总开关和它自己的开关都能让它不再出现；以后新加的这类提示，每天最多出现一条，做题时不出现。": "Appears without being asked for. The main switch and its own switch can keep it away; tips of this kind added later appear at most once a day and never during practice."
 }
