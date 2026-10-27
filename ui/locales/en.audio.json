@@ -106,5 +106,6 @@
   "共享权限策略：读不出来": "Sharing permission policy: could not be read",
   "浏览器：{0}": "Browser: {0}",
   "系统：{0}": "System: {0}",
-  "点击后 {0} 毫秒被拒绝": "Refused {0} ms after the click"
+  "点击后 {0} 毫秒被拒绝": "Refused {0} ms after the click",
+  "戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。": "Wearing headphones, or not playing through speakers: set Windows’ default recording device to “Stereo Mix” (or a virtual cable’s Output), then choose Microphone to record what the computer plays. The steps are in the Live class guide."
 }

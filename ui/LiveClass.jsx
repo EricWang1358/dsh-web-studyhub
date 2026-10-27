@@ -107,6 +107,7 @@ export function CaptureHelp({ kind, facts, disabled, onMicrophone, onRetry }) {
       <Button disabled={disabled} onClick={onMicrophone}>{ui('改用麦克风并开始')}</Button>
       {retry && <Button variant="quiet" disabled={disabled} onClick={onRetry}>{ui('再试一次共享')}</Button>}
     </div>
+    {facts?.platform === 'windows' && <p className="muted" data-capture-loopback>{ui('戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。')}</p>}
     {line && <details className="live-capture-facts"><summary>{ui('排查信息')}</summary><p className="muted">{line}</p></details>}
   </div>;
 }

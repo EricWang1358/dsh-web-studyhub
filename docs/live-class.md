@@ -50,6 +50,18 @@ If you choose **Tab / system audio** and the browser refuses, the red message sa
 
 The microphone source needs no sharing permission: play the class through the speakers and the microphone picks it up (headphones will not work).
 
+### Record the computer's sound without sharing (Windows)
+
+Inside an app window that cannot share, you can still record what the computer plays, because Windows can offer it as a recording device:
+
+1. Right-click the speaker icon in the taskbar, open **Sound settings**, then **More sound settings**, and go to the **Recording** tab.
+2. Look for **Stereo Mix**. If it is not listed, right-click an empty area and tick **Show Disabled Devices**, then right-click **Stereo Mix** and choose **Enable**.
+3. Right-click **Stereo Mix** and choose **Set as Default Device**.
+4. In **Live class**, choose **Microphone (in-person class)** and click **Start recording**. StudyHub now hears what the computer plays, with no speakers and no microphone noise.
+5. When the class is over, set your real microphone as the default recording device again. While Stereo Mix is the default, meeting software hears the computer's sound instead of your voice.
+
+**Stereo Mix only mixes what the sound card itself plays.** If the class plays through Bluetooth headphones (a separate device), use a virtual cable such as VB-Audio Virtual Cable instead: set the class's output to **CABLE Input** (the browser or system output), set **CABLE Output** as the default recording device, and to hear the class open the properties of **CABLE Output**, go to **Listen**, tick **Listen to this device** and choose your headphones.
+
 ### Controls
 
 | Control | What it does |

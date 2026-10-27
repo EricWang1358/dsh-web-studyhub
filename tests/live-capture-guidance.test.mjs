@@ -305,6 +305,10 @@ test('under a refused tab share the next step is a button; retrying is offered o
   for (const kind of ['cancelled', '', undefined, 'whatever']) assert.equal(help({ kind, facts: FACTS, onMicrophone: noop, onRetry: noop }), '', `${kind}: nothing to add`);
   assert.doesNotMatch(help({ kind: 'instant', onMicrophone: noop, onRetry: noop }), /class="[^"]*primary/, 'the start button stays the page\'s one primary button');
   assert.doesNotMatch(help({ kind: 'instant', onMicrophone: noop, onRetry: noop }), /<details/, 'no facts, no troubleshooting line');
+  const windows = help({ kind: 'app-window', facts: FACTS, onMicrophone: noop, onRetry: noop });
+  assert.match(windows, /data-capture-loopback/);
+  assert.match(text(windows), /立体声混音/, 'Windows: the way to record the computer\'s sound without sharing or speakers');
+  for (const platform of ['mac', 'linux', '']) assert.doesNotMatch(help({ kind: 'app-window', facts: { ...FACTS, platform }, onMicrophone: noop, onRetry: noop }), /data-capture-loopback/, `${platform || 'unknown'}: the Windows device names would be wrong`);
   assert.match(help({ kind: 'instant', onMicrophone: noop, onRetry: noop, disabled: true }), /disabled/);
 });
 
@@ -335,6 +339,8 @@ test('English: the new sentences, buttons and facts line are translated, and eac
     assert.match(html, /Switch to microphone and start/);
     assert.match(html, /Try sharing again/);
     assert.match(html, /What the browser reported/);
+    assert.match(html, /set Windows’ default recording device to “Stereo Mix”/);
+    assert.doesNotMatch(html, HAN);
     assert.match(html, /Browser: Chrome 126 · System: Windows · Window: standalone page/);
   });
 });

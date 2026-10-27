@@ -132,6 +132,7 @@ test('a refused tab share at top level: the next step is a button, the facts are
   assert.match(await shell.locator('.sh-inline--error').innerText(), /应用内置的窗口/);
   assert.equal(await shell.getByRole('button', { name: '再试一次共享' }).count(), 0, 'an app window cannot share: no retry');
   assert.match(await shell.getByRole('combobox', { name: /声音来源/ }).innerText(), /麦克风/, 'the form already moved to the microphone, so the next click works');
+  assert.match(await shell.locator('[data-capture-loopback]').innerText(), /立体声混音/, 'on Windows the note says how to record the computer\'s sound without sharing');
   assert.deepEqual(shell.errors, []);
 
   const narrow = await open(WINDOWS_CHROME, { width: 420, height: 900 });
