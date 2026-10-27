@@ -37,20 +37,28 @@ test('archive from the deck row menu and from the checked materials, each with �
   const menu = page.getByRole('menu');
   const notice = page.locator('.sh-toast');
   const hostDeck = async id => (await service.call('deck.get', { id }));
+  // The snapshot poll can redraw a row just after the click and close the menu (existing behaviour): open it again until it stays open.
+  const openMenu = async title => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await row(title).getByRole('button', { name: 'More actions', exact: true }).click();
+      if (await menu.getByRole('menuitem').first().waitFor({ timeout: 2000 }).then(() => true, () => false)) return;
+    }
+    throw new Error(`the menu of ${title} did not open`);
+  };
 
   // The menu: 归档 is the last entry (after Manage deck), and it is not a danger entry; a deck with an open run says what archiving ends before the click.
-  await row('Deck A').getByRole('button', { name: 'More actions', exact: true }).click();
+  await openMenu('Deck A');
   const names = await menu.getByRole('menuitem').allInnerTexts();
   assert.equal(names.at(-1).split('\n')[0], 'Archive');
   assert.ok(names.findIndex(name => name.startsWith('Manage deck')) < names.length - 1, 'Archive comes after Manage deck');
   assert.equal(await menu.getByRole('menuitem', { name: /Permanently delete/ }).count(), 0, 'permanent delete is not on the menu: archive first');
   await page.keyboard.press('Escape');
-  await row('Deck B').getByRole('button', { name: 'More actions', exact: true }).click();
+  await openMenu('Deck B');
   assert.match(await menu.getByRole('menuitem', { name: /^Archive/ }).innerText(), /Ends 1 practice run/);
   await page.keyboard.press('Escape');
 
   // Archive Deck A from the menu: the row leaves, the host has it archived, the notice offers Undo and Permanently delete…
-  await row('Deck A').getByRole('button', { name: 'More actions', exact: true }).click();
+  await openMenu('Deck A');
   await menu.getByRole('menuitem', { name: /^Archive/ }).click();
   await notice.filter({ hasText: 'Archived “Deck A”' }).waitFor();
   await row('Deck A').waitFor({ state: 'hidden' });
@@ -66,7 +74,7 @@ test('archive from the deck row menu and from the checked materials, each with �
   await page.waitForFunction(() => document.activeElement?.closest('[data-deck-id="a"]') !== null);
 
   // Archive again, then Permanently delete…: the existing dialog opens for this deck; Cancel keeps it archived; confirming deletes it for good.
-  await row('Deck A').getByRole('button', { name: 'More actions', exact: true }).click();
+  await openMenu('Deck A');
   await menu.getByRole('menuitem', { name: /^Archive/ }).click();
   await notice.filter({ hasText: 'Archived “Deck A”' }).getByRole('button', { name: 'Permanently delete…' }).click();
   const dialog = page.getByRole('dialog');
@@ -84,7 +92,7 @@ test('archive from the deck row menu and from the checked materials, each with �
   await page.getByRole('button', { name: 'Archived', exact: true }).click();
 
   // Deck B has an open run: archiving it says how many ended.
-  await row('Deck B').getByRole('button', { name: 'More actions', exact: true }).click();
+  await openMenu('Deck B');
   await menu.getByRole('menuitem', { name: /^Archive/ }).click();
   await notice.filter({ hasText: 'Archived “Deck B”' }).waitFor();
   assert.match(await notice.filter({ hasText: 'Archived “Deck B”' }).innerText(), /ended 1 practice run/);
