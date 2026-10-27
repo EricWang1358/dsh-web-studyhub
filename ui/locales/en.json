@@ -1765,7 +1765,7 @@
   "选择当前范围": "Select this scope",
   "已选资料包含其他范围，生成时仍会保留。": "Your selection includes sources from other scopes; they will still be used.",
   "整理课程归属": "Organize courses",
-  "勾选资料后统一整理。只更改归属，原文与引用保持不变。": "Select sources to organize together. Course changes preserve their text and citations.",
+  "勾选资料后统一整理。改课程归属时，原文与引用保持不变。": "Select materials to organize together. Changing courses leaves their text and citations as they are.",
   "已选择 {0} 份资料": "{0} source(s) selected",
   "应用课程归属": "Apply courses",
   "请 AI 建议": "Suggest with AI",

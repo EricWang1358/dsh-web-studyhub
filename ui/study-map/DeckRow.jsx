@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { LEVEL_LABEL } from '../shared.js';
 import { Badge, DisclosureToggle, Icon, Menu, foldLabel } from '../components/index.js';
 import ArchivedDeckRow from '../ArchivedDeckRow.jsx';
+import { archiveMenuItem } from '../archive-entries.js';
 import MasteryBar from './MasteryBar.jsx';
 import { dotLevel, topicKey } from './map-model.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
@@ -12,7 +13,7 @@ import { useHandOff } from '../hand-off/use-hand-off.js';
 export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy, actions }) {
   const handOff = useHandOff();
   if (d.archived) return <ArchivedDeckRow deck={d} busy={busy} onRestore={actions.restoreDeck} onRemove={actions.removeDeck} onManage={actions.manage} />;
-  const { start, resume, manage } = actions;
+  const { start, resume, manage, archiveDeck, runsOn } = actions;
   const key = topicKey(d.id), whole = tree.selected.has(key), run = runFor([{ deckId: d.id }]);
   const choose = {
     new: () => start({ deckId: d.id, mode: 'new', fresh: true }),
@@ -20,7 +21,10 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
     quiz: () => start({ deckId: d.id, mode: 'quiz' }),
     wrong: () => start({ deckId: d.id, mode: 'wrong' }),
     manage: () => manage(d.id),
+    archive: () => archiveDeck(d),
   };
+  // 归档 sits last, after 管理题组: archive-first stays (permanent delete is reachable only from the archive); this is the shorter way to it.
+  const archive = archiveDeck ? archiveMenuItem(d, { busy, runs: runsOn?.(d.id) || 0 }) : null;
   const items = [
     { id: 'new', label: ui('从新题开始'), disabled: busy || !p?.counts?.new },
     { id: 'flashcard', label: ui('闪卡翻看'), disabled: busy || !d.available },
@@ -28,9 +32,10 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy
     { id: 'wrong', label: uiFormat('待巩固重练 {0}', [d.wrong || 0]), disabled: busy || !d.wrong },
     { ...handOff.item('deck.ask', { deckTitle: d.title }), disabled: busy },
     { id: 'manage', label: ui('管理题组'), disabled: busy },
+    ...(archive ? [archive] : []),
   ];
   return (
-    <li className="map-deck">
+    <li className="map-deck" data-deck-id={d.id}>
       <div className={`map-row deck-row${whole ? ' map-row--selected' : ''}`}>
         <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, d.title)} onToggle={() => tree.toggleOpen(d.id)} />
         <input type="checkbox" aria-label={uiFormat('选择题组 {0}', [d.title])} checked={whole} disabled={d.archived}
