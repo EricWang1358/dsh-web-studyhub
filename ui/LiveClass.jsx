@@ -83,12 +83,41 @@ export function SourceHint({ kind, tabAllowed, onUseMicrophone }) {
   return <p className="muted">{ui('选择正在播放课程的标签页，并勾选「共享标签页音频」。只发送声音，不发送画面。')}</p>;
 }
 
+const PLATFORM_NAME = { windows: 'Windows', mac: 'macOS', linux: 'Linux' };
+/** The observed facts behind a refusal, in one line the learner can read out or paste. Only what the browser reported; empty parts are left out. */
+export function captureFactsLine(facts) {
+  if (!facts) return '';
+  const window = facts.app ? ui('窗口：应用内置的窗口') : facts.topLevel === false ? ui('窗口：嵌在别的页面里') : facts.topLevel ? ui('窗口：独立页面') : '';
+  const policy = facts.policy === 'allowed' ? ui('共享权限策略：允许') : facts.policy === 'denied' ? ui('共享权限策略：禁止') : ui('共享权限策略：读不出来');
+  return [facts.browser && uiFormat('浏览器：{0}', [facts.browser]), facts.platform && uiFormat('系统：{0}', [PLATFORM_NAME[facts.platform]]), window, policy,
+    facts.elapsedMs != null && uiFormat('点击后 {0} 毫秒被拒绝', [facts.elapsedMs])].filter(Boolean).join(' · ');
+}
+
+/**
+ * Under a refused tab share: the next step as buttons, not as a sentence to obey. 「改用麦克风并开始」 changes the source and starts at once (the click is
+ * the gesture the microphone prompt needs); 「再试一次共享」 only where trying again can work (a permission the learner may just have fixed, or an unknown cause).
+ * Where the window itself cannot share (policy, an app shell, a frame) retrying is not offered. The facts line says what the browser reported.
+ */
+export function CaptureHelp({ kind, facts, disabled, onMicrophone, onRetry }) {
+  if (!['blocked', 'embedded-instant', 'app-window', 'instant', 'unknown'].includes(kind)) return null;
+  const retry = kind === 'instant' || kind === 'unknown';
+  const line = captureFactsLine(facts);
+  return <div className="live-capture-help" data-capture-help={kind}>
+    <div className="live-capture-actions">
+      <Button disabled={disabled} onClick={onMicrophone}>{ui('改用麦克风并开始')}</Button>
+      {retry && <Button variant="quiet" disabled={disabled} onClick={onRetry}>{ui('再试一次共享')}</Button>}
+    </div>
+    {facts?.platform === 'windows' && <p className="muted" data-capture-loopback>{ui('戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。')}</p>}
+    {line && <details className="live-capture-facts"><summary>{ui('排查信息')}</summary><p className="muted">{line}</p></details>}
+  </div>;
+}
+
 export default function LiveClass({ call, data, visible, onJobs, onSettings, onSources, initialReadiness = null }) {
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
   const [course, setCourse] = usePageScope(data?.root, 'live-class-course', data?.focus?.course ?? '');
   const client = useMemo(() => new LiveClient(call), [call]);
-  const { session, capturing, busy, error } = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
+  const { session, capturing, busy, error, errorKind, errorFacts } = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
   const [sessions, setSessions] = useState([]), [title, setTitle] = useState(''), [subject, setSubject] = useState('');
   const [terms, setTerms] = useState(''), [kind, setKind] = useState('microphone'), [paidOnly, setPaidOnly] = useState(false);
   const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [working, setWorking] = useState(false);
@@ -125,6 +154,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   useEffect(() => {
     if (visible && follow && feed.current) feed.current.scrollTop = feed.current.scrollHeight;
   }, [visible, follow, session?.revision, session?.interim]);
+  // A refusal that retrying cannot fix moves the form to the microphone, so the next click on 「开始实录」 works.
+  useEffect(() => { if (error && ['blocked', 'embedded-instant', 'app-window'].includes(errorKind)) setKind('microphone'); }, [error, errorKind]);
   const perform = async (action) => {
     if (operation.current) return;
     operation.current = true; setWorking(true); client.update({ error: '' });
@@ -134,6 +165,7 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const toggle = useCallback((id) => setSelected((previous) => {
     const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next;
   }), []);
+  const begin = (source) => perform(async () => { setSelected(new Set()); await client.start(source, { title, course, subject, terms, paidOnly }); await refresh(); });
   const segments = session?.segments || [], generated = new Set(session?.generatedIds || []);
   const correction = session?.correction, checkedThrough = correction?.enabled ? correction.coveredThrough || 0 : 0;
   const polished = segments.filter((segment) => segment.correctedAt).length;
@@ -156,9 +188,10 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
       actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
+    {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} disabled={disabled} onMicrophone={() => { setKind('microphone'); void begin('microphone'); }} onRetry={() => void begin('tab')} />}
     {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={openAudio} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
-      event.preventDefault(); void perform(async () => { setSelected(new Set()); await client.start(kind, { title, course, subject, terms, paidOnly }); await refresh(); });
+      event.preventDefault(); void begin(kind);
     }}>
       <div className="live-fields"><label>{ui('课堂名称')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
         <label>{ui('声音来源')}<Select value={kind} onChange={setKind}

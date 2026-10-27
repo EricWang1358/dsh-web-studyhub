@@ -70,17 +70,19 @@ registerProcessor('study-pcm', StudyPcm);`;
  *                    an iframe without allow="display-capture", a host webview. No picker was shown and none ever will be.
  *   embedded-instant refused within INSTANT_REFUSAL_MS inside a frame while the policy could not be read: probably the same, said as "probably".
  *   instant          refused within INSTANT_REFUSAL_MS at top level: no picker was shown either (system screen-recording permission, a managed policy).
+ *   app-window       refused within INSTANT_REFUSAL_MS in a window that an app shell hosts (Electron): such a shell decides for itself whether to show a picker,
+ *                    and this one did not. Said as a fact about the window, not as a missing permission.
  *   cancelled        refused after a human-scale delay: the picker was shown and dismissed.
  * The time is only the secondary signal: measured in Chromium, a policy refusal comes back in 0-1 ms while a picker needs a person to look and
  * click, so 300 ms separates them with room for a loaded machine; a late "instant" lands on "cancelled", the wording that makes no claim about frames.
  * `unknown` is a refusal nobody measured. Never claim a cause the observation does not support.
  */
 export const INSTANT_REFUSAL_MS = 300;
-export function classifyTabRefusal({ error, elapsedMs, policyAllowed, embedded } = {}) {
+export function classifyTabRefusal({ error, elapsedMs, policyAllowed, embedded, app } = {}) {
   if (error?.name !== 'NotAllowedError') return null;
   if (policyAllowed === false || /permissions? policy|feature policy/i.test(error.message || '')) return 'blocked';
   if (typeof elapsedMs !== 'number' || Number.isNaN(elapsedMs)) return 'unknown';
-  if (elapsedMs < INSTANT_REFUSAL_MS) return embedded ? 'embedded-instant' : 'instant';
+  if (elapsedMs < INSTANT_REFUSAL_MS) return app ? 'app-window' : embedded ? 'embedded-instant' : 'instant';
   return 'cancelled';
 }
 
@@ -92,17 +94,34 @@ export function tabSharingAllowed(doc = globalThis.document) {
   } catch { return null; }
 }
 
+/**
+ * What this window is, as far as the browser says: the system (a missing screen-recording permission only exists on macOS, so the advice
+ * differs), whether an app shell (Electron) hosts the page, and the browser name for the troubleshooting line. Empty strings when unknown.
+ */
+export function hostInfo(nav = globalThis.navigator) {
+  const ua = String(nav?.userAgent || '');
+  const system = String(nav?.userAgentData?.platform || nav?.platform || ua);
+  const platform = /mac/i.test(system) ? 'mac' : /win/i.test(system) ? 'windows' : /linux|x11|cros/i.test(system) ? 'linux' : '';
+  const app = /\bElectron\//.test(ua) ? 'electron' : '';
+  const edge = /\bEdg\/(\d+)/.exec(ua), chrome = /\bChrome\/(\d+)/.exec(ua), firefox = /\bFirefox\/(\d+)/.exec(ua);
+  const browser = app ? 'Electron' : edge ? `Edge ${edge[1]}` : chrome ? `Chrome ${chrome[1]}` : firefox ? `Firefox ${firefox[1]}` : '';
+  return { platform, app, browser };
+}
+
 /** What captureAudio reads from the browser; tests pass their own. */
 const browserEnv = () => ({
   now: () => globalThis.performance?.now?.() ?? Date.now(),
   tabAllowed: () => tabSharingAllowed(),
   embedded: () => !!globalThis.top && globalThis.top !== globalThis,
+  host: () => hostInfo(),
 });
 
 const TAB_REFUSAL = {
   blocked: '这里不允许共享标签页：浏览器的权限策略没有放行屏幕共享（嵌在别的页面里的面板通常如此），所以不会弹出选择窗口，再点「开始实录」也没有用。请把「声音来源」改成「麦克风」（外放课程声音，让麦克风收音），或在独立的浏览器窗口里打开 StudyHub 再录；也可以课后在「音频转写」里导入录音。',
   'embedded-instant': '点下去就被拒绝了，没有弹出选择窗口。这个面板嵌在别的页面里，很可能不允许共享标签页，再点「开始实录」多半也没有用。请把「声音来源」改成「麦克风」（外放课程声音，让麦克风收音），或在独立的浏览器窗口里打开 StudyHub 再录；也可以课后在「音频转写」里导入录音。',
-  instant: '浏览器没有弹出选择窗口就拒绝了共享（可能是系统的屏幕录制权限没打开，或被管理策略禁止）。请检查浏览器和系统的屏幕录制权限；或把「声音来源」改成「麦克风」，外放课程声音让麦克风收音。',
+  instant: '浏览器没有弹出选择窗口就拒绝了共享。在 Windows 和 Linux 上，共享标签页通常不需要系统授权；常见原因是工作或学校的管理策略禁止了屏幕共享（在地址栏输入 chrome://policy 或 edge://policy 可以查看），或者这不是普通的浏览器窗口。请把「声音来源」改成「麦克风」，外放课程声音让麦克风收音，或换一个独立的 Chrome / Edge 窗口再试。',
+  instantMac: '浏览器没有弹出选择窗口就拒绝了共享。macOS 要先允许这个浏览器录屏：打开「系统设置 › 隐私与安全性 › 屏幕与系统音频录制」，打开浏览器的开关，然后完全退出并重新打开浏览器。也可以把「声音来源」改成「麦克风」，外放课程声音让麦克风收音。',
+  'app-window': '点下去就被拒绝了，没有弹出选择窗口。这是某个应用内置的窗口（不是普通的 Chrome / Edge 窗口），它没有放行共享，再点「开始实录」也没有用。请把「声音来源」改成「麦克风」（外放课程声音，让麦克风收音），或在 Chrome / Edge 的独立窗口里打开 StudyHub 再录；也可以课后在「音频转写」里导入录音。',
   cancelled: '已取消共享。要录课，请再点一次「开始实录」，在弹出的窗口里选标签页并勾选「共享标签页音频」。',
   unknown: '没有共享标签页。要录课，请点「开始实录」，在弹出的窗口里选标签页并勾选「共享标签页音频」；如果根本没有弹出窗口，请改用麦克风，或在独立的浏览器窗口里打开 StudyHub。',
 };
@@ -114,11 +133,17 @@ const TAB_REFUSAL = {
  * free of the i18n catalogue so the client can be loaded on its own.
  * `context` ({ elapsedMs, policyAllowed, embedded }) is what captureAudio observed around a tab-sharing refusal (classifyTabRefusal).
  */
+/** What was observed around a refusal, for the troubleshooting line: nothing here is a guess. */
+function captureFacts({ elapsedMs, policyAllowed, embedded, app, platform, browser } = {}) {
+  return { browser: browser || '', platform: platform || '', app: app || '', topLevel: typeof embedded === 'boolean' ? !embedded : null,
+    policy: policyAllowed === true ? 'allowed' : policyAllowed === false ? 'denied' : 'unknown', elapsedMs: Number.isFinite(elapsedMs) ? Math.round(elapsedMs) : null };
+}
+
 export function describeCaptureError(error, kind = 'microphone', context = {}) {
   const tab = kind === 'tab';
   const refusal = tab ? classifyTabRefusal({ error, ...context }) : null;
   const text = {
-    NotAllowedError: tab ? TAB_REFUSAL[refusal]
+    NotAllowedError: tab ? TAB_REFUSAL[refusal === 'instant' && context.platform === 'mac' ? 'instantMac' : refusal]
       : '浏览器没有允许使用麦克风。点地址栏左侧的锁形图标，把麦克风改为「允许」后再试。',
     SecurityError: '浏览器没有允许使用麦克风。点地址栏左侧的锁形图标，把麦克风改为「允许」后再试。',
     NotFoundError: tab ? '所选内容里没有声音。请选择正在播放课程的标签页，并勾选「共享标签页音频」。'
@@ -129,7 +154,7 @@ export function describeCaptureError(error, kind = 'microphone', context = {}) {
     AbortError: '采集声音被中断了，请再试一次。',
     OverconstrainedError: '这个麦克风不支持所需的设置，请在系统里换一个麦克风后再试。',
   }[error?.name];
-  return text ? Object.assign(new Error(text), { name: error.name, cause: error }, refusal ? { tabRefusal: refusal } : {}) : error;
+  return text ? Object.assign(new Error(text), { name: error.name, cause: error }, refusal ? { tabRefusal: refusal, captureFacts: captureFacts(context) } : {}) : error;
 }
 
 export async function captureAudio(kind, onAudio, onEnded, onState, env = browserEnv()) {
@@ -144,7 +169,7 @@ export async function captureAudio(kind, onAudio, onEnded, onState, env = browse
       : navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false }));
   } catch (error) {
     // The policy says only "probably": ask the browser anyway above, and read what it says once it has answered.
-    throw describeCaptureError(error, kind, { elapsedMs: env.now() - clicked, policyAllowed: env.tabAllowed(), embedded: env.embedded() });
+    throw describeCaptureError(error, kind, { elapsedMs: env.now() - clicked, policyAllowed: env.tabAllowed(), embedded: env.embedded(), ...(env.host?.() || {}) });
   }
   let context, node, source, url, closed = false, paused = false;
   const tracks = stream.getTracks();
