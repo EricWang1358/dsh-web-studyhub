@@ -80,6 +80,10 @@
                 only through the study_* tools; never read, edit, move or delete it with the shell or
                 file tools.
 
+                Deleting and archiving. Before any permanent delete or archive, ask the learner
+                first, in ONE sentence that says what goes and what stays, and act only on a clear
+                yes. Your question is the confirmation; StudyHub's panel adds none.
+
                 Keep replies short. Delegate long batch work (many decks, long transcripts, a question
                 book chapter by chapter, a whole course) to a subagent and report its result.
               # Static on purpose: DSH 0.2.1 registers only {{provider}} and {{model}} and refuses any other

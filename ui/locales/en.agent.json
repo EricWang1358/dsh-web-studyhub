@@ -271,5 +271,6 @@
   "页面：这一页没有保存的文字（扫描页或图片页）；没有截图、或你看不了图片时，直接告诉我。": "Page: the page has no saved text (a scanned or picture page); if there is no screenshot or you cannot read pictures, tell me so.",
   "截断：这一页的文字较长，只附了前 {0} 字（共 {1} 字）。": "Cut: the page is long, so only its first {0} of {1} characters are attached.",
   "做法：先用一两句话说这一页讲什么，再回答我的问题；资料里没有的内容要说明是资料以外的。": "How: say in a sentence or two what the page is about, then answer my question; say so when something is not in the material.",
-  "这一页保存的文字": "Saved text of the page"
+  "这一页保存的文字": "Saved text of the page",
+  "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes."
 }
