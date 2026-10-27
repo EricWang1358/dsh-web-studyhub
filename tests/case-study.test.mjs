@@ -31,7 +31,8 @@ test('the document renders the facts it quotes, in prose and in the figures, and
     assert.ok(html.includes(quoted), `the document should say "${quoted}"`);
   assert.doesNotMatch(html, /undefined|NaN|\[object|\$\{/, 'a placeholder was left in the text');
   assert.equal((html.match(/<svg /g) || []).length, (html.match(/<\/svg>/g) || []).length);
-  assert.equal((html.match(/<svg /g) || []).length, 8, 'eight figures: A1 to A5 and B1 to B3');
+  assert.equal((html.match(/<svg /g) || []).length, 8, 'eight figures: Figure 1 to Figure 8');
+  assert.doesNotMatch(html, /Lead Solution Architect|self-study|unofficial|Architecting Scalable Systems|\bPART [AB]\b|END OF (PART|CASE STUDY)/, 'the document is a product architecture document, not an exercise');
   for (const name of S.toolNames) assert.ok(html.includes(name), `${name} is named`);
   assert.ok(html.includes(`${S.contextCount} contexts with versioned APIs`), 'the figures carry the context count too');
   assert.ok(html.includes(`start job (queue, ${S.generation.jobMinutes} min budget)`), 'the sequence figure carries the job budget');

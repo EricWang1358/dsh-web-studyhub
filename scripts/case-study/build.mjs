@@ -29,11 +29,11 @@ async function main() {
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load' });
-    const band = (inner) => `<div style="width:100%;padding:0 20mm;font-family:'Times New Roman',serif;font-size:8.5pt;font-weight:bold;font-style:italic;color:#000;">${inner}</div>`;
+    const band = (inner) => `<div style="width:100%;padding:0 20mm;font-family:Arial,Helvetica,sans-serif;font-size:8pt;color:#444;">${inner}</div>`;
     await page.pdf({
       path: out, format: 'A4', printBackground: true, displayHeaderFooter: true,
-      headerTemplate: band('<div style="display:flex;justify-content:space-between;border-bottom:1px solid #000;padding-bottom:1px;"><span>StudyHub case study (self-study, unofficial)</span><span>page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>'),
-      footerTemplate: band(`<div style="border-top:1px solid #000;padding-top:2px;line-height:1.25;">Self-study material:<br>Architecting Scalable Systems, StudyHub ${facts.volatile.version}</div>`),
+      headerTemplate: band('<div style="display:flex;justify-content:space-between;border-bottom:1px solid #999;padding-bottom:1px;"><span>StudyHub: architecture case study</span><span>page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>'),
+      footerTemplate: band(`<div style="border-top:1px solid #999;padding-top:2px;">StudyHub ${facts.volatile.version} · generated from the repository</div>`),
       margin: { top: '22mm', bottom: '24mm', left: '20mm', right: '20mm' },
     });
   } finally { await browser.close(); }

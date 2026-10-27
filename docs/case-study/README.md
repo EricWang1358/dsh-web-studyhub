@@ -1,20 +1,19 @@
-# StudyHub case study
+# StudyHub architecture case study
 
-[`studyhub-case-study.pdf`](studyhub-case-study.pdf) is a case study of StudyHub in two parts, written for the course *Architecting Scalable Systems*. It is a self-study document, not an official one.
+[`studyhub-case-study.pdf`](studyhub-case-study.pdf) is the product architecture document of StudyHub: what the product is, how it is built, why it is built that way, what it costs and risks, and where it should go next. It is written for engineers, architects and evaluators who need to understand the system without reading all of it.
 
-- **Part A, the case.** The product described in the structure of a typical "Appendix A" case study: context, actors, use cases for two phases, requirements, initial architecture (layers, logical overview), domain model and the packaging of one use case.
-- **Part B, the solution architecture analysis.** What the Lead Solution Architect would hand over: drivers and quality attribute scenarios, twelve decisions with their trade-offs (ADR-01 to ADR-12), the critical flows, the data and performance story, runtime and recovery, AI cost and failure, delivery and quality engineering, security, scalability (including a scale-out scenario) and an honest assessment of strengths, weaknesses and risks.
+It contains an executive summary, a product overview, the system context and capabilities, requirements and ranked quality attributes, the architecture in layered, logical, deployment and domain views, twelve decision records with their trade-offs (ADR-01 to ADR-12), the critical flows, the data and performance story, runtime and recovery, AI cost and failure, delivery and quality engineering, a security analysis, a scalability analysis with a scale-out scenario, and an assessment of strengths, weaknesses, risks and next steps. A glossary and a list of sources close it.
 
 It describes the code as it is, not as an earlier document said it was. While it was written, comparing it with the code found places where the documentation had fallen behind (the default number of parallel parts, the number of lazy views, the number of job-runtime switches, how far automatic repair goes). Those were corrected in the same change.
 
 ## Keeping it true
 
-A number in the case study is not typed by hand when the code can say it. `scripts/case-study/facts.mjs` reads the limits, defaults and counts that the document quotes from the modules and files that define them, and `scripts/case-study/content.mjs` writes them into the text and the figures when the document is built. Two things stay manual and are the reviewer's job:
+A number in the document is not typed by hand when the code can say it. `scripts/case-study/facts.mjs` reads the limits, defaults and counts that the document quotes from the modules and files that define them, and `scripts/case-study/content.mjs` writes them into the text and the figures when the document is built. Two things stay manual and are the reviewer's job:
 
 - the **prose that describes design** (decisions, flows, trade-offs, the assessment) in `scripts/case-study/content.mjs`;
-- the **2.4.0 performance measurements** in section 14, which are quoted from [`docs/performance.md`](../performance.md) with their date.
+- the **2.4.0 performance measurements** in section 8, which are quoted from [`docs/performance.md`](../performance.md) with their date.
 
-[`facts.snapshot.json`](facts.snapshot.json) is the committed copy of the structural facts. `tests/case-study.test.mjs` compares it with the code, so a pull request that changes a quoted limit, default or count (for example the default number of parallel parts, the migration switches, the lazy views, the store version, the file size limits) fails that test until the case study is rebuilt.
+[`facts.snapshot.json`](facts.snapshot.json) is the committed copy of the structural facts. `tests/case-study.test.mjs` compares it with the code, so a pull request that changes a quoted limit, default or count (for example the default number of parallel parts, the migration switches, the lazy views, the store version, the file size limits) fails that test until the document is rebuilt.
 
 **When to update**
 
