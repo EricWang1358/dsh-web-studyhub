@@ -50,6 +50,23 @@ test('deck.archive says how many open practice runs it ended (closedRuns), and r
   assert.equal((await service.call('export')).runs.filter(run => !run.closedAt).length, 0, 'the ended runs stay ended');
 });
 
+test('the snapshot counts, per deck, the runs deck.archive will end: learning-flow rounds and finished-but-unclosed runs too', async t => {
+  const service = await fixture(t);
+  const entry = { deckId: 'd', card: { id: 'q', kind: 'flashcard', prompt: 'Question', answer: 'Answer' } };
+  await service.store.update(s => {
+    // a 学习流 round (the snapshot's runs leave it out), a run answered to the end but never closed, a closed one, and one on another deck
+    s.runs.push({ id: 'wf', mode: 'path', workflowSessionId: 'sess-1', deckId: 'd', scope: [{ deckId: 'd' }], entries: [entry], index: 0 });
+    s.runs.push({ id: 'done', mode: 'flashcard', deckId: 'd', scope: [{ deckId: 'd' }], entries: [entry], index: 1 });
+    s.runs.push({ id: 'closed', mode: 'flashcard', deckId: 'd', scope: [{ deckId: 'd' }], entries: [entry], index: 0, closedAt: new Date().toISOString() });
+    s.runs.push({ id: 'other', mode: 'flashcard', deckId: 'x', scope: [{ deckId: 'x' }], entries: [{ ...entry, deckId: 'x' }], index: 0 });
+  });
+  await service.call('review.start', { deckId: 'd', mode: 'flashcard' });
+  const shown = (await service.call('snapshot', {})).decks.find(deck => deck.id === 'd').openRuns;
+  assert.ok(shown >= 3, 'the menu would otherwise say less than the notice');
+  const archived = await service.call('deck.archive', { id: 'd', archived: true });
+  assert.equal(shown, archived.closedRuns, 'one number: what the menu says before the click is what the notice says after it');
+});
+
 test('restoring a deck invalidates a pending permanent delete', async t => {
   const service = await fixture(t);
   await service.call('deck.archive', { id: 'd', archived: true });

@@ -117,7 +117,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
-  const deckActions = { start, resume, manage, restoreDeck, removeDeck, archiveDeck, runsOn: (deckId) => openRunsOn(runs, deckId) };
+  const deckActions = { start, resume, manage, restoreDeck, removeDeck, archiveDeck, runsOn: (deckId) => data.decks.find((deck) => deck.id === deckId)?.openRuns ?? openRunsOn(runs, deckId) };
   const line = useFirstRunLine(data);
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
   const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };

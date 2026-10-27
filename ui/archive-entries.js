@@ -7,7 +7,7 @@ import { offerRestore } from './undoable.js';
    one ends in the same notice: 撤销 (ui/undoable.js restoreWith) and, where permanent delete is allowed after archiving, 永久删除…, which opens the one
    permanent-delete dialog the app already has (RemoveDeckDialog, Sources' RemoveDialog). Plain JavaScript: the pages bring their own calls. */
 
-/** How many open practice runs stand on a deck (the snapshot's runs, by deckId or deckIds): what archiving the deck ends. */
+/** How many open practice runs stand on a deck by the snapshot's `runs` (by deckId or deckIds): the fallback for a host that does not send `openRuns` per deck (lib/study-state.js openRunCounts, deck.archive's own rule). */
 export const openRunsOn = (runs, deckId) => (runs || []).filter((run) => run.deckId === deckId || run.deckIds?.includes(deckId)).length;
 
 /** The 归档 entry of a deck row's ⋯ menu, or null for a system deck (its archived row offers neither restore nor delete). `runs` is what archiving ends, said before the click. */

@@ -130,3 +130,43 @@ test('archive from the deck row menu and from the checked materials, each with �
   assert.deepEqual(await archivedIds(), ['s3'], 'cancelled: archived, not deleted');
   assert.deepEqual(errors, []);
 });
+
+// 归档所选 archives what the page shows: a document that is checked but now hidden by the course scope is not archived unseen.
+test('archive selected leaves out a checked document the course scope now hides', { timeout: 120000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'delete-d2-scope-'));
+  const service = new StudyService(join(root, 'library'));
+  await service.store.update(s => {
+    s.sources.push({ id: 'm1', title: 'Math notes', text: 'Evidence m', createdAt: new Date(Date.UTC(2026, 9, 20, 10, 1)).toISOString(), courses: ['Math'] });
+    s.sources.push({ id: 'p1', title: 'Physics notes', text: 'Evidence p', createdAt: new Date(Date.UTC(2026, 9, 20, 10, 2)).toISOString(), courses: ['Physics'] });
+  });
+  const distDir = join(root, 'dist'); await buildPreview({ outdir: distDir });
+  const server = await createPreviewServer({ libraryRoot: service.store.root, home: join(root, 'home'), port: 0, model: null, distDir });
+  let browser;
+  t.after(async () => { await browser?.close(); await server.close(); await service.dispose(); await rm(root, { recursive: true, force: true }); });
+  try { browser = await launchChromium(); }
+  catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } }), errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
+  await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });
+  await page.goto(server.url);
+  await page.locator('[data-tour="nav-sources"]').click();
+  await page.locator('.source-organize > summary').click();
+  // The page follows the current course (Math) at first: show every course, check both documents, then narrow to Math again.
+  await page.locator('.page-scope').getByRole('combobox').first().click();
+  await page.getByRole('option', { name: 'All courses', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select source: Math notes' }).check();
+  await page.getByRole('checkbox', { name: 'Select source: Physics notes' }).check();
+  const archiveChosen = page.locator('[data-archive-selected]');
+  assert.match(await archiveChosen.innerText(), /Archive selected \(2\)/);
+  // Narrow the page to Math: the Physics row is hidden, still checked, and not counted.
+  await page.locator('.page-scope').getByRole('combobox').first().click();
+  await page.getByRole('option', { name: 'Math', exact: true }).click();
+  await page.locator('.source-doc', { hasText: 'Physics notes' }).waitFor({ state: 'hidden' });
+  assert.match(await archiveChosen.innerText(), /Archive selected \(1\)/, 'only what the page shows is counted');
+  await archiveChosen.click();
+  await page.locator('.sh-toast', { hasText: 'Archived “Math notes”' }).waitFor();
+  const archivedIds = (await service.call('export')).sources.filter(source => source.archived).map(source => source.id);
+  assert.deepEqual(archivedIds, ['m1'], 'the hidden, checked document stays where it was');
+  assert.deepEqual(errors, []);
+});
