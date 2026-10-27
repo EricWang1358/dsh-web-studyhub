@@ -29,7 +29,11 @@ test('the priority list, row by row: the first condition that holds names the on
     ['no model outranks reviews that are due', facts({ modelReady: false, today: { ...quiet, due: 4, size: 4 } }), 'model', 'card'],
     ['reviews due today', facts({ today: { ...quiet, due: 4, size: 6 } }), 'due', 'card'],
     ['reviews due outrank a new material without questions', facts({ today: { ...quiet, due: 1, size: 1 }, newSources: { count: 1, title: 'x', sourceIds: ['s'] } }), 'due', 'card'],
-    ['weak and unlearned questions are not "reviews due": the card below offers them, and wrong answers have their own state', facts({ today: { ...quiet, weak: 2, new: 3, size: 5 } }), 'done', 'card'],
+    ['weak and unlearned questions are not "reviews due" (wrong answers have their own state), but they are work: not "done"', facts({ today: { ...quiet, weak: 2, new: 3, size: 5 } }), 'learn', 'card'],
+    ['a round of only unlearned questions (the home right after the first deck is published)', facts({ today: { ...quiet, new: 2, size: 2 } }), 'learn', 'card'],
+    ['an exam within a week outranks a round that only has weak or unlearned questions', facts({ today: { ...quiet, new: 2, size: 2 }, exam: { course: '数据库', days: 3 } }), 'exam', 'card'],
+    ['wrong answers outrank a round of only unlearned questions', facts({ today: { ...quiet, new: 2, size: 2 }, wrong: 3 }), 'wrong', 'card'],
+    ['practising ahead of a finished day is "done"', facts({ today: { ...quiet, size: 4, ahead: true } }), 'done', 'card'],
     ['a round left open and nothing due', facts({ resumeOpen: true }), 'resume', 'card'],
     ['a round left open and reviews due: the due reviews name the situation (the button is the same 接着做)', facts({ resumeOpen: true, today: { ...quiet, due: 2, size: 2 } }), 'due', 'card'],
     ['an open round outranks a new material', facts({ resumeOpen: true, newSources: { count: 1, title: 'x', sourceIds: ['s'] } }), 'resume', 'card'],
@@ -48,17 +52,18 @@ test('turning the conditions off one at a time walks the whole list in its fixed
     newSources: { count: 1, title: 'a', sourceIds: ['a'] }, wrong: 3, exam: { course: 'x', days: 2 } });
   const seen = [];
   const off = [(f) => ({ ...f, modelReady: true }), (f) => ({ ...f, today: { ...f.today, due: 0 } }), (f) => ({ ...f, resumeOpen: false }),
-    (f) => ({ ...f, newSources: { count: 0, title: '', sourceIds: [] } }), (f) => ({ ...f, wrong: 0 }), (f) => ({ ...f, exam: null })];
+    (f) => ({ ...f, newSources: { count: 0, title: '', sourceIds: [] } }), (f) => ({ ...f, wrong: 0 }), (f) => ({ ...f, exam: null }),
+    (f) => ({ ...f, today: { ...quiet } })];
   let current = all;
   seen.push(m.nextStep(current).id);
   for (const turn of off) { current = turn(current); seen.push(m.nextStep(current).id); }
-  assert.deepEqual(seen, ['model', 'due', 'resume', 'new-source', 'wrong', 'exam', 'done']);
-  assert.deepEqual(m.NEXT_STEP_IDS, ['model', 'sources', 'questions', 'due', 'resume', 'new-source', 'wrong', 'exam', 'done'], 'the ids, in priority order (the first three are the first-run line)');
+  assert.deepEqual(seen, ['model', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn', 'done']);
+  assert.deepEqual(m.NEXT_STEP_IDS, ['model', 'sources', 'questions', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn', 'done'], 'the ids, in priority order (the first three are the first-run line)');
   assert.deepEqual(m.FIRST_RUN_SURFACE, ['model', 'sources', 'questions'], 'the line\'s three steps are the first three states');
 });
 
 test('only the states with something to press carry a primary button', () => {
-  for (const id of ['model', 'due', 'resume', 'new-source', 'wrong', 'exam']) assert.equal(m.hasPrimaryAction(id), true, id);
+  for (const id of ['model', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn']) assert.equal(m.hasPrimaryAction(id), true, id);
   assert.equal(m.hasPrimaryAction('done'), false);
   assert.equal(m.hasPrimaryAction('questions'), false, 'the line draws its own button');
 });
@@ -93,14 +98,25 @@ test('wrong answers not yet reviewed are the 待巩固 of the decks the learner 
   assert.equal(m.nextStepFacts(data, { now: NOW, canWrong: false }).wrong, 0, 'no wrong-answers page, no card pointing at it');
 });
 
-test('an exam within a week: the nearest one of a course that is in use', () => {
+test('an exam within a week: the nearest one of a course that is in use and has a review book', () => {
   const course = (name, offset, extra = {}) => ({ name, exam: { date: ymd(offset) }, ...extra });
-  const data = library({ courses: [course('远', 10), course('近', 5), course('更近', 2), course('停用', 1, { active: false }), course('已过', -1), { name: '没设日期' }, course('今天', 0, { active: false })] });
+  const books = ['远', '近', '更近', '停用', '已过', '没设日期', '今天', '第七天', '第八天'];
+  const data = library({ bookCourses: books, courses: [course('远', 10), course('近', 5), course('更近', 2), course('停用', 1, { active: false }), course('已过', -1), { name: '没设日期' }, course('今天', 0, { active: false })] });
   assert.deepEqual(m.nextStepFacts(data, { now: NOW }).exam, { course: '更近', days: 2 });
-  assert.deepEqual(m.nextStepFacts(library({ courses: [course('今天', 0)] }), { now: NOW }).exam, { course: '今天', days: 0 });
-  assert.deepEqual(m.nextStepFacts(library({ courses: [course('第七天', 7)] }), { now: NOW }).exam, { course: '第七天', days: 7 }, 'a week is seven days, inclusive');
-  assert.equal(m.nextStepFacts(library({ courses: [course('第八天', 8)] }), { now: NOW }).exam, null);
-  assert.equal(m.nextStepFacts(data, { now: NOW, canExam: false }).exam, null, 'no review book, no card pointing at it');
+  assert.deepEqual(m.nextStepFacts(library({ bookCourses: books, courses: [course('今天', 0)] }), { now: NOW }).exam, { course: '今天', days: 0 });
+  assert.deepEqual(m.nextStepFacts(library({ bookCourses: books, courses: [course('第七天', 7)] }), { now: NOW }).exam, { course: '第七天', days: 7 }, 'a week is seven days, inclusive');
+  assert.equal(m.nextStepFacts(library({ bookCourses: books, courses: [course('第八天', 8)] }), { now: NOW }).exam, null);
+  assert.equal(m.nextStepFacts(data, { now: NOW, canExam: false }).exam, null, 'no review book page, no card pointing at it');
+});
+
+test('an exam near a course without a review book is no card: the book page would only say there is no outline yet', () => {
+  const course = (name, offset) => ({ name, exam: { date: ymd(offset) } });
+  const data = library({ bookCourses: ['有书'], courses: [course('没有书', 1), course('有书', 4)] });
+  assert.deepEqual(m.nextStepFacts(data, { now: NOW }).exam, { course: '有书', days: 4 }, 'the nearer exam has no book, so the one that has one is named');
+  assert.equal(m.nextStepFacts(library({ courses: [course('没有书', 1)] }), { now: NOW }).exam, null, 'a snapshot without bookCourses has no book to open');
+  assert.equal(m.nextStepFacts(library({ bookCourses: [], courses: [course('没有书', 1)] }), { now: NOW }).exam, null);
+  assert.deepEqual(m.nextStep(m.nextStepFacts(library({ bookCourses: [], courses: [course('没有书', 1)], today: { due: 0, weak: 0, new: 2, size: 2, ahead: false } }), { now: NOW })),
+    { id: 'learn', surface: 'card' }, 'with no book the day\'s work is what the card says');
 });
 
 test('the facts come from the snapshot alone: the model, today, and the first-run line', () => {
@@ -123,16 +139,26 @@ const BANNED = /啦|哎呀|～|主对话|暂无|稍后再试|您/;
 test('each state names the situation with a fact and has one action (the done state none)', () => {
   m.setUiLanguage('zh');
   const calls = [];
-  const handlers = { plan: plan('开始今日学习', () => calls.push('path')), generate: (ids) => calls.push(['generate', ids]), wrong: () => calls.push('wrong'), exam: (course) => calls.push(['exam', course]),
+  /* The home's own card offers a DIFFERENT round (接着做, left open); today's own button is handlers.today: the card's fact and its button must be about the same thing. */
+  const handlers = { plan: plan('接着做', () => calls.push('other-run'), '已做到第 3 / 10 题'), today: { label: '开始今日学习', run: () => calls.push('path') }, generate: (ids) => calls.push(['generate', ids]), wrong: () => calls.push('wrong'), exam: (course) => calls.push(['exam', course]),
     modelSettings: () => calls.push('model'), settingsLabel: '前往设置' };
   const view = (given) => m.nextCardView(m.nextStep(given).id, given, handlers);
   const due = view(facts({ today: { due: 12, weak: 2, new: 5, size: 19, ahead: false } }));
   assert.equal(due.eyebrow, '下一步');
   assert.equal(due.headline, '今天有 12 题到期');
-  assert.equal(due.action.label, '开始今日学习', 'the home plan\'s own button (接着做, 继续学习, 开始今日学习): one verb for one thing');
+  assert.equal(due.action.label, '开始今日学习', "the fact is about today's questions, so the button starts today's round, not whatever else the day's card resumes");
   due.action.run();
   const open = view(facts({ resumeOpen: true }));
   assert.match(open.headline, /练习没做完/);
+  assert.equal(open.action.label, '接着做', "the open round is what the day's card resumes: the same button");
+  assert.equal(open.detail, '已做到第 3 / 10 题');
+  const learn = view(facts({ today: { ...quiet, weak: 1, new: 2, size: 3 } }));
+  assert.equal(learn.headline, '今天有 3 题待学');
+  assert.equal(learn.detail, '1 题薄弱 · 2 题未学');
+  assert.equal(learn.action.label, '开始今日学习');
+  learn.action.run();
+  assert.equal(view(facts({ today: { ...quiet, new: 2, size: 2 } })).detail, '2 题未学');
+  assert.equal(m.nextCardView('due', facts({ today: { ...quiet, due: 2, size: 2 } }), { plan: plan('接着做') }).action.label, '接着做', "without a separate today button the day's card button is used");
   const fresh = view(facts({ newSources: { count: 1, title: '第3讲 进程与线程', sourceIds: ['a'] } }));
   assert.equal(fresh.headline, '「第3讲 进程与线程」还没出过题');
   assert.equal(fresh.action.label, '用这份资料出题');
@@ -157,8 +183,8 @@ test('each state names the situation with a fact and has one action (the done st
   const done = view(facts({ today: { ...quiet, ahead: true, size: 4 } }));
   assert.equal(done.headline, '今天的任务都完成了');
   assert.equal(done.action, null);
-  assert.deepEqual(calls, ['path', ['generate', ['a']], 'wrong', ['exam', '数据库'], 'model']);
-  for (const shown of [due, open, fresh, several, wrong, exam, model, done]) {
+  assert.deepEqual(calls, ['path', 'path', ['generate', ['a']], 'wrong', ['exam', '数据库'], 'model']);
+  for (const shown of [due, open, learn, fresh, several, wrong, exam, model, done]) {
     assert.doesNotMatch(`${shown.headline} ${shown.detail}`, BANNED, shown.headline);
     assert.doesNotMatch(`${shown.headline} ${shown.detail}`, /!|！/, 'no exclamation mark: none of these is a real piece of good news');
   }
@@ -173,7 +199,7 @@ test('the card never leans on the learner: facts and a next step, no guilt about
 test('every sentence has its English pair, with the placeholders kept', async () => {
   const pairs = JSON.parse(await readFile(new URL('../ui/locales/en.next-step.json', import.meta.url), 'utf8'));
   m.setUiLanguage('en');
-  const handlers = { plan: plan('Start today', () => {}, 'Reached question 3 / 10'), generate() {}, wrong() {}, exam() {}, modelSettings() {}, settingsLabel: 'Open settings' };
+  const handlers = { plan: plan('Start today', () => {}, 'Reached question 3 / 10'), today: { label: 'Start today', run() {} }, generate() {}, wrong() {}, exam() {}, modelSettings() {}, settingsLabel: 'Open settings' };
   const views = [
     m.nextCardView('due', facts({ today: { due: 12, weak: 2, new: 5, size: 19, ahead: false } }), handlers),
     m.nextCardView('resume', facts({ resumeOpen: true }), handlers),
@@ -186,12 +212,14 @@ test('every sentence has its English pair, with the placeholders kept', async ()
     m.nextCardView('model', facts({ modelReady: false }), handlers),
     m.nextCardView('done', facts({ today: { ...quiet, ahead: true } }), handlers),
     m.nextCardView('done', facts(), handlers),
+    m.nextCardView('learn', facts({ today: { ...quiet, weak: 1, new: 2, size: 3 } }), handlers),
   ];
   for (const shown of views) for (const sentence of [shown.eyebrow, shown.headline, shown.detail, shown.action?.label].filter(Boolean))
     assert.doesNotMatch(sentence, /[㐀-鿿]/, `English UI, no Chinese left: ${sentence}`);
   assert.equal(views[0].headline, '12 due today');
   assert.equal(views[2].headline, '“Lecture 3” has no questions yet');
   assert.equal(views[7].headline, '“Databases” exam is tomorrow');
+  assert.equal(views[11].headline, '3 to study today');
   assert.ok(Object.keys(pairs).length > 10, 'the pairs live in ui/locales/en.next-step.json');
   for (const [zh, en] of Object.entries(pairs)) assert.deepEqual(zh.match(/\{\d\}/g)?.sort() ?? [], en.match(/\{\d\}/g)?.sort() ?? [], `placeholders kept: ${zh}`);
   m.setUiLanguage('zh');

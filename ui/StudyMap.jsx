@@ -116,7 +116,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const nextFacts = useMemo(() => nextStepFacts(data, { line, resumeOpen, canWrong, canExam }), [data, line.show, line.step, resumeOpen, canWrong, canExam]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = nextStep(nextFacts);
   const nextView = next.surface === "card" && hasOwnDeck(data)
-    ? nextCardView(next.id, nextFacts, { plan: home.plan, generate: generateFromSources, wrong: onWeakPoints, exam: onOpenExamBook, modelSettings: openModelSettings, settingsLabel })
+    ? nextCardView(next.id, nextFacts, { plan: home.plan, today: home.todayAction, generate: generateFromSources, wrong: onWeakPoints, exam: onOpenExamBook, modelSettings: openModelSettings, settingsLabel })
     : null;
   const showNext = !!nextView && !nextDismissed, nextHasButton = showNext && !!nextView.action;
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.

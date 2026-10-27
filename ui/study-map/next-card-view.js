@@ -5,8 +5,9 @@ import { META_DOT } from '../format.js';
    with a fact (a count, a title, a day) and offers one action; the words follow docs/voice-and-tone.zh-CN.md: say what is, then the one next step, no guilt,
    no exclamation mark. The first three states (model before a first deck, sources, questions) are drawn by the first-run line, not here.
 
-   handlers: { plan, generate(sourceIds), wrong(), exam(course), modelSettings(), settingsLabel }. `plan` is buildHomePlan's `plan` (the home's own card): the
-   states that are about today's round use its button as it is, so the one verb (接着做, 继续学习, 开始今日学习) is the same on both cards. */
+   handlers: { plan, today, generate(sourceIds), wrong(), exam(course), modelSettings(), settingsLabel }. `plan` is buildHomePlan's `plan` (the home's own card, which may be
+   resuming some other round); `today` is its button for today's round ({ label, run, disabled }: 开始今日学习 or 继续学习). The states that are about today's questions (due,
+   learn) press `today`, so the fact and the button are about the same thing; the resume state is about the round the day's card resumes, so it uses the plan's own button. */
 
 const breakdown = (today) => [today.weak > 0 && uiFormat('{0} 题薄弱', [today.weak]), today.new > 0 && uiFormat('{0} 题未学', [today.new])].filter(Boolean).join(META_DOT);
 
@@ -20,11 +21,14 @@ export function nextCardView(id, facts, handlers = {}) {
   const { today, newSources, exam } = facts;
   const plan = handlers.plan;
   const planAction = plan?.action ? act(plan.action.label, plan.action.run, plan.action.disabled, 'home.start') : null;
+  const todayAction = handlers.today ? act(handlers.today.label, handlers.today.run, handlers.today.disabled, 'home.start') : planAction;
   switch (id) {
     case 'model':
       return { id, eyebrow, headline: ui('还没有可用的 AI 模型'), detail: ui('出题要用它。已有的题照常练习和复习。'), action: act(handlers.settingsLabel, handlers.modelSettings) };
     case 'due':
-      return { id, eyebrow, headline: uiFormat('今天有 {0} 题到期', [today.due]), detail: breakdown(today), action: planAction };
+      return { id, eyebrow, headline: uiFormat('今天有 {0} 题到期', [today.due]), detail: breakdown(today), action: todayAction };
+    case 'learn':
+      return { id, eyebrow, headline: uiFormat('今天有 {0} 题待学', [today.size]), detail: breakdown(today), action: todayAction };
     case 'resume':
       return { id, eyebrow, headline: ui('有一组练习没做完'), detail: plan?.detail || '', action: planAction };
     case 'new-source':

@@ -17,14 +17,16 @@ import { isActiveJob } from '../../lib/job-status.js';
      resume       no question due, but a round left open (接着做)
      new-source   a material imported in the last two weeks that has no questions yet
      wrong        wrong answers not yet reviewed (待巩固)
-     exam         an exam within a week
+     exam         an exam within a week, for a course that has a review book (the snapshot's bookCourses: the book page is the card's button and its promise)
+     learn        the day's round still has questions to learn (weak or not yet learned) and nothing above applies
      done         nothing left
    Three readings the owner may want to change (see the PR): the first three states are the first-run line and only exist before the first own deck (after
    it, "no material" is no reason to interrupt a learner who studies from imported decks); "reviews due" is the due questions, not the whole round (weak
-   questions are the 待巩固 state, unlearned ones need no card: the day's card below offers them); and "newly imported" is NEW_SOURCE_DAYS. */
+   questions are also the 待巩固 state; a round of only weak or unlearned questions is the `learn` state, so "nothing left" is never said while the day's card
+   below still has questions to learn); and "newly imported" is NEW_SOURCE_DAYS. */
 
 /** The states, in priority order. */
-export const NEXT_STEP_IDS = Object.freeze(['model', 'sources', 'questions', 'due', 'resume', 'new-source', 'wrong', 'exam', 'done']);
+export const NEXT_STEP_IDS = Object.freeze(['model', 'sources', 'questions', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn', 'done']);
 
 /** The first-run line's three steps (ui/first-run/line.js FIRST_RUN_STEPS: model, material, deck) as states, by the index of the open step. */
 export const FIRST_RUN_SURFACE = Object.freeze(['model', 'sources', 'questions']);
@@ -35,7 +37,7 @@ export const NEW_SOURCE_DAYS = 14;
 export const EXAM_SOON_DAYS = 7;
 
 const DAY = 86400000;
-const PRIMARY = new Set(['model', 'due', 'resume', 'new-source', 'wrong', 'exam']);
+const PRIMARY = new Set(['model', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn']);
 
 /** Does the state's card carry a primary button (the others are drawn by the first-run line, or say there is nothing to do)? */
 export const hasPrimaryAction = (id) => PRIMARY.has(id);
@@ -55,9 +57,10 @@ function newSourcesOf(data, now) {
   return { count: items.length, title: items[0]?.title || '', sourceIds: items.flatMap((item) => item.sourceIds) };
 }
 
-/** The nearest exam within EXAM_SOON_DAYS among the courses in use: { course, days } or null. */
+/** The nearest exam within EXAM_SOON_DAYS among the courses in use that have a review book (the snapshot's bookCourses): { course, days } or null. */
 function examOf(data, now) {
-  const near = (data.courses || []).filter((course) => course?.active !== false && course?.name)
+  const books = new Set(data.bookCourses || []);
+  const near = (data.courses || []).filter((course) => course?.active !== false && course?.name && books.has(course.name))
     .map((course) => ({ course: course.name, days: daysUntilExam(course.exam, now) }))
     .filter((entry) => entry.days !== null && entry.days >= 0 && entry.days <= EXAM_SOON_DAYS)
     .sort((a, b) => a.days - b.days);
@@ -98,5 +101,6 @@ export function nextStep(facts) {
   if (newSources.count > 0) return card('new-source');
   if (wrong > 0) return card('wrong');
   if (exam) return card('exam');
+  if (!today.ahead && today.size > 0) return card('learn');
   return card('done');
 }

@@ -73,6 +73,28 @@ test('the round already begun is resumed, found by the scope the server counted'
   assert.equal(other.home.plan.kind, 'path', 'a round on other decks is not this course\'s round');
 });
 
+test("todayAction is always today's own round, whatever else the card resumes (the 下一步 card presses it for the day's due questions)", () => {
+  m.setUiLanguage('zh');
+  const none = plan();
+  assert.equal(none.home.todayAction.label, '开始今日学习');
+  none.home.todayAction.run();
+  assert.deepEqual(none.started, [{ mode: 'path', course: 'A', daily: true }]);
+  const run = { id: 'r1', mode: 'path', scope: [{ deckId: 'd1' }], index: 4, total: 15, title: '今日学习' };
+  const begun = plan({ runs: [run] });
+  assert.equal(begun.home.todayAction.label, '继续学习');
+  begun.home.todayAction.run();
+  assert.deepEqual(begun.resumed, ['r1']);
+  // Another round was left open last (接着做 on the card): the card resumes that one, today's own button still starts today's round.
+  const left = { id: 'r9', mode: 'practice', scope: [{ deckId: 'd9' }], index: 1, total: 8, title: '别的练习' };
+  const other = plan({ runs: [left], data: { lastRun: { id: 'r9' } } });
+  assert.equal(other.home.plan.action.label, '接着做');
+  assert.equal(other.home.todayAction.label, '开始今日学习');
+  other.home.todayAction.run();
+  assert.deepEqual(other.started, [{ mode: 'path', course: 'A', daily: true }]);
+  assert.deepEqual(other.resumed, []);
+  assert.equal(plan({ todayPatch: { size: 0, due: 0, weak: 0, new: 0 } }).home.todayAction.disabled, true, 'nothing to learn: nothing to press');
+});
+
 test('a day with nothing to do, and an ahead-of-time round', () => {
   m.setUiLanguage('zh');
   const clear = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 0 } }).home;
