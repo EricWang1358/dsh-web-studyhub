@@ -1,6 +1,6 @@
 # StudyHub architecture
 
-This page is for developers who extend StudyHub or build on its plugin APIs. For installing and using StudyHub, see the [README](../README.md).
+This page is for developers who extend StudyHub or build on its plugin APIs. For installing and using StudyHub, see the [README](../README.md). For the design decisions and their trade-offs, see the [architecture case study](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study).
 
 Since 2.0, StudyHub has been a set of separately installable capability plugins for DeepSeek Harness (DSH). All of them share one runtime.
 
@@ -441,7 +441,7 @@ execute: (_args, context) => context.work.start({
 ## Frontend modules
 
 - **Entry.** The native entry (`ui/host.jsx`) loads the workspace seat (`ui/host/workspace.jsx`) and the document contributions (`ui/document-preview/native.jsx`).
-- **Lazy views.** Optional views use seven lazy-loading boundaries in `ui/workspace-views.jsx`: `BlogNotes`, `Skeleton`, `Workflows`, `Graph`, `AudioDashboard`, `DocumentViewer` and `LiveClass`. The document viewer loads its page peek (`PagePeek`) lazily as well.
+- **Lazy views.** Optional views use eight lazy-loading boundaries in `ui/workspace-views.jsx`: `BlogNotes`, `Skeleton`, `Workflows`, `Graph`, `TaskConsole`, `AudioDashboard`, `DocumentViewer` and `LiveClass`. The document viewer loads its page peek (`PagePeek`) lazily as well.
 - **Page peek assets.** DSH serves a plugin's `client.*.js` chunks and no other file, so the page peek cannot point pdf.js at wasm, CMap or font URLs. `ui/document-preview/peek/assets/*.js` (made by `node scripts/pdf-assets.mjs --write` from `pdfjs-dist`; a test fails when they drift) are base64 modules that the build splits into chunks of their own, and `pdf-assets.js` hands them to pdf.js through its `BinaryDataFactory` when it asks: `jbig2.wasm` (JBIG2 and CCITT scans), `openjpeg.wasm` (JPX scans), the Symbol/ZapfDingbats fonts and the CMaps of four scripts. Nothing loads for a page without scans, and the reader and the start-up bundle do not contain them. A page whose images still fail to decode says so and offers the 原始 PDF tab instead of looking blank.
 - **Live class.** `LiveClass` stays mounted when you navigate between views, so a recording keeps running.
 - **Chunks.** `scripts/build.mjs` emits sibling `lib/client.<name>.js` classic factories through DSH's official `require.async` chunk protocol. All chunks use the host's React instance. Generated chunks are packaged and ignored by git; the authored boundaries live under `ui/`.

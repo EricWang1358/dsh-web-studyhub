@@ -97,7 +97,7 @@ To add to an existing deck, choose that deck: approved questions are added, and 
 <details>
 <summary>How generation checks questions</summary>
 
-- Each batch gets one independent review. Questions that pass are kept, and any shortfall is reported. Version 2.5.8 introduced one citation repair; the current workflow verifies knowledge points and answers first, corrects those preparation stages when needed, then writes and independently reviews questions without a candidate repair loop.
+- Each batch gets one independent review. Questions that pass are kept, and any shortfall is reported. Version 2.5.8 introduced one citation repair; the current workflow verifies knowledge points and answers first, corrects those preparation stages when needed, then writes and independently reviews questions. A question flagged only for wording is re-worded once and re-reviewed alone; there is no open-ended repair loop.
 - When you add to an existing deck, reviewed questions are saved even if the generation budget runs out, with no second publish step.
 - Citations and question structure are checked in code. The content itself can still be wrong, so read the draft. More in [question quality checks](docs/assessment-quality.md).
 - Source text is given to the model as evidence, never as instructions to follow.
@@ -105,7 +105,7 @@ To add to an existing deck, choose that deck: approved questions are added, and 
 
 </details>
 
-Save a default question type, count, content language, difficulty and focus in **Settings › Question defaults**; each new request can override them. Questions per batch, parallel batches and the time budget are there too, initially 5, 3 and 20 minutes. Started tasks and continued drafts keep their original choices. See [Generation pace](docs/generation-agents-sidebar.md#what-a-generation-task-does).
+Save a default question type, count, content language, difficulty and focus in **Settings › Question defaults**; each new request can override them. Questions per batch, parallel batches and the time budget are there too, initially 5, 4 and 20 minutes. Started tasks and continued drafts keep their original choices. See [Generation pace](docs/generation-agents-sidebar.md#what-a-generation-task-does).
 
 ### Practise and review
 
@@ -255,7 +255,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
 - **Works well with:** [Archify and other companion tools](docs/companions.md)
 - **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
-- **Developers:** [architecture](docs/architecture.md) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
+- **Developers:** [architecture](docs/architecture.md) · [architecture case study](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
 
 ## Join the project
 

@@ -97,7 +97,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 <details>
 <summary>出题怎样检查题目</summary>
 
-- 每批题只做一轮独立审核：通过的题保留，没补足的数量会明确告诉你。2.5.8 曾加入一次引文修复；当前流程先核验知识点和答案，必要时纠正这两个准备步骤，再写题和独立审核，不循环修复候选题。
+- 每批题只做一轮独立审核：通过的题保留，没补足的数量会明确告诉你。2.5.8 曾加入一次引文修复；当前流程先核验知识点和答案，必要时纠正这两个准备步骤，再写题和独立审核。只因措辞被标记的题会改写一次并单独复审，不会无限循环修复。
 - 补入已有题组时，预算到点也会保存已审核的部分，不需要再次确认发布。
 - 引用和题目结构由代码检查，但内容仍可能有模型错误，请认真看草稿。详见[出题与质量检查](docs/assessment-quality.zh-CN.md)。
 - 资料里的文字只作为证据交给模型，不会被当成要执行的指令。
@@ -105,7 +105,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 </details>
 
-默认题型、题数、内容语言、难度和侧重点可在「设置 › 出题偏好」保存；新建出题仍可单次调整。每批题数、并行批次和运行时限也在这里，初始为 5 题、3 批、20 分钟。已经开始的任务和补题的原草稿保留原设置。详见[生成安排](docs/generation-agents-sidebar.zh-CN.md#出题任务怎么做)。
+默认题型、题数、内容语言、难度和侧重点可在「设置 › 出题偏好」保存；新建出题仍可单次调整。每批题数、并行批次和运行时限也在这里，初始为 5 题、4 批、20 分钟。已经开始的任务和补题的原草稿保留原设置。详见[生成安排](docs/generation-agents-sidebar.zh-CN.md#出题任务怎么做)。
 
 ### 练习与复习
 
@@ -255,7 +255,7 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 - **对话与任务**：[在主对话里查询资料与题组](docs/main-session-queries.zh-CN.md) · [后台任务与侧栏](docs/generation-agents-sidebar.zh-CN.md)
 - **搭配工具**：[Archify 与其他搭配工具](docs/companions.zh-CN.md)
 - **可选功能**：[使用频率记录](docs/usage-frequency.zh-CN.md) · [Jev 决策层（实验性，英文）](docs/jev-experimental.md)
-- **开发者**：[架构与扩展](docs/architecture.md) · [开发验证记录（英文）](docs/verification.md) · [界面文字的说话方式](docs/voice-and-tone.zh-CN.md) · [SM-2 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
+- **开发者**：[架构与扩展](docs/architecture.md) · [架构案例分析（英文）](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [开发验证记录（英文）](docs/verification.md) · [界面文字的说话方式](docs/voice-and-tone.zh-CN.md) · [SM-2 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
 
 ## 参与项目
 

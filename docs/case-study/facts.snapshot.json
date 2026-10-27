@@ -1,0 +1,131 @@
+{
+  "contextCount": 19,
+  "contextIds": [
+    "system",
+    "notifications",
+    "learner",
+    "workflow-data",
+    "skeleton-data",
+    "materials",
+    "bank",
+    "courses",
+    "study",
+    "generation",
+    "audio",
+    "notes",
+    "recording",
+    "coach",
+    "workflows",
+    "skeleton",
+    "jobs",
+    "library",
+    "authoring"
+  ],
+  "capabilityPlugins": [
+    "runtime",
+    "materials",
+    "bank",
+    "study",
+    "generation",
+    "audio"
+  ],
+  "toolNames": [
+    "study_bank",
+    "study_materials",
+    "study_generate_selection",
+    "study_practice",
+    "study_audio",
+    "study_capabilities",
+    "study_workspace"
+  ],
+  "migrationSwitches": 24,
+  "jobStates": 9,
+  "jobStatesList": [
+    "queued",
+    "running",
+    "pausing",
+    "paused",
+    "cancelling",
+    "cancelled",
+    "complete",
+    "failed",
+    "interrupted"
+  ],
+  "deferredViews": 8,
+  "storeVersion": 4,
+  "generation": {
+    "parallelParts": 4,
+    "partSize": 5,
+    "partSizeMax": 5,
+    "jobMinutes": 20,
+    "jobMinutesRange": [
+      5,
+      180
+    ],
+    "fillRounds": 2,
+    "fillRoundsMax": 4,
+    "phaseMinutes": 10,
+    "reviewReasks": 2,
+    "groupChars": 60000,
+    "groupTargets": 10,
+    "retrieveAboveChars": 150000,
+    "applySuggestionsDefault": false
+  },
+  "limits": {
+    "textMb": 8,
+    "officeMb": 40,
+    "pdfPages": 200,
+    "pdfMb": 8,
+    "jsonDeckMb": 2,
+    "audioMb": 512,
+    "audioHours": 8,
+    "audioExtensions": [
+      ".mp3",
+      ".wav",
+      ".m4a",
+      ".aac",
+      ".ogg",
+      ".flac",
+      ".opus",
+      ".webm",
+      ".aiff",
+      ".aif"
+    ],
+    "convertPdfMb": 800
+  },
+  "jobArchive": {
+    "maxRecords": 200,
+    "maxDays": 90
+  },
+  "taskHistory": 100,
+  "poll": {
+    "fastSeconds": 2.5,
+    "backoff": [
+      {
+        "afterSeconds": 30,
+        "delaySeconds": 5
+      },
+      {
+        "afterSeconds": 120,
+        "delaySeconds": 10
+      }
+    ]
+  },
+  "live": {
+    "sessionMinutes": 10,
+    "rotateAtSeconds": 525,
+    "backlogSeconds": 30,
+    "translateSentences": 6,
+    "translateChars": 900,
+    "translateTries": 3
+  },
+  "dailyRecapMinimum": 10,
+  "snapshotExcerptChars": 160,
+  "pauseCheckpointKinds": [
+    "audio-import",
+    "translation",
+    "generation",
+    "coach-daily"
+  ],
+  "node": ">=22.19"
+}
