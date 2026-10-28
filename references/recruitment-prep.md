@@ -140,9 +140,9 @@ Within due material, prioritize:
 1. target role and nearest gate match
 2. high-yield weak branch
 3. weakest depth layer
-4. overdue/SM-2 urgency
+4. overdue/review-schedule urgency
 
-Retain SM-2 scheduling, but do not spend a short recruiting session rehearsing
+Retain the spaced-repetition schedule, but do not spend a short recruiting session rehearsing
 a low-yield topic while the current gate is failing elsewhere.
 
 Use the first three questions to sample HOW, WHY, and WHERE rather than only
@@ -156,7 +156,7 @@ difficulty. Diagnose the answer as one of:
 - `evidence-gap`
 - `delivery-gap`
 
-Use core correctness for the durable SM-2 grade. Report interview delivery as
+Use core correctness for the durable review grade. Report interview delivery as
 a separate axis. A polished wrong answer does not pass; correct but awkward
 reasoning remains knowledge-correct and creates a delivery action.
 

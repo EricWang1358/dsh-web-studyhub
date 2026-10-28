@@ -18,7 +18,7 @@ test('first scoped commits detach retained nested values on both empty and versi
     });
     retained.cards[0].answer = 'changed after commit';
     assert.equal((await store.read()).decks[0].cards[0].answer, 'committed', legacy ? 'migration cache' : 'initial cache');
-    await store.scoped(['settings']).update(state => { state.settings.first_interval_days = 7; });
+    await store.scoped(['settings']).update(state => { state.settings.maximum_interval = 7; });
     assert.equal((await new Store(root).read()).decks[0].cards[0].answer, 'committed');
   }
 });
@@ -44,7 +44,7 @@ test('scoped writes skip unrelated shard parsing and preserve committed data; a 
     return parse(text, ...args);
   };
   try {
-    await store.scoped(['settings']).update(state => { state.settings.first_interval_days = 9; });
+    await store.scoped(['settings']).update(state => { state.settings.maximum_interval = 9; });
   } finally { JSON.parse = parse; }
   assert.equal(unrelatedParses, 0, 'a settings transaction must not decode any deck shard');
   const after = JSON.parse(await readFile(store.path, 'utf8'));
@@ -81,15 +81,15 @@ test('scoped writes migrate old libraries and serialize concurrent owners withou
   delete legacy.workflowSessions;
   await writeFile(join(root, 'study-workspace.json'), JSON.stringify(legacy));
   const first = new Store(root), second = new Store(root);
-  await first.scoped(['settings']).update(state => { state.settings.first_interval_days = 4; });
+  await first.scoped(['settings']).update(state => { state.settings.maximum_interval = 4; });
   assert.equal((await second.read()).decks[0].cards[0].id, 'old-card');
   assert.deepEqual((await second.read()).workflowTemplates, []);
   await Promise.all([
-    first.scoped(['settings']).update(state => { state.settings.first_interval_days = 8; }),
+    first.scoped(['settings']).update(state => { state.settings.maximum_interval = 8; }),
     second.scoped(['decks']).update(state => { state.decks[0].cards.push({ id: 'new-card' }); }),
   ]);
   const committed = await new Store(root).read();
-  assert.equal(committed.settings.first_interval_days, 8);
+  assert.equal(committed.settings.maximum_interval, 8);
   assert.deepEqual(committed.decks[0].cards.map(card => card.id), ['old-card', 'new-card']);
   assert.equal(committed.revision, 3);
 });
@@ -104,6 +104,6 @@ test('a scoped update still rejects unrelated corrupt shards before committing',
   await writeFile(join(root, 'shards', 'decks', 'corrupt.json'), '{');
   await writeFile(store.path, JSON.stringify(manifest));
   const before = await readFile(store.path, 'utf8');
-  await assert.rejects(new Store(root).scoped(['settings']).update(state => { state.settings.first_interval_days = 10; }), /损坏文件/);
+  await assert.rejects(new Store(root).scoped(['settings']).update(state => { state.settings.maximum_interval = 10; }), /损坏文件/);
   assert.equal(await readFile(store.path, 'utf8'), before);
 });

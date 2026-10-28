@@ -25,7 +25,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 
 - **Make questions from your own sources.** Pick pages or chapters and generate flashcards, single- or multiple-choice, open-response or fill-in-the-blank questions. Every question cites its passage, and you review the draft before you publish it.
 - **Move between questions and sources.** A citation opens the passage it came from. In a source, paragraph and table markers lead to the questions and explanations linked to them.
-- **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let SM-2 schedule your reviews.
+- **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let FSRS-6 schedule your reviews.
 - **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
 - **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
 - **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
@@ -116,7 +116,7 @@ Today's time budget is separate from your saved weekday/weekend pace; zero minut
 Practice progress counts actual answers, flows use completed steps, and you explicitly mark a reading block complete. Opening content or skipping questions does not count, and completing an action does not establish mastery. AI sees compact titles, progress and exam dates, not full materials. Invalid or unavailable AI results are clearly labelled as local suggestions. Plans are saved by library and date, alongside ordinary board tasks.
 
 - Answer, then read the explanation. **Help me understand** asks a tutor about the current question.
-- Rate flashcards and open answers from 0 to 5; SM-2 picks the next review date. Answering and scheduling make no model calls.
+- Rate flashcards and open answers from 0 to 5; FSRS-6 picks the next review date from your rating and the days that really passed since the last review. Each rating button shows the gap it would give. Answering and scheduling make no model calls.
 - **Mistakes & weak points** groups wrong answers by deck (or by topic), filters them by deck, status and keyword, and can **Generate variants**. **Mock exam** and **Statistics** show what still needs work.
 
 <details>
@@ -255,7 +255,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
 - **Works well with:** [Archify and other companion tools](docs/companions.md)
 - **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
-- **Developers:** [architecture](docs/architecture.md) · [architecture case study](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
+- **Developers:** [architecture](docs/architecture.md) · [architecture case study](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [FSRS-6 review scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
 
 ## Join the project
 

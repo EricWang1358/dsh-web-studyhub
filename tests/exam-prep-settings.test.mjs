@@ -86,7 +86,7 @@ test('checkPaperWord says why a word cannot be added, and gives the trimmed word
 test('nothing is saved until the learner saves: the snapshot has no examPrep and the stored library has no key', async t => {
   const { root, service } = await library(t);
   assert.equal(await saved(service), undefined);
-  await service.call('settings', { first_interval_days: 3 });
+  await service.call('settings', { maximum_interval: 3 });
   assert.equal('examPrep' in (await service.call('snapshot')).settings, false);
   assert.equal('examPrep' in JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8')).settings, false);
 });
@@ -103,15 +103,15 @@ test('settings.examPrep.set merges per field into the saved settings and returns
 
 test('settings.examPrep.set leaves the other settings alone, and the other settings leave it alone', async t => {
   const { service } = await library(t);
-  await service.call('settings', { first_interval_days: 3, generation: { count: 12 } });
+  await service.call('settings', { maximum_interval: 3, generation: { count: 12 } });
   await service.call('settings.examPrep.set', { patch: { language: 'zh' } });
   const settings = (await service.call('snapshot')).settings;
-  assert.equal(settings.first_interval_days, 3);
+  assert.equal(settings.maximum_interval, 3);
   assert.equal(settings.generation.count, 12);
-  await service.call('settings', { second_interval_days: 5 });
+  await service.call('settings', { request_retention: 0.85 });
   assert.equal((await saved(service)).language, 'zh');
   // A form that writes the whole settings object back (as a release that does not know the key does) keeps it intact.
-  await service.call('settings', { ...(await service.call('snapshot')).settings, second_interval_days: 4 });
+  await service.call('settings', { ...(await service.call('snapshot')).settings, request_retention: 0.84 });
   assert.deepEqual(await saved(service), { ...expected, language: 'zh' });
 });
 
@@ -160,8 +160,8 @@ test('the generic settings action also merges an examPrep patch through the same
 
 test('stored format: one optional key inside the library settings; no version moves and no other field appears', async t => {
   const { root, service } = await library(t);
-  await service.call('settings', { first_interval_days: 1 });
-  await service.call('settings', { first_interval_days: 1 }); // the first write adds the library's own bookkeeping fields
+  await service.call('settings', { maximum_interval: 1 });
+  await service.call('settings', { maximum_interval: 1 }); // the first write adds the library's own bookkeeping fields
   const before = JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8'));
   await service.call('settings.examPrep.set', { patch: { language: 'en', paperWords: ['mock'] } });
   const after = JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8'));

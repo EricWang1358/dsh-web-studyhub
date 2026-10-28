@@ -25,7 +25,7 @@ const root = new URL('../', import.meta.url);
 const read = file => readFileSync(new URL(file, root), 'utf8');
 const tick = () => new Promise(resolve => setTimeout(resolve, 20));
 const noop = () => {};
-const defaults = { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 };
+const defaults = { request_retention: 0.9, maximum_interval: 36500 };
 const data = (extra = {}) => ({ root: 'D:\\Study\\library', settings: { ...defaults }, sources: [], decks: [], drafts: [], courses: [], model: { ready: true },
   focus: { mode: 'class', course: 'A', courses: [{ name: 'A' }] }, ...extra });
 const withContext = names => ({ contexts: names });

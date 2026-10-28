@@ -381,7 +381,7 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
 }
 .facts-cap s{color:#5a616b}
 
-/* ── Mastery legend, SM-2, heatmap ── */
+/* ── Mastery legend, review schedule, heatmap ── */
 .legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:26px;font-size:var(--t-xs);color:var(--muted)}
 .legend span{display:inline-flex;align-items:center;gap:7px}
 .legend b{width:8px;height:8px;border-radius:50%;display:inline-block}
@@ -558,7 +558,7 @@ footer{
       <div class="hero-mark rise">StudyHub · 2.5.10 本地预览</div>
       <h1 class="rise d1">自己的资料，<br>扎实地学</h1>
       <p class="hero-lede rise d2">把老师的课件变成题，<span class="hi">每道题都点得回原页</span>；做完一轮，看得见自己变熟。开源免费，资料存在你电脑上；模型自己选，按用量付费。</p>
-      <div class="hero-meta rise d3"><span>MIT · 开源</span><span>桌面 / 网页 DSH</span><span>SM-2</span><span>English / 中文</span></div>
+      <div class="hero-meta rise d3"><span>MIT · 开源</span><span>桌面 / 网页 DSH</span><span>FSRS-6</span><span>English / 中文</span></div>
       <div class="links rise d3"><a class="btn btn--go" href="#start">安装与配置 →</a><a class="btn" href="https://daily-flashcard-demo.ziangw1358.chatgpt.site" target="_blank" rel="noopener">试用静态演示</a></div>
       <p class="note rise">演示用示例资料和预置回复，无需模型密钥；它不是你的真实学习库。</p>
       <div class="scroll-cue rise d3">向下滚动 · 或按 ↓</div>
@@ -600,8 +600,8 @@ footer{
   </section>
   <section class="sec sec--auto" id="retention" data-stage="REVIEW">
     <div class="eyebrow rise"><b>06</b><em>REVIEW</em></div><h2 class="rise d1">什么时候再练，<br>由作答与设置决定</h2>
-    <div class="split"><div><p class="lede rise d2">SM-2 用作答评分、间隔和难度系数安排复习。今日学习优先考虑到期与薄弱题，再加入新题；课程路径、复习、模拟考试各有自己的选题方式，轮次与新题上限可配置。</p><p class="note rise d2">掌握度从复习状态和有效作答推算，不是考试认证。常规题间隔达到 6 天显示“熟悉”、21 天显示“已掌握”；自评 5 分可立即标为已掌握，仍按间隔复习。</p><div class="legend rise d3"><span><b style="background:var(--bad)"></b>薄弱</span><span><b style="background:var(--warn)"></b>学习中</span><span><b style="background:var(--info)"></b>熟悉</span><span><b style="background:var(--ok)"></b>已掌握</span><span><b style="background:var(--none)"></b>未学</span></div></div>
-    <div class="col-b"><div class="sm2 rise d2"><svg id="sm2svg" viewBox="0 0 520 108" role="img" aria-label="默认 SM-2 复习间隔的交互示例"></svg><div class="sm2-bar"><div class="sm2-btns"><button type="button" class="pill pill--ok" data-sm2="pass">答对</button><button type="button" class="pill pill--bad" data-sm2="fail">答错</button><button type="button" class="pill pill--ghost" data-sm2="reset">重来</button></div><p class="sm2-read" id="sm2Read" aria-live="polite"><span class="sm2-next" id="sm2Next">还没学过</span><b class="chip" id="sm2Chip" data-level="none">未学</b></p></div><p class="fig-cap">使用产品的默认排期函数：答对计 4 分，答错计 1 分。仅存在网页内存中。</p></div></div></div>
+    <div class="split"><div><p class="lede rise d2">FSRS-6 按作答评分和距上次复习实际隔了几天，估算每道题还能记多久，在预计还记得的把握降到 90% 时安排复习。今日学习优先考虑到期与薄弱题，再加入新题；课程路径、复习、模拟考试各有自己的选题方式，轮次与新题上限可配置。</p><p class="note rise d2">掌握度从复习状态和有效作答推算，不是考试认证。常规题间隔达到 6 天显示“熟悉”、21 天显示“已掌握”；自评 5 分可立即标为已掌握，仍按间隔复习。</p><div class="legend rise d3"><span><b style="background:var(--bad)"></b>薄弱</span><span><b style="background:var(--warn)"></b>学习中</span><span><b style="background:var(--info)"></b>熟悉</span><span><b style="background:var(--ok)"></b>已掌握</span><span><b style="background:var(--none)"></b>未学</span></div></div>
+    <div class="col-b"><div class="sm2 rise d2"><svg id="sm2svg" viewBox="0 0 520 108" role="img" aria-label="默认 FSRS-6 复习间隔的交互示例"></svg><div class="sm2-bar"><div class="sm2-btns"><button type="button" class="pill pill--ok" data-sm2="pass">答对</button><button type="button" class="pill pill--bad" data-sm2="fail">答错</button><button type="button" class="pill pill--ghost" data-sm2="reset">重来</button></div><p class="sm2-read" id="sm2Read" aria-live="polite"><span class="sm2-next" id="sm2Next">还没学过</span><b class="chip" id="sm2Chip" data-level="none">未学</b></p></div><p class="fig-cap">使用产品的默认排期函数：答对计 4 分，答错计 1 分。仅存在网页内存中。</p></div></div></div>
   </section>
   <section class="sec sec--auto" id="speed" data-stage="DATA & COST">
     <div class="eyebrow rise"><b>07</b><em>DATA & COST</em></div><h2 class="rise d1">资料存在哪里，<br>费用花在哪里</h2>
@@ -981,7 +981,7 @@ footer{
     resetBtn.addEventListener("click", reset);
   })();
 
-  /* Default SM-2 demo: the built script exports the product's pure scheduler. */
+  /* Default FSRS-6 demo: the built script exports the product's pure scheduler. */
   (function(){
     var svg = document.getElementById("sm2svg"), rules = window.STUDY_DEMO;
     if (!svg || !rules) return;
@@ -1011,7 +1011,7 @@ footer{
         bar.style.opacity = active ? "1" : ".55"; bar.style.transform = "scaleY(" + (active ? 1 : 0.35) + ")";
         labels[i].style.fill = i === index ? "var(--text)" : "var(--faint)";
       });
-      nextEl.innerHTML = grade === null ? "还没学过" : grade < 3 ? "答错了 · 明天再复习" : "下次复习 · <b>" + review.interval_days + " 天后</b>";
+      nextEl.innerHTML = grade === null ? "还没学过" : (grade < 3 ? "答错了 · 下次复习 · <b>" : "下次复习 · <b>") + review.interval_days + " 天后</b>";
       chipEl.dataset.level = levelKeys[level]; chipEl.textContent = levelText[level];
     }
     svg.parentNode.addEventListener("click", function(e){

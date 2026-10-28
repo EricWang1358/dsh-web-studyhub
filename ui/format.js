@@ -55,6 +55,15 @@ export function formatDuration(ms) {
   return left ? uiFormat('{0} 小时 {1} 分', [hours, left]) : uiFormat('{0} 小时', [hours]);
 }
 
+/** A gap until the next review, in whole days, as a person would say it: "3 天", "45 天", "4 个月", "1.5 年"; '' when missing. */
+export function formatGap(days) {
+  if (!Number.isFinite(days) || days < 1) return '';
+  if (days < 60) return uiFormat('{0} 天', [Math.round(days)]);
+  if (days < 365) return uiFormat('{0} 个月', [Math.round(days / 30)]);
+  const years = days / 365;
+  return uiFormat('{0} 年', [years < 10 ? Math.round(years * 10) / 10 : Math.round(years)]);
+}
+
 /** Time spent so far, for something still running: "45 秒", "2 分 5 秒", "1 小时 2 分". Rounded down, like the clock. */
 export function formatElapsed(ms) {
   const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000)), minutes = Math.floor(total / 60);
