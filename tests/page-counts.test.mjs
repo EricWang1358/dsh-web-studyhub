@@ -117,6 +117,20 @@ test('the course line says what it counts: the course, its pages, its materials,
   assert.match(courseScopeLine(plan({ missing: [{ title: '很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的标题', pages: 4 }], missingDocuments: 1 }), COURSE), /《很长[^》]{1,33}…》（4 页）/);
 });
 
+test('the course line counts pages with no searchable text as their own category, in one wording, and never as not indexed (#521)', () => {
+  const upToDate = { toIndex: 0, unchanged: 530, skipped: 58, missing: [], missingDocuments: 0 };
+  assert.equal(courseScopeLine(plan(upToDate), COURSE), '「Architecting Software Solutions」这门课共 588 页（含 7 份资料），索引已是最新；58 页无检索文字（跳过）。');
+  assert.equal(courseScopeLine(plan({ toIndex: 4, unchanged: 526, skipped: 58 }), COURSE),
+    '「Architecting Software Solutions」这门课共 588 页（含 7 份资料）：其中 4 页还没建索引，来自《第三章 讲义》（3 页）、《复习笔记》（1 页）；526 页已经建好，58 页无检索文字（跳过）。');
+  assert.equal(courseScopeLine(plan({ toIndex: 0, toRemove: 3, unchanged: 530, skipped: 58, missing: [], missingDocuments: 0 }), COURSE),
+    '「Architecting Software Solutions」这门课共 588 页（含 7 份资料）；有 3 页的旧索引要清理，58 页无检索文字（跳过）。');
+  assert.doesNotMatch(courseScopeLine(plan(upToDate), COURSE), /还没建索引/);
+  assert.equal(courseScopeLine(plan({ toIndex: 0, unchanged: 588, skipped: 0, missing: [], missingDocuments: 0 }), COURSE), courseScopeLine(plan({ toIndex: 0, unchanged: 588, missing: [], missingDocuments: 0 }), COURSE), 'none skipped: the line is as it was');
+  const en = render(h(() => h('p', null, courseScopeLine(plan(upToDate), COURSE))), 'en');
+  assert.match(en, /58 pages have no searchable text \(skipped\)/);
+  assert.doesNotMatch(en, han);
+});
+
 test('whose pages are missing decides the button: this document’s own, or other materials’ that the course holds', () => {
   const own = { info: { state: 'partial', indexed: 100, total: 404 }, courses: [COURSE] };
   const done = { info: { state: 'indexed', indexed: 404, total: 404 }, courses: [COURSE] };

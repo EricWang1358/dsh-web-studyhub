@@ -8,12 +8,14 @@ import { indexGoLabel, indexGoTip, indexTip, NEEDS_INDEX } from './index-scope.j
    and turned into questions page by page; the row says where it stands, so nobody has to open the settings to find out. It counts THIS document's pages
    (the course's pages are the course line's business, ui/index-scope.js), and its hover says so. */
 
-/** The words for a state ({ state, indexed, stale, total } from documentIndexState) given the coverage the backend reported. */
+/** The words for a state ({ state, indexed, stale, skipped, total } from documentIndexState) given the coverage the backend reported. */
 export function indexLabel(info, coverage = {}) {
   const pages = (value) => formatNumber(value);
   switch (info?.state) {
-    case 'indexed': return uiFormat('索引已建好 · 这份资料 {0}/{1} 页', [pages(info.indexed ?? info.total), pages(info.total)]);
-    case 'partial': return uiFormat('索引建了一部分 · 这份资料 {0}/{1} 页', [pages(info.indexed), pages(info.total)]);
+    case 'indexed': return info.skipped > 0 ? uiFormat('索引已建好 · 这份资料 {0}/{1} 页，{2} 页无检索文字（跳过）', [pages(info.indexed ?? info.total), pages(info.total), pages(info.skipped)])
+      : uiFormat('索引已建好 · 这份资料 {0}/{1} 页', [pages(info.indexed ?? info.total), pages(info.total)]);
+    case 'partial': return info.skipped > 0 ? uiFormat('索引建了一部分 · 这份资料 {0}/{1} 页，{2} 页无检索文字（跳过）', [pages(info.indexed), pages(info.total), pages(info.skipped)])
+      : uiFormat('索引建了一部分 · 这份资料 {0}/{1} 页', [pages(info.indexed), pages(info.total)]);
     case 'stale': return uiFormat('索引需要更新 · 这份资料有 {0} 页改过', [pages(info.stale)]);
     case 'building': return ui('正在建立索引…');
     case 'reset': return ui('需要重新建立索引');
@@ -26,8 +28,10 @@ export function indexLabel(info, coverage = {}) {
 export function indexShortLabel(info, coverage = {}) {
   const pages = (value) => formatNumber(value);
   switch (info?.state) {
-    case 'indexed': return uiFormat('索引已建好 · {0}/{1} 页', [pages(info.indexed ?? info.total), pages(info.total)]);
-    case 'partial': return uiFormat('索引建了一部分 · {0}/{1} 页', [pages(info.indexed), pages(info.total)]);
+    case 'indexed': return info.skipped > 0 ? uiFormat('索引已建好 · {0}/{1} 页，{2} 页无检索文字（跳过）', [pages(info.indexed ?? info.total), pages(info.total), pages(info.skipped)])
+      : uiFormat('索引已建好 · {0}/{1} 页', [pages(info.indexed ?? info.total), pages(info.total)]);
+    case 'partial': return info.skipped > 0 ? uiFormat('索引建了一部分 · {0}/{1} 页，{2} 页无检索文字（跳过）', [pages(info.indexed), pages(info.total), pages(info.skipped)])
+      : uiFormat('索引建了一部分 · {0}/{1} 页', [pages(info.indexed), pages(info.total)]);
     case 'stale': return uiFormat('索引需要更新 · {0} 页改过', [pages(info.stale)]);
     default: return indexLabel(info, coverage);
   }
