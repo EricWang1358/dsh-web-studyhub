@@ -157,7 +157,7 @@
   "正在准备检索模型（首次需要下载，可能要一两分钟）…": "Preparing the search model (the first time it is downloaded, which may take a minute or two)…",
   "正在建立索引 {0} / {1} 页": "Building the index {0} / {1} pages",
   "检索扩展需要更新": "The search extension needs updating",
-  "已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。": "The installed search extension is {0}, older than this StudyHub ({1}), so it may never start. Restart DSH after updating.",
+  "这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。": "This StudyHub comes with an updated search extension (installed: {0}, new: {1}). Restart DSH after updating.",
   "更新检索扩展": "Update the search extension",
   "练这一章": "Practise this chapter",
   "这一章现在没有可练的题（已斩或已归档的不算）。可以先用这份资料出题。": "This chapter has no questions to practise right now (retired or archived ones do not count). You can make some from this material first.",

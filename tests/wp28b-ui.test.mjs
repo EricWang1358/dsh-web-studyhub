@@ -226,6 +226,9 @@ test('an outdated extension is said to be outdated and offers the update, not ju
   const html = panel({ status: stale });
   assert.match(html, /2\.1\.2/);
   assert.match(html, /2\.1\.3/);
+  // It is outdated because this StudyHub brings a changed extension, not because its number is below StudyHub's (every release repacks it).
+  assert.match(html, /这一版 StudyHub 带了更新过的检索扩展/);
+  assert.doesNotMatch(html, /比当前 StudyHub/);
   assert.match(html, /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?更新检索扩展/);
   assert.doesNotMatch(panel({ status: installed }), /更新检索扩展/, 'a current extension has nothing to update');
   const en = panel({ status: stale }, 'en');

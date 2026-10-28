@@ -153,7 +153,7 @@ Use these steps before 2.1.2, when DSH cannot install plugins from inside the ap
 3. On the same page, click **Add plugin**, paste the address and click **Enable** once it installs.
 4. Restart DSH as described above.
 
-If you installed the search extension, **Settings › About & updates** also tells you when it needs updating and offers **Update the search extension**. Restart DSH after that update too.
+If you installed the search extension, most upgrades leave it alone: it needs updating only when a release changed the extension itself. Then **Settings › About & updates** says so and offers **Update the search extension**. Restart DSH after that update too.
 
 ## Customise components
 

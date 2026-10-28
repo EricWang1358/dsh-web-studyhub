@@ -114,6 +114,9 @@ test('"已是最新版本" is not claimed while the search extension is behind',
   assert.doesNotMatch(html, /已是最新版本/);
   assert.match(html, /检索扩展/);
   assert.match(html, /2\.1\.2/);
+  // One fact, one wording: the update notice (with its button) says it; no second sentence above it says it again.
+  assert.equal(html.match(/检索扩展需要更新/g)?.length, 1);
+  assert.doesNotMatch(html, /本体已是最新|需要更新到/);
   const current = render(h(UpdateSettings, { update: update({ newer: false, latest: '2.1.0' }), call: async () => ({}), onOpen() {}, extension: { ...stale, outdated: undefined } }));
   assert.match(current, /已是最新版本/);
   const en = render(h(UpdateSettings, { update: update({ newer: false, latest: '2.1.0' }), call: async () => ({}), onOpen() {}, extension: stale }), 'en');
