@@ -27,9 +27,11 @@ function terms(text) {
 }
 const ok = value => ({ isError: false, value: { content: [{ type: 'text', text: JSON.stringify(value) }] }, content: [] });
 
-/** { tools, pluginManager, state }: `delayMs` is the pace of one ingested page, the first one also "downloads the model". */
-export function createFakeExtension({ delayMs = 120 } = {}) {
-  const state = { installed: false, documents: new Map(), modelReady: false };
+/** { tools, pluginManager, state }: `delayMs` is the pace of one ingested page, the first one also "downloads the model".
+ *  `installed` (a version) starts with the extension an earlier StudyHub installed. Like DSH, the bundle reports the version of the file
+ *  it was installed from (a release packs the extension under its own version). */
+export function createFakeExtension({ delayMs = 120, installed } = {}) {
+  const state = { installed: !!installed, version: installed || undefined, documents: new Map(), modelReady: false };
   const tools = {
     schemas: () => (state.installed ? SCHEMAS : []),
     execute: async ({ name, arguments: args, signal }) => {
@@ -53,14 +55,15 @@ export function createFakeExtension({ delayMs = 120 } = {}) {
     },
   };
   const pluginManager = {
-    installBundle: async (_path, options = {}) => {
+    installBundle: async (path, options = {}) => {
       if (!options.approvedBuilds?.length) return { changed: false, application: 'failed', stage: 'install', target: EXTENSION.package, pendingBuilds: ['onnxruntime-node', 'sharp'], packageResult: { kind: 'build-blocked', exitCode: 1, output: '' } };
       await sleep(delayMs * 8);
       state.installed = true;
+      state.version = /-(\d+\.\d+\.\d+[^/\\]*)\.tgz$/.exec(String(path))?.[1];
       return { changed: true, application: 'applied', stage: 'enable', target: EXTENSION.package, bundle: EXTENSION.package, approvedBuilds: options.approvedBuilds };
     },
     removeBundle: async name => { state.installed = false; state.documents.clear(); return { changed: true, application: 'applied', stage: 'remove', target: name }; },
-    listBundles: async () => (state.installed ? [{ name: EXTENSION.package, version: '0.0.0-fake', enabled: true, installed: true, optional: false, removable: true }] : []),
+    listBundles: async () => (state.installed ? [{ name: EXTENSION.package, version: state.version || '0.0.0-fake', enabled: true, installed: true, optional: false, removable: true }] : []),
   };
   return { tools, pluginManager, state };
 }

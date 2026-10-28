@@ -60,7 +60,7 @@ function ApprovalDialog({ approval, busy, install, close }) {
   </ConfirmDialog>;
 }
 
-/** An installed extension older than this StudyHub (DSH's update of StudyHub does not touch it): say so, and update it in one click.
+/** An installed extension older than the one this StudyHub ships (DSH's update of StudyHub does not touch it): say so, and update it in one click.
  *  Stays mounted once the update finished, so the outcome (and whether DSH must restart) is not lost when the status refresh
  *  clears `outdated`: the parent keeps rendering it for any installed extension. */
 export function ExtensionUpdateNotice({ call, status, onStatus, initialDone = null }) {
@@ -82,7 +82,7 @@ export function ExtensionUpdateNotice({ call, status, onStatus, initialDone = nu
   );
   return (
     <div className="extension-panel__update">
-      <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
+      <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
       <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('更新检索扩展')}</Button></div>
       {flow.busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</Hint>}
       {flow.error && <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>}

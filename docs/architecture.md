@@ -307,6 +307,7 @@ The search extension is a companion bundle (`packages/studyhub-retrieval`), publ
 
 - Its plugin calls `ctx.plugin(mcpClient, config)` for `mcp-local-rag`. The command is `process.execPath`, and the server entry is resolved next to the package, so no configuration file is edited.
 - `lib/retrieval-extension.js` installs and removes it through `ctx.pluginManager.installBundle` and `removeBundle`. The asset is checked against the release's SHA-256 list, and dependency builds need `approvedBuilds` confirmation.
+- Every release repacks the extension under its own version. `EXTENSION_BUILD` records the first release that shipped the current extension (`since`) and a fingerprint of its shipped files. Only an installed extension older than `since` is reported as `outdated`. When the extension changes, `tests/retrieval-extension-build.test.mjs` and the release pack refuse the old record (`scripts/extension-fingerprint.mjs`).
 - `lib/retrieval-index.js` indexes a course page by page under `studyhub://source/<id>`. Indexing is incremental.
 - The host handler adds `retrieval.extension.*` and the `extension` field of `retrieval.status`.
 

@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EXTENSION_PACKAGE, ensureExtensionPackage, extensionAssetName, extensionRelease, extensionState, installExtension, uninstallExtension } from '../lib/retrieval-extension.js';
+import { EXTENSION_BUILD, EXTENSION_PACKAGE, ensureExtensionPackage, extensionAssetName, extensionRelease, extensionState, installExtension, uninstallExtension } from '../lib/retrieval-extension.js';
 import { createHostHandler } from '../lib/host.js';
 import { INDEX_TOOLS } from '../lib/retrieval-index.js';
 import { RELEASE_DOWNLOAD_PREFIX } from '../lib/update-check.js';
@@ -176,14 +176,22 @@ test('the status says the extension is running once DSH exposes its tools, and p
   assert.deepEqual(await readRetrievalSettings().then(s => s.explicit), undefined);
 });
 
-test('state: an extension older than this StudyHub is flagged outdated, so it can be updated instead of silently never starting', async () => {
+test('state: only an extension older than the one this StudyHub ships is outdated; the same code repacked by a later release is not', async () => {
   const listing = version => managerOf(applied, [{ name: EXTENSION_PACKAGE, version, enabled: true, installed: true }]);
   const ctx = version => ({ get: name => name === 'pluginManager' ? listing(version) : undefined });
-  assert.deepEqual(await extensionState(ctx('2.1.2'), '2.1.3'), { canInstall: true, installed: true, enabled: true, version: '2.1.2', desktop: false, outdated: true, expected: '2.1.3' });
-  assert.equal((await extensionState(ctx('2.1.3'), '2.1.3')).outdated, undefined, 'same version is current');
-  assert.equal((await extensionState(ctx('2.2.0'), '2.1.3')).outdated, undefined, 'a newer extension is never "outdated"');
-  assert.equal((await extensionState(ctx(undefined), '2.1.3')).outdated, undefined, 'an unknown version is not guessed at');
-  assert.equal((await extensionState(ctx('2.1.2'), 'not-a-version')).outdated, undefined, 'a bad host version is not guessed at');
+  const since = { since: '3.7.0' };
+  assert.deepEqual(await extensionState(ctx('3.6.3'), '3.7.2', since), { canInstall: true, installed: true, enabled: true, version: '3.6.3', desktop: false, outdated: true, expected: '3.7.2' },
+    'older than the extension this StudyHub ships: an update installs this release\'s');
+  // Every release repacks the extension under its own version: 3.7.1 and 3.7.2 asked for an update of the very same code before.
+  for (const installed of ['3.7.0', '3.7.1', '3.7.2']) assert.equal((await extensionState(ctx(installed), '3.7.2', since)).outdated, undefined, `${installed} is this extension, repacked`);
+  assert.equal((await extensionState(ctx('3.7.2'), '3.7.3', { since: '3.7.3' })).outdated, true, 'the release that changed the extension asks for it');
+  assert.equal((await extensionState(ctx('3.7.2'), '3.7.2', { since: '3.7.3' })).outdated, undefined, 'a since not released yet never asks for more than this StudyHub can install');
+  assert.equal((await extensionState(ctx('3.8.0'), '3.7.2', since)).outdated, undefined, 'a newer extension is never "outdated"');
+  assert.equal((await extensionState(ctx(undefined), '3.7.2', since)).outdated, undefined, 'an unknown version is not guessed at');
+  assert.equal((await extensionState(ctx('3.6.3'), 'not-a-version', since)).outdated, undefined, 'a bad host version is not guessed at');
+  assert.equal((await extensionState(ctx('3.6.3'), '3.7.2', { since: 'soon' })).outdated, undefined, 'a bad record is not guessed at');
+  // Without the option the record of the extension that ships decides (tests/retrieval-extension-build.test.mjs keeps it true).
+  assert.equal((await extensionState(ctx(EXTENSION_BUILD.since), VERSION)).outdated, undefined);
 });
 
 test('ensure: an installed extension whose installer file went missing gets it back, verified, before anything else is installed', async t => {

@@ -7,6 +7,7 @@ import { createPreviewServer, previewOptions } from '../scripts/preview-server.m
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { FAKE_RETRIEVAL_TOOL } from '../scripts/fake-retrieval.mjs';
 import { startFakeReleaseHost } from '../scripts/fake-extension.mjs';
+import { EXTENSION_BUILD } from '../lib/retrieval-extension.js';
 
 /* WP28: the preview can play a DSH that exposes a search tool, so the card, Settings and Generate can be seen and tested. */
 
@@ -35,7 +36,16 @@ async function start(t, options = {}) {
 test('STUDY_FAKE_RETRIEVAL turns the option on', () => {
   assert.equal(previewOptions(['node', 'dev.mjs'], { STUDY_FAKE_RETRIEVAL: '1' }).retrieval, 'fake');
   assert.equal(previewOptions(['node', 'dev.mjs'], { STUDY_FAKE_RETRIEVAL: 'extension' }).retrieval, 'extension');
+  assert.equal(previewOptions(['node', 'dev.mjs'], { STUDY_FAKE_RETRIEVAL: 'extension@3.6.3' }).retrieval, 'extension@3.6.3', 'an extension an earlier StudyHub installed');
   assert.equal(previewOptions(['node', 'dev.mjs'], {}).retrieval, null);
+});
+
+test('the preview can start with the extension an earlier StudyHub installed: only one older than the extension this StudyHub ships asks for an update', async t => {
+  const status = async version => (await (await start(t, { retrieval: `extension@${version}` })).call('retrieval.status')).extension;
+  const old = await status('3.6.3');
+  assert.deepEqual([old.installed, old.version, old.outdated], [true, '3.6.3', true]);
+  const repacked = await status(EXTENSION_BUILD.since);
+  assert.deepEqual([repacked.installed, repacked.version, repacked.outdated], [true, EXTENSION_BUILD.since, undefined], 'the same extension, packed by an earlier release');
 });
 
 test('a preview without the fake sees no retrieval tool', async t => {
@@ -78,6 +88,7 @@ test('the one-click path end to end through the host: install, approve build scr
   assert.equal(second.status, 'installed');
   const after = await call('retrieval.status');
   assert.deepEqual([after.extension.installed, after.companion.running], [true, true]);
+  assert.equal(after.extension.outdated, undefined, 'the extension of this release is never asked to update');
   assert.equal(after.effective, 'builtin', 'nothing is searched before an index exists');
   const plan = await call('retrieval.index.plan', { course: '操作系统' });
   assert.deepEqual([plan.pages, plan.toIndex, plan.canIndex, plan.firstRun], [6, 6, true, true]);
