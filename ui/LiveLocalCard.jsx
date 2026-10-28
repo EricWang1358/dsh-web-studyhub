@@ -7,13 +7,13 @@ import { usePolling } from './use-polling.js';
 import { StudyServicesContext, useStudy } from './study-context.jsx';
 import { sizeLabel } from './mineru-flow.js';
 import { VC_REDIST_URL } from './mineru-install-flow.js';
-import { LOCAL_STATUS, localCardState, localFix, localProgress, localStageName, localStageStates, localTip } from './live-local-flow.js';
+import { LOCAL_STATUS, installArgs, localCardState, localFix, localProgress, localStageName, localStageStates, localTip } from './live-local-flow.js';
 import InstallStages from './install/InstallStages.jsx';
 import LocationChooser from './install/LocationChooser.jsx';
 import mineruCss from './mineru-install.css';
 import css from './live-local.css';
 
-/* 本地（不联网）: the local engine of 课堂实录 (lib/live-local.js) as one card with its setup gate: not installed -> one button -> progress -> ready. Shown in
+/* 本地转写（声音不上传）: the local engine of 课堂实录 (lib/live-local.js) as one card with its setup gate: not installed -> one button -> progress -> ready. Shown in
    课堂实录 where a learner without a key would otherwise be stuck, and in Settings › 音频转写 next to the live provider choice (`settings`: where it can be
    removed). Nothing is installed before the click; the backend (lib/live-local-install.js) verifies every file against its pinned checksum, can be
    paused and continued, and shows in the task console. The location row and its chooser are the one-click MinerU install's (ui/install/). */
@@ -45,7 +45,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
   usePolling(async () => {
     const next = await read();
     if (next && next.status !== 'running') {
-      if (next.ready) { toast.success(ui('本地引擎可以用了：不联网也能实录。')); readyOnce.current?.(next); }
+      if (next.ready) { toast.success(ui('本地转写可以用了。')); readyOnce.current?.(next); }
       return { running: false };
     }
     return { running: true };
@@ -68,7 +68,8 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
   };
   const folder = () => location || status?.folder || plan?.folder || '';
   const install = (where = folder()) => act('start', async () => {
-    setStatus(await call('live.local.install', { confirm: true, ...(where ? { location: where } : {}) }));
+    // Another folder than the one in use (换位置, or a broken install moved elsewhere): the old one is removed once the new one works.
+    setStatus(await call('live.local.install', installArgs({ location: where, current: status?.folder || '' })));
     setChoosing(false);
     toast.info(ui('已开始安装：进度在这里和「任务」里。'));
   });
@@ -86,7 +87,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
 
   const text = LOCAL_STATUS[shown.state];
   const head = <div className="live-local-card__head">
-    <strong className="live-local-card__name">{ui('本地（不联网）')}</strong>
+    <strong className="live-local-card__name">{ui('本地转写（声音不上传）')}</strong>
     <TipBadge tip={shown.state === 'ready' ? localTip(status) : ''} tone={text.tone}>{text.badge()}</TipBadge>
     <Tooltip layer content={localTip(status)}><span tabIndex={0} className="live-local-card__about">{ui('它怎么工作')}</span></Tooltip>
   </div>;
@@ -113,7 +114,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     <div className="mineru-install__row">
       <Tooltip layer content={blocking ? uiMessage(blocking.message) : stepsTip}>
         <Button variant="primary" icon="download" busy={working === 'start'} aria-disabled={!canStart || undefined}
-          onClick={() => { if (canStart) void install(); }}>{shown.state === 'not-installed' && !choosing ? ui('安装本地引擎') : ui('安装到这个位置')}</Button>
+          onClick={() => { if (canStart) void install(); }}>{shown.state === 'not-installed' && !choosing ? ui('安装本地转写引擎') : ui('安装到这个位置')}</Button>
       </Tooltip>
     </div>
   </div>;
@@ -124,27 +125,29 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
   else if (shown.state === 'not-installed' || (choosing && shown.state !== 'installing')) body = offer;
   else if (shown.state === 'installing') {
     const progress = localProgress(status);
-    body = <JobRow status="running" stage={localStageName(status?.stage)} title={ui('正在安装本地实录引擎')} meta={status?.folder || undefined}
+    body = <JobRow status="running" stage={localStageName(status?.stage)} title={ui('正在安装本地转写引擎')} meta={status?.folder || undefined}
       progress={{ value: progress.value, max: progress.max, label: ui('安装进度') }}
       actions={[{ label: ui('暂停'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
       {stages}
       <Hint>{ui('可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。')}</Hint>
     </JobRow>;
-  } else if (shown.state === 'paused' || shown.state === 'error') {
+  } else if (['paused', 'error', 'repair'].includes(shown.state)) {
+    // repair: installed once, its files changed since (a quarantined addon): 修复 re-installs only that part, here and in Settings.
     const action = localFix(shown.code);
     const button = <Button variant="primary" icon={action.icon} busy={working === 'start'} disabled={!!working} onClick={() => void fix(action)}>{action.label}</Button>;
-    body = <div className="mineru-install__problem">{stages}
-      <div className="mineru-install__row">{action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}</div></div>;
+    body = <div className="mineru-install__problem">{shown.state !== 'repair' && stages}
+      <div className="mineru-install__row">{action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
+        {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button>}</div></div>;
   } else if (shown.state === 'unsupported') body = <Hint>{ui('课堂实录请用 Gemini，或课后在「音频转写」里导入录音。')}</Hint>;
   else if (shown.state === 'ready' && settings) body = <div className="mineru-install__row">
-    <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setAsking(true)}>{ui('删除本地引擎')}</Button></div>;
+    <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button></div>;
 
-  return <section className={['live-local-card', className].filter(Boolean).join(' ')} data-state={shown.state} aria-label={ui('本地（不联网）')}>
+  return <section className={['live-local-card', className].filter(Boolean).join(' ')} data-state={shown.state} aria-label={ui('本地转写（声音不上传）')}>
     {head}
     {line}
     {body}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    {asking && <ConfirmDialog title={ui('删除本地实录引擎？')} confirmLabel={ui('删除')} onConfirm={remove} onClose={() => setAsking(false)}>
+    {asking && <ConfirmDialog title={ui('删除本地转写引擎？')} confirmLabel={ui('删除')} onConfirm={remove} onClose={() => setAsking(false)}>
       <p>{uiFormat('会删除 StudyHub 在 {0} 里装的识别引擎和模型（约 {1}）。已经保存的课堂实录不受影响；以后要用再装一次。', [status?.installedFolder || status?.folder || '', sizeLabel(status?.diskMb || 260)])}</p>
     </ConfirmDialog>}
   </section>;

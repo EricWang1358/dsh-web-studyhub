@@ -9,10 +9,11 @@ import { integrityOf, makeTgz, sha256Hex } from './make-tgz.mjs';
 
 export const FAKE_ENGINE_VERSION = '9.9.9-test';
 
-export function fakePins() {
+/** `modelBytes`: the size of the stand-in model.int8.onnx (larger for the space tests). */
+export function fakePins({ modelBytes = 300_000 } = {}) {
   const pkg = (name, extra = {}) => makeTgz({ 'package/package.json': JSON.stringify({ name, version: FAKE_ENGINE_VERSION, main: 'index.js' }), 'package/index.js': 'module.exports = {};', ...extra });
-  const engine = pkg('sherpa-onnx-node'), native = pkg('sherpa-onnx-win-x64', { 'package/sherpa-onnx.node': Buffer.alloc(2048, 7) });
-  const model = { 'model.int8.onnx': Buffer.alloc(300_000, 1), 'tokens.txt': Buffer.from('<blk> 0\n'.repeat(500)), 'silero_vad.onnx': Buffer.alloc(20_000, 3) };
+  const engine = pkg('sherpa-onnx-node'), native = pkg('sherpa-onnx-win-x64', { 'package/sherpa-onnx.node': Buffer.alloc(2048, 7), 'package/onnxruntime.dll': Buffer.alloc(4096, 5) });
+  const model = { 'model.int8.onnx': Buffer.alloc(modelBytes, 1), 'tokens.txt': Buffer.from('<blk> 0\n'.repeat(500)), 'silero_vad.onnx': Buffer.alloc(20_000, 3) };
   const tar = (name, bytes) => ({ name, path: `${name}/-/${name}-${FAKE_ENGINE_VERSION}.tgz`, integrity: integrityOf(bytes), bytes: bytes.length, unpacked: bytes.length * 2 });
   const pins = {
     engineVersion: FAKE_ENGINE_VERSION,
@@ -30,7 +31,7 @@ export function fakePins() {
 
 /**
  * fetch over `files` (url -> Buffer). `rules[url]`: { status, cutAfter (bytes, then the stream errors), corrupt (wrong bytes), stall (never ends
- * until aborted) }. Every request is logged as { url, range }.
+ * until aborted), oversize (that many extra bytes), failCode (after the first piece the stream errors with this code, e.g. ENOSPC) }. Every request is logged as { url, range }.
  */
 export function fakeFetch(files) {
   const requests = [], rules = new Map();
@@ -41,7 +42,7 @@ export function fakeFetch(files) {
     const rule = rules.get(url) || {};
     const body = files.get(url);
     if (!body || rule.status) return new Response('missing', { status: rule.status || 404 });
-    let bytes = rule.corrupt ? Buffer.from(body).fill(9, 0, 16) : body, status = 200;
+    let bytes = rule.corrupt ? Buffer.from(body).fill(9, 0, 16) : rule.oversize ? Buffer.concat([body, Buffer.alloc(rule.oversize, 1)]) : body, status = 200;
     const from = /^bytes=(\d+)-$/.exec(range)?.[1];
     if (from !== undefined && !rule.noRange) {
       if (Number(from) >= bytes.length) return new Response(null, { status: 416 });
@@ -51,13 +52,14 @@ export function fakeFetch(files) {
     let step = 0;
     const stream = new ReadableStream({
       async pull(controller) {
-        const half = rule.cutAfter ?? (rule.stall ? Math.floor(bytes.length / 3) : bytes.length);
+        const half = rule.cutAfter ?? (rule.stall || rule.failCode ? Math.floor(bytes.length / 3) : bytes.length);
         if (step++ === 0) { controller.enqueue(new Uint8Array(bytes.subarray(0, half))); return; }
         if (rule.stall) {
           await new Promise((resolve, reject) => { signal?.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')), { once: true }); })
             .catch(error => controller.error(error));
           return;
         }
+        if (rule.failCode) { controller.error(Object.assign(new Error(`write failed: ${rule.failCode}`), { code: rule.failCode })); return; }
         if (rule.cutAfter !== undefined) { controller.error(new Error('socket hang up')); return; }
         controller.close();
       },

@@ -9,7 +9,7 @@ Record a class as it happens and follow it sentence by sentence: the original tr
 You need:
 
 - **A transcription engine**, one of:
-  - **The local engine (offline, no key).** It runs on this computer and is installed with one click; see [The local engine](#the-local-engine-offline-no-key).
+  - **Local transcription (audio stays here).** It runs on this computer, needs no key and is installed with one click; see [Local transcription](#local-transcription-audio-stays-here).
   - **A Gemini key** for Google Gemini's live interface. Check Gemini’s current account, region and quota requirements. Paste the key into the Google Gemini card in **Settings › Audio transcription** and click **Save and verify**.
 
   Until one of them can run, the page shows **Set up a transcription engine first** with the local engine's card and a **Use a Gemini key instead** button (or, on a computer without a local engine, **Live class needs a Gemini key**).
@@ -21,19 +21,21 @@ SiliconFlow SenseVoice and Groq handle recorded files only. If neither engine ca
 
 Review the Gemini privacy and region notices on the card, and Google’s current terms, before uploading a recording.
 
-## The local engine (offline, no key)
+## Local transcription (audio stays here)
 
-The local engine is SenseVoice (FunAudioLLM) speech recognition with a silero voice detector, run through sherpa-onnx in a background thread of StudyHub. It understands Mandarin, English, Cantonese, Japanese and Korean, and writes Chinese as Chinese. The sound never leaves the computer. The idea and the first port come from the community package StudyHub for ZCode by BAXUIE.
+The local engine is SenseVoice (FunAudioLLM) speech recognition with a silero voice detector, run through sherpa-onnx in a background thread of StudyHub. It understands Mandarin, English, Cantonese, Japanese and Korean, and writes Chinese as Chinese. The audio never leaves the computer. Installing it downloads the engine and the model once; translation and polishing still use your text model if you set one up (see below). The idea and the first port come from the community package StudyHub for ZCode by BAXUIE.
 
-- **Install.** Click **Install local engine** on the **Live class** page or under **Settings › Audio transcription › Live class transcription**. It installs in three steps: **Install the speech engine**, **Download the speech model**, **Check that it works**. Progress is shown on the card and in **Tasks**; **Pause** keeps what was downloaded, and **Continue install** goes on from there.
+- **Install.** Click **Install local transcription engine** on the **Live class** page or under **Settings › Audio transcription › Live class transcription**. It installs in three steps: **Install the speech engine**, **Download the speech model**, **Check that it works**. Progress is shown on the card and in **Tasks**; **Pause** keeps what was downloaded, and **Continue install** goes on from there.
 - **Where it goes.** By default into `StudyHub\LiveLocal` on the non-system drive with the most free space (**Choose location** to change it): `engine\node_modules` holds the engine and `models\sense-voice` the model. Nothing is added to StudyHub's own package or to the system.
 - **Size.** The first install downloads about 239 MB on Windows: the speech model about 228 MB, the voice detector about 2 MB and the engine about 9 MB. Once installed it uses about 253 MB.
 - **What is downloaded, and how it is checked.** The engine is the npm package `sherpa-onnx-node` and this computer's prebuilt package at version 1.13.8, from npmmirror (or registry.npmjs.org), each compared with the sha512 integrity the npm registry publishes for that version. The model files come from ModelScope at a fixed revision, each compared with the sha256 in ModelScope's file metadata. A file that does not match is deleted and downloaded again; a download that stopped continues from its `.part` file. A model the community package already downloaded to `~/.dsh/live-models/sense-voice` is reused when it matches.
 - **Which computers.** Windows on x64 is tested. macOS (Apple silicon and Intel) and 64-bit Linux use the same release of prebuilt engines but are not tested yet; other computers (for example Windows on ARM) are told up front that there is no local engine.
 - **Accuracy and speed.** Good for clearly spoken Mandarin and English; with a strong accent, background noise or many technical terms it does worse than the cloud. Text appears about 1 second after a sentence ends. Loading the model takes about 2 seconds when a class starts.
 - **Translation and correction.** These still use the text model you set up (the text is sent to that model's provider). Without a text model the class shows the original only. A sentence that is already Chinese is not sent for translation.
-- **Remove.** **Remove local engine** in Settings deletes only what StudyHub installed. It is refused while a class is using the engine.
-- **Which engine a class uses.** **Automatic** (the default) uses Gemini when a Gemini key is set and the local engine when there is none. **Local (offline)** and **Gemini (cloud)** are kept as chosen: a class never switches to the other engine on its own. When both can run, the start form also offers **Transcription** for this class.
+- **Repair.** If an engine file is deleted or changed after the install (an antivirus quarantining the addon, for example), the card says **Needs repair** instead of ready, and **Repair** reinstalls only that part. Each engine file's size and checksum are recorded at install; the native libraries are checked again whenever the status is read.
+- **Disk space.** **Continue install**, **Retry** and **Repair** need room only for what is not done yet, not for the whole install again.
+- **Remove.** **Remove local transcription engine** in Settings deletes only what StudyHub installed. It is refused while a class in any library uses the engine.
+- **Which engine a class uses.** **Automatic** (the default) uses Gemini when a Gemini key is set and the local engine when there is none. **Local transcription (audio stays here)** and **Gemini (cloud)** are kept as chosen: a class never switches to the other engine on its own. When both can run, the start form also offers **Transcription** for this class. **Continue recording** uses the engine the class was recorded with; if that engine cannot run now, the page says so and offers the other one as a separate button. Only you choose the engine: the assistant in the main chat cannot change it.
 
 ## Record a class
 
@@ -216,7 +218,7 @@ Live class uses the engine choice, the Gemini keys and the models in **Settings 
 
 | Setting | Options and effect |
 | --- | --- |
-| **Which engine live classes use** | **Automatic (recommended)**: Gemini when a Gemini key is set, the local engine otherwise. **Local (offline)** or **Gemini (cloud)**: always that engine; a class that cannot use it says why instead of using the other one. The local engine's card (install, progress, remove) is under the choice. |
+| **Which engine live classes use** | **Automatic (recommended)**: Gemini when a Gemini key is set, the local engine otherwise. **Local transcription (audio stays here)** or **Gemini (cloud)**: always that engine; a class that cannot use it says why instead of using the other one. The local engine's card (install, progress, remove) is under the choice. |
 | **Model for proofreading and translation** | **Automatic (StudyHub's generation model when there is one, otherwise Gemini)** is the default. The other options are **Gemini (free first, then paid)** and **StudyHub's generation model (follows the main chat by default)**. Live translation, context correction and historical correction follow this choice. |
 | **Live transcription model** | The Gemini live model. Default `gemini-3.5-transcribe-live`. |
 | **Live translation model** | The Gemini model for live translation and context correction. Default `gemini-3.5-flash-lite`. Hidden when **StudyHub's generation model (follows the main chat by default)** is selected. |
@@ -235,7 +237,7 @@ How the reasoning setting is applied:
 - **Estimated paid transcription**, at the bottom of the page, covers paid transcription only. It excludes translation and correction.
 - Correction on StudyHub's generation model is billed by your provider through DSH. It is not counted in the Gemini figures.
 - Correction requests share a fixed prompt prefix, so the provider can reuse its cache, and StudyHub records the cached input tokens the provider reports. A local cache also reuses up to 8 identical results. Cache hits and discounts are not guaranteed, and StudyHub creates no separately billed explicit cache.
-- On the local engine nothing is uploaded and nothing is billed: the class shows no free or paid minutes.
+- With local transcription the audio is not uploaded and nothing is billed for it: the class shows no free or paid minutes. Translation and polishing, if a text model is set up, send the text to that model's provider.
 - Keys stay in the audio settings file on this computer. They never travel in the browser's audio messages and are never written into a class file. Do not paste keys into the main chat.
 
 ## Storage and recovery

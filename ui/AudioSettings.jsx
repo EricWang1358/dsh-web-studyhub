@@ -27,7 +27,7 @@ const CARD_COPY = Object.freeze({
   groq: { steps: [{ text: '在 Groq 控制台注册并登录', link: 'consoleUrl' }, { text: '在「API Keys」页创建一个密钥并复制', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
     placeholder: '粘贴 Groq 的 API 密钥（gsk_…）', note: '每分钟和每天都有免费上限，用完会自动换下一个服务。' },
   free: { steps: [{ text: '用 Google 账号登录 AI Studio', link: 'consoleUrl' }, { text: '在「Get API key」页创建一个密钥（这个项目不要开通计费）', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
-    placeholder: '粘贴 AI Studio 的 API 密钥', note: '课堂实录可以用它，也可以用下面的本地引擎（不联网）。免费额度下 Google 可能用内容改进产品；欧盟、瑞士、英国地区不可用。' },
+    placeholder: '粘贴 AI Studio 的 API 密钥', note: '课堂实录可以用它，也可以用下面的本地转写（声音不上传）。免费额度下 Google 可能用内容改进产品；欧盟、瑞士、英国地区不可用。' },
 });
 /** One transcription provider: what it is, where to get a key, and the three steps. */
 export const PROVIDERS = Object.freeze(Object.fromEntries(Object.entries(CARD_COPY).map(([tier, copy]) => {
@@ -108,9 +108,9 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
     <h4 className="settings-subtitle">{ui('课堂实录的转写')}</h4>
     <RadioCardGroup legend={ui('课堂实录用哪个引擎')}>
       <RadioCard name="live-provider" value="auto" checked={choice === 'auto'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
-        title={ui('自动（推荐）')} hint={ui('填了 Gemini 密钥就用 Gemini；没有密钥时用本地引擎。')} />
+        title={ui('自动（推荐）')} hint={ui('填了 Gemini 密钥就用 Gemini；没有密钥时用本地转写。')} />
       <RadioCard name="live-provider" value="local" checked={choice === 'local'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
-        title={ui('本地（不联网）')} hint={ui('不需要密钥，声音只留在这台电脑上；要先安装。')} />
+        title={ui('本地转写（声音不上传）')} hint={ui('不需要密钥，转写在这台电脑上进行；要先安装。')} />
       <RadioCard name="live-provider" value="gemini" checked={choice === 'gemini'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
         title={ui('Gemini（云端）')} hint={ui('需要 Gemini 密钥和海外网络；声音发给 Google。')} />
     </RadioCardGroup>

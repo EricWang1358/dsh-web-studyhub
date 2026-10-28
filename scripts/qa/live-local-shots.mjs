@@ -5,7 +5,7 @@
       computer has no local engine, the per-class choice where both engines can run, and the start form on the local engine; Settings › 音频转写's choice
       with the card missing, installing, failed and ready; the card's hover explanation;
    2. the click-through against a QA server where the REAL installer runs with tiny pinned files and a slow fake download (no network, nothing real
-      installed): 安装本地引擎 -> installing -> ready -> the start form says the class runs on this computer.
+      installed): 安装本地转写引擎 -> installing -> ready -> the start form says the class runs on this computer.
    Every shot is checked for page errors and horizontal overflow. DSH_HOME points into output/. */
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
@@ -90,8 +90,8 @@ const snap = async (tab, name, where, target = '.gallery') => {
   const overflow = await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (overflow > 1) problems.push(`${where}: horizontal overflow ${overflow}px`);
 };
-const LIVE = ['gate', 'gate-installing', 'gate-failed', 'gate-gemini', 'choice', 'local'];
-const SETTINGS = ['missing', 'installing', 'checksum', 'ready'];
+const LIVE = ['gate', 'gate-installing', 'gate-failed', 'gate-repair', 'gate-gemini', 'choice', 'local', 'resume-blocked'];
+const SETTINGS = ['missing', 'installing', 'checksum', 'repair', 'ready'];
 
 try {
   for (const lang of langs) {
@@ -104,6 +104,7 @@ try {
         await tab.waitForSelector('.live-class', { timeout: 15000 });
         if (name.startsWith('gate') && name !== 'gate-gemini') await tab.waitForSelector('.live-local-card[data-state]:not([data-state="checking"])', { timeout: 15000 });
         if (name === 'gate') await tab.waitForSelector('.mineru-install__facts:not([aria-busy])', { timeout: 15000 }).catch(() => {});
+        if (name === 'resume-blocked') { await tab.locator('.live-history > summary').click(); await tab.getByRole('button', { name: /^打开$|^Open$/ }).first().click(); await tab.waitForSelector('[data-resume-blocked]', { timeout: 15000 }); }
         await snap(tab, `live-${name}-${tag}`, where);
         await tab.close();
       }
@@ -133,7 +134,7 @@ try {
     const tab = await open(context, `${base}/?lang=zh&theme=${theme}&scene=flow`, where);
     await tab.waitForSelector('.live-local-card[data-state="not-installed"] .mineru-install__facts:not([aria-busy])', { timeout: 20000 });
     await snap(tab, `flow-1-before-${tag}`, where);
-    await tab.getByRole('button', { name: /安装本地引擎/ }).click();
+    await tab.getByRole('button', { name: /安装本地转写引擎/ }).click();
     await tab.waitForSelector('.live-local-card[data-state="installing"]', { timeout: 20000 });
     await tab.waitForFunction(() => /第 2\/3 步/.test(document.querySelector('.live-local-card__line')?.textContent || ''), null, { timeout: 30000 });
     await snap(tab, `flow-2-installing-${tag}`, where);

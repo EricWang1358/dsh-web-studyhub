@@ -42,6 +42,7 @@ const STATUS = {
   checksum: { ...idle, status: 'failed', stage: 'model', step: 2, done: ['engine'], folder: FOLDER, error: { code: 'checksum', message: TEXT.checksum } },
   ready: { ...idle, status: 'complete', stage: 'done', step: 3, done: ['engine', 'model', 'check'], folder: FOLDER, installedFolder: FOLDER, installed: true, ready: true },
   unsupported: { ...idle, supported: false },
+  repair: { ...idle, status: 'complete', stage: 'done', step: 3, done: ['engine', 'model', 'check'], folder: FOLDER, needsRepair: true },
 };
 const readiness = (extra) => ({ providers: { free: false, siliconflow: false, groq: false, paid: false }, transcription: false, textProvider: 'host', liveChoice: 'auto', ...extra });
 const LIVE = {
@@ -51,14 +52,23 @@ const LIVE = {
   'gate-gemini': { readiness: readiness({ live: false, liveProvider: null, liveReason: 'no-provider', liveLocal: { supported: false, ready: false } }), local: STATUS.unsupported },
   choice: { readiness: readiness({ live: true, liveProvider: 'gemini', providers: { free: true, siliconflow: false, groq: false, paid: false }, liveLocal: { supported: true, ready: true } }), local: STATUS.ready },
   local: { readiness: readiness({ live: true, liveProvider: 'local', liveLocal: { supported: true, ready: true } }), local: STATUS.ready },
+  'gate-repair': { readiness: readiness({ live: false, liveProvider: null, liveReason: 'no-provider', liveLocal: { supported: true, ready: false } }), local: STATUS.repair },
+  // A class recorded with local transcription, opened from the history while local transcription needs repair and a Gemini key is set.
+  'resume-blocked': { readiness: readiness({ live: true, liveProvider: 'gemini', providers: { free: true, siliconflow: false, groq: false, paid: false }, liveLocal: { supported: true, ready: false } }),
+    local: STATUS.repair, sessions: [{ id: 'class-0001', title: '数据库 · 分区与索引', startedAt: '2026-10-28T09:00:00.000Z', elapsedMs: 1_260_000, segments: 3, active: false }] },
 };
+const CLASS = { id: 'class-0001', title: '数据库 · 分区与索引', course: '数据库', engine: 'local', status: 'ended', archivedAt: null, message: '', startedAt: '2026-10-28T09:00:00.000Z',
+  tier: null, elapsedMs: 1_260_000, revision: 3, total: 3, interim: '', translating: 0, generatedIds: [], warnings: [], usage: { freeSeconds: 0, paidSeconds: 0, estimatedPaidUsd: 0 },
+  segments: [{ id: 1, t: 4200, en: '今天我们讲数据库的分区和索引。', zh: '', zhState: 'none' }, { id: 2, t: 12000, en: '分区可以减少查询需要读取的数据量。', zh: '', zhState: 'none' },
+    { id: 3, t: 18600, en: 'A partition lets the optimizer skip data it does not need.', zh: '分区让优化器跳过不需要的数据。', zhState: 'done' }] };
 
 const never = new Promise(() => {});
 function fixedCall(local) {
   return async (action) => {
     if (action === 'live.local.status') return local ?? never;
     if (action === 'live.local.plan') return plan;
-    if (action === 'live.list') return { sessions: [] };
+    if (action === 'live.list') return { sessions: LIVE[which]?.sessions || [] };
+    if (action === 'live.get' || action === 'live.poll') return CLASS;
     if (action === 'audio.preflight') return LIVE[which]?.readiness;
     return {};
   };

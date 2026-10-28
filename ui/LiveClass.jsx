@@ -75,11 +75,11 @@ export function LiveSetup({ readiness, onSettings, onReady, initialLocal = null 
   const local = readiness?.liveLocal?.supported === true && readiness?.liveReason !== 'no-gemini-key';
   const settings = onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onSettings } : undefined;
   if (!local) return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
-    why={readiness?.liveReason === 'no-gemini-key' ? ui('你在音频设置里选了用 Gemini 转写课堂实录，但还没有填 Gemini 密钥。也可以在音频设置里改选「本地（不联网）」。')
-      : ui('这台电脑没有现成的本地识别引擎，边听边转写要用 Google Gemini 的实时接口（需要海外网络）。也可以课后在「音频转写」里导入录音。')}
+    why={readiness?.liveReason === 'no-gemini-key' ? ui('你在音频设置里选了用 Gemini 转写课堂实录，但还没有填 Gemini 密钥。也可以在音频设置里改选「本地转写（声音不上传）」。')
+      : ui('这台电脑没有现成的本地转写引擎，边听边转写要用 Google Gemini 的实时接口（需要海外网络）。也可以课后在「音频转写」里导入录音。')}
     steps={GEMINI_STEPS()} primary={settings} />;
   return <SetupRequired className="live-setup-gate" icon="audio" title={ui('先装一个转写引擎')}
-    why={ui('课堂实录要边听边转成文字。本地引擎装在这台电脑上，不需要密钥，也不联网；也可以改用 Google Gemini（需要密钥和海外网络）。')}
+    why={ui('课堂实录要边听边转成文字。本地转写装在这台电脑上，不需要密钥，声音不上传；也可以改用 Google Gemini（需要密钥和海外网络）。')}
     secondary={settings ? { ...settings, label: ui('改用 Gemini 密钥') } : undefined}>
     <LiveLocalCard initialStatus={initialLocal} onReady={onReady} />
   </SetupRequired>;
@@ -89,11 +89,27 @@ export function LiveSetup({ readiness, onSettings, onReady, initialLocal = null 
 export function ProviderChoice({ readiness, value, onChange, disabled }) {
   const gemini = !!(readiness?.providers?.free || readiness?.providers?.paid), local = !!readiness?.liveLocal?.ready;
   if (gemini && local) return <label className="live-provider">{ui('转写')}<Select value={value} onChange={onChange} disabled={disabled}
-    options={[{ value: 'gemini', label: ui('Gemini（云端）') }, { value: 'local', label: ui('本地（不联网）') }]} /></label>;
+    options={[{ value: 'gemini', label: ui('Gemini（云端）') }, { value: 'local', label: ui('本地转写（声音不上传）') }]} /></label>;
   return null;
 }
+/**
+ * 接着录 on the engine the class was recorded with (a class saved before the local engine existed was Gemini). When that engine cannot run now it says
+ * so, and offers the other engine as its own button: never a silent switch. A pre-flight that says nothing about the local engine (an older backend)
+ * keeps the old button.
+ */
+export function ResumeControl({ session, readiness, disabled, onResume }) {
+  const recorded = session.engine === 'local' ? 'local' : 'gemini';
+  if (!readiness?.liveLocal) return readiness?.live === false ? null : <Button disabled={disabled} onClick={() => onResume(undefined)}>{ui('接着录')}</Button>;
+  const can = { local: !!readiness.liveLocal.ready, gemini: !!(readiness.providers?.free || readiness.providers?.paid) };
+  if (can[recorded]) return <Button disabled={disabled} onClick={() => onResume(recorded)}>{ui('接着录')}</Button>;
+  const other = recorded === 'local' ? 'gemini' : 'local';
+  return <span className="live-resume-blocked" data-resume-blocked={recorded}>
+    <span className="muted">{recorded === 'local' ? ui('这堂课是用本地转写录的，本地转写现在用不了（可能已删除或需要修复）。') : ui('这堂课是用 Gemini 录的，现在没有 Gemini 密钥。')}</span>
+    {can[other] && <Button disabled={disabled} onClick={() => onResume(other)}>{other === 'gemini' ? ui('用 Gemini 接着录') : ui('用本地转写接着录')}</Button>}
+  </span>;
+}
 const engineNote = provider => (provider === 'local'
-  ? <Tooltip layer content={localTip(null)}><span tabIndex={0} className="live-engine-note">{ui('转写在这台电脑上进行，声音不上传；简体中文翻译使用音频设置中选定的模型（没有时只出原文）。')}</span></Tooltip>
+  ? <Tooltip layer content={localTip(null)}><span tabIndex={0} className="live-engine-note">{ui('转写在这台电脑上进行，声音不上传；简体中文翻译和润色使用音频设置中选定的文字模型（文字会发给模型服务商；没有时只出原文）。')}</span></Tooltip>
   : ui('转写使用 Gemini；简体中文翻译使用音频设置中选定的模型。免费额度用完会切到付费密钥。'));
 
 /**
@@ -248,11 +264,12 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
           <strong className="live-title">{session.title}</strong>
           <span className="muted">{session.course || ui('未分类')}</span>
           <span className="muted live-meta">{formatClock(session.elapsedMs)} · {uiFormat('{0} 句', [total])}
-            {session.tier && active(session) ? ` · ${{ free: ui('免费额度'), local: ui('本地（不联网）') }[session.tier] || ui('付费密钥')}` : ''}</span>
+            {session.tier && active(session) ? ` · ${{ free: ui('免费额度'), local: ui('本地转写（声音不上传）') }[session.tier] || ui('付费密钥')}` : ''}</span>
         </div>
         <div className="live-actions">{capturing && <Button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</Button>}
           {active(session) && <Button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</Button>}
-          {!active(session) && !session.archivedAt && readiness?.live !== false && <Button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly: engine !== 'local' && paidOnly, ...(readiness?.liveProvider ? { provider: engine } : {}) }); })}>{ui('接着录')}</Button>}</div></div>
+          {!active(session) && !session.archivedAt && <ResumeControl session={session} readiness={readiness} disabled={disabled}
+            onResume={(onEngine) => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div></div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>
