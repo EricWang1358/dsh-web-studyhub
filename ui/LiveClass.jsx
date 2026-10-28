@@ -7,7 +7,9 @@ import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
 import { formatClock, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
-import { Button, Checkbox, IconButton, InlineMessage, PageHeader, Select, SetupRequired, useToast } from './components/index.js';
+import { Button, Checkbox, IconButton, InlineMessage, PageHeader, Select, SetupRequired, Tooltip, useToast } from './components/index.js';
+import LiveLocalCard from './LiveLocalCard.jsx';
+import { localTip } from './live-local-flow.js';
 import { openAudioSettings } from './audio-focus.js';
 import { tabSharingAllowed } from './live-audio.js';
 import { useInjectCss } from './shared.js';
@@ -47,8 +49,9 @@ export const Sentence = memo(function Sentence({ segment, selected, generated, c
     <label className="live-select"><input type="checkbox" checked={selected} onChange={() => onToggle(segment.id)}
       aria-label={uiFormat('选择句子 {0}', [segment.id])} />
       <time>{formatClock(segment.t)}</time></label>
-    <div className="live-words"><p lang="en">{segment.en}</p>
-      <p className="live-chinese" lang="zh-Hans">{segment.zh || (segment.zhState === 'error' ? ui('译文暂不可用，可重试') : ui('正在翻译…'))}</p>
+    <div className="live-words"><p lang={segment.zhState === 'none' ? undefined : 'en'}>{segment.en}</p>
+      {/* 'none': nothing to translate (the local engine already wrote it in Chinese, or a class without a text model). */}
+      {segment.zhState !== 'none' && <p className="live-chinese" lang="zh-Hans">{segment.zh || (segment.zhState === 'error' ? ui('译文暂不可用，可重试') : ui('正在翻译…'))}</p>}
       {segment.correctedAt && <details className="live-correction-original"><summary>{ui('查看识别原稿')}</summary>
         <p>{segment.originalEn}</p>{segment.correctionReason && <small>{segment.correctionReason}</small>}
       </details>}
@@ -58,18 +61,40 @@ export const Sentence = memo(function Sentence({ segment, selected, generated, c
   </article>;
 });
 
+const GEMINI_STEPS = () => [{ text: ui('用 Google 账号登录 AI Studio'), href: providerOf('free').consoleUrl },
+  { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: providerOf('free').keyUrl },
+  { text: ui('在音频设置的 Google Gemini 卡片里粘贴，点「保存并验证」') }];
+
 /**
- * Shown INSTEAD of the start form while no Gemini key is configured: live transcription is Gemini Live only, so the
- * microphone (or tab sharing) is never requested before the provider is known to be there.
+ * Shown INSTEAD of the start form while no live engine can run, so the microphone (or tab sharing) is never requested before one is there. Where this
+ * computer has the local engine, it comes first (one click, no key, offline: ui/LiveLocalCard.jsx) and Gemini is the other way; a learner who chose
+ * Gemini on purpose (liveReason 'no-gemini-key') or whose computer has no local engine sees the Gemini steps.
  */
-function LiveSetup({ onSettings }) {
-  return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
-    why={ui('边听边转写只支持 Google Gemini 的实时接口（需要海外网络）。硅基流动和 Groq 只用于导入录音文件：课后可以在「音频转写」里导入录音。')}
-    steps={[{ text: ui('用 Google 账号登录 AI Studio'), href: providerOf('free').consoleUrl },
-      { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: providerOf('free').keyUrl },
-      { text: ui('在音频设置的 Google Gemini 卡片里粘贴，点「保存并验证」') }]}
-    primary={onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onSettings } : undefined} />;
+export function LiveSetup({ readiness, onSettings, onReady, initialLocal = null }) {
+  // A pre-flight that says nothing about the local engine (an older backend) keeps the Gemini steps.
+  const local = readiness?.liveLocal?.supported === true && readiness?.liveReason !== 'no-gemini-key';
+  const settings = onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onSettings } : undefined;
+  if (!local) return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
+    why={readiness?.liveReason === 'no-gemini-key' ? ui('你在音频设置里选了用 Gemini 转写课堂实录，但还没有填 Gemini 密钥。也可以在音频设置里改选「本地（不联网）」。')
+      : ui('这台电脑没有现成的本地识别引擎，边听边转写要用 Google Gemini 的实时接口（需要海外网络）。也可以课后在「音频转写」里导入录音。')}
+    steps={GEMINI_STEPS()} primary={settings} />;
+  return <SetupRequired className="live-setup-gate" icon="audio" title={ui('先装一个转写引擎')}
+    why={ui('课堂实录要边听边转成文字。本地引擎装在这台电脑上，不需要密钥，也不联网；也可以改用 Google Gemini（需要密钥和海外网络）。')}
+    secondary={settings ? { ...settings, label: ui('改用 Gemini 密钥') } : undefined}>
+    <LiveLocalCard initialStatus={initialLocal} onReady={onReady} />
+  </SetupRequired>;
 }
+
+/** Under the start form: which engine this class will use, and, where both can run, the choice between them (per class; the default is in 音频设置). */
+export function ProviderChoice({ readiness, value, onChange, disabled }) {
+  const gemini = !!(readiness?.providers?.free || readiness?.providers?.paid), local = !!readiness?.liveLocal?.ready;
+  if (gemini && local) return <label className="live-provider">{ui('转写')}<Select value={value} onChange={onChange} disabled={disabled}
+    options={[{ value: 'gemini', label: ui('Gemini（云端）') }, { value: 'local', label: ui('本地（不联网）') }]} /></label>;
+  return null;
+}
+const engineNote = provider => (provider === 'local'
+  ? <Tooltip layer content={localTip(null)}><span tabIndex={0} className="live-engine-note">{ui('转写在这台电脑上进行，声音不上传；简体中文翻译使用音频设置中选定的模型（没有时只出原文）。')}</span></Tooltip>
+  : ui('转写使用 Gemini；简体中文翻译使用音频设置中选定的模型。免费额度用完会切到付费密钥。'));
 
 /**
  * Under the 声音来源 select: what the chosen source needs. Where the browser's permissions policy says this frame may not share a tab (a panel embedded
@@ -112,7 +137,7 @@ export function CaptureHelp({ kind, facts, disabled, onMicrophone, onRetry }) {
   </div>;
 }
 
-export default function LiveClass({ call, data, visible, onJobs, onSettings, onSources, initialReadiness = null }) {
+export default function LiveClass({ call, data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null }) {
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
   const [course, setCourse] = usePageScope(data?.root, 'live-class-course', data?.focus?.course ?? '');
@@ -130,11 +155,14 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const openAudio = openAudioSettings(onSettings);
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
-  const [readiness, setReadiness] = useState(initialReadiness);
+  const [readiness, setReadiness] = useState(initialReadiness), [checked, setChecked] = useState(0);
   useLiveEffect((alive) => {
-    if (!visible || initialReadiness || !call) return;
+    if (!visible || (initialReadiness && !checked) || !call) return;
     Promise.resolve(call('audio.preflight', {})).then((result) => { if (alive() && result && typeof result === 'object') setReadiness(result); }, () => {});
-  }, [visible, call, initialReadiness]);
+  }, [visible, call, initialReadiness, checked]);
+  // The engine of the next class: the pre-flight's answer (the learner's default), changed here per class where both engines can run.
+  const [provider, setProvider] = useState('');
+  const engine = provider || readiness?.liveProvider || 'gemini';
   const refresh = useCallback(async () => {
     const result = await call('live.list'); setSessions(result.sessions || []);
   }, [call]);
@@ -165,7 +193,11 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
   const toggle = useCallback((id) => setSelected((previous) => {
     const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next;
   }), []);
-  const begin = (source) => perform(async () => { setSelected(new Set()); await client.start(source, { title, course, subject, terms, paidOnly }); await refresh(); });
+  const begin = (source) => perform(async () => {
+    setSelected(new Set());
+    await client.start(source, { title, course, subject, terms, paidOnly: engine !== 'local' && paidOnly, ...(readiness?.liveProvider ? { provider: engine } : {}) });
+    await refresh();
+  });
   const segments = session?.segments || [], generated = new Set(session?.generatedIds || []);
   const correction = session?.correction, checkedThrough = correction?.enabled ? correction.coveredThrough || 0 : 0;
   const polished = segments.filter((segment) => segment.correctedAt).length;
@@ -189,7 +221,8 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
     {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} disabled={disabled} onMicrophone={() => { setKind('microphone'); void begin('microphone'); }} onRetry={() => void begin('tab')} />}
-    {!active(session) && readiness && readiness.live === false && <LiveSetup onSettings={openAudio} />}
+    {!active(session) && readiness && readiness.live === false && <LiveSetup readiness={readiness} onSettings={openAudio} initialLocal={initialLocal}
+      onReady={() => setChecked((value) => value + 1)} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void begin(kind);
     }}>
@@ -201,10 +234,11 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
       <details><summary>{ui('课程背景与术语（可选）')}</summary>
         <label>{ui('这堂课讲什么')}<input value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>
         <label>{ui('术语（逗号或换行分隔）')}<textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={2} /></label></details>
+      <ProviderChoice readiness={readiness} value={engine} onChange={setProvider} disabled={disabled} />
       <div className="live-setup-foot">
-        <Checkbox checked={paidOnly} onChange={setPaidOnly} label={ui('只用付费密钥')} />
+        {engine !== 'local' && <Checkbox checked={paidOnly} onChange={setPaidOnly} label={ui('只用付费密钥')} />}
         <Button variant="primary" disabled={disabled} busy={busy} busyLabel={ui('正在连接…')} type="submit">{ui('开始实录')}</Button></div>
-      <small className="muted">{ui('转写使用 Gemini；简体中文翻译使用音频设置中选定的模型。免费额度用完会切到付费密钥。')}</small>
+      <small className="muted">{engineNote(engine)}</small>
     </form>}
     {!session && busy && <LiveAudioMonitor health={client.health} visible={visible} recording={capturing} />}
     {session && <>
@@ -214,11 +248,11 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
           <strong className="live-title">{session.title}</strong>
           <span className="muted">{session.course || ui('未分类')}</span>
           <span className="muted live-meta">{formatClock(session.elapsedMs)} · {uiFormat('{0} 句', [total])}
-            {session.tier && active(session) ? ` · ${session.tier === 'free' ? ui('免费额度') : ui('付费密钥')}` : ''}</span>
+            {session.tier && active(session) ? ` · ${{ free: ui('免费额度'), local: ui('本地（不联网）') }[session.tier] || ui('付费密钥')}` : ''}</span>
         </div>
         <div className="live-actions">{capturing && <Button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</Button>}
           {active(session) && <Button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</Button>}
-          {!active(session) && !session.archivedAt && readiness?.live !== false && <Button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly }); })}>{ui('接着录')}</Button>}</div></div>
+          {!active(session) && !session.archivedAt && readiness?.live !== false && <Button disabled={disabled} onClick={() => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly: engine !== 'local' && paidOnly, ...(readiness?.liveProvider ? { provider: engine } : {}) }); })}>{ui('接着录')}</Button>}</div></div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>

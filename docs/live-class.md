@@ -8,14 +8,32 @@ Record a class as it happens and follow it sentence by sentence: the original tr
 
 You need:
 
-- **A Gemini key.** Live transcription works only with Google Gemini's live interface. Check Gemini’s current account, region and quota requirements. Paste the key into the Google Gemini card in **Settings › Audio transcription** and click **Save and verify**. Until a key is saved, the page shows **Live class needs a Gemini key**, with setup steps and an **Open audio settings** button.
+- **A transcription engine**, one of:
+  - **The local engine (offline, no key).** It runs on this computer and is installed with one click; see [The local engine](#the-local-engine-offline-no-key).
+  - **A Gemini key** for Google Gemini's live interface. Check Gemini’s current account, region and quota requirements. Paste the key into the Google Gemini card in **Settings › Audio transcription** and click **Save and verify**.
+
+  Until one of them can run, the page shows **Set up a transcription engine first** with the local engine's card and a **Use a Gemini key instead** button (or, on a computer without a local engine, **Live class needs a Gemini key**).
 - **A model for translation and correction.** By default StudyHub uses its generation model (it follows the main chat by default) when there is one, and Gemini otherwise. See [Settings](#settings).
 - **StudyHub's generation model** (it follows the main chat by default), if you want to create questions during class.
 - **A browser that can capture audio:** a current Chrome or Edge, with the page opened over HTTPS or localhost. Allow the microphone, or share the tab when the browser asks.
 
-SiliconFlow SenseVoice and Groq handle recorded files only. If you cannot use Gemini, record the class another way and import the file on the **Audio transcription** page afterwards. See [audio import](audio-import.md).
+SiliconFlow SenseVoice and Groq handle recorded files only. If neither engine can run here, record the class another way and import the file on the **Audio transcription** page afterwards. See [audio import](audio-import.md).
 
 Review the Gemini privacy and region notices on the card, and Google’s current terms, before uploading a recording.
+
+## The local engine (offline, no key)
+
+The local engine is SenseVoice (FunAudioLLM) speech recognition with a silero voice detector, run through sherpa-onnx in a background thread of StudyHub. It understands Mandarin, English, Cantonese, Japanese and Korean, and writes Chinese as Chinese. The sound never leaves the computer. The idea and the first port come from the community package StudyHub for ZCode by BAXUIE.
+
+- **Install.** Click **Install local engine** on the **Live class** page or under **Settings › Audio transcription › Live class transcription**. It installs in three steps: **Install the speech engine**, **Download the speech model**, **Check that it works**. Progress is shown on the card and in **Tasks**; **Pause** keeps what was downloaded, and **Continue install** goes on from there.
+- **Where it goes.** By default into `StudyHub\LiveLocal` on the non-system drive with the most free space (**Choose location** to change it): `engine\node_modules` holds the engine and `models\sense-voice` the model. Nothing is added to StudyHub's own package or to the system.
+- **Size.** The first install downloads about 239 MB on Windows: the speech model about 228 MB, the voice detector about 2 MB and the engine about 9 MB. Once installed it uses about 253 MB.
+- **What is downloaded, and how it is checked.** The engine is the npm package `sherpa-onnx-node` and this computer's prebuilt package at version 1.13.8, from npmmirror (or registry.npmjs.org), each compared with the sha512 integrity the npm registry publishes for that version. The model files come from ModelScope at a fixed revision, each compared with the sha256 in ModelScope's file metadata. A file that does not match is deleted and downloaded again; a download that stopped continues from its `.part` file. A model the community package already downloaded to `~/.dsh/live-models/sense-voice` is reused when it matches.
+- **Which computers.** Windows on x64 is tested. macOS (Apple silicon and Intel) and 64-bit Linux use the same release of prebuilt engines but are not tested yet; other computers (for example Windows on ARM) are told up front that there is no local engine.
+- **Accuracy and speed.** Good for clearly spoken Mandarin and English; with a strong accent, background noise or many technical terms it does worse than the cloud. Text appears about 1 second after a sentence ends. Loading the model takes about 2 seconds when a class starts.
+- **Translation and correction.** These still use the text model you set up (the text is sent to that model's provider). Without a text model the class shows the original only. A sentence that is already Chinese is not sent for translation.
+- **Remove.** **Remove local engine** in Settings deletes only what StudyHub installed. It is refused while a class is using the engine.
+- **Which engine a class uses.** **Automatic** (the default) uses Gemini when a Gemini key is set and the local engine when there is none. **Local (offline)** and **Gemini (cloud)** are kept as chosen: a class never switches to the other engine on its own. When both can run, the start form also offers **Transcription** for this class.
 
 ## Record a class
 
@@ -23,7 +41,7 @@ Review the Gemini privacy and region notices on the card, and Google’s current
 2. Enter a **Class title**. If you leave it empty, StudyHub names the class "Live class recording" followed by the date and time.
 3. Choose an **Audio source**: **Microphone (in-person class)** or **Tab / system audio (online class)**.
 4. Optional: choose a **Course**. Open **Subject and terminology (optional)** to fill in **Subject** and **Terms (comma or line separated)**.
-5. Optional: tick **Use paid key only** to skip the free Gemini key.
+5. Optional, Gemini only: tick **Use paid key only** to skip the free Gemini key.
 6. Click **Start recording**. For an online class, choose the tab where the class is playing in the browser's sharing dialog and turn on **Share tab audio**. StudyHub sends only the audio, never the picture.
 
 Terms help recognition, translation and correction. StudyHub puts your terms first, then adds deck titles and question topics from the chosen course, up to 100 terms in total.
@@ -194,10 +212,11 @@ In the main chat, StudyHub can also list your classes, read a class's transcript
 
 ## Settings
 
-Live class uses the Gemini keys and models in **Settings › Audio transcription**. The model options are under **Advanced › Expert options**.
+Live class uses the engine choice, the Gemini keys and the models in **Settings › Audio transcription**. The model options are under **Advanced › Expert options**.
 
 | Setting | Options and effect |
 | --- | --- |
+| **Which engine live classes use** | **Automatic (recommended)**: Gemini when a Gemini key is set, the local engine otherwise. **Local (offline)** or **Gemini (cloud)**: always that engine; a class that cannot use it says why instead of using the other one. The local engine's card (install, progress, remove) is under the choice. |
 | **Model for proofreading and translation** | **Automatic (StudyHub's generation model when there is one, otherwise Gemini)** is the default. The other options are **Gemini (free first, then paid)** and **StudyHub's generation model (follows the main chat by default)**. Live translation, context correction and historical correction follow this choice. |
 | **Live transcription model** | The Gemini live model. Default `gemini-3.5-transcribe-live`. |
 | **Live translation model** | The Gemini model for live translation and context correction. Default `gemini-3.5-flash-lite`. Hidden when **StudyHub's generation model (follows the main chat by default)** is selected. |
@@ -216,6 +235,7 @@ How the reasoning setting is applied:
 - **Estimated paid transcription**, at the bottom of the page, covers paid transcription only. It excludes translation and correction.
 - Correction on StudyHub's generation model is billed by your provider through DSH. It is not counted in the Gemini figures.
 - Correction requests share a fixed prompt prefix, so the provider can reuse its cache, and StudyHub records the cached input tokens the provider reports. A local cache also reuses up to 8 identical results. Cache hits and discounts are not guaranteed, and StudyHub creates no separately billed explicit cache.
+- On the local engine nothing is uploaded and nothing is billed: the class shows no free or paid minutes.
 - Keys stay in the audio settings file on this computer. They never travel in the browser's audio messages and are never written into a class file. Do not paste keys into the main chat.
 
 ## Storage and recovery
@@ -233,6 +253,7 @@ How the reasoning setting is applied:
 - **Capture.** In the browser, an AudioWorklet mixes the input to mono and converts it to 16 kHz, 16-bit little-endian PCM, in frames of about 100 ms. The microphone uses echo cancellation and noise suppression. The worklet source is kept as a literal string so that production minification cannot break it.
 - **Connection.** StudyHub's backend holds the WebSocket to Gemini Live and sends audio only after Google confirms the setup. A connection lasts at most 10 minutes, so StudyHub opens the next one at 8 minutes 45 seconds, or earlier if Google announces a close. Final text from the old connection appears before text from the new one.
 - **Reconnecting.** Switching connections is not server-side session resumption, and a failure can lose words that were not yet final. After a drop, StudyHub reconnects with increasing waits and buffers at most the last 30 seconds of audio. If it cannot reconnect, the status changes to **Disconnected**; the text so far is saved, and you can click **Continue recording**.
+- **Local engine.** A worker thread runs the recognizer. A loopback socket speaks the same messages as Gemini Live, so the session, the page and saved classes work the same way. The voice detector ends a sentence after 0.5 seconds of silence; the sentence in progress is decoded about every 0.6 seconds for the grey line. There is no 10-minute limit and no hand-over.
 - **Time stamps.** The time beside each sentence counts the audio recorded so far, without pauses. Use it to find your place; it is not a word-level timestamp.
 - **Translation.** Sentences are translated in order, up to 6 sentences or 900 characters per request, with the 3 previous translated sentences as context. Each sentence gets up to 3 attempts. The translator is asked to write a key term as 中文（English term） the first time it appears.
 
@@ -241,6 +262,7 @@ How the reasoning setting is applied:
 - Simulated WebSocket and model tests cover transcription, translation, free/paid switching, connection loss and rotation, persistence, recovery, question selection, stopping and retries.
 - Browser checks with synthetic audio and simulated live responses exercise the real AudioWorklet, pause, page navigation, track release and saving.
 - Not yet verified: real Gemini recognition quality, latency and billing, and the microphone and screen-sharing permissions inside DSH. Optional DSH SDK checks were skipped where the SDK was unavailable.
+- Local engine: tests with a stand-in engine in a real worker thread cover partial and final sentences, the end of a stream and a broken engine; the install is tested with a stand-in download for checksum mismatches, resuming a `.part` file and pausing. On Windows x64 the real install (about 2 minutes) and a real class from synthetic Chinese and English speech were run with `scripts/live-local-smoke.mjs`. Not yet verified: macOS and Linux, a real microphone in DSH, and accuracy on real lectures.
 
 See [verification](verification.md) for the records.
 
