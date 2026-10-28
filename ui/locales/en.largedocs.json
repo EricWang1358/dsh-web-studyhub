@@ -179,5 +179,6 @@
   "，索引已是最新；{0} 页无检索文字（跳过）。": "; the index is up to date; {0} pages have no searchable text (skipped).",
   "；有 {0} 页的旧索引要清理，{1} 页无检索文字（跳过）。": "; the old index of {0} pages will be cleaned up; {1} pages have no searchable text (skipped).",
   "；{0} 页已经建好，{1} 页无检索文字（跳过）。": "; {0} pages are built; {1} pages have no searchable text (skipped).",
-  "{0} 页无检索文字（跳过）。": "{0} pages have no searchable text (skipped)."
+  "{0} 页无检索文字（跳过）。": "{0} pages have no searchable text (skipped).",
+  "这些页只有标题、图或很短的行，检索服务切不出可检索的段落，所以跳过；页面内容改了会重新尝试。": "These pages have only a title, figures or very short lines, so the search service finds no passage in them; they are skipped, and tried again if their text changes."
 }

@@ -77,6 +77,27 @@ test('the badge counts the document’s own pages and says so; its hover says wh
   assert.equal(indexTip({ state: 'indexed', indexed: 1, total: 1 }).length, 2, 'one sentence and one consequence');
 });
 
+test('the hover of a badge with skipped pages says why they are skipped, in every state that counts them, and only then (#521)', () => {
+  const why = /只有标题、图或很短的行，检索服务切不出可检索的段落，所以跳过；页面内容改了会重新尝试/;
+  for (const state of ['indexed', 'partial', 'stale']) {
+    const lines = indexTip({ state, indexed: 6, stale: 1, skipped: 4, total: 11 });
+    assert.equal(lines.length, 3, `${state}: the state, the reason, the scope`);
+    assert.match(lines[1], why);
+    assert.match(lines[2], /不含课程里的其他资料/);
+  }
+  assert.doesNotMatch(indexTip({ state: 'indexed', indexed: 4, total: 4 }).join('\n'), /切不出/);
+  assert.doesNotMatch(indexTip({ state: 'indexed', indexed: 4, skipped: 0, total: 4 }).join('\n'), /切不出/);
+  setUiLanguage('en');
+  try {
+    const lines = indexTip({ state: 'indexed', indexed: 6, skipped: 4, total: 10 });
+    assert.equal(lines.length, 3);
+    assert.match(lines[1], /only a title, figures or very short lines/);
+    assert.match(lines[1], /skipped/);
+    assert.match(lines[1], /tried again|retried/);
+    assert.doesNotMatch(lines.join('\n'), /[一-鿿]/, 'no Chinese left in the English hover');
+  } finally { setUiLanguage('zh'); }
+});
+
 /* ---------- the course, with names ---------- */
 
 const picked = [

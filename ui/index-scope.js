@@ -42,7 +42,7 @@ export function adviceTip() {
   return `${ui('整本书一次交给 AI，既花得多又不聚焦；按章节选，或用检索只取相关页面，更省也更准。')}\n${uiFormat('超过 {0} 页的资料才会出现这张建议卡。', [LARGE_DOCUMENT_LIMITS.advisePages])}`;
 }
 
-/** The hover of the index badge: [what it means for this document, what it does not count]. */
+/** The hover of the index badge: [what it means for this document, why pages are skipped (only when some are), what it does not count]. */
 export function indexTip(info) {
   const { indexed, total, stale, skipped } = info || {}, n = (value) => formatNumber(value ?? 0);
   const first = !info ? '' : info.state === 'indexed' ? (skipped > 0 ? uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，{2} 页无检索文字（跳过）：对整本书提问或出题时，只把相关页面发给 AI。', [n(indexed), n(total), n(skipped)])
@@ -53,7 +53,9 @@ export function indexTip(info) {
         : info.state === 'building' ? uiFormat('正在编检索目录；这份资料现在已编 {0}/{1} 页。', [n(indexed), n(total)])
           : info.state === 'reset' ? ui('索引已经重置，需要重新建立索引。')
           : ui('这份资料还没有检索目录；建好后，对整本书提问或出题时只把相关页面发给 AI。');
-  return [first, ui('这里只数这份资料自己的页，不含课程里的其他资料。')];
+  // Why a page is skipped, once, wherever the count is shown: the learner has no way to see the search service's reasons.
+  const why = skipped > 0 ? [ui('这些页只有标题、图或很短的行，检索服务切不出可检索的段落，所以跳过；页面内容改了会重新尝试。')] : [];
+  return [first, ...why, ui('这里只数这份资料自己的页，不含课程里的其他资料。')];
 }
 
 /** The line under the course picker: which course, how many pages and materials it has, and which materials still have pages without an index. */

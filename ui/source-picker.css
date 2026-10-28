@@ -22,8 +22,9 @@
     .source-picker__text { display: grid; gap: var(--space-half); min-width: 0; }
     .source-picker__text strong { color: var(--text); font-weight: var(--fw-strong); overflow-wrap: anywhere; line-height: var(--lh-snug); }
     .source-picker__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    /* The badge line keeps its height whether or not the coverage has arrived (#205): same height as one line of the small text above it. */
-    .source-picker__text small.source-picker__index { display: flex; align-items: center; min-width: 0; height: calc(var(--fs-sm) * var(--lh-snug)); }
+    /* The badge line keeps its height whether or not the coverage has arrived (#205): at least the height of one line of the small text above it; a long badge wraps (ui/sources-page.css). */
+    .source-picker__text small.source-picker__index { display: flex; align-items: center; min-width: 0; min-height: calc(var(--fs-sm) * var(--lh-snug)); }
+    .source-picker__text small.source-picker__index > * { min-width: 0; max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
     .source-picker__expand { flex: 0 0 auto; }
     .source-picker__expand .sh-icon:last-child { transition: transform 0.18s var(--ease); }
@@ -42,6 +43,12 @@
     .source-picker__chapter-list input { width: auto; flex: 0 0 auto; margin: var(--space-1) 0 0; accent-color: var(--accent); }
     .source-picker__chapter-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
     .source-picker__chapters .source-picker__pages { padding-left: 0; max-height: 280px; overflow: auto; width: 100%; }
+  }
+  /* Where the badge shows its short label and may wrap, its line keeps two lines from the first paint: a coverage answer arriving late moves no row (#205). */
+  @container study (max-width: 720px) {
+    :is(.study-app, .study-seat) {
+      .source-picker__text small.source-picker__index { min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); }
+    }
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
