@@ -12,6 +12,9 @@ import { INDEX_TOOLS } from '../lib/retrieval-index.js';
 import { EXTENSION } from '../lib/large-documents.js';
 
 const sleep = ms => new Promise(done => setTimeout(done, ms));
+/** A page needs at least one line this long to become a passage; the real server refuses the rest. Mirrors mcp-local-rag's CHUNK_MIN_LENGTH default (50). */
+const CHUNK_MIN_LENGTH = 50;
+const NO_CHUNKS_MESSAGE = `MCP error -32602: No chunks generated from file: fake-extension. The file may be empty or all content was filtered (minimum ${CHUNK_MIN_LENGTH} characters required). Existing data has been preserved.`;
 const SCHEMAS = [
   { name: INDEX_TOOLS.query, description: 'Search ingested documents with hybrid keyword + semantic matching.',
     parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number' } }, required: ['query'] } },
@@ -38,6 +41,8 @@ export function createFakeExtension({ delayMs = 120 } = {}) {
         if (!state.modelReady) { await sleep(delayMs * 6); state.modelReady = true; }
         await sleep(delayMs);
         signal?.throwIfAborted();
+        // Like the real server, a page with no long enough line (the `# title` line included) writes nothing and keeps what the key held.
+        if (!String(args.content).split('\n').some(line => line.length >= CHUNK_MIN_LENGTH)) return { isError: true, error: { message: NO_CHUNKS_MESSAGE }, content: [] };
         state.documents.set(args.metadata.source, String(args.content));
         return ok({ ok: true });
       }
