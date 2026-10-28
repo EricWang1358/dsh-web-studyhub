@@ -63,7 +63,7 @@ const SCRIPT_ENGLISH = {
   '答对这道题，<b>两层内到期、薄弱或没学过的前置题一并记一次通过</b> —— ': 'Passing also <b>credits eligible prerequisites within two levels</b>. ',
   '「快照由谁保管」不再是薄弱；「不透明对象与封装」尚未到期，不动。': 'The snapshot keeper question is no longer weak; the mastered snapshot question is not due and stays unchanged.',
   '答错': 'Miss', ' 天': ' days', '学习中': 'Learning', '熟悉': 'Familiar', '还没学过': 'Not studied yet',
-  '下次复习 · <b>': 'Next review · <b>in ', ' 天后</b>': ' days</b>', '答错了 · 明天再复习': 'Missed · review tomorrow',
+  '下次复习 · <b>': 'Next review · <b>in ', ' 天后</b>': ' days</b>', '答错了 · 下次复习 · <b>': 'Missed · next review · <b>in ',
 };
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const result = await buildSite({ ...(process.argv[2] ? { outdir: resolve(process.argv[2]) } : {}) });

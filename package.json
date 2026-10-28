@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "3.7.2",
+  "version": "3.7.3",
   "description": "StudyHub: turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.",
   "repository": {
     "type": "git",
@@ -219,6 +219,7 @@
     "globals": "^17.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "ts-fsrs": "5.4.2",
     "zod": "^4.6.7"
   },
   "peerDependencies": {

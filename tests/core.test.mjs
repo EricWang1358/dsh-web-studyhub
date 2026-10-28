@@ -59,20 +59,20 @@ export const deck = () => ({
   cards: [structuredClone(card)],
 });
 
-test("SM-2 matches upstream formula, failure resets, grade bounds", () => {
+test("FSRS-6 schedules by the days really elapsed; a failure shortens the gap; grade bounds", () => {
+  // The scheduler in depth: tests/fsrs-scheduler.test.mjs; against ts-fsrs itself: tests/fsrs-parity.test.mjs.
   let r = initialReview();
-  const now = "2026-09-12T12:00:00.000Z";
-  r = schedule(r, 5, now);
-  assert.equal(r.interval_days, 1);
-  assert.equal(r.ease_factor, 2.6);
-  r = schedule(r, 4, now);
-  assert.equal(r.interval_days, 6);
-  r = schedule(r, 5, now);
-  assert.equal(r.interval_days, 16);
-  r = schedule(r, 0, now);
+  r = schedule(r, 5, "2026-09-12T12:00:00.000Z");
+  assert.equal(r.interval_days, 8);
+  r = schedule(r, 4, r.due_at);
+  assert.equal(r.interval_days, 39);
+  r = schedule(r, 4, "2026-09-21T12:00:00.000Z");
+  assert.ok(r.interval_days > 39, "a right answer still stretches the gap");
+  const before = r.interval_days;
+  r = schedule(r, 0, "2026-09-22T12:00:00.000Z");
   assert.equal(r.repetitions, 0);
-  assert.equal(r.interval_days, 1);
-  assert.throws(() => schedule(r, 6, now));
+  assert.ok(r.interval_days < before);
+  assert.throws(() => schedule(r, 6, "2026-09-22T12:00:00.000Z"));
 });
 test("quality gate rejects unsupported quotes, missing distractor reasoning and duplicate targets", () => {
   assert.deepEqual(validateDeck(deck(), [source]).errors, []);

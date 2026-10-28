@@ -42,16 +42,20 @@ export function adviceTip() {
   return `${ui('整本书一次交给 AI，既花得多又不聚焦；按章节选，或用检索只取相关页面，更省也更准。')}\n${uiFormat('超过 {0} 页的资料才会出现这张建议卡。', [LARGE_DOCUMENT_LIMITS.advisePages])}`;
 }
 
-/** The hover of the index badge: [what it means for this document, what it does not count]. */
+/** The hover of the index badge: [what it means for this document, why pages are skipped (only when some are), what it does not count]. */
 export function indexTip(info) {
-  const { indexed, total, stale } = info || {}, n = (value) => formatNumber(value ?? 0);
-  const first = !info ? '' : info.state === 'indexed' ? uiFormat('这份资料的 {0} 页都已编进检索目录：对整本书提问或出题时，只把相关页面发给 AI。', [n(total)])
-    : info.state === 'partial' ? uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，其余还没编。', [n(indexed), n(total)])
+  const { indexed, total, stale, skipped } = info || {}, n = (value) => formatNumber(value ?? 0);
+  const first = !info ? '' : info.state === 'indexed' ? (skipped > 0 ? uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，{2} 页无检索文字（跳过）：对整本书提问或出题时，只把相关页面发给 AI。', [n(indexed), n(total), n(skipped)])
+    : uiFormat('这份资料的 {0} 页都已编进检索目录：对整本书提问或出题时，只把相关页面发给 AI。', [n(total)]))
+    : info.state === 'partial' ? (skipped > 0 ? uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，{2} 页无检索文字（跳过），其余还没编。', [n(indexed), n(total), n(skipped)])
+      : uiFormat('这份资料 {1} 页里，{0} 页已编进检索目录，其余还没编。', [n(indexed), n(total)]))
       : info.state === 'stale' ? uiFormat('这份资料有 {0} 页在编目录之后改过，目录里还是旧内容。', [n(stale)])
         : info.state === 'building' ? uiFormat('正在编检索目录；这份资料现在已编 {0}/{1} 页。', [n(indexed), n(total)])
           : info.state === 'reset' ? ui('索引已经重置，需要重新建立索引。')
           : ui('这份资料还没有检索目录；建好后，对整本书提问或出题时只把相关页面发给 AI。');
-  return [first, ui('这里只数这份资料自己的页，不含课程里的其他资料。')];
+  // Why a page is skipped, once, wherever the count is shown: the learner has no way to see the search service's reasons.
+  const why = skipped > 0 ? [ui('这些页只有标题、图或很短的行，检索服务切不出可检索的段落，所以跳过；页面内容改了会重新尝试。')] : [];
+  return [first, ...why, ui('这里只数这份资料自己的页，不含课程里的其他资料。')];
 }
 
 /** The line under the course picker: which course, how many pages and materials it has, and which materials still have pages without an index. */
@@ -61,12 +65,14 @@ export function courseScopeLine(plan, course) {
   if (!plan.pages) return uiFormat('{0}还没有资料页。', [label]);
   const head = Number.isFinite(plan.documents) ? uiFormat('{0}共 {1} 页（含 {2} 份资料）', [label, formatNumber(plan.pages), formatNumber(plan.documents)])
     : uiFormat('{0}共 {1} 页', [label, formatNumber(plan.pages)]);
-  if (plan.toIndex === 0 && !plan.toRemove) return `${head}${ui('，索引已是最新。')}`;
-  if (plan.toIndex === 0) return `${head}${uiFormat('；有 {0} 页的旧索引要清理。', [formatNumber(plan.toRemove)])}`;
+  // Pages the search server found no text in are done and counted on their own, in the same words everywhere (the badge, the run, the coverage).
+  const noText = formatNumber(plan.skipped || 0);
+  if (plan.toIndex === 0 && !plan.toRemove) return `${head}${plan.skipped > 0 ? uiFormat('，索引已是最新；{0} 页无检索文字（跳过）。', [noText]) : ui('，索引已是最新。')}`;
+  if (plan.toIndex === 0) return `${head}${plan.skipped > 0 ? uiFormat('；有 {0} 页的旧索引要清理，{1} 页无检索文字（跳过）。', [formatNumber(plan.toRemove), noText]) : uiFormat('；有 {0} 页的旧索引要清理。', [formatNumber(plan.toRemove)])}`;
   const shown = (plan.missing || []).slice(0, NAMED);
   const names = shown.map((entry) => uiFormat('《{0}》（{1} 页）', [clip(displayTitle(entry.title)), formatNumber(entry.pages)])).join(ui('、'));
   const more = plan.missingDocuments > shown.length ? uiFormat('等 {0} 份', [plan.missingDocuments]) : '';
-  return `${head}${uiFormat('：其中 {0} 页还没建索引', [formatNumber(plan.toIndex)])}${names ? `${uiFormat('，来自{0}', [`${names}${more}`])}` : ''}${uiFormat('；{0} 页已经建好。', [formatNumber(plan.unchanged)])}`;
+  return `${head}${uiFormat('：其中 {0} 页还没建索引', [formatNumber(plan.toIndex)])}${names ? `${uiFormat('，来自{0}', [`${names}${more}`])}` : ''}${plan.skipped > 0 ? uiFormat('；{0} 页已经建好，{1} 页无检索文字（跳过）。', [formatNumber(plan.unchanged), noText]) : uiFormat('；{0} 页已经建好。', [formatNumber(plan.unchanged)])}`;
 }
 
 /**

@@ -155,7 +155,7 @@ Materials, bank, study, authoring, generation and audio are the optional context
 | Study | `study.v1` | `runs`, `attempts`, `oralRuns`, `teaching` | Practice runs, grading, attempts, scheduling policy, exams, oral exams and guided teaching |
 | Authoring | `authoring.v1` | – | Publication (`draft.publish`, `draft.publish.quick`), deck import, merge and split, and validation, as transactions across content and study records |
 | Generation | `generation.v1` | `selectionJobs` | Generation, supplement and repair jobs, independent review, publication through authoring, passage supplementation, retrieval providers and page-translation jobs |
-| Audio | `audio.v1` | `audioResults` | Transcription, subtitle import, transcript corrections, live class recording and MinerU PDF conversion, with their jobs; publishes through materials and generation when they are installed |
+| Audio | `audio.v1` | `audioResults` | Transcription, subtitle import, transcript corrections, live class recording (on Gemini Live, or on the optional local engine of `lib/live-local.js`, installed on demand by `lib/live-local-install.js` through the shared `lib/tool-install.js` engine and never a package dependency) and MinerU PDF conversion, with their jobs; publishes through materials and generation when they are installed |
 | System | `system.v1` | `settings`, `focus` | Settings and the focus record; the update check, the experimental-features switch, Jev settings and the usage frequency record |
 | Notifications | `notifications.v1` | `inbox` | Inbox records and read markers |
 | Courses | `courses.v1` | `courses` | Course records (id, aliases, exam profile, examiner guidance, focus topics), `course.profile` and active or parked courses. Renames and merges run in library as one transaction |
@@ -317,6 +317,7 @@ The search extension is a companion bundle (`packages/studyhub-retrieval`), publ
 
 - Its plugin calls `ctx.plugin(mcpClient, config)` for `mcp-local-rag`. The command is `process.execPath`, and the server entry is resolved next to the package, so no configuration file is edited.
 - `lib/retrieval-extension.js` installs and removes it through `ctx.pluginManager.installBundle` and `removeBundle`. The asset is checked against the release's SHA-256 list, and dependency builds need `approvedBuilds` confirmation.
+- Every release repacks the extension under its own version. `EXTENSION_BUILD` records the first release that shipped the current extension (`since`) and a fingerprint of its shipped files. Only an installed extension older than `since` is reported as `outdated`. When the extension changes, `tests/retrieval-extension-build.test.mjs` and the release pack refuse the old record (`scripts/extension-fingerprint.mjs`).
 - `lib/retrieval-index.js` indexes a course page by page under `studyhub://source/<id>`. Indexing is incremental.
 - The host handler adds `retrieval.extension.*` and the `extension` field of `retrieval.status`.
 

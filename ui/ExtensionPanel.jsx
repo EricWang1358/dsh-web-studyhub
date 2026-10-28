@@ -60,7 +60,7 @@ function ApprovalDialog({ approval, busy, install, close }) {
   </ConfirmDialog>;
 }
 
-/** An installed extension older than this StudyHub (DSH's update of StudyHub does not touch it): say so, and update it in one click.
+/** An installed extension older than the one this StudyHub ships (DSH's update of StudyHub does not touch it): say so, and update it in one click.
  *  Stays mounted once the update finished, so the outcome (and whether DSH must restart) is not lost when the status refresh
  *  clears `outdated`: the parent keeps rendering it for any installed extension. */
 export function ExtensionUpdateNotice({ call, status, onStatus, initialDone = null }) {
@@ -82,7 +82,7 @@ export function ExtensionUpdateNotice({ call, status, onStatus, initialDone = nu
   );
   return (
     <div className="extension-panel__update">
-      <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('已安装的检索扩展是 {0}，比当前 StudyHub（{1}）旧，可能一直启动不了。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
+      <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
       <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('更新检索扩展')}</Button></div>
       {flow.busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</Hint>}
       {flow.error && <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>}
@@ -157,6 +157,7 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
       {problem && <InlineMessage>{problem}</InlineMessage>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
         {uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
+        {run.skipped > 0 && ` ${uiFormat('{0} 页无检索文字（跳过）。', [run.skipped])}`}
         {run.failedCount > 0 && ` ${uiFormat('{0} 页没能写入索引，下次建立时会重试。', [run.failedCount])}`}
       </InlineMessage>}
       {run?.status === 'cancelled' && <InlineMessage tone="info">{ui('已停止。建好的部分会保留，下次接着建。')}</InlineMessage>}

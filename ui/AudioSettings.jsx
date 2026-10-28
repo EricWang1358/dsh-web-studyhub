@@ -3,7 +3,8 @@ import React, { useEffect, useRef } from 'react';
 import AudioReasoning from './AudioReasoning.jsx';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useModelEfforts } from './use-model-efforts.js';
-import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, SecretKeyForm, Select, SetupRequired, SettingsSection, Switch, TextInput, useToast } from './components/index.js';
+import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, Select, SetupRequired, SettingsSection, Switch, TextInput, useToast } from './components/index.js';
+import LiveLocalCard from './LiveLocalCard.jsx';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { REQUEST_LIMIT_MINUTES } from '../lib/audio-formats.js';
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
@@ -26,7 +27,7 @@ const CARD_COPY = Object.freeze({
   groq: { steps: [{ text: '在 Groq 控制台注册并登录', link: 'consoleUrl' }, { text: '在「API Keys」页创建一个密钥并复制', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
     placeholder: '粘贴 Groq 的 API 密钥（gsk_…）', note: '每分钟和每天都有免费上限，用完会自动换下一个服务。' },
   free: { steps: [{ text: '用 Google 账号登录 AI Studio', link: 'consoleUrl' }, { text: '在「Get API key」页创建一个密钥（这个项目不要开通计费）', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
-    placeholder: '粘贴 AI Studio 的 API 密钥', note: '课堂实录只支持 Gemini。免费额度下 Google 可能用内容改进产品；欧盟、瑞士、英国地区不可用。' },
+    placeholder: '粘贴 AI Studio 的 API 密钥', note: '课堂实录可以用它，也可以用下面的本地转写（声音不上传）。免费额度下 Google 可能用内容改进产品；欧盟、瑞士、英国地区不可用。' },
 });
 /** One transcription provider: what it is, where to get a key, and the three steps. */
 export const PROVIDERS = Object.freeze(Object.fromEntries(Object.entries(CARD_COPY).map(([tier, copy]) => {
@@ -96,7 +97,28 @@ export function AudioSetupGate({ language = getUiLanguage(), call, onOpenSetting
   );
 }
 
-export default function AudioSettings({ busy, act, call, initialView = null }) {
+/**
+ * 课堂实录's engine: auto (Gemini when a key is set, otherwise the local engine), always local, or always Gemini; and the local engine's own card
+ * (install, progress, remove). An explicit choice is never swapped for the other engine (lib/live-local.js resolveLiveProvider).
+ */
+export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal = null }) {
+  useInjectCss(css, 'study-audio-settings');
+  const choice = view.liveProvider || 'auto';
+  return <div className="audio-live-engine">
+    <h4 className="settings-subtitle">{ui('课堂实录的转写')}</h4>
+    <RadioCardGroup legend={ui('课堂实录用哪个引擎')}>
+      <RadioCard name="live-provider" value="auto" checked={choice === 'auto'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
+        title={ui('自动（推荐）')} hint={ui('填了 Gemini 密钥就用 Gemini；没有密钥时用本地转写。')} />
+      <RadioCard name="live-provider" value="local" checked={choice === 'local'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
+        title={ui('本地转写（声音不上传）')} hint={ui('不需要密钥，转写在这台电脑上进行；要先安装。')} />
+      <RadioCard name="live-provider" value="gemini" checked={choice === 'gemini'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
+        title={ui('Gemini（云端）')} hint={ui('需要 Gemini 密钥和海外网络；声音发给 Google。')} />
+    </RadioCardGroup>
+    <LiveLocalCard settings initialStatus={initialLocal} />
+  </div>;
+}
+
+export default function AudioSettings({ busy, act, call, initialView = null, initialLocal = null }) {
   const toast = useToast();
   useInjectCss(css, 'study-audio-settings');
   const language = useUiLanguage();
@@ -130,6 +152,7 @@ export default function AudioSettings({ busy, act, call, initialView = null }) {
         {providerOrder(language).map((tier, index) => <KeyCard key={tier} provider={PROVIDERS[tier]} state={view[PROVIDERS[tier].field]}
           call={call} busy={busy} onSaved={saved} recommended={index === 0} />)}
       </ProviderGrid>
+      <LiveEngineChoice view={view} disabled={!!busy} onSave={patch => save(patch)} initialLocal={initialLocal} />
       <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
       <Disclosure className="audio-advanced settings-disclosure" summary={ui('高级')} meta={ui('校对与翻译的推理强度、付费密钥、模型')}>
         <AudioReasoning settings={view} busy={busy} onSave={save} efforts={model.options} modelName={model.model} />

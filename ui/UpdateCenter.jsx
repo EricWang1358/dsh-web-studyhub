@@ -246,12 +246,11 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
     if (result?.error) setCheckError(String(result.error));
   }
   const available = canUpgrade(update);
-  // How the check stands: tone and words differ for "up to date", "restart needed", "extension behind", "never checked".
+  // How the check stands: tone and words differ for "up to date", "restart needed", "never checked". An extension behind is said once, by its update notice below.
   const status = !update ? null
     : update.pendingRestart ? { tone: 'info', text: uiFormat('已安装 {0}，重启 DSH 后生效。', [update.pendingRestart]) }
-      : available || update.error ? null
-        : staleExtension ? { tone: 'warning', text: uiFormat('StudyHub 本体已是最新，但检索扩展还是 {0}，需要更新到 {1}。', [staleExtension.version, staleExtension.expected]) }
-          : update.checkedAt ? { tone: 'success', text: ui('已是最新版本。') } : { tone: 'hint', text: ui('还没有检查过更新。') };
+      : available || update.error || staleExtension ? null
+        : update.checkedAt ? { tone: 'success', text: ui('已是最新版本。') } : { tone: 'hint', text: ui('还没有检查过更新。') };
   const retry = { label: ui('重试'), onClick: checkUpdates };
   // The sentence for one failure, with a way to the release page whenever GitHub itself answered (not for "cannot connect").
   const failure = (code, manual) => <>

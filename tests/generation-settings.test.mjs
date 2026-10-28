@@ -26,16 +26,18 @@ test('old libraries expose complete generation defaults through settings and sna
     minimum_ease_factor: 1.3, second_interval_days: 6 } } });
   const snapshot = await service.call('snapshot');
   assert.deepEqual(snapshot.settings.generation, expected);
-  assert.equal(snapshot.settings.first_interval_days, 2);
+  // A library from a release with the SM-2 scheduler reads with the FSRS-6 defaults; the old keys are left out.
+  assert.equal('first_interval_days' in snapshot.settings, false);
+  assert.equal(snapshot.settings.request_retention, 0.9);
   assert.deepEqual((await service.call('export')).settings, snapshot.settings);
 });
 
 test('generation settings merge per field and preserve scheduling and sibling preferences', async t => {
   const service = await library(t);
-  await service.call('settings', { first_interval_days: 3, generation: { concurrency: 1, language: 'English', focus: '  Explain mechanisms  ' } });
+  await service.call('settings', { maximum_interval: 300, generation: { concurrency: 1, language: 'English', focus: '  Explain mechanisms  ' } });
   const saved = await service.call('settings', { generation: { batchSize: 2 } });
   assert.deepEqual(saved.generation, { ...expected, concurrency: 1, language: 'English', focus: 'Explain mechanisms', batchSize: 2 });
-  assert.equal(saved.first_interval_days, 3);
+  assert.equal(saved.maximum_interval, 300);
   const roundtrip = await service.call('export');
   await service.call('restore', { state: roundtrip });
   assert.deepEqual((await service.call('snapshot')).settings.generation, saved.generation);
@@ -48,7 +50,7 @@ test('invalid generation setting patches are refused without a partial write', a
     { batchSize: 6 }, { batchSize: 2.5 }, { jobTimeoutMinutes: 4 }, { jobTimeoutMinutes: 181 },
     { count: 0 }, { count: 501 }, { kind: 'case' }, { language: 'Klingon' }, { difficulty: 'hard' },
     { focus: 4 }, { focus: 'x'.repeat(2001) }, { phaseTimeoutMinutes: 30 }]) {
-    await assert.rejects(service.call('settings', { first_interval_days: 4, generation }), /generation/i);
+    await assert.rejects(service.call('settings', { maximum_interval: 400, generation }), /generation/i);
     assert.deepEqual(await service.call('export'), before);
   }
 });

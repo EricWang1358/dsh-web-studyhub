@@ -80,6 +80,7 @@
 | `lib/contexts/audio/worker.js:274`（`spawnCorrection`） | 旧校正的宿主子代理调用 | 不走（`audioLiveCorrection` 打开后由 Job 校正） | S6-2 删除 |
 | `lib/live-correction.js:127`（`setInterval`） | 旧滚动校正计时器 | 不走（`managed` 时 `start()` 直接返回） | S6-2 删除 |
 | `lib/contexts/audio/operations.js:214`（`ownWork(session)`）、`lib/live.js:134`（看门狗 `setInterval`） | 一场实时课堂（连接与它的生命周期） | 仍走 | 保留例外：会话子系统（计划：实时连接留在会话子系统；它的校正和保存是任务） |
+| `lib/live-local.js:59`、`lib/live-local-install.js:295`（`new Worker`） | 本地转写：一场课堂的识别线程；安装检查时加载引擎的一次性线程 | 仍走 | 保留例外：识别线程属于会话子系统（随一场实时课堂的连接开始和结束）；引擎检查是安装任务里的一步（等它结束） |
 | `lib/groq.js:67,81`（`spawn` ffmpeg） | 音频窗口的解码与切分，在音频 Job 内部 | 仍走（Job 内的叶子工作） | 保留例外：provider 实现；**不记为 Call**（缺口 7） |
 
 ### 3.2 PDF 与非模型任务

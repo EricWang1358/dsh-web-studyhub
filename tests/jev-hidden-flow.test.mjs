@@ -36,7 +36,7 @@ const render = (element, language = 'zh') => { setUiLanguage(language); try { re
 const JEV_TRACE = /Jev|jev-|settings-jev|data-experimental|jev\./;
 await warmSettingsPanes(Settings);
 
-const defaults = { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 };
+const defaults = { request_retention: 0.9, maximum_interval: 36500 };
 const data = (extra = {}) => ({ root: 'D:\\Study\\library', settings: { ...defaults }, sources: [], decks: [], drafts: [], courses: [], jobs: [], model: { ready: true }, modelReady: true,
   focus: { mode: 'class', course: 'A', courses: [{ name: 'A' }] }, ...extra });
 const settingsPage = (extra = {}, props = {}) => h(Settings, { data: data(extra), busy: false, act: noop, call: noop, setNotice: noop, settings: { ...defaults }, setSettings: noop,

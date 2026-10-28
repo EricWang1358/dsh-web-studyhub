@@ -8,7 +8,7 @@ import { STRUCTURE_DONE, structureFailureText } from './book-structure.js';
 import { showBlock, showWords } from './ai-anchors.js';
 import { bookStartedText } from '../outline/words.js';
 
-/* What the review book page does besides placing the reader (ui/book/BookPage.jsx): the 期末一周 plan, the export's page estimate, the handlers every
+/* What the review book page does besides placing the reader (ui/book/BookPage.jsx): the 期末一周 plan, the 备考计划, the export's page estimate, the handlers every
    point reads, and the book's structure (改名 / 移动到… / 删除这个知识点…, one compare-and-set write each; ui/book/BookStructure.jsx). The AI tasks and
    deletions they start are ui/book/use-book-ai.js. */
 
@@ -32,6 +32,19 @@ export function useBookCrunch({ call, course, book, notify }) {
     try { setCrunch(await call('book.crunch.mark', { course, hid, kind, on, date: localDate() })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [call, course, notify]);
   return { crunch, day, points, mark };
+}
+
+/** 备考计划 (course.plan, lib/course-plan.js): the course's whole-period plan, asked again when the book or the library changes (a plan agreed in the chat, an exam date,
+    answers: `revision` is the snapshot's) or when 刷新 is pressed; the program makes it again from what was done, no model call. -> { answer, refresh }; answer: null
+    until the first answer, { status: 'error' } when it could not be asked. */
+export function useCoursePlan({ call, course, book, revision }) {
+  const [answer, setAnswer] = useState(null), [ticket, setTicket] = useState(0);
+  useLiveEffect(isLive => {
+    if (book?.status !== 'ok' || !book.notes || !course) return;
+    call('course.plan', { course, date: localDate() }).then(next => { if (isLive()) setAnswer(next); }, () => { if (isLive()) setAnswer({ status: 'error' }); });
+  }, [call, course, book?.revision, book?.status, book?.notes, revision, ticket]);
+  const refresh = useCallback(() => setTicket(value => value + 1), []);
+  return { answer, refresh };
 }
 
 /** 导出's estimate against the page limit (settings.book.pageLimit): the A4 pages of the book, or null until known (and without a book). */
