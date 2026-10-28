@@ -13,7 +13,7 @@ const FIELDS = [
   { key: 'request_retention', label: '目标记忆率', unit: '%', scale: 100, ...LIMITS.request_retention,
     tip: '下次复习时，希望还有多大把握记得这道题。调高：复习更勤，记得更牢；调低：复习更少，忘得也更多。默认 90%，可设 70%–97%。' },
   { key: 'maximum_interval', label: '最长间隔', unit: '天', scale: 1, ...LIMITS.maximum_interval,
-    tip: '两次复习之间最多隔几天。离考试不远时，可以设成离考试天数的一半，保证考前每道题至少再见一次。默认 36500 天，相当于不设上限。' },
+    tip: '两次复习之间最多隔几天。离考试不远时，可以设成离考试天数的一半：之后排出的间隔都不会超过它。已经排好的复习日期不会提前，要等那道题下次作答时才按新的上限排。默认 36500 天，相当于不设上限。' },
 ];
 const numbers = (settings = {}) => Object.fromEntries(FIELDS.map(({ key }) => [key, Number(settings[key])]));
 /** What the input shows: 0.9 → 90; blank stays blank. */

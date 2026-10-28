@@ -167,6 +167,9 @@ test('the FSRS-6 form is two number fields, each explained on hover, with a live
   assert.equal((html.match(/class="sm2-field-tip"[^>]*tabindex="0"|tabindex="0"[^>]*class="sm2-field-tip"/g) || []).length, 2);
   assert.match(html, /下次复习时，希望还有多大把握记得这道题。/);
   assert.match(html, /两次复习之间最多隔几天。/);
+  // Honest about dates already set: a new maximum applies at a question's next answer, nothing is promised before the exam.
+  assert.match(html, /已经排好的复习日期不会提前，要等那道题下次作答时才按新的上限排。/);
+  assert.doesNotMatch(html, /保证考前/);
   assert.doesNotMatch(html, /<label[^>]*title=/);
   assert.match(html, /默认值就能用；只有想复习得更勤或更少时才需要改。/);
   assert.doesNotMatch(html, /熟练系数|SM-2/);

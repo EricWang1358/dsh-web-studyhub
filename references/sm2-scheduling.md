@@ -4,7 +4,7 @@ This file keeps its old name because other pages link to it. Up to 3.7 StudyHub 
 
 ## Scheduling versus verified learning
 
-The scheduler chooses a card's next review time. Its interval is not a certificate of understanding, transfer, practical skill or whole-course coverage. The native plugin derives an estimated mastery view from intervals and recent attempts (`lib/mastery.js`: under 6 days 学习中, 6 days or more 熟悉, 21 days or more 已掌握); the [planned evidence policy](../docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) separates that estimate from per-knowledge-point verification. Self-ratings, implicit prerequisite credits and retries retain their provenance and cannot silently become independent evidence.
+The scheduler chooses a card's next review time. Its interval is not a certificate of understanding, transfer, practical skill or whole-course coverage. The native plugin derives an estimated mastery view from intervals and recent attempts (`lib/mastery.js`: under 6 days 学习中, 6 days or more 熟悉, 21 days or more with at least two right answers in a row 已掌握; when a review was scheduled under a maximum interval below 6 or 21 days, that line comes down to the maximum, so the levels mean the same whatever the settings; a self-graded 5 shows 已掌握 at once, as it always did); the [planned evidence policy](../docs/plans/2026-09-27-1945-feat-evidence-based-learning-plan.md) separates that estimate from per-knowledge-point verification. Self-ratings, implicit prerequisite credits and retries retain their provenance and cannot silently become independent evidence.
 
 ## What FSRS-6 predicts
 
@@ -13,13 +13,13 @@ FSRS keeps two numbers per card:
 - **stability**: the number of days after which the chance of still recalling the card falls to 90%;
 - **difficulty**: 1 (easy) to 10 (hard).
 
-After each answer it updates both from the rating and from the days that really passed since the last review (whole UTC calendar days). The chance of recall after `t` days is `R(t) = (1 + FACTOR · t / S)^(−DECAY)`, with `DECAY = w20` (0.1542 by default) and `FACTOR = 0.9^(−1/DECAY) − 1`, so that `R(S) = 0.9`. The next review is placed where that chance falls to the learner's target recall (`request_retention`, default 0.9). So:
+After each answer it updates both from the rating and from the days that really passed since the last review: whole calendar days in the local time zone of the machine StudyHub runs on, so "the same day" is the learner's day (ts-fsrs counts UTC days; in Beijing that would split 07:50 and 08:10 into two days). The chance of recall after `t` days is `R(t) = (1 + FACTOR · t / S)^(−DECAY)`, with `DECAY = w20` (0.1542 by default) and `FACTOR = 0.9^(−1/DECAY) − 1`, so that `R(S) = 0.9`. The next review is placed where that chance falls to the learner's target recall (`request_retention`, default 0.9). So:
 
 - a card answered on time and right gets a much longer interval;
 - a card answered before it is due gets a smaller increase, and one answered again on the same day keeps its interval;
 - a wrong answer on a learned card lowers its stability and shortens the interval, though not always to 1 day.
 
-The formulas, the 21 default weights, the clamps and the ordering of the four candidate intervals (Again ≤ Hard < Good < Easy) follow [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) 5.4.2 in its long-term mode without fuzz: there are no minute-level learning steps, because StudyHub stores whole days. `tests/fsrs-parity.test.mjs` replays thousands of random histories through both and requires identical stability, difficulty and intervals. The one intended difference: the maximum interval is a hard cap here, where ts-fsrs may push Good and Easy a day or two past it.
+The formulas, the 21 default weights, the clamps and the ordering of the four candidate intervals (Again ≤ Hard < Good < Easy) follow [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) 5.4.2 in its long-term mode without fuzz: there are no minute-level learning steps, because StudyHub stores whole days. `tests/fsrs-parity.test.mjs` replays thousands of random histories through both and requires identical stability, difficulty and intervals. Two intended differences: days are counted on the local calendar, not UTC's (the parity test feeds ts-fsrs the same instants shifted by the local UTC offset, under three time zones), and the maximum interval is a hard cap here, where ts-fsrs may push Good and Easy a day or two past it. A review scheduled under a maximum below the default keeps that maximum (`maximum_interval`) for the mastery lines.
 
 The weights are the published defaults; StudyHub does not optimise them per learner. Benchmarks of FSRS were run on long-time Anki users, so for a learner with a handful of answers per card the predictions are an estimate.
 
@@ -55,7 +55,7 @@ Nothing is rewritten when the plugin updates, and no due date moves. A card's SM
 
 - stability = the SM-2 interval in days;
 - difficulty = `10 − (ease − 1.3) · 9 / 2.2`, clamped to 1–10 (ease 2.5 → about 5.1, ease 1.3 → 10);
-- last review = `due_at − interval_days`.
+- last review = `due_at − interval_days` (with no usable `due_at`, as a legacy import can have, the card is taken as due now: last review = now − interval; its streak is kept).
 
 Until then the card reads as before: same due date, same mastery level.
 

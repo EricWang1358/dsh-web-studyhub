@@ -73,5 +73,10 @@ const summary = await runQa({ name: "fsrs-shots", options, seed, async run({ pag
     await page.locator(".sm2-field-tip").first().hover(); await sleep(600);
     await noSideways(page, "settings tip");
   });
+  await step("settings-maximum-tip", async () => {
+    await page.mouse.move(0, 0); await sleep(300);
+    await page.locator(".sm2-field-tip").nth(1).hover(); await sleep(600);
+    await noSideways(page, "maximum tip");
+  });
 } });
 finishCli("fsrs-shots", options, summary);
