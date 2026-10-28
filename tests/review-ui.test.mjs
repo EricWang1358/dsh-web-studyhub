@@ -88,6 +88,18 @@ for (const kind of ["quiz", "multi", "cloze", "flashcard", "open"]) {
     }
   });
 }
+test("a cloze draws the formulas of its text and of its expected answer, a blank inside a formula splitting it in two", () => {
+  const expected = "$\\max\\{\\frac{m}{p_2}-1,0\\}$";
+  const card = { id: "q", kind: "cloze", topic: "需求", prompt: "", cloze: { text: "在 $u=\\ln x_1+x_2$ 下，$x_2^*={{b1}}$。", blanks: [{ id: "b1" }] } };
+  const html = render("cloze", true, { card, feedback: { correct: false, answers: { b1: "2" }, details: [{ id: "b1", correct: false, expected }] },
+    solution: { answer: expected, cloze: { answers: [{ id: "b1", value: expected }] } } });
+  assert.match(html, /<span class="md-math-source">\$u=\\ln x_1\+x_2\$<\/span>/);
+  assert.match(html, /<span class="md-math-source">\\\(x_2\^\*=\\\)<\/span>/);
+  assert.match(html, /cloze-expected"><span class="md-math"><span class="md-math-source">\$\\max/);
+  assert.doesNotMatch(html, /\$x_2\^\*=/, "the formula the blank was in is not shown as raw text");
+  assert.match(html, /你的答案：2/);
+});
+
 test("cloze shows each correction once without claiming a lost answer was blank", () => {
   const html = render("cloze", true);
   assert.doesNotMatch(html, /cloze-verdicts|空<\/span>/);
