@@ -1563,6 +1563,44 @@
       "removeAt": "after default flip"
     },
     {
+      "file": "lib/live-local-install.js",
+      "calls": [
+        {
+          "callee": "new Worker",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "live-class.md (local transcription); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "checkEngine: one short worker that loads the installed local transcription engine, awaited inside the install's check stage (a step of the install run, ended by its timeout or signal)",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/live-local.js",
+      "calls": [
+        {
+          "callee": "new Worker",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "plan.md (the live connection stays with the session subsystem); live-class.md (local transcription); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the recognizer thread of a class on the local transcription engine (the loopback socket's other end; it lives and ends with the class connection)",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
+        }
+      ]
+    },
+    {
       "file": "lib/live.js",
       "calls": [
         {

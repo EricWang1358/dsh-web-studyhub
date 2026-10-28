@@ -102,13 +102,13 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **22 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"；第 19 个是课程总纲的整理任务 `course-outline-build`，第 20 个是复习全书的生成任务 `course-book-build`，都在 2026-10-09 加入；第 21 个是复习全书的弄懂 / 加一段 `course-book-ai`，第 22 个是分析题答案卡 `case-answer-card`，都在 2026-10-11 加入。3.6 起本机 MinerU 的旧准备任务 `mineru-setup` 删除，Marker 与 MinerU 的一键安装共用一个定义 `install-job.js`，所以比之前少一个）；其余全部在下面。
 
-**数量**：模型形状的调用点 36 行、后台启动点 35 行（合计 93 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
+**数量**：模型形状的调用点 36 行、后台启动点 37 行（合计 95 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
 
 | 处置 | 数量 | 含义 |
 |---|---|---|
 | `migrate`（开关全开后仍在运行时之外，须由某一步迁移） | **0** | 没有。每一个迁移位置都已迁移，没有"以后再迁"的静默旁路 |
 | `delete-s6-2`（旧路径，开关全开后不可达） | 21 | 24 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
-| `exception`（有意保留，写明类别和理由） | 72 | 见下表的类别与理由；没有"待定"类 |
+| `exception`（有意保留，写明类别和理由） | 74 | 见下表的类别与理由；没有"待定"类 |
 
 **不是干净清零的几处，以及所有者对它们的决定（2026-10-07）：**
 
@@ -157,7 +157,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/translation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The translation pipeline takes its model as an argument (the reader asks it directly; the translate card is a Job when translation is on) | retained; S6-2 (original callers) |
 | `lib/workflow-teaching.js` | existing domain maintainer | 旧路径（开关关时的默认）（删除待默认值翻转） | The in-process teaching call (the Job runs it behind the gateway when workflow is on) | after default flip |
 
-### 4.2 后台启动点（35 行）
+### 4.2 后台启动点（37 行）
 
 | 文件 | 负责人 | 类别 | 理由 | 移除时点 |
 |---|---|---|---|---|
@@ -186,6 +186,8 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/jobs/lifecycle/job-record.js` | runtime kernel maintainer | 内核 | the kernel puts its job under its owner | exception |
 | `lib/jobs/lifecycle/scoped.js` | runtime kernel maintainer | 内核 | the kernel writes its own job into the job table | exception |
 | `lib/live-correction.js` | audio family (lane A) | 旧路径（开关关时的默认）（删除待默认值翻转） | the rolling-correction timer of a class; a managed class (audioLiveCorrection) starts none | after default flip |
+| `lib/live-local-install.js` | audio family (lane A) | 服务商叶子实现 | checkEngine: one short worker that loads the installed local transcription engine, awaited inside the install's check stage | exception |
+| `lib/live-local.js` | audio family (lane A) | 会话子系统 | the recognizer thread of a class on the local transcription engine; it lives and ends with the class connection | exception |
 | `lib/live.js` | audio family (lane A) | 会话子系统 | the watchdog of a live class connection | exception |
 | `lib/local-command.js` | non-model family (lane D) | 服务商叶子实现 | runLocalCommand: the one runner of local programs (process tree stop, KILL_WAIT_MS) | exception |
 | `lib/marker-install.js` | non-model family (lane D) | 服务商叶子实现 | Marker's install stages (venv, pip, check) inside the shared engine's begin(): a Call of the Job when markerInstall is on | after default flip |
