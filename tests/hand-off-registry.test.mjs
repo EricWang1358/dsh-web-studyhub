@@ -40,6 +40,8 @@ const FIXTURES = {
     fenced: ['course', 'goal'] },
   // the main chat's front door (skills/study-guide): no learner data, so nothing is fenced
   'guide.start': { input: {}, fenced: [] },
+  // the 备考计划 on the review book page: the chat drafts it with the learner (ui/book/PlanSection.jsx)
+  'course.plan': { input: { course: 'SA', examDate: '2026-12-01', hasPlan: true }, fenced: [] },
   'reader.page': { input: { title: 'Scheduling', page: 3, text: 'Page 3 explains round robin.', question: 'What does figure 2 show?' }, fenced: ['title', 'text', 'question'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.

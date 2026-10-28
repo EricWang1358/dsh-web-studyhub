@@ -11,6 +11,7 @@ import { groupPrompt } from '../topic-group-prompt.js';
 import { pathBrief } from './path.js';
 import { guideStartPrompt } from './guide.js';
 import { pageQuestionPrompt } from './reader.js';
+import { coursePlanPrompt } from './plan.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
    ui/hand-off/ sends only ids from it. An entry's builder returns the parts of one message (ui/agent-prompts/message.js: the learner's sentence, the notes
@@ -37,6 +38,8 @@ export const HAND_OFFS = Object.freeze({
   'path.brief': { build: (input, language) => pathBrief(input, language) },
   'reader.page': { build: (input, language) => pageQuestionPrompt(input, language), tail: 'image' },
   'guide.start': { build: (input, language) => guideStartPrompt(input, language), skill: 'study-guide', tail: 'ask' },
+  // 备考计划 on the review book page: drafted with the learner in the chat, saved only after they agree (ui/book/PlanSection.jsx)
+  'course.plan': { build: (input, language) => coursePlanPrompt(input, language) },
 });
 
 /** Whether `id` names a registered hand-off. */

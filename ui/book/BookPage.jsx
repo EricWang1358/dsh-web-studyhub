@@ -19,13 +19,14 @@ import BookStep from './BookStep.jsx';
 import BookAskLayer from './BookAskLayer.jsx';
 import BookExport from './BookExport.jsx';
 import BookStructureDialog from './BookStructure.jsx';
+import PlanSection from './PlanSection.jsx';
 import { EditView, FlipView, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
 import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
 import { useBookAi } from './use-book-ai.js';
-import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages } from './use-book-actions.js';
+import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { bookRows, crunchDateHint, keepBook, tocEntries } from './model.js';
@@ -68,6 +69,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     keepBook(root, course, { view: null, switched: false });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const plan = useBookCrunch({ call, course, book, notify });
+  const period = useCoursePlan({ call, course, book, revision: data?.revision });
+  // 备考计划's fold is kept in this browser per library and course (open at first: it is the page's plan).
+  const [planOpen, setPlanOpen] = usePersistentState(`study-book-plan:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
   const aiFold = useAiFold(root, course);
   const ai = useBookAi({ call, course, notify, reload, book, setBook, rows, aiFold, goTo: where.goTo });
@@ -149,6 +153,11 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         hid={step?.hid ?? null} tocOpen={tocOpen}
         onToc={() => (narrow ? setTocOver(value => !value) : setTocWide(!tocWide))} onPrev={where.current > 0 ? () => where.go(-1) : null}
         onNext={where.current < steps.length - 1 ? () => where.go(1) : null} more={menu} notice={notice} />
+      <PlanSection plan={period.answer} course={course} windowDays={crunchWindow(data?.settings?.book)} open={planOpen} onToggle={() => setPlanOpen(!planOpen)} onRefresh={period.refresh}
+        onExamDate={courseRecord?.id && onCourseSettings ? () => onCourseSettings(courseRecord.id) : null} onToday={plan.day ? () => setTodayOpen(value => !value) : null} todayOpen={todayOpen}
+        onRead={point => { if (period.answer?.schedule?.today?.mode === 'review') { openView('flip'); return; } where.goTo(point.id); }}
+        onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={async (point, on) => { await plan.mark(point.id, 'read', on); period.refresh(); }}
+        onFlip={() => openView('flip')} onMockStarted={onExamRun} />
       {plan.day && todayOpen && <TodayPanel course={course} crunch={plan.crunch} day={plan.day} points={plan.points}
         onRead={point => { if (plan.day.mode === 'flip') { openView('flip'); return; } where.goTo(point.id); }}
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}

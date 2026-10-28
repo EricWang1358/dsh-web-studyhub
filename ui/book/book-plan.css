@@ -1,0 +1,97 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 备考计划 on the review book page (ui/book/PlanSection.jsx): a hairline block under the book bar, never a box inside a box. The head is one wrapping row (the
+       title folds the section, the countdown, the numbers, what did not fit, 刷新); the phases, today's day (the 期末一周 day component, whose classes ui/book/book.css
+       owns), the next days and one note follow. Without a plan it is one quiet line. Tokens only; long names wrap. */
+    .book-plan {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      overflow-wrap: anywhere;
+    }
+    .book-plan--quiet {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+      padding: var(--space-1) 0;
+      border: 0;
+      background: none;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-plan__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+      min-width: 0;
+    }
+    .book-plan__title {
+      font-weight: var(--fw-strong);
+    }
+    .book-plan__countdown,
+    .book-plan__coverage,
+    .book-plan__note,
+    .book-plan__range,
+    .book-plan__goal,
+    .book-plan__summary,
+    .book-plan__date {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-plan__refresh {
+      margin-inline-start: auto;
+    }
+    .book-plan__phases,
+    .book-plan__next {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-plan__phase {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      padding-inline-start: var(--space-2);
+      border-inline-start: 2px solid var(--line-soft);
+      min-width: 0;
+    }
+    .book-plan__phase[data-current] {
+      border-inline-start-color: var(--accent);
+    }
+    .book-plan__day {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
+    }
+    .book-plan__day[data-mode='off'] .book-plan__kind {
+      color: var(--text-muted);
+    }
+    .book-plan__date {
+      font-variant-numeric: tabular-nums;
+    }
+    .book-plan__handover,
+    .book-plan__note,
+    .book-plan__revise {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+    }
+  }
+}
