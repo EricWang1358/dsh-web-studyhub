@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { ui, uiFormat, uiIsEnglish } from './i18n.js';
 import { Banner, Button, Hint, Icon, InlineMessage, SetupRequired } from './components/index.js';
 import { ModelSettingsContext, useModelSettingsLabel } from './ModelErrorNote.jsx';
+import { hostPart } from './host-parts.js';
 
 /* "There is no AI model yet", said in one place. Every page that needs a model shows this gate instead of its own wording:
      block    a whole step is replaced by it (the submit area of a form, the model pane of Settings): why, the exact steps, the one button
@@ -48,6 +49,8 @@ const keyHint = () => <>{ui('去哪拿 Key、要不要充值：看')}<a href={ke
  * `pick` is how this page lets the learner choose a model (the pane of Settings has the choice right there).
  */
 function setupSteps({ reason, label } = {}, pick) {
+  // A host that keeps its own model setup says its own steps (ui/host-parts.js).
+  if (hostPart('modelSetupSteps')) return hostPart('modelSetupSteps')({ reason, label }, pick);
   const choose = { text: pick || ui('选一个模型：用主会话输入框里的模型选择器，或到 StudyHub「设置 › 学习库与模型」的「生成模型」里选'), choose: true };
   if (reason === 'no-credential') {
     const provider = providerOf(label);
@@ -257,8 +260,8 @@ export default function ModelSetupGate({ variant = 'block', feature = 'generate'
   if (variant === 'compact') return <Hint tone="warning" role="status" className={className} data-model-gate="compact" {...rest}>{copy.line}{open && <>{' '}<Button variant="link" size="sm" onClick={open.onClick}>{open.label}</Button></>}</Hint>;
   if (variant === 'inline') return <InlineMessage tone="warning" title={gateTitle('inline')} action={open} className={className} {...rest}>{copy.line}</InlineMessage>;
   if (variant === 'banner') return <Banner tone="warning" title={gateTitle('banner')} action={open} className={className} {...rest}>{copy.note}</Banner>;
-  const setup = setupSteps(model || {}, copy.pick);
+  const setup = setupSteps(model || {}, copy.pick), Form = feature !== 'settings' ? hostPart('ModelGateForm') : undefined;
   return <SetupRequired icon="model" tone={feature === 'grade' ? 'warning' : 'neutral'} badge={copy.badge} title={gateTitle('block')} why={say(modelFact(model || {}), copy.why)}
     steps={setup.length ? [...setup, { text: copy.then }] : []} primary={open && { ...open, icon: 'model', variant: quiet ? 'secondary' : 'primary' }}
-    secondary={onRecheck ? { label: checking ? ui('正在检查…') : ui('重新检查'), icon: 'refresh', disabled: checking, onClick: onRecheck } : undefined} className={className} {...rest} />;
+    secondary={onRecheck ? { label: checking ? ui('正在检查…') : ui('重新检查'), icon: 'refresh', disabled: checking, onClick: onRecheck } : undefined} className={className} {...rest}>{rest.children}{Form && <Form feature={feature} />}</SetupRequired>;
 }

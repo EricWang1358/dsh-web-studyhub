@@ -41,6 +41,8 @@
     "docs/install.html",
     "docs/install.zh-CN.md",
     "docs/install.zh-CN.html",
+    "docs/zcode.md",
+    "docs/zcode.zh-CN.md",
     "docs/audio-import.md",
     "docs/audio-import.zh-CN.md",
     "docs/live-class.md",
@@ -136,6 +138,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:zcode": "node scripts/build-zcode.mjs",
     "prepare": "node scripts/prepare.mjs",
     "build:demo": "node scripts/build-demo.mjs",
     "test": "node scripts/test.mjs",
@@ -171,6 +174,8 @@
     "changelog:seal": "node scripts/changelog.mjs --seal",
     "sync:main": "node scripts/sync-main.mjs",
     "release:check": "node scripts/qa/release-artifacts.mjs",
+    "release:zcode": "node scripts/release-zcode.mjs",
+    "release:zcode:check": "node scripts/qa/release-zcode-artifacts.mjs",
     "site:build": "node scripts/site-build.mjs",
     "site:preview": "node scripts/site-server.mjs --port=4322",
     "site:qa": "node scripts/site-qa.mjs",
@@ -203,6 +208,8 @@
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-user-approval": "^0.2.1-rc.2",
     "@fontsource-variable/inter": "^5.3.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.3",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@phosphor-icons/core": "^2.1.1",
     "@playwright/test": "^1.55.0",
     "esbuild": "^0.25.0",
@@ -211,7 +218,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.3",

@@ -14,6 +14,7 @@ import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
 import { isNewerVersion } from '../lib/semver.js';
 import css from './update.css';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
+import { hostPart } from './host-parts.js';
 
 let snapshot = { update: null, checking: false };
 const listeners = new Set();
@@ -129,6 +130,9 @@ function CopyAddress({ address }) {
 }
 
 function GuidedUpgrade({ update, host }) {
+  // A host that is not DSH upgrades its own way (ui/host-parts.js).
+  const Own = hostPart('UpgradeGuide');
+  if (Own) return <Own update={update} host={host} />;
   const address = update.assetUrl || update.url;
   return (
     <section className="update-guided" aria-label={ui('手动升级')}>

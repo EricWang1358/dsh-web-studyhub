@@ -86,6 +86,15 @@ Each plugin acquires its contribution to the shared `studyRuntime` service:
 
 The script does not build or verify. The release coordinator runs those steps first.
 
+### The ZCode edition
+
+The `zcode` branch follows `main` and adds a second host: StudyHub as a ZCode plugin ([user guide](zcode.md)). It runs the same `lib/` through the same host handler; nothing in `lib/` knows about ZCode.
+
+- `packages/studyhub-zcode/host/entry.mjs` is an MCP stdio server. `study_workspace` is the model's gateway (`lib/study-contracts.js`, with `lib/assistant-boundary.js` applied); `study_call` is the panel's transport (page-only); `studyhub_open` and `studyhub_status` open and summarise; DSH's typed domain tools (`lib/runtime/tools.js`) are registered as they are. The panel is served as `ui://studyhub/*` resources.
+- `host/study-host.mjs` calls `lib/host.js` `createHostHandler` over a ZCode-shaped context, like the local preview does. It adds the library folder and the learner's OpenAI-compatible endpoint (saved in `<StudyHub home>/study/zcode.json`), and an in-process job executor (`host/job-executor.mjs`, passed through `servicesForHost`): a job ends when ZCode quits and is offered for 接着做 on the next start.
+- `ui/zcode.jsx` is the panel entry (`study_call` through the ext-apps connection the shell page made). ZCode-only UI (the model form, the upgrade steps) is registered through `ui/host-parts.js`; the shared pages ask for a part in one line and draw what they drew before when there is none.
+- `npm run build:zcode` builds the chunked panel; `npm run release:zcode` stages the plugin with this commit's `lib/`, `skills/`, `references/`, `locale/` and `presets/`, installs its production dependencies and zips it (`StudyHub-ZCode-<version>.zip`, its own `SHA256SUMS-ZCode-<version>.txt`), uploaded to the same GitHub release.
+
 ## The runtime service
 
 ### Call the runtime from a plugin

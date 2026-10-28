@@ -6,6 +6,7 @@ import Inbox from '../Inbox.jsx';
 import { Button, Icon, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from './app-context.js';
+import { hostPart } from '../host-parts.js';
 import css from './app-shell.css';
 
 /** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
@@ -50,7 +51,7 @@ export function statusText({ busy, running, publishing, syncIssue, syncTransient
     click is never added: the clickable state (no model) says its action in its own accessible name. The steady states and 正在处理… have none. */
 export function statusHint({ busy, running, publishing, syncIssue, syncTransient }) {
   if (busy || (running && publishing)) return undefined;
-  if (running) return ui('有后台任务在进行（转换、转写、出题等）');
+  if (running) return hostPart('runningNote')?.() || ui('有后台任务在进行（转换、转写、出题等）');
   if (!syncIssue) return undefined;
   if (isTransient({ syncIssue, syncTransient })) return ui('连接中断，正在重试…');
   const reason = uiMessage(syncIssue);

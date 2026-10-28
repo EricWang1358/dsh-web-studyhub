@@ -256,7 +256,8 @@
       "ui/study-map/DeckTree.jsx": 1,
       "ui/study-map/DeskIntro.jsx": 1,
       "ui/study-map/HomeActivity.jsx": 1,
-      "ui/tour/Tour.jsx": 1
+      "ui/tour/Tour.jsx": 1,
+      "ui/zcode.jsx": 1
     },
     "chatHandOff": {},
     "chatOldWording": {}

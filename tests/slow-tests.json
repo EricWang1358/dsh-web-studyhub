@@ -157,6 +157,8 @@
     "tests/unified-runtime-rebind-race.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
     "tests/wp28b-companion.test.mjs",
-    "tests/wp6-m4a.test.mjs"
+    "tests/wp6-m4a.test.mjs",
+    "tests/zcode-mcp-roundtrip.test.mjs",
+    "tests/zcode-shared-library.test.mjs"
   ]
 }

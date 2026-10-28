@@ -68,6 +68,7 @@ import modelSetup from './locales/en.model-setup.json';
 import generateShort from './locales/en.generate-short.json';
 import outlineCopy from './locales/en.outline.json';
 import deleteCopy from './locales/en.delete.json';
+import zcodeCopy from './locales/en.zcode.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -138,6 +139,7 @@ export const ENGLISH_SOURCES = {
   'en.generate-short.json': generateShort,
   'en.outline.json': outlineCopy,
   'en.delete.json': deleteCopy,
+  'en.zcode.json': zcodeCopy,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

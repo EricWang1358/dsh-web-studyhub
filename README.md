@@ -8,6 +8,8 @@ Free and open source, your materials stay on your computer; pick your own model 
 
 StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/harness/), an AI agent app. DSH runs as a desktop app or as a web page served from your own computer, and StudyHub opens inside it.
 
+Using ZCode instead? Every release also ships a ZCode package with a one-click installer: see [StudyHub for ZCode](docs/zcode.md). The idea and the first port come from community member BAXUIE. Thank you!
+
 [Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 3.7.2](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.7.2) · [Changelog](CHANGELOG.md)
 
 The demo runs in your browser with sample questions and prepared AI replies. It needs no install and no key, and your progress there stays in that browser.

@@ -1,0 +1,36 @@
+{
+  "name": "studyhub",
+  "version": "0.0.0-repo",
+  "description": "StudyHub for ZCode: course materials into source-cited questions, practice and spaced review, in a side-panel UI. Shares the StudyHub library and home with a DeepSeek Harness install on the same computer.",
+  "author": {
+    "name": "StudyHub"
+  },
+  "homepage": "https://github.com/EricWang1358/dsh-web-studyhub/tree/zcode",
+  "license": "MIT",
+  "commands": "commands",
+  "skills": "skills",
+  "mcpServers": {
+    "studyhub": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/host/entry.mjs"
+      ]
+    }
+  },
+  "ui": {
+    "surfaces": [
+      {
+        "id": "studyhub",
+        "title": {
+          "en-US": "StudyHub",
+          "zh-CN": "StudyHub 学习中枢"
+        },
+        "icon": "graduation-cap",
+        "server": "studyhub",
+        "resourceUri": "ui://studyhub/panel.html",
+        "availability": "session"
+      }
+    ]
+  }
+}
