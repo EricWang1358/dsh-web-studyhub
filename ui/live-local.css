@@ -1,0 +1,19 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 本地（不联网）: the live class's local engine card (ui/LiveLocalCard.jsx). Its install rows are the one-click MinerU card's (mineru-install__*,
+       ui/mineru-install.css); this file owns only the card's frame, its head and its status line. Tokens only; 12 px floor. */
+    .live-local-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); min-width: 0; padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg); }
+    .live-local-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+    .live-local-card__name { font-size: var(--fs-md, var(--fs-sm)); color: var(--text); }
+    .live-local-card__tipped { display: inline-flex; border-radius: var(--radius-pill); }
+    .live-local-card__about { margin-inline-start: auto; color: var(--text-dim); font-size: var(--fs-sm); border-radius: var(--radius-xs);
+      text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+    .live-local-card__tipped:focus-visible, .live-local-card__about:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .live-local-card__line { min-height: calc(var(--lh-snug) * var(--fs-sm)); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug);
+      overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+    .live-local-card[data-state="ready"] .live-local-card__line { color: var(--ok-ink); }
+  }
+}
