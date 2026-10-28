@@ -189,7 +189,7 @@ test('Settings › Advanced has a category for the usage record and one for the 
   const advanced = SETTINGS_GROUPS.find(group => group.id === 'advanced');
   assert.equal(advanced.title, '高级');
   const props = { data: { sources: [], contexts: ['system'], settings: {}, root: '/tmp/lib', experimental: false }, busy: false, act: noop, call: async () => ({}), host: {}, setNotice: noop,
-    settings: { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 }, setSettings: noop, legacy: '', setLegacy: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null, exportData: noop, onRestored: noop, initialProfile: { consent: false, goal: '', summary: '', signals: {} } };
+    settings: { request_retention: 0.9, maximum_interval: 36500 }, setSettings: noop, legacy: '', setLegacy: noop, workspacePanel: null, coursePanel: null, onboardingPanel: null, exportData: noop, onRestored: noop, initialProfile: { consent: false, goal: '', summary: '', signals: {} } };
   for (const experimental of [false, true]) {
     for (const [anchor, tour] of [['settings-usage', 'settings-usage'], ['settings-experimental', 'settings-experimental']]) {
       const html = render(h(Settings, { ...props, focusSection: anchor, data: { ...props.data, experimental } }));

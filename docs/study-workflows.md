@@ -76,7 +76,7 @@ In practice:
 
 **Learning flow** (sidebar, **Every day** group) guides one study session. It is optional: the home page, decks and outlines work the same without it.
 
-Completing a step records the activity only. Question grades and SM-2 review schedules are saved as usual, and nothing marks you as having mastered a topic.
+Completing a step records the activity only. Question grades and FSRS-6 review schedules are saved as usual, and nothing marks you as having mastered a topic.
 
 ### Start a session
 
@@ -172,7 +172,7 @@ The loop StudyHub supports today:
 2. Check the draft and confirm its title and course, then **Publish and practise**.
 3. Practise up to 10 new questions.
 4. Answer, or flip a card and rate yourself.
-5. Read the explanation; SM-2 schedules the next review.
+5. Read the explanation; FSRS-6 schedules the next review.
 6. When you need it, ask for help, a prerequisite question or a repair.
 7. Read the round summary, then continue by choice or come back later.
 
@@ -219,7 +219,7 @@ The rules and the development breakdown are in the [development plan](plans/2026
 | 2. Minimal prerequisite check | A few small checks to find the current level; "I don't know" and "later" are allowed | Separates "not checked yet", real gaps and environment blocks; prepares the smallest remediation | Remediation starts only when the learner clicks to fill the gap, and returns to the original place. Skipping still shows the gap. |
 | 3. See the whole case | First one understandable process, then a few concepts and relationships | Maps the five decks onto one course storyline; concepts without questions still show | The learner can say in their own words what problem is being solved; if not, back to the matching prerequisite |
 | 4. Understand one unit | Watch a worked example, fill in steps, explain why, then work alone | Reduces help step by step and records the stage and help used | A dimension advances only when its required grading items pass. Finishing an explanation is not learning it. |
-| 5. Recall and retain | Answer with the material closed; retest at least 24 hours after the concept was last studied | Records explanations, hints and practice across questions with times; SM-2 still schedules the cards | A correct answer right after reteaching counts only as current performance. A delayed failure returns to the weak point. |
+| 5. Recall and retain | Answer with the material closed; retest at least 24 hours after the concept was last studied | Records explanations, hints and practice across questions with times; FSRS-6 still schedules the cards | A correct answer right after reteaching counts only as current performance. A delayed failure returns to the weak point. |
 | 6. Transfer and tell apart | Answer changed constraints, counterexamples, faults or cross-chapter questions before seeing feedback | Checks task families, hidden states and rubrics, so that rewording alone does not count | Only unseen tasks count as transfer evidence. A learner who can only solve the original keeps practising new situations. |
 | 7. External practical | Read the goal, environment and acceptance items; work in their own environment and submit results | Checks the submission is complete, reviews it against the criteria and lists the fewest items to resubmit | States the real evidence level, such as "submission reviewed". An environment failure is not treated as not understanding the concept. |
 | 8. Final and delayed checks | See what each core point still lacks; the next round picks one concrete task | Combines dimensions per point; handles due retests, newer failures and scope version changes | The scope counts as accepted only when every required point has valid evidence. A high average never cancels a missing item. |
@@ -234,7 +234,7 @@ Steps 4–7 repeat for each unit, with short recall of the local part of the out
 | Scope | Topics and outline seen from the existing questions | A separate ledger of the sources, so missing core points show too | Existing questions link to the new concept IDs without being regenerated |
 | First understanding | Often starts with a question and the explanation after it | Worked example, then partly done, then an independent check | Reuses the existing explanation and question components |
 | Missing prerequisites | Follow-ups and links when stuck; some paths pull questions in automatically | Minimal check, explicit remediation entry, a limit, return to the same place | Does not reuse the path queue that pulls prerequisites automatically |
-| Mastery | Recent performance and SM-2 intervals; topics as weighted totals | Understanding, recall, transfer and practical work accepted separately per goal | Old statistics are labelled estimated mastery; history is never cleared |
+| Mastery | Recent performance and FSRS-6 intervals; topics as weighted totals | Understanding, recall, transfer and practical work accepted separately per goal | Old statistics are labelled estimated mastery; history is never cleared |
 | Transfer | Personalised variants, keyword sorting of question stems, oral follow-ups | Unseen task families, changed constraints, reasons and grading criteria | Old variants stay as practice; new tasks can count as independent checks |
 | Remembering the outline | Browse structure and order; practise from nodes | Adds hidden nodes, relationship completion, ordering and fault tracing | Reuses the canvas; acceptance is recorded separately |
 | Real use | Mostly questions and discussion | External practicals, submitted results, item-by-item review, resubmission | No executor is added, and no claim is made to have watched it run |

@@ -28,7 +28,8 @@ export function mergeReviewPoll(current, next) {
   const before = current.queueVersion || 0, after = next.queueVersion || 0;
   if (after > before) return next;
   if (after !== before || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return current;
-  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level", "origin"];
+  // `intervals`: the gaps under the 0–5 buttons follow the clock (a new day changes them), so each poll brings them up to date.
+  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level", "origin", "intervals"];
   if (fields.every((key) => JSON.stringify(current[key]) === JSON.stringify(next[key]))) return current;
   return { ...current, ...Object.fromEntries(fields.map((key) => [key, next[key]])) };
 }

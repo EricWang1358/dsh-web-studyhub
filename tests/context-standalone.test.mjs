@@ -35,8 +35,8 @@ for (const id of contexts) test(`${id} loads without the workbench and exposes o
   assert.equal(state.sources?.length, id === 'materials' ? sample.sources.length : undefined);
   assert.equal(state.runs?.[0].id, id === 'study' ? 'run' : undefined);
   if (id === 'system') {
-    await runtime.call('settings', { first_interval_days: 7 });
-    assert.equal((await runtime.call('settings')).first_interval_days, 7);
+    await runtime.call('settings', { maximum_interval: 7 });
+    assert.equal((await runtime.call('settings')).maximum_interval, 7);
   } else if (id === 'materials') {
     const source = await runtime.call('source.add', { title: 'New material', text: 'A source added by the standalone plugin.' });
     assert.ok((await runtime.invoke('materials.v1', 'state.read')).sources.some(item => item.id === source.id));

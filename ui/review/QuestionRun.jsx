@@ -25,6 +25,7 @@ import { useInjectCss } from "../shared.js";
 import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
 import { NextDue } from "../NextDue.jsx";
+import { formatGap } from "../format.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
 import { useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
@@ -412,7 +413,11 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <div className="grading">
                   <div className="grading-head">
                     <span>{run.retry ? ui("本轮重练 · 掌握程度") : ui("掌握程度")}</span>
-                    <small>{ui("按 0–5 评分")}</small>
+                    <small>
+                      {ui("按 0–5 评分")}
+                      {run.intervals && <>{" · "}<Tooltip layer content={ui("每个按钮下面是选它以后，隔多久再复习这道题。间隔按上次复习到现在实际隔了几天来算：没到期就复习，间隔涨得少；当天重复答，间隔不再变长。")}>
+                      <span tabIndex={0} className="grade-gaps-tip">{ui("下面是下次复习的间隔")}</span>
+                    </Tooltip></>}</small>
                   </div>
                   <div className="grade-scale" role="group" aria-label={ui("掌握程度评分")}>
                     {[
@@ -422,13 +427,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       ui("勉强答对"),
                       ui("熟练"),
                       ui("轻松掌握"),
-                    ].map((label, grade) => (
+                    ].map((label, grade) => { const gap = formatGap(run.intervals?.[grade]); return (
                       <button
                         className={
                           grade < 3 ? "grade low" : "grade high"
                         }
                         key={grade}
-                        aria-label={uiFormat("{0} 分：{1}", [grade, label])}
+                        aria-label={gap ? uiFormat("{0} 分：{1}，{2}后再复习", [grade, label, gap]) : uiFormat("{0} 分：{1}", [grade, label])}
                         aria-keyshortcuts={String(grade)}
                         data-usage="review.grade"
                         title={uiFormat("快捷键 {0}：{1}", [grade, label])}
@@ -439,8 +444,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       >
                         <strong>{grade}</strong>
                         <span>{label}</span>
+                        {gap && <small className="grade-gap">{gap}</small>}
                       </button>
-                    ))}
+                    ); })}
                   </div>
                 </div>
               )}

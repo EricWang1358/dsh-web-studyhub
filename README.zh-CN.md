@@ -25,7 +25,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 - **用自己的资料出题**：按页或按章节选资料，生成闪卡、单选、多选、开放问答或填空题。每道题都标明引用的原文，你检查草稿后再发布。
 - **题目和原文互相跳转**：点引用就回到原文段落；资料里的段落、表格角标能打开关联的题目和讲解。
-- **练习与复习**：在「学习库」开始今日学习，或进入「学习流」先讲后练；任何一道题都能点「帮我弄懂」；SM-2 会把到期的题按时推给你。
+- **练习与复习**：在「学习库」开始今日学习，或进入「学习流」先讲后练；任何一道题都能点「帮我弄懂」；FSRS-6 会把到期的题按时推给你。
 - **找出薄弱点**：用「错题与待巩固」「统计」和「模拟考试」。模拟考试有选择题笔试、案例分析卷和口头面试三种形式。
 - **学完读一篇今日总结**：同一天同一课程累计完成 10 道不同题目后，可以生成错题讲解合集；不同章节合成一篇，重练不重复计数。设置里可选亲切或专业口吻、主动开启自动生成。合集沿用资料阅读器，「转成资料」和 CSDN 发布是单独的操作。
 - **录音转文字**：导入课堂录音，或用「课堂实录」边上课边转写，得到中英对照的讲稿，可以直接拿来出题。
@@ -116,7 +116,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 练习进度来自实际作答，学习流来自已完成步骤，阅读由你明确标记本次阅读完成。打开内容或跳过题目不算完成，也不把完成待办等同于掌握知识。建议只发送标题、进度和考试日期等摘要；AI 无法给出有效安排时，本地建议会明确标注。安排按学习库和日期保存；看板仍可管理普通待办。
 
 - 作答后看讲解；还不懂就点「帮我弄懂」，让助教围绕这道题讲。
-- 闪卡和开放问答按 0–5 分自评，SM-2 据此安排下次复习。作答和复习调度都不调用模型。
+- 闪卡和开放问答按 0–5 分自评，FSRS-6 按评分和距上次复习实际隔了几天安排下次复习；每个评分按钮下写着选它后隔多久再复习。作答和复习调度都不调用模型。
 - 「错题与待巩固」默认按题组收好错题（也可切换成按主题），能按题组、状态和关键词筛选，还能「生成变式」；「模拟考试」和「统计」帮你看清哪里还要加强。
 
 <details>
@@ -255,7 +255,7 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 - **对话与任务**：[在主对话里查询资料与题组](docs/main-session-queries.zh-CN.md) · [后台任务与侧栏](docs/generation-agents-sidebar.zh-CN.md)
 - **搭配工具**：[Archify 与其他搭配工具](docs/companions.zh-CN.md)
 - **可选功能**：[使用频率记录](docs/usage-frequency.zh-CN.md) · [Jev 决策层（实验性，英文）](docs/jev-experimental.md)
-- **开发者**：[架构与扩展](docs/architecture.md) · [架构案例分析（英文）](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [开发验证记录（英文）](docs/verification.md) · [界面文字的说话方式](docs/voice-and-tone.zh-CN.md) · [SM-2 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
+- **开发者**：[架构与扩展](docs/architecture.md) · [架构案例分析（英文）](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [开发验证记录（英文）](docs/verification.md) · [界面文字的说话方式](docs/voice-and-tone.zh-CN.md) · [FSRS-6 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
 
 ## 参与项目
 

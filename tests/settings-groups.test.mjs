@@ -30,7 +30,7 @@ const { settingsGroupState, SETTINGS_GROUPS, categoriesFor, categoryForAnchor, S
 const h = React.createElement;
 const noop = () => {};
 await warmSettingsPanes(Settings);
-const defaults = { first_interval_days: 1, second_interval_days: 6, initial_ease_factor: 2.5, minimum_ease_factor: 1.3 };
+const defaults = { request_retention: 0.9, maximum_interval: 36500 };
 
 const big = () => Array.from({ length: 320 }, (_, i) => ({ id: `b${i}`, title: `Book · p.${i + 1}`, text: 'x', courses: ['A'],
   document: { id: 'a'.repeat(64), materialId: `document-${'a'.repeat(64)}-pdf`, format: 'pdf', page: i + 1, totalPages: 320, extractionVersion: 2 } }));
@@ -104,7 +104,7 @@ test('the page is the category list and ONE category: the first one by default, 
   assert.match(first, /<div class="settings-layout">/);
   assert.match(first, /class="settings-pane"/);
   assert.match(first, /界面语言/, 'the first category is the interface');
-  assert.doesNotMatch(first, /数据备份与恢复|间隔复习 · SM-2/, 'the other categories are not on the page');
+  assert.doesNotMatch(first, /数据备份与恢复|间隔复习 · FSRS-6/, 'the other categories are not on the page');
   assert.doesNotMatch(first, /<details/, 'no folded groups any more');
   const model = page({ focusSection: 'settings-model', appearance });
   assert.match(model, /data-tour="settings-model"/);
@@ -113,7 +113,7 @@ test('the page is the category list and ONE category: the first one by default, 
   assert.doesNotMatch(notACategory, /数据备份与恢复/, 'an anchor that is not a category does not open one');
   const tour = page({ tourActive: true, appearance });
   assert.doesNotMatch(tour, /settings-nav/, 'the tour shows the sections one after another, without the list');
-  for (const title of ['学习库与模型', '课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · SM-2', '数据备份与恢复'])
+  for (const title of ['学习库与模型', '课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · FSRS-6', '数据备份与恢复'])
     assert.match(tour, new RegExp(`<legend class="settings-section__title">${title}</legend>`), title);
   for (const anchor of ['settings-model', 'settings-extensions', 'settings-update', 'settings-sample'])
     assert.match(tour, new RegExp(`data-tour="${anchor}"`), `${anchor} stays`);

@@ -226,7 +226,7 @@ test('an older release opens a library with pins and an older library opens here
   assert.equal(legacy.settings.materialPins, undefined);
   assert.deepEqual(pinnedKeys(legacy.settings), []);
   // The settings form of a release that does not know pins writes the whole object back; the list survives it.
-  await service.call('settings', { ...(await service.call('snapshot')).settings, second_interval_days: 5 });
+  await service.call('settings', { ...(await service.call('snapshot')).settings, request_retention: 0.85 });
   assert.deepEqual(await pinsOf(service), ['source:a']);
 });
 
