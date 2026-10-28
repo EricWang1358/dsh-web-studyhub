@@ -3,7 +3,9 @@
    this process. The job registry, settling, archiving and the console stay the runtime's own; only where the work
    physically runs is here. Ported from BAXUIE's StudyHub for ZCode 0.4.8 (MIT).
 
-   The honest cost: a job ends when ZCode quits (it stops this process). Its record stays in the library, and on the next
+   The honest cost: a job ends when this process ends. ZCode starts one server process per chat and ends it when the chat
+   is closed (about 30 s later) or ZCode quits; while it lives, other chats' servers see the job as 'unknown' and cannot
+   control it. Its record stays in the library, and on the next
    start inspect() answers 'lost' for an attempt whose process is gone, so the runtime marks it interrupted and the
    console offers 接着做 (the reference port answered 'unknown', which left such a job blocked for good). */
 import { randomUUID } from 'node:crypto';

@@ -38,6 +38,12 @@ test('the ZCode MCP server answers the panel and the model as ZCode would use it
   const read = async (uri) => (await client.readResource({ uri })).contents[0].text;
   const panel = await read('ui://studyhub/panel.html');
   assert.match(panel, /__studyShell/, 'the panel page carries the shell loader');
+  // The page carries this process's panel nonce (the placeholder is replaced), and the panel's calls must carry it.
+  assert.ok(!panel.includes('__STUDYHUB_PANEL_NONCE__'));
+  const nonce = panel.match(/<meta name="studyhub-panel-nonce" content="([0-9a-f]{64})">/)?.[1];
+  assert.ok(nonce, 'a 32-byte nonce');
+  assert.equal((await read('ui://studyhub/panel.html')).includes(nonce), true, 'the same nonce for the life of the process');
+  const call = async (action, args, withNonce = nonce) => parse(await client.callTool({ name: 'study_call', arguments: { action, ...(args ? { args } : {}), ...(withNonce ? { nonce: withNonce } : {}) } }));
   const manifest = JSON.parse(await read('ui://studyhub/manifest.json'));
   assert.equal(manifest.entry, 'app.js');
   assert.ok(manifest.chunks.length > 0);
@@ -53,22 +59,30 @@ test('the ZCode MCP server answers the panel and the model as ZCode would use it
   const refused = await client.callTool({ name: 'study_workspace', arguments: { action: 'usage.frequency.status' } });
   assert.equal(refused.isError, true);
   assert.match(parse(refused).error, /not available to the assistant/);
-  const panelRead = parse(await client.callTool({ name: 'study_call', arguments: { action: 'usage.frequency.status' } }));
+  const panelRead = await call('usage.frequency.status');
   assert.equal(panelRead.ok, true, 'the panel may read it');
+  // ZCode does not refuse an app-only tool at call time, so study_call itself refuses a caller without the panel's nonce.
+  for (const [withNonce, code] of [[null, 'zcode-panel-only'], ['0'.repeat(64), 'zcode-panel-stale'], ['short', 'zcode-panel-stale']]) {
+    for (const [action, args] of [['model.config.set', { baseUrl: 'https://evil.example/v1', apiKey: 'sk-stolen-1234' }], ['usage.frequency.status'], ['snapshot'], ['app.open', { url: 'https://a.example/' }]]) {
+      const refusedCall = await call(action, args, withNonce);
+      assert.deepEqual([refusedCall.ok, refusedCall.code], [false, code], `${action} with nonce ${withNonce}`);
+    }
+  }
+  assert.equal((await call('model.config.get')).value.baseUrl, '', 'the refused calls changed nothing');
   // The endpoint and its key are the panel's alone.
   const modelRefused = await client.callTool({ name: 'study_workspace', arguments: { action: 'model.config.get' } });
   assert.equal(modelRefused.isError, true);
 
-  const binding = parse(await client.callTool({ name: 'study_call', arguments: { action: 'binding.get' } }));
+  const binding = await call('binding.get');
   assert.equal(binding.ok, true);
   assert.equal(binding.value.root, join(scratch, 'library'));
   assert.equal(binding.value.host.edition, 'zcode');
 
-  const unknown = await client.callTool({ name: 'study_call', arguments: { action: 'definitely.not.an.action' } });
+  const unknown = await client.callTool({ name: 'study_call', arguments: { action: 'definitely.not.an.action', nonce } });
   assert.equal(unknown.isError, true);
   assert.equal(parse(unknown).ok, false);
 
-  const badLink = parse(await client.callTool({ name: 'study_call', arguments: { action: 'app.open', args: { url: 'file:///C:/Windows/System32/calc.exe' } } }));
+  const badLink = await call('app.open', { url: 'file:///C:/Windows/System32/calc.exe' });
   assert.equal(badLink.ok, false, 'only http(s) addresses open');
 
   const opened = parse(await client.callTool({ name: 'studyhub_open', arguments: {} }));

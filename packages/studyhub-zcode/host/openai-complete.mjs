@@ -16,6 +16,17 @@ const STATUS_HINT = (status) => (status === 401 || status === 403 ? '密钥不�
 
 const clip = (text) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, DETAIL_LIMIT);
 
+/** `text` with the key taken out: the whole key, any Bearer credential, and the key's first 12 characters (a provider
+ *  that echoes a shortened key). Applied to everything a failure says, before it is clipped or shown. */
+export function redactKey(text, apiKey) {
+  let clean = String(text ?? '').replace(/Bearer\s+[^\s"',;]+/gi, 'Bearer ••••');
+  if (apiKey) {
+    clean = clean.split(apiKey).join('••••');
+    if (apiKey.length >= 16) clean = clean.split(apiKey.slice(0, 12)).join('••••');
+  }
+  return clean;
+}
+
 /** The address of the chat endpoint for a base URL (with or without a trailing /chat/completions). */
 export const chatUrl = (baseUrl) => {
   const base = String(baseUrl || '').replace(/\/+$/, '');
@@ -54,10 +65,11 @@ export function openaiComplete(model, { fetch = globalThis.fetch, report, timeou
     } catch (error) {
       if (execution?.signal?.aborted) throw error;
       if (deadline.aborted) throw Object.assign(new Error(`模型服务 ${Math.round(timeoutMs / 1000)} 秒内没有回复`), { modelFailure: true });
-      throw Object.assign(new Error(`连不上模型服务：${clip(error?.cause?.code || error?.message || error)}。请检查接口地址和网络`), { modelFailure: true });
+      // undici's own words can quote the request: only its code, or its message with the key taken out, is said.
+      throw Object.assign(new Error(`连不上模型服务：${clip(redactKey(error?.cause?.code || error?.message || error, apiKey))}。请检查接口地址和网络`), { modelFailure: true });
     }
     if (!response.ok) {
-      const detail = clip(await response.text().catch(() => ''));
+      const detail = clip(redactKey(await response.text().catch(() => ''), apiKey));
       throw Object.assign(new Error(`模型服务回复 HTTP ${response.status}（${STATUS_HINT(response.status)}）：${detail || '没有返回原因'}`),
         { modelFailure: true, status: response.status });
     }
@@ -65,7 +77,7 @@ export function openaiComplete(model, { fetch = globalThis.fetch, report, timeou
     let data;
     try { data = JSON.parse(body); } catch {
       // A 200 whose body is not JSON: a captive portal or a gateway's error page.
-      throw Object.assign(new Error(`模型服务的回复不是 JSON：${clip(body) || '空白'}`), { modelFailure: true });
+      throw Object.assign(new Error(`模型服务的回复不是 JSON：${clip(redactKey(body, apiKey)) || '空白'}`), { modelFailure: true });
     }
     try { const usage = usageOf(data?.usage); if (usage) report?.(usage, { calls: 1, task: execution?.task || 'light' }); } catch { /* a tally never breaks the call */ }
     const text = data?.choices?.[0]?.message?.content;

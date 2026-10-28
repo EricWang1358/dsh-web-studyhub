@@ -7,7 +7,8 @@
      ModelGateForm      component inside the block model gate before a model step ({ feature }).
      modelSetupSteps    (model, pick) => the gate's steps ([{ text, hint? }]) in place of DSH's model-panel steps.
      UpgradeGuide       component in place of the DSH plugin-manager steps of the upgrade dialog ({ update, host }).
-     runningNote        () => the top bar's hover words while background work runs. */
+     runningNote        () => the top bar's hover words while background work runs.
+     LibraryNotice      component under the library folder in Settings › 学习库与模型 ({ binding }). */
 const parts = {};
 
 /** Add or replace parts (an entry calls this once, before rendering). */

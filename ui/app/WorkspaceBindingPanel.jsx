@@ -50,6 +50,7 @@ function Binding({ app }) {
           <code className="binding-value" title={binding.root}>{binding.root || '—'}</code>
           <small>{uiFormat('{0} · {1}', [where, ui('资料、题库与复习记录保存在这里')])}</small>
           <LibraryUsage root={binding.root} call={call} active={!!data} />
+          {hostPart('LibraryNotice') && React.createElement(hostPart('LibraryNotice'), { binding })}
         </div>
         <div className="binding-actions">
           <Button onClick={chooseRoot} disabled={busy}>{ui('更换目录…')}</Button>

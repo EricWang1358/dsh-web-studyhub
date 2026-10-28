@@ -6,7 +6,8 @@
      chunk-*.js       the lazy views and shared code
      app.css (+ chunk css)
      manifest.json    { entry, css[], chunks[] } for the shell loader
-     panel.html       a small shell with the ext-apps loader inlined (packages/studyhub-zcode/ui-port/shell-loader.js)
+     panel.html       a small shell with the ext-apps loader inlined (packages/studyhub-zcode/ui-port/shell-loader.js) and
+                      the panel nonce's placeholder, which the server replaces with its own nonce when it serves the page
    esbuild names sibling chunks with relative specifiers ('./chunk-X.js'), which cannot resolve from blob: URLs; they are
    rewritten to bare names, which the loader's import map maps to blob URLs.
 
@@ -18,6 +19,7 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { shimJsxRuntime } from './host-react.mjs';
+import { NONCE_META, NONCE_PLACEHOLDER } from '../packages/studyhub-zcode/host/panel-nonce.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const pluginRoot = join(root, 'packages', 'studyhub-zcode');
@@ -30,6 +32,7 @@ const panelHtml = (loader) => `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StudyHub</title>
+<meta name="${NONCE_META}" content="${NONCE_PLACEHOLDER}">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; }
   body { background: #161412; }

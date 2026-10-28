@@ -4,7 +4,11 @@
      study_workspace   the model's study gateway, the same contract as under DSH (lib/study-contracts.js), with the
                        assistant boundary (lib/assistant-boundary.js) applied, so the shipped skills work unchanged
      study_call        the panel's transport, one study action per call; page-only (_meta.ui.visibility ['app']);
-                       app.open hands an http(s) link to the system browser
+                       app.open hands an http(s) link to the system browser. ZCode leaves an app-only tool out of the
+                       model's tool list but does not refuse it at call time, so every study_call must carry this
+                       process's panel nonce: a random value made at start and written into panel.html when that
+                       resource is served (ZCode gives the model no tool that reads MCP resources). Without it the call
+                       is refused; with it the call is the learner's own, through the panel's door.
      studyhub_open     opens the panel (ui://studyhub/panel.html) and says what is due today
      studyhub_status   a read-only summary of the bound library
      study_materials, study_bank, study_practice, study_audio, study_generate_selection, study_capabilities
@@ -12,15 +16,20 @@
    Resources: every file of dist/ui as ui://studyhub/<name> (the panel page, its manifest and its chunks; built by
    scripts/build-zcode.mjs). */
 import { readFile, readdir } from 'node:fs/promises';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { applyHome } from './workspace.mjs';
 import { importLib, pluginPath, studyhubRoot } from './lib-root.mjs';
-import { zcodeErrorText } from './messages.mjs';
+import { zcodeErrorText, zcodeText } from './messages.mjs';
+import { NONCE_PLACEHOLDER } from './panel-nonce.mjs';
 
 applyHome(process.env);
+/* A server that must keep its jobs running logs what went wrong and carries on (a crash would end every running job). */
+process.on('unhandledRejection', (error) => console.error('[studyhub] unhandled rejection:', error?.stack ?? error));
+process.on('uncaughtException', (error) => console.error('[studyhub] uncaught exception:', error?.stack ?? error));
 const [{ createZcodeHost }, { openExternal }, { dueSummary }, { studyToolDescription }, { currentVersion }] = await Promise.all([
   import('./study-host.mjs'), import('./app-open.mjs'), import('./due.mjs'), importLib('study-contracts.js'), importLib('update-check.js'),
 ]);
@@ -30,6 +39,14 @@ export const PANEL_URI = 'ui://studyhub/panel.html';
 const UI_DIR = process.env.STUDYHUB_ZCODE_UI_DIR?.trim() || join(pluginPath, 'dist', 'ui');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 const text = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
+/** The panel nonce of this process, and the placeholder scripts/build-zcode.mjs writes into panel.html. */
+const PANEL_NONCE = randomBytes(32).toString('hex');
+
+const nonceMatches = (value) => {
+  if (typeof value !== 'string') return false;
+  const given = Buffer.from(value), expected = Buffer.from(PANEL_NONCE);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+};
 
 /* STUDY_FAKE_MODEL=1 (development and tests only): the repository's fake model instead of the learner's endpoint. A
    release has no scripts/fake-model.mjs, so there it changes nothing. */
@@ -67,22 +84,28 @@ server.registerTool('study_workspace', {
 server.registerTool('study_call', {
   title: 'Study panel call',
   description: 'The StudyHub panel transport: one study action per call. Page-only.',
-  inputSchema: { action: z.string(), args: z.record(z.string(), z.unknown()).optional() },
+  inputSchema: { action: z.string(), args: z.record(z.string(), z.unknown()).optional(), nonce: z.string().optional() },
   _meta: { ui: { visibility: ['app'] } },
-}, async ({ action, args }) => {
+}, async ({ action, args, nonce }) => {
   let answer;
-  if (action === 'app.open') {
+  const language = args?.uiLanguage === 'en' ? 'en' : 'zh';
+  // No nonce: not the panel. A nonce that is not this process's: a panel left open across a restart of this server.
+  if (!nonceMatches(nonce)) {
+    const code = nonce ? 'panel-stale' : 'panel-only';
+    answer = { ok: false, error: zcodeText(code, language), code: `zcode-${code}` };
+  } else if (action === 'app.open') {
     try { answer = { ok: true, value: openExternal(args?.url) }; }
     catch (error) { answer = { ok: false, error: zcodeErrorText(error, args?.uiLanguage), code: error.code }; }
   } else answer = await host.call(action, args ?? {}, { from: 'panel' });
   return answer.ok ? text(answer) : { isError: true, ...text(answer) };
 });
 
+/** The library actually in use (the one the panel and the SessionStart line use too), with a configured one that could not be opened. */
 async function libraryLine() {
-  const root = host.config.libraryRoot;
+  const { root, problem } = host.libraryStatus('en');
   let summary = { due: null, cards: null, decks: null };
   try { summary = await dueSummary(root); } catch { /* an unreadable library still opens the panel, which says why */ }
-  return { root, dueToday: summary.due, cards: summary.cards, decks: summary.decks };
+  return { root, dueToday: summary.due, cards: summary.cards, decks: summary.decks, ...(problem ? { libraryProblem: problem.message } : {}) };
 }
 
 server.registerTool('studyhub_open', {
@@ -118,6 +141,7 @@ for (const tool of host.domainTools()) {
   const required = new Set(tool.parameters?.required || Object.entries(parameters).filter(([, value]) => value?.required).map(([name]) => name));
   const shape = Object.fromEntries(Object.entries(parameters).map(([name, schema]) => [name, required.has(name) ? zodOf(schema) : zodOf(schema).optional()]));
   server.registerTool(tool.name, { title: tool.name, description: tool.description, inputSchema: shape }, async (input) => {
+    // A fresh execution object per call: the host keys the library a call started on by it.
     try { return text(await tool.execute(input, {})); }
     catch (error) { return { isError: true, ...text({ error: error?.message || String(error), ...(error?.code ? { code: error.code } : {}) }) }; }
   });
@@ -133,14 +157,21 @@ for (const name of names) {
   const uri = `ui://studyhub/${name}`;
   server.registerResource(name.replace(/[^a-z0-9]+/gi, '-'), uri,
     { mimeType, ...(name === 'panel.html' ? { _meta: { 'zcode/csp': { wasmUnsafeEval: true } } } : {}) },
-    async () => ({ contents: [{ uri, mimeType, text: await readFile(join(UI_DIR, name), 'utf8') }] }));
+    async () => {
+      const body = await readFile(join(UI_DIR, name), 'utf8');
+      return { contents: [{ uri, mimeType, text: name === 'panel.html' ? body.replace(NONCE_PLACEHOLDER, PANEL_NONCE) : body }] };
+    });
   served += 1;
 }
 
-const shutdown = async () => {
-  try { await host.dispose(); } catch { /* already gone */ }
-  await server.close();
-  process.exit(0);
+let closing;
+const shutdown = () => {
+  closing ||= (async () => {
+    try { await host.dispose(); } catch { /* already gone */ }
+    try { await server.close(); } catch { /* already closed */ }
+    process.exit(0);
+  })();
+  return closing;
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

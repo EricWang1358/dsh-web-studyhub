@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { NONCE_META, NONCE_PLACEHOLDER } from '../host/panel-nonce.mjs';
 
 const here = fileURLToPath(new URL('../', import.meta.url));
 const MAX_BODY = 64 * 1024 * 1024;
@@ -22,6 +23,10 @@ export async function createTestPanelServer({ libraryRoot, home, uiDir = join(he
     env: { ...env, STUDYHUB_LIBRARY: resolve(libraryRoot), DSH_HOME: resolve(home || `${libraryRoot}-home`), STUDYHUB_ZCODE_UI_DIR: uiDir } });
   const client = new Client({ name: 'studyhub-test-panel', version: '0.0.0' });
   await client.connect(transport);
+  const panelNonce = async () => {
+    const page = (await client.readResource({ uri: 'ui://studyhub/panel.html' })).contents[0].text;
+    return page.match(new RegExp(`<meta name="${NONCE_META}" content="([0-9a-f]+)">`))?.[1] || '';
+  };
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, 'http://127.0.0.1');
@@ -36,7 +41,9 @@ export async function createTestPanelServer({ libraryRoot, home, uiDir = join(he
       if (request.method !== 'GET') { response.writeHead(405).end(); return; }
       if (url.pathname === '/favicon.ico') { response.writeHead(204).end(); return; }
       if (url.pathname === '/' || url.pathname === '/panel.test.html') {
-        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(await readFile(join(uiDir, 'panel.test.html'), 'utf8'));
+        // The test page carries the nonce the real server wrote into its own panel.html, as ZCode's panel would.
+        const page = (await readFile(join(uiDir, 'panel.test.html'), 'utf8')).replace(NONCE_PLACEHOLDER, await panelNonce());
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(page);
         return;
       }
       if (url.pathname.startsWith('/ui/')) {
@@ -52,7 +59,7 @@ export async function createTestPanelServer({ libraryRoot, home, uiDir = join(he
   });
   await new Promise((done) => server.listen(port, '127.0.0.1', done));
   const actual = server.address().port;
-  return { url: `http://127.0.0.1:${actual}/`, port: actual, client,
+  return { url: `http://127.0.0.1:${actual}/`, port: actual, client, panelNonce,
     close: async () => { await new Promise((done) => server.close(done)); server.closeAllConnections?.(); await client.close(); } };
 }
 

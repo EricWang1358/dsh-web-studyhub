@@ -1,13 +1,15 @@
 /* Check the ZCode package of a release (npm run release:zcode:check) the way a learner would get it: the zip's checksum
    against its receipt and SHA256SUMS-ZCode-<version>.txt, its layout (installer, marketplace, guide, plugin of the same
    version, StudyHub's lib from this commit, the built panel in resources of at most 8 MiB, the production
-   dependencies), and then the unpacked plugin's MCP server started with nothing but Node: tools listed, panel read,
-   snapshot answered. Options: --outdir=<dir> (default output/release-<version>). */
+   dependencies), and then the unpacked plugin's MCP server started with nothing but Node, from a folder under the
+   system's temporary folder (outside the repository, so nothing resolves from its node_modules): tools listed, panel
+   read, snapshot answered. Options: --outdir=<dir> (default output/release-<version>). */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { access, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -31,7 +33,9 @@ export async function checkZcodeRelease({ outdir } = {}) {
   const sums = (await readFile(join(target, sumsName(version)), 'utf8')).trim().split(/\r?\n/);
   assert.deepEqual(sums, [`${sha256}  ${zipName(version)}`], 'SHA256SUMS-ZCode lists the zip and nothing else');
 
-  const unpacked = await mkdtemp(join(target, 'verify-zcode-'));
+  // Unpacked outside the repository: a dependency the zip lacks cannot be found in the repository's node_modules.
+  const outside = resolve(tmpdir());
+  const unpacked = await mkdtemp(join(outside, 'studyhub-zcode-verify-'));
   try {
     if (process.platform === 'win32') await exec(windowsTar(), ['-x', '-f', join(target, receipt.zcode.filename), '-C', unpacked], { windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
     else await exec('unzip', ['-q', join(target, receipt.zcode.filename), '-d', unpacked], { maxBuffer: 64 * 1024 * 1024 });
@@ -64,9 +68,9 @@ export async function checkZcodeRelease({ outdir } = {}) {
     await assert.rejects(access(join(ui, 'panel.test.html')), 'the browser-test page is not shipped');
 
     // The unpacked plugin runs with Node alone: its MCP server lists its tools, serves the panel and answers a snapshot.
-    const scratch = await mkdtemp(join(target, 'verify-zcode-run-'));
+    const scratch = await mkdtemp(join(outside, 'studyhub-zcode-run-'));
     try {
-      const transport = new StdioClientTransport({ command: process.execPath, args: [join(plugin, 'host', 'entry.mjs')], stderr: 'pipe',
+      const transport = new StdioClientTransport({ command: process.execPath, args: [join(plugin, 'host', 'entry.mjs')], stderr: 'pipe', cwd: scratch,
         env: { ...scrubSecrets(process.env), DSH_HOME: join(scratch, 'home'), STUDYHUB_LIBRARY: join(scratch, 'library') } });
       const client = new Client({ name: 'release-zcode-check', version });
       await client.connect(transport);
@@ -75,14 +79,19 @@ export async function checkZcodeRelease({ outdir } = {}) {
         for (const name of ['study_workspace', 'study_call', 'studyhub_open', 'studyhub_status']) assert.ok(tools.includes(name), name);
         const panel = (await client.readResource({ uri: 'ui://studyhub/panel.html' })).contents[0].text;
         assert.match(panel, /__studyShell/);
-        const snapshot = JSON.parse((await client.callTool({ name: 'study_call', arguments: { action: 'snapshot' } })).content[0].text);
+        // The panel's calls carry the nonce the server wrote into the page it served; a call without it is refused.
+        const nonce = panel.match(/<meta name="studyhub-panel-nonce" content="([0-9a-f]{64})">/)?.[1];
+        assert.ok(nonce, 'the served panel carries a nonce');
+        const refused = JSON.parse((await client.callTool({ name: 'study_call', arguments: { action: 'snapshot' } })).content[0].text);
+        assert.equal(refused.ok, false, 'a study_call without the panel nonce is refused');
+        const snapshot = JSON.parse((await client.callTool({ name: 'study_call', arguments: { action: 'snapshot', nonce } })).content[0].text);
         assert.equal(snapshot.ok, true, snapshot.error);
-        const running = JSON.parse((await client.callTool({ name: 'study_call', arguments: { action: 'binding.get' } })).content[0].text);
+        const running = JSON.parse((await client.callTool({ name: 'study_call', arguments: { action: 'binding.get', nonce } })).content[0].text);
         assert.equal(running.value.host.edition, 'zcode');
       } finally { await client.close(); }
     } finally { await rm(scratch, { recursive: true, force: true }); }
   } finally {
-    assert.equal(dirname(resolve(unpacked)), target, 'cleanup stays inside the release directory');
+    assert.equal(dirname(resolve(unpacked)), outside, 'cleanup stays inside the temporary folder');
     await rm(unpacked, { recursive: true, force: true });
   }
   const result = { version, zcode: { filename: receipt.zcode.filename, bytes: bytes.length, sha256 }, status: 'passed' };

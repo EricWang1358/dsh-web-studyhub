@@ -62,4 +62,6 @@ const ready = (async () => {
 })();
 ready.catch(fail);
 
-window.__studyShell = { app, ready };
+// The panel nonce the server wrote into this page (host/entry.mjs); ui/zcode.jsx sends it with every study_call.
+const nonce = document.querySelector('meta[name="studyhub-panel-nonce"]')?.getAttribute('content') || '';
+window.__studyShell = { app, ready, nonce };

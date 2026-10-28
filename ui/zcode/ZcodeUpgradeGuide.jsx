@@ -17,7 +17,7 @@ export default function ZcodeUpgradeGuide({ update }) {
         </span></li>
         <li><strong>{ui('解压')}</strong><span>{ui('解压到一个固定的文件夹（不要放进 Program Files）；可以覆盖旧版所在的文件夹。')}</span></li>
         <li><strong>{ui('运行安装')}</strong><span>{ui('双击文件夹里的 install.bat，等它显示完成。')}</span></li>
-        <li><strong>{ui('重启 ZCode')}</strong><span>{ui('完全退出 ZCode 后重新打开；退出会结束正在运行的后台任务，已完成的部分会保留。')}</span></li>
+        <li><strong>{ui('重启 ZCode')}</strong><span>{ui('完全退出 ZCode 后重新打开；退出会结束所有对话里正在运行的后台任务，已完成的部分会保留。')}</span></li>
       </ol>
       <p className="update-note">{ui('下载的 zip 先右键「属性」勾选「解除锁定」再解压，否则 Windows 可能拦下 install.bat。')}</p>
     </section>

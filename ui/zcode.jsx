@@ -11,7 +11,8 @@ import { ZCODE_PARTS } from "./zcode/parts.jsx";
 
 /* The StudyHub panel inside ZCode (an MCP Apps surface). The shell page (packages/studyhub-zcode/ui-port/shell-loader.js)
    has made the page's one ext-apps connection and put it on window.__studyShell; every study action goes through the
-   page-only study_call tool of StudyHub's MCP server, with DSH's envelope ({ok,value} or {ok:false,error,code}).
+   page-only study_call tool of StudyHub's MCP server, with DSH's envelope ({ok,value} or {ok:false,error,code}), and with
+   the panel nonce the server wrote into the shell page (without it the server refuses the call).
    Plan contract C3: no composer to hand a prompt to, no agent tasks, no landing shell, no native folder picker. */
 const host = { capabilities: { edition: "zcode", chat: false, agentTasks: false, landing: false } };
 document.title = "StudyHub";
@@ -26,7 +27,7 @@ function envelopeOf(result) {
 }
 
 const call = async (action, args = {}) => {
-  const envelope = envelopeOf(await shell.app.callServerTool({ name: "study_call", arguments: { action, args } }));
+  const envelope = envelopeOf(await shell.app.callServerTool({ name: "study_call", arguments: { action, args, nonce: shell.nonce } }));
   if (!envelope.ok) throw Object.assign(new Error(envelope.error), { code: envelope.code });
   return envelope.value;
 };

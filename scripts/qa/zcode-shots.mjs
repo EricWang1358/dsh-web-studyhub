@@ -8,9 +8,10 @@
      3. the same with an endpoint saved (filled; the key shows only its last four characters)
      4. 创建题组 with one material and no model: the page's model gate (its 前往设置 opens the form of 2; a block gate
         elsewhere carries the form itself)
+     5. Settings › 学习库与模型 when the configured library cannot be opened
    Every shot is checked for horizontal overflow, page errors and console errors. Library and home are temporary folders
    under output/; inherited keys are removed first, and nothing calls a model. */
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChromium } from './browser.mjs';
@@ -30,7 +31,7 @@ await buildZcodePanel({ outdir: ui, test: true });
 const results = [];
 const browser = await launchChromium();
 const server = await createTestPanelServer({ libraryRoot: join(scratch, 'library'), home: join(scratch, 'home'), uiDir: ui, env: process.env });
-const call = async (action, args = {}) => JSON.parse((await server.client.callTool({ name: 'study_call', arguments: { action, args } })).content[0].text);
+const call = async (action, args = {}) => JSON.parse((await server.client.callTool({ name: 'study_call', arguments: { action, args, nonce: await server.panelNonce() } })).content[0].text);
 try {
   // One material, so 创建题组 reaches the step that needs a model.
   await call('source.add', { title: '光合作用讲义', text: '光合作用是绿色植物利用光能，把二氧化碳和水合成有机物并释放氧气的过程。光反应发生在类囊体膜上，暗反应发生在叶绿体基质中。'.repeat(3) });
@@ -80,6 +81,30 @@ try {
       await page.close();
     }
   }
+  // 5. A configured library that cannot be opened (a file stands where the folder should be): the server starts on the
+  //    default library and Settings › 学习库与模型 says which folder could not be opened and why.
+  await writeFile(join(scratch, 'not-a-folder'), 'x');
+  const broken = await createTestPanelServer({ libraryRoot: join(scratch, 'not-a-folder'), home: join(scratch, 'home-broken'), uiDir: ui,
+    env: { ...process.env, STUDYHUB_TEST_DOCUMENTS: join(scratch, 'Documents') } });
+  try {
+    for (const width of [1280, 420]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const errors = [];
+      page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
+      page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
+      await page.goto(broken.url);
+      await page.waitForSelector('.study-app main', { timeout: 60_000 });
+      await page.locator('.top-status__fix').first().click();
+      await page.waitForSelector('[data-zcode-library-problem]', { timeout: 20_000 });
+      await page.locator('[data-zcode-library-problem]').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      const file = join(out, `zcode-library-problem-${width}.png`);
+      await page.screenshot({ path: file });
+      results.push({ shot: file, width, overflow, errors: [...errors] });
+      await page.close();
+    }
+  } finally { await broken.close(); }
 } finally {
   await browser.close();
   await server.close();

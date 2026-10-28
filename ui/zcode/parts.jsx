@@ -3,6 +3,7 @@ import { ui } from '../i18n.js';
 import { Icon } from '../components/index.js';
 import ZcodeModelSetup from './ZcodeModelSetup.jsx';
 import ZcodeUpgradeGuide from './ZcodeUpgradeGuide.jsx';
+import ZcodeLibraryNotice from './ZcodeLibraryNotice.jsx';
 
 /* What the ZCode panel puts into the shared pages (ui/host-parts.js). */
 
@@ -24,5 +25,6 @@ export const ZCODE_PARTS = Object.freeze({
   ModelGateForm,
   modelSetupSteps,
   UpgradeGuide: ZcodeUpgradeGuide,
-  runningNote: () => ui('有后台任务在进行（转换、转写、出题等）。退出 ZCode 会结束它们；已完成的部分都保留着，重开后点「接着做」继续。'),
+  LibraryNotice: ZcodeLibraryNotice,
+  runningNote: () => ui('有后台任务在进行（转换、转写、出题等）。它们属于开始它们的那个对话：关掉那个对话或退出 ZCode 会结束它们；已完成的部分都保留着，之后点「接着做」继续。'),
 });

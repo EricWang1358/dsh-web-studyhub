@@ -62,7 +62,8 @@ export default function ZcodeModelSetup({ compact = false }) {
           <Select value={preset} onChange={choose} options={options} />
         </Field>
         {chosen && <StepList steps={chosen.steps.map((step) => ({ text: ui(step.text), href: step.href }))} />}
-        <Field label={ui('接口地址')} width="full" hint={preset === 'custom' ? ui('服务商文档里的 OpenAI 兼容地址，通常以 /v1 结尾') : undefined}>
+        <Field label={ui('接口地址')} width="full" hint={[preset === 'custom' ? ui('服务商文档里的 OpenAI 兼容地址，通常以 /v1 结尾') : '',
+          view.key.set && view.key.source !== 'env' ? ui('换成另一个服务商的地址时，已保存的 Key 会被清除，要重新粘贴。') : ''].filter(Boolean).join(' ') || undefined}>
           <TextInput value={draft.baseUrl} spellCheck={false} placeholder="https://…/v1" onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} />
         </Field>
         <Field label={ui('模型')} width="full" hint={ui('模型名以服务商页面为准，可以改成你想用的')}>
@@ -80,9 +81,10 @@ export default function ZcodeModelSetup({ compact = false }) {
         envNote={ui('这个密钥来自环境变量 STUDYHUB_API_KEY，不能在这里清除；要换掉它，请改系统的环境变量。')}
         onSave={(key) => save({ apiKey: key })} onClear={() => save({ apiKey: '' })}
         onVerify={() => call('model.config.test', {})} />
+      {view.keyDropped && <InlineMessage tone="warning" onDismiss={() => setView({ ...view, keyDropped: false })}>{ui('接口换到了另一个服务商，原来的 Key 已清除；请粘贴新服务商的 Key。')}</InlineMessage>}
       {error && <InlineMessage tone="error" onDismiss={() => setError('')}>{error}</InlineMessage>}
       {!compact && <Hint className="zcode-model__note">
-        {ui('出题、讲解和批改时，所选资料会发送到这个接口；密钥只保存在这台电脑的 StudyHub 配置文件里。后台任务在 ZCode 打开时运行，退出 ZCode 会结束它们，已完成的部分会保留。')}
+        {ui('出题、讲解和批改时，所选资料会发送到这个接口；密钥只保存在这台电脑的 StudyHub 配置文件里。后台任务属于开始它们的那个对话，关掉那个对话或退出 ZCode 会结束它们，已完成的部分会保留。')}
       </Hint>}
     </ProviderCard>
   );
