@@ -3,13 +3,17 @@ import React, { useMemo } from "react";
 import css from "./graph.css";
 import { useInjectCss } from "./shared.js";
 import { Icon } from "./components/index.js";
+import MathText from "./MathText.jsx";
+import { clozeRuns } from "../lib/cloze-text.js";
 
 /* Fill-in-the-blank card, display only: grading lives on the server
    (review.answer → feedback.details, contract §5). `card.cloze` is the
    publicCard form {text, blanks:[{id}]}; `{{id}}` markers in text become
-   inline inputs. CSS shares ui/graph.css via the data-study-graph marker. */
+   inline inputs, and the text around them, the expected answers and the
+   correct values draw their formulas like every other card's text
+   (lib/cloze-text.js splits a formula that holds a blank). CSS shares
+   ui/graph.css via the data-study-graph marker. */
 
-const MARK = /\{\{\s*([^{}\s]+)\s*\}\}/g;
 // Chars that render about twice as wide as `ch` (CJK, fullwidth forms…).
 const WIDE = /[\u2e80-\ua4cf\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\u3000-\u303f\u2018\u2019\u201c\u201d\u2026\u00b7]/;
 const chLen = (s) => {
@@ -33,21 +37,9 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
     [details],
   );
 
-  // Split the text on {{id}} markers: text runs stay verbatim (pre-wrap keeps
-  // spacing/newlines), each marker becomes a blank slot in place.
-  const parts = useMemo(() => {
-    const out = [];
-    let last = 0,
-      m;
-    MARK.lastIndex = 0;
-    while ((m = MARK.exec(text))) {
-      if (m.index > last) out.push({ t: "text", v: text.slice(last, m.index) });
-      out.push({ t: "blank", id: m[1] });
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) out.push({ t: "text", v: text.slice(last) });
-    return out;
-  }, [text]);
+  // Split the text on {{id}} markers: text runs keep their spacing (pre-wrap
+  // keeps spacing/newlines) and draw their formulas, each marker becomes a blank slot in place.
+  const parts = useMemo(() => clozeRuns(text), [text]);
 
   if (!card || !cloze || !text)
     return <p className="cloze cloze-missing">{ui("这张卡片没有可填写的空位。")}</p>;
@@ -58,7 +50,7 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
       {!details && <div className="cloze-hint">{ui("把空格补全")}</div>}
       <div className="cloze-text">
         {parts.map((p, i) => {
-          if (p.t === "text") return <span key={i}>{p.v}</span>;
+          if (p.t === "text") return <span key={i}><MathText text={p.v} /></span>;
           const id = p.id;
           const nthBlank = (nth += 1);
           const detail = detailById.get(id);
@@ -68,12 +60,12 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
           if (detail)
             return detail.correct ? (
               <span key={i} className="cloze-blank cloze-right" title={ui("回答正确")}>
-                {val || solution?.cloze?.answers?.find((answer) => answer.id === id)?.value || ui("回答正确")}
+                {val || <MathText text={solution?.cloze?.answers?.find((answer) => answer.id === id)?.value || ui("回答正确")} />}
                 <span className="cloze-mark"><Icon name="check" size={14} strokeWidth={2.2} /></span>
               </span>
             ) : (
               <span key={i} className="cloze-blank cloze-wrong" title={ui("回答错误")}>
-                <span className="cloze-expected">{detail.expected ?? "—"}</span>
+                <span className="cloze-expected">{detail.expected == null ? "—" : <MathText text={String(detail.expected)} />}</span>
                 <span className="cloze-mark" role="img" aria-label={ui("回答错误")}><Icon name="close" size={14} strokeWidth={2.2} /></span>
                 {Object.hasOwn(values || {}, id) && <span className="cloze-yours">{ui("你的答案：")}{val || ui("未填写")}</span>}
               </span>
