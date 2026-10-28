@@ -440,5 +440,7 @@
   "没写成": "Not written",
   "知识点都没变，不用重写。": "No knowledge point changed; nothing to write.",
   "当前步骤": "Current step",
-  "全部完成": "All done"
+  "全部完成": "All done",
+  "时间线": "Timeline",
+  "依次执行，没有同时进行的调用": "One after another; no two calls ran at once"
 }
