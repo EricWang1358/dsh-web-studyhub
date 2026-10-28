@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, useUiLanguage } from '../i18n.js';
-import { Button, Dialog, InlineMessage } from '../components/index.js';
+import { Dialog, IconButton, InlineMessage } from '../components/index.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
 import { safeDocumentHtml } from './DocumentViewer.jsx';
 import { annotatePassages, captureSelection, groupPassageLinks } from './selection.js';
@@ -65,7 +65,10 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
     }
     if (!hasMaterials) return null;
     return <span className="study-document-native">
-      <Button ref={button} size="sm" onPointerDown={captureBeforeBlur} onClick={launch}>{ui('选段学习')}</Button>
+      {/* The host's toolbar is outside every study surface, so the study button styles do not reach it:
+         .study-document-native__open in document-preview.css styles it like the host's own icon buttons (#512). */}
+      <IconButton ref={button} icon="book" size="sm" label={ui('选段学习')} className="study-document-native__open"
+        onPointerDown={captureBeforeBlur} onClick={launch} />
       {open && <Dialog title={ui('资料选段学习')} size="md" onClose={() => setOpen(false)}>
         {busy && <p role="status">{ui('正在连接资料与原文位置…')}</p>}
         {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
