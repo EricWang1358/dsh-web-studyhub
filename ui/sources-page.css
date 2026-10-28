@@ -144,8 +144,6 @@
      has no room for that: it shows the short label (the counts alone) and the hover keeps the scope. */
   :is(.study-app, .study-seat) {
     .index-badge__short { display: none; }
-    /* The words are never cut: a badge that does not fit its row wraps onto a second line (a badge is one line when it fits; the hover keeps the long form's scope). */
-    .index-badge { flex: 0 1 auto; min-width: 0; white-space: normal; text-align: left; overflow-wrap: anywhere; border-radius: var(--radius-sm); }
     /* The way to build the index, after a badge that is not "built": a quiet text button on the same line (IndexBadge.jsx), and one line above a list (.index-gap). */
     .index-badge-line { min-width: 0; max-width: 100%; }
     .index-badge-line__inner { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; max-width: 100%; }

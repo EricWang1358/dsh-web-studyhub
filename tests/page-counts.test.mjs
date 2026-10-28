@@ -252,6 +252,8 @@ test('hovers: the title, the hint on the page count, the badge, the course line,
   assert.doesNotMatch(badge, /\stitle="/);
   assert.match(badge, /tabindex="0"/);
   assert.match(badge, /index-badge__full">索引已建好 · 这份资料 404\/404 页<\/span><span class="index-badge__short">索引已建好 · 404\/404 页</, 'a narrow window shows the counts without the scope word');
+  // A row too narrow for the label wraps it instead of cutting 「（跳过）」 off: the shared Badge's own wrap, not a feature badge style (#521, wave5a-chips).
+  assert.match(badge, /class="sh-badge sh-badge--sm sh-badge--wrap index-badge"/);
 });
 
 test('the English card says the same with no Chinese', () => {

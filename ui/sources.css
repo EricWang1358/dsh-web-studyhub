@@ -17,7 +17,7 @@
     /* “原 PDF 422 页” beside the page count: dotted, so it reads as something to hover for the reason. */
     .source-doc__gap { text-decoration: underline dotted; text-underline-offset: 0.2em; }
     /* The index badge's line is there from the first paint (the picker's rule, #205): a coverage answer fills it and moves nothing. A badge too long for the row wraps
-       onto a second line (ui/sources-page.css) instead of being cut, so the line is a minimum height and shows what overflows the generic row line's clip. */
+       onto a second line (Badge wrap, ui/components/feedback.css) instead of being cut, so the line is a minimum height and shows what overflows the generic row line's clip. */
     .source-doc .source-main small.source-doc__index { display: flex; align-items: center; min-width: 0; min-height: calc(var(--fs-sm) * var(--lh-snug)); overflow: visible; white-space: normal; }
     .source-doc .source-main small.source-doc__index > * { min-width: 0; max-width: 100%; }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }

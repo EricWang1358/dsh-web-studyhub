@@ -58,7 +58,7 @@ export default function IndexBadge({ info, coverage, onIndex }) {
   const actionable = !!onIndex && NEEDS_INDEX.has(info.state);
   // Beside the action the mark is wrapped, so a narrow row can drop it (the words say the state) to make room for the action.
   const mark = info.state === 'building' ? <Spinner size="sm" /> : !icon ? undefined : actionable ? <span className="index-badge__mark"><Icon name={icon} size={12} /></span> : icon;
-  const badge = <Badge className="index-badge" size="sm" tone={tone} icon={mark} data-state={info.state} tabIndex={0}>
+  const badge = <Badge className="index-badge" size="sm" wrap tone={tone} icon={mark} data-state={info.state} tabIndex={0}>
     {short === label ? label : <><span className="index-badge__full">{label}</span><span className="index-badge__short">{short}</span></>}
   </Badge>;
   if (!actionable) return <Tooltip layer content={indexTip(info).join('\n')}>{badge}</Tooltip>;

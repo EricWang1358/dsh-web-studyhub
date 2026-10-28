@@ -56,7 +56,7 @@ test('plain words, with the page counts, in both languages and without telling w
 test('the badge renders as a quiet chip with the state on it, in both languages, and nothing when there is nothing to say', () => {
   const info = { state: 'indexed', indexed: 404, total: 404, stale: 0 };
   const html = renderToStaticMarkup(React.createElement(IndexBadge, { info, coverage: { canIndex: true, building: null } }));
-  assert.match(html, /class="sh-badge sh-badge--sm index-badge"[^>]*data-state="indexed"/);
+  assert.match(html, /class="sh-badge sh-badge--sm sh-badge--wrap index-badge"[^>]*data-state="indexed"/);
   assert.match(html, /data-tone="success"/);
   assert.match(html, /索引已建好 · 这份资料 404\/404 页/);
   assert.equal(renderToStaticMarkup(React.createElement(IndexBadge, { info: null, coverage: null })), '');

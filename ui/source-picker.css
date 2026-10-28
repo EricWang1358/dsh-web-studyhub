@@ -22,7 +22,7 @@
     .source-picker__text { display: grid; gap: var(--space-half); min-width: 0; }
     .source-picker__text strong { color: var(--text); font-weight: var(--fw-strong); overflow-wrap: anywhere; line-height: var(--lh-snug); }
     .source-picker__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    /* The badge line keeps its height whether or not the coverage has arrived (#205): at least the height of one line of the small text above it; a long badge wraps (ui/sources-page.css). */
+    /* The badge line keeps its height whether or not the coverage has arrived (#205): at least the height of one line of the small text above it; a long badge wraps (Badge wrap). */
     .source-picker__text small.source-picker__index { display: flex; align-items: center; min-width: 0; min-height: calc(var(--fs-sm) * var(--lh-snug)); }
     .source-picker__text small.source-picker__index > * { min-width: 0; max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
