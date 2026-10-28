@@ -8,6 +8,7 @@ import { finishTranscript } from '../lib/audio-import.js';
 import { createPool } from '../lib/audio-pool.js';
 import { withQualityStages } from './helpers/assessment.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 // WP-TC step 2, through the real service: a generation run and an audio text step leave their calls on the job, with slots, and the
 // snapshot carries them while the chat tools do not.
@@ -23,7 +24,7 @@ test('a generation job lists its model calls in the snapshot, each with a stage 
   await service.call('source.add', source);
   service.complete = withQualityStages(async (system, prompt) => {
     if (system.includes('editor')) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: 'D', cards: Array.from({ length: request.count }, (_, index) => ({ ...card(index + 1), id: `n${index + 1}`, objective: `New ${index + 1}` })) });
   });
   const started = await service.call('generate', { sourceIds: [source.id], count: 1, kind: 'flashcard' });

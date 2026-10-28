@@ -4,6 +4,7 @@ import { generateDeck } from "../lib/generation.js";
 import { generateBatched } from "../lib/batch.js";
 import { patchCandidates, patchFields, applyPatch } from "../lib/generation-yield.js";
 import { qualityPlan, qualityReview } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* #202: when the review flags only defects that live in a few named fields (a hint or topic that gives the answer, a weak distractor, an
    unclear explanation) the card gets ONE targeted repair of just those fields, with the reviewer's comment, and the same local checks plus
@@ -27,20 +28,20 @@ function fakeModel({ reviewFail = {}, comment = {}, defects = {}, patch, reviewA
   let authors = 0;
   const complete = async (system, prompt) => {
     if (system.startsWith("Plan a source-grounded assessment")) {
-      const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+      const request = requestData(prompt);
       log.calls.push("plan");
       return JSON.stringify({ targets: qualityPlan({ ...request, kind: "quiz" }).targets.map((target, index) => ({ ...target, objective: `Planned ${index + 1}` })) });
     }
     if (system.startsWith("Prepare supported answers")) {
       log.calls.push("blueprint");
-      const plan = JSON.parse(prompt.split("REQUEST DATA:\n")[1]).assessmentPlan;
+      const plan = requestData(prompt).assessmentPlan;
       const cards = plan.targets.map((target, index) => quizCard(targetNumber({ targetId: target.targetId }), index));
       return JSON.stringify({ items: cards.map((card, index) => ({ targetId: plan.targets[index].targetId, answer: card.answer, reasoning: card.explanation,
         scenario: { kind: "none", facts: [], decisiveConditions: [] }, comparisonAxis: "scope", options: card.options })) });
     }
     if (system.startsWith("You author")) {
       log.calls.push("author"); authors++;
-      const plan = JSON.parse(prompt.split("REQUEST DATA:\n")[1]).assessmentPlan;
+      const plan = requestData(prompt).assessmentPlan;
       const cards = plan.targets.map((target, index) => {
         const n = Number(target.targetId.replace("target-", "")), card = quizCard(n, index);
         return authors === 1 && defects[n] ? defects[n](card) : card;
@@ -66,7 +67,7 @@ function fakeModel({ reviewFail = {}, comment = {}, defects = {}, patch, reviewA
     }
     if (system.startsWith("Rewrite only the wording")) {
       log.calls.push("patch");
-      const body = JSON.parse(prompt.split("REQUEST DATA:\n")[1]); log.patchPrompts.push(body);
+      const body = requestData(prompt); log.patchPrompts.push(body);
       return JSON.stringify(patch(body));
     }
     throw new Error(`unexpected call: ${system.slice(0, 40)}`);

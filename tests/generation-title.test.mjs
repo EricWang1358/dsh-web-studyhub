@@ -8,6 +8,7 @@ import { generateBatched } from "../lib/batch.js";
 import { authorPrompts } from "../lib/generation.js";
 import { cleanDeckTitle } from "../lib/deck-title.js";
 import { qualityPlan, qualityReview } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* #199: a deck's name never carries a number of questions ("架构的语境性、动态性与代价权衡 (4 题)": the 4 was the number of parts the model saw,
    written as questions and frozen into the name). The model is told not to, the program removes such a suffix from what it names, and decks that
@@ -36,7 +37,7 @@ test("the author is told the name carries no count, and a count the model adds a
   const { prompt } = authorPrompts({ count: 4, kind: "quiz", sources: [source] }, { targets: [] }, { items: [] });
   assert.match(prompt, /Deck title[^"]*never[^"]*(?:number|count)/i, "the schema line itself says it");
   const model = async (system, text) => {
-    const data = () => JSON.parse(text.split("REQUEST DATA:\n")[1]);
+    const data = () => requestData(text);
     if (system.startsWith("Plan a source-grounded assessment")) return JSON.stringify(qualityPlan({ ...data(), kind: "flashcard" }));
     if (system.startsWith("Prepare supported answers")) {
       const plan = data().assessmentPlan;
@@ -47,7 +48,7 @@ test("the author is told the name carries no count, and a count the model adds a
         prompt: `What does the passage establish, point ${index + 1}?`, answer: "Principles guide later choices.", hint: "Think about change over time.", explanation: "The passage says so.", misconception: "Only structure.", citations: target.citations }));
       return JSON.stringify({ deck: { title: "架构的语境性、动态性与代价权衡 (4 题)", cards }, changes: [], checks: qualityReview({ cards }).checks });
     }
-    return JSON.stringify(qualityReview(JSON.parse(text).candidate));
+    return JSON.stringify(qualityReview(requestData(text).candidate));
   };
   const result = await generateBatched(model, { count: 3, kind: "flashcard", sources: [source] });
   assert.equal(result.title, "架构的语境性、动态性与代价权衡");

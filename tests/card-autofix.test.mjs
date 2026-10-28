@@ -5,6 +5,7 @@ import { generateDeck, authorPrompts } from '../lib/generation.js';
 import { blueprintPrompts, blueprintAssessment, formulaIssues, answerLeakIssues } from '../lib/assessment-quality.js';
 import { validateDeck } from '../lib/domain.js';
 import { qualityPlan, qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 const source = { id: 's', title: 'Course notes', text: 'Architecture includes the principles guiding a system design and evolution.' };
 const ANSWER = 'Principles guide subsequent design choices and changes.';
@@ -222,7 +223,7 @@ test('generateDeck keeps a card with a missing hint and a bare formula without a
     if (system.startsWith('Prepare supported answers')) { calls.push('blueprint'); return JSON.stringify({ items: [{ ...item, targetId: planned.targets[0].targetId }] }); }
     if (system.startsWith('You author')) { calls.push('author'); return JSON.stringify({ deck: { title: 'Arch', cards: [{ ...authoredCard, targetId: planned.targets[0].targetId }] }, changes: [] }); }
     calls.push('review');
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   }, req);
   assert.deepEqual(calls, ['plan', 'blueprint', 'author', 'review'], 'no repair or extra call');
   assert.equal(result.cards.length, 1);

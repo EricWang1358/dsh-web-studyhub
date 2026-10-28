@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { generateDeck, reviewPrompts } from "../lib/generation.js";
 import { reviewIssues, reviewSuggestions, REVIEW_SHAPE } from "../lib/assessment-quality.js";
 import { qualityPlan, qualityReview } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* #216: the review has two severities. Only a blocker (unsupported answer, wrong attribution, wrong kind, a real leak, several correct options)
    drops or repairs a card; a suggestion (wording, "could be shorter", an optional rewrite) is recorded and the card stays. Quotes are verified by
@@ -24,7 +25,7 @@ const quizCard = (n, index) => ({ id: `q${index + 1}`, targetId: `target-${n}`, 
 function model(verdict, { second, patch } = {}) {
   const log = { calls: [], reviewPrompts: [], patchPrompts: [] };
   const complete = async (system, prompt) => {
-    const data = () => JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const data = () => requestData(prompt);
     if (system.startsWith("Plan a source-grounded assessment")) { log.calls.push("plan"); return JSON.stringify({ targets: qualityPlan({ ...data(), kind: "quiz" }).targets.map((target, index) => ({ ...target, objective: `Planned ${index + 1}`,
       citations: [{ sourceId: "s", quote }] })) }); }
     if (system.startsWith("Prepare supported answers")) {
@@ -40,7 +41,7 @@ function model(verdict, { second, patch } = {}) {
     }
     if (system.startsWith("Act as a strict assessment editor")) {
       log.calls.push("review"); log.reviewPrompts.push({ system, prompt });
-      const candidate = JSON.parse(prompt).candidate, base = qualityReview(candidate);
+      const candidate = requestData(prompt).candidate, base = qualityReview(candidate);
       const found = (log.calls.filter((call) => call === "review").length === 1 ? verdict(candidate) : second?.(candidate)) || {};
       for (const check of base.checks) Object.assign(check, found.checks?.[check.cardId] || {});
       return JSON.stringify({ ...base, issues: found.issues || [], suggestions: found.suggestions || [] });
@@ -138,7 +139,7 @@ test("applySuggestions on: a card that passed with a suggestion is re-worded onc
   const m = model(suggested, { patch: reword });
   const result = await generate(m, { applySuggestions: true });
   assert.deepEqual(m.log.calls, ["plan", "blueprint", "author", "review", "patch", "review"], "one rewrite call and one review call for the whole part");
-  const sent = JSON.parse(m.log.patchPrompts[0].split("REQUEST DATA:\n")[1]).cards;
+  const sent = requestData(m.log.patchPrompts[0]).cards;
   assert.deepEqual(sent.map((card) => card.id), ["q1", "q3"], "only the cards that were given a suggestion");
   assert.match(sent[0].issues.join(" "), /建议改为只说明判断维度/, "the reviewer's own words reach the rewrite");
   assert.equal(result.cards.length, 3);

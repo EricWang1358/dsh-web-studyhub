@@ -11,6 +11,7 @@ import { createJevUsage } from '../lib/jev-usage.js';
 import { TRIAGE_CHECKS, buildTriageRequest, createPreReview, readTriage, rewriteFlagged, triageDeck } from '../lib/jev-triage.js';
 import { authored, qualityPlan, qualityReview, withQualityStages } from './helpers/assessment.mjs';
 import { startFakeJev } from './helpers/fake-jev.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* 出题预审: a cheap Jev pass over each candidate card BEFORE the one independent review. A confident failure sends the card back for
    one rewrite; EVERY card still goes through the independent review, which stays the only gate. The signals are kept with the draft. */
@@ -138,7 +139,7 @@ test('generateDeck: Jev flags a card, it is rewritten once BEFORE the review, an
     calls.push(system);
     if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(req));
     if (system.startsWith('Act as a strict assessment editor')) {
-      const candidate = JSON.parse(prompt).candidate;
+      const candidate = requestData(prompt).candidate;
       assert.deepEqual(candidate.cards.map(card => card.prompt), ['Fine question?', 'A question that does not give itself away?'], 'the reviewer sees the rewritten card, and the unflagged one too');
       return JSON.stringify(qualityReview(candidate));
     }
@@ -167,7 +168,7 @@ test('a Jev that is off, failing or throwing changes nothing: the same calls, th
     const result = await generateDeck(withQualityStages(async (system, prompt) => {
       calls.push(system.slice(0, 24));
       if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(req));
-      if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
       return JSON.stringify(authored(d));
     }), req);
     return { calls, result };
@@ -194,9 +195,9 @@ test('batches: the signals of every part are collected into the one draft', asyn
   let n = 0;
   const sources = Array.from({ length: 2 }, (_, index) => ({ id: `s${index}`, title: `Notes ${index}`, text: `Unique source number ${index}. ${'Architecture includes the principles guiding a system. '.repeat(2000)}` }));
   const result = await generateBatched(withQualityStages(async (system, prompt) => {
-    if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(plan(JSON.parse(prompt.split('REQUEST DATA:\n')[1])));
-    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
-    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]), id = ++n;
+    if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(plan(requestData(prompt)));
+    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
+    const request = requestData(prompt), id = ++n;
     return JSON.stringify(authored({ title: 'T', cards: Array.from({ length: request.count }, (_, k) => ({ ...flash(`x${id}-${k}`, `Distinct question ${id}-${k}?`, { objective: `Objective ${id}-${k}`, citations: [{ sourceId: request.sources[0].id, quote: request.sources[0].text.trim().slice(0, 40) }] }) })) }, [], request.assessmentPlan));
   }), { count: 4, kind: 'flashcard', sources, preReview: createPreReview({ runtime: h.runtime, threshold: 0.8 }) });
   const signals = result.editorial.jev?.signals ?? {};
@@ -211,7 +212,7 @@ test('the signals hold ids and numbers only: nothing of the card text is stored 
   const req = { count: 1, kind: 'flashcard', sources: [source], preReview: createPreReview({ runtime: h.runtime, threshold: 0.8 }) };
   const result = await generateDeck(withQualityStages(async (system, prompt) => {
     if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(req));
-    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify(authored(deck));
   }), req);
   const dump = JSON.stringify(result.editorial.jev);

@@ -7,6 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { NONE_KEY } from '../lib/jev-course-suggest.js';
 import { jevOrganizeHook } from '../lib/jev-hooks.js';
 import { startFakeJev } from './helpers/fake-jev.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* 请 AI 建议 (source.organize.suggest) with Jev as an optional replacement (site `courseOrganize`): Jev picks among the learner's existing
    courses for the sources it is sure about, ONE model call takes the rest. Proposals only: the learner's "确认应用建议" is still what changes
@@ -36,7 +37,7 @@ async function harness(t, { fakeOptions = {}, experimental = true } = {}) {
   const modelCalls = [];
   const complete = async (system, prompt) => {
     modelCalls.push({ system, prompt });
-    const ids = JSON.parse(prompt).sources.map(entry => entry.id);
+    const ids = requestData(prompt).sources.map(entry => entry.id);
     return JSON.stringify({ proposals: ids.map(id => ({ id, courses: ['Model course'], reason: `model reason for ${id}` })) });
   };
   const service = new StudyService(root, { complete, language: 'en', jev: { baseUrl: fake.baseUrl, sleep: async () => {}, random: () => 0 } });

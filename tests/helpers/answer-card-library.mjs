@@ -2,6 +2,7 @@
    published case deck with one availability question (marks, rubric criteria with key points). `goodCard` is a model reply that passes every check of the
    program; `cardModel` is a fake model that answers the write, the review and the repair calls by their prompts. Nothing here reaches a network. */
 import { renderRubric } from '../../lib/case-study.js';
+import { requestData } from './request-data.mjs';
 
 export const COURSE = 'SWE5001';
 export const SCENARIO = [
@@ -58,7 +59,7 @@ export function goodCard() {
   };
 }
 
-const data = prompt => JSON.parse(prompt.slice(prompt.indexOf('REQUEST DATA:\n') + 'REQUEST DATA:\n'.length).split('\n\nREPAIR:')[0]);
+const data = prompt => requestData(prompt);
 
 /**
  * A fake model for the three calls. `write(n)` the card of the n-th write (1, then 2 for a repair); `review` the issues list; `fail(callNo)` throws;

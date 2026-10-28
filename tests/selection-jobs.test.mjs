@@ -7,6 +7,7 @@ import { Store } from '../lib/store.js';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* Selected-passage supplementation is an ordinary background job (the reader's learning panel, "阻塞了"):
    starting answers at once with a job handle, the job shows stage / counts / usage while it runs, can be stopped,
@@ -35,13 +36,13 @@ function gatedModel() {
     });
     options.signal?.throwIfAborted();
     const report = text => { if (control.usage) reportUsage({ uncachedInputTokens: 100, outputTokens: 40, cacheReadTokens: 0, cacheWriteTokens: 0 }); return text; };
-    if (stage === 'plan') return report(JSON.stringify(qualityPlan(JSON.parse(prompt.split('REQUEST DATA:\n')[1]))));
+    if (stage === 'plan') return report(JSON.stringify(qualityPlan(requestData(prompt))));
     if (stage === 'review') {
       if (control.reviewError) throw new Error(control.reviewError);
-      const candidate = JSON.parse(prompt).candidate;
+      const candidate = requestData(prompt).candidate;
       return report(JSON.stringify(qualityReview(candidate, candidate.cards.filter(card => control.flagged.has(card.id)).map(card => `${card.id}: answerLeak failed`))));
     }
-    const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]), source = data.sources[0];
+    const data = requestData(prompt), source = data.sources[0];
     const cards = Array.from({ length: stage === 'blueprint' ? data.assessmentPlan.targets.length : control.authorCards ?? data.count }, (_, index) => ({ id: `q${index + 1}`, kind: 'flashcard',
       topic: `Topic ${index} of ${source.text.slice(0, 12)}`, objective: `Explain angle ${index} of ${source.text.slice(0, 20)}`,
       prompt: `Why does angle ${index} matter for ${source.text.slice(0, 18).toLowerCase()} decisions?`,

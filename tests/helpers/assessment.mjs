@@ -1,4 +1,5 @@
 import { authorPrompts, salvageAuthoredCards } from '../../lib/generation.js';
+import { requestData } from './request-data.mjs';
 
 // Fixture adapter for evidence, concrete answers, author and independent review calls.
 // Changed cards require a fresh review; unchanged cards retain their receipt.
@@ -39,12 +40,12 @@ export function withQualityStages(complete) {
   const keyFor = request => JSON.stringify([request.kind, request.assessmentPlan?.targets.map(target => [target.targetId, target.objective])]);
   return async (system, prompt) => {
     if (system.startsWith("Plan a source-grounded assessment"))
-      return JSON.stringify(qualityPlan(JSON.parse(prompt.split("REQUEST DATA:\n")[1])));
+      return JSON.stringify(qualityPlan(requestData(prompt)));
     if (system.startsWith('Prepare supported answers')) {
       // Existing fixtures describe one authored deck. Read that fixture once
       // for its concrete answers and reuse it for the real author stage; this
       // adapter never grants review approval. Workflow tests mock all stages.
-      const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      const request = requestData(prompt);
       const authorRequest = { ...request };
       const author = authorPrompts(authorRequest, request.assessmentPlan);
       const response = await complete(author.system, author.prompt);
@@ -56,7 +57,7 @@ export function withQualityStages(complete) {
       return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, deck));
     }
     if (system.startsWith('You author')) {
-      const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]), key = keyFor(request);
+      const request = requestData(prompt), key = keyFor(request);
       if (pending.has(key)) {
         const response = pending.get(key); pending.delete(key);
         let value;
@@ -70,7 +71,7 @@ export function withQualityStages(complete) {
     const response = await complete(system, prompt);
     const value = JSON.parse(response);
     if (system.startsWith("Act as a strict assessment editor"))
-      return JSON.stringify({ ...qualityReview(JSON.parse(prompt).candidate, value.issues), ...value });
+      return JSON.stringify({ ...qualityReview(requestData(prompt).candidate, value.issues), ...value });
     // The author call returns its own self-check alongside the deck.
     if (Array.isArray(value?.cards)) return JSON.stringify(authored(value));
     return response;

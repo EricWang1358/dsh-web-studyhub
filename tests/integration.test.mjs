@@ -9,6 +9,7 @@ import { Store } from "../lib/store.js";
 import { createHostHandler } from "../lib/host.js";
 import { generateDeck } from "../lib/generation.js";
 import { importExample } from "../ui/json-prompts.js";
+import { requestData } from './helpers/request-data.mjs';
 
 const fresh = () => mkdtemp(join(tmpdir(), "study-integration-"));
 const source = {
@@ -100,7 +101,7 @@ test("parallel jobs persist early drafts and broadcast to each active worker wit
   const readyWorkers = new Promise((resolve) => started = resolve);
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const req = requestData(prompt);
     return JSON.stringify({ title: "Parallel", cards: Array.from({ length: req.count }, () => {
       const n = ++counter;
       return { ...structuredClone(q), id: `q${n}`, prompt: `Distinct question ${n}?`, objective: `Objective ${n}` };
@@ -1032,7 +1033,7 @@ test("large selections generate in parts, extra generations queue, and job.wait 
     if (system.startsWith("Act as a strict assessment editor"))
       return JSON.stringify({ issues: [], summary: "ok" });
     authorCalls++;
-    const request = JSON.parse(prompt.slice(prompt.indexOf("REQUEST DATA:\n") + 14));
+    const request = requestData(prompt);
     if (request.kind === "flashcard" && authorCalls === 5 && !prompt.includes("Repair this candidate"))
       return JSON.stringify({ error: "insufficient evidence in this part" });
     return JSON.stringify({
@@ -1436,7 +1437,7 @@ test("cancelling parallel generation retains the approved checkpoint and permits
   const readyWorkers = new Promise((resolve) => started = resolve);
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const req = requestData(prompt);
     return JSON.stringify({ title: "Parallel", cards: Array.from({ length: req.count }, () => {
       const n = ++counter;
       return { ...structuredClone(q), id: `q${n}`, prompt: `Distinct question ${n}?`, objective: `Objective ${n}` };

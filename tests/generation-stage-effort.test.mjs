@@ -8,6 +8,7 @@ import { EFFORT_DEFAULTS, EFFORT_STAGES, effortStageOf, stageEffortRoute } from 
 import { GENERATION_SETTINGS_DEFAULTS, normalizeGenerationPerformance, validateGenerationPatch, resolveGenerationRequest } from "../lib/generation-settings.js";
 import { withQualityStages } from "./helpers/assessment.mjs";
 import { settleJob } from "./helpers/wait.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* #218: the reasoning level is chosen per stage, in relative terms ("low", "high"...) resolved (by lib/model-effort.js, #226) to the nearest level the model really offers
    (DeepSeek V4.1 Flash has Off/Low/Default/High/Max and no "medium"). Planning and review follow the session's level by default; writing,
@@ -67,7 +68,7 @@ test("a generation job hands each model call the stage levels of its snapshot", 
   const seen = [];
   const inner = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: "T", cards: [{ id: "q1", kind: "flashcard", topic: "Architecture", objective: "O1", prompt: "What does architecture include?", answer: "Principles guiding design and evolution.",
       hint: "Think about change over time.", explanation: "The statement says it.", misconception: "Only structure.", citations: [{ sourceId: "s", quote: "Architecture includes the principles guiding a system's design and evolution." }] }].slice(0, request.count) });
   });

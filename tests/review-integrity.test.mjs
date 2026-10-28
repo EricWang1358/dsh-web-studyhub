@@ -7,6 +7,7 @@ import { StudyService } from "../lib/service.js";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { qualityReview } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 const source = { id: "s", title: "Notes", text: "Architecture sets principles that guide how a system is designed and changed." };
 const card = () => ({ id: "q", kind: "flashcard", topic: "Architecture", objective: "Explain architectural principles",
@@ -52,7 +53,7 @@ test("publishing starts in the background and reports its result without holding
   const gate = new Promise((resolve) => { releaseReview = resolve; });
   const service = new StudyService(root, { complete: async (_system, prompt) => {
     await gate;
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   } });
   await service.call("source.add", source);
   const saved = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card()] } });
@@ -109,7 +110,7 @@ test("publishing an edited card automatically rechecks it and keeps the receipt"
   const service = new StudyService(root, { complete: async (system, prompt) => {
     assert.match(system, /^Act as a strict assessment editor/);
     reviews++;
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   } });
   await service.call("source.add", source);
   const original = card();
@@ -169,7 +170,7 @@ test("card ids that share a prefix are not confused during batch review", async 
   let calls = 0;
   const service = new StudyService(root, { complete: async (_system, prompt) => {
     calls++;
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     review.issues = ["q10: source support is insufficient"];
     return JSON.stringify(review);
   } });
@@ -208,7 +209,7 @@ test("a failed batch review isolates cards, then publishes an unavailable review
   t.after(() => rm(root, { recursive: true, force: true }));
   const calls = [];
   const service = new StudyService(root, { complete: async (_system, prompt) => {
-    const candidate = JSON.parse(prompt).candidate;
+    const candidate = requestData(prompt).candidate;
     calls.push(candidate.cards.map((item) => item.id));
     if (candidate.cards.length > 1 || candidate.cards[0].id === "bad") throw new Error("Model request failed");
     return JSON.stringify(qualityReview(candidate));
@@ -236,7 +237,7 @@ test("a single model outage does not hold back a structurally valid card", async
     { accepted: 1, rejected: 0, unchecked: 1 });
   assert.equal((await service.call("snapshot")).decks[0].uncheckedAtPublish, 1);
   const online = new StudyService(root, { complete: async (_system, prompt) =>
-    JSON.stringify(qualityReview(JSON.parse(prompt).candidate)) });
+    JSON.stringify(qualityReview(requestData(prompt).candidate)) });
   const edit = await online.call("deck.edit", { id: "d" });
   const revised = await online.call("draft.save", { deck: { ...edit,
     cards: [{ ...edit.cards[0], prompt: "Which principles guide future design?" }] } });
@@ -257,7 +258,7 @@ test("editing a deck with an open study run explains how to finish publication",
   let reviewCalls = 0;
   const online = new StudyService(root, { complete: async (_system, prompt) => {
     reviewCalls++;
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   } });
   const edit = await online.call("deck.edit", { id: "d" });
   const changed = await online.call("draft.save", { deck: { ...edit,
@@ -275,7 +276,7 @@ test("failed automatic review keeps the card in a draft; an absent model is repo
   const root = await mkdtemp(join(tmpdir(), "study-recheck-fail-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { complete: async (_system, prompt) => {
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     review.checks[0].sourceSupport = "fail";
     return JSON.stringify(review);
   } });
@@ -296,7 +297,7 @@ test("manually changing a rejected card clears obsolete findings before optional
   const root = await mkdtemp(join(tmpdir(), "study-manual-fix-rejected-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { complete: async (_system, prompt) => {
-    const candidate = JSON.parse(prompt).candidate;
+    const candidate = requestData(prompt).candidate;
     const review = qualityReview(candidate);
     if (!candidate.cards[0].explanation.startsWith("Fixed:"))
       review.checks[0].explanationQuality = "fail";
@@ -330,9 +331,9 @@ test("good cards publish first and optional background repair adds the rejected 
         explanation: "Fixed: the cited principles guide both design and later evolution." } });
     }
     assert.match(system, /^Act as a strict assessment editor/);
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     for (const check of review.checks)
-      if (check.cardId === "bad" && !JSON.parse(prompt).candidate.cards.find((item) => item.id === "bad")
+      if (check.cardId === "bad" && !requestData(prompt).candidate.cards.find((item) => item.id === "bad")
         .explanation.includes("Fixed:")) {
         check.explanationQuality = "fail";
         check.explanation = "The explanation does not connect the source to the answer.";
@@ -368,7 +369,7 @@ test("background repair can restore a missing citation from the draft's original
       assert.deepEqual(input.sources.map((item) => item.id), ["s"]);
       return JSON.stringify({ card: { ...input.card, citations: [{ sourceId: "s", quote: source.text }] } });
     }
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   } });
   await service.call("source.add", source);
   await service.call("source.add", { id: "other", title: "Other", text: "Unrelated material." });
@@ -419,7 +420,7 @@ test("reviewed publication enforces the saved answer-hiding constraints", async 
   const root = await mkdtemp(join(tmpdir(), "study-publish-answer-leak-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { complete: async (_system, prompt) =>
-    JSON.stringify(qualityReview(JSON.parse(prompt).candidate)) });
+    JSON.stringify(qualityReview(requestData(prompt).candidate)) });
   await service.call("source.add", source);
   const leaking = { ...card(), hint: "The answer is architectural principles." };
   for (const allow of [false, true]) {
@@ -479,7 +480,7 @@ test("a source chosen for missing-citation repair cannot disappear during that j
       const input = JSON.parse(prompt);
       return JSON.stringify({ card: { ...input.card, citations: [{ sourceId: "s", quote: source.text }] } });
     }
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   } });
   await service.call("source.add", source);
   const saved = await service.call("draft.save", { deck: { id: "d", title: "Architecture",
@@ -506,7 +507,7 @@ test("deleting a draft during background repair cancels the job without recreati
       const input = JSON.parse(prompt);
       return JSON.stringify({ card: { ...input.card, explanation: "Fixed: the notes support this answer." } });
     }
-    const candidate = JSON.parse(prompt).candidate;
+    const candidate = requestData(prompt).candidate;
     const review = qualityReview(candidate);
     if (!candidate.cards[0].explanation.startsWith("Fixed:"))
       review.checks[0].explanationQuality = "fail";
@@ -550,7 +551,7 @@ test("background repair does not count a duplicate of a published card as fixed"
       return JSON.stringify({ card: { ...input.card, objective: card().objective,
         explanation: "Fixed: the notes identify principles as guidance for design and change." } });
     }
-    const candidate = JSON.parse(prompt).candidate;
+    const candidate = requestData(prompt).candidate;
     const review = qualityReview(candidate);
     if (candidate.cards[0].id === "bad" && !candidate.cards[0].explanation.startsWith("Fixed:"))
       review.checks[0].explanationQuality = "fail";
@@ -582,9 +583,9 @@ test("background repair reports partial success while retaining unsolved cards",
           ? "Fixed: the source identifies principles as guidance for design and change."
           : input.card.explanation } });
     }
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     for (const check of review.checks) {
-      const candidate = JSON.parse(prompt).candidate.cards.find((item) => item.id === check.cardId);
+      const candidate = requestData(prompt).candidate.cards.find((item) => item.id === check.cardId);
       if (!candidate.explanation.startsWith("Fixed:")) check.explanationQuality = "fail";
     }
     return JSON.stringify(review);
@@ -619,7 +620,7 @@ test("background repair corrects a duplicate once and independently reviews the 
         objective: repairs === 1 ? card().objective : "Explain future evolution",
         explanation: "Fixed: the notes identify principles as guidance for design and change." } });
     }
-    const candidate = JSON.parse(prompt).candidate;
+    const candidate = requestData(prompt).candidate;
     const review = qualityReview(candidate);
     if (candidate.cards[0].id === "bad" && !candidate.cards[0].explanation.startsWith("Fixed:"))
       review.checks[0].explanationQuality = "fail";
@@ -649,9 +650,9 @@ test("partial edits preserve the published cards and apply repaired edits later"
   const root = await mkdtemp(join(tmpdir(), "study-partial-edit-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { complete: async (_system, prompt) => {
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     for (const check of review.checks) {
-      const candidate = JSON.parse(prompt).candidate.cards.find((item) => item.id === check.cardId);
+      const candidate = requestData(prompt).candidate.cards.find((item) => item.id === check.cardId);
       if (candidate?.prompt.includes("Broken")) check.sourceSupport = "fail";
     }
     return JSON.stringify(review);
@@ -731,7 +732,7 @@ test("a concurrent edit invalidates a completed publication review", async (t) =
     const state = await service.call("export");
     const draft = state.drafts[0];
     await service.call("draft.save", { deck: { ...draft, title: "Changed while reviewing" } });
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   } });
   await service.call("source.add", source);
   const saved = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card()] } });

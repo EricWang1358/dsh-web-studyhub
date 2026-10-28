@@ -8,6 +8,7 @@ import { sectionedModel } from './helpers/coverage-fixture.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { gate, openLibrary, soon } from './helpers/generation-baseline.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* S3-0 baseline, how a generation-family job ENDS as the public contract says it (lib/job-contract.js): complete, partial, failed, stopped by the learner, stopped by the owner unloading.
    The first three are distinct today. The last two are NOT: the unload of the generation plugin sets `cancelRequestedAt` like a click on stop does, so the contract says
@@ -58,7 +59,7 @@ test('draft.repair: every card fixed is complete; some fixed is complete+partial
     explanation: 'The notes say principles guide design and change.', misconception: 'Only parts matter.', citations: [{ sourceId: 's', quote: source.text }] });
   const run = async (broken, count) => {
     const opened = await openLibrary(t, { model: async (system, prompt) => {
-      if (!system.startsWith('Repair one draft card')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      if (!system.startsWith('Repair one draft card')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
       const input = JSON.parse(prompt);
       return JSON.stringify({ card: { ...input.card, ...(broken.includes(input.card.id) ? { id: 'changed' } : { explanation: `Fixed: ${input.card.explanation}` }) } });
     } });
