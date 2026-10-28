@@ -77,6 +77,27 @@ test('the badge counts the document’s own pages and says so; its hover says wh
   assert.equal(indexTip({ state: 'indexed', indexed: 1, total: 1 }).length, 2, 'one sentence and one consequence');
 });
 
+test('the hover of a badge with skipped pages says why they are skipped, in every state that counts them, and only then (#521)', () => {
+  const why = /只有标题、图或很短的行，检索服务切不出可检索的段落，所以跳过；页面内容改了会重新尝试/;
+  for (const state of ['indexed', 'partial', 'stale']) {
+    const lines = indexTip({ state, indexed: 6, stale: 1, skipped: 4, total: 11 });
+    assert.equal(lines.length, 3, `${state}: the state, the reason, the scope`);
+    assert.match(lines[1], why);
+    assert.match(lines[2], /不含课程里的其他资料/);
+  }
+  assert.doesNotMatch(indexTip({ state: 'indexed', indexed: 4, total: 4 }).join('\n'), /切不出/);
+  assert.doesNotMatch(indexTip({ state: 'indexed', indexed: 4, skipped: 0, total: 4 }).join('\n'), /切不出/);
+  setUiLanguage('en');
+  try {
+    const lines = indexTip({ state: 'indexed', indexed: 6, skipped: 4, total: 10 });
+    assert.equal(lines.length, 3);
+    assert.match(lines[1], /only a title, figures or very short lines/);
+    assert.match(lines[1], /skipped/);
+    assert.match(lines[1], /tried again|retried/);
+    assert.doesNotMatch(lines.join('\n'), /[一-鿿]/, 'no Chinese left in the English hover');
+  } finally { setUiLanguage('zh'); }
+});
+
 /* ---------- the course, with names ---------- */
 
 const picked = [
@@ -115,6 +136,20 @@ test('the course line says what it counts: the course, its pages, its materials,
   assert.equal(courseScopeLine(plan({ pages: 0, toIndex: 0, unchanged: 0, documents: 0, missing: [], missingDocuments: 0 }), COURSE), '「Architecting Software Solutions」这门课还没有资料页。');
   assert.equal(courseScopeLine(null, COURSE), '');
   assert.match(courseScopeLine(plan({ missing: [{ title: '很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的标题', pages: 4 }], missingDocuments: 1 }), COURSE), /《很长[^》]{1,33}…》（4 页）/);
+});
+
+test('the course line counts pages with no searchable text as their own category, in one wording, and never as not indexed (#521)', () => {
+  const upToDate = { toIndex: 0, unchanged: 530, skipped: 58, missing: [], missingDocuments: 0 };
+  assert.equal(courseScopeLine(plan(upToDate), COURSE), '「Architecting Software Solutions」这门课共 588 页（含 7 份资料），索引已是最新；58 页无检索文字（跳过）。');
+  assert.equal(courseScopeLine(plan({ toIndex: 4, unchanged: 526, skipped: 58 }), COURSE),
+    '「Architecting Software Solutions」这门课共 588 页（含 7 份资料）：其中 4 页还没建索引，来自《第三章 讲义》（3 页）、《复习笔记》（1 页）；526 页已经建好，58 页无检索文字（跳过）。');
+  assert.equal(courseScopeLine(plan({ toIndex: 0, toRemove: 3, unchanged: 530, skipped: 58, missing: [], missingDocuments: 0 }), COURSE),
+    '「Architecting Software Solutions」这门课共 588 页（含 7 份资料）；有 3 页的旧索引要清理，58 页无检索文字（跳过）。');
+  assert.doesNotMatch(courseScopeLine(plan(upToDate), COURSE), /还没建索引/);
+  assert.equal(courseScopeLine(plan({ toIndex: 0, unchanged: 588, skipped: 0, missing: [], missingDocuments: 0 }), COURSE), courseScopeLine(plan({ toIndex: 0, unchanged: 588, missing: [], missingDocuments: 0 }), COURSE), 'none skipped: the line is as it was');
+  const en = render(h(() => h('p', null, courseScopeLine(plan(upToDate), COURSE))), 'en');
+  assert.match(en, /58 pages have no searchable text \(skipped\)/);
+  assert.doesNotMatch(en, han);
 });
 
 test('whose pages are missing decides the button: this document’s own, or other materials’ that the course holds', () => {
@@ -217,6 +252,8 @@ test('hovers: the title, the hint on the page count, the badge, the course line,
   assert.doesNotMatch(badge, /\stitle="/);
   assert.match(badge, /tabindex="0"/);
   assert.match(badge, /index-badge__full">索引已建好 · 这份资料 404\/404 页<\/span><span class="index-badge__short">索引已建好 · 404\/404 页</, 'a narrow window shows the counts without the scope word');
+  // A row too narrow for the label wraps it instead of cutting 「（跳过）」 off: the shared Badge's own wrap, not a feature badge style (#521, wave5a-chips).
+  assert.match(badge, /class="sh-badge sh-badge--sm sh-badge--wrap index-badge"/);
 });
 
 test('the English card says the same with no Chinese', () => {

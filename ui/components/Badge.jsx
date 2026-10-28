@@ -16,13 +16,14 @@ const glyph = (icon, tone, size) => {
  * accent (accent is for the one thing that needs attention, never a default);
  * size: sm | md. `icon` takes an Icon name, an element, or `true` for the
  * tone's own icon; `dot` adds a coloured dot. Both keep meaning off colour.
+ * `wrap`: a label that may not fit its row takes more lines instead of being cut.
  */
-export function Badge({ tone = 'neutral', size = 'md', icon, dot = false, className, children, ...rest }) {
+export function Badge({ tone = 'neutral', size = 'md', icon, dot = false, wrap = false, className, children, ...rest }) {
   useComponentCss(css, 'study-feedback');
   const kind = toneOf(tone);
   const scale = size === 'sm' ? 'sm' : 'md';
   return (
-    <span className={cx('sh-badge', `sh-badge--${scale}`, className)} data-tone={kind} {...rest}>
+    <span className={cx('sh-badge', `sh-badge--${scale}`, wrap && 'sh-badge--wrap', className)} data-tone={kind} {...rest}>
       {dot && <span className="sh-badge__dot" aria-hidden="true" />}
       {glyph(icon, kind, scale === 'sm' ? 12 : 14)}
       {children}

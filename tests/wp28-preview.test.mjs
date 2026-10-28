@@ -78,7 +78,7 @@ test('the one-click path end to end through the host: install, approve build scr
   process.env.STUDYHUB_QA_UPDATE_FEED = release.origin;
   t.after(async () => { if (feed === undefined) delete process.env.STUDYHUB_QA_UPDATE_FEED; else process.env.STUDYHUB_QA_UPDATE_FEED = feed; await release.close(); });
   const { call } = await start(t, { retrieval: 'extension' });
-  const pages = Array.from({ length: 6 }, (_, i) => `<!-- page: ${i + 1} -->\n${i === 3 ? '死锁需要互斥、持有并等待、不可抢占、循环等待四个必要条件。' : `第 ${i + 1} 页讲进程、线程和内存。`}`).join('\n\n');
+  const pages = Array.from({ length: 6 }, (_, i) => `<!-- page: ${i + 1} -->\n${i === 3 ? '死锁需要互斥、持有并等待、不可抢占、循环等待这四个必要条件同时成立，只要破坏其中任何一个，系统就不会发生死锁，这是预防死锁的基本思路。' : `第 ${i + 1} 页讲进程、线程和内存，进程是资源分配的基本单位，线程是处理器调度的基本单位，二者的区别和联系是操作系统课程的重点内容。`}`).join('\n\n');
   const imported = await call('materials.document.import', { dataBase64: Buffer.from(pages, 'utf8').toString('base64'), filename: 'os-book.md', courses: ['操作系统'] });
   const before = await call('retrieval.status');
   assert.deepEqual([before.extension.canInstall, before.extension.installed, before.companion.running, before.hostCanSearch], [true, false, false, false]);
@@ -106,4 +106,33 @@ test('the one-click path end to end through the host: install, approve build scr
   assert.equal(removed.status, 'removed');
   const gone = await call('retrieval.status');
   assert.deepEqual([gone.extension.installed, gone.effective], [false, 'builtin']);
+});
+
+test('the preview search extension refuses a page with no line of 50 characters like the real server, and the build records it as skipped (#521)', async t => {
+  const release = await startFakeReleaseHost();
+  const feed = process.env.STUDYHUB_QA_UPDATE_FEED;
+  process.env.STUDYHUB_QA_UPDATE_FEED = release.origin;
+  t.after(async () => { if (feed === undefined) delete process.env.STUDYHUB_QA_UPDATE_FEED; else process.env.STUDYHUB_QA_UPDATE_FEED = feed; await release.close(); });
+  const { call } = await start(t, { retrieval: 'extension' });
+  const long = n => `<!-- page: ${n} -->\n进程是资源分配的基本单位，线程是处理器调度的基本单位，第 ${n} 页把二者的区别和联系讲清楚，并举例说明它们在调度时各自的开销。`;
+  const slide = n => `<!-- page: ${n} -->\n进程与线程 ${n}\n- 资源分配\n- 处理器调度\n[Figure]`;
+  const pages = [long(1), slide(2), slide(3), long(4), slide(5), slide(6), long(7)].join('\n\n');
+  const imported = await call('materials.document.import', { dataBase64: Buffer.from(pages, 'utf8').toString('base64'), filename: 'os-slides.md', courses: ['操作系统'] });
+  assert.equal(imported.sourceIds.length, 7);
+  const first = await call('retrieval.extension.install');
+  await call('retrieval.extension.install', { approvedBuilds: first.pending });
+  await call('retrieval.index.start', { course: '操作系统' });
+  const done = await until(async () => { const run = await call('retrieval.index.status'); return run.status === 'complete' || run.status === 'failed' ? run : null; });
+  assert.equal(done.status, 'complete', JSON.stringify(done));
+  assert.deepEqual([done.added, done.skipped, done.failedCount ?? 0], [3, 4, 0]);
+  const coverage = await call('retrieval.index.coverage');
+  assert.deepEqual(coverage.indexed, [0, 3, 6].map(i => imported.sourceIds[i]));
+  assert.deepEqual(coverage.skipped, [1, 2, 4, 5].map(i => imported.sourceIds[i]));
+  assert.deepEqual(coverage.missing, []);
+  assert.deepEqual(coverage.stale, []);
+  const again = await call('retrieval.index.plan', { course: '操作系统' });
+  assert.deepEqual([again.toIndex, again.unchanged, again.skipped], [0, 3, 4]);
+  await call('retrieval.index.start', { course: '操作系统' });
+  const second = await until(async () => { const run = await call('retrieval.index.status'); return run.status === 'complete' && run.startedAt !== done.startedAt ? run : null; });
+  assert.deepEqual([second.added, second.skipped], [0, 4], 'a second build sends nothing');
 });
