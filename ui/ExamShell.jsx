@@ -5,7 +5,7 @@ import PageScope from "./PageScope.jsx";
 import { Badge, Button, Disclosure, PageHeader, Panel, SegmentedControl } from "./components/index.js";
 import { formatDateTime } from "./format.js";
 import { filterRecent } from "./exam-format.js";
-import { QUESTION_COUNT } from "../lib/limits.js";
+import { EXAM_QUESTION_COUNT } from "../lib/limits.js";
 import css from "./exam-setup.css";
 
 /* 模拟考试 shell (WP25): the page header with the one 考试形式 switch, the
@@ -68,7 +68,7 @@ export function ExamSetupCard({ title, intro, steps = [], children, summary, act
 }
 
 /** 题数: a few presets and a free number, clamped to [min, max]. */
-export function CountField({ label = ui("题数"), value, onChange, presets = [], min = QUESTION_COUNT.min, max = QUESTION_COUNT.max, hint }) {
+export function CountField({ label = ui("题数"), value, onChange, presets = [], min = EXAM_QUESTION_COUNT.min, max = EXAM_QUESTION_COUNT.max, hint }) {
   const clamp = (raw) => {
     const n = Math.round(Number(raw));
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : value;
