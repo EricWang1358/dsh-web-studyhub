@@ -1,0 +1,11 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* The ZCode edition's model form (ui/zcode/ZcodeModelSetup.jsx). Tokens only. */
+    .zcode-model { margin-top: var(--space-3); }
+    .zcode-model__endpoint { display: grid; gap: var(--space-3); min-width: 0; }
+    .zcode-model__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .zcode-model__note { margin-top: var(--space-2); }
+  }
+}

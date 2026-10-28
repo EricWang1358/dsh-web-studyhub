@@ -1,0 +1,47 @@
+/* The panel's outside links. ZCode's sandboxed webview swallows target=_blank, so the panel hands an http(s) address to
+   this process and the system browser opens it. Page-only (study_call with the panel's nonce), never the assistant's.
+   Ported from BAXUIE's StudyHub for ZCode 0.4.8 (MIT).
+
+   The reference port ran `cmd /c start "" <url>` and refused every cmd metacharacter (& | ^ < > " %) to stop a crafted
+   address from splicing in a second command. That also refused ordinary links (a percent-encoded Chinese anchor, a query
+   with &). No shell runs here instead: Windows gets <System32>\rundll32.exe url.dll,FileProtocolHandler <url>, macOS
+   /usr/bin/open, Linux /usr/bin/xdg-open, each by its full path (the server's working folder is the chat's, where a planted
+   program could otherwise be found first) and with the address as one argument, so nothing in it is parsed as a command.
+   What is opened is the address as the URL parser writes it back (new URL(url).href), never the raw string. The guard
+   still refuses anything but a plain http(s) address: no quotes, spaces, control or format characters (bidi marks and the
+   like), backslashes, credentials or backticks, at most 2000 characters. */
+import { spawn as nodeSpawn } from 'node:child_process';
+import { zcodeError } from './messages.mjs';
+import { systemProgram } from './workspace.mjs';
+
+export const MAX_URL_LENGTH = 2000;
+const SAFE = /^https?:\/\/[^\s"'`<>\\^|\x00-\x1f\x7f]+$/i;
+const FORMAT = /\p{Cf}/u;
+
+/** The address to open (the parser's own spelling) when it may be opened, else null. */
+export function openableUrl(value) {
+  const url = typeof value === 'string' ? value.trim() : '';
+  if (!url || url.length > MAX_URL_LENGTH || !SAFE.test(url) || FORMAT.test(url)) return null;
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || !parsed.hostname) return null;
+    return parsed.href.length <= MAX_URL_LENGTH ? parsed.href : null;
+  } catch { return null; }
+}
+
+/** The program that opens an address on this platform, by its full path. */
+export function opener(platform = process.platform) {
+  if (platform === 'win32') return [systemProgram('rundll32.exe'), ['url.dll,FileProtocolHandler']];
+  return platform === 'darwin' ? ['/usr/bin/open', []] : ['/usr/bin/xdg-open', []];
+}
+
+/** Open `url` in the system browser; throws a zcode-link-refused error for anything openableUrl refuses. */
+export function openExternal(value, { platform = process.platform, spawn = nodeSpawn } = {}) {
+  const url = openableUrl(value);
+  if (!url) throw zcodeError('link-refused');
+  const [command, args] = opener(platform);
+  const child = spawn(command, [...args, url], { detached: true, stdio: 'ignore', windowsHide: true });
+  child.on?.('error', () => {});
+  child.unref?.();
+  return { opened: true };
+}

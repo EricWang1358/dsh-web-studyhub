@@ -8,6 +8,8 @@
 
 StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)的插件。DSH 是 AI 助手应用，可以装成桌面版，也可以在自己电脑上以网页版运行；StudyHub 就在 DSH 里打开使用。
 
+用 ZCode？每次发布也附带一个带一键安装脚本的 ZCode 安装包，见 [StudyHub for ZCode](docs/zcode.zh-CN.md)。思路和第一版移植来自社区用户 BAXUIE，谢谢！
+
 [在线体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [安装指南](docs/install.zh-CN.md) · [发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.7.2) · [更新日志](CHANGELOG.zh-CN.md)
 
 在线体验直接在浏览器里打开，用示例题和预置的 AI 回复演示，不用安装，也不用 Key；体验进度只保存在当前浏览器。

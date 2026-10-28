@@ -9,6 +9,8 @@ export default [
     ignores: [
       "dist/**",
       "output/**",
+      "packages/*/dist/**",
+      "packages/*/node_modules/**",
       "lib/client.js",
       "lib/client.*.js",
       "node_modules/**",
@@ -18,7 +20,7 @@ export default [
     ],
   },
   {
-    files: ["lib/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs", "packages/**/*.js", "eslint.config.js"],
+    files: ["lib/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs", "packages/**/*.js", "packages/**/*.mjs", "eslint.config.js"],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "module",
