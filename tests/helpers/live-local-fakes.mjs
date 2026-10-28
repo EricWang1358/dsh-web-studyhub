@@ -55,8 +55,10 @@ export function fakeFetch(files) {
         const half = rule.cutAfter ?? (rule.stall || rule.failCode ? Math.floor(bytes.length / 3) : bytes.length);
         if (step++ === 0) { controller.enqueue(new Uint8Array(bytes.subarray(0, half))); return; }
         if (rule.stall) {
-          await new Promise((resolve, reject) => { signal?.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')), { once: true }); })
-            .catch(error => controller.error(error));
+          await new Promise((resolve, reject) => {
+            if (signal?.aborted) { reject(signal.reason ?? new Error('aborted')); return; }
+            signal?.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')), { once: true });
+          }).catch(error => controller.error(error));
           return;
         }
         if (rule.failCode) { controller.error(Object.assign(new Error(`write failed: ${rule.failCode}`), { code: rule.failCode })); return; }

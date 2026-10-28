@@ -76,10 +76,10 @@ export function buildHtml(facts) {
   ];
   const captureCapabilities = [
     ['Import a recording', `A lecture recording (${audioFormats}; up to ${mb(L.audioMb)} and ${L.audioHours} hours) or subtitles. A transcription provider turns it into a Chinese–English transcript from which questions can be generated.`],
-    ['Record a live class', 'A class is transcribed as it happens: the browser captures microphone or shared-tab audio, the platform holds a Gemini Live connection and translates sentence by sentence. The recording survives disconnects and can be continued.'],
+    ['Record a live class', 'A class is transcribed as it happens: the browser captures microphone or shared-tab audio, the platform recognizes speech locally with SenseVoice or through a Gemini Live connection and translates sentence by sentence. The recording survives disconnects and can be continued.'],
     ['Convert a large PDF', `A large textbook (up to ${mb(L.convertPdfMb)}) is converted on the learner’s own computer by MinerU and imported as one paged book that can be chosen by chapter. Nothing is uploaded.`],
     ['Search a large textbook', `Above ${n(G.retrieveAboveChars)} characters, or on request, the selection is narrowed to the pages a retrieval provider finds (a search extension reached through MCP, another plugin, or none).`],
-    ['Review book', 'A course is turned into a live book: explanations, practice, questions and answers, and a table of contents in one reading surface.'],
+    ['Review book', 'A course is turned into a live book: explanations, practice, questions and answers, a table of contents, and a whole-period study plan that hands off to the final-week plan in one reading surface.'],
     ['Learning flows', 'A flow teaches a topic in short lessons followed by practice. Flows can be edited and run as sessions.'],
     ['Daily plan', 'The platform proposes a plan from real due reviews, weak areas and exam dates. Actions become tasks only after the learner accepts.'],
     ['Knowledge outline', 'An outline groups topics, checks coverage and can be drawn as a diagram by the main chat assistant with an external tool.'],
@@ -170,7 +170,7 @@ ${table(['Item', 'Detail'], [
 <li><b>Local file system</b>: where the library (shards) and the retained original files live.</li>
 <li><b>GitHub Releases</b>: where StudyHub is published and where the update check asks for the latest version.</li>
 <li><b>Transcription providers</b> (SiliconFlow, Groq, Gemini): turn recorded audio into text.</li>
-<li><b>Gemini Live</b>: real-time speech recognition for the live class.</li>
+<li><b>Gemini Live / local SenseVoice</b>: real-time speech recognition for the live class (cloud via Gemini Live, or on the learner’s computer via SenseVoice installed on demand).</li>
 <li><b>MinerU</b>: a PDF converter that runs locally.</li>
 <li><b>Search extension</b>: an MCP retrieval server installed from the release.</li>
 </ol>
@@ -342,7 +342,7 @@ ${fig(figureJobRecovery(), 'Figure 7: Stopping a job and continuing after a rest
 <p>A run is built from due reviews, weak areas and unfinished work. Each answer is an attempt appended to a chunked shard, and FSRS-6 chooses the next review from the 0 to 5 rating and the days really elapsed. Only <code>review.reveal</code> and <code>review.answer</code> write, with scoped read and write sets, so after the 2.4.0 work a click costs about 25 to 100 ms of server time on a 1,000-source library (section 8).</p>
 <h2>7.4 Live class capture</h2>
 ${fig(figureLiveCapture(S), 'Figure 8: Live class capture, recognition and translation')}
-<p>The connection to Gemini Live is capped at ${S.live.sessionMinutes} minutes, so the next one is opened at ${liveRotate}. After a drop the host buffers at most the last ${S.live.backlogSeconds} seconds of audio and reconnects with increasing waits. Segments are saved as they arrive, so a disconnect loses only words that were not yet final and the class can be continued.</p>
+<p>Recognition runs either locally in a worker thread with SenseVoice (silero VAD and int8 model files verified by SHA-256 on install) or over Gemini Live. A Gemini Live connection is capped at ${S.live.sessionMinutes} minutes, so the next one is opened at ${liveRotate}. After a drop the host buffers at most the last ${S.live.backlogSeconds} seconds of audio and reconnects with increasing waits. Segments are saved as they arrive, so a disconnect loses only words that were not yet final and the class can be continued.</p>
 
 <h1>8.&nbsp;&nbsp;&nbsp;Data architecture and the performance engineering story</h1>
 <p>The durable shape is the shard store, courses with stable ids (store version ${S.storeVersion}), retained originals under <code>attachments/materials/&lt;sha256&gt;.&lt;format&gt;</code>, a job archive holding the newest ${S.jobArchive.maxRecords} records of the last ${S.jobArchive.maxDays} days, and backups taken before any migration or restore. A full export includes copied originals; originals attached by reference are only listed.</p>
