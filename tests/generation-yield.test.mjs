@@ -5,6 +5,7 @@ import { generateBatched } from "../lib/batch.js";
 import { cardLocalIssues, learnerContextIssues, explanationIssues, answerLeakIssues, formulaIssues } from "../lib/assessment-quality.js";
 import { validateDeck } from "../lib/domain.js";
 import { qualityPlan, qualityReview } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* First-pass yield (WP-B): a flagged card whose only defects are wording is patched in the same run (one batched call per part
    plus one review of the survivors); a part that is still short claims verified reserve targets from the plan instead of a full
@@ -28,21 +29,21 @@ function fakeModel({ kind = "quiz", reviewFail = {}, defects = {}, patch } = {})
   let authors = 0;
   const complete = async (system, prompt) => {
     if (system.startsWith("Plan a source-grounded assessment")) {
-      const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+      const request = requestData(prompt);
       log.calls.push("plan"); log.planCounts.push(request.count);
       const plan = qualityPlan({ ...request, kind });
       return JSON.stringify({ targets: plan.targets.map((target, index) => ({ ...target, objective: `Planned ${index + 1}` })) });
     }
     if (system.startsWith("Prepare supported answers")) {
       log.calls.push("blueprint");
-      const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]), plan = request.assessmentPlan;
+      const request = requestData(prompt), plan = request.assessmentPlan;
       const deck = { cards: plan.targets.map((target, index) => quizCard(Number(target.targetId.replace("target-", "")), index)) };
       return JSON.stringify({ items: deck.cards.map((card, index) => ({ targetId: plan.targets[index].targetId, answer: card.answer, reasoning: card.explanation,
         scenario: { kind: "none", facts: [], decisiveConditions: [] }, comparisonAxis: "scope", options: card.options })) });
     }
     if (system.startsWith("You author")) {
       log.calls.push("author"); authors++;
-      const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]), plan = request.assessmentPlan;
+      const request = requestData(prompt), plan = request.assessmentPlan;
       log.authorTargets.push(plan.targets.map((target) => target.targetId));
       const cards = plan.targets.map((target, index) => {
         const n = Number(target.targetId.replace("target-", "")), card = quizCard(n, index);
@@ -52,7 +53,7 @@ function fakeModel({ kind = "quiz", reviewFail = {}, defects = {}, patch } = {})
     }
     if (system.startsWith("Act as a strict assessment editor")) {
       log.calls.push("review");
-      const candidate = JSON.parse(prompt).candidate; log.reviewSizes.push(candidate.cards.length);
+      const candidate = requestData(prompt).candidate; log.reviewSizes.push(candidate.cards.length);
       const review = qualityReview(candidate), issues = [];
       for (const check of review.checks) {
         const card = candidate.cards.find((item) => item.id === check.cardId), keys = reviewFail[targetNumber(card)];
@@ -65,7 +66,7 @@ function fakeModel({ kind = "quiz", reviewFail = {}, defects = {}, patch } = {})
     }
     if (system.startsWith("Rewrite only the wording")) {
       log.calls.push("patch");
-      const body = JSON.parse(prompt.split("REQUEST DATA:\n")[1]); log.patchPrompts.push(body);
+      const body = requestData(prompt); log.patchPrompts.push(body);
       return JSON.stringify(patch ? patch(body) : { cards: body.cards.map((card) => ({ id: card.id, explanation: `Rewritten for ${card.id}: the decisive condition, then the result, then the nearest wrong path.` })) });
     }
     throw new Error(`unexpected call: ${system.slice(0, 40)}`);

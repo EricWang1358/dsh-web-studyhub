@@ -5,6 +5,7 @@ import { snapshotJob } from '../lib/job-contract.js';
 import { createPool } from '../lib/audio-pool.js';
 import { generateBatched } from '../lib/batch.js';
 import { qualityPlan, qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 // WP-TC step 2: every job records its model calls in ONE shape, in a bounded list, and exposes it on the job in the snapshot.
 
@@ -143,7 +144,7 @@ test('every generation model call says which slot it ran in, and a 429 back-off 
   const complete = async (system, prompt, context = {}) => {
     slotsSeen.push(context.slot);
     if (!limited) { limited = true; throw new Error('429 Too Many Requests'); }
-    const data = () => JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    const data = () => requestData(prompt);
     if (system.startsWith('Plan a source-grounded assessment')) {
       const request = data();
       return JSON.stringify({ targets: qualityPlan({ ...request, kind: 'flashcard', sources: request.sources.slice(0, 1) }).targets });

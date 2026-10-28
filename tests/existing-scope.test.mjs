@@ -4,6 +4,7 @@ import { scopeExisting, EXISTING_LIMIT } from "../lib/existing-scope.js";
 import { generateBatched, planGeneration } from "../lib/batch.js";
 import { estimateRun } from "../lib/token-estimate.js";
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* One real library held 2,900 learning targets (about 55K tokens). Every plan
    and author call of a 20-question run repeated all of them: 8 of the 14 calls
@@ -43,12 +44,12 @@ test("no materials, no library or a zero limit leave only what is pinned", () =>
 function recordingModel(requests) {
   return async (system, prompt) => {
     if (system.startsWith("Plan a source-grounded assessment")) {
-      const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+      const request = requestData(prompt);
       requests.push({ stage: "plan", existing: request.existing });
       return JSON.stringify(qualityPlan(request));
     }
-    if (system.startsWith("Act as a strict assessment editor")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    if (system.startsWith("Act as a strict assessment editor")) return JSON.stringify(qualityReview(requestData(prompt).candidate));
+    const request = requestData(prompt);
     if (system.startsWith('Prepare supported answers')) {
       requests.push({ stage: 'blueprint', existing: request.alreadyCovered });
       return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, { cards: request.assessmentPlan.targets.map(() => ({ answer: 'a', explanation: 'because of the decisive condition in the source' })) }));

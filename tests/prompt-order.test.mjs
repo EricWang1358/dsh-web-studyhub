@@ -4,13 +4,13 @@ import { planPrompts, blueprintPrompts } from '../lib/assessment-quality.js';
 import { authorPrompts, reviewPrompts, parseJson, generateDeck } from '../lib/generation.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { patchPrompts } from '../lib/generation-yield.js';
-import { LEAD_SOURCE_CHARS, REQUEST_DATA, leadsWithSources, promptOrder, withField, dataPayload } from '../lib/prompt-order.js';
+import { LEAD_SOURCE_CHARS, REQUEST_DATA, GENERATION_SYSTEM, leadsWithSources, promptOrder, withField, dataPayload, stageRequest } from '../lib/prompt-order.js';
 import { requestData } from './helpers/request-data.mjs';
 
 /* Token cost (prompt cache): a provider reuses the longest IDENTICAL prefix of earlier prompts, so what varies from call to call (the count, ids, the plan so far) goes
    after what is stable (the instructions, the sources). Only the ORDER of the prompt and of the fields of its data changes; appended corrections and re-asks stay at the very end.
-   The default layout keeps the instructions first (lib/prompt-order.js says why: measured, it is the better one while each stage's system text leads the request); the layout with
-   the sources first is built and tested here with the switch on, so that it can be turned on when that system text no longer leads. */
+   By default the sources of a part lead every stage's prompt and the stage's system text goes behind them when the request is sent (stageRequest), so the stages of a part share
+   their sources in the provider's cache (lib/prompt-order.js says why, with the measurement); the instructions-first layout is still tested with the switch off. */
 const sourcesFirst = (on, run) => {
   const before = promptOrder.sourcesFirst, restore = () => { promptOrder.sourcesFirst = before; };
   promptOrder.sourcesFirst = on;
@@ -39,23 +39,58 @@ const part = (sources, count, extra) => {
 };
 const sourceBlock = (sources) => JSON.stringify(sources);
 
-test('the threshold: with the switch on, sources lead when their block is bigger than the biggest stage instruction block', () => {
-  const lengths = Object.values(part([], 1)).map(text => text.length);
-  assert.ok(LEAD_SOURCE_CHARS > Math.max(...lengths), `${LEAD_SOURCE_CHARS} is above the longest stage instruction block (${Math.max(...lengths)} characters)`);
-  sourcesFirst(true, () => {
-    assert.equal(leadsWithSources(big), true);
-    assert.equal(leadsWithSources(small), false);
-    assert.equal(leadsWithSources([]), false);
-    assert.equal(leadsWithSources(undefined), false);
+test('the threshold: sources lead when their block is bigger than a page or two, so a part of a paged material (a few cited pages) leads with them too', () => {
+  const pages = Array.from({ length: 5 }, (_, i) => ({ id: `doc#p${i + 1}`, title: `Slides, page ${i + 1}`, text: textOf(`page ${i + 1}`, 1200) }));
+  assert.ok(JSON.stringify(pages).length < 12000, 'five slide pages are well under the old 12 000-character threshold');
+  assert.equal(leadsWithSources(pages), true);
+  assert.equal(leadsWithSources(big), true);
+  assert.equal(leadsWithSources(small), false);
+  assert.equal(leadsWithSources([]), false);
+  assert.equal(leadsWithSources(undefined), false);
+  sourcesFirst(false, () => assert.equal(leadsWithSources(big), false, 'the switch still turns it off'));
+});
+
+test('by default the sources lead every stage of a part, and the instructions follow the data', () => {
+  assert.equal(promptOrder.sourcesFirst, true);
+  const all = part(big, 4), head = `${REQUEST_DATA}{"sources":${sourceBlock(big)},`;
+  for (const [stage, prompt] of Object.entries(all)) assert.ok(prompt.startsWith(head), `${stage} starts with the source block`);
+  sourcesFirst(false, () => {
+    const off = part(big, 4);
+    assert.ok(off.plan.startsWith('STAGE 1') && off.blueprint.startsWith('STAGE 2') && off.author.startsWith('STAGE 3'));
+    assert.ok(off.review.startsWith('{"task"'));
   });
 });
 
-test('by default the instructions lead whatever the size of the sources (the measured better layout)', () => {
-  assert.equal(promptOrder.sourcesFirst, false);
-  assert.equal(leadsWithSources(big), false);
-  const all = part(big, 4);
-  assert.ok(all.plan.startsWith('STAGE 1') && all.blueprint.startsWith('STAGE 2') && all.author.startsWith('STAGE 3'));
-  assert.ok(all.review.startsWith('{"task"'));
+/** The text a provider sees first to last for a stage's request: the system text, then the prompt (a DSH child gets them in this order in one message, a direct call as system + user). */
+const sent = (system, prompt) => { const request = stageRequest(system, prompt); return `${request.system}\n\n${request.prompt}`; };
+const SYSTEMS = { plan: 'Plan a source-grounded assessment. Return JSON only.', blueprint: 'Prepare supported answers and scenarios. Return JSON only.',
+  author: 'You author rigorous study material. Return JSON only.', review: 'Act as a strict assessment editor. Return JSON only.' };
+
+test('as sent, two different stages of a part share a start that covers their whole source block', () => {
+  const all = part(big, 4), cover = GENERATION_SYSTEM.length + 2 + REQUEST_DATA.length + `{"sources":${sourceBlock(big)}`.length;
+  for (const [a, b] of [['plan', 'blueprint'], ['blueprint', 'author'], ['author', 'review'], ['plan', 'review']])
+    assert.ok(common(sent(SYSTEMS[a], all[a]), sent(SYSTEMS[b], all[b])) >= cover, `${a} and ${b} share the system text and the sources`);
+  // Sent the old way (each stage's own system text first), they shared nothing at all.
+  assert.equal(common(`${SYSTEMS.blueprint}\n\n${all.blueprint}`, `${SYSTEMS.author}\n\n${all.author}`), 0);
+});
+
+test('a prompt that leads with its sources is sent with the shared system text and its own system text behind the data, before its instructions and any correction', () => {
+  const request = base(big, { count: 4 }), note = '\n\nYour previous answers were rejected: fix them.';
+  const prompt = blueprintPrompts(request, planOf(4), note).prompt, { system, prompt: sentPrompt } = stageRequest(SYSTEMS.blueprint, prompt);
+  assert.equal(system, GENERATION_SYSTEM);
+  const data = sentPrompt.indexOf('\n\n'), own = sentPrompt.indexOf(SYSTEMS.blueprint), instruction = sentPrompt.indexOf('STAGE 2');
+  assert.ok(data > 0 && data < own && own < instruction, 'data, then the stage system text, then the instructions');
+  assert.ok(sentPrompt.endsWith(note), 'the correction stays at the very end');
+  assert.deepEqual(requestData(sentPrompt), requestData(prompt), 'the data reads back whole');
+  // The review payload has no instructions of its own: its system text follows the data.
+  const review = part(big, 4).review, sentReview = stageRequest(SYSTEMS.review, review).prompt;
+  assert.equal(sentReview, `${review}\n\n${SYSTEMS.review}`);
+});
+
+test('a prompt that does not lead with its sources (small sources, other features) is sent exactly as before', () => {
+  const all = part(small, 4);
+  for (const [stage, prompt] of Object.entries(all)) assert.deepEqual(stageRequest(SYSTEMS[stage], prompt), { system: SYSTEMS[stage], prompt }, stage);
+  assert.deepEqual(stageRequest('You proofread speech-to-text transcripts.', '{"text":"x"}'), { system: 'You proofread speech-to-text transcripts.', prompt: '{"text":"x"}' });
 });
 
 test('sources first (switched on): every stage of a part starts with the same marker and source block', () => sourcesFirst(true, () => {

@@ -35,7 +35,7 @@ async function seeded(t, { drafted = {} } = {}) {
 }
 const recorder = (seen) => withQualityStages(async (system, prompt) => {
   if (system.includes("editor")) return JSON.stringify({ issues: [] });
-  const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+  const request = requestData(prompt);
   seen.push(request);
   return JSON.stringify({ title: "A name the model made up", cards: Array.from({ length: request.count }, (_, i) =>
     card(10 + i, request.sources[0].id, request.sources[0].text)).map((item, i) => ({ ...item, id: `n${i + 1}`, objective: `New target ${i + 1}`, prompt: `New question ${i + 1}?` })) });

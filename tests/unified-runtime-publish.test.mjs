@@ -5,6 +5,7 @@ import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { card } from './helpers/supplement-fixtures.mjs';
 import { gate, openLibrary, restartedOver, jobsOf, soon, stagedModel } from './helpers/generation-baseline.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* S3-6: the publication of a draft (`draft.publish.start`) is a job of the unified runtime behind `runtime.pilot.generationPublish`: its check asks its reviews through the
    gateway, and its one write is a commit of the runtime. Behind `generationRestart` as well, a publication that was cut short is looked at again, never done twice: the
@@ -162,7 +163,7 @@ test('a card that does not pass its review stays in the draft, and the job says 
   const staged = stagedModel();
   model.complete = async (system, prompt, context) => {
     if (!system.startsWith('Act as a strict')) return staged.complete(system, prompt, context);
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     const failing = review.checks.find(check => check.cardId === 'b');
     if (failing) failing.sourceSupport = 'fail';
     return JSON.stringify(review);

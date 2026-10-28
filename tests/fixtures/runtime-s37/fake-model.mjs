@@ -1,4 +1,5 @@
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from '../../helpers/assessment.mjs';
+import { requestData } from '../../helpers/request-data.mjs';
 
 /* The model of the S3-7 rollback drill: one fake that answers every stage of the generation family (plan, blueprint, author, review, repair) the same way for any tree (the current one
    and the older one the drill rolls back to), so what the two versions make of the same library can be compared. `hold` (stage, nth) stops the nth call of a stage for ever: the process is
@@ -11,10 +12,10 @@ export function driveModel({ hold } = {}) {
       : system.startsWith('Repair one draft card') ? 'repair' : 'author';
     seen[stage] = (seen[stage] || 0) + 1;
     if (hold && hold.stage === stage && seen[stage] === hold.nth) { state.held = true; await new Promise(() => {}); }
-    if (stage === 'plan') return JSON.stringify(qualityPlan(JSON.parse(prompt.split('REQUEST DATA:\n')[1])));
-    if (stage === 'review') return JSON.stringify(qualityReview(JSON.parse(prompt).candidate, []));
+    if (stage === 'plan') return JSON.stringify(qualityPlan(requestData(prompt)));
+    if (stage === 'review') return JSON.stringify(qualityReview(requestData(prompt).candidate, []));
     if (stage === 'repair') { const input = JSON.parse(prompt); return JSON.stringify({ card: { ...input.card, explanation: `Fixed: ${input.card.explanation}` } }); }
-    const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]), source = data.sources[0];
+    const data = requestData(prompt), source = data.sources[0];
     const cards = Array.from({ length: stage === 'blueprint' ? data.assessmentPlan.targets.length : data.count }, (_, index) => ({ id: `q${salt}-${seen[stage]}-${index + 1}`, kind: 'flashcard', topic: `Topic ${index}`,
       objective: `Explain angle ${salt}-${seen[stage]}-${index} of ${source.text.slice(0, 20)}`, prompt: `Why does angle ${salt}-${seen[stage]}-${index} matter for ${source.text.slice(0, 18).toLowerCase()} decisions?`, answer: `Angle ${index} constrains later choices.`,
       hint: 'Compare a description with a rule for permitted changes.', explanation: `The evidence ties angle ${index} to design and later change, so it constrains the choices made afterwards.`,

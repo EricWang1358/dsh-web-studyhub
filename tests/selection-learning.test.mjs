@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createSelectionOperations } from '../lib/contexts/generation/selection.js';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 const quote = "Architecture includes the principles guiding a system's design and evolution.";
 const selection = { sourceId: 's', documentId: 'doc', revision: 'rev1', start: 0, end: quote.length, quote, prefix: '', suffix: '' };
@@ -24,14 +25,14 @@ async function fixture(t, { reviewFails = false, conflict = false } = {}) {
   let calls = 0, appends = 0;
   const complete = async (system, prompt) => {
     calls++;
-    if (system.startsWith('Plan a source-grounded')) return JSON.stringify(qualityPlan(JSON.parse(prompt.split('REQUEST DATA:\n')[1])));
+    if (system.startsWith('Plan a source-grounded')) return JSON.stringify(qualityPlan(requestData(prompt)));
     if (system.startsWith('Prepare supported answers')) {
-      const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      const request = requestData(prompt);
       return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, { cards: [card] }));
     }
     if (system.startsWith('Act as a strict')) {
       if (reviewFails) throw new Error('Reviewer unavailable');
-      return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      return JSON.stringify(qualityReview(requestData(prompt).candidate));
     }
     return JSON.stringify(authored({ title: 'Selection', cards: [structuredClone(card)] }));
   };

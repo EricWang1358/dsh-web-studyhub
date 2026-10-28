@@ -9,6 +9,7 @@ import { gate, openLibrary, restartedOver, jobsOf, soon } from './helpers/genera
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { roundList } from '../lib/coverage-run.js';
+import { requestData } from './helpers/request-data.mjs';
 
 /* S3-3: a generation run survives a restart (switch `generationRestart`). The runtime keeps the request and its own record of the job on disk; the draft stays the
    one checkpoint. After the restart the job is the same logical job, interrupted and visible, nothing is asked of a model by itself, and its retry is a new Attempt
@@ -37,7 +38,7 @@ async function restarted(t, root, extra) {
   const after = await restartedOver(t, root, { options: hostOf(complete, extra), model: complete });
   return { ...after, calls, use(next) { model = next; } };
 }
-const askedAuthors = () => { const log = []; const inner = authoring({ entered: true }, Infinity, 'again'); return { log, model: async (system, prompt, context) => { if (system.startsWith('You author')) log.push(JSON.parse(prompt.split('REQUEST DATA:\n')[1]).count); return inner(system, prompt, context); } }; };
+const askedAuthors = () => { const log = []; const inner = authoring({ entered: true }, Infinity, 'again'); return { log, model: async (system, prompt, context) => { if (system.startsWith('You author')) log.push(requestData(prompt).count); return inner(system, prompt, context); } }; };
 
 test('a run killed after its first part is the same job after the restart, interrupted and idle; its retry continues the same draft with only what is missing', async t => {
   const first = await dying(t, 2);

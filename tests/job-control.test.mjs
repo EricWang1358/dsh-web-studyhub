@@ -11,6 +11,7 @@ import { finishTranscript } from '../lib/audio-import.js';
 import { StudyService } from '../lib/service.js';
 import { qualityPlan, qualityReview, withQualityStages } from './helpers/assessment.mjs';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 // WP-TC step 3: instant controls. A change applies from the NEXT call, never interrupts a running one, is bounded, is reported back,
 // and the pools read the live values.
@@ -210,7 +211,7 @@ function provider({ latency = 8, hold } = {}) {
     try {
       await hold?.();
       await new Promise((resolve) => setTimeout(resolve, latency));
-      const data = () => JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      const data = () => requestData(prompt);
       if (system.startsWith('Plan a source-grounded assessment')) {
         const request = data(), source = request.sources[0];
         const plan = qualityPlan({ ...request, kind: 'flashcard', sources: [source] });
@@ -225,7 +226,7 @@ function provider({ latency = 8, hold } = {}) {
         const plan = data().assessmentPlan, cards = plan.targets.map((target, index) => card(number(target.objective), index, target.targetId, target.citations[0].sourceId));
         return JSON.stringify({ deck: { title: 'D', cards }, changes: [], checks: qualityReview({ cards }).checks });
       }
-      if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
       throw new Error(`unexpected call: ${system.slice(0, 40)}`);
     } finally { log.active--; }
   };
@@ -277,7 +278,7 @@ test('job.control set: a running generation job takes the change, reports it bac
   t.after(() => release());
   const inner = withQualityStages(async (system, prompt) => {
     if (system.includes('editor')) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: 'D', cards: Array.from({ length: request.count }, (_, index) => ({ ...answer(index + 1), id: `n${index + 1}`, objective: `New ${index + 1}` })) });
   });
   service.complete = async (system, prompt, options) => { efforts.push(options?.stageEffort); await gate; return inner(system, prompt); };
