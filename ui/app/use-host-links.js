@@ -7,7 +7,7 @@ import { failureText } from '../failure.js';
 
 /* What the host reaches the app through, apart from the snapshot: a run handed over from the conversation, a study reference from
    the board, the usage frequency record, and the 有效课程 switch that any page may flip. */
-export function useHostLinks({ host, core, nav, session, learn, rootRef, data, loading }) {
+export function useHostLinks({ host, core, nav, session, learn, lib, rootRef, data, loading }) {
   const { act, call, setError, notify } = core;
   const { navigate } = nav;
   const handoff = useRef(null);
@@ -22,6 +22,18 @@ export function useHostLinks({ host, core, nav, session, learn, rootRef, data, l
   const takeHandoff = host.takeHandoff;
   useEffect(() => takeHandoff?.((runId) => handoff.current?.(runId)), [takeHandoff]);
   useStudyReferenceHandoff(host.takeStudyReference, data?.root, (reference) => learn.openBoardReference(reference).catch((failure) => setError(failure.message)));
+  const takeGuidedStudy = host.takeGuidedStudy;
+  useEffect(() => takeGuidedStudy?.((sessionIntent) => {
+    if (sessionIntent) {
+      const sess = sessionIntent.session || sessionIntent;
+      lib?.set?.setGuidedSession?.(sess);
+      const runId = sess?.focus?.runId || sessionIntent.runId;
+      if (runId) {
+        void act('review.get', { runId }, session.enterRun).catch(() => {});
+      }
+      navigate('guided');
+    }
+  }), [takeGuidedStudy, navigate, lib, act, session.enterRun]);
 
   /* The usage frequency record (Settings › Advanced; docs/usage-frequency.md). Off by default: the controller asks the host once and installs
      nothing, no listener and no timer, until the learner turns the record on. It lives outside React (ui/usage/*), so recording re-renders nothing. */

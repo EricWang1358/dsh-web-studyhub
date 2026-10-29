@@ -35,6 +35,7 @@ export const PAGES = Object.freeze({
   manage: { label: '维护题组', title: '维护题组', glyph: null, group: null, needs: ['bank'] },
   outline: { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '回到总纲' },
   graph: { label: '知识图谱', title: '知识图谱', glyph: null, group: null, needs: ['bank', 'study'], onEnter: user((ctx) => ctx.clearGraphScope()) },
+  guided: { label: '带学工作台', title: '带学工作台', glyph: null, group: null, needs: ['study'] },
   settings: { label: '设置', title: '设置', glyph: 'settings', group: null, needs: [] },
 });
 
