@@ -1,74 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStudySession, updateStudySession } from '../lib/study-session.js';
-import { prepareSingleQuestion } from '../lib/guided-question-prep.js';
+import { markPreparing, questionOutcome, settlePreparing } from '../lib/guided-question-prep.js';
 import { createPanelBridge } from '../lib/panel-bridge.js';
 import { saveGuidedQA } from '../lib/guided-qa.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { computeSessionProgress } from '../lib/study-progress.js';
 
-test('Chaos 1: Model timeout / unavailability degrades gracefully without crashing (ADR-04, UC-10)', () => {
-  const state = {
-    courses: [{ id: 'CS101', name: 'CS101' }],
-    sources: [{ id: 'src-1', courses: ['CS101'] }],
-    decks: [{ id: 'd1', course: 'CS101', cards: [] }],
-    studySessions: [],
-  };
-
-  const session = createStudySession(state, {
-    courseId: 'CS101',
-    scope: [{ kind: 'source', id: 'src-1' }],
-    settings: { allowNewQuestions: true },
-  });
-  state.studySessions.push(session);
-
-  // Simulate model unavailable / timeout
-  const result = prepareSingleQuestion(state, {
-    sessionId: session.id,
-    sourceIds: ['src-1'],
-    modelAvailable: false,
-  });
-
-  assert.equal(result.available, false);
-  assert.equal(result.fallback, 'reuse_existing');
-  assert.match(result.message, /建议复用已有题目/);
-  // Session focus must not get stuck in preparing-card
-  assert.notEqual(session.focus?.kind, 'preparing-card');
+/* Chaos 1 and 2 drive the real job in tests/guided-question-supplement.test.mjs (a library with no model, a review that rejects the question);
+   here the pure rules: a job that ended without exactly one new question is never shown as one, and the session stops waiting. */
+test('Chaos 1: a job that failed or was cut short is never shown as a question, and the session does not stay in preparing-card (ADR-04, UC-10)', () => {
+  const state = { decks: [{ id: 'd1', course: 'CS101', cards: [{ id: 'c-orig' }] }] };
+  const session = { id: 's', focus: null };
+  markPreparing(session, { jobId: 'j1', deckId: 'd1', knownCardIds: ['c-orig'] });
+  for (const job of [{ status: 'failed', error: 'model timeout' }, { status: 'interrupted' }, { status: 'cancelled' }]) {
+    const outcome = questionOutcome(state, session.focus, job);
+    assert.equal(outcome.status, 'failed', job.status);
+    assert.equal(outcome.fallback, 'reuse_existing');
+  }
+  settlePreparing(session, questionOutcome(state, session.focus, { status: 'failed' }));
+  assert.equal(session.focus, null);
 });
 
-test('Chaos 2: Verification audit failure rejects flawed question and leaves bank clean (HB-7)', () => {
-  const state = {
-    courses: [{ id: 'CS101', name: 'CS101' }],
-    sources: [{ id: 'src-1', courses: ['CS101'] }],
-    decks: [{ id: 'd1', course: 'CS101', cards: [{ id: 'c-orig' }] }],
-    studySessions: [],
-  };
-
-  const session = createStudySession(state, {
-    courseId: 'CS101',
-    scope: [{ kind: 'source', id: 'src-1' }],
-    settings: { allowNewQuestions: true },
-  });
-  state.studySessions.push(session);
-
-  const initialDeckSize = state.decks[0].cards.length;
-
-  const failure = prepareSingleQuestion(state, {
-    sessionId: session.id,
-    targetDeckId: 'd1',
-    sourceIds: ['src-1'],
-    simulateVerificationFailure: true,
-  });
-
-  assert.equal(failure.ok, false);
-  assert.equal(failure.status, 'failed');
-  assert.equal(failure.code, 'citation_verification_failed');
-  assert.equal(failure.fallback, 'reuse_existing');
-
-  // Assert defective card was never appended to the deck
-  assert.equal(state.decks[0].cards.length, initialDeckSize);
-  // Focus reset from preparing-card
-  assert.equal(session.focus, null);
+test('Chaos 2: a review that published nothing leaves the bank as it was and says why (HB-7)', () => {
+  const state = { decks: [{ id: 'd1', course: 'CS101', cards: [{ id: 'c-orig' }] }] };
+  const outcome = questionOutcome(state, { jobId: 'j', deckId: 'd1', knownCardIds: ['c-orig'] }, { status: 'complete', publication: { deckId: 'd1', added: 0 } });
+  assert.equal(outcome.status, 'failed');
+  assert.match(outcome.reason, /没有通过独立审核/);
+  assert.equal(state.decks[0].cards.length, 1);
 });
 
 test('Chaos 3: Unmounted / closed panel honestly reports queued_for_sidebar instead of fake visible (ADR-04, UC-10)', async () => {

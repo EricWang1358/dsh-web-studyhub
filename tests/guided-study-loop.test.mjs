@@ -111,19 +111,21 @@ test('Guided Study Loop E2E: scripted 10-step full workflow (UC-01 ~ UC-09, Sect
   });
   assert.equal(run.card.id, 'c1');
 
-  // Prepare a single audited variation question
+  // A new question is written and reviewed by the supplement job (tests/guided-question-supplement.test.mjs). This library has no model, so
+  // prepare declines honestly and the loop goes on with a reviewed question the deck already has (UC-10).
   const prepResult = await study.call('study.question.prepare', {
     sessionId: session.id,
-    targetDeckId: 'd-algo',
+    deckId: 'd-algo',
     sourceIds: [src.id],
-    prompt: 'If array is strictly increasing, what happens when A[mid] < target?',
-    explanation: 'All elements <= mid cannot contain target.',
-    topic: 'Binary Search',
+    focus: 'what happens when A[mid] < target',
   });
-
-  assert.equal(prepResult.status, 'complete');
-  assert.ok(prepResult.card.id);
-  const varCardId = prepResult.card.id;
+  assert.equal(prepResult.reason, 'model_unavailable');
+  assert.equal(prepResult.fallback, 'reuse_existing');
+  await study.store.update((s) => {
+    s.decks.find((deck) => deck.id === 'd-algo').cards.push({ ...card1, id: 'c-var', prompt: 'If the array is strictly increasing, what happens when A[mid] < target?',
+      answer: 'Every element up to mid can be discarded.', explanation: 'All elements <= mid cannot contain target.' });
+  });
+  const varCardId = 'c-var';
 
   // Link variation card to check item and set focus
   storedSessionStep2.goal.checkItems[0].targetCardIds.push(varCardId);
