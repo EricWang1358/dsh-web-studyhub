@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
+import { ui, uiFormat } from '../i18n.js';
+import { LoadingState } from '../components/Loading.jsx';
+import { joinMeta } from '../format.js';
 
 const STATUS_LABELS = {
   pending: { label: '待检验', tone: 'neutral' },
@@ -36,14 +39,13 @@ export function StudyProgressPanel({
       {/* 紧凑首屏概览 */}
       <div className="progress-summary-row">
         <div className="progress-main-line">
-          <strong>{progress.displayLine || '正在计算进度...'}</strong>
+          {progress.displayLine ? <strong>{progress.displayLine}</strong> : <LoadingState label={ui('正在计算进度…')} />}
         </div>
         <div className="progress-sub-line">
-          <span>讲解已覆盖 {progress.lectureCoveredCount || 0} 点</span>
-          <span> · 隔日巩固待复习 {progress.nextDayDueCount || 0} 题</span>
+          <span>{joinMeta([uiFormat('讲解已覆盖 {0} 点', [progress.lectureCoveredCount || 0]), uiFormat('隔日巩固待复习 {0} 题', [progress.nextDayDueCount || 0])])}</span>
         </div>
         <div className="progress-time-line">
-          <span>⏱️ {estimate.message || '尚在估计，完成首个检验后更新'}</span>
+          <span>⏱️ {estimate.message || ui('还在估计，做完第一项检验后更新')}</span>
         </div>
         <div className="progress-toggle-row">
           <Button
@@ -52,7 +54,7 @@ export function StudyProgressPanel({
             className="guided-study-btn"
             onClick={() => setExpanded(!expanded)}
           >
-            {expanded ? '收起依据' : '展开依据'}
+            {expanded ? ui('收起依据') : ui('展开依据')}
           </Button>
         </div>
       </div>
@@ -66,7 +68,7 @@ export function StudyProgressPanel({
               return (
                 <div key={item.id} className="progress-item-card">
                   <div className="progress-item-header">
-                    <Badge tone={statusMeta.tone} size="sm">{statusMeta.label}</Badge>
+                    <Badge tone={statusMeta.tone} size="sm">{ui(statusMeta.label)}</Badge>
                     <span className="progress-item-title">{item.title}</span>
                     {onDeleteItem && (
                       <Button
@@ -74,17 +76,17 @@ export function StudyProgressPanel({
                         size="sm"
                         className="progress-item-del-btn"
                         onClick={() => onDeleteItem(item.id)}
-                        title="删除检验项"
-                        aria-label="删除检验项"
+                        title={ui('删除检验项')}
+                        aria-label={ui('删除检验项')}
                       >
-                        删除
+                        {ui('删除')}
                       </Button>
                     )}
                   </div>
 
                   {item.evidenceAttemptIds?.length > 0 && (
                     <div className="progress-item-evidence">
-                      <span className="evidence-label">作答依据：</span>
+                      <span className="evidence-label">{ui('作答依据：')}</span>
                       {item.evidenceAttemptIds.map((attId, idx) => (
                         <Button
                           key={attId}
@@ -93,7 +95,7 @@ export function StudyProgressPanel({
                           className="evidence-link"
                           onClick={() => onSelectAttempt?.(attId)}
                         >
-                          记录 #{idx + 1}
+                          {uiFormat('记录 #{0}', [idx + 1])}
                         </Button>
                       ))}
                     </div>
@@ -108,13 +110,13 @@ export function StudyProgressPanel({
             <form onSubmit={handleAddItem} className="progress-add-form">
               <input
                 type="text"
-                placeholder="新增检验项名称..."
+                placeholder={ui('新检验项的名称…')}
                 value={newItemTitle}
                 onChange={(e) => setNewItemTitle(e.target.value)}
                 className="progress-add-input"
               />
               <Button type="submit" variant="primary" size="sm" className="guided-study-btn">
-                添加
+                {ui('添加')}
               </Button>
             </form>
           )}

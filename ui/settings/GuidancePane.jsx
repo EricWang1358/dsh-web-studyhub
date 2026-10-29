@@ -6,6 +6,7 @@ import { canComeBack, clearItem, guidanceItemsFor, itemSeen, resetAllGuidance } 
 import { guidanceOn, itemMuted, readGuidanceState, setGuidanceOn, setItemMuted } from '../guidance/budget.js';
 import { experimentalShown } from '../experimental-flag.js';
 import { hasOwnDeck } from '../study-map/home-plan.js';
+import GuidedStudyStart from '../guided-study/GuidedStudyStart.jsx';
 
 /* 设置 › 引导 (3.7 guidance, step 0): the master switch, every registered tip, card, tour and nudge (ui/guidance/registry.js) with its own switch when it
    appears by itself and 「再显示一次」 once it was seen, and the one 重新显示全部提示. Everything is kept in this browser (ui/storage.js); nothing is
@@ -90,6 +91,11 @@ export default function GuidancePane({ data, capabilities, storages }) {
           : ui('现在没有可以重新显示的提示。')}</Hint>
         {!stored && <Hint tone="warning" data-guidance="no-storage">{ui('这个浏览器现在不能保存设置（比如无痕窗口），这一页的改动记不住。')}</Hint>}
         {error && <Hint tone="error" role="alert">{error}</Hint>}
+      </SettingsSection>
+      {/* AI 带学 (issue 549): what to say to start, and what a guided session leaves off until the learner agrees. Nothing here is a switch of this browser. */}
+      <SettingsSection title={ui('AI 带学')} data-guidance="guided-study"
+        lead={ui('在主会话里说想学什么，主会话就会边讲边出题：讲一个点，当场出一道经过审核的题放到右侧，你做完它再接着讲。下面这几句可以直接发过去。')}>
+        <GuidedStudyStart defaults />
       </SettingsSection>
       <SettingsSection title={ui('每一项提示')} lead={ui('每一项在哪里出现、什么时候出现。看过的可以单独再显示一次。')}>
         <ul className="guidance-list">

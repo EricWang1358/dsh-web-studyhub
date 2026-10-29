@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import Markdown from '../Markdown.jsx';
-import { getUiLanguage, ui } from '../i18n.js';
+import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
+import { joinMeta } from '../format.js';
 import { TeachingArtifactBlock } from './TeachingArtifactBlock.jsx';
 import { QuestionPrepSlot } from './QuestionPrepSlot.jsx';
 import { StudyProgressPanel } from './StudyProgressPanel.jsx';
 import { buildAskTutorPrompt, applyAskTutorMessage } from '../agent-prompts/guided-study.js';
 import { useStudy } from '../study-context.jsx';
 import './guided-study.css';
+import GuidedStudyStart from './GuidedStudyStart.jsx';
+
+/* How the session's status reads to the learner (never the raw value). */
+const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ended: '带学已结束' };
 
 export default function GuidedStudyWorkbench({
   session,
@@ -58,7 +63,7 @@ export default function GuidedStudyWorkbench({
     : null);
 
   const derivedProgress = progress || (session?.goal?.checkItems ? {
-    displayLine: `检验项共 ${session.goal.checkItems.length} 项`,
+    displayLine: uiFormat('检验项共 {0} 项', [session.goal.checkItems.length]),
     lectureCoveredCount: session.artifactRefs?.length || 0,
     items: session.goal.checkItems.map((item) => ({
       id: item.id,
@@ -115,8 +120,8 @@ export default function GuidedStudyWorkbench({
       {/* 1. 顶部紧凑目标栏 */}
       <div className="guided-study-topbar">
         <div className="guided-study-topbar-info">
-          <Badge size="sm">{session?.courseId || '带学课程'}</Badge>
-          <span className="guided-study-title">{session?.goal?.title || '未设定目标'}</span>
+          <Badge size="sm">{session?.courseId || ui('带学')}</Badge>
+          <span className="guided-study-title">{session?.goal?.title || ui('还没有定学习目标')}</span>
         </div>
         <div className="guided-study-actions">
           {session?.status === 'active' && (
@@ -126,7 +131,7 @@ export default function GuidedStudyWorkbench({
               className="guided-study-btn"
               onClick={() => onPause?.(session.id)}
             >
-              暂停
+              {ui('暂停')}
             </Button>
           )}
           <Button
@@ -135,7 +140,7 @@ export default function GuidedStudyWorkbench({
             className="guided-study-btn"
             onClick={() => onEnd?.(session.id)}
           >
-            结束
+            {ui('结束')}
           </Button>
         </div>
       </div>
@@ -143,7 +148,7 @@ export default function GuidedStudyWorkbench({
       {/* UC-10 模型不可用降级提示 */}
       {!modelReady && (
         <div className="guided-study-model-warning" role="alert">
-          当前模型不可用：AI 带学讲解与出题已暂停，你仍可正常阅读资料、做已有练习、复习与查看 QA。
+          {ui('没有可用的 AI 模型：带学的讲解和现场出题暂停了；读资料、做已有的题、复习和看问答都照常。')}
         </div>
       )}
 
@@ -228,9 +233,9 @@ export default function GuidedStudyWorkbench({
                   size="sm"
                   className="guided-study-btn"
                   onClick={handleAskTutor}
-                  title="拿去问老师 / 请教主会话"
+                  title={ui('把这道题和你的作答发给主会话')}
                 >
-                  请教主会话
+                  {ui('请教主会话')}
                 </Button>
               </div>
 
@@ -242,7 +247,8 @@ export default function GuidedStudyWorkbench({
             </div>
           ) : (
             <div className="guided-study-practice-empty">
-              <span>当前无正在进行的题目</span>
+              <span>{ui('现在没有要做的题。在主会话里说一句就能开始，比如：')}</span>
+              <GuidedStudyStart compact />
             </div>
           )}
         </div>
@@ -260,10 +266,8 @@ export default function GuidedStudyWorkbench({
           onSelectAttempt={onSelectAttempt}
         />
         <div className="guided-study-footer-status">
-          <span>会话状态: {session?.status || 'active'}</span>
-          {session?.returnPath?.length > 0 && (
-            <span> · 支线深度: {session.returnPath.length}</span>
-          )}
+          <span>{joinMeta([ui(STATUS_WORD[session?.status] || STATUS_WORD.active),
+            session?.returnPath?.length > 0 && uiFormat('支线 {0} 层，做完会回到原来那道题', [session.returnPath.length])])}</span>
         </div>
       </div>
     </div>

@@ -75,7 +75,7 @@ test('GuidedStudyWorkbench shows model-unavailable warning when modelReady is fa
     modelReady: false,
   }));
 
-  assert.match(html, /当前模型不可用：AI 带学讲解与出题已暂停/);
+  assert.match(html, /没有可用的 AI 模型：带学的讲解和现场出题暂停了/);
 });
 
 test('TeachingArtifactBlock sanitizes malicious markup (HB-8)', () => {
@@ -215,7 +215,7 @@ test('GuidedStudyWorkbench supports standard projected run (without entries arra
 
   assert.match(htmlUnrevealed, /What is tree height\?/);
   assert.match(htmlUnrevealed, /揭晓答案/);
-  assert.doesNotMatch(htmlUnrevealed, /当前无正在进行的题目/);
+  assert.doesNotMatch(htmlUnrevealed, /现在没有要做的题/);
 
   // 2. Projected run revealed, ready for answer
   const projectedRunRevealed = {
