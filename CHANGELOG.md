@@ -2,6 +2,12 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 3.7.4 — 2026-10-29
+
+- **Dragging the chat bar's edge no longer selects the StudyHub page.** In the DSH conversation's StudyHub tab, dragging from the floating input bar's empty edges keeps the study content out of the selection; selecting draft text and copying study passages still work with standard, OLED and paper palettes. Not verified: ZCode's separate iframe sandbox and third-party host skins; its parent-document selection requires a host-side fix.
+
+Hotfix validation: reproduced the selection defect and checked the fix in an isolated DSH 0.2.1-rc.2 host with a local fake model; browser regression tests cover standard dark/light, OLED and paper palettes. The full local browser suite is not green (preview layout, tour and import checks report failures); this release does not claim those flows are fixed. Not verified: one day of experience-channel use, the full workflow in DSH 0.2.0-rc.2, the real library/model acceptance checklist, ZCode's separate iframe sandbox or third-party host skins.
+
 ## 3.7.3 — 2026-10-29
 
 - **Slide-style pages with no text to search no longer freeze the index build.** Such pages (a title, a figure placeholder, a page number) used to be refused by the search service; five in a row stopped the whole run, and the pages were never recorded, so every retry died at the same spot and built nothing. They are now recorded as having no searchable text (skipped): not a failure, not retried until their content changes, and the course line, the index badge on a material and the result of a build all count them on their own in the same words instead of saying “not indexed yet”. If such a page had been indexed earlier with other content, the old entry is removed from the search; and when five pages in a row really fail, the status still carries the pages that failed. Not verified: not run against a real mcp-local-rag server or a real course (such as the 58 pages of ArchSS), only against a simulated search service answering “No chunks generated”; the search extension and its minimum passage length are unchanged, so these pages stay unsearchable.
