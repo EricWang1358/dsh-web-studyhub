@@ -49,7 +49,7 @@
   "引导": "Guidance",
   "第一次用到某个功能时，StudyHub 会给一句提示或一张卡片。这里可以把它们关掉，或让看过的再出现一次。这些选择只存在这个浏览器里。": "The first time you use a feature, StudyHub may show a tip or a card. Here you can turn them off, or bring back one you have seen. These choices are kept in this browser only.",
   "显示引导提示": "Show guidance tips",
-  "关掉后，阅读页的两条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」都不再出现；首页的入门三步、模型设置的引导、出错和空页面的说明，以及课程准备「全部完成」那句照常显示。": "When off, the two reader hints, the “Re-attach the original files” note, the topic-group reminder, the Archify card and “Notes moved” no longer appear; the first three steps on the home page, the model setup guide, the help on errors and empty pages, and the course setup “all done” note still show.",
+  "关掉后，阅读页的两条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」都不再出现；首页的入门三步、首页顶部的「下一步」卡、模型设置的引导、出错和空页面的说明，以及课程准备「全部完成」那句照常显示。": "When off, the two reader hints, the “Re-attach the original files” note, the topic-group reminder, the Archify card and “Notes moved” no longer appear; the first three steps on the home page, the “Next step” card at its top, the model setup guide, the help on errors and empty pages, and the course setup “all done” note still show.",
   "「显示引导提示」关着时，下面每一项的开关暂时不起作用；打开后恢复各自的设置。": "While “Show guidance tips” is off, the switches below do nothing; once it is on, each goes back to its own setting.",
   "重新显示全部提示": "Show all tips again",
   "有 {0} 项可以重新显示。重新显示后，不会马上弹出来，而是在各自该出现的时候再出现。": "{0} can be brought back. Nothing pops up right away; each appears again at its own moment.",

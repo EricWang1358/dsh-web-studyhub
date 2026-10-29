@@ -49,6 +49,7 @@
     "tests/model-setup-browser.test.mjs",
     "tests/nav-groups-browser.test.mjs",
     "tests/nav-layout.test.mjs",
+    "tests/next-card-browser.test.mjs",
     "tests/open-agent.test.mjs",
     "tests/open-in-sidebar.test.mjs",
     "tests/page-counts-browser.test.mjs",

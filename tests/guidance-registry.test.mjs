@@ -38,6 +38,7 @@ const both = (local, session = memoryStorage()) => ({ local, session });
 /* What the surfaces write today (their own writers are exercised in guidance-surfaces.test.mjs). */
 const SEEN = {
   'study-welcome:/lib': 'dismissed',
+  'study-next-card:/lib': '2026-10-28',
   'study-setup-later:/lib:Cloud': JSON.stringify(['goal']),
   'study-setup-done:/lib:Cloud': '1',
   'study-reader-hints': JSON.stringify(['pdf-page', 'page-presets']),
@@ -56,7 +57,7 @@ const UNRELATED = {
 };
 
 test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge, and the tour resume point is not an entry', () => {
-  assert.equal(GUIDANCE_ITEMS.length, 11);
+  assert.equal(GUIDANCE_ITEMS.length, 12);
   for (const item of GUIDANCE_ITEMS) assert.deepEqual(entryProblems(item), [], item.id);
   const ids = GUIDANCE_ITEMS.map(item => item.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
