@@ -8,6 +8,7 @@ import { modelKey } from '../lib/job-model.js';
 import { withQualityStages } from './helpers/assessment.mjs';
 import { SWITCH_MODES, switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* 「仅本任务生效」 on both executors (the job table, and the unified runtime behind runtime.pilot.generation): a question run started on the host model
    (A) is switched to another model (B) while its first call is in flight. That call finishes on A; every later call of the run is sent on B; the change
@@ -19,7 +20,7 @@ const answer = (n) => ({ id: `q${n}`, kind: 'flashcard', topic: 'Architecture', 
   answer: `Answer ${n}.`, hint: 'Think about scope.', explanation: 'The passage states it.', misconception: 'Confusing scope.', citations: [{ sourceId: source.id, quote: source.text.trim() }] });
 const inner = withQualityStages(async (system, prompt) => {
   if (system.includes('editor')) return JSON.stringify({ issues: [] });
-  const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+  const request = requestData(prompt);
   return JSON.stringify({ title: 'D', cards: Array.from({ length: request.count }, (_, index) => ({ ...answer(index + 1), id: `n${index + 1}`, objective: `New ${index + 1}` })) });
 });
 

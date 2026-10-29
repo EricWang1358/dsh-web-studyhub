@@ -4,10 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { EXTENSION_BUILD } from '../lib/retrieval-extension.js';
+import { extensionBuildProblem } from './extension-fingerprint.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(manifest.version)) throw new Error('Release version must be a valid version number');
+// Learners are asked to update the search extension only when it changed: its record must match what is packed below.
+const extensionProblem = await extensionBuildProblem({ dir: join(root, 'packages', 'studyhub-retrieval'), build: EXTENSION_BUILD, version: manifest.version, release: true });
+if (extensionProblem) throw new Error(extensionProblem);
 const outputArg = process.argv.find(arg => arg.startsWith('--outdir='))?.slice('--outdir='.length);
 const target = outputArg ? resolve(root, outputArg) : resolve(root, 'output', `release-${manifest.version}`);
 await mkdir(target, { recursive: true });
@@ -57,7 +62,8 @@ for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'au
   await writeFile(join(staging, 'cordis.patch.yml'), `- insert:\n    - id: study-${domain}\n      name: '${name}'\n      config: {}\n`);
   archives.push(await pack(staging));
 }
-// The search extension (WP28b): a companion bundle StudyHub installs on request; same version, same checksum list.
+// The search extension (WP28b): a companion bundle StudyHub installs on request; same version, same checksum list. Its code changes
+// rarely, so only an installed one older than EXTENSION_BUILD.since is asked to update; the version stamped here says which release packed it.
 {
   const source = join(root, 'packages', 'studyhub-retrieval');
   const staging = await mkdtemp(join(target, 'packages', 'retrieval-'));

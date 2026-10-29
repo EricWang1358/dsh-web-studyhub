@@ -6,6 +6,7 @@ import { planAssessment, planIssues } from "../lib/assessment-quality.js";
 import { generateDeck } from '../lib/generation.js';
 import { generateBatched, planGeneration, MAX_PLAN_TARGETS, CHUNK_CHARS } from "../lib/batch.js";
 import { authored, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* A real run: 36 MinerU pages of one book, 25 questions, 4 passed and "5 parts failed because the quoted source text could not
    be found". MinerU markdown and what a model echoes back differ in ways that carry no meaning: line-end hyphenation, markup,
@@ -152,7 +153,7 @@ test("one long page is never cut only because many questions were asked, and a t
 /* ---------- the whole run ---------- */
 
 /** The REQUEST DATA of a prompt (a corrective round appends prose after it). */
-const requestOf = (prompt) => JSON.parse(prompt.split("REQUEST DATA:\n")[1].split("\n\nYour previous plan was rejected")[0]);
+const requestOf = (prompt) => requestData(prompt);
 const bookRun = ({ mangle } = {}) => {
   const calls = { blueprint: [], author: [], review: [], repair: [], plan: 0 };
   const model = async (system, prompt) => {
@@ -161,7 +162,7 @@ const bookRun = ({ mangle } = {}) => {
       const request = requestOf(prompt);
       return JSON.stringify({ targets: Array.from({ length: request.count }, (_, i) => ({ ...planTarget(sentence(request.sources[i % request.sources.length]), request.sources[i % request.sources.length].id, i), objective: `plan ${request.sources[0].id} ${i}` })) });
     }
-    if (system.startsWith("Act as a strict assessment editor")) { calls.review.push(prompt); return JSON.stringify(qualityReview(JSON.parse(prompt).candidate)); }
+    if (system.startsWith("Act as a strict assessment editor")) { calls.review.push(prompt); return JSON.stringify(qualityReview(requestData(prompt).candidate)); }
     const request = requestOf(prompt);
     if (system.startsWith("Repair the source citations")) { calls.repair.push(prompt); return JSON.stringify({ cards: [] }); }
     const cards = request.assessmentPlan.targets.map((target, i) => card(`${request.sources[0].id}-${i}`, [{ sourceId: target.citations[0].sourceId, quote: (mangle || ((q) => q))(target.citations[0].quote, i) }],
@@ -234,7 +235,7 @@ test("when the plan of a group cannot be grounded at all, only that group's part
       return JSON.stringify({ targets: Array.from({ length: request.count }, (_, i) => ({ ...planTarget(first ? "This sentence is nowhere in the book at all." : sentence(request.sources[i % request.sources.length]),
         request.sources[i % request.sources.length].id, i), objective: `g ${request.sources[0].id} ${i}` })) });
     }
-    if (system.startsWith("Act as a strict assessment editor")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith("Act as a strict assessment editor")) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     const request = requestOf(prompt);
     const deck = { title: 'B', cards: request.assessmentPlan.targets.map(target => card(target.objective, [target.citations[0]], { targetId: target.targetId, objective: target.objective, prompt: `Question about ${target.objective}?` })) };
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, request.assessmentPlan, deck));

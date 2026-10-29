@@ -11,6 +11,7 @@ import { ALL_CHAPTERS, COURSE as SA, LECTURES, outlineLibrary, outlineModel } fr
 import { isCourseInventorySource, isCourseOutlineSource } from '../lib/exam-point-list.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { documentIndex, leafSegments } from '../lib/course-book-inputs.js';
+import { requestData } from './helpers/request-data.mjs';
 
 const COURSE = 'ArchSS';
 const TOPICS = [['CIA triad', 'Risk scenarios'], ['Availability in series', 'Availability in parallel'], ['Security patterns', 'Threat trees']];
@@ -38,7 +39,7 @@ function library(topics = TOPICS.flat()) {
 function model(options) {
   const base = outlineModel(options);
   const complete = async (system, prompt, request) => {
-    const data = JSON.parse(prompt.slice(prompt.indexOf('REQUEST DATA:\n') + 14).split('\n\nYour previous reply')[0]);
+    const data = requestData(prompt);
     // Order (and the fallback's reduce): one chapter, points of the same title (found in two materials) merged into one leaf.
     if (data.stage === 'order' || data.stage === 'reduce') {
       base.calls.push({ stage: data.stage, data });

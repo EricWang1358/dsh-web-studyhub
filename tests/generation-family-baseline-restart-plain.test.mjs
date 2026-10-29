@@ -5,6 +5,7 @@ import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { sectionedModel } from './helpers/coverage-fixture.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { gate, holding, openLibrary, restartedOver, jobsOf, finish, soon } from './helpers/generation-baseline.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* S3-0 baseline, restart boundary of the ORDINARY paths (plain/mixed/case first draft, publish.start). Coverage runs have a restart restoration (tests/coverage-run-exec.test.mjs);
    these paths have none: the library folder keeps what was saved (the draft is the only checkpoint), but no job is restored, nothing is interrupted-visible and nothing is
@@ -65,7 +66,7 @@ test('publish.start killed during its review: the draft is untouched and the dec
   const hold = gate(), source = { id: 's', title: 'Notes', text: 'Architecture sets principles that guide how a system is designed and changed.' };
   const card = { id: 'q', kind: 'flashcard', topic: 'Architecture', objective: 'Explain architectural principles', prompt: 'What guides later system design?', answer: 'Architectural principles.',
     hint: 'Think of design constraints.', explanation: 'The notes say principles guide design and change.', misconception: 'Only components matter.', citations: [{ sourceId: 's', quote: source.text }] };
-  const review = async (_system, prompt) => JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+  const review = async (_system, prompt) => JSON.stringify(qualityReview(requestData(prompt).candidate));
   const first = await openLibrary(t, { model: holding(hold)(review), hold });
   await first.service.call('source.add', source);
   const saved = await first.service.call('draft.save', { deck: { id: 'd', title: 'Architecture', cards: [card] } });

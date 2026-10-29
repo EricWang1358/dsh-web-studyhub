@@ -10,6 +10,7 @@ import { StudyService } from "../lib/service.js";
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
 import { reviewIssues, explanationIssues, answerLeakIssues, planIssues, learnerContextIssues, blueprintAssessment, blueprintPrompts } from "../lib/assessment-quality.js";
 import { reviewedCardFingerprint } from "../lib/review-integrity.js";
+import { requestData } from './helpers/request-data.mjs';
 
 const source = { id: "s", title: "Course notes", text: "Architecture includes the principles guiding a system's design and evolution." };
 test('model JSON control-character repair preserves strings and rejects unrelated corruption', () => {
@@ -62,7 +63,7 @@ test('verified evidence precedes concrete answers and scenarios, and authors can
     if (system.startsWith('You author')) {
       calls.push('author');
       assert.equal(calls.includes('blueprint'), true, 'the author needs concrete answers and scenario facts first');
-      const payload = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      const payload = requestData(prompt);
       assert.deepEqual(payload.answerBlueprint.items[0].scenario, blueprint.items[0].scenario);
       // An author may neither substitute an invented citation nor silently change the answer key.
       input.cards[0].citations = [{ sourceId: source.id, quote: 'Invented subject matter that was never in the selected source.' }];
@@ -89,7 +90,7 @@ test('a missing author target reference cannot receive another knowledge point b
   await assert.rejects(generateDeck(async (system, prompt) => {
     if (system.startsWith('Plan')) return JSON.stringify(plan);
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
-    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify({ deck: input, changes: [], checks: [] });
   }, request), /targetId/);
 });
@@ -102,7 +103,7 @@ test('a source with fewer supported knowledge points keeps its actual evidence i
   const result = await generateBatched(async (system, prompt) => {
     if (system.startsWith('Plan')) return JSON.stringify(plan);
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
-    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify(authored(input));
   }, req);
   assert.equal(result.cards.length, 1);
@@ -190,7 +191,7 @@ test('a known-card rewrite may reorder candidates without moving a binding rejec
   const result = await generateDeck(async (system, prompt) => {
     if (system.startsWith('Plan')) return JSON.stringify(plan);
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
-    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify({ deck: input, changes: [], checks: [] });
   }, { ...req, preReview: async ({ draft }) => ({ draft: { ...draft, cards: [...draft.cards].reverse() } }) });
   assert.equal(result.cards.length, 1);
@@ -202,7 +203,7 @@ test('a known-card rewrite may reorder candidates without moving a binding rejec
 test('a rewrite of a known card keeps its original evidence binding by id even when the replacement omits targetId', async () => {
   const input = candidate(), plan = qualityPlan(request), replies = [plan, qualityBlueprint(request, plan, input), authored(input)];
   const result = await generateDeck(async (system, prompt) => {
-    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify(replies.shift());
   }, { ...request, preReview: async ({ draft }) => {
     const replacement = { ...draft.cards[0], answer: 'An unsupported changed answer', citations: [] };
@@ -222,7 +223,7 @@ test('author cards in a different order bind by explicit target reference rather
   const result = await generateDeck(async (system, prompt) => {
     if (system.startsWith('Plan')) return JSON.stringify(plan);
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(blueprint);
-    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith('Act as')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify(reply);
   }, req);
   assert.equal(result.cards[0].targetId, 'target-2');
@@ -260,7 +261,7 @@ test("approved generated cards with non-applicable null fields save as editable 
     const deck = await generateDeck(async (system, prompt) => {
       if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
       if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
-      if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      if (system.startsWith("Act as")) return JSON.stringify(qualityReview(requestData(prompt).candidate));
       return JSON.stringify(authored(input));
     }, req);
     const saved = await service.call("draft.save", { deck });
@@ -294,7 +295,7 @@ test("invalid optional field shapes are rejected consistently before generated c
     await assert.rejects(generateDeck(async (system, prompt) => {
       if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
       if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
-      if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+      if (system.startsWith("Act as")) return JSON.stringify(qualityReview(requestData(prompt).candidate));
       return JSON.stringify(authored(input));
     }, req), /Quality gate failed|Answer blueprint is not usable/);
   }
@@ -328,7 +329,7 @@ test("generated drafts preserve valid non-null attributes outside their active a
   const deck = await generateDeck(async (system, prompt) => {
     if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(request));
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, qualityPlan(request), input));
-    if (system.startsWith("Act as")) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith("Act as")) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify(authored(input));
   }, request);
   const saved = await service.call("draft.save", { deck });
@@ -349,7 +350,7 @@ test("duplicate temporary author ids are distinct during independent review and 
     if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
     if (system.startsWith("Act as")) {
-      const reviewed = JSON.parse(prompt).candidate;
+      const reviewed = requestData(prompt).candidate;
       seen.push(...reviewed.cards.map(card => card.id));
       return JSON.stringify(qualityReview(reviewed));
     }
@@ -365,7 +366,7 @@ test("duplicate temporary author ids are distinct during independent review and 
   await assert.rejects(service.call("draft.save", { deck: duplicateSaved }), /id must be unique/);
   await assert.rejects(generateDeck(async (system, prompt) => {
     if (!system.startsWith("Act as")) return complete(system, prompt);
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     review.checks[1].cardId = review.checks[0].cardId;
     return JSON.stringify(review);
   }, req), /Review protocol failed/);
@@ -385,7 +386,7 @@ test("missing or invalid temporary author ids are normalized before the independ
       if (system.startsWith("Plan")) return JSON.stringify(qualityPlan(req));
       if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(req, qualityPlan(req), input));
       if (system.startsWith("Act as")) {
-        const reviewed = JSON.parse(prompt).candidate;
+        const reviewed = requestData(prompt).candidate;
         assert.ok(reviewed.cards.every(card => typeof card.id === "string" && card.id.trim()));
         assert.equal(new Set(reviewed.cards.map(card => card.id)).size, 2);
         return JSON.stringify(qualityReview(reviewed));
@@ -448,7 +449,7 @@ test('an empty notes-dependent stem is rejected even when the model reviewer mar
   await assert.rejects(generateDeck(async (system, prompt) => {
     if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(request));
     if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, qualityPlan(request), bad));
-    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
     return JSON.stringify(authored(bad));
   }, request), /Quality gate failed.*unavailable lecture notes/);
 });
@@ -456,7 +457,7 @@ test('an empty notes-dependent stem is rejected even when the model reviewer mar
 const generateWith = (deck, raw = JSON.stringify) => generateDeck(async (system, prompt) => {
   if (system.startsWith('Plan a source-grounded assessment')) return JSON.stringify(qualityPlan(request));
   if (system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(request, qualityPlan(request), deck));
-  if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+  if (system.startsWith('Act as a strict assessment editor')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
   return raw(authored(deck));
 }, request);
 
@@ -541,8 +542,8 @@ test('total-budget cancellation retains the saved single-round approved subset',
  const req={...request,count:6},controller=new AbortController(),saved=[];
  const result=generateBatched(async(system,prompt)=>{
   if(system.startsWith('Plan')) return JSON.stringify(qualityPlan(req));
-  if(system.startsWith('Act as')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
-  const part=JSON.parse(prompt.split('REQUEST DATA:\n')[1]),n=part.count;
+  if(system.startsWith('Act as')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
+  const part=requestData(prompt),n=part.count;
   const deck={title:'Architecture',cards:Array.from({length:n},(_,i)=>({...structuredClone(card),id:'q'+i,targetId:part.assessmentPlan.targets[i].targetId,prompt:'Distinct question '+i,objective:'Distinct target '+i}))};
   if(system.startsWith('Prepare supported answers')) return JSON.stringify(qualityBlueprint(part,part.assessmentPlan,deck));
   if(n===1) return new Promise((resolve,reject)=>controller.signal.addEventListener('abort',()=>reject(controller.signal.reason),{once:true}));

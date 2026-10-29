@@ -4,6 +4,7 @@ import { settleJob } from './helpers/wait.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { evidence, other, card, SCHEDULE, ONE_BY_ONE, authoring } from './helpers/supplement-fixtures.mjs';
 import { gate, openLibrary, restartedOver, jobsOf, finish, soon } from './helpers/generation-baseline.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* S3-0 baseline, restart boundary of the SUPPLEMENT and REPAIR paths: `generate { resumeDraftId, extraSourceIds }`, the target supplement (`supplement { deckId }`) and `draft.repair`.
    Like the other ordinary paths they have no restart restoration: what the library folder keeps is the draft (a supplement's checkpoint, a repair's per-card saves) and, for a
@@ -67,7 +68,7 @@ test('draft.repair killed during the second card: the first card stays repaired 
       const input = JSON.parse(prompt);
       return JSON.stringify({ card: { ...input.card, explanation: `Fixed: ${input.card.explanation}` } });
     }
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   };
   const first = await openLibrary(t, { model: model(true), hold });
   await first.service.call('source.add', source);

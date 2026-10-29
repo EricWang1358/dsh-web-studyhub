@@ -8,7 +8,7 @@ Free and open source, your materials stay on your computer; pick your own model 
 
 StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/harness/), an AI agent app. DSH runs as a desktop app or as a web page served from your own computer, and StudyHub opens inside it.
 
-[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 3.7.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.7.1) · [Changelog](CHANGELOG.md)
+[Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 3.7.4](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.7.4) · [Changelog](CHANGELOG.md)
 
 The demo runs in your browser with sample questions and prepared AI replies. It needs no install and no key, and your progress there stays in that browser.
 
@@ -25,7 +25,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 
 - **Make questions from your own sources.** Pick pages or chapters and generate flashcards, single- or multiple-choice, open-response or fill-in-the-blank questions. Every question cites its passage, and you review the draft before you publish it.
 - **Move between questions and sources.** A citation opens the passage it came from. In a source, paragraph and table markers lead to the questions and explanations linked to them.
-- **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let SM-2 schedule your reviews.
+- **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let FSRS-6 schedule your reviews.
 - **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
 - **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
 - **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
@@ -44,10 +44,10 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 2. **Install StudyHub.** In DSH, open **Plugins**, click **Add plugin**, paste this address and click **Enable**:
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.7.1/ericwang1358-dsh-daily-flashcard-3.7.1.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.7.4/ericwang1358-dsh-daily-flashcard-3.7.4.tgz
    ```
 
-   Check that the package is `@ericwang1358/dsh-daily-flashcard`, version **3.7.1**. StudyHub then opens by itself. Later, open it from **StudyHub** in DSH's left sidebar (the session tab and the right sidebar also work); you do not need to send a chat message first.
+   Check that the package is `@ericwang1358/dsh-daily-flashcard`, version **3.7.4**. StudyHub then opens by itself. Later, open it from **StudyHub** in DSH's left sidebar (the session tab and the right sidebar also work); you do not need to send a chat message first.
 3. **Take the tour (optional, a minute or two).** On the welcome page, click **Load the sample and start the tour**. The 7-step tour follows the first-run line's order (where the model is set up, add a source, make questions, check the draft, practise), pointing at the real controls, and ends on the line's step 2. A full tour of every page, Jobs included, is offered at its end. The sample makes no model calls and can be removed with one click.
 4. **Add a model.** Paste a key in DSH **Settings › Models** and choose a model in your session. Until then, StudyHub says so wherever a step needs a model, with a **Go to settings** link, instead of letting the step fail later; **Settings › Library & model** shows **Model connected** or **Model not connected** and the steps.
 5. **Start with your own material.** Click **Add source** and drop several PDFs, slides or notes at once. Then use **Generate from sources**, review the draft, publish it and practise.
@@ -55,9 +55,9 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 Notes on installing:
 
 - **Already use DSH?** Install only the plugin. Keep your current desktop app or web server, profile, model settings and workspace.
-- **GitHub address does not work?** Download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.7.1) in your browser and give **Add plugin** its absolute path. The file must be on the computer or server that runs DSH.
+- **GitHub address does not work?** Download the `.tgz` from the [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v3.7.4) in your browser and give **Add plugin** its absolute path. The file must be on the computer or server that runs DSH.
 - **Which file on the release page?** Only the complete package, `ericwang1358-dsh-daily-flashcard-<version>.tgz`, and you normally do not need to download it: step 2 pastes its address. The other files are the six separate components, the search extension (StudyHub installs it when you click **Install the search extension**), the checksum list and two setup guides.
-- More options, including the command line: [installation and model setup guide](docs/install.md). Setup guides you can open in a browser: [English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.7.1/StudyHub-3.7.1-Setup.html) · [Chinese](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.7.1/StudyHub-3.7.1-Setup.zh-CN.html). DSH itself comes only from the official sources in step 1.
+- More options, including the command line: [installation and model setup guide](docs/install.md). Setup guides you can open in a browser: [English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.7.4/StudyHub-3.7.4-Setup.html) · [Chinese](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v3.7.4/StudyHub-3.7.4-Setup.zh-CN.html). DSH itself comes only from the official sources in step 1.
 
 ## Use StudyHub
 
@@ -116,7 +116,7 @@ Today's time budget is separate from your saved weekday/weekend pace; zero minut
 Practice progress counts actual answers, flows use completed steps, and you explicitly mark a reading block complete. Opening content or skipping questions does not count, and completing an action does not establish mastery. AI sees compact titles, progress and exam dates, not full materials. Invalid or unavailable AI results are clearly labelled as local suggestions. Plans are saved by library and date, alongside ordinary board tasks.
 
 - Answer, then read the explanation. **Help me understand** asks a tutor about the current question.
-- Rate flashcards and open answers from 0 to 5; SM-2 picks the next review date. Answering and scheduling make no model calls.
+- Rate flashcards and open answers from 0 to 5; FSRS-6 picks the next review date from your rating and the days that really passed since the last review. Each rating button shows the gap it would give. Answering and scheduling make no model calls.
 - **Mistakes & weak points** groups wrong answers by deck (or by topic), filters them by deck, status and keyword, and can **Generate variants**. **Mock exam** and **Statistics** show what still needs work.
 
 <details>
@@ -255,7 +255,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
 - **Works well with:** [Archify and other companion tools](docs/companions.md)
 - **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
-- **Developers:** [architecture](docs/architecture.md) · [architecture case study](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [SM-2 scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
+- **Developers:** [architecture](docs/architecture.md) · [architecture case study](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [FSRS-6 review scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
 
 ## Join the project
 

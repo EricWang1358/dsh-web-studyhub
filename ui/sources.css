@@ -16,8 +16,10 @@
     .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* “原 PDF 422 页” beside the page count: dotted, so it reads as something to hover for the reason. */
     .source-doc__gap { text-decoration: underline dotted; text-underline-offset: 0.2em; }
-    /* The index badge's line is there from the first paint (the picker's rule, #205): a coverage answer fills it and moves nothing. */
-    .source-doc .source-main small.source-doc__index { display: flex; align-items: center; min-width: 0; height: calc(var(--fs-sm) * var(--lh-snug)); }
+    /* The index badge's line is there from the first paint (the picker's rule, #205): a coverage answer fills it and moves nothing. A badge too long for the row wraps
+       onto a second line (Badge wrap, ui/components/feedback.css) instead of being cut, so the line is a minimum height and shows what overflows the generic row line's clip. */
+    .source-doc .source-main small.source-doc__index { display: flex; align-items: center; min-width: 0; min-height: calc(var(--fs-sm) * var(--lh-snug)); overflow: visible; white-space: normal; }
+    .source-doc .source-main small.source-doc__index > * { min-width: 0; max-width: 100%; }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
     .source-doc__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; min-width: 0; align-items: center; gap: var(--space-2); }
     .source-doc__actions > .sh-btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
@@ -90,7 +92,8 @@
      column (it shows its short label, ui/sources-page.css); the line that says the original's page count may use two. */
   @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {
-      .source-doc .source-main small.source-doc__index { max-width: none; }
+      /* A badge that wraps takes two lines here, and the line keeps both from the first paint, so a coverage answer arriving late moves no row (#205, #229). */
+      .source-doc .source-main small.source-doc__index { max-width: none; min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); }
       .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     }
   }

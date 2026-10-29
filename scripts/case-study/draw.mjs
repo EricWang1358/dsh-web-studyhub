@@ -83,7 +83,7 @@ export function figureLayersReal(S) {
   add('domain', 8, 104, 424, 56, `Domain: ${S.contextCount} contexts with versioned APIs (lib/contexts/)`, ['materials, bank, study, authoring, generation, audio, jobs, library, courses, notes, ...', 'each owns its records, declares dependencies, reaches others only through granted operations'], { fill: FILL });
   add('data', 8, 174, 206, 44, 'Data access: shard store (lib/store.js)', ['content-addressed shards, atomic manifest']);
   add('integ', 226, 174, 206, 44, 'External integration', ['host adapter, model gateway, audio providers,', 'retrieval, MinerU, update check']);
-  add('shared', 448, 8, 124, 210, 'Shared library', ['pure modules in lib/*.js:', 'quote matching,', 'assessment quality,', 'SM-2, batching,', 'application messages,', 'job contract, ...'], { fill: FILL });
+  add('shared', 448, 8, 124, 210, 'Shared library', ['pure modules in lib/*.js:', 'quote matching,', 'assessment quality,', 'FSRS-6, batching,', 'application messages,', 'job contract, ...'], { fill: FILL });
   return wrap(580, 226, draw(B, []));
 }
 
@@ -125,7 +125,7 @@ export function figureDomainReal() {
   add('card', 502, 28, 64, 22, 'Card', ['kind, citations']);
   add('draft', 576, 28, 52, 22, 'Draft', []);
   add('run', 18, 150, 66, 22, 'Run', []);
-  add('attempt', 94, 150, 90, 22, 'Attempt', ['grade, SM-2']);
+  add('attempt', 94, 150, 90, 22, 'Attempt', ['grade, FSRS-6']);
   add('exam', 18, 190, 100, 22, 'Exam / oral run', []);
   add('plan', 218, 150, 90, 22, 'Plan + targets', ['answerability']);
   add('review', 318, 150, 80, 22, 'Review receipt', []);

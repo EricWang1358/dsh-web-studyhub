@@ -9,6 +9,7 @@ import { StudyService } from "../lib/service.js";
 import { estimateFromState } from "../lib/token-estimate.js";
 import { missingQuestions, canContinueDraft, continuationKindCounts } from "../lib/draft-continuation.js";
 import { authored, qualityPlan, qualityBlueprint, qualityReview, withQualityStages } from "./helpers/assessment.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* A real run asked for 20 questions and kept 10. The other ten were dropped by
    the review and the local checks and the learner was only told "少了 10 题".
@@ -50,14 +51,14 @@ test("an extra candidate without a planned knowledge point is omitted with its b
 
 test("the batched draft collects every part's dropped questions with their part number", async () => {
   const model = async (system, prompt) => {
-    if (system.startsWith("Plan a source-grounded assessment")) return JSON.stringify(qualityPlan(JSON.parse(prompt.split("REQUEST DATA:\n")[1])));
+    if (system.startsWith("Plan a source-grounded assessment")) return JSON.stringify(qualityPlan(requestData(prompt)));
     if (system.startsWith("Act as a strict assessment editor")) {
-      const candidate = JSON.parse(prompt).candidate, review = qualityReview(candidate);
+      const candidate = requestData(prompt).candidate, review = qualityReview(candidate);
       // The reserve target and the fill rounds' replacements the part now tops up from (lib/generation-yield.js) are rejected too: this test is about what a dropped candidate reports.
       review.checks.forEach((check) => { if (check.cardId === "q2" || /^(reserve|fill\d+)-/.test(check.cardId)) check.optionQuality = "na", check.sourceSupport = "fail"; });
       return JSON.stringify(review);
     }
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     // Each part's author names its objectives after the part's first target (the plan made them distinct), not after the library, which the author is no longer sent.
     const part = request.assessmentPlan.targets[0].objective;
     const deck = { title: "D", cards: Array.from({ length: request.count }, (_, i) => card(i + 1, { objective: `Part ${part} target ${i}`, prompt: `Question ${part} ${i}?` })) };
@@ -82,7 +83,7 @@ test("a top-up keeps what the earlier run dropped next to what it drops itself",
       generation: { sourceIds: [source.id], kind: "flashcard" } } } });
   service.complete = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: "More", cards: [card(2, { id: "n1", objective: "New target", prompt: "New question?" })].slice(0, request.count) });
   });
   const started = await service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion });
@@ -135,7 +136,7 @@ test("a generation in a big library tells the model only about targets its mater
     return JSON.stringify({ title: "T", cards: [card(9)] });
   });
   // The covered targets reach the plan call only: that is the one call that is told which of the library's targets the materials could repeat.
-  service.complete = async (system, prompt, context) => { if (system.startsWith("Plan a source-grounded assessment")) requests.push(JSON.parse(prompt.split("REQUEST DATA:\n")[1]).existing); return staged(system, prompt, context); };
+  service.complete = async (system, prompt, context) => { if (system.startsWith("Plan a source-grounded assessment")) requests.push(requestData(prompt).existing); return staged(system, prompt, context); };
   const started = await service.call("generate", { sourceIds: [source.id], count: 1, kind: "flashcard" });
   const done = await service.call("job.wait", { jobId: started.jobId });
   assert.equal(done.status, "complete", done.stage);

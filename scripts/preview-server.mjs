@@ -34,8 +34,9 @@ export function previewOptions(argv = process.argv, env = process.env) {
     // STUDY_FAKE_EFFORTS=low,medium,high: the preview model offers these reasoning levels (lowest first).
     efforts: (env.STUDY_FAKE_EFFORTS || "").split(",").map((id) => id.trim()).filter(Boolean),
     // STUDY_FAKE_RETRIEVAL=1: the preview plays a DSH that exposes a document-search MCP tool (scripts/fake-retrieval.mjs).
-    // STUDY_FAKE_RETRIEVAL=extension: the search extension itself can be installed and an index built (scripts/fake-extension.mjs).
-    retrieval: env.STUDY_FAKE_RETRIEVAL === "extension" ? "extension" : env.STUDY_FAKE_RETRIEVAL ? "fake" : null,
+    // STUDY_FAKE_RETRIEVAL=extension: the search extension itself can be installed and an index built (scripts/fake-extension.mjs);
+    // extension@3.6.3: the extension an earlier StudyHub (3.6.3) installed is already there.
+    retrieval: /^extension(?:@|$)/.test(env.STUDY_FAKE_RETRIEVAL || "") ? env.STUDY_FAKE_RETRIEVAL : env.STUDY_FAKE_RETRIEVAL ? "fake" : null,
   };
 }
 
@@ -71,7 +72,8 @@ function previewModel(model, fakeLatencyMs) {
  */
 function previewHost(workspaceRoot, model, efforts = [], retrieval = null, coverage = null, runtimePilot = null) {
   const disposers = [];
-  const extension = retrieval === "extension" ? createFakeExtension({}) : null;
+  const [kind, installed] = String(retrieval ?? "").split("@");
+  const extension = kind === "extension" ? createFakeExtension({ installed }) : null;
   const ctx = {
     ...(retrieval === "fake" ? { tools: createFakeRetrievalTools({ root: workspaceRoot }) } : extension ? { tools: extension.tools } : {}),
     // A model catalogue entry with reasoning levels, as DSH's ctx.llm.resolveModelInfo reports it.

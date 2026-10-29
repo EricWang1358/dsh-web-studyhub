@@ -4,6 +4,7 @@ import { generateBatched } from "../lib/batch.js";
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS } from "../lib/generation-settings.js";
 import { qualityPlan, qualityReview } from "./helpers/assessment.mjs";
 import { until } from "./helpers/wait.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 /* #198: where the time goes (queue vs model call, per stage), and the throughput that follows from it: the groups of a big job are planned at the
    same time instead of one after the other, the default budget is wider, and a provider that answers 429 makes the run slow down (and speed up
@@ -29,7 +30,7 @@ function provider({ latency = 5, limit = Infinity, always429 = false } = {}) {
     try {
       await new Promise((resolve) => setTimeout(resolve, latency));
       if (always429 || log.active > limit) { log.rateLimited++; throw new Error("429 Too Many Requests: rate limit exceeded"); }
-      const data = () => JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+      const data = () => requestData(prompt);
       if (isPlan) {
         const request = data(), source = request.sources[0];
         const plan = qualityPlan({ ...request, kind: "flashcard", sources: [source] });
@@ -44,7 +45,7 @@ function provider({ latency = 5, limit = Infinity, always429 = false } = {}) {
         const plan = data().assessmentPlan, cards = plan.targets.map((target, index) => card(number(target.objective), index, target.targetId, target.citations[0].sourceId));
         return JSON.stringify({ deck: { title: "D", cards }, changes: [], checks: qualityReview({ cards }).checks });
       }
-      if (system.startsWith("Act as a strict assessment editor")) { log.reviews++; return JSON.stringify(qualityReview(JSON.parse(prompt).candidate)); }
+      if (system.startsWith("Act as a strict assessment editor")) { log.reviews++; return JSON.stringify(qualityReview(requestData(prompt).candidate)); }
       throw new Error(`unexpected call: ${system.slice(0, 40)}`);
     } finally { log.active--; if (isPlan) log.planning--; }
   };

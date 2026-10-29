@@ -4,6 +4,7 @@ import { settleJob } from './helpers/wait.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { card } from './helpers/supplement-fixtures.mjs';
 import { openLibrary, stagedModel } from './helpers/generation-baseline.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* The behaviour of the publication of a draft (`draft.publish.start`) that must be the same on both sides of its migration switch: this suite runs as it is on the legacy
    path and, through draft-publish.runtime.test.mjs, on the runtime (`generationPublish`). */
@@ -16,7 +17,7 @@ function reviewer(failing = []) {
   const staged = stagedModel();
   return { staged, complete: async (system, prompt, context) => {
     if (!system.startsWith('Act as a strict')) return staged.complete(system, prompt, context);
-    const review = qualityReview(JSON.parse(prompt).candidate);
+    const review = qualityReview(requestData(prompt).candidate);
     for (const check of review.checks) if (failing.includes(check.cardId)) check.sourceSupport = 'fail';
     return JSON.stringify(review);
   } };

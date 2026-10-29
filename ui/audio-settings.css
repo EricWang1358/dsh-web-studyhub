@@ -7,6 +7,8 @@
     .audio-advanced { margin-top: var(--space-5); }
     .audio-advanced .sh-disclosure__body > * + * { margin-top: var(--space-5); }
     .audio-paid { display: grid; gap: var(--space-2); }
+    /* 课堂实录's engine: the three choices, then the local engine's card (ui/LiveLocalCard.jsx). */
+    .audio-live-engine { display: grid; gap: var(--space-3); min-width: 0; }
     .audio-expert .audio-reasoning { margin-top: var(--space-4); }
     /* The setup gate in the audio tab. */
     .audio-setup { margin: var(--space-4) 0; }

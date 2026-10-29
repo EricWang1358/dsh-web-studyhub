@@ -2,7 +2,7 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    /* Settings page layout and the sections that are specific to it (陪学, SM-2, backup). The section shell, the fields and the notes are shared
+    /* Settings page layout and the sections that are specific to it (陪学, 间隔复习, backup). The section shell, the fields and the notes are shared
        components (ui/components/fields.css). Injected as <style data-study-settings>. */
     .settings-page .settings-subtitle { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .settings-page .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
@@ -27,8 +27,9 @@
     .coach-stats li { display: inline-flex; align-items: center; gap: var(--space-1-5); }
     .coach-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
     .coach-stats__ready { margin-left: auto; }
-    /* SM-2 */
+    /* 间隔复习 (FSRS-6; the sm2- class prefix is older than the scheduler) */
     .sm2-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 14rem)); gap: var(--space-3) var(--space-5); }
+    .sm2-field-tip { display: inline-flex; vertical-align: -3px; color: var(--text-muted); cursor: help; }
     .sm2-preview { display: grid; gap: var(--space-2); max-width: 720px; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft);
       border-radius: var(--radius); background: var(--bg-surface); }
     .sm2-preview svg { display: block; width: 100%; height: auto; overflow: visible; }

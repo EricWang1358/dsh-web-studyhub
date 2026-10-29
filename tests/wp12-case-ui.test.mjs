@@ -16,6 +16,7 @@ import {
 } from "../ui/case-session.js";
 import { paperPlan } from "../lib/case-study.js";
 import { reviewElement } from "./helpers/review-render.mjs";
+import { requestData } from './helpers/request-data.mjs';
 
 const compiled = await build({ stdin: { contents: `export { RubricResult, CaseReport, RubricSkills } from './ui/CaseResult.jsx';
   export { ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor } from './ui/CaseWorkspace.jsx'; export { default as Generate } from './ui/Generate.jsx';
@@ -284,7 +285,7 @@ test("a passage of a material can seed a case: 围绕这段出案例题 in the v
   assert.equal(caseGenerationArgs({ sourceIds: ["a"], focus: "Relational stores keep payments consistent." }).focus, "Relational stores keep payments consistent.");
   const { prompt } = caseAuthorPrompt({ language: "English", questions: 2, totalMarks: 20, sources: [], focus: "Relational stores keep payments consistent." });
   assert.match(prompt, /around the focus passage/);
-  assert.equal(JSON.parse(prompt.split("REQUEST DATA:\n")[1]).focus, "Relational stores keep payments consistent.");
+  assert.equal(requestData(prompt).focus, "Relational stores keep payments consistent.");
   const sources = [{ id: "a", title: "Cloud persistence", text: "Polyglot persistence chooses a store per workload." }];
   const form = render(Generate, { data: { ...data, sources, focus: { courses: [] } }, busy: false, running: false, act: noop, call: async () => { throw new Error("x"); },
     openDraft: noop, setPage: noop, setNotice: noop, setGenSource: noop, gen: { kind: "quiz", count: 5, language: "中文" }, setGen: noop, selectedSources: [],

@@ -1,26 +1,31 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, Field, Hint, NumberInput, SettingsSection, useToast } from '../components/index.js';
-import { previewSchedule } from '../../lib/sm2.js';
+import { Button, Field, Hint, Icon, NumberInput, SettingsSection, Tooltip, useToast } from '../components/index.js';
+import { LIMITS, previewSchedule } from '../../lib/sm2.js';
 import { syncScheduleSettings } from '../schedule-settings.js';
 import { formatList } from '../format.js';
 
-/* ---------- 间隔复习 · SM-2 ---------- */
+/* ---------- 间隔复习 · FSRS-6 ---------- */
 
-const SM2_FIELDS = [
-  ['first_interval_days', '首次间隔', '天', 1, 1],
-  ['second_interval_days', '第二次间隔', '天', 1, 1],
-  ['initial_ease_factor', '初始熟练系数', '', 0.1, 0.1],
-  ['minimum_ease_factor', '最低熟练系数', '', 0.1, 0.1],
+/* The two numbers a learner may change (lib/sm2.js defaults). The target recall is saved as 0.9 and shown as 90%. Each label has its
+   explanation in a hover Tooltip. */
+const FIELDS = [
+  { key: 'request_retention', label: '目标记忆率', unit: '%', scale: 100, ...LIMITS.request_retention,
+    tip: '下次复习时，希望还有多大把握记得这道题。调高：复习更勤，记得更牢；调低：复习更少，忘得也更多。默认 90%，可设 70%–97%。' },
+  { key: 'maximum_interval', label: '最长间隔', unit: '天', scale: 1, ...LIMITS.maximum_interval,
+    tip: '两次复习之间最多隔几天。离考试不远时，可以设成离考试天数的一半：之后排出的间隔都不会超过它。已经排好的复习日期不会提前，要等那道题下次作答时才按新的上限排。默认 36500 天，相当于不设上限。' },
 ];
-const numbers = (settings = {}) => Object.fromEntries(SM2_FIELDS.map(([key]) => [key, Number(settings[key])]));
+const numbers = (settings = {}) => Object.fromEntries(FIELDS.map(({ key }) => [key, Number(settings[key])]));
+/** What the input shows: 0.9 → 90; blank stays blank. */
+const shown = (field, value) => (value === undefined || value === null || Number.isNaN(value) ? '' : Math.round(value * field.scale * 100) / 100);
 const dayList = points => formatList(points.map(point => point.day));
-const TICKS = [[1, '1 天'], [7, '1 周'], [30, '1 个月'], [90, '3 个月'], [180, '半年'], [365, '1 年'], [730, '2 年']];
+const TICKS = [[1, '1 天'], [7, '1 周'], [30, '1 个月'], [90, '3 个月'], [180, '半年'], [365, '1 年'], [730, '2 年'], [1825, '5 年'], [3650, '10 年']];
+const PREVIEW_REVIEWS = 5;
 
 /** The predicted review days for "熟练" and "勉强答对" answers, drawn on a square-root time axis. */
 function SchedulePreview({ good, hard }) {
   const titleId = useId(), descId = useId();
-  if (!good) return <Hint className="sm2-preview">{ui('填好四个数值后，这里会显示复习时间预览。')}</Hint>;
+  if (!good) return <Hint className="sm2-preview">{ui('填好两个数值后，这里会显示复习时间预览。')}</Hint>;
   const width = 640, left = 16, right = 24, max = Math.max(30, good.at(-1).day, hard?.at(-1).day || 0);
   const x = day => left + Math.sqrt(day / max) * (width - left - right);
   const rows = [[good, 46, 'is-good'], ...(hard ? [[hard, 92, 'is-hard']] : [])];
@@ -46,7 +51,7 @@ function SchedulePreview({ good, hard }) {
   </figure>;
 }
 
-/** SM-2 parameters: one compact row of number fields, a live preview and save/undo. */
+/** FSRS-6 settings: two number fields with their explanations on hover, a live preview and save/undo. The defaults just work. */
 export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, act, busy }) {
   const toast = useToast();
   const savedKey = JSON.stringify(numbers(saved));
@@ -67,13 +72,13 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, 
     setBaseline(incoming);
     setSettings(current => before.root === root ? syncScheduleSettings(current, before.values, incoming) : { ...current, ...incoming });
   }, [root, savedKey, setSettings]);
-  const dirty = SM2_FIELDS.some(([key]) => Number(settings[key]) !== baseline[key]);
+  const dirty = FIELDS.some(({ key }) => Number(settings[key]) !== baseline[key]);
   const current = numbers(settings);
-  const good = previewSchedule(current, { grade: 4, reviews: 6 }), hard = good && previewSchedule(current, { grade: 3, reviews: 6 });
+  const good = previewSchedule(current, { grade: 4, reviews: PREVIEW_REVIEWS }), hard = good && previewSchedule(current, { grade: 3, reviews: PREVIEW_REVIEWS });
   const save = async event => {
     event.preventDefault();
     if (busy || pending.current || !dirty || !good) return;
-    const changes = Object.fromEntries(SM2_FIELDS.filter(([key]) => current[key] !== baseline[key]).map(([key]) => [key, current[key]]));
+    const changes = Object.fromEntries(FIELDS.filter(({ key }) => current[key] !== baseline[key]).map(({ key }) => [key, current[key]]));
     const owner = scope.current, operation = {};
     pending.current = operation; setWorking(true); setError('');
     const isCurrent = () => owner.live && owner.root === root && scope.current === owner && pending.current === operation;
@@ -90,14 +95,16 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, 
   };
   return (
     <form className="settings-form" onSubmit={save}>
-      <SettingsSection className="sm2-settings" title={ui('间隔复习 · SM-2')} lead={ui('答对时，下一次复习的间隔逐次拉长；答错时回到 1 天。')}>
+      <SettingsSection className="sm2-settings" title={ui('间隔复习 · FSRS-6')} lead={ui('每次作答后，按上次复习到现在实际隔了几天、这次答得怎样，估算这道题还能记多久，在预计还记得的把握降到目标时安排下一次复习。答错会缩短间隔，但不一定回到 1 天。')}>
         <div className="sm2-fields">
-          {SM2_FIELDS.map(([key, label, unit, min, step]) => <Field key={key} label={ui(label)} width="sm">
-            <NumberInput required min={min} max="365" step={step} suffix={unit ? ui(unit) : undefined} value={settings[key] ?? ''} disabled={busy}
-              onChange={(e) => { const value = Number(e.target.value); setError(''); setSettings(previous => ({ ...previous, [key]: value })); }} />
+          {FIELDS.map(field => <Field key={field.key} width="sm" label={<>{ui(field.label)}{' '}<Tooltip layer content={ui(field.tip)}>
+              <span tabIndex={0} className="sm2-field-tip" aria-label={uiFormat('「{0}」是什么', [ui(field.label)])}><Icon name="info" size={16} /></span>
+            </Tooltip></>}>
+            <NumberInput required min={field.min * field.scale} max={field.max * field.scale} step="1" suffix={field.unit === '%' ? '%' : ui(field.unit)} value={shown(field, settings[field.key])} disabled={busy}
+              onChange={(e) => { const value = e.target.value === '' ? NaN : Number(e.target.value) / field.scale; setError(''); setSettings(previous => ({ ...previous, [field.key]: value })); }} />
           </Field>)}
         </div>
-        <Hint>{ui('熟练系数越大，间隔增长越快；答得吃力时会下降，但不低于最低系数。')}</Hint>
+        <Hint>{ui('默认值就能用；只有想复习得更勤或更少时才需要改。')}</Hint>
         <SchedulePreview good={good} hard={hard} />
         {error && <Hint tone="error" role="alert">{error}</Hint>}
         <div className="settings-actions">

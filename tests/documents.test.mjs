@@ -13,6 +13,7 @@ import { extractPdf } from "../lib/documents.js";
 import { StudyService } from "../lib/service.js";
 import { generateDeck, completeJson } from "../lib/generation.js";
 import { generateBatched, planGeneration } from "../lib/batch.js";
+import { requestData } from './helpers/request-data.mjs';
 
 async function cMapPdfFixture() {
   const doc = await PDFDocument.create(), page = doc.addPage();
@@ -237,7 +238,7 @@ test("mixed generation uses small batches, one draft, requested title, and repor
   let n = 0, author = 0;
   const result = await generateBatched(withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const req = requestData(prompt);
     if (++author === 2) return JSON.stringify({ error: "Insufficient support" });
     return JSON.stringify({ title: "Model title", cards: Array.from({ length: req.count }, () => card(++n, req.kind)) });
   }), { ...request, performance: { fillRounds: 0 } });  // no fill round: a failed part stays failed and reported (the rescue is tests/generation-rescue.test.mjs)
@@ -258,7 +259,7 @@ test("three batch workers overlap after shared planning and checkpoint before a 
   const contexts = [], checkpoints = [];
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const req = requestData(prompt);
     const number = ++authors;
     active++; peak = Math.max(peak, active);
     if (number <= 3) await new Promise((resolve) => { releases.push(resolve); if (releases.length === 3) signalStarted(); });
@@ -293,10 +294,10 @@ test("workers receive complete assigned sources without unrelated planning pages
   const seen = [];
   const result = await generateBatched(withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) {
-      seen.push(JSON.parse(prompt).sources);
+      seen.push(requestData(prompt).sources);
       return JSON.stringify({ issues: [] });
     }
-    const req = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const req = requestData(prompt);
     seen.push(req.sources);
     return JSON.stringify({ title: "Scoped sources", cards: Array.from({ length: req.count }, () => card(++n, req.kind)) });
   }), { count: 6, kind: "flashcard", sources: [source, { id: "unassigned", title: "Unrelated page", text: "A different page with no assigned learning targets." }] });
@@ -324,7 +325,7 @@ test("PDF sources feed a single mixed background job without changing recording 
   const service = new StudyService(root);
   service.complete = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: "Generated", cards: Array.from({ length: request.count }, () => ({ ...card(++n, request.kind), citations: [{ sourceId: request.sources[0].id, quote: request.sources[0].text }] })) });
   });
   await service.call("ingest.start", { deckTitle: "SWE5001", kind: "auto", mistakes: "none" });
@@ -355,7 +356,7 @@ test('generation freezes the submitted course, infers shared sources, and keeps 
   let n = 0, wait = true;
   const model = withQualityStages(async (system, prompt) => {
     if (system.includes('editor')) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: 'Generated', cards: [card(++n, request.kind)] });
   });
   service.complete = async (system, prompt) => {
@@ -420,7 +421,7 @@ test("an interrupted generation can fill its original draft without replacing ap
   let next = 2;
   service.complete = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: "Continuation", cards: Array.from({ length: request.count }, () => card(next++, request.kind)) });
   });
   const started = await service.call("generate", { resumeDraftId: saved.id, draftVersion: saved.draftVersion });
@@ -455,7 +456,7 @@ test("continuing a mixed draft fills the missing question kind", async (t) => {
   const generatedKinds = [];
   service.complete = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     generatedKinds.push(request.kind);
     return JSON.stringify({ title: "Mixed", cards: [card(3, request.kind)] });
   });
@@ -481,7 +482,7 @@ test("continuation refuses to overwrite a draft edited while the model is workin
   const startedModel = new Promise((resolve) => { entered = resolve; });
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: "Continuation", cards: [card(2, request.kind)] });
   });
   service.complete = async (...args) => {
@@ -509,7 +510,7 @@ test("source removal waits until a generation using it has finished", async (t) 
   const startedModel = new Promise((resolve) => { entered = resolve; });
   const fixture = withQualityStages(async (system, prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: "Generated", cards: [card(1, request.kind)] });
   });
   service.complete = async (...args) => {
@@ -560,7 +561,7 @@ function batchStageModel(before = async () => {}) {
   return async (system, prompt, context) => {
     const stage = system.startsWith('Plan ') ? 'planning' : system.startsWith('Prepare supported') ? 'blueprinting'
       : system.startsWith('You author') ? 'authoring' : 'reviewing';
-    const request = JSON.parse(stage === 'reviewing' ? prompt : prompt.split('REQUEST DATA:\n')[1]);
+    const request = requestData(prompt);
     await before(stage, request, context);
     if (stage === 'planning') return JSON.stringify(qualityPlan(request));
     if (stage === 'reviewing') return JSON.stringify(qualityReview(request.candidate));

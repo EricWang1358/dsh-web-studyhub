@@ -116,6 +116,17 @@ test('finished, failed and stopped builds each say what happened', () => {
   assert.match(partial, /2 页没能写入/);
 });
 
+test('a finished build names the pages with no searchable text once, in its own words, and never as not indexed (#521)', () => {
+  const run = { status: 'complete', course: '操作系统', added: 40, removed: 0, unchanged: 0, skipped: 58, failed: [], failedCount: 0, done: 40, total: 40 };
+  const html = panel({ status: running, initialPlan: { ...plan, toIndex: 0, unchanged: 48, skipped: 58 }, initialRun: run });
+  assert.match(html, /58 页无检索文字（跳过）/);
+  assert.doesNotMatch(html, /没建索引|没能写入/);
+  assert.doesNotMatch(panel({ status: running, initialPlan: plan, initialRun: { ...run, skipped: 0 } }), /无检索文字/);
+  const en = panel({ status: running, initialPlan: { ...plan, toIndex: 0, unchanged: 48, skipped: 58 }, initialRun: { ...run, course: 'OS' }, courses: ['OS'], defaultCourse: 'OS' }, 'en');
+  assert.match(en, /58 pages have no searchable text \(skipped\)/);
+  assert.doesNotMatch(en, han);
+});
+
 test('the panel in English has no Chinese in its own text', () => {
   const states = [{ status: fresh }, { status: fresh, initialApproval: ['sharp'] }, { status: installed }, { status: running, initialPlan: plan },
     { status: running, initialPlan: plan, initialRun: { status: 'running', stage: 'model', done: 0, total: 5 } },
@@ -226,6 +237,9 @@ test('an outdated extension is said to be outdated and offers the update, not ju
   const html = panel({ status: stale });
   assert.match(html, /2\.1\.2/);
   assert.match(html, /2\.1\.3/);
+  // It is outdated because this StudyHub brings a changed extension, not because its number is below StudyHub's (every release repacks it).
+  assert.match(html, /这一版 StudyHub 带了更新过的检索扩展/);
+  assert.doesNotMatch(html, /比当前 StudyHub/);
   assert.match(html, /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?更新检索扩展/);
   assert.doesNotMatch(panel({ status: installed }), /更新检索扩展/, 'a current extension has nothing to update');
   const en = panel({ status: stale }, 'en');

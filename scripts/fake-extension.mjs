@@ -12,6 +12,9 @@ import { INDEX_TOOLS } from '../lib/retrieval-index.js';
 import { EXTENSION } from '../lib/large-documents.js';
 
 const sleep = ms => new Promise(done => setTimeout(done, ms));
+/** A page needs at least one line this long to become a passage; the real server refuses the rest. Mirrors mcp-local-rag's CHUNK_MIN_LENGTH default (50). */
+const CHUNK_MIN_LENGTH = 50;
+const NO_CHUNKS_MESSAGE = `MCP error -32602: No chunks generated from file: fake-extension. The file may be empty or all content was filtered (minimum ${CHUNK_MIN_LENGTH} characters required). Existing data has been preserved.`;
 const SCHEMAS = [
   { name: INDEX_TOOLS.query, description: 'Search ingested documents with hybrid keyword + semantic matching.',
     parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number' } }, required: ['query'] } },
@@ -27,9 +30,11 @@ function terms(text) {
 }
 const ok = value => ({ isError: false, value: { content: [{ type: 'text', text: JSON.stringify(value) }] }, content: [] });
 
-/** { tools, pluginManager, state }: `delayMs` is the pace of one ingested page, the first one also "downloads the model". */
-export function createFakeExtension({ delayMs = 120 } = {}) {
-  const state = { installed: false, documents: new Map(), modelReady: false };
+/** { tools, pluginManager, state }: `delayMs` is the pace of one ingested page, the first one also "downloads the model".
+ *  `installed` (a version) starts with the extension an earlier StudyHub installed. Like DSH, the bundle reports the version of the file
+ *  it was installed from (a release packs the extension under its own version). */
+export function createFakeExtension({ delayMs = 120, installed } = {}) {
+  const state = { installed: !!installed, version: installed || undefined, documents: new Map(), modelReady: false };
   const tools = {
     schemas: () => (state.installed ? SCHEMAS : []),
     execute: async ({ name, arguments: args, signal }) => {
@@ -38,6 +43,8 @@ export function createFakeExtension({ delayMs = 120 } = {}) {
         if (!state.modelReady) { await sleep(delayMs * 6); state.modelReady = true; }
         await sleep(delayMs);
         signal?.throwIfAborted();
+        // Like the real server, a page with no long enough line (the `# title` line included) writes nothing and keeps what the key held.
+        if (!String(args.content).split('\n').some(line => line.length >= CHUNK_MIN_LENGTH)) return { isError: true, error: { message: NO_CHUNKS_MESSAGE }, content: [] };
         state.documents.set(args.metadata.source, String(args.content));
         return ok({ ok: true });
       }
@@ -53,14 +60,15 @@ export function createFakeExtension({ delayMs = 120 } = {}) {
     },
   };
   const pluginManager = {
-    installBundle: async (_path, options = {}) => {
+    installBundle: async (path, options = {}) => {
       if (!options.approvedBuilds?.length) return { changed: false, application: 'failed', stage: 'install', target: EXTENSION.package, pendingBuilds: ['onnxruntime-node', 'sharp'], packageResult: { kind: 'build-blocked', exitCode: 1, output: '' } };
       await sleep(delayMs * 8);
       state.installed = true;
+      state.version = /-(\d+\.\d+\.\d+[^/\\]*)\.tgz$/.exec(String(path))?.[1];
       return { changed: true, application: 'applied', stage: 'enable', target: EXTENSION.package, bundle: EXTENSION.package, approvedBuilds: options.approvedBuilds };
     },
     removeBundle: async name => { state.installed = false; state.documents.clear(); return { changed: true, application: 'applied', stage: 'remove', target: name }; },
-    listBundles: async () => (state.installed ? [{ name: EXTENSION.package, version: '0.0.0-fake', enabled: true, installed: true, optional: false, removable: true }] : []),
+    listBundles: async () => (state.installed ? [{ name: EXTENSION.package, version: state.version || '0.0.0-fake', enabled: true, installed: true, optional: false, removable: true }] : []),
   };
   return { tools, pluginManager, state };
 }

@@ -88,8 +88,8 @@ Documentation checks cover all 12 changed/new Markdown files: local link targets
 
 - Global notebook registry: publish/list/unpublish, missing libraries flagged, corrupt registry degrades to empty, `DSH_HOME` isolation.
 - Cross-workspace `notebook.search` across published libraries (read-only) and host-transport round-trip for the notebook actions.
-- Cloze cards: quality-gate validation (markers ↔ answers), public masking (no `value`/`accept` before answering), normalized per-blank grading with `accept` variants, SM-2 update, reveal-gate after the answer.
-- Mock exam: silent answer recording (no feedback/SM-2/attempts while open), changeable answers, `projection.picks` restore surface, withdraw-by-clearing (empty selection ⇒ unanswered), reveal refused until submit, submit grades once with report (score/duration/byTopic/byDeck/wrong/weakScope), resubmit rejected, weakScope re-practices through the normal path.
+- Cloze cards: quality-gate validation (markers ↔ answers), public masking (no `value`/`accept` before answering), normalized per-blank grading with `accept` variants, FSRS-6 update, reveal-gate after the answer.
+- Mock exam: silent answer recording (no feedback/FSRS-6/attempts while open), changeable answers, `projection.picks` restore surface, withdraw-by-clearing (empty selection ⇒ unanswered), reveal refused until submit, submit grades once with report (score/duration/byTopic/byDeck/wrong/weakScope), resubmit rejected, weakScope re-practices through the normal path.
 - Wrongbook aggregation of latest wrong answers across decks.
 - Dashboard stats: streak, 182-day zero-filled heatmap, daily average trend, weak topics.
 - Graph: structure tree (deck › topic › card) with prerequisite edges, topic-scoped filtering, ordered path mode.
@@ -100,7 +100,7 @@ Documentation checks cover all 12 changed/new Markdown files: local link targets
 - Sharded storage (`tests/store.test.mjs`): a commit rewrites only changed shards (deck b and the last attempts chunk) behind an atomic manifest and collects the replaced files; chunk order and removals survive a fresh read; a throwing mutation writes nothing and cannot leak nested manifest fields into the cache; a version 1 monolithic file opens, its first commit keeps the original bytes in `backups/` and later commits do not back up again; reads are cached per manifest stat and pick up another writer's commit; common service flows run with the cached library deep-frozen (`STUDY_STORE_FREEZE=1`, which also passes for the whole suite), and service results are detached copies.
 - Storage benchmark (2026-09-15, copy of a real 7MB library: 245 sources, 14 decks / 384 cards, 39 runs with card snapshots), answer + snapshot + review.get + coach nudge in parallel: answer 325–740ms → 54–60ms, 下一题 318–512ms → 48–53ms, snapshot 460–1185ms → 7–12ms, review.get 530–1086ms → 1–2ms, worst event-loop stall 223–484ms → 34–38ms. Migration commit 280ms; manifest 28KB. Preview on the unmigrated copy: the first answer migrated it with a backup, a flashcard grade showed in 84ms and 下一题 in 81ms, progress and the sources page survived a reload.
 
-- Upstream SM-2 formula and grade bounds.
+- FSRS-6 matches ts-fsrs 5.4.2 (long-term mode, no fuzz) over random histories; SM-2 review state from older libraries migrates at the next answer; grade bounds.
 - Required source quotes, distractor explanations and distinct objectives.
 - No answer/option correctness in pre-answer review projection.
 - Exact multiple-choice grading, idempotent submission, flashcard reveal before grade.
@@ -109,7 +109,7 @@ Documentation checks cover all 12 changed/new Markdown files: local link targets
 - Read-only legacy import, preserved scheduling and idempotent re-import.
 - Author → editor → repair → re-review; persistent editorial problems rejected.
 - Requested question kind enforced even if the editor approves the wrong kind.
-- Progressive teaching never stores raw learner answers or adds SM-2 attempts.
+- Progressive teaching never stores raw learner answers or adds FSRS-6 attempts.
 - Actual DSH SDK entry import, tool/route registration.
 - Browser carrier and server route round-trip, correct error envelope, 404/405-only legacy fallback.
 - Published deck editing preserves unchanged scheduling, resets changed content, retains attempts, and blocks active-review mutation.

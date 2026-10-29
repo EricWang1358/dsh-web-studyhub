@@ -27,7 +27,7 @@ try {
   const settings = store.scoped(['settings']);
   const study = store.scoped(['decks', 'attempts']);
   const results = [];
-  results.push(await measure('settings-only', () => settings.update(state => { state.settings.first_interval_days += 1; })));
+  results.push(await measure('settings-only', () => settings.update(state => { state.settings.maximum_interval += 1; })));
   results.push(await measure('study-write', () => study.update(state => {
     state.decks[0].cards[0].reviewCount = (state.decks[0].cards[0].reviewCount || 0) + 1;
     state.attempts.push({ id: `new-${state.attempts.length}`, cardId: 'card-0-0', grade: 3 });

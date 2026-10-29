@@ -5,6 +5,7 @@ import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { card } from './helpers/supplement-fixtures.mjs';
 import { gate, openLibrary, restartedOver, jobsOf, soon, stagedModel } from './helpers/generation-baseline.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* S3-5: the background repair of rejected cards (`draft.repair`) is a job of the unified runtime behind `runtime.pilot.generationRepair`: it waits in the library's one queue,
    every call it makes is a step of the gateway, and a stop never starts it. Behind `generationRestart` as well, the run is kept on disk: after a restart it is the same
@@ -149,7 +150,7 @@ test('without the restart switch a repair is not kept on disk: after a restart n
 
 test('a repair whose reviews fail leaves the draft with the cards still rejected, and the job is partial: nothing is claimed', async t => {
   const model = repairing(), failing = { complete: async (system, prompt, context) => {
-    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate, ['The explanation does not follow from the evidence.']));
+    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(requestData(prompt).candidate, ['The explanation does not follow from the evidence.']));
     return model.complete(system, prompt, context);
   } };
   const { service, args } = await library(t, failing, RUNTIME);

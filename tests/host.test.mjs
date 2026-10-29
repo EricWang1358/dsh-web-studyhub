@@ -359,6 +359,34 @@ test('direct assist honours its captured model route and correction works withou
   assert.equal(configs[1].provider, 'followed'); assert.equal(String(configs[1].reasoningEffort), 'low');
 });
 
+test('a question-generation phase whose prompt leads with its sources is sent with the shared system text, its own system text behind the data', async t => {
+  let modelCompletion;
+  try { ({ modelCompletion } = await import('../lib/index.js')); }
+  catch (error) {
+    if (error.code === 'ERR_MODULE_NOT_FOUND' && error.message.includes('@deepseek-ai')) {
+      t.skip('Host SDK absent; install DSH peers to run native check'); return;
+    }
+    throw error;
+  }
+  const { stagePrompt, GENERATION_SYSTEM } = await import('../lib/prompt-order.js');
+  const sent = [];
+  const ctx = { get: () => undefined, llm: {
+    resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: 'low' }] } }),
+    resolveCallConfig: async config => config,
+    async *stream(request) { sent.push(request); yield { type: 'text-delta', text: '{"items":[]}' }; },
+  } };
+  const complete = modelCompletion(ctx, () => ({ provider: 'p', model: 'm' }), 'saved-session');
+  const sources = [{ id: 'notes', title: 'Lecture notes', text: 'The mechanism holds under the stated condition. '.repeat(120) }];
+  const own = 'Prepare supported answers and scenarios. Return JSON only.';
+  const prompt = stagePrompt({ instruction: 'STAGE 2 — Work only from the verified knowledge points.', sources, before: { kind: 'quiz' }, after: { count: 2 } });
+  const execution = { jobId: 'job-1', stage: 'Part 1/1 · Preparing supported answers and scenarios', signal: new AbortController().signal, onEvent() {} };
+  assert.equal(await complete(own, prompt, execution), '{"items":[]}');
+  assert.equal(sent[0].system, GENERATION_SYSTEM, 'the system text is the one every stage shares');
+  const text = sent[0].messages[0].content[0].text;
+  assert.ok(text.startsWith('REQUEST DATA:\n{"sources":'), 'the request opens with the sources');
+  assert.ok(text.indexOf(own) > text.indexOf('"count":2}') && text.indexOf(own) < text.indexOf('STAGE 2'), 'the stage system text follows the data');
+});
+
 test('a request that carries only a signal (the answer about a selected passage) is a direct call, not a question-generation phase', async t => {
   let modelCompletion;
   try { ({ modelCompletion } = await import('../lib/index.js')); }

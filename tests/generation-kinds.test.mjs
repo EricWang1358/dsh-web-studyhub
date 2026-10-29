@@ -11,6 +11,7 @@ import { continuationKindCounts } from '../lib/draft-continuation.js';
 import { inputRefOf } from '../lib/contexts/generation/jobs/input-ref.js';
 import { estimateRun } from '../lib/token-estimate.js';
 import { qualityPlan, qualityBlueprint, authored, qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* 默认题型 is a combination (decision 2026-10-07): `kinds` is the ordered list of 1..5 basic kinds; the legacy `kind` stays beside it (one kind, or 'mixed' for exactly quiz + flashcard,
    else the first kind) so a library rolled back to 2.7.1 / 3.0.0 and assistants that send `kind` keep working. */
@@ -171,7 +172,7 @@ function kindModel() {
   const asked = [];
   return { asked, complete: async (system, prompt) => {
     const stage = system.startsWith('Plan ') ? 'planning' : system.startsWith('Prepare supported') ? 'blueprinting' : system.startsWith('You author') ? 'authoring' : 'reviewing';
-    const request = JSON.parse(stage === 'reviewing' ? prompt : prompt.split('REQUEST DATA:\n')[1]);
+    const request = requestData(prompt);
     if (stage === 'planning') { asked.push(['planning', request.kind, request.count]); return JSON.stringify(qualityPlan(request)); }
     if (stage === 'reviewing') return JSON.stringify(qualityReview(request.candidate));
     const plan = request.assessmentPlan;

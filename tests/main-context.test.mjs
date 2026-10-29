@@ -138,7 +138,7 @@ test('authorized supplementation generates and resumes into exact active target 
   let authored = 0;
   const staged = withQualityStages(async (system, prompt) => {
     if (system.startsWith('You author')) {
-      const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      const request = requestData(prompt);
       requests.push(request);
       const n = ++authored;
       return JSON.stringify({ title: 'Supplement', cards: [card(`new-${n}`, 'p1')] });
@@ -226,7 +226,7 @@ test('supplement total-budget expiry publishes the approved checkpoint without e
   let ready;
   const checkpoint = new Promise(resolve => { ready = resolve; });
   const model = withQualityStages(async (system, prompt) => system.startsWith('You author')
-    ? JSON.stringify({ title: 'Supplement', cards: Array.from({ length: JSON.parse(prompt.split('REQUEST DATA:\n')[1]).count }, (_, n) => card(`new-${n}`, 'p1')) })
+    ? JSON.stringify({ title: 'Supplement', cards: Array.from({ length: requestData(prompt).count }, (_, n) => card(`new-${n}`, 'p1')) })
     : JSON.stringify({ issues: [], summary: 'Checked' }));
   let authorCalls = 0, afterBudget = 0, expired = false;
   const service = await fixture(t, async (system, prompt, execution) => {
@@ -265,7 +265,7 @@ test('budget finalization respects cancellation, target archival and stale revie
     const held = new Promise(resolve => { release = resolve; });
     let authors = 0, extraCalls = 0, expired = false;
     const model = withQualityStages(async (system, prompt) => system.startsWith('You author')
-      ? JSON.stringify({ title: 'Supplement', cards: Array.from({ length: JSON.parse(prompt.split('REQUEST DATA:\n')[1]).count }, (_, n) => card(`new-${n}`, 'p1')) })
+      ? JSON.stringify({ title: 'Supplement', cards: Array.from({ length: requestData(prompt).count }, (_, n) => card(`new-${n}`, 'p1')) })
       : JSON.stringify({ issues: [], summary: 'Checked' }));
     const service = await fixture(sub, async (system, prompt, execution) => {
       if (expired) extraCalls++;

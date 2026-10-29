@@ -1,4 +1,5 @@
 import { withQualityStages, qualityReview } from './assessment.mjs';
+import { requestData } from './request-data.mjs';
 
 /* The fixtures of the S3-0 restart baselines of the supplement paths, shared with the restart-continuation suite (S3-3): fake models only. */
 
@@ -15,7 +16,7 @@ export function authoring(hold, at, name = 'new') {
   let authors = 0, seen = 0;
   const inner = withQualityStages(async (system, prompt) => {
     if (system.startsWith('You author')) return JSON.stringify({ title: 'Supplement', cards: [card(`${name}-${++authors}`, 'p1')] });
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   });
   return async (system, prompt, context = {}) => {
     if (system.startsWith('You author') && ++seen === at && !hold.entered) { hold.entered = true; await hold.promise; }
