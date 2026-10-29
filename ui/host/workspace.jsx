@@ -139,6 +139,9 @@ export function apply(ctx, registerDocumentLearning) {
           if (intent.type === "studyRef") deliverStudyReference(sessionId, intent.studyRef);
           if (intent.type === "candidates") deliverCandidates(sessionId, intent);
           ctx.get("sidebarRight")?.openTab("study-workspace");
+          if (intent.intentId) {
+            call("panel.ack", { intentId: intent.intentId, status: "displayed", runId: intent.runId || null }).catch(() => {});
+          }
         }
       } finally { polling = false; }
     };

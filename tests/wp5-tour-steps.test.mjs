@@ -88,7 +88,7 @@ test("the default tour is the first-run line's order in 7 steps: 欢迎, 设置�
 
 test("the full tour is the explicit extra: every step but the short-tour-only ones, in order, with 任务, notes, 备考补习 and the reader's two controls", () => {
   assert.deepEqual(idsOf({ full: true }), ["welcome", "nav", "home", "course", "sources", "document", "reader-practice", "translation", "generate", "generate-tune", "generate-cost",
-    "tasks", "draft", "practice", "help", "wrongbook", "exam", "examprep", "dashboard", "notes", "skeleton", "workflows", "settings-model", "settings-audio", "settings-extensions", "finish"]);
+    "tasks", "draft", "practice", "help", "guided-study", "wrongbook", "exam", "examprep", "dashboard", "notes", "skeleton", "workflows", "settings-model", "settings-audio", "settings-extensions", "finish"]);
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
@@ -140,7 +140,7 @@ test("steps that need sample data, a page or a component are left out when it is
   assert.equal(availableTourSteps(TOUR_STEPS, all).length, TOUR_STEPS.filter((step) => step.only !== "core").length);
   const ids = (ctx) => availableTourSteps(TOUR_STEPS, ctx).map((step) => step.id);
   const bare = ids({ ...all, sample: { loaded: false } });
-  for (const id of ["document", "reader-practice", "translation", "draft", "practice", "help"]) assert.ok(!bare.includes(id), id);
+  for (const id of ["document", "reader-practice", "translation", "draft", "practice", "help", "guided-study"]) assert.ok(!bare.includes(id), id);
   for (const id of ["welcome", "nav", "home", "sources", "generate", "tasks", "wrongbook", "settings-model", "finish"]) assert.ok(bare.includes(id), id);
   assert.ok(!ids({ ...all, sample: { ...all.sample, draftId: null } }).includes("draft"), "a published sample draft drops the draft step");
   assert.ok(!ids({ ...all, hasContext: (id) => id !== "audio" }).includes("settings-audio"));

@@ -112,7 +112,7 @@ test('generated native modules resolve through classic chunk factories and share
   const notesEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/BlogNotes.jsx');
   assert.ok(notesEntry);
   const settingsPanes = (await readFile('ui/settings-groups.js', 'utf8')).match(/^  category\(\{ id:/gm).length;
-  assert.equal(lazyLoads.length, 11 + settingsPanes, 'the eight views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks), 看原页 (pdf.js), the Select and Combobox popups (Base UI) and one pane per settings category');
+  assert.equal(lazyLoads.length, 12 + settingsPanes, 'the nine views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks, guided study), 看原页 (pdf.js), the Select and Combobox popups (Base UI) and one pane per settings category');
   await Promise.all(lazyLoads.map(load => load()));
   // 看原页 asks pdf.js's wasm decoders, CMaps and fonts from its own lazily loaded chunks (assets/*.js); load each the way the peek does.
   const assetOutputs = Object.entries(result.metafile.outputs).filter(([, record]) => Object.keys(record.inputs).some(path => /document-preview[\/]peek[\/]assets[\/]/.test(path)));
