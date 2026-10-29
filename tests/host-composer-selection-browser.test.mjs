@@ -36,7 +36,12 @@ async function drag(page, from, to) {
 }
 
 test('DSH composer padding cannot select StudyHub, including with a skin', { timeout: 60000 }, async t => {
-  const browser = await launchChromium();
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (process.env.STUDY_QA_REQUIRE_BROWSER === '1') throw error;
+    t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return;
+  }
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
   for (const [palette, theme] of [['standard', 'dark'], ['standard', 'light'], ['oled', 'dark'], ['paper', 'light']]) {

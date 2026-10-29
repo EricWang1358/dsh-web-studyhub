@@ -8,12 +8,12 @@
      the study text must still support normal copying and keyboard selection.
      Scope by the host scrollport so chat and sidebar-only seats stay unchanged. */
   [data-conversation-scroll]:has(.study-seat-frame) [data-conversation-region="composer"] {
-    -webkit-user-select: none !important;
-    user-select: none !important;
+    -webkit-user-select: none;
+    user-select: none;
   }
-  [data-conversation-scroll]:has(.study-seat-frame) [data-conversation-region="composer"] :is(input, textarea, [contenteditable="true"]) {
-    -webkit-user-select: text !important;
-    user-select: text !important;
+  [data-conversation-scroll]:has(.study-seat-frame) [data-conversation-region="composer"] [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
   }
   /* Conversation "StudyHub" tab: DSH floats its composer over the bottom of the
      active view. Opting into the conversation's overlay mode (the attribute the
