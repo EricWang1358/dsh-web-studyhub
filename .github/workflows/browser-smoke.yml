@@ -27,6 +27,7 @@ jobs:
     continue-on-error: true
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
+      STUDY_QA_REQUIRE_BROWSER: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,3 +56,4 @@ jobs:
           tests/wave4-review-reveal.test.mjs
           tests/wrongbook-filters-browser.test.mjs
           tests/open-in-sidebar.test.mjs
+          tests/host-composer-selection-browser.test.mjs
