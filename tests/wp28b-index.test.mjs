@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { INDEX_TOOLS, MODEL_DOWNLOAD_MB, SOURCE_PREFIX, buildIndex, contentHash, pageDocument, planIndex, sourceIdFromKey } from '../lib/retrieval-index.js';
+import { INDEX_TOOLS, MODEL_DOWNLOAD_MB, NO_CHUNKS_ANSWER, SOURCE_PREFIX, buildIndex, contentHash, pageDocument, planIndex, sourceIdFromKey } from '../lib/retrieval-index.js';
 import { resolveHits, normalizeHits } from '../lib/retrieval.js';
 import { SWITCH_MODE, switchOptions } from './helpers/runtime-switch.mjs';
 
@@ -16,7 +16,10 @@ const repo = fileURLToPath(new URL('../', import.meta.url));
 const page = (n, text, extra = {}) => ({ id: `p${n}`, title: `操作系统 · p.${n}`, text, courses: ['OS'], document: { id: 'h', page: n, totalPages: 9, bookTitle: '操作系统' }, ...extra });
 const sources = [page(1, '进程是资源分配的单位。'), page(2, '线程是调度的单位。'), page(3, '死锁需要四个必要条件。')];
 
-function fakeServer({ failFirst, failOn = [], delay = 0 } = {}) {
+/* The answer mcp-local-rag gives when none of a page's lines is long enough to become a passage (CHUNK_MIN_LENGTH). `noChunks`: source ids, or a function of the call's args. */
+const NO_CHUNKS_MESSAGE = 'MCP error -32602: No chunks generated from file: C:\\Users\\x\\.dsh\\study\\retrieval\\lancedb\\raw-data\\c3R1ZHlodWI6.md. The file may be empty or all content was filtered (minimum 50 characters required). Existing data has been preserved.';
+function fakeServer({ failFirst, failOn = [], failIngest = false, noChunks = [], delay = 0 } = {}) {
+  const hasNoChunks = args => typeof noChunks === 'function' ? noChunks(args) : noChunks.includes(sourceIdFromKey(args.metadata.source));
   const calls = [];
   const port = {
     tools: () => Object.values(INDEX_TOOLS).map(name => ({ name, description: name, parameters: { type: 'object', properties: {} } })),
@@ -25,7 +28,8 @@ function fakeServer({ failFirst, failOn = [], delay = 0 } = {}) {
       if (delay) await new Promise(done => setTimeout(done, delay));
       options.signal?.throwIfAborted();
       if (failFirst && calls.length === 1) throw new Error(failFirst);
-      if (name === INDEX_TOOLS.ingest && failOn.includes(sourceIdFromKey(args.metadata.source))) throw new Error('parse failed');
+      if (name === INDEX_TOOLS.ingest && hasNoChunks(args)) throw new Error(NO_CHUNKS_MESSAGE);
+      if (name === INDEX_TOOLS.ingest && (failIngest || failOn.includes(sourceIdFromKey(args.metadata.source)))) throw new Error('parse failed');
       return { content: [{ type: 'text', text: '{"ok":true}' }] };
     },
   };
@@ -67,7 +71,7 @@ test('building ingests each page once, reports progress, and records what it ind
   const progress = [], saved = [];
   const manifest = { sources: {} };
   const summary = await buildIndex({ port, sources, library: ['p1', 'p2', 'p3'], manifest, firstRun: true, onProgress: event => progress.push(event), save: value => saved.push(structuredClone(value)) });
-  assert.deepEqual(summary, { added: 3, removed: 0, unchanged: 0, failed: [] });
+  assert.deepEqual(summary, { added: 3, removed: 0, unchanged: 0, skipped: 0, failed: [] });
   assert.deepEqual(calls.map(call => [call.name, call.args.metadata.source, call.args.metadata.format]),
     [1, 2, 3].map(n => [INDEX_TOOLS.ingest, `studyhub://source/p${n}`, 'markdown']));
   assert.equal(calls[0].args.content, '# 操作系统 · p.1\n\n进程是资源分配的单位。');
@@ -78,7 +82,7 @@ test('building ingests each page once, reports progress, and records what it ind
   assert.ok(saved.length >= 1);
   // The second run has nothing to do; a changed page and a deleted page are the only work after that.
   const again = fakeServer();
-  assert.deepEqual(await buildIndex({ port: again.port, sources, library: ['p1', 'p2', 'p3'], manifest }), { added: 0, removed: 0, unchanged: 3, failed: [] });
+  assert.deepEqual(await buildIndex({ port: again.port, sources, library: ['p1', 'p2', 'p3'], manifest }), { added: 0, removed: 0, unchanged: 3, skipped: 0, failed: [] });
   assert.equal(again.calls.length, 0);
   const third = fakeServer();
   const result = await buildIndex({ port: third.port, sources: [sources[0], page(2, '改过的内容很长很长很长')], library: ['p1', 'p2'], manifest });
@@ -222,4 +226,104 @@ test('coverage: which pages are indexed, stale or missing, per source id, so eve
   assert.deepEqual([edited.indexed.length, edited.stale.length], [5, 1]);
   assert.deepEqual(edited.stale, [first]);
   assert.deepEqual(Object.keys(edited).sort(), ['building', 'canIndex', 'hasIndex', 'indexed', 'missing', 'stale']);
+});
+
+/* ---------- pages with no searchable text (#521) ---------- */
+
+const planOf = (list, manifest) => planIndex({ sources: list, library: list.map(source => source.id), manifest });
+const slides = Array.from({ length: 8 }, (_, i) => page(i + 1, `标题 ${i + 1}\n[Figure]`));
+
+test('a page recorded as having no searchable text counts as done until its text changes, and is counted on its own', () => {
+  const manifest = { sources: { p1: { hash: contentHash(sources[0].text), at: 'then' }, p2: { hash: contentHash(sources[1].text), at: 'then', skipped: 'no-chunks' } } };
+  const plan = planOf(sources, manifest);
+  assert.deepEqual(plan.add.map(source => source.id), ['p3']);
+  assert.deepEqual([plan.unchanged, plan.skipped], [1, 1], 'a skipped page is not "unchanged": it has its own count');
+  const edited = planOf([sources[0], page(2, '线程是 CPU 调度的基本单位，调度器按优先级挑选。'), sources[2]], manifest);
+  assert.deepEqual(edited.add.map(source => source.id), ['p2', 'p3'], 'new text is tried again');
+  assert.equal(edited.skipped, 0);
+  assert.equal(planOf(sources, { sources: {} }).skipped, 0);
+});
+
+test('pages the search server cannot cut into passages are recorded, not failed: they do not stop the build, are not retried, and are counted on their own', async () => {
+  const { port, calls } = fakeServer({ noChunks: slides.map(source => source.id) });
+  const all = [...slides, ...sources.map((source, i) => ({ ...source, id: `t${i}` }))];
+  const manifest = { sources: {} }, saved = [];
+  const summary = await buildIndex({ port, sources: all, library: all.map(source => source.id), manifest, save: value => saved.push(structuredClone(value)) });
+  assert.deepEqual([summary.added, summary.skipped, summary.unchanged, summary.failed], [3, 8, 0, []], 'eight in a row is past the failure limit, and still not a failure');
+  assert.deepEqual(manifest.sources.p3.skipped, 'no-chunks');
+  assert.equal(manifest.sources.p3.hash, contentHash(slides[2].text));
+  assert.equal(manifest.sources.t0.skipped, undefined, 'a page that was indexed is recorded as before');
+  assert.ok(saved.length >= 1);
+  const again = fakeServer({ noChunks: slides.map(source => source.id) });
+  const next = await buildIndex({ port: again.port, sources: all, library: all.map(source => source.id), manifest });
+  assert.equal(again.calls.length, 0, 'nothing is sent a second time');
+  assert.deepEqual([next.added, next.skipped, next.unchanged], [0, 8, 3]);
+  assert.equal(calls.filter(call => call.name === INDEX_TOOLS.delete).length, 0, 'a page that was never indexed has nothing to delete');
+});
+
+test('the no-chunks answer is recognised by its words, wherever the server puts them, and only those', async () => {
+  assert.ok(NO_CHUNKS_ANSWER.test('MCP error -32602: No chunks generated from file: C:\\x\\raw-data\\a.md. The file may be empty'));
+  assert.ok(NO_CHUNKS_ANSWER.test('no chunks generated'));
+  assert.ok(!NO_CHUNKS_ANSWER.test('parse failed'));
+  const { port } = fakeServer({ failOn: ['p2'] });
+  const manifest = { sources: {} };
+  const summary = await buildIndex({ port, sources, library: ['p1', 'p2', 'p3'], manifest });
+  assert.deepEqual([summary.skipped, summary.failed.map(item => item.id)], [0, ['p2']], 'any other answer is still a failure');
+});
+
+test('a page that was indexed with other text and now has none loses its old entry on the server, as an edited page replaces it', async () => {
+  const manifest = { sources: { p1: { hash: contentHash('旧的内容，足够长，足够长，足够长，足够长，足够长，足够长。'), at: 'then' } } };
+  const { port, calls } = fakeServer({ noChunks: ['p1'] });
+  const summary = await buildIndex({ port, sources: [page(1, '标题\n[Figure]')], library: ['p1'], manifest });
+  assert.deepEqual([summary.skipped, summary.added, summary.failed], [1, 0, []]);
+  assert.deepEqual(calls.map(call => [call.name, call.args.metadata?.source || call.args.source]), [[INDEX_TOOLS.ingest, 'studyhub://source/p1'], [INDEX_TOOLS.delete, 'studyhub://source/p1']]);
+  assert.equal(manifest.sources.p1.skipped, 'no-chunks');
+  // A page that was skipped before is not on the server: a second skip deletes nothing.
+  const again = fakeServer({ noChunks: ['p1'] });
+  await buildIndex({ port: again.port, sources: [page(1, '另一个标题\n[Figure]')], library: ['p1'], manifest });
+  assert.deepEqual(again.calls.map(call => call.name), [INDEX_TOOLS.ingest]);
+  // A page that gets text later is indexed and loses the mark.
+  const later = fakeServer();
+  await buildIndex({ port: later.port, sources: [page(1, '现在这一页有了一整段可以检索的文字，足够长了。')], library: ['p1'], manifest });
+  assert.equal(manifest.sources.p1.skipped, undefined);
+});
+
+test('real failures still stop the build after five in a row, and what failed travels with the error', async () => {
+  const many = Array.from({ length: 12 }, (_, i) => page(i + 1, `第 ${i + 1} 页内容`));
+  const broken = fakeServer({ failOn: many.map(source => source.id), noChunks: [] });
+  await assert.rejects(buildIndex({ port: broken.port, sources: many, library: many.map(source => source.id), manifest: { sources: {} } }),
+    error => error.code === 'retrieval-index-failed' && error.summary.failed.length === 5 && error.summary.failed[0].id === 'p1' && error.summary.added === 0);
+  // Pages without text between the failures neither add to the count nor reset it.
+  const mixed = fakeServer({ failOn: ['p1', 'p2', 'p3', 'p4', 'p6'], noChunks: ['p5'] });
+  await assert.rejects(buildIndex({ port: mixed.port, sources: many, library: many.map(source => source.id), manifest: { sources: {} } }),
+    error => error.code === 'retrieval-index-failed' && error.summary.skipped === 1 && error.summary.failed.length === 5);
+});
+
+test('pages with no searchable text: the plan, the run and the coverage each say so, once, and the build does not stall on them', async t => {
+  const { service, server } = await setup(t, { noChunks: args => /第 [1-5] 页/.test(args.content) });
+  const course = '操作系统';
+  const first = await service.call('retrieval.index.start', { course });
+  assert.equal(first.status, 'running');
+  const done = await until(async () => { const status = await service.call('retrieval.index.status', {}); return ['complete', 'failed'].includes(status.status) ? status : null; });
+  assert.equal(done.status, 'complete', `${done.error ?? ''}`);
+  assert.deepEqual([done.added, done.skipped, done.failedCount, done.failed], [1, 5, 0, []]);
+  const plan = await service.call('retrieval.index.plan', { course });
+  assert.deepEqual([plan.pages, plan.toIndex, plan.skipped, plan.unchanged], [6, 0, 5, 1]);
+  const coverage = await service.call('retrieval.index.coverage', {});
+  assert.deepEqual([coverage.indexed.length, coverage.skipped.length, coverage.missing.length, coverage.stale.length], [1, 5, 1, 0], 'five are skipped, not missing; the other course is the one missing page');
+  const sent = server.calls.length;
+  await service.call('retrieval.index.start', { course });
+  const second = await until(async () => { const status = await service.call('retrieval.index.status', {}); return status.status === 'complete' && status.runId !== done.runId ? status : null; });
+  assert.equal(server.calls.length, sent, 'the second build sends nothing');
+  assert.deepEqual([second.added, second.skipped, second.unchanged], [0, 5, 1]);
+});
+
+test('when five pages in a row really fail, the abort keeps what failed in the status', async t => {
+  const { service } = await setup(t, { failIngest: true });
+  await service.call('retrieval.index.start', { course: '操作系统' });
+  const failed = await until(async () => { const status = await service.call('retrieval.index.status', {}); return status.status === 'failed' ? status : null; });
+  assert.equal(failed.errorCode, 'retrieval-index-failed');
+  assert.equal(failed.failedCount, 5);
+  assert.equal(failed.failed.length, 5);
+  assert.match(failed.failed[0].message, /parse failed/);
 });

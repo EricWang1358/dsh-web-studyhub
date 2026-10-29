@@ -4,6 +4,7 @@ import { Button, Icon, useToast } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { ModelSettingsContext, useModelSettingsLabel } from "./ModelErrorNote.jsx";
 import { dismissJobs, useQuickActions } from "./quick-actions.js";
+import { offerDeckArchived, openRunsOn } from "./archive-entries.js";
 import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
 import { modelReadiness } from "./generation-status.js";
 import focusCss from "./focus.css";
@@ -58,6 +59,7 @@ import { AppContext } from "./app/app-context.js";
 export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
   const { call, act, busy, host } = useStudy();
   const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
+  const refreshLibrary = (useContext(AppContext) || {}).core?.refresh;
   const toast = useToast();
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
@@ -65,6 +67,18 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
     generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onCourseSettings, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
+  /* 归档 from the deck row's ⋯ menu: the same call, the same notice (撤销, then 永久删除…) as the Manage page's button (ui/archive-entries.js).
+     The row leaves the list, so the keyboard focus after 撤销 is the row's menu again and after the dialog is closed it is that row or, when the
+     row stays away, the 已归档 switch. */
+  const archiveDeck = async (deck) => {
+    const done = await act("deck.archive", { id: deck.id, archived: true });
+    if (!done) return;
+    const row = `[data-deck-id="${CSS.escape(deck.id)}"] .map-menu-wrap button`;
+    offerDeckArchived({ toast, deck, done, runs,
+      // A plain call (not the single-flight act(): 撤销 stays usable while another write runs), then the library reads again.
+      restore: async () => { await call("deck.archive", { id: deck.id, archived: false }); Promise.resolve(refreshLibrary?.()).catch(() => {}); return true; },
+      focus: () => document.querySelector(row), onRemove: removeDeck, returnFocus: `${row}, .map-tools__archived` });
+  };
   const cancelJob = (jobId) => act("job.cancel", jobId ? { jobId } : { all: true });
   const dismissJob = (jobId, alsoIds) => dismissJobs(quick, jobId, alsoIds);
   const onFocus = (next) => act("focus.set", next);
@@ -107,7 +121,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
-  const deckActions = { start, resume, manage, restoreDeck, removeDeck };
+  const deckActions = { start, resume, manage, restoreDeck, removeDeck, archiveDeck, runsOn: (deckId) => data.decks.find((deck) => deck.id === deckId)?.openRuns ?? openRunsOn(runs, deckId) };
   const line = useFirstRunLine(data);
   /* The one 下一步 card (ui/study-map/next-step.js): worked out from the snapshot alone. Before a first deck of the learner's own its three states are the first-run line
      (drawn below, as the whole first screen or as the compact card), so this draws only the states after it; 「今天先不」 hides it for the local day. */

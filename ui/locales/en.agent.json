@@ -271,5 +271,15 @@
   "页面：这一页没有保存的文字（扫描页或图片页）；没有截图、或你看不了图片时，直接告诉我。": "Page: the page has no saved text (a scanned or picture page); if there is no screenshot or you cannot read pictures, tell me so.",
   "截断：这一页的文字较长，只附了前 {0} 字（共 {1} 字）。": "Cut: the page is long, so only its first {0} of {1} characters are attached.",
   "做法：先用一两句话说这一页讲什么，再回答我的问题；资料里没有的内容要说明是资料以外的。": "How: say in a sentence or two what the page is about, then answer my question; say so when something is not in the material.",
-  "这一页保存的文字": "Saved text of the page"
+  "这一页保存的文字": "Saved text of the page",
+  "帮我和你一起为课程 {0} 定一份备考计划：按考试日期和复习全书里各节的掌握情况，排阶段、每周节奏和模拟卷。": "Help me draft a study plan for the course {0} together: from the exam date and how well I know each point of the review book, lay out the phases, the weekly rhythm and the mock papers.",
+  "帮我看看课程 {0} 的备考计划要不要调整：按现在的进度和掌握情况，改阶段、节奏或模拟卷的日子。": "Help me check whether the study plan for the course {0} needs changes: from my progress and mastery now, change the phases, the rhythm or the days of the mock papers.",
+  "位置：课程 {0}（调用 course.* 和 book.* 时 course 用它）。": "Where: course {0} (use it as course in course.* and book.* calls).",
+  "考试日期：{0}（课程信息里已有）。": "Exam date: {0} (already in the course details).",
+  "考试日期：这门课还没有；先问我，我同意后用 course.save 的 exam 存下来，没有考试日期备考计划排不出日子。": "Exam date: this course has none yet; ask me first, and once I agree save it with the exam of course.save; without an exam date the study plan cannot place any day.",
+  "做法：先读 library.context 的 plan 区，再用 course.plan 看现在的排期和各节掌握情况；先和我商量阶段、每周节奏（模拟卷、复习日、休息）和每天的分钟数。": "How: read the plan area of library.context first, then course.plan for the current schedule and how well each point is known; talk through the phases, the weekly rhythm (mock papers, revision days, rest) and the minutes per day with me before anything else.",
+  "保存：我同意之后才用 course.save 存 plan，不要自己存；已有计划时把整份 plan 发回去。": "Saving: only after I agree, save the plan with course.save; do not save it on your own, and when a plan exists send back the whole plan object.",
+  "已有计划：course.plan 里的 plan 就是现在存着的，改动前先给我看差别。": "Existing plan: the plan in course.plan is what is saved now; show me what would change before you change it.",
+  "说明：计划只是建议，不是掌握的证据；最后一周每天读什么仍由期末一周（book.crunch）排。": "Note: the plan is a suggestion, not evidence of mastery; what to read each day of the final week is still planned by the final week (book.crunch).",
+  "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes."
 }

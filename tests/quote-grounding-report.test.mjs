@@ -13,6 +13,7 @@ import { describePartReport, failureReason, summarizePartOutcomes } from "../lib
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from "./helpers/assessment.mjs";
 import { mapProps } from './helpers/study-map-props.mjs';
 import { draftView, seedView } from './helpers/coverage-view.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* The owner's report: a 36-page generation said "5 parts failed because the quoted source text could not be found", and the agent
    advised retrying by hand with fewer pages. The job and the draft now say how many parts passed or failed and why, in the learner's
@@ -47,8 +48,8 @@ async function runJob(t, { invent }) {
   const service = new StudyService(root);
   for (const page of pages) await service.call("source.add", page);
   service.complete = async (system, prompt) => {
-    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
-    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1].split('\n\nYour previous plan was rejected')[0]);
+    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
+    const request = requestData(prompt);
     if (system.startsWith('Plan a source-grounded')) {
       const plan = qualityPlan(request);
       // Two of the planned targets cannot be grounded: the batch plans one reserve target, so one of the two questions is still lost.

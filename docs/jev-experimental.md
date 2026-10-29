@@ -225,7 +225,7 @@ Jev returns **no free text**, so prose, explanations, translations, rewritten ca
 | F7 | `generate.suggest` | focus text, count, difficulty, kind | difficulty and kind only; the product is the focus text | 1 | learner click | not replaceable |
 | F8 | `materials.outline.suggest` | where sections start and at what level, with titles | per-block `choice`; titles of heading-less sections are text | 1 per document | learner click | audited, not wired |
 | V1 | Guided-teaching check (`teach.answer`) | `{passed, feedback}` | `noul` for `passed`; the feedback is prose | 1 per answer | yes: advances the rung | audited, not wired |
-| V2 | Rubric grading (`gradeCase`, `card.grade`) | per criterion scores, quotes, suggestions | scores could be coarse `score` bands; quotes and suggestions are text | 1 per answer | yes: schedules SM-2 | audited, not wired |
+| V2 | Rubric grading (`gradeCase`, `card.grade`) | per criterion scores, quotes, suggestions | scores could be coarse `score` bands; quotes and suggestions are text | 1 per answer | yes: schedules FSRS-6 | audited, not wired |
 | V3 | Oral-exam assessment (`oral.submit`) | `{cardId, band, reason}` per answer | `choice`/`score` for the band; the reason is text | 1 per exam | yes: reschedules | audited, not wired (mostly typed: a good next candidate) |
 | V4 | Transcript proof-review (`audio.corrections.review`) | `apply` / `reject` / `unsure` + a replacement text | verdict `choice`; the replacement is text | 1 per 15 items | yes: edits the transcript | audited, not wired |
 | V5 | Retelling feedback (`workflow.feedback`) | covered, missing, question, suggestion, note | only `suggestion` is typed | 1 | hint only | not replaceable |

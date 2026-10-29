@@ -86,7 +86,7 @@ function LibraryView() {
       <StudyMap data={data} setupHandlers={createSetupHandlers({ data, nav, set, intents, drafts, settingsEntry })} notebooks={notebooks} firstRun={firstRun}
         reveal={intents.revealHome} onRevealed={() => intents.setRevealHome(0)}
         actions={{
-          start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id) => set.setRemovingDeck({ id, root: data.root }),
+          start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id, options) => set.setRemovingDeck({ id, root: data.root, ...options }),
           openDraft: (draft) => drafts.openDraft(draft, { navigation: true }), topUpDraft: drafts.topUpDraft,
           retryGeneration: (job) => {
             // The whole request of the failed job goes back on the form, and the notice says only what was put back (ui/app/retry-generation.js).

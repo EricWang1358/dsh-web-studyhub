@@ -5,6 +5,7 @@ import { generateDeck, authorPrompts } from '../lib/generation.js';
 import { blueprintPrompts, blueprintAssessment, formulaIssues } from '../lib/assessment-quality.js';
 import { validateDeck } from '../lib/domain.js';
 import { qualityPlan, qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 const source = { id: 's', title: 'Course notes', text: 'Sulfuric acid is a strong acid that ionises completely in water to give hydrogen ions.' };
 const ANSWER = 'Sulfuric acid ionises completely.';
@@ -170,7 +171,7 @@ test('generateDeck keeps a chemistry card with bare neutral formulas without any
     if (system.startsWith('Prepare supported answers')) { calls.push('blueprint'); return JSON.stringify({ items: [item] }); }
     if (system.startsWith('You author')) { calls.push('author'); return JSON.stringify({ deck: { title: 'Acids', cards: [authoredCard] }, changes: [] }); }
     calls.push('review');
-    return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
   }, req);
   assert.deepEqual(calls, ['plan', 'blueprint', 'author', 'review']);
   assert.equal(result.cards.length, 1);

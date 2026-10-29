@@ -6,6 +6,7 @@ import { Store } from '../../lib/store.js';
 import { settleJob, until } from './wait.mjs';
 import { SWITCH_MODE, switchOptions } from './runtime-switch.mjs';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './assessment.mjs';
+import { requestData } from './request-data.mjs';
 
 /* Shared fixtures of the S3-0 generation-family baseline (docs/plans/unified-job-runtime/s3-0-generation-baseline.md): fake models only.
    A "crash" is a copy of the library folder while a model call is held; a "restart" is a new service over that copy, which is all a restarted host has. */
@@ -69,9 +70,9 @@ export function stagedModel({ holdAt, hold } = {}) {
     if (options.jobId && !jobs.includes(options.jobId)) jobs.push(options.jobId);
     if (stage === holdAt && hold && !hold.entered) { hold.entered = true; await hold.promise; }
     options.signal?.throwIfAborted();
-    if (stage === 'plan') return JSON.stringify(qualityPlan(JSON.parse(prompt.split('REQUEST DATA:\n')[1])));
-    if (stage === 'review') { const candidate = JSON.parse(prompt).candidate; return JSON.stringify(qualityReview(candidate, [])); }
-    const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]), source = data.sources[0];
+    if (stage === 'plan') return JSON.stringify(qualityPlan(requestData(prompt)));
+    if (stage === 'review') { const candidate = requestData(prompt).candidate; return JSON.stringify(qualityReview(candidate, [])); }
+    const data = requestData(prompt), source = data.sources[0];
     const cards = Array.from({ length: stage === 'blueprint' ? data.assessmentPlan.targets.length : data.count }, (_, index) => ({ id: `q${index + 1}`, kind: 'flashcard', topic: `Topic ${index}`,
       objective: `Explain angle ${index} of ${source.text.slice(0, 20)}`, prompt: `Why does angle ${index} matter for ${source.text.slice(0, 18).toLowerCase()} decisions?`, answer: `Angle ${index} constrains later choices.`,
       hint: 'Compare a description with a rule for permitted changes.', explanation: `The evidence ties angle ${index} to design and later change, so it constrains the choices made afterwards.`,

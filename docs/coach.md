@@ -117,7 +117,7 @@ As soon as one is ready, they appear in:
 - **Other ways to start** on the **Study library** page;
 - a banner on **Mistakes & weak points**.
 
-Starting them moves them into the system deck **Personalised**. From there they follow normal spaced repetition (SM-2).
+Starting them moves them into the system deck **Personalised**. From there they follow normal spaced repetition (FSRS-6).
 
 ## Use autopilot
 

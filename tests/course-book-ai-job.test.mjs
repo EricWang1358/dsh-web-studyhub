@@ -16,6 +16,7 @@ import { aiBlock, aiBlocks, anchorIn, weaveBlocks, withoutAiBlocks } from '../li
 import { plainBook, stitchBook } from '../lib/course-book-links.js';
 import { assertMaterials, isLibraryListSource } from '../lib/exam-point-list.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 const KIND = 'course-book-ai';
 
@@ -65,7 +66,7 @@ function library() {
 function aiModel({ fail = () => false, held } = {}) {
   const calls = [];
   const complete = async (system, prompt) => {
-    const data = JSON.parse(prompt.slice(prompt.indexOf('REQUEST DATA:\n') + 'REQUEST DATA:\n'.length));
+    const data = requestData(prompt);
     calls.push({ system, data });
     if (held && calls.length === held.at) await held.gate.promise;
     if (fail(calls.length)) throw new Error('provider down');

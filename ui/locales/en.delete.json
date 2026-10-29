@@ -62,5 +62,11 @@
   "这份资料的批注已经存满（最多 {0} 条），原来那组批注没能放回。": "This document already keeps the most annotations it can ({0}), so these annotations could not be put back.",
   "这段原文上的问答已经到了上限（最多 {0} 条），原来那组批注没能放回。": "This passage already has the most questions and answers it can keep ({0}), so these annotations could not be put back.",
   "{0}；草稿还在，可以从草稿接着出题": "{0}; the draft stays, so you can add questions from it",
-  "{0}；资料和题组也不会删除": "{0}; sources and decks are not deleted either"
+  "{0}；资料和题组也不会删除": "{0}; sources and decks are not deleted either",
+  "会结束 {0} 轮练习": "Ends {0} practice run(s)",
+  "已归档 {0} 份资料：在「已归档」里，可以恢复或永久删除。": "Archived {0} sources: they’re under Archived, where you can restore or permanently delete each one.",
+  "已恢复 {0} 份资料": "Restored {0} sources",
+  "归档所选": "Archive selected",
+  "归档所选（{0}）": "Archive selected ({0})",
+  "归档会把它们从这个列表收起，可以在「已归档」里恢复。": "Archiving takes them out of this list; you can restore them under Archived."
 }

@@ -62,7 +62,7 @@ export function buildHtml(facts) {
     ['Publish a draft', 'The platform re-checks every question and publishes the deck in one transaction. A draft that was changed elsewhere in the meantime is refused (stale version) instead of overwritten.'],
     ['Add to a deck', 'A selected passage can supplement an existing deck. The approved questions are appended; existing questions, their ids and their review progress stay.'],
     ['Practise', 'The learner starts today’s study. The platform builds a run from due reviews, weak areas and unfinished work; the learner answers, reveals the explanation and moves on. Answering and scheduling make no model calls.'],
-    ['Rate an answer', 'A flashcard or open answer is rated from 0 to 5. The platform schedules the next review with SM-2 and records the attempt.'],
+    ['Rate an answer', 'A flashcard or open answer is rated from 0 to 5. The platform schedules the next review with FSRS-6 and records the attempt.'],
     ['Get help', 'On any question the learner asks a tutor. When the host supports local sub-agents, repeated requests on the same question keep the same tutor for a bounded time.'],
     ['Find weak points', 'The platform groups wrong answers by deck or topic, filters them, and can generate variants of the questions the learner got wrong.'],
     ['Take a mock exam', 'A multiple-choice paper, a case paper or an oral interview is built from the library, with a report afterwards.'],
@@ -76,10 +76,10 @@ export function buildHtml(facts) {
   ];
   const captureCapabilities = [
     ['Import a recording', `A lecture recording (${audioFormats}; up to ${mb(L.audioMb)} and ${L.audioHours} hours) or subtitles. A transcription provider turns it into a Chinese–English transcript from which questions can be generated.`],
-    ['Record a live class', 'A class is transcribed as it happens: the browser captures microphone or shared-tab audio, the platform holds a Gemini Live connection and translates sentence by sentence. The recording survives disconnects and can be continued.'],
+    ['Record a live class', 'A class is transcribed as it happens: the browser captures microphone or shared-tab audio, the platform recognizes speech locally with SenseVoice or through a Gemini Live connection and translates sentence by sentence. The recording survives disconnects and can be continued.'],
     ['Convert a large PDF', `A large textbook (up to ${mb(L.convertPdfMb)}) is converted on the learner’s own computer by MinerU and imported as one paged book that can be chosen by chapter. Nothing is uploaded.`],
     ['Search a large textbook', `Above ${n(G.retrieveAboveChars)} characters, or on request, the selection is narrowed to the pages a retrieval provider finds (a search extension reached through MCP, another plugin, or none).`],
-    ['Review book', 'A course is turned into a live book: explanations, practice, questions and answers, and a table of contents in one reading surface.'],
+    ['Review book', 'A course is turned into a live book: explanations, practice, questions and answers, a table of contents, and a whole-period study plan that hands off to the final-week plan in one reading surface.'],
     ['Learning flows', 'A flow teaches a topic in short lessons followed by practice. Flows can be edited and run as sessions.'],
     ['Daily plan', 'The platform proposes a plan from real due reviews, weak areas and exam dates. Actions become tasks only after the learner accepts.'],
     ['Knowledge outline', 'An outline groups topics, checks coverage and can be drawn as a diagram by the main chat assistant with an external tool.'],
@@ -95,7 +95,7 @@ export function buildHtml(facts) {
     ['Deck / draft / card', 'A deck holds published questions (cards); a draft holds generated questions awaiting the learner’s review and publication.'],
     ['Job, attempt, step, call', 'The shape of every background task: a job has attempts, an attempt has steps, a step has model calls; one contract describes them all.'],
     ['Request services', 'Per-call context supplied by the host: the model route, interface language, cancellation signal, notices and token meter. Never stored.'],
-    ['SM-2', 'The spaced-repetition scheduling algorithm that picks the next review date from a 0 to 5 rating.'],
+    ['FSRS-6', 'The spaced-repetition scheduling algorithm (Free Spaced Repetition Scheduler, version 6) that picks the next review date from a 0 to 5 rating and the days really elapsed since the last review.'],
     ['MinerU / MCP', 'MinerU: a PDF converter that runs on the learner’s computer. MCP: the Model Context Protocol, through which a search extension is reached.'],
     ['ADR', 'Architecture decision record: the context, options, decision and trade-offs of one design decision.'],
   ];
@@ -170,7 +170,7 @@ ${table(['Item', 'Detail'], [
 <li><b>Local file system</b>: where the library (shards) and the retained original files live.</li>
 <li><b>GitHub Releases</b>: where StudyHub is published and where the update check asks for the latest version.</li>
 <li><b>Transcription providers</b> (SiliconFlow, Groq, Gemini): turn recorded audio into text.</li>
-<li><b>Gemini Live</b>: real-time speech recognition for the live class.</li>
+<li><b>Gemini Live / local SenseVoice</b>: real-time speech recognition for the live class (cloud via Gemini Live, or on the learner’s computer via SenseVoice installed on demand).</li>
 <li><b>MinerU</b>: a PDF converter that runs locally.</li>
 <li><b>Search extension</b>: an MCP retrieval server installed from the release.</li>
 </ol>
@@ -227,7 +227,7 @@ ${table(['#', 'Attribute', 'Scenario (stimulus, response, measure)', 'Priority']
 <li><b>Reads are free; model work is declared.</b> An operation that needs a model says so and degrades.</li>
 <li><b>Every write is a transaction</b> with a version check, an idempotency key (<code>operationId</code>) and a receipt.</li>
 <li><b>One shape for every background job</b>, so the console, compact cards and agents never learn kind-specific formats.</li>
-<li><b>Pure shared modules, thin workers.</b> Quote matching, quality checks, SM-2, batching and messages are pure functions that tests can exercise without a model.</li>
+<li><b>Pure shared modules, thin workers.</b> Quote matching, quality checks, the FSRS-6 scheduler, batching and messages are pure functions that tests can exercise without a model.</li>
 </ul>
 <h2>5.2 Layered view</h2>
 ${fig(figureLayersReal(S), 'Figure 2: Architecture layers')}
@@ -339,10 +339,10 @@ ${fig(figureGenerateSequence(S), 'Figure 6: Generate and publish a deck (estimat
 ${fig(figureJobRecovery(), 'Figure 7: Stopping a job and continuing after a restart')}
 <p>Queued cancellation is terminal at once. Running cancellation reports <i>cancelling</i> until the provider has settled and child cleanup has finished, and the interface must not claim a worker has stopped before it has. Cancel is idempotent and scoped to its library. After a host restart the in-memory job is gone but the saved draft is labelled interrupted; continuing under the same <code>operationId</code> re-reviews saved candidates instead of rewriting them.</p>
 <h2>7.3 Practice and scheduling (no model)</h2>
-<p>A run is built from due reviews, weak areas and unfinished work. Each answer is an attempt appended to a chunked shard, and SM-2 chooses the next review from the 0 to 5 rating. Only <code>review.reveal</code> and <code>review.answer</code> write, with scoped read and write sets, so after the 2.4.0 work a click costs about 25 to 100 ms of server time on a 1,000-source library (section 8).</p>
+<p>A run is built from due reviews, weak areas and unfinished work. Each answer is an attempt appended to a chunked shard, and FSRS-6 chooses the next review from the 0 to 5 rating and the days really elapsed. Only <code>review.reveal</code> and <code>review.answer</code> write, with scoped read and write sets, so after the 2.4.0 work a click costs about 25 to 100 ms of server time on a 1,000-source library (section 8).</p>
 <h2>7.4 Live class capture</h2>
 ${fig(figureLiveCapture(S), 'Figure 8: Live class capture, recognition and translation')}
-<p>The connection to Gemini Live is capped at ${S.live.sessionMinutes} minutes, so the next one is opened at ${liveRotate}. After a drop the host buffers at most the last ${S.live.backlogSeconds} seconds of audio and reconnects with increasing waits. Segments are saved as they arrive, so a disconnect loses only words that were not yet final and the class can be continued.</p>
+<p>Recognition runs either locally in a worker thread with SenseVoice (silero VAD and int8 model files verified by SHA-256 on install) or over Gemini Live. A Gemini Live connection is capped at ${S.live.sessionMinutes} minutes, so the next one is opened at ${liveRotate}. After a drop the host buffers at most the last ${S.live.backlogSeconds} seconds of audio and reconnects with increasing waits. Segments are saved as they arrive, so a disconnect loses only words that were not yet final and the class can be continued.</p>
 
 <h1>8.&nbsp;&nbsp;&nbsp;Data architecture and the performance engineering story</h1>
 <p>The durable shape is the shard store, courses with stable ids (store version ${S.storeVersion}), retained originals under <code>attachments/materials/&lt;sha256&gt;.&lt;format&gt;</code>, a job archive holding the newest ${S.jobArchive.maxRecords} records of the last ${S.jobArchive.maxDays} days, and backups taken before any migration or restore. A full export includes copied originals; originals attached by reference are only listed.</p>

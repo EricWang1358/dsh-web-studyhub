@@ -45,7 +45,7 @@ test('one damaged shard leaves healthy content readable and blocks destructive p
   assert.equal(snapshot.storageIssues.length, 1);
   assert.equal(snapshot.storageIssues[0].file, `shards/${manifest.shards.sources[1]}`);
   assert.ok((await service.call('map')).decks);
-  assert.ok((await service.call('settings')).first_interval_days);
+  assert.ok((await service.call('settings')).maximum_interval);
   await assert.rejects(service.call('export'), /损坏文件/);
   await assert.rejects(service.call('source.add', { title: 'Unsafe', text: 'Must not erase the damaged entry.' }), /损坏文件/);
   assert.equal(await readFile(brokenPath, 'utf8'), '{"id":"audio",');
@@ -128,13 +128,13 @@ test("Windows temporary file sharing lock does not discard a study update", { sk
   const root = await mkdtemp(join(tmpdir(), "study-sharing-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const store = new Store(root);
-  await store.update((s) => { s.settings.first_interval_days = 2; });
+  await store.update((s) => { s.settings.maximum_interval = 2; });
   const unlock = await holdWindowsFile(store.path);
   const timer = setTimeout(() => { void unlock(); }, 600);
   let mutations = 0;
   try {
-    await store.update((s) => { mutations++; s.settings.first_interval_days = 3; });
-    assert.equal((await store.read()).settings.first_interval_days, 3);
+    await store.update((s) => { mutations++; s.settings.maximum_interval = 3; });
+    assert.equal((await store.read()).settings.maximum_interval, 3);
     assert.equal((await store.read()).revision, 2);
     assert.equal(mutations, 1, "retry must not replay the mutation");
   } finally { clearTimeout(timer); await unlock(); }
@@ -144,12 +144,12 @@ test("Windows persistent sharing lock preserves committed bytes and releases the
   const root = await mkdtemp(join(tmpdir(), "study-sharing-persistent-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const store = new Store(root);
-  await store.update((s) => { s.settings.first_interval_days = 2; });
+  await store.update((s) => { s.settings.maximum_interval = 2; });
   const before = await readFile(store.path, "utf8");
   const unlock = await holdWindowsFile(store.path);
   let mutations = 0;
   try {
-    await assert.rejects(store.update((s) => { mutations++; s.settings.first_interval_days = 3; }), (error) => {
+    await assert.rejects(store.update((s) => { mutations++; s.settings.maximum_interval = 3; }), (error) => {
       assert.equal(error.code, "EPERM");
       assert.match(error.message, /原学习库未被覆盖/);
       return true;
@@ -159,8 +159,8 @@ test("Windows persistent sharing lock preserves committed bytes and releases the
     assert.deepEqual((await readdir(root)).filter((name) => name !== "shards"), ["study-workspace.json"],
       "only unreferenced shards may be left behind, never a temp manifest");
   } finally { await unlock(); }
-  await store.update((s) => { s.settings.first_interval_days = 4; });
-  assert.equal((await store.read()).settings.first_interval_days, 4);
+  await store.update((s) => { s.settings.maximum_interval = 4; });
+  assert.equal((await store.read()).settings.maximum_interval, 4);
   assert.equal((await store.read()).revision, 2);
 });
 
@@ -174,7 +174,7 @@ test("normalizeState restores fields missing from older libraries", () => {
   for (const f of ["decks", "drafts", "attempts", "runs", "teaching"])
     assert.deepEqual(s[f], [], `${f} filled`);
   assert.equal(s.revision, 3, "revision untouched");
-  assert.ok(s.settings.first_interval_days, "settings completed from defaults");
+  assert.ok(s.settings.maximum_interval, "settings completed from defaults");
   assert.equal(s.settings.minimum, 2, "stored settings win over defaults");
 });
 
@@ -201,7 +201,9 @@ test("store.read normalizes a legacy file on disk and the next update persists t
   });
   const after = JSON.parse(await store.read().then((x) => JSON.stringify(x)));
   assert.ok(Array.isArray(after.teaching), "normalized fields persisted");
-  assert.equal(after.settings.first_interval_days, 1);
+  // The SM-2 keys an older panel sends are dropped; the FSRS-6 defaults stand (lib/sm2.js).
+  assert.equal("first_interval_days" in after.settings, false);
+  assert.equal(after.settings.request_retention, 0.9);
 });
 
 test("emptyState matches the latest version shape", () => {
@@ -217,7 +219,7 @@ test("malformed existing state is rejected without overwriting its bytes", async
     for (const invalid of [null, [], "bad", { decks: { saved: "data" } }, { sources: null }, { version: "1" }, { revision: -1 }, { settings: [] }]) {
       const raw = JSON.stringify(invalid);
       await writeFile(store.path, raw);
-      await assert.rejects(store.update((s) => { s.settings.first_interval_days = 2; }), /Invalid library/);
+      await assert.rejects(store.update((s) => { s.settings.maximum_interval = 2; }), /Invalid library/);
       assert.equal(await readFile(store.path, "utf8"), raw);
     }
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -331,7 +333,7 @@ test("a version 1 monolithic library opens, and its first commit keeps a backup 
   const read = await store.read();
   assert.equal(read.decks[0].cards.length, 3);
   assert.equal(read.version, LATEST_VERSION);
-  await store.update((s) => { s.settings.first_interval_days = 2; });
+  await store.update((s) => { s.settings.maximum_interval = 2; });
   const backups = await readdir(join(root, "backups"));
   assert.equal(backups.length, 1);
   assert.equal(await readFile(join(root, "backups", backups[0]), "utf8"), raw, "the original bytes are kept");
@@ -341,7 +343,7 @@ test("a version 1 monolithic library opens, and its first commit keeps a backup 
   const reopened = await new Store(root).read();
   assert.deepEqual(reopened.decks, legacy.decks);
   assert.deepEqual(reopened.attempts, legacy.attempts);
-  await store.update((s) => { s.settings.first_interval_days = 3; });
+  await store.update((s) => { s.settings.maximum_interval = 3; });
   assert.equal((await readdir(join(root, "backups"))).length, 1, "only the first sharded commit backs up");
 });
 

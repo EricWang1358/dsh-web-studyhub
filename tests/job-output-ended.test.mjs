@@ -7,6 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { readSessionReply, SESSION_REPLY_LIMIT } from '../lib/session-reply.js';
 import { withQualityStages } from './helpers/assessment.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 // 2.6.1: clicking a call that has ended shows what it wrote. The tail (about 8 KB) is kept in memory; a DSH sub-agent's full final reply is read from
 // its session on demand when the tail is not the whole reply, or no tail is left. Never for a running call; an unreadable session is said, not thrown.
@@ -79,7 +80,7 @@ async function finishedJob(t, { sessions = {}, written = [], asChild = true } = 
   await service.call('source.add', source);
   const inner = withQualityStages(async (system, prompt) => {
     if (system.includes('editor')) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: 'D', cards: Array.from({ length: request.count }, (_, index) => ({ ...card(index + 1), id: `n${index + 1}`, objective: `New ${index + 1}` })) });
   });
   let number = 0;

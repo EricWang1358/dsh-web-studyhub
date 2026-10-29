@@ -1,6 +1,6 @@
 /* WP14 · Settings, from the owner's first real use: one left edge and one
    section-header style for every section, aligned transcription provider
-   cards, a 陪学 section that says what the profile changes, a compact SM-2
+   cards, a 陪学 section that says what the profile changes, a compact scheduling
    form with a live schedule preview, and a guided backup / restore. */
 import test from 'node:test';
 import { warmSettingsPanes } from './helpers/settings-panes.mjs';
@@ -60,7 +60,7 @@ test('every Settings section is a settings-section with the same title treatment
   const legends = html.match(/<legend[^>]*>/g) || [];
   assert.equal(legends.length, fieldsets.length);
   for (const tag of legends) assert.match(tag, /class="settings-section__title"/, tag);
-  for (const title of ['学习库与模型', '课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · SM-2', '数据备份与恢复'])
+  for (const title of ['学习库与模型', '课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · FSRS-6', '数据备份与恢复'])
     assert.match(html, new RegExp(`<legend class="settings-section__title">${title}</legend>`), title);
   assert.deepEqual(html.match(/<button(?![^>]*class="sh-)[^>]*>/g) || [], [], 'every button is a shared Button');
 });
@@ -137,7 +137,7 @@ test('清空画像 asks first and says what goes', () => {
   assert.match(html, /练习记录和复习进度不受影响/);
 });
 
-/* ---------- SM-2 ---------- */
+/* ---------- 间隔复习 (FSRS-6) ---------- */
 
 test('previewSchedule replays the real scheduler', () => {
   const settings = { ...defaults };
@@ -150,26 +150,41 @@ test('previewSchedule replays the real scheduler', () => {
     assert.equal(point.day, day);
     at = review.due_at;
   }
-  assert.deepEqual(preview.map(point => point.interval), [1, 6, 15, 38, 95, 238]);
+  assert.deepEqual(preview.map(point => point.interval), [3, 14, 57, 196, 586, 1559]);
   const hard = previewSchedule(settings, { grade: 3, reviews: 6 });
   assert.ok(hard.at(-1).day < preview.at(-1).day, 'answering with effort grows slower');
-  assert.ok(hard.every(point => point.ease >= settings.minimum_ease_factor));
-  assert.equal(previewSchedule({ ...settings, initial_ease_factor: 1 }, {}), null, 'invalid values give no preview');
+  assert.equal(previewSchedule({ ...settings, request_retention: 0.5 }, {}), null, 'invalid values give no preview');
 });
 
-test('the SM-2 form is one compact row of number fields with a live preview chart', () => {
+test('the FSRS-6 form is two number fields, each explained on hover, with a live preview chart', () => {
   const html = render(h(ScheduleSection, { settings: { ...defaults }, saved: { ...defaults }, setSettings: noop, act: noop, busy: false, setNotice: noop }));
-  assert.equal((html.match(/<input type="number"/g) || []).length, 4);
+  assert.equal((html.match(/<input type="number"/g) || []).length, 2);
   assert.match(html, /class="sm2-fields"/);
-  assert.equal((html.match(/class="sh-number__suffix"/g) || []).length, 2, '天 beside the two interval fields');
-  assert.match(html, /熟练系数越大，间隔增长越快；答得吃力时会下降，但不低于最低系数。/);
+  assert.match(html, /目标记忆率[\s\S]*?<input type="number"[^>]*min="70"[^>]*max="97"[^>]*value="90"/, 'the target recall is shown as a percent');
+  assert.match(html, /最长间隔[\s\S]*?<input type="number"[^>]*min="1"[^>]*max="36500"[^>]*value="36500"/);
+  assert.deepEqual((html.match(/class="sh-number__suffix">([^<]*)</g) || []).map(tag => tag.replace(/.*>/, '').replace('<', '')), ['%', '天']);
+  // Each explanation is a hover Tooltip on an info icon the keyboard reaches, never a title attribute on the text.
+  assert.equal((html.match(/class="sm2-field-tip"[^>]*tabindex="0"|tabindex="0"[^>]*class="sm2-field-tip"/g) || []).length, 2);
+  assert.match(html, /下次复习时，希望还有多大把握记得这道题。/);
+  assert.match(html, /两次复习之间最多隔几天。/);
+  // Honest about dates already set: a new maximum applies at a question's next answer, nothing is promised before the exam.
+  assert.match(html, /已经排好的复习日期不会提前，要等那道题下次作答时才按新的上限排。/);
+  assert.doesNotMatch(html, /保证考前/);
+  assert.doesNotMatch(html, /<label[^>]*title=/);
+  assert.match(html, /默认值就能用；只有想复习得更勤或更少时才需要改。/);
+  assert.doesNotMatch(html, /熟练系数|SM-2/);
   assert.match(html, /<svg[^>]*role="img"[^>]*aria-labelledby="[^"]+"/);
   assert.match(html, /<title[^>]*>/);
-  assert.match(html, /一直答「熟练」：第 1、7、22、60、155、393 天复习/);
+  assert.match(html, /一直答「熟练」：第 3、17、74、270、856 天复习/);
+  assert.match(html, /一直答「勉强答对」：第 2、6、15、30、53 天复习/);
   assert.match(html, /<button[^>]*disabled=""[^>]*>[\s\S]*?撤销未保存修改/, 'nothing to undo yet');
-  const dirty = render(h(ScheduleSection, { settings: { ...defaults, second_interval_days: 4 }, saved: { ...defaults }, setSettings: noop, act: noop, busy: false, setNotice: noop }));
+  const dirty = render(h(ScheduleSection, { settings: { ...defaults, request_retention: 0.8 }, saved: { ...defaults }, setSettings: noop, act: noop, busy: false, setNotice: noop }));
   assert.doesNotMatch(dirty, /<button[^>]*disabled=""[^>]*>[\s\S]*?撤销未保存修改/);
-  assert.match(dirty, /第 1、5、/, 'the preview follows unsaved values');
+  assert.match(dirty, /第 8、83、/, 'the preview follows unsaved values');
+  const en = render(h(ScheduleSection, { settings: { ...defaults }, saved: { ...defaults }, setSettings: noop, act: noop, busy: false, setNotice: noop }), 'en');
+  assert.doesNotMatch(en, han);
+  assert.match(en, /Target recall/);
+  assert.match(en, /Maximum gap/);
 });
 
 /* ---------- backup ---------- */

@@ -8,6 +8,7 @@ import { roundList, owedKeys } from '../lib/coverage-run.js';
 import { settleJob, until } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* The retry accounting of a coverage run counts the sections a round was really ASKED for, not the sections its plan holds (lib/coverage-run.js askedKeys / triedKeys).
    A round of the plan may be asked for part of its sections only: the button 为没覆盖的部分补题 pressed for some of them (`coverage.sectionIds`, lib/coverage-run.js roundOfKeys lands it in
@@ -28,7 +29,7 @@ async function open(t, root, coverage, broken = new Set()) {
   t.after(() => service.dispose());
   const model = clusteringModel();
   service.complete = async (system, prompt, context = {}) => {
-    if (broken.size && system.startsWith(REVIEW) && JSON.parse(prompt).candidate.cards.some(card => card.citations.some(citation => [...broken].some(key => citation.quote.startsWith(textOf(key)))))) return '{"issues":';
+    if (broken.size && system.startsWith(REVIEW) && requestData(prompt).candidate.cards.some(card => card.citations.some(citation => [...broken].some(key => citation.quote.startsWith(textOf(key)))))) return '{"issues":';
     return model.complete(system, prompt, context);
   };
   service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: 3, kind: 'definition', reason: `Reason for ${item.title}` })) });

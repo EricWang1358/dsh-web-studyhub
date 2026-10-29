@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 const passage = "Architecture includes the principles guiding a system's design and evolution.";
 
@@ -46,12 +47,12 @@ async function fixture(t) {
   const complete = async (system, prompt) => {
     calls++;
     if (system.startsWith('Plan a source-grounded')) {
-      const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+      const data = requestData(prompt);
       requestedLanguages.push(data.language);
       return JSON.stringify(qualityPlan(data));
     }
-    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate));
-    const data = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(requestData(prompt).candidate));
+    const data = requestData(prompt);
     const deck = { title: 'Selection', cards: [{ id: 'q', kind: 'flashcard', topic: 'Architecture decisions',
       objective: 'Explain architectural principles', prompt: 'Why do architectural principles guide design and evolution?',
       answer: 'They constrain design decisions and subsequent changes.', hint: 'Compare a current description with a rule for permitted changes.',

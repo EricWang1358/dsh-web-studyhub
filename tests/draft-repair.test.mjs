@@ -4,6 +4,7 @@ import { settleJob } from './helpers/wait.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { card } from './helpers/supplement-fixtures.mjs';
 import { gate, openLibrary, jobsOf, soon, stagedModel } from './helpers/generation-baseline.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* The behaviour of the background repair of rejected cards (`draft.repair`) that must be the same on both sides of its migration switch: this suite runs as it is on the
    legacy path and, through draft-repair.runtime.test.mjs, on the runtime (`generationRepair`). */
@@ -19,7 +20,7 @@ function repairing({ reviewIssues = [] } = {}) {
       repairs.push(input.card.id);
       return JSON.stringify({ card: { ...input.card, explanation: `Fixed: ${input.card.explanation}` } });
     }
-    if (system.startsWith('Act as a strict') && reviewIssues.length) return JSON.stringify(qualityReview(JSON.parse(prompt).candidate, reviewIssues));
+    if (system.startsWith('Act as a strict') && reviewIssues.length) return JSON.stringify(qualityReview(requestData(prompt).candidate, reviewIssues));
     return staged.complete(system, prompt, context);
   };
   return { complete, repairs, staged };

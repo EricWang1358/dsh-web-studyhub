@@ -56,7 +56,7 @@ test('plain words, with the page counts, in both languages and without telling w
 test('the badge renders as a quiet chip with the state on it, in both languages, and nothing when there is nothing to say', () => {
   const info = { state: 'indexed', indexed: 404, total: 404, stale: 0 };
   const html = renderToStaticMarkup(React.createElement(IndexBadge, { info, coverage: { canIndex: true, building: null } }));
-  assert.match(html, /class="sh-badge sh-badge--sm index-badge"[^>]*data-state="indexed"/);
+  assert.match(html, /class="sh-badge sh-badge--sm sh-badge--wrap index-badge"[^>]*data-state="indexed"/);
   assert.match(html, /data-tone="success"/);
   assert.match(html, /索引已建好 · 这份资料 404\/404 页/);
   assert.equal(renderToStaticMarkup(React.createElement(IndexBadge, { info: null, coverage: null })), '');
@@ -66,5 +66,27 @@ test('the badge renders as a quiet chip with the state on it, in both languages,
     assert.match(en, /Index partly built · this material 120\/404 pages/);
     assert.doesNotMatch(en, /[㐀-鿿]/);
     assert.match(renderToStaticMarkup(React.createElement(IndexBadge, { info: { state: 'missing', total: 4 }, coverage: { canIndex: false } })), /Not indexed yet \(install the search extension first\)/);
+  } finally { setUiLanguage('zh'); }
+});
+
+test('pages with no searchable text count as done, are counted on their own, and are named in one wording (#521)', () => {
+  const ids = ['a', 'b', 'c', 'd'];
+  const all = documentIndexState(item(ids), coverage({ indexed: ['a', 'b'], skipped: ['c', 'd'] }));
+  assert.deepEqual([all.state, all.indexed, all.skipped, all.total], ['indexed', 2, 2, 4], 'nothing is left to build');
+  const partial = documentIndexState(item(ids), coverage({ indexed: ['a'], skipped: ['b'], missing: ['c', 'd'] }));
+  assert.deepEqual([partial.state, partial.indexed, partial.skipped], ['partial', 1, 1]);
+  const none = documentIndexState(item(ids), coverage({ skipped: ['a', 'b', 'c', 'd'] }));
+  assert.deepEqual([none.state, none.indexed, none.skipped], ['indexed', 0, 4], 'a document of slides with no text is not "not indexed"');
+  const stale = documentIndexState(item(ids), coverage({ indexed: ['a'], skipped: ['b', 'c'], stale: ['d'] }));
+  assert.equal(stale.state, 'stale');
+  assert.equal(documentIndexState(item(ids), coverage({ indexed: ids })).skipped, 0);
+  assert.equal(indexLabel({ state: 'indexed', indexed: 400, skipped: 4, total: 404 }, { canIndex: true }), '索引已建好 · 这份资料 400/404 页，4 页无检索文字（跳过）');
+  assert.equal(indexLabel({ state: 'partial', indexed: 100, skipped: 4, total: 404 }, { canIndex: true }), '索引建了一部分 · 这份资料 100/404 页，4 页无检索文字（跳过）');
+  assert.equal(indexLabel({ state: 'indexed', indexed: 404, skipped: 0, total: 404 }, { canIndex: true }), '索引已建好 · 这份资料 404/404 页', 'none skipped: as it was');
+  setUiLanguage('en');
+  try {
+    const en = renderToStaticMarkup(React.createElement(IndexBadge, { info: { state: 'indexed', indexed: 400, skipped: 4, total: 404, stale: 0 }, coverage: { canIndex: true } }));
+    assert.match(en, /4 pages have no searchable text \(skipped\)/);
+    assert.doesNotMatch(en, /[㐀-鿿]/);
   } finally { setUiLanguage('zh'); }
 });

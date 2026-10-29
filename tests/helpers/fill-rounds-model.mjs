@@ -1,4 +1,5 @@
 import { qualityPlan, qualityReview } from "./assessment.mjs";
+import { requestData } from './request-data.mjs';
 
 /* The fake model of the fill-round characterization (#197): plans number their objectives globally, `rejectObjectives` fail source support once seen. */
 
@@ -18,7 +19,7 @@ export function fakeModel({ rejectObjectives = new Set(), onAuthor, onPlan, onCa
   const log = { calls: [], plans: [], authors: [], seen: new Set() };
   const complete = async (system, prompt, context) => {
     onCall?.(system, context);
-    const data = () => JSON.parse(prompt.split("REQUEST DATA:\n")[1]);
+    const data = () => requestData(prompt);
     if (system.startsWith("Plan a source-grounded assessment")) {
       const request = data();
       log.calls.push("plan"); log.plans.push({ count: request.count, existing: request.existing });
@@ -42,7 +43,7 @@ export function fakeModel({ rejectObjectives = new Set(), onAuthor, onPlan, onCa
     }
     if (system.startsWith("Act as a strict assessment editor")) {
       log.calls.push("review");
-      const candidate = JSON.parse(prompt).candidate, review = qualityReview(candidate), issues = [];
+      const candidate = requestData(prompt).candidate, review = qualityReview(candidate), issues = [];
       for (const check of review.checks) {
         const card = candidate.cards.find((item) => item.id === check.cardId);
         if (!rejectObjectives.has(card.objective)) continue;

@@ -7,6 +7,7 @@ import { KEEP_ENDED, OUTPUT_LIMIT, createOutputStore, tapChildStream } from '../
 import { StudyService } from '../lib/service.js';
 import { withQualityStages } from './helpers/assessment.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 // WP-TC step 4: the live output of a running call. An in-memory ring buffer, never persisted, dropped when the call ends; the reader asks for what is new.
 
@@ -172,7 +173,7 @@ test('job.output: a running generation call streams what the model writes, incre
   t.after(() => release());
   const inner = withQualityStages(async (system, prompt) => {
     if (system.includes('editor')) return JSON.stringify({ issues: [] });
-    const request = JSON.parse(prompt.split('REQUEST DATA:\n')[1]);
+    const request = requestData(prompt);
     return JSON.stringify({ title: 'D', cards: Array.from({ length: request.count }, (_, index) => ({ ...card(index + 1), id: `n${index + 1}`, objective: `New ${index + 1}` })) });
   });
   service.complete = async (system, prompt, options) => {

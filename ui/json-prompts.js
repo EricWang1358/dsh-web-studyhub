@@ -11,7 +11,7 @@ const qualityInstructions = `出题质量要求（所有题型都必须遵守）
 4. 选择题质量：单选在给定条件下恰有一个无争议的正确项；多选逐项独立判断，至少一个正确项且至少一个错误项。各选项应比较同一维度、处于相同抽象层次，长度和句式相近；干扰项来自真实误解或相近概念，不用荒谬选项、无关属性、“以上皆是”或“以上皆非”。避免正确项总是最长、措辞最专业、位置固定或多选正确项数量始终相同。answer 与 correct 标记必须一致，答案用选项内容表达，不只写字母编号。
 5. 解析可核查：explanation 解释为什么成立和适用边界；每个选项的 explanation 说明它在本题为何对或错、对应哪个概念或误区，不只复述“正确/错误”。计算题写明公式、单位和必要中间步骤；misconception 指出具体误解。
 6. 闪卡：一个聚焦问题配简短可回忆答案，避免整页摘要或多个无关子问。开放问答：明确任务与范围，answer 给出参考要点，rubric 写明各得分点、分值、部分得分条件及可接受的替代表述，评分标准与答案一致。
-7. 填空：挖去有意义的关键概念，保留足够上下文；每个 {{id}} 与 cloze.answers 一一对应，value 明确，accept 只包含语义等价的合法答案；题干及提示不泄露填空值，不挖出可由语法机械猜出的空。
+7. 填空：挖去有意义的关键概念，保留足够上下文；每个 {{id}} 与 cloze.answers 一一对应，value 明确，accept 只包含语义等价的合法答案；题干及提示不泄露填空值，不挖出可由语法机械猜出的空；{{id}} 只放在句子的文字里，不放进 $…$ 公式，填空值是学习者能直接打出来的词、名称或数字，不写成公式或 TeX。
 
 输出前质量自检与修订：
 逐题重新检查证据支持、自足性、泄题风险、答案正确性、选项质量、解析与评分标准、学习价值；发现问题先改写，再复核，仍无法修复则移除。复查整组考点重复、题型比例与难度覆盖，不能只修改 objective 字面措辞来伪装不同考点。
@@ -38,7 +38,7 @@ function englishImportPrompt(kind, label) {
     '4. Compare options along the same dimension, at similar abstraction, length and grammatical form. Use plausible misconceptions as distractors. Avoid absurd alternatives, all/none of the above, a consistently longest correct answer, fixed correct positions or a fixed number of correct multi options. Express answer using option content rather than letters and keep it consistent with correct flags.\n' +
     '5. Explain why the answer holds and under which conditions. Explain each option’s specific correctness or error rather than restating its label. For calculations, show formulas, units and necessary intermediate steps. Name a concrete misconception.\n' +
     '6. Flashcards ask one focused question with a short retrievable answer, not a page summary. Open responses specify task and scope; answer lists key points, while rubric gives points, partial credit and acceptable alternatives consistent with the answer.\n' +
-    '7. Cloze cards remove meaningful concepts while keeping sufficient context. Match every marker to one answer; accept contains only semantically equivalent valid answers. Do not leak the fill through prompts or hints, or make it guessable solely from grammar.\n\n' +
+    '7. Cloze cards remove meaningful concepts while keeping sufficient context. Match every marker to one answer; accept contains only semantically equivalent valid answers. Do not leak the fill through prompts or hints, or make it guessable solely from grammar. Put every marker in the prose, never inside $…$ or another formula; each value is a word, name or number a learner can type, not a formula or TeX.\n\n' +
     'Before output, review and revise every question for source support, self-containment, leakage, correctness, option quality, explanations, rubrics and learning value. Remove anything still invalid after repair. Recheck duplicate objectives, type ratios and difficulty coverage; changing objective wording does not create a new target. Check JSON syntax, required fields, option IDs, booleans, correct-option counts and cloze markers. Return only the revised final JSON; do not include self-review fields or claim independent approval or guaranteed correctness.\n\n' +
     'Structure example only: plan original questions rather than copying its learning targets.\n' + importExample(kind,'en') + '\n\nMy sources and question requirements:\n';
 }

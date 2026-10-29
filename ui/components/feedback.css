@@ -35,6 +35,8 @@
       white-space: nowrap;
     }
     .sh-badge--sm { padding: 0 var(--space-2); font-size: var(--fs-xs); }
+    /* A label that may not fit its row (Badge wrap) takes more lines instead of being cut; a pill shape does not hold two lines. */
+    .sh-badge--wrap { flex: 0 1 auto; min-width: 0; white-space: normal; text-align: start; overflow-wrap: anywhere; border-radius: var(--radius-sm); }
     .sh-badge__dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--sh-tone); }
     /* ── Chip (interactive) ─────────────────────────────────────────────── */
     .sh-chip {

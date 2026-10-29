@@ -75,7 +75,7 @@ When a selection is too big to generate well in one go (more than 150,000 charac
   3. pnpm fetches the server and its components from the package registry. DSH falls back to the npmmirror registry when the default one is unreachable.
   4. pnpm holds back some components' install scripts. StudyHub lists them and asks before allowing them (**Allow and continue**).
 
-  A fresh install works at once. Replacing an installed copy needs a DSH restart, and the page says so. When the installed extension is older than StudyHub, the page offers **Update the search extension**.
+  A fresh install works at once. Replacing an installed copy needs a DSH restart, and the page says so. When this StudyHub comes with a changed extension (most releases do not), the page offers **Update the search extension**.
 - **How it runs with nothing else installed.** The plugin starts the server with the Node that DSH itself runs on, and finds the server's entry file next to its own package. The server needs Node 22 or later. If DSH's Node is older, the plugin does not start it and logs why.
 - **Build the index.** **Build the search index for this course** hands the course's pages to the server one at a time, each under its own id, so every hit names its page exactly.
   - Only new or changed pages are sent; pages that left the library are removed.

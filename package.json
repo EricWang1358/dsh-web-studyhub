@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "3.7.1",
+  "version": "3.7.4",
   "description": "StudyHub: turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.",
   "repository": {
     "type": "git",
@@ -211,7 +211,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "ts-fsrs": "5.4.2"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.3",

@@ -37,7 +37,7 @@ The **Understand this question** explanation also gets an English version after 
 
 ## What EN does not change
 
-- The translation is not part of the question. It is not added to the revision history, does not reset the spaced-repetition (SM-2) schedule and does not ask you to answer again.
+- The translation is not part of the question. It is not added to the revision history, does not reset the spaced-repetition (FSRS-6) schedule and does not ask you to answer again.
 - If you are already working on the question, the English is added without changing an answer you submitted or the order of the options.
 
 ## When a translation fails

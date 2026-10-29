@@ -10,6 +10,7 @@ import { settleJob } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { stuckRun, refusePlannerUntilFill } from './helpers/staggered-refusals.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 /* The honest states of a coverage run (the evaluation of 2026-10-06): D-15 a last planned round that covers nothing does not end the run before its bounded fill rounds, and the stop
    says how many sections are left; D-16 a section that fails again and again is remembered on the plan and left to the learner (after REPEAT_LIMIT tries; sooner when a retry round gains no section at all); D-5 a refused key is one plain
@@ -73,7 +74,7 @@ test('D-15: a planned round that covers nothing, with another planned round behi
 test('D-16: a section whose review fails every time is retried by ONE fill round, which gains nothing and ends the run; the plan remembers it with its reason and the learner is offered the top-up', async (t) => {
   let broken = 0;
   const wrap = complete => async (system, prompt, context = {}) => {
-    if (system.startsWith(REVIEW) && JSON.parse(prompt).candidate.cards.some(card => card.citations.some(citation => /Recording 1, part 2, point/.test(citation.quote)))) { broken += 1; return '{"issues":'; }
+    if (system.startsWith(REVIEW) && requestData(prompt).candidate.cards.some(card => card.citations.some(citation => /Recording 1, part 2, point/.test(citation.quote)))) { broken += 1; return '{"issues":'; }
     return complete(system, prompt, context);
   };
   const { service, ids } = await library(t, { wrap });
@@ -106,7 +107,7 @@ test('D-16: a section whose review never comes back usable is written again by e
   let broken = 0;
   const reviewBroken = new RegExp(`Recording 1, part ${stuck}, point`);
   const wrap = (complete, service) => refusePlannerUntilFill(freeFrom)(async (system, prompt, context = {}) => {
-    if (system.startsWith(REVIEW) && JSON.parse(prompt).candidate.cards.some(card => card.citations.some(citation => reviewBroken.test(citation.quote)))) { broken += 1; return '{"issues":'; }
+    if (system.startsWith(REVIEW) && requestData(prompt).candidate.cards.some(card => card.citations.some(citation => reviewBroken.test(citation.quote)))) { broken += 1; return '{"issues":'; }
     return complete(system, prompt, context);
   }, service);
   const { service, ids } = await library(t, { wrap });
