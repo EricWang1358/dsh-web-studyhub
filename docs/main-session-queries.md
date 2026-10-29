@@ -39,7 +39,7 @@ This page writes a call as `action {arguments}`, for example `source.list {impor
 - the first page of course names;
 - the list of contract areas.
 
-For the exact arguments of a group of actions, request one area, such as `library.context {area:"sources"}`, `{area:"generation"}` or `{area:"cards"}`. The areas are `dailyPlan`, `plan`, `sources`, `imports`, `decks`, `classroom`, `generation`, `cards`, `learning`, `book`, `organization`, `notes`, `board`, `workflows`, `cases` and `skeletons`.
+For the exact arguments of a group of actions, request one area, such as `library.context {area:"sources"}`, `{area:"generation"}` or `{area:"cards"}`. The areas are `dailyPlan`, `plan`, `sources`, `imports`, `decks`, `classroom`, `generation`, `cards`, `learning`, `panel`, `book`, `organization`, `notes`, `board`, `workflows`, `cases` and `skeletons`.
 
 Read source text, questions and relationships page by page, and only when needed.
 
