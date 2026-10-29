@@ -3,6 +3,18 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.overrides {
+  /* A drag from the floating composer's padding otherwise anchors in the
+     StudyHub page behind it. Only its chrome is non-selectable: the draft and
+     the study text must still support normal copying and keyboard selection.
+     Scope by the host scrollport so chat and sidebar-only seats stay unchanged. */
+  [data-conversation-scroll]:has(.study-seat-frame) [data-conversation-region="composer"] {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+  }
+  [data-conversation-scroll]:has(.study-seat-frame) [data-conversation-region="composer"] :is(input, textarea, [contenteditable="true"]) {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+  }
   /* Conversation "StudyHub" tab: DSH floats its composer over the bottom of the
      active view. Opting into the conversation's overlay mode (the attribute the
      official Trajectory view uses) bounds the view to the scrollport, and the
