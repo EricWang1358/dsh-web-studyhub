@@ -10,3 +10,4 @@ export const TaskConsole = deferredView(() => import("./tasks/TaskConsole.jsx"))
 export const AudioDashboard = deferredView(() => import("./AudioDashboard.jsx"));
 export const DocumentViewer = deferredView(() => import("./document-preview/DocumentViewer.jsx"));
 export const LiveClass = deferredView(() => import("./LiveClass.jsx"));
+export const GuidedStudy = deferredView(() => import("./guided-study/GuidedStudyWorkbench.jsx"));
