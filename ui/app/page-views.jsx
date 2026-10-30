@@ -5,7 +5,7 @@ import { pageFlag } from '../pages.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
-import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole } from '../workspace-views.jsx';
+import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole, GuidedStudy } from '../workspace-views.jsx';
 import { materialOpener, resultOpener } from '../tasks/task-actions.js';
 import StudyMap from '../StudyMap.jsx';
 import { hasOwnDeck } from '../study-map/home-plan.js';
@@ -86,7 +86,7 @@ function LibraryView() {
       <StudyMap data={data} setupHandlers={createSetupHandlers({ data, nav, set, intents, drafts, settingsEntry })} notebooks={notebooks} firstRun={firstRun}
         reveal={intents.revealHome} onRevealed={() => intents.setRevealHome(0)}
         actions={{
-          start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id) => set.setRemovingDeck({ id, root: data.root }),
+          start: intents.startReview, resume: intents.openRun, manage: intents.openDeck, removeDeck: (id, options) => set.setRemovingDeck({ id, root: data.root, ...options }),
           openDraft: (draft) => drafts.openDraft(draft, { navigation: true }), topUpDraft: drafts.topUpDraft,
           retryGeneration: (job) => {
             // The whole request of the failed job goes back on the form, and the notice says only what was put back (ui/app/retry-generation.js).
@@ -99,6 +99,7 @@ function LibraryView() {
           generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }), startCourseFlow: intents.startCourseFlow,
           onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
+          onOpenExamBook: pageAvailable(data, 'book') ? (course) => openCrunchBook(course, { view: 'today' }) : undefined,
           onShowGraph: (scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); nav.navigate('graph'); },
           onCourseSettings: settingsEntry.setCourseSettings,
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
@@ -380,11 +381,66 @@ function NotesView() {
   );
 }
 
+function GuidedStudyView() {
+  const { data, core, session, lib, nav, host } = useApp();
+  const guidedSession = lib.guidedSession || data?.activeStudySession || null;
+  const run = session.run;
+  const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
+
+  const handleReveal = (runId) => {
+    if (session.actions?.flipCard) return session.actions.flipCard();
+    if (session.actions?.reviewAct) return session.actions.reviewAct('review.reveal');
+    return core.act('review.reveal', { runId: runId || run?.id, cardId: currentCard?.id }, session.enterRun);
+  };
+
+  const handleAnswer = (grade) => {
+    if (session.actions?.reviewAct) return session.actions.reviewAct('review.answer', { grade });
+    return core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, grade }, session.enterRun);
+  };
+
+  const handlePause = (id) => core.act('study.session.pause', { sessionId: id });
+
+  const handleEnd = (id) => {
+    core.act('study.session.end', { sessionId: id });
+    lib.set?.setGuidedSession?.(null);
+    nav.navigate('library');
+  };
+
+  const handleCancelPrep = (sessionId) => {
+    return core.act('study.question.cancel', { sessionId: sessionId || guidedSession?.id });
+  };
+
+  const handleNext = (runId) => {
+    if (session.actions?.reviewAct) return session.actions.reviewAct('review.move', { direction: 1 });
+    return core.act('review.move', { runId: runId || run?.id, direction: 1 }, session.enterRun);
+  };
+
+  const handleFallbackToExisting = (sessionId) => {
+    return core.act('study.session.resume', { sessionId: sessionId || guidedSession?.id }, session.enterRun);
+  };
+
+  return (
+    <GuidedStudy
+      session={guidedSession}
+      run={session.run}
+      modelReady={data?.modelReady !== false && data?.model?.ready !== false}
+      host={host}
+      onPause={handlePause}
+      onEnd={handleEnd}
+      onReveal={handleReveal}
+      onAnswer={handleAnswer}
+      onNext={handleNext}
+      onCancelPrep={handleCancelPrep}
+      onFallbackToExisting={handleFallbackToExisting}
+    />
+  );
+}
+
 /** The component of each page that shows through <PageView>. Board and live class are drawn by the shell itself (they keep running or load without a snapshot). */
 export const PAGE_VIEWS = {
   library: LibraryView, workflows: WorkflowsView, skeleton: SkeletonView, dashboard: DashboardView, exam: ExamView, wrongbook: WrongBookView, graph: GraphView,
   manage: ManageView, sources: SourcesView, audio: AudioView, tasks: TasksView, generate: GenerateView, draft: DraftView, settings: SettingsView, review: ReviewView, notes: NotesView,
-  examprep: ExamPrepView, outline: OutlineView, book: BookView,
+  examprep: ExamPrepView, outline: OutlineView, book: BookView, guided: GuidedStudyView,
 };
 
 /** 备考补习 while the learner has it turned off in Settings (the switch is not a component, so the generic text about components would be wrong). */

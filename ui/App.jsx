@@ -94,7 +94,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const sources = useSourceImport({ core, lib: handle, nav, drafts, intents, data });
   const tour = useTour({ core, lib: handle, nav, session, drafts, intents, data, rootRef: shell.rootRef });
   const selectionNotices = useSelectionNotices({ core, learn, data });
-  const { courseActive } = useHostLinks({ host, core, nav, session, learn, rootRef: shell.rootRef, data, loading: connection.loading });
+  const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
   const boardState = useBoard(core.call, nav.page === 'board');
   // Cards due today or overdue light the badge, so a deadline shows from any page.
   const board = { state: boardState, count: boardState.board?.columns.reduce((total, column) => total + (column.done ? 0 : column.cardIds.length), 0),

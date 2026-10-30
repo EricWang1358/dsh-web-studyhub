@@ -69,6 +69,7 @@ import generateShort from './locales/en.generate-short.json';
 import outlineCopy from './locales/en.outline.json';
 import deleteCopy from './locales/en.delete.json';
 import liveLocal from './locales/en.live-local.json';
+import nextStepCopy from './locales/en.next-step.json';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { failureText } from './failure.js';
 
@@ -140,6 +141,7 @@ export const ENGLISH_SOURCES = {
   'en.outline.json': outlineCopy,
   'en.delete.json': deleteCopy,
   'en.live-local.json': liveLocal,
+  'en.next-step.json': nextStepCopy,
 };
 
 /** Merge catalogues in order. The first translation of a key wins; a second,

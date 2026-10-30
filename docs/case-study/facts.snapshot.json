@@ -51,7 +51,7 @@
     "failed",
     "interrupted"
   ],
-  "deferredViews": 8,
+  "deferredViews": 9,
   "storeVersion": 4,
   "generation": {
     "parallelParts": 4,

@@ -9,6 +9,7 @@ import { ARCHIFY_CARD_PREFIX } from '../archify.js';
 import { BOOK_MOVES_PREFIX } from '../book/BookMoves.jsx';
 import { JEV_GUIDE_KEY } from '../jev-flow.js';
 import { NAV_START_KEY } from '../nav-start.js';
+import { NEXT_CARD_PREFIX } from '../study-map/next-dismiss.js';
 
 /*
  * The guidance registry (3.7 guidance, step 0): every tip, card, tour and nudge that remembers "seen" or "put off" in the browser, in one list, so
@@ -48,6 +49,9 @@ export const GUIDANCE_DISMISS = Object.freeze(['forever', 'per-session', 'until-
 
 export const GUIDANCE_ITEMS = Object.freeze([
   { id: 'first-run.later', kind: 'card', where: '学习库首页', title: '首页的入门三步', trigger: '还没有自己的题组时，学习库首页是入门三步；点「以后再说」后，它缩成首页里的一张小卡。', again: '还没有自己的题组时，下次打开学习库首页时', memory: local(WELCOME_PREFIX, 'prefix'), dismiss: 'forever', proactive: false, until: 'own-deck' },
+  // 步骤 3's 下一步 card (ui/study-map/NextStepCard.jsx). Not proactive: it is a status worked out from the library on every visit (the first-run line's kind), so the daily
+  // budget of one tip and the master switch do not apply; 「今天先不」 hides it for the local day, and the mark is the day itself (ui/study-map/next-dismiss.js).
+  { id: 'home.next', kind: 'card', where: '学习库首页', title: '首页顶部的「下一步」卡', trigger: '发布第一个自己的题组后，首页顶部有一张卡，按你现在的情况说下一步做什么；点「今天先不」当天收起。', again: '下次打开学习库首页时', memory: local(NEXT_CARD_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: false },
   { id: 'setup.later', kind: 'card', where: '学习库首页 · 课程准备', title: '课程准备里点了「稍后」的步骤', trigger: '课程准备清单里点「稍后」的步骤会先收起来。', again: '下次打开学习库首页的课程准备时', memory: local(SETUP_LATER_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: false },
   { id: 'setup.done', kind: 'card', where: '学习库首页 · 课程准备', title: '课程准备「全部完成」', trigger: '一门课的准备步骤都做完时，说一次就收起。', again: '这门课的准备都做完后，下次打开学习库首页时', memory: local(SETUP_DONE_PREFIX, 'prefix'), dismiss: 'forever', proactive: false },
   { id: hintItem(READER_HINTS.page), kind: 'tip', where: '阅读 · 原始 PDF', title: '提问的是哪一页', trigger: '第一次在原始 PDF 旁提问时，说明问的是哪一页、怎么换页。', again: '下次在原始 PDF 旁提问时', memory: local(HINTS_KEY, 'list', READER_HINTS.page), dismiss: 'forever', proactive: true },

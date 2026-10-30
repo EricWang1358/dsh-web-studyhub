@@ -193,12 +193,14 @@ test('tier 1 is not loosened: sources and decks are deleted for good only from t
   assert.match(sources, /const blocked = item\.usedBy\.length > 0 \|\| !item\.archived/);
   assert.match(decks, /<PermanentDeleteDialog/);
   assert.match(decks, /const eligible = deck\.archived && !deck\.systemKind/);
-  for (const [file, source] of [['ui/Sources.jsx', sources], ['ui/Manage.jsx', manage]]) {
-    assert.match(source, /offerRestore\(toast/, `${file}: the archive says so with 撤销`);
-    assert.match(source, /ui\(['"]永久删除…['"]\)/, `${file}: and offers the second step`);
-  }
-  assert.match(manage, /结束了 \{1\} 轮进行中的练习；撤销只恢复题组/, 'the deck archive says how many practice runs it ended, and that 撤销 does not reopen them');
-  assert.match(manage, /closedRuns/, 'counted by the host');
+  // D2: every entry to 归档 (Manage, a deck row's menu, the Sources page) ends in the notice of ui/archive-entries.js: 撤销, then 永久删除… (one deck / one document)
+  const entries = read('ui/archive-entries.js');
+  for (const [file, source, call] of [['ui/Sources.jsx', sources, /offerDocumentsArchived\(/], ['ui/Manage.jsx', manage, /offerDeckArchived\(/], ['ui/StudyMap.jsx', read('ui/StudyMap.jsx'), /offerDeckArchived\(/]])
+    assert.match(source, call, `${file}: the archive says so with 撤销 and the second step (ui/archive-entries.js)`);
+  assert.match(entries, /offerRestore\(toast/, 'the archive says so with 撤销');
+  assert.match(entries, /ui\(['"]永久删除…['"]\)/, 'and offers the second step');
+  assert.match(entries, /结束了 \{1\} 轮进行中的练习；撤销只恢复题组/, 'the deck archive says how many practice runs it ended, and that 撤销 does not reopen them');
+  assert.match(entries, /closedRuns/, 'counted by the host');
   // the keyboard way back: 撤销 focuses the archive button again; 永久删除… returns there when its dialog is closed (as Sources does)
   assert.match(manage, /focus: \(\) => document\.querySelector\("\.manage-page \[data-manage-archive\]"\)/);
   assert.match(manage, /returnFocus:/);
@@ -207,6 +209,10 @@ test('tier 1 is not loosened: sources and decks are deleted for good only from t
   // 撤销 of an archive is a plain call, never the single-flight act() (which drops it while another write runs, and 撤销 stays enabled then)
   assert.match(sources, /restore: async \(\) => \{ await call\('source\.archive'/);
   assert.match(manage, /restore: async \(\) => \{ await call\("deck\.archive"/);
+  assert.match(read('ui/StudyMap.jsx'), /restore: async \(\) => \{ await call\("deck\.archive"/, 'the deck row menu\'s 撤销 is a plain call too');
+  // archive-first stays: the deck row's menu archives (the entry is closer) but never deletes for good, and a system deck has no entry at all
+  assert.doesNotMatch(read('ui/study-map/DeckRow.jsx'), /deck\.remove|ui\(['"]永久删除/);
+  assert.match(entries, /if \(deck\.systemKind\) return null/);
 });
 
 test('the words: 永久删除 is irreversible, 移除 takes out of a container; the source dialog no longer mixes them', () => {

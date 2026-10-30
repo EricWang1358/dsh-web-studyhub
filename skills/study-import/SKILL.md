@@ -46,6 +46,10 @@ whenToUse: The learner asks in chat to import, add, convert, split or enter a fi
 
 - Imports and conversions run as jobs. Report the receipt and return control; `job.status {"jobId": "…"}` when the learner asks how it is going. Never loop over `job.wait`.
 
+## 6. Taking things away
+
+- Importing needs no deleting. If the work would replace, archive or delete something that is already in StudyHub (an earlier import, a deck, a draft), stop first. Before any permanent delete or archive, ask the learner first, in ONE sentence that says what goes and what stays, and act only on a clear yes.
+
 ## Report to the learner
 
 结束时用中文简短汇报：导入了什么（资料标题和页数，或题组名和题数）、放进了哪门课或哪个题组；哪些文件先做了转换，转换结果是 studyhub-work/ 里的哪个文件；有哪些警告、跳过或失败的部分，原因是什么；还有什么要学习者自己做（例如去设置页安装 MinerU）。只说工具结果里有的数字，不说没核实过的。

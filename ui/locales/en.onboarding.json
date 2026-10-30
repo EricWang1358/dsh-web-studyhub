@@ -127,5 +127,8 @@
   "改题型和题数": "Change question types and count",
   "还没有可用的 AI 模型，先完成第 1 步。": "No AI model is available yet: finish step 1 first.",
   "这些资料超过一次出题的上限：点「改题型和题数」，在创建题组里分步出题或按主题选页。": "These sources are more than one run can take: press “Change question types and count” to make the questions in steps, or pick pages by topic, on Create deck.",
-  "选好的参考样题和这些资料对不上：点「改题型和题数」，在创建题组里调整。": "The sample questions you chose do not fit these sources: press “Change question types and count” to adjust them on Create deck."
+  "选好的参考样题和这些资料对不上：点「改题型和题数」，在创建题组里调整。": "The sample questions you chose do not fit these sources: press “Change question types and count” to adjust them on Create deck.",
+  "AI 带学：边讲边练": "AI Guided Study: learn and practise together",
+  "与主会话交流即可开启带学：右侧工作台同步呈现教学推导、练习题卡与问答笔记；作答后可随时请教，重点内容自动归位留存。": "Chat naturally with the tutor to start guided study: the right-side workbench displays teaching derivations, practice cards and Q&A notes; ask for guidance after answering, and key explanations are saved back to your cards.",
+  "AI 带学需要配置 AI 模型。": "AI Guided Study needs an AI model."
 }

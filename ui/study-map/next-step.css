@@ -1,0 +1,37 @@
+/* ui/study-map/next-step.css — the home's 下一步 card (3.7 guidance, step 3): ONE flat card at the top of the library home that says what to do now, with its
+   one primary button and a quiet 「今天先不」. Tokens only, both themes. It is not a paper card (the day's card below is): a hairline box in ink, cinnabar only
+   on the one primary button. The card keeps one minimum height through every state, so a state that changes (a run finishes, the model comes back) swaps the
+   words and moves nothing under it. Injected as <style data-study-next-card>. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .next-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-2) var(--space-6);
+      min-height: 112px;
+      margin: 0 0 var(--space-6);
+      padding: var(--space-4) var(--space-5);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+    .next-card__text { display: grid; gap: var(--space-1); min-width: 0; }
+    .next-card__eyebrow { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); letter-spacing: 0.06em; }
+    .next-card__headline { margin: 0; color: var(--text); font-size: var(--fs-xl); font-weight: var(--fw-strong); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* The detail line keeps its line when there is nothing to say (a non-breaking space in it), so the card's height does not depend on it. */
+    .next-card__detail { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); min-height: calc(var(--fs-md) * var(--lh-snug)); overflow-wrap: anywhere; }
+    .next-card__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2) var(--space-3); min-width: 0; }
+    /* A long label (a material's title, English) wraps inside the card instead of running out of it. */
+    .next-card__go { max-width: 100%; }
+    .next-card__help { grid-column: 1 / -1; margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+
+    @container study (max-width: 720px) {
+      .next-card { grid-template-columns: minmax(0, 1fr); min-height: 168px; padding: var(--space-4); }
+      .next-card__actions { justify-content: flex-start; }
+    }
+  }
+}

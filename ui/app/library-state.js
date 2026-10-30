@@ -14,6 +14,7 @@ const FRESH = {
   graphScope: () => null, graphCanvas: () => false,
   selectedSources: () => [], modal: () => null, notebooks: () => null, notebookError: () => '',
   examRunId: () => null, examKind: () => 'exam', caseInitial: () => null, sourceHighlight: () => null,
+  guidedSession: () => null,
 };
 export const LIBRARY_KEYS = Object.freeze([...Object.keys(FRESH), 'gen', 'settings']);
 

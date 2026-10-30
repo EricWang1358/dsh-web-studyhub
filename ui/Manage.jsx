@@ -12,7 +12,7 @@ import { partOf, partsOf } from "../lib/deck-parts.js";
 import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
 import { deckChoices, deckEntries } from './deck-picker-entries.js';
-import { offerRestore } from './undoable.js';
+import { offerDeckArchived } from './archive-entries.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -71,16 +71,12 @@ export default function Manage({
     const deck = managedDeck, archiving = !deck.archived;
     const done = await act("deck.archive", { id: deck.id, archived: archiving }, reload(deck.id));
     if (!done || !archiving) return;
-    // The host counts what it ended (every open run on the deck, 学习流 rounds too); a host without the count falls back to the open runs the snapshot lists.
-    const ended = Number.isInteger(done.closedRuns) ? done.closedRuns : runs.filter((run) => run.deckId === deck.id || run.deckIds?.includes(deck.id)).length;
-    offerRestore(toast, {
-      message: ended ? uiFormat("已归档「{0}」，结束了 {1} 轮进行中的练习；撤销只恢复题组，结束的练习不会重新打开。", [deck.title, ended]) : uiFormat("已归档「{0}」", [deck.title]),
-      restored: ended ? uiFormat("已恢复「{0}」；结束的练习不会重新打开。", [deck.title]) : uiFormat("已恢复「{0}」", [deck.title]),
+    // The words and the two buttons are the deck row menu's too (ui/archive-entries.js): the host counts what it ended, the notice names it.
+    offerDeckArchived({ toast, deck, done, runs,
       // A plain call (not the single-flight act(): 撤销 stays usable while another write runs, and must not be dropped by it), then the page and the library read again.
       restore: async () => { await call("deck.archive", { id: deck.id, archived: false }); await reload(deck.id)(); Promise.resolve(refreshLibrary?.()).catch(() => {}); return true; },
       // The keyboard focus after 撤销 is this page's archive button again; after 永久删除… is closed it comes back to it too (ui/app/AppModalHost.jsx).
-      focus: () => document.querySelector(".manage-page [data-manage-archive]"),
-      secondary: { label: ui("永久删除…"), onClick: () => onRemoveDeck(deck.id, { returnFocus: ".manage-page [data-manage-archive]" }) } });
+      focus: () => document.querySelector(".manage-page [data-manage-archive]"), onRemove: onRemoveDeck, returnFocus: ".manage-page [data-manage-archive]" });
   }
   return (
     <section className="page manage-page">

@@ -134,7 +134,7 @@ test("opening a page does not copy the library to read it (read budget)", async 
   await f.service.call("snapshot");
   const run = f.run;
   const reads = [["map", {}], ["stats", {}], ["wrongbook", {}], ["graph", {}], ["inbox", {}], ["source.list", { limit: 100 }], ["source.get", { id: "src-0001" }],
-    ["course.route", {}], ["review.get", { runId: run.id }], ["skeleton.list", {}], ["workflow.list", {}]];
+    ["course.route", {}], ["review.get", { runId: run.id }], ["skeleton.list", {}], ["workflow.list", {}], ["study.scene.get", {}], ["study.session.list", {}]];
   const report = [];
   for (const [action, args] of reads) {
     await f.service.call(action, args).catch(() => null);

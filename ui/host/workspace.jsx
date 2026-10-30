@@ -38,6 +38,14 @@ const handoffNotes = new Map();
 const knownSessions = new Map(),
   candidates = new Map(),
   candidateListeners = new Set();
+const guidedSessions = new Map(),
+  guidedSessionListeners = new Set();
+function deliverGuidedStudy(sessionId, sessionIntent) {
+  studyReferences.delete(sessionId);
+  handoff.delete(sessionId);
+  guidedSessions.set(sessionId, sessionIntent);
+  guidedSessionListeners.forEach((fn) => fn(sessionId));
+}
 function deliverRun(sessionId, runId) {
   studyReferences.delete(sessionId);
   handoff.set(sessionId, runId);
@@ -138,7 +146,11 @@ export function apply(ctx, registerDocumentLearning) {
           if (intent.type === "run") deliverRun(sessionId, intent.runId);
           if (intent.type === "studyRef") deliverStudyReference(sessionId, intent.studyRef);
           if (intent.type === "candidates") deliverCandidates(sessionId, intent);
+          if (intent.type === "guidedStudy" || intent.type === "guided_study" || intent.type === "session") deliverGuidedStudy(sessionId, intent);
           ctx.get("sidebarRight")?.openTab("study-workspace");
+          if (intent.intentId) {
+            call("panel.ack", { intentId: intent.intentId, status: "displayed", runId: intent.runId || null }).catch(() => {});
+          }
         }
       } finally { polling = false; }
     };
@@ -323,6 +335,14 @@ export function apply(ctx, registerDocumentLearning) {
           placement === "sidebar"
             ? listener => takeDelivery(studyReferences, studyReferenceListeners, sessionId, listener)
             : undefined,
+        takeGuidedStudy:
+          placement === "sidebar"
+            ? listener => takeDelivery(guidedSessions, guidedSessionListeners, sessionId, listener)
+            : undefined,
+        openGuidedStudy: (session) => {
+          deliverGuidedStudy(sessionId, session);
+          ctx.get("sidebarRight")?.openTab("study-workspace");
+        },
         };
       },
       [workspace, catalog, current, sessionId, openView, placement, call],

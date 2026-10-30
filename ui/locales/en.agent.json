@@ -280,5 +280,6 @@
   "做法：先读 library.context 的 plan 区，再用 course.plan 看现在的排期和各节掌握情况；先和我商量阶段、每周节奏（模拟卷、复习日、休息）和每天的分钟数。": "How: read the plan area of library.context first, then course.plan for the current schedule and how well each point is known; talk through the phases, the weekly rhythm (mock papers, revision days, rest) and the minutes per day with me before anything else.",
   "保存：我同意之后才用 course.save 存 plan，不要自己存；已有计划时把整份 plan 发回去。": "Saving: only after I agree, save the plan with course.save; do not save it on your own, and when a plan exists send back the whole plan object.",
   "已有计划：course.plan 里的 plan 就是现在存着的，改动前先给我看差别。": "Existing plan: the plan in course.plan is what is saved now; show me what would change before you change it.",
-  "说明：计划只是建议，不是掌握的证据；最后一周每天读什么仍由期末一周（book.crunch）排。": "Note: the plan is a suggestion, not evidence of mastery; what to read each day of the final week is still planned by the final week (book.crunch)."
+  "说明：计划只是建议，不是掌握的证据；最后一周每天读什么仍由期末一周（book.crunch）排。": "Note: the plan is a suggestion, not evidence of mastery; what to read each day of the final week is still planned by the final week (book.crunch).",
+  "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes."
 }

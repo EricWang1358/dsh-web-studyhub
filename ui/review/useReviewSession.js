@@ -67,9 +67,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     runRef.current = next;
     if (next.mode === 'exam') { nav.show.exam('exam', next.id); return; }
     setRun(next);
-    if (!embeddedIn) setPage('review');
+    if (!embeddedIn && nav.page !== 'guided') setPage('review');
     setEntry(entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) }));
-  }, [nav.show, setPage, refs, embeddedIn]);
+  }, [nav.show, setPage, refs, embeddedIn, nav.page]);
   const reset = useCallback(() => { setRun(null); setEntry(emptyEntry()); }, []);
   const clearRun = useCallback(() => setRun(null), []);
   const patchRun = useCallback((change) => setRun(change), []);

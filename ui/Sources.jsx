@@ -33,7 +33,7 @@ import { RenameField } from './document-preview/RenameTitle.jsx';
 import { originalNote, renameDocument, startsEditing } from './document-preview/rename.js';
 import css from "./sources.css";
 import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
-import { offerRestore } from './undoable.js';
+import { idsOfDocuments, offerDocumentsArchived } from './archive-entries.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { useRetrievalStatus } from './retrieval-status.js';
@@ -380,6 +380,15 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   }) : undefined;
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); setJevRun(null); };
+  // 归档所选: only what the page shows (a checked row the course filter now hides is not archived unseen); one source.archive call, one notice.
+  const chosen = filtered.filter(item => selected.includes(item.key));
+  const archiveChosen = async () => {
+    if (!chosen.length) return;
+    const done = await act('source.archive', { sourceIds: idsOfDocuments(chosen), archived: true });
+    if (!done) return;
+    finish();
+    offerArchived(chosen);
+  };
   const toggle = group => {
     const open = isOpen(group);
     setOpened(current => { const next = new Set(current); open ? next.delete(group.key) : next.add(group.key); return next; });
@@ -396,9 +405,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // 归档 says so and offers 撤销 (source.archive back) and the second step of archive-first, 永久删除…, which opens the same dialog as the archive's own button.
   // The keyboard focus after 撤销 is the row's 更多 again; after 永久删除… is closed it is that row, or the 已归档 button when the row is in the archive.
   const rowMenu = key => () => document.querySelector(`[data-document-key="${CSS.escape(key)}"] .source-row-actions > summary`);
-  const offerArchived = item => offerRestore(toast, { message: uiFormat('已归档「{0}」：在「已归档」里，可以恢复或永久删除。', [displayTitle(item.title)]),
-    restored: uiFormat('已恢复「{0}」', [displayTitle(item.title)]), restore: async () => { await call('source.archive', { sourceIds: item.sourceIds, archived: false }); Promise.resolve(refresh?.()).catch(() => {}); return true; }, focus: rowMenu(item.key),
-    secondary: { label: ui('永久删除…'), onClick: () => setRemoving({ ...item, archived: true, fromNotice: true }) } });
+  // One document (its row) or the checked ones (整理 panel) go through the same notice (ui/archive-entries.js); several have no single dialog, so permanent delete stays per document.
+  const offerArchived = items => offerDocumentsArchived({ toast, items, onRemove: setRemoving,
+    restore: async () => { await call('source.archive', { sourceIds: idsOfDocuments(items), archived: false }); Promise.resolve(refresh?.()).catch(() => {}); return true; },
+    focus: items.length === 1 ? rowMenu(items[0].key) : () => document.querySelector('.source-organize > summary') });
   const closeRemoving = () => {
     const was = removing;
     setRemoving(null);
@@ -419,7 +429,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     },
     archive: async item => {
       const done = await latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived });
-      if (done && !item.archived) latest.current.offerArchived(item);
+      if (done && !item.archived) latest.current.offerArchived([item]);
     },
     remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), segment: item => setSegmenting(item),
     rename: item => latest.current.renameFor(item),
@@ -475,7 +485,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
         <details className="source-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
           <summary>{ui('整理课程归属')}</summary>
-          <p className="muted">{ui('勾选资料后统一整理。只更改归属，原文与引用保持不变。')}</p>
+          <p className="muted">{ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
           <p>{uiFormat('已选择 {0} 份资料', [selectedItems.length])}{' '}
             <Button onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{ui('选择当前范围')}</Button>{' '}
             {selected.length > 0 && <Button onClick={finish}>{ui('清空选择')}</Button>}
@@ -506,7 +516,12 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           <ModelSetupGate variant="compact" feature="organize" model={modelReadiness(data)} />
           {experimental && <JevNote note={jevNote} />}
           {experimental && <JevRunNote jev={jevRun} />}
-          {proposals && <div className="source-course-proposals">
+          {/* 归档所选: the checked documents in one go (a material is archived before it can be deleted; each one is deleted for good from 已归档). */}
+          {!showArchived && <div className="source-organization-actions source-archive-actions">
+            <Button disabled={busy || !chosen.length} data-archive-selected onClick={archiveChosen}>{chosen.length ? uiFormat('归档所选（{0}）', [chosen.length]) : ui('归档所选')}</Button>
+            <span className="muted">{ui('归档会把它们从这个列表收起，可以在「已归档」里恢复。')}</span>
+          </div>}
+          {proposals &&<div className="source-course-proposals">
             <p className="muted">{ui('建议尚未保存，可先修改课程，再确认应用。')}</p>
             {proposals.map(proposal => <div key={proposal.id}>
               <Checkbox checked={proposal.include} disabled={busy} label={uiFormat('采用建议：{0}', [displayTitle(proposal.title)])}

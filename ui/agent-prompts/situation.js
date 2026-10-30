@@ -14,7 +14,9 @@ const HOW = '做法：有对应的 StudyHub 工具就直接用；格式不支持
 // An entry whose files are not documents (audio): StudyHub's text extraction does not apply.
 const HOW_NO_EXTRACT = '做法：有对应的 StudyHub 工具就直接用，还不行再用命令行转换；转换结果写到工作区的 studyhub-work/ 下，再导入。';
 const NEVER = '不要：没问过我就装软件；删除或覆盖我的原文件；安装或配置 MinerU、Marker，或改 StudyHub 设置（需要时让我去设置页）。';
-const REPORT = '做完：告诉我做了什么、结果在哪（题组、草稿、资料或文件路径）、哪些没做成以及原因、哪些是推断的需要我核对。';
+// The learner's own words, like the line above: the rule of lib/study-contracts.js (ASK_BEFORE_REMOVING) for the chat this message goes to.
+const ASK_FIRST = '先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。';
+const REPORT ='做完：告诉我做了什么、结果在哪（题组、草稿、资料或文件路径）、哪些没做成以及原因、哪些是推断的需要我核对。';
 // The start of a long text (a pasted JSON, a refused deck file) is all the message carries: it says so, with the whole length.
 const CUT = '截断：「内容开头」只附了前 {0} 个字符（全文 {1} 个）。';
 
@@ -39,7 +41,7 @@ export function situationMessage({ area = '', goal = '', facts = null, error = '
   return {
     ask: say(language, ASK, [say(language, area), say(language, goal)]),
     first: say(language, FIRST, [context]),
-    notes: [say(language, how || (extract ? HOW : HOW_NO_EXTRACT)), ...(hints || []).map(line => say(language, line)), cut, say(language, NEVER), say(language, REPORT)].filter(Boolean),
+    notes: [say(language, how || (extract ? HOW : HOW_NO_EXTRACT)), ...(hints || []).map(line => say(language, line)), cut, say(language, NEVER), say(language, ASK_FIRST), say(language, REPORT)].filter(Boolean),
     data: [['情况', factLines(facts)], ['错误原文', error], ['文件', (files || []).filter(Boolean).join('\n')], ['内容开头', excerpt?.text || '']],
   };
 }
