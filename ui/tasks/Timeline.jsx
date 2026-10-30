@@ -5,7 +5,7 @@ import { formatDateTime, formatElapsed, joinMeta } from '../format.js';
 import { shortFile, timelineLegend, timelineModel } from './call-model.js';
 import { callMs, longRuleText, slowestText } from './time-limit.js';
 
-/* The parallel timeline: one lane per unit of work (a file of an audio import, a part of a question run, 整体 for the rest; one lane per pool slot only when the
+/* The timeline (called parallel only when two calls ran at once): one lane per unit of work (a file of an audio import, a part of a question run, 整体 for the rest; one lane per pool slot only when the
    calls name neither), one bar per model call (dashed = a rate-limit wait). Drawn from the contract's calls (call-model.js timelineModel). A bar is a button:
    it selects the call, whose live output the right panel shows; its title also says which slot it ran in. The chart has a fixed height and scrolls inside
    itself, so more lanes never push the panels below it. */
@@ -21,9 +21,15 @@ function laneLabel(lane) {
   const text = lane.index > 1 ? uiFormat('{0} {1}', [ui(LANE_WORD[lane.kind]), lane.index]) : ui(LANE_WORD[lane.kind]);
   return { text, title: text };
 }
-const barTitle = (bar) => (bar.slot ? uiFormat('{0} · 槽 {1}', [bar.label, bar.slot]) : bar.label);
+const named = (bar) => (bar.slot ? uiFormat('{0} · 槽 {1}', [bar.label, bar.slot]) : bar.label);
+/** When a bar ran: "10:00:05–10:00:31 · 26 秒", or "…–现在" while the task runs (#407: a bar without a scale says nothing on its
+    own). A call still open ends where the chart ends (the model's `to`): now while the task runs, its last moment after. */
+const span = (bar, live) => Number.isFinite(bar.from) && Number.isFinite(bar.to)
+  ? joinMeta([`${formatDateTime(bar.from, 'timeSeconds')}–${bar.running && live ? ui('现在') : formatDateTime(bar.to, 'timeSeconds')}`, formatElapsed(bar.to - bar.from)])
+  : '';
+const barTitle = (bar, live) => joinMeta([named(bar), span(bar, live)]);
 /** A bar the strip points at (time-limit.js slowSteps): its title also says how long the call took and why it is marked. */
-const markTitle = (bar, mark, ms) => joinMeta([barTitle(bar), ms === null ? '' : formatElapsed(ms), mark === 'long' ? longRuleText() : slowestText()]);
+const markTitle = (bar, mark, ms) => joinMeta([named(bar), ms === null ? '' : formatElapsed(ms), mark === 'long' ? longRuleText() : slowestText()]);
 
 export default function Timeline({ calls, running, family, contractKind, selected, marks, onSelect }) {
   const now = useNow(2000, { enabled: running });
@@ -31,13 +37,16 @@ export default function Timeline({ calls, running, family, contractKind, selecte
   const legend = useMemo(() => timelineLegend(family, contractKind), [family, contractKind]);
   const byId = useMemo(() => new Map((calls || []).map((call) => [call.callId, call])), [calls]);
   const ticks = [0, 1 / 3, 2 / 3, 1].map((fraction) => model.begin + (model.end - model.begin) * fraction);
+  // Say only what the calls show (#407): 并行 only when two calls really ran at once, and a legend entry only for a kind that ran.
+  const title = model.concurrent ? ui('并行时间线') : ui('时间线');
+  const shown = legend.filter(([kind]) => model.kinds.includes(kind));
   return (
-    <section className="tc-timeline" aria-label={ui('并行时间线')}>
+    <section className="tc-timeline" aria-label={title}>
       <div className="tc-panel-head">
-        <h3>{ui('并行时间线')}</h3>
+        <h3>{title}{model.sequential && <small className="tc-timeline__note">{ui('依次执行，没有同时进行的调用')}</small>}</h3>
         <span className="tc-legend" aria-hidden="true">
-          {legend.map(([kind, label]) => <span key={kind} data-kind={kind}><i />{ui(label)}</span>)}
-          <span data-kind="wait"><i />{ui('限流')}</span>
+          {shown.map(([kind, label]) => <span key={kind} data-kind={kind}><i />{ui(label)}</span>)}
+          {model.kinds.includes('wait') && <span data-kind="wait"><i />{ui('限流')}</span>}
           {marks?.size > 0 && <span data-kind="slow"><i />{ui('偏久')}</span>}
         </span>
       </div>
@@ -49,7 +58,7 @@ export default function Timeline({ calls, running, family, contractKind, selecte
             <div className="tc-track">
               {lane.bars.map((bar) => (
                 <Button key={bar.callId} variant="quiet" className="tc-callbar" data-kind={bar.kind} data-wait={bar.wait || undefined} data-running={bar.running || undefined} data-slow={marks?.get(bar.callId)}
-                  aria-pressed={selected === bar.callId} aria-label={marks?.get(bar.callId) ? joinMeta([bar.label, ui(marks.get(bar.callId) === 'long' ? '运行偏久' : '最慢的一步')]) : bar.label} title={marks?.get(bar.callId) ? markTitle(bar, marks.get(bar.callId), callMs(byId.get(bar.callId), now)) : barTitle(bar)}
+                  aria-pressed={selected === bar.callId} aria-label={marks?.get(bar.callId) ? joinMeta([bar.label, ui(marks.get(bar.callId) === 'long' ? '运行偏久' : '最慢的一步')]) : bar.label} title={marks?.get(bar.callId) ? markTitle(bar, marks.get(bar.callId), callMs(byId.get(bar.callId), now)) : barTitle(bar, running)}
                   style={{ left: `${bar.left}%`, width: `${bar.width}%` }} onClick={() => !bar.wait && onSelect(bar.callId)} />
               ))}
             </div>

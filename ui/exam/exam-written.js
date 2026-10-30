@@ -1,5 +1,5 @@
 import { ui, uiFormat } from '../i18n.js';
-import { QUESTION_COUNT } from '../../lib/limits.js';
+import { EXAM_QUESTION_COUNT } from '../../lib/limits.js';
 
 /* What the written (multiple-choice) exam needs besides the lifecycle: the question count, the choices the server
    already saved, and the words for a question's kind and the score change. */
@@ -8,7 +8,7 @@ export const DEFAULT_COUNT = 10;
 
 export const clampCount = (value) => {
   const n = Math.round(Number(value));
-  return Number.isFinite(n) ? Math.min(QUESTION_COUNT.max, Math.max(QUESTION_COUNT.min, n)) : DEFAULT_COUNT;
+  return Number.isFinite(n) ? Math.min(EXAM_QUESTION_COUNT.max, Math.max(EXAM_QUESTION_COUNT.min, n)) : DEFAULT_COUNT;
 };
 
 /** The server's saved picks of an exam run ({ "deckId:cardId": [optionId…] }), for restoring and for navigating back. */

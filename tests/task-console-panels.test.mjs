@@ -39,7 +39,12 @@ const contractOf = (job) => m.jobContract(job);
 test('the timeline: a lane per file in order, a dashed wait on the file whose slot it was, every bar a named button', () => {
   const contract = contractOf(audioJob());
   const out = html(React.createElement(m.Timeline, { calls: contract.calls, running: false, family: 'audio', selected: 'b-p', onSelect: () => {} }));
-  assert.match(out, /aria-label="并行时间线"/);
+  // The fixture's calls run one after another (a.wav 1–9 s, 10–30 s; b.mp3 from 31 s), so the chart does not claim to be parallel (#407).
+  assert.match(out, /aria-label="时间线"/);
+  assert.match(out, /<h3>时间线<small class="tc-timeline__note">依次执行，没有同时进行的调用<\/small><\/h3>/);
+  assert.doesNotMatch(out, /并行时间线/);
+  assert.doesNotMatch(out, /data-kind="translate"><i>/, 'no legend entry for a stage that did not run');
+  assert.match(out, /title="转写 · a\.wav · 10:00:01–10:00:09 · 8 秒"/, 'a bar says when it ran and for how long');
   for (const lane of ['file:a.wav', 'file:b.mp3']) assert.match(out, new RegExp(`data-lane="${lane.replace('.', '\.')}"`), lane);
   assert.doesNotMatch(out, /data-lane="(slot|transcribe)-/, 'the lanes are units of work, not pool slots');
   assert.doesNotMatch(out, /data-lane="other/, 'the wait found its file');
@@ -50,7 +55,7 @@ test('the timeline: a lane per file in order, a dashed wait on the file whose sl
   assert.match(out, /data-wait="true"/);
   assert.match(out, /aria-pressed="true"[^>]*aria-label="校对 2\/4 · b\.mp3"|aria-label="校对 2\/4 · b\.mp3"[^>]*aria-pressed="true"/);
   assert.match(out, /tc-lane__label"><span tabindex="0"[^>]*>a\.wav<\/span><span[^>]*role="tooltip"[^>]*>a\.wav</, 'the lane is named by its file, with the full name as a tooltip (reachable by keyboard)');
-  assert.match(out, /title="校对 2\/4 · b\.mp3 · 槽 2"/, 'the bar says which slot it ran in');
+  assert.match(out, /title="校对 2\/4 · b\.mp3 · 槽 2 · 10:00:31–/, 'the bar says which slot it ran in');
   const en = html(React.createElement(m.Timeline, { calls: [{ ...contract.calls[0], file: undefined, part: 2, parts: 3 }, { ...contract.calls[0], callId: 'x', file: undefined, part: null }], running: false, family: 'generation', selected: null, onSelect: () => {} }), 'en');
   assert.match(en, />Whole run</);
   assert.match(en, />Batch 2</);
@@ -234,4 +239,14 @@ test('the console puts the two columns under the controls, with the kind\'s own 
   assert.equal((out.match(/class="tc-col"/g) || []).length, 2);
   // the output of the call in flight is the one shown first
   assert.match(out, /校对 2\/4 · b\.mp3/);
+});
+
+test('the timeline is called parallel only when two calls ran at once, and a running call ends at now (#407)', () => {
+  const contract = contractOf(audioJob());
+  // Move b.mp3's proofreading back to 20 s, while a.wav's proofreading (10–30 s) still runs.
+  const calls = contract.calls.map((call) => call.callId === 'b-p' ? { ...call, startedAt: at(20) } : call);
+  const out = html(React.createElement(m.Timeline, { calls, running: true, family: 'audio', selected: null, onSelect: () => {} }));
+  assert.match(out, /aria-label="并行时间线"/);
+  assert.doesNotMatch(out, /tc-timeline__note/);
+  assert.match(out, /title="校对 2\/4 · b\.mp3 · 槽 2 · 10:00:20–现在 · [^"]+"/, 'a call still running ends at now');
 });
