@@ -129,6 +129,6 @@
   "这些资料超过一次出题的上限：点「改题型和题数」，在创建题组里分步出题或按主题选页。": "These sources are more than one run can take: press “Change question types and count” to make the questions in steps, or pick pages by topic, on Create deck.",
   "选好的参考样题和这些资料对不上：点「改题型和题数」，在创建题组里调整。": "The sample questions you chose do not fit these sources: press “Change question types and count” to adjust them on Create deck.",
   "AI 带学：边讲边练": "AI Guided Study: learn and practise together",
-  "与主会话交流即可开启带学：右侧工作台同步呈现教学推导、练习题卡与问答笔记；作答后可随时请教，重点内容自动归位留存。": "Chat naturally with the tutor to start guided study: the right-side workbench displays teaching derivations, practice cards and Q&A notes; ask for guidance after answering, and key explanations are saved back to your cards.",
+  "在主会话里说一句就能开始，比如「带我学条件概率，每讲完一个点就出一道题考我」。主会话讲一个点，当场按你的资料出一道经过审核的题，放到右侧带学工作台让你做；做错了可以点「请教主会话」。更多说法和默认设置在「设置 › 引导 › AI 带学」。": "Say one sentence in the main chat to start, for example “Teach me conditional probability and test me with a question after each point.” The main chat explains a point, has a reviewed question written from your material on the spot and shown in the guided workbench on the right for you to answer; after a wrong answer press “Ask the main chat”. More sentences and the defaults are in Settings › Guidance › AI-guided learning.",
   "AI 带学需要配置 AI 模型。": "AI Guided Study needs an AI model."
 }

@@ -75,7 +75,7 @@ export const TOUR_STEPS = [
     modelNote: "这项功能需要 AI 模型。" },
   { id: "guided-study", page: "review", prepare: "startSamplePractice", anchor: "review-help", needs: "deckId",
     title: "AI 带学：边讲边练",
-    body: "与主会话交流即可开启带学：右侧工作台同步呈现教学推导、练习题卡与问答笔记；作答后可随时请教，重点内容自动归位留存。",
+    body: "在主会话里说一句就能开始，比如「带我学条件概率，每讲完一个点就出一道题考我」。主会话讲一个点，当场按你的资料出一道经过审核的题，放到右侧带学工作台让你做；做错了可以点「请教主会话」。更多说法和默认设置在「设置 › 引导 › AI 带学」。",
     modelNote: "AI 带学需要配置 AI 模型。" },
   { id: "wrongbook", page: "wrongbook", anchor: ["wrongbook-recs", "wrongbook-list"],
     title: "错题与待巩固：举一反三",

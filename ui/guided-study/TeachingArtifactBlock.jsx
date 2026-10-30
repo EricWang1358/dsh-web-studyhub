@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '../components/Button.jsx';
 import { renderNoteMarkdown } from '../note-markdown.js';
+import { ui, uiFormat } from '../i18n.js';
 
 function sanitizeTeachingMarkdown(markdown) {
   if (typeof markdown !== 'string') return '';
@@ -16,7 +17,7 @@ export function TeachingArtifactBlock({ artifact, onAnchorClick }) {
   if (!artifact) {
     return (
       <div className="teaching-artifact-block teaching-artifact-empty">
-        <span className="teaching-artifact-muted">暂无当前讲解内容</span>
+        <span className="teaching-artifact-muted">{ui('还没有讲解内容')}</span>
       </div>
     );
   }
@@ -27,7 +28,7 @@ export function TeachingArtifactBlock({ artifact, onAnchorClick }) {
   return (
     <div className="teaching-artifact-block" data-artifact-id={artifact.id}>
       <div className="teaching-artifact-header">
-        <span className="teaching-artifact-title">{artifact.title || '讲解'}</span>
+        <span className="teaching-artifact-title">{artifact.title || ui('讲解')}</span>
         {artifact.topic && <span className="teaching-artifact-topic">{artifact.topic}</span>}
       </div>
 
@@ -46,7 +47,7 @@ export function TeachingArtifactBlock({ artifact, onAnchorClick }) {
               className="teaching-anchor-tag"
               onClick={() => onAnchorClick?.(anchor)}
             >
-              来源: {anchor.sourceId} {anchor.page ? `P.${anchor.page}` : ''}
+              {anchor.page ? uiFormat('出处：{0} 第 {1} 页', [anchor.sourceId, anchor.page]) : uiFormat('出处：{0}', [anchor.sourceId])}
             </Button>
           ))}
         </div>

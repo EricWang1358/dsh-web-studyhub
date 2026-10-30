@@ -1,0 +1,14 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* 「怎么开始带学」(#549): the example sentences and the session defaults, in Settings › 引导 and on the empty workbench. */
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .guided-start { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; text-align: start; }
+    .guided-start__examples, .guided-start__defaults { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
+    .guided-start__example { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+    .guided-start__text { flex: 1 1 16em; min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+    .guided-start__note { flex-basis: 100%; color: var(--text-muted); font-size: var(--fs-xs); order: 2; }
+    .guided-start__defaults { padding-inline-start: var(--space-4); list-style: disc; color: var(--text-dim); font-size: var(--fs-sm); }
+    .guided-start--compact .guided-start__text { font-size: var(--fs-sm); }
+  }
+}
