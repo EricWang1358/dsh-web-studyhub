@@ -1,7 +1,7 @@
 /* 期末一周 on the library (docs/plans/review-book.md M7): book.crunch makes the plan from the course's exam date and the book's points (no model call),
    shows a course only inside its window, counts a point learnt from the answers, keeps 读完了 / 已看 in the book's record (export unaffected);
    book.mock.plan says how many of the points' questions a mock paper can take and what the exam mode leaves out; book.mock starts an ordinary exam
-   run over exactly those (single and multiple choice, due and weak first, 1–50). No real model, no network. */
+   run over exactly those (single and multiple choice, due and weak first, 1–200). No real model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -163,7 +163,7 @@ test('book.mock.plan: how many questions the points have, how many a mock paper 
   assert.deepEqual(both.perPoint.map(item => [item.id, item.eligible]), [[what.hid, 7], [who.hid, 0]]);
   assert.equal((await study.call('book.mock.plan', { pointIds: [what.hid], count: 3 })).count, 3);
   assert.equal((await study.call('book.mock.plan', { pointIds: [what.hid], count: 3 })).capped, true);
-  await assert.rejects(study.call('book.mock.plan', { pointIds: [what.hid], count: 51 }), /1–50/);
+  await assert.rejects(study.call('book.mock.plan', { pointIds: [what.hid], count: 201 }), /1–200/);
   await assert.rejects(study.call('book.mock.plan', { pointIds: ['h999'] }), /No point is chosen|没有选中/);
   // Without pointIds and without a plan: every point of the book.
   assert.deepEqual((await study.call('book.mock.plan', {})).points, [what.hid, who.hid]);
