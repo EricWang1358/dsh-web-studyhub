@@ -6,6 +6,8 @@ import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
 import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole, GuidedStudy } from '../workspace-views.jsx';
+import { useGuidedQuestion } from '../guided-study/use-guided-question.js';
+import { practiceArgs } from '../learning-navigation.js';
 import { materialOpener, resultOpener } from '../tasks/task-actions.js';
 import StudyMap from '../StudyMap.jsx';
 import { hasOwnDeck } from '../study-map/home-plan.js';
@@ -383,7 +385,10 @@ function NotesView() {
 
 function GuidedStudyView() {
   const { data, core, session, lib, nav, host } = useApp();
-  const guidedSession = lib.guidedSession || data?.activeStudySession || null;
+  const started = lib.guidedSession || data?.activeStudySession || null;
+  // The session as it is now and its new question's preparation (#547): the main chat starts it, the reviewed question opens here as a round of one.
+  const { session: guidedSession, prepState, clearFailure } = useGuidedQuestion({ session: started, call: core.call,
+    onReady: (result) => { if (result.run) session.enterRun(result.run); core.refresh(); } });
   const run = session.run;
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
 
@@ -393,9 +398,11 @@ function GuidedStudyView() {
     return core.act('review.reveal', { runId: runId || run?.id, cardId: currentCard?.id }, session.enterRun);
   };
 
-  const handleAnswer = (grade) => {
-    if (session.actions?.reviewAct) return session.actions.reviewAct('review.answer', { grade });
-    return core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, grade }, session.enterRun);
+  // A choice question is answered with the options the learner picked (graded by the card), any other kind with the learner's own grade.
+  const handleAnswer = (answer) => {
+    const args = typeof answer === 'object' && answer ? answer : { grade: answer };
+    if (session.actions?.reviewAct) return session.actions.reviewAct('review.answer', args);
+    return core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, ...args }, session.enterRun);
   };
 
   const handlePause = (id) => core.act('study.session.pause', { sessionId: id });
@@ -415,14 +422,18 @@ function GuidedStudyView() {
     return core.act('review.move', { runId: runId || run?.id, direction: 1 }, session.enterRun);
   };
 
-  const handleFallbackToExisting = (sessionId) => {
-    return core.act('study.session.resume', { sessionId: sessionId || guidedSession?.id }, session.enterRun);
+  // 改用已有题练习: today's round of the session's course, from the questions it already has.
+  const handleFallbackToExisting = () => {
+    clearFailure();
+    const course = guidedSession?.courseId;
+    return core.act('review.start', practiceArgs(undefined, { fresh: false, ...(course ? { course, daily: true } : {}) }), session.enterRun);
   };
 
   return (
     <GuidedStudy
       session={guidedSession}
       run={session.run}
+      prepState={prepState}
       modelReady={data?.modelReady !== false && data?.model?.ready !== false}
       host={host}
       onPause={handlePause}

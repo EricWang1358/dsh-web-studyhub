@@ -109,7 +109,8 @@ test('GuidedStudyWorkbench mounts QuestionPrepSlot when preparing question or fa
   }));
 
   assert.match(htmlRunning, /question-prep-slot/);
-  assert.match(htmlRunning, /正在准备新题目（独立审核中）/);
+  assert.match(htmlRunning, /正在出一道新题/);
+  assert.doesNotMatch(htmlRunning, /预计耗时/, 'no promised duration (#547)');
   assert.match(htmlRunning, /取消准备/);
 
   // Failed state via prepState
@@ -120,7 +121,7 @@ test('GuidedStudyWorkbench mounts QuestionPrepSlot when preparing question or fa
     modelReady: true,
   }));
 
-  assert.match(htmlFailed, /题目未通过审核/);
+  assert.match(htmlFailed, /这道题没有加入题组/);
   assert.match(htmlFailed, /所选段落未能核对出可作答引文/);
   assert.match(htmlFailed, /改用已有题练习/);
 });
@@ -253,3 +254,26 @@ test('GuidedStudyWorkbench supports standard projected run (without entries arra
 
 
 
+
+test('a choice question on the workbench is answered on its options, drawn as Markdown, never by 我掌握了 (#547)', () => {
+  const card = { id: 'c1', kind: 'quiz', prompt: 'Which is $a^{2}$?', explanation: 'Because **squares**.',
+    options: [{ id: 'a', text: 'The square', correct: true }, { id: 'b', text: 'The cube', correct: false }] };
+  const html = renderToStaticMarkup(h(ui.GuidedStudyWorkbench, {
+    session: { id: 's1', courseId: 'CS101', status: 'active' }, run: { id: 'r1', card, revealed: false }, modelReady: true, onAnswer: () => {},
+  }));
+  assert.match(html, /type="radio"/);
+  assert.match(html, /The square/);
+  assert.match(html, /The cube/);
+  assert.match(html, /提交答案/);
+  assert.doesNotMatch(html, /我掌握了|揭晓答案/);
+  assert.match(html, /<div class="md[ "][^>]*>[\s\S]*Which is/, 'the stem goes through the Markdown renderer (formulas, images)');
+  assert.match(html, /<strong>squares<\/strong>|class="md/, 'and so does the explanation once shown');
+  const multi = renderToStaticMarkup(h(ui.GuidedStudyWorkbench, {
+    session: { id: 's1', status: 'active' }, run: { id: 'r1', card: { ...card, kind: 'multi' } }, modelReady: true, onAnswer: () => {},
+  }));
+  assert.match(multi, /type="checkbox"/);
+  const flash = renderToStaticMarkup(h(ui.GuidedStudyWorkbench, {
+    session: { id: 's1', status: 'active' }, run: { id: 'r1', card: { id: 'f', kind: 'flashcard', prompt: 'Recall it' } }, modelReady: true, onAnswer: () => {},
+  }));
+  assert.match(flash, /揭晓答案/, 'a card without options is still revealed and self-graded');
+});

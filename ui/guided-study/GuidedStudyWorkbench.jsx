@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Markdown from '../Markdown.jsx';
+import { ui } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { TeachingArtifactBlock } from './TeachingArtifactBlock.jsx';
@@ -45,6 +47,10 @@ export default function GuidedStudyWorkbench({
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
   const isRevealed = Boolean(run?.revealed ?? (run?.entries ? run.entries[run.index]?.revealed : false));
   const hasFeedback = Boolean(run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : false));
+
+  const choice = ['quiz', 'multi'].includes(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
+  const [selected, setSelected] = useState([]);
+  useEffect(() => { setSelected([]); }, [currentCard?.id, run?.id]);
 
   const isPreparing = (prepState && prepState.status) || session?.focus?.kind === 'preparing-card';
   const effectivePrepState = prepState || (session?.focus?.kind === 'preparing-card'
@@ -159,53 +165,58 @@ export default function GuidedStudyWorkbench({
           ) : currentCard ? (
             <div className="guided-study-card-view">
               <div className="guided-study-card-prompt">
-                {currentCard.prompt}
+                <Markdown text={currentCard.prompt} />
               </div>
 
-              {isRevealed && currentCard.explanation && (
+              {/* A choice question is answered on its options and graded by the card (#547): never a self-report of 我掌握了. */}
+              {choice && (
+                <fieldset className="guided-study-card-options" disabled={hasFeedback}>
+                  <legend className="sh-visually-hidden">{ui('选项')}</legend>
+                  {currentCard.options.map((option) => {
+                    const picked = selected.includes(option.id);
+                    const verdict = hasFeedback && (option.correct ? 'correct' : picked ? 'wrong' : undefined);
+                    return (
+                      <label key={option.id} className="guided-study-card-option" data-picked={picked || undefined} data-verdict={verdict}>
+                        <input type={currentCard.kind === 'multi' ? 'checkbox' : 'radio'} name={`guided-${currentCard.id}`} checked={picked}
+                          onChange={() => setSelected(currentCard.kind === 'multi'
+                            ? (picked ? selected.filter((id) => id !== option.id) : [...selected, option.id])
+                            : [option.id])} />
+                        <Markdown text={option.text} links={false} className="md-compact" />
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              )}
+
+              {(isRevealed || hasFeedback) && currentCard.explanation && (
                 <div className="guided-study-card-explanation">
-                  {currentCard.explanation}
+                  <Markdown text={currentCard.explanation} />
                 </div>
               )}
 
               <div className="guided-study-card-actions">
-                {!isRevealed ? (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="guided-study-btn"
-                    onClick={() => onReveal?.(run?.id)}
-                  >
-                    揭晓答案
-                  </Button>
-                ) : hasFeedback ? (
+                {hasFeedback ? (
                   onNext ? (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="guided-study-btn"
-                      onClick={() => onNext?.(run?.id)}
-                    >
-                      下一题
+                    <Button variant="primary" size="sm" className="guided-study-btn" onClick={() => onNext?.(run?.id)}>
+                      {ui('下一题')}
                     </Button>
                   ) : null
+                ) : choice ? (
+                  <Button variant="primary" size="sm" className="guided-study-btn" disabled={!selected.length || !onAnswer}
+                    onClick={() => onAnswer?.({ selected })}>
+                    {ui('提交答案')}
+                  </Button>
+                ) : !isRevealed ? (
+                  <Button variant="primary" size="sm" className="guided-study-btn" onClick={() => onReveal?.(run?.id)}>
+                    {ui('揭晓答案')}
+                  </Button>
                 ) : onAnswer ? (
                   <>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="guided-study-btn"
-                      onClick={() => onAnswer(1)}
-                    >
-                      没掌握
+                    <Button variant="secondary" size="sm" className="guided-study-btn" onClick={() => onAnswer(1)}>
+                      {ui('没掌握')}
                     </Button>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="guided-study-btn"
-                      onClick={() => onAnswer(3)}
-                    >
-                      我掌握了
+                    <Button variant="primary" size="sm" className="guided-study-btn" onClick={() => onAnswer(3)}>
+                      {ui('我掌握了')}
                     </Button>
                   </>
                 ) : null}

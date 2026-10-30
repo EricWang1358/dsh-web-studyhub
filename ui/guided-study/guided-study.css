@@ -144,6 +144,38 @@
       line-height: var(--lh-snug);
     }
 
+    .guided-study-card-options {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      border: 0;
+      min-width: 0;
+    }
+
+    .guided-study-card-option {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      min-width: 0;
+    }
+
+    .guided-study-card-option[data-picked] { border-color: var(--accent); }
+    .guided-study-card-option[data-verdict="correct"] { border-color: var(--ok-line); }
+    .guided-study-card-option[data-verdict="wrong"] { border-color: var(--bad-line); }
+    .guided-study-card-options:disabled .guided-study-card-option { cursor: default; }
+
+    .question-prep-stage {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+
     .guided-study-card-explanation {
       margin-top: var(--space-2);
       padding: var(--space-3);
