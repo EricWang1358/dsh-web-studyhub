@@ -63,6 +63,18 @@ export function runningCalls(calls) {
 const WINDOW_MS = 10 * 60 * 1000, MAX_KEPT_WINDOW_MS = 60 * 60 * 1000, MIN_WINDOW_MS = 60 * 1000, MAX_SLOT_LANES = 8, MAX_TRANSCRIBE_LANES = 3, EDGE = 0.5, REUSED_EDGE = 1.5;
 const MAX_LANES = 24, MAX_UNIT_ROWS = 3, ATTACH_MS = 5000, NAME_CHARS = 22;
 
+/* Two calls that touch for less than this ran one after the other (one hands over as the next starts), not at once. */
+const OVERLAP_MS = 1000;
+/** Whether any two of these calls ran at the same time (a running one runs until `end`). */
+function overlaps(items, end) {
+  let reach = -Infinity;
+  for (const { from, to } of [...items].sort((a, b) => a.from - b.from)) {
+    if (from < reach - OVERLAP_MS) return true;
+    reach = Math.max(reach, to ?? end);
+  }
+  return false;
+}
+
 /** Put intervals in the fewest lanes where none overlap (first fit), at most `limit` lanes. */
 function pack(items, limit) {
   const lanes = [];
@@ -110,7 +122,11 @@ function unitOf(call, mode) {
  */
 export function timelineModel(calls, { now = Date.now(), running = false, pinned = [] } = {}) {
   const timed = (calls || []).filter((call) => Number.isFinite(Date.parse(call.startedAt))).map((call) => ({ call, from: Date.parse(call.startedAt), to: call.endedAt ? Date.parse(call.endedAt) : null }));
-  if (!timed.length) return { lanes: [], hiddenLanes: 0, windowMs: MIN_WINDOW_MS, begin: now, end: now };
+  if (!timed.length) return { lanes: [], hiddenLanes: 0, windowMs: MIN_WINDOW_MS, begin: now, end: now, concurrent: false, sequential: false, kinds: [] };
+  // What the chart may claim (#407): it is a parallel view only when two calls really ran at once, and its legend names only the kinds that ran.
+  const working = timed.filter((item) => item.call.kind !== 'wait');
+  const concurrent = overlaps(working, running ? now : Math.max(...timed.map((item) => item.to ?? item.from)));
+  const shape = { concurrent, sequential: !concurrent && working.length > 1, kinds: [...new Set(timed.map((item) => item.call.kind))] };
   const first = Math.min(...timed.map((item) => item.from)), last = Math.max(...timed.map((item) => item.to ?? item.from));
   // The steps the time-limit strip points at (`pinned`: call ids) are never cut away: the window reaches back to where the earliest of them began (an hour at most).
   const kept = timed.filter((item) => pinned.includes(item.call.callId)).map((item) => item.from);
@@ -120,7 +136,7 @@ export function timelineModel(calls, { now = Date.now(), running = false, pinned
     const stop = to ?? end, left = Math.max(0, (Math.max(from, begin) - begin) / span * 100), right = Math.min(100, (Math.min(stop, end) - begin) / span * 100);
     if (right < 0 || stop < begin) return null;
     const edge = call.reused ? REUSED_EDGE : EDGE, width = Math.max(edge, right - left);   // a reused transcript took no time but is still a visible, clickable bar
-    return { callId: call.callId, kind: call.kind, status: call.status, wait: call.kind === 'wait', running: !call.endedAt, left: Math.min(left, 100 - edge), width: Math.min(width, 100 - Math.min(left, 100 - edge)),
+    return { callId: call.callId, kind: call.kind, status: call.status, wait: call.kind === 'wait', running: !call.endedAt, from, to: stop, left: Math.min(left, 100 - edge), width: Math.min(width, 100 - Math.min(left, 100 - edge)),
       label: callLabel(call, { file: true }), runner: call.runner, slot: Number.isInteger(call.slot) ? call.slot : null };
   };
   const intervals = (items) => items.map((item) => ({ ...item, to: item.to ?? end }));
@@ -135,7 +151,7 @@ export function timelineModel(calls, { now = Date.now(), running = false, pinned
     for (let slot = 1; slot <= highest; slot++) lanes.push({ key: `slot-${slot}`, kind: 'slot', index: slot, row: 1, bars: slotted.filter((item) => item.call.slot === slot).sort((a, b) => a.from - b.from).map(bar).filter(Boolean) });
     const rest = timed.filter((item) => item.call.kind !== 'transcribe' && !slotted.includes(item));
     pack(intervals(rest), 1).forEach((items, index) => lanes.push({ key: `other-${index + 1}`, kind: 'other', index: index + 1, row: 1, bars: items.map(bar).filter(Boolean) }));
-    return { lanes, hiddenLanes: 0, windowMs: span, begin, end };
+    return { lanes, hiddenLanes: 0, windowMs: span, begin, end, ...shape };
   }
   const units = new Map();
   const place = (unit, item) => { if (!units.has(unit.key)) units.set(unit.key, { ...unit, items: [] }); units.get(unit.key).items.push(item); };
@@ -165,7 +181,7 @@ export function timelineModel(calls, { now = Date.now(), running = false, pinned
     entry.rows.forEach((bars, index) => lanes.push({ key: index ? `${entry.unit.key}~${index + 1}` : entry.unit.key, kind: entry.unit.kind, index: entry.unit.part ?? 1, row: index + 1,
       ...(entry.unit.file !== undefined ? { file: entry.unit.file } : {}), ...(entry.unit.part !== undefined ? { part: entry.unit.part } : {}), bars }));
   }
-  return { lanes, hiddenLanes: drawn.length - keep.size, windowMs: span, begin, end };
+  return { lanes, hiddenLanes: drawn.length - keep.size, windowMs: span, begin, end, ...shape };
 }
 
 const PHASE = { transcribe: '转写', proofread: '校对', translate: '翻译' };

@@ -3,7 +3,7 @@ import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, InlineMessage, NumberInput } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { EXAM_LIMIT_MS } from '../../lib/exam-timing.js';
-import { QUESTION_COUNT } from '../../lib/limits.js';
+import { EXAM_QUESTION_COUNT } from '../../lib/limits.js';
 import { leftOutText } from './crunch-words.js';
 
 /* 「用这些知识点出一套模拟卷」 (M7): the same control on the book page and on the home's 期末一周 card. A click asks what the paper would take (book.mock.plan:
@@ -22,7 +22,7 @@ export default function MockPaper({ course, pointIds, onStarted, className, auto
   };
   useEffect(() => { if (autoAsk) ask(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const cancel = () => (onCancel ? onCancel() : setPlan(null));
-  const most = plan ? Math.min(QUESTION_COUNT.max, plan.eligible) : 0, wanted = Number(count), valid = Number.isInteger(wanted) && wanted >= 1 && wanted <= most;
+  const most = plan ? Math.min(EXAM_QUESTION_COUNT.max, plan.eligible) : 0, wanted = Number(count), valid = Number.isInteger(wanted) && wanted >= 1 && wanted <= most;
   const start = async event => {
     event.preventDefault();
     if (!valid) return;

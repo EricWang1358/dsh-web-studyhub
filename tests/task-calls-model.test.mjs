@@ -220,3 +220,26 @@ test('a reused transcript is a transcription call called 复用, with the log sa
   assert.match(line.text, /音频内容和转写设置与之前相同/, 'the line says why it was reused');
   assert.equal(line.level, 'step');
 });
+
+// #407: the owner's screenshot. Three recordings with audioConcurrency 1: each file starts where the last one ended, and only 转写 ran so far.
+test('the timeline says when nothing ran at once, names only the kinds that ran, and gives every bar its times', () => {
+  const sequential = [call('a', 'transcribe', 0, 650, { file: 'a.ogg' }), call('b', 'transcribe', 650, 990, { file: 'b.ogg' }), call('c', 'transcribe', 990, null, { file: 'c.ogg' })];
+  const view = m.timelineModel(sequential, { now: ms(1000), running: true });
+  assert.equal(view.concurrent, false, 'a hand-over at the same second is not running at once');
+  assert.equal(view.sequential, true);
+  assert.deepEqual(view.kinds, ['transcribe'], 'only 转写 ran: 校对 / 翻译 / 限流 are not in the legend');
+  const bars = view.lanes.flatMap((lane) => lane.bars);
+  assert.deepEqual(bars.map((bar) => [bar.callId, bar.from, bar.to]), [['a', ms(0), ms(650)], ['b', ms(650), ms(990)], ['c', ms(990), ms(1000)]], 'a running call ends at now');
+  const parallel = m.timelineModel([call('a', 'transcribe', 0, 40, { file: 'a.ogg' }), call('b', 'transcribe', 10, 50, { file: 'b.ogg' }), call('w', 'wait', 50, 55, { slot: 1 })], { now: ms(60), running: false });
+  assert.equal(parallel.concurrent, true);
+  assert.equal(parallel.sequential, false);
+  assert.deepEqual(parallel.kinds, ['transcribe', 'wait']);
+  const one = m.timelineModel([call('a', 'proofread', 0, 5, { slot: 1 })], { now: ms(6), running: false });
+  assert.deepEqual([one.concurrent, one.sequential], [false, false], 'a single call is neither');
+  const none = m.timelineModel([], { now: ms(0), running: true });
+  assert.deepEqual([none.concurrent, none.sequential, none.kinds], [false, false, []]);
+  // Slot lanes (calls that name neither a file nor a part) carry the same times.
+  const slots = m.timelineModel([call('s1', 'proofread', 0, 10, { slot: 1 }), call('s2', 'proofread', 5, null, { slot: 2 })], { now: ms(20), running: true });
+  assert.equal(slots.concurrent, true);
+  assert.deepEqual(slots.lanes.flatMap((lane) => lane.bars).map((bar) => bar.to), [ms(10), ms(20)]);
+});

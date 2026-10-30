@@ -2,7 +2,7 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, ErrorState, Icon, InlineMessage, SegmentedControl } from '../components/index.js';
 import { LIMIT_MINUTES, limitPresets } from '../../lib/exam-timing.js';
-import { QUESTION_COUNT } from '../../lib/limits.js';
+import { EXAM_QUESTION_COUNT } from '../../lib/limits.js';
 import { ExamSetupCard, CountField } from '../ExamShell.jsx';
 import { DEFAULT_COUNT, EXAM_KIND_LABELS, typeAvailableOf } from './exam-written.js';
 
@@ -86,12 +86,12 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
               {picked.size > 0 && !typeAvailable && <InlineMessage tone="warning">{ui('所选题组没有这种题型，请换题型或题组。')}</InlineMessage>}
             </div>
             <div className="es-pair">
-              <CountField value={count} presets={[5, 10, 20]} min={QUESTION_COUNT.min} max={QUESTION_COUNT.max} onChange={onCount}
+              <CountField value={count} presets={[5, 10, 20]} min={EXAM_QUESTION_COUNT.min} max={EXAM_QUESTION_COUNT.max} onChange={onCount}
                 hint={picked.size && !typeAvailable
                   ? ui('当前题型可选 0 道')
                   : picked.size && typeAvailable < count
                     ? uiFormat('符合题型的题只有 {0} 道，将全部出题', [typeAvailable])
-                    : uiFormat('{0}–{1} · 默认 {2}', [QUESTION_COUNT.min, QUESTION_COUNT.max, DEFAULT_COUNT])} />
+                    : uiFormat('{0}–{1} · 默认 {2}', [EXAM_QUESTION_COUNT.min, EXAM_QUESTION_COUNT.max, DEFAULT_COUNT])} />
               <CountField key={`limit:${limit.course}`} label={ui('限时（分钟）')} value={minutes} presets={limitPresets(limit.defaults.minutes)} min={LIMIT_MINUTES.min} max={LIMIT_MINUTES.max}
                 onChange={onLimit} hint={limitHint(limit)} />
             </div>

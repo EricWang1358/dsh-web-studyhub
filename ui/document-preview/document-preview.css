@@ -256,4 +256,29 @@
     border: 0;
   }
   ::highlight(study-source-quote) {background: var(--warn-mark); color: inherit}
+  /* 「选段学习」 in the host's preview toolbar (#512): no study tokens and no .sh-btn rules reach it there, so it carries
+     its whole look and matches the host's 28 px icon buttons (transparent, no border) instead of the browser's default button. */
+  .study-document-native__open {
+    appearance: none;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 22%; /* about 6 px on 28 px: the host icons' corners, without study tokens here */
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .study-document-native__open:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+  .study-document-native__open:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+  .study-document-native__open svg { width: 16px; height: 16px; flex: none; }
 }
