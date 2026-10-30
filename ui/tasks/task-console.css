@@ -204,6 +204,7 @@
 
     /* The parallel timeline: a fixed-height chart that scrolls inside itself. */
     .tc-timeline { flex: none; border-bottom: 1px solid var(--line); }
+    .tc-timeline__note { margin-inline-start: var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); font-weight: normal; }
     .tc-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
     .tc-legend > span { display: inline-flex; align-items: center; gap: var(--space-1); flex: none; }
     .tc-legend i { display: block; width: 8px; height: 6px; background: var(--sh-bar, var(--accent)); }
