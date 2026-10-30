@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Markdown from '../Markdown.jsx';
-import { ui } from '../i18n.js';
+import { getUiLanguage, ui } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { TeachingArtifactBlock } from './TeachingArtifactBlock.jsx';
@@ -75,7 +75,10 @@ export default function GuidedStudyWorkbench({
       runId: run?.id,
       deckId: run?.deckId || card?.deckId,
       cardId: card?.id,
-      language: 'zh',
+      stem: card?.prompt || '',
+      answered: hasFeedback,
+      correct: hasFeedback ? Boolean((run?.feedback || run?.entries?.[run.index]?.feedback)?.correct) : null,
+      language: getUiLanguage(),
     });
     const result = await applyAskTutorMessage(effectiveHost, prompt, 'zh');
     if (result?.status === 'copied_to_clipboard') {

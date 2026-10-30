@@ -64,7 +64,7 @@ test('every shipped skill, and every skill folder on disk, carries the rule', ()
   assert.deepEqual([...SHIPPED_SKILLS].sort(), onDisk, 'a skill folder that is not shipped (or the other way round)');
   for (const name of onDisk) {
     const { content } = parseSkill(read(`skills/${name}/SKILL.md`));
-    assert.ok(flat(content).includes(name === 'study-guide' ? ASK_BEFORE_REMOVING_ZH : ASK_BEFORE_REMOVING), `skills/${name}/SKILL.md lost the rule`);
+    assert.ok(flat(content).includes(['study-guide', 'study-tutor'].includes(name) ? ASK_BEFORE_REMOVING_ZH : ASK_BEFORE_REMOVING), `skills/${name}/SKILL.md lost the rule`);
   }
 });
 
