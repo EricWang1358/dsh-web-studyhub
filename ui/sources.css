@@ -8,12 +8,22 @@
     .sources-page .sh-page-header { margin-bottom: var(--space-4); }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     & button.source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
-    .source-doc { display: block; padding: var(--space-3); }
+    /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
+       three lines (title, facts, status) so a 900px window shows five or more. */
+    .source-doc { display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
     .source-doc__line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
     .source-doc__line > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
     .source-doc .source-main > span { display: grid; gap: var(--space-half); min-width: 0; }
     .source-doc .source-main strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* The facts line: the courses, then the format and size; the courses give way first so the size stays readable. */
+    .source-doc__meta { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+    .source-doc .source-main .source-doc__meta > small { flex: 1 1 auto; min-width: 0; max-width: none; margin: 0; }
+    .source-doc .source-main .source-doc__meta > small:first-child { flex: 0 0 auto; max-width: 45%; }
+    .source-doc__meta > small + small::before { content: "·"; margin-right: var(--space-2); color: var(--text-faint); }
+    /* The status line: mastery and coverage, then the index badge's slot at its end (it takes the rest of the line, so a late badge moves nothing). */
+    .source-doc__status { display: flex; align-items: center; gap: var(--space-half) var(--space-4); min-width: 0; margin-top: var(--space-half); }
+    .source-doc .source-main .source-doc__status > small.source-doc__index { flex: 1 1 8em; margin: 0; }
     /* “原 PDF 422 页” beside the page count: dotted, so it reads as something to hover for the reason. */
     .source-doc__gap { text-decoration: underline dotted; text-underline-offset: 0.2em; }
     /* The index badge's line is there from the first paint (the picker's rule, #205): a coverage answer fills it and moves nothing. A badge too long for the row wraps
@@ -61,8 +71,7 @@
     .source-doc__chapters li > .sh-btn { flex: none; width: auto; }
     .source-doc__chapters li > button:first-child small { white-space: normal; text-align: right; }
     .source-doc.is-new {
-      border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
-      background: color-mix(in srgb, var(--accent) 4%, var(--bg-sunken));
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
       animation: source-new-in 1.6s var(--ease-out) 1;
     }
     .source-new {
@@ -88,12 +97,33 @@
       .source-doc.is-new { animation: none; }
     }
   }
+  /* A row's actions (从这份资料出题, 补题, 更多) wait for the pointer on a device that has one (ui/DESIGN.md, Restraint); the status stays. They keep their place
+     (opacity, not display), so nothing moves when they appear; keyboard focus inside the row, an open 更多 menu or 补题 popover, or a fresh import shows them. Touch and narrow panes
+     (where they sit on their own line under the row) always show them. */
+  @media (hover: hover) and (pointer: fine) {
+    :is(.study-app, .study-seat) {
+      .source-doc:hover { background: var(--bg-hover); }
+    }
+    @container study (min-width: 641px) {
+      :is(.study-app, .study-seat) {
+        .source-doc__actions { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+        .source-doc:is(:hover, :focus-within, .is-new) .source-doc__actions,
+        .source-doc__actions:has(details[open], [aria-expanded="true"]) { opacity: 1; }
+      }
+    }
+  }
   /* Narrow: the generic row lines are cut at 180px (sources-page.css), which would cut the counts that say what a number counts. The index badge takes its
      column (it shows its short label, ui/sources-page.css); the line that says the original's page count may use two. */
   @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {
       /* A badge that wraps takes two lines here, and the line keeps both from the first paint, so a coverage answer arriving late moves no row (#205, #229). */
       .source-doc .source-main small.source-doc__index { max-width: none; min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); }
+      /* Narrow: the facts and the status each break in two (courses over format; the badge on its own line, kept as before). */
+      .source-doc__meta { flex-direction: column; align-items: stretch; gap: 0; }
+      .source-doc .source-main .source-doc__meta > small:first-child { max-width: none; }
+      .source-doc__meta > small + small::before { content: none; }
+      .source-doc__status { flex-wrap: wrap; }
+      .source-doc .source-main .source-doc__status > small.source-doc__index { flex-basis: 100%; }
       .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     }
   }
@@ -101,6 +131,8 @@
     :is(.study-app, .study-seat) {
       .source-doc__line { flex-wrap: wrap; }
       .source-doc__actions { width: 100%; justify-content: flex-end; }
+      /* Here a row's actions take their own line under it: a hairline between rows says which row they belong to. */
+      .source-doc + .source-doc { border-top: 1px solid var(--line-soft); border-radius: 0; }
       .source-doc__pages { margin-left: 0; }
       /* Narrow: a chapter row keeps 从这一章出题 at its right and breaks inside itself — the title gets a whole line (still one
          line, ellipsised), the size and mastery go on the line below. */

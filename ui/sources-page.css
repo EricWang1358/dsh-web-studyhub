@@ -53,22 +53,15 @@
     .source-main strong {
       overflow-wrap: anywhere;
     }
-    /* Sources grouped by creation day, collapsed by default. */
+    /* Sources grouped by creation day: a heading line over a hairline, the rows on the desk under it (#570; no box around a day). */
     .source-group {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--bg-surface);
-      margin: var(--space-2-5) 0;
+      margin: var(--space-5) 0 0;
     }
     .source-group--open {
-      padding-bottom: var(--space-1);
+      padding-bottom: var(--space-2);
     }
     .source-group .source-row {
-      margin: 0 var(--space-2-5) var(--space-2);
       width: auto;
-      padding: var(--space-2-5) var(--space-3);
-      border-color: var(--line-soft);
-      background: var(--bg-sunken);
     }
     .source-group .source-main {
       background: transparent;
@@ -78,9 +71,11 @@
       align-items: center;
       gap: var(--space-2-5);
       width: 100%;
-      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-1);
+      padding: var(--space-2);
       border: 0;
-      border-radius: var(--radius);
+      border-bottom: 1px solid var(--line);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
       background: transparent;
       text-align: left;
     }
@@ -191,6 +186,8 @@
   :is(.study-app, .study-seat) {
     & button.source-group-head { flex-wrap: wrap; }
     .source-doc .source-main { align-items: flex-start; gap: var(--space-3); }
+    /* A 资料 row is the hover surface (ui/sources.css, #570); the title button inside it draws no box of its own. */
+    .source-doc .source-main, .source-doc .source-main:is(:hover, :active) { padding: 0; background: transparent; }
     .source-doc__actions .source-row-actions { position: relative; max-width: none; }
   }
 }
