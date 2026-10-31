@@ -1,21 +1,26 @@
-/* #461, the rest of it: a rebuilt outline does not move the learner's own text behind their back. The book page asks course.book.open with `holdRebuild`:
-   while a rebuild would move or park their text the answer is the preview (old title -> new title, the first line of the body the new title would hold, what
-   goes to 未归位) and nothing is written. Applied (or brought up to date by any other path), course.book.rebuild.undo takes back this one rebuild and nothing
-   else, and refuses clearly, leaving everything as it is, when the book changed since. No model, no network. */
+/* #461, the rest of it: a rebuilt outline does not move the learner's own text behind their back. One gate decides, in openCourseBook: while a rebuild would move or park
+   their text every open answers the preview (old title -> new title, the first line of the body the new title would hold, what goes to 未归位) and nothing moves; only
+   course.book.rebuild {action: 'apply'} moves it. {action: 'undo'} takes back this one rebuild and nothing else, and refuses clearly, leaving everything as it is, when the book
+   changed since or a build of the course is running. No network; the jobs run on a fake model. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdir } from 'node:fs/promises';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { firstBodyLine, REBUILD_FILE } from '../lib/course-book-moves.js';
+import { REBUILD_JOB_KINDS } from '../lib/course-book-rebuild.js';
+import { COURSE_BOOK_KIND } from '../lib/contexts/generation/book/jobs/course-book-build.js';
+import { COURSE_OUTLINE_KIND } from '../lib/contexts/generation/outline/jobs/course-outline-build.js';
 import { MOVES_KEPT, openCourseBook } from '../lib/course-book-files.js';
-import { pushHistory, readHistory, readRebuild } from '../lib/course-book-history.js';
+import { readHistory, readRebuild } from '../lib/course-book-history.js';
 import { courseOutlineMaterial, currentCourseOutline, materialsFingerprint, OUTLINE_LIMITS } from '../lib/course-outline-book.js';
 import { currentCourseNotes, courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { StudyService } from '../lib/service.js';
+import { settleJob } from './helpers/wait.mjs';
 import { privateRoot } from './helpers/model-family-baseline.mjs';
-import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { switchOptions } from './helpers/runtime-switch.mjs';
+import { COURSE, outlineLibrary, outlineModel } from './helpers/course-outline-library.mjs';
 
 const leaves = nodes => nodes.flatMap(node => (node.leaf ? [node] : leaves(node.children)));
 const bookOf = state => state.sources.find(source => source.provenance === 'course-book-doc');
@@ -33,9 +38,9 @@ const secondNodes = (lecture, other) => [{ id: 'k1', title: 'Introduction', chil
   { id: 'k3', title: 'Databases state failure conditions', anchors: [`${lecture}@s2-2`, other] }] }];
 
 /** A service over a library with an outline and a book whose first two points hold the learner's notes. */
-async function setUp(t) {
+async function setUp(t, options = {}) {
   const root = await privateRoot(t, 'course-book-rebuild-');
-  const service = new StudyService(root, {});
+  const service = new StudyService(root, options);
   t.after(() => service.dispose());
   const { sources, decks } = outlineLibrary();
   await service.store.update(state => { state.sources.push(...structuredClone(sources)); state.decks.push(...structuredClone(decks)); state.focus = { mode: 'class', course: COURSE }; });
@@ -52,10 +57,13 @@ async function setUp(t) {
     state.sources.push(made);
     return made.id;
   });
-  return { root, service, first, what, who, saved, lecture, other, rebuild };
+  const apply = outlineId => service.call('course.book.rebuild', { course: COURSE, action: 'apply', outlineId });
+  const undo = outlineId => service.call('course.book.rebuild', { course: COURSE, action: 'undo', outlineId });
+  return { root, service, first, what, who, saved, lecture, other, rebuild, apply, undo };
 }
 const view = service => service.store.read();
 const docOf = async service => structuredClone(bookOf(await view(service)).bookDoc);
+const pending = error => error.code === 'course-book-rebuild-pending';
 
 test('the first line of a body: blank lines, ids, labels and the 练 5 道 link are skipped, a heading says what it is about, a long line is cut', () => {
   assert.equal(firstBodyLine(['\n\n## 云原生架构 <!-- sh:id h25 -->\n\nbody']), '云原生架构');
@@ -68,11 +76,11 @@ test('the first line of a body: blank lines, ids, labels and the 练 5 道 link 
   assert.equal(firstBodyLine([null, undefined, '   ']), '');
 });
 
-test('the page\'s open holds a rebuild that would move the learner\'s text: the preview says from, to, the first line and what waits in 未归位, and nothing is written', async t => {
-  const { service, rebuild, saved } = await setUp(t);
+test('any open, with no flag: a rebuild that would move the learner\'s text answers the preview and writes nothing; only apply moves it, once', async t => {
+  const { service, rebuild, saved, apply } = await setUp(t);
   const before = await docOf(service);
   const newId = await rebuild();
-  const preview = await service.call('course.book.open', { course: COURSE, holdRebuild: true });
+  const preview = await service.call('course.book.open', { course: COURSE });
   assert.equal(preview.status, 'rebuild-pending');
   assert.equal(preview.moves.outlineId, newId);
   assert.deepEqual(preview.moves.list, [{ from: 'What architects do', to: 'The architect\'s job', folded: false, share: 1, own: true, first: 'My heading' }]);
@@ -84,16 +92,15 @@ test('the page\'s open holds a rebuild that would move the learner\'s text: the 
   assert.equal(preview.nodes, undefined, 'the preview is not a book');
   assert.deepEqual(await docOf(service), before, 'the book is exactly as it was');
   assert.equal((await service.call('course.book.revision', { course: COURSE })).revision, saved.revision);
-  // Going on is the ordinary open.
-  const book = await service.call('course.book.open', { course: COURSE });
+  await assert.rejects(apply('course-outline-nope'), error => error.code === 'course-book-rebuild-conflict', 'the moves looked at are the moves applied');
+  const book = await apply(newId);
   assert.equal(book.status, 'ok');
+  assert.equal(book.write, 'applied');
   assert.equal(book.moves.undoable, true);
-  assert.equal(book.moves.list[0].first, 'My heading');
   assert.match(book.unplaced.text, /A long note on stakeholders and views\./);
-  const job = leaves(book.nodes).find(node => node.title === 'The architect\'s job');
-  assert.match(job.mine, /Note on what architects do\./);
-  // Held once only: the book now follows the outline, so the page's open reads it.
-  assert.equal((await service.call('course.book.open', { course: COURSE, holdRebuild: true })).status, 'ok');
+  assert.match(leaves(book.nodes).find(node => node.title === 'The architect\'s job').mine, /Note on what architects do\./);
+  assert.equal((await service.call('course.book.open', { course: COURSE })).status, 'ok', 'it is the book now');
+  assert.equal((await apply(newId)).status, 'ok', 'twice is the same');
 });
 
 test('a rebuild that moves nothing of the learner\'s is not held; a book without their text goes straight on', async t => {
@@ -106,19 +113,70 @@ test('a rebuild that moves nothing of the learner\'s is not held; a book without
   await service.store.update(state => { state.sources.push(outlineOf(state, firstNodes(lecture), '2026-10-09T00:00:00.000Z')); });
   await service.call('course.book.open', { course: COURSE });
   await service.store.update(state => { currentCourseOutline(state.sources, COURSE).archived = true; state.sources.push(outlineOf(state, secondNodes(lecture, other), '2026-10-10T00:00:00.000Z')); });
-  const book = await service.call('course.book.open', { course: COURSE, holdRebuild: true });
+  const book = await service.call('course.book.open', { course: COURSE });
   assert.equal(book.status, 'ok');
   assert.equal(book.moves.list.length, 1, 'still recorded');
   assert.equal(book.moves.list[0].own, undefined);
 });
 
+test('while a rebuild is pending: what needs the layout is refused and moves nothing; a write to a named file lands where it is and follows on apply', async t => {
+  const { service, rebuild, apply, what } = await setUp(t);
+  const newId = await rebuild();
+  const before = await docOf(service);
+  const stillPending = async () => {
+    const doc = await docOf(service);
+    assert.equal(doc.outlineId, before.outlineId, 'the book still follows the old outline');
+    assert.deepEqual(doc.manifest, before.manifest);
+    assert.equal((await service.call('course.book.open', { course: COURSE })).status, 'rebuild-pending');
+  };
+  // The main chat's tools.
+  const toc = await service.call('book.toc', { course: COURSE });
+  assert.equal(toc.status, 'rebuild-pending');
+  assert.equal(toc.moves.outlineId, newId, 'the chat sees what would move');
+  await assert.rejects(service.call('book.write', { course: COURSE, hid: what.hid, markdown: 'x' }), pending);
+  await stillPending();
+  // The book's structure.
+  await assert.rejects(service.call('course.book.rename', { course: COURSE, hid: what.hid, title: 'New', version: 1 }), pending);
+  await stillPending();
+  // 加入复习全书, and 自动加入 calling the same op: the question's place is only known on the new layout, so it waits; the card keeps the follow-up.
+  const { deckId, cardId, followupId } = await service.store.update(state => {
+    const deck = state.decks.find(item => item.course === COURSE || item.folder === COURSE) ?? state.decks[0], card = deck.cards[0];
+    card.followups = [{ id: 'fu-1', question: 'Why?', answer: 'Because.' }];
+    return { deckId: deck.id, cardId: card.id, followupId: 'fu-1' };
+  });
+  await assert.rejects(service.call('book.qa.add', { course: COURSE, deckId, cardId, followupId }), error => {
+    assert.ok(pending(error), error.message);
+    assert.match(error.message, /复习全书/);
+    return true;
+  });
+  await stillPending();
+  assert.deepEqual((await docOf(service)).files, before.files, 'nothing was written by any of them');
+  // A save from an editor left open: not lost, not moved; it answers the preview, whose words are the new text, and goes with the note on apply.
+  const file = what.files.mine, saved = await service.call('course.book.save', { course: COURSE, file, text: 'Saved while pending.', version: before.files[file].version });
+  assert.equal(saved.status, 'rebuild-pending');
+  assert.equal(saved.write, 'saved');
+  assert.equal(saved.moves.list[0].first, 'Saved while pending.');
+  await stillPending();
+  const book = await apply(newId);
+  assert.equal(leaves(book.nodes).find(node => node.title === 'The architect\'s job').mine, 'Saved while pending.');
+});
+
+test('read-only views while a rebuild is pending see the layout it would make and still write nothing', async t => {
+  const { service, rebuild } = await setUp(t);
+  await rebuild();
+  const before = await docOf(service);
+  const exported = await service.call('course.book.export', { course: COURSE });
+  assert.equal(exported.status, 'ok');
+  assert.ok(exported.text.includes('The architect\'s job'));
+  assert.deepEqual(await docOf(service), before);
+});
+
 test('undo takes back this one rebuild: every text, title, heading id and 未归位 as before; the outline before it is current again; a second undo is refused', async t => {
-  const { root, service, rebuild, first, what, who } = await setUp(t);
+  const { root, service, rebuild, first, what, who, apply, undo } = await setUp(t);
   const before = await docOf(service), newId = await rebuild();
-  const applied = await service.call('course.book.open', { course: COURSE });
+  const applied = await apply(newId);
   assert.ok(await readRebuild(root, COURSE), 'the state before the rebuild is kept beside the history');
-  assert.equal((await service.call('course.book.revision', { course: COURSE })).revision, applied.revision);
-  const undone = await service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId });
+  const undone = await undo(newId);
   assert.equal(undone.status, 'ok');
   assert.equal(undone.write, 'undone');
   assert.ok(undone.revision > applied.revision, 'the revision moves on, so an open page reads the book again');
@@ -136,66 +194,80 @@ test('undo takes back this one rebuild: every text, title, heading id and 未归
   assert.equal(currentCourseOutline(state.sources, COURSE).id, first.id);
   assert.equal(state.sources.find(source => source.id === newId).archived, true, 'the new outline stays in the library, archived: nothing is deleted');
   assert.equal(await readRebuild(root, COURSE), null);
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId }), error => error.code === 'course-book-rebuild-conflict');
-  assert.deepEqual((await service.call('course.book.open', { course: COURSE })).status, 'ok');
+  await assert.rejects(undo(newId), error => error.code === 'course-book-rebuild-conflict');
+  assert.equal((await service.call('course.book.open', { course: COURSE })).status, 'ok');
   assert.equal((await docOf(service)).outlineId, first.id, 'opening again does not rebuild what was undone');
 });
 
 test('undo is refused when the book changed after the rebuild, and leaves the edit, the moved text and the outline exactly as they are', async t => {
-  const { service, rebuild } = await setUp(t);
+  const { service, rebuild, apply, undo } = await setUp(t);
   const newId = await rebuild();
-  const applied = await service.call('course.book.open', { course: COURSE });
+  const applied = await apply(newId);
   const job = leaves(applied.nodes).find(node => node.title === 'The architect\'s job');
   await service.call('course.book.save', { course: COURSE, file: job.files.mine, text: `${job.mine}\n\nWritten after the rebuild.`, version: applied.files[job.files.mine].version });
   const before = await docOf(service);
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId }), error => {
+  await assert.rejects(undo(newId), error => {
     assert.equal(error.code, 'course-book-rebuild-conflict');
     assert.match(error.message, /改过/);
     assert.match(error.message, /changed/);
     return true;
   });
   assert.deepEqual(await docOf(service), before);
-  assert.match((await service.call('course.book.open', { course: COURSE })).nodes.flatMap(function all(node) { return [node, ...node.children.flatMap(all)]; }).find(node => node.hid === job.hid).mine, /Written after the rebuild\./);
-  assert.equal(currentCourseOutline((await view(service)).sources, COURSE).id, newId);
   const page = await service.call('course.book.open', { course: COURSE });
+  assert.match(leaves(page.nodes).find(node => node.hid === job.hid).mine, /Written after the rebuild\./);
+  assert.equal(currentCourseOutline((await view(service)).sources, COURSE).id, newId);
   assert.equal(page.moves.undoable, false, 'the page does not offer it either');
 });
 
 test('undo is refused when something wrote a file without moving the revision: the text is compared, not only the number', async t => {
-  const { service, rebuild } = await setUp(t);
+  const { service, rebuild, apply, undo } = await setUp(t);
   const newId = await rebuild();
-  const applied = await service.call('course.book.open', { course: COURSE });
+  const applied = await apply(newId);
   const job = leaves(applied.nodes).find(node => node.title === 'The architect\'s job');
   await service.store.update(state => { bookOf(state).bookDoc.files[job.files.mine].text += '\n\nA write that forgot the revision.'; });
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId }), error => error.code === 'course-book-rebuild-conflict');
+  await assert.rejects(undo(newId), error => error.code === 'course-book-rebuild-conflict');
   assert.match((await docOf(service)).files[job.files.mine].text, /A write that forgot the revision\./);
 });
 
-test('undo is refused after another rebuild, for an outline that is not the current one, and when the record of the state before is gone', async t => {
-  const { root, service, rebuild, lecture, other } = await setUp(t);
+test('undo is refused after another rebuild and for an outline that is not current; with the kept state gone it is refused and not offered', async t => {
+  const { root, service, rebuild, lecture, other, apply, undo } = await setUp(t);
   const newId = await rebuild();
-  await service.call('course.book.open', { course: COURSE });
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE, outlineId: 'course-outline-nope' }), error => error.code === 'course-book-rebuild-conflict');
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE }), error => error.code === 'course-book-rebuild-conflict');
-  // The kept state gone (a backup restored elsewhere): refused, nothing changes.
-  const { rm } = await import('node:fs/promises');
+  assert.equal((await apply(newId)).moves.undoable, true);
+  await assert.rejects(undo('course-outline-nope'), error => error.code === 'course-book-rebuild-conflict');
+  await assert.rejects(service.call('course.book.rebuild', { course: COURSE, action: 'undo' }), error => error.code === 'course-book-rebuild-conflict');
+  await assert.rejects(service.call('course.book.rebuild', { course: COURSE, action: 'nope', outlineId: newId }), error => error.code === 'course-book-rebuild-action');
   const folder = join(root, 'book-history'), names = (await readdir(folder)).filter(name => name.endsWith('.rebuild.json'));
   assert.equal(names.length, 1);
   const before = await docOf(service);
   await rm(join(folder, names[0]));
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId }), error => error.code === 'course-book-rebuild-no-undo');
+  assert.equal((await service.call('course.book.open', { course: COURSE })).moves.undoable, false, 'the page does not offer what cannot work');
+  await assert.rejects(undo(newId), error => error.code === 'course-book-rebuild-no-undo');
   assert.deepEqual(await docOf(service), before);
-  // A later rebuild: the first one can no longer be taken back.
   const third = await rebuild(firstNodes(lecture).map(node => ({ ...node, title: `${node.title} again` })).concat([{ id: 'z1', title: 'More', children: [{ id: 'z2', title: 'Other lecture', anchors: [other] }] }]), '2026-10-11T00:00:00.000Z');
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId }), error => error.code === 'course-book-rebuild-conflict');
+  await assert.rejects(undo(newId), error => error.code === 'course-book-rebuild-conflict');
   assert.equal(currentCourseOutline((await view(service)).sources, COURSE).id, third);
 });
 
+test('a snapshot that cannot be written costs the undo, never the book or a version of a file', async t => {
+  const { root, rebuild, apply, undo } = await setUp(t);
+  const newId = await rebuild();
+  const history = (await readHistory(root, COURSE)).length;
+  // The path of the snapshot is taken by a folder, so its rename fails.
+  const name = (await readdir(join(root, 'book-history'))).find(item => item.endsWith('.json') && !item.includes('reading'));
+  await mkdir(join(root, 'book-history', name.replace(/\.json$/, '.rebuild.json'), 'x'), { recursive: true });
+  const book = await apply(newId);
+  assert.equal(book.status, 'ok', 'the book was written');
+  assert.equal(book.moves.undoable, false);
+  assert.ok((await readHistory(root, COURSE)).length > history, 'the versions the open replaced were kept');
+  assert.ok(leaves(book.nodes).some(node => /Note on what architects do\./.test(node.mine)));
+  await assert.rejects(undo(newId), error => error.code === 'course-book-rebuild-no-undo');
+});
+
 test('the rebuild left pending can be given up: the outline before it is current again, not one file of the book changes', async t => {
-  const { service, rebuild, first } = await setUp(t);
+  const { service, rebuild, first, undo } = await setUp(t);
   const before = await docOf(service), newId = await rebuild();
-  await assert.rejects(service.call('course.book.rebuild.undo', { course: COURSE, outlineId: 'course-outline-nope' }), error => error.code === 'course-book-rebuild-conflict');
-  const book = await service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId });
+  await assert.rejects(undo('course-outline-nope'), error => error.code === 'course-book-rebuild-conflict');
+  const book = await undo(newId);
   assert.deepEqual([book.status, book.write], ['ok', 'discarded']);
   const after = await docOf(service);
   assert.deepEqual(after.files, before.files);
@@ -204,11 +276,37 @@ test('the rebuild left pending can be given up: the outline before it is current
   const state = await view(service);
   assert.equal(currentCourseOutline(state.sources, COURSE).id, first.id);
   assert.equal(state.sources.find(source => source.id === newId).archived, true);
-  assert.equal((await service.call('course.book.open', { course: COURSE, holdRebuild: true })).status, 'ok');
+  assert.equal((await service.call('course.book.open', { course: COURSE })).status, 'ok');
+});
+
+test('giving up and undoing are refused while a build of the course runs: its save would leave notes for an archived outline, or two current outlines', async t => {
+  assert.deepEqual([...REBUILD_JOB_KINDS].sort(), [COURSE_BOOK_KIND, COURSE_OUTLINE_KIND].sort());
+  const fake = outlineModel({ inventory: 'none' });
+  // The fake model answers only when told, so the build is really running at the undo.
+  let release, gate = new Promise(resolve => { release = resolve; });
+  const complete = async (...args) => { await gate; return fake.complete(...args); };
+  const { service, rebuild, undo } = await setUp(t, { complete, ...switchOptions('runtime', { complete, paths: [] }) });
+  const newId = await rebuild();
+  const before = await docOf(service), outlines = (await view(service)).sources.filter(source => source.provenance === 'course-outline').map(source => [source.id, source.archived]);
+  for (const action of ['generation.courseOutline.build', 'generation.courseBook.build']) {
+    const { jobId } = await service.call(action, { course: COURSE, language: 'zh', confirm: true });
+    await assert.rejects(undo(newId), error => {
+      assert.equal(error.code, 'course-book-rebuild-job-running', error.message);
+      assert.match(error.message, /正在/);
+      return true;
+    });
+    assert.deepEqual(await docOf(service), before);
+    assert.deepEqual((await view(service)).sources.filter(source => source.provenance === 'course-outline').map(source => [source.id, source.archived]).slice(0, outlines.length), outlines);
+    await service.call('job.cancel', { jobId });
+    release();
+    await settleJob(service, jobId);
+    gate = new Promise(resolve => { release = resolve; });
+  }
+  release();
 });
 
 test('undo of a rebuild a book update made with its notes: the explanations written before it are current again', async t => {
-  const { service, rebuild, lecture, first } = await setUp(t);
+  const { service, rebuild, lecture, first, apply, undo } = await setUp(t);
   const notes = (outlineId, id, text, supersedes) => courseNotesMaterial({ title: '复习全书 · SA', course: COURSE, outlineId, leaves: [{ id, title: id, anchors: [`${lecture}#0`],
     body: { fingerprint: 'abcdef0123456789', points: [text], explain: text, cites: [] } }], counts: {}, ...(supersedes ? { supersedes } : {}) });
   const older = notes(first.id, 'what', 'Explanation for the old point.');
@@ -217,9 +315,9 @@ test('undo of a rebuild a book update made with its notes: the explanations writ
   const newId = await rebuild();
   const newer = notes(newId, 'k2', 'Explanation for the new point.', older.id);
   await service.store.update(state => { state.sources.find(source => source.id === older.id).archived = true; state.sources.push({ ...newer, createdAt: '2026-10-10T01:00:00.000Z' }); });
-  const applied = await service.call('course.book.open', { course: COURSE });
+  const applied = await apply(newId);
   assert.match(leaves(applied.nodes).find(node => node.title === 'The architect\'s job').gen, /Explanation for the new point/);
-  const undone = await service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId });
+  const undone = await undo(newId);
   const state = await view(service);
   assert.equal(currentCourseNotes(state.sources, COURSE).id, older.id);
   assert.equal(state.sources.find(source => source.id === newer.id).archived, true);
@@ -227,18 +325,18 @@ test('undo of a rebuild a book update made with its notes: the explanations writ
 });
 
 test('undo keeps the 读完了 / 已看 marks made since (they move no revision), and the book\'s own titles as they were', async t => {
-  const { service, rebuild, what } = await setUp(t);
+  const { service, rebuild, what, apply, undo } = await setUp(t);
   const version = (await service.call('course.book.open', { course: COURSE })).structureVersion;
   await service.call('course.book.rename', { course: COURSE, hid: what.hid, title: 'My own title', version });
   const newId = await rebuild();
-  await service.call('course.book.open', { course: COURSE });
+  await apply(newId);
   await service.call('book.crunch.mark', { course: COURSE, hid: what.hid, kind: 'read' });
-  const undone = await service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId });
+  const undone = await undo(newId);
   assert.equal(leaves(undone.nodes).find(node => node.hid === what.hid).title, 'My own title');
   assert.ok((await docOf(service)).marks.read[what.hid], 'the mark stays');
 });
 
-test('every move of a book at the outline limit is kept; held and gone points are listed; a list never falls back to a short cut', () => {
+test('every move of a book at the outline limit is kept', () => {
   assert.ok(MOVES_KEPT >= OUTLINE_LIMITS.nodes, 'a book at the outline\'s limit is listed in full');
 });
 
@@ -253,28 +351,48 @@ test('a point gone from the outline with the learner\'s text is said too (it wai
   record.bookDoc.files[`${what.id}.mine.md`].text = 'A note on a lecture that left the course.';
   first.archived = true;
   state.sources.push(outlineOf(state, [{ id: 'k', title: 'Other', children: [{ id: 'k1', title: 'Other lecture', anchors: [other] }] }], '2026-10-10T00:00:00.000Z'));
-  const book = openCourseBook(state, {}, { write: false });
-  assert.equal(book.rebuildPending, true);
+  const book = openCourseBook(state, {});
+  assert.equal(book.status, 'rebuild-pending');
   assert.deepEqual([book.moves.gone, book.moves.goneList], [1, [{ from: 'What architects do', first: 'A note on a lecture that left the course.' }]]);
 });
 
-test('the kept state is never written to the book\'s version list: not a version of a file, not in an answer, one per course, the latest rebuild\'s', async t => {
-  const { root, service, rebuild } = await setUp(t);
-  await rebuild();
-  const applied = await service.call('course.book.open', { course: COURSE });
+test('two points of one title merged into the same new title count as a move: held for the preview, listed, undone', async t => {
+  const root = await privateRoot(t, 'course-book-rebuild-fold-');
+  const service = new StudyService(root, {});
+  t.after(() => service.dispose());
+  const { sources, decks } = outlineLibrary();
+  await service.store.update(state => { state.sources.push(...structuredClone(sources)); state.decks.push(...structuredClone(decks)); state.focus = { mode: 'class', course: COURSE }; });
+  const lecture = lectureKey(sources);
+  await service.store.update(state => { state.sources.push(outlineOf(state, [{ id: 'c', title: 'Intro', children: [{ id: 'a', title: 'Layers', anchors: [`${lecture}#0`] }, { id: 'b', title: 'Layers', anchors: [`${lecture}#1`] }] }], '2026-10-09T00:00:00.000Z')); });
+  const opened = await service.call('course.book.open', { course: COURSE });
+  const [one, two] = leaves(opened.nodes);
+  await service.call('course.book.save', { course: COURSE, file: two.files.mine, text: 'The note of the second one.', version: opened.files[two.files.mine].version });
+  const before = await docOf(service);
+  const newId = await service.store.update(state => { currentCourseOutline(state.sources, COURSE).archived = true; const made = outlineOf(state, [{ id: 'k', title: 'Intro', children: [{ id: 'm', title: 'Layers', anchors: [`${lecture}#0`, `${lecture}#1`] }] }], '2026-10-10T00:00:00.000Z'); state.sources.push(made); return made.id; });
+  const preview = await service.call('course.book.open', { course: COURSE });
+  assert.equal(preview.status, 'rebuild-pending', 'merged text is not moved unseen just because the titles match');
+  assert.ok(preview.moves.list.some(move => move.from === 'Layers' && move.to === 'Layers' && move.folded && move.own), JSON.stringify(preview.moves.list));
+  const applied = await service.call('course.book.rebuild', { course: COURSE, action: 'apply', outlineId: newId });
+  assert.equal(applied.moves.undoable, true);
+  assert.match(leaves(applied.nodes)[0].mine, /The note of the second one\./);
+  await service.call('course.book.rebuild', { course: COURSE, action: 'undo', outlineId: newId });
+  assert.deepEqual((await docOf(service)).files, before.files);
+  assert.ok(one);
+});
+
+test('the kept state is never written to the book\'s version list and is not in an answer', async t => {
+  const { root, rebuild, apply } = await setUp(t);
+  const applied = await apply(await rebuild());
   assert.ok(!applied.replaced.some(item => item.file === REBUILD_FILE), 'the answer does not carry the whole book again');
   assert.ok(!(await readHistory(root, COURSE)).some(entry => entry.file === REBUILD_FILE));
   assert.equal(applied.history[REBUILD_FILE], undefined);
-  await pushHistory(root, COURSE, [{ file: REBUILD_FILE, version: 1, text: '{"replaced":true}' }]);
-  assert.deepEqual(await readRebuild(root, COURSE), { replaced: true });
 });
 
 test('a list saved again after it was archived is current again (an identical outline made again after an undo must not leave the course without one)', async t => {
-  const { service, rebuild, lecture, other } = await setUp(t);
+  const { service, rebuild, undo } = await setUp(t);
   const newId = await rebuild();
-  await service.call('course.book.rebuild.undo', { course: COURSE, outlineId: newId });
+  await undo(newId);
   const state = await view(service), record = state.sources.find(source => source.id === newId), old = currentCourseOutline(state.sources, COURSE);
   await service.runtime.invoke('materials.v1', 'sources.ingest', { sources: [structuredClone({ ...record, archived: undefined })], archive: [old.id] });
   assert.equal(currentCourseOutline((await view(service)).sources, COURSE).id, newId);
-  assert.ok(lecture && other);
 });

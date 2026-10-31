@@ -105,7 +105,7 @@ test('6. a 3.4 book follows an outline rebuilt from the inventory: mine, Q&A, AI
     { id: 'roles', title: 'The architect\'s role', anchors: [handout] }] }], '2026-10-12T00:00:00.000Z');
   state.sources.push(fresh);
   state.revision = 2;
-  const opened = openCourseBook(state, {});
+  const opened = openCourseBook(state, {}, { applyRebuild: true });
   const text = opened.nodes.flatMap(node => node.children).map(leaf => [leaf.gen, leaf.mine, leaf.qa].join('\n')).join('\n');
   assert.equal(opened.unplaced.text.trim(), '', 'nothing ends in 未归位');
   for (const kept of ['My own note on the lecture.', 'An AI block I kept.', 'Why layers?', 'My rewrite of the handout point.']) assert.ok(text.includes(kept), kept);
