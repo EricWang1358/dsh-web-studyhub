@@ -39,7 +39,8 @@
     .question-tools .review-reading { align-self: center; }
     .study-reading {
       --reader-sans: var(--font-ui);
-      --reader-face: var(--reader-sans);
+      /* --reader-face: the default and the picked face itself live in tokens.css, one layer, so the pick cannot be overridden by a
+         plain default declared in this later layer (the cascade compares layers before specificity). */
       min-width: 0;
       overflow-wrap: anywhere;
     }
