@@ -230,7 +230,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
     </PageHeader>
     {!note && <div className="note-list">
       <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} call={call} act={act} busy={busy} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
-      <details className="note-linking"><summary>{ui("＋ 挑题成文")}</summary>
+      <details className="note-linking"><summary>{ui("挑题成文")}</summary>
         <label>{ui("笔记标题")}<input value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
           onChange={(event) => setNewTitle(event.target.value)} /></label>
         <div className="note-card-search"><input value={query} placeholder={ui("搜索题目或知识点")}

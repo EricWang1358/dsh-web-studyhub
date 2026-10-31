@@ -27,9 +27,8 @@
       padding: var(--space-1-5) var(--space-2-5);
       border-radius: var(--radius-sm);
       font-size: var(--fs-sm);
-      list-style: none;
+      --sh-summary-marker: none;
     }
-    .source-doc__actions .source-row-actions > summary::-webkit-details-marker { display: none; }
     .source-doc__actions .source-row-actions > summary:hover { background: var(--bg-hover); }
     /* The open menu is ONE stacked panel under the summary; the buttons inside are ordinary rows (an absolute button per row put them all at the same spot). */
     .source-doc__actions .source-row-actions[open] > .source-row-menu {

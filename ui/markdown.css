@@ -235,7 +235,6 @@
       cursor: pointer;
       padding: var(--space-2) 0;
       color: var(--text-dim);
-      list-style-position: inside;
     }
     .md details.md-details[open] > summary {
       border-bottom: 1px solid var(--line);
