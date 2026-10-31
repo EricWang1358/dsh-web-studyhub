@@ -151,7 +151,7 @@ test('the book: a learner\'s note whose pages went mostly elsewhere waits in 未
   assert.notEqual(databases.hid, who.hid);
   assert.match(book.unplaced.text, /### Stakeholders and views（总纲重新整理后对不上新的知识点，先放在这里；最接近的是「Databases state failure conditions」，只有 \d+% 的页在那里）\n\nA long note on stakeholders and views\./);
   // The moves list only what moved; what was held back is listed apart (it is in 未归位, not under the closest point).
-  assert.deepEqual(book.moves.list, [{ from: 'What architects do', to: 'The architect\'s job', folded: false, share: 1 }]);
+  assert.deepEqual(book.moves.list, [{ from: 'What architects do', to: 'The architect\'s job', folded: false, share: 1, own: true, first: 'Note on what architects do.' }]);
   assert.equal(book.moves.total, book.moves.list.length, 'how many moves there were, so a cut list says so');
   assert.equal(book.moves.held, 1);
   assert.equal(book.moves.heldList.length, 1, 'only the held point whose text was parked: "What architects do" had text and moved; nothing else was held');
