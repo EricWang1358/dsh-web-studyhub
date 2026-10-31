@@ -1,11 +1,11 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useId, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { browserSession, readJSON, removeKey, writeJSON } from './storage.js';
 import { AppContext } from './app/app-context.js';
-import { courseScope, courseSegments, courseTree } from '../lib/course-tree.js';
+import { courseScope, courseTree } from '../lib/course-tree.js';
 import { isParked, parkedWithin, useCourseActive } from './CourseActive.jsx';
 import { useInjectCss } from './shared.js';
-import { Button, Combobox } from './components/index.js';
+import { Button, Combobox, Icon, Tooltip } from './components/index.js';
 import activeCss from './course-active.css';
 
 const storageKey = (root, page) => `study-page-scope:v1:${JSON.stringify([root || '', page])}`;
@@ -79,9 +79,12 @@ export function followState({ pinned, value, current }) {
 /**
  * Scope of a page: all, one course (a parent includes its sub-courses), or uncategorised. Courses form a tree:
  * children hang under their parent (a level-2 option on the hairline) and show their last segment; the value is always the full name.
+ * One line: the label beside the select, the select naming the whole path of a chosen sub-course (「Course 01 › Chapter 1」), then a small
+ * mark that says whether the page follows the current course (its words in a tooltip and for screen readers) and the one action a state offers.
  */
 export default function PageScope({ courses = [], value, onChange, disabled, unassigned = true, label = ui('课程范围'), selectedLabel, showInactive, onShowInactive }) {
   useInjectCss(activeCss, 'study-course-active');
+  const id = useId();
   const active = useCourseActive();
   const current = useContext(AppContext)?.data?.focus?.course, remembered = onChange?.scope;
   const follows = remembered ? followState({ pinned: remembered.pinned, value, current }) : null;
@@ -93,14 +96,15 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
   const parkedRow = row => (row.names.length ? row.names : [row.name]).every(name => parkedNames.has(name));
   const live = rows.filter(row => !parkedRow(row)), parked = rows.filter(parkedRow);
   const chosen = typeof value === 'string' && value !== '*' && value !== '@selected' ? rows.find(row => row.names.includes(value) || row.name === value) : null;
-  const path = chosen && chosen.depth > 0 ? courseSegments(chosen.name, names).join(' › ') : '';
   const chosenCourse = chosen ? entries.find(course => chosen.names.includes(course.name) || course.name === chosen.name) : null;
   // What this page leaves out, and the one-click way to see it (only for pages that send includeInactive, see scopeArgs).
   const hidden = chosenCourse && isParked(chosenCourse) ? 0 : parkedWithin(courses, value === '@selected' ? '*' : value);
   // A parked chapter whose parent is not parked is listed with its whole path: its parent is not in the same group.
+  // The closed select names a chosen sub-course by its whole path (the open list shows only the last segment, indented).
   const optionsOf = (row, group = live) => (row.names.length ? row.names : [row.name]).map((name, index) => {
     const alone = row.parent && !group.some(item => item.name === row.parent);
-    return { value: name, label: alone ? name : row.label, level: alone ? 1 : Math.min(row.depth + 1, 3), hint: row.childCount && index === 0 ? ui('含子课程') : undefined };
+    return { value: name, label: alone ? name : row.label, level: alone ? 1 : Math.min(row.depth + 1, 3), hint: row.childCount && index === 0 ? ui('含子课程') : undefined,
+      triggerLabel: row.depth > 0 ? row.path.join(' › ') : undefined };
   });
   const strayValue = value && value !== '*' && value !== '@selected' && !listed.has(value) && !rows.some(row => row.name === value);
   const options = [{ value: '*', label: ui('全部课程') },
@@ -109,23 +113,29 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
     ...(unassigned ? [{ value: '', label: ui('未分类') }] : []),
     ...(parked.length > 0 ? [{ group: uiFormat('未激活的课程 ({0})', [parked.length]), options: parked.flatMap(row => optionsOf(row, parked)) }] : []),
     ...(strayValue ? [{ value, label: value }] : [])];
-  return <label className="page-scope">{label}<Combobox value={value} onChange={onChange} disabled={disabled} options={options} searchPlaceholder={ui('搜索课程或章节')}
-    emptyText={query => uiFormat('没有叫「{0}」的课程或章节', [query])} title={chosen ? chosen.name : undefined} />{path && <small className="page-scope__path" title={chosen.name}>{path}</small>}
+  // The follow state is a mark, not a sentence: its name is there for screen readers, and the tooltip (hover and keyboard focus) says what it means.
+  const mark = (icon, name, tip) => <Tooltip layer content={tip}><span className="page-scope__mark" tabIndex={0}>
+    <Icon name={icon} size={16} /><span className="sh-visually-hidden">{name}</span></span></Tooltip>;
+  return <div className="page-scope">
+    <label className="page-scope__label" htmlFor={id}>{label}</label>
+    <Combobox id={id} className="page-scope__select" value={value} onChange={onChange} disabled={disabled} options={options} searchPlaceholder={ui('搜索课程或章节')}
+      emptyText={query => uiFormat('没有叫「{0}」的课程或章节', [query])} title={chosen ? chosen.name : undefined} />
+    {follows === 'following' && <span className="page-scope__follow" data-follow="following">
+      {mark('link', ui('跟随当前课程'), ui('跟随当前课程：这一页显示当前课程，在别处切换当前课程，这里跟着变。'))}
+    </span>}
+    {follows === 'pinned' && <span className="page-scope__follow" data-follow="pinned">
+      {mark('pin', ui('已固定'), ui('已固定：这一页一直显示你选的范围，切换当前课程时它不变。'))}
+      <Button variant="link" size="sm" onClick={remembered.follow}>{ui('改为跟随当前课程')}</Button>
+    </span>}
     {chosenCourse && isParked(chosenCourse) && <small className="page-scope__note">
       <span>{ui('这门课未激活')}</span>
       {active && <span aria-hidden="true">·</span>}
       {active && <Button variant="link" size="sm" onClick={() => active.activate(chosenCourse).catch(() => {})}>{ui('激活')}</Button>}
-    </small>}
-    {follows === 'following' && <small className="page-scope__note" data-follow="following">{ui('跟随当前课程')}</small>}
-    {follows === 'pinned' && <small className="page-scope__note" data-follow="pinned">
-      <span>{ui('已固定')}</span>
-      <span aria-hidden="true">·</span>
-      <Button variant="link" size="sm" onClick={remembered.follow}>{ui('改为跟随当前课程')}</Button>
     </small>}
     {onShowInactive && hidden > 0 && <small className="page-scope__note">
       <span>{showInactive ? uiFormat('含 {0} 门未激活的课程', [hidden]) : uiFormat('不含 {0} 门未激活的课程', [hidden])}</span>
       <span aria-hidden="true">·</span>
       <Button variant="link" size="sm" aria-pressed={!!showInactive} onClick={() => onShowInactive(!showInactive)}>{showInactive ? ui('隐藏') : ui('显示')}</Button>
     </small>}
-  </label>;
+  </div>;
 }
