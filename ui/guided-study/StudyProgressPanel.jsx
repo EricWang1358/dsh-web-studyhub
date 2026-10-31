@@ -4,6 +4,7 @@ import { Badge } from '../components/Badge.jsx';
 import { ui, uiFormat } from '../i18n.js';
 import { LoadingState } from '../components/Loading.jsx';
 import { joinMeta } from '../format.js';
+import { exactTok } from '../token-usage.js';
 
 const STATUS_LABELS = {
   pending: { label: '待检验', tone: 'neutral' },
@@ -12,16 +13,45 @@ const STATUS_LABELS = {
   needs_review: { label: '需复核', tone: 'warning' },
 };
 
+/* The line under the progress: the range, how firm it is, or that there is nothing to say yet. The words are the ones lib/study-time-estimate.js writes. */
+function estimateLine(estimate) {
+  if (estimate?.status === 'estimated') {
+    return uiFormat(estimate.preliminary ? '预计达到本次检验目标还需 {0}–{1} 分钟（初步估计）' : '预计达到本次检验目标还需 {0}–{1} 分钟',
+      [estimate.minMinutes, estimate.maxMinutes]);
+  }
+  if (estimate?.status === 'completed') return ui('已完成本次全部检验目标');
+  return ui('尚在估计，完成首个检验后更新');
+}
+
+/* The four parts of what the session cost, in DSH's unit (lib/study-session-cost.js): tokens as the plugin could count them, never a price.
+   What nothing measured says so instead of reading 0. */
+function costRows(cost) {
+  const parts = cost?.breakdown;
+  if (!parts) return [];
+  const rows = [];
+  rows.push(parts.tutoring?.measured ? uiFormat('教学讲解与读现场：{0}', [exactTok(parts.tutoring.tokens)]) : ui('教学讲解与读现场：主会话的用量，见 DSH 的用量面板'));
+  rows.push(uiFormat('复用已有题：{0} 道，0 次模型调用', [parts.reusedQuestions?.count || 0]));
+  rows.push(parts.generation?.measured === false ? ui('新题生成与独立审核：用量未知，没有计入') : uiFormat('新题生成与独立审核：{0}', [exactTok(parts.generation?.tokens || 0)]));
+  rows.push(parts.qaOrganize?.tokens ? uiFormat('QA 整理：{0}', [exactTok(parts.qaOrganize.tokens)]) : ui('QA 整理：复用讲解，0 额外模型调用'));
+  const each = cost.costPerIndependentCheckItem;
+  rows.push(typeof each === 'object' && each
+    ? uiFormat(each.includesTutoring ? '每道独立通过的题平均：{0}' : '每道独立通过的题平均：{0}（不含主会话）', [exactTok(each.tokens)])
+    : ui('每道独立通过的题的平均用量：做完第一道后计算'));
+  return rows;
+}
+
 export function StudyProgressPanel({
   progress = {},
   estimate = {},
+  cost = null,
+  defaultExpanded = false,
   session = {},
   onUpdateItem,
   onAddItem,
   onDeleteItem,
   onSelectAttempt,
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [newItemTitle, setNewItemTitle] = useState('');
 
   const items = progress.items || [];
@@ -45,7 +75,7 @@ export function StudyProgressPanel({
           <span>{joinMeta([uiFormat('讲解已覆盖 {0} 点', [progress.lectureCoveredCount || 0]), uiFormat('隔日巩固待复习 {0} 题', [progress.nextDayDueCount || 0])])}</span>
         </div>
         <div className="progress-time-line">
-          <span>⏱️ {estimate.message || ui('还在估计，做完第一项检验后更新')}</span>
+          <span>⏱️ {estimateLine(estimate)}</span>
         </div>
         <div className="progress-toggle-row">
           <Button
@@ -64,11 +94,12 @@ export function StudyProgressPanel({
         <div className="progress-details-section">
           <div className="progress-items-list">
             {items.map((item) => {
-              const statusMeta = STATUS_LABELS[item.status] || STATUS_LABELS.pending;
+              // An item whose status is not known yet (the session has not been read) carries no badge, rather than a result nobody worked out.
+              const statusMeta = STATUS_LABELS[item.status];
               return (
                 <div key={item.id} className="progress-item-card">
                   <div className="progress-item-header">
-                    <Badge tone={statusMeta.tone} size="sm">{ui(statusMeta.label)}</Badge>
+                    {statusMeta && <Badge tone={statusMeta.tone} size="sm">{ui(statusMeta.label)}</Badge>}
                     <span className="progress-item-title">{item.title}</span>
                     {onDeleteItem && (
                       <Button
@@ -104,6 +135,16 @@ export function StudyProgressPanel({
               );
             })}
           </div>
+
+          {/* 本次用量：四项分开说，只用 token */}
+          {costRows(cost).length > 0 && (
+            <div className="progress-cost-section">
+              <strong className="progress-cost-title">{ui('本次用量')}</strong>
+              <ul className="progress-cost-list">
+                {costRows(cost).map((row) => <li key={row}>{row}</li>)}
+              </ul>
+            </div>
+          )}
 
           {/* 添加新检验项表单 */}
           {onAddItem && (

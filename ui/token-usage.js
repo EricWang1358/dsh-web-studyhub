@@ -17,6 +17,8 @@ import { ui, uiFormat } from './i18n.js';
 import { cacheHitPercent, formatCompactTokens, formatExactTokens, promptTokens, totalTokens } from '../lib/token-usage.js';
 
 const tok = (formatted) => `${formatted} tok`;
+/** An exact count in DSH's unit: "6,700 tok". */
+export const exactTok = (value) => tok(formatExactTokens(value));
 const DASH = '–';
 
 /** Rows of an actual usage, in DSH's order: [{ id, label, value }]. */

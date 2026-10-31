@@ -22,6 +22,7 @@ export default function GuidedStudyWorkbench({
   prepState = null,
   progress = null,
   estimate = null,
+  cost = null,
   host = null,
   onPause,
   onEnd,
@@ -62,15 +63,12 @@ export default function GuidedStudyWorkbench({
     ? { status: 'running', ...session.focus }
     : null);
 
-  const derivedProgress = progress || (session?.goal?.checkItems ? {
+  /* The progress is worked out by the library from the answers (study.session.get puts it, the range and the cost on the session). Before the
+     session has been read once it claims no result: the items are listed, without a status. */
+  const derivedProgress = progress || session?.progress || (session?.goal?.checkItems ? {
     displayLine: uiFormat('检验项共 {0} 项', [session.goal.checkItems.length]),
     lectureCoveredCount: session.artifactRefs?.length || 0,
-    items: session.goal.checkItems.map((item) => ({
-      id: item.id,
-      title: item.title,
-      status: item.status || 'pending',
-      evidenceAttemptIds: item.evidenceAttemptIds || [],
-    })),
+    items: session.goal.checkItems.map((item) => ({ id: item.id, title: item.title })),
   } : {});
 
   const handleAskTutor = async () => {
@@ -258,7 +256,8 @@ export default function GuidedStudyWorkbench({
       <div className="guided-study-footer">
         <StudyProgressPanel
           progress={derivedProgress}
-          estimate={estimate || {}}
+          estimate={estimate || session?.estimate || {}}
+          cost={cost || session?.cost || null}
           session={session || {}}
           onUpdateItem={onUpdateProgressItem}
           onAddItem={onAddProgressItem}

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  activityFromAttempts,
   estimateRemainingTime,
+  MAX_SINGLE_CARD_ACTIVE_MS,
+  MIN_PASSES_FOR_PACE,
   filterEffectiveStudyActivity,
   shouldRecordPrediction,
 } from '../lib/study-time-estimate.js';
@@ -83,4 +86,48 @@ test('shouldRecordPrediction records when estimate changes significantly or reas
   assert.equal(record.minMinutes, 16);
   assert.equal(record.maxMinutes, 24);
   assert.equal(record.reason, '拓展了目标范围');
+});
+
+test('activityFromAttempts counts only the answers that back a check item, once each, and caps nothing itself', () => {
+  const progress = { items: [{ id: 'i1', evidenceAttemptIds: ['a1', 'a2'] }, { id: 'i2', evidenceAttemptIds: ['a2'] }] };
+  const attempts = [
+    { id: 'a1', elapsed_ms: 90000 },
+    { id: 'a2', elapsed_ms: 30000 },
+    { id: 'other-course', elapsed_ms: 999999 },
+    { id: 'a3' },
+  ];
+
+  const log = activityFromAttempts(progress, attempts);
+
+  assert.deepEqual(log.map((entry) => [entry.kind, entry.durationMs]), [['question_answering', 90000], ['question_answering', 30000]]);
+  assert.deepEqual(activityFromAttempts({}, attempts), []);
+  assert.deepEqual(activityFromAttempts(progress, undefined), []);
+});
+
+test('an idle question is capped, and a long generation wait or pause never speeds up or slows down the pace', () => {
+  const session = { id: 's1', returnPath: [] };
+  const progress = { independentPassedCount: 2, assistedCount: 0, pendingCount: 2, needsReviewCount: 0 };
+  const answering = [{ kind: 'question_answering', durationMs: 60000 }, { kind: 'question_answering', durationMs: 60000 }];
+  const plain = estimateRemainingTime(session, progress, answering);
+  const noisy = estimateRemainingTime(session, progress, [
+    ...answering,
+    { kind: 'generation_wait', durationMs: 3 * 60000 },
+    { kind: 'paused', durationMs: 30 * 60000 },
+  ]);
+  assert.deepEqual(noisy, plain);
+  assert.equal(filterEffectiveStudyActivity([{ kind: 'question_answering', durationMs: 6 * 3600000 }]).activeStudyMs, MAX_SINGLE_CARD_ACTIVE_MS, 'a question left open for hours counts as the cap');
+});
+
+test('an estimate says how firm it is: preliminary until enough independent passes have been seen', () => {
+  const session = { id: 's1', returnPath: [] };
+  const log = [{ kind: 'question_answering', durationMs: 120000 }];
+  const early = estimateRemainingTime(session, { independentPassedCount: 1, assistedCount: 0, pendingCount: 3, needsReviewCount: 0 }, log);
+  assert.equal(early.status, 'estimated');
+  assert.equal(early.preliminary, true);
+  assert.match(early.message, /（初步估计）$/);
+
+  const later = estimateRemainingTime(session, { independentPassedCount: MIN_PASSES_FOR_PACE, assistedCount: 0, pendingCount: 1, needsReviewCount: 0 }, log);
+  assert.equal(later.preliminary, false);
+  assert.doesNotMatch(later.message, /初步估计/);
+  assert.ok(later.maxMinutes > later.minMinutes, 'still a range, never one exact number');
 });
