@@ -382,7 +382,7 @@ function GuidedStudyView() {
   const { data, core, session, lib, nav, host } = useApp();
   const started = lib.guidedSession || data?.activeStudySession || null;
   // The session as it is now and its new question's preparation (#547): the main chat starts it, the reviewed question opens here as a round of one.
-  const { session: guidedSession, prepState, clearFailure } = useGuidedQuestion({ session: started, call: core.call,
+  const { session: guidedSession, prepState, clearFailure, refresh: readGuidedSession } = useGuidedQuestion({ session: started, call: core.call,
     onReady: (result) => { if (result.run) session.enterRun(result.run); core.refresh(); } });
   const run = session.run;
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
@@ -400,7 +400,8 @@ function GuidedStudyView() {
     return core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, ...args }, session.enterRun);
   };
 
-  const handlePause = (id) => core.act('study.session.pause', { sessionId: id });
+  // Read the session again at once: its reads may have slowed down, and a paused session is not read after that (#564).
+  const handlePause = (id) => core.act('study.session.pause', { sessionId: id }, () => { void readGuidedSession(); });
 
   const handleEnd = (id) => {
     core.act('study.session.end', { sessionId: id });
