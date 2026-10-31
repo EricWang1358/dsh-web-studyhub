@@ -25,7 +25,7 @@
       margin-bottom: var(--space-1);
     }
     /* ── Dashboard ───────────────────────────────────────────────────────── */
-    /* One statement (the streak) beside one picture (half a year of stamps);
+    /* One statement (the streak, or the active days once it is broken) beside one picture (half a year of stamps);
        everything else is a sentence or a quiet column below. */
     .dash-hero {
       display: grid;
@@ -63,6 +63,8 @@
       font-weight: var(--fw-strong);
       font-variant-numeric: tabular-nums;
     }
+    /* A broken streak is one quiet line under the summary, not the focal numeral (#573). */
+    .dash-streak-note { font-size: var(--fs-sm); }
     .dash-heat-wrap { min-width: 0; }
     /* Heatmap: 26 week-columns × 7 weekday-rows, column-major flow so the
        oldest day sits top-left and today bottom-right. Cells stretch to fill

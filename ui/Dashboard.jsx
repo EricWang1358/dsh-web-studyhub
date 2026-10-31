@@ -75,6 +75,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
     heatStart = Math.max(0, Math.min(firstActive < 0 ? heat.length : Math.floor(firstActive / 7) * 7,
       heat.length - minDays)),
     shownHeat = heat.slice(heatStart);
+  const broken = !(totals.streak > 0) && totals.activeDays > 0;
 
   return (
     <>
@@ -85,12 +86,16 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
       {/* Rubric skills over time (WP12), weakest first. */}
       <RubricSkills attempts={data?.attempts} />
       <div className="dash-hero" data-tour="dashboard-summary">
-        <div className="dash-streak">
-          <strong>{totals.streak ?? 0}</strong>
-          <span>{ui("天连续学习")}</span>
+        {/* The focal numeral is the streak; once the streak is broken it is the learner's active days instead of a giant 0, and the broken streak
+            becomes one quiet line (#573). With no active day at all there is nothing positive to show, so the streak stays. */}
+        <div className="dash-streak" data-focal={broken ? "active-days" : "streak"}>
+          <strong>{broken ? totals.activeDays : totals.streak ?? 0}</strong>
+          <span>{broken ? ui("活跃天数") : ui("天连续学习")}</span>
           <p className="dash-summary">
-            <span>{uiRich("{0} 个活跃日 · 累计作答 {1} 次", <b>{totals.activeDays ?? 0}</b>, <b>{totals.attempts ?? 0}</b>)}</span>
+            {broken ? <span>{uiRich("累计作答 {0} 次", <b>{totals.attempts ?? 0}</b>)}</span>
+              : <span>{uiRich("{0} 个活跃日 · 累计作答 {1} 次", <b>{totals.activeDays ?? 0}</b>, <b>{totals.attempts ?? 0}</b>)}</span>}
             <span>{uiRich("到期待复习 {0} 题", <b>{totals.due ?? 0}</b>)}</span>
+            {broken && <span className="dash-streak-note">{ui("今天学一题，就开始新的连续学习")}</span>}
           </p>
         </div>
         <div className="dash-heat-wrap">
@@ -201,7 +206,8 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
 
   return (
     <section className="page dash">
-      <PageHeader title={ui("学习统计")}
+      {/* 刷新 ends the title's row; the scope picker sits under both (#573). */}
+      <PageHeader title={ui("学习统计")} actionsOnTitleRow
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} />}
         actions={<Button variant="quiet" icon="refresh" onClick={load} busy={loading} busyLabel={ui("统计中…")}>{ui("刷新")}</Button>} />
 

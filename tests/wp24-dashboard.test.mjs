@@ -8,11 +8,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // WP24: three readable charts (trend + due forecast + mastery) with their own
 // empty states, accessible titles and tables, in zh and en.
 const compiled = await build({ stdin: { contents: `export { TrendPanel, ForecastPanel, MasteryPanel } from './ui/charts/DashboardCharts.jsx';
-  export { StatsView } from './ui/Dashboard.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  export { StatsView, default as Dashboard } from './ui/Dashboard.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { TrendPanel, ForecastPanel, MasteryPanel, StatsView, setUiLanguage } = module.exports;
+const { TrendPanel, ForecastPanel, MasteryPanel, StatsView, Dashboard, setUiLanguage } = module.exports;
 const noop = () => {};
 const html = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
 const text = (markup) => markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -172,4 +172,48 @@ test('english: chart copy is translated and no Chinese is left in the chart pane
     assert.doesNotMatch(out.replace(/<[^>]+>/g, ' '), /[一-鿿]/);
     assert.match(text(view({ totals: { ...stats().totals, oralAttempts: 2, oralStrong: 1 } })), /Oral AI assessments/);
   } finally { setUiLanguage('zh'); }
+});
+
+// #573: a broken streak does not open the page with a giant 0; the active days take the focal numeral and the streak is one quiet line.
+const hero = (markup) => markup.match(/<div class="dash-streak"[\s\S]*?<\/p><\/div>/)?.[0] || '';
+test('stats view: a running streak is the focal numeral, exactly as before', () => {
+  const out = hero(view({ totals: { ...stats().totals, streak: 5, activeDays: 13, attempts: 172 } }));
+  assert.match(out, /data-focal="streak"/);
+  assert.match(out, /^<div class="dash-streak"[^>]*><strong>5<\/strong><span>天连续学习<\/span>/);
+  assert.match(text(out), /13 个活跃日 · 累计作答 172 次/);
+  assert.doesNotMatch(out, /dash-streak-note/);
+});
+
+test('stats view: with the streak at 0 the active days are the focal numeral and the streak is one quiet line', () => {
+  const out = hero(view({ totals: { ...stats().totals, streak: 0, activeDays: 13, attempts: 172 } }));
+  assert.match(out, /data-focal="active-days"/);
+  assert.match(out, /^<div class="dash-streak"[^>]*><strong>13<\/strong><span>活跃天数<\/span>/);
+  assert.doesNotMatch(out, /<strong>0<\/strong>/);
+  assert.doesNotMatch(text(out), /天连续学习|个活跃日/, 'the active days are not said twice');
+  assert.match(text(out), /累计作答 172 次/);
+  assert.match(out, /<span class="dash-streak-note">今天学一题，就开始新的连续学习<\/span>/);
+  try {
+    setUiLanguage('en');
+    const en = text(hero(view({ totals: { ...stats().totals, streak: 0, activeDays: 13, attempts: 172 } })));
+    assert.match(en, /13 Active days/);
+    assert.match(en, /172 attempts in total/);
+    assert.match(en, /Answer one question today to start a new streak/);
+    assert.doesNotMatch(en, /[一-鿿]/);
+  } finally { setUiLanguage('zh'); }
+});
+
+test('stats view: with no active day at all there is nothing positive to show, so the streak stays the numeral', () => {
+  const out = hero(view({ totals: { ...stats().totals, streak: 0, activeDays: 0, attempts: 0 } }));
+  assert.match(out, /data-focal="streak"/);
+  assert.match(out, /<strong>0<\/strong><span>天连续学习<\/span>/);
+});
+
+test('dashboard: 刷新 ends the title row of the page header, the scope picker under both', () => {
+  const out = renderToStaticMarkup(React.createElement(Dashboard, { data: { root: 'dash-573', decks: [], focus: { course: '*', courses: [{ name: 'A' }] } }, onStartScope: noop }));
+  const header = out.match(/<header class="sh-page-header"[\s\S]*?<\/header>/)?.[0] || '';
+  // On the first render the stats are loading, so the one header action shows its busy label (统计中…) in place of 刷新.
+  assert.match(header, /<div class="sh-page-header__title-row"><h1 class="sh-page-header__title">学习统计<\/h1><div class="sh-page-header__actions"><button[^>]*>[\s\S]*?统计中…<\/button><\/div><\/div><div class="sh-page-header__scope">/,
+    'title and its action share one row; the scope comes after it');
+  assert.equal((header.match(/sh-page-header__actions/g) || []).length, 1);
+  assert.doesNotMatch(out.replace(header, ''), /刷新|统计中…/, 'and nowhere else on the page');
 });
