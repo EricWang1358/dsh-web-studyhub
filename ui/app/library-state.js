@@ -7,7 +7,7 @@ import { resetHostQueries } from '../host-query-store.js';
    Add a key here and every one of those paths clears it. Review answers are the review session's own entry (ui/review). */
 
 const FRESH = {
-  contextTrail: () => [], focusRequest: () => null, boardStudyRef: () => null, legacyAudioJobId: () => '', detour: () => null,
+  contextTrail: () => [], focusRequest: () => null, boardStudyRef: () => null, boardCompose: () => false, legacyAudioJobId: () => '', detour: () => null,
   workflowReturn: () => null, skeletonFocus: () => null, noteInitialId: () => '', taskFocus: () => null,
   draft: () => null, draftLoaded: () => '', draftText: () => '', jsonMode: () => false, recovery: () => null,
   managedDeck: () => null, folderDraft: () => '', removingDeck: () => null,
