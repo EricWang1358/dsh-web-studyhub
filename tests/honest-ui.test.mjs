@@ -180,7 +180,7 @@ test('a refused key is ONE plain sentence, never the provider\'s English, said o
   assert.ok(buttonsOf(consoleHtml).includes('去配置模型'), `the console header has 去配置模型: ${buttonsOf(consoleHtml)}`);
   assert.ok(buttonsOf(consoleHtml).includes('接着做'), `and 接着做, which continues from the next round once the key works: ${buttonsOf(consoleHtml)}`);
   assert.equal((text(consoleHtml).match(new RegExp(sentence.replace(/[()（）]/g, '\\$&'), 'g')) || []).length <= 3, true, 'said in the list row, the strip: not once per part');
-  assert.match(text(consoleOf('refused')), /任务 全部 1[\s\S]*失败/);
+  assert.match(text(consoleOf('refused')), /任务[\s\S]*全部 1[\s\S]*失败/);
   inLanguage('en', () => {
     const english = text(consoleOf('refused', 'en'));
     assert.doesNotMatch(english, /Unauthorized|Invalid API key|\b401\b|Part \d+:/);

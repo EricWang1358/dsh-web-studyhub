@@ -39,7 +39,7 @@ test('the list has one row per job, newest first, with its state word and the fi
   assert.match(html, /全部 3/);
   assert.match(html, /进行中 1/);
   assert.match(html, /失败\/中断 1/);
-  assert.match(html, /<h1>任务<\/h1>/);
+  assert.match(html, /<h1 class="sh-page-header__title">任务<\/h1>/, 'the page title is the shared page header (#568)');
 });
 
 test('the detail opens on the running job: header, overall progress with stage segments and four facts', () => {
@@ -100,7 +100,7 @@ test('a job with settled calls shows 实际用量 and DSH\'s two speed figures u
 
 test('English: the same surface in the other language, no Chinese left in the chrome', () => {
   const html = render({}, 'en');
-  assert.match(html, /<h1>Jobs<\/h1>/, 'the learner already has "Tasks" (待办): the console of background work is "Jobs" in English');
+  assert.match(html, /<h1 class="sh-page-header__title">Jobs<\/h1>/, 'the learner already has "Tasks" (待办): the console of background work is "Jobs" in English');
   assert.match(html, /All 3/);
   assert.match(html, /In progress 1/);
   assert.match(html, /Job detail/);
@@ -108,10 +108,34 @@ test('English: the same surface in the other language, no Chinese left in the ch
   assert.doesNotMatch(chrome.replace(/<[^>]+>/g, ' ').replace(/aria-label="[^"]*"/g, ''), /[一-鿿]/);
 });
 
-test('nothing to show is said once, in the list, and the detail asks for a selection', () => {
+test('no task at all is ONE empty state that says which tasks appear here: no filters, no list, no detail, no "pick one on the left" (#568)', () => {
   const html = render({ jobs: [] });
-  assert.match(html, /现在没有任务/);
-  assert.match(html, /选择左边的一个任务查看详情/);
+  assert.equal((html.match(/class="sh-empty[ "]/g) || []).length, 1, 'one empty state');
+  assert.match(html, /<div class="tc" [^>]*data-empty="all"/);
+  assert.match(html, /还没有任务/);
+  assert.match(html, /开始出题、导入录音或转换 PDF 后，任务会出现在这里/);
+  assert.doesNotMatch(html, /选择左边/);
+  assert.doesNotMatch(html, /class="tc-list"|class="tc-detail"|tc-pickbar|sh-seg/, 'nothing to filter, select or pick');
+  const en = render({ jobs: [] }, 'en');
+  assert.match(en, /No jobs yet/);
+  assert.match(en, /the job appears here/);
+});
+
+test('the filters are the shared SegmentedControl in the page header; a filter with nothing in it says so once, in place of the list and the detail (#568)', () => {
+  const html = render();
+  assert.match(html, /<header class="sh-page-header tc-header">/);
+  assert.match(html, /class="sh-seg sh-seg--sm tc-scope"[^>]*>/);
+  assert.equal((html.match(/class="sh-seg__item[^"]*"/g) || []).length, 4, 'all, in progress, failed, archived');
+  assert.match(html, /aria-pressed="true"[^>]*>全部 3</, 'the current filter is announced as pressed');
+  assert.doesNotMatch(html, /tc-filterbar/, 'the old row of square chips is gone');
+  // Only archived tasks: 全部 is empty, and says where they are.
+  const archivedOnly = render({ jobs: [], archivedJobs: [{ ...jobs()[1], archived: { at: iso(55) } }] });
+  assert.match(archivedOnly, /data-empty="filter"/);
+  assert.equal((archivedOnly.match(/class="sh-empty[ "]/g) || []).length, 1);
+  assert.match(archivedOnly, /现在没有任务/);
+  assert.match(archivedOnly, /归档的任务在「已归档」里/);
+  assert.doesNotMatch(archivedOnly, /选择左边|class="tc-detail"/);
+  assert.match(archivedOnly, /已归档 1/, 'the filters stay, so the archive is one click away');
 });
 
 test('a task interrupted by a restart is 已中断, not 失败: its own word, its own tone, and it says how to go on (2.6.2)', () => {
