@@ -46,6 +46,7 @@ const SEEN = {
   'study-topic-group-later:/lib': '3:12',
   'study-archify-card:/lib': JSON.stringify('later'),
   'study-book-moves-seen:Cloud': '2026-10-01T00:00:00.000Z',
+  'study-book-backup-seen:/lib': '1',
   'study-jev-guide-seen': '1',
   'study-nav-start:v1': JSON.stringify(['library', 'sources']),
   'study-nav-reorder-hint:v1': 'true',
@@ -58,7 +59,7 @@ const UNRELATED = {
 };
 
 test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge, and the tour resume point is not an entry', () => {
-  assert.equal(GUIDANCE_ITEMS.length, 13);
+  assert.equal(GUIDANCE_ITEMS.length, 14);
   for (const item of GUIDANCE_ITEMS) assert.deepEqual(entryProblems(item), [], item.id);
   const ids = GUIDANCE_ITEMS.map(item => item.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
