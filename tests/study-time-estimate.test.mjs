@@ -30,20 +30,12 @@ test('estimateRemainingTime returns estimating when zero evidence is available',
   assert.match(est.message, /尚在估计，完成首个检验后更新/);
 });
 
-test('filterEffectiveStudyActivity excludes generation wait and paused idle time', () => {
-  const log = [
-    { kind: 'question_answering', durationMs: 120000 }, // 2 min active
-    { kind: 'generation_wait', durationMs: 180000 },    // 3 min waiting for model
-    { kind: 'paused', durationMs: 1800000 },             // 30 min coffee break
-    { kind: 'reading', durationMs: 60000 },              // 1 min reading
-  ];
-
-  const filtered = filterEffectiveStudyActivity(log);
-
-  assert.equal(filtered.activeStudyMs, 120000);
-  assert.equal(filtered.generationWaitMs, 180000);
-  assert.equal(filtered.pausedMs, 1800000);
-  assert.equal(filtered.readingMs, 60000);
+test('filterEffectiveStudyActivity counts only the time spent answering', () => {
+  assert.deepEqual(filterEffectiveStudyActivity([
+    { kind: 'question_answering', durationMs: 120000 },
+    { kind: 'question_answering', durationMs: 60000 },
+  ]), { activeStudyMs: 180000 });
+  assert.deepEqual(filterEffectiveStudyActivity(), { activeStudyMs: 0 });
 });
 
 test('estimateRemainingTime calculates reasonable integer intervals based on progress and branch gap', () => {
