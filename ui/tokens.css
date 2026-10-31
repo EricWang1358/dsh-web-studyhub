@@ -281,7 +281,12 @@
   .study-app[data-ui-font='mono'], .study-seat:has(> .study-app[data-ui-font='mono']) { --font-ui: var(--font-stack-mono); --font-display: var(--font-stack-mono); }
   .study-app[data-ui-font='custom'], .study-seat:has(> .study-app[data-ui-font='custom']) { --font-ui: var(--font-custom, var(--font-stack-system)); --font-display: var(--font-custom, var(--font-stack-system-display)); }
   .study-app[data-ui-title='system'], .study-seat:has(> .study-app[data-ui-title='system']) { --font-display: var(--font-stack-system-display); }
+  /* The reading faces (Aa 里的「字体」): the default is the interface typeface, and a picked face swaps in its own stack; both are
+     declared together here, in this one layer. The cascade compares layers before specificity, so a later layer's plain default (the
+     reader and the reading blocks used to set --reader-face: var(--reader-sans) in study.features) beat these more specific rules
+     whatever their specificity, and the picked face never reached the text. */
   :is(.study-app, .study-seat) {
+    :is(.study-document-viewer, .study-reading) { --reader-face: var(--reader-sans); }
     :is(.study-document-viewer, .study-reading)[data-face='serif'] { --reader-face: var(--font-stack-serif); }
     :is(.study-document-viewer, .study-reading)[data-face='kai'] { --reader-face: var(--font-stack-kai); }
     :is(.study-document-viewer, .study-reading)[data-face='round'] { --reader-face: var(--font-stack-round); }
