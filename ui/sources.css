@@ -10,7 +10,7 @@
     & button.source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     .source-doc { display: block; padding: var(--space-3); }
     .source-doc__line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-    .source-doc__line > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
+    .source-doc__line > input[type="checkbox"] { margin: 0; }
     .source-doc .source-main > span { display: grid; gap: var(--space-half); min-width: 0; }
     .source-doc .source-main strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }

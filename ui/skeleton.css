@@ -93,8 +93,7 @@
   :is(.study-app, .study-seat) {
     .sk-topic-row input,
     .sk-decks input {
-      width: auto;
-      accent-color: var(--accent);
+      margin: 0;
     }
     & button.sk-topic-name {
       display: flex;

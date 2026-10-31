@@ -15,7 +15,6 @@
     }
     .workflow-page textarea { resize: vertical; line-height: 1.65; }
     .workflow-page :is(input, select, textarea, .wf-step-toggle, .wf-route-link, .wf-undo):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
-    .workflow-page :is(input[type="checkbox"], input[type="radio"]) { flex: 0 0 auto; width: 17px; height: 17px; accent-color: var(--accent); }
     .workflow-page fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
     .workflow-page :is(.wf-step-toggle, .wf-route-link, .wf-undo):disabled {
       cursor: not-allowed;

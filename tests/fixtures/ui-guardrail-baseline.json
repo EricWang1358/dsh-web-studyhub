@@ -122,21 +122,9 @@
     "busyLabelSwap": {},
     "radiusCard": {},
     "rawChoiceInput": {
-      "ui/BlogNotes.jsx": 1,
       "ui/DailyRecap.jsx": 1,
-      "ui/GenerationPath.jsx": 1,
-      "ui/LiveClass.jsx": 1,
-      "ui/Manage.jsx": 1,
-      "ui/RetrievalPanel.jsx": 1,
-      "ui/Skeleton.jsx": 3,
-      "ui/SourcePicker.jsx": 4,
-      "ui/Sources.jsx": 1,
-      "ui/Workflows.jsx": 2,
       "ui/document-preview/practice/ReadingPractice.jsx": 1,
-      "ui/document-preview/reader/SegmentDialog.jsx": 1,
-      "ui/exam/WrittenSetup.jsx": 1,
-      "ui/study-map/DeckRow.jsx": 2,
-      "ui/study-map/DeckTree.jsx": 1
+      "ui/document-preview/reader/SegmentDialog.jsx": 1
     },
     "handSwitch": {
       "ui/CourseActive.jsx": 1
@@ -183,14 +171,14 @@
       "ui/side-groups.css": 2,
       "ui/skeleton.css": 41,
       "ui/source-picker.css": 6,
-      "ui/sources-page.css": 6,
+      "ui/sources-page.css": 5,
       "ui/sources.css": 6,
       "ui/study-map/catalog.css": 8,
       "ui/thumb-feedback.css": 1,
       "ui/update.css": 1,
       "ui/views.css": 1,
       "ui/workflow-scope.css": 4,
-      "ui/workflows.css": 27
+      "ui/workflows.css": 26
     },
     "serviceHandoff": {
       "ui/App.jsx": 2,

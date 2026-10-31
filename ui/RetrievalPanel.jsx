@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Hint, InlineMessage } from './components/index.js';
+import { Button, CheckboxInput, Hint, InlineMessage } from './components/index.js';
 import { formatNumber } from './format.js';
 import { useStudy } from './study-context.jsx';
 import css from './large-documents.css';
@@ -44,7 +44,7 @@ export default function RetrievalPanel({ advice, sourceIds = [], focus = '', cou
         <ul className="retrieval-panel__pages" aria-label={ui('检索挑出的页面')}>
           {preview.pages.map(page => <li key={page.sourceId}>
             <label>
-              <input type="checkbox" checked={checked.has(page.sourceId)} disabled={disabled} onChange={event => toggle(page.sourceId, event.target.checked)} />
+              <CheckboxInput checked={checked.has(page.sourceId)} disabled={disabled} onChange={event => toggle(page.sourceId, event.target.checked)} />
               <span className="retrieval-panel__page">{page.page ? uiFormat('第 {0} 页', [page.page]) : page.title}</span>
               <span className="retrieval-panel__snippet">{page.snippet}</span>
             </label>

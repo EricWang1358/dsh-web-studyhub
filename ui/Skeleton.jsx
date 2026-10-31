@@ -14,7 +14,7 @@ import { useInjectCss } from "./shared.js";
 import { HandOff, HandOffForm } from "./hand-off/HandOff.jsx";
 import { handOffTip, useHandOff } from "./hand-off/use-hand-off.js";
 import PageScope, { usePageScope } from './PageScope.jsx';
-import { Badge, Button, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, LoadingState, PageHeader, Panel, SegmentedControl, Tooltip, foldLabel } from "./components/index.js";
+import { Badge, Button, CheckboxInput, Chip, ConfirmDialog, DisclosureToggle, InlineMessage, LoadingState, PageHeader, Panel, SegmentedControl, Tooltip, foldLabel } from "./components/index.js";
 import { courseGroupRows, classifySkeletonError, openSkeleton, focusSurvivesCourse } from "./skeleton-groups.js";
 import { useStudy } from "./study-context.jsx";
 import { formatDateTime } from './format.js';
@@ -217,13 +217,10 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
       <li key={t.key} className={on ? "is-picked" : ""}>
         <div className="sk-topic-row">
           <DisclosureToggle open={expanded} label={foldLabel(expanded, t.topic)} onToggle={() => toggleFold(t.key)} />
-          <input
-            type="checkbox"
+          <CheckboxInput
             aria-label={uiFormat("选择主题 {0}", [t.topic])}
             checked={on === keys.length}
-            ref={(el) => {
-              if (el) el.indeterminate = on > 0 && on < keys.length;
-            }}
+            indeterminate={on > 0 && on < keys.length}
             onChange={(e) => toggle(keys, e.target.checked)}
           />
           <button
@@ -244,7 +241,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               return (
                 <li key={key}>
                   <label>
-                    <input type="checkbox" checked={picked.has(key)} onChange={(e) => toggle([key], e.target.checked)} />
+                    <CheckboxInput checked={picked.has(key)} onChange={(e) => toggle([key], e.target.checked)} />
                     <span>{d.folder ? `${d.folder} / ` : ""}{d.deckTitle}</span>
                     <small>{uiFormat("{0} 题", [d.count])}</small>
                   </label>
@@ -320,13 +317,10 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   <li key={g.id} className={"sk-group" + (on ? " is-picked" : "") + (g.loose ? " loose" : "")}>
                     <div className="sk-topic-row">
                       <DisclosureToggle open={!!expanded} label={foldLabel(!!expanded, g.title)} onToggle={() => toggleFold("g:" + g.id)} />
-                      <input
-                        type="checkbox"
+                      <CheckboxInput
                         aria-label={uiFormat("选择主题组 {0}", [g.title])}
                         checked={keys.length > 0 && on === keys.length}
-                        ref={(el) => {
-                          if (el) el.indeterminate = on > 0 && on < keys.length;
-                        }}
+                        indeterminate={on > 0 && on < keys.length}
                         onChange={(e) => toggle(keys, e.target.checked)}
                       />
                       <button

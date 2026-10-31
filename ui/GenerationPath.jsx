@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, Tooltip } from './components/index.js';
+import { Button, CheckboxInput, Disclosure, Tooltip } from './components/index.js';
 import AiHelperNote from './AiHelperNote.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { useStudy } from './study-context.jsx';
@@ -26,7 +26,7 @@ function Step({ step, disabled, patch, onUseStep }) {
   return (
     <li className="gen-path__step" data-included={step.included === false ? 'false' : 'true'} data-optional={step.optional ? 'true' : 'false'}>
       <label className="gen-path__title">
-        <input type="checkbox" checked={step.included !== false} disabled={disabled} onChange={event => patch(step.id, { included: event.target.checked })} />
+        <CheckboxInput checked={step.included !== false} disabled={disabled} onChange={event => patch(step.id, { included: event.target.checked })} />
         <span><strong>{uiFormat('第 {0} 步', [step.order])} · {title}</strong>
           {step.optional && <em className="gen-path__tag">{optionalTag(step)}</em>}
           <small>{[uiFormat('{0} 页 · {1} 字符 · 建议 {2} 题', [step.pages, formatNumber(step.chars), step.count]), stepPages(step, title)].filter(Boolean).join(' · ')}</small></span>

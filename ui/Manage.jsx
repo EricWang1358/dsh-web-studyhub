@@ -7,7 +7,7 @@ import { useStudy } from "./study-context.jsx";
 import { AppContext } from "./app/app-context.js";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
 import { selfCitedCardCount } from "../lib/source-provenance.js";
-import { Badge, Banner, Button, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
+import { Badge, Banner, Button, CheckboxInput, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
 import { partOf, partsOf } from "../lib/deck-parts.js";
 import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
@@ -166,7 +166,7 @@ export default function Manage({
             <small>{uiFormat("已选 {0} / {1} 个主题", [splitTopics.length, topics.length])}</small>
           </span>
           <div className="manage-topics">{topics.map((topic) => <label key={topic} className="manage-topic">
-            <input type="checkbox" checked={splitTopics.includes(topic)} onChange={(e) => setSplitTopics((old) => e.target.checked ? [...old, topic] : old.filter((x) => x !== topic))} />
+            <CheckboxInput checked={splitTopics.includes(topic)} onChange={(e) => setSplitTopics((old) => e.target.checked ? [...old, topic] : old.filter((x) => x !== topic))} />
             <span>{topic}</span>
           </label>)}</div>
           <div className="manage-row">

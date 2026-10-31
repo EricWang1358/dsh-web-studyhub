@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { forwardRef, useId } from 'react';
 import css from './fields.css';
 import { useComponentCss, cx } from './css.js';
 import { Hint } from './Hint.jsx';
@@ -28,6 +28,22 @@ export function Checkbox({ label, hint, checked, onChange, disabled, role, class
     </label>
   );
 }
+
+/**
+ * The shared check on its own (#566), for a row that lays out its own label: a picker row, a tree row, a pill. The same box as
+ * `Checkbox`, drawn from the tokens, so it never falls back to the browser's white square on a dark page. `indeterminate` is the
+ * mixed state (some of what the box stands for is picked); it is a property of the input, not an attribute, so it is set on every
+ * render, and the browser then also says "mixed" to a screen reader. Everything else, onChange (the plain event) included, lands
+ * on the input. A visible checkbox in ui/ is this or `Checkbox` (tests/shared-checkbox.test.mjs).
+ */
+export const CheckboxInput = forwardRef(function CheckboxInput({ indeterminate = false, className, ...rest }, ref) {
+  useComponentCss(css, 'study-fields');
+  const attach = element => {
+    if (element) element.indeterminate = !!indeterminate;
+    if (typeof ref === 'function') ref(element); else if (ref) ref.current = element;
+  };
+  return <input ref={attach} type="checkbox" className={cx('sh-check__input', className)} {...rest} />;
+});
 
 /** The same row as a switch (role="switch"): for a setting that turns something on or off at once. */
 export function Switch(props) {
