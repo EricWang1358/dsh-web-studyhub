@@ -75,7 +75,8 @@ test('the composed shell: shortcut sheet over a dialog, the flag save, the 更�
   // #90: the board page draws no toast stack of its own (its undo goes through the app's one region; the hold-on-hover rule of that
   // region is the wave-1 overlay test's).
   await page.locator('[data-tour="nav-board"]').click();
-  await page.getByRole('heading', { name: /Tasks/ }).first().waitFor();
+  // The page title, which every board state shows (an empty board shows no columns since #576, so the 「待办」 column heading is not there).
+  await page.getByRole('heading', { name: /Task board/ }).first().waitFor();
   assert.equal(await page.locator('.sh-toasts--page').count() <= 1, true, 'at most one page-level toast stack');
   assert.deepEqual(errors, []);
 });
