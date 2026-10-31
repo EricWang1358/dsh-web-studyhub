@@ -6,22 +6,30 @@
        opened yet, and the two quiet words at the foot of the rail (快捷键, 名词解释). Its own sheet, so ui/shell.css stays the frame:
        tokens only, both themes, and nothing here takes room from a row (the marker lives inside the one row height, the links make one
        short line and the 62px rail has no words at all). */
-    /* A dot in the gap between the icon and the label: the words 「从这里开始」 are the first line of the row's tooltip, so the marker
-       costs the label no room and a long English label keeps its two lines. The icon takes the accent with it, which is what makes the
-       five rows read as a group at a glance. */
+    /* A dot on the icon's top-right corner, like a notification badge (issue 579). It used to sit in the 14px between the icon and the
+       label and read as a bullet before the first character (「•学习库」); on the icon it is clear of the words, and the words 「从这里开始」
+       are the first line of the row's tooltip, so the marker costs the label no room and a long English label keeps its two lines. It lives
+       inside the icon's box (ui/SideNav.jsx), so it travels with the icon and the 62px rail, which has only icons, shows it too. The icon
+       takes the accent with it, which is what makes the five rows read as a group at a glance; a ring of the rail's own background cuts
+       the dot out of the glyph it overlaps, so the two accents do not run together. */
+    .nav-start-icon {
+      position: relative;
+      color: var(--accent-soft);
+    }
     .nav-start {
       position: absolute;
-      left: 36px;
-      top: 50%;
+      top: calc(var(--space-half) * -1.5);
+      right: calc(var(--space-half) * -1.5);
       width: 6px;
       height: 6px;
-      transform: translateY(-50%);
       border-radius: 50%;
       background: var(--accent-soft);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft) 18%, transparent);
+      box-shadow: 0 0 0 2px var(--bg-canvas);
       pointer-events: none;
     }
-    .sidebar.is-narrow .nav-start {
+    /* In the rail a run in progress already puts its dot on that corner of 回到题目 (ui/shell.css .nav-progress); one dot is enough
+       there, and the tooltip still opens with 从这里开始. */
+    .sidebar.is-narrow .nav:has(.nav-progress) .nav-start {
       display: none;
     }
     .sidebar-links {
