@@ -136,6 +136,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                       onJobs={() => { void core.refresh().catch((failure) => core.setError(failure.message)); }} />}
                     {page === 'board' ? (
                       <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={lib.boardStudyRef}
+                        composeOnArrive={lib.boardCompose} onComposeOpened={() => set.setBoardCompose(false)}
                         dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan}
                           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} /> : null}
                         onClearStudyRef={() => set.setBoardStudyRef(null)} onStudyRef={learn.openBoardReference} />
