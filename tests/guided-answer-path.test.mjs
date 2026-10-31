@@ -15,13 +15,13 @@ async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'guided-answer-path-'));
   const service = new StudyService(join(root, 'library'));
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); });
-  await service.store.update((s) => { s.decks.push({ id: 'd', title: 'D', course: 'C', cards: [quiz('q1')] }); });
+  await service.store.update((s) => { s.decks.push({ id: 'd', title: 'D', course: 'C', cards: [quiz('q1'), quiz('q2')] }); });
   const session = await service.call('study.session.start', { courseId: 'C', scope: [{ kind: 'deck', id: 'd' }],
     goal: { title: 'Goal', checkItems: [{ id: 'k1', title: 'One', targetCardIds: ['q1'] }] } });
   const run = await service.call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'd', cardId: 'q1' }] });
   const progress = async () => (await service.call('study.session.get', { sessionId: session.id })).progress
     ?? (await service.call('study.session.resume', { sessionId: session.id })).progress;
-  return { service, run, progress };
+  return { service, session, run, progress };
 }
 
 test('an answer given alone is an independent pass', async (t) => {
@@ -52,4 +52,13 @@ test('the tail retry after a wrong answer is not an independent pass: the learne
   const read = await progress();
   assert.equal(read.items[0].status, 'assisted');
   assert.equal(read.independentPassedCount, 0);
+});
+
+test('opening a side question leaves the draft of the question still open', async (t) => {
+  const { service, session, run } = await library(t);
+  await service.call('review.draft.save', { runId: run.id, cardId: 'q1', index: 0, draft: { text: 'half an answer' } });
+  await service.call('study.session.update', { sessionId: session.id, focus: { kind: 'card', id: 'q1', deckId: 'd', runId: run.id } });
+  const opened = await service.call('study.branch.open', { sessionId: session.id, targetDeckId: 'd', targetCardId: 'q2', reason: 'contrast' });
+  assert.equal(opened.session.focus.id, 'q2');
+  assert.equal((await service.call('review.get', { runId: run.id })).draft.text, 'half an answer');
 });
