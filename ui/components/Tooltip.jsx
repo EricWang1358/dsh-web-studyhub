@@ -28,8 +28,9 @@ const openInGroup = new Map();
  * ancestor's edge, level with the anchor, and below the anchor itself when there is no room beside.
  * An empty `content` draws no card (and closes an open one): a caller whose words come and go keeps one anchor in the page, so the control
  * it wraps is never remounted when the words appear.
+ * onOpenChange(open): told after the card opens or closes (the sidebar says its reorder line in the first card only, ui/nav-reorder-hint.js).
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
@@ -71,6 +72,14 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
   }, [layer, open, placement, flip, outside]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  const openChange = useRef(onOpenChange), wasOpen = useRef(false);
+  openChange.current = onOpenChange;
+  useIsoLayoutEffect(() => {
+    if (wasOpen.current === open) return;
+    wasOpen.current = open;
+    openChange.current?.(open);
+  }, [open]);
+  useEffect(() => () => { if (wasOpen.current) openChange.current?.(false); }, []); // an open card that goes away has closed
   const worded = Boolean(content);
   useEffect(() => { if (!worded) { clearTimeout(timer.current); setOpen(false); } }, [worded]);
   const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(visible && worded), delay); };

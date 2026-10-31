@@ -151,6 +151,8 @@ export function useNavOrder(defaults, navRef) {
 
   const bind = (id) => ({
     "data-nav-id": id,
+    // The keys are said on the row itself, so a screen reader names them on every row while the sighted tooltip says them once (ui/nav-reorder-hint.js).
+    "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown",
     onPointerDown(event) {
       if (event.button !== 0 || event.pointerType === "touch" || press.current) return;
       const state = { id, el: event.currentTarget, pointerId: event.pointerId, x0: event.clientX, y0: event.clientY, y: event.clientY, active: false, dy: 0, grab: 0 };

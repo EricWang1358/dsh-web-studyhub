@@ -9,6 +9,7 @@ import { useTaskBadge } from '../tasks/use-task-badge.js';
 import { bookEntryPage } from '../book/model.js';
 import { NAV_DEFAULTS, NAV_GROUPS, groupIsOpen, useNavGroups, useNavOrder } from '../nav-order.js';
 import { isStartPage, markStart, readStarts, startHere } from '../nav-start.js';
+import { useReorderHint } from '../nav-reorder-hint.js';
 import { GLOSSARY } from '../mastery-terms.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
@@ -54,6 +55,11 @@ export default function AppSidebar() {
   const navRef = useRef(null), [navMark, setNavMark] = useState(null);
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
   const navGroups = useNavGroups();
+  /* How to reorder is said once, in the first row tooltip the learner opens, not in all fifteen (ui/nav-reorder-hint.js); a learner who
+     has lifted or moved a row has found it. */
+  const reorderHint = useReorderHint();
+  const { learned } = reorderHint;
+  useEffect(() => { if (navOrder.lifted || navOrder.announce) learned(); }, [navOrder.lifted, navOrder.announce, learned]);
   /* 「从这里开始」: the ids opened so far (ui/nav-start.js). A page that was already open when the app started keeps its marker: the visit the
      learner lands on was not a choice, and the home is where the markers are meant to be read. Every other way into a page counts. */
   const [starts, setStarts] = useState(readStarts);
@@ -111,11 +117,11 @@ export default function AppSidebar() {
             <NavGroup key={group.id} id={group.id} label={group.label} hint={group.hint} collapsible={group.collapsible}
               open={groupIsOpen(group.id, navGroups.folded, navPage)} onToggle={() => navGroups.toggle(group.id)}>
               {group.id === 'daily' && (
-                <ResumeNavItem lastRun={lastRun} hasDecks={!!data?.decks.length} ready={!!data} active={navPage === 'review'}
+                <ResumeNavItem lastRun={lastRun} hasDecks={!!data?.decks.length} ready={!!data} active={navPage === 'review'} narrow={sidebarNarrow}
                   start={startHere('review', starts)} disabled={!data || busy || !pageAvailable(data, 'review')} onClick={intents.resumeOrStart} />
               )}
               {group.id === 'daily' && data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
-                <CoachNavItem ready={data.coach.ready} disabled={busy} onClick={session.onCoachPractice} />
+                <CoachNavItem ready={data.coach.ready} disabled={busy} narrow={sidebarNarrow} onClick={session.onCoachPractice} />
               )}
               {ids.map((id) => {
                 const label = ui(PAGES[id].label);
@@ -124,8 +130,8 @@ export default function AppSidebar() {
                 return (
                   <NavItem key={id} {...navOrder.bind(id)} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
                     className={navOrder.lifted === id ? 'is-dragging' : ''} upkeep={group.id === 'setup'} active={navPage === id}
-                    glyph={PAGES[id].glyph} label={label} purpose={ui(PAGES[id].purpose)} title={label}
-                    tail={ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）')} start={startHere(id, starts)}
+                    glyph={PAGES[id].glyph} label={label} purpose={ui(PAGES[id].purpose)} narrow={sidebarNarrow}
+                    tail={reorderHint.show ? ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）') : undefined} onTipChange={reorderHint.tipChange} start={startHere(id, starts)}
                     onClick={() => (id === 'book' ? openBookEntry() : gotoPage(nav, id))} disabled={!data && id !== 'board'}
                     hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : news?.total > 0 ? news.total : undefined}
                     hintClass={due || news?.failed > 0 ? 'nav-count is-due' : news?.total > 0 ? 'nav-count is-live' : 'nav-count'}
@@ -161,7 +167,7 @@ export default function AppSidebar() {
         {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
         <ThemeCycle />
         <UpdateCenter call={core.call} host={host} compact={sidebarNarrow} />
-        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} title={ui('设置')} purpose={ui('语言、外观、模型连接和引导提示都在这页调')} data-tour="nav-settings" data-usage="nav.settings"
+        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} narrow={sidebarNarrow} purpose={ui('语言、外观、模型连接和引导提示都在这页调')} data-tour="nav-settings" data-usage="nav.settings"
           onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
       </div>
     </aside>
