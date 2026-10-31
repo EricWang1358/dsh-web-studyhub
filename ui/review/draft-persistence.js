@@ -6,6 +6,8 @@ import { assistanceEvidence } from '../../lib/study-progress.js';
 
 /** After the last keystroke; a step or a link does not wait for it, it flushes. */
 export const DRAFT_SAVE_DELAY_MS = 400;
+/** How long a step or a link waits on a save before it tells the learner. The write itself keeps its transport's own, much longer, limit. */
+export const DRAFT_FLUSH_LIMIT_MS = 8000;
 
 /** The save's content. Empty values stay in it: writing them is what clears an older draft. Whether the hint or explanation is open is not saved. */
 export function draftPayloadOf(entry) {
@@ -57,7 +59,7 @@ export function savedSignature(run) {
  * A write's answer touches nothing but what it wrote: a late success cannot mark newer text saved, a late failure cannot bring older text back.
  * call(action, args) is a plain host call, never act(); currentRoot() is the library open now; a save for another one is dropped unsent.
  */
-export function createDraftSaver({ call, currentRoot, delayMs = DRAFT_SAVE_DELAY_MS, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createDraftSaver({ call, currentRoot, delayMs = DRAFT_SAVE_DELAY_MS, flushLimitMs = DRAFT_FLUSH_LIMIT_MS, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const waiting = new Map();
   let timer = null, writing = null, failed = false, generation = 0;
 
@@ -103,14 +105,24 @@ export function createDraftSaver({ call, currentRoot, delayMs = DRAFT_SAVE_DELAY
       timer = setTimer(release, delayMs);
       if (others) write();
     },
-    /** Sends everything now and waits. True when all of it arrived; false when a write failed (its words are kept, nothing was lost). */
+    /**
+     * Sends everything now and waits, up to the limit. True when all of it arrived; false when a write failed or is still hanging (its words are kept, nothing was lost).
+     * Only the waiting is bounded: a hanging write stays the one in flight, so it cannot land after a newer one.
+     */
     async flush() {
       failed = false;
-      while (waiting.size || writing) {
-        await release();
-        if (failed) return false;
+      let expired = false, wake;
+      const limit = new Promise((resolve) => { wake = resolve; });
+      const bound = setTimer(() => { expired = true; wake(); }, flushLimitMs);
+      try {
+        while (waiting.size || writing) {
+          await Promise.race([release(), limit]);
+          if (failed || expired) return false;
+        }
+        return true;
+      } finally {
+        clearTimer(bound);
       }
-      return true;
     },
     dirty: () => waiting.size > 0 || !!writing,
     /** Forget one question (it was answered) or, with no key, everything (the library changed). A write in flight then cannot come back. */

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDraftSaver, DRAFT_SAVE_DELAY_MS, draftKey, draftPayloadOf, draftable, restoredDraft, savedSignature, entrySignature } from '../ui/review/draft-persistence.js';
+import { createDraftSaver, DRAFT_FLUSH_LIMIT_MS, DRAFT_SAVE_DELAY_MS, draftKey, draftPayloadOf, draftable, restoredDraft, savedSignature, entrySignature } from '../ui/review/draft-persistence.js';
 import { emptyEntry, entryForRun } from '../ui/review/session-logic.js';
 
 /* The save channel of a question's unsubmitted answer (#537), away from React: one write at a time, the newest text wins, a late answer never
@@ -15,11 +15,13 @@ function rig({ root = () => 'lib' } = {}) {
   const calls = [];
   const call = (action, args) => new Promise((resolve, reject) => { calls.push({ action, args, resolve, reject }); });
   const saver = createDraftSaver({ call, currentRoot: root,
-    setTimer: (fn) => { const handle = ++nextTimer; timers.set(handle, fn); return handle; },
+    setTimer: (fn, ms) => { const handle = ++nextTimer; timers.set(handle, { fn, ms }); return handle; },
     clearTimer: (handle) => timers.delete(handle) });
-  const tick = () => { const due = [...timers.values()]; timers.clear(); due.forEach((fn) => fn()); };
+  const fire = (due) => { for (const [handle, timer] of timers) if (due(timer)) { timers.delete(handle); timer.fn(); } };
+  const tick = () => fire((timer) => timer.ms <= DRAFT_SAVE_DELAY_MS);
+  const expire = () => fire((timer) => timer.ms === DRAFT_FLUSH_LIMIT_MS);
   const settle = () => new Promise((resolve) => setImmediate(resolve));
-  return { saver, calls, tick, settle, timers };
+  return { saver, calls, tick, expire, settle, timers };
 }
 const save = (text, key = 'k1', extra = {}) => ({ key, root: 'lib', args: { runId: 'r', cardId: 'c', index: 2, queueVersion: 1, draft: { selected: [], text, stepInputs: {} }, ...extra } });
 
@@ -119,7 +121,7 @@ test('flush sends at once, waits for the write and reports success', async () =>
   let flushed;
   saver.flush().then((value) => { flushed = value; });
   await settle();
-  assert.equal(timers.size, 0, 'the debounce is over');
+  assert.deepEqual([...timers.values()].map((timer) => timer.ms), [DRAFT_FLUSH_LIMIT_MS], 'the debounce is over; only the bound on this wait is left');
   assert.equal(calls.length, 1);
   assert.equal(flushed, undefined, 'it is still waiting');
   calls[0].resolve({ ok: true });
@@ -219,4 +221,41 @@ test('a save the host calls stale counts as done: the question is gone, nothing 
   await settle();
   assert.equal(flushed, true);
   assert.equal(saver.dirty(), false);
+});
+
+test('a save that hangs stops holding the step after the limit, says so, and still writes one at a time', async () => {
+  const { saver, calls, tick, expire, settle, timers } = rig();
+  saver.schedule(save('typed'));
+  const flushing = saver.flush();
+  await settle();
+  assert.equal(calls.length, 1);
+  assert.ok([...timers.values()].some((timer) => timer.ms === DRAFT_FLUSH_LIMIT_MS), 'one bound on this wait');
+  assert.ok(DRAFT_FLUSH_LIMIT_MS <= 10000);
+  expire();
+  assert.equal(await flushing, false, 'the caller shows the error it already has');
+  assert.equal(saver.dirty(), true, 'the words are not reported as saved');
+  assert.equal(timers.size, 0, 'no timer left behind');
+
+  saver.schedule(save('newer'));
+  tick();
+  await settle();
+  assert.equal(calls.length, 1, 'the hung write is still the only one in flight, so it cannot land after a newer one');
+  calls[0].resolve({ ok: true });
+  await settle();
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].args.draft.text, 'newer');
+  calls[1].resolve({ ok: true });
+  await settle();
+  assert.equal(saver.dirty(), false);
+  assert.equal(await saver.flush(), true);
+});
+
+test('a flush that finishes in time reports success and leaves no timer', async () => {
+  const { saver, calls, settle, timers } = rig();
+  saver.schedule(save('typed'));
+  const flushing = saver.flush();
+  await settle();
+  calls[0].resolve({ ok: true });
+  assert.equal(await flushing, true);
+  assert.equal(timers.size, 0);
 });
