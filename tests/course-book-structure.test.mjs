@@ -543,9 +543,10 @@ test('the actions are registered with input schemas, write the sources, and are 
     ['book.write', { hid: point.hid, edits: 'x' }, 'book-write-mode'],
     ['book.write', { hid: point.hid, op: 7, heading: 'h1' }, 'book-write-op'],
   ]) assert.equal(await codeOf(study.call(action, args)), code, `${action} ${JSON.stringify(args)}`);
-  // Short: the library context's listing must not grow much past what the host shows of a tool result (8 192 characters).
+  // Short: the library context's listing must stay under what the host shows of a tool result (8 192 characters). It was 9 979 before source.courses.set
+  // got its schema (#465, +216) and 10 195 with it; leaving out the fields at their default (empty description and output, requiresModel false, available true) made it 6 268.
   const listing = JSON.stringify(filterCapabilities(capabilities, { context: 'library' }));
-  assert.ok(listing.length < 10_000, `study_capabilities {context: 'library'} is ${listing.length} characters`);
+  assert.ok(listing.length < 6_400, `study_capabilities {context: 'library'} is ${listing.length} characters`);
   for (const operation of ['course.book.save', 'course.book.rename', 'course.book.move', 'course.book.delete', 'book.write'])
     assert.ok(JSON.stringify(filterCapabilities(capabilities, { operation }).contexts[0].operations[0]).length < 450, operation);
   for (const text of ['course.book.rename {course?,hid,title,version}', 'course.book.move {course?,hid,toParent?,afterHid?,beforeHid?,version}', 'course.book.delete {course?,hid,children?:promote|toUnplaced,version}', "book.write {course?,hid,file?,op:insert"])
