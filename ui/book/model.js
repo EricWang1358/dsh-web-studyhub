@@ -18,8 +18,8 @@ export function tocEntries(book) {
   });
 }
 
-/** Where the sidebar's 复习全书 leads: the book page once its notes are written, else the 总纲 page (which offers 生成总纲 / 生成复习全书). */
-export const bookEntryPage = book => (book?.status === 'ok' && book.notes ? 'book' : 'outline');
+/** Where the sidebar's 复习全书 leads: the book page once its notes are written or a rebuild waits there for the learner's answer, else the 总纲 page (which offers 生成总纲 / 生成复习全书). */
+export const bookEntryPage = book => (book?.status === 'rebuild-pending' || (book?.status === 'ok' && book.notes) ? 'book' : 'outline');
 
 /** What the 期末一周 needs of the course's exam date, as the book page's quiet line says it: { kind: 'none' } (no date: a link to the course settings), { kind: 'later', window }
     (a date beyond the window: the plan starts `window` days before the exam), or null (inside the window, or past: nothing to say). */

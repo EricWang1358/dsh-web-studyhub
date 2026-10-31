@@ -19,7 +19,7 @@ export default function BookHeader({ data, course, courseName, book, writing, sw
       {writing && book?.status === 'ok' && book.notes && <p className="book-header__status" role="status">{ui('正在更新复习全书…')}
         {onOpenTask && <Button variant="link" size="sm" onClick={() => onOpenTask(writing.jobId)}>{ui('看进度')}</Button>}</p>}
       {switched && <p className="book-header__status" role="status">{uiFormat('已切换到课程 {0}', [courseName])}</p>}
-      {book?.status === 'ok' && book.moves && <BookMoves course={course} moves={book.moves} onUndo={writing ? undefined : onUndoRebuild} />}
+      {book?.status === 'ok' && book.moves && <BookMoves course={course} moves={book.moves} onUndo={onUndoRebuild} />}
     </PageHeader>
   );
 }

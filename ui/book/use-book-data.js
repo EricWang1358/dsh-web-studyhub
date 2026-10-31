@@ -3,8 +3,8 @@ import { useLiveEffect } from '../use-async.js';
 
 /* The review book of a course as the page shows it (course.book.open), read again on a ticket (a task that ended, a Q&A added), and checked when the page comes
    back into view (the window regains the focus, the tab becomes visible, or the focus comes back into the app from elsewhere, such as the main chat's box):
-   course.book.revision is one number, and only when it moved is the whole book read again, in place. Never while an editor is open (`paused`). The page's reads say `holdRebuild`:
-   a rebuilt outline that would move the learner's own text answers its preview instead of moving it (lib/course-book-files.js); an editor that is open keeps the book it edits. */
+   course.book.revision is one number, and only when it moved is the whole book read again, in place. Never while an editor is open (`paused`). A rebuilt outline that would move
+   the learner's own text answers its preview instead (lib/course-book-files.js); an editor that is open keeps the book it edits. */
 
 const QUIET = 2000;
 
@@ -13,7 +13,7 @@ export function useBookData({ call, course, paused, onReplaced }) {
   const [state, setState] = useState({ book: null, error: null, ticket: 0 });
   const latest = useRef({});
   useLiveEffect(isLive => {
-    call('course.book.open', { course, holdRebuild: true }).then(book => {
+    call('course.book.open', { course }).then(book => {
       if (isLive() && !(book?.status === 'rebuild-pending' && latest.current.paused)) setState(current => ({ ...current, book, error: null }));
     },
       error => { if (isLive()) setState(current => ({ ...current, error })); });
@@ -34,7 +34,7 @@ export function useBookData({ call, course, paused, onReplaced }) {
       try {
         const { revision } = await call('course.book.revision', { course });
         if (signal.aborted || revision === null || revision === latest.current.revision) return;
-        const next = await call('course.book.open', { course, holdRebuild: true });
+        const next = await call('course.book.open', { course });
         if (!signal.aborted && !latest.current.paused && next?.status === 'ok') { latest.current.onReplaced?.(next); setBook(next); }
       } catch { /* the next return asks again */ } finally { busy = false; }
     };

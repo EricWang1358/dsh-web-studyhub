@@ -60,6 +60,7 @@ test('the sidebar row is one line with the book icon, in Chinese and in English'
 test('where the sidebar leads: the book page once its notes are written, else the 总纲 page (no outline, no course, or an outline without notes)', () => {
   assert.equal(ui.bookEntryPage({ status: 'ok', notes: true }), 'book');
   assert.equal(ui.bookEntryPage({ status: 'ok', notes: false }), 'outline');
+  assert.equal(ui.bookEntryPage({ status: 'rebuild-pending', moves: {} }), 'book', 'the preview is on the book page');
   assert.equal(ui.bookEntryPage({ status: 'empty', reason: 'no-outline' }), 'outline');
   assert.equal(ui.bookEntryPage({ status: 'empty', reason: 'no-course' }), 'outline');
   assert.equal(ui.bookEntryPage(null), 'outline');

@@ -101,8 +101,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const courseRecord = (data?.courses || []).find(item => item.name === course);
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
-  const rebuild = useBookRebuild({ call, course, notify, setBook, reload });
-  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={rebuild.undo}
+  const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
+  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building ? undefined : rebuild.undo}
     onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
   // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.
@@ -115,7 +115,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('没能打开复习全书')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   // A rebuilt outline that would move the learner's own text: nothing moved yet, the list comes first (#461).
-  if (book.status === 'rebuild-pending') return <section className="page book-page" ref={pageRef}>{header}<BookRebuildPreview moves={book.moves} onApply={rebuild.apply} onDiscard={rebuild.discard} /></section>;
+  if (book.status === 'rebuild-pending') return <section className="page book-page" ref={pageRef}>{header}<BookRebuildPreview moves={book.moves} onApply={rebuild.apply} onDiscard={rebuild.discard} building={building} /></section>;
   if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
     description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), onClick: onBack }} /></section>;
   if (!book.notes) {

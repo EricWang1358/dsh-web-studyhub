@@ -69,9 +69,11 @@ test('复习全书: the moves are shown before they happen, can always be read a
         const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         try {
           await page.goto(running.server.url);
-          await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
           const before = await running.api('course.book.revision', {});
-          await page.locator('.outline-book-line__open').click({ timeout: 30000 });
+          // The real way in: the sidebar's 复习全书, which opens the book before it knows what is there.
+          const entry = page.locator('[data-tour="nav-book"]').first();
+          await entry.waitFor({ timeout: 30000 });
+          await entry.click({ timeout: 5000 }).catch(() => entry.dispatchEvent('click'));
           await page.locator('[data-book-rebuild-preview]').waitFor({ timeout: 30000 });
           assert.equal((await running.api('course.book.revision', {})).revision, before.revision, 'opening the preview writes nothing');
           assert.match(await page.locator('[data-book-rebuild-preview]').innerText(), new RegExp(moved));

@@ -310,6 +310,7 @@
   "笔记放到下面列的位置。放好后还能撤销这次整理，只要之后没有再改过书。": "Your notes go where listed below. You can still undo this rebuild afterwards, as long as the book has not changed since.",
   "总纲回到上一版，书一个字不动。想要新总纲，要再整理一次。": "The outline goes back to the previous one and not a word of the book changes. For the new outline, organise it again.",
   "按这样放": "Put them like this",
+  "这门课正在整理总纲或更新全书，等它结束再撤销。这次没有改动。": "An outline or book build of this course is running; undo when it ends. Nothing changed.",
   "放弃这次整理": "Give this rebuild up",
   "这次整理之后书或总纲又改过了，撤销会盖掉之后的内容，所以没有撤销。书没有改动；「未归位」里的内容可以手动放回。": "The book or the outline changed after this rebuild and an undo would overwrite what came later, so nothing was undone. The book is unchanged; what waits in Not placed can be put back by hand.",
   "没有留下这次整理之前的记录，没法撤销。书没有改动。": "Nothing of the book before this rebuild was kept, so it cannot be undone. The book is unchanged.",

@@ -36,6 +36,8 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
   useEffect(() => { onDirty?.(dirty); }, [dirty]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onDirty?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
   const settle = (next, { kept = true } = {}) => {
+    // Saved, and a rebuilt outline waits for the learner's answer: the page shows it next (ui/book/BookRebuildPreview.jsx).
+    if (next.status !== 'ok') { onChanged(next); return; }
     base.current = { file, version: next.files[file]?.version ?? 0, text: fileText(next, file) };
     if (kept) setDraft(base.current.text);
     onChanged(next);

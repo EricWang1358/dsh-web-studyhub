@@ -160,7 +160,7 @@
     }
     .book-moves__list > li {
       display: grid;
-      gap: 2px;
+      gap: var(--space-1);
       min-width: 0;
       overflow-wrap: anywhere;
     }
