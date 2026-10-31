@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Dialog, InlineConfirm, LoadingState } from '../components/index.js';
-import BookEditor from './BookEditor.jsx';
 import BookFlip from './BookFlip.jsx';
 import BookLookup from './BookLookup.jsx';
 import CrunchDay from './CrunchDay.jsx';
 import MockPaper from './MockPaper.jsx';
 import { AiFoldContext } from './ai-fold.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
+import { deferredView } from '../deferred-view.jsx';
+
+// CodeMirror and its Markdown/HTML/JavaScript grammars arrive only when 编辑这个知识点 opens, not with the workspace (#561).
+const BookEditor = deferredView(() => import('./BookEditor.jsx'), { label: () => ui('正在打开编辑器…') });
 
 /* The review book's views that are not the reading surface (docs/review-book.md "More"), each reached from 「⋯ 更多」: the editor of one point and 翻看 take
    the page's place with 「完成 · 回到阅读」 (back at the same point); 速查页 and the mock paper open in a dialog over the book (整本书 › 发给主会话 opens nothing: ui/book/more-actions.js). Each wraps

@@ -2,7 +2,8 @@ import React, { lazy, Suspense } from 'react';
 import { ui } from './i18n.js';
 import { CrashFallback, LoadingState } from './components/index.js';
 
-export function deferredView(load) {
+/** `label`: what the loading line says while the chunk arrives (a function, so it follows the interface language); the workspace's own by default. */
+export function deferredView(load, { label = () => ui('正在打开学习工作区…') } = {}) {
   const View = lazy(load);
   return class DeferredView extends React.Component {
     constructor(props) {
@@ -16,7 +17,7 @@ export function deferredView(load) {
       const CurrentView = this.state.View;
       // A view kept mounted out of sight (LiveClass keeps recording on every page) takes no room while its chunk loads:
       // a bar above the page that vanishes on arrival moves everything below it (46 px at 420 px).
-      const fallback = this.props.visible === false ? null : <LoadingState label={ui('正在打开学习工作区…')} />;
+      const fallback = this.props.visible === false ? null : <LoadingState label={label()} />;
       return <Suspense fallback={fallback}><CurrentView {...this.props} /></Suspense>;
     }
   };
