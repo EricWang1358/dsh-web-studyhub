@@ -16,7 +16,8 @@ export default function ReferenceQuestions({ sources, selected = [], evidenceIds
   const values = { ...QUESTION_REFERENCE_LIMITS, ...limits };
   const updateLimit = (key, value) => onLimitsChange?.({ ...values, [key]: value === '' ? '' : Number(value) });
   const evidence = new Set(evidenceIds);
-  return <Disclosure summary={ui('参考样题（可选）')} defaultOpen={selected.length > 0}>
+  // Drawn when first opened: shut, its list of every material was half the nodes of 创建题组 (#565).
+  return <Disclosure lazy summary={ui('参考样题（可选）')} defaultOpen={selected.length > 0}>
     <p className="muted">{ui('上传自己教材中的优质题目，或选择已导入的样题。只参考题型、难度和表达方式，要求生成原创题；事实和答案仍以教材依据为准。')}</p>
     <p className="muted small">{ui('参考样题的组织方式，但按各知识点调整情景与措辞，避免机械套用重复模板。格式一致不等于表述雷同；教材依据与易读性优先。')}</p>
     <label>{ui('样题格式贴合度')}<input type="range" min="0" max="2" step="1" value={formatIndex < 0 ? 1 : formatIndex}

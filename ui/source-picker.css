@@ -11,7 +11,7 @@
     .source-picker__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .source-picker__list { list-style: none; margin: 0; padding: 0; display: grid; }
     .source-picker__item { min-width: 0; background: transparent; box-shadow: inset 3px 0 0 transparent; }
-    /* A window of up to 120 rows shows about six: the rest are not laid out until they scroll near (the last size is remembered, 90px before the first). */
+    /* A window draws 24 rows at first (more as they scroll near) and shows about six: the rest are not laid out until they scroll near (the last size is remembered, 90px before the first). */
     .source-picker__entry { content-visibility: auto; contain-intrinsic-size: auto 90px; }
     .source-picker__entry + .source-picker__entry .source-picker__item { border-top: 1px solid var(--line-soft); }
     .source-picker__item.is-selected { background: color-mix(in srgb, var(--accent) 7%, var(--bg-surface)); box-shadow: inset 3px 0 0 var(--accent); }

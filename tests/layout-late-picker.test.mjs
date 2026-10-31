@@ -9,7 +9,7 @@ import { pickerScenario, seedPickerLibrary, startLateServer } from '../scripts/q
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* #205: the picker of 创建题组 › 01 / 选择资料 with 132 materials. The index coverage arrives after the rows are drawn; no row may change height
-   (the 5th row stays where it is), only the badges change, and the 120 drawn rows must not all be rebuilt for it. */
+   (the 5th row stays where it is), only the badges change, and the drawn rows must not all be rebuilt for it. */
 
 test('the picker\'s row memo only follows a row\'s own data', async () => {
   const { documentRowPropsEqual } = await loadUi(`export { documentRowPropsEqual } from './ui/SourcePicker.jsx';`);
@@ -35,7 +35,7 @@ test('index coverage arriving late changes no row height, and re-renders only ba
     for (const width of [1280, 420]) {
       const result = await pickerScenario({ browser, running, width });
       t.diagnostic(`picker ${width}px: ${result.documents} rows drawn, longest task ${result.longestTaskMs} ms, CLS ${result.cls}, row 5 y ${result.before[4].y} → ${result.after[4].y}`);
-      assert.ok(result.documents >= 100, 'a long list');
+      assert.ok(result.documents >= 24, 'a long list (the picker draws its first 24 rows, more as the learner scrolls: #565)');
       assert.ok(result.badges > 0, 'the badges arrived');
       assert.deepEqual(result.errors, []);
       assert.ok(Math.abs(result.after[4].y - result.before[4].y) <= 1, `${width}px: the 5th row moved from ${result.before[4].y} to ${result.after[4].y}`);

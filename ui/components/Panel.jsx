@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import css from './components.css';
 import toneCss from './panel-tones.css';
 import { useComponentCss, cx } from './css.js';
@@ -32,18 +32,27 @@ export function Panel({ title, description, actions, children, tone = 'plain', d
 /**
  * Progressive disclosure for advanced or rarely used settings. Uncontrolled by
  * default (`defaultOpen`); pass `open` + `onToggle(open)` to control it.
+ * `lazy`: the body is drawn the first time the fold opens and kept from then on. A shut <details> still holds its whole
+ * body in the page, so a heavy one (a list of materials) cost every visit to the page it sits on (#565).
  */
-export function Disclosure({ summary, meta, defaultOpen = false, open, onToggle, children, className, ...rest }) {
+export function Disclosure({ summary, meta, defaultOpen = false, open, onToggle, lazy = false, children, className, ...rest }) {
   useComponentCss(css);
+  const shown = open ?? defaultOpen;
+  const [opened, setOpened] = useState(shown);
+  const drawn = !lazy || opened || shown;
+  const toggle = onToggle || lazy ? event => {
+    const now = event.currentTarget.open;
+    if (lazy && now && !opened) setOpened(true);
+    onToggle?.(now);
+  } : undefined;
   return (
-    <details className={cx('sh-disclosure', className)} open={open ?? defaultOpen}
-      onToggle={onToggle ? event => onToggle(event.currentTarget.open) : undefined} {...rest}>
+    <details className={cx('sh-disclosure', className)} open={shown} onToggle={toggle} {...rest}>
       <summary className="sh-disclosure__summary">
         <Icon name="chevron" size={16} className="sh-disclosure__chevron" />
         <span className="sh-disclosure__label">{summary}</span>
         {meta && <span className="sh-disclosure__meta">{meta}</span>}
       </summary>
-      <div className="sh-disclosure__body">{children}</div>
+      <div className="sh-disclosure__body">{drawn ? children : null}</div>
     </details>
   );
 }
