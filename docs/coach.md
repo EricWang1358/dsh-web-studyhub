@@ -176,7 +176,7 @@ The Settings › Practice choices (autopilot, round size, the round review) are 
 - Output caps apply only when reasoning is fully off, so reasoning is never cut short: 450 tokens for a hint, 320 for a coach reply, 1,600 for a repair, 3,600 for a batch of personalised questions and 650 for a round summary.
 - A hint sends only the question with its own answer and explanation, no source text. A repair sends source excerpts around the cited quotes, up to 5,000 characters. A batch of personalised questions sends up to 6,000 characters. Code checks every quote verbatim.
 - Cognitive level, metrics, notes and the next step are computed by code.
-- The panel polls the host with a fingerprint. When nothing has changed, the host answers `unchanged` instead of sending the library again, source text included. Polling runs every 2.5 seconds, slows down after many unchanged answers in a row (unless a task is running) and stops while the panel is hidden.
+- The panel polls the host with a fingerprint. When nothing has changed, the host answers `unchanged` instead of sending the library again, source text included. The fingerprint also rolls over every minute, because due counts move with the clock; when that is all that moved (nothing written, the same day), the host answers only the parts that read the clock and came out different (`lib/snapshot-time.js`), and the panel keeps the rest. Polling runs every 2.5 seconds, slows down after many unchanged answers in a row (unless a task is running) and stops while the panel is hidden.
 - **Study statistics › Model usage** lists coach calls under **Study coach**. See [Token usage](token-usage.md).
 
 ## For developers

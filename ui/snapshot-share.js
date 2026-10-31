@@ -29,3 +29,22 @@ export function shareUnchanged(previous, next, previousTexts = {}) {
   if (previous && !changed) for (const key of Object.keys(previous)) if (!Object.hasOwn(next, key)) changed = true;
   return { value: changed ? merged : previous, texts, changed };
 }
+
+/**
+ * A partial answer (#567: only the clock moved since the fingerprint the panel sent, lib/snapshot-time.js) merged into the snapshot it
+ * applies to: { value, texts, changed } as shareUnchanged answers. Every key the answer does not carry keeps the object the panel
+ * holds; a key it carries keeps it too when its text did not change. Only `previous`, the snapshot whose fingerprint was sent, can take it.
+ */
+export function mergePartial(previous, partial, previousTexts = {}) {
+  const texts = { ...previousTexts }, merged = { ...previous };
+  let changed = false;
+  for (const [key, item] of Object.entries(partial)) {
+    if (key === "partial") continue;
+    const text = JSON.stringify(item) ?? "";
+    texts[key] = text;
+    if (Object.hasOwn(previous, key) && previousTexts[key] === text) continue;
+    merged[key] = item;
+    changed = true;
+  }
+  return { value: changed ? merged : previous, texts, changed };
+}
