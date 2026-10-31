@@ -296,14 +296,10 @@
     .desk .resume { padding: var(--space-2-5) var(--space-1); }
     .desk .resume-list > summary {
       padding: var(--space-2-5) 0;
-      list-style: none;
       cursor: pointer;
       font-size: var(--fs-md);
       color: var(--text-muted);
     }
-    .desk .resume-list > summary::-webkit-details-marker { display: none; }
-    .desk .resume-list > summary::before { content: "▸  "; color: var(--text-faint); }
-    .desk .resume-list[open] > summary::before { content: "▾  "; }
     .desk .resume-list > summary:hover { color: var(--text); }
     .home-activity .draft-row:last-child { border-bottom: 0; }
     .home-activity .jobs-actions { display: flex; justify-content: flex-end; }
