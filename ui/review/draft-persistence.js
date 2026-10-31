@@ -1,3 +1,5 @@
+import { assistanceEvidence } from '../../lib/study-progress.js';
+
 /* A question's unsubmitted answer on its way to the library (#537), without React: what is saved, which question it belongs to, and the one save channel.
    useReviewSession feeds the channel from the open entry and waits on it before a step; the host keeps the draft on the run (review.draft.save, a plain write of the
    run with no model anywhere near it). */
@@ -32,23 +34,22 @@ export function restoredDraft(run) {
   };
 }
 
-/** Help recorded on either side, added up: evidence is never taken back. */
+/** Help recorded on either side, added up by the library's own definition; null when there is none, so a question with no help sends nothing about it. */
 export function mergeAssistance(...records) {
-  const merged = {};
-  for (const record of records) for (const [flag, value] of Object.entries(record || {})) if (value) merged[flag] = true;
-  return Object.keys(merged).length ? merged : null;
+  const evidence = assistanceEvidence(...records);
+  return evidence.used ? evidence : null;
 }
 
 /** An entry reopened on the same question keeps what the learner made on screen, which is newer than what the host answered with. */
 export const keepTyped = (opened, { selected, response, clozeValues, assistance }) =>
   ({ ...opened, selected, response, clozeValues, assistance: mergeAssistance(opened.assistance, assistance) });
 
-const signature = (selected, text, stepInputs, assistance) => JSON.stringify([selected, text, stepInputs, Object.keys(assistance || {}).sort()]);
+const signature = (selected, text, stepInputs, assistance) => JSON.stringify([selected, text, stepInputs, mergeAssistance(assistance)]);
 /** Equal signatures: this entry has nothing new for the library. */
 export const entrySignature = (entry) => signature(entry.selected, entry.response, entry.clozeValues, entry.assistance);
 export function savedSignature(run) {
   const saved = restoredDraft(run);
-  return signature(saved?.selected || [], saved?.text || '', saved?.stepInputs || {}, mergeAssistance(run?.assistance));
+  return signature(saved?.selected || [], saved?.text || '', saved?.stepInputs || {}, run?.assistance);
 }
 
 /**

@@ -50,7 +50,7 @@ test('opening a question restores the saved answer and help, and nothing of it i
   assert.deepEqual(entry.selected, ['a'], 'an option the corrected card no longer has cannot be picked, so it does not come back');
   assert.equal(entry.response, 'half');
   assert.deepEqual(entry.clozeValues, { x: '1' });
-  assert.deepEqual(entry.assistance, { used: true, hintUsed: true });
+  assert.deepEqual(entry.assistance, { used: true, hintUsed: true, revealedBeforeAnswer: false, askedTutorBeforeAnswer: false });
   assert.equal(entry.hint, false, 'whether the hint panel was open is not saved, so it is not claimed');
   assert.equal(entry.explain, false);
 
@@ -64,7 +64,7 @@ test('opening a question restores the saved answer and help, and nothing of it i
   const returned = entryForRun(saved, back, reader);
   assert.equal(returned.response, 'newer', 'what the learner left on screen is newer than the saved draft');
   assert.deepEqual(returned.selected, [], 'and a cleared choice stays cleared');
-  assert.deepEqual(returned.assistance, { used: true, hintUsed: true, askedTutorBeforeAnswer: true }, 'evidence from either side is kept');
+  assert.deepEqual(returned.assistance, { used: true, hintUsed: true, revealedBeforeAnswer: false, askedTutorBeforeAnswer: true }, 'evidence from either side is kept');
 });
 
 test('a restored question has nothing new to write: the saved draft and the entry made from it sign the same', () => {
