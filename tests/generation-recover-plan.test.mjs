@@ -37,6 +37,18 @@ test('two drafts naming one job id bring back one job; a marker without an id is
   assert.equal(planDraftRecovery({ drafts: [nameless], jobs: [{ id: 'q', root: 'R', draftId: 'n' }], archived: new Set(), root: 'R' }).length, 0);
 });
 
+test('a job of the runtime that retried has a new card id and may not know its draft yet: the run\'s own name still says the draft is taken', () => {
+  const named = draft('a'); named.editorial.generation.runId = 'run-1';
+  const retrying = { id: 'new-card-id', root: 'R', contract: { jobId: 'run-1' } };
+  assert.deepEqual(planDraftRecovery({ drafts: [named], jobs: [retrying], archived: new Set(), root: 'R' }), []);
+  assert.equal(planDraftRecovery({ drafts: [named], jobs: [{ id: 'other', root: 'R', contract: { jobId: 'run-2' } }], archived: new Set(), root: 'R' }).length, 1);
+});
+
+test('a look with nothing to bring back reads no job\'s contract: the snapshot looks all the time, and a contract is costly', () => {
+  const costly = { id: 'j', root: 'R', get contract() { throw new Error('read'); } };
+  assert.deepEqual(planDraftRecovery({ drafts: [draft('c', 'complete')], jobs: [costly], archived: new Set(), root: 'R' }), []);
+});
+
 test('a second look over what the first one restored finds nothing', () => {
   const drafts = [draft('a'), draft('b', 'paused')], say = zh => zh, ids = () => 'new';
   const first = planDraftRecovery({ drafts, jobs: [], archived: new Set(), root: 'R' });
