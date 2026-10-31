@@ -7,6 +7,8 @@ import { withQualityStages, qualityReview } from './helpers/assessment.mjs';
 import { requestData } from './helpers/request-data.mjs';
 import { gate } from './helpers/generation-baseline.mjs';
 import { checkQuestionRequest, questionOutcome } from '../lib/guided-question-prep.js';
+import { reportUsage } from '../lib/usage-scope.js';
+import { totalTokens } from '../lib/token-usage.js';
 
 /* #547: 带学「现场出一道新题」 goes through the ordinary supplement job (plan, answer blueprint, author, citation check, independent review,
    publication: HB-7). Nothing is written that the review did not pass, a wrong deck is refused, and the published question opens as a round of
@@ -129,4 +131,24 @@ test('with no AI model nothing starts: the session is told to use existing quest
   assert.equal(result.reason, 'model_unavailable');
   assert.equal(result.fallback, 'reuse_existing');
   assert.equal((await sessionOf(service, session.id)).focus, null);
+});
+
+test('the tokens of the job that wrote the question are kept on the session (#544), as DSH counts them and with no price', async t => {
+  const base = authoring({ entered: true }, Infinity, 'live');
+  const metered = async (...args) => { reportUsage({ uncachedInputTokens: 100, outputTokens: 20, cacheReadTokens: 50, cacheWriteTokens: 0 }); return base(...args); };
+  const { service, session } = await guided(t, metered);
+  const started = await service.call('study.question.prepare', { sessionId: session.id, deckId: 'mine', kind: 'flashcard', focus: 'why the two hierarchies vary independently' });
+  await settleJob(service, started.jobId);
+  const status = await service.call('job.status', { jobId: started.jobId });
+  assert.ok(totalTokens(status.tokenUsage) > 0, 'the fake model reported its tokens to the job');
+  const result = await service.call('study.question.result', { sessionId: session.id });
+  assert.equal(result.status, 'ready');
+  const kept = (await sessionOf(service, session.id)).usage;
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].jobId, started.jobId);
+  assert.equal(kept[0].cardId, result.cardId);
+  assert.equal(kept[0].tokens, totalTokens(status.tokenUsage));
+  assert.doesNotMatch(JSON.stringify(kept), /usd|price/i);
+  const read = await service.call('study.session.get', { sessionId: session.id });
+  assert.equal(read.cost.breakdown.generation.tokens, kept[0].tokens);
 });

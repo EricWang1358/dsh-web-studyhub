@@ -6,6 +6,9 @@ import {
   upsertTeachingArtifact,
   assertScopeAllowed,
   sanitizeTeachingMarkdown,
+  recordGenerationUsage,
+  recordPredictionChange,
+  MAX_PREDICTIONS,
 } from '../lib/study-session.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 
@@ -209,4 +212,47 @@ test('assistantRefusal enforces HB-1 by rejecting answering and submission actio
   assert.equal(assistantRefusal('panel.open'), null);
   assert.equal(assistantRefusal('panel.current'), null);
   assert.equal(assistantRefusal('study.session.start'), null);
+});
+
+/* #543 / #544: the session keeps what the estimate and the cost are worked out from. */
+
+test('a new session starts with an empty usage record', () => {
+  const session = createStudySession({}, { courseId: 'Intro' });
+  assert.deepEqual(session.usage, []);
+});
+
+test('recordGenerationUsage keeps the DSH buckets of the question job, once per job, and says nothing it did not measure', () => {
+  const session = createStudySession({}, { courseId: 'Intro' });
+  const usage = { uncachedInputTokens: 1000, outputTokens: 300, cacheReadTokens: 500, cacheWriteTokens: 0, calls: 4 };
+  const record = recordGenerationUsage(session, { jobId: 'j1', cardId: 'c9', tokenUsage: usage }, 77);
+  assert.equal(record.tokens, 1800, 'DSH 的 Token 用量: prompt side plus output');
+  assert.deepEqual(record.usage, { uncachedInputTokens: 1000, outputTokens: 300, cacheReadTokens: 500, cacheWriteTokens: 0 });
+  assert.equal(recordGenerationUsage(session, { jobId: 'j1', cardId: 'c9', tokenUsage: usage }, 78), null, 'the same job is not counted twice');
+  const unknown = recordGenerationUsage(session, { jobId: 'j2', tokenUsage: null }, 79);
+  assert.equal(unknown.tokens, undefined);
+  assert.equal(unknown.usage, undefined);
+  const junk = recordGenerationUsage(session, { jobId: 'j3', tokenUsage: { uncachedInputTokens: '12', outputTokens: -4 } }, 80);
+  assert.equal(junk.tokens, undefined, 'strings and negatives are not token counts');
+  assert.equal(session.usage.length, 3);
+  assert.doesNotMatch(JSON.stringify(session.usage), /usd|price/i);
+});
+
+const answered = (id, quiz_id, elapsed_ms, extra = {}) => ({ id, quiz_id, topic: 'T', timestamp: 1, grade: 4, correct: true, elapsed_ms, ...extra });
+const sessionWithItems = (n) => ({ id: 's', courseId: 'Intro', status: 'active', predictions: [],
+  goal: { checkItems: Array.from({ length: n }, (_, i) => ({ id: `i${i}`, title: `Item ${i}`, targetCardIds: [`c${i}`] })) } });
+
+test('recordPredictionChange appends a range only when it moved, and keeps the last few', () => {
+  const session = sessionWithItems(4);
+  const state = { attempts: [answered('a0', 'c0', 120000)], runs: [], studySessions: [session] };
+  const first = recordPredictionChange(state, session, '', 1000);
+  assert.equal(first.reason, '初次估算');
+  assert.ok(first.minMinutes < first.maxMinutes);
+  assert.equal(recordPredictionChange(state, session, '', 2000), null, 'asking again with nothing changed writes nothing');
+  assert.equal(session.predictions.length, 1);
+  state.attempts.push(answered('a1', 'c1', 120000, { grade: 1, correct: false }));
+  assert.equal(recordPredictionChange(state, session, '', 3000), null, 'a wrong answer that leaves the same items open is a small move');
+  const widened = recordPredictionChange(state, session, '新增前置支线', 4000);
+  assert.equal(widened.reason, '新增前置支线');
+  for (let i = 0; i < MAX_PREDICTIONS + 3; i++) recordPredictionChange(state, session, `r${i}`, 5000 + i);
+  assert.equal(session.predictions.length, MAX_PREDICTIONS);
 });
