@@ -117,6 +117,39 @@ test('重练 is a three-way choice and defaults to the richest available', () =>
   assert.match(text(render({ hasMore: true, counts: { total: 150, graded: 3, self: 1, oral: 0 } })), /只练本页错题 \(5\)/);
 });
 
+test('a disabled 重练 choice says why on hover and focus, through the group a keyboard reaches (#577)', () => {
+  const none = render({ recs: { items: [] }, coach: { ...coach, ready: 0, preparing: false, preparingCards: [], readyCards: [] } });
+  assert.match(none, /<button[^>]*disabled=""[^>]*>错题 \+ 变式/, 'the shared segmented control draws it disabled');
+  assert.doesNotMatch(none, /<button[^>]*title="[^"]*"[^>]*disabled=""/, 'no native title doubles the tooltip');
+  const group = none.match(/<div role="group" aria-label="重练范围"[^>]*aria-describedby="([^"]+)"/);
+  assert.ok(group, 'the choice group points at its tooltip');
+  const tip = none.match(new RegExp(`<span id="${group[1]}" role="tooltip"[^>]*>([\\s\\S]*?)</span>`))?.[1] || '';
+  assert.match(text(tip), /「错题 \+ 同类题 \(5\+0\)」暂不能选：题库里没有找到合适的同类题。/);
+  assert.match(text(tip), /「错题 \+ 变式 \(5\+0\)」暂不能选：还没有生成变式。/);
+  assert.match(text(tip), /先为错题生成变式，写好后就能选。/);
+  const writing = render({ recs: { items: [] }, coach: { ...coach, ready: 0, preparing: true, readyCards: [] } });
+  assert.match(text(writing), /「错题 \+ 变式 \(5\+0\)」暂不能选：变式正在生成。/, 'while variants are being written it says so');
+  assert.doesNotMatch(text(writing), /先为错题生成变式/);
+  // Everything available: the tooltip draws nothing.
+  assert.doesNotMatch(text(render()), /暂不能选/);
+});
+
+test('grouping, fold, deck, search, status, count and the batch are one toolbar under a hairline, not a box (#577)', async () => {
+  const html = render();
+  const bar = html.indexOf('class="wb-toolbar"');
+  assert.ok(bar > 0);
+  const order = ['wb-view', 'wb-filter', 'wb-filter-result', 'wb-batch'].map((name) => html.indexOf(`class="${name}"`, bar));
+  assert.ok(order.every((at, index) => at > bar && (index === 0 || at > order[index - 1])), 'in this order, inside the toolbar');
+  assert.ok(html.indexOf('class="wb-group', bar) > order[3], 'the deck rows come right after it');
+  assert.doesNotMatch(html, /wb-controls/);
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../ui/wrongbook.css', import.meta.url), 'utf8');
+  const rule = (selector) => css.match(new RegExp(`\\n\\s*${selector.replace('.', '\\.')} \\{([^}]*)\\}`))?.[1] || '';
+  assert.match(rule('.wb-toolbar'), /border-top: 1px solid var\(--line\)/);
+  assert.match(rule('.wb-filter'), /display: flex/);
+  assert.doesNotMatch(rule('.wb-toolbar') + rule('.wb-filter'), /background|border-radius|border:/, 'no box around the toolbar or the filter');
+});
+
 test('an opened row shows your answer, the correct answer, the explanation and its variants', () => {
   const details = { c1: { yourAnswer: 'Memento', correctAnswer: 'Caretaker', explanation: '它只保管历史。', misconception: '', selfGrade: null } };
   const html = text(render({ initial: { expanded: ['c1'], groups: 'all' }, details }));
@@ -171,10 +204,12 @@ test('consent is explained inline once, with 同意并生成, before any model c
 });
 
 test('the batch button is capped and states the cost', () => {
-  const html = text(render());
-  assert.match(html, /为全部错题生成变式/);
-  assert.match(html, /一次最多 8 题/);
-  assert.match(html, /约 1 次轻量模型调用\/题/);
+  const html = render();
+  assert.match(text(html), /为全部错题生成变式/);
+  // #577: the cost and the cap are said on hover and focus of the button, not in a helper line beside it.
+  const batch = html.match(/<div class="wb-batch">[\s\S]*?<\/div>/)?.[0] || '';
+  assert.match(batch, /role="tooltip"[^>]*>[^<]*约 1 次轻量模型调用[^<]*一次最多 8 题/);
+  assert.doesNotMatch(text(html), /轻量模型调用\/题/);
 });
 
 test('recommendation reasons read naturally', () => {
