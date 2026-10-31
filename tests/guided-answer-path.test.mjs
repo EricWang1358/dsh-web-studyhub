@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 
 /* What an answer does to the check item it backs, through the path the learner's answer really takes: review.start, review.answer, then what the panel reads.
-   #607 puts the progress on study.session.get; until it is on the same line, resume reads the same function. */
+   What the panel reads is study.session.get. */
 
 const quiz = (id) => ({ id, kind: 'quiz', topic: `T-${id}`, objective: 'Recall', prompt: `${id}?`, hint: 'H', explanation: 'E', misconception: '', citations: [],
   options: [{ id: 'a', text: 'yes', correct: true, explanation: 'x' }, { id: 'b', text: 'no', correct: false, explanation: 'y' }] });
@@ -19,8 +19,7 @@ async function library(t) {
   const session = await service.call('study.session.start', { courseId: 'C', scope: [{ kind: 'deck', id: 'd' }],
     goal: { title: 'Goal', checkItems: [{ id: 'k1', title: 'One', targetCardIds: ['q1'] }] } });
   const run = await service.call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'd', cardId: 'q1' }] });
-  const progress = async () => (await service.call('study.session.get', { sessionId: session.id })).progress
-    ?? (await service.call('study.session.resume', { sessionId: session.id })).progress;
+  const progress = async () => (await service.call('study.session.get', { sessionId: session.id })).progress;
   return { service, session, run, progress };
 }
 
@@ -52,6 +51,8 @@ test('the tail retry after a wrong answer is not an independent pass: the learne
   const read = await progress();
   assert.equal(read.items[0].status, 'assisted');
   assert.equal(read.independentPassedCount, 0);
+  assert.match(read.displayLine, /另 1 项非独立完成/, 'no hint was opened, so the line does not say one was');
+  assert.doesNotMatch(read.displayLine, /提示/);
 });
 
 test('opening a side question leaves the draft of the question still open', async (t) => {
