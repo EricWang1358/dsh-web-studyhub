@@ -1,11 +1,9 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInjectCss } from "./shared.js";
-import { usePolling } from "./use-polling.js";
 import { readJSON, writeJSON } from "./storage.js";
 import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, useToast } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
-import { createBoardStore } from "./board/store.js";
 import BoardCard from "./board/Card.jsx";
 import Composer from "./board/Composer.jsx";
 import CardEditor from "./board/CardEditor.jsx";
@@ -15,20 +13,6 @@ import { boardColumnLabel, cardsText, stamp, studyRefLabel } from "./board/meta.
 import css from "./board/board.css";
 
 export { boardColumnLabel };
-
-/** One subscription serves both the navigation badge and the visible board. */
-export function useBoard(call, visible) {
-  const latest = useRef(call);
-  latest.current = call;
-  const store = useMemo(() => createBoardStore((action, args) => latest.current(action, args)), []);
-  const snapshot = useSyncExternalStore(store.subscribe, store.getState, store.getState);
-  useEffect(() => {
-    store.refresh();
-    return () => store.invalidate();
-  }, [store, visible]);
-  usePolling(() => store.refresh(), { intervalMs: visible ? 5000 : 30000 });
-  return useMemo(() => ({ ...snapshot, mutate: store.mutate, refresh: store.refresh, clearError: store.clearError }), [snapshot, store]);
-}
 
 const MOVE_KEYS = { left: -1, right: 1 };
 const UNDO_TIMEOUT = 8000;

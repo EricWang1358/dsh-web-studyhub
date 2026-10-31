@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('migrated pollers use usePolling, not their own timers (#125)', async () => {
-  for (const file of ['ui/WorkflowPortal.jsx', 'ui/CoachDebrief.jsx', 'ui/use-index-coverage.js', 'ui/host/workspace.jsx', 'ui/LiveClass.jsx', 'ui/AudioDashboard.jsx', 'ui/Workflows.jsx', 'ui/exam/useExamRun.js', 'ui/WrongBook.jsx', 'ui/Board.jsx']) {
+  for (const file of ['ui/WorkflowPortal.jsx', 'ui/CoachDebrief.jsx', 'ui/use-index-coverage.js', 'ui/host/workspace.jsx', 'ui/LiveClass.jsx', 'ui/AudioDashboard.jsx', 'ui/Workflows.jsx', 'ui/exam/useExamRun.js', 'ui/WrongBook.jsx', 'ui/board/use-board.js']) {
     const source = await read(file);
     assert.doesNotMatch(source, /setInterval\(/, file);
     assert.match(source, /usePolling|createPoller/, file);
