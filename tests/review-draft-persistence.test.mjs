@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { projection } from '../lib/study-state.js';
 import { StudyService } from '../lib/service.js';
 import { commitRubricGrade } from '../lib/rubric-grading.js';
+import { buildCompactScene } from '../lib/study-scene.js';
+import { MAX_DRAFT_TEXT_CHARS } from '../lib/review-draft.js';
 
 test('review.draft.save persists draft text, options and assistance onto run entry', async () => {
   const run = {
@@ -209,4 +211,38 @@ test('a stale save writes nothing and does not move the revision; a real one wri
   assert.equal(await revision(), before + 1);
   assert.deepEqual([...hints.at(-1).runs], [run.id], 'the hint names this run');
   assert.equal(Object.keys(hints.at(-1)).join(), 'runs', 'and nothing else');
+});
+
+test('a draft is checked where it comes in, and what a learner could type survives whole', async (t) => {
+  const { service, run } = await library(t, [flash('f1')]);
+  const save = (draft) => service.call('review.draft.save', { runId: run.id, cardId: 'f1', index: 0, draft });
+  await assert.rejects(save({ selected: 'a' }), /selected/);
+  await assert.rejects(save({ selected: [1] }), /selected/);
+  await assert.rejects(save({ selected: Array.from({ length: 1000 }, (_, i) => `o${i}`) }), /selected/);
+  await assert.rejects(save({ stepInputs: ['a'] }), /stepInputs/);
+  await assert.rejects(save({ stepInputs: { b: 3 } }), /stepInputs/);
+  await assert.rejects(save({ text: 12 }), /text/);
+  assert.equal((await service.call('review.get', { runId: run.id })).draft, null, 'none of it was kept');
+
+  const long = '答'.repeat(30000); // the longest answer the library grades (CASE_LIMITS.answerChars)
+  await save({ text: long, stepInputs: { b: 'x'.repeat(5000) } });
+  const read = await service.call('review.get', { runId: run.id });
+  assert.equal(read.draft.text, long, 'restores whole');
+  assert.equal(read.draft.stepInputs.b.length, 5000);
+
+  const huge = await save({ text: 'x'.repeat(MAX_DRAFT_TEXT_CHARS + 5) });
+  assert.equal(huge.draft.text.length, MAX_DRAFT_TEXT_CHARS);
+  assert.equal(huge.truncated, true);
+});
+
+test('the scene carries a short copy of a long draft and stays within its limit; the library keeps it whole', async (t) => {
+  const { service, run } = await library(t, [flash('f1')]);
+  const text = '答'.repeat(30000);
+  await service.call('review.draft.save', { runId: run.id, cardId: 'f1', index: 0, draft: { text, stepInputs: Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`b${i}`, 'y'.repeat(2000)])), selected: Array.from({ length: 50 }, (_, i) => `o${i}`) } });
+  const state = await service.store.read();
+  const scene = buildCompactScene({ ...state, studySessions: [{ id: 's', courseId: 'C', focus: { kind: 'card', id: 'f1', runId: run.id } }] }, { sessionId: 's' });
+  assert.ok(JSON.stringify(scene).length <= 4096, `scene is ${JSON.stringify(scene).length} characters`);
+  assert.equal(scene.focusObject.draftTruncated, true);
+  assert.ok(text.startsWith(scene.focusObject.draft.text));
+  assert.equal((await service.call('review.get', { runId: run.id })).draft.text, text);
 });
