@@ -70,6 +70,7 @@ Each row is one commit. A budget in `tests/perf-budget.test.mjs` pins it unless 
 | `perf(startup): load the YAML parser only for a legacy import` | `yaml` imported on use | `lib/host.js` module load 617 -> 487 ms in a fresh process; a test forbids static imports of `yaml`, `pdf-lib`, `pdfjs-dist` in `lib/` |
 | `perf(panel): a long scroll window draws a first chunk ...` | `ScrollWindow` draws 120 rows and the next 120 on scroll or on tabbing into the last rows | generate page 2 667 -> 1 415 DOM nodes |
 | `perf(panel): the once-a-minute fingerprint rollover does not restart the poll rhythm` | the host's per-minute fingerprint change no longer resets the back-off | 95 s idle: 25 snapshot requests, 38 before |
+| `perf(snapshot): when only time moved, the minute's poll answers the time-dependent parts (#567)` | a poll with `partial: true` whose fingerprint differs only by the minute (same day, nothing written) gets `{ partial, fingerprint }` plus the clock-reading parts (`lib/snapshot-time.js` TIME_KEYS) that came out different from what was answered under that fingerprint; the panel merges them and keeps every other key's object | 150 s idle on the library page, `seedLibrary({ sources: 300 })`: 1 348 KB -> 31 KB of snapshot answers; the minute's answer 440 KB -> 0.9 KB (no card fell due) |
 
 ## After
 

@@ -179,7 +179,9 @@ export const measureSelection = (page) => page.evaluate(() => {
   // A tooltip lets the pointer through: switch that off for the hit test only, so the test sees what is really on top at its middle and at its corners.
   const tipBox = box(tip);
   if (tip) tip.style.pointerEvents = "auto";
-  const hits = tipBox ? [[tipBox.cx, tipBox.cy], [tipBox.left + 2, tipBox.top + 2], [tipBox.right - 2, tipBox.bottom - 2]].map(([x, y]) => document.elementFromPoint(x, y)) : [];
+  // The corners are probed inside the rounded edge (hit testing follows border-radius): 0.3 of the radius in from each side is on the shape.
+  const inset = tip ? Math.max(2, Math.ceil(parseFloat(getComputedStyle(tip).borderTopLeftRadius) * 0.3) + 1) : 2;
+  const hits = tipBox ? [[tipBox.cx, tipBox.cy], [tipBox.left + inset, tipBox.top + inset], [tipBox.right - inset, tipBox.bottom - inset]].map(([x, y]) => document.elementFromPoint(x, y)) : [];
   if (tip) tip.style.pointerEvents = "";
   const heads = [...document.querySelectorAll(".tc-head__actions > *")];
   return {
@@ -239,8 +241,8 @@ async function main() {
       await page.locator(".tc-pickbar__actions").waitFor({ state: "attached" });
       if (args.flow === "archived") {
         await page.locator(".tc-pickbar__actions button").first().dispatchEvent("click");
-        await until(async () => (await page.locator(".tc-filter").nth(3).innerText()).trim().endsWith("2"), "the tasks under 已归档");
-        await page.locator(".tc-filter").nth(3).dispatchEvent("click");
+        await until(async () => (await page.locator(".tc-scope .sh-seg__item").nth(3).innerText()).trim().endsWith("2"), "the tasks under 已归档");
+        await page.locator(".tc-scope .sh-seg__item").nth(3).dispatchEvent("click");
         await page.locator(".tc-detail[data-archived='true']").waitFor({ state: "attached" });
       }
       if (args.flow === "dialog") {

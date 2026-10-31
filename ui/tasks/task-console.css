@@ -1,7 +1,8 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
-/* The 任务 console: master-detail, as tall as the window (nothing grows the page: every list scrolls inside its own panel), in the
-   dense register of ui/dense-surface.css. Tokens only. At narrow widths the columns stack and the page scrolls instead (see the
+/* The 任务 console: the shared page header (title, what is here, the filters), then master-detail in one desk panel, as tall as the window
+   (nothing grows the page: every list scrolls inside its own panel). The list reads at the body sizes of the rest of the app; the detail
+   is in the dense register of ui/dense-surface.css. Tokens only. At narrow widths the columns stack and the page scrolls instead (see the
    container query at the end), because a phone has no height to split into panels. */
 @layer study.features {
   :is(.study-app, .study-seat) {
@@ -13,24 +14,39 @@
       min-height: 0;
       overflow: hidden;
     }
+    /* The page frame of the other pages (.page in ui/shell.css: the same side gutter, so switching pages never moves the left edge), without its width cap:
+       a working surface takes the width it is given. */
     .tc {
+      flex: 1 1 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-5) calc(var(--space-7) + var(--space-1)) var(--space-3);
+      color: var(--text);
+    }
+    .tc-header { flex: none; margin-bottom: var(--space-3); }
+    /* The list and the detail: one flat desk panel (surface, hairline, desk corner); the list is divided from the detail by a hairline, not by a grey slab. */
+    .tc-main {
       flex: 1 1 0;
       min-height: 0;
       display: grid;
       grid-template-columns: 300px minmax(0, 1fr);
-      border-top: 1px solid var(--line);
-      background: var(--bg-canvas);
-      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-panel);
     }
-    .tc[data-full='true'] { grid-template-columns: minmax(0, 1fr); }
-    .tc[data-full='true'] > .tc-list { display: none; }
+    .tc[data-full='true'] .tc-main { grid-template-columns: minmax(0, 1fr); }
+    .tc[data-full='true'] .tc-list { display: none; }
+    /* Nothing at all, or nothing in this filter: one empty state, in the middle of the room the list and the detail would have taken. */
+    .tc-main--empty { display: flex; flex-direction: column; justify-content: center; }
+    .tc[data-empty='all'] > .tc-none { flex: 1 1 0; justify-content: center; min-height: 0; }
     .tc-list {
       display: flex;
       flex-direction: column;
       min-height: 0;
       min-width: 0;
       border-right: 1px solid var(--line);
-      background: var(--bg-sunken);
     }
     .tc-bar {
       display: flex;
@@ -42,7 +58,7 @@
       padding: 0 var(--space-4);
       border-bottom: 1px solid var(--line);
     }
-    .tc-bar h1, .tc-bar h2 {
+    .tc-bar h2 {
       margin: 0;
       min-width: 0;
       overflow: hidden;
@@ -53,12 +69,11 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    /* The filters have a row of their own (four of them do not fit beside the title in a 300px list), and the selection a row of its own under it: both always there, with a fixed
-       height, so picking a task or switching a filter moves nothing. */
-    .tc-filterbar { display: flex; align-items: center; flex: none; height: 36px; padding: 0 var(--space-3); overflow: hidden; border-bottom: 1px solid var(--line); }
+    /* The square filter chips of the detail's own lists (the plan's points, the log's levels); the page's filters are the shared SegmentedControl in the header. */
     .tc-filters { display: flex; flex: none; }
     .tc-filter { --control-h-sm: 24px; padding-inline: var(--space-3); font-size: var(--fs-xs); }
-    /* The bar of the selection: nothing in it clips (it has no overflow rule, so a focus ring and the tooltip of the box are never cut); the count gives way, the buttons do not.
+    /* The bar of the selection, the first row of the list: always there, with a fixed height, so picking a task moves nothing. Nothing in it clips (it has no overflow rule, so a
+       focus ring and the tooltip of the box are never cut); the count gives way, the buttons do not.
        With a selection it is a plain lifted strip, NOT the tint of a selected row: a tinted bar over tinted rows read as one green slab. */
     .tc-pickbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex: none; height: 36px; padding: 0 var(--space-3) 0 var(--space-4); border-bottom: 1px solid var(--line); }
     .tc-pickbar[data-active='true'] { background: var(--bg-surface); }
@@ -66,14 +81,14 @@
     .tc-pickbar__tip { flex: 1 1 0; min-width: 0; }
     /* A count that is too long for the room is cut at the box (with 6px kept for the focus ring of the checkbox), it never pushes the buttons. */
     .tc-pickbar__box { display: block; min-width: 0; overflow: clip; overflow-clip-margin: 6px; }
-    .tc-pickbar__all { align-items: center; gap: var(--space-3); font-size: var(--fs-xs); white-space: nowrap; }
+    .tc-pickbar__all { align-items: center; gap: var(--space-3); font-size: var(--fs-sm); white-space: nowrap; }
     .tc-pickbar__actions { display: flex; align-items: center; gap: var(--space-1); flex: none; }
-    .tc-pickbar__btn { --control-h-sm: 24px; padding-inline: var(--space-2); font-size: var(--fs-xs); }
+    .tc-pickbar__btn { --control-h-sm: 28px; padding-inline: var(--space-2-5); font-size: var(--fs-sm); }
     /* 取消选择 leaves the mode, it is not one of the two things you can do: a hairline sets it apart from them (and the delete button from the edge of the bar). */
     .tc-pickbar__btn--clear { margin-inline-start: var(--space-1); border-inline-start-color: var(--line); border-start-start-radius: 0; border-end-start-radius: 0; }
     /* A row and the box that selects it: the column is there for every row (a running task has no box), so the rows line up. The box sits on the first line of the row, level with the
        status dot and the title (not in the middle of the two lines), and under the box of the bar. */
-    .tc-item { --tc-line: 20px; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--line-soft); }
+    .tc-item { --tc-line: 22px; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--line-soft); }
     /* A ticked row is tinted like the picked one (the accent's own tint, so it reads on every accent and in both themes); the picked one also has the accent edge. */
     .tc-item[data-checked='true'] { background: var(--bg-selected); }
     .tc-item > .tc-row { border-bottom: 0; padding-inline-start: 0; }
@@ -82,8 +97,9 @@
     .tc-item:has(> .tc-row[aria-pressed='true']) { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
     .tc-item > .tc-row:is(:hover, [aria-pressed='true']) { background: transparent; box-shadow: none; }
     /* The box is 1.15em with a 0.1em top margin (ui/components/fields.css) in the font size of its label: the same size here as in the bar, centred on the title's line. */
-    .tc-item__check { display: flex; align-items: flex-start; justify-content: flex-start; gap: 0; min-width: 0; padding: calc(var(--space-3) + (var(--tc-line) - 1.15em) / 2 - 0.1em) 0 0 var(--space-4); font-size: var(--fs-xs); }
-    .tc-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
+    .tc-item__check { display: flex; align-items: flex-start; justify-content: flex-start; gap: 0; min-width: 0; padding: calc(var(--space-3) + (var(--tc-line) - 1.15em) / 2 - 0.1em) 0 0 var(--space-4); font-size: var(--fs-sm); }
+    /* Its corner follows the panel's, so a picked row at the foot of the list stays inside the rounded edge. */
+    .tc-scroll { flex: 1 1 0; min-height: 0; overflow: auto; border-end-start-radius: calc(var(--radius) - var(--hairline)); }
     .tc-row {
       display: grid;
       grid-template-columns: 10px minmax(0, 1fr) auto;
@@ -91,12 +107,14 @@
       align-items: center;
       justify-content: normal;
       width: 100%;
-      min-height: 56px;
+      min-height: 64px;
       padding: var(--space-3) var(--space-4);
       border: 0;
       border-bottom: 1px solid var(--line-soft);
+      border-radius: 0;
       background: transparent;
       color: inherit;
+      font-size: var(--fs-md);
       font-weight: var(--fw-regular);
       text-align: left;
       white-space: normal;
@@ -105,7 +123,8 @@
     .tc-row[aria-pressed='true'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
     .tc-row:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     .tc-row__title { overflow: hidden; font-weight: var(--fw-medium); line-height: var(--tc-line, 20px); text-overflow: ellipsis; white-space: nowrap; }
-    .tc-row__sub { grid-column: 2 / 4; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+    .tc-row__sub { grid-column: 2 / 4; overflow: hidden; color: var(--text-muted); font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
+    .tc-row .tc-num { font-size: var(--fs-sm); }
     .tc-num { color: var(--text-muted); font-family: var(--font-stack-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
     /* 批次 of a day of 为你定制: a dot, the time, one line, the state. */
     .tc-batch { display: grid; grid-template-columns: 8px 44px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3); height: 36px; padding: 0 var(--space-4); border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
@@ -186,7 +205,7 @@
     /* Under the controls: two columns as tall as the window leaves them. Every list scrolls inside its own panel; nothing here grows the page. */
     .tc-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: minmax(0, 1fr); min-height: 0; min-width: 0; }
     .tc-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-    .tc-col + .tc-col { border-inline-start: 1px solid var(--line); background: var(--bg-sunken); }
+    .tc-col + .tc-col { border-inline-start: 1px solid var(--line); }
     .tc-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
     .tc-panel[hidden] { display: none; }
     .tc-tabs { flex: none; flex-wrap: nowrap; gap: 0; height: 32px; border-bottom: 1px solid var(--line); }
@@ -452,13 +471,29 @@
     }
   }
 
+  /* The side gutter of .page (ui/shell.css) at the same widths. */
+  @container study (max-width: 1050px) {
+    :is(.study-app, .study-seat) {
+      .tc { padding-inline: var(--space-6); }
+    }
+  }
+  @container study (max-width: 720px) {
+    :is(.study-app, .study-seat) {
+      .tc { padding: var(--space-5) var(--space-5) var(--space-6); }
+      .tc-header { margin-bottom: var(--space-4); }
+    }
+  }
+
   /* Narrow: the console is a page again. The list sits above the detail, every panel gets a height of its own, and the page scrolls. */
   @container study (max-width: 900px) {
     :is(.study-app, .study-seat) {
-      & main:has(> .tc) { height: auto; overflow: visible; }
-      .tc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; flex: none; }
-      .tc[data-full='true'] > .tc-list { display: none; }
+      & main:has(> .tc:not([data-empty='all'])) { height: auto; overflow: visible; }
+      /* With no task at all there is nothing to scroll: the page keeps the window's height and the empty state stays in the middle of it. */
+      & main:has(> .tc[data-empty='all']) { overflow: auto; }
+      .tc:not([data-empty='all']) { flex: none; }
+      .tc-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; flex: none; }
       .tc-list { border-right: 0; border-bottom: 1px solid var(--line); }
+      .tc-scroll { border-end-start-radius: 0; }
       .tc-list > .tc-scroll { flex: none; max-height: 220px; }
       .tc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .tc-metric--progress { grid-column: 1 / -1; border-bottom: 1px solid var(--line-soft); }

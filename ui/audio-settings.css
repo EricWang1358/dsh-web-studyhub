@@ -10,13 +10,17 @@
     /* 课堂实录's engine: the three choices, then the local engine's card (ui/LiveLocalCard.jsx). */
     .audio-live-engine { display: grid; gap: var(--space-3); min-width: 0; }
     .audio-expert .audio-reasoning { margin-top: var(--space-4); }
-    /* The setup gate in the audio tab. */
-    .audio-setup { margin: var(--space-4) 0; }
+    /* The setup gate in the audio tab (#578): while it shows, the form drops its own frame, so under the page title the gate is the one card,
+       as wide as the page's column; the subtitle way in is a line of text and a button under it, a drop target with no frame of its own. */
+    .audio-import--setup { padding: 0; border: 0; border-radius: 0; }
+    .audio-setup { max-width: none; margin: var(--space-4) 0; }
     .audio-setup .sh-secret { margin-top: var(--space-4); max-width: 560px; }
     .audio-setup-alt { margin: var(--space-3) 0 0; }
     .audio-setup-alt a { color: var(--accent-text); }
-    .audio-subtitle-only { margin-top: var(--space-4); }
-    .audio-subtitle-only > p { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); }
+    .audio-subtitle-only { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4);
+      border-radius: var(--radius); transition: background-color var(--dur-fast) var(--ease); }
+    .audio-subtitle-only > p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .audio-subtitle-only[data-over] { outline: 2px dashed var(--accent); outline-offset: var(--space-2); background: color-mix(in srgb, var(--accent) 6%, transparent); }
     /* Pre-flight notes under each chosen file, and the submit row. */
     .audio-check { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1);
       color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }

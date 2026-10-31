@@ -8,7 +8,7 @@ export function useNavigation({ core, lib, motion, rootRef }) {
   const [page, setPage] = useState('library');
   const [pageTarget, setPageTarget] = useState(null);
   const { setError } = core;
-  const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setNoteInitialId, setGraphScope, setSkeletonFocus, setManagedDeck,
+  const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setBoardCompose, setNoteInitialId, setGraphScope, setSkeletonFocus, setManagedDeck,
     setFolderDraft, setWorkflowReturn, setTaskFocus } = lib.set;
   const motionRef = useRef(motion), pageRef = useRef(page), referenceRef = useRef(() => null);
   motionRef.current = motion;
@@ -29,7 +29,8 @@ export function useNavigation({ core, lib, motion, rootRef }) {
       const reference = id === 'board' ? referenceRef.current() : null;
       return {
         resetExam: () => { setExamRunId(null); setExamKind('exam'); },
-        openBoardFresh: () => setBoardStudyRef(reference),
+        // The sidebar keeps where the learner was for a card they choose to add, but opens nothing by itself (#576).
+        openBoardFresh: () => { setBoardStudyRef(reference); setBoardCompose(false); },
         clearNote: () => setNoteInitialId(''),
         clearGraphScope: () => setGraphScope(null),
       };

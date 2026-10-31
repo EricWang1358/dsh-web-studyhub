@@ -32,7 +32,7 @@ export { ToastContext, useToast, createToastApi } from './Feedback.jsx';
 export { Field, TextInput, TextArea, Select, NumberInput } from './Field.jsx';
 export { Combobox } from './Combobox.jsx';
 export { flattenOptions, filterEntries, matchRanges, highlightParts, resolveActions } from './option-list.js';
-export { Checkbox, Switch, RadioCard, RadioCardGroup } from './Choice.jsx';
+export { Checkbox, CheckboxInput, Switch, RadioCard, RadioCardGroup } from './Choice.jsx';
 export { SettingsSection } from './SettingsSection.jsx';
 export { ProviderCard, ProviderGrid, StepList } from './ProviderCard.jsx';
 export { Tabs, TabPanel, nextTabIndex, tabIds } from './Tabs.jsx';

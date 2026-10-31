@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
 import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness } from "./generation-status.js";
-import { Banner, Button, Checkbox, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, Select, useToast } from "./components/index.js";
+import { Banner, Button, Checkbox, CheckboxInput, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, Select, useToast } from "./components/index.js";
 import { HandOff, HandOffForm } from "./hand-off/HandOff.jsx";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
@@ -198,8 +198,8 @@ export function StartFlow({ template, listing, call, onRefresh, onStarted, onBac
         <summary>{ui("选择已有主题与题目范围")}{" "}<span className="muted">{selected.size ? uiFormat("· 已选 {0} 个主题 / {1} 题", [selected.size, selectedCount]) : ui("· 可选")}</span></summary>
         <p className="muted small">{ui("未选题目时，使用关联骨架的题目范围；都不选则从阅读、讲解和复述开始。")}</p>
         {listing.topics.length ? <><input type="search" aria-label={ui("搜索学习主题")} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={ui("搜索主题或题组")} />
-          {(listing.groups?.groups || []).length > 0 && <div className="wf-topic-groups" aria-label={ui("按主题组选择")}>{listing.groups.groups.map((g) => <label key={g.id}><input type="checkbox" checked={g.topics.length > 0 && g.topics.every((key) => selected.has(key))} ref={(el) => { if (el) el.indeterminate = g.topics.some((key) => selected.has(key)) && !g.topics.every((key) => selected.has(key)); }} onChange={(e) => toggle(g.topics, e.target.checked, g.title)} /><span>{g.title}</span><small>{uiFormat("{0} 个主题", [g.topics.length])}</small></label>)}</div>}
-          <div className="wf-topic-list">{matched.map((t) => <label key={t.key}><input type="checkbox" checked={selected.has(t.key)} onChange={(e) => toggle([t.key], e.target.checked, t.topic)} /><span>{t.topic}<small title={t.decks.map((d) => d.deckTitle).join(" · ")}>{t.decks.slice(0, 2).map((d) => d.deckTitle).join(" · ")}{t.decks.length > 2 ? uiFormat(" 等 {0} 个题组", [t.decks.length]) : ""}</small></span><small>{uiFormat("{0} 题", [t.count])}</small></label>)}{!matched.length && <p className="muted">{ui("没有匹配的主题。")}</p>}</div>
+          {(listing.groups?.groups || []).length > 0 && <div className="wf-topic-groups" aria-label={ui("按主题组选择")}>{listing.groups.groups.map((g) => <label key={g.id}><CheckboxInput checked={g.topics.length > 0 && g.topics.every((key) => selected.has(key))} indeterminate={g.topics.some((key) => selected.has(key)) && !g.topics.every((key) => selected.has(key))} onChange={(e) => toggle(g.topics, e.target.checked, g.title)} /><span>{g.title}</span><small>{uiFormat("{0} 个主题", [g.topics.length])}</small></label>)}</div>}
+          <div className="wf-topic-list">{matched.map((t) => <label key={t.key}><CheckboxInput checked={selected.has(t.key)} onChange={(e) => toggle([t.key], e.target.checked, t.topic)} /><span>{t.topic}<small title={t.decks.map((d) => d.deckTitle).join(" · ")}>{t.decks.slice(0, 2).map((d) => d.deckTitle).join(" · ")}{t.decks.length > 2 ? uiFormat(" 等 {0} 个题组", [t.decks.length]) : ""}</small></span><small>{uiFormat("{0} 题", [t.count])}</small></label>)}{!matched.length && <p className="muted">{ui("没有匹配的主题。")}</p>}</div>
         </> : <p className="muted small">{ui("学习库还没有题目主题。填写上方主题即可开始。")}</p>}
       </details>
       <label>{ui("这次学什么")}<input required maxLength={120} value={topic} placeholder={ui("写一个主题；没有题目也可以开始")} onChange={(e) => { setTopic(e.target.value); requestId.current = crypto.randomUUID(); }} /></label>

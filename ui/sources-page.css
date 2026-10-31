@@ -46,29 +46,21 @@
     /* 归档所选: its own row under the course buttons, with the sentence that says what archiving does beside it (under it on a narrow page). */
     .source-archive-actions { align-items: center; margin-top: var(--space-3); }
     .source-course-proposals { margin: var(--space-4) 0; padding-left: var(--space-4); border-left: 2px solid var(--line); }
-    .source-row > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
     .source-row-actions { max-width: 150px; flex: 0 0 auto; }
     .source-row-actions button { display: block; margin-top: var(--space-2); max-width: 100%; }
     /* Raw attachment paths have no spaces; let them wrap instead of overflowing. */
     .source-main strong {
       overflow-wrap: anywhere;
     }
-    /* Sources grouped by creation day, collapsed by default. */
+    /* Sources grouped by creation day: a heading line over a hairline, the rows on the desk under it (#570; no box around a day). */
     .source-group {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--bg-surface);
-      margin: var(--space-2-5) 0;
+      margin: var(--space-5) 0 0;
     }
     .source-group--open {
-      padding-bottom: var(--space-1);
+      padding-bottom: var(--space-2);
     }
     .source-group .source-row {
-      margin: 0 var(--space-2-5) var(--space-2);
       width: auto;
-      padding: var(--space-2-5) var(--space-3);
-      border-color: var(--line-soft);
-      background: var(--bg-sunken);
     }
     .source-group .source-main {
       background: transparent;
@@ -78,9 +70,11 @@
       align-items: center;
       gap: var(--space-2-5);
       width: 100%;
-      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-1);
+      padding: var(--space-2);
       border: 0;
-      border-radius: var(--radius);
+      border-bottom: 1px solid var(--line);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
       background: transparent;
       text-align: left;
     }
@@ -191,6 +185,8 @@
   :is(.study-app, .study-seat) {
     & button.source-group-head { flex-wrap: wrap; }
     .source-doc .source-main { align-items: flex-start; gap: var(--space-3); }
+    /* A 资料 row is the hover surface (ui/sources.css, #570); the title button inside it draws no box of its own. */
+    .source-doc .source-main, .source-doc .source-main:is(:hover, :active) { padding: 0; background: transparent; }
     .source-doc__actions .source-row-actions { position: relative; max-width: none; }
   }
 }

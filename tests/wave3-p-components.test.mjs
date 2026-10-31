@@ -33,6 +33,14 @@ test('PageHeader compact is the one-line header of a working surface', () => {
   assert.match(readFileSync('ui/components/components.css', 'utf8'), /\.sh-page-header--compact \.sh-page-header__title/);
 });
 
+test('PageHeader actionsOnTitleRow ends the title line with the actions, above the scope (#573)', () => {
+  const out = html(m.PageHeader, { title: '学习统计', actionsOnTitleRow: true, scope: h('label', { className: 'page-scope' }, '课程范围'), actions: h(m.Button, null, '刷新') });
+  assert.match(out, /<div class="sh-page-header__title-row"><h1 class="sh-page-header__title">学习统计<\/h1><div class="sh-page-header__actions"><button[^>]*>刷新<\/button><\/div><\/div><div class="sh-page-header__scope">/);
+  assert.equal((out.match(/sh-page-header__actions/g) || []).length, 1, 'the actions are not repeated at the end');
+  assert.match(html(m.PageHeader, { title: 'x', actionsOnTitleRow: true }), /<div class="sh-page-header__text"><h1 class="sh-page-header__title">x<\/h1><\/div><\/header>/, 'without actions there is no row wrapper');
+  assert.match(readFileSync('ui/components/components.css', 'utf8'), /\.sh-page-header__title-row \{[^}]*display: flex;[^}]*align-items: center;[^}]*justify-content: space-between;/);
+});
+
 test('Panel tones, density and element', () => {
   assert.match(html(m.Panel, { title: 'a' }, 'x'), /^<section class="sh-panel">/, 'plain is the default and adds no modifier class');
   for (const tone of ['sunken', 'accent', 'dashed']) assert.match(html(m.Panel, { tone }, 'x'), new RegExp(`class="sh-panel sh-panel--${tone}"`));
@@ -66,7 +74,6 @@ const H1_ALLOWED = new Map([
   ['ui/first-run/FirstRunLine.jsx', 'the first-run line is the whole first screen of an empty library, not a page frame'],
   ['ui/app/page-views.jsx', 'StartPage: the pre-library start screen'],
   ['ui/host/studyhub-page.jsx', 'the "open a session first" screen of the host seat'],
-  ['ui/tasks/TaskConsole.jsx', 'the 任务 console is a master-detail surface that fills the window: its list header is the page title, there is no page frame above it'],
 ]);
 
 test('<h1 appears only in PageHeader and the allow-listed frames (#142)', () => {

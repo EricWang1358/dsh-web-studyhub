@@ -3,12 +3,12 @@
    App composes: its hooks (ui/app/use-*.js, ui/review/useReviewSession.js) own the state and the verbs, the shell parts
    (ui/app/App*.jsx) draw the sidebar, top bar and dialogs, and ui/app/page-views.jsx maps each page of ui/pages.js to its component. */
 import React, { useMemo, useRef } from 'react';
-import { LiveClass } from './workspace-views.jsx';
+import { Board, LiveClass } from './workspace-views.jsx';
 import { pageAvailable } from './capabilities.js';
 import { ui, uiFormat, useUiLanguage } from './i18n.js';
 import { abandonUndoable } from './undoable.js';
 import Tour from './tour/Tour.jsx';
-import Board, { useBoard } from './Board.jsx';
+import { useBoard } from './board/use-board.js';
 import DailyPlan from './DailyPlan.jsx';
 import ShortcutHelp from './ShortcutHelp.jsx';
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
@@ -136,6 +136,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                       onJobs={() => { void core.refresh().catch((failure) => core.setError(failure.message)); }} />}
                     {page === 'board' ? (
                       <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={lib.boardStudyRef}
+                        composeOnArrive={lib.boardCompose} onComposeOpened={() => set.setBoardCompose(false)}
                         dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan}
                           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} /> : null}
                         onClearStudyRef={() => set.setBoardStudyRef(null)} onStudyRef={learn.openBoardReference} />

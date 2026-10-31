@@ -38,7 +38,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
       gap: var(--space-3);
-      margin: var(--space-5) 0 var(--space-2);
+      margin: 0;
     }
     .generate-page .source-mode > button.source-tab {
       gap: var(--space-1);
@@ -51,6 +51,48 @@
     .generate-page .source-mode > button.source-tab.is-active {
       background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
       border-color: var(--accent-soft);
+    }
+    /* The row is its own container: the cards need 3 × 12rem and two gaps, and it is that width, not the window's (the
+       sidebar may be open or folded), that decides when they stop fitting side by side. The row's margins are the frame's, so
+       they still collapse with the heading above and the panel below as they did before the frame. */
+    .generate-page .source-mode-frame { container: generate-ways / inline-size; margin: var(--space-5) 0 var(--space-2); }
+    /* The chosen way's line under a narrow row (#575); the wide cards say it inside each card. */
+    .generate-page .source-mode-note { display: none; }
+  }
+  /* A narrow pane (#575): three stacked cards filled the first screen, so the ways become one compact row of titles and
+     「01 / 选择资料」 is in sight. Each tab keeps its note for a screen reader (clipped, not removed); the chosen one's
+     line is shown once under the row. Roving focus, the anchors and the panel are the shared <Tabs>, unchanged. */
+  @container generate-ways (max-width: 38rem) {
+    :is(.study-app, .study-seat) {
+      .generate-page .source-mode {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1);
+      }
+      /* Through the frame, not the element: this has to outrank the wide card rule above (button.source-tab). */
+      .generate-page .source-mode-frame .source-mode > .source-tab {
+        flex: 1 1 auto;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-2);
+        border-radius: var(--radius-sm);
+        font-size: var(--fs-sm);
+        text-align: center;
+      }
+      .generate-page .source-mode-frame .source-mode > .source-tab .sh-tab__note {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .generate-page .source-mode-note {
+        display: block;
+        margin: var(--space-2) 0 0;
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+      }
     }
   }
 }

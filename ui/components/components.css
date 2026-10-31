@@ -254,7 +254,8 @@
     }
     .sh-page-header__description {
       max-width: 68ch;
-      text-wrap: pretty;
+      /* balance, like the empty-state copy: a lead of one or two lines; pretty only stops a one-character last line (#574) */
+      text-wrap: balance;
       margin: var(--space-2) 0 0;
       color: var(--text-dim);
       font-size: var(--fs-md);
@@ -266,6 +267,15 @@
       align-items: center;
       gap: var(--space-2);
     }
+    /* actionsOnTitleRow: the actions end the title's own line, so a scope picker below does not leave them floating. */
+    .sh-page-header__title-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-4);
+    }
+    .sh-page-header__title-row > .sh-page-header__title { min-width: 0; }
     /* The scope slot of PageHeader (ui-consistency #142): the page's scope picker sits under the title block.
        Tokens only. */
     .sh-page-header__scope {
@@ -362,10 +372,10 @@
       border-radius: var(--radius-sm);
       color: var(--text-dim);
       font-weight: var(--fw-medium);
-      list-style: none;
       cursor: pointer;
+      /* The marker is the Icon in the markup (the same chevron as ui/base.css draws for a plain summary). */
+      --sh-summary-marker: none;
     }
-    .sh-disclosure__summary::-webkit-details-marker { display: none; }
     .sh-disclosure__summary:hover { color: var(--text); }
     .sh-disclosure__summary:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .sh-disclosure__chevron { color: var(--text-muted); transition: transform var(--dur-fast) var(--ease); }

@@ -14,7 +14,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
-import { Button, InlineMessage, Menu, PageHeader, useToast } from './components/index.js';
+import { Button, CheckboxInput, InlineMessage, Menu, PageHeader, useToast } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -230,7 +230,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
     </PageHeader>
     {!note && <div className="note-list">
       <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} call={call} act={act} busy={busy} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
-      <details className="note-linking"><summary>{ui("＋ 挑题成文")}</summary>
+      <details className="note-linking"><summary>{ui("挑题成文")}</summary>
         <label>{ui("笔记标题")}<input value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
           onChange={(event) => setNewTitle(event.target.value)} /></label>
         <div className="note-card-search"><input value={query} placeholder={ui("搜索题目或知识点")}
@@ -238,7 +238,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
           onKeyDown={(event) => { if (event.key === "Enter") addCard(); }} />
           <Button onClick={addCard}>{ui("搜索题目")}</Button></div>
         {results.map((item) => <label key={item.cardId} className="note-search-result">
-          <input type="checkbox" checked={picked.some((ref) => ref.cardId === item.cardId)}
+          <CheckboxInput checked={picked.some((ref) => ref.cardId === item.cardId)}
             onChange={(event) => setPicked(event.target.checked
               ? [...picked, { deckId: item.deckId, cardId: item.cardId }]
               : picked.filter((ref) => ref.cardId !== item.cardId))} />

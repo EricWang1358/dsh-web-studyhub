@@ -82,10 +82,12 @@ test('PageScope shows the tree (a Combobox: children at level 2 under their pare
   assert.match(html, /<option value="\*"[^>]*>全部课程/);
 });
 
-test('PageScope: the chosen child is named in full below the select; English has no Han outside user data', () => {
+test('PageScope: the closed select names a chosen child in full, with no line under it; English has no Han outside user data', () => {
   const chosen = render(h(PageScope, { courses: focusCourses, value: NAMES.c05, onChange() {} }));
-  assert.match(chosen, /class="page-scope__path"[^>]*>Cloud Native Solution Design › 05 Kubernetes/);
-  assert.doesNotMatch(render(h(PageScope, { courses: focusCourses, value: P, onChange() {} })), /page-scope__path/);
+  assert.match(chosen, /<option[^>]*data-trigger="Cloud Native Solution Design › 05 Kubernetes：[^"]*"[^>]*>05 Kubernetes/, 'the trigger shows the whole path, the open list the last segment');
+  assert.doesNotMatch(chosen, /page-scope__path/, 'the path is no longer repeated under the select (#571)');
+  const top = render(h(PageScope, { courses: focusCourses, value: P, onChange() {} })).match(/<option value="Cloud Native Solution Design"[^>]*>/)?.[0];
+  assert.ok(top && !/data-trigger/.test(top), 'a top-level course is named as it is');
   const en = render(h(PageScope, { courses: focusCourses, value: NAMES.c07, onChange() {} }), 'en');
   noHan(en);
   assert.match(en, /Includes sub-courses/);
@@ -153,7 +155,7 @@ test('Settings course list: a parent counts its sub-courses and says so; an impl
   assert.match(en, /incl\. sub-courses/);
 });
 
-test('PageScope: a closed picker shows the chosen course without indentation spaces; depth is a level in the open list; the path wraps instead of being cut', async () => {
+test('PageScope: a closed picker shows the chosen course without indentation spaces; depth is a level in the open list', async () => {
   const { readFileSync } = await import('node:fs');
   const html = render(h(PageScope, { courses: focusCourses, value: NAMES.c07, onChange() {} }));
   const options = [...html.matchAll(/<option([^>]*)>([^<]*)</g)].map(match => ({ attrs: match[1], text: match[2] }));
@@ -164,10 +166,7 @@ test('PageScope: a closed picker shows the chosen course without indentation spa
   const root = options.find(option => /^全部课程$/.test(option.text));
   assert.doesNotMatch(root.attrs, /data-level/);
   const css = readFileSync(new URL('../ui/course-active.css', import.meta.url), 'utf8');
-  const pathRule = /\.page-scope__path\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
-  assert.doesNotMatch(pathRule, /white-space:\s*nowrap/, 'the whole path is shown, wrapped');
-  assert.doesNotMatch(pathRule, /text-overflow:\s*ellipsis/);
-  assert.match(pathRule, /overflow-wrap:\s*anywhere/);
+  assert.match(html, /<select[^>]* title="[^"]*07 微服务[^"]*"/, 'a path too long for the select is still whole in its tooltip');
   const scopeRule = /\.page-scope\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   assert.doesNotMatch(scopeRule, /max-width:\s*340px/, 'long chapter titles get more room than 340px');
 });

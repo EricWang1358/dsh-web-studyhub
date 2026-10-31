@@ -49,6 +49,15 @@ test('a pinned page says so and goes back to following with one click', () => {
   assert.equal(followed, 0);
 });
 
+test('one line (#571): the state is a small mark beside the select, named for screen readers, explained in a tooltip; no line under the select', () => {
+  const following = draw(), pinned = draw({ value: '算法', onChange: setter(true) });
+  assert.match(following, /<label class="page-scope__label" for="([^"]+)">课程范围<\/label><select[^>]* id="\1"/, 'the label sits beside the select and names it');
+  assert.match(following, /data-follow="following"[^>]*>(?:(?!<\/span><\/span><\/span>).)*class="page-scope__mark" tabindex="0" aria-describedby="([^"]+)"(?:(?!<\/span><\/span><\/span>).)*<span class="sh-visually-hidden">跟随当前课程<\/span><\/span><span id="\1" role="tooltip"[^>]*>跟随当前课程：/s,
+    'the mark is reachable by keyboard, has its name for assistive tech and says what following means on hover and focus');
+  assert.match(pinned, /data-follow="pinned"[^>]*>.*<span class="sh-visually-hidden">已固定<\/span>.*role="tooltip"[^>]*>已固定：.*<button[^>]*>改为跟随当前课程<\/button><\/span><\/div>$/s, 'pinned: the mark, then the way back, on the same line');
+  for (const markup of [following, pinned]) assert.doesNotMatch(markup, /page-scope__path|<small class="page-scope__note" data-follow/, 'no path or state line under the select');
+});
+
 test('without the app around it, or a setter that knows, there is no chip at all', () => {
   assert.doesNotMatch(draw({ app: false }), /跟随当前课程|已固定/);
   assert.doesNotMatch(draw({ onChange: () => {} }), /跟随当前课程|已固定/);

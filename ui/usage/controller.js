@@ -1,5 +1,6 @@
 import { createUsageCollector } from './collector.js';
 import { installUsageCapture } from './capture.js';
+import { loadEnglishCatalogue } from '../i18n.js';
 
 /* Owns the usage frequency record on the page: asks the host once whether it is on, installs the capture and the page-lifecycle flush only while
    it is on and not paused, and takes both away the moment it is turned off or paused. While it is off there is nothing here but this module's
@@ -31,6 +32,8 @@ export function createUsageController({ root, call, lifecycle, keyScope, now = D
   const timers = { ...(setTimer ? { setTimer } : {}), ...(clearTimer ? { clearTimer } : {}) };
 
   function start() {
+    // A control is keyed by the app's own copy, looked up in the English catalogue (ui/usage/names.js); a Chinese interface in the host loads it now.
+    loadEnglishCatalogue().catch(() => {});
     collector = createUsageCollector({ send: records => call('usage.frequency.record', { records }), now, onRefused: () => { void api.refresh(); }, ...timers });
     collector.start();
     uninstall = installUsageCapture(root, { record: (key, area) => collector.record(key, area), keyScope: scope() });

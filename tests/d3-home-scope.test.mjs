@@ -43,7 +43,8 @@ test('PageScope renders the same wrapper on every page, whatever the page passes
   ];
   for (const props of variants) {
     const html = renderToStaticMarkup(h(PageScope, { onChange() {}, ...props }));
-    assert.ok(html.startsWith('<label class="page-scope">'), 'one wrapper class, no per-page modifier');
+    assert.ok(html.startsWith('<div class="page-scope">'), 'one wrapper class, no per-page modifier');
+    assert.match(html, /<label class="page-scope__label" for="([^"]+)">[^<]*<\/label><select[^>]* id="\1"/, 'the label names the select it sits beside');
     assert.equal((html.match(/<select/g) || []).length, 1);
   }
 });
@@ -51,10 +52,13 @@ test('PageScope renders the same wrapper on every page, whatever the page passes
 test('the scope control has one fixed width in its own css, and no page css re-sizes it', () => {
   const own = css('course-active.css');
   const rule = /\.page-scope\s*\{([^}]*)\}/.exec(own)?.[1] ?? '';
-  assert.match(rule, /(?:^|[;\s])width:\s*20rem/, 'one fixed width, also inside a shrink-to-fit header');
   assert.match(rule, /max-width:\s*100%/);
-  assert.match(rule, /display:\s*grid/);
-  assert.match(own, /\.page-scope\s+select\s*\{[^}]*width:\s*100%/);
+  assert.match(rule, /display:\s*flex/, 'one line: the label beside the select (#571)');
+  assert.match(rule, /flex-wrap:\s*wrap/, 'a narrow container wraps it instead of scrolling');
+  const select = /\.page-scope__select[^{]*\{([^}]*)\}/.exec(own)?.[1] ?? '';
+  assert.match(select, /(?:^|[;\s])width:\s*20rem/, 'one fixed width, also inside a shrink-to-fit header');
+  assert.match(select, /max-width:\s*20rem/, 'it never grows with the page or the chosen course');
+  assert.match(select, /min-width:\s*0/, 'and gives up width in a narrow container');
   assert.doesNotMatch(globalCss(), /\.page-scope\s*\{[^}]*max-width/, 'the old per-page 36rem cap is gone');
   for (const file of readdirSync(new URL('../ui', import.meta.url)).filter(name => name.endsWith('.css') && name !== 'course-active.css')) {
     for (const [, selector, body] of css(file).matchAll(/([^{}]*\.page-scope(?![-\w])[^{}]*)\{([^}]*)\}/g)) {

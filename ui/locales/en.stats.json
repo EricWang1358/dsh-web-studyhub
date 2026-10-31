@@ -45,5 +45,8 @@
   "自评达标率": "Self-assessment pass rate",
   "达标率": "Met rate",
   "{0} · {1} 次": "{0} · Attempts: {1}",
-  "多做几道题，这里会显示各层次的达标率。": "Answer a few more questions to see the met rate here."
+  "多做几道题，这里会显示各层次的达标率。": "Answer a few more questions to see the met rate here.",
+  "活跃天数": "Active days",
+  "累计作答 {0} 次": "{0} attempts in total",
+  "今天学一题，就开始新的连续学习": "Answer one question today to start a new streak"
 }

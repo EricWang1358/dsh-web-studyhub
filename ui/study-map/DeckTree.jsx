@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { DisclosureToggle, foldLabel } from '../components/index.js';
+import { CheckboxInput, DisclosureToggle, foldLabel } from '../components/index.js';
 import { courseRelative } from '../../lib/course-tree.js';
 import { courseNamesOf } from '../PageScope.jsx';
 import { ParkedChip } from '../CourseActive.jsx';
@@ -32,7 +32,7 @@ export default function DeckTree({ data, folders, tree, query, showArchived, sin
           <li key={id} className={`map-folder${parked ? ' is-parked-row' : ''}`}>
             <div className="map-row folder-row">
               <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, name)} onToggle={() => tree.toggleOpen(id)} />
-              {!showArchived && <input type="checkbox" aria-label={uiFormat('选择目录 {0}', [folder])}
+              {!showArchived && <CheckboxInput aria-label={uiFormat('选择目录 {0}', [folder])}
                 checked={decks.every((deck) => tree.selected.has(topicKey(deck.id)))}
                 onChange={(event) => tree.toggleSelect(decks.filter((deck) => !deck.archived).map((deck) => topicKey(deck.id)), event.target.checked)} />}
               <button className="map-name" onClick={() => tree.toggleOpen(id)}>

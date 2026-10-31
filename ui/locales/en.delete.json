@@ -38,7 +38,6 @@
   "归档：{0}": "Archive: {0}",
   "已归档「{0}」：在「已归档」里。": "Archived “{0}”: it’s under Archived.",
   "已删除 {0} 个任务": "Deleted {0} jobs",
-  "还没有归档的任务。已结束的任务点「归档」，会放在这里。": "Nothing archived yet. Finished jobs you archive are kept here.",
   "已删除学习流「{0}」；已开始的学习记录还在。": "Deleted learning flow “{0}”; study records already started stay.",
   "已删除学习记录「{0}」的笔记和进度；闪卡练习历史还在。": "Deleted the notes and progress of study record “{0}”; your flashcard history stays.",
   "{0}（{1} 秒内、下一次删除前可撤销）": "{0} (undo within {1} s, before the next delete)",

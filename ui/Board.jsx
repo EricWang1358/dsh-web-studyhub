@@ -1,11 +1,9 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInjectCss } from "./shared.js";
-import { usePolling } from "./use-polling.js";
 import { readJSON, writeJSON } from "./storage.js";
 import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, useToast } from "./components/index.js";
 import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
-import { createBoardStore } from "./board/store.js";
 import BoardCard from "./board/Card.jsx";
 import Composer from "./board/Composer.jsx";
 import CardEditor from "./board/CardEditor.jsx";
@@ -16,20 +14,6 @@ import css from "./board/board.css";
 
 export { boardColumnLabel };
 
-/** One subscription serves both the navigation badge and the visible board. */
-export function useBoard(call, visible) {
-  const latest = useRef(call);
-  latest.current = call;
-  const store = useMemo(() => createBoardStore((action, args) => latest.current(action, args)), []);
-  const snapshot = useSyncExternalStore(store.subscribe, store.getState, store.getState);
-  useEffect(() => {
-    store.refresh();
-    return () => store.invalidate();
-  }, [store, visible]);
-  usePolling(() => store.refresh(), { intervalMs: visible ? 5000 : 30000 });
-  return useMemo(() => ({ ...snapshot, mutate: store.mutate, refresh: store.refresh, clearError: store.clearError }), [snapshot, store]);
-}
-
 const MOVE_KEYS = { left: -1, right: 1 };
 const UNDO_TIMEOUT = 8000;
 const COLLAPSE_KEY = "study-board-collapsed";
@@ -37,7 +21,7 @@ const readCollapsed = () => { const saved = readJSON(COLLAPSE_KEY, []); return n
 const writeCollapsed = (set) => { writeJSON(COLLAPSE_KEY, [...set]); /* a per-viewer convenience only */ };
 const friendly = (error, conflict) => conflict ? ui("看板已在其他位置更新，已载入最新内容，请再试一次。") : error;
 
-function Column({ column, view, board, today, library, drag, drop, setDrag, setDrop, hasDone, composer, collapsed, filtering, readOnly, labelSuggestions,
+function Column({ column, view, board, today, library, drag, drop, setDrag, setDrop, hasDone, composer, collapsed, filtering, readOnly, labelSuggestions, boardEmpty,
   studyRef, onClearStudyRef, onOpenComposer, onCloseComposer, onAdd, onToggleDone, onEdit, onAction, onDropTo, onRename, onFold, onRemove, onOrigin, onStudyRef }) {
   const label = boardColumnLabel(column);
   const shown = view.cardIds;
@@ -110,7 +94,8 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
           </React.Fragment>;
         })}
         {showLine(shown.length) && <div className="board-drop-line" aria-hidden="true" />}
-        {!shown.length && !composer && (filtering && column.cardIds.length
+        {/* While the whole board is empty the page says so once (#576); an empty column among filled ones still says so. */}
+        {!shown.length && !composer && !boardEmpty && (filtering && column.cardIds.length
           ? <p className="board-column__none">{ui("没有符合筛选的卡片")}</p>
           : <EmptyState size="sm" title={ui("这一列没有卡片")} description={ui("把卡片拖到这里，或点下面添加。")} />)}
       </div>
@@ -156,7 +141,7 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
   </section>;
 }
 
-export default function Board({ state, library, today: todayProp, onOrigin, onStudyRef, studyRef, onClearStudyRef, dailyPlan }) {
+export default function Board({ state, library, today: todayProp, onOrigin, onStudyRef, studyRef, onClearStudyRef, composeOnArrive = false, onComposeOpened, dailyPlan }) {
   useInjectCss(css, "study-board");
   const { board, error, conflict, busy, mutate, refresh, clearError } = state;
   const today = todayProp || localDate();
@@ -164,7 +149,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const [archive, setArchive] = useState(false);
   const [query, setQuery] = useState({});
   const [filterOpen, setFilterOpen] = useState(false);
-  const [composer, setComposer] = useState(() => studyRef && board?.columns?.length ? board.columns[0].id : null);
+  const [composer, setComposer] = useState(() => composeOnArrive && studyRef && board?.columns?.length ? board.columns[0].id : null);
   const [confirm, setConfirm] = useState(null);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drag, setDrag] = useState(null);
@@ -175,9 +160,20 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const [originError, setOriginError] = useState("");
   const boardRef = useRef(board), focusId = useRef(null), announced = useRef(0);
   boardRef.current = board;
+  // Opening the composer unfolds its column: a composer inside a folded column could not be seen.
+  const openComposer = (id) => {
+    setCollapsed((current) => { if (!current.has(id)) return current; const next = new Set(current); next.delete(id); writeCollapsed(next); return next; });
+    setComposer(id);
+  };
 
-  // A study link handed over from "加入待办" opens the composer with the chip attached.
-  useEffect(() => { if (studyRef && boardRef.current?.columns?.length) setComposer(boardRef.current.columns[0].id); }, [studyRef]);
+  // Only "加入待办" asks for the composer (with its study link as a chip); entering the page any other way opens nothing (#576).
+  // The request is spent once the composer is open, and waits for a board that is still loading.
+  const firstColumn = board?.columns?.[0]?.id;
+  useEffect(() => {
+    if (!composeOnArrive || !studyRef || !firstColumn) return;
+    openComposer(firstColumn);
+    onComposeOpened?.();
+  }, [composeOnArrive, studyRef, firstColumn, onComposeOpened]);
   // Keyboard moves keep focus on the card that moved.
   useEffect(() => {
     if (!focusId.current) return;
@@ -276,6 +272,14 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const view = useMemo(() => board ? filterCards(board, { ...query, today }) : null, [board, query, today]);
   const labels = useMemo(() => board ? labelCounts(board) : [], [board]);
   const total = board ? Object.keys(board.cards).length : 0;
+  // An empty board shows one empty state and one way in; its columns appear with the first card, or when the learner starts writing it.
+  const empty = !!board && total === 0;
+  const showColumns = !empty || composer !== null;
+  // Closing the composer on a still-empty board brings back the empty state; focus returns to its button.
+  const closeComposer = () => {
+    setComposer(null);
+    if (empty) requestAnimationFrame(() => document.querySelector(".board-empty .sh-empty__actions button")?.focus());
+  };
   const matched = view ? view.columns.reduce((sum, column) => sum + column.cardIds.length, 0) : 0;
   const hasDone = !!board?.columns.some((column) => column.done);
   const editingCard = editing && board?.cards[editing.id];
@@ -286,7 +290,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
       actions={<>
         <IconButton icon={<Icon name="sync" size={18} />} label={ui("刷新")} size="sm" disabled={busy} onClick={() => refresh({ force: true })} />
         <Button variant="quiet" size="sm" icon={<Icon name="archive" />} aria-pressed={archive} onClick={() => setArchive(!archive)}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</Button>
-        {!archive && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => setComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
+        {!archive && !empty && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => openComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
       </>} />
     {message && <InlineMessage tone={board?.readOnly ? "error" : conflict ? "warning" : "error"} boxed onDismiss={board?.readOnly ? undefined : () => { setOriginError(""); clearError?.(); }}>{message}</InlineMessage>}
     {!archive && dailyPlan}
@@ -297,22 +301,22 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
         onDelete={(card) => setConfirm({ kind: "purge", card })} />
       : <>
         {(total > 0 || filtering) && <FilterBar query={query} labels={labels} onChange={setQuery} open={filterOpen} onToggle={() => setFilterOpen(!filterOpen)} matched={matched} total={total} />}
-        {total === 0 && !archive && <EmptyState icon="check" title={ui("还没有待办")} className="board-empty"
+        {empty && !showColumns && <EmptyState icon="check" title={ui("还没有待办")} className="board-empty"
           description={ui("把想做的事记在这里。在复习、题目或学习流里点「加入待办」，会把当前内容一起记下来。")}
-          primary={{ label: ui("添加第一张卡片"), icon: "plus", disabled: readOnly, onClick: () => setComposer(board.columns[0].id) }} />}
+          primary={{ label: ui("添加第一张卡片"), icon: "plus", disabled: readOnly || !board.columns.length, onClick: () => openComposer(board.columns[0].id) }} />}
         {filtering && matched === 0 && total > 0 && <EmptyState size="sm" icon={<Icon name="search" size={22} />} title={ui("没有符合筛选的卡片")} className="board-empty"
           secondary={{ label: ui("清除筛选"), onClick: () => setQuery({}) }} />}
-        <div className="board-columns" style={{ "--board-cols": board.columns.length }}>
+        {showColumns && <div className="board-columns" style={{ "--board-cols": board.columns.length }}>
           {view.columns.map((column, at) => <Column key={column.id} column={board.columns[at]} view={column} board={board} today={today} library={library} drag={drag} drop={drop}
-            setDrag={setDrag} setDrop={setDrop} hasDone={hasDone} composer={composer === column.id} collapsed={collapsed.has(column.id)} filtering={filtering} readOnly={readOnly}
+            setDrag={setDrag} setDrop={setDrop} hasDone={hasDone} composer={composer === column.id} collapsed={collapsed.has(column.id)} filtering={filtering} readOnly={readOnly} boardEmpty={empty}
             labelSuggestions={labels.map((entry) => entry.label)} studyRef={studyRef} onClearStudyRef={onClearStudyRef}
-            onOpenComposer={setComposer} onCloseComposer={() => setComposer(null)} onAdd={addCard} onToggleDone={toggleDone} onEdit={(card) => onAction("edit", card)} onAction={onAction}
+            onOpenComposer={openComposer} onCloseComposer={closeComposer} onAdd={addCard} onToggleDone={toggleDone} onEdit={(card) => onAction("edit", card)} onAction={onAction}
             onDropTo={(id, target, index) => moveCard(id, target, index)}
             onRename={(entry, title) => run("board.column.rename", { id: entry.id, title })} onFold={flip}
             onRemove={(entry) => run("board.column.remove", { id: entry.id })}
             onOrigin={openRef(onOrigin)} onStudyRef={openRef(onStudyRef)} />)}
           {!readOnly && <NewColumn onAdd={(title) => run("board.column.add", { title }, { optimistic: false })} />}
-        </div>
+        </div>}
       </>)}
     {editingCard && <CardEditor key={editing.id} card={editingCard} board={board} baseRevision={editing.revision} library={library} today={today}
       labelSuggestions={labels.map((entry) => entry.label)} saving={saving} error={message} conflict={conflict} onClose={() => { setEditing(null); clearError?.(); }}

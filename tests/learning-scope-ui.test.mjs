@@ -33,9 +33,9 @@ test('exam defaults to current-course questions and an empty course never presel
   const html = render(Exam);
   assert.match(html, /A questions/);
   assert.doesNotMatch(html, /B questions/);
-  assert.match(html, /type="checkbox" checked=""/);
+  assert.match(html, /type="checkbox" class="sh-check__input" checked=""/);
   const empty = render(Exam, { data: { ...data, focus: { ...data.focus, course: 'Empty' } } });
-  assert.doesNotMatch(empty, /type="checkbox" checked=""/);
+  assert.doesNotMatch(empty, /type="checkbox"[^>]*checked=""/);
   assert.match(empty, /全部课程/);
 });
 

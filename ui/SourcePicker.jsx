@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, EmptyState, ScrollWindow, filterItems } from './components/index.js';
+import { Button, CheckboxInput, EmptyState, ScrollWindow, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import { courseScope } from '../lib/course-tree.js';
@@ -87,9 +87,19 @@ export const selectDocuments = (selected, items) => [...new Set([...selected, ..
  * a parent course takes in its sub-courses (`known`: the library's course names, lib/course-tree.js).
  */
 export function inScope(item, scope, known = []) {
-  if (scope === undefined || scope === null || scope === '*') return true;
-  return scope === '' ? !item.courses.length : item.courses.some(courseScope(scope, known));
+  return scopeFilter(scope, known)(item);
 }
+
+/** inScope as one `item => boolean` for a whole list: the course matcher is built once, not once per document (#565). */
+export function scopeFilter(scope, known = []) {
+  if (scope === undefined || scope === null || scope === '*') return () => true;
+  if (scope === '') return item => !item.courses.length;
+  const within = courseScope(scope, known);
+  return item => item.courses.some(within);
+}
+
+/** Rows the picker draws at first: about four windows of rows (a window shows about six); scrolling or tabbing near the end draws more (ScrollWindow). */
+export const SOURCE_PICKER_FIRST_ROWS = 24;
 
 /** Small notes a learner should check before generating. */
 export function documentNotes(item) {
@@ -145,8 +155,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
       <div className="source-picker__row">
         <label className="source-picker__doc">
-          <input type="checkbox" checked={state === 'all'} disabled={disabled}
-            ref={element => { if (element) element.indeterminate = state === 'some'; }}
+          <CheckboxInput checked={state === 'all'} indeterminate={state === 'some'} disabled={disabled}
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
             <strong title={item.title}>{name}</strong>
@@ -166,8 +175,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
             const chapterPicked = chapterState(chapter, selected), inside = chapter.sourceIds.length === 0;
             return <li key={chapter.index} data-chapter-index={chapter.index}>
               <label>
-                <input type="checkbox" checked={chapterPicked === 'all'} disabled={disabled || inside}
-                  ref={element => { if (element) element.indeterminate = chapterPicked === 'some'; }}
+                <CheckboxInput checked={chapterPicked === 'all'} indeterminate={chapterPicked === 'some'} disabled={disabled || inside}
                   onChange={event => { const on = event.target.checked; apply(current => toggleChapter(current, chapter, on)); }} />
                 <span>{chapterLabel(chapter, item.chapterUnit)}</span>
                 <small>{inside ? ui('在同一页内，不能单独选择') : uiFormat(item.chapterUnit === 'part' ? '{0} 部分' : '{0} 页', [chapter.sourceIds.length])}</small>
@@ -180,7 +188,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
         {pagesOpen && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [name])}>
         {item.pages.map(page => <li key={page.sourceId}>
           <label>
-            <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}
+            <CheckboxInput checked={chosen.has(page.sourceId)} disabled={disabled}
               onChange={event => { const on = event.target.checked; apply(current => on ? [...current, page.sourceId] : current.filter(id => id !== page.sourceId)); }} />
             <span>{pageLabel(item, page)}</span>
             <small>{uiFormat('{0} 字符', [formatNumber(page.chars)])}</small>
@@ -191,7 +199,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
       {multi && open && !chaptered && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [name])}>
         {item.pages.map(page => <li key={page.sourceId}>
           <label>
-            <input type="checkbox" checked={chosen.has(page.sourceId)} disabled={disabled}
+            <CheckboxInput checked={chosen.has(page.sourceId)} disabled={disabled}
               onChange={event => { const on = event.target.checked; apply(current => on ? [...current, page.sourceId] : current.filter(id => id !== page.sourceId)); }} />
             <span>{pageLabel(item, page)}</span>
             <small>{uiFormat('{0} 字符', [formatNumber(page.chars)])}</small>
@@ -219,12 +227,13 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const bigKeys = useMemo(() => new Set(indexCoverage ? bigDocuments(items).map(item => item.key) : []), [items, indexCoverage]);
   const effectiveScope = onScopeChange ? scope : '*';
   const known = useMemo(() => courses.map(course => typeof course === 'string' ? course : course?.name).filter(Boolean), [courses]);
-  const visible = items.filter(item => inScope(item, effectiveScope, known));
+  const visible = useMemo(() => items.filter(scopeFilter(effectiveScope, known)), [items, effectiveScope, known]);
+  const visibleIds = useMemo(() => new Set(visible.flatMap(item => item.sourceIds)), [visible]);
   const filtering = !!query.trim();
   const shown = filtering ? filterItems(visible, query, documentSearchText) : visible;
   const chosen = new Set(selected);
   const chosenDocuments = items.filter(item => item.sourceIds.some(id => chosen.has(id))).length;
-  const outside = selected.some(id => !visible.some(item => item.sourceIds.includes(id)));
+  const outside = selected.some(id => !visibleIds.has(id));
   const change = ids => onChange?.(ids);
   // Rows read the latest selection through one stable function, so a click re-renders the clicked row, not all of them (#205).
   const latest = useRef({ selected, onChange, onIndex });
@@ -267,7 +276,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
       {gap && <IndexGapLine count={gap.count} canIndex={canIndex} onGo={() => goIndex(gap.course)} />}
       {visible.length ? <ScrollWindow className="source-picker__window" label={ui('资料列表')} items={visible} itemKey={item => item.key}
         match={documentSearchText} query={query} onQueryChange={setQuery} filterable={visible.length > FILTER_AFTER || filtering}
-        filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} listClassName="source-picker__list" itemClassName="source-picker__entry"
+        filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} renderLimit={SOURCE_PICKER_FIRST_ROWS} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
           indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} slot={indexSlot} relation={relations.get(item.key) ?? null} onIndex={onIndex ? goIndex : undefined} />} />

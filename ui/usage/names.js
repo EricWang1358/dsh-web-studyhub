@@ -1,4 +1,4 @@
-import { uiCatalogue } from '../i18n.js';
+import { englishCatalogueLoaded, loadEnglishCatalogue, uiCatalogue } from '../i18n.js';
 
 /* A control's name, in a form that is the same in Chinese and in English and carries nothing but the app's own copy.
 
@@ -8,7 +8,8 @@ import { uiCatalogue } from '../i18n.js';
    course, a file or anything the learner wrote can never become part of a key: it is not in the catalogue. `开始做这 12 道题` and
    "Start these 12 questions" both resolve to `开始做这 N 道题`.
 
-   The index is built the first time a name is asked for, which only happens once the record is on. */
+   The index is built the first time a name is asked for, which only happens once the record is on. In the DSH host a Chinese interface has no
+   catalogue until the record asks for it (ui/usage/controller.js loads it when the record starts): until it is here a name resolves to nothing. */
 
 const NUMBER = /\{\d+\}|\d+(?:[.,:：]\d+)*/g;
 const EDGE = /^[\s←→+＋◈·•▸›»«]+|[\s→…›»«:：]+$/gu;
@@ -19,6 +20,11 @@ export const normalizeName = text => (typeof text === 'string'
 const meaningful = name => name.length > 0 && name.length <= LONGEST && /\p{L}/u.test(name.replace(/\bN\b/g, ''));
 
 let index = null;
+const lookup = () => {
+  if (index) return index;
+  if (!englishCatalogueLoaded()) { loadEnglishCatalogue().catch(() => {}); return null; }
+  return (index = build());
+};
 function build() {
   const english = new Map(), zhCanonical = new Map(), display = new Map(), catalogue = uiCatalogue();
   const entries = Object.entries(catalogue).map(([zh, en]) => [normalizeName(zh), normalizeName(en)]).filter(([zh, en]) => meaningful(zh) && meaningful(en));
@@ -31,15 +37,14 @@ function build() {
 export function canonicalName(text) {
   const name = normalizeName(text);
   if (!meaningful(name)) return null;
-  index ||= build();
-  return index.zhCanonical.get(name) ?? index.english.get(name) ?? null;
+  const names = lookup();
+  return names ? names.zhCanonical.get(name) ?? names.english.get(name) ?? null : null;
 }
 
 /** A canonical name to show: itself in Chinese, the English copy of it in English (numbers still N). */
 export function displayName(canonical, language) {
   if (language !== 'en') return canonical;
-  index ||= build();
-  return index.display.get(canonical) ?? canonical;
+  return lookup()?.display.get(canonical) ?? canonical;
 }
 
 /** For tests and a language switch: forget the index. */

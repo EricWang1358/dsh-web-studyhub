@@ -79,7 +79,7 @@ test('the header shows 打开资料 next to 打开草稿 and nowhere else when t
   const draft = { id: 'd1', title: 'Deck', cards: [], draftVersion: 1 };
   const withDraft = (materialOf) => draw([run()], { materialOf, drafts: [draft], resultOf: () => ({ label: '打开草稿', run() {} }) });
   const html = withDraft(opener());
-  const actions = html.slice(html.indexOf('class="tc-head__actions"'), html.indexOf('</header>'));
+  const actions = html.slice(html.indexOf('class="tc-head__actions"'), html.indexOf('</header>', html.indexOf('class="tc-head__actions"')));
   assert.match(actions, /data-task-material[^>]*>打开资料</);
   assert.ok(actions.indexOf('打开草稿') < actions.indexOf('data-task-material'), 'right after 打开草稿');
   assert.ok(actions.indexOf('全屏') < actions.indexOf('data-task-material'));
@@ -93,7 +93,7 @@ test('the button reads in English and clicking it carries the right opener', () 
   const html = draw([run()], { language: 'en', materialOf: opener() });
   assert.match(html, /data-task-material[^>]*>Open the material</);
   assert.match(html, /aria-label="Open “Book a”"/);
-  assert.doesNotMatch(html.slice(html.indexOf('class="tc-head__actions"'), html.indexOf('</header>')), /[㐀-鿿]/, 'no Chinese left in the header');
+  assert.doesNotMatch(html.slice(html.indexOf('class="tc-head__actions"'), html.indexOf('</header>', html.indexOf('class="tc-head__actions"'))), /[㐀-鿿]/, 'no Chinese left in the header');
 });
 
 test('the opener of the app opens the reader on the first source of the material, like a row of the 资料 page', () => {
@@ -113,7 +113,7 @@ test('a finished conversion has ONE 打开资料 (the material button replaces t
   m.setUiLanguage('zh');
   const html = renderToStaticMarkup(inApp(m, React.createElement(m.TaskConsole, { data: data(jobs), openers: { resultOf: (j) => m.resultOpener(j, app), materialOf: (j) => m.materialOpener(j, app) } }),
     { data: data(jobs), app: { lib: { taskFocus: null } } }));
-  const actions = html.slice(html.indexOf('class="tc-head__actions"'), html.indexOf('</header>'));
+  const actions = html.slice(html.indexOf('class="tc-head__actions"'), html.indexOf('</header>', html.indexOf('class="tc-head__actions"')));
   assert.equal((actions.match(/打开资料/g) || []).length, 1);
   assert.match(actions, /data-task-material/);
 });

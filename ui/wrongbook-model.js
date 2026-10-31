@@ -91,8 +91,8 @@ export function reasonText(reason) {
 }
 
 /**
- * The three ways to retrain. Extras that do not exist are disabled; the default
- * is the richest one available: your own variants, then similar questions.
+ * The three ways to retrain. Extras that do not exist are disabled, with the reason the page gives on hover and focus; the
+ * default is the richest one available: your own variants, then similar questions.
  */
 export function retrainOptions({ mistakes, similar, variants, paged }) {
   const options = [
@@ -100,10 +100,10 @@ export function retrainOptions({ mistakes, similar, variants, paged }) {
       label: uiFormat(paged ? '只练本页错题 ({0})' : '只练错题 ({0})', [mistakes]) },
     { value: 'similar', count: mistakes + similar, extra: similar,
       label: uiFormat(paged ? '本页错题 + 同类题 ({0}+{1})' : '错题 + 同类题 ({0}+{1})', [mistakes, similar]),
-      ...(similar ? {} : { disabled: true, title: ui('题库里没有找到合适的同类题') }) },
+      ...(similar ? {} : { disabled: true, reason: ui('题库里没有找到合适的同类题') }) },
     { value: 'variants', count: mistakes + variants, extra: variants,
       label: uiFormat(paged ? '本页错题 + 变式 ({0}+{1})' : '错题 + 变式 ({0}+{1})', [mistakes, variants]),
-      ...(variants ? {} : { disabled: true, title: ui('还没有备好的变式，先点「生成变式」') }) },
+      ...(variants ? {} : { disabled: true, reason: ui('还没有生成变式') }) },
   ];
   const fallback = variants ? 'variants' : similar ? 'similar' : 'wrong';
   return { options, fallback };

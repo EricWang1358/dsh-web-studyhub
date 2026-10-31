@@ -109,11 +109,62 @@
     & h4 {
       font-size: var(--fs-md);
     }
+    /* Line breaking (#574). Chinese has no spaces to fall back on, so the greedy default strands the last character of a paragraph
+       ("…留到下一" + "轮") and splits a heading into a long line and a short one. Headings balance their lines; a paragraph avoids a
+       one-character last line. The longhand leaves text-wrap-mode alone (an own or inherited nowrap still holds), a browser without it
+       keeps the default breaks, and every component or feature rule outranks this layer. Inputs, code, pre and table cells are not
+       named. Chromium's pretty only re-breaks the last lines of a paragraph (a 60 000-character paragraph lays out no slower), and the
+       reader already sets it on its own paragraphs, so long documents cost the same. */
+    & h1,
+    & h2,
+    & h3,
+    & h4 {
+      text-wrap-style: balance;
+    }
     & p {
       line-height: 1.8;
+      text-wrap-style: pretty;
     }
     & strong {
       font-weight: var(--fw-medium);
+    }
+  }
+  /* The disclosure marker (#572): every <summary> opens on the same chevron, the icon registry's `chevron` glyph (ui/components/icon-paths.js)
+     drawn as a mask in the muted ink, turned a quarter when its <details> is open, like the DisclosureToggle and the Disclosure's Icon. The
+     browser's triangle is hidden here and nowhere else (tests/disclosure-marker.test.mjs). The zero-width space gives the marker a text
+     baseline, so it sits on the line like a glyph in a block, a flex row or a grid. A summary that draws its own marker (the Disclosure's
+     Icon) or is a menu trigger sets --sh-summary-marker: none; a flex or grid summary spaced by gap sets --sh-summary-marker-gap: 0. */
+  :where(.study-app, .study-seat) {
+    & summary {
+      list-style: none;
+      cursor: pointer;
+    }
+    & summary::-webkit-details-marker {
+      display: none;
+    }
+    & summary::before {
+      --sh-chevron-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M180.24,132.24l-80,80a6,6,0,0,1-8.48-8.48L167.51,128,91.76,52.24a6,6,0,0,1,8.48-8.48l80,80A6,6,0,0,1,180.24,132.24Z'/%3E%3C/svg%3E");
+      content: "\200B";
+      display: var(--sh-summary-marker, inline-block);
+      flex: none;
+      width: 1em;
+      height: 1em;
+      margin-inline-end: var(--sh-summary-marker-gap, var(--space-1-5));
+      line-height: 1;
+      background-color: var(--text-muted);
+      -webkit-mask: var(--sh-chevron-mask) center / contain no-repeat;
+      mask: var(--sh-chevron-mask) center / contain no-repeat;
+      transition: transform var(--dur-fast) var(--ease);
+    }
+    & details[open] > summary::before {
+      transform: rotate(90deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      & summary::before {
+        transition: none;
+      }
     }
   }
   .study-app {

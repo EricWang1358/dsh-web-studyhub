@@ -5,7 +5,7 @@ import { pageFlag } from '../pages.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
-import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole, GuidedStudy } from '../workspace-views.jsx';
+import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole, GuidedStudy, Dashboard, Exam, ExamPrep, CourseOutline, BookPage } from '../workspace-views.jsx';
 import { useGuidedQuestion } from '../guided-study/use-guided-question.js';
 import { practiceArgs } from '../learning-navigation.js';
 import { materialOpener, resultOpener } from '../tasks/task-actions.js';
@@ -14,14 +14,9 @@ import { hasOwnDeck } from '../study-map/home-plan.js';
 import { SampleBanner } from '../Welcome.jsx';
 import { firstRunLine } from '../first-run/line.js';
 import { useFirstDeck } from '../first-run/use-first-deck.js';
-import Dashboard from '../Dashboard.jsx';
-import Exam from '../Exam.jsx';
 import WrongBook from '../WrongBook.jsx';
 import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
-import ExamPrep from '../exam-prep/ExamPrep.jsx';
-import CourseOutline from '../outline/CourseOutline.jsx';
-import BookPage from '../book/BookPage.jsx';
 import { keepBook } from '../book/model.js';
 import CrunchCard from '../book/CrunchCard.jsx';
 import Manage from '../Manage.jsx';
@@ -387,7 +382,7 @@ function GuidedStudyView() {
   const { data, core, session, lib, nav, host } = useApp();
   const started = lib.guidedSession || data?.activeStudySession || null;
   // The session as it is now and its new question's preparation (#547): the main chat starts it, the reviewed question opens here as a round of one.
-  const { session: guidedSession, prepState, clearFailure } = useGuidedQuestion({ session: started, call: core.call,
+  const { session: guidedSession, prepState, clearFailure, refresh: readGuidedSession } = useGuidedQuestion({ session: started, call: core.call,
     onReady: (result) => { if (result.run) session.enterRun(result.run); core.refresh(); } });
   const run = session.run;
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
@@ -405,7 +400,8 @@ function GuidedStudyView() {
     return core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, ...args }, session.enterRun);
   };
 
-  const handlePause = (id) => core.act('study.session.pause', { sessionId: id });
+  // Read the session again at once: its reads may have slowed down, and a paused session is not read after that (#564).
+  const handlePause = (id) => core.act('study.session.pause', { sessionId: id }, () => { void readGuidedSession(); });
 
   const handleEnd = (id) => {
     core.act('study.session.end', { sessionId: id });

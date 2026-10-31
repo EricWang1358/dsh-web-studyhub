@@ -1,4 +1,4 @@
-import { spanFormulas } from './reader/formula.js';
+import { spanFormulas } from './reader/formula-range.js';
 import { createLocator } from '../../lib/quote-locate.js';
 
 /** A quote without a verified position never silently chooses its first occurrence. */

@@ -112,8 +112,9 @@ test('generated native modules resolve through classic chunk factories and share
   const notesEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/BlogNotes.jsx');
   assert.ok(notesEntry);
   const settingsPanes = (await readFile('ui/settings-groups.js', 'utf8')).match(/^  category\(\{ id:/gm).length;
-  assert.equal(lazyLoads.length, 12 + settingsPanes, 'the nine views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks, guided study), 看原页 (pdf.js), the Select and Combobox popups (Base UI) and one pane per settings category');
-  await Promise.all(lazyLoads.map(load => load()));
+  assert.equal(lazyLoads.length, 18 + settingsPanes, 'the fifteen views (notes, skeleton, workflows, graph, audio usage, reader, live class, tasks, guided study, statistics, mock exam, exam prep, outline, review book, board; the review-book editor loads inside the review book), 看原页 (pdf.js), the Select and Combobox popups (Base UI) and one pane per settings category');
+  // A lazily loaded view may declare its own (the review-book editor inside the review book): load until no new boundary appears.
+  for (let loaded = 0; loaded < lazyLoads.length;) { const batch = lazyLoads.slice(loaded); loaded = lazyLoads.length; await Promise.all(batch.map(load => load())); }
   // 看原页 asks pdf.js's wasm decoders, CMaps and fonts from its own lazily loaded chunks (assets/*.js); load each the way the peek does.
   const assetOutputs = Object.entries(result.metafile.outputs).filter(([, record]) => Object.keys(record.inputs).some(path => /document-preview[\/]peek[\/]assets[\/]/.test(path)));
   assert.equal(assetOutputs.length, 7, 'jbig2, openjpeg, the standard fonts and the CMaps of four scripts');

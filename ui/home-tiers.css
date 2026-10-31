@@ -5,14 +5,10 @@
     /* ui/home-tiers.css — the home's daily path (ui/StudyMap.jsx): the other ways to start sit under one folded line. Tokens only. */
     .desk-more > summary {
       padding: var(--space-half) 0;
-      list-style: none;
       cursor: pointer;
       font-size: var(--fs-md);
       color: var(--text-muted);
     }
-    .desk-more > summary::-webkit-details-marker { display: none; }
-    .desk-more > summary::before { content: "▸  "; color: var(--text-faint); }
-    .desk-more[open] > summary::before { content: "▾  "; }
     .desk-more > summary:hover { color: var(--text); }
     /* D3 (2.5.9): the home's hierarchy. One column down the left (mode tabs, the course title on its own line, the progress and
        mastery on one measure, the next step), one paper card on the right; every gap is one spacing token. */

@@ -81,7 +81,8 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   }, [openLearningTarget, refs]);
   const openBoardWithContext = useCallback(() => {
     const reference = currentStudyReference();
-    if (reference) { rememberContext(); lib.set.setBoardStudyRef(reference); }
+    // 「加入待办」 is the learner asking for a card about this: the board opens its composer with the link attached.
+    if (reference) { rememberContext(); lib.set.setBoardStudyRef(reference); lib.set.setBoardCompose(true); }
     nav.navigate('board');
   }, [currentStudyReference, rememberContext, lib.set, nav]);
 

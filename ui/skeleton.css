@@ -93,8 +93,7 @@
   :is(.study-app, .study-seat) {
     .sk-topic-row input,
     .sk-decks input {
-      width: auto;
-      accent-color: var(--accent);
+      margin: 0;
     }
     & button.sk-topic-name {
       display: flex;
@@ -1310,20 +1309,8 @@
       min-height: 44px;
       padding: var(--space-1-5) 0;
       cursor: pointer;
-      list-style: none;
+      --sh-summary-marker-gap: 0;
     }
-    .spine-station > details > summary::-webkit-details-marker { display: none; }
-    .spine-station > details > summary::after {
-      content: "";
-      flex: none;
-      width: 7px;
-      height: 7px;
-      margin: 0 var(--space-1-5) 0 auto;
-      border-right: 2px solid var(--text-muted);
-      border-bottom: 2px solid var(--text-muted);
-      transform: rotate(-135deg);
-    }
-    .spine-station > details:not([open]) > summary::after { transform: rotate(45deg); }
     .spine-station > details > summary:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: var(--radius-sm); }
     .spine-station[aria-current="step"] .spine-marker { background: var(--text); box-shadow: none; color: var(--bg-canvas); }
     .spine-all-title {
