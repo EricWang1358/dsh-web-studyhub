@@ -60,7 +60,7 @@ export const GUIDANCE_ITEMS = Object.freeze([
   { id: 'reader.original-notice', kind: 'card', where: '阅读页', title: '「补全原文件」的说明', trigger: '打开只保存了文字的资料时，说明可以补上原文件；关掉后缩成一行。', again: '下次打开只保存了文字的资料时', memory: local(NOTICE_KEY), dismiss: 'forever', proactive: true },
   { id: 'library.topic-groups', kind: 'nudge', where: '学习库首页', title: '主题还没归入主题组', trigger: '主题多、还没归入主题组时提醒；点「稍后」后，等未归组的主题有变化再提醒。', again: '还有主题没归入主题组时，下次打开学习库首页时', memory: local(TOPIC_GROUP_LATER_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: true },
   { id: 'skeleton.archify', kind: 'card', where: '知识骨架', title: '推荐用 Archify 画图', trigger: '在知识骨架页推荐开源插件 Archify；点「以后再说」后不再出现。', again: '下次打开知识骨架页时', memory: local(ARCHIFY_CARD_PREFIX, 'prefix'), dismiss: 'forever', proactive: true },
-  { id: 'book.moves', kind: 'card', where: '复习全书', title: '笔记换了位置', trigger: '总纲重新整理后，说一次哪些笔记移到了新位置；下次重新整理还会再说。', again: '总纲重新整理过、有笔记换了位置时，下次打开复习全书时', memory: local(BOOK_MOVES_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: true },
+  { id: 'book.moves', kind: 'card', where: '复习全书', title: '笔记换了位置', trigger: '总纲重新整理后，说一次哪些笔记移到了新位置；点「知道了」后收成一行，列表随时能看。下次重新整理还会再说。', again: '总纲重新整理过、有笔记换了位置时，下次打开复习全书时', memory: local(BOOK_MOVES_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: true },
   // 步骤 5's 「从这里开始」 dots (ui/nav-start.js). The key holds the pages already opened, so 再显示一次 here removes it and every dot comes back.
   { id: 'nav.start', kind: 'nudge', where: '侧栏', title: '从这里开始的小圆点', trigger: '还没有打开过某一页时，侧栏这一项旁边有一个小圆点；打开过就消失。', again: '下次打开侧栏时', dismiss: 'until-condition', proactive: false, memory: local(NAV_START_KEY) },
   // The sidebar's reorder line (ui/nav-reorder-hint.js), said in the first row tooltip the learner opens and then never again. Not proactive: it is part of a

@@ -118,7 +118,7 @@
       display: inline-flex;
       min-width: 0;
     }
-    /* The one-off 「笔记换了位置」 notice: read top to bottom (the sentence, the list, 知道了). */
+    /* The 「笔记换了位置」 notice: read top to bottom (the sentences, then 查看每一处 and 知道了), and the one line it folds to. */
     .book-header__moves {
       display: grid;
       justify-items: start;
@@ -127,9 +127,72 @@
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
-    .book-header__moves > p,
-    .book-header__moves > ul {
+    .book-header__moves > p {
       margin: 0;
+    }
+    .book-header__moves-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .book-header__moves-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      margin: var(--space-1) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    /* Every moved point: its two titles, the first line of the body under the new title (where a title that does not match its text shows). */
+    .book-moves {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      font-size: var(--fs-sm);
+    }
+    .book-moves__list {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-moves__list > li {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-moves__share,
+    .book-moves__first,
+    .book-moves__note {
+      color: var(--text-muted);
+    }
+    .book-moves__note,
+    .book-moves__undo {
+      margin: 0;
+    }
+    .book-moves__undo {
+      margin-top: var(--space-3);
+    }
+    .book-rebuild-preview {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+      margin-top: var(--space-3);
+    }
+    .book-rebuild-preview__title,
+    .book-rebuild-preview__lead {
+      margin: 0;
+    }
+    .book-rebuild-preview__lead {
+      color: var(--text-muted);
+    }
+    .book-rebuild-preview__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
     }
     .book-header__status {
       display: flex;
