@@ -271,6 +271,11 @@ export function WrongBookView({
   const picked = options.find((option) => option.value === wanted && !option.disabled) ? wanted : fallback;
   const current = options.find((option) => option.value === picked);
   const similarNote = recItems.length > 0 && picked !== "similar" ? uiFormat("找到 {0} 道同类题", [recItems.length]) : null;
+  // Why a 重练 choice is disabled, one line each, and what to do about missing variants (#577).
+  const unavailable = options.filter((option) => option.disabled).map((option) => uiFormat("「{0}」暂不能选：{1}。",
+    [option.label, option.value === "variants" && coach?.preparing ? ui("变式正在生成") : option.reason]));
+  if (options.some((option) => option.value === "variants" && option.disabled) && canGenerate && !coach?.preparing) unavailable.push(ui("先为错题生成变式，写好后就能选。"));
+  const unavailableTip = unavailable.length ? unavailable.map((line, index) => <React.Fragment key={index}>{index > 0 && <br />}{line}</React.Fragment>) : null;
   const startRetrain = () => {
     const mistakes = rows.map(refOf);
     if (picked === "similar") onPractice([...mistakes, ...recItems.map(refOf)]);
@@ -380,7 +385,10 @@ export function WrongBookView({
             <strong>{ui("重练")}</strong>
             <small className="muted">{similarNote || ui("选择这一轮练什么。")}</small>
           </div>
-          <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} />
+          {/* A disabled choice cannot take focus or a hover of its own, so the group says why on hover and on focus (an empty tip draws nothing). */}
+          <Tooltip layer anchorClassName="wb-retrain-pick" content={unavailableTip}>
+            <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} />
+          </Tooltip>
           <Button variant="primary" icon="arrow-right" disabled={busy || loading || !total} onClick={startRetrain}
             title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>
             {uiFormat("开始重练 · 全部 {0} 题", [current.count])}
@@ -445,8 +453,9 @@ export function WrongBookView({
         </EmptyState>
       ))}
 
+      {/* One toolbar under a hairline, no box (#577): how the list is grouped and folded, what it shows, and the one batch action on the right. */}
       {total > 0 && (
-        <div className="wb-controls">
+        <div className="wb-toolbar">
           <div className="wb-view">
             <Tooltip layer content={tip(ui('按题组把错题分到各自的题组里；按主题则把不同题组里同一主题的错题放在一起。'), ui('你的选择会被记住。'))}>
               <SegmentedControl label={ui("分组方式")} value={groupBy} onChange={chooseGroupBy} size="sm"
@@ -457,22 +466,7 @@ export function WrongBookView({
               <Button variant="quiet" size="sm" disabled={!anyOpen} onClick={() => setOpenGroups(new Set())}>{ui("全部收起")}</Button>
             </span>
           </div>
-          {!isHistory && canGenerate && (!filtering || shown.length > 0) && (
-            <div className="wb-batch">
-              <Tooltip layer content={generateTip()}>
-                <Button variant="secondary" size="sm" icon="sparkle" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
-                  {filtering ? uiFormat("为当前筛选的 {0} 题生成变式", [shown.length]) : ui("为全部错题生成变式")}
-                </Button>
-              </Tooltip>
-              <small className="muted">{uiFormat("一次最多 {0} 题 · 约 1 次轻量模型调用/题", [VARIANT_BATCH_CAP])}</small>
-            </div>
-          )}
-        </div>
-      )}
-
-      {total > 0 && (
-        <div className="wb-filter" role="search" aria-label={ui("筛选错题")}>
-          <div className="wb-filter-fields">
+          <div className="wb-filter" role="search" aria-label={ui("筛选错题")}>
             <div className="wb-filter-deck">
               <Combobox label={ui("题组")} value={filter.deck} onChange={(value) => patchFilter({ deck: value || '' })} searchPlaceholder={ui("搜索题组")}
                 emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
@@ -486,8 +480,6 @@ export function WrongBookView({
               <TextInput type="search" className="wb-search-input" value={filter.query} onChange={(event) => patchFilter({ query: event.target.value })}
                 placeholder={ui("搜索题目或主题")} aria-label={ui("搜索题目或主题")} />
             </label>
-          </div>
-          <div className="wb-filter-status">
             <div className="wb-status-group" role="group" aria-label={ui("按状态筛选")}>
               <Tooltip layer content={tip(ui(isHistory ? '显示所有已订正的题。' : '显示所有待巩固的题。'))}>
                 <Chip size="sm" selected={filter.status === 'all'} onClick={() => patchFilter({ status: 'all' })}>
@@ -502,15 +494,26 @@ export function WrongBookView({
                 </Tooltip>
               ))}
             </div>
-            <div className="wb-filter-result" role="status">
-              {canGenerate && batch.length > VARIANT_BATCH_CAP
-                ? <Tooltip layer content={tip(uiFormat('这里有 {0} 题可以生成变式，一次最多 {1} 题。', [batch.length, VARIANT_BATCH_CAP]), ui('其余的等这批写好后再点一次。'))}>
-                  <span tabIndex={0}>{uiFormat("显示 {0} / 共 {1} 题", [shown.length, total])}</span>
-                </Tooltip>
-                : <span>{uiFormat("显示 {0} / 共 {1} 题", [shown.length, total])}</span>}
-              {filtering && <Button variant="link" size="sm" onClick={clearFilter}>{ui("清除筛选")}</Button>}
-            </div>
           </div>
+          <div className="wb-filter-result" role="status">
+            {canGenerate && batch.length > VARIANT_BATCH_CAP
+              ? <Tooltip layer content={tip(uiFormat('这里有 {0} 题可以生成变式，一次最多 {1} 题。', [batch.length, VARIANT_BATCH_CAP]), ui('其余的等这批写好后再点一次。'))}>
+                <span tabIndex={0}>{uiFormat("显示 {0} / 共 {1} 题", [shown.length, total])}</span>
+              </Tooltip>
+              : <span>{uiFormat("显示 {0} / 共 {1} 题", [shown.length, total])}</span>}
+            {filtering && <Button variant="link" size="sm" onClick={clearFilter}>{ui("清除筛选")}</Button>}
+          </div>
+          {/* The batch stays here rather than in each group: it is the only action that takes exactly what the filter shows, across groups (a topic spans
+              decks); each group keeps its own 为本组生成变式. Its cost and cap are in the tooltip, so the bar carries no helper line. */}
+          {!isHistory && canGenerate && (!filtering || shown.length > 0) && (
+            <div className="wb-batch">
+              <Tooltip layer content={generateTip()}>
+                <Button variant="quiet" size="sm" icon="sparkle" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
+                  {filtering ? uiFormat("为当前筛选的 {0} 题生成变式", [shown.length]) : ui("为全部错题生成变式")}
+                </Button>
+              </Tooltip>
+            </div>
+          )}
         </div>
       )}
 

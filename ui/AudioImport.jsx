@@ -11,11 +11,11 @@ import audioCss from './audio/audio-import.css';
 import { formatBytes } from './format.js';
 import { baseName } from './file-names.js';
 import { unquotePath } from './paths.js';
-import { SUBTITLE_EXTENSIONS } from '../lib/audio-formats.js';
 import { AudioJobs, aboutSettings } from './audio/AudioJobs.jsx';
 import AudioWorkspace from './audio/AudioWorkspace.jsx';
 import { AUDIO_ACCEPT, audioFileProblem, audioFormatNames, audioLimitLabel, isSubtitleName, pathsFromDrop, subtitleFormatNames, subtitleProblem } from './audio/formats.js';
 import AudioMoreSettings from './audio/AudioMoreSettings.jsx';
+import AudioSubtitleLine from './audio/AudioSubtitleLine.jsx';
 import { inputOf, preflightNotes } from './audio/preflight.js';
 import { estimateRequest, startLabel } from './audio/run-plan.js';
 import { useAudioPreflight } from './audio/useAudioPreflight.js';
@@ -30,7 +30,8 @@ import { rejectedFilesInput } from './import-hand-off.js';
    这里只管导入表单；出题仍走「资料 → 生成」。转写在后台进行，进度来自快照里的
    audio-import 任务（卡片在 ui/audio/AudioJobs.jsx），取消后已转写的部分会保留，重新导入接着做。
 
-   还没有配置转写服务时，这里显示配置卡片而不是拖放区（字幕文件不需要转写，仍可导入），
+   还没有配置转写服务时，这里显示配置卡片而不是拖放区，表单也不再有自己的外框（#578）；字幕文件不需要转写，
+   卡片下面一行（ui/audio/AudioSubtitleLine.jsx）仍可导入，
    文件也不会开始上传。选好文件后先做预检（ui/audio/useAudioPreflight.js）：格式、时长、要几次请求；
    超过每次请求上限（45 分钟）的录音由「开始」一并无损分段（按钮写明几段、几次请求），读不了的文件给出「跳过此文件继续 / 换一个文件」，其余文件写明在等谁。
    名称、讲什么、术语、付费密钥在「更多设置」里；几个录音总是合成一份逐字稿，开始按钮上写明。
@@ -236,11 +237,11 @@ export default function AudioImport({
   const estimate = estimateRequest(files, checks, { subject, terms });
   const percent = upload?.size ? Math.min(100, Math.round((upload.sent / upload.size) * 100)) : 0;
   return (
-    <div className="pdf-import audio-import">
-      <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>
+    <div className={`pdf-import audio-import${gated ? ' audio-import--setup' : ''}`}>
+      {!gated && <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>}
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
         <Button variant="link" size="sm" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</Button></p>}
-      <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>
+      {!gated && <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>}
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${AUDIO_ACCEPT.join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings} onGenerate={onGenerate}
@@ -248,11 +249,10 @@ export default function AudioImport({
       {gated && <>
         <AudioSetupGate language={language} call={call} onOpenSettings={openSettings} reason={readiness.reason}
           onSaved={() => { void refreshReadiness(); }} />
-        {readiness.text !== false && <div className="audio-subtitle-only">
-          <p>{ui("字幕文件不需要转写服务，现在就可以导入：")}</p>
-          <FileDrop compact accept={SUBTITLE_EXTENSIONS} label={ui("把字幕文件拖到这里")} hint={subtitleFormatNames().join(' · ')} buttonLabel={ui("选择字幕文件")}
-            disabled={busy} rejectAction={rejectAction} onFiles={(accepted) => { if (accepted.length) void send(accepted); }} />
-        </div>}
+        {readiness.text !== false && <AudioSubtitleLine disabled={busy} onFiles={(accepted, rejected) => {
+          if (rejected.length) return void reject(rejected.map(item => uiFormat('{0}：{1}', [item.name, item.message])).join(' '), rejected.map(item => item.name));
+          if (accepted.length) void send(accepted);
+        }} />}
       </>}
       {!gated && !files.length && !upload && <div className="audio-drop-zone" onDragOver={event => { if (!Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault(); }} onDrop={dropText}>
         <FileDrop multiple accept={AUDIO_ACCEPT} disabled={busy}

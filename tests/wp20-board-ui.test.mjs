@@ -251,20 +251,47 @@ test('the board page: header, columns with counts, a quiet + 新建列 button in
   assert.doesNotMatch(strip(render(board({ board: english }), 'en')), han, 'English UI shows no Chinese chrome');
 });
 
-test('a card with a studyRef opens the composer with the link chip already attached', () => {
-  const html = render(board({}, { studyRef: { root: '/lib', kind: 'course', course: 'Platform Engineering' } }));
+test('「加入待办」 opens the composer with the link chip already attached', () => {
+  const html = render(board({}, { studyRef: { root: '/lib', kind: 'course', course: 'Platform Engineering' }, composeOnArrive: true }));
   assert.match(html, /board-composer/);
   assert.match(html, /关联：课程 · Platform Engineering/);
 });
 
+test('entering the board from the sidebar keeps the study link for later but opens no composer by itself (#576)', () => {
+  const html = render(board({}, { studyRef: { root: '/lib', kind: 'course', course: 'Platform Engineering' } }));
+  assert.doesNotMatch(html, /board-composer/);
+  assert.doesNotMatch(html, /关联：课程/);
+  assert.match(html, /添加卡片/);
+});
+
+const emptyBoard = () => ({ ...boardData(), cards: {}, archived: [], columns: boardData().columns.map((c) => ({ ...c, cardIds: [] })) });
+
 test('an empty board explains what it is for and how cards get here', () => {
-  const empty = { ...boardData(), cards: {}, archived: [], columns: boardData().columns.map((c) => ({ ...c, cardIds: [] })) };
-  const html = render(board({ board: empty }));
+  const html = render(board({ board: emptyBoard() }));
   assert.match(html, /sh-empty/);
   assert.match(html, /加入待办/, 'tells the learner where cards come from');
   assert.match(html, /添加第一张卡片/);
-  const en = render(board({ board: empty }), 'en');
+  const en = render(board({ board: emptyBoard() }), 'en');
   assert.match(en, /Add to to-do/);
+});
+
+test('an empty board says so once, with one primary action and no columns yet (#576)', () => {
+  const html = render(board({ board: emptyBoard() }, { studyRef: { root: '/lib', kind: 'course', course: 'Platform Engineering' } }));
+  assert.equal((html.match(/class="sh-empty[ "]/g) || []).length, 1, 'one empty state, not one per column');
+  assert.doesNotMatch(html, /这一列没有卡片/);
+  assert.doesNotMatch(html, /board-columns/, 'the columns appear with the first card or when the learner starts one');
+  assert.doesNotMatch(html, /board-composer/, 'nothing opens by itself');
+  assert.equal((html.match(/sh-btn--primary/g) || []).length, 1, 'the header does not repeat 添加卡片 next to 添加第一张卡片');
+  assert.match(html, /添加第一张卡片/);
+});
+
+test('「加入待办」 onto an empty board opens the first column’s composer without the per-column hints', () => {
+  const html = render(board({ board: emptyBoard() }, { studyRef: { root: '/lib', kind: 'course', course: 'Platform Engineering' }, composeOnArrive: true }));
+  assert.match(html, /board-columns/);
+  assert.match(html, /board-composer/);
+  assert.match(html, /关联：课程 · Platform Engineering/);
+  assert.doesNotMatch(html, /这一列没有卡片/);
+  assert.doesNotMatch(html, /还没有待办/, 'the page-centre empty state gives way to the composer');
 });
 
 test('an empty column in a busy board shows its own small empty state', () => {
@@ -272,6 +299,8 @@ test('an empty column in a busy board shows its own small empty state', () => {
   b.columns[1].cardIds = []; delete b.cards.d;
   const html = render(board({ board: b }));
   assert.match(html, /sh-empty--sm/);
+  assert.match(html, /这一列没有卡片/);
+  assert.doesNotMatch(html, /还没有待办/);
 });
 
 test('read-only and conflict messages stay visible and plain', () => {

@@ -17,15 +17,16 @@ import { ui, uiFormat } from "./i18n.js";
    row's own state (a run's title, the week's theme) and `hintTitle` explains the trailing count; `tail` comes last (the reorder
    line, said once in all, ui/nav-reorder-hint.js; `onTipChange` hears that row's tooltip open and close). All of it is the one
    Tooltip (never a title attribute): it opens on hover, on keyboard focus and on a long press. `start` draws the 「从这里开始」
-   marker (ui/nav-start.js): it sits inside the one row height, it is hidden in the 62px rail, and it changes nothing else about the row. */
+   marker (ui/nav-start.js): a dot on the icon's corner, in the wide sidebar and in the 62px rail alike, and it changes nothing else about the row. */
 export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hintTitle, purpose, tail, onTipChange, narrow = false, start = false, upkeep = false, active = false, disabled = false, className = "", title, ...button }) {
   const classes = ["nav", className, upkeep && "nav-upkeep", start && "is-start"].filter(Boolean).join(" ");
   const row = (
     <button type="button" {...button} className={classes} disabled={disabled} aria-current={active && !disabled ? "page" : undefined}>
-      <IconBox>{icon || <Icon name={`nav-${glyph}`} />}</IconBox>
-      {/* The 「从这里开始」 marker is a dot in the gap before the label (ui/nav-start.css): it takes no room from the label, so a long
-          English label keeps its two lines. Its meaning is the first line of the tooltip and, for a screen reader, of the description. */}
-      {start && <span className="nav-start" aria-hidden="true" />}
+      {/* The 「从这里开始」 marker is a dot on the icon's top-right corner, like a notification badge (ui/nav-start.css, issue 579): it
+          sits inside the icon's box, so it never reads as a bullet before the label, takes no room from it (a long English label keeps
+          its two lines) and stays when the rail is only icons. Its meaning is the first line of the tooltip and, for a screen reader, of
+          the description. */}
+      <IconBox className={start ? "nav-start-icon" : undefined}>{icon || <Icon name={`nav-${glyph}`} />}{start && <span className="nav-start" aria-hidden="true" />}</IconBox>
       <span className="nav-label">{label}</span>
       {hint !== undefined && hint !== null && hint !== false && <span className={hintClass}>{hint}</span>}
     </button>
