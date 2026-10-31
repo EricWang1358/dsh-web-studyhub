@@ -4,6 +4,7 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { StudyService } from '../../lib/service.js';
 import { clusteringModel } from './clustering-model.mjs';
 import { mergedTranscript } from './merged-transcript.mjs';
@@ -117,4 +118,4 @@ async function record() {
   return { drafts: Object.keys(drafts), manifests: Object.keys(manifests) };
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replaceAll('\\', '/').replace(/^\//, '')}`).href) console.log(await record());
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(await record());
