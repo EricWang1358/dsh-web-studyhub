@@ -142,3 +142,67 @@ test('a question job that failed still spent its tokens, and a job that reported
   assert.equal(cost.breakdown.generation.measured, false);
   assert.equal(cost.breakdown.generation.tokens, null);
 });
+
+/* Gate review of #607: only what was answered in this session counts, whatever the library holds from before. */
+
+test('an answer from before the session does not count, through the real review path', async (t) => {
+  const { study, session } = await library(t);
+  const answerC1 = async () => {
+    const run = await study.call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'd-live', cardId: 'c1' }] });
+    await study.call('review.reveal', { runId: run.id, cardId: 'c1', queueVersion: run.queueVersion });
+    return study.call('review.answer', { runId: run.id, cardId: 'c1', grade: 4, queueVersion: run.queueVersion });
+  };
+  await answerC1();
+  const later = await study.call('study.session.start', { courseId: 'CS101', scope: [{ kind: 'deck', id: 'd-live' }],
+    goal: { title: 'Later goal', checkItems: [{ id: 'later-1', title: 'One', targetCardIds: ['c1'] }, { id: 'later-2', title: 'Two', targetCardIds: ['c-branch'] }] } });
+
+  const untouched = await study.call('study.session.get', { sessionId: later.id });
+  assert.equal(untouched.progress.items[0].status, 'pending', 'the card was answered before this session began');
+  assert.deepEqual(untouched.progress.items[0].evidenceAttemptIds, []);
+  assert.equal(untouched.estimate.status, 'estimating', 'no pace from a question of another session');
+  assert.equal(untouched.cost.breakdown.reusedQuestions.count, 0);
+
+  await answerC1();
+  const answered = await study.call('study.session.get', { sessionId: later.id });
+  assert.equal(answered.progress.items[0].evidenceAttemptIds.length, 1, 'only the answer given in this session');
+  const first = await study.call('study.session.get', { sessionId: session.id });
+  assert.equal(first.progress.items[0].evidenceAttemptIds.length, 2, 'the older session saw both');
+});
+
+test('session scoping reads both attempt timestamp formats and also reaches the scene', async (t) => {
+  const { study, session, stored } = await library(t);
+  const { createdAt } = await stored();
+  await study.store.update((s) => {
+    s.attempts.push({ ...independent('old-iso', 'c1', 60000), timestamp: new Date(createdAt - 60000).toISOString() });
+    s.attempts.push({ ...independent('old-ms', 'c-branch', 60000), timestamp: createdAt - 60000 });
+    s.attempts.push({ ...independent('none', 'c-third', 60000), timestamp: undefined });
+  });
+  const before = await study.call('study.session.get', { sessionId: session.id });
+  assert.equal(before.progress.independentPassedCount, 0);
+  assert.equal(before.cost.breakdown.reusedQuestions.count, 0);
+  assert.equal((await study.call('study.scene.get', { sessionId: session.id })).progressSummary.independentPassedCount, 0);
+
+  await study.store.update((s) => {
+    s.attempts.push({ ...independent('new-iso', 'c1', 60000), timestamp: new Date(createdAt + 1000).toISOString() });
+    s.attempts.push({ ...independent('new-ms', 'c-branch', 60000), timestamp: createdAt + 1000 });
+  });
+  const after = await study.call('study.session.get', { sessionId: session.id });
+  assert.equal(after.progress.independentPassedCount, 2);
+  assert.deepEqual(after.progress.items.map((item) => item.evidenceAttemptIds), [['new-iso'], ['new-ms'], []]);
+  assert.equal((await study.call('study.scene.get', { sessionId: session.id })).progressSummary.independentPassedCount, 2);
+});
+
+test('隔日巩固 counts each card of this session once, and no run of another course or a closed round', async (t) => {
+  const { study, session } = await library(t);
+  const answer = async (cardId, grade) => {
+    const run = await study.call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'd-live', cardId }] });
+    await study.call('review.reveal', { runId: run.id, cardId, queueVersion: run.queueVersion });
+    await study.call('review.answer', { runId: run.id, cardId, grade, queueVersion: run.queueVersion });
+  };
+  await answer('c1', 5);
+  await answer('c1', 5);
+  await study.store.update((s) => {
+    s.runs.push({ id: 'elsewhere', closedAt: new Date().toISOString(), entries: Array.from({ length: 5 }, () => ({ feedback: { nextDue: new Date(Date.now() + 5 * 86400000).toISOString() } })) });
+  });
+  assert.equal((await study.call('study.session.get', { sessionId: session.id })).progress.nextDayDueCount, 1);
+});
