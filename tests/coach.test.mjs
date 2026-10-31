@@ -480,6 +480,8 @@ test("reviewing weak results starts only low-scored cards from that round", asyn
 
 test("snapshot polling returns unchanged when nothing visible moved", async (t) => {
   const { service } = await setup(t, { coach: false });
+  // The fingerprint names the minute (lib/snapshot-time.js), so the clock holds still: a slow run that crossed a minute would see a new one.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const first = await service.call("snapshot");
   assert.ok(first.fingerprint);
   assert.deepEqual(await service.call("snapshot", { since: first.fingerprint }), { unchanged: true, fingerprint: first.fingerprint });
