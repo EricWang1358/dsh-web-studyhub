@@ -222,7 +222,7 @@ test('without a filter the batch button keeps its old words', () => {
   const t = text(render());
   assert.match(t, /为全部错题生成变式/);
   assert.doesNotMatch(t, /为当前筛选/);
-  assert.match(t, /一次最多 8 题 · 约 1 次轻量模型调用\/题/);
+  assert.match(t, /每道题约 1 次轻量模型调用，一次最多 8 题/, 'the cost and the cap are in its tooltip (#577)');
 });
 
 test('the batch acts on what the filter shows, never on hidden rows, and keeps the cap', () => {
