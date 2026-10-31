@@ -1,0 +1,862 @@
+{
+ "fields": {
+  "marker": [
+   "autoComplete",
+   "estimate",
+   "jobId",
+   "startedAt",
+   "state",
+   "stop",
+   "tokensUsed",
+   "updatedAt"
+  ],
+  "round": [
+   "askedKeys",
+   "code",
+   "covered",
+   "fill",
+   "finishedAt",
+   "kept",
+   "ms",
+   "planned",
+   "questions",
+   "reason",
+   "round",
+   "sectionIds",
+   "startedAt",
+   "status",
+   "tokens",
+   "triedKeys",
+   "unit"
+  ],
+  "spec": [
+   "attempts",
+   "goal",
+   "leaves",
+   "level",
+   "materials",
+   "mustCover",
+   "quotas",
+   "rounds",
+   "version",
+   "weightSource",
+   "weights"
+  ]
+ },
+ "managed.restored": [
+  {
+   "logical": true,
+   "status": "interrupted",
+   "retry": true,
+   "draft": true
+  }
+ ],
+ "managed.resumed": {
+  "status": "complete",
+  "rounds": [
+   "done",
+   "done",
+   "done"
+  ],
+  "cards": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  }
+ },
+ "read.complete": {
+  "found": null,
+  "reset": [
+   "done",
+   "done",
+   "done"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   [
+    "audio-batch-vol1#r1.p4",
+    "audio-batch-vol1#r1.p5",
+    "audio-batch-vol1#r1.p6",
+    "audio-batch-vol1#r2.p2",
+    "audio-batch-vol1#r2.p3"
+   ],
+   [
+    "audio-batch-vol1#r2.p4",
+    "audio-batch-vol1#r2.p5",
+    "audio-batch-vol1#r2.p6"
+   ]
+  ]
+ },
+ "read.editing": {
+  "found": null,
+  "reset": [
+   "done",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   null,
+   null
+  ]
+ },
+ "read.no-marker": {
+  "found": null,
+  "reset": [
+   "done",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   null,
+   null
+  ]
+ },
+ "read.old-no-round-fields": {
+  "found": {
+   "round": 1,
+   "inflight": []
+  },
+  "reset": [
+   "pending",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   null,
+   null,
+   null
+  ]
+ },
+ "read.paused": {
+  "found": {
+   "round": 2,
+   "inflight": []
+  },
+  "reset": [
+   "done",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   null,
+   null
+  ]
+ },
+ "read.running": {
+  "found": {
+   "round": 2,
+   "inflight": [
+    2
+   ]
+  },
+  "reset": [
+   "done",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   null,
+   null
+  ]
+ },
+ "read.stopped-learner": {
+  "found": null,
+  "reset": [
+   "done",
+   "failed",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   null,
+   null
+  ]
+ },
+ "read.stopped-left": {
+  "found": null,
+  "reset": [
+   "done",
+   "done",
+   "done",
+   "failed"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   [
+    "audio-batch-vol1#r1.p4",
+    "audio-batch-vol1#r1.p5",
+    "audio-batch-vol1#r1.p6",
+    "audio-batch-vol1#r2.p2",
+    "audio-batch-vol1#r2.p3"
+   ],
+   [
+    "audio-batch-vol1#r2.p4",
+    "audio-batch-vol1#r2.p5",
+    "audio-batch-vol1#r2.p6"
+   ],
+   [
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r2.p2"
+   ]
+  ]
+ },
+ "read.stopped-refused": {
+  "found": null,
+  "reset": [
+   "done",
+   "failed",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   [
+    "audio-batch-vol1#r1.p4",
+    "audio-batch-vol1#r1.p5",
+    "audio-batch-vol1#r1.p6",
+    "audio-batch-vol1#r2.p2",
+    "audio-batch-vol1#r2.p3"
+   ],
+   null
+  ]
+ },
+ "read.two-rounds-running": {
+  "found": {
+   "round": 1,
+   "inflight": [
+    1,
+    2,
+    3
+   ]
+  },
+  "reset": [
+   "pending",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   [],
+   null,
+   null
+  ]
+ },
+ "read.unknown-state": {
+  "found": null,
+  "reset": [
+   "done",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   null,
+   null
+  ]
+ },
+ "read.waiting": {
+  "found": null,
+  "reset": [
+   "done",
+   "pending",
+   "pending"
+  ],
+  "tried": [
+   [
+    "audio-batch-vol1#r1.p1",
+    "audio-batch-vol1#r1.p2",
+    "audio-batch-vol1#r1.p3",
+    "audio-batch-vol1#r2.p1"
+   ],
+   null,
+   null
+  ]
+ },
+ "restored.complete": null,
+ "restored.count": 4,
+ "restored.editing": null,
+ "restored.no-marker": null,
+ "restored.old-no-round-fields": {
+  "id": "job-old-no-round-fields",
+  "status": "interrupted",
+  "retry": true,
+  "round": 1,
+  "rounds": 3,
+  "percent": null,
+  "state": "running",
+  "stage": "上次运行被中断：第 1 轮没有做完。已通过的题已保存，点「接着做」从第 1 轮继续。",
+  "events": [
+   [
+    "run-interrupted",
+    {
+     "round": 1,
+     "rounds": 3,
+     "inflight": null
+    }
+   ]
+  ],
+  "savedCount": 8,
+  "requestedTotal": 19,
+  "count": 0
+ },
+ "restored.paused": {
+  "id": "job-paused",
+  "status": "interrupted",
+  "retry": true,
+  "round": 2,
+  "rounds": 3,
+  "percent": null,
+  "state": "paused",
+  "stage": "上次运行被中断：第 2 轮没有做完。已通过的题已保存，点「接着做」从第 2 轮继续。",
+  "events": [
+   [
+    "run-interrupted",
+    {
+     "round": 2,
+     "rounds": 3,
+     "inflight": null
+    }
+   ]
+  ],
+  "savedCount": 8,
+  "requestedTotal": 19,
+  "count": 0
+ },
+ "restored.running": {
+  "id": "job-running",
+  "status": "interrupted",
+  "retry": true,
+  "round": 2,
+  "rounds": 3,
+  "percent": null,
+  "state": "running",
+  "stage": "上次运行被中断：第 2 轮没有做完。已通过的题已保存，点「接着做」从第 2 轮继续。",
+  "events": [
+   [
+    "run-interrupted",
+    {
+     "round": 2,
+     "rounds": 3,
+     "inflight": 2
+    }
+   ]
+  ],
+  "savedCount": 8,
+  "requestedTotal": 19,
+  "count": 0
+ },
+ "restored.stopped-learner": null,
+ "restored.stopped-left": null,
+ "restored.stopped-refused": null,
+ "restored.two-rounds-running": {
+  "id": "job-two-rounds-running",
+  "status": "interrupted",
+  "retry": true,
+  "round": 1,
+  "rounds": 3,
+  "percent": null,
+  "state": "running",
+  "stage": "上次运行被中断：第 1 轮没有做完。已通过的题已保存，点「接着做」从第 1 轮继续。",
+  "events": [
+   [
+    "run-interrupted",
+    {
+     "round": 1,
+     "rounds": 3,
+     "inflight": 1
+    }
+   ]
+  ],
+  "savedCount": 8,
+  "requestedTotal": 19,
+  "count": 0
+ },
+ "restored.unknown-state": null,
+ "restored.waiting": null,
+ "resume.complete": {
+  "refused": "这份草稿的出题计划已经完成，没有可以接着做的轮次"
+ },
+ "resume.editing": {
+  "refused": "这份草稿没有可继续的生成记录，请从资料重新出题"
+ },
+ "resume.no-marker": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 3 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 2,
+   "questions": 8
+  },
+  "rounds": [
+   "done",
+   "done",
+   "done"
+  ],
+  "kept": [
+   8,
+   8,
+   3
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-rerun",
+   "round-start",
+   "round-end",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.old-no-round-fields": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 3 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 2,
+   "questions": 8
+  },
+  "rounds": [
+   "skipped",
+   "done",
+   "done"
+  ],
+  "kept": [
+   null,
+   8,
+   3
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-start",
+   "round-end",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.paused": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 3 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 2,
+   "questions": 8
+  },
+  "rounds": [
+   "done",
+   "done",
+   "done"
+  ],
+  "kept": [
+   8,
+   8,
+   3
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-start",
+   "round-end",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.running": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 3 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 2,
+   "questions": 8
+  },
+  "rounds": [
+   "done",
+   "done",
+   "done"
+  ],
+  "kept": [
+   8,
+   8,
+   3
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-rerun",
+   "round-start",
+   "round-end",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.stopped-learner": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 4 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 3,
+   "questions": 3
+  },
+  "rounds": [
+   "done",
+   "failed",
+   "done",
+   "done"
+  ],
+  "kept": [
+   8,
+   0,
+   3,
+   8
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-start",
+   "round-end",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.stopped-left": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 5 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 4,
+   "round": 5,
+   "questions": 3
+  },
+  "rounds": [
+   "done",
+   "done",
+   "done",
+   "failed",
+   "done"
+  ],
+  "kept": [
+   6,
+   7,
+   3,
+   0,
+   3
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 2,
+   "blueprint": 1,
+   "other": 1,
+   "review": 1
+  },
+  "events": [
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.stopped-refused": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 4 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 3,
+   "questions": 3
+  },
+  "rounds": [
+   "done",
+   "failed",
+   "done",
+   "done"
+  ],
+  "kept": [
+   8,
+   0,
+   3,
+   8
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-start",
+   "round-end",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.two-rounds-running": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 3 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 2,
+   "questions": 8
+  },
+  "rounds": [
+   "done",
+   "done",
+   "done"
+  ],
+  "kept": [
+   8,
+   8,
+   3
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-rerun",
+   "round-start",
+   "round-end",
+   "round-rerun",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.unknown-state": {
+  "status": "complete",
+  "stage": "Draft ready: every planned section has a question (19 questions in 3 round(s))",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 2,
+   "questions": 8
+  },
+  "rounds": [
+   "done",
+   "done",
+   "done"
+  ],
+  "kept": [
+   8,
+   8,
+   3
+  ],
+  "cards": 19,
+  "ids": 19,
+  "state": "complete",
+  "stop": "complete",
+  "calls": {
+   "plan": 7,
+   "blueprint": 3,
+   "other": 3,
+   "review": 3
+  },
+  "events": [
+   "round-rerun",
+   "round-start",
+   "round-end",
+   "round-start",
+   "round-end",
+   "run-stop",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ },
+ "resume.waiting": {
+  "status": "complete",
+  "stage": "Round 2 of 3 is done and saved; 1 more round(s) wait for you",
+  "plan": {
+   "level": "standard",
+   "goal": 19,
+   "sections": 12,
+   "rounds": 3,
+   "round": 2,
+   "questions": 8
+  },
+  "rounds": [
+   "done",
+   "done",
+   "pending"
+  ],
+  "kept": [
+   8,
+   8,
+   null
+  ],
+  "cards": 16,
+  "ids": 16,
+  "state": "waiting",
+  "stop": null,
+  "calls": {
+   "plan": 4,
+   "blueprint": 2,
+   "other": 2,
+   "review": 2
+  },
+  "events": [
+   "round-start",
+   "round-end",
+   "run-waiting",
+   "run-closing",
+   "run-closed"
+  ],
+  "kept0": true
+ }
+}
