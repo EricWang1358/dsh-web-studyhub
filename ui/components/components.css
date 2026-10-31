@@ -254,7 +254,8 @@
     }
     .sh-page-header__description {
       max-width: 68ch;
-      text-wrap: pretty;
+      /* balance, like the empty-state copy: a lead of one or two lines; pretty only stops a one-character last line (#574) */
+      text-wrap: balance;
       margin: var(--space-2) 0 0;
       color: var(--text-dim);
       font-size: var(--fs-md);
