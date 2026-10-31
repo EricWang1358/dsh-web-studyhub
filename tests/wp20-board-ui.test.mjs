@@ -179,7 +179,7 @@ test('the composer: title textarea, optional due and labels, and the study link 
   assert.match(html, /截止日期/);
   assert.match(html, /标签/);
   assert.match(html, /<datalist[^>]*>[\s\S]*value="exam"/);
-  assert.match(html, /board-study-chip/);
+  assert.match(html, /class="sh-chip sh-chip--sm[^"]*"[^>]*data-tone="info"/, 'the study link is a Chip');
   assert.match(html, /关联：课程 · Platform Engineering/);
   assert.match(html, /aria-label="取消关联"/);
   assert.match(html, /添加/);

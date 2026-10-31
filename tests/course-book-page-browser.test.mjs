@@ -1,4 +1,4 @@
-/* global window document */
+/* global window document localStorage */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
-import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
+import { frames, holdActions, openPage, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
@@ -261,6 +261,169 @@ test('复习全书: 打开书页 from the 总纲, the 目录 and the heading bei
       assert.notEqual(await focusedId(page), `book-${hid2}`, `${width}px: a later visit does not focus the heading`);
       assert.deepEqual(errors, [], `${width}px: no page errors`);
       await context.close();
+    }
+  } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+/* The way back from practice (#603), at 1280 and 420 px: the heading comes back where it was on screen (2 px at most) and holds there while the page around it is still arriving. What
+   arrives late is the real thing that moved it: 备考计划 (course.plan) is drawn above the point once its answer is in, held at the network edge here so it comes after the landing every time. */
+const practiceBack = page => page.locator('.review-return', { hasText: '回到复习全书' });
+const scrollerTop = page => page.evaluate(() => document.querySelector('.study-app').scrollTop);
+const near = (after, before, what) => assert.ok(Math.abs(after - before) <= 2, `${what}: ${before} -> ${after}`);
+
+/** The book at one point (`title`, as the 目录 says it) with 本节的题 open. -> its heading id. */
+async function openPoint(page, running, width, title) {
+  await page.goto(running.server.url);
+  await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
+  await page.locator('.outline-book-line__open').click();
+  await page.locator('.book-layout').waitFor({ timeout: 30000 });
+  if (width === 420) await page.locator('.book-bar__toc').click();
+  await page.locator('.book-toc__go', { hasText: title }).click();
+  const point = page.locator('[data-book-point]:has(.book-questions)').first();
+  await point.waitFor();
+  await point.locator('.book-questions > summary').click();
+  return point.getAttribute('data-book-point');
+}
+/** Leaves for practice from the first or last question link of the open fold, the link on screen. -> where the heading was. */
+async function leaveFrom(page, hid, which, { bottom = false } = {}) {
+  const link = page.locator(`[data-book-point="${hid}"] .book-questions [data-book-link="card"]`)[which]();
+  await link.scrollIntoViewIfNeeded();
+  if (bottom) await page.evaluate(() => { const app = document.querySelector('.study-app'); app.scrollTop = app.scrollHeight; });
+  await page.waitForTimeout(300);
+  const before = await topOf(page, hid);
+  await link.click();
+  await practiceBack(page).waitFor({ timeout: 30000 });
+  return before;
+}
+/** Answers course.book.open without what `cut(book)` takes out of it (the point or chapter was deleted while the learner practised). */
+const bookWithout = (page, cut) => page.route('**/api/call', async (route) => {
+  if (!/"action":"course\.book\.open"/.test(route.request().postData() || '')) return route.continue();
+  const response = await route.fetch(), answer = await response.json();
+  cut(answer.value);
+  return route.fulfill({ response, json: answer });
+});
+const inChapter = (nodes, title) => nodes.find(node => node.children?.some(child => child.title.startsWith(title)));
+
+test('复习全书: back from practice at the same heading and offset (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-book-return-dist-'));
+  await buildPreview({ outdir: dist });
+  const running = await startLateServer({ distDir: dist, seed });
+  try {
+    await running.api('focus.set', { course: COURSE });
+    const root = (await running.api('snapshot')).root;
+    for (const width of [1280, 420]) {
+      for (const motion of ['no-preference', 'reduce']) {
+        const what = `${width}px, ${motion}`;
+        const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+        await page.emulateMedia({ reducedMotion: motion });
+        const hid = await openPoint(page, running, width, '1.2 Stakeholders');
+        if (motion === 'reduce') assert.equal(await page.locator('.study-app').getAttribute('data-motion'), 'reduced', `${what}: the page is in reduced motion`);
+        const before = await leaveFrom(page, hid, 'first');
+        const hold = await holdActions(page, ['course.plan']);
+        await practiceBack(page).click();
+        await page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
+        await until(() => hold.seen('course.plan'), 'the page to ask for its plan');
+        await frames(page, 2);
+        assert.equal(await page.locator('.book-plan').count(), 0, `${what}: the plan is not in yet`);
+        near(await topOf(page, hid), before, `${what}: at the same place before the plan is in`);
+        assert.equal(await focusedId(page), `book-${hid}`, `${what}: the focus is on the heading it left`);
+        hold.release('course.plan');
+        await page.locator('.book-plan').first().waitFor();
+        await frames(page, 2);
+        near(await topOf(page, hid), before, `${what}: the plan drawn above it does not move it`);
+        // Everything has ended (the page's rise, the late answers): it stays, nothing else scrolls it, and the place kept for the next visit is that one.
+        await settleAnimations(page);
+        await page.waitForTimeout(800);
+        near(await topOf(page, hid), before, `${what}: still there once the page has settled`);
+        assert.equal(await focusedId(page), `book-${hid}`, `${what}: the focus stays on the heading`);
+        const kept = await page.evaluate(([key]) => JSON.parse(localStorage.getItem(key)), [`study-book-place:${root}:${COURSE}`]);
+        assert.equal(kept.heading, hid);
+        near(kept.offset, before, `${what}: the place kept is the corrected one`);
+        await page.waitForFunction(() => !document.querySelector('[data-return-focus]'), null, { timeout: 5000 });
+        await page.unroute('**/api/call');
+        assert.deepEqual(errors, [], `${what}: no page errors`);
+        await context.close();
+      }
+
+      // Deep in the point, far down the open 本节的题: the page is only that long with the fold open, so the fold comes back open with it.
+      let open = await openPage(browser, running, { width, height: 900 });
+      let hid = await openPoint(open.page, running, width, '1.2 Stakeholders');
+      let before = await leaveFrom(open.page, hid, 'last', { bottom: true });
+      assert.ok(before < 100, `${width}px: the heading has scrolled up (${before})`);
+      await practiceBack(open.page).click();
+      await open.page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
+      await open.page.locator('.book-plan').first().waitFor();
+      await frames(open.page, 2);
+      near(await topOf(open.page, hid), before, `${width}px: at the same place from the end of the page`);
+      assert.equal(await open.page.locator(`[data-book-point="${hid}"] .book-questions`).evaluate(fold => fold.open), true, `${width}px: 本节的题 open as it was`);
+      assert.deepEqual(open.errors, []);
+      await open.context.close();
+
+      // The learner moves first (the wheel here): what arrives afterwards does not pull the page back.
+      open = await openPage(browser, running, { width, height: 900 });
+      hid = await openPoint(open.page, running, width, '1.2 Stakeholders');
+      before = await leaveFrom(open.page, hid, 'first');
+      const hold = await holdActions(open.page, ['course.plan']);
+      await practiceBack(open.page).click();
+      await open.page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
+      await until(() => hold.seen('course.plan'), 'the page to ask for its plan');
+      await open.page.mouse.move(width / 2, 500);
+      await open.page.mouse.wheel(0, 150);
+      await until(async () => (await topOf(open.page, hid)) < before - 100, 'the wheel to scroll the page');
+      const moved = await scrollerTop(open.page);
+      hold.release('course.plan');
+      await open.page.locator('.book-plan').first().waitFor();
+      await frames(open.page, 2);
+      assert.ok(await scrollerTop(open.page) >= moved, `${width}px: the page is not pulled back after the learner scrolled`);
+      assert.ok(await topOf(open.page, hid) < before - 50, `${width}px: the heading stays where the learner scrolled it`);
+      await open.page.unroute('**/api/call');
+      await open.context.close();
+
+      // The point is gone by the time the learner comes back: its chapter's first point, from its top and with the focus on its heading, not the start of the book.
+      open = await openPage(browser, running, { width, height: 900 });
+      hid = await openPoint(open.page, running, width, '2.2 Quality attribute scenarios');
+      await leaveFrom(open.page, hid, 'first');
+      await bookWithout(open.page, book => { const chapter = inChapter(book.nodes, 'Quality attribute'); chapter.children = chapter.children.filter(child => child.hid !== hid); });
+      await practiceBack(open.page).click();
+      await open.page.locator('.book-step__heading', { hasText: 'Functional requirements' }).waitFor({ timeout: 30000 });
+      const fallback = await open.page.locator('.book-step').getAttribute('data-book-step');
+      await open.page.waitForFunction(id => document.activeElement?.id === id, `book-${fallback}`, { timeout: 5000 });
+      await open.page.locator('.book-plan').first().waitFor();
+      await settleAnimations(open.page);
+      const top = await topOf(open.page, fallback), bar = await open.page.locator('.book-bar').evaluate(element => Math.round(element.getBoundingClientRect().bottom));
+      assert.ok(top >= bar && top < 300, `${width}px: the chapter's first point at the top of the window, under the bar: ${top} (bar ${bar})`);
+      await open.page.unroute('**/api/call');
+      assert.deepEqual(open.errors, []);
+      await open.context.close();
+
+      // The chapter is gone as well: the first point, as a plain open lands.
+      open = await openPage(browser, running, { width, height: 900 });
+      hid = await openPoint(open.page, running, width, '2.2 Quality attribute scenarios');
+      await leaveFrom(open.page, hid, 'first');
+      await bookWithout(open.page, book => { const chapter = inChapter(book.nodes, 'Quality attribute'); book.nodes = book.nodes.filter(node => node !== chapter); });
+      await practiceBack(open.page).click();
+      await open.page.locator('.book-step__heading', { hasText: 'What architects do' }).waitFor({ timeout: 30000 });
+      await open.page.unroute('**/api/call');
+      assert.deepEqual(open.errors, []);
+      await open.context.close();
+
+      // 整章连着读: the same way back, the point drawn in its chapter.
+      open = await openPage(browser, running, { width, height: 900 });
+      await open.context.addInitScript(([key]) => { try { localStorage.setItem(key, 'scroll'); } catch { /* blocked */ } }, [`study-book-reading:${root}:${COURSE}`]);
+      hid = await openPoint(open.page, running, width, '1.2 Stakeholders');
+      assert.equal(await open.page.locator('.book-step').count(), 0, `${width}px: 整章连着读`);
+      before = await leaveFrom(open.page, hid, 'first');
+      await practiceBack(open.page).click();
+      await open.page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
+      await open.page.locator('.book-plan').first().waitFor();
+      await settleAnimations(open.page);
+      await open.page.waitForTimeout(300);
+      near(await topOf(open.page, hid), before, `${width}px: 整章连着读 at the same place`);
+      assert.equal(await focusedId(open.page), `book-${hid}`, `${width}px: 整章连着读: the focus is on the heading`);
+      assert.deepEqual(open.errors, []);
+      await open.context.close();
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
 });

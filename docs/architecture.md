@@ -202,7 +202,7 @@ StudyHub registers these tools on DSH's tool registry. The five per-context tool
 
 | Tool | Comes with | Operations |
 | --- | --- | --- |
-| `study_capabilities` | Any StudyHub plugin | Discovery: without arguments a compact index of installed contexts and operation names; `{context}` or `{operation}` returns exact schemas and model availability |
+| `study_capabilities` | Any StudyHub plugin | Discovery: without arguments a compact index of installed contexts and operation names; `{context}` or `{operation}` returns exact schemas and model availability; a field at its default is left out (`description` `""`, `output` `{}`, `requiresModel` `false`, `available` `true`), so `requiresModel: true`, `available: false` and `reason` are the only ones written |
 | `study_materials` | The materials context | `document.import`, `document.get`, `document.list`, `document.attach`, `original.*`, `selection.resolve`, `selection.ask`, `outline.*`, `links.list`, `pages.cards`, `enrich` |
 | `study_bank` | The bank context | `list`, `get`, `cards`, `append` |
 | `study_practice` | The study context | `review.start`, `review.get`, `review.reveal`, `review.answer`, `review.move`, `review.end`, `exam.report` |

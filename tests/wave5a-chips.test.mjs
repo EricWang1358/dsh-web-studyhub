@@ -22,20 +22,28 @@ test('JevDecidedBadge has one definition', () => {
   assert.deepEqual(defined.map(({ file }) => file), ['ui/JevBadge.jsx']);
 });
 
-/** The base classes of the chip / badge / tag families that a feature stylesheet defines itself (not parts `__x`, not modifiers `--x`, not the shared sh-*). */
+/** The base classes of the chip / badge / tag families that a feature stylesheet defines itself (not parts `__x`, not modifiers `--x`, not the shared sh-*).
+ *  `chipbtn` is a chip drawn as a button (tr-chipbtn). */
 function familyClasses() {
   const found = new Set();
   for (const { text } of sources.filter(({ file }) => file.endsWith('.css')).map(stripped))
-    for (const match of text.matchAll(/(?:^|[\s,}{>+~])\.((?:[a-z][a-z0-9]*-)*(?:chip|badge|tag)s?)(?![\w-]|__)/gm)) if (!match[1].startsWith('sh-')) found.add(match[1]);
+    for (const match of text.matchAll(/(?:^|[\s,}{>+~])\.((?:[a-z][a-z0-9]*-)*(?:chip|chipbtn|badge|tag)s?)(?![\w-]|__)/gm)) if (!match[1].startsWith('sh-')) found.add(match[1]);
   return [...found].sort();
 }
 
 // Lower only: delete a class from this list when its markup becomes a Badge or Chip. Adding to it fails the test.
-// Wave 5C kept six on purpose: board-chip (a label with its own hue, plus choice buttons), board-study-chip (a removable link), nav-badge (the count
-// in a sidebar row), setup-chip (the collapsed setup checklist), spine-chip (the current step with its fold) and update-chip (a button that is the update state).
-const REMAINING = ['board-chip', 'board-study-chip', 'nav-badge', 'setup-chip', 'spine-chip', 'update-chip'];
+// Each stays because it is not a status label or a toggle (Badge, Chip) but something with behaviour they lack:
+//   board-chip    a card label whose colour is one of six hues chosen by the label (Badge and Chip have six tones that mean a state, three hues are no tone),
+//                 and it shares one rule with board-due and board-progress, which sit in the same row and are not Badges either (#95: needs a decision on hue)
+//   nav-badge     the count in a sidebar row (NavItem's hint slot), which folds into a dot on the collapsed rail
+//   setup-chip    a section: the collapsed setup checklist, a toggle that opens the list of steps under it
+//   spine-chip    a group of three controls (previous station, the station's name with its tooltip, next station)
+//   tr-chipbtn    a button that floats against the selected text and is placed by useRangeAnchor; it is the control itself, with no label
+//   update-chip   a button that opens the update dialog; the state it shows inside is already a <Badge>
+const REMAINING = ['board-chip', 'nav-badge', 'setup-chip', 'spine-chip', 'tr-chipbtn', 'update-chip'];
 
 test('the chip / badge / tag base classes only shrink', () => {
   const now = familyClasses();
   assert.deepEqual(now.filter(name => !REMAINING.includes(name)), [], 'a new chip-like class: use <Badge> or <Chip>');
+  assert.deepEqual(REMAINING.filter(name => !now.includes(name)), [], 'this class is gone: delete it from REMAINING so the count cannot grow back');
 });

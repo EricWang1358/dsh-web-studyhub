@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { StudyService } from '../lib/service.js';
+import { filterCapabilities } from '../lib/runtime/tools.js';
 import { storeDocuments } from '../lib/audio-job.js';
 import { courseForSources } from '../lib/source-courses.js';
 import { courseOf } from '../lib/focus.js';
@@ -132,4 +133,21 @@ test('a converted book with hundreds of pages changes course in one call (the ol
   assert.ok(state.sources.every(source => source.courses[0] === 'Cloud Native Solution Design / 07 微服务设计'));
   assert.throws(() => assignSourceCourses(state, []), /请选择/);
   assert.throws(() => assignSourceCourses(state, Array.from({ length: 5001 }, (_, index) => ({ id: `x${index}`, courses: [] }))), /请选择/, 'a sanity ceiling remains');
+});
+
+test('source.courses.set declares its input in study_capabilities (#465): the list, an item\'s keys and the id kind, without hiding the action\'s own refusals', async t => {
+  const service = await fixture(t);
+  const { contexts } = filterCapabilities(service.runtime.capabilities(), { operation: 'source.courses.set' });
+  assert.ok(contexts.length, 'the operation is registered');
+  for (const { operations: [found] } of contexts) {
+    const items = found.input.properties?.assignments?.items;
+    assert.ok(items, 'the assignments list is declared, with its items');
+    for (const key of ['id', 'courses', 'expectedCourses']) assert.ok(items.properties?.[key], `an assignment declares ${key}`);
+    assert.match(found.description, /document-/, 'says the id is a page-level one, not a document- id');
+    assert.match(found.description, /5000/, 'says how many assignments one call takes');
+    assert.equal(found.input.required, undefined, 'a call without assignments still reaches the action and gets its own message');
+    assert.ok(JSON.stringify(found).length < 420, 'short: the library context\'s listing is cut by the host');
+  }
+  await assert.rejects(service.call('source.courses.set', { sourceIds: ['a'], courses: [] }), /需要 assignments 数组/);
+  await assert.rejects(service.call('source.courses.set', { assignments: 'a' }), /请选择 1–5000 份资料/);
 });

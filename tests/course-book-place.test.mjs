@@ -24,17 +24,18 @@ const memoryStorage = () => {
 
 test('keepBook: the place (heading, offset) is kept in storage per library and course; the one-shots stay in memory and are never written', () => {
   const storage = memoryStorage();
-  ui.keepBook('lib-a', 'ArchSS', { heading: 'h7', offset: -812.4, target: 'bk:p3', view: 'flip', back: true, point: 'h7', switched: true, chapter: 'h1' }, storage);
+  ui.keepBook('lib-a', 'ArchSS', { heading: 'h7', offset: -812.4, target: 'bk:p3', view: 'flip', back: true, point: 'h7', switched: true, chapter: 'h1', folds: [0, 2] }, storage);
   assert.deepEqual([...storage.map.keys()], ['study-book-place:lib-a:ArchSS']);
   assert.deepEqual(JSON.parse(storage.map.get('study-book-place:lib-a:ArchSS')), { heading: 'h7', offset: -812 }, 'a small JSON: the heading and a whole offset');
   const kept = ui.keptBook('lib-a', 'ArchSS', storage);
   assert.equal(kept.heading, 'h7');
   assert.equal(kept.offset, -812);
   assert.equal(kept.target, 'bk:p3', 'the one-shots are read back from memory in this page load');
-  for (const key of ['target', 'view', 'back', 'point', 'switched', 'chapter']) assert.equal(storage.map.get('study-book-place:lib-a:ArchSS').includes(`"${key}"`), false, `${key} is never written`);
+  assert.deepEqual(kept.folds, [0, 2]);
+  for (const key of ['target', 'view', 'back', 'point', 'switched', 'chapter', 'folds']) assert.equal(storage.map.get('study-book-place:lib-a:ArchSS').includes(`"${key}"`), false, `${key} is never written`);
   // A later visit (a new page load: a new memory) has the place and nothing else.
-  ui.keepBook('lib-a', 'ArchSS', { target: null, view: null, back: false, point: null, switched: false, chapter: null }, storage);
-  assert.deepEqual(ui.keptBook('lib-a', 'ArchSS', storage), { heading: 'h7', offset: -812, target: null, view: null, back: false, point: null, switched: false, chapter: null });
+  ui.keepBook('lib-a', 'ArchSS', { target: null, view: null, back: false, point: null, switched: false, chapter: null, folds: null }, storage);
+  assert.deepEqual(ui.keptBook('lib-a', 'ArchSS', storage), { heading: 'h7', offset: -812, target: null, view: null, back: false, point: null, switched: false, chapter: null, folds: null });
   assert.deepEqual(ui.keptBook('lib-b', 'ArchSS', memoryStorage()), null, 'another library has no place');
   // A place only moves the part it is given; a corrupt value is no place.
   ui.keepBook('lib-a', 'ArchSS', { offset: 40 }, storage);
@@ -76,6 +77,14 @@ test('the place for the next visit is the last one measured: a write after the p
   keeper.measure();
   keeper.write();
   assert.deepEqual(written.slice(-2), [{ heading: 'h9', offset: 80, point: 'h9' }, { heading: 'h9', offset: 80, point: 'h9' }]);
+  // The page is still there while it leaves: a save already on its way (the throttle's timer, a late change of the heading being read) measures another heading and
+  // must not replace the way back's place; only the learner scrolling again does.
+  page = { heading: 'h10', offset: 941 };
+  keeper.save();
+  assert.deepEqual(written.at(-1), { heading: 'h9', offset: 80, point: 'h9' }, 'a save on its way keeps the way back');
+  keeper.resume();
+  keeper.save();
+  assert.deepEqual(written.at(-1), { heading: 'h10', offset: 941 }, 'after a new scroll the page is measured again');
 });
 
 test('the bar\'s reading line: a long point is read to the share the window\'s foot has passed once its top is under the bar; a short one is full once its end is on screen after a scroll', () => {
