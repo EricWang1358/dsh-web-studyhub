@@ -61,20 +61,15 @@ test('study.session.get gives the panel the progress, the range and the cost of 
   assert.deepEqual((await study.call('study.session.resume', { sessionId: session.id })).cost, after.cost, 'resume and get tell the same numbers');
 });
 
-test('an answer on a check item adds the new range to the session\'s predictions, once', async (t) => {
+test('answering writes nothing on the session: predictions move only when the goal or a branch changes', async (t) => {
   const { study, session, stored } = await library(t);
   await study.store.update((s) => { s.attempts.push(independent('att-1', 'c-third', 120000)); });
-  assert.equal((await stored()).predictions.length, 0, 'nothing is recorded until something changes the range');
-
+  const before = JSON.stringify(await stored());
   const run = await study.call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'd-live', cardId: 'c1' }] });
   await study.call('review.reveal', { runId: run.id, cardId: 'c1', queueVersion: run.queueVersion });
   await study.call('review.answer', { runId: run.id, cardId: 'c1', grade: 1, queueVersion: run.queueVersion });
-
-  const predictions = (await stored()).predictions;
-  assert.equal(predictions.length, 1);
-  const { estimate } = await study.call('study.session.get', { sessionId: session.id });
-  assert.deepEqual([predictions[0].minMinutes, predictions[0].maxMinutes, predictions[0].remainingItems], [estimate.minMinutes, estimate.maxMinutes, estimate.remainingItems]);
-  assert.ok(predictions[0].at > 0 && predictions[0].reason);
+  assert.equal(JSON.stringify(await stored()), before);
+  assert.equal((await study.call('study.session.get', { sessionId: session.id })).progress.items[0].evidenceAttemptIds.length, 1, 'the read still sees the answer');
 });
 
 test('opening a side question and changing the goal each leave a reason in the predictions', async (t) => {
@@ -89,23 +84,19 @@ test('opening a side question and changing the goal each leave a reason in the p
   assert.equal((await stored()).predictions.at(-1).reason, '目标范围调整');
 });
 
-test('a pause is logged when the session is picked up again, and it does not change the range', async (t) => {
+test('a pause writes no clock on the session, and it does not change the range', async (t) => {
   const { study, session, stored } = await library(t);
   await study.store.update((s) => { s.attempts.push(independent('att-1', 'c-third', 120000)); });
   const before = (await study.call('study.session.get', { sessionId: session.id })).estimate;
   await study.call('study.session.pause', { sessionId: session.id });
-  assert.ok((await stored()).pausedAt > 0);
-  await study.store.update((s) => { s.studySessions.find((item) => item.id === session.id).pausedAt -= 30 * 60000; });
   await study.call('study.session.update', { sessionId: session.id, status: 'active' });
-  const log = (await stored()).activityLog;
-  assert.equal(log.length, 1);
-  assert.equal(log[0].kind, 'paused');
-  assert.ok(log[0].durationMs >= 30 * 60000 && log[0].durationMs < 31 * 60000);
-  assert.equal((await stored()).pausedAt, undefined);
-  assert.deepEqual((await study.call('study.session.get', { sessionId: session.id })).estimate, before, 'half an hour away does not change the pace');
+  const kept = await stored();
+  assert.equal('pausedAt' in kept, false);
+  assert.equal('activityLog' in kept, false);
+  assert.deepEqual((await study.call('study.session.get', { sessionId: session.id })).estimate, before);
 });
 
-test('settling a question keeps the job\'s tokens, its waiting time and the card it wrote; a job the session did not wait for adds nothing', async (t) => {
+test('settling a question keeps the job\'s tokens and the card it wrote; a job the session did not wait for adds nothing', async (t) => {
   const { study, session, stored } = await library(t);
   const waiting = { kind: 'preparing-card', jobId: 'job-1', deckId: 'd-live', knownCardIds: ['c1', 'c-branch', 'c-third'], startedAt: new Date(Date.now() - 3 * 60000).toISOString() };
   await study.store.update((s) => {
@@ -123,8 +114,7 @@ test('settling a question keeps the job\'s tokens, its waiting time and the card
   assert.equal(kept.usage.length, 1);
   assert.equal(kept.usage[0].cardId, 'gen-1');
   assert.equal(kept.usage[0].tokens, 6700);
-  assert.deepEqual(kept.activityLog.map((entry) => entry.kind), ['generation_wait']);
-  assert.ok(kept.activityLog[0].durationMs >= 3 * 60000 && kept.activityLog[0].durationMs < 3.5 * 60000);
+  assert.equal('activityLog' in kept, false);
 
   await study.store.update((s) => {
     s.studySessions.find((item) => item.id === session.id).goal.checkItems[0].targetCardIds.push('gen-1'); // the main chat links the new question to a check item

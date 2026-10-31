@@ -141,7 +141,6 @@ test('studySessionReadout works the estimate out of real answers and the cost ou
       { id: 'i2', title: 'Two', targetCardIds: ['gen1'] },
       { id: 'i3', title: 'Three', targetCardIds: ['c3'] },
     ] },
-    activityLog: [{ kind: 'generation_wait', at: 1, durationMs: 180000 }, { kind: 'paused', at: 2, durationMs: 1800000 }],
     usage: [{ kind: 'generation', at: 5, jobId: 'j1', cardId: 'gen1', tokens: 1800, usage: { uncachedInputTokens: 1000, outputTokens: 300, cacheReadTokens: 500, cacheWriteTokens: 0 } }],
   };
   const attempts = [

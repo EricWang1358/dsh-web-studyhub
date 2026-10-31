@@ -6,11 +6,8 @@ import {
   upsertTeachingArtifact,
   assertScopeAllowed,
   sanitizeTeachingMarkdown,
-  recordActivity,
   recordGenerationUsage,
   recordPredictionChange,
-  recordPredictionsAfterAnswer,
-  MAX_ACTIVITY,
   MAX_PREDICTIONS,
 } from '../lib/study-session.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
@@ -219,34 +216,9 @@ test('assistantRefusal enforces HB-1 by rejecting answering and submission actio
 
 /* #543 / #544: the session keeps what the estimate and the cost are worked out from. */
 
-test('a new session starts with an empty activity log and usage record', () => {
+test('a new session starts with an empty usage record', () => {
   const session = createStudySession({}, { courseId: 'Intro' });
-  assert.deepEqual(session.activityLog, []);
   assert.deepEqual(session.usage, []);
-});
-
-test('recordActivity logs a duration, ignores nonsense and keeps the log bounded', () => {
-  const session = createStudySession({}, { courseId: 'Intro' });
-  assert.equal(recordActivity(session, 'generation_wait', 0, 10), null);
-  assert.equal(recordActivity(session, 'generation_wait', -5, 10), null);
-  assert.equal(recordActivity(session, 'generation_wait', 'soon', 10), null);
-  assert.deepEqual(recordActivity(session, 'generation_wait', 180000.4, 10), { kind: 'generation_wait', at: 10, durationMs: 180000 });
-  for (let i = 0; i < MAX_ACTIVITY + 5; i++) recordActivity(session, 'paused', 1000 + i, i);
-  assert.equal(session.activityLog.length, MAX_ACTIVITY);
-  assert.equal(session.activityLog.at(-1).durationMs, 1000 + MAX_ACTIVITY + 4);
-});
-
-test('pausing and picking the session up again logs the pause once, and ending closes an open pause', () => {
-  const session = createStudySession({}, { courseId: 'Intro' }, 0);
-  const paused = updateStudySession(session, { status: 'paused' }, null, 1000);
-  assert.equal(paused.pausedAt, 1000);
-  const again = updateStudySession(paused, { status: 'paused' }, null, 5000);
-  assert.equal(again.pausedAt, 1000, 'a second pause does not restart the clock');
-  const resumed = updateStudySession(again, { status: 'active' }, null, 61000);
-  assert.equal(resumed.pausedAt, undefined);
-  assert.deepEqual(resumed.activityLog.map((e) => [e.kind, e.durationMs]), [['paused', 60000]]);
-  const ended = updateStudySession(updateStudySession(resumed, { status: 'paused' }, null, 70000), { status: 'ended' }, null, 80000);
-  assert.deepEqual(ended.activityLog.map((e) => [e.kind, e.durationMs]), [['paused', 60000], ['paused', 10000]]);
 });
 
 test('recordGenerationUsage keeps the DSH buckets of the question job, once per job, and says nothing it did not measure', () => {
@@ -283,15 +255,4 @@ test('recordPredictionChange appends a range only when it moved, and keeps the l
   assert.equal(widened.reason, '新增前置支线');
   for (let i = 0; i < MAX_PREDICTIONS + 3; i++) recordPredictionChange(state, session, `r${i}`, 5000 + i);
   assert.equal(session.predictions.length, MAX_PREDICTIONS);
-});
-
-test('an answer touches the predictions of the active sessions whose check items it backs, and no others', () => {
-  const mine = sessionWithItems(3);
-  const other = { ...sessionWithItems(3), id: 'other', goal: { checkItems: [{ id: 'x', title: 'X', targetCardIds: ['zzz'] }] } };
-  const paused = { ...sessionWithItems(3), id: 'paused', status: 'paused' };
-  const state = { attempts: [answered('a0', 'c0', 180000), answered('a1', 'c1', 180000)], runs: [], studySessions: [mine, other, paused] };
-  recordPredictionsAfterAnswer(state, state.attempts.at(-1));
-  assert.equal(mine.predictions.length, 1);
-  assert.equal(other.predictions.length, 0);
-  assert.equal(paused.predictions.length, 0);
 });
