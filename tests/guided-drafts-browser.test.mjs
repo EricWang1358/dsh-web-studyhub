@@ -25,6 +25,7 @@ const cloze = (id) => ({ ...base, id, kind: 'cloze', prompt: `Fill ${id}`, cloze
 const DECKS = {
   'deck-open': [open('o1')], 'deck-hint': [quiz('q-hint')], 'deck-alone': [quiz('q-alone')], 'deck-multi': [quiz('m1', 'multi')], 'deck-cloze': [cloze('c1')],
   'deck-flash': [flash('f1')], 'deck-fail': [open('o-fail')], 'deck-order': [open('o-a'), open('o-b')], 'deck-ask': [flash('f-ask')],
+  'deck-queue': [open('o-q1'), open('o-q2')], 'deck-extra': [flash('x1')], 'deck-hang': [open('o-hang')],
   'deck-move': [open('o-m1'), open('o-m2')], 'deck-pre': [flash('pre')], 'deck-branch': [{ ...open('o-branch'), requires: [{ deckId: 'deck-pre', cardId: 'pre' }] }],
 };
 
@@ -262,6 +263,52 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     await branch.close();
   });
 
+  await t.test('the main chat changes the queue while the learner types: the words stay on screen and reach the library', async () => {
+    const view = await openPage(browser, server);
+    await view.startDeck('deck-queue');
+    const box = view.page.locator('.response-label textarea');
+    await box.fill('first words');
+    const { args: { runId } } = await until(() => view.saves().at(-1), 'the first save');
+    await until(async () => (await previewCall(server, 'review.get', { runId })).draft?.text === 'first words', 'the first words in the library');
+    const edited = await previewCall(server, 'review.queue.edit', { runId, add: [{ deckId: 'deck-extra', cardId: 'x1' }] });
+    // The page has not seen the edit yet (it polls), so this save still names the older queue.
+    await box.fill('first words and more');
+    await until(async () => (await previewCall(server, 'review.get', { runId })).draft?.text === 'first words and more', 'the newer words in the library');
+    const polls = view.calls.filter((call) => call.action === 'review.get').length;
+    await until(() => view.calls.filter((call) => call.action === 'review.get').length > polls, 'the page reading the round', 10000);
+    await new Promise((done) => setTimeout(done, 300));
+    assert.equal(await box.inputValue(), 'first words and more', 'the same question at the same place keeps what is typed');
+    assert.ok(edited.queueVersion > 0);
+    await view.reopen(runId);
+    assert.equal(await view.page.locator('.response-label textarea').inputValue(), 'first words and more');
+    await view.close();
+  });
+
+  await t.test('a save that hangs does not hold a step silently: the page says so soon, and the step works once it can save', async () => {
+    const view = await openPage(browser, server);
+    await view.startDeck('deck-hang');
+    let hang = true;
+    const held = [];
+    await view.page.route('**/api/call', async (route) => {
+      const { action } = JSON.parse(route.request().postData());
+      if (action === 'review.draft.save' && hang) held.push(route);
+      else await route.continue();
+    });
+    await view.page.locator('.response-label textarea').fill('do not lose me either');
+    await view.page.getByRole('button', { name: FLIP }).click();
+    const grade = view.page.locator('[data-usage="review.grade"]').nth(4);
+    await grade.waitFor();
+    const answersBefore = view.calls.filter((call) => call.action === 'review.answer').length;
+    await grade.click();
+    await view.page.getByText('没能保存你写的内容').first().waitFor({ timeout: 12000 });
+    assert.equal(view.calls.filter((call) => call.action === 'review.answer').length, answersBefore, 'review.answer was not sent');
+    hang = false;
+    await Promise.all(held.map((route) => route.continue()));
+    await grade.click();
+    await until(async () => (await attemptsOf(service, 'o-hang')).length, 'the attempt once it can save');
+    await view.close();
+  });
+
   await t.test('a late draft cannot return to an answered question', async () => {
     const view = await openPage(browser, server);
     await view.startDeck('deck-order');
@@ -333,4 +380,35 @@ test('the real host adapter shows a newer panel intent and drops an older one th
   assert.equal(after.tabs, tabs, 'and does not ask for the sidebar');
   await page.evaluate(() => { window.intentQueue.push({ type: 'studyRef', studyRef: { kind: 'none' }, intentId: 'restarted', intentSeq: 1, issuedAt: 9000 }); });
   await until(async () => (await read()).acks.includes('restarted'), 'an intent of a restarted host', 15000);
+});
+
+const guidedBundle = await build({ stdin: { contents: `
+  import React, { Suspense } from 'react';
+  import { createRoot } from 'react-dom/client';
+  import { PAGE_VIEWS } from './ui/app/page-views.jsx';
+  import { AppContext } from './ui/app/app-context.js';
+  import { setUiLanguage } from './ui/i18n.js';
+  setUiLanguage('zh');
+  window.order = [];
+  const card = { id: 'c', kind: 'flashcard', prompt: 'Recall?', answer: 'A', hint: 'H' };
+  const run = { id: 'r', index: 0, card, deckId: 'd', queueVersion: 0, feedback: null, revealed: false };
+  const guidedSession = { id: 's', courseId: 'C', status: 'active', goal: { title: 'Goal', checkItems: [] }, focus: { kind: 'card', id: 'c', deckId: 'd', runId: 'r' } };
+  const value = { data: { modelReady: true }, core: { call: async () => guidedSession, act() {}, refresh() {}, notify() {} }, nav: { navigate() {} }, lib: { guidedSession, set: {} },
+    session: { run, enterRun() {}, actions: { noteAssistance: (flag) => window.order.push(flag) } },
+    // The chat never answers: what is recorded must not wait for it.
+    host: { askInChat: () => { window.order.push('sent'); return new Promise(() => {}); } } };
+  createRoot(document.getElementById('main')).render(
+    React.createElement(AppContext.Provider, { value }, React.createElement(Suspense, { fallback: null }, React.createElement(PAGE_VIEWS.guided))));
+`, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
+
+test('请教主会话 is recorded on the guided page before the question is sent, so a chat that never answers cannot lose it', { timeout: 120000 }, async (t) => {
+  let browser;
+  t.after(async () => { await browser?.close(); });
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const page = await browser.newPage();
+  await page.setContent('<!doctype html><html><body><div id="main"></div></body></html>');
+  await page.addScriptTag({ content: guidedBundle.outputFiles[0].text });
+  await page.getByRole('button', { name: '请教主会话' }).click();
+  await until(() => page.evaluate(() => window.order.length === 2), 'the note and the send');
+  assert.deepEqual(await page.evaluate(() => window.order), ['askedTutorBeforeAnswer', 'sent']);
 });

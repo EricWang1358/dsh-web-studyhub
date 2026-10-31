@@ -34,6 +34,7 @@ export default function GuidedStudyWorkbench({
   onAddProgressItem,
   onDeleteProgressItem,
   onSelectAttempt,
+  onBeforeAskTutor,
   onAskTutor,
   onNext,
 }) {
@@ -74,6 +75,8 @@ export default function GuidedStudyWorkbench({
   } : {});
 
   const handleAskTutor = async () => {
+    // Asking is help the answer got whether or not the chat ever answers, so it is on record first (as assistCard does).
+    onBeforeAskTutor?.();
     const card = currentCard;
     const prompt = buildAskTutorPrompt({
       sessionId: session?.id,

@@ -418,11 +418,9 @@ function GuidedStudyView() {
     return core.act('review.move', { runId: runId || run?.id, direction: 1 }, session.enterRun);
   };
 
-  // 请教主会话 before answering is help the answer got (#542); the receipt is the one the workbench shows when nobody listens.
-  const handleAskTutor = (result) => {
-    session.actions?.noteAssistance?.('askedTutorBeforeAnswer');
-    core.notify(result?.message || '');
-  };
+  // 请教主会话 before answering is help the answer got (#542), recorded before it is sent; the receipt is the one the workbench shows when nobody listens.
+  const noteAskedTutor = () => session.actions?.noteAssistance?.('askedTutorBeforeAnswer');
+  const handleAskTutor = (result) => { core.notify(result?.message || ''); };
 
   // 改用已有题练习: today's round of the session's course, from the questions it already has.
   const handleFallbackToExisting = () => {
@@ -445,6 +443,7 @@ function GuidedStudyView() {
       onNext={handleNext}
       onCancelPrep={handleCancelPrep}
       onFallbackToExisting={handleFallbackToExisting}
+      onBeforeAskTutor={noteAskedTutor}
       onAskTutor={handleAskTutor}
     />
   );
