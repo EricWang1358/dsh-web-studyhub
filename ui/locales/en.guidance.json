@@ -1,4 +1,7 @@
 {
+  "备份学习库的提醒": "Back up the library",
+  "这个学习库第一次有复习全书时说一次：想退回旧版前，先把学习库文件夹复制一份。": "Said once, the first time this version sees the library with a review book: copy the library folder before going back to an older release.",
+  "下次打开学习库首页时": "the next time you open the library home",
   "学习库首页": "Library home",
   "首页的入门三步": "The first three steps on the home page",
   "还没有自己的题组时，学习库首页是入门三步；点「以后再说」后，它缩成首页里的一张小卡。": "Until you have a deck of your own, the library home shows the first three steps; after “Maybe later” they shrink to a small card on the home page.",
