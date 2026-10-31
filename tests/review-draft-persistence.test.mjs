@@ -170,3 +170,26 @@ test('a queue edit that leaves the question in place does not cost the learner a
   assert.equal((await service.call('review.draft.save', { runId: run.id, cardId: 'f2', index: 0, queueVersion: old, draft: { text: 'x' } })).stale, 'question', 'another card at that place is still refused');
   assert.equal((await service.call('review.draft.save', { runId: run.id, cardId: 'f1', queueVersion: old, draft: { text: 'no place named' } })).stale, 'queue', 'with no place to check, the version is all there is');
 });
+
+test('an answered question takes no more saves, and answering removes its draft', async (t) => {
+  const { service, run } = await library(t, [quiz('q1'), flash('f1')]);
+  await service.call('review.draft.save', { runId: run.id, cardId: 'q1', index: 0, draft: { text: 'before', selected: ['a'] } });
+  await service.call('review.answer', { runId: run.id, cardId: 'q1', selected: ['a'] });
+  const read = () => service.store.read().then((s) => s.runs.find((item) => item.id === run.id).entries[0]);
+  assert.equal('draft' in (await read()), false, 'the answer replaced the draft');
+  const late = await service.call('review.draft.save', { runId: run.id, cardId: 'q1', index: 0, draft: { text: 'late' }, assistance: { hintUsed: true } });
+  assert.equal(late.ok, false);
+  assert.equal(late.stale, 'answered');
+  const entry = await read();
+  assert.equal('draft' in entry, false);
+  assert.equal(entry.assistance, undefined, 'help cannot be added to an answer already given');
+});
+
+test('a rubric grade removes the draft of the question it graded', () => {
+  const card = { id: 'o1', kind: 'open', topic: 'T', prompt: 'p', rubricCriteria: [{ id: 'c', text: 'c', points: 2 }] };
+  const entry = { deckId: 'd', card: structuredClone(card), startedAt: Date.now(), draft: { text: 'text' } };
+  const state = { settings: {}, decks: [{ id: 'd', cards: [card] }], runs: [{ id: 'r', index: 0, deckId: 'd', entries: [entry] }], attempts: [], inbox: [], sources: [] };
+  commitRubricGrade(state, { ref: { deckId: 'd', cardId: 'o1' }, runId: 'r', answer: 'text', timestamp: new Date().toISOString(),
+    grading: { summary: '', questions: [{ cardId: 'o1', total: 2, max: 2, ratio: 1, band: 'full', unanswered: false, criteria: [], unanchored: [], assumptions: [] }] }, entryIndex: 0 });
+  assert.equal('draft' in entry, false);
+});
