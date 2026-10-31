@@ -176,8 +176,13 @@ export default function Generate({
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")} />
-      <Tabs id="generate" className="source-mode" itemClassName="source-tab" label={ui("创建方式")} value={current} onChange={setGenSource}
-        items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
+      {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
+          titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
+      <div className="source-mode-frame">
+        <Tabs id="generate" className="source-mode" itemClassName="source-tab" label={ui("创建方式")} value={current} onChange={setGenSource}
+          items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
+        <p className="source-mode-note" aria-hidden="true">{tabs.find((tab) => tab.id === current)?.note}</p>
+      </div>
       <TabPanel id="generate" value={current} selected={current} className="generate-panel" tabIndex={undefined}>
       {current === "json" ? (
         <JsonImport data={data} openDraft={openDraft} />
