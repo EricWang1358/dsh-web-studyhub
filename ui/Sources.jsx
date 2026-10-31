@@ -207,13 +207,18 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
             <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
-            <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
-              item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
-            <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
-            {(slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={indexLink ? () => actions.buildIndex(item.courses?.[0] || '') : undefined} />}</small>}
-            {/* 资料掌握度: from the review state of the questions linked to this material (the snapshot's materialMastery). */}
-            {/* 覆盖 beside it: how much of the text has a question at all, drafts included (the mastery is only about published questions). */}
-            <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
+            {/* One line of facts under the title (#570): where it belongs, then what it is; each part ellipsises on its own. */}
+            <span className="source-doc__meta">
+              <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
+                item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
+              <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
+            </span>
+            {/* The status line, always visible: 资料掌握度 (the snapshot's materialMastery) and 覆盖 beside it (drafts included; the mastery is only about published questions),
+                then the index badge's slot at the end of the same line, kept from the first paint so a late coverage answer fills it and moves nothing (#229). */}
+            <span className="source-doc__status">
+              <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
+              {(slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={indexLink ? () => actions.buildIndex(item.courses?.[0] || '') : undefined} />}</small>}
+            </span>
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
           </span>
         </button>}
