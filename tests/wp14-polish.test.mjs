@@ -18,14 +18,14 @@ const compiled = await build({ stdin: { contents: `
   export { groupCourseNames, findDuplicateCourses, courseNameKey, splitCourseName, rankCourses } from './ui/course-names.js';
   export { default as SourcePicker } from './ui/SourcePicker.jsx';
   export { default as DocumentViewer, sourceTextClass, originalHandling, viewerFormat } from './ui/document-preview/DocumentViewer.jsx';
-  export { sourceFormatLabel } from './ui/SourcePicker.jsx';
+  export { sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS } from './ui/SourcePicker.jsx';
   export { default as LanguageSwitch } from './ui/LanguageSwitch.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { ScrollWindow, filterItems, scrollEdges, edgeTracker, CourseField, courseQuery, pickCourse, rankCourses, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
-  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, LanguageSwitch, setUiLanguage } = module.exports;
+  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS, LanguageSwitch, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 const h = React.createElement;
@@ -398,10 +398,11 @@ test('SourcePicker lists documents inside a filterable scroll window', () => {
   assert.match(html, /class="sh-scroll[ "]/);
   assert.match(html, /placeholder="筛选资料…"/);
   assert.match(html, /共 180 项/);
-  // A window draws its first 120 rows and the rest as the learner scrolls (ui/components/ScrollWindow.jsx), the count stays the real total.
-  assert.equal((html.match(/data-document-key="/g) || []).length, 120);
+  // The picker draws its first rows and the rest as the learner scrolls (ui/components/ScrollWindow.jsx, #565), the count stays the real total.
+  assert.equal((html.match(/data-document-key="/g) || []).length, SOURCE_PICKER_FIRST_ROWS);
   const filtered = render(h(SourcePicker, { sources: many, selected: [], onChange() {}, defaultQuery: 'Pods' }));
-  assert.equal((filtered.match(/data-document-key="/g) || []).length, 90);
+  assert.match(filtered, /共 180 项 \/ 显示 90 项/, 'the filter searches every document, not only the drawn ones');
+  assert.equal((filtered.match(/data-document-key="/g) || []).length, SOURCE_PICKER_FIRST_ROWS);
   assert.match(filtered, /选择筛选结果/, 'select-all follows the filter');
   assert.match(render(h(SourcePicker, { sources: many, selected: [], onChange() {} }), 'en'), /Filter materials…/);
 });

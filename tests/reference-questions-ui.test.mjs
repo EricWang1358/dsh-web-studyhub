@@ -81,10 +81,11 @@ test('editable limit controls preserve invalid edits, use shared defaults and di
   sourceInput.props.onChange({ target: { value: '8' } });
   charsInput.props.onChange({ target: { value: '' } });
   assert.deepEqual(changes, [{ sources: 8, chars: 12000 }, { sources: 5, chars: '' }]);
-  const busyHtml = render(ReferenceQuestions, { sources, busy: true, selected: [], onChange: noop, onImport: noop });
+  // The fold opens by itself once a sample is chosen; shut, its body is not drawn at all (#565).
+  const busyHtml = render(ReferenceQuestions, { sources, busy: true, selected: ['examples'], onChange: noop, onImport: noop });
   assert.equal((busyHtml.match(/type="number"[^>]*disabled/g) || []).length, 2);
-  assert.match(busyHtml, /已选择 0 个样题片段/);
-  assert.match(render(ReferenceQuestions, { sources, limits: { sources: 1.5 }, onChange: noop, onImport: noop }), /role="alert"/);
+  assert.match(busyHtml, /已选择 1 个样题片段/);
+  assert.match(render(ReferenceQuestions, { sources, selected: ['examples'], limits: { sources: 1.5 }, onChange: noop, onImport: noop }), /role="alert"/);
 });
 
 test('the three-stop format slider emits enums and defaults to balanced with readable labels', () => {
@@ -97,8 +98,8 @@ test('the three-stop format slider emits enums and defaults to balanced with rea
   assert.equal(referenceSelection(sources, ['examples'], [], undefined, 'strict').reason, '');
   for (const value of ['', null, 'maximum', 100])
     assert.equal(referenceSelection(sources, [], [], undefined, value).reason, 'format');
-  assert.match(render(ReferenceQuestions, { sources, busy: true, format: 'strict', onChange: noop, onImport: noop }), /type="range"[^>]*disabled/);
-  assert.match(render(ReferenceQuestions, { sources, format: 'invalid', onChange: noop, onImport: noop }), /role="alert"/);
+  assert.match(render(ReferenceQuestions, { sources, selected: ['examples'], busy: true, format: 'strict', onChange: noop, onImport: noop }), /type="range"[^>]*disabled/);
+  assert.match(render(ReferenceQuestions, { sources, selected: ['examples'], format: 'invalid', onChange: noop, onImport: noop }), /role="alert"/);
 });
 
 test('the optional selector explains style-only reuse and supports both UI languages', () => {
