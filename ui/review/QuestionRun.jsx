@@ -405,7 +405,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                     rows={3}
                     value={response}
                     onChange={(e) => actions.setResponse(e.target.value)}
-                    placeholder={ui("在脑中作答，或在这里写下思路（仅本轮临时草稿）")}
+                    placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")}
                   />
                 </label>
               )}

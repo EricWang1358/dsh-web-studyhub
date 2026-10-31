@@ -1,4 +1,5 @@
 import { reviewEntryKey } from '../async.js';
+import { mergeAssistance, restoredDraft } from './draft-persistence.js';
 
 /* The practice session's rules without React or the DOM (ui-consistency #112): what a fresh answer entry is, when
    the autopilot moves on, what a key press means, and which late answers are still wanted. useReviewSession wires these
@@ -10,23 +11,27 @@ export const AUTO_ADVANCE_MS = 1500;
 export const RESULT_COUNTDOWN_SECONDS = 5;
 
 /** What the learner has typed or picked on the open question. One object, so every reset is one assignment. */
-export const emptyEntry = () => ({ selected: [], hint: false, explain: false, response: '', clozeValues: {}, teaching: null, teachAnswer: '' });
+export const emptyEntry = () => ({ selected: [], hint: false, explain: false, response: '', clozeValues: {}, teaching: null, teachAnswer: '', assistance: null });
 
 /**
  * The entry for a run that was just opened. `restored` is the input captured when the learner left this very question
  * (`input.key` names it); it is never put back into another question or into one that has been answered.
+ * Without it, the draft the library saved for this entry comes back (`run.draft`, #537): the answer, the options, the blanks and the help recorded,
+ * not whether the hint or the explanation was open, which nothing saves. An answered question has neither.
  * `reader.draft(teaching)` returns a saved teaching draft for the step, or ''.
  */
 export function entryForRun(run, restored, reader) {
   const back = restored?.key === reviewEntryKey(run) && !run.feedback ? restored : null;
+  const saved = back || run.feedback ? null : restoredDraft(run);
   return {
-    selected: back?.selected || run.feedback?.selected || [],
+    selected: back?.selected || run.feedback?.selected || saved?.selected || [],
     hint: back?.hint || false,
     explain: back?.explain || false,
-    response: back?.response || '',
-    clozeValues: back?.clozeValues || {},
+    response: back?.response || saved?.text || '',
+    clozeValues: back?.clozeValues || saved?.stepInputs || {},
     teaching: run.teaching || null,
     teachAnswer: reader.draft(run.teaching) || back?.teachAnswer || '',
+    assistance: run.feedback ? null : mergeAssistance(run.assistance, back?.assistance),
   };
 }
 

@@ -14,6 +14,10 @@ import {
   shortcutAction, shortcutGate, shouldResetEntry,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
+import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
+
+// These steps read the entry on the host (review.answer takes the help recorded there) or leave the question: what was typed goes first, and must arrive.
+const SAVES_FIRST = new Set(['review.answer', 'review.move']);
 
 /* The practice session (ui-consistency #112): the open run, what the learner has typed on its question, the teaching
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
@@ -61,16 +65,68 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const { choice, isCloze, rubricCard } = kind;
   const dataRoot = () => refs.dataRef.current?.root;
 
+  /* ── the unsubmitted answer, saved on the run (#537): plain call()s that never touch `busy`, whose results change no state, so typing is never in their way ── */
+  const callRef = useRef(call);
+  callRef.current = call;
+  const draftSaver = useRef(null);
+  draftSaver.current ||= createDraftSaver({ call: (action, args) => callRef.current(action, args), currentRoot: () => refs.dataRef.current?.root });
+  // What the library is known or about to hold for the question on screen.
+  const draftBase = useRef({ key: '', signature: '' });
+  const syncDraft = useCallback(() => {
+    const current = runRef.current, root = refs.dataRef.current?.root, key = draftKey(root, current);
+    if (draftBase.current.key !== key) {
+      // Another question: the library's copy is the base. The entry may still be the last question's (a rebuilt queue resets it a moment later), so nothing is written from it.
+      draftBase.current = { key, signature: current ? savedSignature(current) : '' };
+      return;
+    }
+    if (!draftable(current)) { draftSaver.current.discard(key); return; }
+    const signature = entrySignature(entryRef.current);
+    if (signature === draftBase.current.signature) return;
+    draftBase.current.signature = signature;
+    draftSaver.current.schedule({ key, root, args: { runId: current.id, cardId: current.card.id, index: current.index, queueVersion: current.queueVersion || 0, ...draftPayloadOf(entryRef.current) } });
+  }, [refs]);
+  const syncDraftRef = useRef(syncDraft);
+  syncDraftRef.current = syncDraft;
+  /** Sends what is waiting and waits for it. False: it could not be saved, and the learner has been told. */
+  const flushDraft = useCallback(async () => {
+    syncDraft();
+    if (!draftSaver.current.dirty()) return true;
+    const saved = await draftSaver.current.flush();
+    if (!saved) setError(ui('没能保存你写的内容，这一步先没有继续。内容还在，检查连接后再点一次。'));
+    return saved;
+  }, [syncDraft, setError]);
+  const noteAssistance = useCallback((flag) => {
+    if (!draftable(runRef.current)) return;
+    patch((value) => (value.assistance?.[flag] ? {} : { assistance: { ...value.assistance, [flag]: true } }));
+  }, [patch]);
+  useEffect(() => {
+    // The page may be closing: best effort, nobody can wait for it. Steps and links wait in flushDraft.
+    const leave = () => { syncDraftRef.current(); draftSaver.current.flush(); };
+    const hidden = () => { if (document.visibilityState === 'hidden') leave(); };
+    window.addEventListener('pagehide', leave);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      window.removeEventListener('pagehide', leave);
+      document.removeEventListener('visibilitychange', hidden);
+      leave();
+    };
+  }, []);
+
   /* ── entering and leaving a question ── */
   const enterRun = useCallback((next, input) => {
     if (!next) return;
+    const root = refs.dataRef.current?.root;
+    // The same open question handed back (a reveal's answer, the conversation opening it again): what is on screen is newer than what the library had when it answered.
+    const same = !input && draftable(next) && draftKey(root, next) === draftKey(root, runRef.current);
+    syncDraft();
     runRef.current = next;
     if (next.mode === 'exam') { nav.show.exam('exam', next.id); return; }
     setRun(next);
     if (!embeddedIn && nav.page !== 'guided') setPage('review');
-    setEntry(entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) }));
-  }, [nav.show, setPage, refs, embeddedIn, nav.page]);
-  const reset = useCallback(() => { setRun(null); setEntry(emptyEntry()); }, []);
+    const opened = entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) });
+    setEntry(same ? keepTyped(opened, entryRef.current) : opened);
+  }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft]);
+  const reset = useCallback(() => { draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setEntry(emptyEntry()); }, []);
   const clearRun = useCallback(() => setRun(null), []);
   const patchRun = useCallback((change) => setRun(change), []);
 
@@ -84,8 +140,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   useEffect(() => {
     const previous = priorQueue.current;
     priorQueue.current = { id: run?.id, version: queueVersion };
-    if (shouldResetEntry(previous, run)) setEntry(emptyEntry());
+    // What the library kept for the question now on screen comes back: the same question stays as it was saved, a replaced one has nothing.
+    if (shouldResetEntry(previous, run)) setEntry(entryForRun(run, null, { draft: (teaching) => readTeachingDraft(dataRoot(), teaching) }));
   }, [run?.id, queueVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  // After the rebuilt queue's reset above, so a new question's first pass sees its own entry.
+  useEffect(() => { syncDraft(); }, [run, entry.selected, entry.response, entry.clozeValues, entry.assistance, syncDraft]);
   useEffect(() => { saveTeachingDraft(dataRoot(), entry.teaching, entry.teachAnswer); }, [entry.teaching, entry.teachAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => { setShowBack(!!run?.revealed); }, [run?.id, run?.card?.id, run?.index, run?.queueVersion, run?.revealed]);
@@ -99,13 +158,23 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, { intervalMs: 4000, enabled: page === 'review' && !!run?.card?.id });
 
   /* ── one step of the round ── */
+  const stepWaiting = useRef(false);
   const reviewAct = useCallback((action, args = {}) => {
     const current = runRef.current;
-    return act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args }, (result) => enterRun(result),
+    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args }, (result) => enterRun(result),
       // Practice steps return the run they changed; the snapshot catches up on the next poll.
       // Only a finished round reloads the library (its result page needs fresh counts).
       { refreshAfter: (result) => action === 'review.move' ? !!result.complete : action !== 'review.answer' && action !== 'review.reveal' });
-  }, [act, enterRun]);
+    if (!SAVES_FIRST.has(action)) return step();
+    syncDraft();
+    if (!draftSaver.current.dirty()) return step();
+    // Like act() itself: one step at a time, a second click while this one waits for its save is dropped.
+    if (stepWaiting.current) return Promise.resolve();
+    stepWaiting.current = true;
+    const root = refs.dataRef.current?.root, key = draftKey(root, current);
+    return flushDraft().then((saved) => (saved && draftKey(refs.dataRef.current?.root, runRef.current) === key ? step() : undefined))
+      .finally(() => { stepWaiting.current = false; });
+  }, [act, enterRun, flushDraft, refs, syncDraft]);
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
 
@@ -225,6 +294,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined) => {
     const current = runRef.current;
     if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
+    // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
+    if (mode === 'ask') noteAssistance('askedTutorBeforeAnswer');
+    if (mode === 'grade' && !(await flushDraft())) return false;
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
         mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
@@ -238,7 +310,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       setError(failure.message || ui('这次没有提交成功，也没有拿到具体原因。可以再提交一次。'));
       return false;
     }
-  }, [call, notify, setError, core]);
+  }, [call, notify, setError, core, noteAssistance, flushDraft]);
   // Slaying is one click next to other tools; offer an immediate undo instead of sending the learner to the slay deck in 管理题组.
   const slayCard = useCallback(async () => {
     const current = runRef.current, ref = { deckId: current.deckId, cardId: current.card.id };
@@ -251,10 +323,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   // Practise the given prerequisites (learned ones included), then offer a way back to this question.
   // The way back remembers what was typed or picked on the original question, so it is found as it was left.
   const returnInput = useRef(null);
-  const studyPrerequisites = useCallback((list) => {
+  const studyPrerequisites = useCallback(async (list) => {
+    if (!(await flushDraft())) return undefined;
     returnInput.current = { runId: runRef.current.id, input: { key: reviewEntryKey(runRef.current), ...entryRef.current } };
     return act('review.start', practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: runRef.current.id }), enterRun);
-  }, [act, enterRun]);
+  }, [act, enterRun, flushDraft]);
+
+  /* ── hint and explanation: the hint is help the answer got, once it is opened and has something to show (#542) ── */
+  const toggleHint = useCallback(() => {
+    if (!entryRef.current.hint && runRef.current?.card?.hint?.trim()) noteAssistance('hintUsed');
+    patch((value) => ({ hint: !value.hint }));
+  }, [noteAssistance, patch]);
 
   /* ── the keyboard ── */
   const engaged = useRef(false), keyHandler = useRef(null);
@@ -281,7 +360,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'answer') reviewAct('review.answer', action.args);
     else if (action.type === 'move') reviewAct('review.move', { direction: action.direction });
     else if (action.type === 'flip') flipCard();
-    else if (action.type === 'hint') patch((value) => ({ hint: !value.hint }));
+    else if (action.type === 'hint') toggleHint();
     else if (action.type === 'explain') patch((value) => ({ explain: !value.explain }));
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
     else if (action.type === 'choose') choose(action.id);
@@ -330,7 +409,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   };
   const actions = useMemo(() => ({
     reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
-    toggleHelp: () => patch((value) => (runRef.current?.revealed ? { explain: !value.explain } : { hint: !value.hint })),
+    toggleHelp: () => { if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
+    noteAssistance,
     showExplanation: () => patch({ explain: true }),
     setResponse: (response) => patch({ response }),
     setClozeValue: (id, value) => patch((current) => ({ clozeValues: { ...current.clozeValues, [id]: value } })),
@@ -339,7 +419,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     // The sidebar's 快捷键 entry opens the same sheet as the ? key (ui/ShortcutHelp.jsx): one sheet, two ways in.
     openShortcutHelp: () => setShortcutHelp(true),
     toggleAutopilot,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot]);
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions };
+    shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions, flushDraft };
 }

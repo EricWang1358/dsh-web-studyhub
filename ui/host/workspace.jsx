@@ -18,6 +18,7 @@ import { canOpenBackgroundAgent, openBackgroundAgent } from './open-agent.js';
 import { createPoller } from "../use-polling.js";
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
 import { fillComposer } from './composer-draft.js';
+import { createIntentGuard } from './intent-sequence.js';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
 export const STUDYHUB_PANEL = "studyhub";
 const PAGE_SLOT = "study-workspace.page";
@@ -42,6 +43,8 @@ const knownSessions = new Map(),
   candidateListeners = new Set();
 const guidedSessions = new Map(),
   guidedSessionListeners = new Set();
+// Across every poller of this page: an intent that arrives after a newer one was shown is dropped (#537).
+const panelIntents = createIntentGuard();
 function deliverGuidedStudy(sessionId, sessionIntent) {
   studyReferences.delete(sessionId);
   handoff.delete(sessionId);
@@ -145,6 +148,8 @@ export function apply(ctx, registerDocumentLearning) {
           try { pending = await call("panel.intent.next"); } catch { continue; }
           const intent = pending?.intent;
           if (!intent) continue;
+          // Not acknowledged either: the conversation is told only what the panel did show.
+          if (!panelIntents.accept(sessionId, intent)) continue;
           if (intent.type === "run") deliverRun(sessionId, intent.runId);
           if (intent.type === "studyRef") deliverStudyReference(sessionId, intent.studyRef);
           if (intent.type === "candidates") deliverCandidates(sessionId, intent);
