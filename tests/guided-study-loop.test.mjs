@@ -302,12 +302,12 @@ test('Guided Study Loop E2E: scripted 10-step full workflow (UC-01 ~ UC-09, Sect
   // Verify itemized session cost
   const sessionCost = calculateSessionCost(resumed.session, resumed.progress, [
     { kind: 'tutoring', tokens: 1800 },
-    { kind: 'generation', tokens: 400, costUsd: 0.004 },
+    { kind: 'generation', tokens: 400 },
     { kind: 'qa_organize', tokens: 0 },
     { kind: 'reuse_existing', count: 2 },
   ]);
 
   assert.equal(sessionCost.independentPassedCount, 1);
-  assert.equal(sessionCost.costPerIndependentCheckItem.costUsd, 0.004);
+  assert.deepEqual(sessionCost.costPerIndependentCheckItem, { tokens: 2200, includesTutoring: true });
   assert.equal(sessionCost.breakdown.reusedQuestions.count, 2);
 });

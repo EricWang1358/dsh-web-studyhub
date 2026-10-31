@@ -1,4 +1,7 @@
 {
+  "复习全书的升级是单向的：想退回旧版前，先把学习库文件夹复制一份。": "The review book only upgrades one way: before going back to an older release, copy the library folder.",
+  "备份：关掉 DSH，复制文件夹 {0}。恢复：关掉 DSH，用复制的那份换回原来的文件夹。3.5 以下的版本里不要点「更新全书」：它读不懂按页整理的知识点，会写出空的讲解。": "To back up: close DSH and copy the folder {0}. To restore: close DSH and put the copy back in its place. In a release before 3.5 do not press Update the book: it cannot read points organised by pages and writes empty explanations.",
+  "怎么备份和恢复？": "How to back up and restore?",
   "总纲": "Course outline",
   "总纲 · {0}": "Course outline · {0}",
   "按资料的章节找题、挑题练": "Find questions by the chapters of your materials and pick what to practise",
