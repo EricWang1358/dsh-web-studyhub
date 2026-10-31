@@ -83,7 +83,8 @@ test('a conversion\'s log reads as a story, in Chinese and in English, and a fai
 });
 
 test('a running conversion shows what is relevant: no model-call timeline, no 实时输出, the log; Marker\'s bar live in 转换详情; windows, not model calls', () => {
-  const html = draw(pdfJob({ toolProgress: { label: 'Recognizing layout', percent: 40, done: 4, total: 10, at: at(10) } })), text = textOf(html);
+  // The list and the detail (the page header above them says what the page holds, for every kind of task).
+  const html = draw(pdfJob({ toolProgress: { label: 'Recognizing layout', percent: 40, done: 4, total: 10, at: at(10) } })), text = textOf(html.slice(html.indexOf('class="tc-main"')));
   assert.doesNotMatch(html, /tc-timeline/, 'no parallel timeline');
   assert.doesNotMatch(text, /还没有模型调用|没有选中的调用|实时输出|正在进行 0|规划|出题/);
   assert.match(text, /转换详情/); assert.match(text, /日志/);

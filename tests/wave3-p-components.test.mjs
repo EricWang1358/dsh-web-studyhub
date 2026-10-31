@@ -66,7 +66,6 @@ const H1_ALLOWED = new Map([
   ['ui/first-run/FirstRunLine.jsx', 'the first-run line is the whole first screen of an empty library, not a page frame'],
   ['ui/app/page-views.jsx', 'StartPage: the pre-library start screen'],
   ['ui/host/studyhub-page.jsx', 'the "open a session first" screen of the host seat'],
-  ['ui/tasks/TaskConsole.jsx', 'the 任务 console is a master-detail surface that fills the window: its list header is the page title, there is no page frame above it'],
 ]);
 
 test('<h1 appears only in PageHeader and the allow-listed frames (#142)', () => {

@@ -33,7 +33,10 @@ const readRow = (page) => page.evaluate(() => {
     return { key: control.dataset.control, box: box(control), label: box(label), labelCut: label ? label.scrollWidth > label.clientWidth + 1 : false, widget: box(widget),
       value: control.querySelector('.sh-select__value')?.textContent.trim() ?? null, valueCut: (() => { const v = control.querySelector('.sh-select__value'); return v ? v.scrollWidth > v.clientWidth + 1 : false; })() };
   });
-  return { viewport: innerWidth, scrollWidth: document.documentElement.scrollWidth, row: box(row), rowOverflow: row.scrollWidth > row.clientWidth + 1, controls,
+  // Where the row is on the page, not in the window: at a narrow width the page scrolls, and a click on a select lower down scrolls it into view first.
+  let scrolled = document.scrollingElement.scrollTop;
+  for (let node = row.parentElement; node; node = node.parentElement) scrolled += node.scrollTop || 0;
+  return { viewport: innerWidth, scrollWidth: document.documentElement.scrollWidth, row: box(row), rowPageTop: row.getBoundingClientRect().top + scrolled, rowOverflow: row.scrollWidth > row.clientWidth + 1, controls,
     bar: [...row.querySelector('.tc-controls__bar').children].map((child) => ({ cls: child.className, ...box(child) })), status: row.querySelector('.tc-controls__applied').textContent.trim() };
 });
 
@@ -110,7 +113,7 @@ test('the follow-session select reads clearly and the 即时控制 row holds tog
         judge({ ...changed, controls: changed.controls.map((c) => c.key === 'effortPlanning' ? { ...c, value: words.short } : c) }, `${where} after a change`, words);
         assert.equal(changed.controls.find((c) => c.key === 'effortPlanning').value, words.lowest, `${where}: the select says the level chosen`);
         assert.equal(changed.row.height, first.row.height, `${where}: the row keeps its height when a change is applied (${first.row.height} -> ${changed.row.height})`);
-        assert.equal(changed.row.top, first.row.top, `${where}: and its place`);
+        assert.equal(changed.rowPageTop, first.rowPageTop, `${where}: and its place`);
         await planning.focus();
         await page.waitForTimeout(450);
         assert.equal(await page.locator('.sh-tooltip:popover-open').count(), 0, `${where}: no tooltip while a level is chosen`);

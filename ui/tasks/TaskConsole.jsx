@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Checkbox, Tooltip, useNow } from '../components/index.js';
+import { Button, Checkbox, EmptyState, PageHeader, SegmentedControl, Tooltip, useNow } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from '../app/app-context.js';
 import { useQuickActions, dismissJobs } from '../quick-actions.js';
@@ -33,10 +33,19 @@ import { draftShortfall } from '../coverage/use-shortfall.js';
 import { continueArgs, continueNotice, topUpArgs, topUpNotice } from '../coverage/top-up.js';
 import { modelReadiness } from '../generation-status.js';
 
-/* The 任务 console. One surface for every background job: a list on the left, the whole story of the selected job on the right. It reads the jobs of
-   the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers is what the contract says is available. */
+/* The 任务 console. One surface for every background job: the page header (title, what is here, the filters), then a list on the left and the whole story of the
+   selected job on the right. It reads the jobs of the snapshot through their contract (lib/job-contract.js) and sends every action to job.control; what it offers
+   is what the contract says is available. With no task at all the page is its header and one empty state; a filter with nothing in it says so once, in place of
+   the list and the detail. */
 
 const FILTER_LABEL = { all: '全部', running: '进行中', failed: '失败/中断', archived: '已归档' };
+/** What an empty filter says (the tasks are elsewhere: another filter has them). */
+const EMPTY_FILTER = {
+  all: () => ({ title: ui('现在没有任务'), description: ui('归档的任务在「已归档」里。') }),
+  running: () => ({ title: ui('没有进行中的任务') }),
+  failed: () => ({ title: ui('没有失败或中断的任务') }),
+  archived: () => ({ title: ui('还没有归档的任务'), description: ui('已结束的任务点「归档」，会放在这里。') }),
+};
 /** The row of a task in the list: where the keyboard focus goes back to after 撤销. */
 const rowOf = (id) => () => document.querySelector(`.tc-row[data-task-id="${CSS.escape(id)}"]`);
 
@@ -131,7 +140,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
   // A one-click install that stopped (paused, failed or interrupted) goes on where it stopped: 继续安装 is its one action here, in the folder it used (in place of the crimson 删除: 知道了 still archives it).
   const install = contract.detail?.install || null, resume = install && !live && !archived ? installResume(task) : null;
   return (
-    <section className="tc-detail" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
+    <section className="tc-detail" data-surface="dense" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
         <div className="tc-head__title">
           <h2>{summary.title}</h2>
@@ -262,28 +271,33 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
     window.addEventListener('keydown', end, true);
     return () => window.removeEventListener('keydown', end, true);
   }, [selecting]);
+  const none = tasks.length === 0 && archived.length === 0;
+  const empty = !none && shown.length === 0 ? EMPTY_FILTER[filter]?.() || EMPTY_FILTER.all() : null;
+  // The filters filter the list: with the list folded away (全屏) they would only switch the detail out of sight, so they fold with it. An empty filter has no detail (and so
+  // no 退出全屏): there they stay, the one way out. They sit on the title's line (the header's action slot, under it when narrow), so the header takes as little of the
+  // height the detail's panels need as a page title can.
+  const filterBar = none || (full && !empty) ? null : (
+    <SegmentedControl className="tc-scope" size="sm" label={ui('筛选')} value={filter} onChange={setFilter}
+      options={filters.map((item) => ({ value: item.id, label: `${ui(FILTER_LABEL[item.id])} ${item.count}` }))} />
+  );
   return (
-    <div className="tc" data-surface="dense" data-usage-area="tasks" data-full={full ? 'true' : 'false'}>
-      <section className="tc-list" aria-label={ui('任务列表')} ref={listRef}>
-        <div className="tc-bar">
-          <h1>{ui('任务')}</h1>
-        </div>
-        <div className="tc-filterbar">
-          <div className="tc-filters" role="group" aria-label={ui('筛选')}>
-            {filters.map((item) => (
-              <Button key={item.id} size="sm" className="tc-filter" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{`${ui(FILTER_LABEL[item.id])} ${item.count}`}</Button>
-            ))}
-          </div>
-        </div>
-        <SelectBar filter={filter} summary={summary} busy={working || core.busy} onToggleAll={() => setSelection((before) => toggleAll(shown, before))}
-          onArchive={() => run('archive')} onUnarchive={() => run('unarchive')} onDelete={() => askDelete([...selection])} onClear={() => setSelection(new Set())} />
-        <div className="tc-scroll">
-          {shown.length === 0 && <p className="tc-empty">{filter === 'archived' ? ui('还没有归档的任务。已结束的任务点「归档」，会放在这里。') : ui('现在没有任务。生成题目、导入录音或转换 PDF 后，会在这里看到它们。')}</p>}
-          {shown.map((item) => <TaskItem key={taskId(item)} task={item} summary={taskSummary(item)} picked={taskId(item) === picked} checked={selection.has(taskId(item))} onPick={pick} onCheck={check} />)}
-        </div>
-      </section>
-      {task ? <Detail key={taskId(task)} task={task} data={data} openers={openers} full={full} onFull={toggleFull} onDelete={askDelete} undoable={undoable} />
-        : <section className="tc-detail" aria-label={ui('任务详情')}><p className="tc-empty">{ui('选择左边的一个任务查看详情。')}</p></section>}
+    <div className="tc" data-usage-area="tasks" data-full={full ? 'true' : 'false'} data-empty={none ? 'all' : empty ? 'filter' : undefined}>
+      <PageHeader className="tc-header" title={ui('任务')} description={ui('出题、转写、转换这些后台工作的进度和记录。')} actions={filterBar} />
+      {none
+        ? <EmptyState className="tc-none" icon="nav-tasks" title={ui('还没有任务')}
+          description={ui('开始出题、导入录音或转换 PDF 后，任务会出现在这里：可以看进度、调整或停止，结束后留下记录。')} />
+        : empty
+          ? <div className="tc-main tc-main--empty"><EmptyState size="sm" className="tc-none" title={empty.title} description={empty.description} /></div>
+          : <div className="tc-main">
+            <section className="tc-list" aria-label={ui('任务列表')} ref={listRef}>
+              <SelectBar filter={filter} summary={summary} busy={working || core.busy} onToggleAll={() => setSelection((before) => toggleAll(shown, before))}
+                onArchive={() => run('archive')} onUnarchive={() => run('unarchive')} onDelete={() => askDelete([...selection])} onClear={() => setSelection(new Set())} />
+              <div className="tc-scroll">
+                {shown.map((item) => <TaskItem key={taskId(item)} task={item} summary={taskSummary(item)} picked={taskId(item) === picked} checked={selection.has(taskId(item))} onPick={pick} onCheck={check} />)}
+              </div>
+            </section>
+            {task && <Detail key={taskId(task)} task={task} data={data} openers={openers} full={full} onFull={toggleFull} onDelete={askDelete} undoable={undoable} />}
+          </div>}
     </div>
   );
 }

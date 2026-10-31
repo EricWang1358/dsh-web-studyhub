@@ -116,7 +116,7 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         const finish = async () => { await frames(page, 4); await drainLayoutStability(page); };
         await until(async () => (await page.locator('.tc-row').count()) >= 7, 'the three jobs and the four days of 为你定制 in the list');
         await finish();
-        const filterText = async (name) => (await page.locator('.tc-filter', { hasText: name }).first().innerText()).replace(/\s+/g, ' ').trim();
+        const filterText = async (name) => (await page.locator('.tc-scope .sh-seg__item', { hasText: name }).first().innerText()).replace(/\s+/g, ' ').trim();
         const first = await measure(page);
         const bar = () => page.locator('.tc-pickbar').evaluate((element) => { const r = element.getBoundingClientRect(); return { top: Math.round(r.top), height: Math.round(r.height), width: Math.round(r.width) }; });
         const idle = await bar();
@@ -149,7 +149,7 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         assert.deepEqual(snapshot.archivedJobs.map((job) => job.contract.jobId).sort(), [...ids].sort(), 'the host agrees');
         assert.deepEqual(snapshot.jobs.filter((job) => ids.includes(job.contract.jobId)), []);
         // the archived list
-        await page.locator('.tc-filter', { hasText: '已归档' }).first().dispatchEvent('click');
+        await page.locator('.tc-scope .sh-seg__item', { hasText: '已归档' }).first().dispatchEvent('click');
         await until(async () => (await page.locator('.tc-row').count()) === 2, 'the two archived tasks listed');
         await finish();
         for (const id of ids) assert.equal(await page.locator(`.tc-row[data-task-id="${id}"]`).count(), 1);
@@ -166,7 +166,7 @@ test('select two finished tasks → 归档 → 已归档 → 取消归档, then 
         await page.locator('.tc-pickbar__all input').dispatchEvent('click');
         await page.locator('.tc-pickbar__actions').getByRole('button', { name: '取消归档', exact: true }).dispatchEvent('click');
         await until(async () => (await filterText('已归档')) === '已归档 0', 'nothing archived any more');
-        await page.locator('.tc-filter', { hasText: '全部' }).first().dispatchEvent('click');
+        await page.locator('.tc-scope .sh-seg__item', { hasText: '全部' }).first().dispatchEvent('click');
         await until(async () => (await page.locator('.tc-item__check input').count()) === 2, 'both tasks back in the list');
         for (const id of ids) assert.equal(await page.locator(`.tc-row[data-task-id="${id}"]`).count(), 1, 'back in the default list');
         assert.deepEqual((await running.api('snapshot')).archivedJobs, []);
@@ -239,7 +239,7 @@ test('归档 on a card of the audio page archives the task: the card goes, the f
     assert.deepEqual((await folders()).filter((name) => !name.includes('.retired')), before, 'the working folder is still there');
     await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
     await page.locator('.tc-detail').first().waitFor({ state: 'attached' });
-    await page.locator('.tc-filter').nth(3).dispatchEvent('click');
+    await page.locator('.tc-scope .sh-seg__item').nth(3).dispatchEvent('click');
     await until(async () => (await page.locator(`.tc-row[data-task-id="${snapshot.archivedJobs.find((job) => job.id === id).contract.jobId}"]`).count()) === 1, 'the task under 已归档');
     assert.deepEqual(errors, []);
     await context.close();
@@ -359,7 +359,7 @@ test('the archived read-only detail: the name keeps its room, the actions fit an
           const where = `${lang} ${theme} ${width}px ${accent}`;
           const { page, errors, context } = await openConsole(browser, running, { lang, theme, width, height: 900, accent });
           try {
-            await page.locator('.tc-filter').nth(3).click();
+            await page.locator('.tc-scope .sh-seg__item').nth(3).click();
             await page.locator('.tc-detail[data-archived="true"]').waitFor({ state: 'attached' });
             await until(async () => (await page.locator('.tc-item__check input').count()) === 2, `${where}: the archived tasks, selectable`);
             await frames(page, 4);
