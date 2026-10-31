@@ -110,3 +110,22 @@ test('every flag of the recorded help makes a pass helped, the same way everywhe
   assert.equal(deriveItemStatus({}, pass(undefined)).status, 'passed');
   assert.equal(deriveItemStatus({}, [{ id: 'r', correct: true, timestamp: 1, retry: true, assistance: { used: false } }]).status, 'assisted', 'a retry comes after the answer was shown');
 });
+
+const dueAttempt = (id, quiz_id, timestamp, dueAfterMs, extra = {}) => ({ id, quiz_id, timestamp: new Date(timestamp).toISOString(), grade: 4, correct: true,
+  after: { due_at: new Date(timestamp + dueAfterMs).toISOString() }, ...extra });
+
+test('nextDayDueCount is the cards of this session whose latest answer scheduled them for a later day', () => {
+  const DAY = 86400000;
+  const createdAt = Date.parse('2026-11-01T00:00:00.000Z');
+  const session = { createdAt, goal: { checkItems: [{ id: 'i', title: 'I', targetCardIds: ['a', 'b', 'c', 'd'] }] } };
+  const attempts = [
+    dueAttempt('before', 'd', createdAt - 1000, 3 * DAY),
+    dueAttempt('a1', 'a', createdAt + 1000, DAY),
+    dueAttempt('a2', 'a', createdAt + 2000, 2 * DAY),
+    dueAttempt('b1', 'b', createdAt + 3000, 2 * DAY),
+    dueAttempt('b2', 'b', createdAt + 4000, 10 * 60000, { grade: 1, correct: false }),
+    dueAttempt('c1', 'c', createdAt + 5000, DAY),
+    dueAttempt('other', 'not-in-goal', createdAt + 6000, 9 * DAY),
+  ];
+  assert.equal(computeSessionProgress(session, attempts).nextDayDueCount, 2, 'a and c; b came back in ten minutes, d was before this session');
+});

@@ -394,10 +394,13 @@ function GuidedStudyView() {
   };
 
   // A choice question is answered with the options the learner picked (graded by the card), any other kind with the learner's own grade.
-  const handleAnswer = (answer) => {
+  // The answer moves the progress and the range, which the session reads: read it again at once instead of after the next (possibly slowed) wait.
+  const handleAnswer = async (answer) => {
     const args = typeof answer === 'object' && answer ? answer : { grade: answer };
-    if (session.actions?.reviewAct) return session.actions.reviewAct('review.answer', args);
-    return core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, ...args }, session.enterRun);
+    const done = session.actions?.reviewAct ? await session.actions.reviewAct('review.answer', args)
+      : await core.act('review.answer', { runId: run?.id, cardId: currentCard?.id, ...args }, session.enterRun);
+    void readGuidedSession();
+    return done;
   };
 
   // Read the session again at once: its reads may have slowed down, and a paused session is not read after that (#564).
@@ -434,6 +437,9 @@ function GuidedStudyView() {
       session={guidedSession}
       run={session.run}
       prepState={prepState}
+      progress={guidedSession?.progress}
+      estimate={guidedSession?.estimate}
+      cost={guidedSession?.cost}
       modelReady={data?.modelReady !== false && data?.model?.ready !== false}
       host={host}
       onPause={handlePause}

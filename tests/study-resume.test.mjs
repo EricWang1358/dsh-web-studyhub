@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resumeStudySession } from '../lib/study-resume.js';
+import { resumeStudySession, studySessionReadout } from '../lib/study-resume.js';
 
 test('resumeStudySession restores session state without any private chat dependency (UC-09)', () => {
   const session = {
@@ -130,3 +130,50 @@ test('resumeStudySession flags card modifications when revision or digest change
   assert.deepEqual(resumed.staleWarnings.map((w) => w.id), ['c-rev', 'c-dig', 'c-item']);
 });
 
+
+/* #543 / #544: the progress, the estimate and the cost are worked out from the session and the library, never from the view. */
+
+test('studySessionReadout works the estimate out of real answers and the cost out of what the session recorded', () => {
+  const session = {
+    id: 's', courseId: 'CS101', status: 'active', returnPath: [],
+    goal: { checkItems: [
+      { id: 'i1', title: 'One', targetCardIds: ['c1'] },
+      { id: 'i2', title: 'Two', targetCardIds: ['gen1'] },
+      { id: 'i3', title: 'Three', targetCardIds: ['c3'] },
+    ] },
+    usage: [{ kind: 'generation', at: 5, jobId: 'j1', cardId: 'gen1', tokens: 1800, usage: { uncachedInputTokens: 1000, outputTokens: 300, cacheReadTokens: 500, cacheWriteTokens: 0 } }],
+  };
+  const attempts = [
+    { id: 'a1', quiz_id: 'c1', grade: 4, correct: true, timestamp: 1, elapsed_ms: 90000, assistance: { used: false } },
+    { id: 'a2', quiz_id: 'gen1', grade: 4, correct: true, timestamp: 2, elapsed_ms: 150000, assistance: { used: false } },
+    { id: 'zz', quiz_id: 'elsewhere', grade: 4, correct: true, timestamp: 3, elapsed_ms: 99999999 },
+  ];
+
+  const { progress, estimate, cost } = studySessionReadout({ attempts, runs: [] }, session);
+
+  assert.equal(progress.independentPassedCount, 2);
+  assert.equal(estimate.status, 'estimated');
+  assert.ok(Number.isInteger(estimate.minMinutes) && estimate.minMinutes < estimate.maxMinutes);
+  assert.equal(estimate.preliminary, true);
+  assert.equal(cost.breakdown.generation.tokens, 1800);
+  assert.equal(cost.breakdown.reusedQuestions.count, 1, 'c1 was a question the library already had; gen1 was written for this session');
+  assert.equal(cost.breakdown.tutoring.measured, false);
+  assert.equal(cost.independentPassedCount, 2);
+  assert.deepEqual(cost.costPerIndependentCheckItem, { tokens: 900, includesTutoring: false });
+});
+
+test('studySessionReadout says 尚在估计 when nothing has been answered, and counts a generation whose tokens are unknown as unmeasured', () => {
+  const session = { id: 's', goal: { checkItems: [{ id: 'i1', title: 'One', targetCardIds: ['c1'] }] }, usage: [{ kind: 'generation', at: 1, jobId: 'j', cardId: 'c9' }] };
+  const { estimate, cost } = studySessionReadout({ attempts: [], runs: [] }, session);
+  assert.equal(estimate.status, 'estimating');
+  assert.equal(cost.breakdown.generation.measured, false);
+  assert.equal(cost.breakdown.generation.tokens, null);
+  assert.equal(cost.costPerIndependentCheckItem, 'pending_first_pass');
+});
+
+test('resumeStudySession carries the same progress, estimate and cost as the readout', () => {
+  const session = { id: 's', courseId: 'CS101', goal: { checkItems: [{ id: 'i1', title: 'One', targetCardIds: ['c1'] }] }, usage: [] };
+  const viewState = { studySessions: [session], decks: [{ id: 'd', cards: [{ id: 'c1' }] }], attempts: [], runs: [], sources: [] };
+  const resumed = resumeStudySession(viewState, { sessionId: 's' });
+  assert.deepEqual({ progress: resumed.progress, estimate: resumed.estimate, cost: resumed.cost }, studySessionReadout(viewState, session));
+});

@@ -30,6 +30,7 @@ import { useRoleDraft } from "./study-map/RoleSuggestion.jsx";
 import CatalogHeading from "./study-map/CatalogHeading.jsx";
 import CatalogToolbar from "./study-map/CatalogToolbar.jsx";
 import TopicGroupReminder from "./study-map/TopicGroupReminder.jsx";
+import BookBackupHint from "./study-map/BookBackupHint.jsx";
 import MergeSuggestions, { useMergeSuggestions } from "./study-map/MergeSuggestions.jsx";
 import DeckTree from "./study-map/DeckTree.jsx";
 import NotebookDirectory from "./study-map/NotebookDirectory.jsx";
@@ -173,6 +174,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}
         onShowOutline={home.route?.chapters?.length ? onShowOutline : undefined} />
       <TopicGroupReminder grouping={data.topicGrouping} root={data.root} />
+      <BookBackupHint bookCourses={data.bookCourses} root={data.root} />
       <MergeSuggestions merge={merge} busy={busy} />
       {data.decks.length > 0 && <CatalogToolbar search={search} onSearch={setSearch} showArchived={showArchived}
         onToggleArchived={() => { setShowArchived((value) => !value); tree.clearSelection(); }} />}
