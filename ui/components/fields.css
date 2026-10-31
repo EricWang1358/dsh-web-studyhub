@@ -47,7 +47,7 @@
     .sh-check__input {
       appearance: none; display: inline-grid; place-content: center; box-sizing: border-box; flex: none;
       width: 1.15em; height: 1.15em; min-width: 0; min-height: 0; margin: 0.1em 0 0; padding: 0;
-      border: 1px solid var(--text-faint); border-radius: var(--radius-xs); background: var(--bg-surface); color: var(--accent-ink);
+      border: 1px solid var(--text-muted); border-radius: var(--radius-xs); background: var(--bg-surface); color: var(--accent-ink);
       vertical-align: middle; cursor: inherit;
       transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
     }
@@ -55,7 +55,7 @@
       content: ''; width: 0.62em; height: 0.62em; background: currentColor; transform: scale(0); transition: transform var(--dur-fast) var(--ease);
       clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
     }
-    .sh-check__input:hover:not(:disabled) { border-color: var(--text-muted); }
+    .sh-check__input:hover:not(:disabled) { border-color: var(--text); }
     .sh-check__input:is(:checked, :indeterminate) { border-color: var(--accent); background: var(--accent); }
     .sh-check__input:checked::before { transform: scale(1); }
     .sh-check__input:indeterminate::before { transform: scale(1); clip-path: inset(38% 0 round 1px); }
