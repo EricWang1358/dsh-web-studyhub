@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shareUnchanged, sameExceptFingerprint } from "../ui/snapshot-share.js";
+import { shareUnchanged, sameExceptFingerprint, mergePartial } from "../ui/snapshot-share.js";
 
 const snapshot = (overrides = {}) => ({ revision: 1, fingerprint: "a", sources: [{ id: "s1", title: "One", chars: 10 }], decks: [{ id: "d1", count: 3 }], progress: { d1: { due: 2 } }, ...overrides });
 
@@ -49,4 +49,30 @@ test("the texts of one poll feed the next, and carry through unchanged keys", ()
   for (let poll = 0; poll < 3; poll++) state = shareUnchanged(state.value, snapshot(), state.texts);
   assert.equal(state.changed, false);
   assert.equal(state.texts.sources, JSON.stringify(snapshot().sources));
+});
+
+test("a partial answer (only the clock moved) keeps every key it does not carry, and the ones it carries unchanged", () => {
+  const first = shareUnchanged(null, snapshot({ today: { due: 2 } }));
+  const merged = mergePartial(first.value, { partial: true, fingerprint: "b", progress: { d1: { due: 3 } }, today: { due: 2 }, decks: [{ id: "d1", count: 3 }] }, first.texts);
+  assert.equal(merged.changed, true);
+  assert.equal(merged.value.partial, undefined, "the marker is not part of the snapshot");
+  assert.equal(merged.value.fingerprint, "b", "the next poll sends the new fingerprint");
+  assert.deepEqual(merged.value.progress, { d1: { due: 3 } });
+  assert.equal(merged.value.sources, first.value.sources, "a key the answer does not carry keeps its object");
+  assert.equal(merged.value.revision, first.value.revision);
+  assert.equal(merged.value.today, first.value.today, "a key it carries with the same text keeps its object too");
+  assert.equal(merged.value.decks, first.value.decks);
+  assert.ok(sameExceptFingerprint(merged.value, { ...first.value, progress: merged.value.progress, fingerprint: "c" }));
+  // The texts follow, so the next whole snapshot compares against what the panel now holds.
+  const again = shareUnchanged(merged.value, { ...snapshot({ today: { due: 2 } }), fingerprint: "b", progress: { d1: { due: 3 } } }, merged.texts);
+  assert.equal(again.changed, false);
+  assert.equal(again.value, merged.value);
+});
+
+test("a partial answer that moved only the fingerprint is a quiet poll", () => {
+  const first = shareUnchanged(null, snapshot());
+  const merged = mergePartial(first.value, { partial: true, fingerprint: "b" }, first.texts);
+  assert.equal(merged.changed, true, "the fingerprint is held, so it is written");
+  assert.ok(sameExceptFingerprint(first.value, merged.value), "the poll rhythm counts it as unchanged");
+  assert.equal(merged.value.sources, first.value.sources);
 });

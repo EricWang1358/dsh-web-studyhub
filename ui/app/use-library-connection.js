@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, getUiLanguage } from '../i18n.js';
 import { localizedRun } from '../run-titles.js';
 import { isTransientStudyError } from '../transport.js';
-import { shareUnchanged, sameExceptFingerprint } from '../snapshot-share.js';
+import { shareUnchanged, sameExceptFingerprint, mergePartial } from '../snapshot-share.js';
 import { POLL_FAST_MS } from '../poll-schedule.js';
 import { usePolling } from '../use-polling.js';
 import { syncScheduleSettings } from '../schedule-settings.js';
@@ -38,32 +38,43 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
     const sequence = ++refs.requestSequence.current;
     const started = refs.epoch.current;
     const since = refs.dataRef.current?.fingerprint;
-    const next = await call('snapshot', since ? { since } : {});
+    // `partial`: when only the clock moved since `since`, the host answers just the parts that read it (#567); older hosts ignore it.
+    let next = await call('snapshot', since ? { since, partial: true } : {});
     if (started !== refs.epoch.current) return refs.dataRef.current;
     // Nothing visible changed: skip transferring, diffing and re-rendering.
     if (next.unchanged && refs.dataRef.current) return refs.dataRef.current;
+    // A partial answer only applies on top of the snapshot it was asked against; a later request owns the panel, and one that finds
+    // a snapshot other than `since` under it asks for the whole snapshot instead.
+    if (next.partial) {
+      if (sequence !== refs.requestSequence.current) return refs.dataRef.current;
+      if (refs.dataRef.current?.fingerprint !== since) {
+        next = await call('snapshot', {});
+        if (started !== refs.epoch.current) return refs.dataRef.current;
+      }
+    }
     let result = next;
     if (sequence === refs.requestSequence.current && !next.unchanged) {
       // Root, model availability and due counts can change without a store write.
       // Compare the public snapshot key by key before skipping a render; a key that did not change keeps its
       // identity, so memoised views over data.sources, data.decks ... survive a poll that only moved `progress`.
       const cur = refs.dataRef.current;
-      const shared = shareUnchanged(cur, next, refs.snapshotKey.current);
+      const shared = next.partial ? mergePartial(cur, next, refs.snapshotKey.current) : shareUnchanged(cur, next, refs.snapshotKey.current);
+      const value = shared.value;
       if (shared.changed) {
-        if (cur && cur.root !== next.root) {
-          resetLibraryState('switch', { gen: freshGeneration(next.settings), settings: next.settings });
-          setBinding((b) => ({ ...b, root: next.root }));
+        if (cur && cur.root !== value.root) {
+          resetLibraryState('switch', { gen: freshGeneration(value.settings), settings: value.settings });
+          setBinding((b) => ({ ...b, root: value.root }));
         }
-        if (!cur || (cur.root === next.root && cur.settings !== shared.value.settings)) {
+        if (!cur || (cur.root === value.root && cur.settings !== value.settings)) {
           const before = cur ? generationFormDefaults(cur.settings?.generation) : initialGeneration(host, getUiLanguage());
-          const after = generationFormDefaults(next.settings?.generation);
+          const after = generationFormDefaults(value.settings?.generation);
           libApi.setGen((current) => syncGenerationDefaults(current, before, after));
         }
-        refs.dataRef.current = shared.value;
+        refs.dataRef.current = value;
         refs.snapshotKey.current = shared.texts;
-        setData(shared.value);
-        libApi.setSettings((current) => syncScheduleSettings(current, cur?.settings, next.settings));
-        result = shared.value;
+        setData(value);
+        libApi.setSettings((current) => syncScheduleSettings(current, cur?.settings, value.settings));
+        result = value;
       } else result = cur;
     }
     return result;
