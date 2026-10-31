@@ -206,3 +206,12 @@ test('隔日巩固 counts each card of this session once, and no run of another 
   });
   assert.equal((await study.call('study.session.get', { sessionId: session.id })).progress.nextDayDueCount, 1);
 });
+
+test('a session with no check items has no goal to have finished: nothing says it is complete', async (t) => {
+  const { study } = await library(t);
+  const open = await study.call('study.session.start', { courseId: 'CS101', goal: { title: 'Just talking' } });
+  const read = await study.call('study.session.get', { sessionId: open.id });
+  assert.equal(read.progress.totalCount, 0);
+  assert.notEqual(read.estimate.status, 'completed');
+  assert.equal(read.estimate.status, 'no_goal');
+});

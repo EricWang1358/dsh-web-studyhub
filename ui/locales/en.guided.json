@@ -29,6 +29,7 @@
   "预计达到本次检验目标还需 {0}–{1} 分钟": "About {0}–{1} minutes left to reach this check goal",
   "预计达到本次检验目标还需 {0}–{1} 分钟（初步估计）": "About {0}–{1} minutes left to reach this check goal (rough estimate)",
   "已完成本次全部检验目标": "All check goals for this session are done",
+  "设定检验项后再估计时间": "Time left is estimated once a check goal is set",
   "本次用量": "Cost this session",
   "教学讲解与读现场：{0}": "Teaching and reading the scene: {0}",
   "教学讲解与读现场：主会话的用量，见 DSH 的用量面板": "Teaching and reading the scene: the main chat's own use, see DSH's usage panel",

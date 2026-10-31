@@ -20,6 +20,7 @@ function estimateLine(estimate) {
       [estimate.minMinutes, estimate.maxMinutes]);
   }
   if (estimate?.status === 'completed') return ui('已完成本次全部检验目标');
+  if (estimate?.status === 'no_goal') return ui('设定检验项后再估计时间');
   return ui('尚在估计，完成首个检验后更新');
 }
 

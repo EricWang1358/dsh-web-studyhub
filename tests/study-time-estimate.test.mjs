@@ -131,3 +131,13 @@ test('an estimate says how firm it is: preliminary until enough independent pass
   assert.doesNotMatch(later.message, /初步估计/);
   assert.ok(later.maxMinutes > later.minMinutes, 'still a range, never one exact number');
 });
+
+test('no check items is not a finished goal: completed needs at least one item', () => {
+  const zero = { independentPassedCount: 0, assistedCount: 0, pendingCount: 0, needsReviewCount: 0, totalCount: 0, items: [] };
+  const est = estimateRemainingTime({ id: 's1', returnPath: [] }, zero, []);
+  assert.equal(est.status, 'no_goal');
+  assert.equal(est.minMinutes, null);
+  assert.doesNotMatch(est.message, /已完成/);
+  const done = estimateRemainingTime({ id: 's1', returnPath: [] }, { independentPassedCount: 2, assistedCount: 0, pendingCount: 0, needsReviewCount: 0, totalCount: 2 }, []);
+  assert.equal(done.status, 'completed');
+});
