@@ -6,9 +6,12 @@ import { stickBar } from './BookBar.jsx';
 /* Where the learner is in the review book (docs/review-book.md "Where you were"): the point shown (逐节读), the chapters open (整章连着读), the heading being
    read, and the place kept for the next visit. Landing: an entry's target (总纲, home, the way back from practice) > the place kept in this browser (ui/book/model.js
    keepBook: heading and offset per library and course) > the first point. The place is measured on every scroll frame and written when the point changes, at
-   most every 500 ms while the page scrolls, when the page is hidden, and (that last measure) when the page goes away. The focus goes to a heading only on a real return from practice (`back`, set by the way back), never on a plain open. */
+   most every 500 ms while the page scrolls, when the page is hidden, and (that last measure) when the page goes away. The focus goes to a heading only on a real return from practice (`back`, set by the way back), never on a plain open.
+   A landing is measured from the heading, never from a stored scrollTop: the height above the heading is not the same from one draw to the next (holdPlace below). */
 
 const SAVE_EVERY = 500;
+const HOLD_FOR = 10000, HOLD_WITHIN = 2;
+const LEARNER_MOVES = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
 const instant = (scroller, top) => scroller.scrollTo({ top, behavior: 'instant' });
 
 /** The element that scrolls the page (the app's own scroller in the browser). */
@@ -22,15 +25,41 @@ export const scrollerOf = element => {
 
 /** The place written for the next visit, from what was last measured: measure() reads the heading being read and where it is on screen (null when it is not
     drawn: keeps the last one), write() writes that last measure without touching the page, save() does both, keep(place) writes a place found another way
-    (the way back to practice) and makes it the last one, so a write on leaving does not put an older measure back. */
+    (the way back to practice) and makes it the last one, so a write on leaving does not put an older measure back; until resume() (the learner scrolls again) nothing
+    is measured over it: a save already on its way while the page leaves reads another heading, and in 整章连着读 that one lands with the point left folded. */
 export function placeKeeper(read, write) {
-  let last = null;
+  let last = null, kept = false;
   return {
-    measure() { const next = read(); if (next) last = next; return last; },
+    measure() { const next = kept ? null : read(); if (next) last = next; return last; },
     write() { if (last) write(last); },
     save() { this.measure(); this.write(); },
-    keep(place) { last = place; write(place); },
+    keep(place) { last = place; kept = true; write(place); },
+    resume() { kept = false; },
   };
+}
+
+/** The folds (本节的题, 要点清单...) open in a point, by their place in it: the page is only as long as they make it, so the way back opens them again before it lands. */
+const foldsOpen = point => (point ? [...point.querySelectorAll('details')].flatMap((fold, at) => (fold.open ? [at] : [])) : []);
+
+/** A landing stays put while the page around it is still arriving: what is drawn late above the heading (备考计划 and the page-limit line wait for their answers, the
+    page's first frame may still move) pushes it down without a scroll. The page's size is watched, not the page, and only until the learner moves or HOLD_FOR has
+    passed. Each move is put right before it is painted. `at`: the heading's distance from the top of the window; a page not yet long enough for it gets there when it
+    grows. -> stop(). */
+export function holdPlace(element, page, at) {
+  const check = () => {
+    if (!element.isConnected) { stop(); return; }
+    const off = element.getBoundingClientRect().top - at;
+    if (Math.abs(off) > HOLD_WITHIN) { const scroller = scrollerOf(element); instant(scroller, scroller.scrollTop + off); }
+  };
+  const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(check);
+  const frame = requestAnimationFrame(check), timer = setTimeout(() => stop(), HOLD_FOR);
+  function stop() {
+    cancelAnimationFrame(frame); clearTimeout(timer); sizes?.disconnect();
+    for (const type of LEARNER_MOVES) window.removeEventListener(type, stop, { capture: true });
+  }
+  sizes?.observe(page);
+  for (const type of LEARNER_MOVES) window.addEventListener(type, stop, { capture: true, passive: true });
+  return stop;
 }
 
 /** -> { kept (what the page was handed at mount), open, toggleChapter, here, stepAt, current, goTo(id), go(delta), switchReading(mode), remember(hid, from), hold() }. */
@@ -39,7 +68,7 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
   const [here, setHere] = useState(null);
   const [stepHid, setStepHid] = useState(null);
   const [kept] = useState(() => keptBook(root, course));
-  const restore = useRef(null), first = useRef(kept), placed = useRef(false);
+  const restore = useRef(null), first = useRef(kept), placed = useRef(false), holding = useRef(null);
   const stepAt = Math.max(0, steps.findIndex(step => step.hid === stepHid));
   // The point the bar counts: the one shown, or in 整章连着读 the one the heading being read is in.
   const current = reading.mode === 'step' ? stepAt : Math.max(0, stepIndexOf(steps, toc, rows, here ?? ''));
@@ -50,17 +79,23 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     placed.current = true;
     const given = first.current, wanted = given?.target ?? given?.heading, row = wanted ? rowOf(rows, wanted) : null;
     // A heading the learner typed is not in the manifest: its chapter is the one the way back kept with it, else the 目录's.
-    const typed = !row && wanted ? given?.chapter ?? toc.find(entry => entry.id === wanted)?.chapter ?? null : null;
-    const chapter = row ? chapters[row.chapter]?.hid : typed ?? chapters[0]?.hid;
+    const listed = !row && wanted ? toc.find(entry => entry.id === wanted) : null;
+    const typed = listed ? given?.chapter ?? listed.chapter ?? null : null;
+    // A heading that is gone (deleted while the learner practised): the point the way back kept, else its chapter, from its top; the start of the book only when those are gone too.
+    const refuge = wanted && !row && !listed ? [given?.point, given?.chapter].map(id => id && rowOf(rows, id)).find(Boolean) ?? null : null;
+    const landing = row ?? refuge;
+    const chapter = landing ? chapters[landing.chapter]?.hid : typed ?? chapters[0]?.hid;
     setOpen(new Set(chapter ? [chapter] : []));
-    const step = steps[Math.max(0, stepIndexOf(steps, toc, rows, row?.hid ?? wanted ?? ''))];
+    const step = steps[Math.max(0, stepIndexOf(steps, toc, rows, landing?.hid ?? wanted ?? ''))];
     setStepHid(step?.hid ?? null);
     reading.only(step?.hid ?? null);
-    setHere(row?.hid ?? (typed && wanted) ?? step?.hid ?? chapter ?? null);
-    const back = !!given?.back && !given.target;
-    restore.current = row || typed ? { hid: row?.hid ?? wanted, offset: given?.target ? null : given?.offset ?? null, point: back ? given.point : null, focus: back } : null;
+    // 逐节读 draws no chapter or section heading: their first point is shown instead.
+    const shown = landing ? (reading.mode === 'step' && !landing.leaf ? step?.hid : landing.hid) : typed && wanted;
+    setHere(shown ?? step?.hid ?? chapter ?? null);
+    const back = !!given?.back && !given.target, same = back && !refuge;
+    restore.current = shown ? { hid: shown, offset: given?.target || refuge ? null : given?.offset ?? null, point: same ? given.point : null, folds: same ? given.folds : null, focus: back, land: true } : null;
     first.current = null;
-    keepBook(root, course, { target: null, back: false, point: null, chapter: null });
+    keepBook(root, course, { target: null, back: false, point: null, chapter: null, folds: null });
   }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
@@ -69,6 +104,12 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
       || document.getElementById(`book-${wanted.hid}`) || (!wanted.read && document.getElementById(`flip-${wanted.hid}`)));
     if (!element) return;
     restore.current = null;
+    holding.current?.();
+    holding.current = null;
+    if (wanted.folds?.length) {
+      const folds = [...(page?.querySelector(`[data-book-point="${CSS.escape(wanted.point)}"]`)?.querySelectorAll('details') ?? [])];
+      for (const at of wanted.folds) if (folds[at]) folds[at].open = true;
+    }
     // The page is still rising into place (shell.css page-in: a few pixels of translateY), which moves every rectangle measured below by what is left of it.
     element.closest('.page')?.getAnimations?.().forEach(animation => animation.finish());
     const scroller = scrollerOf(element), top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
@@ -89,7 +130,9 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
       heading.focus({ preventScroll: true });
       setTimeout(() => heading.removeAttribute('data-return-focus'), 1500);
     }
+    if (wanted.land && page) holding.current = holdPlace(element, page, wanted.offset ?? element.getBoundingClientRect().top);
   });
+  useEffect(() => () => holding.current?.(), []);
 
   // 整章连着读: the heading being read is the highest one on screen of the open chapters (逐节读: the point shown, set where it changes).
   useEffect(() => {
@@ -117,6 +160,7 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     let last = 0, timer = 0, frame = 0;
     const measure = () => { frame = 0; keeper.measure(); };
     const onScroll = () => {
+      keeper.resume();
       if (!frame) frame = requestAnimationFrame(measure);
       const wait = last + SAVE_EVERY - Date.now();
       if (wait <= 0) { last = Date.now(); keeper.save(); } else if (!timer) timer = setTimeout(() => { timer = 0; last = Date.now(); keeper.save(); }, wait);
@@ -149,8 +193,9 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     const element = headings.at(-1) || document.getElementById(`book-${hid}`), row = rowOf(rows, hid);
     // The point is the one the link is in, which a heading the learner typed inside its text does not change.
     const point = from?.closest?.('[data-book-point]')?.dataset.bookPoint || hid;
+    const body = pageRef.current?.querySelector(`[data-book-point="${CSS.escape(point)}"]`);
     keeper.keep({ heading: element?.dataset.bookHeading || hid, offset: element ? element.getBoundingClientRect().top : 0, target: null,
-      chapter: row ? chapters[row.chapter]?.hid ?? null : null, point });
+      chapter: row ? chapters[row.chapter]?.hid ?? null : null, point, folds: foldsOpen(body) });
     return placeOf(point) || placeOf(hid);
   }, [keeper, rows, chapters, pageRef]);
 
