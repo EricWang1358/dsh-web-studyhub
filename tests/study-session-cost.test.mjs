@@ -60,6 +60,14 @@ test('calculateSessionCost does not call the main chat reasoning 0 tokens when n
   assert.deepEqual(cost.costPerIndependentCheckItem, { tokens: 400, includesTutoring: false });
 });
 
+test('an unmeasured question job makes the per-item average unknown instead of a low number or 0', () => {
+  const none = calculateSessionCost({ id: 's-5' }, { independentPassedCount: 2 }, [{ kind: 'generation', jobId: 'j1' }]);
+  assert.equal(none.breakdown.generation.tokens, null);
+  assert.deepEqual(none.costPerIndependentCheckItem, { tokens: null, includesTutoring: false, measured: false });
+  const part = calculateSessionCost({ id: 's-6' }, { independentPassedCount: 1 }, [{ kind: 'generation', tokens: 500 }, { kind: 'generation', jobId: 'j2' }]);
+  assert.deepEqual(part.costPerIndependentCheckItem, { tokens: null, includesTutoring: false, measured: false });
+});
+
 test('calculateSessionCost handles empty or missing inputs gracefully', () => {
   const cost = calculateSessionCost();
   assert.equal(cost.totalTokens, 0);

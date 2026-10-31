@@ -215,3 +215,18 @@ test('a session with no check items has no goal to have finished: nothing says i
   assert.notEqual(read.estimate.status, 'completed');
   assert.equal(read.estimate.status, 'no_goal');
 });
+
+test('a question the learner cancels reads as not measured, not as 0 tokens, and the average says so', async (t) => {
+  const { study, session, stored } = await library(t);
+  await study.store.update((s) => {
+    s.studySessions.find((item) => item.id === session.id).focus = { kind: 'preparing-card', jobId: 'job-cancelled', deckId: 'd-live', knownCardIds: [], startedAt: new Date().toISOString() };
+    s.attempts.push(independent('att-1', 'c-third', 60000));
+  });
+  await study.call('study.question.release', { sessionId: session.id });
+  const usage = (await stored()).usage;
+  assert.deepEqual(usage.map((record) => [record.kind, record.jobId, record.tokens]), [['generation', 'job-cancelled', undefined]]);
+  const { cost } = await study.call('study.session.get', { sessionId: session.id });
+  assert.equal(cost.breakdown.generation.measured, false);
+  assert.equal(cost.costPerIndependentCheckItem.tokens, null);
+  assert.equal(cost.costPerIndependentCheckItem.measured, false);
+});

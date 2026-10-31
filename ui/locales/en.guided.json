@@ -38,6 +38,7 @@
   "新题生成与独立审核：用量未知，没有计入": "Writing and reviewing new questions: usage unknown, not counted",
   "QA 整理：复用讲解，0 额外模型调用": "Q&A filing: reuses the explanation, no extra model calls",
   "QA 整理：{0}": "Q&A filing: {0}",
+  "每道独立通过的题平均：有出题的用量未知，算不出": "Average per independently passed question: a new question's usage is unknown, so it cannot be worked out",
   "每道独立通过的题平均：{0}": "Average per independently passed question: {0}",
   "每道独立通过的题平均：{0}（不含主会话）": "Average per independently passed question: {0} (without the main chat)",
   "每道独立通过的题的平均用量：做完第一道后计算": "Average per independently passed question: worked out after the first one",

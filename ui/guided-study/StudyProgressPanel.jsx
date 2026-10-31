@@ -35,7 +35,8 @@ function costRows(cost) {
   rows.push(parts.generation?.measured === false ? ui('新题生成与独立审核：用量未知，没有计入') : uiFormat('新题生成与独立审核：{0}', [exactTok(parts.generation?.tokens || 0)]));
   rows.push(parts.qaOrganize?.tokens ? uiFormat('QA 整理：{0}', [exactTok(parts.qaOrganize.tokens)]) : ui('QA 整理：复用讲解，0 额外模型调用'));
   const each = cost.costPerIndependentCheckItem;
-  rows.push(typeof each === 'object' && each
+  if (each?.measured === false) rows.push(ui('每道独立通过的题平均：有出题的用量未知，算不出'));
+  else rows.push(typeof each === 'object' && each
     ? uiFormat(each.includesTutoring ? '每道独立通过的题平均：{0}' : '每道独立通过的题平均：{0}（不含主会话）', [exactTok(each.tokens)])
     : ui('每道独立通过的题的平均用量：做完第一道后计算'));
   return rows;

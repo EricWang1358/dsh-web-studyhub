@@ -137,6 +137,18 @@ test('the panel lists the four parts of the cost in tokens and the cost of an in
   const unknown = text(renderToStaticMarkup(h(m.StudyProgressPanel, { progress: session.progress,
     cost: { ...session.cost, breakdown: { ...session.cost.breakdown, generation: { tokens: null, measured: false } } }, defaultExpanded: true })));
   assert.match(unknown, /新题生成与独立审核：用量未知，没有计入/);
+
+  const unmeasured = text(renderToStaticMarkup(h(m.StudyProgressPanel, { progress: session.progress,
+    cost: { ...session.cost, costPerIndependentCheckItem: { tokens: null, includesTutoring: false, measured: false } }, defaultExpanded: true })));
+  assert.match(unmeasured, /每道独立通过的题平均：有出题的用量未知，算不出/);
+  assert.doesNotMatch(unmeasured, /每道独立通过的题平均：0|每道独立通过的题平均：null/);
+});
+
+test('with no check items the panel asks for a goal instead of saying it is finished or still estimating', () => {
+  m.setUiLanguage('zh');
+  const html = text(renderToStaticMarkup(h(m.StudyProgressPanel, { progress: { displayLine: '未设定检验项', items: [] }, estimate: { status: 'no_goal' } })));
+  assert.match(html, /设定检验项后再估计时间/);
+  assert.doesNotMatch(html, /已完成|尚在估计/);
 });
 
 test('the English page says the same things in English', async (t) => {
