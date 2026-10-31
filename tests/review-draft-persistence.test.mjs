@@ -193,3 +193,20 @@ test('a rubric grade removes the draft of the question it graded', () => {
     grading: { summary: '', questions: [{ cardId: 'o1', total: 2, max: 2, ratio: 1, band: 'full', unanswered: false, criteria: [], unanchored: [], assumptions: [] }] }, entryIndex: 0 });
   assert.equal('draft' in entry, false);
 });
+
+test('a stale save writes nothing and does not move the revision; a real one writes only its run', async (t) => {
+  const { service, run } = await library(t, [flash('f1')]);
+  const revision = async () => (await service.store.read()).revision;
+  const before = await revision();
+  assert.equal((await service.call('review.draft.save', { runId: run.id, cardId: 'f1', queueVersion: 99, draft: { text: 'old' } })).stale, 'queue');
+  assert.equal((await service.call('review.draft.save', { runId: 'gone', cardId: 'f1', draft: { text: 'x' } })).stale, 'run');
+  assert.equal(await revision(), before, 'nothing was committed');
+
+  const update = service.store.update.bind(service.store), hints = [];
+  service.store.update = (fn, changed, fields) => { hints.push(changed); return update(fn, changed, fields); };
+  t.after(() => { service.store.update = update; });
+  assert.equal((await service.call('review.draft.save', { runId: run.id, cardId: 'f1', draft: { text: 'kept' } })).ok, true);
+  assert.equal(await revision(), before + 1);
+  assert.deepEqual([...hints.at(-1).runs], [run.id], 'the hint names this run');
+  assert.equal(Object.keys(hints.at(-1)).join(), 'runs', 'and nothing else');
+});
