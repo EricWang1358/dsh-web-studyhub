@@ -146,12 +146,14 @@ test('study_capabilities: a compact index without arguments, exact schemas for a
   const byContext = await tool.execute({ context: 'materials' }, {});
   assert.deepEqual(byContext.contexts.map(domain => domain.id), ['materials']);
   assert.ok(byContext.contexts[0].operations.find(item => item.name === 'document.import').input, 'a context comes with its schemas');
+  const asking = byContext.contexts[0].operations.find(item => item.name === 'selection.ask');
+  assert.deepEqual([asking.requiresModel, asking.available, asking.reason], [true, false, 'model_unavailable'], 'a real operation without its model still says so');
   const byApi = await tool.execute({ context: 'materials.v1', operation: 'document.import' }, {});
   assert.deepEqual(byApi.contexts.map(domain => [domain.id, domain.operations.map(item => item.name)]), [['materials', ['document.import']]]);
   assert.ok(JSON.stringify(await tool.execute({ operation: 'document.import' }, {})).length < INDEX_CAP, 'the schema study_materials points at is small');
   const byOperation = await tool.execute({ operation: 'job.control' }, {});
   assert.deepEqual(byOperation.contexts.map(domain => domain.id), ['jobs']);
-  assert.equal(byOperation.contexts[0].operations[0].available, true);
+  assert.equal(byOperation.contexts[0].operations[0].available, undefined, 'available is only written when it is false');
   const near = await tool.execute({ operation: 'mineru' }, {});
   assert.deepEqual(near.contexts, []);
   assert.ok(near.matches.includes('mineru.import') && near.matches.includes('mineru.plan'));
@@ -164,6 +166,21 @@ test('study_capabilities: a compact index without arguments, exact schemas for a
   const fake = [{ id: 'a', api: 'a.v1', operations: [{ name: 'state.read', available: true }, { name: 'x.get', available: true }, { name: 'x.set', available: false }, { name: 'y', available: true }] }];
   assert.deepEqual(capabilityIndex(fake).contexts, [{ id: 'a', operations: 'x.get/set* y' }]);
   assert.deepEqual(filterCapabilities(fake, { operation: 'x.get' }).contexts[0].operations.map(item => item.name), ['x.get']);
+});
+
+test('study_capabilities leaves out a field at its default and keeps every other value, so an unavailable or model-needing operation still says so', () => {
+  const plain = { name: 'x.get', description: '', input: { type: 'object' }, output: {}, requiresModel: false, available: true };
+  const rich = { name: 'x.ask', description: 'Asks.', input: { type: 'object' }, output: { type: 'object' }, requiresModel: true, available: false, reason: 'model_unavailable' };
+  const needsModel = { name: 'x.mark', description: '', input: { type: 'object' }, output: {}, requiresModel: true, available: true };
+  const fake = [{ id: 'a', api: 'a.v1', dependencies: [], available: true, operations: [plain, rich, needsModel] }];
+  const { contexts: [domain] } = filterCapabilities(fake, { context: 'a' });
+  assert.deepEqual(domain, { id: 'a', api: 'a.v1', dependencies: [], operations: [
+    { name: 'x.get', input: { type: 'object' } },
+    { name: 'x.ask', description: 'Asks.', input: { type: 'object' }, output: { type: 'object' }, requiresModel: true, available: false, reason: 'model_unavailable' },
+    { name: 'x.mark', input: { type: 'object' }, requiresModel: true } ] });
+  assert.deepEqual(filterCapabilities(fake, { operation: 'x.ask' }).contexts[0].operations, [domain.operations[1]], 'the same by operation name');
+  assert.equal(plain.available, true, 'the runtime\'s own answer is not changed');
+  assert.ok(JSON.stringify(domain).length < JSON.stringify(fake[0]).length);
 });
 
 test('study_materials takes every parameter document.import declares, typed the same', () => {

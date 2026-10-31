@@ -142,6 +142,16 @@ test('the interface typeface sets the body AND the headings; 保持系统 puts t
   for (const face of ['kai', 'round', 'mono', 'serif']) assert.match(style, new RegExp(`\\[data-face='${face}'\\][^{]*\\{[^}]*--reader-face:\\s*var\\(--font-stack-${face}\\)`), `reader face ${face}`);
 });
 
+test('the picked reading face is not beaten by a later layer: its default sits in the same layer as the choice', () => {
+  const style = read('ui/tokens.css');
+  // The cascade compares layers before specificity, so a plain default in a later layer (study.features) wins over these more specific
+  // rules wherever they are declared in study.tokens. The default must therefore be declared with the choice, and no reading
+  // stylesheet may declare it again: that is what kept the picked face from reaching the text.
+  assert.match(style, /:is\(\.study-document-viewer, \.study-reading\)\s*\{\s*--reader-face:\s*var\(--reader-sans\)/, 'the default sits with the choice');
+  for (const file of ['ui/document-preview/reader/reader.css', 'ui/reading-settings/reading.css'])
+    assert.doesNotMatch(read(file), /--reader-face:\s*var\(--reader-sans\)/, `${file}: no later-layer default`);
+});
+
 test('the paragraph gap is read by the reader and the reading blocks, with today\'s spacing as the fallback, and reader paragraphs take the column leading', () => {
   assert.match(read('ui/document-preview/reader/reader.css'), /\.reader-p\s*\{[^}]*line-height:\s*inherit/, 'the global p rule would otherwise pin the leading at 1.8');
   assert.match(read('ui/document-preview/reader/reader.css'), /\.reader-html p\s*\{[^}]*line-height:\s*inherit/);
