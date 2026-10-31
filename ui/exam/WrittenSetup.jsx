@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, ErrorState, Icon, InlineMessage, SegmentedControl } from '../components/index.js';
+import { Button, CheckboxInput, ErrorState, Icon, InlineMessage, SegmentedControl } from '../components/index.js';
 import { LIMIT_MINUTES, limitPresets } from '../../lib/exam-timing.js';
 import { EXAM_QUESTION_COUNT } from '../../lib/limits.js';
 import { ExamSetupCard, CountField } from '../ExamShell.jsx';
@@ -63,7 +63,7 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
                 {decks.map((deck) => (
                   <li key={deck.id}>
                     <label className={'es-deck' + (picked.has(deck.id) ? ' is-checked' : '')}>
-                      <input type="checkbox" checked={picked.has(deck.id)}
+                      <CheckboxInput checked={picked.has(deck.id)}
                         onChange={(event) => onPick((previous) => {
                           const next = new Set(previous);
                           if (event.target.checked) next.add(deck.id); else next.delete(deck.id);

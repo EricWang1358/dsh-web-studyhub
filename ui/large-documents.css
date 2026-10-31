@@ -77,7 +77,7 @@
     .retrieval-panel__pages { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-half); max-height: 320px; overflow: auto; }
     .retrieval-panel__pages label { display: flex; flex-direction: row; align-items: baseline; gap: var(--space-2); margin: 0; padding: var(--space-1-5) var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--fs-sm); }
     .retrieval-panel__pages label:hover { background: var(--bg-hover); }
-    .retrieval-panel__pages input { width: auto; flex: 0 0 auto; margin: var(--space-half) 0 0; accent-color: var(--accent); }
+    .retrieval-panel__pages input { margin: var(--space-half) 0 0; }
     .retrieval-panel__page { flex: 0 0 auto; font-weight: var(--fw-strong); white-space: nowrap; }
     .retrieval-panel__snippet { color: var(--text-muted); overflow-wrap: anywhere; min-width: 0; }
     .retrieval-panel__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }

@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Checkbox, Dialog, Disclosure, Icon, InlineMessage, PageHeader, Tooltip, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, CheckboxInput, Dialog, Disclosure, Icon, InlineMessage, PageHeader, Tooltip, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
@@ -196,7 +196,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
       {...(pinned && !editing ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
         onDrop: event => actions.drop(item.key, event), onDragEnd: actions.dragEnd } : {})}>
       <div className="source-doc__line">
-        {organizing && <input type="checkbox" aria-label={uiFormat('选择资料：{0}', [name])}
+        {organizing && <CheckboxInput aria-label={uiFormat('选择资料：{0}', [name])}
           checked={selected} onChange={event => actions.select(item.key, event.target.checked)} />}
         {editing && editor ? <div className="source-main source-main--editing">
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />

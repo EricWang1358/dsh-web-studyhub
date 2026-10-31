@@ -7,7 +7,7 @@ import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
 import { formatClock, joinMeta } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
-import { Button, Checkbox, IconButton, InlineMessage, PageHeader, Select, SetupRequired, Tooltip, useToast } from './components/index.js';
+import { Button, Checkbox, CheckboxInput, IconButton, InlineMessage, PageHeader, Select, SetupRequired, Tooltip, useToast } from './components/index.js';
 import LiveLocalCard from './LiveLocalCard.jsx';
 import { localTip } from './live-local-flow.js';
 import { openAudioSettings } from './audio-focus.js';
@@ -46,7 +46,7 @@ export function SentenceMark({ segment, checked }) {
 
 export const Sentence = memo(function Sentence({ segment, selected, generated, checked, onToggle, language }) {
   return <article className={`live-sentence${selected ? ' live-sentence--selected' : ''}${segment.correctedAt ? ' polished' : ''}`} data-segment-id={segment.id} tabIndex={-1}>
-    <label className="live-select"><input type="checkbox" checked={selected} onChange={() => onToggle(segment.id)}
+    <label className="live-select"><CheckboxInput checked={selected} onChange={() => onToggle(segment.id)}
       aria-label={uiFormat('选择句子 {0}', [segment.id])} />
       <time>{formatClock(segment.t)}</time></label>
     <div className="live-words"><p lang={segment.zhState === 'none' ? undefined : 'en'}>{segment.en}</p>
