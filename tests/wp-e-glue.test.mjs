@@ -85,7 +85,7 @@ test('the live audio monitor reads its clock from useNow, not from a polling loo
   assert.doesNotMatch(page, /usePolling|setNow/);
 });
 
-const POLLERS = ['ui/Workflows.jsx', 'ui/CaseWorkspace.jsx', 'ui/WrongBook.jsx', 'ui/Board.jsx', 'ui/Exam.jsx'];
+const POLLERS = ['ui/Workflows.jsx', 'ui/CaseWorkspace.jsx', 'ui/WrongBook.jsx', 'ui/Board.jsx', 'ui/board/use-board.js', 'ui/Exam.jsx'];
 
 test('pages that poll use usePolling (paused while hidden) and pages that show a clock use useNow', async () => {
   for (const file of POLLERS) {
@@ -93,7 +93,7 @@ test('pages that poll use usePolling (paused while hidden) and pages that show a
     assert.doesNotMatch(page, /setInterval|clearInterval|visibilitychange|document\.hidden|visibilityState/, `${file} has no timer or visibility plumbing of its own`);
   }
   // The exam pages poll a report and show a clock through the shared lifecycle hook (WP-X, #132).
-  for (const file of ['ui/Workflows.jsx', 'ui/exam/useExamRun.js', 'ui/WrongBook.jsx', 'ui/Board.jsx']) assert.match(await source(file), /usePolling\(/, file);
+  for (const file of ['ui/Workflows.jsx', 'ui/exam/useExamRun.js', 'ui/WrongBook.jsx', 'ui/board/use-board.js']) assert.match(await source(file), /usePolling\(/, file);
   for (const file of ['ui/exam/useExamRun.js']) assert.match(await source(file), /useNow\(1000/, file);
 });
 

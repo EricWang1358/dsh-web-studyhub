@@ -3,12 +3,12 @@
    App composes: its hooks (ui/app/use-*.js, ui/review/useReviewSession.js) own the state and the verbs, the shell parts
    (ui/app/App*.jsx) draw the sidebar, top bar and dialogs, and ui/app/page-views.jsx maps each page of ui/pages.js to its component. */
 import React, { useMemo, useRef } from 'react';
-import { LiveClass } from './workspace-views.jsx';
+import { Board, LiveClass } from './workspace-views.jsx';
 import { pageAvailable } from './capabilities.js';
 import { ui, uiFormat, useUiLanguage } from './i18n.js';
 import { abandonUndoable } from './undoable.js';
 import Tour from './tour/Tour.jsx';
-import Board, { useBoard } from './Board.jsx';
+import { useBoard } from './board/use-board.js';
 import DailyPlan from './DailyPlan.jsx';
 import ShortcutHelp from './ShortcutHelp.jsx';
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
