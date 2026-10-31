@@ -29,10 +29,11 @@ test('the payload holds what was typed, picked and filled in, and empty values s
   assert.deepEqual(draftPayloadOf({ ...emptyEntry(), assistance: { hintUsed: true } }).assistance, { hintUsed: true });
 });
 
-test('the key binds the library, the round, the place, the card and the queue', () => {
+test('the key binds the library, the round, the place and the card', () => {
   const base = draftKey('lib', run());
-  for (const other of [draftKey('other', run()), draftKey('lib', run({ id: 'x' })), draftKey('lib', run({ index: 3 })), draftKey('lib', run({ card: { id: 'd' } })), draftKey('lib', run({ queueVersion: 2 }))])
+  for (const other of [draftKey('other', run()), draftKey('lib', run({ id: 'x' })), draftKey('lib', run({ index: 3 })), draftKey('lib', run({ card: { id: 'd' } }))])
     assert.notEqual(other, base);
+  assert.equal(draftKey('lib', run({ queueVersion: 2 })), base, 'the queue changing around the question leaves it the same question');
   assert.equal(draftKey('lib', run({ revision: 4 })), base, 'a corrected card is the same question: the learner keeps the words');
   assert.equal(draftKey('lib', null), '');
 });

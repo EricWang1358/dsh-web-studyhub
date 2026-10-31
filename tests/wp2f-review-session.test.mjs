@@ -25,8 +25,12 @@ test('the answer entry of a new question is empty, and restored input only retur
 });
 
 test('a changed queue version resets the entry; the same run and version does not; another run is not this rule\'s business', () => {
-  assert.equal(shouldResetEntry({ id: 'r', version: 1 }, { id: 'r', queueVersion: 2 }), true);
-  assert.equal(shouldResetEntry({ id: 'r', version: 1 }, { id: 'r', queueVersion: 1 }), false);
+  const place = { id: 'r', index: 0, cardId: 'c' };
+  const open = (extra) => ({ id: 'r', index: 0, card: { id: 'c' }, ...extra });
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ card: { id: 'd' }, queueVersion: 2 })), true, 'another question at that place');
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ index: 1, queueVersion: 2 })), true, 'another place');
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ queueVersion: 2 })), false, 'the queue moved around the question on screen: what is typed stays');
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ card: { id: 'd' }, queueVersion: 1 })), false);
   assert.equal(shouldResetEntry({ id: 'r', version: 0 }, { id: 'r' }), false, 'a missing version is 0');
   assert.equal(shouldResetEntry({ id: 'r', version: 1 }, { id: 'other', queueVersion: 5 }), false);
   assert.equal(shouldResetEntry(null, { id: 'r', queueVersion: 5 }), false, 'the first run seen has nothing to reset');

@@ -15,8 +15,8 @@ export function draftPayloadOf(entry) {
   };
 }
 
-/** Names the question a save belongs to: library, round, place, card, queue. A corrected card (its revision) is the same question. */
-export const draftKey = (root, run) => (run?.card ? JSON.stringify([root || '', run.id, run.index, run.card.id, run.queueVersion || 0]) : '');
+/** Names the question a save belongs to: library, round, place, card. A corrected card (its revision) and a queue changed around it are the same question. */
+export const draftKey = (root, run) => (run?.card ? JSON.stringify([root || '', run.id, run.index, run.card.id]) : '');
 
 /** Does this question take a draft? An answered one is done, and an exam saves its own picks (ui/Exam.jsx). */
 export const draftable = (run) => !!run?.card && !run.feedback && !run.complete && !run.closed && run.mode !== 'exam';

@@ -37,7 +37,8 @@ export function entryForRun(run, restored, reader) {
 
 /** The queue of the same run was rebuilt (a question was replaced or skipped): what was typed belongs to the old queue. */
 export function shouldResetEntry(previous, run) {
-  return !!previous && previous.id === run?.id && previous.version !== (run?.queueVersion || 0);
+  return !!previous && previous.id === run?.id && previous.version !== (run?.queueVersion || 0)
+    && (previous.index !== run?.index || previous.cardId !== run?.card?.id);
 }
 
 /** A question counts as passed with a self-grade of 3 or more, or a correct choice. */

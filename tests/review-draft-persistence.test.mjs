@@ -156,3 +156,17 @@ test('a rubric grade carries the help recorded on its entry', () => {
   assert.equal(state.attempts.at(-1).assistance.hintUsed, true);
   assert.equal(state.attempts.at(-1).assistance.used, true);
 });
+
+/* Gate review of #537. */
+
+test('a queue edit that leaves the question in place does not cost the learner a save', async (t) => {
+  const { service, run } = await library(t, [flash('f1'), flash('f2'), flash('f3')]);
+  const old = run.queueVersion || 0;
+  const edited = await service.call('review.queue.edit', { runId: run.id, remove: [{ cardId: 'f3' }] });
+  assert.notEqual(edited.queueVersion, old);
+  const saved = await service.call('review.draft.save', { runId: run.id, cardId: 'f1', index: 0, queueVersion: old, draft: { text: 'typed before the edit arrived' } });
+  assert.equal(saved.ok, true);
+  assert.equal((await service.call('review.get', { runId: run.id })).draft.text, 'typed before the edit arrived');
+  assert.equal((await service.call('review.draft.save', { runId: run.id, cardId: 'f2', index: 0, queueVersion: old, draft: { text: 'x' } })).stale, 'question', 'another card at that place is still refused');
+  assert.equal((await service.call('review.draft.save', { runId: run.id, cardId: 'f1', queueVersion: old, draft: { text: 'no place named' } })).stale, 'queue', 'with no place to check, the version is all there is');
+});

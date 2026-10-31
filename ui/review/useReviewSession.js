@@ -139,10 +139,10 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const priorQueue = useRef(null);
   useEffect(() => {
     const previous = priorQueue.current;
-    priorQueue.current = { id: run?.id, version: queueVersion };
-    // What the library kept for the question now on screen comes back: the same question stays as it was saved, a replaced one has nothing.
+    priorQueue.current = { id: run?.id, version: queueVersion, index: run?.index, cardId: run?.card?.id };
+    // A rebuilt queue that replaced the question on screen: what the library kept for the new one comes back. The same question keeps what is typed.
     if (shouldResetEntry(previous, run)) setEntry(entryForRun(run, null, { draft: (teaching) => readTeachingDraft(dataRoot(), teaching) }));
-  }, [run?.id, queueVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [run?.id, queueVersion, run?.index, run?.card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // After the rebuilt queue's reset above, so a new question's first pass sees its own entry.
   useEffect(() => { syncDraft(); }, [run, entry.selected, entry.response, entry.clozeValues, entry.assistance, syncDraft]);
   useEffect(() => { saveTeachingDraft(dataRoot(), entry.teaching, entry.teachAnswer); }, [entry.teaching, entry.teachAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
