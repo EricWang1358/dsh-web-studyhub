@@ -109,8 +109,21 @@
     & h4 {
       font-size: var(--fs-md);
     }
+    /* Line breaking (#574). Chinese has no spaces to fall back on, so the greedy default strands the last character of a paragraph
+       ("…留到下一" + "轮") and splits a heading into a long line and a short one. Headings balance their lines; a paragraph avoids a
+       one-character last line. The longhand leaves text-wrap-mode alone (an own or inherited nowrap still holds), a browser without it
+       keeps the default breaks, and every component or feature rule outranks this layer. Inputs, code, pre and table cells are not
+       named. Chromium's pretty only re-breaks the last lines of a paragraph (a 60 000-character paragraph lays out no slower), and the
+       reader already sets it on its own paragraphs, so long documents cost the same. */
+    & h1,
+    & h2,
+    & h3,
+    & h4 {
+      text-wrap-style: balance;
+    }
     & p {
       line-height: 1.8;
+      text-wrap-style: pretty;
     }
     & strong {
       font-weight: var(--fw-medium);
