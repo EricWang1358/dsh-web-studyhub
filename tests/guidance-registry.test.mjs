@@ -48,6 +48,7 @@ const SEEN = {
   'study-book-moves-seen:Cloud': '2026-10-01T00:00:00.000Z',
   'study-jev-guide-seen': '1',
   'study-nav-start:v1': JSON.stringify(['library', 'sources']),
+  'study-nav-reorder-hint:v1': 'true',
 };
 /* Keys that look alike but are NOT registered guidance: a reset must leave them alone (the tour's resume point included: it is not in the registry). */
 const UNRELATED = {
@@ -57,7 +58,7 @@ const UNRELATED = {
 };
 
 test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge, and the tour resume point is not an entry', () => {
-  assert.equal(GUIDANCE_ITEMS.length, 12);
+  assert.equal(GUIDANCE_ITEMS.length, 13);
   for (const item of GUIDANCE_ITEMS) assert.deepEqual(entryProblems(item), [], item.id);
   const ids = GUIDANCE_ITEMS.map(item => item.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');

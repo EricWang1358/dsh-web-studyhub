@@ -50,6 +50,7 @@
     "tests/model-setup-browser.test.mjs",
     "tests/nav-groups-browser.test.mjs",
     "tests/nav-layout.test.mjs",
+    "tests/nav-reorder-hint-browser.test.mjs",
     "tests/next-card-browser.test.mjs",
     "tests/open-agent.test.mjs",
     "tests/open-in-sidebar.test.mjs",
