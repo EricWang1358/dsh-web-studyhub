@@ -47,6 +47,19 @@ test('a pass that finished but owes sections no pass asked for leaves its round 
   assert.deepEqual([after.spec.rounds[0].status, after.spec.rounds[0].questions], ['pending', 3]);
 });
 
+test('a run stopped with a round in flight: failed, or pending again when the round owes sections no pass asked for; nothing in flight, nothing changes', () => {
+  const asked = { marker: marker(), spec: { rounds: [{ round: 1, status: 'running', sectionIds: ['a', 'b'], askedKeys: ['a'] }] } };
+  const owing = apply(asked, { type: 'round-stopped', tokens: 5, ms: 6, reason: 'cancelled', uncovered: new Set(['b']), at: AT }).spec.rounds[0];
+  assert.deepEqual([owing.status, owing.triedKeys, owing.reason, owing.kept, owing.tokens], ['pending', [], 'cancelled', 0, 5], 'the stopped pass counts nothing as tried');
+  const whole = { marker: marker(), spec: { rounds: [{ round: 1, status: 'running', sectionIds: ['a'], askedKeys: ['a'] }] } };
+  assert.equal(apply(whole, { type: 'round-stopped', reason: 'boom', uncovered: new Set(['a']), at: AT }).spec.rounds[0].status, 'failed');
+  assert.equal(apply(whole, { type: 'round-stopped', reason: 'boom', at: AT }).spec.rounds[0].status, 'failed', 'what is left may not be known');
+  const later = { marker: marker(), spec: { rounds: [{ round: 1, status: 'running', sectionIds: ['a'], askedKeys: ['a'], triedKeys: ['a'] }] } };
+  assert.equal(apply(later, { type: 'round-stopped', reason: 'boom', uncovered: new Set(), at: AT }).spec.rounds[0].status, 'failed', 'with nothing left the round owes nothing');
+  const idle = run('running', 'done');
+  assert.deepEqual(apply(idle, { type: 'round-stopped', reason: 'boom', at: AT }), idle);
+});
+
 test('a round skipped: done if a pass of it ran, else skipped; a round in flight is not skipped', () => {
   assert.equal(apply(run('running', 'pending'), { type: 'round-skip', index: 0 }).spec.rounds[0].status, 'skipped');
   assert.equal(apply(run('running', 'pending'), { type: 'round-skip', index: 0 }).spec.rounds[0].reason, 'covered');

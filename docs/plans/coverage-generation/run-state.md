@@ -50,6 +50,7 @@ The code is `transitionRunState` in `lib/contexts/generation/run-state.js`. This
 |---|---|---|
 | `round-start` | marker `running`, no round in flight | the round is `running` |
 | `round-finish` | that round is `running` | `done` or `failed`, or `pending` when it still owes sections |
+| `round-stopped` | anything; with no round in flight nothing changes | the round in flight is `failed`, or `pending` when it owes sections no pass asked for |
 | `round-skip` | that round is not `running` | `done` if a pass of it ran, otherwise `skipped` |
 | `fill-append` | anything | a new `pending` fill round at the end |
 | `recover` | anything; running it twice equals running it once | every `running` round is `pending` again, and what its pass was asked for is owed again |
