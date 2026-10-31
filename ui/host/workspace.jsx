@@ -1,6 +1,8 @@
 import StudyBoundary from "./StudyBoundary.jsx";
 import { Dialog, InlineMessage } from "../components/index.js";
 import { getUiLanguage, ui, uiFormat } from "../i18n.js";
+// ui/host.jsx awaits this before apply: an English interface renders only once its catalogue is loaded.
+export { uiLanguageReady } from "../i18n.js";
 import { browserStorage } from "../storage.js";
 import React from "react";
 import App from "../App.jsx";

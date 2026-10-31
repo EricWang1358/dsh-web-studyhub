@@ -8,6 +8,27 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const packageId = '@ericwang1358/dsh-daily-flashcard';
 const chunkName = /^client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/;
 
+/** The English catalogue on demand (#563). Chinese is the source language, so a Chinese interface needs none of ui/locales/en*.json nor
+ * lib/application-messages-en.js (about 1.1 MB). In the host build the two static imports that reach them (ui/i18n.js → ui/english-catalogue.js,
+ * lib/application-messages.js → its English table) get an empty module instead; ui/i18n.js's dynamic import of the same catalogue then becomes
+ * a chunk of its own, which an English interface loads before StudyHub renders. Node, the tests and the preview keep the ordinary imports. */
+const englishCatalogue = resolve(root, 'ui/english-catalogue.js'), i18nModule = resolve(root, 'ui/i18n.js');
+const appMessages = resolve(root, 'lib/application-messages.js'), appMessagesEnglish = resolve(root, 'lib/application-messages-en.js');
+export const englishOnDemand = {
+  name: 'english-on-demand',
+  setup(build) {
+    build.onResolve({ filter: /(?:english-catalogue|application-messages-en)\.js$/ }, args => {
+      if (args.kind !== 'import-statement') return undefined;
+      const target = resolve(args.resolveDir, args.path);
+      if (args.importer === i18nModule && target === englishCatalogue) return { path: 'ui/english-catalogue.js', namespace: 'english-on-demand' };
+      if (args.importer === appMessages && target === appMessagesEnglish) return { path: 'lib/application-messages-en.js', namespace: 'english-on-demand' };
+      return undefined;
+    });
+    build.onLoad({ filter: /.*/, namespace: 'english-on-demand' }, args => ({ loader: 'js',
+      contents: args.path === 'ui/english-catalogue.js' ? 'export const ENGLISH_SOURCES = null;\n' : 'export default {};\n' }));
+  },
+};
+
 /** Emit real ES module boundaries as DSH's package-local classic factories.
  * DSH serves sibling client.*.js files and supplies require.async('./client.*.js').
  * Its require is synchronous, so static dependencies must arrive before the
@@ -18,7 +39,7 @@ export async function buildHostClient({ outdir = resolve(root, 'lib'), write = t
     absWorkingDir: root, entryPoints: { client: 'ui/host.jsx' }, outdir,
     chunkNames: 'client.[name]-[hash]', bundle: true, splitting: true,
     write: false, metafile: true, format: 'esm', platform: 'browser',
-    plugins: [hostReact], loader: { '.css': 'text' }, jsx: 'transform',
+    plugins: [hostReact, englishOnDemand], loader: { '.css': 'text' }, jsx: 'transform',
     minify: true, logLevel: 'silent',
   });
   const outputs = new Map(Object.entries(result.metafile.outputs).map(([path, output]) => [basename(path), output]));
