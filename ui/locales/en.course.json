@@ -102,6 +102,8 @@
   "跟随当前课程": "Follows the current course",
   "已固定": "Pinned",
   "改为跟随当前课程": "Follow the current course instead",
+  "跟随当前课程：这一页显示当前课程，在别处切换当前课程，这里跟着变。": "Follows the current course: this page shows the current course and changes with it when you switch courses elsewhere.",
+  "已固定：这一页一直显示你选的范围，切换当前课程时它不变。": "Pinned: this page keeps the scope you picked, even when you switch the current course.",
   "显示": "Show",
   "隐藏": "Hide",
   "未激活的课程 ({0})": "Inactive courses ({0})",

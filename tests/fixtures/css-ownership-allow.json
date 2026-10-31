@@ -227,7 +227,6 @@
     ],
     "page-scope": [
       "ui/course-active.css",
-      "ui/exam-setup.css",
       "ui/source-picker.css"
     ],
     "quality-note": [
