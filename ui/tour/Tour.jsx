@@ -71,7 +71,7 @@ function findAnchor(root, anchors) {
 
 /* While the card is docked along the bottom of a narrow panel, the page gets that much room after its end (tour.css), so a control at the
    very end of a short page (创建题组's 生成 button) can still be scrolled above the card instead of staying underneath it. */
-const DOCK_GAP = 24;
+const DOCK_GAP = 24, DOCK_CEILING = 60, DOCK_MARGIN = 12;
 function setDockRoom(root, height) {
   if (!root) return;
   if (height > 0) {
@@ -82,6 +82,20 @@ function setDockRoom(root, height) {
     root.style.removeProperty("--tour-dock-room");
     root.removeAttribute("data-tour-docked");
   }
+}
+
+function scrollRoom(element, delta) {
+  if (!(Math.abs(delta) > 0.5)) return;
+  const behavior = reducedMotion() ? "auto" : "smooth";
+  for (let node = element?.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+    const style = typeof getComputedStyle === "function" ? getComputedStyle(node) : null;
+    if (style && /(auto|scroll|overlay)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) {
+      node.scrollTo({ top: node.scrollTop + delta, behavior });
+      return;
+    }
+  }
+  if (element?.closest?.(".sidebar")) return;
+  if (typeof window !== "undefined" && typeof window.scrollTo === "function") window.scrollTo({ top: window.scrollY + delta, behavior });
 }
 
 const sameBox = (a, b) => !a === !b && (!a || ["left", "top", "width", "height"].every((key) => Math.abs(a[key] - b[key]) < 0.5));
@@ -99,7 +113,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
   const step = steps.find((item) => item.id === stepId) || steps[0];
   const index = Math.max(0, steps.indexOf(step));
   const top = useTopDialog();
-  const layerRef = useRef(null), popoverRef = useRef(null), targetRef = useRef(null);
+  const layerRef = useRef(null), popoverRef = useRef(null), targetRef = useRef(null), dockSizesRef = useRef("");
   const [entered, setEntered] = useState(null);
   const [target, setTarget] = useState(null);
   const [layout, setLayout] = useState(null);
@@ -115,6 +129,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     setEntered(null);
     setTarget(null);
     targetRef.current = null;
+    dockSizesRef.current = "";
     Promise.resolve().then(() => enter.current?.(step)).catch(() => {}).finally(() => { if (live) setEntered(step.id); });
     return () => { live = false; };
   }, [step?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -130,13 +145,22 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       if (found) {
         targetRef.current = found;
         const box = found.getBoundingClientRect(), view = layerRef.current?.getBoundingClientRect();
-        // On a narrow panel the card is docked along the bottom and covers the lower half: there an anchor counts as seen only in the upper part.
-        const floor = view && (view.width <= NARROW_WIDTH ? view.top + view.height * 0.45 : view.bottom - 8);
-        const visible = view && box.top >= view.top + 8 && box.bottom <= floor;
-        // The room after the page's end is there before the scroll that needs it.
-        if (!visible && view && view.width <= NARROW_WIDTH) setDockRoom(rootRef.current, popoverRef.current?.offsetHeight || view.height * 0.45);
-        if (!visible) found.scrollIntoView({ block: box.height > (view?.height || 800) * 0.6 || (view?.width || 1000) <= 560 ? "start" : "center",
-          inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+        // On a narrow panel the card is docked along the bottom: scroll tall or low anchors above the card while keeping their top under the bar.
+        if (view && view.width <= NARROW_WIDTH) {
+          const popH = popoverRef.current?.offsetHeight || view.height * 0.45;
+          const floor = view.height - 12 - popH - DOCK_MARGIN;
+          const top = box.top - view.top, bottom = box.bottom - view.top;
+          if (top < DOCK_CEILING || bottom > floor) {
+            setDockRoom(rootRef.current, popH);
+            const desiredTop = Math.max(DOCK_CEILING, Math.min(96, floor - box.height));
+            scrollRoom(found, top - desiredTop);
+          }
+          dockSizesRef.current = `${step?.id}:${Math.round(box.height)}:${Math.round(popH)}`;
+        } else {
+          const visible = view && box.top >= view.top + 8 && box.bottom <= view.bottom - 8;
+          if (!visible) found.scrollIntoView({ block: box.height > (view?.height || 800) * 0.6 || (view?.width || 1000) <= 560 ? "start" : "center",
+            inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+        }
         setTarget(found);
         return;
       }
@@ -163,6 +187,16 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
     const size = { width: popover.offsetWidth, height: popover.offsetHeight };
     const place = placePopover({ target: spot, popover: size, bounds, prefer: step?.placement });
     setDockRoom(rootRef.current, place.docked ? size.height : 0);
+    if (place.docked && element && box) {
+      const sizeKey = `${step?.id}:${Math.round(box.height)}:${Math.round(size.height)}`;
+      if (dockSizesRef.current && dockSizesRef.current.startsWith(`${step?.id}:`) && dockSizesRef.current !== sizeKey) {
+        dockSizesRef.current = sizeKey;
+        const top = box.top - view.top, bottom = box.bottom - view.top, floor = place.top - DOCK_MARGIN;
+        if (bottom > floor && top > DOCK_CEILING) scrollRoom(element, Math.min(bottom - floor, top - DOCK_CEILING));
+      } else if (!dockSizesRef.current) {
+        dockSizesRef.current = sizeKey;
+      }
+    }
     // The caret points at the middle of the spotlight's visible edge.
     const along = (start, length, offset, extent) => Math.round(Math.min(Math.max(start + length / 2 - offset, 22), extent - 22));
     const caret = !spot ? null : place.side === "bottom" || place.side === "top" ? along(spot.left, spot.width, place.left, size.width)

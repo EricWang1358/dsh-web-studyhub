@@ -116,7 +116,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       // everything optional is one click away, inside the fold
       await page.locator('.generate-more > summary').click();
       await page.locator('#generate-focus').waitFor({ state: 'visible', timeout: 10000 });
-      for (const label of ['难度', '语言', '公式写法', '题组名称（可选）']) assert.ok(await page.getByText(label, { exact: false }).first().isVisible(), `${label} is in the fold`);
+      for (const label of ['难度', '语言', '公式写法', '题组名称（可选）']) assert.ok(await page.locator('.generate-more').getByText(label, { exact: false }).first().isVisible(), `${label} is in the fold`);
       assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll with the fold open`);
       assert.equal(await page.locator('[data-coverage-consequence]').count(), 0, 'the fold repeats no estimate line');
       await shot(page, `fold-${width}`);

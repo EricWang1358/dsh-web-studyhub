@@ -59,7 +59,7 @@
     .token-estimate:empty { display: none; }
     .token-estimate__line {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
       gap: var(--space-2);
       margin: 0;
@@ -68,6 +68,7 @@
       line-height: var(--lh-snug);
       font-variant-numeric: tabular-nums;
     }
+    .token-estimate__line > :first-child { min-width: 0; overflow-wrap: anywhere; }
     .token-estimate__quiet { color: var(--text-muted); }
     /* Loading keeps the room of the ready line: the hidden ghost holds its width and wraps like it, the words sit over it, and the slot is the info button. */
     .token-estimate__text { display: grid; min-width: 0; }
@@ -84,9 +85,11 @@
     .token-estimate--end .token-estimate__warn { text-align: right; }
     .token-estimate__info {
       display: inline-grid;
+      flex: none;
       place-items: center;
       width: 28px;
       height: 28px;
+      min-height: 0;
       padding: 0;
       border: 0;
       border-radius: var(--radius-pill);

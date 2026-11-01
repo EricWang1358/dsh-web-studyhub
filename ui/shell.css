@@ -15,10 +15,10 @@
       padding: 26px var(--space-3-5) var(--space-4);
       display: flex;
       flex-direction: column;
-      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). 36px: the 任务 entry made it thirteen pages, and at 768 px wide / 900 px tall
-         the rail has to hold them without scrolling (a rail that scrolls moves every row when the active one is clicked). */
-      --nav-row: 36px;
-      --nav-row-upkeep: 34px;
+      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). 34px: the 复习全书 entry and the footer's 快捷键 / 名词解释 links bring the rail
+         to nineteen rows, and at 768 px wide / 900 px tall the rail has to hold them without scrolling (a rail that scrolls moves every row when the active one is clicked). */
+      --nav-row: 34px;
+      --nav-row-upkeep: 32px;
       /* How far the sidebar's own padding is: the active bar sits on its outer edge. */
       --sidebar-pad: 14px;
       --nav-highlight: color-mix(in srgb, var(--text) 8%, transparent);
@@ -63,7 +63,7 @@
       text-align: left;
       height: var(--nav-row);
       padding: 0 var(--space-3);
-      margin: 1px 0;
+      margin: 0;
       color: var(--text-dim);
       transition:
         background var(--dur-fast) var(--ease),
@@ -86,7 +86,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       text-align: left;
-      line-height: 1.15;
+      line-height: 1.12;
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
@@ -124,8 +124,8 @@
       content: "";
       position: absolute;
       left: calc(var(--sidebar-pad) * -1);
-      top: 9px;
-      bottom: 9px;
+      top: 8px;
+      bottom: 8px;
       width: 3px;
       border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
       background: var(--text);
@@ -139,7 +139,7 @@
     .nav-upkeep {
       height: var(--nav-row-upkeep);
       padding-block: 0;
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .nav:not(.nav-upkeep) + .nav-upkeep {
@@ -195,14 +195,14 @@
        workspace is ≤720px (ResizeObserver in App.jsx). */
     .sidebar.is-narrow {
       width: 62px;
-      padding: var(--space-5) var(--space-1-5);
+      padding: var(--space-3) var(--space-1-5);
       --sidebar-pad: 6px;
-      --nav-row: 42px;
-      --nav-row-upkeep: 42px;
+      --nav-row: 38px;
+      --nav-row-upkeep: 38px;
     }
     .sidebar.is-narrow .brand {
       flex-direction: column;
-      margin: 0 auto var(--space-6-5);
+      margin: 0 auto var(--space-3);
     }
     .sidebar.is-narrow .brand > div,
     .sidebar.is-narrow .nav-count,
