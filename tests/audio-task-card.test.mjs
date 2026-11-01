@@ -10,14 +10,15 @@ import { inApp } from './helpers/fake-app.mjs';
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { AudioJobs, parallelNote, reuseNote, reasoningNote } from './ui/audio/AudioJobs.jsx';
+  export { AudioJobs, consoleLink, parallelNote, reuseNote, reasoningNote } from './ui/audio/AudioJobs.jsx';
+  export { cardLine } from './ui/tasks/CompactJobCard.jsx';
   export { default as OutputPanel, callFacts } from './ui/tasks/OutputPanel.jsx';
-  export { usageLine } from './ui/tasks/task-facts.js';
+  export { usageLine, taskFacts } from './ui/tasks/task-facts.js';
   export { unifyCall } from './lib/job-calls.js';
   export { AudioDashboardView } from './ui/AudioDashboard.jsx';
   export { setUiLanguage } from './ui/i18n.js';
 `);
-const { AudioJobs, parallelNote, reuseNote, reasoningNote, OutputPanel, callFacts, usageLine, unifyCall, AudioDashboardView, setUiLanguage } = m;
+const { AudioJobs, consoleLink, cardLine, taskFacts, parallelNote, reuseNote, reasoningNote, OutputPanel, callFacts, usageLine, unifyCall, AudioDashboardView, setUiLanguage } = m;
 const HAN = /[㐀-鿿]/;
 const inLanguage = (language, run) => { try { setUiLanguage(language); return run(); } finally { setUiLanguage('zh'); } };
 const noop = () => {};
@@ -115,4 +116,45 @@ test('what can be said about a call without opening it is one line: input size, 
   assert.equal(callFacts(call), '输入约 5,800 字 · 用量：300 tok · 最近输出：{"corrections":[]}');
   assert.match(panel(call), /最近输出：\{&quot;corrections&quot;:\[\]\}/);
   assert.equal(callFacts(finished(1, { reasoning: 'default' })), '', 'nothing to say, nothing drawn');
+});
+
+/* ---- the audio card on the page carries the run's one quiet fact, and a way on to the console (#213) ---- */
+
+const T0 = Date.parse('2026-10-05T10:00:00.000Z');
+const since = (seconds, extra = {}) => ({ job: running({ startedAt: new Date(T0).toISOString(), ...extra }), now: T0 + seconds * 1000 });
+
+test('a running audio card says how long it has run and the tokens it used, in the console\'s own numbers (#213)', () => {
+  const { job, now } = since(125, { tokenUsage: { uncachedInputTokens: 3000, outputTokens: 1200, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 4 } });
+  const line = cardLine(job, now);
+  assert.match(line, /校对/, 'the stage is still on the line');
+  assert.match(line, /已用 2 分 5 秒/);
+  assert.match(line, /4\.2K tok/);
+  assert.ok(line.includes(taskFacts(job, now).find((fact) => fact.key === 'elapsed').value), 'the same value the console shows under 已用');
+  assert.match(taskFacts(job, now).find((fact) => fact.key === 'calls').value, /4\.2K$/, 'and the same tokens as its 模型任务 tile');
+  assert.doesNotMatch(cardLine(since(125).job, now), /tok/, 'tokens nobody reported are not shown as zero');
+  inLanguage('en', () => { const english = cardLine(job, now); assert.match(english, /Elapsed 2 min 5 s/); assert.match(english, /4\.2K tok/); assert.doesNotMatch(english, HAN); });
+});
+
+test('the run fact is for an audio run in hand only: not a queued, finished or other kind of card (#213)', () => {
+  const at = (extra) => since(90, extra);
+  assert.doesNotMatch(cardLine(at({ status: 'complete', phase: 'done' }).job, at().now), /已用/);
+  assert.doesNotMatch(cardLine(at({ status: 'failed', stage: 'boom' }).job, at().now), /已用/);
+  assert.doesNotMatch(cardLine(at({ status: 'queued' }).job, at().now), /已用/);
+  assert.doesNotMatch(cardLine({ id: 'p1', type: 'pdf-convert', route: 'local', filename: 'B.pdf', status: 'running', phase: 'local', done: 1, total: 4, startedAt: new Date(T0).toISOString() }, T0 + 90000), /已用/);
+  assert.match(render(running()), /已用 \d+ 秒/, 'drawn on the page card');
+});
+
+test('a finished audio card keeps one way into its console page, a running one has the button already (#213)', () => {
+  const opened = [];
+  const app = { nav: { show: { task: (id) => opened.push(id) } } };
+  const done = running({ status: 'complete', phase: 'done', sourceIds: ['s1'] });
+  const page = render(done, { onOpenSources: noop });
+  assert.match(page, />打开逐字稿</);
+  assert.match(page, />查看详情</);
+  assert.equal((render(running()).match(/>查看详情</g) || []).length, 1, 'a running card has its one button');
+  assert.equal((render(running({ status: 'failed', stage: 'boom' })).match(/>(查看详情|看原因并继续)</g) || []).length, 1);
+  assert.equal(consoleLink(done, app).label, '查看详情');
+  consoleLink(done, app).run();
+  assert.deepEqual(opened, ['j1']);
+  inLanguage('en', () => assert.doesNotMatch(render(done, { onOpenSources: noop }).replace(/lecture\.mp3/g, ''), HAN));
 });
