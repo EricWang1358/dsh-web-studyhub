@@ -246,10 +246,15 @@ test('the add-material dialog, the first import, a PDF the importer cannot use, 
         await first.click();
         await dialog(page).waitFor();
         await pick(page, { name: 'first-lecture.md', mimeType: 'text/markdown', buffer: Buffer.from('# Lecture one\n\nPaging splits memory into frames and pages.\n') });
-        // import, then 创建题组 with the new material ticked: the next press is on the generate form
+        // 3.6 D4: importing from the first-run line closes back onto step 3 (出第一组题 + 改题型和题数), and 改题型和题数 opens 创建题组 with the new material ticked
+        await until(async () => !(await dialog(page).count()) && (await page.locator('.first-run .frl-step[data-step="deck"][data-open]').count()) > 0,
+          'the import closes onto step 3 of the first-run line');
+        assert.equal(await page.locator('.generate-page').count(), 0, `${width}px: the first import stays on the first-run line`);
+        assert.equal(await page.locator('.first-run .frl-step[data-step="material"]').getAttribute('data-status'), 'done');
+        await page.locator('.first-run [data-first-run="generate"]').waitFor({ timeout: 30000 });
+        await page.locator('.first-run [data-first-run="tune"]').click();
         await page.locator('.generate-page').waitFor({ timeout: 60000 });
         await until(async () => (await page.locator('.generate-page input[type="checkbox"]:checked').count()) > 0, 'the new material is ticked on the generate form');
-        await page.locator('.sh-toast, [role="status"]').filter({ hasText: /已勾选，可以直接生成题组/ }).first().waitFor({ timeout: 30000 });
         await settleAnimations(page);
         assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll on the generate form`);
         await shot(page, `first-import-${width}`);
@@ -269,8 +274,12 @@ test('the add-material dialog, the first import, a PDF the importer cannot use, 
       await add.click();
       await dialog(page).waitFor();
       await pick(page, { name: 'starter-lecture.md', mimeType: 'text/markdown', buffer: Buffer.from('# Lecture\n\nVirtual memory maps pages to frames.\n') });
-      await page.locator('.generate-page').waitFor({ timeout: 60000 });
-      await until(async () => (await page.locator('.generate-page input[type="checkbox"]:checked').count()) > 0, 'the new material is ticked on the generate form');
+      const compact = page.locator('[data-first-run="compact"]');
+      await until(async () => !(await dialog(page).count()) && (await compact.locator('.frl-step[data-step="material"][data-status="done"]').count()) > 0,
+        'the compact first-run card ticks step 2 and advances to step 3');
+      assert.equal(await page.locator('.generate-page').count(), 0, 'the compact card stays on home step 3');
+      await compact.locator('[data-first-run="plan"]').waitFor({ timeout: 30000 });
+      await compact.getByRole('button', { name: /出第一组题/ }).waitFor({ timeout: 30000 });
       assert.deepEqual(errors.filter(error => !/favicon|Failed to load resource/.test(error)), [], 'no page errors');
       await context.close();
     } finally { await starter.close(); }

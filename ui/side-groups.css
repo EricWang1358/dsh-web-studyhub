@@ -8,26 +8,32 @@
   :is(.study-app, .study-seat) {
     .sidebar {
       /* One height for every group label, whatever it says. */
-      --nav-group: 22px;
+      --nav-group: 18px;
     }
-    /* Three labels take room the rail did not have: take it back from the quiet parts around the rows. */
+    /* Three labels, 复习全书 and the footer links take room the rail did not have: take it back from the quiet parts around the rows so 900px never scrolls. */
     .sidebar:not(.is-narrow) {
-      padding-top: var(--space-5);
+      padding-top: var(--space-3);
+      padding-bottom: var(--space-3);
     }
     .sidebar:not(.is-narrow) .brand {
-      margin-bottom: var(--space-4);
+      margin-bottom: var(--space-2);
+    }
+    .sidebar:not(.is-narrow) .brand small {
+      font-size: var(--fs-xs);
+      margin-top: var(--space-half);
     }
     .sidebar:not(.is-narrow) .local-status {
-      padding-block: var(--space-1);
+      padding-block: var(--space-half);
+      font-size: var(--fs-xs);
     }
     .sidebar.is-narrow {
-      --nav-group: 9px;
+      --nav-group: 8px;
     }
     .sidebar.is-narrow .nav-group + .nav-group {
       margin-top: 0;
     }
     .nav-group + .nav-group {
-      margin-top: var(--space-1-5);
+      margin-top: var(--space-1);
     }
     .nav-group-label {
       display: flex;

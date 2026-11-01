@@ -68,6 +68,13 @@ test('science settings apply, persist and run exact local tools in the real app'
   assert.equal(await page.getByRole('checkbox', { name: 'Enable chemical balancing', exact: true }).isChecked(), true);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole('button', { name: 'Study library', exact: true }).click();
+  // No published deck yet: dismiss the first-run line if shown and open the folded drafts section (3.6 D2).
+  await page.locator('[data-first-run], .desk').first().waitFor({ timeout: 30000 });
+  const later = page.locator('.first-run [data-first-run="later"]');
+  if (await later.count()) await later.click();
+  const draftsFold = page.locator('details.home-drafts').first();
+  await draftsFold.waitFor({ state: 'attached', timeout: 30000 });
+  if (!await draftsFold.evaluate(el => el.open)) await draftsFold.locator('summary').first().click();
   await page.locator('.draft-open').filter({ hasText: 'Image draft' }).click();
   await page.locator('.draft-card summary').click();
   await page.locator('.draft-card input[type="file"]').first().setInputFiles({

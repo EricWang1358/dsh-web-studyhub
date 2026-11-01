@@ -91,10 +91,11 @@ test('in the browser: the empty-proposal buttons act, and the recorded-time row 
   });
   try { browser = await launchChromium(); }
   catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const open = async (service, width = 1100) => {
     const server = await createPreviewServer({ libraryRoot: service.store.root, home, port: 0, model: 'fake', distDir });
     servers.push(server);
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    const page = await browser.newPage({ viewport: { width, height: 900 }, timezoneId: tz });
     await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-theme', 'dark'); localStorage.setItem('study-daily-plan:open', 'true'); });
     await page.goto(server.url);
     return page;
@@ -165,6 +166,8 @@ test('in the browser: 记录实际用时 opens as one aligned row and saves in p
   const suggested = await service.call('daily.plan.suggest', { date, minutes: 10 });
   const accepted = await service.call('daily.plan.accept', { date, proposalId: suggested.proposal.id });
   await service.call('daily.plan.complete', { date, taskId: accepted.tasks[0].id });
+  // Home renders DailyPlan once the library has at least one published deck of its own (3.6 D2).
+  await service.store.update((s) => { s.decks.push({ id: 'deck', title: 'Probability', cards: [{ id: 'c1', kind: 'flashcard', prompt: 'P(A)?', answer: '1/2' }] }); });
   const distDir = join(root, 'dist'); await buildPreview({ outdir: distDir });
   const server = await createPreviewServer({ libraryRoot: service.store.root, home, port: 0, model: 'fake', distDir });
   let browser;
@@ -175,8 +178,9 @@ test('in the browser: 记录实际用时 opens as one aligned row and saves in p
   });
   try { browser = await launchChromium(); }
   catch (error) { if (!/Executable doesn't exist/.test(error.message)) throw error; t.skip('Chromium unavailable'); return; }
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   for (const width of [1100, 420]) {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    const page = await browser.newPage({ viewport: { width, height: 900 }, timezoneId: tz });
     await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-theme', 'dark'); localStorage.setItem('study-daily-plan:open', 'true'); });
     await page.goto(server.url);
     const plan = page.locator('.daily-plan');
