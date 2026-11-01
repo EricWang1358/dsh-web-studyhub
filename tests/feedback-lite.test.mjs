@@ -7,6 +7,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { nativeSelects } from "./helpers/native-selects.mjs";
 import { materialMasteryIndex, pagesCardsView } from "../lib/material-mastery.js";
+import { withStudy } from "./helpers/study-services.mjs";
 
 /* Closing the feedback loop (feedback-lite): the exam report's weak topics start practice, a chapter row offers 练这一章,
    and every "how well" number has its own name. Server-rendered markup of the real components. */
@@ -95,12 +96,13 @@ test("questions still in drafts are counted for the chapter but never offered fo
 });
 
 /* The 资料 chapter row: 练这一章 where the chapter has published questions, 从这一章出题 promoted where it has none. */
-const sourcesBundle = await build({ stdin: { contents: `export { ChapterList } from './ui/Sources.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const sourcesBundle = await build({ stdin: { contents: `export { ChapterList } from './ui/Sources.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], plugins: [nativeSelects], loader: { ".css": "text" }, logLevel: "silent" });
 const sources = { exports: {} };
 new Function("require", "module", "exports", sourcesBundle.outputFiles[0].text)(createRequire(import.meta.url), sources, sources.exports);
 const { ChapterList } = sources.exports;
-const sourcesRender = (props, language = "zh") => { sources.exports.setUiLanguage(language); try { return renderToStaticMarkup(React.createElement(ChapterList, props)); } finally { sources.exports.setUiLanguage("zh"); } };
+// `busy` is the app's (useStudy): the list reads it from the services, so the tests give it there.
+const sourcesRender = ({ busy = false, ...props }, language = "zh") => { sources.exports.setUiLanguage(language); try { return renderToStaticMarkup(withStudy(sources.exports.StudyServicesContext, React.createElement(ChapterList, props), { busy })); } finally { sources.exports.setUiLanguage("zh"); } };
 const han = /[㐀-鿿]/;
 const summary = (levels) => {
   const counts = { new: 0, weak: 0, learning: 0, familiar: 0, mastered: 0 };

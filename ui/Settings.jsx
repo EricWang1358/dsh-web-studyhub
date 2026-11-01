@@ -134,7 +134,7 @@ export default function Settings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
   // Everything a pane may need. Panes take what they use and nothing else.
-  const services = { data, busy, act, call, host, settings, setSettings, legacy, setLegacy,
+  const services = { data, busy, act, host, settings, setSettings, legacy, setLegacy,
     exportData, onRestored, appearance, profile, setProfile, capabilities, status };
   const selected = available.find((item) => item.id === active) || available[0];
   return (

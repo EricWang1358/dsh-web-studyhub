@@ -62,7 +62,7 @@ function RateTile({ measure, rate, answers, minimum, markClass }) {
   );
 }
 
-export function StatsView({ stats, course, data, busy, localDecks = [], onStartScope, onLibrary, onCreate, onSources, onManageCourses }) {
+export function StatsView({ stats, course, data, localDecks = [], onStartScope, onLibrary, onCreate, onSources, onManageCourses }) {
   const totals = stats?.totals || {},
     heat = stats?.heatmap || [],
     trend = stats?.trend || [],
@@ -80,7 +80,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
   return (
     <>
       {!totals.attempts && <EmptyState icon="list" title={ui("还没有作答记录")} description={ui("开始学习后，这里会显示作答热力、分数趋势和薄弱主题。")}>
-        <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onStartScope((localDecks || []).map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
+        <EmptyStudyActions data={{ ...data, decks: localDecks }} onStart={() => onStartScope((localDecks || []).map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
           onCreate={onCreate} onSources={onSources} />
       </EmptyState>}
       {/* Rubric skills over time (WP12), weakest first. */}
@@ -173,7 +173,7 @@ export function StatsView({ stats, course, data, busy, localDecks = [], onStartS
 }
 
 export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onSources, onAudioUsage }) {
-  const { call, busy } = useStudy();
+  const { call } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(chartCss, "study-dash-charts");
   const [course, setCourse] = usePageScope(data?.root, 'dashboard', data?.focus?.course ?? '*');
@@ -215,11 +215,11 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
       {loading && !stats && <LoadingState label={ui("正在统计学习记录…")} />}
 
       {stats && (
-        <StatsView stats={stats} course={course} data={data} busy={busy} localDecks={localDecks}
+        <StatsView stats={stats} course={course} data={data} localDecks={localDecks}
           onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onManageCourses={courseActive?.manage} />
       )}
       {/* What the study model used, by feature (WP27); the library's own ledger, not the course view. */}
-      <ModelUsage call={call} onAudio={onAudioUsage} />
+      <ModelUsage onAudio={onAudioUsage} />
     </section>
   );
 }

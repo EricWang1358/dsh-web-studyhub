@@ -16,6 +16,7 @@ import {
   ZOOM_MIN,
   ZOOM_MAX,
 } from "./graph-layout.js";
+import { useStudy } from "./study-context.jsx";
 
 /* Knowledge graph / study path, rendered as a sideways fork: decks on the
    left, topics fanning right, each topic branching into its card leaves.
@@ -55,8 +56,6 @@ export function GraphStatus({ loading, error, onRetry }) {
 
 /* ── component ────────────────────────────────────────────────────────── */
 export default function Graph({
-  call,
-  busy,
   scope,
   library,
   onClose,
@@ -64,6 +63,7 @@ export default function Graph({
   canvasWanted,
   onCanvasHandled,
 }) {
+  const { call, busy } = useStudy();
   useInjectCss(css, "study-graph");
   const [course, setCourse] = usePageScope(library?.root, 'graph', library?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(library?.root, 'graph');

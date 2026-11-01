@@ -197,9 +197,10 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
 
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
-  recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings, busy,
+  recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
   onLibrary, onCreate, onSources, openKey, initial = {},
 }) {
+  const { busy } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(wrongCss, "study-wrongbook");
   // 待巩固 is the page; 已订正 is its history. The switch shows both counts and is only offered once there is a history; while the history is open it
@@ -448,7 +449,7 @@ export function WrongBookView({
           description={data?.attempts?.length
             ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
             : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}>
-          <EmptyStudyActions data={{ ...data, decks: localDecks }} busy={busy} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
+          <EmptyStudyActions data={{ ...data, decks: localDecks }} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
             onCreate={onCreate} onSources={onSources} />
         </EmptyState>
       ))}
@@ -598,7 +599,7 @@ export function WrongBookView({
 }
 
 export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
-  const { call, busy, openSettings } = useStudy();
+  const { call, openSettings } = useStudy();
   const [course, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
   // 待巩固 is the page and 已订正 the mistakes it kept: the service reads the chosen view, so neither list is filtered apart here.
@@ -709,6 +710,6 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
-      busy={busy} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
+      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }

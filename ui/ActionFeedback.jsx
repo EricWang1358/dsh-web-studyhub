@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ui, uiMessage } from './i18n.js';
 import { ToastRegion } from './components/Feedback.jsx';
 import { Seal } from './hand-off/Receipt.jsx';
+import { useStudy } from './study-context.jsx';
 
 // Keep the existing string/action-object protocol. Each submission gets its
 // own lifetime, including a repeated confirmation with identical text.
@@ -86,7 +87,8 @@ export function errorToToast(error, busy) {
  * { text, action: { label, run }, persistent, tone, undo, timeout }. placement: 'auto' |
  * 'page' | 'inline' (see ToastRegion). Rendered once, by App; pages reach it through useToast().
  */
-export default function ActionFeedback({ error, notice, busy, onCloseError, onCloseNotice, placement = 'auto' }) {
+export default function ActionFeedback({ error, notice, onCloseError, onCloseNotice, placement = 'auto' }) {
+  const { busy } = useStudy();
   const toasts = [];
   if (notice) toasts.push(noticeToToast(notice, busy));
   if (error) toasts.push(errorToToast(error, busy));

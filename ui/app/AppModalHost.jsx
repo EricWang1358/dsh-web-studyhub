@@ -39,12 +39,12 @@ export default function AppModalHost() {
     <>
       {courseSettings && (
         <CourseSettings key={courseSettings.id ? `${courseSettings.id}:${courseSettings.mergeFrom.join(',')}` : courseSettings} data={data}
-          courseId={courseSettings.id || courseSettings} mergeFrom={courseSettings.mergeFrom} act={core.act} busy={core.busy}
+          courseId={courseSettings.id || courseSettings} mergeFrom={courseSettings.mergeFrom}
           onClose={() => setCourseSettings(null)} />
       )}
       {tour.removingSample && <RemoveSampleDialog busy={tour.sampleBusy} onConfirm={tour.removeSampleData} onClose={() => tour.setRemovingSample(false)} />}
       {removing && (
-        <RemoveDeckDialog key={`${data.root}:${removing.id}`} deck={removing} busy={core.busy} act={core.act} onClose={() => {
+        <RemoveDeckDialog key={`${data.root}:${removing.id}`} deck={removing} onClose={() => {
           // Opened from an archive notice (its button is gone): the focus goes back to the control the caller names, not to the page.
           const back = lib.removingDeck?.returnFocus;
           set.setRemovingDeck(null);

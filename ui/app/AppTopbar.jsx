@@ -92,7 +92,7 @@ export default function AppTopbar({ title }) {
           </span>
         </Tooltip>
         {data && (
-          <Inbox inbox={data.inbox} busy={busy} onOpen={inbox.openInboxItem} onReadAll={() => markInboxRead(quick)} readError={quickApi.failures['inbox:read']}
+          <Inbox inbox={data.inbox} onOpen={inbox.openInboxItem} onReadAll={() => markInboxRead(quick)} readError={quickApi.failures['inbox:read']}
             onOpenTasks={() => nav.navigate('tasks', { animate: true, keepTrail: false })}
             onUndo={(letter) => act(letter.kind === 'rewrite' ? 'coach.revert' : 'card.revert', { deckId: letter.deckId, cardId: letter.cardId })} />
         )}

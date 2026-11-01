@@ -7,7 +7,7 @@
        tokens only. */
     .sources-page .sh-page-header { margin-bottom: var(--space-4); }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
-    & button.source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
        three lines (title, facts, status) so a 900px window shows five or more. */
     .source-doc { display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }

@@ -113,7 +113,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
 
   if (connection.loading) return <div className="study-app"><LoadingState className="app-loading" label={connection.connecting || ui('正在打开学习工作区…')} /></div>;
   const { run } = session, page = nav.page;
-  const feedback = <ActionFeedback error={core.error} notice={notice} busy={core.busy} onCloseError={() => core.setError('')} onCloseNotice={() => setNotice('')} />;
+  const feedback = <ActionFeedback error={core.error} notice={notice} onCloseError={() => core.setError('')} onCloseNotice={() => setNotice('')} />;
   return (
     <SciencePreferencesContext.Provider value={shell.sciencePrefs}>
       <QuickActionsContext.Provider value={core.quickApi}>
@@ -131,7 +131,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                     <IngestBanner />
                     <StorageIssuesBanner />
                     <ContextReturn />
-                    {data && pageAvailable(data, 'live') && <LiveClass key={connection.binding.root} data={data} call={core.call} visible={page === 'live'}
+                    {data && pageAvailable(data, 'live') && <LiveClass key={connection.binding.root} data={data} visible={page === 'live'}
                       onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')}
                       onJobs={() => { void core.refresh().catch((failure) => core.setError(failure.message)); }} />}
                     {page === 'board' ? (

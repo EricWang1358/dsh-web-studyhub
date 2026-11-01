@@ -201,7 +201,8 @@ const phaseLabel = (phase, handwriting) => ({ reading: ui("阅读时间"), writi
   transcribe: ui("录入答案（不计时）"), over: ui("时间到"), submitted: ui("已交卷") })[phase] || "";
 const paceLabel = (pace) => ({ ahead: ui("节奏从容"), "on-track": ui("节奏正常"), behind: ui("时间偏紧：先保证每题都写到") })[pace];
 
-export function CasePaper({ data, call, onExit, onCreate, onStartRun, initialRunId, onLocation, header, recent, course: courseProp, onCourseChange, onSetupModel }) {
+export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, onLocation, header, recent, course: courseProp, onCourseChange, onSetupModel }) {
+  const { call } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const toast = useToast();
   // 模拟考试 owns the course scope and the header; used on its own the paper keeps its own scope.

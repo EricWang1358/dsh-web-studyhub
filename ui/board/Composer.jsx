@@ -70,9 +70,9 @@ export default function Composer({ columnTitle, studyRef, library, labelSuggesti
         <span className="board-composer__link-text" title={studyRef.root}>{uiFormat('关联：{0}', [link.text])}</span>
       </Chip>}
       <div className="board-composer__fields">
-        <label className="board-field"><span>{ui('截止日期')}</span><input type="date" value={due} onChange={(event) => setDue(event.target.value)} /></label>
+        <label className="board-field"><span>{ui('截止日期')}</span><input className="board-input" type="date" value={due} onChange={(event) => setDue(event.target.value)} /></label>
         <label className="board-field"><span>{ui('标签')}</span>
-          <input list={listId} value={labels} maxLength={500} placeholder={ui('用逗号分隔')} onChange={(event) => setLabels(event.target.value)} /></label>
+          <input className="board-input" list={listId} value={labels} maxLength={500} placeholder={ui('用逗号分隔')} onChange={(event) => setLabels(event.target.value)} /></label>
         <datalist id={listId}>{labelSuggestions.filter((label) => !typed.includes(label)).map((label) => <option key={label} value={`${prefix}${label}`} />)}</datalist>
       </div>
       <div className="board-composer__actions">

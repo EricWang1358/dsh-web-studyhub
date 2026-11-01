@@ -29,7 +29,7 @@ function result({ run = {}, coach = {}, data = {}, links = {}, ...rest } = {}) {
       weakScopes: { Context: [{ deckId: 'd1', topic: 'Context' }] }, scope: [], card, ...run },
     data: { sources: [], ...data }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: '今日学习', busy: false,
     act: noop, enterRun: noop, setPage: noop, askInChat: noop,
-    coachProps: { call: async () => ({}), debrief: debrief(), autopilot: false, onPractice: noop, onContinue: noop, onReviewWeak: noop, destination: destination(), ...coach },
+    coachProps: { debrief: debrief(), autopilot: false, onPractice: noop, onContinue: noop, onReviewWeak: noop, destination: destination(), ...coach },
     ...links, ...rest,
   }));
 }
