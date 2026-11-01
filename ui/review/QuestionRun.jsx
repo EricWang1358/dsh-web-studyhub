@@ -476,7 +476,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onToggleEn={toggleEn}
           autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
           thumbs={coachProps && run.mode !== "exam" && (
-            <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
+            <ThumbFeedback run={run} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
               onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
           )}
         />
