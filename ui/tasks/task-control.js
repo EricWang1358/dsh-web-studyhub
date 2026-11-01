@@ -1,7 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { STRENGTH_LABEL } from '../../lib/model-effort.js';
 import { FOLLOW_MODEL, modelKey, modelOfKey } from '../../lib/job-model.js';
-import { contractOf, taskKindOf } from './task-model.js';
+import { contractOf, isHeldTask, taskKindOf } from './task-model.js';
 import { followOption } from '../follow-session.js';
 import { effortNoteText, effortSelectModel } from '../EffortSelect.jsx';
 
@@ -112,7 +112,8 @@ export function reasonText(action, name) {
 /** The action buttons of the header, from the contract: only what is available is a button. */
 export function headerActions(job) {
   const { actions } = contractOf(job);
-  return { pause: actions.pause.available, resume: actions.resume.available, cancel: actions.cancel.available, retry: actions.retry.available };
+  // A conversion waiting for the learner goes on by 导入 in its 转换详情, never by 接着做.
+  return { pause: actions.pause.available, resume: actions.resume.available, cancel: actions.cancel.available, retry: actions.retry.available && !isHeldTask(job) };
 }
 
 /** The wording of "✓ 已生效 · 校对/翻译并发 → 4" for what a reply says is now in force. `items` (the row's controlItems) names a choice as its select does. */
@@ -136,7 +137,8 @@ export const actionText = (action, job) => ({ pause: ui('已暂停：新的调�
 
 /** The words under 接着做: what pressing it does with the work already done (the title of the button), and what an ended job left (the note of 即时控制). */
 export const retryTitle = (job) => (keepsOf(job, 'retry') === 'nothing' ? ui('重新开始：会从头读取，已用的模型调用会再次计费') : ui('已完成的部分会直接复用，不会重复付费'));
-export const endedNote = (job, interrupted) => (keepsOf(job, 'retry') === 'nothing' ? ui('没有保存任何结果，点「接着做」会从头开始')
+export const endedNote = (job, interrupted) => (isHeldTask(job) ? ui('转换好的文字在等你改；点「修改并导入」。')
+  : keepsOf(job, 'retry') === 'nothing' ? ui('没有保存任何结果，点「接着做」会从头开始')
   : interrupted ? ui('任务被中断了，已完成的部分都保留着；点「接着做」继续。')
     // A PDF conversion keeps the pages it converted (a question run keeps its questions): each kind says what IT keeps.
     : taskKindOf(job) === 'pdf' ? (fixOf(job) === 'settings' ? ui('已转换的页会保留。先按「前往设置」里的说明处理，再点「接着做」继续。') : ui('已转换的页会保留，点「接着做」继续。'))

@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { ui, uiFormat, uiMessage } from '../i18n.js';
-import { Button, InlineMessage, ProgressBar, Tooltip } from '../components/index.js';
+import { Button, InlineMessage, ProgressBar, Tooltip, useNow } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { AppContext } from '../app/app-context.js';
 import { dismissJobs, useQuickActions } from '../quick-actions.js';
@@ -9,7 +9,7 @@ import css from './compact-card.css';
 import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
 import { taskSummary, stageLabel } from './task-summary.js';
 import { badgeText } from './task-parallel.js';
-import { progressHint } from './task-facts.js';
+import { progressHint, runFacts } from './task-facts.js';
 import { runningCalls, callLabel } from './call-model.js';
 import { resultOpener } from './task-actions.js';
 import { keepsOf } from './task-control.js';
@@ -34,7 +34,7 @@ function pieceOf(contract) {
 }
 
 /** The one line under the bar: how many are done, what is happening now, the notices; or the reason, or what the result is. */
-export function cardLine(job) {
+export function cardLine(job, clock = Date.now()) {
   const contract = contractOf(job), { progress, status, result, error } = contract;
   const notices = contract.detail?.notices?.length || contract.detail?.warnings?.length || 0, noticed = notices ? uiFormat('{0} 条提醒', [notices]) : '';
   if (status === 'failed' || status === 'interrupted') return uiMessage(error?.message || stageLabel(contract.stage));
@@ -59,13 +59,15 @@ export function cardLine(job) {
   const doing = now ? uiFormat('正在{0}', [callLabel(now, { file: true })]) : stageLabel(contract.stage);
   // 要求并行: a job beside the queue is marked; one a model error sent back says so.
   const queue = contract.detail?.requeued && status === 'queued' ? ui('已退回排队，等前面的任务完成后自动继续') : contract.detail?.parallel ? badgeText() : '';
-  return joinMeta([contract.status === 'paused' ? ui('已暂停') : contract.status === 'pausing' ? ui('正在暂停') : '', queue, count, doing, pieceOf(contract), noticed]);
+  return joinMeta([contract.status === 'paused' ? ui('已暂停') : contract.status === 'pausing' ? ui('正在暂停') : '', queue, count, doing, pieceOf(contract), runFacts(job, clock), noticed]);
 }
 
 export default function CompactJobCard({ job, onStop, onDismiss, primary, links, title, line, onOpenConsole, className, ...rest }) {
   useInjectCss(css, 'study-compact-card');
   const app = useContext(AppContext) || {}, quick = useQuickActions(), toast = useToast();
   const contract = contractOf(job), summary = { ...taskSummary(job) }, percentHint = progressHint(job).percent, live = isRunningTask(job), unknown = summary.percent === null && live;
+  // The clock ticks only for a running audio card: its line carries the time the run has taken (runFacts); any other card does not subscribe.
+  const now = useNow(1000, { enabled: live && taskKindOf(job) === 'audio' });
   const openConsole = onOpenConsole || (() => app.nav?.show?.task?.(contract.jobId));
   const cancel = onStop || (() => app.core?.act?.('job.control', { jobId: contract.jobId, action: 'cancel' }));
   // 归档 puts the task in 已归档 (nothing is deleted); the notice says so and offers 撤销 (job.unarchive), from whichever page the card is on. A card that folds older
@@ -89,12 +91,12 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
     });
   };
   const result = !live && contract.status === 'complete' ? resultOpener(job, app) : null;
-  const go = primary || result || (!live && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? { label: ui('看原因并继续'), run: openConsole }
+  const go = primary || result || (!live && summary.state !== 'held' && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? { label: ui('看原因并继续'), run: openConsole }
     : { label: ui('查看详情'), run: openConsole });
   if (title) summary.title = title;
   const stoppable = contract.actions.cancel.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
   // A run that failed, was interrupted or was stopped: 「发给主会话」 is the last quiet way on (the hand-off plan N8; the console's line is N9).
-  const handOff = failedHandOffInput(job, { line: line || cardLine(job) });
+  const handOff = failedHandOffInput(job, { line: line || cardLine(job, now) });
   const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={<span aria-hidden="true">→</span>} onClick={go.run}>{go.label}</Button>;
   return (
     <article className={['cjc', job.leaving && 'is-leaving', className].filter(Boolean).join(' ')} data-job-id={job.id} data-state={tone} aria-label={summary.title} {...rest}
@@ -103,12 +105,12 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
       <div className="cjc__main">
         <div className="cjc__top">
           <strong className="cjc__title">{summary.title}</strong>
-          {percentHint && summary.percent !== null && !['fail', 'interrupted', 'stopped', 'done'].includes(tone)
+          {percentHint && summary.percent !== null && !['fail', 'interrupted', 'stopped', 'done', 'held'].includes(tone)
             ? <Tooltip layer content={percentHint} anchorClassName="cjc__pct-anchor"><span className="cjc__pct" data-state={tone} data-metric-hint tabIndex={0}>{`${summary.percent}%`}</span></Tooltip>
-            : <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'interrupted' ? ui('已中断') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : summary.percent === null ? '' : `${summary.percent}%`}</span>}
+            : <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'interrupted' ? ui('已中断') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : tone === 'held' ? ui('等你导入') : summary.percent === null ? '' : `${summary.percent}%`}</span>}
         </div>
         <ProgressBar className="cjc__bar" size="sm" value={summary.percent ?? 0} max={100} indeterminate={unknown} tone={tone === 'fail' ? 'error' : tone === 'done' ? 'success' : 'accent'} label={uiFormat('{0} 的进度', [summary.title])} />
-        <span className="cjc__line" role={tone === 'fail' ? 'alert' : undefined}>{line || cardLine(job)}</span>
+        <span className="cjc__line" role={tone === 'fail' ? 'alert' : undefined}>{line || cardLine(job, now)}</span>
       </div>
       <div className="cjc__slot">
         {stoppable ? <Button variant="quiet" size="sm" aria-label={uiFormat('停止：{0}', [summary.title])} onClick={cancel}>{ui('停止')}</Button>

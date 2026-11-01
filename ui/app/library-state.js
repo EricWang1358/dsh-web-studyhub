@@ -89,7 +89,7 @@ export function useLibraryReset({ core, libApi, nav, session, defaultGen, abando
     clearTimer: (timer) => clearTimeout(timer),
     setPageTarget: (value) => latest.current.nav.setPageTarget(value),
     setBusy: core.setBusy, setNotice: core.notify, setError: core.setError,
-    setPage: (value) => latest.current.nav.setPage(value),
+    setPage: (value) => latest.current.nav.forcePage(value),
     abandonPending: () => latest.current.abandonPending?.() || 0, unsentText: (count) => latest.current.unsentText?.(count) || '',
   }), [core.refs, core.quick, core.setBusy, core.notify, core.setError]);
 }
