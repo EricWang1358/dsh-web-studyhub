@@ -83,7 +83,6 @@
     },
     "longLine": {},
     "bareBusyDisabled": {
-      "ui/DailyRecapSettings.jsx": 1,
       "ui/Draft.jsx": 6,
       "ui/EmptyStudyActions.jsx": 4,
       "ui/Exam.jsx": 4,
