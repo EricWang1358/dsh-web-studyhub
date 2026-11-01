@@ -30,8 +30,8 @@ Write for a beginner revising alone: long-form, plain language, the why before t
 
 ## Working loop: one point at a time
 
-1. `book.toc {}` (pages with `offset`): the points, their `hid`, what is written, `read` = pages opened / pages the point stands on.
-2. `book.read {"hid": …}`: the point's files, headings with ids, the previous and next point, and `materials` (documentId and pages). Long files: `more {file, offset}` → `book.read {"hid", "file", "offset"}`.
+1. `book.toc {}` (pages with `offset`): the points, their `hid`, what is written, `read` = pages opened / pages the point stands on. To see a long book's layout first, `book.toc {"compact": true}` gives only `hid`, `n` and title, 60 rows a call.
+2. `book.read {"hid": …}`: the point's files, headings with ids, the previous and next point, and `materials` (documentId and pages). Long files: `more {file, offset}` → `book.read {"hid", "file", "offset"}`; to reach a section far into a long file, `book.read {"hid", "file", "heading": id or title}` starts at that heading.
 3. `source.pages {"documentId": …, "from": p, "to": p+3, "hid": …}`: 2–4 pages a call; follow `next` until the point's pages are read. Always pass the `hid`.
 4. `book.write {"hid": …, "section": {"heading": "…", "markdown": "…"}}`: write heading by heading (an existing heading by its id; a title the file does not have is added at the end of the file). To put a NEW section in its place use `"op": "insert"` with `"after"`, `"before"` or `"within"` a heading id (or `"position": "start" | "end"`). A first draft of a short point may be one `markdown`; small fixes are `edits [{find, replace}]` with words copied from `book.read`.
 5. `book.read` the point again and check the result; read `dropped` and `warnings` of every write and fix what they name.
