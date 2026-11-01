@@ -85,7 +85,7 @@
     "bareBusyDisabled": {
       "ui/CourseActive.jsx": 1,
       "ui/Exam.jsx": 1,
-      "ui/ExplanationFollowup.jsx": 4,
+      "ui/ExplanationFollowup.jsx": 1,
       "ui/FlipCard.jsx": 1,
       "ui/Inbox.jsx": 1,
       "ui/LiveClass.jsx": 2,
