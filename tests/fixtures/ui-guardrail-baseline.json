@@ -105,7 +105,6 @@
       "ui/document-preview/reader/SegmentDialog.jsx": 2,
       "ui/document-preview/translation/TranslationMenu.jsx": 1,
       "ui/review/QuestionRun.jsx": 3,
-      "ui/settings/LegacyImportSection.jsx": 1,
       "ui/settings/ScheduleSection.jsx": 1,
       "ui/study-map/CatalogHeading.jsx": 1,
       "ui/study-map/DeckRow.jsx": 2,

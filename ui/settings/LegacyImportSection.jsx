@@ -9,7 +9,7 @@ export default function LegacyImportSection({ busy, act, legacy, setLegacy }) {
     <SettingsSection title={ui('导入 study-lib-spar')} lead={ui('从已有本地学习库导入，保留可迁移的复习记录。')}>
       <Field label={ui('原学习库路径')}><TextInput value={legacy} onChange={(e) => setLegacy(e.target.value)} /></Field>
       <div className="settings-actions">
-        <Button disabled={busy || !legacy} onClick={() =>
+        <Button disabled={!legacy} lock={busy} onClick={() =>
           act('legacy.import', { path: legacy }, (r) =>
             toast.success(r.reused ? ui('该学习库已导入') : uiFormat('已导入 {0} 道题。{1}', [r.count, (r.warnings || []).join('；')])))}>{ui('导入学习库')}</Button>
       </div>
