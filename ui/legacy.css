@@ -48,4 +48,9 @@
   :where(.study-app, .study-seat) {
     /* Menus and panels open with a short rise; lists simply appear. */
   }
+  @container study (max-width: 480px) {
+    :where(.study-app, .study-seat) {
+      .science-tool .two-col { grid-template-columns: minmax(0, 1fr); }
+    }
+  }
 }

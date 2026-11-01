@@ -395,7 +395,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   {lint.flagged ? uiRich("{0} / {1} 道题有散装问题", <strong>{lint.flagged}</strong>, lint.total) : uiFormat("{0} 道题都没发现散装问题", [lint.total])}
                 </span>
                 {lint.flagged > 0 && (
-                  <Button size="sm" className="sk-mini" disabled={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</Button>
+                  <Button size="sm" className="sk-mini" lock={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</Button>
                 )}
               </div>
               <div className="sk-filters" role="group" aria-label={ui("按问题筛选")}>
@@ -449,7 +449,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                 <h3>{viewing.title}</h3>
                 <div className="sk-actions">
                   <Button variant="primary"
-                    disabled={busy}
+                    lock={busy}
                     onClick={() => onPractice(viewing.nodes.flatMap((n) => n.cards))}
                   >{ui("练整个骨架")}</Button>
                   <HandOff id="skeleton.design" lead={ui("更新这份骨架：")} what="让主会话按现在的题目更新这份骨架"

@@ -47,7 +47,7 @@ export default function MergeSuggestions({ merge }) {
         {suggestions.proposals.map((item) => <div className="merge-suggestion" key={item.targetId}>
           <div><strong>{item.sourceTitles.join('、')} → {item.targetTitle}</strong>
             <p>{item.reason}{' · '}{uiFormat('合并后共 {0} 题，全部题目保留。', [item.count])}</p></div>
-          <Button size="sm" disabled={busy || merge.busy} onClick={() => merge.confirm(item)}>{ui('确认合并')}</Button>
+          <Button size="sm" lock={busy || merge.busy} onClick={() => merge.confirm(item)}>{ui('确认合并')}</Button>
         </div>)}
       </div>}
     </>

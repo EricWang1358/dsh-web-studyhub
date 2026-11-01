@@ -186,7 +186,7 @@ export default function Draft({
       <PartTargetChoice targets={targets} value={intoDeck} onChange={setPartTarget} disabled={busy} />
       <div className="sticky-actions" data-tour="draft-publish">
         <Button
-          disabled={busy || updatingDraft || staleDraft || missingDraft}
+          disabled={updatingDraft || staleDraft || missingDraft} lock={busy}
           onClick={() => {
             let d;
             try {
@@ -199,7 +199,7 @@ export default function Draft({
           }}
         >{ui("保存并校验")}</Button>
         <Button variant="primary"
-          disabled={busy || updatingDraft || staleDraft || missingDraft || activeReview}
+          disabled={updatingDraft || staleDraft || missingDraft || activeReview} lock={busy}
           title={activeReview ? ui("先完成或结束原题组的学习") : undefined}
           aria-describedby={hold ? "draft-hold" : undefined}
           onClick={async () => {
@@ -216,7 +216,7 @@ export default function Draft({
         >
           {publicationLabel}
         </Button>
-        <Button variant="danger" disabled={busy || missingDraft} onClick={() => setDeletingId(draft.id)}>
+        <Button variant="danger" disabled={missingDraft} lock={busy} onClick={() => setDeletingId(draft.id)}>
           {ui("删除草稿")}
         </Button>
       </div>
@@ -294,7 +294,7 @@ export default function Draft({
         retryPublishCount > 0 && uiFormat("可点击「{0}」重新检查其余题目。", [publicationLabel.replace(/\s*→$/, "")]),
         ui("待处理题目可自行修改，或选择交给后台修题。")].filter(Boolean).join(" ")}</p>
         {publishedDeck && <p>{uiFormat("已发布题组「{0}」现有 {1} 题。", [publishedDeck.title, publishedDeck.count])}{" "}
-          <Button variant="link" size="sm" disabled={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>
+          <Button variant="link" size="sm" lock={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>
         </p>}
         <Disclosure summary={ui("查看待处理问题")}>
           <ul>{rejectedCards.map((card) =>
@@ -305,13 +305,13 @@ export default function Draft({
           {uiFormat("{0} 题没有可定位的资料。请先在题目中添加引用来源；{1}", [missingRepairEvidence, repairableCount > 0 ? uiFormat("后台仍可先处理其余 {0} 题。", [repairableCount]) : ui("补充后才能启动后台修题。")])}
         </p>}
         <div className="draft-banner__actions">
-          <Button size="sm" disabled={busy || repairRunning || staleDraft || unsavedDraft || !data.modelReady || !repairableCount}
+          <Button size="sm" disabled={repairRunning || staleDraft || unsavedDraft || !data.modelReady || !repairableCount} lock={busy}
             title={unsavedDraft ? ui("先保存草稿") : !data.modelReady ? ui("先在设置中选择模型") : !repairableCount ? ui("先给待处理题目添加引用来源") : ui("后台逐题修复并独立复审")}
             onClick={() => act("draft.repair", { id: draft.id, draftVersion: draft.draftVersion },
               () => toast.success(ui("后台修题已启动；完成后可回来发布通过的题目。")))}>
             {repairRunning ? ui("后台修题中…") : ui("交给后台修题")}
           </Button>
-          {repairJob && <Button size="sm" variant="quiet" disabled={busy || repairJob.status === JOB_STATUS.CANCELLING}
+          {repairJob && <Button size="sm" variant="quiet" disabled={repairJob.status === JOB_STATUS.CANCELLING} lock={busy}
             onClick={() => act("job.cancel", { jobId: repairJob.id },
               () => toast.success(ui("正在停止后台修题；已修好的题目会保留在草稿中。")))}>
             {repairJob.status === JOB_STATUS.CANCELLING ? ui("正在停止修题…") : ui("停止修题，保留草稿")}

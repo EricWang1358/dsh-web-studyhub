@@ -99,7 +99,7 @@ function BookButton({ deckId, cardId, book }) {
   };
   return (
     <span className="answer-card__book">
-      <Button variant="link" size="sm" icon={added ? 'check' : 'book'} data-answer-card-book={added ? 'added' : 'add'} disabled={working} onClick={run}>
+      <Button variant="link" size="sm" icon={added ? 'check' : 'book'} data-answer-card-book={added ? 'added' : 'add'} lock={working} onClick={run}>
         {added ? ui('已加入 · 撤回') : ui('加入复习全书')}</Button>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </span>

@@ -130,7 +130,6 @@
   }
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {
-      .science-tool .two-col { grid-template-columns: minmax(0, 1fr); }
     }
   }
 }

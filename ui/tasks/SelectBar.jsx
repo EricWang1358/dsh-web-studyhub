@@ -31,9 +31,9 @@ export default function SelectBar({ filter, summary, busy = false, onToggleAll, 
       {count > 0 && (
         <div className="tc-pickbar__actions">
           {filter === 'archived'
-            ? <Button size="sm" className="tc-pickbar__btn" disabled={busy} onClick={onUnarchive}>{ui('取消归档')}</Button>
-            : <Button size="sm" className="tc-pickbar__btn" disabled={busy} onClick={onArchive}>{ui('归档')}</Button>}
-          <Button size="sm" variant="danger" className="tc-pickbar__btn" disabled={busy} onClick={onDelete}>{ui('删除')}</Button>
+            ? <Button size="sm" className="tc-pickbar__btn" lock={busy} onClick={onUnarchive}>{ui('取消归档')}</Button>
+            : <Button size="sm" className="tc-pickbar__btn" lock={busy} onClick={onArchive}>{ui('归档')}</Button>}
+          <Button size="sm" variant="danger" className="tc-pickbar__btn" lock={busy} onClick={onDelete}>{ui('删除')}</Button>
           <Button size="sm" variant="quiet" className="tc-pickbar__btn tc-pickbar__btn--clear" onClick={onClear}>{ui('取消选择')}</Button>
         </div>
       )}

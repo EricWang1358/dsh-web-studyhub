@@ -62,7 +62,7 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
         <span>{ui('打开 →')}</span>
       </button>
       {/* 删除 opens the same question as the draft page's 删除草稿 (ui/DeleteDraftDialog.jsx): the unpublished questions go for good, the materials stay. */}
-      <Button variant="quiet" size="sm" className="draft-delete" disabled={busy} aria-label={uiFormat('删除草稿「{0}」', [d.title || ui('未命名草稿')])} onClick={() => setDeleting(true)}>{ui('删除')}</Button>
+      <Button variant="quiet" size="sm" className="draft-delete" lock={busy} aria-label={uiFormat('删除草稿「{0}」', [d.title || ui('未命名草稿')])} onClick={() => setDeleting(true)}>{ui('删除')}</Button>
       <CoverageTopUp variant="compact" draft={d} view={view} jobs={data.jobs} modelReady={modelReady} onTopUp={topUpDraft} />
       {deleting && <DeleteDraftDialog draft={d} data={data} onClose={() => setDeleting(false)} onDeleted={deleted} />}
     </div>

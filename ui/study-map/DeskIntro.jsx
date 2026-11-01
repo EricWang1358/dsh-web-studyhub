@@ -41,7 +41,7 @@ function OtherRuns({ runs, otherCourse, resume, endRun }) {
             </span>
             <span>{r.index + 1} / {r.total} <b>→</b></span>
           </button>
-          <Button variant="quiet" size="sm" disabled={busy} onClick={() => endRun(r.id)} title={ui('结束此轮，保留已答记录')}>{ui('结束')}</Button>
+          <Button variant="quiet" size="sm" lock={busy} onClick={() => endRun(r.id)} title={ui('结束此轮，保留已答记录')}>{ui('结束')}</Button>
         </div>
       ))}
     </details>
@@ -71,13 +71,13 @@ export default function DeskIntro({ data, home, mastery, role, start, resume, en
             <span className="desk-next-label">{ui('推荐下一步')}</span>
             <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
               <Tooltip layer content={ui('按课程里题组和主题的顺序，这是第一个还没掌握的主题。')}><small tabIndex={0}>{META_DOT}{uiFormat('课程里下一个没掌握的主题 · 掌握 {0}%', [data.next.mastery])}</small></Tooltip></span>
-            <Button variant="link" disabled={busy} onClick={() => start({ mode: 'path', scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui('只学这个主题 →')}</Button>
+            <Button variant="link" lock={busy} onClick={() => start({ mode: 'path', scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui('只学这个主题 →')}</Button>
           </>
         ) : starter ? starter.next : ui('现在没有未掌握的主题，可以提前巩固。')}
       </p>
       {plan.kind === 'empty' && plan.also.length > 0 && (
         <p className="desk-also">
-          {plan.also.map((entry) => (Array.isArray(entry) ? <Button key={entry[0]} variant="link" disabled={busy} onClick={entry[1]}>{entry[0]}</Button>
+          {plan.also.map((entry) => (Array.isArray(entry) ? <Button key={entry[0]} variant="link" lock={busy} onClick={entry[1]}>{entry[0]}</Button>
             : <HandOff key={entry.handOff.id} id={entry.handOff.id} input={entry.handOff.input} lead={entry.handOff.lead} what={entry.handOff.what} disabled={busy} />))}
         </p>
       )}
@@ -86,7 +86,7 @@ export default function DeskIntro({ data, home, mastery, role, start, resume, en
         <details className="desk-more">
           <summary>{ui('其他开始方式')}</summary>
           <p className="desk-also">
-            {alternatives.map(([label, run, hint]) => <Button key={label} variant="link" disabled={busy} title={hint} onClick={run}>{label}</Button>)}
+            {alternatives.map(([label, run, hint]) => <Button key={label} variant="link" lock={busy} title={hint} onClick={run}>{label}</Button>)}
           </p>
         </details>
       )}

@@ -51,7 +51,7 @@ export function ContextReturn() {
   if (!learn.hasTrail || ['review', 'notes'].includes(nav.page)) return null;
   return (
     <div className="context-return">
-      <Button variant="link" size="sm" icon="arrow-left" disabled={core.busy} onClick={learn.returnFromContext}>{learn.trailLabel}</Button>
+      <Button variant="link" size="sm" icon="arrow-left" lock={core.busy} onClick={learn.returnFromContext}>{learn.trailLabel}</Button>
     </div>
   );
 }

@@ -34,12 +34,15 @@ function familyClasses() {
 // Lower only: delete a class from this list when its markup becomes a Badge or Chip. Adding to it fails the test.
 // Each stays because it is not a status label or a toggle (Badge, Chip) but something with behaviour they lack:
 //   board-chip    a card label whose colour is one of six hues chosen by the label (Badge and Chip have six tones that mean a state, three hues are no tone),
-//                 and it shares one rule with board-due and board-progress, which sit in the same row and are not Badges either (#95: needs a decision on hue)
-//   nav-badge     the count in a sidebar row (NavItem's hint slot), which folds into a dot on the collapsed rail
+//                 and it shares one rule with board-due and board-progress, which sit in the same row and are not Badges either. Decided 2026-11 (#95): kept. The hue
+//                 does carry meaning, it is the label's identity: the same label has the same colour on the card, in the editor and on the filter bar, which is how
+//                 the eye ties a card to its filter. A neutral Badge would lose that, and the chips are also toggles (aria-pressed) and removable.
+//   nav-badge     the count in a sidebar row (NavItem's hint slot), which folds into a dot on the collapsed rail (re-checked 2026-11: it is the one hint with its
+//                 own pill beside nav-count; merging it into nav-count as a tone is possible but needs a render with prepared 为你定制 questions to prove, so it waits)
 //   setup-chip    a section: the collapsed setup checklist, a toggle that opens the list of steps under it
 //   spine-chip    a group of three controls (previous station, the station's name with its tooltip, next station)
 //   tr-chipbtn    a button that floats against the selected text and is placed by useRangeAnchor; it is the control itself, with no label
-//   update-chip   a button that opens the update dialog; the state it shows inside is already a <Badge>
+//   update-chip   a button that opens the update dialog; the state it shows inside is already a <Badge>, and its rules are layout only (re-checked 2026-11)
 const REMAINING = ['board-chip', 'nav-badge', 'setup-chip', 'spine-chip', 'tr-chipbtn', 'update-chip'];
 
 test('the chip / badge / tag base classes only shrink', () => {

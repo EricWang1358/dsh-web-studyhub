@@ -24,7 +24,7 @@ export default function LiveNotes({ correction, onSentence, onRetry, disabled })
     {(background.tasks || []).map(task => <details key={task.id} className="live-note-task"><summary>{({ queued: ui('排队中'), running: ui('处理中'), done: ui('已完成'), failed: ui('待重试') })[task.status]} · {task.reason}</summary>
       {references(task.ids)}{task.error && <p>{task.error}</p>}
     </details>)}
-    {background.failed > 0 && <Button disabled={disabled || background.running} onClick={onRetry}>{ui('重试历史歧义校正')}</Button>}
+    {background.failed > 0 && <Button disabled={disabled} lock={background.running} onClick={onRetry}>{ui('重试历史歧义校正')}</Button>}
     <small className="muted">{ui('保存为资料时，会另外保存一份课堂笔记，包含摘要、分批记录和引用。')}</small>
   </details>;
 }

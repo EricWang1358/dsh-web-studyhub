@@ -107,18 +107,18 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
           }}>{ui("收起")}</Button>
         </details>
       ))}
-      {!readOnly && <><Button size="sm" aria-expanded={open} disabled={!call || !!pending}
+      {!readOnly && <><Button size="sm" aria-expanded={open} disabled={!call} lock={!!pending}
         onClick={() => open ? setOpen(false) : suggest()}>{ui("追问？")}</Button>
       {" "}
-      <Button size="sm" disabled={!call || !!pending}
+      <Button size="sm" disabled={!call} lock={!!pending}
         onClick={() => ask(ui("请重新讲清楚这道题：先解释必要概念，再从题目条件一步步推到答案，用最小例子说明最容易混淆的地方，最后告诉我下次遇到类似题该怎么判断。若原题解有错或依据不足，请明确指出。"))}>{ui("重新讲清楚")}</Button>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       {open && (
         <div className="followup-picker">
           {questions.map((text) => (
-            <Button key={text} size="sm" wrap align="start" disabled={!!pending} onClick={() => ask(text)}>{text}</Button>
+            <Button key={text} size="sm" wrap align="start" lock={!!pending} onClick={() => ask(text)}>{text}</Button>
           ))}
-          <Button size="sm" disabled={pending === "answer"} aria-expanded={custom}
+          <Button size="sm" lock={pending === "answer"} aria-expanded={custom}
             onClick={() => setCustom(!custom)}>{ui("你的疑问")}</Button>
           {custom && (
             <form onSubmit={(event) => { event.preventDefault(); ask(question); }}>

@@ -58,7 +58,7 @@ export function DailyRecapSettingsForm({ root, saved }) {
         {editor.values.timeZone !== deviceTimeZone && <Button onClick={() => edit({ timeZone: deviceTimeZone })}>{ui('使用当前设备时区')}</Button>}
       </Field>
       {error && <Hint tone="error" role="alert">{error}</Hint>}
-      <div className="settings-actions"><Button type="submit" variant="primary" disabled={busy || working || JSON.stringify(editor.values) === editor.baseline}>{ui(working ? '保存中…' : '保存每日合集设置')}</Button></div>
+      <div className="settings-actions"><Button type="submit" variant="primary" disabled={JSON.stringify(editor.values) === editor.baseline} lock={busy || working}>{ui(working ? '保存中…' : '保存每日合集设置')}</Button></div>
     </SettingsSection>
   </form>;
 }

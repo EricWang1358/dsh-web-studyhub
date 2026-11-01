@@ -63,7 +63,7 @@ function Letter({ m, now, onOpen, onUndo, close }) {
       </button>
       </Tooltip>
       {m.canRevert && onUndo && <Button variant="link" size="sm" className="mailbox__undo"
-        disabled={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</Button>}
+        lock={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</Button>}
     </>
   );
 }

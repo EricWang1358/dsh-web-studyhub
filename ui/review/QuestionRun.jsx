@@ -59,7 +59,7 @@ function AssistFailure({ task, onSettings, onResubmit, onEdit }) {
   const { busy } = useStudy();
   const text = plainAssistFailure(task.message) || ui("没有拿到具体原因");
   const info = describeModelError(text);
-  const resubmit = <Button variant="primary" size="sm" disabled={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
+  const resubmit = <Button variant="primary" size="sm" lock={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
   if (info.kind !== "unknown") {
     return (
       <div className="assist-note assist-failed" data-kind={info.kind}>
@@ -159,7 +159,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           return (
             <Button
               variant={unlearned ? "primary" : "secondary"} size="sm"
-              disabled={busy}
+              lock={busy}
               title={unlearned ? ui("先学没掌握的前置题，学完回到这道题") : ui("把前置题再过一遍自查，做完回到这道题")}
               onClick={(e) => {
                 e.preventDefault();
@@ -334,7 +334,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <Button
                   variant="primary" className="submit-answer"
                   data-usage="review.submit"
-                  disabled={busy || !selected.length}
+                  disabled={!selected.length} lock={busy}
                   onClick={() =>
                     reviewAct("review.answer", { selected })
                   }
@@ -372,12 +372,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <Button
                   variant="primary" className="submit-answer"
                   data-usage="review.submit"
-                  disabled={
-                    busy ||
-                    !Object.values(clozeValues).some((v) =>
+                  disabled={!Object.values(clozeValues).some((v) =>
                       String(v).trim(),
-                    )
-                  }
+                    )} lock={busy}
                   onClick={() =>
                     reviewAct("review.answer", { answers: clozeValues })
                   }
@@ -457,9 +454,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           )}
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
-        {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" disabled={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
+        {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
         {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
-          <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" disabled={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
+          <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" lock={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
         <ReviewToolbar
           key={reviewEntryKey(run)}
           assistMode={assistMode}
@@ -485,7 +482,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (
           <p className="assist-status voice-hint" role="status">
             {ui("这道题在问「资料怎么说」，考的是背资料的措辞，不是理解或应用。")}{" "}
-            <Button variant="link" size="sm" data-usage="review.voice-fix" disabled={busy} onClick={() => assistCard("improve", ui(SOURCE_VOICE_FIX))}>{ui("改成概念或情景题")}</Button>
+            <Button variant="link" size="sm" data-usage="review.voice-fix" lock={busy} onClick={() => assistCard("improve", ui(SOURCE_VOICE_FIX))}>{ui("改成概念或情景题")}</Button>
           </p>
         )}
         <SmoothHeight className="assist-area">

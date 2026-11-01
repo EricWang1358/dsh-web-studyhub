@@ -70,7 +70,7 @@ export default function ControlRow({ job }) {
         {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。') : set.reason?.code === 'capability-unsupported' && isRunningTask(job) ? ui('这类任务没有可以调整的设置。')
           : contract.status === 'interrupted' && contract.actions.retry.available ? endedNote(job, true)
             : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? endedNote(job) : reasonText(set)}</span>}
-        {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved || core.busy} onClick={save}
+        {items.length > 0 && defaults && <Button size="sm" variant="quiet" className="tc-controls__save" disabled={saved} lock={core.busy} onClick={save}
           title={uiFormat('把这里的{0}存为以后新任务的默认', [items.filter((item) => saves.includes(item.key)).slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
         {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint', 'single-round', 'manual-run'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}
         {staged && Array.isArray(efforts) && efforts.length === 0 && <span className="tc-controls__note">{ui('当前模型不支持推理程度设置，已使用模型默认。')}</span>}

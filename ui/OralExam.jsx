@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./oral-exam.css";
+import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
@@ -20,6 +21,7 @@ const FIELDS = ['answer', 'followupAnswer'];
 
 export default function OralExam({ data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
   useInjectCss(css, "study-oral-exam");
+  useInjectCss(resultCss, "review-results");
   const { call } = useStudy();
   const exam = useExamRun({ kind: 'oral', call, initialRunId, onLocation });
   const { run, report, busy, error, loading } = exam;
@@ -138,11 +140,11 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
         </div>}
       </Panel>
       <div className="oral-actions">
-        {!run.entry.followup && <Button disabled={busy || !answer.trim()} onClick={followup}>{ui("追问一次")}</Button>}
+        {!run.entry.followup && <Button disabled={!answer.trim()} lock={busy} onClick={followup}>{ui("追问一次")}</Button>}
         {last
           ? <Button variant="primary" busy={busy} onClick={submit}>{busy ? ui("正在集中评估…") : ui("结束模拟，查看反馈 →")}</Button>
-          : <Button variant="primary" disabled={busy} onClick={nextQuestion}>{ui("保存并继续 →")}</Button>}
-        {!last && <Button disabled={busy} onClick={submit}>{ui("提前结束")}</Button>}
+          : <Button variant="primary" lock={busy} onClick={nextQuestion}>{ui("保存并继续 →")}</Button>}
+        {!last && <Button lock={busy} onClick={submit}>{ui("提前结束")}</Button>}
       </div>
       <p className="muted small">{ui("模拟过程中不会显示对错；回答在本地学习库保存。")}</p>
     </>}

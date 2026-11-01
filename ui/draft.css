@@ -129,11 +129,6 @@
     .draft-generation-details > :last-child {
       margin-bottom: var(--space-4);
     }
-    .draft-generation-details .quality-note {
-      display: block;
-      margin: var(--space-3) 0;
-      overflow-wrap: anywhere;
-    }
     .draft-generation-details ul {
       overflow-wrap: anywhere;
     }

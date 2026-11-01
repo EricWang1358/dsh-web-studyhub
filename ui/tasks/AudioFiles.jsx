@@ -51,7 +51,7 @@ export default function AudioFiles({ contract }) {
           <span className="tc-strip__title">{file.filename}</span>
           <span className="tc-strip__line">{joinMeta(stages.filter(([stage]) => file.steps?.[stage]?.total > 0).map(([stage, label]) => uiFormat('{0} {1}/{2}', [ui(label), file.steps[stage].done, file.steps[stage].total]))) || ui('还没有开始')}
             {file.reused ? ` · ${ui('复用了已保存的结果')}` : ''}{file.stage ? ` · ${file.stage}` : ''}</span>
-          {canSkip && <Button size="sm" disabled={core.busy} onClick={skip}>{ui('跳过这个文件继续')}</Button>}
+          {canSkip && <Button size="sm" lock={core.busy} onClick={skip}>{ui('跳过这个文件继续')}</Button>}
           {problem && <span className="tc-strip__problem">{problem}</span>}
         </> : <span className="tc-strip__hint">{ui('选一个文件，在这里看它每一步的进度。')}</span>}
       </div>

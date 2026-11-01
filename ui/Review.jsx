@@ -154,9 +154,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {(onward || wayBack) && (
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
-              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" disabled={busy} onClick={onward.run}>{onward.label.replace(/\s*→$/, "")}</Button>}
-              {onward && run.course?.next?.fresh > 0 && onCourseFlow && <Button disabled={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</Button>}
-              {onward && !backHere && contextReturnLabel && <Button icon="arrow-left" disabled={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
+              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" lock={busy} onClick={onward.run}>{onward.label.replace(/\s*→$/, "")}</Button>}
+              {onward && run.course?.next?.fresh > 0 && onCourseFlow && <Button lock={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</Button>}
+              {onward && !backHere && contextReturnLabel && <Button icon="arrow-left" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
             </div>
           )}
           {destination?.note && <p className="muted" role="status">{destination.note}</p>}
@@ -182,7 +182,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <div className="summary-topics sh-paper-card">
             <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
             {(run.weakTopics || []).slice(0, 3).map((t) => run.weakScopes?.[t]?.length
-              ? <Button key={t} size="sm" className="summary-topic" iconEnd="arrow-right" disabled={busy} title={ui("练这个主题")} aria-label={uiFormat("练这个主题：{0}", [t])}
+              ? <Button key={t} size="sm" className="summary-topic" iconEnd="arrow-right" lock={busy} title={ui("练这个主题")} aria-label={uiFormat("练这个主题：{0}", [t])}
                 onClick={() => act("review.start", practiceArgs(run.weakScopes[t]), enterRun)}>{t}</Button>
               : <Badge className="summary-topic" key={t}>{t}</Badge>)}
             {!run.weakTopics?.length && (
@@ -196,10 +196,10 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           )}
           <div className="summary-actions">
             {summaryCase && <>
-              <Button disabled={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
+              <Button lock={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
                 setCaseNote(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count])))}>
                 {ui("把薄弱项变成练习")}</Button>
-              <Button disabled={busy} onClick={() => act("generate", { kind: "case", fromDeckId: summaryCase.id },
+              <Button lock={busy} onClick={() => act("generate", { kind: "case", fromDeckId: summaryCase.id },
                 () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</Button>
             </>}
             <Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
@@ -210,7 +210,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
             <div className="summary-actions">
             {run.mode === "path" && !run.returnTo && !flow && run.scope?.length > 0 && run.dailyCourse === undefined && (
-              <Button disabled={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
+              <Button lock={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
             )}
             {run.weakTopics?.length > 0 && (
               <HandOff id="review.weakTopics" lead="讲解薄弱点：" what="让主会话逐个讲清这一轮还没掌握稳的主题，并各出一道小题检查你"

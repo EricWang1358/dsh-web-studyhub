@@ -59,7 +59,7 @@ function ActualTime({ task, plan }) {
       <Field inline width="sm" label={ui('实际用了')}>
         <NumberInput suffix={ui('分钟')} min="1" max="240" step="1" required value={minutes} disabled={!!plan.busy} onChange={event => setMinutes(event.target.value)} />
       </Field>
-      <Button type="submit" size="sm" disabled={!!plan.busy || !valid}>{ui('保存')}</Button>
+      <Button type="submit" size="sm" disabled={!valid} lock={!!plan.busy}>{ui('保存')}</Button>
     </form>
     {failed && <Hint tone="error" role="alert">{ui('没能保存用时，请再试一次。')}</Hint>}
   </Disclosure>;
@@ -70,7 +70,7 @@ function TaskRow({ task, plan, featured }) {
     <div className="daily-plan__task-copy"><strong>{task.title}</strong><TaskProgress task={task} />
       {task.status === 'done' && task.available !== false && <ActualTime task={task} plan={plan} />}
     </div>
-    {actionable(task) && !featured && <Button variant="quiet" size="sm" disabled={!!plan.busy} onClick={() => plan.start(task.id)}>
+    {actionable(task) && !featured && <Button variant="quiet" size="sm" lock={!!plan.busy} onClick={() => plan.start(task.id)}>
       {task.status === 'doing' ? ui('继续') : ui('开始')}</Button>}
   </li>;
 }
@@ -85,7 +85,7 @@ export function RelatedTasks({ plan, reference, runId, onBoard }) {
     {tasks.map(task => <div className="daily-related__row" key={task.id}>
       <div className="daily-plan__task-copy"><span className="daily-plan__eyebrow">{ui('今日行动')}</span>
         <strong>{task.title}</strong><TaskProgress task={task} /></div>
-      {task.kind === 'reading' && actionable(task) && <Button size="sm" disabled={!!plan.busy} onClick={() => plan.complete(task.id)}>{ui('我已完成')}</Button>}
+      {task.kind === 'reading' && actionable(task) && <Button size="sm" lock={!!plan.busy} onClick={() => plan.complete(task.id)}>{ui('我已完成')}</Button>}
     </div>)}
     {onBoard && <Button variant="link" size="sm" onClick={onBoard}>{ui('查看待办')}</Button>}
   </aside>;
@@ -122,10 +122,10 @@ function EmptyProposal({ proposal, plan, onSettings, onAdjust }) {
     <p className="daily-plan__intro">{why}</p>
     <div className="daily-plan__actions">
       {reason === 'nothing-due' ? <>
-        <Button variant="secondary" disabled={!!plan.busy} onClick={() => navigate('library')}>{ui('去学习库')}</Button>
-        <Button variant="quiet" disabled={!!plan.busy} onClick={() => openModal({ type: 'add' })}>{ui('添加资料')}</Button>
+        <Button variant="secondary" lock={!!plan.busy} onClick={() => navigate('library')}>{ui('去学习库')}</Button>
+        <Button variant="quiet" lock={!!plan.busy} onClick={() => openModal({ type: 'add' })}>{ui('添加资料')}</Button>
       </> : <>
-        <Button variant="secondary" disabled={!!plan.busy || !onAdjust} onClick={onAdjust}>{ui('今天再学一会儿')}</Button>
+        <Button variant="secondary" disabled={!onAdjust} lock={!!plan.busy} onClick={onAdjust}>{ui('今天再学一会儿')}</Button>
         <Button variant="quiet" busy={plan.busy === 'accept'} disabled={!!plan.busy} onClick={() => plan.accept(proposal.id)}>{ui('今天到此为止')}</Button>
       </>}
     </div>
@@ -164,7 +164,7 @@ function NextAction({ task, plan, primary }) {
     <div className="daily-plan__next-bottom"><TaskProgress task={task} />
       <div className="daily-plan__actions"><Button variant={primary ? 'primary' : 'secondary'} busy={plan.busy === 'start'} disabled={!!plan.busy} onClick={() => plan.start(task.id)}>
         {task.status === 'doing' ? ui('继续学习') : ui('开始学习')}</Button>
-        {task.kind === 'reading' && <Button variant="quiet" disabled={!!plan.busy} onClick={() => plan.complete(task.id)}>{ui('我已完成')}</Button>}
+        {task.kind === 'reading' && <Button variant="quiet" lock={!!plan.busy} onClick={() => plan.complete(task.id)}>{ui('我已完成')}</Button>}
       </div>
     </div>
   </div>;

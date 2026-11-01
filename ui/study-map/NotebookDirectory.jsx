@@ -34,7 +34,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
     <section className="nb-dir" aria-label={ui('全局笔记本目录')}>
       <div className="section-heading map-heading">
         <h2>{ui('全局笔记本')}</h2>
-        <Button size="sm" onClick={refresh} disabled={busy}>{ui('刷新')}</Button>
+        <Button size="sm" onClick={refresh} lock={busy}>{ui('刷新')}</Button>
       </div>
       {error ? <InlineMessage tone="error">{uiFormat('没能读取目录：{0}', [error])}</InlineMessage> : <LoadingState label={ui('正在读取全局笔记本目录…')} />}
     </section>
@@ -70,10 +70,10 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
           <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, ui('全局笔记本'))} onToggle={toggle} />{' '}{ui('全局笔记本')}{' '}<span>{published}</span>
         </h2>
         <div className="section-heading-actions">
-          <Button size="sm" onClick={refresh} disabled={busy} title={ui('重新读取全局目录')}>{ui('刷新')}</Button>
+          <Button size="sm" onClick={refresh} lock={busy} title={ui('重新读取全局目录')}>{ui('刷新')}</Button>
           {!error && (current?.publishedAt
-            ? <Button size="sm" onClick={onUnpublish} disabled={busy}>{ui('取消发布')}</Button>
-            : <Button size="sm" onClick={onPublish} disabled={busy} title={ui('把本工作区的学习笔记本登记到 ~/.dsh 全局目录，其他工作区可一键跳转到这里')}>{ui('发布到全局目录')}</Button>)}
+            ? <Button size="sm" onClick={onUnpublish} lock={busy}>{ui('取消发布')}</Button>
+            : <Button size="sm" onClick={onPublish} lock={busy} title={ui('把本工作区的学习笔记本登记到 ~/.dsh 全局目录，其他工作区可一键跳转到这里')}>{ui('发布到全局目录')}</Button>)}
         </div>
       </div>
       {error && <InlineMessage tone="error">{ui('没能刷新目录，下面仍是上次读到的内容：')}{error}</InlineMessage>}
