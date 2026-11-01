@@ -5,7 +5,6 @@
    (- gone from the ref, + new); "0 / 0" means the cascade was only re-ordered. Pair it with scripts/qa/css-fingerprint.mjs, which checks
    what the browser computes for the states it can reach. */
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT, cssFiles, parseTree, splitSelectorList } from './css-tools.mjs';
@@ -36,7 +35,9 @@ export function diffSignatures(before, after) {
   return { removed: spill(a, b), added: spill(b, a) };
 }
 
-function main() {
+async function main() {
+  /* Loaded here, not at the top: the pure functions above are what the test imports, and they start nothing. */
+  const { execFileSync } = await import('node:child_process');
   const ref = process.argv[2] || 'origin/main';
   const before = [], after = [];
   for (const file of cssFiles(ROOT)) {
@@ -51,4 +52,4 @@ function main() {
   console.log(`rules only in ${ref}: ${removed.length}, only in the working tree: ${added.length}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
