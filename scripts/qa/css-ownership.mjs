@@ -16,7 +16,7 @@ export const CROSS_CUTTING = ['ui/tokens.css', 'ui/paper.css', 'ui/motion.css', 
 export const ALLOW_FILE = join(ROOT, 'tests/fixtures/css-ownership-allow.json');
 
 /* The subject classes of one selector entry: the classes of its last compound (inside :is()/:where() they count too, `:not()` does not). */
-export function subjectClasses(entry) {
+export function subjectClasses(entry, modifiers = NO_MODIFIERS) {
   let depth = 0, cut = 0;
   for (let i = 0; i < entry.length; i++) {
     const ch = entry[i];
@@ -27,31 +27,62 @@ export function subjectClasses(entry) {
   let compound = entry.slice(cut);
   compound = compound.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, '').replace(/\[[^\]]*\]/g, '');
   const inner = [...compound.matchAll(/:(?:is|where|matches)\(((?:[^()]|\([^()]*\))*)\)/g)].map((m) => m[1]);
-  const text = [compound.replace(/:(?:is|where|matches)\((?:[^()]|\([^()]*\))*\)/g, ''), ...inner.flatMap((part) => part.split(','))].join(' ');
-  return [...new Set([...text.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]))];
+  const parts = [compound.replace(/:(?:is|where|matches)\((?:[^()]|\([^()]*\))*\)/g, ''), ...inner.flatMap((part) => part.split(','))];
+  /* `.a.is-done` styles `.a` in its done state: a state class (is-*, has-*) written on another class is that class's modifier and
+     belongs to its owner, and so is a class that is only ever written on top of another one (`modifiers`, see modifierClasses:
+     `.dash-line.self`, `.option.dim`). On its own (`.is-done`, `.x .self`, `.is-a.is-b`) it has nobody to be attributed to and stays a subject. */
+  const isModifier = (name) => STATE_CLASS.test(name) || modifiers.has(name);
+  const names = parts.flatMap((part) => {
+    const found = [...part.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]);
+    return found.some((name) => !isModifier(name)) ? found.filter((name) => !isModifier(name)) : found;
+  });
+  return [...new Set(names)];
 }
+const STATE_CLASS = /^(?:is|has)-/;
+const NO_MODIFIERS = new Set();
 
-/** class -> sorted list of the stylesheets that write a rule whose subject it is. */
-export function classOwners(root = ROOT) {
-  const map = new Map();
+/* Every selector entry of every stylesheet, without the app scope: [{ file, entry }]. */
+function selectorEntries(root) {
+  const out = [];
   for (const file of cssFiles(root)) {
     if (CROSS_CUTTING.includes(file)) continue;
-    const tree = parseTree(readFileSync(join(root, file), 'utf8'));
     const visit = (node) => {
       for (const child of node.children) {
         if (child.kind === 'rule') {
           for (const entry of splitSelectorList(child.prelude.replace(/^&\s*/, ''))) {
             if (/^(\.study-app|\.study-seat|:is\(\.study-app, \.study-seat\)|:where\(\.study-app, \.study-seat\))$/.test(entry.trim())) continue;
-            for (const name of subjectClasses(entry.replace(/^:(is|where)\(\.study-app, \.study-seat\)\s*/, '').replace(/^\.study-(app|seat)\s*/, ''))) {
-              if (!map.has(name)) map.set(name, new Set());
-              map.get(name).add(file);
-            }
+            out.push({ file, entry: entry.replace(/^:(is|where)\(\.study-app, \.study-seat\)\s*/, '').replace(/^\.study-(app|seat)\s*/, '') });
           }
         }
         if (child.children.length) visit(child);
       }
     };
-    visit(tree);
+    visit(parseTree(readFileSync(join(root, file), 'utf8')));
+  }
+  return out;
+}
+
+/* Classes that no stylesheet ever styles on their own, only stacked on another class (`.dash-line.self`, `.option.dim`): the same word
+   serves as a state of unrelated components, so it has no home to be shared with. */
+export function modifierClasses(entries) {
+  const alone = new Set(), stacked = new Set();
+  for (const { entry } of entries) {
+    const names = subjectClasses(entry);
+    for (const name of names) (names.length === 1 ? alone : stacked).add(name);
+  }
+  return new Set([...stacked].filter((name) => !alone.has(name)));
+}
+
+/** class -> sorted list of the stylesheets that write a rule whose subject it is. */
+export function classOwners(root = ROOT) {
+  const map = new Map();
+  const entries = selectorEntries(root);
+  const modifiers = modifierClasses(entries);
+  for (const { file, entry } of entries) {
+    for (const name of subjectClasses(entry, modifiers)) {
+      if (!map.has(name)) map.set(name, new Set());
+      map.get(name).add(file);
+    }
   }
   const out = {};
   for (const [name, files] of [...map].sort((a, b) => a[0].localeCompare(b[0]))) if (files.size > 1) out[name] = [...files].sort();

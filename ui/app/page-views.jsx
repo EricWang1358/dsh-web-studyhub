@@ -158,9 +158,9 @@ function WrongBookView() {
 }
 
 function GraphView() {
-  const { data, core, nav, lib, set, intents } = useApp();
+  const { data, nav, lib, set, intents } = useApp();
   return (
-    <Graph call={core.call} busy={core.busy} scope={lib.graphScope} library={data} canvasWanted={lib.graphCanvas} onCanvasHandled={() => set.setGraphCanvas(false)}
+    <Graph scope={lib.graphScope} library={data} canvasWanted={lib.graphCanvas} onCanvasHandled={() => set.setGraphCanvas(false)}
       onClose={() => nav.navigate('library')} onStudyCard={({ deckId, cardId }) => intents.practice([{ deckId, cardId }])} />
   );
 }

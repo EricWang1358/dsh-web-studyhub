@@ -5,6 +5,7 @@ import { Chip, Icon, InlineMessage, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
 import thumbCss from "./thumb-feedback.css";
+import { useStudy } from "./study-context.jsx";
 
 /* 👍/👎 一键反馈。👎 立即记录并展开标签，停手 1.2 秒把新选的标签一次提交，
    服务端据此备更难/更基础的题；改题类标签交给复习页的「修题」（onFix），不再静默改题。G/B 与标签数字键由这里自己处理，
@@ -21,7 +22,8 @@ const TAGS = [
 ];
 const IDLE_MS = 1200;
 
-export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix }) {
+export default function ThumbFeedback({ run, canShortcut, onSent, onFix }) {
+  const { call } = useStudy();
   const [vote, setVote] = useState(run.vote?.vote || null),
     [tags, setTags] = useState(run.vote?.tags || []),
     [open, setOpen] = useState(false),
@@ -178,8 +180,8 @@ export default function ThumbFeedback({ run, call, canShortcut, onSent, onFix })
       // Keyboard activation retains normal button focus and accessibility.
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
     }}>
-      <button className="tool-icon" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><Icon name="thumb-up" /></button>
-      <button className="tool-icon" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><Icon name="thumb-down" /></button>
+      <button className="tool-icon thumbs__button" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><Icon name="thumb-up" /></button>
+      <button className="tool-icon thumbs__button" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><Icon name="thumb-down" /></button>
       {vote === "down" && <span id={voteId} className="sh-visually-hidden">{ui("已标记这题有问题")}</span>}
       {error && <InlineMessage tone="error" className="thumbs__error">{error}</InlineMessage>}
       {open && (

@@ -206,7 +206,7 @@ test('the same page in English, with no Chinese left in the words', () => {
 });
 
 const running = { selected: 'builtin', effective: 'builtin', hostCanSearch: false, providers: [], otherTools: [], companion: { id: 'x', running: true }, extension: { canInstall: true, installed: true, enabled: true, version: '3.0.1', desktop: false } };
-const card = (props, language) => render(h(LargeDocumentCard, { reason: 'long-document', detail: { name: '软件架构', pages: 404 }, retrieval: running, call: () => {}, courses: [COURSE], defaultCourse: COURSE, initialPlan: plan(), ...props }), language);
+const card = (props, language) => render(h(LargeDocumentCard, { reason: 'long-document', detail: { name: '软件架构', pages: 404 }, retrieval: running, runnable: true, courses: [COURSE], defaultCourse: COURSE, initialPlan: plan(), ...props }), language);
 const own = { info: { state: 'partial', indexed: 100, total: 404 }, courses: [COURSE] }, done = { info: { state: 'indexed', indexed: 404, total: 404 }, courses: [COURSE] };
 
 test('the card: 404 pages, a course line with names, and a secondary “top up” button when this document needs nothing', () => {

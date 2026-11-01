@@ -48,7 +48,7 @@ const gotoPage = (nav, id) => nav.navigate(id, { animate: true, keepTrail: false
 export default function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(navStartCss, 'study-nav-start');
-  const { data, language, host, core, shell, nav, session, intents, tour, board } = useApp();
+  const { data, language, core, shell, nav, session, intents, tour, board } = useApp();
   const { busy } = core;
   const { sidebarNarrow } = shell;
   const { navPage, pageTarget, page } = nav;
@@ -166,7 +166,7 @@ export default function AppSidebar() {
         <div className="local-status"><span />{ui('本地学习工作区')}</div>
         {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
         <ThemeCycle />
-        <UpdateCenter call={core.call} host={host} compact={sidebarNarrow} />
+        <UpdateCenter compact={sidebarNarrow} />
         <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} narrow={sidebarNarrow} purpose={ui('语言、外观、模型连接和引导提示都在这页调')} data-tour="nav-settings" data-usage="nav.settings"
           onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
       </div>

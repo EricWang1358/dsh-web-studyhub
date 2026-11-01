@@ -105,7 +105,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
       {mode !== 'import' && <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={evidenceIds}
         limits={referenceLimits} onLimitsChange={setReferenceLimits}
         format={referenceFormat} onFormatChange={setReferenceFormat}
-        courses={data.focus?.courses} busy={busy} onChange={setReferenceSourceIds}
+        courses={data.focus?.courses} onChange={setReferenceSourceIds}
         onImport={() => openReferenceImport?.(ids => {
           setReferenceSourceIds(current => importedReferences(current, ids).referenceSourceIds);
           setSourceIds(current => importedReferences([], ids, current).sourceIds);

@@ -52,5 +52,6 @@
     .course-list__group-head > .course-active.is-compact { display: contents; }
     .course-list__item > .course-active.is-compact > .course-active__row { order: 1; flex: none; }
     .course-list__item > .course-active.is-compact { display: contents; }
+    .source-picker .page-scope { margin: 0; }
 }
 }

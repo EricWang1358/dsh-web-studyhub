@@ -7,6 +7,7 @@ import { TokenUsage } from './TokenUsage.jsx';
 import JevLevelCheck from './JevLevelCheck.jsx';
 import { jevGuideSeen, rememberJevGuide, JEV_FEATURE_META,JEV_PROVIDER_META, JEV_REPLACE_META, dshUsage, failureCode, keySourceText, percentText, privacyPoints, providerChoices, providerOf, setupStep, thresholdChoices } from './jev-flow.js';
 import css from './jev.css';
+import { useStudy } from './study-context.jsx';
 
 /* 设置 › 高级 › 实验性功能 › Jev. EXPERIMENTAL, hidden until "Show experimental features" is on (ui/ExperimentalSettings.jsx), and off by default
    even then. It is never anything but an experiment: opt-in, labelled as one, with the trade-off ("faster and cheaper, but accuracy may drop")
@@ -124,7 +125,8 @@ export function JevReplaceList({ settings, onToggle, onGoto, initialBlocked = ''
 }
 
 /** The controls of one saved state. `settings` is jev.settings.get, `usage` is jev.usage's `usage`; `failure` its last failure. */
-export function JevSettingsView({ call, settings, usage, failure, busy, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold, onProvider, onKeyEnv, onReplace, onCustom, onGoto }) {
+export function JevSettingsView({ settings, usage, failure, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold, onProvider, onKeyEnv, onReplace, onCustom, onGoto }) {
+  const { busy } = useStudy();
   const [envName, setEnvName] = useState(settings.keyEnv || '');
   const [endpoint, setEndpoint] = useState(settings.custom?.endpoint || ''), [model, setModel] = useState(settings.custom?.model || '');
   const step = setupStep(settings), ready = step === 'ready';
@@ -201,7 +203,7 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
             options={thresholdChoices(settings.threshold).map(choice => ({ value: choice, label: percentText(choice) }))} />
         </Field>
       </fieldset>
-      {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck call={call} /></details>}
+      {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck /></details>}
       {failure && <InlineMessage tone="warning" className="jev-failure">{uiMessage(failureCode(failure.reason, failure.provider))}</InlineMessage>}
       <JevUsageView usage={usage} />
       {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
@@ -210,7 +212,8 @@ export function JevSettingsView({ call, settings, usage, failure, busy, working,
 }
 
 /** The settings section, connected. `initial` ({ settings, usage, failure }) skips the first read (previews, tests). */
-export default function JevSettings({ call, busy = false, initial = null, initialResult = null }) {
+export default function JevSettings({ initial = null, initialResult = null }) {
+  const { call } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-jev');
   const section = useRef(null);
@@ -238,7 +241,7 @@ export default function JevSettings({ call, busy = false, initial = null, initia
       title={<>{ui('实验性 · Jev 判断服务')}<ExperimentalBadge /></>}
       lead={ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。它在本插件里始终只是实验功能，其他功能都不依赖它。')}>
       {!settings && !error && <LoadingState label={ui('正在读取 Jev 设置…')} />}
-      {settings && <JevSettingsView call={call} settings={settings} usage={usage} failure={failure} busy={busy} working={working} result={result} error={error}
+      {settings && <JevSettingsView settings={settings} usage={usage} failure={failure} working={working} result={result} error={error}
         onKey={key => change('save', { key }, async next => { setResult(null); if (next.confirmed) await verify(); })}
         onVerify={() => run('verify', verify)}
         onClearKey={() => change('clear', { key: '' }, async () => { setResult(null); })}

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { Field, Hint, SegmentedControl, Select } from './components/index.js';
+import { useStudy } from './study-context.jsx';
 
 /** Segments up to this many levels (plus the follow choice); a select beyond. */
 const SEGMENT_LEVELS = 4;
@@ -24,7 +25,8 @@ export function effortTradeoff(options = [], current = '') {
  * `onChange(levelId)` ('' follows), and `onRefresh()` (re-reads the binding when
  * Settings opens or the followed model changes, so the levels match the model).
  */
-export default function ReasoningEffortField({ binding = {}, busy = false, onChange, onRefresh, refreshKey }) {
+export default function ReasoningEffortField({ binding = {}, onChange, onRefresh, refreshKey }) {
+  const { busy } = useStudy();
   useEffect(() => { onRefresh?.(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const effort = binding.effort || {}, options = Array.isArray(effort.options) ? effort.options : [];
   if (options.length < 2) {

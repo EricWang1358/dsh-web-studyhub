@@ -37,7 +37,7 @@ function renderResult(status, next = "review_weak") {
       weakTopics: ["Context"], scope: [], card },
     data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {},
     shellTitle: "Review", busy: false, act: noop, enterRun: noop, setPage: noop, askInChat: noop,
-    coachProps: { call: async () => ({}), debrief, autopilot: false, onPractice: noop, onContinue: noop, onReviewWeak: noop },
+    coachProps: { debrief, autopilot: false, onPractice: noop, onContinue: noop, onReviewWeak: noop },
   }));
 }
 

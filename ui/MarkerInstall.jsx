@@ -91,9 +91,9 @@ function DockerChoice({ status, repair, recheck, busy, locked }) {
   </div>;
 }
 
-export default function MarkerInstall({ call, disabled = false, markerReady = false, markerStatus = null, onChanged, initialInstall = null, initialPlan = null, initialMirror, pickDirectory }) {
+export default function MarkerInstall({ disabled = false, markerReady = false, markerStatus = null, onChanged, initialInstall = null, initialPlan = null, initialMirror, pickDirectory }) {
   useInjectCss(css, 'study-marker-install');
-  const study = useStudy(), pick = pickDirectory || study.host?.pickDirectory;
+  const study = useStudy(), { call } = study, pick = pickDirectory || study.host?.pickDirectory;
   const [install, setInstall] = useState(initialInstall), [plan, setPlan] = useState(initialPlan);
   const [mirror, setMirror] = useState(initialMirror || defaultMirror(getUiLanguage())), [location, setLocation] = useState('');
   const [draft, setDraft] = useState(null), [moving, setMoving] = useState(false), [asking, setAsking] = useState(false), [opened, setOpened] = useState(false);

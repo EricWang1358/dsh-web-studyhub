@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `export * from './ui/components/Feedback.jsx';
   export { default as ActionFeedback, useNotice, reviewNoticeScope, pageOfScope, bindNotice, noticeVisible } from './ui/ActionFeedback.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
@@ -76,7 +77,9 @@ test('banners show a title, body and actions in their tone', () => {
 
 test('ActionFeedback keeps its props and renders notices as viewport toasts', () => {
   m.setUiLanguage('zh');
-  const out = html(m.ActionFeedback, { error: '保存失败', notice: { text: '已斩这道题', action: { label: '撤销', run() {} } }, busy: true, onCloseError() {}, onCloseNotice() {} });
+  // busy is the app's (useStudy): the feedback region reads it from the services.
+  const out = renderToStaticMarkup(h(m.StudyServicesContext.Provider, { value: { busy: true } },
+    h(m.ActionFeedback, { error: '保存失败', notice: { text: '已斩这道题', action: { label: '撤销', run() {} } }, onCloseError() {}, onCloseNotice() {} })));
   assert.match(out, /sh-toasts/);
   assert.match(out, /role="alert"[^>]*>.*保存失败/s);
   assert.match(out, /role="status"[^>]*>.*已斩这道题/s);

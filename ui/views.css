@@ -16,14 +16,6 @@
       gap: var(--space-3-5);
       min-width: 0;
     }
-    /* The shells also carry style.css's `.page` (max-width, centring, padding) so
-       they line up with 资料 / 设置 instead of sitting flush against the sidebar.
-       The flex gap already spaces the heading from the content. */
-    .dash > .page-heading,
-    .wb > .page-heading,
-    .exam .page-heading {
-      margin-bottom: var(--space-1);
-    }
     /* ── Dashboard ───────────────────────────────────────────────────────── */
     /* One statement (the streak, or the active days once it is broken) beside one picture (half a year of stamps);
        everything else is a sentence or a quiet column below. */
@@ -204,7 +196,7 @@
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
-    .dash-weak-row button {
+    .dash-weak-row .dash-weak-start {
       flex: none;
     }
   }

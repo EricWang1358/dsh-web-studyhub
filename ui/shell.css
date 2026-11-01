@@ -52,28 +52,6 @@
       color: var(--text);
     }
     .brand-mark svg { display: block; }
-    .collapse-toggle {
-      margin-left: auto;
-      width: 22px;
-      height: 22px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      border-radius: var(--radius-sm);
-      background: transparent;
-      color: var(--text-muted);
-      font-size: var(--fs-md);
-      line-height: 1;
-      cursor: pointer;
-      transition:
-        background 0.18s var(--ease),
-        color 0.18s var(--ease);
-    }
-    .collapse-toggle:hover {
-      background: var(--bg-hover);
-      color: var(--text);
-    }
     .nav {
       position: relative;
       display: flex;
@@ -177,17 +155,6 @@
       color: var(--text);
     }
     .nav.is-dragging::after { display: none; }
-    .nav-reset {
-      display: block;
-      margin: var(--space-2-5) var(--space-3) 0;
-      padding: var(--space-half) 0;
-      border: none;
-      background: none;
-      color: var(--text-faint);
-      font-size: var(--fs-xs);
-      text-align: left;
-    }
-    .nav-reset:hover { color: var(--text-dim); }
     .nav:not(.nav-upkeep) + .nav-upkeep::after {
       content: "";
       position: absolute;
@@ -236,9 +203,6 @@
     .sidebar.is-narrow .brand {
       flex-direction: column;
       margin: 0 auto var(--space-6-5);
-    }
-    .sidebar.is-narrow .collapse-toggle {
-      margin: var(--space-1) auto 0;
     }
     .sidebar.is-narrow .brand > div,
     .sidebar.is-narrow .nav-count,
@@ -357,6 +321,16 @@
     .top-status .dot.busy {
       background: var(--warn);
       animation: dot-pulse 1.4s var(--ease) infinite;
+    }
+    .skeleton-page .page-heading {
+      margin-bottom: var(--space-3-5);
+    }
+    /* The dashboard, wrong-book and exam shells also carry `.page` (max-width, centring, padding) so they line up with 资料 / 设置;
+       the flex gap already spaces the heading from the content. */
+    .dash > .page-heading,
+    .wb > .page-heading,
+    .exam .page-heading {
+      margin-bottom: var(--space-1);
     }
   }
   /* Beside a long folder name and a status word the decorative "Study ›" would take the room of the page title (measured at 768 px): it goes below 800 px. */
@@ -483,7 +457,6 @@
       margin-bottom: 0;
     }
     .page-heading > :first-child { min-width: 0; }
-    .page-heading > .section-heading-actions { flex-shrink: 0; max-width: 100%; }
     .page-heading button {
       flex-shrink: 0;
     }

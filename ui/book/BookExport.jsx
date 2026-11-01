@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Badge, Button, Dialog, Field, Hint, LoadingState, NumberInput, RadioCard, RadioCardGroup, SegmentedControl } from '../components/index.js';
+import { Badge, Button, Dialog, Field, Hint, LoadingState, NumberInput, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import { PAGE_LIMIT_MAX } from '../../lib/book-settings.js';
-import { downloadText } from './download.js';
+import { downloadBytes, downloadText } from './download.js';
+import { zipTextFiles } from './zip.js';
 
 /* 「导出」 of the review book (M6, docs/plans/review-book.md): the book as the learner's printable CP (course.book.export, lib/course-book-export.js):
-   查找页 first, question links as numbered questions, with or without the 答案册; one Markdown file to download, or the files of the folder one by one
-   with book.yaml listing their order (the app has no zip writer). The A4 page estimate of each choice, and the page limit the learner may set
+   查找页 first, question links as numbered questions, with or without the 答案册; one Markdown file to download, or the files of the folder in one .zip
+   with book.yaml listing their order (ui/book/zip.js). The A4 page estimate of each choice, and the page limit the learner may set
    (settings.book.pageLimit), compared with it. */
 
 /** The three choices of which questions are printed (lib/course-book-export.js QUESTION_MODES). */
@@ -31,7 +32,7 @@ export default function BookExport({ course, pageLimit, onClose }) {
   // Which questions are printed (course.book.export `questions`): only the linked ones by default.
   const [questions, setQuestions] = useState('linked');
   const [state, setState] = useState({ done: null, error: null });
-  const [folder, setFolder] = useState(null);
+  const zipping = useRef(false);
   const [limit, setLimit] = useState(pageLimit ? String(pageLimit) : '');
   useLiveEffect(isLive => {
     setState(current => ({ ...current, error: null }));
@@ -44,12 +45,19 @@ export default function BookExport({ course, pageLimit, onClose }) {
     if ((value ?? undefined) === pageLimit) return;
     try { await act('settings.book.set', { patch: { pageLimit: value } }, () => {}, { rethrow: true }); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
-  const openFolder = async () => {
-    try { setFolder(await call('course.book.export', { course, answerKey, questions, form: 'folder' })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+  const downloadZip = async () => {
+    // One at a time. Not shown as busy: a busy button is disabled, which drops the focus and with it Esc; a whole book takes a moment.
+    if (zipping.current) return;
+    zipping.current = true;
+    try {
+      const folder = await call('course.book.export', { course, answerKey, questions, form: 'folder' });
+      downloadBytes(`${folder.filename}.zip`, zipTextFiles([folder.manifest, ...folder.files]));
+    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { zipping.current = false; }
   };
   const saved = Number.isInteger(pageLimit) ? pageLimit : null, budget = estimate ? budgetText(estimate.pages, saved) : null;
   const footer = <>
-    <Button variant="secondary" icon="list" disabled={!done} onClick={folder ? () => setFolder(null) : openFolder} aria-expanded={!!folder}>{folder ? ui('收起文件清单') : ui('分文件导出…')}</Button>
+    <Tooltip layer content={ui('每个知识点一份文件，打包成一个 zip；book.yaml 记着顺序，用 pandoc 按这个顺序读就是整本书。')}>
+      <Button variant="secondary" icon="download" className="book-export__zip" disabled={!done} onClick={downloadZip}>{ui('分文件下载（zip）')}</Button></Tooltip>
     <Button variant="primary" icon="download" disabled={!done} onClick={() => downloadText(done.filename, done.text)}>{ui('下载 Markdown')}</Button>
   </>;
   return (
@@ -58,9 +66,9 @@ export default function BookExport({ course, pageLimit, onClose }) {
         <p className="book-export__lead">{ui('导出成你自己的开卷速查：前面是查找页（目录、按题型、按概念、易错点），题目链接换成编号的题目，标记都去掉。')}</p>
         <RadioCardGroup legend={ui('印哪些题')} className="book-export__questions">
           {questionChoices().map(choice => <RadioCard key={choice.value} name="book-export-questions" value={choice.value} checked={questions === choice.value}
-            title={choice.title} hint={choice.hint} onSelect={value => { setQuestions(value); setFolder(null); }} />)}
+            title={choice.title} hint={choice.hint} onSelect={setQuestions} />)}
         </RadioCardGroup>
-        <SegmentedControl label={ui('答案册')} className="book-export__key" value={answerKey ? 'with' : 'without'} wrap onChange={value => { setAnswerKey(value === 'with'); setFolder(null); }}
+        <SegmentedControl label={ui('答案册')} className="book-export__key" value={answerKey ? 'with' : 'without'} wrap onChange={value => setAnswerKey(value === 'with')}
           options={[{ value: 'without', label: estimate ? uiFormat('不含答案册 · 约 {0} 页', [estimate.book]) : ui('不含答案册') },
             { value: 'with', label: estimate ? uiFormat('含答案册 · 约 {0} 页', [estimate.withAnswers]) : ui('含答案册') }]} />
         {state.error ? <Hint tone="error">{errorMessage(state.error)}</Hint> : !done ? <LoadingState inline label={ui('正在准备导出…')} /> : <div className="book-export__estimate" role="status">
@@ -71,14 +79,6 @@ export default function BookExport({ course, pageLimit, onClose }) {
           <NumberInput inputMode="numeric" min={1} max={PAGE_LIMIT_MAX} step={1} value={limit} suffix={ui('页')} placeholder={ui('不限')}
             onChange={event => setLimit(event.target.value)} onBlur={saveLimit} onKeyDown={event => { if (event.key === 'Enter') saveLimit(); }} />
         </Field>
-        {folder?.files && <div className="book-export__files">
-          <Hint>{ui('没有打包：逐个下载到同一个文件夹，book.yaml 记着顺序，用 pandoc 按这个顺序读就是整本书。')}</Hint>
-          <ul className="book-export__list">
-            {[folder.manifest, ...folder.files].map(file => <li key={file.name}>
-              <Button variant="link" size="sm" icon="download" className="book-export__file" onClick={() => downloadText(file.name, file.text, file.name.endsWith('.yaml') ? 'text/yaml' : 'text/markdown')}>{file.name}</Button>
-            </li>)}
-          </ul>
-        </div>}
       </div>
     </Dialog>
   );

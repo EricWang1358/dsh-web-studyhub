@@ -6,8 +6,10 @@ import MarkerInstall from './MarkerInstall.jsx';
 import { useInjectCss } from './shared.js';
 import css from './marker-install.css';
 import { useLiveEffect } from './use-async.js';
+import { useStudy } from './study-context.jsx';
 
-export default function MarkerSettings({ call, disabled = false, available = true }) {
+export default function MarkerSettings({ disabled = false, available = true }) {
+  const { call } = useStudy();
   const alive = useRef(true), revision = useRef(0), saving = useRef(false);
   useInjectCss(css, 'study-marker-install');
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -53,7 +55,7 @@ export default function MarkerSettings({ call, disabled = false, available = tru
   return <div className="marker-settings">
     <p>{ui('选好 PDF 后，StudyHub 会调用本机 Marker，显示进度并自动导入结果。')}</p>
     {!available && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。启用 StudyHub 的音频组件后可在应用内解析；也可用下面的脚本手动转换。')}</InlineMessage>}
-    {available && call && <MarkerInstall call={call} disabled={disabled} markerReady={status?.state === 'ready'} markerStatus={status} onChanged={reload} />}
+    {available && call && <MarkerInstall disabled={disabled} markerReady={status?.state === 'ready'} markerStatus={status} onChanged={reload} />}
     <div className="marker-settings__manual">
     <h4>{ui('已经有 Marker？手动指定程序路径')}</h4>
     <Field label={ui('Marker 程序路径')} hint={ui('留空会先用 StudyHub 装好的那份，没有再自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}>

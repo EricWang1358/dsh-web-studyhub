@@ -13,10 +13,10 @@ import { mergeProgress, topicKey } from './map-model.js';
  * decks under it, a deck per row with its topics. `folders` is the grouping
  * from useCourseFolders; `tree` is useDeckTree's folds and selection.
  */
-export default function DeckTree({ data, folders, tree, query, showArchived, singleCourse, inFocus, parkedByName, progress, runFor, busy, actions }) {
+export default function DeckTree({ data, folders, tree, query, showArchived, singleCourse, inFocus, parkedByName, progress, runFor, actions }) {
   const [showAll, setShowAll] = useState(false);
   const isOpen = (id) => !!query || tree.expanded.has(id);
-  const deckRow = (deck) => <DeckRow key={deck.id} deck={deck} progress={progress[deck.id]} open={isOpen(deck.id)} tree={tree} runFor={runFor} busy={busy} actions={actions} />;
+  const deckRow = (deck) => <DeckRow key={deck.id} deck={deck} progress={progress[deck.id]} open={isOpen(deck.id)} tree={tree} runFor={runFor} actions={actions} />;
   return (
     <ul className={`map-tree${singleCourse ? ' single-course' : ''}`}>
       {folders.map(([folder, decks]) => {

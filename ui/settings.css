@@ -122,7 +122,7 @@
     .science-preview { padding: var(--space-4); margin-block: var(--space-5); border: 1px solid var(--line-soft); border-radius: var(--radius); }
     .science-tool { padding-block: var(--space-5); border-top: 1px solid var(--line-soft); }
     .science-tool form { display: grid; gap: var(--space-3); }
-    .science-tool form > button { justify-self: start; }
+    .science-tool .science-tool__run { justify-self: start; }
     .science-result { margin-top: var(--space-4); overflow-wrap: anywhere; }
     .science-result code { display: block; margin-top: var(--space-1); white-space: pre-wrap; }
     .science-result details { margin-top: var(--space-3); }
@@ -130,7 +130,6 @@
   }
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {
-      .science-tool .two-col { grid-template-columns: minmax(0, 1fr); }
     }
   }
 }

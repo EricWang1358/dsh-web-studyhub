@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, CloseButton, Hint, InlineMessage } from '../components/index.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
+import { useStudy } from '../study-context.jsx';
 
 /**
  * Asking the model which decks of a course are worth merging, and merging the
@@ -29,7 +30,8 @@ export function useMergeSuggestions({ suggestMerges, mergeDecks, course }) {
 }
 
 /** The error and the proposals of useMergeSuggestions (nothing when there is neither). */
-export default function MergeSuggestions({ merge, busy }) {
+export default function MergeSuggestions({ merge }) {
+  const { busy } = useStudy();
   const { suggestions, error } = merge;
   return (
     <>

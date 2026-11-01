@@ -119,7 +119,6 @@
     .wf-readings cite { font-size: var(--fs-md); font-style: normal; }
     .wf-skeleton { margin-block: var(--space-5); min-width: 0; }
     .wf-skeleton > h3 { font-size: var(--fs-md); }
-    .wf-skeleton > .md { font-size: var(--fs-md); line-height: 1.8; }
     .wf-output-label { margin-top: 26px; font-size: var(--fs-md); font-weight: var(--fw-medium); }
     .wf-output-label textarea { font-weight: var(--fw-regular); }
     .wf-output-save { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
@@ -145,7 +144,6 @@
     .wf-practice-intro p { line-height: 1.7; }
     .wf-practice-intro strong { font-size: var(--fs-lg); }
     .wf-practice-progress { max-width: 420px; margin: var(--space-1) 0 var(--space-3-5); }
-    .workflow-page .md { overflow-wrap: anywhere; }
     .workflow-page .md :is(pre, table) { max-width: 100%; overflow-x: auto; }
     .wf-teaching { margin-top: 26px; padding: var(--space-6-5) 38px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }
     .wf-teaching-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-6); padding-bottom: var(--space-4-5); border-bottom: 1px solid var(--line); }

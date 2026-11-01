@@ -22,8 +22,8 @@ import { continueArgs, continueNotice } from '../coverage/top-up.js';
    button opens with the run selected; the runs a draft folded away are listed there too.
    A run that has left a draft says where it stands the way every screen does (lib/shortfall.js: the same questions, sections and next step as the 待发布 row, the console and the draft
    page), and its button is the shortfall's ONE action: 接着做 (interrupted), 继续 (paused), 去配置模型 (a refused key), 为没覆盖的部分补题 (it stopped with sections left). */
-export default function JobCard({ job: j, jobs = [], drafts, data, busy, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards, topUpDraft, modelReady = true }) {
-  const { act, notify, openSettings } = useStudy();
+export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, openDeck, practiceCards, topUpDraft, modelReady = true }) {
+  const { act, notify, openSettings, busy } = useStudy();
   const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const active = isActiveJob(j);
   const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;

@@ -2,9 +2,11 @@ import React from 'react';
 import { ui } from '../i18n.js';
 import { Button } from '../components/index.js';
 import { TERMS } from '../mastery-terms.js';
+import { useStudy } from '../study-context.jsx';
 
 /** The right of the home desk: the one card with today's count and its one action (a newcomer's three steps are the first-run line's compact card, ui/first-run). `quiet`: the 下一步 card above holds the page's primary button (ui/study-map/NextStepCard.jsx), so this action is a secondary one. */
-export default function TodayCard({ plan, todayLabel, busy, quiet = false }) {
+export default function TodayCard({ plan, todayLabel, quiet = false }) {
+  const { busy } = useStudy();
   return (
     <div className="today-stack" data-depth={plan.depth} data-tour="home-today">
       <div className="today-card sh-paper-card">

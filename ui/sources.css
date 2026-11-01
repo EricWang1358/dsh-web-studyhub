@@ -7,7 +7,7 @@
        tokens only. */
     .sources-page .sh-page-header { margin-bottom: var(--space-4); }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
-    & button.source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
        three lines (title, facts, status) so a 900px window shows five or more. */
     .source-doc { display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
@@ -90,6 +90,7 @@
     .sources-empty { display: grid; gap: var(--space-4); margin-top: var(--space-2); }
     .sources-empty__intro h2 { margin: 0 0 var(--space-1); font-size: var(--fs-xl); }
     .sources-empty__intro p { margin: 0; color: var(--text-muted); }
+    .source-doc .source-main--editing .source-doc__icon { margin-top: var(--space-2-5); }
   }
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {

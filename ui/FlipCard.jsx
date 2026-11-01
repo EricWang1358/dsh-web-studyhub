@@ -2,12 +2,14 @@ import { ui } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import { Badge } from "./components/index.js";
+import { useStudy } from "./study-context.jsx";
 
 /* 闪卡翻面。两面叠在同一个 grid 格里，默认高度取两面中较高者；答案加载
    或翻面后若背面更长，卡片会在一帧内撑高、把下面的评分区挤下去。这里改为
    只按当前朝上那一面定高，并用 ResizeObserver 跟随内容变化（答案载入、
    字体加载、容器变宽），高度变化交给 CSS transition 与翻转同步完成。 */
-export default function FlipCard({ run, busy, showBack, flipCard, enOn }) {
+export default function FlipCard({ run, showBack, flipCard, enOn }) {
+  const { busy } = useStudy();
   const front = React.useRef(null),
     back = React.useRef(null),
     [height, setHeight] = React.useState(null);

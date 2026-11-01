@@ -21,8 +21,8 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { scrubSecrets, scrubProcessEnv } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
-import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "./fake-openai.mjs";
-import { handOffStep, seedHandOffBook } from "./dsh-hand-off.mjs";
+import { createFakeOpenAI, FAKE_OPENAI_MODEL, FAKE_VISION_MODEL } from "./fake-openai.mjs";
+import { handOffStep, pagePictureStep, seedHandOffBook } from "./dsh-hand-off.mjs";
 
 // The host release the harness pins by default; `--dsh-version <x>` / DSH_QA_VERSION tests another release (see resolveDshVersion).
 // StudyHub supports 0.2.0-rc.2 and 0.2.1-rc.2: run both before a release (`npm run qa:dsh -- --dsh-version 0.2.0-rc.2`).
@@ -42,7 +42,8 @@ export function dshPatch({ fakeModelUrl, documentsDirectory, keyEnv = FAKE_KEY_E
   return [
     { id: "llm-pi-ai", config: { providers: { [FAKE_PROVIDER]: { displayName: "StudyHub QA fake model (local)", apiKeyEnv: keyEnv,
       api: "openai-completions", baseURL: fakeModelUrl,
-      models: [{ id: FAKE_OPENAI_MODEL, name: "Fake Tutor", contextWindow: 65536, reasoningEfforts: false }] } } } },
+      models: [{ id: FAKE_OPENAI_MODEL, name: "Fake Tutor", contextWindow: 65536, reasoningEfforts: false },
+        { id: FAKE_VISION_MODEL, name: "Fake Vision", contextWindow: 65536, reasoningEfforts: false, input: ["text", "image"] }] } } } },
     { id: "agent-default-model", config: { provider: FAKE_PROVIDER, model: FAKE_OPENAI_MODEL } },
     { id: "workspace-controller", config: { documentsDirectory } },
   ];
@@ -333,6 +334,7 @@ export async function runDshE2e(options) {
     });
     // 发给主会话 never overwrites what the learner typed into the chat's input box and never sends (scripts/qa/dsh-hand-off.mjs).
     await step("hand-off-keeps-typed", async () => { summary.handOff = await handOffStep(page, { lang: options.lang, model, shot }); });
+    await step("hand-off-page-picture", async () => { summary.pagePicture = await pagePictureStep(page, { lang: options.lang, model, shot }); });
     // A chat turn per agent preset: the standard preset (control) and the 学习模式 preset this plugin ships (presets/study.patch.yml). The turn goes through the
     // local fake model; the page must show its reply and no host error. A host that refuses the preset's prompt (an unknown {{variable}}, say) shows the error text.
     await step("preset-chat", async () => {

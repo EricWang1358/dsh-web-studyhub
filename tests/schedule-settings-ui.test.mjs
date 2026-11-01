@@ -11,14 +11,14 @@ import { defaults } from '../lib/sm2.js';
 import { syncScheduleSettings } from '../ui/schedule-settings.js';
 
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: "export { ScheduleSection } from './ui/settings/ScheduleSection.jsx';", resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: "export { ScheduleSection } from './ui/settings/ScheduleSection.jsx'; export { StudyServicesContext } from './ui/study-context.jsx';", resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
-let active;
+let active, studyContext;
 const slot = initial => { const index = active.cursor++; if (!(index in active.slots)) active.slots[index] = initial(); return [index, active.slots[index]]; };
 const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = slot(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useContext: () => globalThis.__toast ?? null, useRef: initial => slot(() => ({ current: initial }))[1], useId: () => slot(() => `field-${active.cursor}`)[1],
+  useContext: context => (context === studyContext ? globalThis.__study ?? null : globalThis.__toast ?? null), useRef: initial => slot(() => ({ current: initial }))[1], useId: () => slot(() => `field-${active.cursor}`)[1],
   useInsertionEffect: () => {}, useEffect: (callback, dependencies) => { const [, effect] = slot(() => ({ dependencies: undefined, cleanup: null }));
     if (!effect.dependencies || dependencies.some((value, index) => value !== effect.dependencies[index])) {
       active.effects.push(() => { effect.cleanup?.(); effect.cleanup = callback(); }); effect.dependencies = dependencies;
@@ -27,6 +27,7 @@ const hooks = { ...React,
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : require(name), module, module.exports);
 const { ScheduleSection } = module.exports;
+studyContext = module.exports.StudyServicesContext;
 // The two FSRS-6 fields (lib/sm2.js): the target recall is shown as a percent (0.85 → 85), the maximum gap in days.
 const keys = ['request_retention', 'maximum_interval'];
 const findAll = (tree, predicate) => {
@@ -38,8 +39,8 @@ function editor(overrides = {}) {
   const owner = { cursor: 0, slots: [], effects: [] };
   const setSettings = value => { current.settings = typeof value === 'function' ? value(current.settings) : value; };
   return {
-    render(next = {}) { current = { ...current, ...next }; active = owner; owner.cursor = 0;
-      try { return ScheduleSection({ ...current, setSettings }); } finally { active = null; } },
+    render(next = {}) { current = { ...current, ...next }; active = owner; owner.cursor = 0; globalThis.__study = current; // the services (act, busy) a page reads from useStudy()
+      try { return ScheduleSection({ ...current, setSettings }); } finally { active = null; globalThis.__study = null; } },
     effects() { owner.effects.splice(0).forEach(effect => effect()); },
     unmount() { owner.slots.forEach(value => value?.cleanup?.()); },
     settings: () => current.settings,

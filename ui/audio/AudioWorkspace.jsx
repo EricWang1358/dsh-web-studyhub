@@ -3,9 +3,11 @@ import { errorMessage, ui, uiFormat } from "../i18n.js";
 import { useLiveEffect } from "../use-async.js";
 import { Button, Hint, InlineMessage } from "../components/index.js";
 import { formatBytes, formatDateTime } from "../format.js";
+import { useStudy } from "../study-context.jsx";
 
 /** Search the session workspace for audio, like @ in the composer: type a few letters, pick one. */
-export default function AudioWorkspace({ call, onPick }) {
+export default function AudioWorkspace({ onPick }) {
+  const { call } = useStudy();
   const [state, setState] = useState({ status: "idle", files: [], truncated: false, error: "" });
   const [query, setQuery] = useState(""), [opened, setOpened] = useState(false);
   useLiveEffect((alive) => {

@@ -20,10 +20,8 @@
     .oral-report h2 { margin: 0; font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
     .oral-report > p { margin: 0; }
     .oral-band-legend { display: flex; gap: var(--space-4); flex-wrap: wrap; color: var(--text-dim); font-size: var(--fs-md); }
-    .oral-report .result-weak { padding: var(--space-4-5); border: 1px solid var(--line); border-radius: var(--radius); }
     .oral-report .result-weak h3 { margin: 0 0 var(--space-2-5); }
     .oral-report .result-weak ol { margin-top: 0; }
-    .oral-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4); }
     .oral-report-entry { padding: var(--space-4-5) 0; border-top: 1px solid var(--line-soft); }
     .oral-report-entry:first-of-type { margin-top: var(--space-3-5); }
     .oral-report-entry p { color: var(--text-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
