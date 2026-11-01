@@ -245,6 +245,14 @@
     .home-activity .sh-job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
     .result-page .summary-topics { margin: var(--space-5) 0; }
     .result-page .summary-actions { justify-content: flex-start; margin-top: var(--space-5-5); }
+    .question-area.has-case {
+      width: min(1240px, calc(100% - 48px));
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+      column-gap: var(--space-6);
+      align-items: start;
+    }
+    .review-body > .question-area { grid-column: 1; grid-row: 1; min-width: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
@@ -929,6 +937,16 @@
   }
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
+    }
+  }
+  @container study (max-width: 980px) {
+    :where(.study-app, .study-seat) {
+      .question-area.has-case { display: block; width: min(700px, calc(100% - 32px)); }
+    }
+  }
+  @container study (max-width: 600px) {
+    :where(.study-app, .study-seat) {
+      .review-body > .question-area { width: 100%; min-width: 0; }
     }
   }
 }

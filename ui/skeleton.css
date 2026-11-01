@@ -7,9 +7,6 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .skeleton-page .page-heading {
-      margin-bottom: var(--space-3-5);
-    }
     /* A failed read shows as the shared InlineMessage (with a retry action); a remembered
        skeleton that no longer exists is only a muted line that goes away on the next action. */
     .sk-msg,

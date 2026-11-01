@@ -322,6 +322,16 @@
       background: var(--warn);
       animation: dot-pulse 1.4s var(--ease) infinite;
     }
+    .skeleton-page .page-heading {
+      margin-bottom: var(--space-3-5);
+    }
+    /* The dashboard, wrong-book and exam shells also carry `.page` (max-width, centring, padding) so they line up with 资料 / 设置;
+       the flex gap already spaces the heading from the content. */
+    .dash > .page-heading,
+    .wb > .page-heading,
+    .exam .page-heading {
+      margin-bottom: var(--space-1);
+    }
   }
   /* Beside a long folder name and a status word the decorative "Study ›" would take the room of the page title (measured at 768 px): it goes below 800 px. */
   @container study (max-width: 800px) {

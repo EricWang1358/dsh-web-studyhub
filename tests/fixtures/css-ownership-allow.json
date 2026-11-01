@@ -34,10 +34,6 @@
       "ui/course-active.css",
       "ui/study-map/desk.css"
     ],
-    "course-route": [
-      "ui/focus.css",
-      "ui/study-map/desk.css"
-    ],
     "dim": [
       "ui/review/question.css",
       "ui/skeleton.css"
@@ -104,18 +100,7 @@
     ],
     "page-heading": [
       "ui/reading-settings/reading.css",
-      "ui/shell.css",
-      "ui/skeleton.css",
-      "ui/views.css"
-    ],
-    "page-scope": [
-      "ui/course-active.css",
-      "ui/source-picker.css"
-    ],
-    "question-area": [
-      "ui/case-study.css",
-      "ui/review/question.css",
-      "ui/review/session.css"
+      "ui/shell.css"
     ],
     "reader-p": [
       "ui/document-preview/reader/reader.css",
@@ -140,10 +125,6 @@
     "review-page": [
       "ui/review/session.css",
       "ui/shell.css"
-    ],
-    "role-prep": [
-      "ui/focus.css",
-      "ui/study-map/desk.css"
     ],
     "self": [
       "ui/charts/charts.css",
@@ -410,10 +391,6 @@
     "study-document-viewer": [
       "ui/blog-notes.css",
       "ui/document-preview/reader/reader.css"
-    ],
-    "two-col": [
-      "ui/legacy.css",
-      "ui/settings.css"
     ],
     "wf-scope": [
       "ui/workflow-scope.css",

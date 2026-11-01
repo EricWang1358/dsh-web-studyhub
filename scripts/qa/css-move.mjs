@@ -92,7 +92,11 @@ function main() {
     let count = 0;
     for (;;) {
       let out;
-      try { out = moveRule(a, b, entry, { createAt }); } catch (error) { if (count && /^no rule/.test(error.message)) break; throw error; }
+      try { out = moveRule(a, b, entry, { createAt }); } catch (error) {
+        if (!count) throw error;
+        if (!/^no rule/.test(error.message)) console.warn(`stopped after ${count}: ${error.message}`);
+        break;
+      }
       ({ from: a, to: b } = out); count++;
       for (const warning of out.warnings) console.warn(warning);
     }
