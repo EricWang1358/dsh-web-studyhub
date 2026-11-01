@@ -25,7 +25,7 @@ function ChemistryTool() {
     <Hint>{ui('支持中性分子、括号下标和物态；只验证元素守恒，不判断反应能否发生。离子、氧化还原半反应和多解反应暂不自动配平。')}</Hint>
     <form onSubmit={run}><Field label={ui('反应方程式')} width="full"><TextInput value={input} maxLength={512}
       onChange={event => { request.current++; setInput(event.target.value); setResult(null); setWorking(false); }} /></Field>
-      <Button type="submit" variant="secondary" busy={working} disabled={!input.trim()}>{ui('配平方程式')}</Button></form>
+      <Button type="submit" variant="secondary" className="science-tool__run" busy={working} disabled={!input.trim()}>{ui('配平方程式')}</Button></form>
     {result && <div className="science-result" aria-live="polite">
       <InlineMessage tone={result.status === 'balanced' ? 'success' : 'warning'}>
         {ui(result.status === 'balanced' ? '已配平：两侧元素数量一致。' : result.status === 'not_balanced' ? '这些物质无法得到全部为正的配平系数。' : '暂不能可靠配平；请检查写法或缩小表达式。')}
@@ -56,7 +56,7 @@ function SymbolicTool() {
     <form onSubmit={run}><div className="two-col">
       <Field label={ui('等式左侧')} width="full"><TextInput value={left} maxLength={512} onChange={event => edit(setLeft, event.target.value)} /></Field>
       <Field label={ui('等式右侧')} width="full"><TextInput value={right} maxLength={512} onChange={event => edit(setRight, event.target.value)} /></Field>
-    </div><Button type="submit" variant="secondary" busy={working} disabled={!left.trim() || !right.trim()}>{ui('验证恒等式')}</Button></form>
+    </div><Button type="submit" variant="secondary" className="science-tool__run" busy={working} disabled={!left.trim() || !right.trim()}>{ui('验证恒等式')}</Button></form>
     {result && <div className="science-result" aria-live="polite">
       <InlineMessage tone={result.status === 'proved' ? 'success' : 'warning'}>
         {ui(result.status === 'proved' ? '恒等式已证明；结果适用于下列条件。' : result.status === 'disproved' ? '展开结果不同，不是恒等式。' : '暂不能可靠证明；请检查写法或缩小表达式。')}

@@ -20,14 +20,25 @@ export const TOC_FOLD_ABOVE = 120;
 /** entries: [{ id, level, title, chapter }] (the book's own title left out); here: the heading id being read; onGo(id); opened: the chapters open when the 目录 folds (a Set; none: it does not),
     parents: the chapters with something to open, onToggle(chapter); hidden: the chapter folded over the heading being read, which takes its mark. */
 export const BookTocList = memo(function BookTocList({ entries, here, onGo, opened, parents, onToggle, hidden = null }) {
+  // One tab stop for the list (hundreds of rows otherwise): the row last moved to, else the one being read, else the first. The arrows, Home and End walk the rows; a chapter's caret stays its own stop.
+  const [moved, setMoved] = useState(null), marked = hidden ?? here;
+  const stop = entries.some(entry => entry.id === moved) ? moved : entries.some(entry => entry.id === marked) ? marked : entries[0]?.id;
+  const walk = event => {
+    const rows = [...event.currentTarget.querySelectorAll('.book-toc__go')], at = rows.indexOf(event.target.closest('.book-toc__go'));
+    const next = at < 0 ? -1 : { ArrowDown: Math.min(at + 1, rows.length - 1), ArrowUp: Math.max(at - 1, 0), Home: 0, End: rows.length - 1 }[event.key];
+    if (next === undefined || next < 0) return;
+    event.preventDefault();
+    setMoved(entries[next]?.id ?? null);
+    rows[next].focus();
+  };
   return (
-    <ol className="book-toc__list">
+    <ol className="book-toc__list" onKeyDown={walk}>
       {entries.map(entry => (
         <li key={entry.id} className="book-toc__item" data-level={Math.min(4, entry.level)}>
           {parents?.has(entry.id) && <IconButton size="sm" className="book-toc__fold" aria-expanded={opened.has(entry.id)} data-open={opened.has(entry.id) ? '' : undefined}
             icon={<Icon name="caret" size={14} />} label={opened.has(entry.id) ? ui('收起这一章') : ui('展开这一章')} onClick={() => onToggle(entry.id)} />}
           <Tooltip layer placement="right-start" group="book-toc" content={uiFormat('编号 {0}', [codeOf(entry.id)])} anchorClassName="book-toc__anchor">
-            <Button variant="quiet" size="sm" wrap className="book-toc__go" aria-current={entry.id === (hidden ?? here) ? 'location' : undefined} onClick={() => onGo(entry.id)}>
+            <Button variant="quiet" size="sm" wrap className="book-toc__go" tabIndex={entry.id === stop ? 0 : -1} aria-current={entry.id === marked ? 'location' : undefined} onClick={() => onGo(entry.id)}>
               {entry.title}
             </Button>
           </Tooltip>

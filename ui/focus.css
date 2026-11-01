@@ -15,7 +15,7 @@
     .role-prep { margin: calc(var(--space-2) * -1) 0 var(--space-4-5); }
     .role-prep details { max-width: 640px; }
     .role-prep summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-md); }
-    .role-prep textarea { display: block; width: 100%; margin: var(--space-2-5) 0; }
+    .role-prep .role-prep__jd { display: block; width: 100%; margin: var(--space-2-5) 0; }
     .role-proposal { margin: var(--space-2-5) 0; }
     .role-weak { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
     .role-weak strong { margin-right: var(--space-1); }

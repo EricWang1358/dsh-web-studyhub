@@ -256,3 +256,30 @@ test('the contracts name the ops', () => {
   assert.match(libraryContracts.learning, /book\.mock \{course\?/);
   assert.match(studyToolDescription, /book\.crunch/);
 });
+
+// #489 item 9: 学完 means studied. Answers given in a mock exam (or an oral one) measure, they do not teach the point, so the plan keeps it; a practice round's answers still count.
+test('answers in a mock exam do not make a point learnt; the same answers in practice do', async t => {
+  const { study, deck, what } = await service(t);
+  await examIn(study, 7);
+  const run = await study.call('book.mock', { course: COURSE, pointIds: [what.hid], count: 5, date: TODAY });
+  const answer = (prefix, extra) => study.store.update(state => {
+    for (const card of deck.cards.slice(0, 5)) state.attempts.push({ id: `${prefix}-${card.id}`, quiz_id: card.id, deckId: deck.id, timestamp: new Date().toISOString(), grade: 4, assessment: 'graded', ...extra });
+  });
+  const pointNow = async () => (await study.call('book.crunch', { course: COURSE, date: TODAY })).points.find(point => point.id === what.hid);
+  await answer('exam', { runId: run.id });
+  assert.equal((await pointNow()).done, null, 'five answers in the mock paper: not learnt');
+  await answer('oral', { assessment: 'oral', runId: 'an-oral-run' });
+  assert.equal((await pointNow()).done, null, 'nor in an oral exam');
+  const plan = await study.call('course.plan', { course: COURSE, date: TODAY });
+  assert.ok(!plan.schedule?.today?.done?.includes(what.hid), 'the whole-period plan reads the same days');
+  await answer('practice', { runId: 'a-practice-run' });
+  assert.equal((await pointNow()).done, TODAY, 'a run that is not a mock counts');
+});
+
+test('a mock paper says how many case questions it leaves out, apart from other open questions', async t => {
+  const { study, deck, what } = await service(t);
+  await study.store.update(state => { const own = state.decks.find(item => item.id === deck.id); own.cards[7].rubricCriteria = [{ id: 'c', text: 'Names the decision', points: 1 }]; });
+  const plan = await study.call('book.mock.plan', { course: COURSE, pointIds: [what.hid] });
+  assert.equal(plan.leftOut.case, 1);
+  assert.equal(plan.leftOut.open, undefined);
+});
