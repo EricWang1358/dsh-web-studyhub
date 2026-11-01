@@ -18,7 +18,7 @@ export default function TodayCard({ plan, todayLabel, busy, quiet = false }) {
         </div>
         {plan.detail && <p className="today-detail" title={plan.kind === 'path' ? ui(TERMS.due.hint) : undefined}>{plan.detail}</p>}
         {plan.action && (
-          <Button variant={quiet ? "secondary" : "primary"} className="today-go" iconEnd="arrow-right" disabled={busy || plan.action.disabled} data-usage="home.start" onClick={plan.action.run}>
+          <Button variant={quiet ? "secondary" : "primary"} className="today-go" iconEnd="arrow-right" disabled={plan.action.disabled} lock={busy} data-usage="home.start" onClick={plan.action.run}>
             {plan.action.label}
           </Button>
         )}
