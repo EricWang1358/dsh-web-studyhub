@@ -83,7 +83,6 @@
     },
     "longLine": {},
     "bareBusyDisabled": {
-      "ui/ConvertEdit.jsx": 2,
       "ui/CourseSettings.jsx": 4,
       "ui/DailyRecap.jsx": 3,
       "ui/DailyRecapSettings.jsx": 1,
