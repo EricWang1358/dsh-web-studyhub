@@ -154,7 +154,7 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
       {error && <InlineMessage>{error}</InlineMessage>}
       {state !== 'off' && state !== 'off-data' && (
         <div className="settings-actions">
-          <Button variant="secondary" size="sm" disabled={busy || !!working} onClick={onPause}>{status.paused ? ui('继续记录') : ui('暂停记录')}</Button>
+          <Button variant="secondary" size="sm" disabled={!!working} lock={busy} onClick={onPause}>{status.paused ? ui('继续记录') : ui('暂停记录')}</Button>
         </div>
       )}
       {status.hasData && (
@@ -163,10 +163,10 @@ export function UsageSettingsView({ status, report, period, busy = false, workin
           {report ? <UsageReportView report={report} period={period} onPeriod={onPeriod} language={language} />
             : <LoadingState label={ui('正在整理报告…')} />}
           <div className="settings-actions usage-actions">
-            <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('markdown')}>{ui('导出 Markdown')}</Button>
-            <Button variant="secondary" size="sm" icon="download" disabled={busy || !!working} onClick={() => onExport?.('json')}>{ui('导出 JSON')}</Button>
-            <Button variant="secondary" size="sm" disabled={busy || !!working} onClick={onCopy}>{ui('复制报告')}</Button>
-            <Button variant="danger" size="sm" disabled={busy || !!working} onClick={onAskClear}>{ui('删除全部记录')}</Button>
+            <Button variant="secondary" size="sm" icon="download" disabled={!!working} lock={busy} onClick={() => onExport?.('markdown')}>{ui('导出 Markdown')}</Button>
+            <Button variant="secondary" size="sm" icon="download" disabled={!!working} lock={busy} onClick={() => onExport?.('json')}>{ui('导出 JSON')}</Button>
+            <Button variant="secondary" size="sm" disabled={!!working} lock={busy} onClick={onCopy}>{ui('复制报告')}</Button>
+            <Button variant="danger" size="sm" disabled={!!working} lock={busy} onClick={onAskClear}>{ui('删除全部记录')}</Button>
           </div>
           <Hint className="usage-file">{uiFormat('记录文件：{0}', [status.file || 'usage-frequency.json'])}</Hint>
         </details>
