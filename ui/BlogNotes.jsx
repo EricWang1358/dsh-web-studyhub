@@ -217,9 +217,9 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
       description={daily ? <span className="note-daily-meta">{note.daily?.day} · {note.daily?.course} · {uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [note.daily?.answeredCount, note.daily?.wrongCount])}</span> : undefined}
       actions={<>
         {!note && <ReadingSettingsButton />}
-        {note && writable && <Button aria-pressed={editing} disabled={saving || publishing || note.generation?.status === 'running'}
+        {note && writable && <Button aria-pressed={editing} disabled={publishing || note.generation?.status === 'running'} lock={saving}
           onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
-        {editing && writable && <Button variant="primary" disabled={saving || !dirty || note.generation?.status === 'running'} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
+        {editing && writable && <Button variant="primary" disabled={!dirty || note.generation?.status === 'running'} lock={saving} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
         <Button onClick={onBack}>{backLabel || ui('返回学习库')}</Button>
         {/* Behind the note's ⋯ (更多操作), never beside 返回: a slip on the way back must not delete. One choice there, then 撤销 in the notice. */}
         {note && <Menu className="note-more" label={ui('更多操作')} items={[{ id: 'delete', label: ui('删除这篇笔记'), danger: true, disabled: saving || publishing, attrs: { 'data-note-delete': '' } }]}
@@ -277,13 +277,13 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
       <div className="note-reuse-actions">
       {note.markdown && <details className="note-linking"><summary>{ui('转成资料')}</summary>
         <p className="muted">{ui('把当前内容单独存入资料库，之后可复用资料页的阅读和学习功能。合集继续保留；以后更新合集不会改动这份资料。')}</p>
-        <Button disabled={busy || saving || materialSaved || note.generation?.status === 'running'} onClick={saveMaterial}>{ui(materialSaved ? '已保存为资料' : '保存当前内容为资料')}</Button>
+        <Button disabled={materialSaved || note.generation?.status === 'running'} lock={busy || saving} onClick={saveMaterial}>{ui(materialSaved ? '已保存为资料' : '保存当前内容为资料')}</Button>
       </details>}
       <details className="note-publish"><summary>{ui('公开成文与 CSDN 发布')}</summary>
         {daily && <p className="muted">{ui('链接只关联公开文章；更新本地合集不会自动修改 CSDN 正文。')}</p>}
         <p className="muted">{ui("公开文章请使用通用案例，不写课程、PPT 或个人信息。原题关联只保存在学习库。")}</p>
         <div className="note-actions">
-        {writable && <Button disabled={saving || note.generation?.status === "running"} onClick={() => perform(async live => {
+        {writable && <Button disabled={note.generation?.status === "running"} lock={saving} onClick={() => perform(async live => {
           const editorTab = window.open("", "_blank");
           try {
             const saved = await persistCurrent();
@@ -298,7 +298,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
             if (live()) toast.success(uiFormat("草稿已保存，Markdown 已复制；请在 CSDN 审阅并发布。{0}",[lookupHint]));
           } catch (error) { editorTab?.close(); throw error; }
         })}>{ui("复制内容并打开 CSDN")}</Button>}
-        {writable && <Button disabled={saving} onClick={findPublished}>{ui("查找已发布文章")}</Button>}
+        {writable && <Button lock={saving} onClick={findPublished}>{ui("查找已发布文章")}</Button>}
       </div>
         <div className="note-card-search"><input value={home} placeholder={ui("https://blog.csdn.net/用户名")}
           onChange={(event) => setHome(event.target.value)} />
@@ -308,7 +308,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
         {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章 ↗")}</a></p>}
         {writable && <div className="note-card-search"><input value={link}
           placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)} />
-          <Button disabled={saving || !link.trim()} onClick={() => linkArticle(link)}>{ui("手动关联")}</Button></div>}
+          <Button disabled={!link.trim()} lock={saving} onClick={() => linkArticle(link)}>{ui("手动关联")}</Button></div>}
       </details>
       </div>
       <details className="note-linking"><summary>{uiFormat("关联题目 · {0} 题", [note.cards.length])}</summary>
