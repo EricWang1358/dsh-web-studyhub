@@ -143,6 +143,9 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       assert.match(saved, /^# 复习全书 · SA \{#book\}\n\n## 查找 \{#lookup\}/);
       assert.match(saved, /## 答案册 \{#answers\}/);
       assert.doesNotMatch(saved, /<!--|studyhub:\/\/|只给自己看/);
+      // The dialog's sections keep their gap.
+      assert.equal(await dialog.locator('.book-export__body').evaluate(element => window.getComputedStyle(element).display), 'grid', `${width}px: the sections are laid out`);
+      assert.ok(parseFloat(await dialog.locator('.book-export__body').evaluate(element => window.getComputedStyle(element).rowGap)) > 0, `${width}px: and do not touch`);
       // The files of the folder come as one .zip: book.yaml first, then the book's files, in one press.
       const zipped = page.waitForEvent('download');
       await dialog.locator('.book-export__zip').click();

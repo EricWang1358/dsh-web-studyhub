@@ -525,7 +525,11 @@
       padding-left: 0;
     }
     .book-export__body,
-    .book-export__estimate,
+    .book-export__estimate {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
     .book-export__estimate {
       gap: var(--space-1);
     }
