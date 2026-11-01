@@ -285,11 +285,11 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
             </div>
           </Panel>
           <div className="exam-toolbar">
-            <Button disabled={busy || expired || !run.index} onClick={() => move(-1)}>{ui("← 上一题")}</Button>
-            <Button variant="primary" disabled={busy || expired || run.index >= run.total - 1} onClick={() => move(1)}>{ui("下一题 →")}</Button>
+            <Button disabled={expired || !run.index} lock={busy} onClick={() => move(-1)}>{ui("← 上一题")}</Button>
+            <Button variant="primary" disabled={expired || run.index >= run.total - 1} lock={busy} onClick={() => move(1)}>{ui("下一题 →")}</Button>
           </div>
           <div className="exam-foot">
-            <Button disabled={busy} onClick={expired || !unanswered ? submit : () => setConfirming(true)}>
+            <Button lock={busy} onClick={expired || !unanswered ? submit : () => setConfirming(true)}>
               {expired ? ui("重试交卷") : ui("交卷")}
             </Button>
             <p className="muted small">
