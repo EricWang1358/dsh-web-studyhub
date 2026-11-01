@@ -12,6 +12,7 @@
     "tests/course-book-crunch-browser.test.mjs",
     "tests/course-book-edit-browser.test.mjs",
     "tests/course-book-export-browser.test.mjs",
+    "tests/course-book-find-browser.test.mjs",
     "tests/course-book-frame-browser.test.mjs",
     "tests/course-book-page-browser.test.mjs",
     "tests/course-book-qa-browser.test.mjs",
