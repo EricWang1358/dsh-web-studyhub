@@ -41,8 +41,8 @@ import aiCss from './book-ai.css';
    back to the same point. The place is kept for the next visit (ui/book/use-book-place.js); what the main chat wrote shows up when the page comes back into view. */
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
-    onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's). */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme }) {
+    onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's); holdLeave(ask): the app's leave gate, held while the editor has unsaved text. */
+export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme, holdLeave }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
   const { call, act, notify } = useStudy();
@@ -90,10 +90,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   useEffect(() => { setTocOver(false); }, [narrow]);
   const tocOpen = narrow ? tocOver : tocWide;
   useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
-  // Leaving the editor with unsaved text asks first (the 完成 button, 回到总纲, another course; closing or reloading the tab: the browser's own question).
-  // The sidebar and the other pages do not ask yet (no navigation guard in the app; S4 saves as you type).
-  const guard = useCallback(then => (view === 'edit' && dirty ? setLeaving(() => then) : then()), [view, dirty]);
-  useUnsavedWarning(view === 'edit' && dirty);
+  // Leaving the editor with unsaved text asks first: the 完成 button and another course here, every other way out of the page through the app's one leave gate
+  // (holdLeave, ui/app/navigator.js createLeaveGate), closing or reloading the tab through the browser's own question.
+  const unsaved = view === 'edit' && dirty;
+  const guard = useCallback(then => (unsaved ? setLeaving(() => then) : then()), [unsaved]);
+  useEffect(() => (unsaved ? holdLeave?.(go => setLeaving(() => go)) : undefined), [unsaved, holdLeave]);
+  useUnsavedWarning(unsaved);
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
   // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
@@ -105,7 +107,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
   const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
   const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building ? undefined : rebuild.undo}
-    onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
+    onBack={onBack} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
   // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.
   const structureAt = where.current;

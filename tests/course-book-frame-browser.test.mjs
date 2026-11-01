@@ -195,6 +195,34 @@ Written by the main chat at ${width}.` });
     await ask.waitFor({ state: 'detached' });
     assert.match(await page.locator('.book-page h1').innerText(), /ArchSS/, 'still the same course');
     assert.match(await page.locator('.book-editor .cm-content').innerText(), /Unsaved words\./, 'the text is kept');
+    // Every other way out passes the same gate (#489): the sidebar and 回到总纲 ask, and staying keeps the page and the text.
+    for (const leave of [() => page.locator('.side-nav .nav', { hasText: '任务' }).first().click(), () => page.getByRole('button', { name: '回到总纲' }).first().click()]) {
+      await leave();
+      await ask.waitFor({ timeout: 30000 });
+      assert.equal(await page.locator('.book-editor').count(), 1, 'nothing left yet');
+      await ask.getByRole('button', { name: '继续编辑' }).click();
+      await ask.waitFor({ state: 'detached' });
+      assert.match(await page.locator('.book-editor .cm-content').innerText(), /Unsaved words\./, 'the text is kept');
+    }
+    // Saved, nothing to lose: the sidebar goes at once, and the words are in the book when the learner comes back.
+    await page.locator('.book-editor__save').click();
+    await page.locator('.book-editor__forked').waitFor({ timeout: 30000 });
+    await page.locator('.side-nav .nav', { hasText: '任务' }).first().click();
+    await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+    await fromSidebar(page);
+    assert.match(await page.locator('.book-page').innerText(), /Unsaved words\./, 'what was saved is in the book');
+    await more(page, /^编辑这个知识点/);
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type(' Then more.');
+    // Discarding on the sidebar's question goes where the click was going, and the text is gone.
+    await page.locator('.side-nav .nav', { hasText: '任务' }).first().click();
+    await ask.getByRole('button', { name: '丢掉改动，离开' }).click();
+    await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+    await fromSidebar(page);
+    assert.doesNotMatch(await page.locator('.book-page').innerText(), /Then more\./, 'what was discarded is not in the book');
+    await more(page, /^编辑这个知识点/);
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Unsaved words.');
     await pick();
     await ask.getByRole('button', { name: '丢掉改动，离开' }).click();
     await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 30000 });
