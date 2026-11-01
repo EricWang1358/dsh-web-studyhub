@@ -1,7 +1,7 @@
 import StudyBoundary from "./StudyBoundary.jsx";
 import { Dialog, InlineMessage } from "../components/index.js";
 import { getUiLanguage, ui, uiFormat } from "../i18n.js";
-// ui/host.jsx awaits this before apply: an English interface renders only once its catalogue is loaded.
+// ui/host.jsx awaits this inside its lazy workspace loader: an English interface renders only once its catalogue is loaded.
 export { uiLanguageReady } from "../i18n.js";
 import { browserStorage } from "../storage.js";
 import React from "react";
@@ -45,6 +45,7 @@ const guidedSessions = new Map(),
   guidedSessionListeners = new Set();
 // Across every poller of this page: an intent that arrives after a newer one was shown is dropped (#537).
 const panelIntents = createIntentGuard();
+const workspaceHosts = new WeakMap();
 function deliverGuidedStudy(sessionId, sessionIntent) {
   studyReferences.delete(sessionId);
   handoff.delete(sessionId);
@@ -106,7 +107,10 @@ function useHostStore(store) {
   return React.useSyncExternalStore(subscribe, read, read);
 }
 
-export function apply(ctx, registerDocumentLearning) {
+/** Install StudyHub's stylesheets and conversation poller once per host context, returning its seat components and card opener. */
+export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn, label) } = {}) {
+  const existing = workspaceHosts.get(ctx);
+  if (existing) return existing;
   const makeCall = sessionId => {
     const call = createStudyCall({ rpc: { call: (...args) => {
       const connection = ctx.get('connection');
@@ -115,21 +119,12 @@ export function apply(ctx, registerDocumentLearning) {
     } } }, sessionId);
     return (action, args = {}) => call(action, { ...args, uiLanguage: getUiLanguage() });
   };
-  registerDocumentLearning(ctx, makeCall, async (sessionId, link) => {
+  const openCard = async (sessionId, link) => {
     const run = await makeCall(sessionId)('review.start', { mode: 'path', fresh: true,
       scope: [{ deckId: link.deckId, cardId: link.cardId }] });
     deliverRun(sessionId, run.id); ctx.get('sidebarRight')?.openTab('study-workspace');
-  });
-  ctx.effect(
-    () =>
-      ctx.locale.register("study-workspace", {
-        zh: { tab: "StudyHub", page: "StudyHub", guide: "用你的资料出题、练习与间隔复习" },
-        en: { tab: "StudyHub", page: "StudyHub", guide: "Cited flashcards, quizzes and spaced review from your materials" },
-      }),
-    "study copy",
-  );
-  const t = ctx.locale.bind("study-workspace");
-  ctx.effect(() => {
+  };
+  effect(() => {
     const el = document.createElement("style");
     el.textContent = css + "\n" + accentCss + "\n" + themesCss + "\n" + bridgeCss + '\n' + audioDashboardCss + '\n' + hostCss;
     document.head.appendChild(el);
@@ -137,7 +132,7 @@ export function apply(ctx, registerDocumentLearning) {
   }, "study styles");
   // A Study seat may unmount when the learner returns to chat. Remember its
   // session transport so a later conversation command can open the sidebar.
-  ctx.effect(() => {
+  effect(() => {
     let polling = false;
     const poll = async () => {
       if (polling || !ctx.get("sidebarRight")?.openTab) return;
@@ -397,6 +392,29 @@ export function apply(ctx, registerDocumentLearning) {
       ? <div className="study-seat-frame" data-conversation-composer-overlay="">{seat}</div>
       : seat;
   }
+  const SidebarSeat = (props) => <Seat {...props} placement="sidebar" />;
+  const startSession = () => ctx.get("uiWorkspace")?.startSession?.();
+  function StudyHubPage({ sessionId }) {
+    if (!sessionId) return <NoSessionNotice onStart={ctx.get("uiWorkspace")?.startSession ? startSession : undefined} />;
+    return <div className="studyhub-page"><Seat sessionId={sessionId} placement="page" /></div>;
+  }
+  const created = { Seat, SidebarSeat, StudyHubPage, makeCall, openCard };
+  workspaceHosts.set(ctx, created);
+  return created;
+}
+
+export function apply(ctx, registerDocumentLearning) {
+  const { Seat, SidebarSeat, StudyHubPage, makeCall, openCard } = createWorkspaceHost(ctx);
+  registerDocumentLearning(ctx, makeCall, openCard);
+  ctx.effect(
+    () =>
+      ctx.locale.register("study-workspace", {
+        zh: { tab: "StudyHub", page: "StudyHub", guide: "用你的资料出题、练习与间隔复习" },
+        en: { tab: "StudyHub", page: "StudyHub", guide: "Cited flashcards, quizzes and spaced review from your materials" },
+      }),
+    "study copy",
+  );
+  const t = ctx.locale.bind("study-workspace");
   ctx.slots.inject("conversation.view", () =>
     ctx.slots.register(
       {
@@ -409,7 +427,6 @@ export function apply(ctx, registerDocumentLearning) {
       Seat,
     ),
   );
-  const SidebarSeat = (props) => <Seat {...props} placement="sidebar" />;
   ctx.inject(["sidebarRightTabs"], (c) => {
     const dispose = c.sidebarRightTabs.register({
       id: "study-workspace",
@@ -438,11 +455,6 @@ export function apply(ctx, registerDocumentLearning) {
      DSH's left sidebar, reachable without sending a message. Its child slot is
      `session-maybe` scoped, so like the Conversation it follows the session DSH
      has selected (DSH creates a blank one in the default workspace at boot). */
-  const startSession = () => ctx.get("uiWorkspace")?.startSession?.();
-  function StudyHubPage({ sessionId }) {
-    if (!sessionId) return <NoSessionNotice onStart={ctx.get("uiWorkspace")?.startSession ? startSession : undefined} />;
-    return <div className="studyhub-page"><Seat sessionId={sessionId} placement="page" /></div>;
-  }
   const StudyHubPanel = ({ renderSlot }) => renderSlot(PAGE_SLOT, {});
   ctx.slots.inject("main", () =>
     ctx.slots.register(

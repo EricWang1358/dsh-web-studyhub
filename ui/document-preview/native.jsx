@@ -1,22 +1,35 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat, uiMessage, useUiLanguage } from '../i18n.js';
+import { getUiLanguage, ui, uiFormat, uiLanguageReady, uiMessage, useUiLanguage } from '../i18n.js';
 import { Dialog, IconButton, InlineMessage } from '../components/index.js';
+import { createStudyCall } from '../transport.js';
 import DocumentLearning, { PassageLinks } from './DocumentLearning.jsx';
 import { safeDocumentHtml } from './DocumentViewer.jsx';
 import { annotatePassages, captureSelection, groupPassageLinks } from './selection.js';
 import css from './document-preview.css';
 
+export { uiLanguageReady };
+
 const elementOf = node => node?.nodeType === 1 ? node : node?.parentElement;
 const sameTarget = (a, b) => a && b && ['sessionId', 'paneId', 'tabId', 'occurrence', 'navigationRevision'].every(key => a[key] === b[key]);
 
-/** Contribute to the existing preview toolbar; all navigation belongs to the host. */
-export function registerDocumentLearning(ctx, makeCall, openCard) {
-  ctx.effect(() => {
+function defaultDocumentCall(ctx, sessionId) {
+  const call = createStudyCall({ rpc: { call: (...args) => {
+    const connection = ctx.get('connection');
+    if (!connection?.rpc) throw new Error('Study connection is unavailable');
+    return connection.rpc.call(...args);
+  } } }, sessionId);
+  return (action, args = {}) => call(action, { ...args, uiLanguage: getUiLanguage() });
+}
+
+/** Build the preview toolbar action and Study HTML renderer for a host context. */
+export function createDocumentLearning(ctx, makeCall, openCard, { effect = (fn, label) => ctx.effect(fn, label) } = {}) {
+  const resolveCall = makeCall || (sessionId => defaultDocumentCall(ctx, sessionId));
+  effect(() => {
     const style = window.document.createElement('style'); style.textContent = css;
     window.document.head.append(style); return () => style.remove();
   }, 'study document learning styles');
   function DocumentActions({ sessionId, absolutePath }) {
-    const call = useMemo(() => makeCall(sessionId), [sessionId]);
+    const call = useMemo(() => resolveCall(sessionId), [sessionId]);
     const [document, setDocument] = useState(null), [capture, setCapture] = useState(null), [links, setLinks] = useState([]);
     const [error, setError] = useState(''), [busy, setBusy] = useState(false), [open, setOpen] = useState(false);
     const [hasMaterials, setHasMaterials] = useState(false);
@@ -79,13 +92,10 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
       </Dialog>}
     </span>;
   }
-  ctx.effect(() => ctx.slots.inject('sidebar.right.tab.document.actions', () => ctx.slots.register({
-    name: 'sidebar.right.tab.document.actions', id: 'study-selection-learning', order: 80,
-  }, DocumentActions)), 'study document toolbar');
 
   function StudyHtml({ content, scrollportRef, resourceAddress, sessionId }) {
     const language = useUiLanguage();
-    const ref = useRef(null), call = useMemo(() => makeCall(sessionId), [sessionId]);
+    const ref = useRef(null), call = useMemo(() => resolveCall(sessionId), [sessionId]);
     const [links, setLinks] = useState([]), [group, setGroup] = useState(null), [error, setError] = useState('');
     const html = useMemo(() => safeDocumentHtml(content.kind === 'text' ? content.text : ''), [content]);
     useEffect(() => {
@@ -112,6 +122,16 @@ export function registerDocumentLearning(ctx, makeCall, openCard) {
       }} />}
     </div>;
   }
+
+  return { DocumentActions, StudyHtml };
+}
+
+/** Contribute to the existing preview toolbar; all navigation belongs to the host. */
+export function registerDocumentLearning(ctx, makeCall, openCard) {
+  const { DocumentActions, StudyHtml } = createDocumentLearning(ctx, makeCall, openCard);
+  ctx.effect(() => ctx.slots.inject('sidebar.right.tab.document.actions', () => ctx.slots.register({
+    name: 'sidebar.right.tab.document.actions', id: 'study-selection-learning', order: 80,
+  }, DocumentActions)), 'study document toolbar');
   ctx.inject(['documentPreviews'], c => {
     const metadata = c.documentPreviews.register({ id: 'study-html', extensions: ['html', 'htm'], priority: 'extension',
       title: () => ui('学习 HTML'), loading: 'text-pages', wrap: true });

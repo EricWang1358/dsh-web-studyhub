@@ -1,5 +1,5 @@
 import { build, transform } from 'esbuild';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hostReact, shimJsxRuntime } from './host-react.mjs';
@@ -29,6 +29,22 @@ export const englishOnDemand = {
   },
 };
 
+/* Inline browserStorage from ui/storage.js into client.js (#630, #115) so ui/host.jsx uses the single storage module without
+   creating a shared static chunk import on client.js. */
+const hostEntry = resolve(root, 'ui/host.jsx'), storageModule = resolve(root, 'ui/storage.js');
+const entryStorageInline = {
+  name: 'entry-storage-inline',
+  setup(build) {
+    build.onResolve({ filter: /^\.\/storage\.js$/ }, args =>
+      args.importer === hostEntry && resolve(args.resolveDir, args.path) === storageModule
+        ? { path: storageModule, namespace: 'entry-storage-inline' }
+        : undefined);
+    build.onLoad({ filter: /.*/, namespace: 'entry-storage-inline' }, async args => ({
+      loader: 'js', resolveDir: resolve(root, 'ui'), contents: await readFile(args.path, 'utf8'),
+    }));
+  },
+};
+
 /** Emit real ES module boundaries as DSH's package-local classic factories.
  * DSH serves sibling client.*.js files and supplies require.async('./client.*.js').
  * Its require is synchronous, so static dependencies must arrive before the
@@ -39,7 +55,7 @@ export async function buildHostClient({ outdir = resolve(root, 'lib'), write = t
     absWorkingDir: root, entryPoints: { client: 'ui/host.jsx' }, outdir,
     chunkNames: 'client.[name]-[hash]', bundle: true, splitting: true,
     write: false, metafile: true, format: 'esm', platform: 'browser',
-    plugins: [hostReact, englishOnDemand], loader: { '.css': 'text' }, jsx: 'transform',
+    plugins: [hostReact, englishOnDemand, entryStorageInline], loader: { '.css': 'text' }, jsx: 'transform',
     minify: true, logLevel: 'silent',
   });
   const outputs = new Map(Object.entries(result.metafile.outputs).map(([path, output]) => [basename(path), output]));
