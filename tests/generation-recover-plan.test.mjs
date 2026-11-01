@@ -16,9 +16,19 @@ const draft = (id, state = 'running', extra = {}) => ({ id, title: `Draft ${id}`
 test('what the disk holds: live runs come back, ended or old ones leave nothing', () => {
   const runs = [{ id: 'a', status: 'running', at: NOW }, { id: 'b', status: 'complete', at: NOW }, { id: 'c', status: 'interrupted', at: NOW - RUN_RECORD_WINDOW_MS - 1 }, { id: 'd', status: null, at: NOW }, { id: 'e', status: 'cancelling', at: NOW },
     { id: 'f', status: 'queued', at: NOW }, { id: 'g', status: 'pausing', at: NOW }, { id: 'h', status: 'interrupted', at: NOW - RUN_RECORD_WINDOW_MS }];
-  const plan = planRunRecovery({ runs, now: NOW });
+  const plan = planRunRecovery({ runs, now: NOW, drafts: [] });
   assert.deepEqual(plan.restore.map(run => run.id), ['a', 'e', 'f', 'g', 'h']);
   assert.deepEqual(plan.forget.map(run => run.id), ['b', 'c', 'd']);
+});
+
+test('a run whose draft closed is over, whatever its record says: the process died between the closing write and the last word of the job', () => {
+  const closed = draft('a', 'complete'); closed.editorial.generation.runId = 'run-1';
+  const open = draft('b', 'running'); open.editorial.generation.runId = 'run-2';
+  const runs = [{ id: 'm1', kind: 'generation', jobId: 'run-1', status: 'running', at: NOW }, { id: 'm2', kind: 'generation', jobId: 'run-2', status: 'running', at: NOW },
+    { id: 'm3', kind: 'supplement', jobId: 'run-1', status: 'running', at: NOW }, { id: 'm4', kind: 'generation', status: 'running', at: NOW }];
+  const plan = planRunRecovery({ runs, now: NOW, drafts: [closed, open] });
+  assert.deepEqual(plan.forget.map(run => run.id), ['m1']);
+  assert.deepEqual(plan.restore.map(run => run.id), ['m2', 'm3', 'm4'], 'a supplement still has its publication to do; a record that names no run is judged as before');
 });
 
 test('which drafts come back as an interrupted job: running or paused with rounds to do, no job on it, not archived', () => {

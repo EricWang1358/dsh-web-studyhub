@@ -20,10 +20,10 @@ test('what the last process left is brought back once: live runs return, finishe
   const runs = { scan: async () => [{ id: 'a', kind: 'generation', status: 'running', at: fresh }, { id: 'b', kind: 'generation', status: 'complete', at: fresh },
     { id: 'c', kind: 'generation', status: 'interrupted', at: old }, { id: 'd', kind: 'supplement', status: 'queued', at: fresh }, { id: 'e', kind: 'generation', status: 'interrupted', at: fresh }],
   forget: async id => { forgotten.push(id); } };
-  const forgotten = [], restored = [], memory = new Map();
+  const forgotten = [], restored = [], memory = new Map(), read = async () => ({ drafts: [] });
   const restore = async run => { if (run.id === 'e') throw new Error('unreadable'); restored.push(run.id); };
-  assert.equal(await recoverRuns({ runs, restore, memory, now }), 2);
+  assert.equal(await recoverRuns({ runs, restore, read, memory, now }), 2);
   assert.deepEqual([restored, forgotten], [['a', 'd'], ['b', 'c']]);
-  assert.equal(await recoverRuns({ runs, restore, memory, now }), 0, 'the console reads the job list all the time: the disk is looked at once');
-  assert.equal(await recoverRuns({ runs, restore, memory: new Map(), now }), 2, 'a new runtime is a new process');
+  assert.equal(await recoverRuns({ runs, restore, read, memory, now }), 0, 'the console reads the job list all the time: the disk is looked at once');
+  assert.equal(await recoverRuns({ runs, restore, read, memory: new Map(), now }), 2, 'a new runtime is a new process');
 });
