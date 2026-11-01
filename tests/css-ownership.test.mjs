@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import React from 'react';
 import { classOwners, readAllow, subjectClasses } from '../scripts/qa/css-ownership.mjs';
+import { ROOT } from '../scripts/qa/css-tools.mjs';
 
 // #151: a class is styled in one stylesheet. The allow-list is the debt that is left; it may only shrink.
 const owners = classOwners();
@@ -52,4 +56,49 @@ test('a state class written on another class is that class\'s own modifier, not 
   assert.deepEqual(subjectClasses('.a .is-done'), ['is-done'], 'a bare state class is still a subject of its own');
   assert.deepEqual(subjectClasses('.is-a.is-b'), ['is-a', 'is-b'], 'only state classes: nothing to attribute them to');
   assert.deepEqual(subjectClasses('.sh-btn.sh-btn--primary'), ['sh-btn', 'sh-btn--primary'], 'BEM modifiers are classes with their own home');
+});
+
+test('OralExam injects review-results.css in the DSH host before any Review run has mounted', async () => {
+  const realRequire = createRequire(import.meta.url);
+  const compiled = await build({
+    stdin: { contents: `export { default as OralExam } from './ui/OralExam.jsx'; export { default as ResultBreakdown } from './ui/ResultBreakdown.jsx';`, resolveDir: ROOT },
+    bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent',
+  });
+  const effects = [];
+  const styles = [];
+  const head = {
+    querySelector: (sel) => { const m = /^style\[data-([\w-]+)\]$/.exec(sel); return m ? styles.find((el) => el.attrs.has(`data-${m[1]}`)) || null : null; },
+    appendChild: (el) => { styles.push(el); return el; },
+  };
+  const hooks = {
+    ...React,
+    useState: (init) => [typeof init === 'function' ? init() : init, () => {}],
+    useRef: (val) => ({ current: val }),
+    useMemo: (fn) => fn(),
+    useCallback: (fn) => fn,
+    useContext: () => ({ call: async () => null, act: async () => null, busy: false }),
+    useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
+    useEffect: () => {},
+    useLayoutEffect: () => {},
+    useInsertionEffect: (fn) => { effects.push(fn); },
+    useId: () => 'oral-test',
+  };
+  hooks.default = hooks;
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)((id) => id === 'react' ? hooks : realRequire(id), mod, mod.exports);
+  const prevDoc = globalThis.document;
+  globalThis.document = { head, createElement: () => ({ attrs: new Map(), textContent: '', setAttribute(k, v) { this.attrs.set(k, v); } }) };
+  try {
+    mod.exports.OralExam({ data: { root: 'r', decks: [] } });
+    while (effects.length) effects.shift()();
+    const oralCss = styles.map((el) => el.textContent).join('\n');
+    assert.match(oralCss, /\.oral-report \.result-weak\s*\{/, 'OralExam must inject the sheet that owns .oral-report .result-weak');
+    assert.match(oralCss, /\.oral-report \.result-details\s*\{/, 'OralExam must inject the sheet that owns .oral-report .result-details');
+    assert.equal(styles.filter((el) => el.attrs.has('data-review-results')).length, 1, 'uses the review-results marker');
+    mod.exports.ResultBreakdown({ total: 2, answered: 2, correct: 1 });
+    while (effects.length) effects.shift()();
+    assert.equal(styles.filter((el) => el.attrs.has('data-review-results')).length, 1, 'shares one <style data-review-results> element with ResultBreakdown');
+  } finally {
+    globalThis.document = prevDoc;
+  }
 });

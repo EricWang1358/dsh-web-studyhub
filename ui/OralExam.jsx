@@ -2,6 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./oral-exam.css";
+import resultCss from "./review-results.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
@@ -20,6 +21,7 @@ const FIELDS = ['answer', 'followupAnswer'];
 
 export default function OralExam({ data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
   useInjectCss(css, "study-oral-exam");
+  useInjectCss(resultCss, "review-results");
   const { call } = useStudy();
   const exam = useExamRun({ kind: 'oral', call, initialRunId, onLocation });
   const { run, report, busy, error, loading } = exam;
