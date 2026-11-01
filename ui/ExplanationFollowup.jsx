@@ -118,7 +118,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
           {questions.map((text) => (
             <Button key={text} size="sm" wrap align="start" lock={!!pending} onClick={() => ask(text)}>{text}</Button>
           ))}
-          <Button size="sm" disabled={pending === "answer"} aria-expanded={custom}
+          <Button size="sm" lock={pending === "answer"} aria-expanded={custom}
             onClick={() => setCustom(!custom)}>{ui("你的疑问")}</Button>
           {custom && (
             <form onSubmit={(event) => { event.preventDefault(); ask(question); }}>

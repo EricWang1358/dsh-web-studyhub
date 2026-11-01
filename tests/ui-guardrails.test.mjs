@@ -159,7 +159,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       'const choice = () => <div><span className="inline-check" /><span role="switch" aria-checked="false">x</span></div>;',
       'const save = () => <div><Button onClick={go}>{saving ? ui("保存中…") : ui("保存")}</Button><Button busy={saving} busyLabel={ui("保存中…")}>{ui("保存")}</Button></div>;',
       'const tip = () => <div><span title="what this means">12</span><Button title="Open">x</Button><input title="t" /></div>;',
-      // Disabled while the app works, with no word for which button is working: four counted (a busy flag in any part of the expression, also core.busy and !!plan.busy).
+      // Disabled while the app works, with no word for which button is working: three counted (a busy flag in any part of the expression, also core.busy and !!plan.busy); a raw button is the rawButton rule's.
       // busy= / lock= say it, a Stop button (disabled when not running) and an unrelated condition are not it.
       'const lock = () => <div><Button disabled={busy}>a</Button><button disabled={!text || saving}>b</button><Button lock={busy}>c</Button>',
       '<Button busy={busy} disabled={busy}>d</Button><Button disabled={!running}>e</Button><IconButton label="x" disabled={invalid} />',
@@ -179,7 +179,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     const total = (rule) => Object.values(found.metrics[rule]).reduce((a, b) => a + b, 0);
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
       rawButton: 3, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 2, fontWeightNumeric: 2, radiusPx: 1, radius999: 1,
-      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1, bareBusyDisabled: 4, hostTitle: 1, chatHandOff: 1, chatOldWording: 2,
+      zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1, bareBusyDisabled: 3, hostTitle: 1, chatHandOff: 1, chatOldWording: 2,
       handSwitch: 1, legacySwitchClass: 2,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);

@@ -83,15 +83,6 @@
     },
     "longLine": {},
     "bareBusyDisabled": {
-      "ui/CourseActive.jsx": 1,
-      "ui/Exam.jsx": 1,
-      "ui/ExplanationFollowup.jsx": 1,
-      "ui/FlipCard.jsx": 1,
-      "ui/Inbox.jsx": 1,
-      "ui/ReviewNavigator.jsx": 1,
-      "ui/Skeleton.jsx": 1,
-      "ui/WorkflowLesson.jsx": 1,
-      "ui/WorkflowPortal.jsx": 1,
       "ui/book/BookAiBlock.jsx": 2,
       "ui/book/BookEditor.jsx": 2,
       "ui/book/BookQaButton.jsx": 1,
@@ -106,11 +97,7 @@
       "ui/document-preview/practice/ReadingReturn.jsx": 1,
       "ui/document-preview/reader/OutlineAssist.jsx": 1,
       "ui/document-preview/reader/SegmentDialog.jsx": 2,
-      "ui/document-preview/translation/TranslationMenu.jsx": 1,
-      "ui/review/QuestionRun.jsx": 3,
-      "ui/study-map/DeckRow.jsx": 2,
-      "ui/study-map/DeskIntro.jsx": 1,
-      "ui/study-map/NotebookDirectory.jsx": 3
+      "ui/document-preview/translation/TranslationMenu.jsx": 1
     },
     "hostTitle": {
       "ui/AudioDashboard.jsx": 3,

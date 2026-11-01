@@ -25,7 +25,7 @@ export const RULES = {
   rawColor: { issue: '#156', why: 'raw #hex / rgb() / hsl() outside token definitions', fix: 'use a colour token or color-mix() of tokens (only #000 inside mask-image is allowed)' },
   spacingPx: { issue: '#148', why: 'raw px padding/margin/gap', fix: 'use var(--space-*)' },
   longLine: { issue: '#156', why: 'CSS line longer than 400 characters (minified)', fix: 'format the stylesheet (one declaration per line)' },
-  bareBusyDisabled: { issue: '#153', why: '<Button> or <button> disabled by a busy flag (disabled={busy}, disabled={!ok || saving}): the pressed one gets no spinner, no aria-busy, no held width',
+  bareBusyDisabled: { issue: '#153', why: '<Button> or <IconButton> disabled by a busy flag (disabled={busy}, disabled={!ok || saving}; a raw <button> is the rawButton ratchet): the pressed one gets no spinner, no aria-busy, no held width',
     fix: '<Button lock={busy}>: it disables while the flag is up and shows the spinner only on the button that was pressed' },
   hostTitle: { issue: '#86', why: 'title="..." on a plain text element (span, div, li, small, p ...): it never shows on touch or keyboard focus', fix: '<Tooltip layer content={...}><span tabIndex={0}>...</span></Tooltip>; a title that only repeats a truncated label may stay on its Button' },
   busyLabelSwap: { issue: '#153', why: '<Button> whose label swaps to a working text without the busy prop (no spinner, no aria-busy, no held width)', fix: '<Button busy={working} busyLabel={ui(\'正在…\')}>' },
@@ -303,7 +303,7 @@ function scanJsxFile(file, source, metrics, found) {
     for (const el of buttonElements(text)) if (!/\bbusy=/.test(el.open) && LABEL_SWAP.test(el.body)) swaps++;
     bump('busyLabelSwap', swaps);
     let bare = 0;
-    for (const el of buttonElements(text, 'Button|IconButton|button')) if (!/\b(?:busy|lock)=/.test(el.open) && waitsOnFlag(disabledExpression(el.open))) bare++;
+    for (const el of buttonElements(text)) if (!/\b(?:busy|lock)=/.test(el.open) && waitsOnFlag(disabledExpression(el.open))) bare++;
     bump('bareBusyDisabled', bare);
     bump('hostTitle', (text.match(/<(?:span|div|li|small|p|td|th|strong|i|b|time|mark|em|dd|dt|section|article)(?=[\s>])[^>]*\stitle=/g) || []).length);
     bump('rawChoiceInput', (text.match(/\btype=(?:"(?:checkbox|radio)"|'(?:checkbox|radio)'|\{\s*['"](?:checkbox|radio)['"]\s*\})/g) || []).length);
