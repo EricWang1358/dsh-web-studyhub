@@ -51,7 +51,7 @@ export function DailyRecapPanel(props) {
     {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), onClick: onModelSettings } : undefined}>
       {ui('整理合集需要先配置模型；已经写好的合集仍可阅读。')}</InlineMessage>}
     {error && <div className="daily-recap-error" role="alert"><p>{ui('这一步没有成功。可以再试一次。')}
-      <Button size="sm" variant="link" disabled={!!working} onClick={recap.refresh}>{ui('重新加载状态')}</Button></p>
+      <Button size="sm" variant="link" lock={!!working} onClick={recap.refresh}>{ui('重新加载状态')}</Button></p>
       <details><summary>{ui('查看原因')}</summary><p>{error}</p></details>
       {/模型|model|provider/i.test(error) && onModelSettings && <Button size="sm" onClick={onModelSettings}>{ui('检查 AI 模型设置')}</Button>}
     </div>}
