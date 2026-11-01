@@ -4,6 +4,7 @@ import { Badge, Button, DisclosureToggle, Hint, InlineMessage, LoadingState, fol
 import { EMPTY_NOTEBOOKS } from './map-model.js';
 import { readText, writeText } from '../storage.js';
 import { joinMeta } from '../format.js';
+import { useStudy } from '../study-context.jsx';
 
 const OPEN_KEY = 'study-nb-dir-open';
 const readOpen = () => readText(OPEN_KEY) !== '0';
@@ -11,7 +12,8 @@ const readOpen = () => readText(OPEN_KEY) !== '0';
 /* Cross-workspace notebook directory. Entries are links, not copies: each
    published notebook's study data stays in its own workspace, and clicking a
    foreign entry opens a fresh conversation there. */
-export default function NotebookDirectory({ notebooks, error, busy, onPublish, onUnpublish, onOpen, refresh, onSearch }) {
+export default function NotebookDirectory({ notebooks, error, onPublish, onUnpublish, onOpen, refresh, onSearch }) {
+  const { busy } = useStudy();
   const [open, setOpen] = useState(readOpen);
   const [query, setQuery] = useState(''), [searching, setSearching] = useState(false), [results, setResults] = useState(null), [searchError, setSearchError] = useState('');
   const searchRequest = useRef(0);

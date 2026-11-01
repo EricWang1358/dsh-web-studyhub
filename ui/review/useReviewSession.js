@@ -402,7 +402,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     return { ...destination, label: continueLabel(destination), note: continueNote(destination), go };
   }, [run, act, enterRun, refs]);
   const coach = {
-    call, autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
+    autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
     onContinue: () => continueTo(null).go(),
     onReviewWeak: () => act('review.weak.start', { runId: run.id }, enterRun),
     canShortcut, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,

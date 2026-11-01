@@ -83,7 +83,8 @@ function stepCopy(step) {
   }
 }
 
-function Step({ step, index, setup, on, busy, next, onLater }) {
+function Step({ step, index, setup, on, next, onLater }) {
+  const { busy } = useStudy();
   const copy = stepCopy(step), action = stepAction(step, setup, on);
   const done = step.status === "done";
   return (
@@ -107,12 +108,12 @@ function Step({ step, index, setup, on, busy, next, onLater }) {
 
 /**
  * @param data      the library snapshot
- * It reads `call` (only to ask what the search extension reports, when the course has a big book) and `busy` from useStudy().
+ * It reads `call` (only to ask what the search extension reports, when the course has a big book) from useStudy().
  * @param on        { import(course), sources(), index(), generate(course), draft(id), course(id), skeleton() }
  * For previews and tests: later, initialOpen, doneSeen, retrieval.
  */
 export default function SetupChecklist({ data, on = {}, later: laterProp, initialOpen = false, doneSeen: doneSeenProp, retrieval: retrievalProp = null }) {
-  const { call, busy } = useStudy();
+  const { call } = useStudy();
   useInjectCss(css, "study-setup-checklist");
   const root = data?.root, course = data?.focus?.course;
   const [later, setLater] = useState(() => laterProp ?? readSetupLater(root, course));
@@ -155,7 +156,7 @@ export default function SetupChecklist({ data, on = {}, later: laterProp, initia
   const list = (
     <>
       <ol className="setup-steps">
-        {active.map((step, index) => <Step key={step.id} step={step} index={index} setup={setup} on={on} busy={busy} next={step === first} onLater={putOff} />)}
+        {active.map((step, index) => <Step key={step.id} step={step} index={index} setup={setup} on={on} next={step === first} onLater={putOff} />)}
       </ol>
       {later.length > 0 && <p className="setup-later"><Button size="sm" variant="link" onClick={restore}>{uiFormat("恢复已推后的 {0} 项", [later.length])}</Button></p>}
     </>

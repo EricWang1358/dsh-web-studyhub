@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button, Checkbox, ConfirmDialog, Field, Hint, Icon, Select, SettingsSection, useToast } from '../components/index.js';
 import { formatDateTime } from '../format.js';
 import { invalidate } from '../host-query.js';
+import { useStudy } from '../study-context.jsx';
 
 const GOALS = [['', '未设定'], ['exam', '应付考试'], ['interview', '面试求职'], ['work', '工作中落地'], ['explore', '兴趣拓展']];
 
@@ -23,7 +24,8 @@ export function coachActions({ act, call, setProfile }) {
 }
 
 /** 陪学: what the profile changes, the goal, a short profile with a compact feedback row, and a confirmed reset. */
-export function CoachSection({ profile, busy, act, call, setProfile, confirmForget = false }) {
+export function CoachSection({ profile, setProfile, confirmForget = false }) {
+  const { busy, act, call } = useStudy();
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [confirm, setConfirm] = useState(confirmForget);

@@ -1,9 +1,11 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Field, SettingsSection, TextInput, useToast } from '../components/index.js';
+import { useStudy } from '../study-context.jsx';
 
 /** Import an existing local library (study-lib-spar), keeping the review records that can move. */
-export default function LegacyImportSection({ busy, act, legacy, setLegacy }) {
+export default function LegacyImportSection({ legacy, setLegacy }) {
+  const { busy, act } = useStudy();
   const toast = useToast();
   return (
     <SettingsSection title={ui('导入 study-lib-spar')} lead={ui('从已有本地学习库导入，保留可迁移的复习记录。')}>

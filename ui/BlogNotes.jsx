@@ -229,7 +229,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
       {editing && storageWarning && <InlineMessage tone="warning">{ui('浏览器暂存不可用，请及时保存草稿。')}</InlineMessage>}
     </PageHeader>
     {!note && <div className="note-list">
-      <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} call={call} act={act} busy={busy} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
+      <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
       <details className="note-linking"><summary>{ui("挑题成文")}</summary>
         <label>{ui("笔记标题")}<input value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
           onChange={(event) => setNewTitle(event.target.value)} /></label>

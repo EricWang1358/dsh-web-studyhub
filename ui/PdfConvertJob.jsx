@@ -15,6 +15,7 @@ import { HandOff } from './hand-off/HandOff.jsx';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
 import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
+import { useStudy } from './study-context.jsx';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
@@ -98,8 +99,9 @@ export function PdfDetail({ job, expandChunks }) {
  * `act(action, args)` (single-flight, from the app) or `call` sends the stop / retry / dismiss; `onChanged` refreshes the data afterwards;
  * `onGenerate(sourceIds)` adds 用它出题 to a finished conversion.
  */
-export function PdfConvertJobs({ data, jobs, ids, call, act, onOpenSources, onOpenSettings, onChanged, onGenerate, expandChunks }) {
+export function PdfConvertJobs({ data, jobs, ids, act, onOpenSources, onOpenSettings, onChanged, onGenerate, expandChunks }) {
   useInjectCss(css, 'study-mineru');
+  const { call } = useStudy();
   const list = (jobs || data?.jobs || []).filter(isConvertJob).filter(job => !ids || ids.includes(job.id));
   const send = (action, args) => (act ? act(action, args) : call(action, args));
   return list.length ? <div className="cjc-list pdf-convert-jobs">{list.map(job => <PdfConvertJob key={job.id} job={job} send={send} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onChanged={onChanged} onGenerate={onGenerate} expandChunks={expandChunks} />)}</div> : null;
@@ -348,9 +350,10 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
  * initialShown / now (previews and tests). 删除记录 and 清空历史 ask nothing: the rows leave at once and the notice offers 撤销 (ui/undoable.js); the host
  * forgets them when that notice leaves.
  */
-export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
+export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, onOpenSettings, onChanged, collapsible = false, defaultOpen = false, hideWhenEmpty = false,
   initialRecords = null, initialShown, now: fixedNow, className, ...rest }) {
   useInjectCss(css, 'study-mineru');
+  const { call } = useStudy();
   const [records, setRecords] = useState(initialRecords), [readError, setReadError] = useState(''), [problem, setProblem] = useState('');
   const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [working, setWorking] = useState(''), [editing, setEditing] = useState(null);
   const alive = useRef(true), heading = useRef(null);

@@ -24,7 +24,8 @@ const bundle = await build({ stdin: { contents: `
       run: { id: 'r', mode: 'path', complete: true, index: 4, total: 4, questions: 4, answered: 4, correct: 2, selfAnswered: 0, weakTopics: [], weakScopes: {}, scope: [],
         card: { id: 'q', kind: 'quiz', topic: 'Context', prompt: 'p', options: [] }, ...(trail === 'reader' ? { reading } : {}) },
       data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: '今日学习', busy: false,
-      coachProps: { call: async () => debrief, debrief, autopilot: true, onPractice: noop, onContinue: () => { window.goes++; },
+      call: async (action) => (action === 'coach.debrief' ? debrief : {}), // the debrief asks the app's services (useStudy)
+      coachProps: { debrief, autopilot: true, onPractice: noop, onContinue: () => { window.goes++; },
         destination: { kind: 'path', reason: 'continuing', label: '继续学习 →', go: () => { window.goes++; }, note: '' } },
       ...(trail === 'book' ? { contextKind: 'book', contextPlace: '1.2.2 Architect the Solution', contextReturnLabel: '回到复习全书', onReturnContext: noop } : {}),
       ...(trail === 'reader' ? { contextKind: 'library', contextReturnLabel: '返回学习库首页', onReturnContext: noop, onReturnToReading: noop } : {}),

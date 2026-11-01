@@ -203,11 +203,11 @@ test('发给主会话 from the book through the real host adapter: the four rece
         seal: await slip.locator(`.sh-seal[data-o="${outcome}"]`).count(), action: await slip.locator('.sh-toast__action').allInnerTexts() };
     };
 
-    // An empty composer: setDraft only, the message in it; the conversation is revealed (the page placement asks the layout for it). The receipt 填, no action.
+    // An empty composer: setDraft only, the message in it; the conversation is revealed (the page placement asks the layout for it). The receipt 填, with 去主会话 (#488).
     await reset({});
     await sendFromPanel();
     let receipt = await receiptOf('filled');
-    assert.deepEqual(receipt, { title: words.filled, line: language === 'zh' ? '看一眼，再由你按发送' : 'Check it, then press send', seal: 1, action: [] }, tag);
+    assert.deepEqual(receipt, { title: words.filled, line: language === 'zh' ? '看一眼，再由你按发送' : 'Check it, then press send', seal: 1, action: [words.chat] }, tag);
     let state = await page.evaluate(() => ({ log: window.dshLog.slice(), text: window.composerText, copied: window.copied.slice() }));
     assert.deepEqual(state.log, ['setDraft', 'selectPanel:null'], `${tag}: setDraft and nothing else`);
     assert.match(state.text, words.ask, `${tag}: the learner's sentence, their words, then the notes`);
@@ -220,9 +220,10 @@ test('发给主会话 from the book through the real host adapter: the four rece
     for (const token of tokens.filter(Boolean)) assert.equal(inks.includes(token), false, `${tag}: ${token} is not on a receipt`);
     await shot('receipt-filled');
     if (width === 1280 && theme === 'light') {
-      // it leaves by itself after its 5 s, and a newer receipt takes the same slip in place
-      await page.waitForTimeout(5600);
-      assert.equal(await slip.count(), 0, `${tag}: the filled receipt left after 5 s`);
+      // it leaves by itself after its 8 s, and a newer receipt takes the same slip in place
+      await page.mouse.move(2, 2);
+      await page.waitForTimeout(8600);
+      assert.equal(await slip.count(), 0, `${tag}: the filled receipt left after 8 s`);
     }
 
     // The learner's own words in the composer: nothing is written; the message is copied; 去主会话 is there because this host can show the chat.

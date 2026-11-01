@@ -6,16 +6,17 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const compiled = await build({
-  stdin: { contents: "export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
+  stdin: { contents: "export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { ReviewToolbar, setUiLanguage } = module.exports;
+const { ReviewToolbar, StudyServicesContext, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 
 const baseRun = { id: "r", index: 0, total: 2, mode: "path", card: { id: "q", kind: "quiz", topic: "T", prompt: "P?", options: [] } };
-const render = (run, props = {}) => renderToStaticMarkup(React.createElement(ReviewToolbar, {
-  run: { ...baseRun, ...run }, busy: false, onToggleHelp() {}, onAsk() {}, onImprove() {}, onSlay() {}, onNote() {}, onReviewAction() {}, ...props }));
+// `busy` is the app's (useStudy): the toolbar reads it from the services, so the tests give it there.
+const render = (run, { busy = false, ...props } = {}) => renderToStaticMarkup(React.createElement(StudyServicesContext.Provider, { value: { busy } }, React.createElement(ReviewToolbar, {
+  run: { ...baseRun, ...run }, onToggleHelp() {}, onAsk() {}, onImprove() {}, onSlay() {}, onNote() {}, onReviewAction() {}, ...props })));
 const nextButton = (html) => html.match(/<button[^>]*data-usage="review.next"[^>]*>/)?.[0] || "";
 
 test("an unanswered question says why 下一题 is unavailable, in words next to the button", () => {

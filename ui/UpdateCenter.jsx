@@ -14,6 +14,7 @@ import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
 import { isNewerVersion } from '../lib/semver.js';
 import css from './update.css';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
+import { useStudy } from './study-context.jsx';
 
 let snapshot = { update: null, checking: false };
 const listeners = new Set();
@@ -120,7 +121,7 @@ function CopyAddress({ address }) {
   async function copy() { if (!await write()) document.getElementById('study-update-address')?.select?.(); }
   return (
     <div className="update-address">
-      <input id="study-update-address" readOnly value={address} aria-label={ui('安装地址')} onFocus={event => event.target.select()} />
+      <input className="update-address__input" id="study-update-address" readOnly value={address} aria-label={ui('安装地址')} onFocus={event => event.target.select()} />
       <Button size="sm" variant={copied ? 'secondary' : 'primary'} icon={copied ? 'check' : undefined} onClick={copy}>
         {copied ? ui('已复制') : ui('复制安装地址')}
       </Button>
@@ -161,7 +162,8 @@ function Installed({ phase, host }) {
 }
 
 /** The upgrade dialog: version, release notes, and one-click or guided upgrade. */
-export function UpdateDialog({ update, call, host, onClose, initialPhase = null }) {
+export function UpdateDialog({ update, onClose, initialPhase = null }) {
+  const { call, host } = useStudy();
   useInjectCss(css, 'study-update');
   const toast = useToast();
   const available = canUpgrade(update);
@@ -230,7 +232,8 @@ export function UpdateDialog({ update, call, host, onClose, initialPhase = null 
 }
 
 /** Settings › 关于与更新. */
-export function UpdateSettings({ update, call, onOpen, checking = false, extension, onExtension, onCheck, initialCheckError = '', initialSaveError = '' }) {
+export function UpdateSettings({ update, onOpen, checking = false, extension, onExtension, onCheck, initialCheckError = '', initialSaveError = '' }) {
+  const { call } = useStudy();
   useInjectCss(css, 'study-update');
   const [saving, setSaving] = useState(false), [checkError, setCheckError] = useState(initialCheckError), [saveError, setSaveError] = useState(initialSaveError);
   // The check compares StudyHub only; the search extension is installed once and is not updated with it.
@@ -273,7 +276,7 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
         : update?.error ? <InlineMessage tone="warning" action={retry}>{failure(update.error, false)}</InlineMessage> : null}
       {!checkError && status && (status.tone === 'hint' ? <Hint>{status.text}</Hint> : <InlineMessage tone={status.tone}>{status.text}</InlineMessage>)}
       {saveError && <InlineMessage tone="error" onDismiss={() => setSaveError('')}>{ui('没能保存这个设置，已恢复原来的选择。')}</InlineMessage>}
-      {extension?.installed && <ExtensionUpdateNotice call={call} status={{ extension }} onStatus={onExtension} />}
+      {extension?.installed && <ExtensionUpdateNotice status={{ extension }} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>
         <Checkbox checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} label={ui('自动检查更新')} />
@@ -287,7 +290,8 @@ export function UpdateSettings({ update, call, onOpen, checking = false, extensi
    same page (conversation tab + right sidebar) never opens a hidden copy. */
 
 /** Connected settings section for the Settings page. */
-export function UpdateSettingsPanel({ call, host }) {
+export function UpdateSettingsPanel() {
+  const { call } = useStudy();
   const { update, checking } = useUpdateStore();
   const [open, setOpen] = useState(false);
   useEffect(() => { if (!snapshot.update && !snapshot.checking) refreshUpdate(call); }, [call]);
@@ -295,13 +299,14 @@ export function UpdateSettingsPanel({ call, host }) {
   const retrieval = useRetrievalStatus({ call });
   const extension = retrieval.data?.extension;
   return <>
-    <UpdateSettings update={update} call={call} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh} />
-    {open && update && <UpdateDialog update={update} call={call} host={host} onClose={() => setOpen(false)} />}
+    <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh} />
+    {open && update && <UpdateDialog update={update} onClose={() => setOpen(false)} />}
   </>;
 }
 
 /** Sidebar chip and its dialog. The first mounted App asks once per page load. */
-export default function UpdateCenter({ call, host, compact = false }) {
+export default function UpdateCenter({ compact = false }) {
+  const { call } = useStudy();
   const { update } = useUpdateStore();
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -311,6 +316,6 @@ export default function UpdateCenter({ call, host, compact = false }) {
   }, [call]);
   return <>
     <UpdateChip update={update} compact={compact} onOpen={() => setOpen(true)} />
-    {open && update && <UpdateDialog update={update} call={call} host={host} onClose={() => setOpen(false)} />}
+    {open && update && <UpdateDialog update={update} onClose={() => setOpen(false)} />}
   </>;
 }

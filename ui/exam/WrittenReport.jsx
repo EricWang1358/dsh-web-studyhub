@@ -67,7 +67,7 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
           {onPracticeTopic && <Button variant="link" size="sm" iconEnd="arrow-right" className="exam-topic-practice" disabled={!!pathNote} lock={busy}
             onClick={() => onPracticeTopic(topic)}>{ui('练这个主题')}</Button>}
         </li>)}</ol> : <p className="muted">{ui('本次已答题全部答对。')}</p>}
-        {report.weakScope?.length > 0 && <Button busy={busy} disabled={!!pathNote} onClick={onQueueWeak}>{uiFormat('练习答错与未答的 {0} 道 →', [report.weakScope.length])}</Button>}
+        {report.weakScope?.length > 0 && <Button className="exam-weak-queue" busy={busy} disabled={!!pathNote} onClick={onQueueWeak}>{uiFormat('练习答错与未答的 {0} 道 →', [report.weakScope.length])}</Button>}
         {pathNote && <p className="muted exam-path-note">{pathNote}</p>}
       </div>
 

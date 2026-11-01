@@ -91,7 +91,7 @@ test('the 更多 menu: 置顶 on a row that is not pinned; 取消置顶, 上移,
 
 test('the menu in English, and no pin entries on an archived row or where the page offers no way to pin', () => {
   const item = { sourceIds: ['a'], key: 'source:a', format: 'md', title: 'x', usedBy: [], courses: [], pages: [], archived: false };
-  const menu = (over = {}) => renderToStaticMarkup(h(lib.RowMenuItems, { item, busy: false, onChangeCourse: noop, onRemove: noop, ...over }));
+  const menu = ({ busy = false, ...over } = {}) => renderToStaticMarkup(withStudy(lib.StudyServicesContext, h(lib.RowMenuItems, { item, onChangeCourse: noop, onRemove: noop, ...over }), { busy }));
   assert.doesNotMatch(menu(), /置顶/, 'with no handler there is no entry');
   const pinned = { pinned: true, first: false, last: false };
   inLanguage('en', () => {

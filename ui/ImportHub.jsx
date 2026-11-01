@@ -522,14 +522,14 @@ export default function ImportHub({
           rejectAction={rejections => handOff.action('import.file', rejectedFilesInput(rejections, { area: '添加资料' }), { what: '让主会话转换这些文件再导入；文件在输入框里用 @ 选' })}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />}
         {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={settingsFor}
-          call={call} courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course}
+          runnable courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course}
           conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} onConversionStarted={conversionStarted} />}
         {/* A PDF with no text: the same staged converter, one press from started. Nothing runs before that press. */}
-        {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain available={convertible} call={call} file={scannedItem.file} courses={coursesOf(scannedItem.file)}
+        {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain available={convertible} runnable file={scannedItem.file} courses={coursesOf(scannedItem.file)}
           onOpenSettings={settingsFor} onStarted={conversionStarted} why={scannedItem.error} scanned /></div>}
         {staged && <>
           <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
-          <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} call={call} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}
+          <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}
           jobs={data?.jobs} historyOpen={conversionHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route, converter: job.converter })}
           onChanged={() => onImported?.()} />
         </>}

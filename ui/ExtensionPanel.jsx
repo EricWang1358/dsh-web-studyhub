@@ -9,6 +9,7 @@ import css from './large-documents.css';
 import { refreshRetrievalStatus, setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useLiveEffect } from './use-async.js';
 import ExtensionNotStarted, { resetLine } from './ExtensionNotStarted.jsx';
+import { useStudy } from './study-context.jsx';
 
 /* The one-click path to searching a large textbook (WP28b): install the search
    extension, then build the index of a course. No file is edited and no command is
@@ -31,7 +32,8 @@ function StartupWait({ refresh }) {
 }
 
 /** Install (or update) the extension: the approval step, the busy state, the error. Shared by the panel and the update notice. */
-function useExtensionInstall({ call, onStatus, initialApproval = null, initialDone = null }) {
+function useExtensionInstall({ onStatus, initialApproval = null, initialDone = null }) {
+  const { call } = useStudy();
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [approval, setApproval] = useState(initialApproval), [restart, setRestart] = useState(!!initialDone?.restart), [done, setDone] = useState(!!initialDone);
   // Which run of DSH the update was made in: when the host reports another one, the restart it asked for has happened.
   const [boot, setBoot] = useState(initialDone?.boot);
@@ -63,8 +65,9 @@ function ApprovalDialog({ approval, busy, install, close }) {
 /** An installed extension older than the one this StudyHub ships (DSH's update of StudyHub does not touch it): say so, and update it in one click.
  *  Stays mounted once the update finished, so the outcome (and whether DSH must restart) is not lost when the status refresh
  *  clears `outdated`: the parent keeps rendering it for any installed extension. */
-export function ExtensionUpdateNotice({ call, status, onStatus, initialDone = null }) {
-  const flow = useExtensionInstall({ call, onStatus, initialDone });
+export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) {
+  const { call } = useStudy();
+  const flow = useExtensionInstall({ onStatus, initialDone });
   const extension = status?.extension;
   // After an update that needs a restart, ask the host now and then which run it is: a different one means DSH was restarted, and the notice has done its work.
   const waiting = flow.done && flow.restart && !!flow.boot;
@@ -94,7 +97,8 @@ export function ExtensionUpdateNotice({ call, status, onStatus, initialDone = nu
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
-function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
+function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
+  const { call } = useStudy();
   const list = names(courses);
   const [course, setCourse] = useState(defaultCourse && list.includes(defaultCourse) ? defaultCourse : '');
   const [plan, setPlan] = useState(initialPlan), [run, setRun] = useState(initialRun), [starting, setStarting] = useState(false), [problem, setProblem] = useState('');
@@ -170,13 +174,14 @@ function IndexBuilder({ call, courses, defaultCourse, onDone, initialPlan, initi
 }
 
 /**
- * Props: call, status (retrieval.status incl. `extension`, `companion`), onStatus(next) after an install,
+ * Props: status (retrieval.status incl. `extension`, `companion`), onStatus(next) after an install,
  * removal or finished build, courses + defaultCourse (for the index), and for previews and tests
  * initialApproval (package names), initialPlan, initialRun.
  */
-export default function ExtensionPanel({ call, status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
+export default function ExtensionPanel({ status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
-  const { busy, error, approval, restart, done, boot, install, setApproval } = useExtensionInstall({ call, onStatus, initialApproval });
+  const { call } = useStudy();
+  const { busy, error, approval, restart, done, boot, install, setApproval } = useExtensionInstall({ onStatus, initialApproval });
   const [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
   if (!status || !extension) return null;
@@ -204,10 +209,10 @@ export default function ExtensionPanel({ call, status, onStatus, courses = [], d
           : stopped ? <ExtensionNotStarted status={status} refresh={refresh} repair={() => call('retrieval.index.repair', {})} /> : <StartupWait refresh={refresh} />}
         {running && reset?.pages > 0 && <InlineMessage tone="warning">{resetLine(reset)}</InlineMessage>}
         {restart && !restartDone(boot, status.boot) && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
-        <ExtensionUpdateNotice call={call} status={status} onStatus={onStatus} />
+        <ExtensionUpdateNotice status={status} onStatus={onStatus} />
       </>}
       {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
-      {running && <IndexBuilder call={call} courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
+      {running && <IndexBuilder courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
       {extension.canInstall && extension.installed && <div>
         <Button size="sm" variant="quiet" lock={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}

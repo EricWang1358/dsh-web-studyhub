@@ -110,7 +110,8 @@ const courseMeta = course => {
 };
 
 /** One compact course row: name, counts, a duplicate hint with its merge action, and 设置. */
-function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMerge, busy, current, all = [] }) {
+function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMerge, current, all = [] }) {
+  const { busy } = useStudy();
   const meta = courseMeta(course);
   return <div className={`course-list__item${current ? ' is-current' : ''}${isParked(course) ? ' is-parked-row' : ''}`}>
     <span className="course-list__text">
@@ -171,7 +172,8 @@ const entryText = entry => entry.type === 'group'
  * onMerge(intoId, fromIds), busy, currentId, recent (name → last used, for the
  * shared ranking: current, recently used, busiest), defaultOpenGroups, defaultQuery.
  */
-export function CourseList({ courses = [], onOpen, onMerge, onCreate, busy, currentId, recent, defaultOpenGroups = [], defaultQuery = '' }) {
+export function CourseList({ courses = [], onOpen, onMerge, onCreate, currentId, recent, defaultOpenGroups = [], defaultQuery = '' }) {
+  const { busy } = useStudy();
   useInjectCss(css, 'study-course-settings');
   const currentName = courses.find(course => course.id === currentId)?.name;
   const entries = useMemo(() => groupCourseNames(rankCourses({ courses, current: currentName, recent })), [courses, currentName, recent]);
@@ -185,7 +187,7 @@ export function CourseList({ courses = [], onOpen, onMerge, onCreate, busy, curr
     ? (entry.chapters.some(item => item.course.id === currentId) || (entry.parent.id && entry.parent.id === currentId)) && entryKey(entry)
     : entry.course.id === currentId && entryKey(entry)).find(Boolean) || undefined;
   const renderEntry = entry => {
-    if (entry.type === 'course') return <CourseRow course={entry.course} duplicates={dupesOf(entry.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
+    if (entry.type === 'course') return <CourseRow course={entry.course} duplicates={dupesOf(entry.course)} onOpen={onOpen} onMerge={onMerge}
       current={entry.course.id === currentId} all={courses} />;
     const words = query.trim().normalize('NFKC').toLowerCase().split(/\s+/).filter(Boolean);
     const hit = item => words.every(word => item.course.name.normalize('NFKC').toLowerCase().includes(word));
@@ -209,7 +211,7 @@ export function CourseList({ courses = [], onOpen, onMerge, onCreate, busy, curr
       </div>
       {expanded && <ul className="course-list__chapters" aria-label={uiFormat('「{0}」的章节', [entry.name])}>
         {chapters.map(item => <li key={item.course.id || item.course.name} className={item.depth > 1 ? 'course-list__chapter--nested' : undefined} style={item.depth > 1 ? { '--depth': item.depth - 1 } : undefined}>
-          <CourseRow course={item.course} label={item.chapter} duplicates={dupesOf(item.course)} onOpen={onOpen} onMerge={onMerge} busy={busy}
+          <CourseRow course={item.course} label={item.chapter} duplicates={dupesOf(item.course)} onOpen={onOpen} onMerge={onMerge}
             current={item.course.id === currentId} all={courses} />
         </li>)}
       </ul>}
@@ -250,10 +252,10 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
 }
 
 /**
- * Props: data (snapshot: courses, sources, focus), courseId, act (App's act;
- * called with rethrow so errors stay in the panel), busy, onClose.
+ * Props: data (snapshot: courses, sources, focus), courseId, onClose; act (called with rethrow so errors stay in the panel) and busy come from useStudy().
  */
-export default function CourseSettings({ data, courseId, act, busy = false, onClose, mergeFrom = [] }) {
+export default function CourseSettings({ data, courseId, onClose, mergeFrom = [] }) {
+  const { act, busy } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-course-settings');
   const courses = useMemo(() => data?.courses || [], [data?.courses]);

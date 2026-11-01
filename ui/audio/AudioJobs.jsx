@@ -7,6 +7,7 @@ import JobFollowUp from "../JobFollowUp.jsx";
 export { parallelNote, reuseNote } from "./audio-notes.js";
 export { reasoningNote } from "../EffortSelect.jsx";
 import { isActiveJob, isAudioJob } from "../../lib/job-status.js";
+import { useStudy } from "../study-context.jsx";
 
 /* The background audio imports on the pages that start them (the add-source form, the sources page, the reader): each one is the compact job card, and
    everything more (every file, the parallel timeline, the live output, the log, the controls) is in the 任务 console, which 「查看详情」 opens with the
@@ -71,11 +72,12 @@ function primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings }) {
 export const consoleLink = (job, app) => ({ label: ui("查看详情"), run: () => app?.nav?.show?.task?.(contractOf(job).jobId) });
 
 /** Progress and results of audio imports; shown in the add-source form and at the top of the sources page. A finished one offers 用它出题 when the page can (onGenerate(sourceIds)). */
-export function AudioJobs({ data, busy, act, onOpenSources, onLegacyRetry, onOpenSettings, onGenerate }) {
+export function AudioJobs({ data, onOpenSources, onLegacyRetry, onOpenSettings, onGenerate }) {
+  const { act } = useStudy();
   const jobs = (data.jobs || []).filter(isAudioJob), app = useContext(AppContext) || {};
   // A card whose one button is something else (the transcript, the settings, the recording again) keeps a quiet way to the console, where the run's stage, time, tokens and output are.
   return jobs.length ? <div className="cjc-list audio-jobs">{jobs.map((job) => { const primary = primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings });
     return <JobFollowUp key={job.id} job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
       <CompactJobCard job={job} links={primary || job.status === "complete" ? [consoleLink(job, app)] : undefined}
-        onStop={act ? () => act("job.control", { jobId: job.batchId || job.id, action: "cancel" }) : undefined} primary={primary} /></JobFollowUp>; })}</div> : null;
+        onStop={() => act("job.control", { jobId: job.batchId || job.id, action: "cancel" })} primary={primary} /></JobFollowUp>; })}</div> : null;
 }

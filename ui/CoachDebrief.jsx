@@ -9,6 +9,7 @@ import { Button, ErrorState, StackedBar } from "./components/index.js";
 import { useLiveEffect } from './use-async.js';
 import { setQueryData, useHostQuery } from './host-query.js';
 import { RESULT_COUNTDOWN_SECONDS } from './review/session-logic.js';
+import { useStudy } from './study-context.jsx';
 
 /* 一轮结束的「雷霆建议」：认知层次分布 + 规则洞察 + 模型一句话。
    服务端按已答题数缓存；App 在最后一题答完时已预取，这里通常直接有数据。
@@ -21,8 +22,9 @@ const LEVELS = [["recall", "记忆"], ["concept", "概念辨析"], ["apply", "�
 const LEVEL_DOT = { recall: "decor-faint", concept: "warn", apply: "ok" };
 const COUNTDOWN = RESULT_COUNTDOWN_SECONDS;
 
-export default function CoachDebrief({ run, call, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, busy, nextShown = false, onwardShown = false, plain = false, debriefModel = true, onSettings, onProfileSettings }) {
+export default function CoachDebrief({ run, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, nextShown = false, onwardShown = false, plain = false, debriefModel = true, onSettings, onProfileSettings }) {
   useInjectCss(css, "study-coach");
+  const { call, busy } = useStudy();
   const [debrief, setDebrief] = useState(initial || null),
     [error, setError] = useState(""),
     [left, setLeft] = useState(null),

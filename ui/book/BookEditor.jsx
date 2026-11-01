@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Badge, Button, InlineMessage, Select } from '../components/index.js';
+import { Badge, Button, Combobox, InlineMessage } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { bookFiles, fileText } from './model.js';
 import { forgetUnsaved, keepUnsaved, readUnsaved } from './unsaved-draft.js';
@@ -77,7 +77,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
     <section className="book-editor" aria-label={ui('原文')}>
       <div className="book-editor__bar">
         {/* While there are unsaved edits the file stays chosen: save them or 放弃改动 first, so nothing is lost by switching. */}
-        <Select className="book-editor__file" aria-label={ui('要改的文件')} value={file} options={options} disabled={dirty} onChange={onPick} />
+        <Combobox className="book-editor__file" label={ui('要改的文件')} aria-label={ui('要改的文件')} searchPlaceholder={ui('搜索文件')} value={file} options={options} disabled={dirty} onChange={value => onPick(value)} />
         {book.files[file]?.forked && <Badge size="sm" tone="warning" className="book-editor__forked">{ui('已改动')}</Badge>}
         <Button size="sm" variant="primary" icon="check" disabled={!dirty || saving} busy={saving} onClick={save} className="book-editor__save">{ui('保存')}</Button>
         <Button size="sm" variant="quiet" disabled={!dirty || saving} onClick={() => setDraft(base.current.text)}>{ui('放弃改动')}</Button>

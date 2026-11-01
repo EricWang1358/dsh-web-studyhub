@@ -71,6 +71,9 @@ const KILL_MOTION = '*, *::before, *::after { animation: none !important; transi
 
 export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 1280, height = 900 }) {
   scrubProcessEnv();
+  /* The preview server shuffles a practice run in this process: fix its random sequence too, so two captures of one build match. */
+  let seed = 20251101;
+  Math.random = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const work = join(tmpdir(), `css-fp-${process.pid}-${Date.now()}`);
   await mkdir(work, { recursive: true });
   const library = join(work, 'library');
@@ -90,6 +93,12 @@ export async function capture({ dist, out, lang = 'zh', theme = 'dark', width = 
   try {
     const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, locale: lang === 'en' ? 'en-US' : 'zh-CN', colorScheme: theme });
     await context.addInitScript(([l, t]) => { try { localStorage.setItem('study-ui-language', l); localStorage.setItem('study-theme', t); } catch { /* blocked */ } }, [lang, theme]);
+    /* One fixed random sequence in the page, so the order of a practice run and of a question's options is the same in every capture
+       (without it two captures of the same build differ in the review states). */
+    await context.addInitScript(() => {
+      let a = 20251101;
+      Math.random = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    });
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(String(error)));
     await page.goto(server.url);

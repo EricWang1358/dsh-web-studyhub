@@ -10,14 +10,15 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 
 // Exercise the components' event handlers and effect lifetimes without a DOM renderer.
 // The separate public-UI browser check covers layout and the native file input.
-let active;
+let active, studyContext;
 const realRequire = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export { BackupSection } from './ui/settings/BackupSection.jsx';
   export { default as CourseSettings } from './ui/CourseSettings.jsx';
   export { default as ExtensionsSettings } from './ui/ExtensionsSettings.jsx';
   export { DisplaySettings } from './ui/reading-settings/ReadingSettings.jsx';
-  export { resetHostQueries } from './ui/host-query-store.js';`, resolveDir: process.cwd() },
+  export { resetHostQueries } from './ui/host-query-store.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 const hook = (initial) => { const index = active.cursor++; if (!(index in active.slots)) active.slots[index] = initial(); return [index, active.slots[index]]; };
@@ -30,7 +31,7 @@ const effect = (callback, deps) => {
 const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = hook(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useContext: () => globalThis.__toast ?? null, useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `test-${active.cursor}`)[1],
+  useContext: context => (context === studyContext ? globalThis.__study ?? null : globalThis.__toast ?? null), useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `test-${active.cursor}`)[1],
   useMemo: (create, deps) => { const [, slot] = hook(() => ({ deps: undefined, value: undefined }));
     if (!slot.deps || !deps || deps.some((value, i) => value !== slot.deps[i])) { slot.value = create(); slot.deps = deps; }
     return slot.value; },
@@ -38,10 +39,12 @@ const hooks = { ...React,
 };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(name => name === 'react' ? hooks : realRequire(name), module, module.exports);
 const { BackupSection, CourseSettings, ExtensionsSettings, DisplaySettings, resetHostQueries } = module.exports;
+studyContext = module.exports.StudyServicesContext;
 function renderHook(component, props) {
   const owner = { cursor: 0, slots: [], effects: [] };
   return {
-    render(nextProps) { if (nextProps) props = { ...props, ...nextProps }; active = owner; owner.cursor = 0; try { return component(props); } finally { active = null; } },
+    render(nextProps) { if (nextProps) props = { ...props, ...nextProps }; active = owner; owner.cursor = 0; globalThis.__study = props; // the services a page reads from useStudy()
+      try { return component(props); } finally { active = null; globalThis.__study = null; } },
     effects() { for (const callback of owner.effects.splice(0)) callback(); },
     unmount() { for (const slot of owner.slots) slot?.cleanup?.(); },
   };

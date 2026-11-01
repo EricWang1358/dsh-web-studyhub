@@ -112,6 +112,10 @@
   /* 原始 PDF (PageAsk.jsx): which page is asked stands where a selected passage would. */
   .study-page-ask__scope { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: 0 0 var(--space-2); }
   .study-page-ask__step { display: inline-flex; gap: var(--space-1); }
+  .study-page-ask__range { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 0 0 var(--space-2); }
+  .study-page-ask__range-open { margin: 0 0 var(--space-2); }
+  .study-page-ask__range-note { flex-basis: 100%; margin: 0 0 var(--space-2); }
+  .study-page-ask__cut { display: grid; justify-items: start; gap: var(--space-2); }
   .study-page-ask form { margin-bottom: var(--space-2); }
   .reader-learning:empty { display: none; }
   /* The page presets: an even two-column grid, every chip as wide as its column, so a narrow panel shows two tidy rows instead of ragged ones; a long label wraps inside its chip. */

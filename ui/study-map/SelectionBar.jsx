@@ -1,9 +1,11 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
+import { useStudy } from '../study-context.jsx';
 
 /** What is ticked in the tree: clear it, see it as a graph, or study exactly it. */
-export default function SelectionBar({ scope, run, busy, onClear, onShowGraph, onStart, onResume }) {
+export default function SelectionBar({ scope, run, onClear, onShowGraph, onStart, onResume }) {
+  const { busy } = useStudy();
   if (!scope.length) return null;
   return (
     <div className="selection-bar" role="region" aria-label={ui('已选内容')}>

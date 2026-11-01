@@ -8,6 +8,7 @@ import { InlineMessage } from './components/Feedback.jsx';
 import { gateTitle } from './ModelSetupGate.jsx';
 import { recapGroupKey, useDailyRecap } from './useDailyRecap.js';
 import css from './DailyRecap.css';
+import { useStudy } from './study-context.jsx';
 
 export default function DailyRecap(props) {
   return <DailyRecapPanel key={JSON.stringify([props.root, props.runId, props.course])} {...props} />;
@@ -26,7 +27,8 @@ const stateLabels = { running: '整理中', protected: '你的版本', failed: '
 
 export function DailyRecapPanel(props) {
   // `primary` false: the page already has its one filled button (the result page's next step), so this panel's buttons are plain.
-  const { busy = false, onOpenNote, onSettings, onModelSettings, primary = true } = props;
+  const { onOpenNote, onSettings, onModelSettings, primary = true } = props;
+  const { busy } = useStudy();
   useInjectCss(css, 'study-daily-recap');
   const recap = useDailyRecap(props), prefix = useId();
   const { status, error, working } = recap;

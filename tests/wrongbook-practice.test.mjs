@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { withStudy } from './helpers/study-services.mjs';
 
-const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
+const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
 const { WrongBookView, setUiLanguage } = m;
 const noop = () => {};
 const decks = [{ id: 'd4', course: 'PE', title: 'Platform Engineering｜期末综合卷04｜90题' }, { id: 'd2', course: 'PE', title: 'Platform Engineering｜期末综合卷02｜90题' }];
@@ -17,8 +18,9 @@ const items = [row('c1', 'd4', '保护状态', '熔断器？'), row('c2', 'd4', 
 const base = { data: { root: 'r', decks, focus: { course: 'PE', courses: [{ name: 'PE' }] }, model: { ready: true } }, course: 'PE', onCourse: noop,
   items, counts: { total: 5, graded: 4, self: 1, oral: 0, rubric: 0 }, loading: false, err: '', page: 0, pageSize: 100, hasMore: false,
   onReload: noop, onPage: noop, recs: null, coach: null, details: {}, onLoadDetail: noop, onPractice: noop, onPracticePrepared: noop,
-  onGenerate: async () => ({}), onOpenSettings: noop, busy: false };
-const render = (extra = {}) => renderToStaticMarkup(React.createElement(WrongBookView, { ...base, ...extra }));
+  onGenerate: async () => ({}), onOpenSettings: noop };
+// `busy` is the app's (useStudy), so a test that wants a busy page gives it through the services.
+const render = ({ busy = false, ...extra } = {}) => renderToStaticMarkup(withStudy(m.StudyServicesContext, React.createElement(WrongBookView, { ...base, ...extra }), { busy }));
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const buttons = (html) => (html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) || []);
 const labelled = (html, pattern) => buttons(html).filter((tag) => pattern.test(text(tag)));

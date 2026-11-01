@@ -55,7 +55,8 @@ const CALCULATION_STAGE_LABELS = {
 /* A failed background-assistant task. A model failure goes through the one model note: a key or model problem points to the settings
    (sending the same request again cannot work, so there is no 重新提交), a busy or slow service keeps 重新提交. Anything else is about the
    content: the plain line, 重新提交, and 改一改再提交 when there is a question to edit. */
-function AssistFailure({ task, busy, onSettings, onResubmit, onEdit }) {
+function AssistFailure({ task, onSettings, onResubmit, onEdit }) {
+  const { busy } = useStudy();
   const text = plainAssistFailure(task.message) || ui("没有拿到具体原因");
   const info = describeModelError(text);
   const resubmit = <Button variant="primary" size="sm" lock={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
@@ -391,7 +392,6 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <FlipCard
                 key={run.card.id}
                 run={run}
-                busy={busy}
                 showBack={showBack}
                 flipCard={flipCard}
                 enOn={enOn}
@@ -460,7 +460,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         <ReviewToolbar
           key={reviewEntryKey(run)}
           assistMode={assistMode}
-          run={run} busy={busy} expanded={run.revealed ? explain : hint}
+          run={run} expanded={run.revealed ? explain : hint}
           onToggleHelp={actions.toggleHelp}
           onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
           onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
@@ -473,7 +473,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onToggleEn={toggleEn}
           autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
           thumbs={coachProps && run.mode !== "exam" && (
-            <ThumbFeedback run={run} call={coachProps.call} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
+            <ThumbFeedback run={run} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
               onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
           )}
         />
@@ -548,7 +548,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </p>
           )}
           {!runningTask && lastTask?.status === "failed" && (
-            <AssistFailure task={lastTask} busy={busy} onSettings={onModelSettings}
+            <AssistFailure task={lastTask} onSettings={onModelSettings}
               onResubmit={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
                 lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}
               onEdit={(lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId))

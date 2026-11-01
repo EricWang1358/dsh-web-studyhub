@@ -1,9 +1,11 @@
 import React from 'react';
 import { Button } from './components/index.js';
 import { ui, uiFormat } from './i18n.js';
+import { useStudy } from './study-context.jsx';
 
 /** Archived decks are managed here; study controls belong to the active list. */
-export default function ArchivedDeckRow({ deck, busy, onRestore, onRemove, onManage }) {
+export default function ArchivedDeckRow({ deck, onRestore, onRemove, onManage }) {
+  const { busy } = useStudy();
   return <li className="map-deck archived-deck">
     <div className="archived-deck__info">
       <strong>{deck.title}</strong>

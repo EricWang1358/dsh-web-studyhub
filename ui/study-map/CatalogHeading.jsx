@@ -2,13 +2,15 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Menu } from '../components/index.js';
 import OutlineEntry from './OutlineEntry.jsx';
+import { useStudy } from '../study-context.jsx';
 
 /**
  * The heading of the catalogue: its title and count, 总纲 (when the course has one), 查看图谱, and the
  * housekeeping menu (整理题组, add material, manual card, JSON import, 斩题组)
  * that keeps the heading quiet. `merge` is useMergeSuggestions.
  */
-export default function CatalogHeading({ count, showArchived, hasDecks, hasSources, course, merge, busy, slain, addSource, createManual, importLibrary, manage, onShowGraph, onShowOutline }) {
+export default function CatalogHeading({ count, showArchived, hasDecks, hasSources, course, merge, slain, addSource, createManual, importLibrary, manage, onShowGraph, onShowOutline }) {
+  const { busy } = useStudy();
   const items = [
     course != null && { id: 'merge', label: ui('整理题组'), disabled: busy || merge.busy },
     { id: 'add', label: ui('添加资料'), icon: 'plus' },

@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { withStudy } from './helpers/study-services.mjs';
 
 // UI wave 1 · WP-C: empty, error and loading states (#89 #102 #103) and the chips that became Badges (#95).
 const read = async path => (await readFile(path, 'utf8')).replace(/\r\n/g, '\n');
@@ -14,6 +15,7 @@ const compiled = await build({ stdin: { contents: `
   export { WrongBookView } from './ui/WrongBook.jsx';
   export { GraphStatus } from './ui/Graph.jsx';
   export { default as EmptyStudyActions } from './ui/EmptyStudyActions.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as StudyBoundary } from './ui/host/StudyBoundary.jsx';
   export { deferredView } from './ui/deferred-view.jsx';
   export { default as IndexBadge } from './ui/IndexBadge.jsx';
@@ -42,7 +44,7 @@ test('EmptyStudyActions uses Button: one primary per state', () => {
   assert.match(create, /sh-btn--secondary[^>]*>添加资料</);
   assert.equal((create.match(/sh-btn--primary/g) || []).length, 1);
   assert.match(html(m.EmptyStudyActions, { data: { decks: [], drafts: [{}] }, onLibrary: noop }), /sh-btn--primary[^>]*>查看待发布草稿</);
-  assert.match(html(m.EmptyStudyActions, { data: { decks }, busy: true, onStart: noop }), /disabled=""/);
+  assert.match(renderToStaticMarkup(withStudy(m.StudyServicesContext, h(m.EmptyStudyActions, { data: { decks }, onStart: noop }), { busy: true })), /disabled=""/, 'busy is the app\'s (useStudy)');
   assert.doesNotMatch(create, /class="primary"/);
 });
 

@@ -60,7 +60,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
       <span className={column.done ? "board-dot is-done" : "board-dot"} aria-hidden="true" />
       {renaming
         ? <form className="board-column__rename" onSubmit={async (event) => { event.preventDefault(); if (name.trim() && await onRename(column, name.trim())) setRenaming(false); }}>
-          <input autoFocus aria-label={ui("列名称")} value={name} maxLength={80} onChange={(event) => setName(event.target.value)}
+          <input className="board-input" autoFocus aria-label={ui("列名称")} value={name} maxLength={80} onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setRenaming(false); } }} onBlur={() => setRenaming(false)} />
         </form>
         : <h2 className="board-column__title">{label}</h2>}
@@ -112,7 +112,7 @@ function NewColumn({ onAdd }) {
   const [name, setName] = useState("");
   if (!open) return <div className="board-column board-column--new"><Button variant="quiet" size="sm" icon="plus" onClick={() => setOpen(true)}>{ui("新建列")}</Button></div>;
   return <form className="board-column board-column--new is-editing" onSubmit={async (event) => { event.preventDefault(); if (name.trim() && await onAdd(name.trim())) { setName(""); setOpen(false); } }}>
-    <input autoFocus aria-label={ui("新列名称")} placeholder={ui("新列名称")} maxLength={80} value={name} onChange={(event) => setName(event.target.value)}
+    <input className="board-input" autoFocus aria-label={ui("新列名称")} placeholder={ui("新列名称")} maxLength={80} value={name} onChange={(event) => setName(event.target.value)}
       onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false); setName(""); } }} />
     <div className="board-column__rename-actions">
       <Button type="submit" variant="primary" size="sm" disabled={!name.trim()}>{ui("添加")}</Button>

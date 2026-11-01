@@ -10,6 +10,7 @@ import { useMineruState } from './use-mineru.js';
 import { STATUS_TEXT, cardState, mineruUsable } from './mineru-install-flow.js';
 import MineruInstallCard from './MineruInstallCard.jsx';
 import { useLiveEffect } from './use-async.js';
+import { useStudy } from './study-context.jsx';
 
 /* Both entry points share one staged PDF. Choosing a converter never reuploads it;
    only an explicit start hands the file to a background conversion job. The converter is chosen once, here (MinerU or Marker), and both run on this
@@ -31,17 +32,18 @@ function planHeading(adaptive, pieces) {
 }
 
 /**
- * Props: file (a File, or null to offer a picker), call(action, args), courses (the course names to file the book under),
+ * Props: file (a File, or null to offer a picker), courses (the course names to file the book under),
  * onStarted({ jobId, filename, pages, route }), onOpenSettings(section, { file }) (the file is the PDF in hand, so the caller can bring the learner back to it),
  * onFile(file) (the picker chose one; the parent keeps it), compact, and initialLocal / initialPlan (previews and tests).
  * The 解析历史 (every conversion, cloud and local, with its result) is part of the panel unless it is compact: `jobs` (the snapshot's job list, so
  * the history refreshes when a conversion ends), `onOpenSources(sourceIds)` to jump to an imported document, `onOpenJob(row)` to show a running one,
  * `historyOpen` to start with the history expanded, and initialHistory / historyNow (previews and tests).
  */
-export default function PdfConversion({ available = true, initialConverter = 'mineru', initialMarker = null, file = null, call, courses = [], onStarted, onOpenSettings, onFile, compact = false,
+export default function PdfConversion({ available = true, initialConverter = 'mineru', initialMarker = null, file = null, courses = [], onStarted, onOpenSettings, onFile, compact = false,
   initialLocal = null, initialPlan = null, className,
-  jobs, act, onOpenSources, onOpenJob, onChanged, historyOpen = false, initialHistory = null, historyNow, ...rest }) {
+  jobs, onOpenSources, onOpenJob, onChanged, historyOpen = false, initialHistory = null, historyNow, ...rest }) {
   useInjectCss(css, 'study-mineru');
+  const { call } = useStudy();
   const [converter, setConverter] = useState(initialConverter), [marker, setMarker] = useState(initialMarker);
   useEffect(() => { setConverter(initialConverter); }, [initialConverter]);
   const isMarker = converter === 'marker';
@@ -197,7 +199,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
         </div>
       </>}
 
-      {!compact && available && <PdfConvertHistory call={call} act={act} jobs={jobs} collapsible defaultOpen={historyOpen} initialRecords={initialHistory} now={historyNow}
+      {!compact && available && <PdfConvertHistory jobs={jobs} collapsible defaultOpen={historyOpen} initialRecords={initialHistory} now={historyNow}
         onOpenSources={onOpenSources} onOpenJob={onOpenJob} onOpenSettings={onOpenSettings} onChanged={onChanged} className="mineru-history" />}
 
     </section>

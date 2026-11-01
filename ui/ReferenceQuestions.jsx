@@ -5,12 +5,14 @@ import { Button, Disclosure, InlineMessage } from './components/index.js';
 import { referenceSelection } from './reference-questions.js';
 import { QUESTION_REFERENCE_LIMITS, QUESTION_REFERENCE_HARD_LIMITS, QUESTION_REFERENCE_FORMAT_DEFAULT } from '../lib/question-references.js';
 import { formatNumber } from './format.js';
+import { useStudy } from './study-context.jsx';
 
 const FORMATS = ['flexible', 'balanced', 'strict'];
 const FORMAT_LABELS = ['灵活参考', '均衡贴合', '紧密遵循'];
 
 export default function ReferenceQuestions({ sources, selected = [], evidenceIds = [], limits, onLimitsChange,
-  format = QUESTION_REFERENCE_FORMAT_DEFAULT, onFormatChange, onChange, onImport, busy = false, courses }) {
+  format = QUESTION_REFERENCE_FORMAT_DEFAULT, onFormatChange, onChange, onImport, courses }) {
+  const { busy } = useStudy();
   const state = referenceSelection(sources, selected, evidenceIds, limits, format);
   const formatIndex = FORMATS.indexOf(format);
   const values = { ...QUESTION_REFERENCE_LIMITS, ...limits };

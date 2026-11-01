@@ -31,3 +31,35 @@ export function fillComposer(conversation, actx, text) {
     return false;
   }
 }
+
+/* A picture for the box (#488, the page of a PDF): DSH keeps browser files as drafts (conversation.createDrafts, the composer's own way in for a dropped file)
+   and the box holds their ids (input.addAttachments). Nothing is typed over and nothing is sent. DSH 0.2.1-rc.2 has both faces; a host without them keeps the screenshot way. */
+export function canAttachToComposer(conversation, actx) {
+  try { return typeof conversation?.createDrafts === 'function' && typeof conversation.input.for(actx)?.addAttachments === 'function'; } catch { return false; }
+}
+
+/* The pictures this code put in a session's box, so a second press replaces them instead of piling up (ids the learner's message already took are simply gone from the box). */
+const placed = new Map();
+
+/** attachToComposer(conversation, actx, sessionId, files) -> true when the files are in the box; false (no draft left behind) when the host cannot or the box is busy. */
+export async function attachToComposer(conversation, actx, sessionId, files) {
+  if (!actx || !files?.length || !canAttachToComposer(conversation, actx)) return false;
+  let drafts = null;
+  try {
+    const input = conversation.input.for(actx);
+    drafts = await conversation.createDrafts(sessionId, files);
+    const ids = drafts.map((draft) => draft.id);
+    if (input.addAttachments(ids)) {
+      for (const id of placed.get(sessionId) || []) if (input.removeAttachment?.(id)) conversation.releaseDraftAttachment?.(id);
+      placed.set(sessionId, ids);
+      return true;
+    }
+  } catch { /* said below: false */ }
+  if (drafts) try { conversation.releaseDraftAttachments?.(drafts); } catch { /* already gone */ }
+  return false;
+}
+
+/** A line in the chat's own box (input.notify): the host has just shown the chat, so what the app's receipt says is out of sight there. */
+export function noteInComposer(conversation, actx, text) {
+  try { conversation.input.for(actx).notify?.('info', text); } catch { /* the receipt says it too */ }
+}
