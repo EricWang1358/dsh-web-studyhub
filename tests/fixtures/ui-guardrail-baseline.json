@@ -92,7 +92,6 @@
       "ui/Skeleton.jsx": 1,
       "ui/WorkflowLesson.jsx": 1,
       "ui/WorkflowPortal.jsx": 1,
-      "ui/app/page-views.jsx": 1,
       "ui/book/BookAiBlock.jsx": 2,
       "ui/book/BookEditor.jsx": 2,
       "ui/book/BookQaButton.jsx": 1,

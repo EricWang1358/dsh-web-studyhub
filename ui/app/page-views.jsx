@@ -500,7 +500,7 @@ export function StartPage() {
       <h1>{ui('把资料变成真正会的知识。')}</h1>
       <p className="intro">{ui('学习库还没有打开。它默认放在当前工作区；打不开的话，换一个目录再点「重试」。')}</p>
       <WorkspaceBindingPanel />
-      <Button variant="primary" disabled={core.busy} onClick={() => core.refresh().then(() => core.setError(''), (failure) => core.setError(failure.message))}>{ui('重试')}</Button>
+      <Button variant="primary" lock={core.busy} onClick={() => core.refresh().then(() => core.setError(''), (failure) => core.setError(failure.message))}>{ui('重试')}</Button>
     </section>
   );
 }
