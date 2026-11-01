@@ -32,8 +32,10 @@ test('generated native modules resolve through classic chunk factories and share
     'native modules must never contain a React or React DOM implementation: the host supplies both');
 
   const factories = new Map(), cache = new Map(), arrivals = [], materialized = [], lazyLoads = [];
+  let captureEffects = null;
   const hostReact = new Proxy(React, { get(target, key) {
     if (key === 'lazy') return load => { lazyLoads.push(load); return target.lazy(load); };
+    if (key === 'useEffect' && captureEffects) return fn => { captureEffects.push(fn); };
     return Reflect.get(target, key);
   } });
   const slots = [], styles = [], effects = [];
@@ -86,10 +88,26 @@ test('generated native modules resolve through classic chunk factories and share
     inject: (_services, fn) => fn(ctx),
   };
   await entry.apply(ctx);
+  assert.equal(arrivals.length, 0, 'host activation registers slots without fetching optional UI chunks (#630)');
   for (const id of ['study-workspace', 'study-selection-learning'])
     assert.ok(slots.some(slot => slot.descriptor.id === id), `missing native slot ${id}`);
   assert.ok(slots.some(slot => slot.descriptor.key === 'study-html'), 'native selection preview must remain registered');
+  const workspaceEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/host/workspace.jsx');
+  const nativeEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/document-preview/native.jsx');
+  assert.ok(workspaceEntry && nativeEntry, 'workspace and document-preview surfaces keep their lazy entry boundaries');
+  captureEffects = [];
+  renderToStaticMarkup(React.createElement(slots.find(slot => slot.descriptor.id === 'study-workspace').component, { sessionId: 's', openView() {} }));
+  renderToStaticMarkup(React.createElement(slots.find(slot => slot.descriptor.key === 'study-html').component, {
+    content: { kind: 'text', text: '<p>Notes</p>' }, resourceAddress: 'dsh-resource://file/session/s/D:/notes.html', sessionId: 's',
+  }));
+  const mountEffects = captureEffects;
+  captureEffects = null;
+  for (const runEffect of mountEffects) runEffect();
+  for (let tick = 0; tick < 40 && !(effects.includes('study conversation panel bridge') && effects.includes('study document learning styles')); tick++) {
+    await new Promise(resolve => setImmediate(resolve));
+  }
   assert.ok(effects.includes('study conversation panel bridge'));
+  assert.ok(effects.includes('study document learning styles'));
   const loadedAtBoot = [...materialized];
   const mathEntry = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === 'ui/study-math-render.js');
   assert.ok(mathEntry, 'formulas must keep their own optional renderer boundary');
