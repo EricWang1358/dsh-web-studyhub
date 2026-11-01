@@ -38,7 +38,7 @@ export function useAppCore(transportCall, host) {
      (ui/hand-off/HandOffSheet.jsx) is `handOffSheet`, drawn by App; closeHandOffSheet() forgets it. */
   const [handOffSheet, setHandOffSheet] = useState(null);
   const closeHandOffSheet = useCallback(() => setHandOffSheet(null), []);
-  const askInChat = useCallback((prompt, { said = '' } = {}) => deliverToChat({ host: hostRef.current, prompt, said, notify, openSheet: setHandOffSheet }), [notify]);
+  const askInChat = useCallback((prompt, { said = '', images } = {}) => deliverToChat({ host: hostRef.current, prompt, said, images, notify, openSheet: setHandOffSheet }), [notify]);
   // One stable bag: hooks list it as a dependency and it must never change identity.
   const refs = useMemo(() => ({ epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef }), []);
   return { refs,

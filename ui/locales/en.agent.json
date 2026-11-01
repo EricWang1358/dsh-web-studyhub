@@ -281,5 +281,8 @@
   "保存：我同意之后才用 course.save 存 plan，不要自己存；已有计划时把整份 plan 发回去。": "Saving: only after I agree, save the plan with course.save; do not save it on your own, and when a plan exists send back the whole plan object.",
   "已有计划：course.plan 里的 plan 就是现在存着的，改动前先给我看差别。": "Existing plan: the plan in course.plan is what is saved now; show me what would change before you change it.",
   "说明：计划只是建议，不是掌握的证据；最后一周每天读什么仍由期末一周（book.crunch）排。": "Note: the plan is a suggestion, not evidence of mastery; what to read each day of the final week is still planned by the final week (book.crunch).",
-  "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes."
+  "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes.",
+  "帮我看懂资料 {0} 的第 {1} 页；这一页的图在这条消息的附件里，你能看图片的话请对照着看。": "Help me understand page {1} of the material {0}; the picture of the page is attached to this message, read it alongside if you can read pictures.",
+  "页面：这一页保存的文字在 data 围栏里；图表、画成图片的公式和排版只在附图里，两者不一致时以附图为准。": "Page: the saved text of the page is in the data fence; figures, formulas drawn as pictures and the layout are only in the attached picture; if they disagree, the picture wins.",
+  "页面：这一页没有保存的文字（扫描页或图片页），内容都在附图里；你看不了图片时，直接告诉我。": "Page: the page has no saved text (a scanned or picture page), everything is in the attached picture; if you cannot read pictures, tell me so directly."
 }

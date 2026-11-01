@@ -237,6 +237,21 @@ test('原始 PDF: four preset chips say 这一页 and ask at once with their own
   assert.match(/<button[^>]*>(?:<[^>]+>)*讲解这一页/.exec(render(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, thread: asking }))))[0], /disabled/, 'they wait while an answer is coming');
 });
 
+test('原始 PDF (#488): where the host takes pictures, the panel says the picture goes along and asks for no screenshot', () => {
+  lib.setUiLanguage('zh');
+  const taking = el => React.createElement(lib.StudyServicesContext.Provider, { value: { ...services, host: { canAttachToChat: () => true } } }, el);
+  const handOff = { ...pageHandOff, loadImages: async () => [] };
+  const out = render(taking(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageHandOff: handOff }))));
+  assert.match(text(out), /想让主会话接着讲（连这一页的图一起）：/);
+  assert.match(text(out), /图表或扫描页可以「发给主会话」，这一页的图会一起放进输入框；图只在主会话能看图片时有用。/);
+  assert.doesNotMatch(text(out), /截图/, 'no screenshot on the main path');
+  const blank = render(taking(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true, sourceId: '' }), resolution: null, pageHandOff: { ...handOff, text: '' } }))));
+  assert.match(text(blank), /点按钮，这一页的图会放进主会话的输入框，由你按发送；图只在主会话能看图片时有用。/);
+  assert.doesNotMatch(text(blank), /截图/);
+  const inputs = [lib.pageHandOffInput(handOff, 'q', false), lib.pageHandOffInput(handOff, 'q', true)];
+  assert.ok(inputs.every(input => !('loadImages' in input)), 'the loader is not part of the message input');
+});
+
 test('原始 PDF: 发给主会话 is a quiet link under the answers on a page with text, and the way forward on a page without text', () => {
   lib.setUiLanguage('zh');
   const out = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ question: '图 2 说明了什么？', pageHandOff }))));

@@ -144,7 +144,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
 }
 
 /** One resolved selection feeds both grounded questions and reviewed, incremental publication (a background job). */
-export default function DocumentLearning({ call, document, capture, scope = null, jobsOnly = false, pageTotal = 0, onPage, data, annotation, usedBy, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
+export default function DocumentLearning({ call, document, capture, scope = null, jobsOnly = false, pageTotal = 0, onPage, pageImages, data, annotation, usedBy, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
   const toast = useToast();
   const [resolution, setResolution] = useState(null), [resolving, setResolving] = useState(false);
   const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [refused, setRefused] = useState(''), [refusedWhy, setRefusedWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
@@ -183,8 +183,8 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const pageMode = scope?.kind === 'page';
   // What 发给主会话 of a page carries (ui/agent-prompts/reader.js): the material's name, the page, its saved text; the typed question is added when it is sent.
   const pageText = pageMode ? document?.sources?.find(item => item.id === scope.sourceId)?.text || '' : '';
-  const pageHandOff = useMemo(() => pageMode ? { title: document?.title || document?.filename || '', page: scope.page, text: pageText } : null,
-    [pageMode, document?.title, document?.filename, scope?.page, pageText]);
+  const pageHandOff = useMemo(() => pageMode ? { title: document?.title || document?.filename || '', page: scope.page, text: pageText, ...(pageImages ? { loadImages: () => pageImages([scope.page]) } : {}) } : null,
+    [pageMode, document?.title, document?.filename, scope?.page, pageText, pageImages]);
   const [pageCut, setPageCut] = useState(null), [pageRefusal, setPageRefusal] = useState(null), cuts = useRef(new Map());
   // A question typed on one page stays with that page (it comes back there), never follows to the next one.
   const drafts = useRef(new Map()), draftKey = pageDraftKey(scope);

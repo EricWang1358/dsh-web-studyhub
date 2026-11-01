@@ -17,7 +17,7 @@ import { sessionFileAddress } from '../document-preview/selection.js';
 import { canOpenBackgroundAgent, openBackgroundAgent } from './open-agent.js';
 import { createPoller } from "../use-polling.js";
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
-import { fillComposer } from './composer-draft.js';
+import { attachToComposer, canAttachToComposer, fillComposer } from './composer-draft.js';
 import { createIntentGuard } from './intent-sequence.js';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
 export const STUDYHUB_PANEL = "studyhub";
@@ -293,6 +293,18 @@ export function apply(ctx, registerDocumentLearning) {
           // StudyHub covers the chat; switch so the draft is visible. A kept box stays behind StudyHub, whose notice says the prompt was copied.
           if (outcome === "filled") try { showChat(); } catch { /* the draft is in; the learner can switch views themselves */ }
           return outcome;
+        },
+        // The picture of a page beside the text (ui/host/composer-draft.js); only where this DSH has the attachment faces.
+        canAttachToChat: () => {
+          try { return canAttachToComposer(ctx.get("sessions")?.scope?.(sessionId)?.get("conversation")); } catch { return false; }
+        },
+        attachToChat: (files) => {
+          try {
+            const actx = ctx.get("sessions")?.scope?.(sessionId);
+            return attachToComposer(actx?.get("conversation"), actx, sessionId, files);
+          } catch {
+            return false;
+          }
         },
         onReviewState: (run) => call("panel.visible", { placement,
           sequence: ++visibleSequence.current,

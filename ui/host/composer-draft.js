@@ -31,3 +31,22 @@ export function fillComposer(conversation, actx, text) {
     return false;
   }
 }
+
+/* A picture for the box (#488, the page of a PDF): DSH keeps browser files as drafts (conversation.createDrafts, the composer's own way in for a dropped file)
+   and the box holds their ids (input.addAttachments). Nothing is typed over and nothing is sent. DSH 0.2.1-rc.2 has both faces; a host without them keeps the screenshot way. */
+export const canAttachToComposer = (conversation) => typeof conversation?.createDrafts === 'function' && typeof conversation?.input?.for === 'function';
+
+/** attachToComposer(conversation, actx, sessionId, files) -> true when the files are in the box; false (nothing left behind) when the host cannot or the box is busy. */
+export function attachToComposer(conversation, actx, sessionId, files) {
+  if (!canAttachToComposer(conversation) || !actx || !files?.length) return false;
+  try {
+    const input = conversation.input.for(actx);
+    if (typeof input?.addAttachments !== 'function') return false;
+    const drafts = conversation.createDrafts(sessionId, files);
+    if (input.addAttachments(drafts.map((draft) => draft.id))) return true;
+    conversation.releaseDraftAttachments?.(drafts);
+    return false;
+  } catch {
+    return false;
+  }
+}

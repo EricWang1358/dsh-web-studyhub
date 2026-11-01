@@ -58,22 +58,28 @@ function FirstHint({ id, dismiss, children }) {
  */
 const HAND_OFF_WHAT = '把这一页的文字和你在上面写的问题发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用';
 const HAND_OFF_WHAT_EMPTY = '把资料名和页码发给主会话。先点这里，再截图：没有主会话时这段话会占用剪贴板。截图只在你的主会话能看图片时有用';
+/* The same where the host takes a picture (#488): the page's picture goes into the box with the message, and nobody takes a screenshot. */
+const HAND_OFF_WHAT_PICTURE = '把这一页的文字、这一页的图和你在上面写的问题放进主会话的输入框。图只在你的主会话能看图片时有用';
+const HAND_OFF_WHAT_EMPTY_PICTURE = '把资料名、页码和这一页的图放进主会话的输入框。图只在你的主会话能看图片时有用';
 
 /** The input of reader.page: the page and the question typed on it; a page without saved text has no box, so nothing typed goes with it. */
-export const pageHandOffInput = (handOff, question, empty) => ({ ...handOff, question: empty ? '' : question });
+export const pageHandOffInput = ({ loadImages, ...handOff }, question, empty) => ({ ...handOff, question: empty ? '' : question });
 
 export default function PageAsk({ scope, handOff = null, onQuick, resolution, refusal = null, question = '', thread, notice = '', noticeWhy = '', cut = null, error = '', askReady = false, modelReady = false,
   list = null, sectionRef, total = 0, onPage, onQuestion, onAsk, onAskInside, onRetryNode, onToggleNode }) {
   const asking = thread.nodes.some(node => node.parentId === null && node.status === 'asking');
   const refused = refusal || (resolution && resolution.status !== 'resolved' ? resolution : null);
   // Only where an app can take it (the reader also runs as a bare preview of the host, which has no chat and no notices).
-  const canHandOff = !!useContext(StudyServicesContext) && !!handOff;
+  const services = useContext(StudyServicesContext), canHandOff = !!services && !!handOff;
+  // The picture goes along where the host takes one and this viewer can draw it; a page that cannot be drawn goes without (the receipt says so).
+  const picture = canHandOff && !!handOff.loadImages && !!services.host?.canAttachToChat?.();
+  const pictures = async () => (picture ? { images: await handOff.loadImages().catch(() => []) } : {});
   // The presets of this browser (#485): visiblePagePresets puts the built-ins not hidden before the learner's own; the dialog that adds and
   // changes them is outside the section, so it never nests a form inside the question form.
   const [presets, updatePresets] = usePagePresets(), [managing, setManaging] = useState(false);
   const locked = !askReady || asking || !!refused;
-  const handOffInput = () => pageHandOffInput(handOff, question, false);
-  const handOffEmptyInput = () => pageHandOffInput(handOff, question, true);
+  const handOffInput = async () => ({ ...pageHandOffInput(handOff, question, false), ...await pictures() });
+  const handOffEmptyInput = async () => ({ ...pageHandOffInput(handOff, question, true), ...await pictures() });
   return <>
     <section className="study-document-learning study-page-ask" aria-label={ui('按页提问')} ref={sectionRef} data-scope="page" data-tour="reader-page-ask" tabIndex={-1}>
       {list}
@@ -87,12 +93,13 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
       </div>
       <FirstHint id={READER_HINTS.page} dismiss="不再提示：问的是哪一页">{uiFormat('这里问的是第 {0} 页：用翻页按钮换页，在 PDF 里滚动不会改变要问的页。', [scope.page])}</FirstHint>
       {scope.empty ? <>
-        <InlineMessage tone="info">{canHandOff ? uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或发给主会话，截图只在主会话能看图片时有用。', [scope.page])
+        <InlineMessage tone="info">{picture ? uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或发给主会话。', [scope.page])
+          : canHandOff ? uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或发给主会话，截图只在主会话能看图片时有用。', [scope.page])
           : uiFormat('第 {0} 页没有保存文字（多半是扫描页或图片页）：换一页再问，或在「阅读」里点「看原页」看这一页的图。', [scope.page])}</InlineMessage>
         {/* The page is only a picture: the main chat can read the screenshot the learner pastes; here it is the way forward, not a side link. */}
         {canHandOff && <div className="study-page-ask__forward">
-          <p className="muted">{ui('先点按钮，再截这一页的图；主会话能看图片时，把截图粘贴到消息最后。')}</p>
-          <HandOff id="reader.page" shape="secondary" what={HAND_OFF_WHAT_EMPTY} input={handOffEmptyInput} />
+          <p className="muted">{ui(picture ? '点按钮，这一页的图会放进主会话的输入框，由你按发送；图只在主会话能看图片时有用。' : '先点按钮，再截这一页的图；主会话能看图片时，把截图粘贴到消息最后。')}</p>
+          <HandOff id="reader.page" shape="secondary" what={picture ? HAND_OFF_WHAT_EMPTY_PICTURE : HAND_OFF_WHAT_EMPTY} input={handOffEmptyInput} />
         </div>}
       </> : <>
         {refused && <InlineMessage tone="warning">{ui(pageReasons[refused.status] || PAGE_REFUSED)}</InlineMessage>}
@@ -102,13 +109,13 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
           <label>{ui('针对这一页提问')}<TextArea value={question} required rows={3} disabled={asking}
             onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('输入或粘贴问题，例如：这一页的主要结论是什么？')} /></label>
           <QuickIntents chips={visiblePagePresets(presets, PAGE_INTENTS)} disabled={locked} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} onCustom={() => setManaging(true)} />
-          <FirstHint id={READER_HINTS.presets} dismiss="不再提示：预设和发给主会话">{ui('点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。')}</FirstHint>
+          <FirstHint id={READER_HINTS.presets} dismiss="不再提示：预设和发给主会话">{ui(picture ? '点一个预设就直接提问；图表或扫描页可以「发给主会话」，这一页的图会一起放进输入框；图只在主会话能看图片时有用。' : '点一个预设就直接提问；图表或扫描页可以「发给主会话」，截图只在主会话能看图片时有用。')}</FirstHint>
           <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim() || !!refused}>{ui('依据这一页回答')}</Button>
         </form>
         {cut?.truncated && <InlineMessage tone="info">{uiFormat('这一页很长，回答只读了前 {0} 字（共 {1} 字）；后面的内容请在「阅读」里选中再问。', [cut.used, cut.chars])}</InlineMessage>}
         <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />
         {/* A quiet way out where the built-in answer cannot help: a figure, a formula drawn as a picture. */}
-        {canHandOff && <HandOff id="reader.page" shape="quiet" lead="想让主会话接着讲（主会话能看图片时可附截图）：" what={HAND_OFF_WHAT} input={handOffInput} className="study-page-ask__handoff" />}
+        {canHandOff && <HandOff id="reader.page" shape="quiet" lead={picture ? '想让主会话接着讲（连这一页的图一起）：' : '想让主会话接着讲（主会话能看图片时可附截图）：'} what={picture ? HAND_OFF_WHAT_PICTURE : HAND_OFF_WHAT} input={handOffInput} className="study-page-ask__handoff" />}
       </>}
       {/* A page without saved text has no question box to paste into. */}
       {!scope.empty && <Hint>{ui('在 PDF 里选中的文字可以复制，粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页的图，请在「阅读」里点「看原页」查看。')}</Hint>}
